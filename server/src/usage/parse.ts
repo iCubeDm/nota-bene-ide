@@ -35,6 +35,9 @@ export function isTempDir(cwd: string, tmp: readonly string[]): boolean {
   return tmp.some((d) => cwd === d || cwd.startsWith(d + path.sep));
 }
 
+/** The CLI's limit names; group 1 is the 5-hour one. Spend, budget, fast and credit limits share the wording and are no such window. */
+const CLAUDE_HIT = /(?:hit|reached) your (?:(session|5-hour)|weekly|Opus|Sonnet|Fable) limit/;
+
 /** One line of a Claude transcript. `file`: what claudeFile said. A cheap check first: most lines carry nothing here. */
 export function parseClaudeLine(line: string, file: { session: string; agent?: string }): UsageRecord[] {
   if (!line.includes('"assistant"') && !line.includes('"user"')) return [];
@@ -52,8 +55,8 @@ export function parseClaudeLine(line: string, file: { session: string; agent?: s
   }
   if (j.type !== 'assistant') return [];
   if (j.isApiErrorMessage || j.error) {
-    const text = textOf(message.content);
-    return /hit your/i.test(text) ? [{ k: 'h', ts, kind: /week/i.test(text) ? 'week' : '5h' }] : [];
+    const hit = CLAUDE_HIT.exec(textOf(message.content));
+    return hit ? [{ k: 'h', ts, kind: hit[1] ? '5h' : 'week' }] : [];
   }
   const u = obj(message.usage);
   const model = typeof message.model === 'string' ? message.model : '';
@@ -124,6 +127,8 @@ function codexCall(p: Record<string, unknown>, ts: number, c: CodexContext): Usa
   }];
 }
 
+const DAY_MINUTES = 1440;
+
 /** Only what moved: one rollout repeats the same reading on every call. */
 function codexLimits(r: Record<string, unknown>, ts: number, c: CodexContext): UsageRecord[] {
   const out: UsageRecord[] = [];
@@ -134,9 +139,9 @@ function codexLimits(r: Record<string, unknown>, ts: number, c: CodexContext): U
     seen[minutes] = pct;
     out.push({ k: 'l', ts, minutes, pct, resets: typeof w.resets_at === 'number' ? w.resets_at * 1000 : null });
   }
-  if (typeof r.rate_limit_reached_type === 'string' && r.rate_limit_reached_type) {
-    const weekly = /week|secondary/i.test(r.rate_limit_reached_type);
-    out.push({ k: 'h', ts, kind: weekly ? 'week' : '5h' });
+  if (r.rate_limit_reached_type === 'rate_limit_reached') { // the workspace_* reasons are credits and admin limits, no window
+    const [full] = [obj(r.primary), obj(r.secondary)].sort((a, b) => num(b.used_percent) - num(a.used_percent) || num(b.window_minutes) - num(a.window_minutes));
+    out.push({ k: 'h', ts, kind: num(full.window_minutes) >= DAY_MINUTES ? 'week' : '5h' });
   }
   return out;
 }

@@ -63,7 +63,7 @@ it('shows the totals, the hits, the models and the tank', async () => {
   setup();
   await screen.findByText('Review the parser');
   expect(screen.getAllByText('300.0M').length).toBeGreaterThan(0);
-  expect(screen.getByText('1,200 calls')).toBeTruthy();
+  expect(screen.getByText('calls: 1,200')).toBeTruthy();
   expect(screen.getByText('app 78%, film 22%')).toBeTruthy();
   expect(screen.getAllByText('opus').length).toBeGreaterThan(0);
   expect(screen.getByText('Tokens per 1% of the weekly limit')).toBeTruthy();

@@ -24,7 +24,10 @@ history is there on day one.
 - Limit readings: Codex keeps them in `token_count.rate_limits`, so they have history. Claude keeps them
   nowhere, so the server records what it already reads for the meters; that series starts with this
   feature and has gaps while no window is open.
-- Limit hits: Claude's synthetic "You've hit your ... limit" message; Codex's `rate_limit_reached_type`.
+- Limit hits: Claude's synthetic "You've hit your ... limit" message, by the CLI's limit names (session and
+  5-hour; weekly, Opus, Sonnet and Fable are 7-day). Spend, budget, fast and credit limits share the wording
+  and are no limit window. Codex's `rate_limit_reached_type` is `rate_limit_reached` and does not name the
+  window, so the fullest one decides; its `workspace_*` reasons are not counted.
 
 Records under a temporary folder (smoke runs, tests) are skipped.
 

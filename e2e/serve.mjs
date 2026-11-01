@@ -16,6 +16,9 @@ fs.mkdirSync(project);
 // e2e/project/ seeds the project with files the file-tab specs open
 fs.cpSync(path.join(root, 'e2e/project'), project, { recursive: true });
 fs.mkdirSync(home);
+// the Usage tab reads the agents' transcripts: only a seeded one here, never those of whoever runs the tests
+const claudeDir = path.join(tmp, 'claude'), codexDir = path.join(tmp, 'codex');
+seedUsage(path.join(claudeDir, 'projects/-work-demo'));
 // the access token is on (the server default): a known one per fixture, so the config can log its browsers in (e2e/auth.ts)
 fs.writeFileSync(path.join(home, 'token'), createHash('sha256').update(`nota-bene e2e ${fixture}`).digest('hex'), { mode: 0o600 });
 if (fixture === 'files') seedFiles(project);
@@ -29,6 +32,18 @@ if (fixture === 'controls') {
 if (fixture === 'controls') {
   fs.mkdirSync(path.join(tmp, 'other'));
   fs.writeFileSync(path.join(tmp, 'other/other.md'), '# Other project\n\nonly in the other folder\n');
+}
+
+function seedUsage(dir) {
+  const at = (ago) => new Date(Date.now() - ago).toISOString();
+  const usage = { input_tokens: 1000, output_tokens: 2000, cache_creation_input_tokens: 0, cache_read_input_tokens: 10000 };
+  const lines = [
+    { type: 'user', timestamp: at(7200_000), cwd: '/work/demo', message: { content: 'Review the parser' } },
+    { type: 'assistant', timestamp: at(7100_000), cwd: '/work/demo', message: { id: 'm1', model: 'claude-opus-5-5', usage } },
+    { type: 'assistant', timestamp: at(7000_000), cwd: '/work/demo', isApiErrorMessage: true, message: { content: [{ type: 'text', text: "You've hit your weekly limit · resets Mon 9am" }] } },
+  ];
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 's1.jsonl'), lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
 }
 
 // A w x h grey PNG, generated (a few KB compressed): M6-04 checks that a large image is fitted to the pane.
@@ -91,7 +106,7 @@ for (const k of ['NOTA_BENE_LAUNCHER_PID', 'NOTA_BENE_SUPERVISED', 'NOTA_BENE_NO
 const child = spawn(
   process.execPath,
   [path.join(root, 'server/src/main.ts'), project, '--port', port, '--fake', path.join(root, 'server/test/fixtures', `${fixture}.json`)],
-  { cwd: root, env: { ...inherited, NOTA_BENE_HOME: home, NOTA_BENE_NONCE: createHash('sha256').update(`nota-bene e2e nonce ${fixture}`).digest('hex').slice(0, 32), NOTA_BENE_EXPERIMENTAL_3D: fixture === 'files' ? '1' : '0' }, stdio: 'inherit' },
+  { cwd: root, env: { ...inherited, CLAUDE_CONFIG_DIR: claudeDir, CODEX_HOME: codexDir, NOTA_BENE_HOME: home, NOTA_BENE_NONCE: createHash('sha256').update(`nota-bene e2e nonce ${fixture}`).digest('hex').slice(0, 32), NOTA_BENE_EXPERIMENTAL_3D: fixture === 'files' ? '1' : '0' }, stdio: 'inherit' },
 );
 
 let done = false;

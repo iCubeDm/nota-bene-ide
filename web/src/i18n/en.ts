@@ -211,7 +211,7 @@ export const en: Dict = {
   usageWeighted: 'Weighted tokens',
   usageWeightedTip: 'A yardstick, not a price: input ×1, cache write ×1.25, cache read ×0.1, output ×5, the same for every model.',
   usageCalls: 'Calls',
-  usageNCalls: (n: string) => `${n} calls`,
+  usageNCalls: (n: string) => `calls: ${n}`,
   usageCacheRead: 'Cache read',
   usageCacheWrite: 'Cache write',
   usageOutput: 'Output',

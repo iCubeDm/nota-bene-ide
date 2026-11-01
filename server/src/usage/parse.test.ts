@@ -26,11 +26,18 @@ describe('claude', () => {
     expect(parseClaudeLine(claude({ type: 'assistant', message: { id: 'm1', model: '<synthetic>', usage } }), { session: 's' })).toEqual([]);
   });
 
-  it('a limit message is a hit; the week one says so; other API errors are nothing', () => {
-    const hit = (text: string) => claude({ type: 'assistant', isApiErrorMessage: true, message: { content: [{ type: 'text', text }] } });
-    expect(parseClaudeLine(hit("You've hit your session limit · resets 5pm"), { session: 's' })).toEqual([{ k: 'h', ts: at, kind: '5h' }]);
-    expect(parseClaudeLine(hit("You've hit your weekly limit"), { session: 's' })).toEqual([{ k: 'h', ts: at, kind: 'week' }]);
-    expect(parseClaudeLine(hit('Overloaded'), { session: 's' })).toEqual([]);
+  it('a limit message is a hit, by the CLI\'s own limit names; spend, budget and fast limits are no such window', () => {
+    const hit = (text: string) => parseClaudeLine(claude({ type: 'assistant', isApiErrorMessage: true, message: { content: [{ type: 'text', text }] } }), { session: 's' });
+    for (const text of ["You've hit your session limit · resets 5pm", "You've hit your 5-hour limit · resets 5pm"]) {
+      expect(hit(text)).toEqual([{ k: 'h', ts: at, kind: '5h' }]);
+    }
+    for (const name of ['weekly', 'Opus', 'Sonnet', 'Fable']) {
+      expect(hit(`You've hit your ${name} limit · resets Mon 9am`)).toEqual([{ k: 'h', ts: at, kind: 'week' }]);
+    }
+    expect(hit("You've reached your Fable limit.")).toEqual([{ k: 'h', ts: at, kind: 'week' }]);
+    for (const text of ['Overloaded', "You've hit your fast limit", "You've hit your monthly spend limit.", "You've hit your team's shared budget. /model to switch models.", "You've hit your usage credit limit"]) {
+      expect(hit(text)).toEqual([]);
+    }
   });
 
   it('a prompt is a labelled record; tool results, meta and wrapped commands are not prompts', () => {
@@ -102,9 +109,16 @@ describe('codex', () => {
     expect(parseCodexLine(count(6), c)).toHaveLength(1);
   });
 
-  it('a reached limit is a hit', () => {
-    const l = line('event_msg', { type: 'token_count', rate_limits: { rate_limit_reached_type: 'primary' } });
-    expect(parseCodexLine(l, fresh())).toEqual([{ k: 'h', ts: at, kind: '5h' }]);
+  it('a reached limit is a hit of the window that filled; workspace credits and limits are no such window', () => {
+    const hit = (type: string, five: number, week: number) => parseCodexLine(line('event_msg', { type: 'token_count', rate_limits: {
+      rate_limit_reached_type: type,
+      primary: { used_percent: five, window_minutes: 300 }, secondary: { used_percent: week, window_minutes: 10080 },
+    } }), fresh()).filter((r) => r.k === 'h');
+    expect(hit('rate_limit_reached', 100, 40)).toEqual([{ k: 'h', ts: at, kind: '5h' }]);
+    expect(hit('rate_limit_reached', 40, 100)).toEqual([{ k: 'h', ts: at, kind: 'week' }]);
+    expect(hit('rate_limit_reached', 100, 100)).toEqual([{ k: 'h', ts: at, kind: 'week' }]);
+    expect(hit('workspace_owner_credits_depleted', 100, 40)).toEqual([]);
+    expect(hit('workspace_member_usage_limit_reached', 100, 40)).toEqual([]);
   });
 });
 
