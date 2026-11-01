@@ -2,7 +2,9 @@ import http, { type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EventHub } from '../hub.ts';
-import { usageRoutes, type UsageService } from './routes.ts';
+import type { UsageRecord } from './parse.ts';
+import { hitRecorder, usageRoutes, type UsageService } from './routes.ts';
+import type { UsageStore } from './store.ts';
 
 let server: http.Server | undefined;
 afterEach(() => new Promise<void>((done) => { if (server) server.close(() => done()); else done(); }));
@@ -13,6 +15,42 @@ async function serve(service: Partial<UsageService>): Promise<string> {
   await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
+
+describe('hitRecorder', () => {
+  const recorder = () => {
+    const got: UsageRecord[] = [];
+    let t = 1000;
+    const record = hitRecorder({ append: (r: readonly UsageRecord[]) => got.push(...r) } as unknown as UsageStore, () => t++);
+    return { got, record };
+  };
+
+  it('a rejection is a hit of its window, and the work may go on: extra usage says the same', () => {
+    const { got, record } = recorder();
+    record({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: 50 });
+    record({ status: 'rejected', rateLimitType: 'seven_day', resetsAt: 60, isUsingOverage: true, overageStatus: 'allowed' });
+    record({ status: 'rejected', rateLimitType: 'seven_day_opus', resetsAt: 70 });
+    expect(got).toEqual([
+      { k: 'h', ts: 1000, kind: '5h', resets: 50_000 },
+      { k: 'h', ts: 1001, kind: 'week', resets: 60_000 },
+      { k: 'h', ts: 1002, kind: 'week', resets: 70_000 },
+    ]);
+  });
+
+  it('what is allowed, and the extra usage limit itself, is no hit', () => {
+    const { got, record } = recorder();
+    record({ status: 'allowed', rateLimitType: 'seven_day', resetsAt: 60 });
+    record({ status: 'allowed_warning', rateLimitType: 'five_hour', resetsAt: 60 });
+    record({ status: 'rejected', rateLimitType: 'overage', resetsAt: 60 });
+    record({ status: 'rejected' });
+    expect(got).toEqual([]);
+  });
+
+  it('one hit per window, however often the SDK repeats it', () => {
+    const { got, record } = recorder();
+    for (let i = 0; i < 3; i++) record({ status: 'rejected', rateLimitType: 'seven_day', resetsAt: 60 });
+    expect(got).toHaveLength(1);
+  });
+});
 
 describe('/usage', () => {
   it('answers the report of the period asked for, trip by default', async () => {

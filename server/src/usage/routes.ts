@@ -3,6 +3,7 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 import { USAGE_PERIODS, type Stats, type UsagePeriod, type UsageProvider, type UsageReport } from '@nota-bene/shared';
 import { reportError } from '../errors.ts';
 import type { EventHub } from '../hub.ts';
+import type { RateLimitInfo } from '../stats.ts';
 import { defaultSource, importUsage, type UsageSource } from './importer.ts';
 import type { LimitRecord } from './parse.ts';
 import { buildReport } from './report.ts';
@@ -67,6 +68,18 @@ export function limitRecorder(store: UsageStore, now: () => number = Date.now): 
       out.push({ k: 'l', ts: now(), minutes, pct: l.utilization, resets: l.resets_at ? Date.parse(l.resets_at) : null });
     }
     try { store.append(out); } catch { /* the meters go on without the record */ }
+  };
+}
+
+/** A limit the SDK refused, once per window. With extra usage on the work goes on, and no transcript says the limit was hit. */
+export function hitRecorder(store: UsageStore, now: () => number = Date.now): (info: unknown) => void {
+  const seen = new Set<string>();
+  return (info) => {
+    const { status, rateLimitType: type, resetsAt } = info as RateLimitInfo;
+    const kind = type === 'five_hour' ? '5h' : type?.startsWith('seven_day') ? 'week' : null;
+    if (status !== 'rejected' || !kind || seen.has(`${kind}:${resetsAt}`)) return;
+    seen.add(`${kind}:${resetsAt}`);
+    try { store.append([{ k: 'h', ts: now(), kind, ...(resetsAt ? { resets: resetsAt * 1000 } : {}) }]); } catch { /* the work goes on without the record */ }
   };
 }
 

@@ -138,6 +138,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
         return;
       case 'rate-limit':
         stats.onAgent(e);
+        o.onLimit?.(e.info);
         return;
       case 'commands':
         cmds.set(e.commands);

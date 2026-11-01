@@ -157,6 +157,18 @@ describe('hits', () => {
     expect(r.hits).toEqual([{ ts: T0, kind: '5h', calls: 2, w: 15, projects: { app: 5, other: 10 }, models: { opus: 5, sonnet: 10 }, tasks: [{ id: 's2:0', label: '', w: 10 }, { id: 's:0', label: '', w: 5 }] }]);
   });
 
+  it('one window, one hit: extra usage goes on for days, and every open window reports it', () => {
+    const records: UsageRecord[] = [call({ ts: T0 - H }), ...[0, 3, 26].map((h) => ({ k: 'h', ts: T0 + h * H, kind: 'week', resets: T0 + 2 * D }) as const)];
+    expect(report(records).hits.map((h) => h.ts)).toEqual([T0]);
+    expect(report([...records, { k: 'h', ts: T0 + 3 * D, kind: 'week', resets: T0 + 9 * D }]).hits).toHaveLength(2);
+  });
+
+  it('a live hit and its transcript message are one, whichever came first', () => {
+    const live = { k: 'h', ts: T0, kind: '5h', resets: T0 + H } as const;
+    expect(report([call({ ts: T0 - H }), live, { k: 'h', ts: T0 + 1000, kind: '5h' }]).hits).toHaveLength(1);
+    expect(report([call({ ts: T0 - H }), { k: 'h', ts: T0 - 1000, kind: '5h' }, live, { ...live, ts: T0 + 3 * H }]).hits).toHaveLength(1);
+  });
+
   it('a week hit looks back seven days; a chain of hits stays apart from the next window', () => {
     const r = report([
       call({ id: 'a', ts: T0 - 6 * D, out: 1 }),

@@ -68,6 +68,7 @@ export async function startServer(o: {
   idleOffInSettings?: () => boolean;
   /** every stats update; main.ts records the limit readings from it, tests leave the real store alone */
   onStats?: (s: Stats) => void;
+  onLimit?: (info: unknown) => void;
   /** the `! cmd` runner's timing and environment (tests shorten the timeout and the kill delay) */
   shell?: { timeoutMs?: number; killMs?: number; env?: () => NodeJS.ProcessEnv };
   /**
@@ -100,6 +101,7 @@ export async function startServer(o: {
       archive,
       backend: o.backend,
       ...(o.onStats ? { onStats: o.onStats } : {}),
+      ...(o.onLimit ? { onLimit: o.onLimit } : {}),
       cwd: o.cwd,
       ...(o.resume ? { resume: o.resume } : {}),
       ...(o.resume && o.fork && o.backend.capabilities.fork ? { fork: true } : {}),

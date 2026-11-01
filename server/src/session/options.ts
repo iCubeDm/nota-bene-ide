@@ -9,6 +9,8 @@ import type { IdleConfig } from '../idle.ts';
 export type SessionOptions = {
   /** every stats update, after the clients got it */
   onStats?: (s: Stats) => void;
+  /** The SDK's rate_limit_info of every `rate-limit` event. */
+  onLimit?: (info: unknown) => void;
   hub: EventHub; backend: AgentBackend; cwd: string; resume?: string; fork?: boolean; attachments?: AttachmentStore;
   /** the conversation before each compaction (R-M7-1); default `<stateDir>/history` */
   archive?: HistoryArchive;

@@ -65,7 +65,7 @@ export function resetStatsReports(): void {
 const EMPTY: Stats = { context: null, limits: null, cost: null };
 
 /** The SDK's rate_limit_info, as far as it is read (the `rate-limit` event carries it unread). */
-type RateLimitInfo = { rateLimitType?: string; utilization?: number; resetsAt?: number };
+export type RateLimitInfo = { status?: string; rateLimitType?: string; utilization?: number; resetsAt?: number };
 
 type StatsOptions = {
   session: () => AgentSession | null; emit: (s: Stats) => void; onError?: (e: unknown) => void; now?: () => number;

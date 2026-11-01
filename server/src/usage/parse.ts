@@ -6,7 +6,8 @@ import type { TokenCounts } from '@nota-bene/shared';
 export type CallRecord = TokenCounts & { k: 'c'; id: string; ts: number; cwd: string; session: string; model: string; agent?: string; task?: string };
 export type PromptRecord = { k: 'p'; ts: number; session: string; label: string; task?: string };
 export type AgentRecord = { k: 'a'; id: string; label: string };
-export type HitRecord = { k: 'h'; ts: number; kind: '5h' | 'week' };
+/** `resets`: from a live event, in ms; the same value is the same window */
+export type HitRecord = { k: 'h'; ts: number; kind: '5h' | 'week'; resets?: number };
 /** A limit reading: `pct` of the `minutes`-long window that resets at `resets`. */
 export type LimitRecord = { k: 'l'; ts: number; minutes: number; pct: number; resets: number | null };
 export type UsageRecord = CallRecord | PromptRecord | AgentRecord | HitRecord | LimitRecord;

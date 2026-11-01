@@ -116,22 +116,28 @@ function tasksOf(calls: readonly CallRecord[], records: readonly UsageRecord[], 
   }));
 }
 
-function hitEvents(records: readonly UsageRecord[]): { ts: number; kind: UsageHit['kind'] }[] {
-  const events: { ts: number; kind: UsageHit['kind'] }[] = [];
+type HitEvent = { ts: number; kind: UsageHit['kind']; resets?: number };
+
+function hitEvents(records: readonly UsageRecord[]): HitEvent[] {
+  const events: HitEvent[] = [];
   const sorted = records.flatMap((r) => (r.k === 'h' ? [r] : [])).sort((a, b) => a.ts - b.ts);
   for (const h of sorted) {
     const same = events.findLast((e) => e.kind === h.kind);
-    if (!same || h.ts - same.ts >= HIT_MERGE_MS) events.push({ ts: h.ts, kind: h.kind });
+    if (!same || (h.ts - same.ts >= HIT_MERGE_MS && (h.resets === undefined || h.resets !== same.resets))) {
+      events.push({ ts: h.ts, kind: h.kind, ...(h.resets ? { resets: h.resets } : {}) });
+    } else {
+      same.resets ??= h.resets;
+    }
   }
   return events;
 }
 
 /** The tokens in the window that ended with each hit. */
-function hitsOf(events: ReturnType<typeof hitEvents>, calls: readonly CallRecord[], records: readonly UsageRecord[], project: Project): UsageHit[] {
+function hitsOf(events: readonly HitEvent[], calls: readonly CallRecord[], records: readonly UsageRecord[], project: Project): UsageHit[] {
   const find = taskFinder(records);
   return events.map((e) => {
     const since = e.ts - (e.kind === 'week' ? 7 * DAY : 5 * HOUR);
-    const hit: UsageHit = { ...e, calls: 0, w: 0, projects: {}, models: {}, tasks: [] };
+    const hit: UsageHit = { ts: e.ts, kind: e.kind, calls: 0, w: 0, projects: {}, models: {}, tasks: [] };
     const tasks = new Map<string, UsageHit['tasks'][number]>();
     for (const c of calls) {
       if (c.ts <= since || c.ts > e.ts) continue;
@@ -171,7 +177,7 @@ export function weekKey(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function weeksOf(calls: readonly CallRecord[], events: ReturnType<typeof hitEvents>): UsageReport['weeks'] {
+function weeksOf(calls: readonly CallRecord[], events: readonly HitEvent[]): UsageReport['weeks'] {
   const m = new Map<string, number>();
   for (const c of calls) m.set(weekKey(c.ts), (m.get(weekKey(c.ts)) ?? 0) + weigh(c));
   const hit = new Set(events.filter((e) => e.kind === 'week').map((e) => weekKey(e.ts)));
