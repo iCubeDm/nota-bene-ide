@@ -136,11 +136,11 @@ function HitRow({ h, currency }: { h: UsageHit; currency: string | null }) {
         <td className={`${TD} whitespace-nowrap`}>{h.kind === 'week' ? t('usageWeek') : t('usageH5')}</td>
         <td className={`${TD} text-right font-mono whitespace-nowrap`}>{fmtTokens(h.w)}</td>
         <td className={`${TD} text-right font-mono whitespace-nowrap`}>{num(h.calls)}</td>
-        <td className={`${TD} text-muted-foreground`}>{went}</td>
+        <td className={`${TD} whitespace-nowrap text-muted-foreground`}>{went}</td>
       </tr>
       {open && (
         <tr>
-          <td colSpan={5} className="border-b border-border-soft pb-2 pl-3.5 text-muted-foreground">
+          <td colSpan={5} className="max-w-0 border-b border-border-soft pb-2 pl-3.5 text-muted-foreground">
             {h.extra && <div className="pb-1">{t('usageHitExtra', fmtTokens(h.extra.w), h.extra.spent === null ? t('usageSumUnknown') : money(h.extra.spent, currency))}</div>}
             {h.tasks.map((k) => <div key={k.id} className={LINE}><span className={ELLIPSIS}>{k.label || t('usageNoLabel')}</span><span className={VALUE}>{fmtTokens(k.w)}</span></div>)}
           </td>
@@ -177,16 +177,18 @@ function Limits({ r }: { r: UsageReport }) {
         />
       )}
       {hits.length > 0 && (
-        <div>
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr>
-                <th className={TH}>{t('usageWhen')}</th><th className={TH}>{t('usageLimit')}</th><th className={`${TH} text-right`}>{t('usageTokensCol')}</th>
-                <th className={`${TH} text-right`}>{t('usageCalls')}</th><th className={TH}>{t('usageProjects')}</th>
-              </tr>
-            </thead>
-            <tbody>{hits.slice(0, all ? Infinity : ROWS_SHOWN).map((h) => <HitRow key={`${h.kind}${h.ts}`} h={h} currency={r.extra?.currency ?? null} />)}</tbody>
-          </table>
+        <div className="min-w-0">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[13px]">
+              <thead>
+                <tr>
+                  <th className={TH}>{t('usageWhen')}</th><th className={TH}>{t('usageLimit')}</th><th className={`${TH} text-right`}>{t('usageTokensCol')}</th>
+                  <th className={`${TH} text-right`}>{t('usageCalls')}</th><th className={TH}>{t('usageProjects')}</th>
+                </tr>
+              </thead>
+              <tbody>{hits.slice(0, all ? Infinity : ROWS_SHOWN).map((h) => <HitRow key={`${h.kind}${h.ts}`} h={h} currency={r.extra?.currency ?? null} />)}</tbody>
+            </table>
+          </div>
           {hits.length > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[13px]`}>{all ? t('usageShowTop') : t('usageShowAll', hits.length)}</button>}
         </div>
       )}
