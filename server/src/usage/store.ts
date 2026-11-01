@@ -7,7 +7,8 @@ import { stateBaseDir } from '../state.ts';
 import type { CodexContext, UsageRecord } from './parse.ts';
 
 /** One transcript: bytes read, and what its parser must remember. */
-export type FileState = { offset: number; context?: CodexContext };
+/** `v`: the `PARSE_VERSION` that read the file */
+export type FileState = { offset: number; v?: number; context?: CodexContext };
 export type ImportState = Record<string, FileState>;
 
 export const usageDir = (): string => path.join(stateBaseDir(), 'usage');

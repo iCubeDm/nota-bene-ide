@@ -11,6 +11,8 @@ import { readLines, type FileState, type ImportState, type UsageStore } from './
 const LOCK_STALE_MS = 10 * 60_000;
 const FLUSH_RECORDS = 5000;
 const SAVE_EVERY_FILES = 50;
+/** Raise it when a parser change should reach what is already in the store: every transcript is read once more. */
+const PARSE_VERSION = 2;
 
 const tempDirs = (): string[] => {
   const tmp = os.tmpdir();
@@ -79,7 +81,7 @@ function freshFilter(known: readonly UsageRecord[]): (r: UsageRecord) => boolean
   const calls = new Map<string, { in: number; out: number; write: number; read: number }>();
   const other = new Set<string>();
   const key = (r: Exclude<UsageRecord, { k: 'c' }>): string =>
-    r.k === 'p' ? `p${r.session}:${r.ts}` : r.k === 'a' ? `a${r.id}` : r.k === 'h' ? `h${r.ts}` : `l${r.ts}:${r.minutes}`;
+    r.k === 'p' ? `p${r.session}:${r.ts}:${r.label}` : r.k === 'a' ? `a${r.id}` : r.k === 'h' ? `h${r.ts}` : `l${r.ts}:${r.minutes}`;
   const fresh = (r: UsageRecord): boolean => {
     if (r.k === 'c') {
       const a = calls.get(r.id);
@@ -115,7 +117,8 @@ export async function importUsage(store: UsageStore, source: UsageSource): Promi
     for (const file of source.files()) {
       let size: number;
       try { size = fs.statSync(file).size; } catch { continue; } // vanished meanwhile
-      const prev = state[file] && size >= state[file].offset ? state[file] : { offset: 0 }; // smaller: rewritten, read it anew
+      const known = state[file]?.v === PARSE_VERSION ? state[file] : undefined;
+      const prev = known && size >= known.offset ? known : { offset: 0 }; // smaller: rewritten, read it anew
       if (size === prev.offset) continue;
       const reader = source.reader(file, prev);
       try {
@@ -124,7 +127,7 @@ export async function importUsage(store: UsageStore, source: UsageSource): Promi
           if (batch.length >= FLUSH_RECORDS) flush();
         });
         take(reader.finish?.() ?? []);
-        state[file] = { ...prev, offset };
+        state[file] = { ...prev, offset, v: PARSE_VERSION };
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
       }

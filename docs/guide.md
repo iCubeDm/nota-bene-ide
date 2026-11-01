@@ -323,12 +323,12 @@ The residual risk, in plain words:
 
 The bars button in the header opens **Usage**: exact token accounting for every project on this machine, read from the transcripts of Claude Code and Codex, so work outside Nota Bene counts too. Everything stays on your machine.
 
-- **Claude** and **Codex** have separate counters. **Reset the counter** starts a new count; nothing is deleted, the older data stays under **All time**.
-- **Weighted tokens** are the comparison number: input ×1, cache write ×1.25, cache read ×0.1, output ×5, the same for every model. It is a yardstick, not a price; a plain sum would be almost only cache reads. The raw counts stand beside it.
-- **Limit hits**: what went in the 5 hours (or the week) before a limit was hit, by project and model.
-- **Models**, **Projects**, **By week**: where the tokens went.
-- **Costliest tasks**: a task is one message of yours and all the agent did until the reply. Click one for its subagents and costliest calls.
-- **Tokens per 1% of the weekly limit**: a falling line means the same 100% buys fewer tokens. Codex has these readings from its own history; Claude's are recorded from now on, while a window is open.
+- **Claude** and **Codex** have separate counters. **Reset** starts a new count; nothing is deleted, the older data stays under **All time**.
+- The large number is **weighted tokens**: input ×1, cache write ×1.25, cache read ×0.1, output ×5, the same for every model. It is a yardstick, not a price; a plain sum would be almost only cache reads. Hover over the word for the raw counts, or over a model for its own. The bar under it splits the tokens by model.
+- **Limit hits**: tokens per week, the weeks with a hit in red, and each hit in a line: what went in the 5 hours (or the week) before it. Click one for the tasks that ate the window. Under them, tokens per 1% of the weekly limit: a falling line means the same 100% buys fewer tokens. Codex has these readings from its own history; Claude's are recorded from now on, while a window is open.
+- **Where it went**: the costliest **Tasks** and **Projects**. A task is one message of yours and all the agent did until the reply: click one for its subagents and costliest calls. A project is the folder a session started in.
+
+Anything a period has nothing to show for is left out.
 
 The store keeps what it read after the transcripts themselves are gone. Sessions under a temporary folder are skipped.
 

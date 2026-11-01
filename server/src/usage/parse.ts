@@ -24,6 +24,17 @@ const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v)
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' ? v as Record<string, unknown> : {});
 const label = (text: string): string => text.trim().replace(/\s+/g, ' ').slice(0, LABEL_MAX);
 
+/** The heading of a sent batch of comments (`batchHead` in web/src/i18n). */
+const BATCH_HEAD = /(?:^|\n\n)(?:Comments on fragments|Комментарии к фрагментам):\n\n/;
+
+/** A prompt's label. A batch says little in its first words: the words above it, or else its first comment, not the quote. */
+function promptLabel(text: string): string {
+  const head = BATCH_HEAD.exec(text);
+  if (!head) return label(text);
+  const body = text.slice(head.index + head[0].length);
+  return label(text.slice(0, head.index)) || label(/^→ (.+)$/m.exec(body)?.[1] ?? body);
+}
+
 const textOf = (content: unknown): string => {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
@@ -50,7 +61,7 @@ export function parseClaudeLine(line: string, file: { session: string; agent?: s
     if (file.agent || j.isMeta || j.isSidechain || j.isCompactSummary) return []; // a compaction goes on with the same task
     const content = message.content;
     if (Array.isArray(content) && content.some((b) => obj(b).type === 'tool_result')) return [];
-    const text = label(textOf(content));
+    const text = promptLabel(textOf(content));
     return text && !text.startsWith('<') ? [{ k: 'p', ts, session: file.session, label: text }] : [];
   }
   if (j.type !== 'assistant') return [];
@@ -97,7 +108,7 @@ export function parseCodexLine(line: string, c: CodexContext): UsageRecord[] {
   if (j.type === 'token_usage_record') return codexCall(p, ts, c);
   if (p.type === 'token_count') return codexLimits(obj(p.rate_limits), ts, c);
   if (p.type !== 'item_completed' || obj(p.item).type !== 'UserMessage' || c.agent) return [];
-  const text = label(textOf(obj(p.item).content));
+  const text = promptLabel(textOf(obj(p.item).content));
   return text && c.session && typeof p.turn_id === 'string' ? [{ k: 'p', ts, session: c.session, label: text, task: p.turn_id }] : [];
 }
 

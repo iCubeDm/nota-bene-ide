@@ -1,15 +1,16 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { USAGE_PERIODS, type UsageCallRow, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTaskRow } from '@nota-bene/shared';
+import { Fragment, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
+import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTaskRow } from '@nota-bene/shared';
 import { useAppSelector } from '@/store/store.ts';
 import { getLang, useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 
 const POLL_MS = 2000;
-const AGENTS_SHOWN = 12;
+const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, HITS_SHOWN = 3, WEEKS_SHOWN = 16, TANKS_SHOWN = 4;
 const PROVIDERS: { id: UsageProvider; name: string }[] = [{ id: 'claude', name: 'Claude' }, { id: 'codex', name: 'Codex' }];
 const PERIOD_KEY = { trip: 'usagePeriodTrip', '7d': 'usagePeriod7d', '30d': 'usagePeriod30d', all: 'usagePeriodAll' } as const;
-/** Model bars, by rank in the report: the theme's colours, the last for the rest. */
-const BAR = ['bg-primary', 'bg-nb-accent', 'bg-foreground/60', 'bg-muted-foreground'];
+/** The named models, by rank in the report; everything else is the rest. */
+const MODEL_COLOR = ['bg-primary', 'bg-nb-accent'];
+const REST_COLOR = 'bg-muted-foreground';
 
 const pct = (a: number, b: number): string => (b > 0 ? `${Math.round(a / b * 100)}%` : '0%');
 const num = (n: number): string => n.toLocaleString(getLang());
@@ -20,225 +21,209 @@ export function fmtTokens(n: number): string {
   return n >= 1e9 ? unit(n / 1e9, 'млрд', 'B') : n >= 1e6 ? unit(n / 1e6, 'млн', 'M') : n >= 1e3 ? unit(n / 1e3, 'тыс', 'k') : String(Math.round(n));
 }
 const when = (ts: number): string => new Date(ts).toLocaleString(getLang(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-const day = (ts: number): string => new Date(ts).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
-const modelName = (id: string): string => id.replace(/^claude-/, '');
+const shortDay = (key: string): string => new Date(`${key}T12:00:00`).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
+/** claude-opus-5-5 reads Opus 5.5; anything else as it is. */
+const modelName = (id: string): string =>
+  id.replace(/^claude-/, '').replace(/^([a-z])([a-z]*)-(\d+)-(\d+)$/, (_, a: string, b: string, major: string, minor: string) => `${a.toUpperCase()}${b} ${major}.${minor}`);
 
-const TH = 'border-b border-border px-2 py-1 text-left text-xs font-medium text-muted-foreground';
-const TN = `${TH} text-right`;
-const TD = 'border-b border-muted px-2 py-1.5 align-top [overflow-wrap:anywhere]';
-const NUM = `${TD} text-right font-mono whitespace-nowrap`;
+const CHOICE = 'cursor-pointer text-muted-foreground hover:text-foreground aria-pressed:text-foreground aria-pressed:shadow-[0_1px_0_currentColor]';
+const ACTION = 'cursor-pointer rounded-md border border-border-soft px-3 py-1 text-[13px] text-muted-foreground hover:text-foreground';
+const LINE = 'flex justify-between gap-4';
+const ELLIPSIS = 'min-w-0 truncate';
+const VALUE = 'font-mono text-[13px] whitespace-nowrap';
 
-function Section({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+/** The trip meter: whole digits on dark wheels, the tenth on a lit one. */
+function Odometer({ value }: { value: number }) {
+  const [, whole = '', tenth, unit = ''] = /^(\d+)(?:\.(\d))?\s*(.*)$/.exec(fmtTokens(value)) ?? [];
+  const WHEEL = 'block min-w-[0.82em] rounded-[3px] px-[0.06em] py-[0.2em] text-center';
   return (
-    <section className="min-w-0">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      {sub && <p className="mb-2 text-xs text-muted-foreground">{sub}</p>}
-      {children}
-    </section>
+    <>
+      <span role="img" aria-label={fmtTokens(value)} className="inline-flex gap-0.5 font-mono text-[34px] leading-none font-medium tabular-nums">
+        {[...whole].map((c, i) => <span key={i} className={`${WHEEL} bg-card`}>{c}</span>)}
+        {tenth && <><span className="block py-[0.2em]">.</span><span className={`${WHEEL} bg-primary text-primary-foreground`}>{tenth}</span></>}
+      </span>
+      {unit && <span className="text-muted-foreground">{unit}</span>}
+    </>
   );
 }
 
-function Kpi({ label, value, note, tip }: { label: string; value: string; note: string; tip?: string }) {
+/** A share of the whole, one mark per part, with a gap between them. */
+function Mix({ parts, className = 'h-1.5' }: { parts: { key: string; value: number; color: string }[]; className?: string }) {
   return (
-    <div className="rounded-md bg-card px-3 py-2" title={tip}>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="font-mono text-xl font-medium">{value}</div>
-      <div className="text-xs text-muted-foreground">{note}</div>
+    <div className={`flex gap-0.5 overflow-hidden rounded-sm ${className}`}>
+      {parts.map((p) => <i key={p.key} className={`block min-w-0.5 ${p.color}`} style={{ flex: p.value }} />)}
     </div>
   );
 }
 
-function Bar({ parts }: { parts: { key: string; value: number; color: string; title?: string }[] }) {
-  const sum = parts.reduce((a, p) => a + p.value, 0);
+function ModelMix({ r }: { r: UsageReport }) {
+  const t = useT();
+  const shown = r.models.slice(0, MODELS_SHOWN);
+  const rest = r.models.slice(MODELS_SHOWN);
+  const restW = rest.reduce((a, m) => a + m.w, 0);
+  const parts = [
+    ...shown.map((m, i) => ({ key: m.key, value: m.w, color: MODEL_COLOR[i]!, name: modelName(m.key), tip: t('usageModelTip', num(m.calls), fmtTokens(m.out), fmtTokens(m.write), fmtTokens(m.read)) })),
+    ...(rest.length ? [{ key: '-', value: restW, color: REST_COLOR, name: t('usageRest'), tip: rest.map((m) => modelName(m.key)).join(', ') }] : []),
+  ];
   return (
-    <div className="mt-1 flex h-1.5 overflow-hidden rounded-sm bg-muted">
-      {parts.map((p) => <i key={p.key} title={p.title} className={`block h-full ${p.color}`} style={{ width: `${sum ? p.value / sum * 100 : 0}%` }} />)}
+    <div className="mt-4">
+      <Mix parts={parts} className="h-2" />
+      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
+        {parts.map((p) => (
+          <span key={p.key} title={p.tip}>
+            <i className={`mr-1.5 inline-block size-2 rounded-sm ${p.color}`} />
+            <span className="font-medium">{p.name}</span> {p.value / r.total.w < 0.01 ? '<1%' : pct(p.value, r.total.w)} <span className="font-mono text-xs text-muted-foreground">{fmtTokens(p.value)}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
 function Weeks({ weeks }: { weeks: UsageReport['weeks'] }) {
-  const shown = weeks.slice(-12);
+  const t = useT();
+  const shown = weeks.slice(-WEEKS_SHOWN);
   const max = Math.max(1, ...shown.map((w) => w.w));
+  const first = shown[0];
+  if (!first) return null;
   return (
-    <div className="flex h-32 items-end gap-1.5" role="img" aria-label="weeks">
-      {shown.map((w) => (
-        <div key={w.key} className="flex min-w-0 flex-1 flex-col items-center gap-1" title={`${w.key}: ${fmtTokens(w.w)}`}>
-          <span className="font-mono text-[10px] text-muted-foreground">{fmtTokens(w.w).replace(/\s.*/, '')}</span>
-          <i className="block w-full rounded-sm bg-primary" style={{ height: `${w.w / max * 88}px` }} />
-          <span className="font-mono text-[10px] text-muted-foreground">{w.key.slice(8)}.{w.key.slice(5, 7)}</span>
+    <>
+      <div className="flex h-14 items-end gap-[3px]" role="img" aria-label={t('usageHits')}>
+        {shown.map((w) => <i key={w.key} title={`${shortDay(w.key)}: ${fmtTokens(w.w)}`} className={`block min-h-0.5 min-w-0 flex-1 rounded-t-sm ${w.hit ? 'bg-destructive' : 'bg-muted'}`} style={{ height: `${w.w / max * 100}%` }} />)}
+      </div>
+      <div className="mt-1 flex justify-between font-mono text-[11px] text-muted-foreground">
+        <span>{shortDay(first.key)}</span>
+        {shown.some((w) => w.hit) && <span>{t('usageHitWeeks')}</span>}
+      </div>
+    </>
+  );
+}
+
+function Hit({ h }: { h: UsageHit }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const went = Object.entries(h.projects).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([p, w]) => `${p} ${pct(w, h.w)}`).join(', ');
+  return (
+    <div className="border-b border-border-soft last:border-b-0">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="group w-full cursor-pointer py-1.5 text-left text-[13px]">
+        <span className="font-medium group-hover:text-primary">{when(h.ts)}, {h.kind === 'week' ? t('usageWeek') : t('usageH5')}: {fmtTokens(h.w)}</span> <span className="text-muted-foreground">{went}</span>
+      </button>
+      {open && (
+        <div className="pb-2 pl-3.5 text-[13px] text-muted-foreground">
+          {h.tasks.map((k) => <div key={k.id} className={LINE}><span className={ELLIPSIS}>{k.label || t('usageNoLabel')}</span><span className={VALUE}>{fmtTokens(k.w)}</span></div>)}
         </div>
-      ))}
+      )}
     </div>
   );
 }
 
-function CallRow({ c, agents, main }: { c: UsageCallRow; agents: Map<string, string>; main: string }) {
+function Limits({ r }: { r: UsageReport }) {
+  const t = useT();
+  if (r.weeks.length < 2 && r.hits.length === 0 && r.tanks.length === 0) return null;
   return (
-    <tr>
-      <td className="py-0.5 pr-2 text-muted-foreground">{c.agent ? agents.get(c.agent) || c.agent : main}</td>
-      <td className="py-0.5 pr-2 whitespace-nowrap">{modelName(c.model)}</td>
-      <td className="py-0.5 pr-2 text-right font-mono">{fmtTokens(c.out)}</td>
-      <td className="py-0.5 pr-2 text-right font-mono">{fmtTokens(c.read)}</td>
-      <td className="py-0.5 text-right font-mono">{fmtTokens(c.w)}</td>
-    </tr>
+    <section className="min-w-0">
+      <h2 className="mb-2 text-sm font-semibold text-foreground">{t('usageHits')}</h2>
+      <Weeks weeks={r.weeks} />
+      {r.hits.length > 0 && <div className="mt-2">{r.hits.toReversed().slice(0, HITS_SHOWN).map((h) => <Hit key={`${h.kind}${h.ts}`} h={h} />)}</div>}
+      {r.tanks.length > 0 && (
+        <p className="mt-2 text-[13px] text-muted-foreground" title={t('usageTankTip')}>
+          {t('usageTank')} <span className="font-mono text-foreground">{r.tanks.slice(-TANKS_SHOWN).map((k) => fmtTokens(k.perPct)).join(' → ')}</span>
+        </p>
+      )}
+    </section>
   );
 }
 
 function TaskDetail({ task, color }: { task: UsageTaskRow; color: (model: string) => string }) {
   const t = useT();
   const agents = new Map(task.agents.map((a) => [a.id, a.label]));
+  const parts = Object.entries(task.models).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, value, color: color(key) }));
   return (
-    <div className="grid gap-2 py-1 text-xs">
+    <div className="grid gap-2 px-2 pt-1 pb-3 pl-4 text-[13px] text-muted-foreground">
+      <div>
+        <div className="mb-1">{t('usageTaskLine', num(task.calls), pct(task.sub, task.w), when(task.ts))}</div>
+        <Mix parts={parts} />
+      </div>
       {task.agents.length > 0 && (
-        <table className="w-full">
-          <thead><tr className="text-muted-foreground"><th className="text-left font-medium">{t('usageAgentCol')}</th><th className="text-left font-medium">{t('usageModel')}</th><th className="pl-3 text-right font-medium">{t('usageCalls')}</th><th className="pl-3 text-right font-medium">{t('usageWeighted')}</th></tr></thead>
-          <tbody>
-            {task.agents.slice(0, AGENTS_SHOWN).map((a) => (
-              <tr key={a.id}>
-                <td className="py-0.5 pr-2">{a.label || a.id}</td>
-                <td className="py-0.5 pr-2 whitespace-nowrap"><i className={`mr-1.5 inline-block size-2 rounded-sm ${color(a.model)}`} />{modelName(a.model)}</td>
-                <td className="py-0.5 pr-2 text-right font-mono whitespace-nowrap">{a.calls}</td>
-                <td className="py-0.5 text-right font-mono whitespace-nowrap">{fmtTokens(a.w)}</td>
-              </tr>
-            ))}
-            {task.agents.length > AGENTS_SHOWN && <tr><td colSpan={4} className="py-0.5 text-muted-foreground">{t('usageMoreAgents', task.agents.length - AGENTS_SHOWN)}</td></tr>}
-          </tbody>
-        </table>
+        <div>
+          <div className="text-foreground">{t('usageSubagents')}</div>
+          {task.agents.slice(0, AGENTS_SHOWN).map((a) => <div key={a.id} className={LINE}><span className={ELLIPSIS}>{a.label || a.id}</span><span className={VALUE}>{modelName(a.model)} {a.calls} {fmtTokens(a.w)}</span></div>)}
+          {task.agents.length > AGENTS_SHOWN && <div>{t('usageMoreAgents', task.agents.length - AGENTS_SHOWN)}</div>}
+        </div>
       )}
-      <table className="w-full">
-        <thead><tr className="text-muted-foreground"><th className="text-left font-medium">{t('usageTopCalls')}</th><th className="text-left font-medium">{t('usageModel')}</th><th className="pl-3 text-right font-medium">{t('usageOutput')}</th><th className="pl-3 text-right font-medium">{t('usageCacheRead')}</th><th className="pl-3 text-right font-medium">{t('usageWeighted')}</th></tr></thead>
-        <tbody>{task.top.map((c, i) => <CallRow key={i} c={c} agents={agents} main={t('usageMain')} />)}</tbody>
-      </table>
+      <div>
+        <div className="text-foreground">{t('usageTopCalls')}</div>
+        {task.top.map((c, i) => <div key={i} className={LINE}><span className={ELLIPSIS}>{c.agent ? agents.get(c.agent) || c.agent : t('usageMain')}, {modelName(c.model)}, {t('usageCallLine', fmtTokens(c.out), fmtTokens(c.read))}</span><span className={VALUE}>{fmtTokens(c.w)}</span></div>)}
+      </div>
     </div>
+  );
+}
+
+/** A row over a bar of its share of the longest one. */
+function Row({ share, children, ...button }: { share: number; children: ReactNode } & ComponentProps<'button'>) {
+  const body = (
+    <>
+      <i aria-hidden className="absolute inset-y-0 left-0 -z-10 rounded bg-card" style={{ width: `${share * 100}%` }} />
+      {children}
+    </>
+  );
+  const ROW = 'relative isolate my-px flex w-full items-baseline gap-4 rounded px-2 py-1.5 text-left text-[13px]';
+  return button.onClick ? <button type="button" className={`group ${ROW} cursor-pointer`} {...button}>{body}</button> : <div className={ROW}>{body}</div>;
+}
+
+function Spent({ r, color }: { r: UsageReport; color: (model: string) => string }) {
+  const t = useT();
+  const [list, setList] = useState<'tasks' | 'projects'>('tasks');
+  const [open, setOpen] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  const items = list === 'tasks' ? r.tasks.length : r.projects.length;
+  const shown = all ? Infinity : ROWS_SHOWN;
+  const pick = (l: typeof list) => { setList(l); setAll(false); };
+  return (
+    <section className="min-w-0">
+      <div className="mb-1.5 flex items-baseline gap-3.5">
+        <h2 className="text-sm font-semibold text-foreground">{t('usageSpent')}</h2>
+        <button type="button" aria-pressed={list === 'tasks'} onClick={() => pick('tasks')} className={`${CHOICE} text-[13px]`}>{t('usageTasks')}</button>
+        <button type="button" aria-pressed={list === 'projects'} onClick={() => pick('projects')} className={`${CHOICE} text-[13px]`}>{t('usageProjects')}</button>
+      </div>
+      {list === 'tasks' ? r.tasks.slice(0, shown).map((task) => (
+        <Fragment key={task.id}>
+          <Row share={task.w / r.tasks[0]!.w} aria-expanded={open === task.id} onClick={() => setOpen(open === task.id ? null : task.id)}>
+            <span className={`${ELLIPSIS} flex-1 group-hover:text-primary`}>{task.label || t('usageNoLabel')}</span>
+            <span className="text-xs whitespace-nowrap text-muted-foreground">{task.project}</span>
+            <span className={VALUE}>{fmtTokens(task.w)}</span>
+          </Row>
+          {open === task.id && <TaskDetail task={task} color={color} />}
+        </Fragment>
+      )) : r.projects.slice(0, shown).map((p) => (
+        <Row key={p.key} share={p.w / r.projects[0]!.w}>
+          <span className={`${ELLIPSIS} flex-1`}>{p.key}</span>
+          <span className="text-xs whitespace-nowrap text-muted-foreground" title={t('usageSubagents')}>{p.sub > 0 ? pct(p.sub, p.w) : ''}</span>
+          <span className={VALUE}>{fmtTokens(p.w)}</span>
+        </Row>
+      ))}
+      {items > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[13px]`}>{all ? t('usageShowTop') : t('usageShowAll', items)}</button>}
+    </section>
   );
 }
 
 function Report({ r }: { r: UsageReport }) {
   const t = useT();
-  const [open, setOpen] = useState<string | null>(null);
   const rank = new Map(r.models.map((m, i) => [m.key, i]));
-  const color = (model: string) => BAR[Math.min(rank.get(model) ?? BAR.length, BAR.length - 1)]!;
-  const mix = (models: Record<string, number>) =>
-    Object.entries(models).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, value, color: color(key), title: modelName(key) }));
-  const top = r.models[0];
+  const color = (model: string) => MODEL_COLOR[rank.get(model) ?? MODEL_COLOR.length] ?? REST_COLOR;
   return (
     <>
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-        <Kpi label={t('usageWeighted')} value={fmtTokens(r.total.w)} note={t('usageNCalls', num(r.total.calls))} tip={t('usageWeightedTip')} />
-        <Kpi label={t('usageCacheRead')} value={fmtTokens(r.total.read)} note={t('usageOutputN', fmtTokens(r.total.out))} />
-        <Kpi label={top ? modelName(top.key) : t('usageModel')} value={top ? pct(top.w, r.total.w) : '0%'} note={t('usageOfWeighted')} />
-        <Kpi label={t('usageSubagents')} value={pct(r.total.sub, r.total.w)} note={fmtTokens(r.total.sub)} />
+      <div className="min-w-0">
+        <ModelMix r={r} />
+        <p className="mt-1 text-[13px] text-muted-foreground">{t('usageSide', num(r.total.calls), pct(r.total.sub, r.total.w))}</p>
       </div>
-
-      <Section title={t('usageHits')} sub={t('usageHitsSub')}>
-        {r.hits.length === 0 ? <p className="text-[13px] text-muted-foreground">{t('usageHitsNone')}</p> : (
-          <table className="w-full border-collapse text-[13px]">
-            <thead><tr><th className={TH}>{t('usageWhen')}</th><th className={TH}>{t('usageLimit')}</th><th className={TN}>{t('usageCalls')}</th><th className={TN}>{t('usageWeighted')}</th><th className={TH}>{t('usageWentTo')}</th></tr></thead>
-            <tbody>
-              {r.hits.map((h) => (
-                <tr key={`${h.kind}${h.ts}`}>
-                  <td className={TD}>{when(h.ts)}</td>
-                  <td className={`${TD} font-medium text-destructive`}>{h.kind === 'week' ? t('usageWeek') : t('usageH5')}</td>
-                  <td className={NUM}>{num(h.calls)}</td>
-                  <td className={NUM}>{fmtTokens(h.w)}</td>
-                  <td className={TD}>
-                    {Object.entries(h.projects).sort((a, b) => b[1] - a[1]).map(([p, w]) => `${p} ${pct(w, h.w)}`).join(', ')}
-                    <Bar parts={mix(h.models)} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Section>
-
-      <Section title={t('usageModels')} sub={t('usageModelsSub')}>
-        <table className="w-full border-collapse text-[13px]">
-          <thead><tr><th className={TH}>{t('usageModel')}</th><th className={TN}>{t('usageCalls')}</th><th className={TN}>{t('usageOutput')}</th><th className={TN}>{t('usageCacheWrite')}</th><th className={TN}>{t('usageCacheRead')}</th><th className={TN}>{t('usageWeighted')}</th><th className={TN}>{t('usageShare')}</th></tr></thead>
-          <tbody>
-            {r.models.map((m) => (
-              <tr key={m.key}>
-                <td className={TD}>{modelName(m.key)}<Bar parts={[{ key: m.key, value: m.w, color: color(m.key) }, { key: '-', value: r.total.w - m.w, color: 'bg-transparent' }]} /></td>
-                <td className={NUM}>{num(m.calls)}</td>
-                <td className={NUM}>{fmtTokens(m.out)}</td>
-                <td className={NUM}>{fmtTokens(m.write)}</td>
-                <td className={NUM}>{fmtTokens(m.read)}</td>
-                <td className={NUM}>{fmtTokens(m.w)}</td>
-                <td className={NUM}>{pct(m.w, r.total.w)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
-
-      <Section title={t('usageTasks')} sub={t('usageTasksSub')}>
-        <table className="w-full border-collapse text-[13px]">
-          <thead><tr><th className={TH}>{t('usageTask')}</th><th className={TH}>{t('usageProject')}</th><th className={TN}>{t('usageCalls')}</th><th className={TN}>{t('usageWeighted')}</th><th className={TN}>{t('usageSubagents')}</th></tr></thead>
-          <tbody>
-            {r.tasks.map((task) => (
-              <Fragment key={task.id}>
-                <tr>
-                  <td className={TD}>
-                    <button type="button" aria-expanded={open === task.id} onClick={() => setOpen(open === task.id ? null : task.id)} className="cursor-pointer text-left hover:text-primary">
-                      {task.label || t('usageNoLabel')}
-                    </button>
-                    <div className="text-xs text-muted-foreground">{when(task.ts)}</div>
-                    <Bar parts={mix(task.models)} />
-                  </td>
-                  <td className={TD}>{task.project}</td>
-                  <td className={NUM}>{num(task.calls)}</td>
-                  <td className={NUM}>{fmtTokens(task.w)}</td>
-                  <td className={NUM}>{pct(task.sub, task.w)}</td>
-                </tr>
-                {open === task.id && <tr><td colSpan={5} className={TD}><TaskDetail task={task} color={color} /></td></tr>}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </Section>
-
-      <div className="grid gap-5 md:grid-cols-2">
-        <Section title={t('usageProjects')}>
-          <table className="w-full border-collapse text-[13px]">
-            <thead><tr><th className={TH}>{t('usageProject')}</th><th className={TN}>{t('usageWeighted')}</th><th className={TN}>{t('usageSubagents')}</th></tr></thead>
-            <tbody>
-              {r.projects.map((p) => (
-                <tr key={p.key}>
-                  <td className={TD}>{p.key}<Bar parts={[{ key: p.key, value: p.w, color: 'bg-primary' }, { key: '-', value: r.total.w - p.w, color: 'bg-transparent' }]} /></td>
-                  <td className={NUM}>{fmtTokens(p.w)}</td>
-                  <td className={NUM}>{pct(p.sub, p.w)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Section>
-        <Section title={t('usageWeeks')}><Weeks weeks={r.weeks} /></Section>
-      </div>
-
-      <Section title={t('usageTank')} sub={t('usageTankSub')}>
-        {r.tanks.length === 0 ? <p className="text-[13px] text-muted-foreground">{t('usageTankNone')}</p> : (
-          <table className="w-full border-collapse text-[13px]">
-            <thead><tr><th className={TH}>{t('usageWindow')}</th><th className={TN}>{t('usageGained')}</th><th className={TN}>{t('usageWeighted')}</th><th className={TN}>{t('usagePerPct')}</th></tr></thead>
-            <tbody>
-              {r.tanks.map((k) => (
-                <tr key={k.from}>
-                  <td className={TD}>{day(k.from)} – {day(k.to)}</td>
-                  <td className={NUM}>{Math.round(k.pct)}%</td>
-                  <td className={NUM}>{fmtTokens(k.w)}</td>
-                  <td className={NUM}>{fmtTokens(k.perPct)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Section>
+      <Limits r={r} />
+      <Spent r={r} color={color} />
     </>
   );
 }
 
-const ACTION = 'cursor-pointer rounded-md border border-border bg-muted px-3 py-1 text-[13px]';
-const SEG = 'cursor-pointer px-3 py-1 text-[13px] text-muted-foreground aria-pressed:bg-muted aria-pressed:text-foreground';
+const live = (r: UsageReport): boolean => r.total.calls > 0 || r.importing;
 
 /** The Usage tab: exact token accounting from the transcripts of every project (the design note is in docs/superpowers/specs). */
 export function UsageView({ active }: { active: boolean }) {
@@ -281,18 +266,25 @@ export function UsageView({ active }: { active: boolean }) {
 
   const shown = report?.provider === provider && report.period === period ? report : null;
   return (
-    <div className="mx-auto grid max-w-5xl gap-5 px-5 py-5">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex overflow-hidden rounded-md border border-border">
-          {PROVIDERS.map((p) => <button key={p.id} type="button" aria-pressed={provider === p.id} className={SEG} onClick={() => setChoice(p.id)}>{p.name}</button>)}
+    <div className="mx-auto grid max-w-3xl gap-6 px-5 py-5">
+      <div className="grid gap-5">
+        <div className="flex flex-wrap items-baseline gap-5 text-[13px]">
+          <div className="flex gap-3">
+            {PROVIDERS.map((p) => <button key={p.id} type="button" aria-pressed={provider === p.id} className={CHOICE} onClick={() => setChoice(p.id)}>{p.name}</button>)}
+          </div>
+          <div className="flex gap-3">
+            {USAGE_PERIODS.map((p) => <button key={p} type="button" aria-pressed={period === p} className={CHOICE} onClick={() => setPeriod(p)}>{t(PERIOD_KEY[p])}</button>)}
+          </div>
         </div>
-        <div className="inline-flex overflow-hidden rounded-md border border-border">
-          {USAGE_PERIODS.map((p) => <button key={p} type="button" aria-pressed={period === p} className={SEG} onClick={() => setPeriod(p)}>{t(PERIOD_KEY[p])}</button>)}
-        </div>
-        <span className="min-w-40 flex-1 text-[13px] text-muted-foreground">
-          {shown?.from ? t('usageSince', when(shown.from)) : shown?.period === 'trip' ? t('usageNeverReset') : ''}
-        </span>
-        <button type="button" onClick={() => setAsking(!asking)} aria-expanded={asking} className={ACTION}>{t('usageReset')}</button>
+        {shown && live(shown) && (
+          <div className="flex flex-wrap items-center gap-3.5">
+            <Odometer value={shown.total.w} />
+            <span className="text-muted-foreground underline decoration-dotted underline-offset-3" title={t('usageTotalsTip', fmtTokens(shown.total.read), fmtTokens(shown.total.out))}>{t('usageTokens')}</span>
+            {shown.from && shown.period === 'trip' && <span className="text-[13px] text-muted-foreground">{t('usageSince', when(shown.from))}</span>}
+            <button type="button" onClick={() => setAsking(!asking)} aria-expanded={asking} className={`${ACTION} ml-auto`}>{t('usageReset')}</button>
+          </div>
+        )}
+        {shown && !live(shown) && <div className="flex"><button type="button" onClick={() => setAsking(!asking)} aria-expanded={asking} className={`${ACTION} ml-auto`}>{t('usageReset')}</button></div>}
       </div>
       {asking && (
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-card px-3 py-2 text-[13px]">
@@ -304,7 +296,7 @@ export function UsageView({ active }: { active: boolean }) {
       {error && <p role="alert" className="text-[13px] text-destructive">{t('usageLoadFail', error)}</p>}
       {shown?.importing && <p role="status" className="text-[13px] text-warn">{t('usageImporting')}</p>}
       {!shown && !error && <p className="text-[13px] text-muted-foreground">{t('usageLoading')}</p>}
-      {shown && (shown.total.calls === 0 && !shown.importing ? <p className="text-[13px] text-muted-foreground">{t('usageEmpty')}</p> : <Report r={shown} />)}
+      {shown && (live(shown) ? <Report r={shown} /> : <p className="text-[13px] text-muted-foreground">{t('usageEmpty')}</p>)}
     </div>
   );
 }

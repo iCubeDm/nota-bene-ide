@@ -11,15 +11,15 @@ import { fmtTokens } from './UsageView.tsx';
 const row = (o: Partial<UsageRow> = {}): UsageRow => ({ in: 10, out: 2_000_000, write: 5, read: 3_000_000_000, calls: 1200, w: 300_000_000, sub: 100_000_000, ...o });
 const REPORT: UsageReport = {
   provider: 'claude', period: 'trip', from: null, trip: null, importing: false, total: row(),
-  models: [{ key: 'claude-opus', ...row({ w: 240_000_000 }) }, { key: 'claude-sonnet', ...row({ w: 60_000_000, calls: 40 }) }],
+  models: [{ key: 'claude-opus-5-5', ...row({ w: 240_000_000 }) }, { key: 'claude-sonnet', ...row({ w: 60_000_000, calls: 40 }) }],
   projects: [{ key: 'app', ...row() }],
   tasks: [{
     ...row({ w: 20_000_000 }), id: 't1', ts: 1, label: 'Review the parser', project: 'app', models: { 'claude-opus': 20_000_000 },
     agents: [{ id: 'a1', label: 'Explore: routes', model: 'claude-sonnet', calls: 9, w: 5_000_000 }],
     top: [{ ts: 1, model: 'claude-opus', in: 1, out: 2, write: 3, read: 4, w: 9_000_000 }],
   }],
-  hits: [{ ts: 1, kind: '5h', calls: 954, w: 23_000_000, projects: { app: 18_000_000, film: 5_000_000 }, models: { 'claude-opus': 23_000_000 } }],
-  weeks: [{ key: '2026-10-05', w: 1 }], tanks: [{ from: 1, to: 2, pct: 10, w: 1000, perPct: 100 }],
+  hits: [{ ts: 1, kind: '5h', calls: 954, w: 23_000_000, projects: { app: 18_000_000, film: 5_000_000 }, models: { 'claude-opus': 23_000_000 }, tasks: [{ id: 't1', label: 'Long job', w: 20_000_000 }] }],
+  weeks: [{ key: '2026-10-05', w: 1, hit: false }, { key: '2026-10-12', w: 2, hit: true }], tanks: [{ from: 1, to: 2, pct: 10, w: 1000, perPct: 100 }],
 };
 
 let reply: (url: string) => UsageReport;
@@ -59,22 +59,49 @@ it('the header button opens one Usage tab', async () => {
   expect(gets[0]).toBe('/usage?provider=claude&period=trip');
 });
 
-it('shows the totals, the hits, the models and the tank', async () => {
+it('shows the meter, the model mix, the hits and the tank', async () => {
   setup();
   await screen.findByText('Review the parser');
-  expect(screen.getAllByText('300.0M').length).toBeGreaterThan(0);
-  expect(screen.getByText('calls: 1,200')).toBeTruthy();
+  expect(screen.getByRole('img', { name: '300.0M' })).toBeTruthy();
+  expect(screen.getByText('Calls: 1,200, subagents 33%')).toBeTruthy();
+  expect(screen.getByText('Opus 5.5')).toBeTruthy();
   expect(screen.getByText('app 78%, film 22%')).toBeTruthy();
-  expect(screen.getAllByText('opus').length).toBeGreaterThan(0);
-  expect(screen.getByText('Tokens per 1% of the weekly limit')).toBeTruthy();
+  expect(screen.getByText('red: weeks with a limit hit')).toBeTruthy();
+  expect(screen.getByText('Per 1% of the weekly limit:').textContent).toContain('100');
+});
+
+it('a hit opens to the tasks that ate its window', async () => {
+  setup();
+  fireEvent.click((await screen.findByText('app 78%, film 22%')).closest('button')!);
+  expect(screen.getByText('Long job')).toBeTruthy();
+});
+
+it('what a period has nothing for is not there', async () => {
+  reply = () => ({ ...REPORT, hits: [], tanks: [], weeks: [] });
+  setup();
+  await screen.findByText('Review the parser');
+  expect(screen.queryByText('Limit hits')).toBeNull();
+});
+
+it('five rows, then all of them; the projects share the list', async () => {
+  const tasks = [...Array(7).keys()].map((i) => ({ ...REPORT.tasks[0]!, id: `t${i}`, label: `Task ${i}` }));
+  reply = () => ({ ...REPORT, tasks });
+  setup();
+  await screen.findByText('Task 4');
+  expect(screen.queryByText('Task 5')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'All 7' }));
+  expect(screen.getByText('Task 6')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+  expect(screen.queryByText('Task 6')).toBeNull();
+  expect(screen.getAllByText('app').length).toBeGreaterThan(0);
 });
 
 it('a task opens to its subagents and costliest calls', async () => {
   setup();
-  fireEvent.click(await screen.findByRole('button', { name: 'Review the parser' }));
+  fireEvent.click(await screen.findByRole('button', { name: /Review the parser/ }));
   expect(screen.getByText('Explore: routes')).toBeTruthy();
   expect(screen.getByText('Costliest calls')).toBeTruthy();
-  expect(screen.getByText('main agent')).toBeTruthy();
+  expect(screen.getByText(/^main agent/)).toBeTruthy();
 });
 
 it('provider and period reload the report; a late answer for the old choice is not shown', async () => {
@@ -90,10 +117,10 @@ it('asks before a reset, then counts from there', async () => {
   setup();
   await screen.findByText('Review the parser');
   const n = gets.length;
-  fireEvent.click(screen.getByRole('button', { name: 'Reset the counter' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
   expect(posts).toEqual([]);
   const ask = screen.getByText(/Start counting from now/).parentElement!;
-  fireEvent.click(within(ask).getByRole('button', { name: 'Reset the counter' }));
+  fireEvent.click(within(ask).getByRole('button', { name: 'Reset' }));
   await waitFor(() => expect(posts).toEqual([{ url: '/usage/reset', body: { provider: 'claude' } }]));
   await waitFor(() => expect(gets.length).toBeGreaterThan(n));
 });

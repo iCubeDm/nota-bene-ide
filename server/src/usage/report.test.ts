@@ -23,12 +23,42 @@ describe('mergeCalls', () => {
   });
 });
 
+describe('projects are where a session started', () => {
+  it('the folders it wandered into, and its subagents, stay in the project', () => {
+    const r = report([
+      call({ id: 'late', ts: T0 + H, cwd: '/work/app/web/src', out: 1 }),
+      call({ id: 'first', ts: T0, cwd: '/work/app', out: 1 }),
+      call({ id: 'sub', ts: T0 + 2 * H, cwd: '/work/app/.worktrees/agent-a1', agent: 'a1', out: 1 }),
+      call({ id: 'other', session: 's2', ts: T0, cwd: '/work/film/cuts', out: 1 }),
+      { k: 'h', ts: T0 + 3 * H, kind: '5h' },
+    ]);
+    expect(r.projects.map((p) => [p.key, p.calls])).toEqual([['app', 3], ['cuts', 1]]);
+    expect(r.hits[0]!.projects).toEqual({ app: 15, cuts: 5 });
+    expect(r.tasks.map((t) => t.project).sort()).toEqual(['app', 'cuts']);
+  });
+
+  it('the start counts even when the period cuts it off; a call with no folder falls back to the first that has one', () => {
+    const r = report([
+      call({ id: 'blank', ts: T0 - 40 * D, cwd: '' }), call({ id: 'old', ts: T0 - 30 * D, cwd: '/work/app' }),
+      call({ id: 'new', ts: T0, cwd: '/work/app/src' }),
+    ], { period: '7d', now: T0 + D });
+    expect(r.projects.map((p) => p.key)).toEqual(['app']);
+  });
+});
+
+describe('weeks', () => {
+  it('an idle week is there, empty; a week with a hit says so, whatever the period', () => {
+    const r = report([call({ id: 'a', ts: T0, out: 1 }), call({ id: 'b', ts: T0 + 14 * D, out: 1 }), { k: 'h', ts: T0 + 14 * D, kind: '5h' }], { period: '7d', now: T0 + 30 * D });
+    expect(r.weeks).toEqual([{ key: '2026-10-05', w: 5, hit: false }, { key: '2026-10-12', w: 0, hit: false }, { key: '2026-10-19', w: 5, hit: true }]);
+  });
+});
+
 describe('totals, models, projects', () => {
   it('split by model and project, ranked by weight, subagents counted apart', () => {
     const r = report([
       call({ id: 'a', out: 100 }),
       call({ id: 'b', out: 10, model: 'sonnet', agent: 'x' }),
-      call({ id: 'c', out: 1, cwd: '/work/other' }),
+      call({ id: 'c', session: 's2', out: 1, cwd: '/work/other' }),
     ]);
     expect(r.total).toMatchObject({ calls: 3, out: 111, w: 555, sub: 50 });
     expect(r.models.map((m) => m.key)).toEqual(['opus', 'sonnet']);
@@ -38,7 +68,7 @@ describe('totals, models, projects', () => {
   it('the period cuts calls; the weeks stay whole', () => {
     const r = report([call({ id: 'old', ts: T0, out: 1 }), call({ id: 'new', ts: T0 + 29 * D, out: 1 })], { period: '7d' });
     expect(r.total.calls).toBe(1);
-    expect(r.weeks).toHaveLength(2);
+    expect(r.weeks.filter((w) => w.w > 0)).toHaveLength(2);
   });
 
   it('since the reset; never reset means everything', () => {
@@ -81,15 +111,26 @@ describe('tasks', () => {
 });
 
 describe('hits', () => {
+  it('names the costliest tasks of the window, also those outside the top of the period', () => {
+    const r = report([
+      { k: 'p', ts: T0 - 4 * H, session: 'a', label: 'first' }, { k: 'p', ts: T0 - 4 * H, session: 'b', label: 'second' },
+      { k: 'p', ts: T0 - 4 * H, session: 'c', label: 'third' }, { k: 'p', ts: T0 - 4 * H, session: 'd', label: 'fourth' },
+      call({ id: 'a', session: 'a', ts: T0 - H, out: 1 }), call({ id: 'b', session: 'b', ts: T0 - H, out: 4 }),
+      call({ id: 'c', session: 'c', ts: T0 - H, out: 3 }), call({ id: 'd', session: 'd', ts: T0 - H, out: 2 }),
+      { k: 'h', ts: T0, kind: '5h' },
+    ]);
+    expect(r.hits[0]!.tasks.map((t) => [t.label, t.w])).toEqual([['second', 20], ['third', 15], ['fourth', 10]]);
+  });
+
   it('counts the five hours before, by project and model; hits within two hours are one', () => {
     const r = report([
       call({ id: 'old', ts: T0 - 6 * H, out: 100 }),
       call({ id: 'a', ts: T0 - 4 * H, out: 1 }),
-      call({ id: 'b', ts: T0 - H, out: 2, cwd: '/work/other', model: 'sonnet' }),
+      call({ id: 'b', session: 's2', ts: T0 - H, out: 2, cwd: '/work/other', model: 'sonnet' }),
       call({ id: 'after', ts: T0 + H, out: 100 }),
       { k: 'h', ts: T0, kind: '5h' }, { k: 'h', ts: T0 + H, kind: '5h' },
     ]);
-    expect(r.hits).toEqual([{ ts: T0, kind: '5h', calls: 2, w: 15, projects: { app: 5, other: 10 }, models: { opus: 5, sonnet: 10 } }]);
+    expect(r.hits).toEqual([{ ts: T0, kind: '5h', calls: 2, w: 15, projects: { app: 5, other: 10 }, models: { opus: 5, sonnet: 10 }, tasks: [{ id: 's2:0', label: '', w: 10 }, { id: 's:0', label: '', w: 5 }] }]);
   });
 
   it('a week hit looks back seven days; a chain of hits stays apart from the next window', () => {

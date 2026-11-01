@@ -53,16 +53,20 @@ The comparison number is weighted tokens: input ×1, cache write ×1.25, cache r
 the same for every model. Raw sum would be almost only cache reads. It is a yardstick, not a price;
 the raw counts stand beside it.
 
-- Totals: weighted, calls, cache read, output, the top model's share, subagents' share.
-- Limit hits: tokens in the window before the hit (5 hours or 7 days), by project and by model.
+- Meter: weighted tokens, the raw counts in a tooltip. A bar of the two top models and the rest, calls and the
+  subagents' share. Per-model raw counts in a tooltip.
+- Limit hits: weighted per week, all time, idle weeks too, a week with a hit marked. Each hit: tokens in the
+  window before it (5 hours or 7 days), by project and by model, and its three costliest tasks on a click.
   Hits within two hours are one event.
-- Models: calls, output, cache write, cache read, weighted, share.
-- Costliest tasks. A task is one user message and all the agent did until the reply, subagents
-  included. Expands to its subagents and its costliest calls.
-- Projects: weighted, subagents' share.
-- Weeks: weighted per week, all time.
-- Tank: weighted tokens per 1% of the weekly limit, per limit window; a window needs at least 1%.
+- Tank: weighted tokens per 1% of the weekly limit, per limit window, one line; a window needs at least 1%.
   Falling means the 100% shrank.
+- Where it went: the costliest tasks or the projects, five rows, then all. A task is one user message and all
+  the agent did until the reply, subagents included; it expands to its subagents and its costliest calls. A
+  project is the folder its session started in: the agent wanders into subfolders and worktrees.
+- A block with nothing to show is left out.
+
+A task's label skips the heading of a sent batch of comments: the words above it, or else its first comment.
+Raising `PARSE_VERSION` reads every transcript once more, so that a parser change reaches the store.
 
 ## API
 

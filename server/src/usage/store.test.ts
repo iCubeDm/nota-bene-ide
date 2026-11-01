@@ -66,6 +66,21 @@ describe('importUsage', () => {
     expect((await calls()).map((c) => c.id)).toEqual(['m1', 'm2']);
   });
 
+  it('a file read by an older parser is read once more: its counts stay single, its labels catch up', async () => {
+    write('p/s1.jsonl', prompt('Comments on fragments:\n\n1. [x]\n> a quote\n→ why so') + call('m1', 5));
+    await importUsage(store, source());
+    const state = store.readState();
+    store.writeState(Object.fromEntries(Object.entries(state).map(([f, v]) => [f, { offset: v.offset }])));
+    store.append([{ k: 'p', ts: 0, session: 'old', label: 'kept' }]);
+    await importUsage(store, source());
+    const size = fs.statSync(path.join(dir, 'claude.jsonl')).size;
+    await importUsage(store, source());
+    expect(fs.statSync(path.join(dir, 'claude.jsonl')).size).toBe(size);
+    expect((await calls()).map((c) => c.id)).toEqual(['m1']);
+    expect((await store.load()).some((r) => r.k === 'p' && r.label === 'why so')).toBe(true);
+    expect((await store.load()).some((r) => r.k === 'p' && r.label === 'kept')).toBe(true);
+  });
+
   it("a call's later line that grew is kept, an equal one is not, a fork's copy is one call", async () => {
     write('p/s1.jsonl', call('m1', 1) + call('m1', 90) + call('m1', 90));
     await importUsage(store, source());

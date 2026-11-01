@@ -17,6 +17,8 @@ export type UsageTaskRow = UsageRow & {
 };
 export type UsageHit = {
   ts: number; kind: '5h' | 'week'; calls: number; w: number; projects: Record<string, number>; models: Record<string, number>;
+  /** the costliest tasks of the window */
+  tasks: { id: string; label: string; w: number }[];
 };
 /** One weekly limit window: the tokens between its first and last reading, per percent gained. */
 export type UsageTank = { from: number; to: number; pct: number; w: number; perPct: number };
@@ -34,7 +36,7 @@ export type UsageReport = {
   projects: (UsageRow & { key: string })[];
   tasks: UsageTaskRow[];
   hits: UsageHit[];
-  /** every week, whatever the period; `key`: its Monday, YYYY-MM-DD, local time */
-  weeks: { key: string; w: number }[];
+  /** every week since the first, idle ones too, whatever the period; `key`: its Monday, YYYY-MM-DD, local time; `hit`: a limit was hit in it */
+  weeks: { key: string; w: number; hit: boolean }[];
   tanks: UsageTank[];
 };

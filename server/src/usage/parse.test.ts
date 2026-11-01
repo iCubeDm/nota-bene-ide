@@ -40,6 +40,15 @@ describe('claude', () => {
     }
   });
 
+  it('a batch of comments is labelled by the words above it, or else by its first comment, not by the quote', () => {
+    const prompt = (content: string) => parseClaudeLine(claude({ type: 'user', message: { content } }), { session: 's' });
+    const labelled = (l: string) => [{ k: 'p', ts: at, session: 's', label: l }];
+    expect(prompt('Please fix\n\nComments on fragments:\n\n1. [reply #3 · 21:47]\n> a quote\n→ why so')).toEqual(labelled('Please fix'));
+    expect(prompt('Comments on fragments:\n\n1. [reply #3 · 21:47]\n> a quote\n→ why so\n\n2. [x]\n> b\n→ c')).toEqual(labelled('why so'));
+    expect(prompt('Комментарии к фрагментам:\n\n1. [ответ #3 · 21:47]\n> цитата\n→ почему')).toEqual(labelled('почему'));
+    expect(prompt('Comments on fragments:\n\n1. [x]\n> only a quote')).toEqual(labelled('1. [x] > only a quote'));
+  });
+
   it('a prompt is a labelled record; tool results, meta and wrapped commands are not prompts', () => {
     const user = (o: object) => claude({ type: 'user', ...o });
     const long = 'a  b\n'.repeat(40);

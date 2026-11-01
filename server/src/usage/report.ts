@@ -13,7 +13,7 @@ const DAY = 864e5, HOUR = 36e5;
 const WEEK_MINUTES = 7 * 24 * 60;
 /** Hits this close are one event: the agent retried, or another window hit the same wall. */
 const HIT_MERGE_MS = 2 * HOUR;
-const TOP_TASKS = 20, TOP_CALLS = 5;
+const TOP_TASKS = 20, TOP_CALLS = 5, HIT_TASKS = 3;
 const PERIOD_DAYS: Partial<Record<UsagePeriod, number>> = { '7d': 7, '30d': 30 };
 
 const zero = (): UsageRow => ({ in: 0, out: 0, write: 0, read: 0, calls: 0, w: 0, sub: 0 });
@@ -49,7 +49,16 @@ export function mergeCalls(records: readonly UsageRecord[]): CallRecord[] {
   return [...byId.values()];
 }
 
-const project = (cwd: string): string => path.basename(cwd) || '?';
+/** A call's project: the folder its session started in. The agent wanders into subfolders and worktrees, and those are no projects. */
+function projectFinder(calls: readonly CallRecord[]) {
+  const start = new Map<string, CallRecord>();
+  for (const c of calls) {
+    const a = start.get(c.session);
+    if (c.cwd && (!a || c.ts < a.ts)) start.set(c.session, c);
+  }
+  return (c: CallRecord): string => path.basename(start.get(c.session)?.cwd ?? c.cwd) || '?';
+}
+type Project = ReturnType<typeof projectFinder>;
 
 /** The task of a call: named by the transcript, or the session's last prompt before it. */
 function taskFinder(records: readonly UsageRecord[]) {
@@ -79,7 +88,7 @@ function taskFinder(records: readonly UsageRecord[]) {
   };
 }
 
-function tasksOf(calls: readonly CallRecord[], records: readonly UsageRecord[]): UsageTaskRow[] {
+function tasksOf(calls: readonly CallRecord[], records: readonly UsageRecord[], project: Project): UsageTaskRow[] {
   const find = taskFinder(records);
   const names = new Map<string, string>();
   for (const r of records) if (r.k === 'a') names.set(r.id, r.label);
@@ -88,7 +97,7 @@ function tasksOf(calls: readonly CallRecord[], records: readonly UsageRecord[]):
   for (const c of calls) {
     const t = find(c);
     let o = tasks.get(t.id);
-    if (!o) tasks.set(t.id, o = { row: zero(), ...t, project: project(c.cwd), models: {}, agents: new Map(), calls: [] });
+    if (!o) tasks.set(t.id, o = { row: zero(), ...t, project: project(c), models: {}, agents: new Map(), calls: [] });
     add(o.row, c);
     const w = weigh(c);
     bump(o.models, c.model, w);
@@ -107,25 +116,35 @@ function tasksOf(calls: readonly CallRecord[], records: readonly UsageRecord[]):
   }));
 }
 
-/** The tokens in the window that ended with each hit. */
-function hitsOf(calls: readonly CallRecord[], records: readonly UsageRecord[], from: number | null): UsageHit[] {
+function hitEvents(records: readonly UsageRecord[]): { ts: number; kind: UsageHit['kind'] }[] {
   const events: { ts: number; kind: UsageHit['kind'] }[] = [];
   const sorted = records.flatMap((r) => (r.k === 'h' ? [r] : [])).sort((a, b) => a.ts - b.ts);
   for (const h of sorted) {
     const same = events.findLast((e) => e.kind === h.kind);
     if (!same || h.ts - same.ts >= HIT_MERGE_MS) events.push({ ts: h.ts, kind: h.kind });
   }
+  return events;
+}
+
+/** The tokens in the window that ended with each hit. */
+function hitsOf(events: ReturnType<typeof hitEvents>, calls: readonly CallRecord[], records: readonly UsageRecord[], from: number | null, project: Project): UsageHit[] {
+  const find = taskFinder(records);
   return events.filter((e) => from === null || e.ts >= from).map((e) => {
     const since = e.ts - (e.kind === 'week' ? 7 * DAY : 5 * HOUR);
-    const hit: UsageHit = { ...e, calls: 0, w: 0, projects: {}, models: {} };
+    const hit: UsageHit = { ...e, calls: 0, w: 0, projects: {}, models: {}, tasks: [] };
+    const tasks = new Map<string, UsageHit['tasks'][number]>();
     for (const c of calls) {
       if (c.ts <= since || c.ts > e.ts) continue;
       const w = weigh(c);
       hit.calls++;
       hit.w += w;
-      bump(hit.projects, project(c.cwd), w);
+      bump(hit.projects, project(c), w);
       bump(hit.models, c.model, w);
+      const { id, label } = find(c);
+      const t = tasks.get(id);
+      if (t) t.w += w; else tasks.set(id, { id, label, w });
     }
+    hit.tasks = [...tasks.values()].sort((a, b) => b.w - a.w).slice(0, HIT_TASKS);
     return hit;
   });
 }
@@ -139,10 +158,18 @@ export function weekKey(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function weeksOf(calls: readonly CallRecord[]): UsageReport['weeks'] {
+function weeksOf(calls: readonly CallRecord[], events: ReturnType<typeof hitEvents>): UsageReport['weeks'] {
   const m = new Map<string, number>();
   for (const c of calls) m.set(weekKey(c.ts), (m.get(weekKey(c.ts)) ?? 0) + weigh(c));
-  return [...m].map(([key, w]) => ({ key, w })).sort((a, b) => a.key.localeCompare(b.key));
+  const hit = new Set(events.map((e) => weekKey(e.ts)));
+  const keys = [...m.keys()].sort();
+  const out: UsageReport['weeks'] = [];
+  for (const key of keys.slice(0, 1)) {
+    const last = keys[keys.length - 1]!;
+    const d = new Date(`${key}T12:00:00`); // noon: a clock change cannot move it to another day
+    for (let k = key; k <= last; d.setDate(d.getDate() + 7), k = weekKey(d.getTime())) out.push({ key: k, w: m.get(k) ?? 0, hit: hit.has(k) });
+  }
+  return out;
 }
 
 /** Tokens per percent of each weekly limit window, from its first to its last reading. */
@@ -175,16 +202,18 @@ export function buildReport(records: readonly UsageRecord[], o: { provider: Usag
   const every = mergeCalls(records);
   const from = periodStart(o.period, o.trip, o.now);
   const calls = from === null ? every : every.filter((c) => c.ts >= from);
+  const project = projectFinder(every);
+  const events = hitEvents(records);
   const total = zero();
   const models = new Map<string, UsageRow>(), projects = new Map<string, UsageRow>();
   for (const c of calls) {
     add(total, c);
     addTo(models, c.model, c);
-    addTo(projects, project(c.cwd), c);
+    addTo(projects, project(c), c);
   }
   return {
     provider: o.provider, period: o.period, from, trip: o.trip, importing: o.importing, total,
-    models: ranked(models), projects: ranked(projects), tasks: tasksOf(calls, records),
-    hits: hitsOf(every, records, from), weeks: weeksOf(every), tanks: tanksOf(every, records),
+    models: ranked(models), projects: ranked(projects), tasks: tasksOf(calls, records, project),
+    hits: hitsOf(events, every, records, from, project), weeks: weeksOf(every, events), tanks: tanksOf(every, records),
   };
 }

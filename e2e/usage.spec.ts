@@ -8,8 +8,8 @@ test('the Usage tab reports a task and a limit hit, and a reset keeps the data u
 
   const task = page.getByRole('button', { name: /Review the parser/ });
   await expect(task).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Week', exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'demo' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /week: 12\.0k/ })).toBeVisible();
+  await expect(task.getByText('demo')).toBeVisible();
   await task.click();
   await expect(page.getByText('Costliest calls')).toBeVisible();
 
@@ -18,9 +18,8 @@ test('the Usage tab reports a task and a limit hit, and a reset keeps the data u
   await page.getByRole('button', { name: 'Claude', exact: true }).click();
   await expect(task).toBeVisible();
 
-  await page.getByRole('button', { name: 'Reset the counter' }).click();
-  await page.getByRole('button', { name: 'Reset the counter' }).nth(1).click();
-  await page.getByRole('button', { name: 'Since reset' }).click();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await page.getByRole('button', { name: 'Reset', exact: true }).nth(1).click();
   await expect(page.getByText('No usage in this period.')).toBeVisible();
   await expect(task).toBeHidden();
   await page.getByRole('button', { name: 'All time' }).click();
@@ -31,6 +30,5 @@ test('the Usage tab reports a task and a limit hit, and a reset keeps the data u
   await page.setViewportSize({ width: 720, height: 800 });
   await expect(task).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('usage-720.png') });
-  const clipped = await page.locator('table').evaluateAll((all) => all.filter((t) => t.getBoundingClientRect().right > innerWidth).length);
-  expect(clipped).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(720);
 });
