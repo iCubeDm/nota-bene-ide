@@ -1,20 +1,19 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 — 2026-11-01
 
-- Code blocks in replies and Markdown files wrap, number their lines and have a copy
-  button; a wrapped part of a line has no number of its own.
-
-- Add interface languages: Simplified Chinese, Spanish, Brazilian
-  Portuguese and German.
-
-- Add a Usage tab: exact token accounting across every project and both agents, from
-  the transcripts. Per model, project, task, subagent and call, with a resettable
-  counter, the tokens spent before each limit hit, tokens per 1% of the weekly limit,
-  and the tokens and dollars spent on extra usage.
-
+- Add a Usage tab: token accounting across every project and both agents, read from
+  the local transcripts, so work outside Nota Bene counts too. Weighted totals per
+  model, project, task, subagent and call, with a resettable counter.
+- The Usage tab charts five-hour windows and weeks of work, lists each limit hit with
+  what was spent before it, and shows tokens per 1% of the weekly limit and the tokens
+  and dollars spent on extra usage.
 - Edit a text file by hand: ✎ in the file's header. A change made on disk meanwhile is
   never overwritten silently, and unsaved text survives a closed tab or a reload.
+- Code blocks in replies and Markdown files wrap, number their lines and have a copy
+  button; a wrapped part of a line has no number of its own.
+- Add interface languages: Simplified Chinese, Spanish, Brazilian Portuguese and
+  German. The translations have not been reviewed by native speakers yet.
 
 ## 1.1.1 — 2026-10-31
 

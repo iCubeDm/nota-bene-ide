@@ -1,6 +1,6 @@
 # Nota Bene architecture
 
-State as of 2026-10-31, release 1.1.1 on `main`.
+State as of 2026-11-01, release 1.2.0 on `main`.
 
 ## 1. Overview
 
