@@ -285,6 +285,24 @@ test('big.log shows the too-large note; a path through a symlink out of the proj
   expect((await page.request.get('/file?path=link-out/x')).status()).toBe(403);
 });
 
+test('edit a file by hand: a draft survives a reload, Alt+S saves, the view and the file show it, line ends kept @files', async ({ page }) => {
+  await start(page);
+  await openFromTree(page, 'edit-me.txt');
+  const pane = page.locator('[data-pane="file:edit-me.txt"]');
+  await expect(pane).toContainText('first line');
+  await page.getByRole('button', { name: /^(Edit|Править)$/ }).click();
+  const box = page.getByRole('textbox', { name: 'edit-me.txt' });
+  await expect(box).toHaveValue('first line\nsecond line\n');
+  await box.fill('first line\nchanged by hand\n');
+
+  await page.reload();
+  await expect(box).toHaveValue('first line\nchanged by hand\n');
+  await box.press('Alt+s');
+  await expect(box).toBeHidden();
+  await expect(pane).toContainText('changed by hand');
+  expect(await (await page.request.get('/file?path=edit-me.txt')).text()).toBe('first line\r\nchanged by hand\r\n');
+});
+
 test('@ in the composer inserts a quoted path; the mention in the bubble opens the file @files', async ({ page }) => {
   await start(page);
   const text = uniq('mention');

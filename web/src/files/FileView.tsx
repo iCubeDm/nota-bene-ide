@@ -15,6 +15,7 @@ import { isFixed, sourcesKnown, useSources } from './sources.ts';
 import { SourceChip } from './SourcePicker.tsx';
 import { clearJump, selectJump } from './slice.ts';
 import { HIGHLIGHT_MAX } from './view/CodeText.tsx';
+import { FileEditor, hasDraft } from './view/FileEditor.tsx';
 import { MediaBody } from './view/MediaBody.tsx';
 import { ModelPane } from './view/ModelPane.tsx';
 import { TextBody } from './view/TextBody.tsx';
@@ -61,6 +62,9 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   const markup = useMediaMarkup({ tabId, path, ref, active, marking, mediaUrl: tmp ? load.mediaUrl : mediaUrl, mediaEl: load.mediaEl });
   const { markable } = markup;
   const wrap = useWrapLines();
+  // by hand: text of this checkout; a draft left by a closed tab or a reload opens again
+  const editable = src === 'here' && !fixed && !tmp && (kind === 'md' || kind === 'text');
+  const [editing, setEditing] = useState(() => editable && hasDraft(path));
 
   // "jump to source" (CommentCard): once this view shows fresh text and is visible, scroll to the fragment and flash it
   const jump = useAppSelector(selectJump);
@@ -104,6 +108,9 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
           <button type="button" aria-label={t('wrapLines')} aria-pressed={wrap} title={`${t('wrapLines')} (Alt+Z)`} onClick={wrapLines.toggle}
             className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${wrap ? 'text-foreground' : ''}`}>↩</button>
         )}
+        {editable && !editing && data?.s === 'text' && (
+          <button type="button" aria-label={t('editFile')} title={t('editFile')} onClick={() => setEditing(true)} className="rounded px-1.5 hover:bg-muted hover:text-foreground">✎</button>
+        )}
         <button type="button" aria-label={t('reload')} title={t('reload')} onClick={load.reloadClick} className="rounded px-1.5 hover:bg-muted hover:text-foreground">↻</button>
         <a href={tmp ? (blob.s === 'ok' ? blob.url : undefined) : url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">{t('openRaw')}</a>
       </div>
@@ -115,6 +122,8 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
           onToggleNatural={() => setNatural((v) => !v)} mediaUrl={mediaUrl} failed={failed} srcGone={srcGone}
           onError={load.onError} note={note} onMediaMeta={load.onMediaMeta} markup={markup} mediaEl={load.mediaEl}
         />
+      ) : editing ? (
+        <FileEditor path={path} onClose={(saved) => { setEditing(false); if (saved) load.reloadClick(); }} />
       ) : (
         <TextBody data={data} kind={kind} path={path} src={src} fileRef={ref} tabId={tabId} active={active} url={url} paneRef={pane} />
       )}

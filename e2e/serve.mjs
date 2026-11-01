@@ -76,6 +76,7 @@ function seedFiles(dir) {
   const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
   fs.writeFileSync(path.join(dir, 'docs/pic.png'), Buffer.from(png, 'base64'));
   fs.writeFileSync(path.join(dir, 'docs/big.png'), bigPng(3000, 2000));
+  fs.writeFileSync(path.join(dir, 'edit-me.txt'), 'first line\r\nsecond line\r\n');
   fs.mkdirSync(path.join(dir, 'media'));
   // the config sets NB_E2E_FFMPEG (1/0); run alone, serve.mjs asks ffmpeg itself. Without it the media tests skip
   if (hasFfmpeg()) {

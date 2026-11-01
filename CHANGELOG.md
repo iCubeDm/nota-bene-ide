@@ -7,6 +7,9 @@
   counter, the tokens spent before each limit hit, tokens per 1% of the weekly limit,
   and the tokens and dollars spent on extra usage.
 
+- Edit a text file by hand: ✎ in the file's header. A change made on disk meanwhile is
+  never overwritten silently, and unsaved text survives a closed tab or a reload.
+
 ## 1.1.1 — 2026-10-31
 
 - Refuse a Codex CLI older than 0.166.0 with a clear message instead of a native

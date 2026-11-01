@@ -4,6 +4,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream';
 import type { EventHub } from './hub.ts';
 import { reportError } from './errors.ts';
+import { EDIT_MAX, readEditable, writeEditable, type EditAnswer } from './fileEdit.ts';
 import { listDir, listFiles, resolveInRoot } from './files.ts';
 import { blobSize, branchFiles, gitStatus, listSources, readFile, readTree, SourceError, type Source } from './git.ts';
 import { fuzzyScore } from './fuzzy.ts';
@@ -39,6 +40,19 @@ function plain(res: ServerResponse, status: number, body: string): void {
 function queryPath(req: IncomingMessage): string {
   // URLSearchParams decodes once; the value is never decoded again
   return new URL(req.url ?? '/', 'http://x').searchParams.get('path') ?? '';
+}
+
+/** The JSON of a save, null when it cannot fit a file we would take: every byte of the text may take six in JSON. */
+async function editBody(req: IncomingMessage): Promise<Record<string, unknown> | null> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const c of req as AsyncIterable<Buffer>) {
+    size += c.length;
+    if (size > EDIT_MAX * 6 + 4096) return null;
+    chunks.push(c);
+  }
+  const v: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+  return v && typeof v === 'object' ? v as Record<string, unknown> : {};
 }
 
 /**
@@ -259,6 +273,19 @@ export function fileRoutes(o: {
         if (src.kind === 'worktree' && src.dir) return serveFs(req, res, src.dir);
         await serveBlob(req, res, root, src).catch((e) => sourceFail(req, res, e));
       });
+    },
+
+    // by hand, this checkout only: never a cookie route, the key is what makes it a write of this page
+    '/edit': (req, res) => {
+      const answer = (a: EditAnswer) => json(req, res, a.status, a.body);
+      if (req.method === 'GET') return void readEditable(o.root(), queryPath(req)).then(answer, (e) => fail(req, res, e));
+      if (req.method !== 'POST') return plain(res, 405, 'method not allowed');
+      editBody(req).then((b) => {
+        if (b === null) return plain(res, 413, 'too large');
+        const { path: rel, text, base } = b;
+        if (typeof rel !== 'string' || typeof text !== 'string' || (typeof base !== 'string' && base !== null)) return plain(res, 400, 'bad request');
+        return writeEditable(o.root(), rel, text, base).then(answer);
+      }).catch((e: unknown) => (e instanceof SyntaxError ? plain(res, 400, 'bad json') : fail(req, res, e)));
     },
 
     // an image of a temp folder (the agent's screenshot). Not under /file: that is a cookie route and stays inside the project
