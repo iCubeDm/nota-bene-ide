@@ -94,7 +94,7 @@ function ModelMix({ r }: { r: UsageReport }) {
   );
 }
 
-type BarItem = { key: string; w: number; hit: boolean; label: string };
+type BarItem = { key: string; w: number; hit: boolean; extra?: number; label: string };
 
 /** Bars with a tip under the pointer. The whole column answers, so a low bar is as easy to reach as a tall one. */
 function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; first: string; last: string }) {
@@ -109,13 +109,14 @@ function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; fi
       <div className="relative" onMouseLeave={() => setAt(null)}>
         {tip && (
           <div role="status" className="pointer-events-none absolute bottom-full z-10 mb-1 rounded border border-border bg-card px-2 py-1 text-xs whitespace-nowrap" style={side}>
-            {tip.label}: <span className="font-mono">{fmtTokens(tip.w)}</span>{tip.hit ? `, ${t('usageHitShort')}` : ''}
+            {tip.label}: <span className="font-mono">{fmtTokens(tip.w)}</span>{tip.hit ? `, ${t('usageHitShort')}` : ''}{tip.extra ? `, ${t('usageBarExtra', fmtTokens(tip.extra))}` : ''}
           </div>
         )}
         <div className="flex h-14 gap-[3px]" role="img" aria-label={title}>
           {bars.map((b, i) => (
-            <div key={b.key} data-bar onMouseEnter={() => setAt(i)} className="flex h-full min-w-0 flex-1 items-end">
-              <i className={`block min-h-0.5 w-full rounded-t-sm ${b.hit ? 'bg-destructive' : at === i ? 'bg-muted-foreground' : 'bg-muted'}`} style={{ height: `${b.w / max * 100}%` }} />
+            <div key={b.key} data-bar onMouseEnter={() => setAt(i)} className="flex h-full min-w-0 flex-1 flex-col justify-end">
+              {b.extra ? <i data-extra className="block min-h-0.5 w-full rounded-t-sm bg-warn" style={{ height: `${b.extra / max * 100}%` }} /> : null}
+              {b.w > (b.extra ?? 0) && <i className={`block min-h-0.5 w-full ${b.extra ? '' : 'rounded-t-sm'} ${b.hit ? 'bg-destructive' : at === i ? 'bg-muted-foreground' : 'bg-muted'}`} style={{ height: `${(b.w - (b.extra ?? 0)) / max * 100}%` }} />}
             </div>
           ))}
         </div>
@@ -162,18 +163,18 @@ function Limits({ r }: { r: UsageReport }) {
     <section className="grid min-w-0 gap-3">
       <div className="flex items-baseline justify-between gap-4">
         <h2 className="text-sm font-semibold text-foreground">{t('usageHits')}</h2>
-        {(windows.some((w) => w.hit) || weeks.some((w) => w.hit)) && <span className="text-xs text-muted-foreground">{t('usageHitMark')}</span>}
+        {(windows.some((w) => w.hit) || weeks.some((w) => w.hit)) && <span className="text-xs text-muted-foreground">{t('usageHitMark')}{[...windows, ...weeks].some((b) => b.extra) ? `, ${t('usageExtraMark')}` : ''}</span>}
       </div>
       {windows.length > 0 && (
         <Bars
           title={t('usageByWindow')} first={shortTime(windows[0]!.from)} last={shortTime(windows.at(-1)!.from)}
-          bars={windows.map((w) => ({ key: String(w.from), w: w.w, hit: w.hit, label: when(w.from) }))}
+          bars={windows.map((w) => ({ key: String(w.from), w: w.w, hit: w.hit, ...(w.extra ? { extra: w.extra } : {}), label: when(w.from) }))}
         />
       )}
       {weeks.length > 1 && (
         <Bars
           title={t('usageByWeek')} first={weekDay(weeks[0]!.key)} last={weekDay(weeks.at(-1)!.key)}
-          bars={weeks.map((w) => ({ key: w.key, w: w.w, hit: w.hit, label: `${weekDay(w.key)} – ${weekDay(w.key, 6)}` }))}
+          bars={weeks.map((w) => ({ key: w.key, w: w.w, hit: w.hit, ...(w.extra ? { extra: w.extra } : {}), label: `${weekDay(w.key)} – ${weekDay(w.key, 6)}` }))}
         />
       )}
       {hits.length > 0 && (

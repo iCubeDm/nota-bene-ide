@@ -215,6 +215,8 @@ export const en: Dict = {
   usageHits: 'Limit hits',
   usageHitMark: 'red: ended on a limit hit',
   usageHitShort: 'limit hit',
+  usageExtraMark: 'orange: extra usage',
+  usageBarExtra: (tokens) => `extra usage ${tokens}`,
   usageByWindow: '5-hour windows',
   usageByWeek: 'Weeks',
   usageWhen: 'When',

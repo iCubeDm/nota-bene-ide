@@ -175,23 +175,28 @@ function hitsOf(events: readonly HitEvent[], calls: readonly CallRecord[], recor
   });
 }
 
-/** Windows of work, oldest first. A hit closes its own, so its bar and its row say the same; the rest open with the first call outside. */
-function windowsOf(calls: readonly CallRecord[], hits: readonly UsageHit[]): UsageReport['windows'] {
-  const closed = hits.filter((h) => h.kind === '5h').map((h) => ({ from: h.ts - 5 * HOUR, to: h.ts, w: h.w }));
-  const out: UsageReport['windows'] = closed.map(({ from, w }) => ({ from, w, hit: true }));
-  let open: UsageReport['windows'][number] | undefined;
+/** Windows of work, oldest first. A hit closes its own, so its bar and its row say the same, and what went past it to the reset stands on its bar; the rest open with the first call outside. */
+function windowsOf(calls: readonly CallRecord[], events: readonly HitEvent[], isExtra: (c: CallRecord) => boolean): UsageReport['windows'] {
+  type Open = UsageReport['windows'][number];
+  const closed = events.filter((e) => e.kind === '5h').map((e) => {
+    const bar: Open = { from: e.ts - 5 * HOUR, w: 0, hit: true };
+    return { bar, to: e.ts, until: e.extraFrom !== undefined && e.resets !== undefined ? e.resets : e.ts };
+  });
+  const out = closed.map((h) => h.bar);
+  let open: Open | undefined;
   for (const c of calls.toSorted((a, b) => a.ts - b.ts)) {
-    if (closed.some((h) => c.ts > h.from && c.ts <= h.to)) continue;
-    if (!open || c.ts >= open.from + 5 * HOUR) out.push(open = { from: c.ts, w: 0, hit: false });
-    open.w += weigh(c);
+    const own = closed.find((h) => c.ts > h.bar.from && c.ts <= h.to) ?? closed.find((h) => c.ts > h.to && c.ts < h.until);
+    if (!own && (!open || c.ts >= open.from + 5 * HOUR)) out.push(open = { from: c.ts, w: 0, hit: false });
+    const bar = own?.bar ?? open!, w = weigh(c);
+    bar.w += w;
+    if (isExtra(c) || (own && c.ts > own.to)) bar.extra = (bar.extra ?? 0) + w;
   }
   return out.sort((a, b) => a.from - b.from);
 }
 
 /** The period's calls on extra usage and what the readings say they cost; null when there is neither. */
-function extraOf(calls: readonly CallRecord[], events: readonly HitEvent[], readings: readonly SpendRecord[], from: number | null, now: number): UsageExtra | null {
-  const stretches = events.map(onExtra);
-  const on = calls.filter((c) => stretches.some((inside) => inside(c)));
+function extraOf(calls: readonly CallRecord[], isExtra: (c: CallRecord) => boolean, readings: readonly SpendRecord[], from: number | null, now: number): UsageExtra | null {
+  const on = calls.filter(isExtra);
   const spent = spentBetween(readings, from ?? -Infinity, now), last = readings.at(-1);
   if (on.length === 0 && !spent && !last?.used) return null;
   return {
@@ -209,16 +214,22 @@ export function weekKey(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function weeksOf(calls: readonly CallRecord[], events: readonly HitEvent[]): UsageReport['weeks'] {
-  const m = new Map<string, number>();
-  for (const c of calls) m.set(weekKey(c.ts), (m.get(weekKey(c.ts)) ?? 0) + weigh(c));
+function weeksOf(calls: readonly CallRecord[], events: readonly HitEvent[], isExtra: (c: CallRecord) => boolean): UsageReport['weeks'] {
+  const m = new Map<string, number>(), extra = new Map<string, number>();
+  for (const c of calls) {
+    m.set(weekKey(c.ts), (m.get(weekKey(c.ts)) ?? 0) + weigh(c));
+    if (isExtra(c)) extra.set(weekKey(c.ts), (extra.get(weekKey(c.ts)) ?? 0) + weigh(c));
+  }
   const hit = new Set(events.filter((e) => e.kind === 'week').map((e) => weekKey(e.ts)));
   const keys = [...m.keys()].sort();
   const out: UsageReport['weeks'] = [];
   for (const key of keys.slice(0, 1)) {
     const last = keys[keys.length - 1]!;
     const d = new Date(`${key}T12:00:00`); // noon: a clock change cannot move it to another day
-    for (let k = key; k <= last; d.setDate(d.getDate() + 7), k = weekKey(d.getTime())) out.push({ key: k, w: m.get(k) ?? 0, hit: hit.has(k) });
+    for (let k = key; k <= last; d.setDate(d.getDate() + 7), k = weekKey(d.getTime())) {
+      const e = extra.get(k);
+      out.push({ key: k, w: m.get(k) ?? 0, hit: hit.has(k), ...(e ? { extra: e } : {}) });
+    }
   }
   return out;
 }
@@ -257,6 +268,8 @@ export function buildReport(records: readonly UsageRecord[], o: { provider: Usag
   const events = hitEvents(records);
   const readings = records.flatMap((r) => (r.k === 'x' ? [r] : [])).sort((a, b) => a.ts - b.ts);
   const hits = hitsOf(events, every, records, readings, project);
+  const stretches = events.map(onExtra);
+  const isExtra = (c: CallRecord) => stretches.some((inside) => inside(c));
   const total = zero();
   const models = new Map<string, UsageRow>(), projects = new Map<string, UsageRow>();
   for (const c of calls) {
@@ -267,7 +280,7 @@ export function buildReport(records: readonly UsageRecord[], o: { provider: Usag
   return {
     provider: o.provider, period: o.period, from, trip: o.trip, importing: o.importing, total,
     models: ranked(models), projects: ranked(projects), tasks: tasksOf(calls, records, project),
-    hits: hits.filter((h) => from === null || h.ts >= from), windows: windowsOf(every, hits), weeks: weeksOf(every, events), tanks: tanksOf(every, records),
-    extra: extraOf(calls, events, readings, from, o.now),
+    hits: hits.filter((h) => from === null || h.ts >= from), windows: windowsOf(every, events, isExtra), weeks: weeksOf(every, events, isExtra), tanks: tanksOf(every, records),
+    extra: extraOf(calls, isExtra, readings, from, o.now),
   };
 }

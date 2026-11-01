@@ -163,6 +163,20 @@ describe('extra usage', () => {
     expect(r.extra).toMatchObject({ spent: 4400, month: 300 });
   });
 
+  it('a 5-hour hit carries what went past it, on top of its bar; the next window opens after the reset', () => {
+    const h5 = { k: 'h', ts: T0, kind: '5h', resets: T0 + H, overage: true } as const;
+    const r = report([call({ id: 'a', ts: T0 - H, out: 2 }), call({ id: 'b', ts: T0 + 60_000, out: 4 }), call({ id: 'c', ts: T0 + 2 * H, out: 8 }), h5]);
+    expect(r.windows).toEqual([{ from: T0 - 5 * H, w: 30, hit: true, extra: 20 }, { from: T0 + 2 * H, w: 40, hit: false }]);
+    expect(r.hits[0]!.w).toBe(10);
+  });
+
+  it('after a weekly hit every bar until the reset is extra usage, across a Monday too', () => {
+    const friday = T0 + 4 * D, hit7 = { k: 'h', ts: friday, kind: 'week', resets: friday + 4 * D, overage: true } as const;
+    const r = report([call({ id: 'a', ts: friday - H, out: 2 }), call({ id: 'b', ts: friday + H, out: 4 }), call({ id: 'c', ts: friday + 3 * D, out: 8 }), hit7]);
+    expect(r.weeks).toEqual([{ key: weekKey(friday), w: 30, hit: true, extra: 20 }, { key: weekKey(friday + 3 * D), w: 40, hit: false, extra: 40 }]);
+    expect(r.windows.map((w) => w.extra)).toEqual([20, 40]);
+  });
+
   it('the period cuts both; overlapping limits count a call once', () => {
     const five = { k: 'h', ts: T0 + H, kind: '5h', resets: T0 + 26 * H, overage: true } as const;
     expect(report([on, hit, five]).extra).toMatchObject({ calls: 1, w: 50 });

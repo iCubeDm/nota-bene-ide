@@ -104,6 +104,17 @@ it('extra usage: its tokens and dollars, the month, and the share of a hit', asy
   expect(screen.getByText('On extra usage after this hit: 4.0M tokens, $12.50')).toBeTruthy();
 });
 
+it('a bar carries its extra usage on top, says it under the pointer, and the legend names it', async () => {
+  reply = () => ({ ...REPORT, weeks: [{ key: '2026-10-05', w: 1000, hit: false }, { key: '2026-10-12', w: 4_000_000, hit: true, extra: 1_000_000 }] });
+  setup();
+  const weeks = await screen.findByRole('img', { name: 'Weeks' });
+  expect(weeks.querySelectorAll('[data-extra]')).toHaveLength(1);
+  expect((weeks.querySelector('[data-extra]') as HTMLElement).style.height).toBe('25%');
+  screen.getByText('red: ended on a limit hit, orange: extra usage');
+  fireEvent.mouseEnter(weeks.querySelectorAll('[data-bar]')[1]!);
+  expect(within(weeks.parentElement!).getByRole('status').textContent).toMatch(/4\.0M, limit hit, extra usage 1\.0M$/);
+});
+
 it('extra usage with no reading says the sum is unknown', async () => {
   reply = () => ({ ...REPORT, extra: { calls: 5, w: 4_000_000, spent: null, month: null, limit: null, currency: null } });
   setup();

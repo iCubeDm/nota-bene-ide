@@ -213,6 +213,8 @@ export const ru = {
   usageHits: 'Упоры',
   usageHitMark: 'красным: упор в лимит',
   usageHitShort: 'упор',
+  usageExtraMark: 'оранжевым: extra usage',
+  usageBarExtra: (tokens: string) => `extra usage ${tokens}`,
   usageByWindow: 'Окна по 5 часов',
   usageByWeek: 'Недели',
   usageWhen: 'Когда',

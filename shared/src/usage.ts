@@ -42,10 +42,10 @@ export type UsageReport = {
   projects: (UsageRow & { key: string })[];
   tasks: UsageTaskRow[];
   hits: UsageHit[];
-  /** every week since the first, idle ones too, whatever the period; `key`: its Monday, YYYY-MM-DD, local time; `hit`: the weekly limit was hit in it */
-  weeks: { key: string; w: number; hit: boolean }[];
-  /** every five-hour window of work, whatever the period, oldest first; `hit`: it ended on a limit hit */
-  windows: { from: number; w: number; hit: boolean }[];
+  /** every week since the first, idle ones too, whatever the period; `key`: its Monday, YYYY-MM-DD, local time; `hit`: the weekly limit was hit in it; `extra`: the part of `w` on extra usage, when there is one */
+  weeks: { key: string; w: number; hit: boolean; extra?: number }[];
+  /** every five-hour window of work, whatever the period, oldest first; `hit`: it ended on a limit hit, and what went past the hit counts in */
+  windows: { from: number; w: number; hit: boolean; extra?: number }[];
   tanks: UsageTank[];
   /** Claude only; null: none */
   extra: UsageExtra | null;
