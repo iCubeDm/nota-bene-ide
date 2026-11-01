@@ -96,6 +96,16 @@ function ModelMix({ r }: { r: UsageReport }) {
 
 type BarItem = { key: string; w: number; hit: boolean; extra?: number; label: string };
 
+/** One line of a bar's tip. `color`: the bar's own, for the parts the chart paints. */
+function TipRow({ name, value, color }: { name: string; value?: string; color?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span>{color && <i className={`mr-1.5 inline-block size-2 rounded-sm ${color}`} />}{name}</span>
+      {value && <span className="font-mono">{value}</span>}
+    </div>
+  );
+}
+
 /** Bars with a tip under the pointer. The whole column answers, so a low bar is as easy to reach as a tall one. */
 function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; first: string; last: string }) {
   const t = useT();
@@ -109,7 +119,11 @@ function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; fi
       <div className="relative" onMouseLeave={() => setAt(null)}>
         {tip && (
           <div role="status" className="pointer-events-none absolute bottom-full z-10 mb-1 rounded border border-border bg-card px-2 py-1 text-xs whitespace-nowrap" style={side}>
-            {tip.label}: <span className="font-mono">{fmtTokens(tip.w)}</span>{tip.hit ? `, ${t('usageHitShort')}` : ''}{tip.extra ? `, ${t('usageBarExtra', fmtTokens(tip.extra))}` : ''}
+            <div className="mb-0.5 text-muted-foreground">{tip.label}</div>
+            <TipRow name={t('usageBarTotal')} value={fmtTokens(tip.w)} />
+            {tip.extra && tip.w > tip.extra ? <TipRow name={t('usageBarLimit')} value={fmtTokens(tip.w - tip.extra)} /> : null}
+            {tip.extra ? <TipRow name="extra usage" value={fmtTokens(tip.extra)} color="bg-warn" /> : null}
+            {tip.hit && <TipRow name={t('usageHitShort')} color="bg-destructive" />}
           </div>
         )}
         <div className="flex h-14 gap-[3px]" role="img" aria-label={title}>

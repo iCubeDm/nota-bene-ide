@@ -79,9 +79,9 @@ it('a bar says its tokens under the pointer, the low one too, and whether it was
   const bars = weeks.querySelectorAll('[data-bar]');
   const chart = within(weeks.parentElement!);
   fireEvent.mouseEnter(bars[0]!);
-  expect(chart.getByRole('status').textContent).toMatch(/Oct 5 – Oct 11: 1\.0k$/);
+  expect(chart.getByRole('status').textContent).toBe('Oct 5 – Oct 11total1.0k');
   fireEvent.mouseEnter(bars[1]!);
-  expect(chart.getByRole('status').textContent).toMatch(/Oct 12 – Oct 18: 2\.5M, limit hit$/);
+  expect(chart.getByRole('status').textContent).toBe('Oct 12 – Oct 18total2.5Mlimit hit');
   fireEvent.mouseLeave(weeks.parentElement!);
   expect(chart.queryByRole('status')).toBeNull();
 });
@@ -112,7 +112,15 @@ it('a bar carries its extra usage on top, says it under the pointer, and the leg
   expect((weeks.querySelector('[data-extra]') as HTMLElement).style.height).toBe('25%');
   screen.getByText('red: ended on a limit hit, orange: extra usage');
   fireEvent.mouseEnter(weeks.querySelectorAll('[data-bar]')[1]!);
-  expect(within(weeks.parentElement!).getByRole('status').textContent).toMatch(/4\.0M, limit hit, extra usage 1\.0M$/);
+  expect(within(weeks.parentElement!).getByRole('status').textContent).toMatch(/total4\.0Mwithin limits3\.0Mextra usage1\.0Mlimit hit$/);
+});
+
+it('a bar that went wholly on extra usage has no empty line for the limit', async () => {
+  reply = () => ({ ...REPORT, weeks: [{ key: '2026-10-05', w: 1000, hit: false }, { key: '2026-10-12', w: 2_000_000, hit: false, extra: 2_000_000 }] });
+  setup();
+  const weeks = await screen.findByRole('img', { name: 'Weeks' });
+  fireEvent.mouseEnter(weeks.querySelectorAll('[data-bar]')[1]!);
+  expect(within(weeks.parentElement!).getByRole('status').textContent).toMatch(/total2\.0Mextra usage2\.0M$/);
 });
 
 it('extra usage with no reading says the sum is unknown', async () => {
