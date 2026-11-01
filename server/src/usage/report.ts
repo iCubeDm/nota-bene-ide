@@ -1,9 +1,9 @@
 // Normalized records to the report. Pure, so the numbers are testable without a transcript.
 import path from 'node:path';
 import type {
-  TokenCounts, UsageAgentRow, UsageCallRow, UsageHit, UsagePeriod, UsageProvider, UsageReport, UsageRow, UsageTaskRow, UsageTank,
+  TokenCounts, UsageAgentRow, UsageCallRow, UsageExtra, UsageHit, UsagePeriod, UsageProvider, UsageReport, UsageRow, UsageTaskRow, UsageTank,
 } from '@nota-bene/shared';
-import type { CallRecord, LimitRecord, PromptRecord, UsageRecord } from './parse.ts';
+import type { CallRecord, LimitRecord, PromptRecord, SpendRecord, UsageRecord } from './parse.ts';
 
 /** The comparison number: a yardstick, not a price, and the same for every model (the design note says why). */
 export const WEIGHTS: TokenCounts = { in: 1, write: 1.25, read: 0.1, out: 5 };
@@ -116,24 +116,40 @@ function tasksOf(calls: readonly CallRecord[], records: readonly UsageRecord[], 
   }));
 }
 
-type HitEvent = { ts: number; kind: UsageHit['kind']; resets?: number };
+/** `extraFrom`: since when the work went on on extra usage */
+type HitEvent = { ts: number; kind: UsageHit['kind']; resets?: number; extraFrom?: number };
 
 function hitEvents(records: readonly UsageRecord[]): HitEvent[] {
   const events: HitEvent[] = [];
   const sorted = records.flatMap((r) => (r.k === 'h' ? [r] : [])).sort((a, b) => a.ts - b.ts);
   for (const h of sorted) {
     const same = events.findLast((e) => e.kind === h.kind);
-    if (!same || (h.ts - same.ts >= HIT_MERGE_MS && (h.resets === undefined || h.resets !== same.resets))) {
-      events.push({ ts: h.ts, kind: h.kind, ...(h.resets ? { resets: h.resets } : {}) });
-    } else {
-      same.resets ??= h.resets;
-    }
+    const apart = !same || (h.ts - same.ts >= HIT_MERGE_MS && (h.resets === undefined || h.resets !== same.resets));
+    const e = apart ? { ts: h.ts, kind: h.kind } : same;
+    if (apart) events.push(e);
+    if (h.resets) e.resets ??= h.resets;
+    if (h.overage) e.extraFrom ??= h.ts;
   }
   return events;
 }
 
+/** What the readings grew by in (from, to]: a sharp fall is a new billing period, a small one a stale reading from another window. Null: no reading there. */
+function spentBetween(readings: readonly SpendRecord[], from: number, to: number): number | null {
+  let prev = 0, spent: number | null = null;
+  for (const r of readings) {
+    if (r.ts > to) break;
+    if (r.ts <= from) { prev = r.used; continue; }
+    spent ??= 0;
+    if (r.used < prev / 2) { spent += r.used; prev = r.used; }
+    else if (r.used > prev) { spent += r.used - prev; prev = r.used; }
+  }
+  return spent;
+}
+
+const onExtra = (e: HitEvent) => (c: CallRecord) => e.extraFrom !== undefined && e.resets !== undefined && c.ts >= e.extraFrom && c.ts < e.resets;
+
 /** The tokens in the window that ended with each hit. A reset says where a weekly window began; without it, seven days back. */
-function hitsOf(events: readonly HitEvent[], calls: readonly CallRecord[], records: readonly UsageRecord[], project: Project): UsageHit[] {
+function hitsOf(events: readonly HitEvent[], calls: readonly CallRecord[], records: readonly UsageRecord[], readings: readonly SpendRecord[], project: Project): UsageHit[] {
   const find = taskFinder(records);
   return events.map((e) => {
     const since = e.kind === 'week' ? (e.resets ?? e.ts) - 7 * DAY : e.ts - 5 * HOUR;
@@ -151,6 +167,10 @@ function hitsOf(events: readonly HitEvent[], calls: readonly CallRecord[], recor
       if (t) t.w += w; else tasks.set(id, { id, label, w });
     }
     hit.tasks = [...tasks.values()].sort((a, b) => b.w - a.w).slice(0, HIT_TASKS);
+    if (e.extraFrom !== undefined && e.resets !== undefined) {
+      const on = calls.filter(onExtra(e));
+      hit.extra = { calls: on.length, w: on.reduce((sum, c) => sum + weigh(c), 0), spent: spentBetween(readings, e.extraFrom, e.resets) };
+    }
     return hit;
   });
 }
@@ -166,6 +186,18 @@ function windowsOf(calls: readonly CallRecord[], hits: readonly UsageHit[]): Usa
     open.w += weigh(c);
   }
   return out.sort((a, b) => a.from - b.from);
+}
+
+/** The period's calls on extra usage and what the readings say they cost; null when there is neither. */
+function extraOf(calls: readonly CallRecord[], events: readonly HitEvent[], readings: readonly SpendRecord[], from: number | null, now: number): UsageExtra | null {
+  const stretches = events.map(onExtra);
+  const on = calls.filter((c) => stretches.some((inside) => inside(c)));
+  const spent = spentBetween(readings, from ?? -Infinity, now), last = readings.at(-1);
+  if (on.length === 0 && !spent && !last?.used) return null;
+  return {
+    calls: on.length, w: on.reduce((sum, c) => sum + weigh(c), 0), spent,
+    month: last?.used ?? null, limit: last?.limit ?? null, currency: last?.currency ?? null,
+  };
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -223,7 +255,8 @@ export function buildReport(records: readonly UsageRecord[], o: { provider: Usag
   const calls = from === null ? every : every.filter((c) => c.ts >= from);
   const project = projectFinder(every);
   const events = hitEvents(records);
-  const hits = hitsOf(events, every, records, project);
+  const readings = records.flatMap((r) => (r.k === 'x' ? [r] : [])).sort((a, b) => a.ts - b.ts);
+  const hits = hitsOf(events, every, records, readings, project);
   const total = zero();
   const models = new Map<string, UsageRow>(), projects = new Map<string, UsageRow>();
   for (const c of calls) {
@@ -235,5 +268,6 @@ export function buildReport(records: readonly UsageRecord[], o: { provider: Usag
     provider: o.provider, period: o.period, from, trip: o.trip, importing: o.importing, total,
     models: ranked(models), projects: ranked(projects), tasks: tasksOf(calls, records, project),
     hits: hits.filter((h) => from === null || h.ts >= from), windows: windowsOf(every, hits), weeks: weeksOf(every, events), tanks: tanksOf(every, records),
+    extra: extraOf(calls, events, readings, from, o.now),
   };
 }

@@ -20,7 +20,7 @@ const REPORT: UsageReport = {
   }],
   hits: [{ ts: 1, kind: '5h', calls: 954, w: 23_000_000, projects: { app: 18_000_000, film: 5_000_000 }, models: { 'claude-opus': 23_000_000 }, tasks: [{ id: 't1', label: 'Long job', w: 20_000_000 }] }],
   weeks: [{ key: '2026-10-05', w: 1000, hit: false }, { key: '2026-10-12', w: 2_500_000, hit: true }],
-  windows: [{ from: 1, w: 500, hit: false }, { from: 2, w: 23_000_000, hit: true }], tanks: [{ from: 1, to: 2, pct: 10, w: 1000, perPct: 100 }],
+  windows: [{ from: 1, w: 500, hit: false }, { from: 2, w: 23_000_000, hit: true }], tanks: [{ from: 1, to: 2, pct: 10, w: 1000, perPct: 100 }], extra: null,
 };
 
 let reply: (url: string) => UsageReport;
@@ -95,11 +95,27 @@ it('the hits are a table, and a row opens to the tasks that ate its window', asy
   expect(screen.getByText('Long job')).toBeTruthy();
 });
 
+it('extra usage: its tokens and dollars, the month, and the share of a hit', async () => {
+  const hit = { ...REPORT.hits[0]!, extra: { calls: 5, w: 4_000_000, spent: 1250 } };
+  reply = () => ({ ...REPORT, hits: [hit], extra: { calls: 5, w: 4_000_000, spent: 1250, month: 1800, limit: 10_000, currency: 'USD' } });
+  setup();
+  expect((await screen.findByText(/^Extra usage:/)).textContent).toBe('Extra usage: 4.0M tokens, $12.50. This billing period: $18.00 of $100.00.');
+  fireEvent.click(screen.getByText('app 78%, film 22%'));
+  expect(screen.getByText('On extra usage after this hit: 4.0M tokens, $12.50')).toBeTruthy();
+});
+
+it('extra usage with no reading says the sum is unknown', async () => {
+  reply = () => ({ ...REPORT, extra: { calls: 5, w: 4_000_000, spent: null, month: null, limit: null, currency: null } });
+  setup();
+  expect((await screen.findByText(/^Extra usage:/)).textContent).toBe('Extra usage: 4.0M tokens, sum unknown.');
+});
+
 it('what a period has nothing for is not there', async () => {
   reply = () => ({ ...REPORT, hits: [], tanks: [], weeks: [], windows: [] });
   setup();
   await screen.findByText('Review the parser');
   expect(screen.queryByText('Limit hits')).toBeNull();
+  expect(screen.queryByText(/^Extra usage:/)).toBeNull();
 });
 
 it('five rows, then all of them; the projects share the list', async () => {

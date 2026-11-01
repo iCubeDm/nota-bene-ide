@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EventHub } from '../hub.ts';
 import type { UsageRecord } from './parse.ts';
-import { hitRecorder, usageRoutes, type UsageService } from './routes.ts';
+import { hitRecorder, limitRecorder, usageRoutes, type UsageService } from './routes.ts';
 import type { UsageStore } from './store.ts';
 
 let server: http.Server | undefined;
@@ -31,7 +31,19 @@ describe('hitRecorder', () => {
     record({ status: 'rejected', rateLimitType: 'seven_day_opus', resetsAt: 70 });
     expect(got).toEqual([
       { k: 'h', ts: 1000, kind: '5h', resets: 50_000 },
-      { k: 'h', ts: 1001, kind: 'week', resets: 60_000 },
+      { k: 'h', ts: 1001, kind: 'week', resets: 60_000, overage: true },
+      { k: 'h', ts: 1002, kind: 'week', resets: 70_000 },
+    ]);
+  });
+
+  it('says when the work went on on extra usage: a limit of one model leaves the others free, so only a whole limit counts', () => {
+    const { got, record } = recorder();
+    record({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: 50 });
+    record({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: 50, isUsingOverage: true });
+    record({ status: 'rejected', rateLimitType: 'seven_day_opus', resetsAt: 70, isUsingOverage: true });
+    expect(got).toEqual([
+      { k: 'h', ts: 1000, kind: '5h', resets: 50_000 },
+      { k: 'h', ts: 1001, kind: '5h', resets: 50_000, overage: true },
       { k: 'h', ts: 1002, kind: 'week', resets: 70_000 },
     ]);
   });
@@ -49,6 +61,21 @@ describe('hitRecorder', () => {
     const { got, record } = recorder();
     for (let i = 0; i < 3; i++) record({ status: 'rejected', rateLimitType: 'seven_day', resetsAt: 60 });
     expect(got).toHaveLength(1);
+  });
+});
+
+describe('limitRecorder', () => {
+  it('a spend reading only when it moved, and it stands apart from the limits', () => {
+    const got: UsageRecord[] = [];
+    const record = limitRecorder({ append: (r: readonly UsageRecord[]) => got.push(...r) } as unknown as UsageStore, () => 7);
+    const stats = (used: number) => ({ context: null, cost: null, limits: null, extra: { used, limit: 10_000, currency: 'USD' } });
+    record(stats(1200));
+    record(stats(1200));
+    record(stats(1500));
+    expect(got).toEqual([
+      { k: 'x', ts: 7, used: 1200, limit: 10_000, currency: 'USD' },
+      { k: 'x', ts: 7, used: 1500, limit: 10_000, currency: 'USD' },
+    ]);
   });
 });
 

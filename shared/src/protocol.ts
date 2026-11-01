@@ -148,6 +148,8 @@ export type Stats = {
   limits: { five_hour: Limit | null; seven_day: Limit | null } | null;
   cost: number | null;
   windows?: (Limit & { label: string; minutes: number | null })[];
+  /** extra usage in this billing period, in minor units of `currency` */
+  extra?: { used: number; limit: number | null; currency: string | null };
 };
 
 export type Interaction = {
@@ -478,7 +480,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
 
 export type { AgentEvent, StopReason, WireAgentEvent } from './agent.ts';
 export { FINISHED_CAP, orderedTasks, reduceTasks, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
-export { USAGE_PERIODS, type TokenCounts, type UsageAgentRow, type UsageCallRow, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageRow, type UsageTank, type UsageTaskRow } from './usage.ts';
+export { USAGE_PERIODS, type TokenCounts, type UsageAgentRow, type UsageCallRow, type UsageExtra, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageRow, type UsageTank, type UsageTaskRow } from './usage.ts';
 
 /** `GET /subagent` (protocol 7): a subagent's conversation as feed events, whether it still runs, and what the Agent call named it. */
 export type SubagentView = { events: ServerEvent[]; running: boolean; type: string; description: string };

@@ -81,7 +81,7 @@ function freshFilter(known: readonly UsageRecord[]): (r: UsageRecord) => boolean
   const calls = new Map<string, { in: number; out: number; write: number; read: number }>();
   const other = new Set<string>();
   const key = (r: Exclude<UsageRecord, { k: 'c' }>): string =>
-    r.k === 'p' ? `p${r.session}:${r.ts}:${r.label}` : r.k === 'a' ? `a${r.id}` : r.k === 'h' ? `h${r.ts}` : `l${r.ts}:${r.minutes}`;
+    r.k === 'p' ? `p${r.session}:${r.ts}:${r.label}` : r.k === 'a' ? `a${r.id}` : r.k === 'h' ? `h${r.ts}` : r.k === 'x' ? `x${r.ts}` : `l${r.ts}:${r.minutes}`;
   const fresh = (r: UsageRecord): boolean => {
     if (r.k === 'c') {
       const a = calls.get(r.id);

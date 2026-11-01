@@ -19,7 +19,13 @@ export type UsageHit = {
   ts: number; kind: '5h' | 'week'; calls: number; w: number; projects: Record<string, number>; models: Record<string, number>;
   /** the costliest tasks of the window */
   tasks: { id: string; label: string; w: number }[];
+  /** from the hit to the reset, when the work went on past it */
+  extra?: UsageSpend;
 };
+/** What went on on extra usage. `spent`: minor units of the currency, by the vendor's readings; null: no reading covers it. */
+export type UsageSpend = { calls: number; w: number; spent: number | null };
+/** `month`, `limit`: the last reading, for the billing period it was in */
+export type UsageExtra = UsageSpend & { month: number | null; limit: number | null; currency: string | null };
 /** One weekly limit window: the tokens between its first and last reading, per percent gained. */
 export type UsageTank = { from: number; to: number; pct: number; w: number; perPct: number };
 
@@ -41,4 +47,6 @@ export type UsageReport = {
   /** every five-hour window of work, whatever the period, oldest first; `hit`: it ended on a limit hit */
   windows: { from: number; w: number; hit: boolean }[];
   tanks: UsageTank[];
+  /** Claude only; null: none */
+  extra: UsageExtra | null;
 };

@@ -28,7 +28,7 @@ export interface AgentSession<M = Mode, E = EffortLevel> {
   /** Context window usage; rejects when the CLI cannot answer. */
   contextUsage(): Promise<Stats['context']>;
   /** Session cost and plan limits; throws UsageUnavailableError when the SDK has no usage API. */
-  usage(): Promise<{ cost: number | null; limits: Stats['limits']; windows?: Stats['windows'] }>;
+  usage(): Promise<{ cost: number | null; limits: Stats['limits']; windows?: Stats['windows']; extra?: Stats['extra'] }>;
   /** Stops a running task (a task_id); the agent then reports it ended as `stopped`. Rejects when the CLI refuses. */
   stopTask(taskId: string): Promise<void>;
   /**

@@ -20,7 +20,10 @@ type RawWindow = { utilization: number | null; resets_at: string | null } | null
 type RawUsage = {
   session: { total_cost_usd: number };
   rate_limits_available: boolean;
-  rate_limits: { five_hour?: RawWindow; seven_day?: RawWindow } | null;
+  rate_limits: {
+    five_hour?: RawWindow; seven_day?: RawWindow;
+    extra_usage?: { monthly_limit: number | null; used_credits: number | null; currency?: string | null } | null;
+  } | null;
 };
 
 /** Prototype mapping: used = totalTokens, max = rawMaxTokens || maxTokens, pct = percentage. */
@@ -31,12 +34,14 @@ export function mapContextUsage(r: RawContext): NonNullable<Stats['context']> {
 const mapWindow = (w: RawWindow): Limit | null =>
   w && w.utilization != null ? { utilization: w.utilization, resets_at: w.resets_at ?? null } : null;
 
-export function mapUsage(r: RawUsage): { cost: number | null; limits: Stats['limits'] } {
+export function mapUsage(r: RawUsage): { cost: number | null; limits: Stats['limits']; extra?: Stats['extra'] } {
+  const extra = r.rate_limits?.extra_usage;
   return {
     cost: typeof r.session?.total_cost_usd === 'number' ? r.session.total_cost_usd : null,
     limits: r.rate_limits_available && r.rate_limits
       ? { five_hour: mapWindow(r.rate_limits.five_hour), seven_day: mapWindow(r.rate_limits.seven_day) }
       : null,
+    ...(extra && extra.used_credits != null ? { extra: { used: extra.used_credits, limit: extra.monthly_limit, currency: extra.currency ?? null } } : {}),
   };
 }
 
@@ -65,7 +70,7 @@ export function resetStatsReports(): void {
 const EMPTY: Stats = { context: null, limits: null, cost: null };
 
 /** The SDK's rate_limit_info, as far as it is read (the `rate-limit` event carries it unread). */
-export type RateLimitInfo = { status?: string; rateLimitType?: string; utilization?: number; resetsAt?: number };
+export type RateLimitInfo = { status?: string; rateLimitType?: string; utilization?: number; resetsAt?: number; isUsingOverage?: boolean };
 
 type StatsOptions = {
   session: () => AgentSession | null; emit: (s: Stats) => void; onError?: (e: unknown) => void; now?: () => number;
@@ -176,6 +181,7 @@ export class StatsService {
         next.cost = usage.v.cost;
         next.limits = usage.v.limits;
         if (usage.v.windows !== undefined) next.windows = usage.v.windows;
+        if (usage.v.extra !== undefined) next.extra = usage.v.extra;
       } else {
         if (usage.e instanceof UsageUnavailableError) this.limitsUnavailable = true;
         this.fail('usage', usage.e);

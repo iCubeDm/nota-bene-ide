@@ -20,6 +20,12 @@ export function fmtTokens(n: number): string {
   const unit = (v: number, ru: string, en: string) => `${v.toFixed(1)}${lang === 'ru' ? ` ${ru}` : en}`;
   return n >= 1e9 ? unit(n / 1e9, 'млрд', 'B') : n >= 1e6 ? unit(n / 1e6, 'млн', 'M') : n >= 1e3 ? unit(n / 1e3, 'тыс', 'k') : String(Math.round(n));
 }
+/** Minor units to the currency's own format; the currency says how many digits a minor unit is. */
+function money(minor: number, currency: string | null): string {
+  const f = new Intl.NumberFormat(getLang(), { style: 'currency', currency: currency ?? 'USD' });
+  return f.format(minor / 10 ** (f.resolvedOptions().maximumFractionDigits ?? 2));
+}
+
 const when = (ts: number): string => new Date(ts).toLocaleString(getLang(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const shortTime = (ts: number): string => new Date(ts).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
 /** A week's Monday, `plus` days on. */
@@ -119,7 +125,7 @@ function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; fi
   );
 }
 
-function HitRow({ h }: { h: UsageHit }) {
+function HitRow({ h, currency }: { h: UsageHit; currency: string | null }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const went = Object.entries(h.projects).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([p, w]) => `${p} ${pct(w, h.w)}`).join(', ');
@@ -135,6 +141,7 @@ function HitRow({ h }: { h: UsageHit }) {
       {open && (
         <tr>
           <td colSpan={5} className="border-b border-border-soft pb-2 pl-3.5 text-muted-foreground">
+            {h.extra && <div className="pb-1">{t('usageHitExtra', fmtTokens(h.extra.w), h.extra.spent === null ? t('usageSumUnknown') : money(h.extra.spent, currency))}</div>}
             {h.tasks.map((k) => <div key={k.id} className={LINE}><span className={ELLIPSIS}>{k.label || t('usageNoLabel')}</span><span className={VALUE}>{fmtTokens(k.w)}</span></div>)}
           </td>
         </tr>
@@ -149,7 +156,8 @@ function Limits({ r }: { r: UsageReport }) {
   const windows = r.windows.slice(-WINDOWS_SHOWN);
   const weeks = r.weeks.slice(-WEEKS_SHOWN);
   const hits = r.hits.toReversed();
-  if (windows.length === 0 && hits.length === 0 && r.tanks.length === 0) return null;
+  if (windows.length === 0 && hits.length === 0 && r.tanks.length === 0 && !r.extra) return null;
+  const extra = r.extra;
   return (
     <section className="grid min-w-0 gap-3">
       <div className="flex items-baseline justify-between gap-4">
@@ -177,10 +185,16 @@ function Limits({ r }: { r: UsageReport }) {
                 <th className={`${TH} text-right`}>{t('usageCalls')}</th><th className={TH}>{t('usageProjects')}</th>
               </tr>
             </thead>
-            <tbody>{hits.slice(0, all ? Infinity : ROWS_SHOWN).map((h) => <HitRow key={`${h.kind}${h.ts}`} h={h} />)}</tbody>
+            <tbody>{hits.slice(0, all ? Infinity : ROWS_SHOWN).map((h) => <HitRow key={`${h.kind}${h.ts}`} h={h} currency={r.extra?.currency ?? null} />)}</tbody>
           </table>
           {hits.length > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[13px]`}>{all ? t('usageShowTop') : t('usageShowAll', hits.length)}</button>}
         </div>
+      )}
+      {extra && (
+        <p className="text-[13px] text-muted-foreground" title={t('usageExtraTip')}>
+          {t('usageExtra', fmtTokens(extra.w), extra.spent === null ? t('usageSumUnknown') : money(extra.spent, extra.currency))}
+          {extra.month !== null && ` ${extra.limit === null ? t('usageExtraMonth', money(extra.month, extra.currency)) : t('usageExtraOf', money(extra.month, extra.currency), money(extra.limit, extra.currency))}`}
+        </p>
       )}
       {r.tanks.length > 0 && (
         <p className="text-[13px] text-muted-foreground" title={t('usageTankTip')}>

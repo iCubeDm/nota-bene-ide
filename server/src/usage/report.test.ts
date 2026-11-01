@@ -134,6 +134,45 @@ describe('tasks', () => {
   });
 });
 
+describe('extra usage', () => {
+  const hit = { k: 'h', ts: T0, kind: 'week', resets: T0 + 2 * D, overage: true } as const;
+  const on = call({ id: 'on', ts: T0 + D, out: 10 }), after = call({ id: 'after', ts: T0 + 3 * D, out: 100 }), before = call({ id: 'before', ts: T0 - H, out: 1000 });
+  const spend = (ts: number, used: number) => ({ k: 'x', ts, used, limit: 10_000, currency: 'USD' }) as const;
+
+  it('the tokens between the hit and the reset, and what the readings say they cost', () => {
+    const r = report([before, on, after, hit, spend(T0 - H, 500), spend(T0 + D, 1500), spend(T0 + 3 * D, 2000)]);
+    expect(r.hits[0]!.extra).toEqual({ calls: 1, w: 50, spent: 1000 });
+    expect(r.extra).toEqual({ calls: 1, w: 50, spent: 2000, month: 2000, limit: 10_000, currency: 'USD' });
+  });
+
+  it('with no reading the tokens stand and the sum is unknown', () => {
+    const r = report([on, hit]);
+    expect(r.hits[0]!.extra).toEqual({ calls: 1, w: 50, spent: null });
+    expect(r.extra).toMatchObject({ w: 50, spent: null, month: null });
+  });
+
+  it('a limit that stopped the work spent nothing; nothing at all is no extra usage', () => {
+    const r = report([on, { k: 'h', ts: T0, kind: 'week', resets: T0 + 2 * D }]);
+    expect(r.hits[0]!.extra).toBeUndefined();
+    expect(r.extra).toBeNull();
+    expect(report([on, spend(T0, 0)]).extra).toBeNull();
+  });
+
+  it('a new month starts the sum over; a stale reading from another window takes nothing away', () => {
+    const r = report([spend(T0, 4000), spend(T0 + H, 3900), spend(T0 + 2 * H, 4100), spend(T0 + 3 * H, 300)]);
+    expect(r.extra).toMatchObject({ spent: 4400, month: 300 });
+  });
+
+  it('the period cuts both; overlapping limits count a call once', () => {
+    const five = { k: 'h', ts: T0 + H, kind: '5h', resets: T0 + 26 * H, overage: true } as const;
+    expect(report([on, hit, five]).extra).toMatchObject({ calls: 1, w: 50 });
+    const r = report([on, hit, spend(T0, 500), spend(T0 + D, 800)], { period: '7d', now: T0 + D + 1 });
+    expect(r.extra).toMatchObject({ w: 50, spent: 800 });
+    expect(report([on, hit, spend(T0 - H, 500), spend(T0 + D, 800)], { period: 'trip', trip: T0 }).extra).toMatchObject({ spent: 300 });
+    expect(report([on, hit, spend(T0, 500)], { period: 'trip', trip: T0 + 2 * D }).extra).toMatchObject({ calls: 0, spent: null });
+  });
+});
+
 describe('hits', () => {
   it('names the costliest tasks of the window, also those outside the top of the period', () => {
     const r = report([

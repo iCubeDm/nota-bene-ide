@@ -36,6 +36,13 @@ describe('stats mapping', () => {
       .toEqual({ cost: 2, limits: { five_hour: w, seven_day: null } });
     expect(mapUsage({ session: { total_cost_usd: 2 }, rate_limits_available: false, rate_limits: null })).toEqual({ cost: 2, limits: null });
   });
+
+  it('mapUsage: extra usage in minor units, when the plan has it and says a sum', () => {
+    const usage = (extra_usage: object | null) => mapUsage({ session: { total_cost_usd: 2 }, rate_limits_available: true, rate_limits: { extra_usage } as never });
+    expect(usage({ is_enabled: true, monthly_limit: 10_000, used_credits: 1200, utilization: 12, currency: 'USD' }).extra).toEqual({ used: 1200, limit: 10_000, currency: 'USD' });
+    expect(usage({ is_enabled: false, monthly_limit: null, used_credits: null, utilization: null }).extra).toBeUndefined();
+    expect(usage(null).extra).toBeUndefined();
+  });
 });
 
 describe('StatsService', () => {

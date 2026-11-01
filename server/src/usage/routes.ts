@@ -5,7 +5,7 @@ import { reportError } from '../errors.ts';
 import type { EventHub } from '../hub.ts';
 import type { RateLimitInfo } from '../stats.ts';
 import { defaultSource, importUsage, type UsageSource } from './importer.ts';
-import type { LimitRecord } from './parse.ts';
+import type { LimitRecord, SpendRecord } from './parse.ts';
 import { buildReport } from './report.ts';
 import { UsageStore } from './store.ts';
 
@@ -59,13 +59,18 @@ export class UsageService {
 /** What the meters read goes to the store: Claude keeps limit readings nowhere else. Only when one moved. */
 export function limitRecorder(store: UsageStore, now: () => number = Date.now): (s: Stats) => void {
   const last = new Map<number, number>();
+  let spent: number | undefined;
   return (s) => {
-    const out: LimitRecord[] = [];
+    const out: (LimitRecord | SpendRecord)[] = [];
     for (const [name, minutes] of Object.entries(WINDOW_MINUTES)) {
       const l = s.limits?.[name as keyof typeof WINDOW_MINUTES];
       if (!l || last.get(minutes) === l.utilization) continue;
       last.set(minutes, l.utilization);
       out.push({ k: 'l', ts: now(), minutes, pct: l.utilization, resets: l.resets_at ? Date.parse(l.resets_at) : null });
+    }
+    if (s.extra && s.extra.used !== spent) {
+      spent = s.extra.used;
+      out.push({ k: 'x', ts: now(), ...s.extra });
     }
     try { store.append(out); } catch { /* the meters go on without the record */ }
   };
@@ -75,11 +80,15 @@ export function limitRecorder(store: UsageStore, now: () => number = Date.now): 
 export function hitRecorder(store: UsageStore, now: () => number = Date.now): (info: unknown) => void {
   const seen = new Set<string>();
   return (info) => {
-    const { status, rateLimitType: type, resetsAt } = info as RateLimitInfo;
+    const { status, rateLimitType: type, resetsAt, isUsingOverage } = info as RateLimitInfo;
     const kind = type === 'five_hour' ? '5h' : type?.startsWith('seven_day') ? 'week' : null;
-    if (status !== 'rejected' || !kind || seen.has(`${kind}:${resetsAt}`)) return;
-    seen.add(`${kind}:${resetsAt}`);
-    try { store.append([{ k: 'h', ts: now(), kind, ...(resetsAt ? { resets: resetsAt * 1000 } : {}) }]); } catch { /* the work goes on without the record */ }
+    const overage = isUsingOverage === true && (type === 'five_hour' || type === 'seven_day'); // a limit of one model leaves the others free
+    const key = `${kind}:${resetsAt}:${overage}`;
+    if (status !== 'rejected' || !kind || seen.has(key)) return;
+    seen.add(key);
+    try {
+      store.append([{ k: 'h', ts: now(), kind, ...(resetsAt ? { resets: resetsAt * 1000 } : {}), ...(overage ? { overage } : {}) }]);
+    } catch { /* the work goes on without the record */ }
   };
 }
 

@@ -4,7 +4,8 @@
 
 - Add a Usage tab: exact token accounting across every project and both agents, from
   the transcripts. Per model, project, task, subagent and call, with a resettable
-  counter, the tokens spent before each limit hit, and tokens per 1% of the weekly limit.
+  counter, the tokens spent before each limit hit, tokens per 1% of the weekly limit,
+  and the tokens and dollars spent on extra usage.
 
 ## 1.1.1 — 2026-10-31
 

@@ -26,6 +26,8 @@ history is there on day one.
   feature and has gaps while no window is open.
 - Limit hits, live: the SDK's rejected `rate_limit_event`, one per window (`resets`). With extra usage on, the work
   goes on and the transcript stays silent, so an open window is the only witness. Readings of the limits come the same way.
+- Extra usage: the tokens from such a hit to its reset (a limit of one model does not count: the others stay free), and
+  the vendor's cumulative `extra_usage.used_credits`, read with the limits. The dollars are real, never computed from tokens.
 - Limit hits: Claude's synthetic "You've hit your ... limit" message, by the CLI's limit names (session and
   5-hour; weekly, Opus, Sonnet and Fable are 7-day). Spend, budget, fast and credit limits share the wording
   and are no limit window. Codex's `rate_limit_reached_type` is `rate_limit_reached` and does not name the
