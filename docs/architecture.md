@@ -159,6 +159,8 @@ it is not a listing in the public ChatGPT plugin directory.
 | `prefs.ts`, `state.ts`, `windows.ts` | JSON state files (written through tmp + rename). `state.ts` also owns the state folder (created 700) and refuses one owned by another user. |
 | `stats.ts`, `idle.ts` | Context, limits and cost through `AgentSession` (Claude SDK usage or Codex token/rate-limit data; Codex cost is unknown). Idle compaction: 50 min after a turn, 15 min with no activity, context of 200k tokens or more. |
 
+`usage/` is independent of the session: `parse.ts` turns transcript lines of Claude and Codex into normalized records, `importer.ts` reads new bytes incrementally under a lock, `store.ts` keeps `<NOTA_BENE_HOME>/usage/`, `report.ts` builds the `UsageReport`, `routes.ts` serves it. The only link to a live session is `onStats`, through which main.ts records Claude's limit readings, which no transcript keeps. See `docs/superpowers/specs/2026-11-01-usage-analytics-design.md`.
+
 ### 3.2 How SessionManager works
 
 `createSessionManager` is the facade in `session.ts`: it owns `pump()` and ties together the parts in `session/`. Each part owns its own state; the strictness is where the server itself makes the transition.
@@ -364,6 +366,7 @@ App
 | `controls/SessionPicker.tsx` | `/sessions` | Sessions of the window's provider with their cwd; native Codex list or Claude SDK list. |
 | `shell/RestartMenu.tsx`, `controls/slice.ts` | `/info`, `POST /restart-server` | The "Restart the server" item (only under the launcher). |
 | `settings/SettingsView.tsx` | `/system/*` | Windows, storage, defaults, about. |
+| `usage/UsageView.tsx` | `/usage`, `/usage/reset` | The token report; polls while the first import runs. |
 | `net/auth.ts` | `POST /auth`, then the key header on every `apiFetch` | Login (section 6). |
 
 ## 5. End-to-end scenarios

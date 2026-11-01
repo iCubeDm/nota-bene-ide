@@ -41,6 +41,7 @@ State lives in `~/.nota-bene/` (override with `NOTA_BENE_HOME`), never in the re
 - `history/<sessionId>.jsonl` — the archive of the conversation before each compaction, one line per segment (the SDK replays a session only from its last compaction)
 - `cache/blend/<key>-<blender version>.glb` (key = sha256 of the file bytes + its root + its folder) — `.blend` files converted to GLB for the model tab (re-creatable; safe to delete)
 - `trash/` — `attachments/` and `history/` subfolders: what Settings → Storage "clean" moved (never deleted)
+- `usage/` — shared by every provider and project, never per window: `<provider>.jsonl` (normalized append-only records, 600), `<provider>.state.json` (byte offset and parser context per transcript), `trips.json` (reset points), `<provider>.lock` (one importing window). Deleting it loses history older than the transcripts; the rest is re-imported
 
 ## Providers
 

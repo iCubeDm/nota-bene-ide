@@ -18,8 +18,8 @@ export type AgentTab = { id: `agent:${string}`; kind: 'agent'; tool: string; tit
  * description at the time it was opened (a task the server no longer knows still has a name).
  */
 export type ShellTab = { id: `shell:${string}`; kind: 'shell'; task: string; title: string };
-/** `settings`: the one Settings tab (M6-15, R-M6-4); not saved with the file tabs. */
-export type Tab = { id: 'chat'; kind: 'chat' } | { id: 'settings'; kind: 'settings' } | FileTab | DiagramTab | AgentTab | ShellTab;
+/** `settings`, `usage`: one tab each (M6-15, R-M6-4); not saved with the file tabs. */
+export type Tab = { id: 'chat'; kind: 'chat' } | { id: 'settings'; kind: 'settings' } | { id: 'usage'; kind: 'usage' } | FileTab | DiagramTab | AgentTab | ShellTab;
 /**
  * open[0] is always the chat. `root`: the project the file tabs belong to (null until the first session event).
  * `rootGen`: bumped on every root change after the first, so views keyed by it remount (the same path in another root
@@ -87,6 +87,11 @@ export const tabsSlice = createSlice({
     openSettings: (s) => {
       if (idx(s, 'settings') < 0) s.open.push({ id: 'settings', kind: 'settings' });
       s.active = 'settings';
+    },
+    /** Opens (once) and activates the Usage tab. */
+    openUsage: (s) => {
+      if (idx(s, 'usage') < 0) s.open.push({ id: 'usage', kind: 'usage' });
+      s.active = 'usage';
     },
     /** Opens (once per source) and activates a diagram's tab. */
     openDiagram: (s, a: PayloadAction<SavedDiagram>) => {
@@ -179,7 +184,7 @@ function restore(s: TabsState, saved: SavedTabs, merge: boolean): void {
   if (idx(s, saved.active) >= 0) s.active = saved.active as Tab['id'];
 }
 
-export const { openFile, openSettings, openDiagram, openAgent, openShell, setAgentTitle, activate, closeTab, closeOthers, closeRight, closeAll, reopenClosed, restoreTabs } = tabsSlice.actions;
+export const { openFile, openSettings, openUsage, openDiagram, openAgent, openShell, setAgentTitle, activate, closeTab, closeOthers, closeRight, closeAll, reopenClosed, restoreTabs } = tabsSlice.actions;
 
 export const selectTabs = (s: RootState): TabsState => s.tabs;
 export const selectActiveTab = (s: RootState): Tab => s.tabs.open.find((t) => t.id === s.tabs.active) ?? CHAT;

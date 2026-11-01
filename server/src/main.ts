@@ -6,6 +6,8 @@ import { fakeFromScript } from './agent/fake.ts';
 import { codexBackend } from './agent/codex/backend.ts';
 import { sdkBackend } from './agent/claude/sdk.ts';
 import { startServer } from './server.ts';
+import { limitRecorder } from './usage/routes.ts';
+import { UsageStore } from './usage/store.ts';
 import { transcriptExists } from './sessions.ts';
 import { lastSession, stateDir } from './state.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
@@ -124,6 +126,7 @@ async function main(): Promise<void> {
       ...(args.agent === 'codex' ? (args.resume ? { resume: args.resume, ...(args.fork ? { fork: true } : {}) } : !args.new && lastSession(args.dir) ? { resume: lastSession(args.dir)! } : {}) : launchTarget(args)),
       webDist,
       allowedOrigins: args.allowOrigins,
+      ...(args.agent === 'claude' && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')) } : {}),
       ...(nonce ? { nonce } : {}),
     });
   } catch (e) {

@@ -1,3 +1,4 @@
+import type { Stats } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from '../agent/types.ts';
 import type { HistoryArchive } from '../archive.ts';
 import type { AttachmentStore } from '../attachments.ts';
@@ -6,6 +7,8 @@ import type { IdleConfig } from '../idle.ts';
 
 /** createSessionManager's options. */
 export type SessionOptions = {
+  /** every stats update, after the clients got it */
+  onStats?: (s: Stats) => void;
   hub: EventHub; backend: AgentBackend; cwd: string; resume?: string; fork?: boolean; attachments?: AttachmentStore;
   /** the conversation before each compaction (R-M7-1); default `<stateDir>/history` */
   archive?: HistoryArchive;

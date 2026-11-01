@@ -5,6 +5,7 @@ import { FileView } from '@/files/FileView.tsx';
 import { SettingsView } from '@/settings/SettingsView.tsx';
 import { AgentView } from '@/subagent/AgentView.tsx';
 import { ShellView } from '@/tasks/ShellView.tsx';
+import { UsageView } from '@/usage/UsageView.tsx';
 import { selectTabs } from './slice.ts';
 
 /**
@@ -23,6 +24,10 @@ export function Panes({ chat }: { chat: ReactNode }) {
           : tab.kind === 'settings' ? (
             <div key="settings" data-pane="settings" data-anchor-skip hidden={active !== 'settings'} className="grid-pane relative min-h-0 flex-1 overflow-auto">
               <SettingsView active={active === 'settings'} />
+            </div>
+          ) : tab.kind === 'usage' ? (
+            <div key="usage" data-pane="usage" data-anchor-skip hidden={active !== 'usage'} className="grid-pane relative min-h-0 flex-1 overflow-auto">
+              <UsageView active={active === 'usage'} />
             </div>
           ) : tab.kind === 'agent' ? <AgentView key={`${rootGen}:${tab.id}`} tab={tab} active={active === tab.id} />
           : tab.kind === 'shell' ? <ShellView key={`${rootGen}:${tab.id}`} tab={tab} active={active === tab.id} />

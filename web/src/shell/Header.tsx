@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { getLang, chooseLang, LANGS, useT } from '@/i18n/index.ts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { selectConn, selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { openSettings } from '@/tabs/slice.ts';
+import { openSettings, openUsage } from '@/tabs/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { ModelPill } from '@/controls/ModelPill.tsx';
 import { SessionPicker } from '@/controls/SessionPicker.tsx';
@@ -35,6 +35,16 @@ export function Header() {
       <RestartMenu />
       <ModelPill />
       <span id="session" className="font-mono text-[11px]">{session?.id?.slice(0, 8) ?? ''}</span>
+      <button
+        type="button"
+        id="usageBtn"
+        aria-label={t('usage')}
+        title={t('usageTip')}
+        onClick={() => d(openUsage())}
+        className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <Svg size={15}>{ICONS.usage}</Svg>
+      </button>
       <button
         type="button"
         id="settingsBtn"

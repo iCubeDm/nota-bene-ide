@@ -319,6 +319,19 @@ The residual risk, in plain words:
 - Browsers send cookies to every port on `127.0.0.1`. While a window is open, a local web server on another port that you visit in the same browser receives its `nb_<port>` cookie. With it, that server can read files of the open project through `/file` and pasted images through `/attach/<id>`. It cannot open the WebSocket, write anything or reach any other route, because those need the key, which only the page's own origin can read. The cookie stops working at the next launch.
 - A token that was ever committed to git stays readable in the repository history after the file is removed. Do not make the state folder a repository.
 
+### Usage
+
+The bars button in the header opens **Usage**: exact token accounting for every project on this machine, read from the transcripts of Claude Code and Codex, so work outside Nota Bene counts too. Everything stays on your machine.
+
+- **Claude** and **Codex** have separate counters. **Reset the counter** starts a new count; nothing is deleted, the older data stays under **All time**.
+- **Weighted tokens** are the comparison number: input ×1, cache write ×1.25, cache read ×0.1, output ×5, the same for every model. It is a yardstick, not a price; a plain sum would be almost only cache reads. The raw counts stand beside it.
+- **Limit hits**: what went in the 5 hours (or the week) before a limit was hit, by project and model.
+- **Models**, **Projects**, **By week**: where the tokens went.
+- **Costliest tasks**: a task is one message of yours and all the agent did until the reply. Click one for its subagents and costliest calls.
+- **Tokens per 1% of the weekly limit**: a falling line means the same 100% buys fewer tokens. Codex has these readings from its own history; Claude's are recorded from now on, while a window is open.
+
+The store keeps what it read after the transcripts themselves are gone. Sessions under a temporary folder are skipped.
+
 ## State on disk
 
 All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME` to use another folder. `npm run dev` of a source checkout uses `~/.nota-bene-dev`.
@@ -337,6 +350,7 @@ All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME`
 | `history/<sessionId>.jsonl` | the conversation before each compaction |
 | `cache/blend/` | `.blend` files converted for the 3D tab (safe to delete) |
 | `trash/` | what Settings, Storage, Clean moved |
+| `usage/` | the Usage tab: token counts of every project and short labels (the first 64 characters of a prompt, a subagent's description) |
 
 The one exception is media marks: `<project>/.nota-bene/marks/<comment id>/frame.jpg` and `layer.png`, with a `.nota-bene/.gitignore` containing `*`. They are the only thing Nota Bene writes into a project folder.
 

@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { EventEmitter } from 'node:events';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { parseClientMessage, PROTOCOL, TAKEN_OVER_CODE } from '@nota-bene/shared';
-import type { ClientMessage, Comment } from '@nota-bene/shared';
+import type { ClientMessage, Comment, Stats } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { guard, reportError } from './errors.ts';
 import { HistoryArchive, historyRoutes } from './archive.ts';
@@ -26,6 +26,7 @@ import { codeChecker } from './codeStamp.ts';
 import { stateDir } from './state.ts';
 import { registerWindow } from './windows.ts';
 import { controlToken, systemRoutes } from './system.ts';
+import { usageRoutes } from './usage/routes.ts';
 import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, keyCredential, loginCredential, newNonce, proofFor, sameSecret, sessionCookie } from './auth.ts';
 
 /** how long a newcomer waits for the owner to close before it is told `occupied` (R-M7-6) */
@@ -65,6 +66,8 @@ export async function startServer(o: {
   /** idle compaction timing and the settings.json check (tests shorten / stub them) */
   idle?: IdleConfig;
   idleOffInSettings?: () => boolean;
+  /** every stats update; main.ts records the limit readings from it, tests leave the real store alone */
+  onStats?: (s: Stats) => void;
   /** the `! cmd` runner's timing and environment (tests shorten the timeout and the kill delay) */
   shell?: { timeoutMs?: number; killMs?: number; env?: () => NodeJS.ProcessEnv };
   /**
@@ -96,6 +99,7 @@ export async function startServer(o: {
       attachments,
       archive,
       backend: o.backend,
+      ...(o.onStats ? { onStats: o.onStats } : {}),
       cwd: o.cwd,
       ...(o.resume ? { resume: o.resume } : {}),
       ...(o.resume && o.fork && o.backend.capabilities.fork ? { fork: true } : {}),
@@ -244,6 +248,7 @@ export async function startServer(o: {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end('{"ok":true}', () => exitWith(75));
         },
+        ...usageRoutes({ hub }),
         ...systemRoutes({
           hub, root, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir: o.repoDir ?? path.resolve(import.meta.dirname, '..', '..'),
           control: {

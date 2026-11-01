@@ -94,7 +94,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   const busy = () => phase.switching || activity(turns, permissions) !== 'idle';
   const stats = new StatsService({
     session: () => (backend.capabilities.usage ? slot.agent : null), // no usage: no meters, nothing asked of the agent
-    emit: (s) => hub.emit({ kind: 'stats', stats: s }, { store: false }),
+    emit: (s) => { hub.emit({ kind: 'stats', stats: s }, { store: false }); o.onStats?.(s); },
     hasClients: () => hub.clients() > 0,
     onError: (e) => report('stats', e),
   });
