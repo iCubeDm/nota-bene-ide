@@ -46,6 +46,7 @@ describe('claude', () => {
     expect(prompt('Please fix\n\nComments on fragments:\n\n1. [reply #3 · 21:47]\n> a quote\n→ why so')).toEqual(labelled('Please fix'));
     expect(prompt('Comments on fragments:\n\n1. [reply #3 · 21:47]\n> a quote\n→ why so\n\n2. [x]\n> b\n→ c')).toEqual(labelled('why so'));
     expect(prompt('Комментарии к фрагментам:\n\n1. [ответ #3 · 21:47]\n> цитата\n→ почему')).toEqual(labelled('почему'));
+    expect(prompt('对片段的评论：\n\n1. [x]\n> q\n→ 为什么')).toEqual(labelled('为什么'));
     expect(prompt('Comments on fragments:\n\n1. [x]\n> only a quote')).toEqual(labelled('1. [x] > only a quote'));
   });
 

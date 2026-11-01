@@ -126,7 +126,7 @@ and on single frames of a video:
 - Subagent conversations in their own tabs, and a drawer for background tasks.
 - Sessions from any folder, branches of a conversation, the history from before each compaction.
 - Agent permission modes, model and effort, context and plan-limit meters.
-- Interface in English and Russian.
+- Interface in English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German.
 
 ![The window: chat, file tree and comments panel](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/overview.png)
 

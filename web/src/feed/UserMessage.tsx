@@ -1,8 +1,6 @@
-import { isMediaAnchor } from '@nota-bene/shared';
+import { BATCH_HEAD, isMediaAnchor } from '@nota-bene/shared';
 import { Attachments } from '@/attachments/Attachments.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
-import { en } from '@/i18n/en.ts';
-import { ru } from '@/i18n/ru.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
 import { useContext } from 'react';
 import { Markdown } from './Markdown.tsx';
@@ -16,10 +14,6 @@ import { useAppSelector } from '@/store/store.ts';
 export const timeOf = (ts: number): string =>
   new Date(ts).toLocaleTimeString(getLang(), { hour: '2-digit', minute: '2-digit' });
 
-const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// both headers, so a batch sent in one language still folds up after switching (prototype BATCH_RE)
-const BATCH_RE = new RegExp(`(?:^|\\n\\n)(?:${esc(ru.batchHead)}|${esc(en.batchHead)})\\n\\n`);
-
 export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }> }) {
   const t = useT();
   const inAgent = !!useContext(FeedScope).agent; // a subagent's tab: the first message is the prompt it was given, not the user's
@@ -27,7 +21,7 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
   // replayed transcript events carry ts 0: historic bubbles show no time
   const time = item.ts === 0 ? '' : ' · ' + timeOf(item.ts);
   const mode = item.force ? t('youForced') : item.duringWork ? t('youBusy') : '';
-  const m = BATCH_RE.exec(item.text);
+  const m = BATCH_HEAD.exec(item.text);
   const general = m ? item.text.slice(0, m.index) : item.text;
   const raw = m ? item.text.slice(m.index + m[0].length) : '';
   return (

@@ -1,7 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { de } from './de.ts';
 import { en } from './en.ts';
-import { initialLang, setLang, t } from './index.ts';
+import { es } from './es.ts';
+import { initialLang, LANGS, setLang, t } from './index.ts';
+import { ptBR } from './pt-BR.ts';
 import { ru } from './ru.ts';
+import { zhCN } from './zh-CN.ts';
 
 afterEach(async () => { (await import('./index.ts')).resetUnsyncedLang(); setLang('ru'); });
 
@@ -10,6 +14,19 @@ it('ru and en have the same keys', () => {
   const e = Object.keys(en);
   expect(r.filter((k) => !(k in en))).toEqual([]);
   expect(e.filter((k) => !(k in ru))).toEqual([]);
+});
+
+// every plain `${name}` of the English string must survive, in any order; plural logic differs by language
+const slots = (s: string) => [...new Set([...s.matchAll(/\$\{(\w+)\}/g)].map((m) => m[1]))].sort();
+
+it.each(Object.entries({ 'zh-CN': zhCN, es, 'pt-BR': ptBR, de }))('%s has the keys and the parameters of en', (_, dict) => {
+  const d = dict as Record<string, unknown>;
+  expect(Object.keys(d).filter((k) => !(k in en))).toEqual([]);
+  expect(Object.keys(en).filter((k) => !(k in d))).toEqual([]);
+  for (const [k, v] of Object.entries(en)) {
+    expect([k, typeof d[k]]).toEqual([k, typeof v]);
+    if (typeof v === 'function') expect([k, slots(String(d[k]))]).toEqual([k, slots(String(v))]);
+  }
 });
 
 it('t() formats function values in the current language', () => {
@@ -25,7 +42,8 @@ it('initialLang: the stored choice wins, otherwise English (the browser language
   expect(initialLang(null)).toBe('en');
   expect(initialLang('ru')).toBe('ru');
   expect(initialLang('en')).toBe('en');
-  expect(initialLang('de')).toBe('en');
+  for (const l of LANGS) expect(initialLang(l.id)).toBe(l.id);
+  expect(initialLang('fr')).toBe('en');
 });
 
 it('adoptServerLang: the server value wins over the local cache; with none, a stored local choice is moved up', async () => {

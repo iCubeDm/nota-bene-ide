@@ -222,7 +222,7 @@ describe('defaults and about', () => {
     expect((await post(`${s.url}/system/prefs`, { lang: 'en', ifUnset: true }, { origin: s.origin })).status).toBe(200);
     expect(readPrefs().lang).toBe('en'); // set-if-absent sets when absent
     fs.rmSync(path.join(home, 'prefs.json'));
-    expect((await post(`${s.url}/system/prefs`, { lang: 'de' }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { lang: 'fr' }, { origin: s.origin })).status).toBe(400);
     expect((await post(`${s.url}/system/prefs`, {}, { origin: s.origin })).status).toBe(400);
     expect((await post(`${s.url}/system/prefs`, { defaultMode: 'plan' }, { origin: s.origin })).status).toBe(200);
     expect((await post(`${s.url}/system/prefs`, { lang: 'ru' }, { origin: s.origin })).status).toBe(200);

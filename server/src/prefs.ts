@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { EFFORT_LEVELS, ALL_MODES } from '@nota-bene/shared';
-import type { AgentEffort as EffortLevel, AgentMode as Mode, ModelChoice } from '@nota-bene/shared';
+import { EFFORT_LEVELS, ALL_MODES, isUiLang } from '@nota-bene/shared';
+import type { AgentEffort as EffortLevel, AgentMode as Mode, ModelChoice, UiLang } from '@nota-bene/shared';
 import { stateDir } from './state.ts';
 
 /** `idleCompact[root]`: idle compaction per project dir; absent = on (the default) */
 /** `defaultMode`: the mode of a project with no entry in `modes` (Settings → Defaults; absent = auto) */
 /** `models[root]`: the model (and effort) a project's next session starts with; absent = the agent's default */
-export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: 'ru' | 'en'; idleCompact: Record<string, boolean>; defaultMode?: Mode };
+export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; idleCompact: Record<string, boolean>; defaultMode?: Mode };
 
 const isEffort = (v: unknown): v is EffortLevel => (EFFORT_LEVELS as readonly unknown[]).includes(v);
 const isMode = (v: unknown): v is Mode => (ALL_MODES as readonly unknown[]).includes(v);
@@ -53,7 +53,7 @@ export function readPrefs(): Prefs {
     if (idleCompact && typeof idleCompact === 'object' && !Array.isArray(idleCompact)) {
       for (const [k, v] of Object.entries(idleCompact)) if (typeof v === 'boolean') out.idleCompact[k] = v;
     }
-    if (lang === 'ru' || lang === 'en') out.lang = lang;
+    if (isUiLang(lang)) out.lang = lang;
     if (isMode(defaultMode)) out.defaultMode = defaultMode;
     return out;
   } catch (e) {
@@ -132,8 +132,8 @@ export function setDefaultModePref(mode: Mode): void {
 }
 
 /** The UI language, one for every window of this user (not per project, not per port). */
-export function setLangPref(lang: 'ru' | 'en', ifUnset = false): void {
+export function setLangPref(lang: UiLang, ifUnset = false): void {
   // ifUnset (the migration of an old localStorage choice): decided inside the read-modify-write, so it can never overwrite
   // a choice another window made a moment earlier
-  updateRawPrefs((raw) => void (ifUnset && (raw.lang === 'ru' || raw.lang === 'en') ? undefined : (raw.lang = lang)));
+  updateRawPrefs((raw) => void (ifUnset && isUiLang(raw.lang) ? undefined : (raw.lang = lang)));
 }

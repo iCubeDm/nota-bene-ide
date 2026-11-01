@@ -1,3 +1,4 @@
+import { BATCH_HEADS } from '@nota-bene/shared';
 import type { ru } from './ru.ts';
 
 // Values copied from prototype/public/index.html STR.en. Tooltip texts (stopTip, keysTip) are PLAIN TEXT, see ru.ts.
@@ -85,7 +86,7 @@ export const en: Dict = {
   agentOldServer: 'The server is older than this page: restart it (▾ → Restart the server), then the tab reads again.',
   agentPrompt: 'prompt',
   agentNoComment: 'Commenting here needs a server restart (code updated).',
-  batchHead: 'Comments on fragments:',
+  batchHead: BATCH_HEADS.en,
   resumed: (id) => `↻ resumed session ${id}`,
   // quick labels (M1-08)
   'label_looks-good': 'Looks good',

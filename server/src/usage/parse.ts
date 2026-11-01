@@ -1,6 +1,6 @@
 // Transcript lines to normalized usage records. Pure: the reading, the offsets and the merging are elsewhere.
 import path from 'node:path';
-import type { TokenCounts } from '@nota-bene/shared';
+import { BATCH_HEAD, type TokenCounts } from '@nota-bene/shared';
 
 /** `id`: one API call; repeated ids merge, field by field, to the maximum (store.ts). `task`: set when the transcript names it. */
 export type CallRecord = TokenCounts & { k: 'c'; id: string; ts: number; cwd: string; session: string; model: string; agent?: string; task?: string };
@@ -27,8 +27,6 @@ const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v)
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' ? v as Record<string, unknown> : {});
 const label = (text: string): string => text.trim().replace(/\s+/g, ' ').slice(0, LABEL_MAX);
 
-/** The heading of a sent batch of comments (`batchHead` in web/src/i18n). */
-const BATCH_HEAD = /(?:^|\n\n)(?:Comments on fragments|Комментарии к фрагментам):\n\n/;
 
 /** A prompt's label. A batch says little in its first words: the words above it, or else its first comment, not the quote. */
 function promptLabel(text: string): string {

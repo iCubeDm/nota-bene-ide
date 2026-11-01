@@ -1,3 +1,5 @@
+import { BATCH_HEADS } from '@nota-bene/shared';
+
 // Values copied from prototype/public/index.html STR.ru. Tooltip texts (stopTip, keysTip) are PLAIN TEXT:
 // the prototype's <kbd> tags are dropped and <br> became "\n"; consumers render them as text (whitespace-pre-line).
 export const ru = {
@@ -83,7 +85,7 @@ export const ru = {
   agentOldServer: 'Сервер старше этой страницы: перезапусти его (▾ → «Перезапустить сервер»), и вкладка прочитается снова.',
   agentPrompt: 'промпт',
   agentNoComment: 'Комментировать здесь можно после перезапуска сервера (код обновлён).',
-  batchHead: 'Комментарии к фрагментам:',
+  batchHead: BATCH_HEADS.ru,
   resumed: (id: string) => `↻ продолжение сессии ${id}`,
   // quick labels (M1-08)
   'label_looks-good': 'Выглядит хорошо',

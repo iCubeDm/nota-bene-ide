@@ -1,18 +1,30 @@
+import { isUiLang, type UiLang } from '@nota-bene/shared';
 import { useSyncExternalStore } from 'react';
 import { apiFetch } from '../net/auth.ts';
+import { de } from './de.ts';
 import { en } from './en.ts';
+import { es } from './es.ts';
+import { ptBR } from './pt-BR.ts';
 import { ru } from './ru.ts';
+import { zhCN } from './zh-CN.ts';
 
-export type Lang = 'ru' | 'en';
+export type Lang = UiLang;
 
-const DICTS: Record<Lang, Record<string, unknown>> = { ru, en };
+const DICTS: Record<Lang, Record<string, unknown>> = { en, ru, 'zh-CN': zhCN, es, 'pt-BR': ptBR, de };
 
 /** The languages on offer, each named in itself; adding one here adds it to the header menu and to Settings. */
-export const LANGS: { id: Lang; name: string }[] = [{ id: 'en', name: 'English' }, { id: 'ru', name: 'Русский' }];
+export const LANGS: { id: Lang; name: string }[] = [
+  { id: 'en', name: 'English' },
+  { id: 'ru', name: 'Русский' },
+  { id: 'zh-CN', name: '简体中文' },
+  { id: 'es', name: 'Español' },
+  { id: 'pt-BR', name: 'Português (Brasil)' },
+  { id: 'de', name: 'Deutsch' },
+];
 
 /** A stored choice wins; otherwise English, whatever the browser language says. */
 export function initialLang(stored: string | null): Lang {
-  return stored === 'ru' || stored === 'en' ? stored : 'en';
+  return isUiLang(stored) ? stored : 'en';
 }
 
 const listeners = new Set<() => void>();
@@ -60,12 +72,12 @@ export function chooseLang(l: Lang): void {
  */
 export function adoptServerLang(server: string | undefined): void {
   if (unsynced) return persistLang(unsynced);
-  if (server === 'ru' || server === 'en') {
+  if (isUiLang(server)) {
     if (server !== lang) setLang(server);
     return;
   }
   const stored = typeof localStorage === 'undefined' ? null : localStorage.getItem('lang');
-  if (stored === 'ru' || stored === 'en') persistLang(stored, true);
+  if (isUiLang(stored)) persistLang(stored, true);
 }
 
 /** test only: forget an unconfirmed choice */

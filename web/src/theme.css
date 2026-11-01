@@ -73,6 +73,8 @@
   }
   #root { display: flex; flex-direction: column; min-height: 0; }
   button { cursor: pointer; }
+  /* Chinese wraps between any two characters: a short label in a tight pill would stand on end */
+  :lang(zh-CN) button { word-break: keep-all; }
   button:focus { outline: none; }
   button:focus-visible { outline: 2px solid oklch(0.75 0.18 280 / 0.6); outline-offset: 1px; }
 }

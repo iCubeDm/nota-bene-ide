@@ -277,7 +277,7 @@ The gear in the header opens **Settings**:
 
 ### Languages
 
-The globe in the header lists the interface languages: English and Russian. The choice is saved in `prefs.json` and shared by all windows. English is the default whatever the browser language is.
+The globe in the header lists the interface languages: English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German. The choice is saved in `prefs.json` and shared by all windows. English is the default whatever the browser language is.
 
 ## Hotkeys
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add interface languages: Simplified Chinese, Spanish, Brazilian
+  Portuguese and German.
+
 - Add a Usage tab: exact token accounting across every project and both agents, from
   the transcripts. Per model, project, task, subagent and call, with a resettable
   counter, the tokens spent before each limit hit, tokens per 1% of the weekly limit,
