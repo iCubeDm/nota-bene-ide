@@ -150,6 +150,22 @@ it('five rows, then all of them; the projects share the list', async () => {
   expect(screen.getAllByText('app').length).toBeGreaterThan(0);
 });
 
+it('a project row says its share of everything spent; its subagents are in the tip', async () => {
+  reply = () => ({
+    ...REPORT,
+    total: row({ w: 1_000_000_000 }),
+    projects: [{ key: 'app', ...row({ w: 610_000_000, sub: 300_000_000 }) }, { key: 'film', ...row({ w: 385_000_000, sub: 0 }) }, { key: 'note', ...row({ w: 5_000_000, sub: 0 }) }],
+  });
+  setup();
+  fireEvent.click(await screen.findByRole('button', { name: 'Projects' }));
+  const line = (name: string) => screen.getByText(name).parentElement!;
+  expect(line('app').textContent).toBe('app61%610.0M');
+  expect(line('app').title).toBe('Subagents 49%');
+  expect(line('film').textContent).toBe('film39%385.0M');
+  expect(line('film').title).toBe('');
+  expect(line('note').textContent).toBe('note<1%5.0M');
+});
+
 it('a task opens to its subagents and costliest calls', async () => {
   setup();
   fireEvent.click(await screen.findByRole('button', { name: /Review the parser/ }));

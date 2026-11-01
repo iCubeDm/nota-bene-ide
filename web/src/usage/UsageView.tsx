@@ -13,6 +13,8 @@ const MODEL_COLOR = ['bg-primary', 'bg-nb-accent'];
 const REST_COLOR = 'bg-muted-foreground';
 
 const pct = (a: number, b: number): string => (b > 0 ? `${Math.round(a / b * 100)}%` : '0%');
+/** A part of the whole: a tiny one never reads as nothing. */
+const part = (a: number, b: number): string => (a / b < 0.01 ? '<1%' : pct(a, b));
 const num = (n: number): string => n.toLocaleString(getLang());
 /** Large counts in the unit that reads best. */
 export function fmtTokens(n: number): string {
@@ -86,7 +88,7 @@ function ModelMix({ r }: { r: UsageReport }) {
         {parts.map((p) => (
           <span key={p.key} title={p.tip}>
             <i className={`mr-1.5 inline-block size-2 rounded-sm ${p.color}`} />
-            <span className="font-medium">{p.name}</span> {p.value / r.total.w < 0.01 ? '<1%' : pct(p.value, r.total.w)} <span className="font-mono text-xs text-muted-foreground">{fmtTokens(p.value)}</span>
+            <span className="font-medium">{p.name}</span> {part(p.value, r.total.w)} <span className="font-mono text-xs text-muted-foreground">{fmtTokens(p.value)}</span>
           </span>
         ))}
       </div>
@@ -256,7 +258,7 @@ function Row({ share, children, ...button }: { share: number; children: ReactNod
     </>
   );
   const ROW = 'relative isolate my-px flex w-full items-baseline gap-4 rounded px-2 py-1.5 text-left text-[13px]';
-  return button.onClick ? <button type="button" className={`group ${ROW} cursor-pointer`} {...button}>{body}</button> : <div className={ROW}>{body}</div>;
+  return button.onClick ? <button type="button" className={`group ${ROW} cursor-pointer`} {...button}>{body}</button> : <div className={ROW} title={button.title}>{body}</div>;
 }
 
 function Spent({ r, color }: { r: UsageReport; color: (model: string) => string }) {
@@ -284,9 +286,9 @@ function Spent({ r, color }: { r: UsageReport; color: (model: string) => string 
           {open === task.id && <TaskDetail task={task} color={color} />}
         </Fragment>
       )) : r.projects.slice(0, shown).map((p) => (
-        <Row key={p.key} share={p.w / r.projects[0]!.w}>
+        <Row key={p.key} share={p.w / r.projects[0]!.w} title={p.sub > 0 ? `${t('usageSubagents')} ${pct(p.sub, p.w)}` : undefined}>
           <span className={`${ELLIPSIS} flex-1`}>{p.key}</span>
-          <span className="text-xs whitespace-nowrap text-muted-foreground" title={t('usageSubagents')}>{p.sub > 0 ? pct(p.sub, p.w) : ''}</span>
+          <span className="text-xs whitespace-nowrap text-muted-foreground">{part(p.w, r.total.w)}</span>
           <span className={VALUE}>{fmtTokens(p.w)}</span>
         </Row>
       ))}
