@@ -60,7 +60,7 @@ the raw counts stand beside it.
 - Limit hits: two charts with a tip on hover, then a table. Five-hour windows of work: a hit closes its own
   window, the five hours before it, so its bar and its row agree; the others open with the first call outside
   a window and are an estimate, since the vendor's own start is not known. Weeks: all time, idle ones too, red
-  for a weekly hit only. Each row: tokens in the window before the hit (5 hours or 7 days), its calls and top
+  for a weekly hit only. Each row: tokens in the window before the hit (5 hours, or the weekly window from its known start, else 7 days), its calls and top
   projects, and its three costliest tasks on a click. Hits within two hours are one event.
 - Tank: weighted tokens per 1% of the weekly limit, per limit window, one line; a window needs at least 1%.
   Falling means the 100% shrank.

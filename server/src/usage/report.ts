@@ -132,11 +132,11 @@ function hitEvents(records: readonly UsageRecord[]): HitEvent[] {
   return events;
 }
 
-/** The tokens in the window that ended with each hit. */
+/** The tokens in the window that ended with each hit. A reset says where a weekly window began; without it, seven days back. */
 function hitsOf(events: readonly HitEvent[], calls: readonly CallRecord[], records: readonly UsageRecord[], project: Project): UsageHit[] {
   const find = taskFinder(records);
   return events.map((e) => {
-    const since = e.ts - (e.kind === 'week' ? 7 * DAY : 5 * HOUR);
+    const since = e.kind === 'week' ? (e.resets ?? e.ts) - 7 * DAY : e.ts - 5 * HOUR;
     const hit: UsageHit = { ts: e.ts, kind: e.kind, calls: 0, w: 0, projects: {}, models: {}, tasks: [] };
     const tasks = new Map<string, UsageHit['tasks'][number]>();
     for (const c of calls) {

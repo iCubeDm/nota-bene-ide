@@ -163,6 +163,11 @@ describe('hits', () => {
     expect(report([...records, { k: 'h', ts: T0 + 3 * D, kind: 'week', resets: T0 + 9 * D }]).hits).toHaveLength(2);
   });
 
+  it('a week hit that knows its reset counts from the start of its window, not seven days back', () => {
+    const records: UsageRecord[] = [call({ id: 'before', ts: T0 - 3 * D, out: 100 }), call({ id: 'in', ts: T0 - D, out: 1 }), { k: 'h', ts: T0, kind: 'week', resets: T0 + 5 * D }];
+    expect(report(records).hits[0]!.w).toBe(5);
+  });
+
   it('a live hit and its transcript message are one, whichever came first', () => {
     const live = { k: 'h', ts: T0, kind: '5h', resets: T0 + H } as const;
     expect(report([call({ ts: T0 - H }), live, { k: 'h', ts: T0 + 1000, kind: '5h' }]).hits).toHaveLength(1);
