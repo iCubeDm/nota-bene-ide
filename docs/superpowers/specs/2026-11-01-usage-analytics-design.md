@@ -55,9 +55,11 @@ the raw counts stand beside it.
 
 - Meter: weighted tokens, the raw counts in a tooltip. A bar of the two top models and the rest, calls and the
   subagents' share. Per-model raw counts in a tooltip.
-- Limit hits: weighted per week, all time, idle weeks too, a week with a hit marked. Each hit: tokens in the
-  window before it (5 hours or 7 days), by project and by model, and its three costliest tasks on a click.
-  Hits within two hours are one event.
+- Limit hits: two charts with a tip on hover, then a table. Five-hour windows of work: a hit closes its own
+  window, the five hours before it, so its bar and its row agree; the others open with the first call outside
+  a window and are an estimate, since the vendor's own start is not known. Weeks: all time, idle ones too, red
+  for a weekly hit only. Each row: tokens in the window before the hit (5 hours or 7 days), its calls and top
+  projects, and its three costliest tasks on a click. Hits within two hours are one event.
 - Tank: weighted tokens per 1% of the weekly limit, per limit window, one line; a window needs at least 1%.
   Falling means the 100% shrank.
 - Where it went: the costliest tasks or the projects, five rows, then all. A task is one user message and all

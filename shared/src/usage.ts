@@ -36,7 +36,9 @@ export type UsageReport = {
   projects: (UsageRow & { key: string })[];
   tasks: UsageTaskRow[];
   hits: UsageHit[];
-  /** every week since the first, idle ones too, whatever the period; `key`: its Monday, YYYY-MM-DD, local time; `hit`: a limit was hit in it */
+  /** every week since the first, idle ones too, whatever the period; `key`: its Monday, YYYY-MM-DD, local time; `hit`: the weekly limit was hit in it */
   weeks: { key: string; w: number; hit: boolean }[];
+  /** every five-hour window of work, whatever the period, oldest first; `hit`: it ended on a limit hit */
+  windows: { from: number; w: number; hit: boolean }[];
   tanks: UsageTank[];
 };

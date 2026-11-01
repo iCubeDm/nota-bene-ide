@@ -8,7 +8,9 @@ test('the Usage tab reports a task and a limit hit, and a reset keeps the data u
 
   const task = page.getByRole('button', { name: /Review the parser/ });
   await expect(task).toBeVisible();
-  await expect(page.getByRole('button', { name: /week: 12\.0k/ })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'week', exact: true })).toBeVisible();
+  await page.getByRole('img', { name: '5-hour windows' }).locator('[data-bar]').first().hover();
+  await expect(page.getByRole('status').filter({ hasText: '12.0k' })).toBeVisible();
   await expect(task.getByText('demo')).toBeVisible();
   await task.click();
   await expect(page.getByText('Costliest calls')).toBeVisible();

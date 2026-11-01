@@ -5,7 +5,7 @@ import { getLang, useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 
 const POLL_MS = 2000;
-const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, HITS_SHOWN = 3, WEEKS_SHOWN = 16, TANKS_SHOWN = 4;
+const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, WEEKS_SHOWN = 16, WINDOWS_SHOWN = 32, TANKS_SHOWN = 4;
 const PROVIDERS: { id: UsageProvider; name: string }[] = [{ id: 'claude', name: 'Claude' }, { id: 'codex', name: 'Codex' }];
 const PERIOD_KEY = { trip: 'usagePeriodTrip', '7d': 'usagePeriod7d', '30d': 'usagePeriod30d', all: 'usagePeriodAll' } as const;
 /** The named models, by rank in the report; everything else is the rest. */
@@ -21,7 +21,13 @@ export function fmtTokens(n: number): string {
   return n >= 1e9 ? unit(n / 1e9, 'млрд', 'B') : n >= 1e6 ? unit(n / 1e6, 'млн', 'M') : n >= 1e3 ? unit(n / 1e3, 'тыс', 'k') : String(Math.round(n));
 }
 const when = (ts: number): string => new Date(ts).toLocaleString(getLang(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-const shortDay = (key: string): string => new Date(`${key}T12:00:00`).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
+const shortTime = (ts: number): string => new Date(ts).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
+/** A week's Monday, `plus` days on. */
+const weekDay = (key: string, plus = 0): string => {
+  const d = new Date(`${key}T12:00:00`);
+  d.setDate(d.getDate() + plus);
+  return shortTime(d.getTime());
+};
 /** claude-opus-5-5 reads Opus 5.5; anything else as it is. */
 const modelName = (id: string): string =>
   id.replace(/^claude-/, '').replace(/^([a-z])([a-z]*)-(\d+)-(\d+)$/, (_, a: string, b: string, major: string, minor: string) => `${a.toUpperCase()}${b} ${major}.${minor}`);
@@ -31,6 +37,8 @@ const ACTION = 'cursor-pointer rounded-md border border-border-soft px-3 py-1 te
 const LINE = 'flex justify-between gap-4';
 const ELLIPSIS = 'min-w-0 truncate';
 const VALUE = 'font-mono text-[13px] whitespace-nowrap';
+const TH = 'border-b border-border px-2 py-1 text-left text-xs font-medium text-muted-foreground first:pl-0';
+const TD = 'border-b border-border-soft px-2 py-1.5 align-top first:pl-0';
 
 /** The trip meter: whole digits on dark wheels, the tenth on a lit one. */
 function Odometer({ value }: { value: number }) {
@@ -80,53 +88,102 @@ function ModelMix({ r }: { r: UsageReport }) {
   );
 }
 
-function Weeks({ weeks }: { weeks: UsageReport['weeks'] }) {
+type BarItem = { key: string; w: number; hit: boolean; label: string };
+
+/** Bars with a tip under the pointer. The whole column answers, so a low bar is as easy to reach as a tall one. */
+function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; first: string; last: string }) {
   const t = useT();
-  const shown = weeks.slice(-WEEKS_SHOWN);
-  const max = Math.max(1, ...shown.map((w) => w.w));
-  const first = shown[0];
-  if (!first) return null;
+  const [at, setAt] = useState<number | null>(null);
+  const max = Math.max(1, ...bars.map((b) => b.w));
+  const tip = at === null ? undefined : bars[at];
+  const side = at !== null && at < bars.length / 2 ? { left: `${at / bars.length * 100}%` } : { right: `${(bars.length - (at ?? 0) - 1) / bars.length * 100}%` };
   return (
-    <>
-      <div className="flex h-14 items-end gap-[3px]" role="img" aria-label={t('usageHits')}>
-        {shown.map((w) => <i key={w.key} title={`${shortDay(w.key)}: ${fmtTokens(w.w)}`} className={`block min-h-0.5 min-w-0 flex-1 rounded-t-sm ${w.hit ? 'bg-destructive' : 'bg-muted'}`} style={{ height: `${w.w / max * 100}%` }} />)}
+    <figure className="m-0 min-w-0">
+      <figcaption className="mb-1 text-xs text-muted-foreground">{title}</figcaption>
+      <div className="relative" onMouseLeave={() => setAt(null)}>
+        {tip && (
+          <div role="status" className="pointer-events-none absolute bottom-full z-10 mb-1 rounded border border-border bg-card px-2 py-1 text-xs whitespace-nowrap" style={side}>
+            {tip.label}: <span className="font-mono">{fmtTokens(tip.w)}</span>{tip.hit ? `, ${t('usageHitShort')}` : ''}
+          </div>
+        )}
+        <div className="flex h-14 gap-[3px]" role="img" aria-label={title}>
+          {bars.map((b, i) => (
+            <div key={b.key} data-bar onMouseEnter={() => setAt(i)} className="flex h-full min-w-0 flex-1 items-end">
+              <i className={`block min-h-0.5 w-full rounded-t-sm ${b.hit ? 'bg-destructive' : at === i ? 'bg-muted-foreground' : 'bg-muted'}`} style={{ height: `${b.w / max * 100}%` }} />
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="mt-1 flex justify-between font-mono text-[11px] text-muted-foreground">
-        <span>{shortDay(first.key)}</span>
-        {shown.some((w) => w.hit) && <span>{t('usageHitWeeks')}</span>}
-      </div>
-    </>
+      <div className="mt-1 flex justify-between font-mono text-[11px] text-muted-foreground"><span>{first}</span><span>{last}</span></div>
+    </figure>
   );
 }
 
-function Hit({ h }: { h: UsageHit }) {
+function HitRow({ h }: { h: UsageHit }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const went = Object.entries(h.projects).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([p, w]) => `${p} ${pct(w, h.w)}`).join(', ');
   return (
-    <div className="border-b border-border-soft last:border-b-0">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="group w-full cursor-pointer py-1.5 text-left text-[13px]">
-        <span className="font-medium group-hover:text-primary">{when(h.ts)}, {h.kind === 'week' ? t('usageWeek') : t('usageH5')}: {fmtTokens(h.w)}</span> <span className="text-muted-foreground">{went}</span>
-      </button>
+    <>
+      <tr className="group cursor-pointer" onClick={() => setOpen(!open)}>
+        <td className={TD}><button type="button" aria-expanded={open} className="cursor-pointer text-left whitespace-nowrap group-hover:text-primary">{when(h.ts)}</button></td>
+        <td className={`${TD} whitespace-nowrap`}>{h.kind === 'week' ? t('usageWeek') : t('usageH5')}</td>
+        <td className={`${TD} text-right font-mono whitespace-nowrap`}>{fmtTokens(h.w)}</td>
+        <td className={`${TD} text-right font-mono whitespace-nowrap`}>{num(h.calls)}</td>
+        <td className={`${TD} text-muted-foreground`}>{went}</td>
+      </tr>
       {open && (
-        <div className="pb-2 pl-3.5 text-[13px] text-muted-foreground">
-          {h.tasks.map((k) => <div key={k.id} className={LINE}><span className={ELLIPSIS}>{k.label || t('usageNoLabel')}</span><span className={VALUE}>{fmtTokens(k.w)}</span></div>)}
-        </div>
+        <tr>
+          <td colSpan={5} className="border-b border-border-soft pb-2 pl-3.5 text-muted-foreground">
+            {h.tasks.map((k) => <div key={k.id} className={LINE}><span className={ELLIPSIS}>{k.label || t('usageNoLabel')}</span><span className={VALUE}>{fmtTokens(k.w)}</span></div>)}
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }
 
 function Limits({ r }: { r: UsageReport }) {
   const t = useT();
-  if (r.weeks.length < 2 && r.hits.length === 0 && r.tanks.length === 0) return null;
+  const [all, setAll] = useState(false);
+  const windows = r.windows.slice(-WINDOWS_SHOWN);
+  const weeks = r.weeks.slice(-WEEKS_SHOWN);
+  const hits = r.hits.toReversed();
+  if (windows.length === 0 && hits.length === 0 && r.tanks.length === 0) return null;
   return (
-    <section className="min-w-0">
-      <h2 className="mb-2 text-sm font-semibold text-foreground">{t('usageHits')}</h2>
-      <Weeks weeks={r.weeks} />
-      {r.hits.length > 0 && <div className="mt-2">{r.hits.toReversed().slice(0, HITS_SHOWN).map((h) => <Hit key={`${h.kind}${h.ts}`} h={h} />)}</div>}
+    <section className="grid min-w-0 gap-3">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="text-sm font-semibold text-foreground">{t('usageHits')}</h2>
+        {(windows.some((w) => w.hit) || weeks.some((w) => w.hit)) && <span className="text-xs text-muted-foreground">{t('usageHitMark')}</span>}
+      </div>
+      {windows.length > 0 && (
+        <Bars
+          title={t('usageByWindow')} first={shortTime(windows[0]!.from)} last={shortTime(windows.at(-1)!.from)}
+          bars={windows.map((w) => ({ key: String(w.from), w: w.w, hit: w.hit, label: when(w.from) }))}
+        />
+      )}
+      {weeks.length > 1 && (
+        <Bars
+          title={t('usageByWeek')} first={weekDay(weeks[0]!.key)} last={weekDay(weeks.at(-1)!.key)}
+          bars={weeks.map((w) => ({ key: w.key, w: w.w, hit: w.hit, label: `${weekDay(w.key)} – ${weekDay(w.key, 6)}` }))}
+        />
+      )}
+      {hits.length > 0 && (
+        <div>
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>
+                <th className={TH}>{t('usageWhen')}</th><th className={TH}>{t('usageLimit')}</th><th className={`${TH} text-right`}>{t('usageTokensCol')}</th>
+                <th className={`${TH} text-right`}>{t('usageCalls')}</th><th className={TH}>{t('usageProjects')}</th>
+              </tr>
+            </thead>
+            <tbody>{hits.slice(0, all ? Infinity : ROWS_SHOWN).map((h) => <HitRow key={`${h.kind}${h.ts}`} h={h} />)}</tbody>
+          </table>
+          {hits.length > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[13px]`}>{all ? t('usageShowTop') : t('usageShowAll', hits.length)}</button>}
+        </div>
+      )}
       {r.tanks.length > 0 && (
-        <p className="mt-2 text-[13px] text-muted-foreground" title={t('usageTankTip')}>
+        <p className="text-[13px] text-muted-foreground" title={t('usageTankTip')}>
           {t('usageTank')} <span className="font-mono text-foreground">{r.tanks.slice(-TANKS_SHOWN).map((k) => fmtTokens(k.perPct)).join(' → ')}</span>
         </p>
       )}

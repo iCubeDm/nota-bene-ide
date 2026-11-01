@@ -325,7 +325,7 @@ The bars button in the header opens **Usage**: exact token accounting for every 
 
 - **Claude** and **Codex** have separate counters. **Reset** starts a new count; nothing is deleted, the older data stays under **All time**.
 - The large number is **weighted tokens**: input ×1, cache write ×1.25, cache read ×0.1, output ×5, the same for every model. It is a yardstick, not a price; a plain sum would be almost only cache reads. Hover over the word for the raw counts, or over a model for its own. The bar under it splits the tokens by model.
-- **Limit hits**: tokens per week, the weeks with a hit in red, and each hit in a line: what went in the 5 hours (or the week) before it. Click one for the tasks that ate the window. Under them, tokens per 1% of the weekly limit: a falling line means the same 100% buys fewer tokens. Codex has these readings from its own history; Claude's are recorded from now on, while a window is open.
+- **Limit hits**: two charts, 5-hour windows of work over weeks, red where a limit was hit; hover over a bar for its tokens. Under them a table of the hits: what went in the 5 hours (or the week) before each. Click a row for the tasks that ate the window. Then tokens per 1% of the weekly limit: a falling line means the same 100% buys fewer tokens. Codex has these readings from its own history; Claude's are recorded from now on, while a window is open.
 - **Where it went**: the costliest **Tasks** and **Projects**. A task is one message of yours and all the agent did until the reply: click one for its subagents and costliest calls. A project is the folder a session started in.
 
 Anything a period has nothing to show for is left out.

@@ -19,7 +19,8 @@ const REPORT: UsageReport = {
     top: [{ ts: 1, model: 'claude-opus', in: 1, out: 2, write: 3, read: 4, w: 9_000_000 }],
   }],
   hits: [{ ts: 1, kind: '5h', calls: 954, w: 23_000_000, projects: { app: 18_000_000, film: 5_000_000 }, models: { 'claude-opus': 23_000_000 }, tasks: [{ id: 't1', label: 'Long job', w: 20_000_000 }] }],
-  weeks: [{ key: '2026-10-05', w: 1, hit: false }, { key: '2026-10-12', w: 2, hit: true }], tanks: [{ from: 1, to: 2, pct: 10, w: 1000, perPct: 100 }],
+  weeks: [{ key: '2026-10-05', w: 1000, hit: false }, { key: '2026-10-12', w: 2_500_000, hit: true }],
+  windows: [{ from: 1, w: 500, hit: false }, { from: 2, w: 23_000_000, hit: true }], tanks: [{ from: 1, to: 2, pct: 10, w: 1000, perPct: 100 }],
 };
 
 let reply: (url: string) => UsageReport;
@@ -66,18 +67,36 @@ it('shows the meter, the model mix, the hits and the tank', async () => {
   expect(screen.getByText('Calls: 1,200, subagents 33%')).toBeTruthy();
   expect(screen.getByText('Opus 5.5')).toBeTruthy();
   expect(screen.getByText('app 78%, film 22%')).toBeTruthy();
-  expect(screen.getByText('red: weeks with a limit hit')).toBeTruthy();
+  expect(screen.getByText('red: ended on a limit hit')).toBeTruthy();
+  expect(screen.getByRole('img', { name: '5-hour windows' })).toBeTruthy();
+  expect(screen.getByRole('img', { name: 'Weeks' })).toBeTruthy();
   expect(screen.getByText('Per 1% of the weekly limit:').textContent).toContain('100');
 });
 
-it('a hit opens to the tasks that ate its window', async () => {
+it('a bar says its tokens under the pointer, the low one too, and whether it was a hit', async () => {
   setup();
-  fireEvent.click((await screen.findByText('app 78%, film 22%')).closest('button')!);
+  const weeks = await screen.findByRole('img', { name: 'Weeks' });
+  const bars = weeks.querySelectorAll('[data-bar]');
+  const chart = within(weeks.parentElement!);
+  fireEvent.mouseEnter(bars[0]!);
+  expect(chart.getByRole('status').textContent).toMatch(/Oct 5 – Oct 11: 1\.0k$/);
+  fireEvent.mouseEnter(bars[1]!);
+  expect(chart.getByRole('status').textContent).toMatch(/Oct 12 – Oct 18: 2\.5M, limit hit$/);
+  fireEvent.mouseLeave(weeks.parentElement!);
+  expect(chart.queryByRole('status')).toBeNull();
+});
+
+it('the hits are a table, and a row opens to the tasks that ate its window', async () => {
+  setup();
+  await screen.findByText('app 78%, film 22%');
+  expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['When', 'Limit', 'Tokens', 'Calls', 'Projects']);
+  expect(screen.queryByText('Long job')).toBeNull();
+  fireEvent.click(screen.getByText('app 78%, film 22%'));
   expect(screen.getByText('Long job')).toBeTruthy();
 });
 
 it('what a period has nothing for is not there', async () => {
-  reply = () => ({ ...REPORT, hits: [], tanks: [], weeks: [] });
+  reply = () => ({ ...REPORT, hits: [], tanks: [], weeks: [], windows: [] });
   setup();
   await screen.findByText('Review the parser');
   expect(screen.queryByText('Limit hits')).toBeNull();

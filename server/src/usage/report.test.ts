@@ -47,9 +47,33 @@ describe('projects are where a session started', () => {
 });
 
 describe('weeks', () => {
-  it('an idle week is there, empty; a week with a hit says so, whatever the period', () => {
-    const r = report([call({ id: 'a', ts: T0, out: 1 }), call({ id: 'b', ts: T0 + 14 * D, out: 1 }), { k: 'h', ts: T0 + 14 * D, kind: '5h' }], { period: '7d', now: T0 + 30 * D });
+  it('an idle week is there, empty; only a weekly hit marks a week, whatever the period', () => {
+    const r = report([
+      call({ id: 'a', ts: T0, out: 1 }), call({ id: 'b', ts: T0 + 14 * D, out: 1 }),
+      { k: 'h', ts: T0, kind: '5h' }, { k: 'h', ts: T0 + 14 * D, kind: 'week' },
+    ], { period: '7d', now: T0 + 30 * D });
     expect(r.weeks).toEqual([{ key: '2026-10-05', w: 5, hit: false }, { key: '2026-10-12', w: 0, hit: false }, { key: '2026-10-19', w: 5, hit: true }]);
+  });
+});
+
+describe('five-hour windows', () => {
+  it('a window opens with the first call after the last one closed', () => {
+    const r = report([call({ id: 'a', ts: T0, out: 1 }), call({ id: 'b', ts: T0 + 4 * H, out: 1 }), call({ id: 'c', ts: T0 + 5 * H, out: 1 }), call({ id: 'd', ts: T0 + 30 * H, out: 1 })]);
+    expect(r.windows).toEqual([{ from: T0, w: 10, hit: false }, { from: T0 + 5 * H, w: 5, hit: false }, { from: T0 + 30 * H, w: 5, hit: false }]);
+  });
+
+  it('a hit closes its own window: the same number as its row, and the calls after it open the next', () => {
+    const r = report([
+      call({ id: 'a', ts: T0 - 8 * H, out: 1 }), call({ id: 'b', ts: T0 - H, out: 2 }), call({ id: 'c', ts: T0 + H, out: 3 }),
+      { k: 'h', ts: T0, kind: '5h' },
+    ]);
+    expect(r.windows).toEqual([{ from: T0 - 8 * H, w: 5, hit: false }, { from: T0 - 5 * H, w: 10, hit: true }, { from: T0 + H, w: 15, hit: false }]);
+    expect(r.hits[0]!.w).toBe(10);
+  });
+
+  it('every window, whatever the period; a weekly hit marks none', () => {
+    const r = report([call({ id: 'a', ts: T0 - 20 * D, out: 1 }), call({ id: 'b', ts: T0, out: 1 }), { k: 'h', ts: T0 + H, kind: 'week' }], { period: '7d', now: T0 + D });
+    expect(r.windows.map((w) => w.hit)).toEqual([false, false]);
   });
 });
 

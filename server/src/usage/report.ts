@@ -127,9 +127,9 @@ function hitEvents(records: readonly UsageRecord[]): { ts: number; kind: UsageHi
 }
 
 /** The tokens in the window that ended with each hit. */
-function hitsOf(events: ReturnType<typeof hitEvents>, calls: readonly CallRecord[], records: readonly UsageRecord[], from: number | null, project: Project): UsageHit[] {
+function hitsOf(events: ReturnType<typeof hitEvents>, calls: readonly CallRecord[], records: readonly UsageRecord[], project: Project): UsageHit[] {
   const find = taskFinder(records);
-  return events.filter((e) => from === null || e.ts >= from).map((e) => {
+  return events.map((e) => {
     const since = e.ts - (e.kind === 'week' ? 7 * DAY : 5 * HOUR);
     const hit: UsageHit = { ...e, calls: 0, w: 0, projects: {}, models: {}, tasks: [] };
     const tasks = new Map<string, UsageHit['tasks'][number]>();
@@ -149,6 +149,19 @@ function hitsOf(events: ReturnType<typeof hitEvents>, calls: readonly CallRecord
   });
 }
 
+/** Windows of work, oldest first. A hit closes its own, so its bar and its row say the same; the rest open with the first call outside. */
+function windowsOf(calls: readonly CallRecord[], hits: readonly UsageHit[]): UsageReport['windows'] {
+  const closed = hits.filter((h) => h.kind === '5h').map((h) => ({ from: h.ts - 5 * HOUR, to: h.ts, w: h.w }));
+  const out: UsageReport['windows'] = closed.map(({ from, w }) => ({ from, w, hit: true }));
+  let open: UsageReport['windows'][number] | undefined;
+  for (const c of calls.toSorted((a, b) => a.ts - b.ts)) {
+    if (closed.some((h) => c.ts > h.from && c.ts <= h.to)) continue;
+    if (!open || c.ts >= open.from + 5 * HOUR) out.push(open = { from: c.ts, w: 0, hit: false });
+    open.w += weigh(c);
+  }
+  return out.sort((a, b) => a.from - b.from);
+}
+
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** The Monday of `ts`, local time. */
@@ -161,7 +174,7 @@ export function weekKey(ts: number): string {
 function weeksOf(calls: readonly CallRecord[], events: ReturnType<typeof hitEvents>): UsageReport['weeks'] {
   const m = new Map<string, number>();
   for (const c of calls) m.set(weekKey(c.ts), (m.get(weekKey(c.ts)) ?? 0) + weigh(c));
-  const hit = new Set(events.map((e) => weekKey(e.ts)));
+  const hit = new Set(events.filter((e) => e.kind === 'week').map((e) => weekKey(e.ts)));
   const keys = [...m.keys()].sort();
   const out: UsageReport['weeks'] = [];
   for (const key of keys.slice(0, 1)) {
@@ -204,6 +217,7 @@ export function buildReport(records: readonly UsageRecord[], o: { provider: Usag
   const calls = from === null ? every : every.filter((c) => c.ts >= from);
   const project = projectFinder(every);
   const events = hitEvents(records);
+  const hits = hitsOf(events, every, records, project);
   const total = zero();
   const models = new Map<string, UsageRow>(), projects = new Map<string, UsageRow>();
   for (const c of calls) {
@@ -214,6 +228,6 @@ export function buildReport(records: readonly UsageRecord[], o: { provider: Usag
   return {
     provider: o.provider, period: o.period, from, trip: o.trip, importing: o.importing, total,
     models: ranked(models), projects: ranked(projects), tasks: tasksOf(calls, records, project),
-    hits: hitsOf(events, every, records, from, project), weeks: weeksOf(every, events), tanks: tanksOf(every, records),
+    hits: hits.filter((h) => from === null || h.ts >= from), windows: windowsOf(every, hits), weeks: weeksOf(every, events), tanks: tanksOf(every, records),
   };
 }
