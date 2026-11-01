@@ -183,6 +183,7 @@ The **Files** panel (Cmd/Ctrl+Shift+F) is the project tree. It has a filter box,
 Click a file to open it in a tab:
 
 - Markdown renders and can be commented on. Code is highlighted and can be commented on. Alt+Z wraps long lines.
+- Code blocks in replies and Markdown files wrap, with a number per source line, and a button on hover copies the block.
 - Images, video and audio open in a viewer (next section).
 - Files over 2 MB and binary files are not shown ("File is too large to show", "Binary file, not shown"). **Open raw** shows the file as the server sends it.
 - **✎** in a text file's header edits it by hand: Alt+S or Cmd/Ctrl+S saves. Text that is not saved stays through a closed tab or a reload. If the file changed on disk during your edit (the agent wrote it, say), nothing is overwritten until you choose: overwrite it, or take the version on disk. Files of another branch or worktree stay read-only.

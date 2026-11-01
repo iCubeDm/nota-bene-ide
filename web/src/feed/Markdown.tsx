@@ -15,6 +15,8 @@ import { fileOfImage, markMentions, markRefs, openMediaFile } from '@/refs/refs.
 import { fileTabId } from '@/tabs/slice.ts';
 import { ChatPlayer } from '@/media/ChatPlayer.tsx';
 import { setStartAt } from '@/files/startAt.ts';
+import { toast } from '@/shell/toast.ts';
+import { addCopyButton, copyCode, numberLines } from './codeBlock.ts';
 import './markdown.css';
 
 // external links in agent replies open in a new browser tab instead of replacing the app
@@ -126,6 +128,8 @@ function postProcess(root: HTMLElement, final: boolean) {
     } else if (!c.dataset.highlighted) {
       hljs.highlightElement(c);
       c.dataset.highlighted = 'yes';
+      numberLines(c);
+      addCopyButton(pre);
     }
   });
 }
@@ -177,6 +181,11 @@ export const Markdown = memo(
       setPlayers(Array.from(ref.current.querySelectorAll<HTMLMediaElement>('.md-media > video, .md-media > audio'), (media) => ({ media, box: media.parentElement! })));
     }, [html, final, redux]);
     const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+      const cb = (e.target as Element).closest('button.md-copy-code');
+      if (cb && e.currentTarget.contains(cb)) {
+        copyCode(cb).catch(() => toast(t('codeCopyFail'), ''));
+        return;
+      }
       const mb = (e.target as Element).closest('button.md-open-media');
       if (mb && e.currentTarget.contains(mb)) {
         // inside a link or a ref, the click must not navigate or open a second time

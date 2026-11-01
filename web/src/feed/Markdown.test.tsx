@@ -33,6 +33,43 @@ describe('Markdown', () => {
     expect(container.querySelector('pre')).toBeNull();
   });
 
+  it('numbers a code block by source line, a token across lines reopened, the text untouched', () => {
+    const code = 'const a = `x\n\ny`;\nb();\n';
+    const { container } = render(<Markdown text={'```js\n' + code + '```'} final />);
+    const c = container.querySelector('pre code') as HTMLElement;
+    const lines = [...c.querySelectorAll('.md-line')];
+    expect(lines.map((l) => l.textContent)).toEqual(['const a = `x\n', '\n', 'y`;\n', 'b();\n']);
+    expect(c.textContent).toBe(code);
+    expect(lines[2]!.querySelector('.hljs-string')?.textContent).toBe('y`');
+    expect(c.style.getPropertyValue('--md-digits')).toBe('1');
+  });
+
+  it('a single line has no number; a block is numbered once across the final flip', () => {
+    const { container, rerender } = render(<Markdown text={'```js\na();\n```'} final />);
+    expect(container.querySelector('.md-line')).toBeNull();
+    rerender(<Markdown text={'```js\na();\nb();\n```'} final={false} />);
+    rerender(<Markdown text={'```js\na();\nb();\n```'} final />);
+    expect(container.querySelectorAll('.md-line')).toHaveLength(2);
+    expect(container.querySelectorAll('.md-line .md-line')).toHaveLength(0);
+    expect(container.querySelectorAll('.md-copy-code')).toHaveLength(1);
+  });
+
+  it('copies the code of its own block, without the last newline, and answers with a tick', async () => {
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    try {
+      const { container } = render(<Markdown text={'```\none\ntwo\n```\n\n```\nthree\n```'} final />);
+      const buttons = container.querySelectorAll<HTMLElement>('.md-copy-code');
+      expect(buttons).toHaveLength(2);
+      buttons[0]!.click();
+      await vi.waitFor(() => expect(buttons[0]!.title).toBe('Copied'));
+      expect(writeText).toHaveBeenCalledWith('one\ntwo');
+      expect(buttons[0]!.hasAttribute('data-anchor-skip')).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('non-final mermaid stays a code block', () => {
     const { container } = render(<Markdown text={MERMAID} final={false} />);
     expect(container.querySelector('.mermaid-out')).toBeNull();

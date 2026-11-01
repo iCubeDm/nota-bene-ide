@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Code blocks in replies and Markdown files wrap, number their lines and have a copy
+  button; a wrapped part of a line has no number of its own.
+
 - Add interface languages: Simplified Chinese, Spanish, Brazilian
   Portuguese and German.
 
