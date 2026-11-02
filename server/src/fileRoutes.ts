@@ -7,6 +7,8 @@ import { reportError } from './errors.ts';
 import { EDIT_MAX, readEditable, writeEditable, type EditAnswer } from './fileEdit.ts';
 import { listDir, listFiles, resolveInRoot } from './files.ts';
 import { blobSize, branchFiles, gitStatus, listSources, readFile, readTree, SourceError, type Source } from './git.ts';
+import { branchInfo, commitFileOf, commitOf, diffOf, fileOf, logOf } from './vcs.ts';
+import { listWindows } from './system.ts';
 import { fuzzyScore } from './fuzzy.ts';
 import type { ProviderSession as AgentSession } from './agent/types.ts';
 import { parseRange } from './range.ts';
@@ -138,7 +140,10 @@ export function fileRoutes(o: {
   complete: (q: string) => Promise<string[]>;
   /** .blend → GLB for /model; without it the route is not served */
   blend?: BlendConverter;
+  /** the roots of the windows whose agent is at work, for the branch list; a test passes its own */
+  working?: () => Promise<string[]>;
 }): Record<string, RequestListener> {
+  const working = o.working ?? (async () => (await listWindows(0)).filter((w) => w.busy).map((w) => w.root));
   const fail = (req: IncomingMessage, res: ServerResponse, e: unknown) => {
     reportError(o.hub, req.url ?? '', e);
     if (!res.headersSent) plain(res, 500, e instanceof Error ? e.message : String(e));
@@ -155,6 +160,10 @@ export function fileRoutes(o: {
     res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
     res.end(req.method === 'HEAD' ? undefined : JSON.stringify(body));
   };
+  const query = (req: IncomingMessage) => new URL(req.url ?? '/', 'http://x').searchParams;
+  /** A git view's answer. null: `refused`. A failed git is 503, so a view keeps what it shows instead of claiming there are no changes. */
+  const vcsJson = (req: IncomingMessage, res: ServerResponse, p: Promise<unknown>, refused = 404) =>
+    p.then((v) => (v === null ? plain(res, refused, 'not available') : json(req, res, 200, v)), () => plain(res, 503, 'git did not answer'));
   /** Runs `fn` with the request's source and the root as of the request; 400 for an unknown source. */
   const withSource = (req: IncomingMessage, res: ServerResponse, fn: (src: Source | 'here', root: string) => Promise<void> | void) => {
     const root = o.root();
@@ -247,6 +256,39 @@ export function fileRoutes(o: {
       if (!getOnly(req, res)) return;
       // 503 = git did not answer in time: the header keeps what it shows
       gitStatus(o.root()).then((st) => json(req, res, 200, st), () => plain(res, 503, 'git status timed out'));
+    },
+
+    '/vcs-diff': (req, res) => {
+      if (!getOnly(req, res)) return;
+      withSource(req, res, (src, root) => vcsJson(req, res, diffOf(root, src, query(req).get('base'))));
+    },
+
+    '/vcs-file': (req, res) => {
+      if (!getOnly(req, res)) return;
+      const q = query(req);
+      withSource(req, res, (src, root) => vcsJson(req, res, fileOf(root, src, q.get('base'), q.get('path') ?? '', q.get('old')), 403));
+    },
+
+    '/vcs-branches': (req, res) => {
+      if (!getOnly(req, res)) return;
+      const root = o.root();
+      vcsJson(req, res, working().catch(() => []).then((w) => branchInfo(root, w)));
+    },
+
+    '/vcs-log': (req, res) => {
+      if (!getOnly(req, res)) return;
+      withSource(req, res, (src, root) => vcsJson(req, res, logOf(root, src, query(req).get('all') !== '0')));
+    },
+
+    '/vcs-commit': (req, res) => {
+      if (!getOnly(req, res)) return;
+      vcsJson(req, res, commitOf(o.root(), query(req).get('sha') ?? ''), 404);
+    },
+
+    '/vcs-commit-file': (req, res) => {
+      if (!getOnly(req, res)) return;
+      const q = query(req);
+      vcsJson(req, res, commitFileOf(o.root(), q.get('sha') ?? '', q.get('path') ?? '', q.get('old')), 403);
     },
 
     '/tree': (req, res) => {

@@ -29,7 +29,7 @@ export class SourceError extends Error {
   }
 }
 
-function git(cwd: string, args: string[], maxBuffer = 16 << 20, timeout = TIMEOUT): Promise<Buffer> {
+export function git(cwd: string, args: string[], maxBuffer = 16 << 20, timeout = TIMEOUT): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     execFile('git', args, { cwd, env: gitEnv(), timeout, maxBuffer, encoding: 'buffer' }, (err, out) => (err ? reject(err) : resolve(out)));
   });
@@ -118,7 +118,7 @@ const cache = new Map<string, { at: number; p: Promise<Repo> }>();
 /** Test hook. */
 export const clearSourceCache = () => cache.clear();
 
-function repo(root: string): Promise<Repo> {
+export function repo(root: string): Promise<Repo> {
   const hit = cache.get(root);
   if (hit && Date.now() - hit.at < TTL) return hit.p;
   const p = scan(root);
