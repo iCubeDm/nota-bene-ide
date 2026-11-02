@@ -1,0 +1,24 @@
+name: PR format
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-format:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ github.event.pull_request.title }}
+          COMMITS_URL: ${{ github.event.pull_request.commits_url }}
+        run: |
+          pattern='^gh-[0-9]+: .'
+          grep -qE "$pattern" <<< "$TITLE" || { echo 'The title must read gh-<issue>: <message>'; exit 1; }
+          gh api --paginate "$COMMITS_URL" --jq '.[] | select((.parents | length) == 1) | .commit.message | split("\n")[0]' > subjects
+          [ -s subjects ] || { echo 'No commits to check'; exit 1; }
+          if grep -vE "$pattern" subjects | sed 's/^/Bad subject: /' | grep .; then exit 1; fi
