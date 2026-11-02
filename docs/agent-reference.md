@@ -62,6 +62,10 @@ See the guide's Codex section for API gaps; do not infer parity from the shared 
 
 ## Releasing
 
+- Every change starts from a GitHub issue. Its pull request closes the issue, and the
+  pull request title and each commit subject read `gh-<issue>: <message>`. `main` takes
+  only squash merges, with both CI `test` jobs green and the branch up to date; there is
+  no bypass, and force-push and deletion are refused.
 - Root `package.json` is the version source. Keep its lockfile root entries and
   `plugin/.claude-plugin/plugin.json`, `codex/plugin.json`, and the npm pin in
   `codex/skills/nb/SKILL.md` in sync; update Codex client metadata too.
@@ -69,6 +73,10 @@ See the guide's Codex section for API gaps; do not infer parity from the shared 
   CLAUDE.md imports it and this file holds operational detail.
 - Run types and the package/skill/launcher tests. Run browser suites sequentially
   when behavior changes; a documentation/version-only release needs focused checks.
+- Merge the version bump, wait for CI on `main`, tag that commit and build from the tag.
+  Until npm has the version, the plugins on `main` pin a version that does not exist:
+  merge only when you can publish straight away. Keep later repository-only
+  plugin/documentation changes distinct from that archive.
 - Build with `node scripts/build-package.mjs --out <empty-output-directory>`.
   The generated package is `nota-bene-ide`; the repository root remains private.
 - Run `npm pack --dry-run --json` in that directory and inspect the file list, version
@@ -78,12 +86,6 @@ See the guide's Codex section for API gaps; do not infer parity from the shared 
   integrity after publication. Build scripts do not publish automatically.
 - Verify Codex marketplace installation in an isolated `CODEX_HOME`, then smoke-test
   the published npm runtime with the installed skill and a fake Codex backend.
-- `main` takes changes only through a pull request with both CI `test` jobs green and
-  the branch up to date; there is no bypass, and force-push and deletion are refused.
-  Release from a `release-X.Y.Z` branch: open the pull request, wait for CI, publish,
-  tag the npm source commit, then merge with a merge commit, so the tagged commit stays
-  in the history of `main`. Keep later repository-only plugin/documentation changes
-  distinct from that archive.
 - Do not restart a live NB server as part of building or publishing.
 
 ## Access token
