@@ -284,6 +284,8 @@ export const de: Dict = {
   stNothing: 'Nichts zu bereinigen',
   defLang: 'Oberflächensprache',
   defMode: 'Agent-Modus für Projekte ohne eigenen',
+  defUpdate: 'Neue Versionen auf npm prüfen',
+  defUpdateEnv: 'Deaktiviert durch NOTA_BENE_NO_UPDATE_CHECK',
   aboutVersion: 'Version',
   aboutState: 'Statusordner',
   aboutLogs: 'Logs',

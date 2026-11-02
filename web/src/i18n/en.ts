@@ -292,6 +292,8 @@ export const en: Dict = {
   stNothing: 'Nothing to clean',
   defLang: 'Interface language',
   defMode: 'Agent mode for projects without their own',
+  defUpdate: 'Check npm for new versions',
+  defUpdateEnv: 'Off by NOTA_BENE_NO_UPDATE_CHECK',
   aboutVersion: 'Version',
   aboutState: 'State folder',
   aboutLogs: 'Logs',

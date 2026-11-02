@@ -291,6 +291,8 @@ export const ru = {
   stNothing: 'Убирать нечего',
   defLang: 'Язык интерфейса',
   defMode: 'Режим агента для проектов без своего',
+  defUpdate: 'Проверять новые версии в npm',
+  defUpdateEnv: 'Выключено через NOTA_BENE_NO_UPDATE_CHECK',
   aboutVersion: 'Версия',
   aboutState: 'Папка состояния',
   aboutLogs: 'Логи',

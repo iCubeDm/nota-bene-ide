@@ -16,10 +16,10 @@ import { isUiLang, MODES, type AgentMode as Mode } from '@nota-bene/shared';
 import { SecretError, stateSecret, verifiedBearer } from './auth.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
-import { readPrefs, setDefaultModePref, setLangPref } from './prefs.ts';
+import { readPrefs, setDefaultModePref, setLangPref, setUpdateCheckPref } from './prefs.ts';
 import { defaultProjectsDir } from './sessions.ts';
 import { stateDir } from './state.ts';
-import { updateCheck } from './update.ts';
+import { updateCheck, updateCheckForcedOff } from './update.ts';
 import { pidAlive, readWindows } from './windows.ts';
 
 export const CONTROL_HEADER = 'x-nota-bene-control';
@@ -323,18 +323,25 @@ export function systemRoutes(o: {
     '/system/prefs': (req, res) => {
       if (req.method === 'POST') {
         void readJson(req).then((b) => {
-          const { defaultMode: mode, lang, ifUnset } = b as { defaultMode?: unknown; lang?: unknown; ifUnset?: unknown };
-          if (mode === undefined && lang === undefined) return text(res, 400, 'bad defaultMode');
+          const { defaultMode: mode, lang, ifUnset, updateCheck } = b as { defaultMode?: unknown; lang?: unknown; ifUnset?: unknown; updateCheck?: unknown };
+          if (mode === undefined && lang === undefined && updateCheck === undefined) return text(res, 400, 'bad defaultMode');
           if (mode !== undefined && !((o.modes ?? MODES) as readonly unknown[]).includes(mode)) return text(res, 400, 'bad defaultMode');
           if (lang !== undefined && !isUiLang(lang)) return text(res, 400, 'bad lang');
+          if (updateCheck !== undefined && typeof updateCheck !== 'boolean') return text(res, 400, 'bad updateCheck');
           if (mode !== undefined) setDefaultModePref(mode as Mode);
           if (lang !== undefined) setLangPref(lang, ifUnset === true);
-          json(res, 200, { ...(mode !== undefined ? { defaultMode: mode } : {}), ...(lang !== undefined ? { lang: readPrefs().lang ?? lang } : {}) });
+          if (updateCheck !== undefined) setUpdateCheckPref(updateCheck);
+          json(res, 200, { ...(mode !== undefined ? { defaultMode: mode } : {}), ...(lang !== undefined ? { lang: readPrefs().lang ?? lang } : {}), ...(updateCheck !== undefined ? { updateCheck } : {}) });
         }).catch((e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/system/prefs', e)));
         return;
       }
       if (!only('GET', req, res)) return;
-      json(res, 200, { defaultMode: readPrefs().defaultMode ?? (o.modes?.includes('auto') ? 'auto' : o.modes?.[0] ?? 'auto') });
+      const prefs = readPrefs();
+      json(res, 200, {
+        defaultMode: prefs.defaultMode ?? (o.modes?.includes('auto') ? 'auto' : o.modes?.[0] ?? 'auto'),
+        updateCheck: !updateCheckForcedOff() && prefs.updateCheck !== false,
+        updateCheckForcedOff: updateCheckForcedOff(),
+      });
     },
 
     '/system/storage': (req, res) => {

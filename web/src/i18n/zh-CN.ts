@@ -284,6 +284,8 @@ export const zhCN: Dict = {
   stNothing: '没有需要清理的内容',
   defLang: '界面语言',
   defMode: '没有自己模式的项目所用的代理模式',
+  defUpdate: '在 npm 上检查新版本',
+  defUpdateEnv: '已被 NOTA_BENE_NO_UPDATE_CHECK 关闭',
   aboutVersion: '版本',
   aboutState: '状态文件夹',
   aboutLogs: '日志',
