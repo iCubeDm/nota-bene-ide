@@ -22,7 +22,7 @@ Load the reference relevant to the task; do not read every document at startup.
   ACP remains a future separate backend; unify abstractions after it is working.
 - Keep provider SDK shapes inside their adapters. Use the shared event contract and explicit capabilities.
 - Prefer focused changes and composition; preserve persistence and session-generation invariants.
-- `main` takes only squash-merged pull requests tied to an issue: [workflow](docs/agent-reference.md#releasing).
+- `main` takes only squash-merged pull requests tied to an issue: [workflow](docs/agent-reference.md#workflow).
 - This repository is public: use neutral fixtures/examples. Keep personal paths, real session ids,
   private project details and review artifacts out of tracked files and commit messages.
 

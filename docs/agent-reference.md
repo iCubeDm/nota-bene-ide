@@ -60,35 +60,52 @@ plugin are separate distribution artifacts; adding marketplace metadata does not
 replace an already published npm version.
 See the guide's Codex section for API gaps; do not infer parity from the shared UI.
 
+## Workflow
+
+Every change reaches `main` the same way. There is no bypass, for admins either, and
+force-push and deletion of `main` are refused.
+
+1. Open a GitHub issue.
+2. Branch from `main`. Commit subjects read `gh-<issue>: <message>`.
+3. Open a pull request with the same kind of title and `Closes #<issue>` in its body.
+4. Wait for the required checks: `test (ubuntu-latest)`, `test (macos-latest)` and
+   `pr-format`. The branch must be up to date with `main`.
+5. Squash merge, the only method allowed. The title becomes the commit on `main`.
+
 ## Releasing
 
-- Every change starts from a GitHub issue. Its pull request closes the issue, and the
-  pull request title and each commit subject read `gh-<issue>: <message>`; CI checks
-  that, merge commits aside. `main` takes
-  only squash merges, with both CI `test` jobs green and the branch up to date; there is
-  no bypass, and force-push and deletion are refused.
-- Root `package.json` is the version source. Keep its lockfile root entries and
-  `plugin/.claude-plugin/plugin.json`, `codex/plugin.json`, and the npm pin in
-  `codex/skills/nb/SKILL.md` in sync; update Codex client metadata too.
-- Update README, guide and CHANGELOG for user-visible changes. Keep AGENTS.md short;
-  CLAUDE.md imports it and this file holds operational detail.
-- Run types and the package/skill/launcher tests. Run browser suites sequentially
-  when behavior changes; a documentation/version-only release needs focused checks.
-- Cut `release-X.Y.Z` from `main` and commit the version bump there. Wait for CI on that
-  branch, tag its commit and build from the tag. Merge to `main` only after publication:
-  the plugins on `main` pin the version, and npm must already have it. The squash leaves
-  the tagged commit outside `main`, so keep the branch. Keep later repository-only
-  plugin/documentation changes distinct from that archive.
-- Build with `node scripts/build-package.mjs --out <empty-output-directory>`.
-  The generated package is `nota-bene-ide`; the repository root remains private.
-- Run `npm pack --dry-run --json` in that directory and inspect the file list, version
-  and dependencies. Pack the archive and publish that exact archive with `npm publish
-  <archive> --access public --tag latest` only when publication is authorized.
-- Confirm npm identity first; never print credentials. Verify registry version and
-  integrity after publication. Build scripts do not publish automatically.
-- Verify Codex marketplace installation in an isolated `CODEX_HOME`, then smoke-test
-  the published npm runtime with the installed skill and a fake Codex backend.
-- Do not restart a live NB server as part of building or publishing.
+A release follows the workflow above, then publishes from a tag on `main`.
+
+1. Open an issue for the release; its body is the changelog of the version.
+2. Bump the version on the issue's branch. Root `package.json` is the version source.
+   Keep its lockfile root entries, `plugin/.claude-plugin/plugin.json`, `codex/plugin.json`,
+   the npm pin in `codex/skills/nb/SKILL.md`, the Codex client metadata, the README pins
+   and the `docs/architecture.md` header in sync.
+3. Move the notes under `## Unreleased` in CHANGELOG to the version's section. Update README
+   and guide for user-visible changes. Keep AGENTS.md short; CLAUDE.md imports it and this
+   file holds operational detail.
+4. Run types and the package/skill/launcher tests. Run browser suites sequentially when
+   behavior changes; a documentation/version-only release needs focused checks.
+5. Run `npm whoami` before merging, and never print credentials. The plugins on `main`
+   pin the version, so a merged bump points them at a version npm does not have yet:
+   new installs fail until publication. Merge only when you can publish straight away.
+6. Merge, wait for CI on `main`, then put an annotated tag `vX.Y.Z` on that commit and
+   push it by name.
+7. From a checkout of the tag, build with `node scripts/build-package.mjs --out
+   <empty-output-directory>`. The generated package is `nota-bene-ide`; the repository
+   root remains private.
+8. Run `npm pack --dry-run --json` in that directory and inspect the file list, version
+   and dependencies. Pack the archive and publish that exact archive with `npm publish
+   <archive> --access public --tag latest` only when publication is authorized. Build
+   scripts do not publish automatically.
+9. Verify registry version and integrity after publication.
+10. Verify Codex marketplace installation from `main` in an isolated `CODEX_HOME`, then
+    smoke-test the published npm runtime with the installed skill and a fake Codex backend.
+11. Create the GitHub release from the tag, with the archive attached. Its notes begin by
+    naming the npm version as the exact source. Keep later repository-only
+    plugin/documentation changes distinct from that archive.
+
+Do not restart a live NB server as part of building or publishing.
 
 ## Access token
 
