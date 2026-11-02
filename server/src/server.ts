@@ -21,7 +21,7 @@ import { readPrefs } from './prefs.ts';
 import { httpHandler, isAllowedHost } from './http.ts';
 import { SwitchError, createSessionManager } from './session.ts';
 import type { IdleConfig } from './idle.ts';
-import { listSessionsView } from './sessions.ts';
+import { listSessionsView, renameRoute } from './sessions.ts';
 import { codeChecker } from './codeStamp.ts';
 import { stateDir } from './state.ts';
 import { registerWindow } from './windows.ts';
@@ -226,6 +226,7 @@ export async function startServer(o: {
           isSent: (id) => store.get(manager.info().id).some((c) => c.id === id && c.status === 'sent'),
         }),
         '/sessions': sessionsRoute,
+        '/sessions/rename': renameRoute({ hub, rename: (id, title) => manager.rename(id, title) }),
         '/agent-account': (req, res) => {
           const run = async () => {
             if (!o.backend.account) { res.writeHead(404); res.end(); return; }

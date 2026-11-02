@@ -204,6 +204,10 @@ export class CodexSession implements AgentSession {
     const r = record(await this.rpc.request('fuzzyFileSearch', { query, roots: [this.o.cwd] }));
     return array(r.files).map(record).map((f) => { const p = string(f.path); return path.isAbsolute(p) ? path.relative(this.o.cwd, p) : p; }).filter((p) => p && !p.startsWith('../') && !path.isAbsolute(p));
   }
+  async rename(title: string): Promise<void> {
+    await this.rpc.request('thread/name/set', { threadId: this.tid, name: title });
+  }
+
   async contextUsage(): Promise<Stats['context']> { return this.context; }
   async usage(): Promise<{ cost: null; limits: null; windows: NonNullable<Stats['windows']> }> {
     this.windows = limits(await this.rpc.request('account/rateLimits/read', {}));

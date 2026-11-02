@@ -295,6 +295,17 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
     await dialog.getByRole('button', { name: en.switchBtn }).click();
   };
 
+  // renamed from the menu without switching to it, and back: the next tests look for this title
+  const rename = async (from: string, to: string) => {
+    await page.locator('#sessBtn').click();
+    await page.getByRole('button', { name: `${en.renameSess}: ${from}` }).click({ force: true });
+    await page.getByRole('textbox', { name: en.renameSess }).fill(to);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-sess-item]').filter({ hasText: to })).toBeVisible();
+    await page.keyboard.press('Escape');
+  };
+  await rename('Beta session', 'Beta renamed');
+  await rename('Beta renamed', 'Beta session');
   await pickSession('Beta session');
   // the fake delays the new session's history by 1.5 s: this is the switching window
   await expect(page.locator('#conn')).toHaveText(en.switching);

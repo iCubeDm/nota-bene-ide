@@ -521,6 +521,11 @@ export function fakeBackend(
       const x = sessions.find((e) => e.id === id && cwdOf(e) !== undefined && real(cwdOf(e)!) === real(dir));
       return x ? { ...titles(x), cwd: cwdOf(x)! } : null;
     },
+    renameSession: async (id, title) => {
+      const x = sessions.find((e) => e.id === id);
+      if (!x) throw new Error('no such session');
+      x.customTitle = title;
+    },
     subagent: async (_session, _cwd, toolUseId, attachments, onError) => {
       const a = (o.subagents ?? []).find((x) => x.toolUseId === toolUseId);
       return a ? { events: transcriptToEvents(subagentMessages(a), attachments, onError, { subagent: true }), running: a.running ?? false, type: a.type ?? '', description: a.description } : null;

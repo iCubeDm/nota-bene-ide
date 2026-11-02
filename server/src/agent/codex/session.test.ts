@@ -67,6 +67,16 @@ describe('Codex session ownership', () => {
     expect(s.events).toContainEqual(expect.objectContaining({ t: 'turn-end', stop: 'failed', answers: ['b'] }));
     await s.close();
   });
+  it('a rename goes to the running thread, a stored one through the backend', async () => {
+    const s = setup(); await s.session.ready;
+    await s.session.rename('new name');
+    expect(s.rpc.calls.find((c) => c.method === 'thread/name/set')?.params).toEqual({ threadId: 'new-thread', name: 'new name' });
+    await s.close();
+    const rpc = new Script();
+    await codexBackend({ connect: () => rpc } as never).renameSession('stored', 'theirs');
+    expect(rpc.calls).toEqual([{ method: 'thread/name/set', params: { threadId: 'stored', name: 'theirs' } }]);
+  });
+
   it('a fork announces the destination, clear creates another native conversation', async () => {
     const s = setup(new Script(), { resume: 'source', fork: true }); await s.session.ready; await flush();
     expect(s.rpc.calls.find((x) => x.method === 'thread/fork')?.params.threadId).toBe('source');

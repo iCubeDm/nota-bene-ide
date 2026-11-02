@@ -501,6 +501,8 @@ export const de: Dict = {
   untitled: '(ohne Titel)',
   openNow: ' · jetzt geöffnet',
   sessFilter: 'Nach Titel oder Ordner suchen…',
+  renameSess: 'Umbenennen',
+  renameFail: 'Sitzung konnte nicht umbenannt werden: ',
   newHere: '+ neue Sitzung in diesem Projekt',
   thisProject: 'dieses Projekt · ',
   justNow: 'gerade eben',

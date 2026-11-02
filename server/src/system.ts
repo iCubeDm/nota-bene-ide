@@ -261,7 +261,7 @@ const only = (method: string, req: IncomingMessage, res: ServerResponse): boolea
   return false;
 };
 const MAX_BODY = 4096;
-async function readJson(req: IncomingMessage): Promise<unknown> {
+export async function readJson(req: IncomingMessage): Promise<unknown> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const c of req as AsyncIterable<Buffer>) {

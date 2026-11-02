@@ -65,6 +65,7 @@ export function SessionPicker() {
   const [view, setView] = useState<SessionsView | string | null>(null); // string: the load failed
   const [q, setQ] = useState('');
   const [ask, setAsk] = useState<Ask | null>(null);
+  const [edit, setEdit] = useState<{ id: string; text: string } | null>(null);
   const filter = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const loadSeq = useRef(0);
@@ -92,6 +93,7 @@ export function SessionPicker() {
     if (!o) return;
     setQ('');
     setView(null);
+    setEdit(null);
     const seq = ++loadSeq.current;
     void apiFetch('/sessions')
       .then(async (r) => {
@@ -110,6 +112,18 @@ export function SessionPicker() {
     trigger.current?.focus();
     setOpen(false);
     setAsk(a);
+  };
+
+  const rename = async () => {
+    if (!edit) return;
+    const { id } = edit;
+    const title = edit.text.trim();
+    if (!title) return setEdit(null);
+    const r = await apiFetch('/sessions/rename', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, title }) }).catch(() => null);
+    if (!r?.ok) return showNote(t('renameFail') + brief(r?.status ?? null, r ? await r.text().catch(() => '') : ''));
+    setView((w) => (w && typeof w === 'object' ? { ...w, sessions: w.sessions.map((x) => (x.id === id ? { ...x, title } : x)) } : w));
+    setEdit(null);
+    filter.current?.focus({ preventScroll: true });
   };
 
   const v = typeof view === 'object' ? view : null;
@@ -144,7 +158,12 @@ export function SessionPicker() {
           onOpenAutoFocus={(e) => { e.preventDefault(); requestAnimationFrame(() => filter.current?.focus({ preventScroll: true })); }}
           onCloseAutoFocus={(e) => { if (ask) e.preventDefault(); }}
           // Esc protocol: consumed here, so the Composer does not also read it
-          onEscapeKeyDown={(e) => { e.preventDefault(); setOpen(false); trigger.current?.focus(); }}
+          onEscapeKeyDown={(e) => {
+            e.preventDefault();
+            if (edit) { setEdit(null); filter.current?.focus({ preventScroll: true }); return; }
+            setOpen(false);
+            trigger.current?.focus();
+          }}
         >
           <input
             ref={filter}
@@ -178,21 +197,47 @@ export function SessionPicker() {
                 {g.items.map((x) => {
                   const cur = x.id === v!.current;
                   const title = x.title || t('untitled');
+                  if (edit?.id === x.id) {
+                    return (
+                      <input
+                        key={x.id}
+                        autoFocus
+                        value={edit.text}
+                        maxLength={200}
+                        aria-label={t('renameSess')}
+                        placeholder={t('untitled')}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setEdit({ id: x.id, text: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void rename(); } }}
+                        className="mx-1 my-0.5 block w-[calc(100%-0.5rem)] rounded-md border border-primary bg-transparent px-2 py-1.5 text-[13px] text-foreground outline-none"
+                      />
+                    );
+                  }
                   return (
-                    <button
-                      key={x.id}
-                      type="button"
-                      data-sess-item=""
-                      aria-current={cur || undefined}
-                      disabled={cur}
-                      onClick={() => pick({ id: x.id, title, dir: x.cwd })}
-                      className={`block w-full rounded-md px-2.5 py-1.5 text-left hover:enabled:bg-muted ${cur ? 'cursor-default bg-primary/10' : ''}`}
-                    >
-                      <span data-t className="block truncate text-[13px] text-foreground">{title}</span>
-                      <span className="block font-mono text-[10.5px] text-muted-foreground">
-                        {x.id.slice(0, 8)} · {ago(x.at)} · {kb(x.size)}{cur ? t('openNow') : ''}
-                      </span>
-                    </button>
+                    <div key={x.id} className="group/row relative">
+                      <button
+                        type="button"
+                        data-sess-item=""
+                        aria-current={cur || undefined}
+                        disabled={cur}
+                        onClick={() => pick({ id: x.id, title, dir: x.cwd })}
+                        className={`block w-full rounded-md py-1.5 pr-8 pl-2.5 text-left hover:enabled:bg-muted ${cur ? 'cursor-default bg-primary/10' : ''}`}
+                      >
+                        <span data-t className="block truncate text-[13px] text-foreground">{title}</span>
+                        <span className="block font-mono text-[10.5px] text-muted-foreground">
+                          {x.id.slice(0, 8)} · {ago(x.at)} · {kb(x.size)}{cur ? t('openNow') : ''}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`${t('renameSess')}: ${title}`}
+                        title={t('renameSess')}
+                        onClick={() => setEdit({ id: x.id, text: x.title })}
+                        className="absolute top-1.5 right-1.5 rounded px-1 text-xs text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-foreground focus-visible:opacity-100"
+                      >
+                        ✎
+                      </button>
+                    </div>
                   );
                 })}
               </div>

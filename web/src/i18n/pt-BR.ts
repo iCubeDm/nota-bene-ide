@@ -501,6 +501,8 @@ export const ptBR: Dict = {
   untitled: '(sem título)',
   openNow: ' · aberta agora',
   sessFilter: 'Buscar por título ou pasta…',
+  renameSess: 'Renomear',
+  renameFail: 'Não foi possível renomear a sessão: ',
   newHere: '+ nova sessão neste projeto',
   thisProject: 'este projeto · ',
   justNow: 'agora há pouco',

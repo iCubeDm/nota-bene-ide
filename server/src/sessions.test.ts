@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cwdOf, listSessionsView, titleOf } from './sessions.ts';
+import http from 'node:http';
+import { EventHub } from './hub.ts';
+import { cwdOf, listSessionsView, renameRoute, titleOf } from './sessions.ts';
 
 let dir: string;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-sessions-')); });
@@ -104,5 +106,40 @@ describe('listSessionsView', () => {
         { id: 'slash', title: '', at: 40, size: 400, cwd: '/d' },
       ],
     });
+  });
+});
+
+describe('POST /sessions/rename', () => {
+  const ID = '11111111-1111-4111-8111-111111111111';
+  const call = async (rename: (id: string, title: string) => Promise<void>, body: string, method = 'POST') => {
+    const server = http.createServer(renameRoute({ hub: new EventHub(), rename }));
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const { port } = server.address() as { port: number };
+    const res = await fetch(`http://127.0.0.1:${port}/`, { method, ...(method === 'POST' ? { body } : {}) });
+    server.close();
+    return res.status;
+  };
+
+  it('passes a trimmed title on', async () => {
+    const rename = vi.fn(async () => {});
+    expect(await call(rename, JSON.stringify({ id: ID, title: '  a name ' }))).toBe(200);
+    expect(rename).toHaveBeenCalledWith(ID, 'a name');
+  });
+
+  it.each([
+    ['no title', { id: ID }],
+    ['an empty title', { id: ID, title: '   ' }],
+    ['two lines', { id: ID, title: 'a\nb' }],
+    ['a long title', { id: ID, title: 'x'.repeat(201) }],
+    ['a bad id', { id: '../x', title: 'a' }],
+  ])('refuses %s', async (_, body) => {
+    const rename = vi.fn(async () => {});
+    expect(await call(rename, JSON.stringify(body))).toBe(400);
+    expect(rename).not.toHaveBeenCalled();
+  });
+
+  it('refuses a GET, and says 500 when the agent refuses', async () => {
+    expect(await call(async () => {}, '', 'GET')).toBe(405);
+    expect(await call(async () => { throw new Error('no'); }, JSON.stringify({ id: ID, title: 'a' }))).toBe(500);
   });
 });

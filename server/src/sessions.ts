@@ -1,7 +1,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { RequestListener } from 'node:http';
+import { isSessionId } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
+import { reportError } from './errors.ts';
+import type { EventHub } from './hub.ts';
+import { readJson } from './system.ts';
 
 type Titled = { customTitle?: string; summary?: string; firstPrompt?: string };
 
@@ -109,4 +114,29 @@ export async function listSessionsView(o: {
     sessions.push({ id: x.sessionId, title: titleOf(x) ?? '', at: x.lastModified, size: x.fileSize ?? 0, cwd: realOr(cwd) });
   }
   return { current: o.current, root: o.root, sessions };
+}
+
+const MAX_TITLE = 200;
+
+/** POST /sessions/rename {id, title}: in the key tier (auth.ts). A title is one line of at most 200 characters. */
+export function renameRoute(o: { hub: EventHub; rename: (id: string, title: string) => Promise<void> }): RequestListener {
+  return (req, res) => {
+    const answer = (status: number, body: string) => {
+      res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(body);
+    };
+    if (req.method !== 'POST') return answer(405, 'method not allowed');
+    readJson(req).then(async (b) => {
+      const { id, title } = b as { id?: unknown; title?: unknown };
+      const t = typeof title === 'string' ? title.trim() : '';
+      // eslint-disable-next-line no-control-regex
+      if (!isSessionId(id) || !t || t.length > MAX_TITLE || /[\x00-\x1f\x7f]/.test(t)) return answer(400, 'bad id or title');
+      await o.rename(id, t);
+      answer(200, 'ok');
+    }).catch((e: unknown) => {
+      if (e instanceof SyntaxError) return answer(400, 'bad json');
+      reportError(o.hub, 'sessions/rename', e);
+      answer(500, e instanceof Error ? e.message : String(e));
+    });
+  };
 }

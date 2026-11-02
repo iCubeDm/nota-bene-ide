@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CLAUDE_CAPABILITIES, type AgentEvent, type ServerEvent } from '@nota-bene/shared';
 import { mapFrames } from './agent/claude/map.ts';
 import { fakeBackend } from './agent/fake.ts';
@@ -45,7 +45,7 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
   }
 }
 
-const noSessions = { capabilities: CLAUDE_CAPABILITIES, listSessions: async () => [], sessionInfo: async () => null, subagent: async () => null };
+const noSessions = { capabilities: CLAUDE_CAPABILITIES, listSessions: async () => [], sessionInfo: async () => null, renameSession: async () => {}, subagent: async () => null };
 
 type Agent = Extract<ServerEvent, { kind: 'agent' }>;
 const agentOf = (events: ServerEvent[], t: Agent['e']['t']) => events.filter((e): e is Agent => e.kind === 'agent' && e.e.t === t);
@@ -1041,5 +1041,56 @@ describe('trackedCommand', () => {
   });
   it('a user command that shares the name /clear is not the builtin', () => {
     expect(trackedCommand('/clear', [row('clear'), row('compact', { builtin: true })])).toBeUndefined();
+  });
+});
+
+describe('rename', () => {
+  const OWN = '11111111-1111-4111-8111-111111111111';
+  const OTHER = '22222222-2222-4222-8222-222222222222';
+  const session = (rename?: (t: string) => Promise<void>): AgentBackend['start'] => () => ({
+    messages: mapFrames((async function* () {
+      yield { type: 'system', subtype: 'init', session_id: OWN } as never;
+      await new Promise(() => {});
+    })()),
+    send: () => {}, interrupt: async () => {}, setPermissionMode: async () => {}, supportedModels: async () => [], supportedCommands: async () => [],
+    setModel: async () => {}, setEffort: async () => {}, close: () => {}, ...(rename ? { rename } : {}),
+  } as never);
+  const started = async (backend: AgentBackend) => {
+    const { events, make } = setup(backend);
+    const s = await make();
+    s.send({ id: 'A', text: 'hi' });
+    await until(() => s.info().id === OWN);
+    return { s, events };
+  };
+  const titles = (events: ServerEvent[]) => events.flatMap((e) => (e.kind === 'session' ? [e.title] : []));
+
+  it('this session goes through its agent and is announced; the transcript is left to the agent', async () => {
+    const live = vi.fn(async () => {});
+    const stored = vi.fn(async () => {});
+    const { s, events } = await started({ ...noSessions, history: async () => [], start: session(live), renameSession: stored });
+    await s.rename(OWN, 'new name');
+    expect(live).toHaveBeenCalledWith('new name');
+    expect(stored).not.toHaveBeenCalled();
+    expect(titles(events).at(-1)).toBe('new name');
+    expect(s.info().title).toBe('new name');
+    s.close();
+  });
+
+  it('another session goes through the backend and leaves the title of this one', async () => {
+    const live = vi.fn(async () => {});
+    const stored = vi.fn(async () => {});
+    const { s, events } = await started({ ...noSessions, history: async () => [], start: session(live), renameSession: stored });
+    await s.rename(OTHER, 'theirs');
+    expect(stored).toHaveBeenCalledWith(OTHER, 'theirs');
+    expect(live).not.toHaveBeenCalled();
+    expect(titles(events)).not.toContain('theirs');
+    s.close();
+  });
+
+  it('a refusal rejects and the title stays', async () => {
+    const { s } = await started({ ...noSessions, history: async () => [], start: session(async () => { throw new Error('refused'); }) });
+    await expect(s.rename(OWN, 'new name')).rejects.toThrow('refused');
+    expect(s.info().title).toBeNull();
+    s.close();
   });
 });
