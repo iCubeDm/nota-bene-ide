@@ -43,6 +43,7 @@ export function packageJson() {
     version: rootJson.version,
     description: 'A browser IDE over Claude Code and Codex: agent chat, inline margin comments sent as one batch, a file tree and viewers.',
     license: 'Apache-2.0',
+    repository: { type: 'git', url: 'git+https://github.com/iCubeDm/nota-bene-ide.git' },
     type: 'module',
     bin: { [BIN]: 'bin/nota-bene.mjs' },
     files: ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/blend', 'web/dist', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'codex/skills/nb'],

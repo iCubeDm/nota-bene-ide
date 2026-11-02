@@ -86,24 +86,22 @@ A release follows the workflow above, then publishes from a tag on `main`.
    file holds operational detail.
 4. Run types and the package/skill/launcher tests. Run browser suites sequentially when
    behavior changes; a documentation/version-only release needs focused checks.
-5. Run `npm whoami` before merging, and never print credentials. The plugins on `main`
-   pin the version, so a merged bump points them at a version npm does not have yet:
-   new installs fail until publication. Merge only when you can publish straight away.
-6. Merge, wait for CI on `main`, then put an annotated tag `vX.Y.Z` on that commit and
-   push it by name.
-7. From a checkout of the tag, build with `node scripts/build-package.mjs --out
-   <empty-output-directory>`. The generated package is `nota-bene-ide`; the repository
-   root remains private.
-8. Run `npm pack --dry-run --json` in that directory and inspect the file list, version
-   and dependencies. Pack the archive and publish that exact archive with `npm publish
-   <archive> --access public --tag latest` only when publication is authorized. Build
-   scripts do not publish automatically.
-9. Verify registry version and integrity after publication.
-10. Verify Codex marketplace installation from `main` in an isolated `CODEX_HOME`, then
-    smoke-test the published npm runtime with the installed skill and a fake Codex backend.
-11. Create the GitHub release from the tag, with the archive attached. Its notes begin by
-    naming the npm version as the exact source. Keep later repository-only
-    plugin/documentation changes distinct from that archive.
+5. Merge, wait for CI on `main`, then put an annotated tag `vX.Y.Z` on that commit and push
+   it by name, straight away: the plugins on `main` pin the version, so new installs fail
+   until npm has it.
+6. The tag starts `.github/workflows/publish.yml`. It checks that the tag matches
+   `package.json` and that the commit is on `main`, builds with
+   `node scripts/build-package.mjs`, publishes that archive through npm trusted publishing
+   and creates the GitHub release with the archive and the version's changelog. The push
+   of the tag is the authorization to publish. The package name stays `nota-bene-ide`; the
+   repository root remains private.
+7. If the workflow cannot publish, do its steps by hand from a checkout of the tag, with
+   `npm publish <archive> --access public --tag latest` and a confirmed `npm whoami`; never
+   print credentials.
+8. Verify registry version and integrity after publication.
+9. Verify Codex marketplace installation from `main` in an isolated `CODEX_HOME`, then
+   smoke-test the published npm runtime with the installed skill and a fake Codex backend.
+10. Keep later repository-only plugin/documentation changes distinct from that archive.
 
 Do not restart a live NB server as part of building or publishing.
 
