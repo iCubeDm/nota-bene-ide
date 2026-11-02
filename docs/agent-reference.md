@@ -78,8 +78,12 @@ See the guide's Codex section for API gaps; do not infer parity from the shared 
   integrity after publication. Build scripts do not publish automatically.
 - Verify Codex marketplace installation in an isolated `CODEX_HOME`, then smoke-test
   the published npm runtime with the installed skill and a fake Codex backend.
-- Push checked release commits to `origin/main`. Tag the npm source commit, keeping
-  later repository-only plugin/documentation changes distinct from that archive.
+- `main` takes changes only through a pull request with both CI `test` jobs green and
+  the branch up to date; there is no bypass, and force-push and deletion are refused.
+  Release from a `release-X.Y.Z` branch: open the pull request, wait for CI, publish,
+  tag the npm source commit, then merge with a merge commit, so the tagged commit stays
+  in the history of `main`. Keep later repository-only plugin/documentation changes
+  distinct from that archive.
 - Do not restart a live NB server as part of building or publishing.
 
 ## Access token
