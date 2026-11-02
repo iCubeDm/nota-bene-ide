@@ -40,6 +40,7 @@ export function codexBackend(options: { connect?: (cwd?: string) => CodexConnect
       return out;
     },
     async sessionInfo(id, dir) { const t = await read(id); if (!t.cwd || real(string(t.cwd)) !== real(dir)) return null; return { cwd: string(t.cwd), customTitle: string(t.name) || undefined, firstPrompt: string(t.preview) || undefined }; },
+    async renameSession(id, title) { await rpc().request('thread/name/set', { threadId: id, name: title }); },
     async history(id, cwd, attachments, onError) {
       const t = await read(id); if (!t.cwd || real(string(t.cwd)) !== real(cwd)) throw new Error('Codex conversation belongs to another folder');
       const events = remember(id, await loadCodexHistory(rpc(), id, attachments, onError));

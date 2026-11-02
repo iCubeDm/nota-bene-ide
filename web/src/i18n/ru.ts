@@ -517,6 +517,8 @@ export const ru = {
   untitled: '(без названия)',
   openNow: ' · открыта сейчас',
   sessFilter: 'Поиск по названию или папке…',
+  renameSess: 'Переименовать',
+  renameFail: 'Не удалось переименовать сессию: ',
   newHere: '+ новая сессия в этом проекте',
   thisProject: 'этот проект · ',
   justNow: 'только что',

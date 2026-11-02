@@ -46,6 +46,12 @@ export class TitleTracker {
     this.t = (await this.fetch(id, dir)) ?? null;
   }
 
+  /** A title just set: it stands until a later lookup says otherwise. */
+  set(title: string): void {
+    this.t = title;
+    this.at = Date.now();
+  }
+
   /** No title, and the next lookup is due at once (a new conversation); a scheduled lookup still runs. */
   reset(): void {
     this.t = null;

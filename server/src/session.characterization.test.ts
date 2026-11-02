@@ -96,6 +96,7 @@ function scripted() {
   const backend: AgentBackend = {
     capabilities: CLAUDE_CAPABILITIES,
     listSessions: async () => [],
+    renameSession: async () => {},
     sessionInfo: async () => null,
     subagent: async () => null,
     history: async () => [],

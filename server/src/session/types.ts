@@ -22,6 +22,8 @@ export type SessionManager = {
   info(): { id: string | null; root: string; title: string | null; model: string | null };
   /** The id the conversation's archive goes under (R-M7-1); null before the first id, while a fork's id is pending, and after a /clear that named no id. */
   archiveId(): string | null;
+  /** Sets the title of a session, this one through its agent; `session` follows when it is this one. Rejects when the agent refuses. */
+  rename(id: string, title: string): Promise<void>;
   /** A send not yet answered by a result, a waiting permission, or a switch in progress (R-M4-4). */
   busy(): boolean;
   /** True from the start of a switch's checks to the new session's announcement. */

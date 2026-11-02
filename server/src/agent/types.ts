@@ -25,6 +25,8 @@ export interface AgentSession<M = Mode, E = EffortLevel> {
   setModel(model: string | null): Promise<void>;
   /** From the next response on; null: the model's default effort. */
   setEffort(effort: E | null): Promise<void>;
+  /** Sets the title of this running session; without it the title goes through the backend. Rejects when the agent refuses. */
+  rename?(title: string): Promise<void>;
   /** Context window usage; rejects when the CLI cannot answer. */
   contextUsage(): Promise<Stats['context']>;
   /** Session cost and plan limits; throws UsageUnavailableError when the SDK has no usage API. */
@@ -64,6 +66,8 @@ export interface AgentBackend<M = Mode, E = EffortLevel> {
   listSessions(): Promise<SessionListEntry[]>;
   /** The session's title fields when it belongs to `dir` (or one of its worktrees); null when it does not. */
   sessionInfo(id: string, dir: string): Promise<SessionInfo | null>;
+  /** Sets the title of a stored session of any folder. Rejects when there is no such session. */
+  renameSession(id: string, title: string): Promise<void>;
   /** The replay of a stored session: `user` events and `agent` events (message, tool-call, tool-update), ts 0. */
   history(sessionId: string, cwd: string, attachments: AttachmentStore, onError?: (e: unknown) => void): Promise<ServerEvent[]>;
   /**

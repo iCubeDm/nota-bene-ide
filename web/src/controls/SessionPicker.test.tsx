@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { CommentsPanel } from '@/comments/CommentsPanel.tsx';
@@ -293,4 +293,60 @@ it('formatting: ago and kb as in the prototype', () => {
   expect(ago(NOW - 3 * 86400_000, NOW)).toBe(new Date(NOW - 3 * 86400_000).toLocaleDateString('en', { day: 'numeric', month: 'short' }));
   expect(groupSessions(VIEW).map((g) => g.dir)).toEqual(['/Users/me/proj', '/Users/me/other', '/tmp/x']);
   expect(groupSessions({ ...VIEW, sessions: [VIEW.sessions[0]] }).map((g) => g.dir)).toEqual(['/Users/me/other']);
+});
+
+describe('rename', () => {
+  const pencil = (title: string) => screen.getByRole('button', { name: `Rename: ${title}` });
+  const posted = () => vi.mocked(fetch).mock.calls.filter(([u]) => u === '/sessions/rename');
+  const answer = (r: Response) => vi.mocked(fetch).mockImplementation(async (url) => {
+    if (url === '/sessions') return new Response(JSON.stringify(view));
+    if (url === '/sessions/rename') return r;
+    return new Response('[]');
+  });
+
+  it('Enter saves: the row shows the new title and no switch is asked for', async () => {
+    const { switches } = setup();
+    answer(new Response('ok'));
+    await openPicker();
+    await userEvent.click(pencil('other one'));
+    const box = screen.getByRole('textbox', { name: 'Rename' });
+    expect(box).toHaveValue('other one');
+    await userEvent.clear(box);
+    await userEvent.type(box, 'better{Enter}');
+    expect(await screen.findByText('better')).toBeInTheDocument();
+    expect(JSON.parse(posted()[0]![1]!.body as string)).toEqual({ id: B, title: 'better' });
+    expect(switches()).toEqual([]);
+    expect(screen.queryByRole('dialog', { name: /Open/ })).toBeNull();
+  });
+
+  it('the running session and an untitled one can be renamed too', async () => {
+    setup();
+    await openPicker();
+    expect(pencil('current talk')).toBeEnabled();
+    await userEvent.click(pencil('(untitled)'));
+    expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue('');
+  });
+
+  it('Esc cancels the edit and leaves the menu open; nothing is sent', async () => {
+    setup();
+    await openPicker();
+    await waitFor(() => expect(screen.getByPlaceholderText('Search by title or folder…')).toHaveFocus()); // it moves there a frame later
+    await userEvent.click(pencil('other one'));
+    await userEvent.keyboard('x{Escape}');
+    expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
+    expect(screen.getByText('other one')).toBeInTheDocument();
+    expect(menu()).toBeInTheDocument();
+    expect(posted()).toEqual([]);
+  });
+
+  it('a refusal says so and keeps what was typed', async () => {
+    setup();
+    answer(new Response('no such session', { status: 500 }));
+    await openPicker();
+    await userEvent.click(pencil('other one'));
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Rename' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Rename' }), 'better{Enter}');
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not rename the session: no such session');
+    expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue('better');
+  });
 });

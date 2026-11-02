@@ -1,4 +1,4 @@
-import { getSessionInfo, getSessionMessages, getSubagentMessages, listSessions, listSubagents, query } from '@anthropic-ai/claude-agent-sdk';
+import { getSessionInfo, getSessionMessages, getSubagentMessages, listSessions, listSubagents, query, renameSession } from '@anthropic-ai/claude-agent-sdk';
 import type { ModelInfo, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { CLAUDE_CAPABILITIES, type AgentEvent, type EffortLevel, type Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
 import type { AgentBackend, AgentSession, PermissionAsk, SendImage } from '../types.ts';
@@ -144,6 +144,12 @@ class SdkSession implements AgentSession {
     return { output: r.output, totalBytes: Number(r.total_bytes) || 0, truncated: r.truncated === true };
   }
 
+  async rename(title: string): Promise<void> {
+    // the running CLI keeps its title in memory, so a title written to the transcript behind its back may not last
+    const { q } = this as unknown as { q: { request(r: { subtype: 'rename_session'; title: string; source: 'host' }, o?: { signal?: AbortSignal }): Promise<unknown> } };
+    await q.request({ subtype: 'rename_session', title, source: 'host' }, { signal: AbortSignal.timeout(5000) });
+  }
+
   async contextUsage(): Promise<{ used: number; max: number; pct: number }> {
     return mapContextUsage(await this.q.getContextUsage({ detail: 'summary' }));
   }
@@ -206,6 +212,7 @@ export function sdkBackend(): AgentBackend {
     start: (o) => new SdkSession(o),
     listSessions: () => listSessions({ limit: 300 }),
     sessionInfo: async (id, dir) => (await getSessionInfo(id, { dir })) ?? null,
+    renameSession: (id, title) => renameSession(id, title),
     history: async (sessionId, cwd, attachments, onError) => transcriptToEvents(await getSessionMessages(sessionId, { dir: cwd }), attachments, onError),
     subagent: async (sessionId, cwd, toolUseId, attachments, onError, call) => {
       const ids = await listSubagents(sessionId, { dir: cwd });

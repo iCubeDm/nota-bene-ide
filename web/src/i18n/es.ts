@@ -501,6 +501,8 @@ export const es: Dict = {
   untitled: '(sin título)',
   openNow: ' · abierta ahora',
   sessFilter: 'Buscar por título o carpeta…',
+  renameSess: 'Renombrar',
+  renameFail: 'No se pudo renombrar la sesión: ',
   newHere: '+ sesión nueva en este proyecto',
   thisProject: 'este proyecto · ',
   justNow: 'ahora mismo',

@@ -501,6 +501,8 @@ export const zhCN: Dict = {
   untitled: '（无标题）',
   openNow: ' · 当前已打开',
   sessFilter: '按标题或文件夹搜索…',
+  renameSess: '重命名',
+  renameFail: '无法重命名会话：',
   newHere: '+ 在此项目中新建会话',
   thisProject: '此项目 · ',
   justNow: '刚刚',

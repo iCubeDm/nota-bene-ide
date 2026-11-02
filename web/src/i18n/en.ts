@@ -518,6 +518,8 @@ export const en: Dict = {
   untitled: '(untitled)',
   openNow: ' · open now',
   sessFilter: 'Search by title or folder…',
+  renameSess: 'Rename',
+  renameFail: 'Could not rename the session: ',
   newHere: '+ new session in this project',
   thisProject: 'this project · ',
   justNow: 'just now',

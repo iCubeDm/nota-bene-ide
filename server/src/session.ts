@@ -358,6 +358,15 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     },
     info: () => { const i = who.info(); return { id: i.id, root: i.root, title: titles.title, model: i.model }; },
     archiveId: () => who.ownId,
+    rename: async (id, title) => {
+      const here = id === who.info().id;
+      const live = here ? slot.agent : null;
+      if (live?.rename) await live.rename(title);
+      else await backend.renameSession(id, title);
+      if (!here || id !== who.info().id) return;
+      titles.set(title);
+      who.announce();
+    },
     busy,
     switching: () => phase.switching,
     switch: ({ id, dir }) => switchTo(id, dir, false),

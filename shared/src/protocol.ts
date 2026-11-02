@@ -355,7 +355,7 @@ function isPermission(o: Obj): boolean {
 const SESSION_ID = /^[0-9a-f-]{36}$/i;
 const isMode = (v: unknown): v is AgentMode => (ALL_MODES as readonly unknown[]).includes(v);
 const isEffort = (v: unknown): v is AgentEffort => (EFFORT_LEVELS as readonly unknown[]).includes(v);
-const isSessionId = (v: unknown): v is string => typeof v === 'string' && SESSION_ID.test(v);
+export const isSessionId = (v: unknown): v is string => typeof v === 'string' && SESSION_ID.test(v);
 
 function toSource(s: AnchorSource): AnchorSource {
   if (s.kind === 'message') return s.agent === undefined ? { kind: 'message', id: s.id } : { kind: 'message', id: s.id, agent: s.agent };
