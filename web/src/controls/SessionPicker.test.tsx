@@ -344,6 +344,7 @@ describe('rename', () => {
     answer(new Response('no such session', { status: 500 }));
     await openPicker();
     await userEvent.click(pencil('other one'));
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Rename' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Rename' }), 'better{Enter}');
     expect(await screen.findByRole('status')).toHaveTextContent('Could not rename the session: no such session');
     expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue('better');
