@@ -208,6 +208,7 @@ describe('a model comment', () => {
       anchor: { kind: 'media', source: { kind: 'file', path: 'm/a.glb' }, width: 800, height: 600, version: '"v"', camera, junk: 1, shapes: [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 1, h: 1 }] },
     } as unknown as Partial<Comment>);
     const cl = await connect(s.url);
+    await until(() => cl.events.some((e) => e.kind === 'hello'));
     expect((cl.events.find((e) => e.kind === 'hello') as { protocol: number }).protocol).toBeGreaterThanOrEqual(9);
     cl.ws.send(JSON.stringify({ type: 'comments', sessionId: 'sess-cam', items: [model] }));
     await until(() => lastComments(cl)?.length === 1);
