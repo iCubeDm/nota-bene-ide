@@ -6,6 +6,8 @@ import { SettingsView } from '@/settings/SettingsView.tsx';
 import { AgentView } from '@/subagent/AgentView.tsx';
 import { ShellView } from '@/tasks/ShellView.tsx';
 import { UsageView } from '@/usage/UsageView.tsx';
+import { ChangesView } from '@/vcs/ChangesView.tsx';
+import { LogView } from '@/vcs/LogView.tsx';
 import { selectTabs } from './slice.ts';
 
 /**
@@ -29,7 +31,9 @@ export function Panes({ chat }: { chat: ReactNode }) {
             <div key="usage" data-pane="usage" data-anchor-skip hidden={active !== 'usage'} className="grid-pane relative min-h-0 flex-1 overflow-auto">
               <UsageView active={active === 'usage'} />
             </div>
-          ) : tab.kind === 'agent' ? <AgentView key={`${rootGen}:${tab.id}`} tab={tab} active={active === tab.id} />
+          ) : tab.kind === 'changes' ? <ChangesView key={`${rootGen}:changes`} active={active === 'changes'} />
+          : tab.kind === 'log' ? <LogView key={`${rootGen}:log`} active={active === 'log'} />
+          : tab.kind === 'agent' ? <AgentView key={`${rootGen}:${tab.id}`} tab={tab} active={active === tab.id} />
           : tab.kind === 'shell' ? <ShellView key={`${rootGen}:${tab.id}`} tab={tab} active={active === tab.id} />
           : tab.kind === 'diagram' ? <DiagramView key={`${rootGen}:${tab.id}`} tab={tab} active={active === tab.id} />
           : null,

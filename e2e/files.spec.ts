@@ -340,23 +340,53 @@ test('a pasted PNG shows one thumbnail in the bubble and reaches the agent @file
   await expect(reply(page, text)).toContainText('images: 1');
 });
 
-test('the tree shows another worktree read-only: pick it, open a file only it has, the tab chip names its branch @files', async ({ page }) => {
+test('the header picks another worktree read-only: open a file only it has, the tab chip names its branch @files', async ({ page }) => {
   await start(page);
   const sheet = page.locator('#tree-sheet');
   if (await sheet.isHidden()) await page.locator('#toggleTree').click();
-  const picker = sheet.getByRole('combobox', { name: /^(Source|Источник)$/ });
-  await expect(picker.locator('option[value="ref:feature/x"]')).toHaveText(/feature\/x/);
-  await picker.selectOption('ref:feature/x');
+  const pickBranch = async (name: string | RegExp) => {
+    await page.locator('#git-branch').click();
+    await page.getByRole('button', { name }).click();
+  };
+  await pickBranch(/feature\/x/);
+  await expect(page.locator('#git-branch')).toContainText('feature/x');
   await sheet.locator('button[data-path="only-x.md"]').click();
   const tab = page.locator('[data-tab="file:ref:feature/x:only-x.md"]');
   await expect(tab).toHaveAttribute('aria-selected', 'true');
   await expect(tab.locator('[data-src-chip]')).toHaveText('feature/x');
   await expect(page.locator('[data-pane="file:ref:feature/x:only-x.md"][data-file-ref="feature/x"] h1')).toHaveText('Only on feature/x');
   // this folder does not have it
-  await picker.selectOption('here');
+  await pickBranch(/^.?\s*main/);
   await expect(sheet.locator('button[data-path="only-x.md"]')).toHaveCount(0);
   await page.locator('#toggleTree').click();
   await tab.getByRole('button', { name: /^(Close|Закрыть)$/ }).click();
+});
+
+test('Changes shows what another worktree has not committed, a comment on it is marked in the diff, the log lists the history @files', async ({ page }) => {
+  await start(page);
+  await page.locator('#git-branch').click();
+  await page.getByRole('button', { name: /feature\/x/ }).click();
+  await page.locator('#toggleChanges').click();
+  const pane = page.locator('[data-pane="changes"]');
+  await expect(pane.locator('[data-file-path="only-x.md"]')).toContainText('written by another agent');
+  await expect(page.locator('#changes-sheet').getByRole('combobox')).toHaveValue('');
+  const line = pane.getByText('written by another agent');
+  await line.evaluate((el) => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(r);
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+  await page.getByTestId('selection-bar').getByRole('button', { name: /^(Comment|Комментировать|Комментарий)/ }).click();
+  await page.keyboard.type('why here');
+  await page.keyboard.press('Meta+Enter');
+  await expect(pane.locator('[data-hl-layer] [data-hl="pending"]').first()).toBeAttached();
+  await page.locator('#toggleLog').click();
+  await expect(page.locator('[data-pane="log"]')).toContainText('init');
+  await page.locator('#toggleChanges').click();
+  await page.locator('#git-branch').click();
+  await page.getByRole('button', { name: /^.?\s*main/ }).click();
 });
 
 /** Selects the first `n` chars of the md file's last paragraph and fires the mouseup the selection button listens for. */

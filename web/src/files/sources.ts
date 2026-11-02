@@ -88,6 +88,8 @@ export const refOf = (id: string): string | undefined =>
  */
 export const srcIdOfRef = (ref: string | undefined): string | undefined =>
   ref === undefined ? 'here' : ref.startsWith('(detached) ') ? list.find((s) => s.ref === ref)?.id : `ref:${ref}`;
+/** A comment's ref naming a commit of the log, not a branch or a worktree of the list. */
+export const isCommitRef = (ref: string | undefined): ref is string => !!ref && /^[0-9a-f]{7}$/.test(ref) && !list.some((s) => s.ref === ref);
 /** A source served from git blobs only changes with a commit: no reload after a turn. Unknown = reload (harmless). */
 export const isFixed = (id: string, from: Source[] = list): boolean => from.find((s) => s.id === id)?.kind === 'branch';
 
