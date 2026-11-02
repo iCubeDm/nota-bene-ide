@@ -63,7 +63,8 @@ See the guide's Codex section for API gaps; do not infer parity from the shared 
 ## Releasing
 
 - Every change starts from a GitHub issue. Its pull request closes the issue, and the
-  pull request title and each commit subject read `gh-<issue>: <message>`. `main` takes
+  pull request title and each commit subject read `gh-<issue>: <message>`; CI checks
+  that, merge commits aside. `main` takes
   only squash merges, with both CI `test` jobs green and the branch up to date; there is
   no bypass, and force-push and deletion are refused.
 - Root `package.json` is the version source. Keep its lockfile root entries and
@@ -73,9 +74,10 @@ See the guide's Codex section for API gaps; do not infer parity from the shared 
   CLAUDE.md imports it and this file holds operational detail.
 - Run types and the package/skill/launcher tests. Run browser suites sequentially
   when behavior changes; a documentation/version-only release needs focused checks.
-- Merge the version bump, wait for CI on `main`, tag that commit and build from the tag.
-  Until npm has the version, the plugins on `main` pin a version that does not exist:
-  merge only when you can publish straight away. Keep later repository-only
+- Cut `release-X.Y.Z` from `main` and commit the version bump there. Wait for CI on that
+  branch, tag its commit and build from the tag. Merge to `main` only after publication:
+  the plugins on `main` pin the version, and npm must already have it. The squash leaves
+  the tagged commit outside `main`, so keep the branch. Keep later repository-only
   plugin/documentation changes distinct from that archive.
 - Build with `node scripts/build-package.mjs --out <empty-output-directory>`.
   The generated package is `nota-bene-ide`; the repository root remains private.
