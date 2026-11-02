@@ -4,6 +4,10 @@ import { useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 
 const SEEN_KEY = 'nb.updateSeen';
+const RECHECK = 'nb-update-recheck';
+
+/** The switch in Settings changed: the notice follows at once, not on the next focus. */
+export const recheckUpdate = () => window.dispatchEvent(new Event(RECHECK));
 
 /** "↑ 1.3.0" in the header while a newer version than the running one is on npm. Later hides it until the next version. */
 export function UpdateNotice() {
@@ -19,7 +23,11 @@ export function UpdateNotice() {
     };
     ask();
     window.addEventListener('focus', ask); // the server keeps the answer, so this asks npm no more often
-    return () => window.removeEventListener('focus', ask);
+    window.addEventListener(RECHECK, ask);
+    return () => {
+      window.removeEventListener('focus', ask);
+      window.removeEventListener(RECHECK, ask);
+    };
   }, []);
 
   if (!update || update.latest === seen) return null;

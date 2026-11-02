@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { fakeBackend } from './agent/fake.ts';
 import { readPrefs } from './prefs.ts';
@@ -191,9 +191,23 @@ describe('the row the user saw', () => {
 });
 
 describe('defaults and about', () => {
+  it('the update check is on until turned off, and the variable wins over the switch', async () => {
+    const s = await boot();
+    const read = async () => (await fetch(`${s.url}/system/prefs`)).json();
+    expect(await read()).toMatchObject({ updateCheck: true, updateCheckForcedOff: false });
+    expect((await post(`${s.url}/system/prefs`, { updateCheck: 'no' }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { updateCheck: false }, { origin: s.origin })).status).toBe(200);
+    expect(await read()).toMatchObject({ updateCheck: false });
+    expect(readPrefs().updateCheck).toBe(false);
+    await post(`${s.url}/system/prefs`, { updateCheck: true }, { origin: s.origin });
+    vi.stubEnv('NOTA_BENE_NO_UPDATE_CHECK', '1');
+    expect(await read()).toMatchObject({ updateCheck: false, updateCheckForcedOff: true });
+    vi.unstubAllEnvs();
+  });
+
   it('the default mode is stored and validated', async () => {
     const s = await boot();
-    expect(await (await fetch(`${s.url}/system/prefs`)).json()).toEqual({ defaultMode: 'auto' });
+    expect(await (await fetch(`${s.url}/system/prefs`)).json()).toMatchObject({ defaultMode: 'auto' });
     expect((await post(`${s.url}/system/prefs`, { defaultMode: 'bogus' }, { origin: s.origin })).status).toBe(400);
     expect((await post(`${s.url}/system/prefs`, { defaultMode: 'plan' }, { origin: s.origin })).status).toBe(200);
     expect(readPrefs().defaultMode).toBe('plan');

@@ -6,6 +6,7 @@ import { apiFetch } from '@/net/auth.ts';
 import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
 import { kb } from '@/controls/SessionPicker.tsx';
 import { getLang, chooseLang, LANGS, t as tNow, useT, type Lang } from '@/i18n/index.ts';
+import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
 
 type Size = { bytes: number; files: number };
 /** `history`: the archive before compactions (R-M7-1); absent from a server older than M7-12 */
@@ -76,7 +77,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const windows = useLoad<WindowRow[]>('/system/windows', active);
   const storage = useLoad<Storage>('/system/storage', active);
   const about = useLoad<About>('/system/about', active);
-  const prefs = useLoad<{ defaultMode: Mode }>('/system/prefs', active);
+  const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean }>('/system/prefs', active);
   const [ask, setAsk] = useState<{ title: string; body: string; confirm: string; run: () => Promise<void> } | null>(null);
   // the port whose action is in flight: that row's buttons are off until it settles (no double relays)
   const [pending, setPending] = useState<number | null>(null);
@@ -118,9 +119,9 @@ export function SettingsView({ active }: { active: boolean }) {
     }
     storage.reload();
   };
-  const saveMode = async (mode: string) => {
+  const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean }) => {
     try {
-      const r = await postJson('/system/prefs', { defaultMode: mode });
+      const r = await postJson('/system/prefs', pref);
       if (!r.ok) throw new Error(`${r.status}`);
     } catch (e) {
       setNote(t('setLoadFail', e instanceof Error ? e.message : String(e)));
@@ -196,10 +197,20 @@ export function SettingsView({ active }: { active: boolean }) {
           {fail(prefs.error)}
           {prefs.data && (
             <select aria-label={t('defMode')} value={prefs.data.defaultMode}
-              onChange={(e) => void saveMode(e.target.value)}
+              onChange={(e) => void savePref({ defaultMode: e.target.value })}
               className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[13px] text-foreground">
               {(capabilities?.modes ?? MODES).map((m) => <option key={m} value={m}>{t(`mode_${m}`)}</option>)}
             </select>
+          )}
+        </Row>
+        <Row label={t('defUpdate')}>
+          {prefs.data && (
+            <span className="flex flex-col gap-1">
+              <input type="checkbox" aria-label={t('defUpdate')} checked={prefs.data.updateCheck === true} disabled={prefs.data.updateCheckForcedOff}
+                onChange={(e) => void savePref({ updateCheck: e.target.checked }).then(recheckUpdate)}
+                className="size-3.5 accent-primary" />
+              {prefs.data.updateCheckForcedOff && <span className="text-xs text-muted-foreground">{t('defUpdateEnv')}</span>}
+            </span>
           )}
         </Row>
       </Section>

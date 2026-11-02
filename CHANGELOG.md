@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- The header says when a newer version is out and how to update. `NOTA_BENE_NO_UPDATE_CHECK=1` turns the check off.
+- The header says when a newer version is out and how to update. Settings → Defaults turns the check off, so does `NOTA_BENE_NO_UPDATE_CHECK=1`.
 - Rename a session: ✎ on its row in Sessions, for the open session or any other, or right-click the chat tab.
 - The Usage tab sits on the same card as Settings and Markdown files.
 

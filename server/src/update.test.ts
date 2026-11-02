@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { setUpdateCheckPref } from './prefs.ts';
 import { isNewer, updateCheck } from './update.ts';
 
 const npm = (version: unknown) => vi.fn(async () => new Response(JSON.stringify({ version }))) as unknown as typeof fetch;
@@ -27,6 +31,21 @@ describe('updateCheck', () => {
     expect(await updateCheck({ ...on, fetch: f })('v1.2.0-5-gabcdef')).toBeNull();
     expect(await updateCheck({ fetch: f, off: () => true })('1.2.0')).toBeNull();
     expect(f).not.toHaveBeenCalled();
+  });
+
+  it('the switch in Settings stops the asking at once, and turning it back on resumes it', async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-update-'));
+    vi.stubEnv('NOTA_BENE_HOME', home);
+    vi.stubEnv('NOTA_BENE_NO_UPDATE_CHECK', '');
+    const f = npm('1.3.0');
+    const check = updateCheck({ fetch: f });
+    setUpdateCheckPref(false);
+    expect(await check('1.2.0')).toBeNull();
+    expect(f).not.toHaveBeenCalled();
+    setUpdateCheckPref(true);
+    expect(await check('1.2.0')).toBe('1.3.0');
+    vi.unstubAllEnvs();
+    fs.rmSync(home, { recursive: true });
   });
 
   it('asks npm once in 6 hours, however many windows ask', async () => {

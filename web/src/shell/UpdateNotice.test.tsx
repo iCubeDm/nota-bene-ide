@@ -1,8 +1,8 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
-import { UpdateNotice } from './UpdateNotice.tsx';
+import { recheckUpdate, UpdateNotice } from './UpdateNotice.tsx';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 
@@ -38,6 +38,14 @@ it('no newer version, or a server that cannot say: nothing shows', async () => {
   const again = render(<UpdateNotice />);
   await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
   expect(again.container).toBeEmptyDOMElement();
+});
+
+it('turned off in Settings: the notice goes without waiting for a focus', async () => {
+  render(<UpdateNotice />);
+  await button();
+  answer = { current: '1.2.0', latest: null };
+  act(() => recheckUpdate());
+  await vi.waitFor(() => expect(screen.queryByRole('button', { name: '↑ 1.3.0' })).toBeNull());
 });
 
 it('Later hides this version across a reload, and the next version shows again', async () => {

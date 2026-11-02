@@ -284,6 +284,8 @@ export const es: Dict = {
   stNothing: 'Nada que limpiar',
   defLang: 'Idioma de la interfaz',
   defMode: 'Modo del agente para proyectos sin uno propio',
+  defUpdate: 'Buscar nuevas versiones en npm',
+  defUpdateEnv: 'Desactivado por NOTA_BENE_NO_UPDATE_CHECK',
   aboutVersion: 'Versión',
   aboutState: 'Carpeta de estado',
   aboutLogs: 'Registros',

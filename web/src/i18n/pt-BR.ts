@@ -284,6 +284,8 @@ export const ptBR: Dict = {
   stNothing: 'Nada para limpar',
   defLang: 'Idioma da interface',
   defMode: 'Modo do agente para projetos sem modo próprio',
+  defUpdate: 'Verificar novas versões no npm',
+  defUpdateEnv: 'Desativado por NOTA_BENE_NO_UPDATE_CHECK',
   aboutVersion: 'Versão',
   aboutState: 'Pasta de estado',
   aboutLogs: 'Logs',

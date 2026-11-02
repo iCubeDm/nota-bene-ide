@@ -114,6 +114,28 @@ it('Storage: sizes, and the clean asks first, then reports where the files went'
   expect(await screen.findByText('Moved 3 (3.0 MB) to ~/.nota-bene/trash/attachments/x')).toHaveAttribute('role', 'status');
 });
 
+it('Defaults: the update check is switched on the server; the variable leaves the box off with the reason', async () => {
+  let prefs: unknown = { defaultMode: 'auto', updateCheck: true, updateCheckForcedOff: false };
+  const real = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, init) => (url === '/system/prefs' && !init?.method ? Response.json(prefs) : real(url, init)));
+  const seen = vi.fn();
+  window.addEventListener('nb-update-recheck', seen);
+  setup();
+  const box = await screen.findByRole('checkbox', { name: 'Check npm for new versions' });
+  expect(box).toBeChecked();
+  prefs = { defaultMode: 'auto', updateCheck: false, updateCheckForcedOff: false };
+  fireEvent.click(box);
+  await waitFor(() => expect(posts).toContainEqual({ url: '/system/prefs', body: { updateCheck: false } }));
+  await waitFor(() => expect(seen).toHaveBeenCalled());
+  await waitFor(() => expect(box).not.toBeChecked());
+  window.removeEventListener('nb-update-recheck', seen);
+  cleanup();
+  prefs = { defaultMode: 'auto', updateCheck: false, updateCheckForcedOff: true };
+  setup();
+  expect(await screen.findByRole('checkbox', { name: 'Check npm for new versions' })).toBeDisabled();
+  expect(screen.getByText('Off by NOTA_BENE_NO_UPDATE_CHECK')).toBeInTheDocument();
+});
+
 it('Defaults: the mode is saved on the server; About shows the version', async () => {
   setup();
   const mode = await screen.findByRole('combobox', { name: 'Agent mode for projects without their own' });
