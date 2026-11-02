@@ -445,6 +445,7 @@ describe('busy cannot get stuck', () => {
 
   it('M7-18: a send kept queued across a crash is answered by its own turn-end on the new agent: busy ends, the feed too', async () => {
     let n = 0;
+    let held: string | undefined;
     let answer!: (uuid: string) => void;
     const answered = new Promise<string>((r) => { answer = r; });
     const backend: AgentBackend = {
@@ -460,7 +461,7 @@ describe('busy cannot get stuck', () => {
             yield { type: 'result', subtype: 'success', is_error: false, duration_ms: 1, terminal_reason: 'completed', user_message_uuids: [uuid] } as never;
             await new Promise(() => {});
           })()),
-          send: (m) => { if (mine === 1) answer(m.uuid); },
+          send: (m) => { if (mine === 1) held = m.uuid; },
           interrupt: () => new Promise<void>((r) => setTimeout(r, 40)),
           setPermissionMode: async () => {}, supportedModels: async () => [], supportedCommands: async () => [], setModel: async () => {}, setEffort: async () => {}, fileSuggestions: async () => [], contextUsage: async () => ({ used: 0, max: 1, pct: 0 }), usage: async () => ({ cost: null, limits: null }), ...noTasks, close: () => {},
         };
@@ -481,6 +482,8 @@ describe('busy cannot get stuck', () => {
     expect(afterCrash.waiting).toEqual(['B']);
     expect(afterCrash.busy).toBe(true);
     expect(s.busy()).toBe(true);
+    await until(() => held !== undefined);
+    answer(held!);
     await until(() => agentOf(events, 'turn-end').length === 2);
     expect(agentOf(events, 'turn-end')[1]!.e).toMatchObject({ stop: 'done', answers: ['B'] });
     expect(s.busy()).toBe(false);
