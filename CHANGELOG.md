@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The Usage tab sits on the same card as Settings and Markdown files.
+
 ## 1.2.0 — 2026-11-01
 
 - Add a Usage tab: token accounting across every project and both agents, read from
