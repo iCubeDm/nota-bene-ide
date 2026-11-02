@@ -22,6 +22,9 @@ Load the reference relevant to the task; do not read every document at startup.
   ACP remains a future separate backend; unify abstractions after it is working.
 - Keep provider SDK shapes inside their adapters. Use the shared event contract and explicit capabilities.
 - Prefer focused changes and composition; preserve persistence and session-generation invariants.
+- Every feature merged into `main` supports every UI language: user-visible text goes through `web/src/i18n`, and each
+  new or changed string gets a real translation in all of `LANGS` in the same change. `i18n.test.ts` catches a missing key,
+  not a string hard-coded in a component, so check that by hand.
 - `main` takes only squash-merged pull requests tied to an issue: [workflow](docs/agent-reference.md#workflow).
 - This repository is public: use neutral fixtures/examples. Keep personal paths, real session ids,
   private project details and review artifacts out of tracked files and commit messages.
