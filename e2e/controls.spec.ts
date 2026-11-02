@@ -329,6 +329,24 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
   await expect(page.locator('[data-tab="file:notes.md"]')).toHaveCount(0);
   await expect(page.locator('[role="tab"]')).toHaveCount(1); // only the chat
 
+  // and the open session from the chat tab's menu; the title is edited in the tab
+  const chatTab = page.locator('[data-tab="chat"]');
+  const was = (await chatTab.innerText()).trim();
+  await chatTab.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: en.renameSess }).click();
+  const box = chatTab.getByRole('textbox', { name: en.renameSess });
+  await expect(box).toBeFocused();
+  await page.keyboard.type('Renamed in the tab'); // the whole old title was selected
+  await page.keyboard.press('Enter');
+  await expect(chatTab).toHaveText('Renamed in the tab');
+  await expect(chatTab).toBeFocused();
+  await chatTab.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: en.renameSess }).click();
+  await expect(box).toBeFocused();
+  await page.keyboard.type(was);
+  await page.keyboard.press('Enter');
+  await expect(chatTab).toHaveText(was);
+
   // the new root has its own tabs
   // the tree starts open (R-M6-3) unless an earlier test closed it
   if (await page.locator('#tree-sheet').isHidden()) await page.locator('#toggleTree').click();

@@ -1,8 +1,9 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
+import { dismissToast, getToasts } from '@/shell/toast.ts';
 import { App } from '@/App.tsx';
 import { openFile, selectTabs } from './slice.ts';
 
@@ -26,6 +27,87 @@ it('the chat context menu has no Close, only Close others and Close all', () => 
   expect(m.getByRole('menuitem', { name: 'Close others' })).toBeInTheDocument();
   expect(m.getByRole('menuitem', { name: 'Close all' })).toBeInTheDocument();
   expect(m.queryByRole('menuitem', { name: 'Copy path' })).toBeNull();
+});
+
+describe('renaming the session from the chat tab', () => {
+  const open = (title: string | null = 'Old title') => {
+    const posts: unknown[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/sessions/rename')) { posts.push(JSON.parse(String(init?.body))); return new Response(rejected ?? 'ok', { status: rejected ? 500 : 200 }); }
+      throw new Error('offline');
+    }));
+    const s = setup();
+    act(() => { s.dispatch(serverEvent({ kind: 'session', id: 'a1b2', root: '/p', title, model: null })); });
+    return { s, posts };
+  };
+  const pick = () => {
+    fireEvent.click(within(menu(screen.getByRole('tab', { selected: true }))).getByRole('menuitem', { name: 'Rename' }));
+    return screen.getByRole('textbox', { name: 'Rename' });
+  };
+  let rejected: string | null = null;
+  beforeEach(() => { rejected = null; });
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it('no session yet, no item; a file tab has none either', () => {
+    setup(['a.ts']);
+    expect(within(menu(tab('Chat'))).queryByRole('menuitem', { name: 'Rename' })).toBeNull();
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    expect(within(menu(tab('a.ts'))).queryByRole('menuitem', { name: 'Rename' })).toBeNull();
+  });
+
+  it('Enter sends the trimmed title for the open session', async () => {
+    const { posts } = open();
+    const box = pick();
+    expect(box).toHaveValue('Old title');
+    fireEvent.change(box, { target: { value: '  New title ' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await vi.waitFor(() => expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull());
+    expect(posts).toEqual([{ id: 'a1b2', title: 'New title' }]);
+  });
+
+  it('Esc and a click elsewhere cancel; an empty or unchanged title sends nothing', () => {
+    const { posts } = open();
+    fireEvent.keyDown(pick(), { key: 'Escape' });
+    expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
+    const box = pick();
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    fireEvent.blur(box);
+    expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
+    fireEvent.keyDown(pick(), { key: 'Enter' });
+    expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
+    const empty = pick();
+    fireEvent.change(empty, { target: { value: '   ' } });
+    fireEvent.keyDown(empty, { key: 'Enter' });
+    expect(posts).toEqual([]);
+  });
+
+  it('Esc does not reach the composer as an interrupt', () => {
+    open();
+    const seen = vi.fn((e: KeyboardEvent) => e.defaultPrevented);
+    document.addEventListener('keydown', seen);
+    fireEvent.keyDown(pick(), { key: 'Escape' });
+    document.removeEventListener('keydown', seen);
+    expect(seen).toHaveReturnedWith(true);
+  });
+
+  it('losing the focus to another app keeps the edit', () => {
+    open();
+    const box = pick();
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    fireEvent.blur(box);
+    expect(box).toBeInTheDocument();
+  });
+
+  it('a refused rename stays open and says why', async () => {
+    rejected = 'no such session';
+    open();
+    const box = pick();
+    fireEvent.change(box, { target: { value: 'New title' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await vi.waitFor(() => expect(getToasts().some((x) => x.msg.includes('no such session'))).toBe(true));
+    expect(box).toBeInTheDocument();
+    act(() => { for (const x of getToasts()) dismissToast(x.id); });
+  });
 });
 
 it('Close others keeps the chat and that tab', () => {

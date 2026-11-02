@@ -3,7 +3,7 @@
 ## Unreleased
 
 - The header says when a newer version is out and how to update. `NOTA_BENE_NO_UPDATE_CHECK=1` turns the check off.
-- Rename a session: ✎ on its row in Sessions, for the open session or any other.
+- Rename a session: ✎ on its row in Sessions, for the open session or any other, or right-click the chat tab.
 - The Usage tab sits on the same card as Settings and Markdown files.
 
 ## 1.2.0 — 2026-11-01
