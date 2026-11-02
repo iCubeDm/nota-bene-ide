@@ -55,7 +55,7 @@ function Odometer({ value }: { value: number }) {
   return (
     <>
       <span role="img" aria-label={fmtTokens(value)} className="inline-flex gap-0.5 font-mono text-[34px] leading-none font-medium tabular-nums">
-        {[...whole].map((c, i) => <span key={i} className={`${WHEEL} bg-card`}>{c}</span>)}
+        {[...whole].map((c, i) => <span key={i} className={`${WHEEL} bg-muted`}>{c}</span>)}
         {tenth && <><span className="block py-[0.2em]">.</span><span className={`${WHEEL} bg-primary text-primary-foreground`}>{tenth}</span></>}
       </span>
       {unit && <span className="text-muted-foreground">{unit}</span>}
@@ -120,7 +120,7 @@ function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; fi
       <figcaption className="mb-1 text-xs text-muted-foreground">{title}</figcaption>
       <div className="relative" onMouseLeave={() => setAt(null)}>
         {tip && (
-          <div role="status" className="pointer-events-none absolute bottom-full z-10 mb-1 rounded border border-border bg-card px-2 py-1 text-xs whitespace-nowrap" style={side}>
+          <div role="status" className="pointer-events-none absolute bottom-full z-10 mb-1 rounded border border-border bg-popover px-2 py-1 text-xs whitespace-nowrap" style={side}>
             <div className="mb-0.5 text-muted-foreground">{tip.label}</div>
             <TipRow name={t('usageBarTotal')} value={fmtTokens(tip.w)} />
             {tip.extra && tip.w > tip.extra ? <TipRow name={t('usageBarLimit')} value={fmtTokens(tip.w - tip.extra)} /> : null}
@@ -132,7 +132,7 @@ function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; fi
           {bars.map((b, i) => (
             <div key={b.key} data-bar onMouseEnter={() => setAt(i)} className="flex h-full min-w-0 flex-1 flex-col justify-end">
               {b.extra ? <i data-extra className="block min-h-0.5 w-full rounded-t-sm bg-warn" style={{ height: `${b.extra / max * 100}%` }} /> : null}
-              {b.w > (b.extra ?? 0) && <i className={`block min-h-0.5 w-full ${b.extra ? '' : 'rounded-t-sm'} ${b.hit ? 'bg-destructive' : at === i ? 'bg-muted-foreground' : 'bg-muted'}`} style={{ height: `${(b.w - (b.extra ?? 0)) / max * 100}%` }} />}
+              {b.w > (b.extra ?? 0) && <i className={`block min-h-0.5 w-full ${b.extra ? '' : 'rounded-t-sm'} ${b.hit ? 'bg-destructive' : at === i ? 'bg-muted-foreground' : 'bg-border'}`} style={{ height: `${(b.w - (b.extra ?? 0)) / max * 100}%` }} />}
             </div>
           ))}
         </div>
@@ -253,7 +253,7 @@ function TaskDetail({ task, color }: { task: UsageTaskRow; color: (model: string
 function Row({ share, children, ...button }: { share: number; children: ReactNode } & ComponentProps<'button'>) {
   const body = (
     <>
-      <i aria-hidden className="absolute inset-y-0 left-0 -z-10 rounded bg-card" style={{ width: `${share * 100}%` }} />
+      <i aria-hidden className="absolute inset-y-0 left-0 -z-10 rounded bg-muted" style={{ width: `${share * 100}%` }} />
       {children}
     </>
   );
@@ -356,7 +356,7 @@ export function UsageView({ active }: { active: boolean }) {
 
   const shown = report?.provider === provider && report.period === period ? report : null;
   return (
-    <div className="mx-auto grid max-w-3xl gap-6 px-5 py-5">
+    <div className="nb-card nb-prose grid gap-6 px-6 py-5">
       <div className="grid gap-5">
         <div className="flex flex-wrap items-baseline gap-5 text-[13px]">
           <div className="flex gap-3">
@@ -377,7 +377,7 @@ export function UsageView({ active }: { active: boolean }) {
         {shown && !live(shown) && <div className="flex"><button type="button" onClick={() => setAsking(!asking)} aria-expanded={asking} className={`${ACTION} ml-auto`}>{t('usageReset')}</button></div>}
       </div>
       {asking && (
-        <div className="flex flex-wrap items-center gap-3 rounded-md bg-card px-3 py-2 text-[13px]">
+        <div className="flex flex-wrap items-center gap-3 rounded-md bg-muted px-3 py-2 text-[13px]">
           <span className="flex-1">{t('usageResetQ')}</span>
           <button type="button" onClick={() => void reset()} className={ACTION}>{t('usageReset')}</button>
           <button type="button" onClick={() => setAsking(false)} className={ACTION}>{t('cancel')}</button>
