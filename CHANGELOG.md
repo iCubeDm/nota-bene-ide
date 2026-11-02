@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The header says when a newer version is out and how to update. `NOTA_BENE_NO_UPDATE_CHECK=1` turns the check off.
 - Rename a session: ✎ on its row in Sessions, for the open session or any other.
 - The Usage tab sits on the same card as Settings and Markdown files.
 
