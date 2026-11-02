@@ -96,7 +96,7 @@ describe('the "code updated" button', () => {
   function mockInfo(info: () => object) {
     const calls: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      calls.push(url);
+      if (url !== '/system/update') calls.push(url);
       return url === '/info' ? new Response(JSON.stringify(info())) : new Response('');
     }));
     return calls;

@@ -336,6 +336,10 @@ Anything a period has nothing to show for is left out.
 
 The store keeps what it read after the transcripts themselves are gone. Sessions under a temporary folder are skipped.
 
+### Update check
+
+An installed window asks the npm registry for the latest version at most once in 6 hours. The request carries no project, session or account data. When a newer version is out, the header shows `↑ <version>` with how to update; **Later** hides it until the next version. Set `NOTA_BENE_NO_UPDATE_CHECK=1` to turn the check off. A source checkout never checks.
+
 ## State on disk
 
 All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME` to use another folder. `npm run dev` of a source checkout uses `~/.nota-bene-dev`.

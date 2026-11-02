@@ -1,0 +1,56 @@
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { setLang } from '@/i18n/index.ts';
+import { UpdateNotice } from './UpdateNotice.tsx';
+
+globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+
+let answer: unknown;
+beforeEach(() => {
+  setLang('en');
+  localStorage.clear();
+  answer = { current: '1.2.0', latest: '1.3.0' };
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(answer))));
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+const button = () => screen.findByRole('button', { name: '↑ 1.3.0' });
+
+it('a newer version: the header says so, and the popover says how to update', async () => {
+  render(<UpdateNotice />);
+  await userEvent.click(await button());
+  expect(screen.getByText('npm i -g nota-bene-ide@1.3.0')).toBeInTheDocument();
+  expect(screen.getByText(/You run 1\.2\.0/)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Release notes' })).toHaveAttribute('href', expect.stringContaining('/releases/tag/v1.3.0'));
+});
+
+it('no newer version, or a server that cannot say: nothing shows', async () => {
+  answer = { current: '1.3.0', latest: null };
+  const { container, unmount } = render(<UpdateNotice />);
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+  expect(container).toBeEmptyDOMElement();
+  unmount();
+  vi.mocked(fetch).mockResolvedValue(new Response('nope', { status: 500 }));
+  const again = render(<UpdateNotice />);
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  expect(again.container).toBeEmptyDOMElement();
+});
+
+it('Later hides this version across a reload, and the next version shows again', async () => {
+  const { unmount } = render(<UpdateNotice />);
+  await userEvent.click(await button());
+  await userEvent.click(screen.getByRole('button', { name: 'Later' }));
+  expect(screen.queryByRole('button', { name: '↑ 1.3.0' })).toBeNull();
+  unmount();
+  render(<UpdateNotice />);
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole('button', { name: '↑ 1.3.0' })).toBeNull();
+  cleanup();
+  answer = { current: '1.2.0', latest: '1.4.0' };
+  render(<UpdateNotice />);
+  expect(await screen.findByRole('button', { name: '↑ 1.4.0' })).toBeInTheDocument();
+});

@@ -19,6 +19,7 @@ import type { EventHub } from './hub.ts';
 import { readPrefs, setDefaultModePref, setLangPref } from './prefs.ts';
 import { defaultProjectsDir } from './sessions.ts';
 import { stateDir } from './state.ts';
+import { updateCheck } from './update.ts';
 import { pidAlive, readWindows } from './windows.ts';
 
 export const CONTROL_HEADER = 'x-nota-bene-control';
@@ -283,6 +284,8 @@ export function systemRoutes(o: {
   port: () => number;
   /** the checkout the server runs from, for the version */
   repoDir: string;
+  /** the newer version on npm, or null (tests stub it) */
+  newer?: (current: string) => Promise<string | null>;
   /** run after the reply is out; `supervised` says whether restart-server can be caught by a launcher */
   control: { supervised(): boolean; exiting(): boolean; restartAgent(): void; restartServer(): void; stop(): void };
   probe?: (port: number) => Promise<WindowInfo | null>;
@@ -301,7 +304,13 @@ export function systemRoutes(o: {
     if (!res.headersSent) text(res, 500, 'internal error');
   };
 
+  const newer = o.newer ?? updateCheck();
   return {
+    '/system/update': (req, res) => {
+      if (!only('GET', req, res)) return;
+      void gitDescribe(o.repoDir).then(async (current) => json(res, 200, { current, latest: await newer(current) }))
+        .catch((e: unknown) => fail(res, '/system/update', e));
+    },
     '/system/about': (req, res) => {
       if (!only('GET', req, res)) return;
       const port = o.port();

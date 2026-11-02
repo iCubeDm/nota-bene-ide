@@ -6,6 +6,7 @@ import { openSettings, openUsage } from '@/tabs/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { ModelPill } from '@/controls/ModelPill.tsx';
 import { SessionPicker } from '@/controls/SessionPicker.tsx';
+import { UpdateNotice } from './UpdateNotice.tsx';
 import { GitBranch } from './GitBranch.tsx';
 import { RestartMenu } from './RestartMenu.tsx';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
@@ -30,6 +31,7 @@ export function Header() {
       <GitBranch />
       <span className="flex-1" />
       <span id="conn" className="text-warn">{conn === 'connecting' ? t('connecting') : conn === 'closed' ? t('offline') : switching ? t(restarting ? 'restarting' : 'switching') : ''}</span>
+      <UpdateNotice />
       <SessionPicker />
       {/* enabled while busy: the escape hatch for a stuck agent (R-M4-4); only a running switch/restart disables it */}
       <RestartMenu />
