@@ -93,7 +93,7 @@ fetch. Keyed by project root: a session switch to another folder shows nothing o
 - `DiffBody.tsx`: one file. No syntax highlighting above 1500 rows, a "show" button above 3000.
   Line numbers are pseudo-elements, so they stay out of the text a comment anchors to.
 - `ChangesPanel.tsx`, `ChangesView.tsx`, `LogView.tsx`, `graph.ts`: as described above.
-- `shell/GitBranch.tsx`: the picker. `/vcs-branches` is polled only while the popover is open.
+- `shell/GitBranch.tsx`: the picker. `/vcs-branches` is polled while the popover is open, and slowly while another source is shown (the chip's `✗`).
 
 `HighlightLayer` learns a diff pane: the root is the element carrying `data-file-path` inside the pane, not the pane.
 

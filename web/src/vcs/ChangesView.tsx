@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { VcsFile } from '@nota-bene/shared';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
+import { refOf } from '@/files/sources.ts';
 import { useT } from '@/i18n/index.ts';
 import { FileDiff, type DiffFile } from './DiffBody.tsx';
 import { parsePatch } from './parse.ts';
@@ -43,8 +44,8 @@ export function ChangesView({ active }: { active: boolean }) {
   const at = cur ? files.indexOf(cur) : -1;
   const url = cur ? `/vcs-file?${new URLSearchParams({ src, path: cur.path, ...(base ? { base } : {}), ...(cur.old ? { old: cur.old } : {}) })}` : null;
   const got = usePatch(url, active);
-  const view = useMemo(() => (cur && got ? viewOf(cur, got.patch) : null), [cur?.path, got]); // eslint-disable-line react-hooks/exhaustive-deps
-  const ref = src === 'here' ? undefined : repo?.branch ?? undefined;
+  const view = useMemo(() => (cur && got && (got.patch || !got.failed) ? viewOf(cur, got.patch) : null), [cur?.path, got]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ref = refOf(src);
   const mark = useMemo(() => (view ? { path: view.path, ...(ref ? { ref } : {}) } : null), [view?.path, ref]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div data-pane="changes" data-file-ref={ref} hidden={!active} className="grid-pane relative min-h-0 flex-1 overflow-auto">
@@ -61,7 +62,7 @@ export function ChangesView({ active }: { active: boolean }) {
         <SplitToggle split={ui.split} />
       </div>
       <div className="px-4 pb-6">
-        {ui.failed && <p role="alert" className="mb-2 text-xs text-warn">{t('vcsFailed')}</p>}
+        {(ui.failed || got?.failed) && <p role="alert" className="mb-2 text-xs text-warn">{t('vcsFailed')}</p>}
         {repo?.unrelated && repo.base && <p role="alert" className="mb-2 text-xs text-warn">{t('vcsUnrelated', repo.base)}</p>}
         {repo && !files.length && !repo.unrelated && <div className="nb-card m-0! p-6 text-center text-sm text-muted-foreground">{t('vcsNoChanges')}</div>}
         {repo?.truncated && <p role="alert" className="mb-2 text-xs text-warn">{t('vcsCut', files.length)}</p>}

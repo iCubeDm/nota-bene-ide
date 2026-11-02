@@ -19,8 +19,11 @@ const QUIET = ['--no-optional-locks', '-c', 'core.fsmonitor=false'];
 const PLAIN = ['--no-color', '--no-ext-diff', '--no-textconv'];
 
 const text = async (cwd: string, args: string[], max = 16 << 20) => (await git(cwd, [...QUIET, ...args], max, TIMEOUT)).toString('utf8');
-/** For the commands whose failure is an answer: no such ref, no common ancestor. */
-const tryText = (cwd: string, args: string[]) => text(cwd, args).catch(() => null);
+/** For the commands whose exit code is an answer: no such ref, no common ancestor. A git that timed out said nothing. */
+const tryText = (cwd: string, args: string[]) => text(cwd, args).catch((e: unknown) => {
+  if (typeof (e as { code?: unknown }).code === 'number') return null;
+  throw e;
+});
 
 type Spot = { cwd: string; tip: string; live: boolean; branch: string | null; top: string; prefix: string };
 
@@ -112,6 +115,7 @@ function untrackedPatch(cwd: string, rel: string): string {
     if (st.size > UNTRACKED_SIZE) return `${head}Binary files /dev/null and b/${rel} differ\n`;
     const buf = fs.readFileSync(abs);
     if (buf.includes(0)) return `${head}Binary files /dev/null and b/${rel} differ\n`;
+    if (!buf.length) return head;
     const lines = buf.toString('utf8').replace(/\n$/, '').split('\n');
     return `${head}--- /dev/null\n+++ b/${rel}\n@@ -0,0 +1,${lines.length} @@\n${lines.map((l) => `+${l}`).join('\n')}\n`;
   } catch {
@@ -153,6 +157,7 @@ export async function diffOf(root: string, src: Source | 'here', override: strin
   }
   files = files.filter((f) => !r.hidden(f.path));
   const log = r.mb ? await text(s.cwd, ['log', '--format=%h%x09%s', '-n', '30', `${r.mb}..${s.tip}`]) : '';
+  const commitCount = r.mb ? await count(s.cwd, `${r.mb}..${s.tip}`) : 0;
   return {
     repo: true,
     branch: s.branch,
@@ -164,6 +169,7 @@ export async function diffOf(root: string, src: Source | 'here', override: strin
     unrelated: r.unrelated,
     mergeBase: r.mb?.slice(0, 7) ?? null,
     commits: log.split('\n').filter(Boolean).map((l) => ({ sha: l.slice(0, l.indexOf('\t')), subject: l.slice(l.indexOf('\t') + 1) })),
+    commitCount,
     candidates: r.branches.filter((b) => b !== s.branch),
     files: files.slice(0, FILES_MAX),
     truncated: files.length > FILES_MAX,
@@ -184,8 +190,10 @@ export async function fileOf(root: string, src: Source | 'here', override: strin
   if (!r || r.hidden(rel) || (old && r.hidden(old))) return null;
   if (!r.range) return { patch: '', truncated: false };
   const { s } = r;
+  // from the repository's top a pathspec is not relative to the project, whatever --relative does to the output
+  const spec = (p: string) => (s.live ? p : path.posix.join(s.prefix, p));
   try {
-    const patch = await text(s.cwd, ['--literal-pathspecs', 'diff', ...PLAIN, ...r.range, '--', rel, ...(old ? [old] : [])]);
+    const patch = await text(s.cwd, ['--literal-pathspecs', 'diff', ...PLAIN, ...r.range, '--', spec(rel), ...(old ? [spec(old)] : [])]);
     if (patch || !s.live) return capped(patch);
   } catch (e) { return orTooBig(e); }
   const out = await text(s.cwd, ['--literal-pathspecs', 'ls-files', '-o', '--exclude-standard', '--', rel]);
@@ -262,5 +270,5 @@ export async function commitFileOf(root: string, sha: string, file: string, old:
   if (!top) return null;
   const hidden = hiderOf(top, prefix);
   if (hidden(file) || (old && hidden(old))) return null;
-  return text(top, ['--literal-pathspecs', ...shown, ...PLAIN, ...(prefix ? [`--relative=${prefix}`] : []), sha, '--', file, ...(old ? [old] : [])]).then(capped, orTooBig);
+  return text(top, ['--literal-pathspecs', ...shown, ...PLAIN, ...(prefix ? [`--relative=${prefix}`] : []), sha, '--', path.posix.join(prefix, file), ...(old ? [path.posix.join(prefix, old)] : [])]).then(capped, orTooBig);
 }

@@ -304,6 +304,7 @@ export const zhCN: Dict = {
   gitClean: '干净',
   gitDetached: '分离',
   // the git views (gh-30)
+  vcsEmptyFile: '空文件',
   vcsChanges: '更改',
   vcsLog: 'Git 日志',
   vcsNoRepo: '这里没有 git 仓库',

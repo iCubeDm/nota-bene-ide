@@ -36,11 +36,14 @@ export function LogView({ active }: { active: boolean }) {
   const { split, commit } = useVcsUi();
   const sources = useSources();
   const [all, setAll] = useState(true);
-  const [log, setLog] = useState<VcsLog | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; log: VcsLog } | null>(null);
+  const [failed, setFailed] = useState(false);
   const [sha, setSha] = useState<string | null>(null);
   const [detail, setDetail] = useState<VcsCommitDetail | null>(null);
   const [filter, setFilter] = useState('');
   const [pick, setPick] = useState<string | undefined>();
+  const key = `${src}\0${all}`;
+  const log = loaded?.key === key ? loaded.log : null; // another source's graph is never shown under this one's name
   useEffect(() => {
     if (!active) return;
     let gone = false;
@@ -50,7 +53,9 @@ export function LogView({ active }: { active: boolean }) {
       running = true;
       try {
         const r = await apiFetch(`/vcs-log?${new URLSearchParams({ src, all: all ? '1' : '0' })}`);
-        if (r.ok && !gone) setLog(await r.json() as VcsLog);
+        if (gone) return;
+        setFailed(!r.ok);
+        if (r.ok) { const v = await r.json() as VcsLog; if (!gone) setLoaded({ key, log: v }); }
       } catch { /* keep */ } finally { running = false; }
     };
     void run();
@@ -58,9 +63,14 @@ export function LogView({ active }: { active: boolean }) {
     return () => { gone = true; clearInterval(id); };
   }, [active, src, all, turn]);
   useEffect(() => {
-    if (!sha) return setDetail(null);
+    setDetail(null);
+    if (!sha) return;
     let gone = false;
-    void apiFetch(`/vcs-commit?sha=${sha}`).then(async (r) => { if (r.ok && !gone) setDetail(await r.json() as VcsCommitDetail); }, () => {});
+    void apiFetch(`/vcs-commit?sha=${sha}`).then(async (r) => {
+      if (gone) return;
+      setFailed(!r.ok);
+      if (r.ok) { const v = await r.json() as VcsCommitDetail; if (!gone) setDetail(v); }
+    }, () => {});
     return () => { gone = true; };
   }, [sha]);
   // a comment on a commit asked for it
@@ -77,7 +87,7 @@ export function LogView({ active }: { active: boolean }) {
   const cur = currentFile(files, pick);
   const url = detail && cur ? `/vcs-commit-file?${new URLSearchParams({ sha: detail.sha, path: cur.path, ...(cur.old ? { old: cur.old } : {}) })}` : null;
   const got = usePatch(url, active, 0);
-  const view = useMemo(() => (cur && got ? viewOf(cur, got.patch) : null), [cur?.path, got]); // eslint-disable-line react-hooks/exhaustive-deps
+  const view = useMemo(() => (cur && got && (got.patch || !got.failed) ? viewOf(cur, got.patch) : null), [cur?.path, got]); // eslint-disable-line react-hooks/exhaustive-deps
   const ref = detail?.sha.slice(0, 7);
   const mark = useMemo(() => (view && ref ? { path: view.path, ref } : null), [view?.path, ref]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickCommit = (next: string | null) => { setPick(undefined); setSha(next); };
@@ -89,6 +99,7 @@ export function LogView({ active }: { active: boolean }) {
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> {t('vcsAllBranches')}</label>
         <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterCommits')} aria-label={t('vcsFilterCommitsLabel')} className="h-[26px] w-56 rounded-md border border-transparent bg-muted/50 px-2 text-[12px] text-foreground outline-0 focus:border-primary/50" />
         {log?.more && <span>{t('vcsLogCut', log.commits.length)}</span>}
+        {(failed || got?.failed) && <span role="alert" className="text-warn">{t('vcsFailed')}</span>}
         <span className="flex-1" />
         <SplitToggle split={split} />
       </div>

@@ -65,6 +65,7 @@ describe('the range', () => {
     expect(paths(d)).toEqual(['a.md', 'committed.md', 'new файл.md']);
     expect(d).toMatchObject({ uncommitted: false, base: 'main', how: 'default' });
     expect(d.repo && d.commits.map((c) => c.subject)).toEqual(['one: commit']);
+    expect(d).toMatchObject({ commitCount: 1 });
   });
 
   it('the base of a branch created from another branch is that branch, by the reflog', async () => {
@@ -216,6 +217,43 @@ describe('around an agent', () => {
 });
 
 describe('edges', () => {
+  it('a project in a subfolder of the repository: patches of a branch and a commit are not empty', async () => {
+    const mono = path.join(dir, 'mono');
+    fs.mkdirSync(path.join(mono, 'proj/src'), { recursive: true });
+    git(mono, 'init', '-q', '-b', 'main');
+    write(path.join(mono, 'proj/src/a.txt'), 'a\n');
+    commit(mono, 'init');
+    git(mono, 'checkout', '-q', '-b', 'feat');
+    write(path.join(mono, 'proj/src/a.txt'), 'b\n');
+    commit(mono, 'change');
+    const sha = git(mono, 'rev-parse', 'HEAD').trim();
+    git(mono, 'checkout', '-q', 'main');
+    const project = path.join(mono, 'proj');
+    const feat = (await listSources(project)).find((x) => x.id === 'ref:feat')!;
+    expect(paths(await diffOf(project, feat, null))).toEqual(['src/a.txt']);
+    expect((await fileOf(project, feat, null, 'src/a.txt', null))!.patch).toContain('+b');
+    expect((await commitFileOf(project, sha, 'src/a.txt', null))!.patch).toContain('+b');
+  });
+
+  it('a git killed halfway is an error, not "no common ancestor"', async () => {
+    const real = execFileSync('which', ['git']).toString().trim();
+    const bin = path.join(dir, 'bin');
+    write(path.join(bin, 'git'), `#!/bin/sh\ncase "$*" in *merge-base*) kill -9 $$;; esac\nexec ${real} "$@"\n`);
+    fs.chmodSync(path.join(bin, 'git'), 0o755);
+    const was = process.env.PATH;
+    process.env.PATH = `${bin}:${was}`;
+    try {
+      await expect(diffOf(root, await src('ref:agent/one'), 'BASE')).rejects.toThrow();
+    } finally { process.env.PATH = was; }
+  });
+
+  it('an empty untracked file has no hunk', async () => {
+    write(path.join(root, 'empty.md'), '');
+    try {
+      expect((await fileOf(root, 'here', null, 'empty.md', null))!.patch).not.toContain('@@');
+    } finally { fs.rmSync(path.join(root, 'empty.md')); }
+  });
+
   it('a repository without commits lists what is untracked', async () => {
     const empty = path.join(dir, 'empty');
     fs.mkdirSync(empty);

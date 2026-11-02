@@ -75,9 +75,9 @@ export async function loadDiff(root: string, src: string, base: string | undefin
 /** The file on screen: the one picked, or the first when that one is gone from the list. */
 export const currentFile = (files: VcsFile[], path: string | undefined) => files.find((f) => f.path === path) ?? files[0] ?? null;
 
-/** One file's patch, refreshed while shown (only this file, so a large diff costs nothing here). */
+/** One file's patch, refreshed while shown (only this file, so a large diff costs nothing here). `failed`: the last ask; what came before stays. */
 export function usePatch(url: string | null, on: boolean, every = 4_000) {
-  const [got, setGot] = useState<(VcsPatch & { url: string }) | null>(null);
+  const [got, setGot] = useState<(VcsPatch & { url: string; failed: boolean }) | null>(null);
   useEffect(() => {
     if (!url || !on) return;
     let gone = false;
@@ -87,9 +87,10 @@ export function usePatch(url: string | null, on: boolean, every = 4_000) {
       running = true;
       try {
         const r = await apiFetch(url);
-        if (!r.ok || gone) return;
+        if (gone) return;
+        if (!r.ok) return setGot((p) => (p?.url === url ? { ...p, failed: true } : { url, patch: '', truncated: false, failed: true }));
         const v = await r.json() as VcsPatch;
-        if (!gone) setGot((p) => (p?.url === url && p.patch === v.patch ? p : { url, ...v }));
+        if (!gone) setGot((p) => (p?.url === url && p.patch === v.patch && !p.failed ? p : { url, ...v, failed: false }));
       } catch { /* keep */ } finally { running = false; }
     };
     void run();

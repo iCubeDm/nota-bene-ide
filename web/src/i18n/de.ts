@@ -304,6 +304,7 @@ export const de: Dict = {
   gitClean: 'sauber',
   gitDetached: 'losgelöst',
   // the git views (gh-30)
+  vcsEmptyFile: 'Leere Datei',
   vcsChanges: 'Änderungen',
   vcsLog: 'Git-Log',
   vcsNoRepo: 'Hier gibt es kein Git-Repository',

@@ -304,6 +304,7 @@ export const ptBR: Dict = {
   gitClean: 'limpo',
   gitDetached: 'desanexado',
   // the git views (gh-30)
+  vcsEmptyFile: 'Arquivo vazio',
   vcsChanges: 'Alterações',
   vcsLog: 'Log do Git',
   vcsNoRepo: 'Não há repositório git aqui',

@@ -312,6 +312,7 @@ export const ru = {
   gitClean: 'чисто',
   gitDetached: 'detached',
   // the git views (gh-30)
+  vcsEmptyFile: 'Пустой файл',
   vcsChanges: 'Изменения',
   vcsLog: 'Git-лог',
   vcsNoRepo: 'Здесь нет git-репозитория',

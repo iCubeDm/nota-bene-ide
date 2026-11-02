@@ -16,7 +16,7 @@ import { baseOf, resetVcs, setPanel } from './store.ts';
 
 const repo = (over: Partial<Extract<VcsDiff, { repo: true }>> = {}): VcsDiff => ({
   repo: true, branch: 'agent/one', live: true, base: null, detected: 'main', how: 'none', uncommitted: true, unrelated: false, mergeBase: null,
-  commits: [], candidates: ['main', 'feature/parent'], truncated: false,
+  commits: [], commitCount: 0, candidates: ['main', 'feature/parent'], truncated: false,
   files: [{ path: 'новый файл.md', status: 'A', add: null, del: null, binary: false }, { path: 'src/b.ts', old: 'src/a.ts', status: 'R', add: 1, del: 1, binary: false }],
   ...over,
 });
@@ -72,6 +72,30 @@ it('says there are no changes only when git said so; a failure keeps the last li
   await screen.findByRole('alert');
   expect(screen.getByRole('alert')).toHaveTextContent('Git did not answer');
   expect(screen.queryByText('No changes')).toBeNull();
+});
+
+it('a comment target of a detached worktree is that worktree, not this folder', async () => {
+  setSources([{ id: 'here', kind: 'checkout', label: 'main', ref: 'main' }, { id: 'dir:d', kind: 'worktree', label: 'd', ref: '(detached) d', dir: '/p/d' }]);
+  diff = repo({ branch: null });
+  const store = setup(<ChangesView active />);
+  act(() => void store.dispatch(pickSource('dir:d')));
+  await screen.findByText('hello');
+  expect(document.querySelector('[data-pane="changes"]')).toHaveAttribute('data-file-ref', '(detached) d');
+});
+
+it('a failed patch says so instead of a blank pane', async () => {
+  vi.mocked(fetch).mockImplementation(async (url) => (String(url).startsWith('/vcs-diff') ? new Response(JSON.stringify(diff)) : new Response('no', { status: 503 })));
+  setup(<ChangesView active />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Git did not answer');
+});
+
+it('the log of one source is not shown under another, and a failure is said', async () => {
+  const store = setup(<LogView active />);
+  await screen.findByText('first');
+  vi.mocked(fetch).mockImplementation(async () => new Response('no', { status: 503 }));
+  act(() => void store.dispatch(pickSource('ref:old')));
+  await waitFor(() => expect(screen.queryByText('first')).toBeNull());
+  expect(await screen.findByRole('alert')).toHaveTextContent('Git did not answer');
 });
 
 it('says when a base shares no history', async () => {

@@ -84,7 +84,7 @@ export const FileDiff = memo(function FileDiff({ f, split, src, gitRef, canOpen 
       </header>
       {!shut && (f.binary ? <p className="p-3 text-xs text-muted-foreground">{t('binary')}</p>
         : big ? <p className="p-3 text-xs text-muted-foreground">{t('vcsBigDiff', size)} <button type="button" className="text-primary underline" onClick={() => setForce(true)}>{t('vcsShowAnyway')}</button></p>
-        : !f.hunks.length ? <p className="p-3 text-xs text-muted-foreground">{t('vcsOnlyMeta')}</p>
+        : !f.hunks.length ? <p className="p-3 text-xs text-muted-foreground">{t(f.status === 'A' ? 'vcsEmptyFile' : 'vcsOnlyMeta')}</p>
         : (
           <div data-file-path={f.path} onMouseDown={(e) => { const s = (e.target as Element).closest<HTMLElement>('[data-side]')?.dataset.side; if (s === 'o' || s === 'n') setSide(s); }} className="nb-code py-1 font-mono text-xs leading-[1.55]">
             {f.hunks.map((h, i) => (

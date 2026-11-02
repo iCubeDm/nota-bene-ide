@@ -52,9 +52,10 @@ export function ChangesPanel() {
           </div>
           {!!repo.commits.length && (
             <details className="mx-2 mt-1.5 flex-none text-[12px] text-muted-foreground">
-              <summary className="cursor-pointer rounded px-1 py-0.5 hover:bg-muted">{t('vcsCommitsN', repo.commits.length)}</summary>
+              <summary className="cursor-pointer rounded px-1 py-0.5 hover:bg-muted">{t('vcsCommitsN', repo.commitCount)}</summary>
               <ul className="nb-thin max-h-40 overflow-auto px-1 py-1">
                 {repo.commits.map((c) => <li key={c.sha} className="truncate" title={c.subject}><span className="font-mono text-[11px] opacity-70">{c.sha}</span> {c.subject}</li>)}
+                {repo.commitCount > repo.commits.length && <li>…</li>}
               </ul>
             </details>
           )}

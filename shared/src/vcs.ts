@@ -15,7 +15,9 @@ export type VcsDiff = { repo: false } | {
   /** `base` shares no history with the source */
   unrelated: boolean;
   mergeBase: string | null;
+  /** the latest ones; `commitCount` is all of them */
   commits: { sha: string; subject: string }[];
+  commitCount: number;
   candidates: string[];
   files: VcsFile[];
   truncated: boolean;

@@ -78,9 +78,11 @@ export function GitBranch() {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [info, setInfo] = useState<VcsBranch[]>([]);
+  const viewing = src !== 'here';
+  useEffect(() => setInfo([]), [root]); // an id of the old project may mean another branch here
   useEffect(() => {
-    if (!open) return;
-    void loadSources(true);
+    if (!open && !viewing) return;
+    if (open) void loadSources(true);
     let running = false;
     let gone = false;
     const run = async () => {
@@ -92,16 +94,15 @@ export function GitBranch() {
       } catch { /* keep */ } finally { running = false; }
     };
     void run();
-    const id = setInterval(() => void run(), 5_000);
+    const id = setInterval(() => { if (document.visibilityState === 'visible') void run(); }, open ? 5_000 : 30_000); // closed: only the mark of the source shown
     return () => { gone = true; clearInterval(id); };
-  }, [open]);
+  }, [open, viewing, root]);
   useEffect(() => setHasRepo(!!st), [st]);
   if (!st) return null;
   const here = st.detached ? t('gitDetached') : st.branch;
   const cur = sources.find((s) => s.id === src);
-  const viewing = src !== 'here';
   const shown = viewing ? cur?.label ?? src : here;
-  const dirty = viewing ? info.find((i) => i.id === src)?.dirty : st.dirty;
+  const dirty = viewing ? info.find((i) => i.id === src)?.dirty : st.dirty; // undefined: not known yet, no mark
   const f = q.trim().toLowerCase();
   const match = (s: Source) => !f || s.label.toLowerCase().includes(f);
   const row = (s: Source) => {
@@ -126,7 +127,7 @@ export function GitBranch() {
           <Svg size={13}>{ICONS.log}</Svg>
           {viewing && <span className="font-sans text-[10.5px] opacity-80">{t('vcsViewing')}</span>}
           {shown}
-          {dirty ? <span data-dirty className="text-nb-accent/80">✗</span> : <span className="text-success/80">✔</span>}
+          {dirty ? <span data-dirty className="text-nb-accent/80">✗</span> : dirty === false && <span className="text-success/80">✔</span>}
           <span className="opacity-60">▾</span>
         </button>
       </PopoverTrigger>
