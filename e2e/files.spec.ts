@@ -378,9 +378,9 @@ test('Changes shows what another worktree has not committed, a comment on it is 
     window.getSelection()!.addRange(r);
     el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
   });
-  await page.getByTestId('selection-bar').getByRole('button', { name: /^(Comment|Комментировать|Комментарий)/ }).click();
+  await page.getByTestId('selection-bar').getByRole('button', { name: /(Comment|Комментировать)$/ }).click();
   await page.keyboard.type('why here');
-  await page.keyboard.press('Meta+Enter');
+  await page.keyboard.press('Control+Enter');
   await expect(pane.locator('[data-hl-layer] [data-hl="pending"]').first()).toBeAttached();
   await page.locator('#toggleLog').click();
   await expect(page.locator('[data-pane="log"]')).toContainText('init');
