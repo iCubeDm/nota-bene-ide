@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — 2026-11-02
 
 - The header says when a newer version is out and how to update. Settings → Defaults turns the check off, so does `NOTA_BENE_NO_UPDATE_CHECK=1`.
 - Rename a session: ✎ on its row in Sessions, for the open session or any other, or right-click the chat tab.
