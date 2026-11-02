@@ -5,6 +5,8 @@ import { selectCommentsUi, selectPending, setPanelOpen } from '@/comments/slice.
 import { selectTree, setTreeOpen } from '@/tree/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { openChanges, openLog, selectTabs } from '@/tabs/slice.ts';
+import { setPanel, useVcsUi } from '@/vcs/store.ts';
 
 /** One tool-window button: an icon that toggles its panel, the name in a tooltip on the panel's side. */
 function ToolButton({ id, label, pressed, side, onClick, children }: {
@@ -31,16 +33,28 @@ function ToolButton({ id, label, pressed, side, onClick, children }: {
 
 const strip = 'flex w-9 flex-none flex-col items-center gap-1 bg-chrome py-1.5';
 
-/** The thin IntelliJ-style strips on both sides of the work area (R-M6-3): Files on the left, Comments on the right. */
+/** The thin IntelliJ-style strips on both sides of the work area (R-M6-3): Files, Changes and the log on the left, Comments on the right. */
 export function LeftStrip() {
   const t = useT();
   const d = useAppDispatch();
   const open = useAppSelector(selectTree).open;
+  const ui = useVcsUi();
+  const active = useAppSelector(selectTabs).active;
   return (
     <nav aria-label={t('toolsLeft')} data-strip="left" className={`${strip} border-r border-border-soft`}>
-      <ToolButton id="toggleTree" label={t('files')} pressed={open} side="left" onClick={() => d(setTreeOpen(!open))}>
+      <ToolButton id="toggleTree" label={t('files')} pressed={open} side="left" onClick={() => { setPanel(false); d(setTreeOpen(!open)); }}>
         <Svg size={16}>{ICONS.dir}</Svg>
       </ToolButton>
+      {ui.hasRepo && (
+        <>
+          <ToolButton id="toggleChanges" label={t('vcsChanges')} pressed={ui.panel} side="left" onClick={() => { d(setTreeOpen(false)); setPanel(!ui.panel); if (!ui.panel) d(openChanges()); }}>
+            <Svg size={16}>{ICONS.changes}</Svg>
+          </ToolButton>
+          <ToolButton id="toggleLog" label={t('vcsLog')} pressed={active === 'log'} side="left" onClick={() => d(openLog())}>
+            <Svg size={16}>{ICONS.log}</Svg>
+          </ToolButton>
+        </>
+      )}
     </nav>
   );
 }

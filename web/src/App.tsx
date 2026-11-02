@@ -10,6 +10,7 @@ import { CommentsPanel } from './comments/CommentsPanel.tsx';
 import { CommentPopup } from './comments/CommentPopup.tsx';
 import { SelectionButton, type PendingSelection } from './comments/SelectionButton.tsx';
 import { FileTree } from './files/FileTree.tsx';
+import { ChangesPanel } from './vcs/ChangesPanel.tsx';
 import { Feed } from './feed/Feed.tsx';
 import { Footer } from './shell/Footer.tsx';
 import { useActivity } from './controls/useActivity.ts';
@@ -50,6 +51,7 @@ export function App() {
       <div className="flex min-h-0 flex-1">
         <LeftStrip />
         <FileTree key={rootGen} />
+        <ChangesPanel />
         <div className="flex min-w-0 flex-1 flex-col">
           <TabStrip />
           <div className="relative flex min-h-0 flex-1 flex-col">

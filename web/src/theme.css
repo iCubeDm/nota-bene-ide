@@ -134,6 +134,8 @@
 }
 .nb-icon-label::before { content: attr(data-label); }
 
+/* a quiet scrollbar on the theme's colours, not the system's white one */
+.nb-thin { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 /* a strip that scrolls without showing a scrollbar (the tab strip, M6-12) */
 .nb-no-scrollbar { scrollbar-width: none; }
 .nb-no-scrollbar::-webkit-scrollbar { display: none; }

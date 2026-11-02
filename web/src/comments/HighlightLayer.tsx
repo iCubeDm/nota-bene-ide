@@ -42,11 +42,14 @@ const inPane = (src: Source, file: PaneFile, agent?: string): boolean =>
 /**
  * The commentable roots inside a pane, keyed by source: the chat's items (by id), or the file view's own text root:
  * the pane element itself, while FileView marks it with this tab's path and ref (only while it shows text). A
- * `data-file-path` inside rendered markdown is file content and never a root.
+ * `data-file-path` inside rendered markdown is file content and never a root. A diff's root sits inside its pane.
  */
-function rootsIn(pane: HTMLElement, file: PaneFile | null): Map<string, HTMLElement> {
+function rootsIn(pane: HTMLElement, file: PaneFile | null, isDiff: boolean): Map<string, HTMLElement> {
   const roots = new Map<string, HTMLElement>();
-  if (file === undefined) {
+  if (isDiff) {
+    const root = pane.querySelector<HTMLElement>('[data-file-path]');
+    if (file && root?.dataset.filePath === file.path) roots.set(`f:${fileKey(file.path, file.ref)}`, root);
+  } else if (file === undefined) {
     for (const e of pane.querySelectorAll<HTMLElement>('#items [data-item-id], [data-items] [data-item-id]')) if (e.dataset.itemId) roots.set(`m:${e.dataset.itemId}`, e);
   } else if (file && pane.dataset.filePath === file.path && (pane.dataset.fileRef ?? '') === (file.ref ?? '')) {
     roots.set(`f:${fileKey(file.path, file.ref)}`, pane);
@@ -101,9 +104,9 @@ export function flashRange(pane: HTMLElement, range: Range) {
  * the pane's scroll element so the marks scroll with the content, and paints only the comments whose source lives in
  * that pane. A hidden pane paints nothing (its rects are all zero) and repaints when it becomes active. The layer
  * ignores pointer events (marks would block text selection), so clicks are hit-tested against the ranges' line rects
- * on the pane in the capture phase.
+ * on the pane in the capture phase. A diff view passes the file it shows (`diff`, null for none) and what repaints it (`content`).
  */
-export function HighlightLayer({ pane: paneId = 'chat' }: { pane?: string }) {
+export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffContent }: { pane?: string; diff?: { path: string; ref?: string } | null; content?: unknown }) {
   const layer = useRef<HTMLDivElement>(null);
   const marks = useRef<HTMLDivElement>(null);
   const drawn = useRef<Drawn[]>([]); // topmost last
@@ -124,14 +127,16 @@ export function HighlightLayer({ pane: paneId = 'chat' }: { pane?: string }) {
   // a subagent's tab (`agent:<toolUseId>`) draws its conversation like the chat; its comments carry `source.agent`
   const agent = paneId.startsWith('agent:') ? paneId.slice('agent:'.length) : undefined;
   const asChat = paneId === 'chat' || agent !== undefined;
-  const file: PaneFile | null = useMemo(() => (asChat ? undefined : path === undefined ? null : { path, ref }), [asChat, path, ref]);
+  const isDiff = diff !== undefined;
+  const file: PaneFile | null = useMemo(() => (isDiff ? diff : asChat ? undefined : path === undefined ? null : { path, ref }), [isDiff, diff, asChat, path, ref]);
   const comments = useMemo(() => (file === null ? [] : all.filter((c) => inPane(c.anchor.source, file, agent))), [all, file, agent]);
   // what moves this pane's text: the feed for the chat (the subagent's entry for its tab); a settled (re)load for a file tab
-  const content = useAppSelector((s) => (agent ? s.subagents.byTool[agent] : paneId === 'chat' ? s.feed : path === undefined ? undefined : s.files.load[fileKey(path, ref)]));
+  const stored = useAppSelector((s) => (agent ? s.subagents.byTool[agent] : paneId === 'chat' ? s.feed : path === undefined ? undefined : s.files.load[fileKey(path, ref)]));
   // the chat's action panels open and close without a feed change (their roots come and go)
   const folds = useAppSelector((s) => (asChat ? s.feedUi : undefined));
-  const state = useRef({ comments, active, file });
-  state.current = { comments, active, file };
+  const content = isDiff ? diffContent : stored;
+  const state = useRef({ comments, active, file, isDiff });
+  state.current = { comments, active, file, isDiff };
 
   useEffect(() => {
     const el = layer.current;
@@ -153,7 +158,7 @@ export function HighlightLayer({ pane: paneId = 'chat' }: { pane?: string }) {
         return; // the cache is kept: its ranges stay valid while hidden, and are re-checked on the next paint
       }
       const list: (Drawn & { kind: 'sent' | 'pending' })[] = [];
-      const roots = rootsIn(pane, state.current.file);
+      const roots = rootsIn(pane, state.current.file, state.current.isDiff);
       for (const [k, r] of roots) if (k.startsWith('f:')) for (const e of r.children) if (!e.hasAttribute('data-hl-layer')) observe(e);
       const prev = cache.current;
       const next = new Map<string, Cached>(); // only what this paint drew survives: removed / orphaned comments drop out

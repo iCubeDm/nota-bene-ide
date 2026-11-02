@@ -5,7 +5,6 @@ import { selectActiveTab, openFile } from '@/tabs/slice.ts';
 import { clearReveal, pickSource, revealFile, selectTree, setDirs, setTreeOpen, toggleDir } from '@/tree/slice.ts';
 import { selectTurnSeq, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { loadSources, useSources } from './sources.ts';
-import { SourcePicker } from './SourcePicker.tsx';
 import { PanelResizer, usePanelWidth } from '@/shell/PanelResizer.tsx';
 import { useTreeEntries } from './tree/useTreeEntries.ts';
 import { useExpandAll } from './tree/useExpandAll.ts';
@@ -91,7 +90,6 @@ export function FileTree() {
         onCollapseAll={() => { setExpanding(false); d(setDirs([])); }}
         spinning={loading > 0} onRefresh={() => { void refresh(); void loadSources(true); }}
       />
-      <SourcePicker value={src} sources={sources} onChange={(id) => d(pickSource(id))} />
       <input type="search" role="searchbox" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('filterPh')} aria-label={t('filterPh')}
         className="mx-2 mt-2.5 mb-1.5 h-[30px] flex-none rounded-lg border border-transparent bg-muted/50 px-2.5 text-[12.5px] text-foreground outline-0 focus:border-primary/50" />
       {failed && <div role="alert" className="mx-2 mb-1 text-xs text-warn">{t('serverError', '/tree')}</div>}

@@ -1,8 +1,9 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../store/store.ts';
-import { activate, enterRoot, fileArg, fileTabId, openFile } from '../tabs/slice.ts';
+import { activate, enterRoot, fileArg, fileTabId, openFile, openLog } from '../tabs/slice.ts';
 import type { AppThunk } from '../store/store.ts';
-import { fileKey, loadSources, srcIdOfRef } from './sources.ts';
+import { fileKey, isCommitRef, loadSources, srcIdOfRef } from './sources.ts';
+import { showCommit } from '@/vcs/store.ts';
 
 /**
  * What an open file view shows, for the comments on it. `loaded`: its text is in the DOM (anchors resolve against it);
@@ -69,8 +70,14 @@ export const { setFileLoad, dropFileLoad, setFileVersion, clearJump, dropJump } 
 /**
  * Opens (or activates) the file tab and asks its view to scroll to the comment's fragment once loaded. A comment with
  * a `ref` opens from `ref:<branch>` (the view says when that branch is gone), or from the detached worktree carrying it.
+ * A comment made on a commit opens that commit in the log.
  */
 export const jumpToFileComment = (path: string, id: string, ref?: string): AppThunk => (d) => {
+  if (isCommitRef(ref)) {
+    d(openLog());
+    showCommit(ref, path);
+    return;
+  }
   const go = (src: string) => {
     d(openFile({ path, src, ref }));
     d(filesSlice.actions.requestJump({ path, src, ...(ref ? { ref } : {}), id }));

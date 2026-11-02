@@ -153,6 +153,7 @@ it is not a listing in the public ChatGPT plugin directory.
 | `attachments.ts` | Content-addressed images (`sha256.ext`) up to 3.75 MiB. `POST /attach`, `GET /attach/<id>`, restoring from the trash. |
 | `marks.ts` | The only write into the project folder: `<root>/.nota-bene/marks/<commentId>/{frame.jpg,layer.png}`, with a self-ignoring `.nota-bene/.gitignore`. Magic-byte check, symlinks refused. |
 | `fileRoutes.ts`, `files.ts`, `git.ts` | `/tree`, `/file` (Range, sandbox headers), `/complete`, `/sources`, `/git-status`. Sources: the current checkout, other worktrees (from disk) and branches (through git blobs). |
+| `vcs.ts` | The read-only git views: `/vcs-diff`, `/vcs-file`, `/vcs-branches`, `/vcs-log`, `/vcs-commit`, `/vcs-commit-file`. Every call runs with `--no-optional-locks`, so polling never takes `index.lock` from an agent. A failed git is a 503, never an empty answer. |
 | `system.ts` | Settings: about, prefs, storage (including `history/`) and cleaning into the trash (including stale archives), windows, the control token. |
 | `sessions.ts` | The route `/sessions`, titles, and each Claude session's working folder from the head of its transcript. |
 | `range.ts`, `fuzzy.ts`, `errors.ts`, `codeStamp.ts` | HTTP Range parsing; the fuzzy path score of `/complete`; `reportError` / `guard` (a failure becomes a `server-error` event); "the server's own sources changed since start" for `/info`. |
@@ -361,7 +362,8 @@ App
 | `files/view/ModelBody.tsx` | `GET /model?path&src` (`.blend` only) | The same ArrayBuffer path as `/file`; 501 gives "Blender needed", 422 / 504 show the error text from `{detail}`. |
 | `files/FileView.tsx` | `/file` (HEAD, Range probe, GET) | Viewing; the ETag serves as the version for media anchors. A model (`ModelBody`): one GET as an ArrayBuffer (the size from `content-length`, over 256 MB it is not read), with no HEAD and no probe; a reload on the same ETag does not read the body (it is cancelled after the headers) and does not parse the file again. |
 | `composer/MentionPicker.tsx`, `files/RecentFiles.tsx` | `/complete?q` | The CLI's search (`file_suggestions`) and our own file index in parallel; the results are merged. |
-| `files/sources.ts`, `shell/GitBranch.tsx` | `/sources`, `/git-status` | Branches and worktrees, the branch badge. |
+| `files/sources.ts`, `shell/GitBranch.tsx` | `/sources`, `/git-status`, `/vcs-branches` | Branches and worktrees, the branch picker. |
+| `vcs/` | `/vcs-*` | Changes (panel and tab, one file at a time) and the Git log. |
 | `controls/AgentAccount.tsx` | `GET/POST /agent-account` | Codex account status and native sign-in URL; retry restarts the session. |
 | `controls/SessionPicker.tsx` | `/sessions` | Sessions of the window's provider with their cwd; native Codex list or Claude SDK list. |
 | `shell/RestartMenu.tsx`, `controls/slice.ts` | `/info`, `POST /restart-server` | The "Restart the server" item (only under the launcher). |

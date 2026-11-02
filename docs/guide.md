@@ -193,9 +193,29 @@ Tabs have a right-click menu: Close, Close others, Close to the right, Close all
 
 ### Other branches and worktrees
 
-The window never switches your checkout, since a live window may be running from it. Instead the **Source** selector above the tree lists "this folder", every other git worktree of the repository, and every local branch that has no worktree. Pick one and the tree shows its files. Files from another source open read-only in tabs marked with the branch name, and you can still comment on them; the comment remembers the ref.
+The window never switches your checkout, since a live window may be running from it. Instead the branch button in the header opens a list of "this folder", every other git worktree of the repository, and every local branch that has no worktree, with a search box. Each row shows `↑N`, the commits over its base, `✗` when it has uncommitted work, and a pulsing dot when an agent is working there. The dot follows the Nota Bene windows on this machine: an agent in a plain terminal, or a subagent in its own worktree, gets none.
 
-Example: the agent works in the `feature/retry` worktree while your window is on `main`. Select that worktree in Source, open `src/queue.ts` from it, comment on a line, and send. Paths the agent prints inside another worktree open from that worktree too.
+Pick one and the tree, Changes and the log show it. The button turns orange and says "viewing": the window's folder and the agent stay where they are. Files from another source open read-only in tabs marked with the branch name, and you can still comment on them; the comment remembers the ref.
+
+Example: the agent works in the `feature/retry` worktree while your window is on `main`. Pick that worktree in the header, open `src/queue.ts` from it, comment on a line, and send. Paths the agent prints inside another worktree open from that worktree too.
+
+### Changes and the Git log
+
+In a git repository the left strip has two more buttons. Both only read: nothing here commits, stages, reverts or switches.
+
+**Changes** opens a panel in place of Files and a tab with one changed file at a time, so a large diff stays as light as a small one; `‹ ›` moves between files, and one or two columns are remembered. **Show** picks what is compared:
+
+- **Uncommitted**, the default for a folder: everything not committed yet, new files included.
+- **Whole branch from X**: from the point where the branch left X. A branch with no folder starts here, as it has nothing uncommitted.
+- Any other local branch.
+
+Git does not record a branch's parent. X is the branch named in the record of its creation, and otherwise the default branch (`origin/HEAD`, then `main`, then `master`). The choice is kept per project and per branch.
+
+The list shows at most 3000 files and a patch at most 3 MB; the view says when something was cut. `node_modules`, `.nota-bene` and the state folder are never shown. If git does not answer, the view says so and keeps the last result.
+
+**Git log** is a tab with the commit graph of all branches or of the branch shown, at most the latest 400 commits. The filter dims what does not match by text, author or hash, and a chip of a branch switches the view to it. Click a commit for its message, its files and the diff of one file; the card's width can be dragged.
+
+Select text in a diff to comment, as in a file. The comment names the file, with the branch or commit when it is not this folder (`src/queue.ts @ feature/retry`), and is marked in the diff. A click on a comment made on a commit opens that commit in the log. A comment on a removed line has no place in the current file, so a jump to it finds nothing there.
 
 ### 3D models (experimental)
 

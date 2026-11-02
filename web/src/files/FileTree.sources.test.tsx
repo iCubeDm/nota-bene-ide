@@ -4,12 +4,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent, Source, TreeEntry } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
-import { revealFile, selectTree, setTreeOpen } from '@/tree/slice.ts';
+import { pickSource, revealFile, selectTree, setTreeOpen } from '@/tree/slice.ts';
 import { selectActiveTab, selectTabs } from '@/tabs/slice.ts';
-import { resetSources } from './sources.ts';
+import { resetSources, sourcesKnown } from './sources.ts';
 import { FileTree } from './FileTree.tsx';
 
-// M3-16: the source picker at the top of the tree sheet
+// M3-16: the tree follows the source picked in the header
 const SOURCES: Source[] = [
   { id: 'here', kind: 'checkout', label: 'main', ref: 'main', dir: '/p/main' },
   { id: 'ref:feature/x', kind: 'worktree', label: 'feature/x', ref: 'feature/x', dir: '/p/wt-x' },
@@ -44,17 +44,14 @@ function setup() {
   render(<Provider store={store}><FileTree /></Provider>);
   return store;
 }
-const picker = () => screen.findByRole('combobox', { name: 'Source' });
+const pick = (store: ReturnType<typeof setup>, id: string) => act(() => void store.dispatch(pickSource(id)));
 const row = (name: string) => screen.findByRole('button', { name: new RegExp(`^${name.replace(/[+.]/g, '\\$&')}`) });
 const result = (): ServerEvent => ({ kind: 'agent', ts: 1, e: { t: 'turn-end', stop: 'done', secs: 0, answers: 'none', queued: 0 } });
 
-it('lists this folder, the worktree and the branch; picking one loads its tree and opens files from it', async () => {
+it('picking a source loads its tree and opens files from it', async () => {
   const store = setup();
-  const sel = await picker();
-  await waitFor(() => expect([...(sel as HTMLSelectElement).options].map((o) => o.value)).toEqual(['here', 'ref:feature/x', 'ref:old']));
-  expect((sel as HTMLSelectElement).options[0].text).toContain('this folder');
-  expect((sel as HTMLSelectElement).options[1].text).toContain('feature/x');
-  fireEvent.change(sel, { target: { value: 'ref:feature/x' } });
+  await waitFor(() => expect(sourcesKnown()).toBe(true));
+  pick(store, 'ref:feature/x');
   fireEvent.click(await row('only-x.md'));
   expect(calls).toContain('/tree?path=&src=ref%3Afeature%2Fx');
   expect(selectActiveTab(store.getState())).toEqual({ id: 'file:ref:feature/x:only-x.md', kind: 'file', path: 'only-x.md', src: 'ref:feature/x', ref: 'feature/x' });
@@ -65,27 +62,27 @@ it('keeps a separate set of open folders per source', async () => {
   const store = setup();
   fireEvent.click(await row('src'));
   await row('main.ts');
-  fireEvent.change(await picker(), { target: { value: 'ref:feature/x' } });
+  pick(store, 'ref:feature/x');
   await row('only-x.md');
   expect(selectTree(store.getState()).dirs).toEqual([]);
   fireEvent.click(await row('xdir'));
   await row('deep.md');
-  fireEvent.change(await picker(), { target: { value: 'here' } });
+  pick(store, 'here');
   await row('main.ts'); // src is open again
   expect(selectTree(store.getState()).dirs).toEqual(['src']);
-  fireEvent.change(await picker(), { target: { value: 'ref:feature/x' } });
+  pick(store, 'ref:feature/x');
   await row('deep.md');
 });
 
 it('a branch source does not refresh after a turn; a worktree does', async () => {
   const store = setup();
-  fireEvent.change(await picker(), { target: { value: 'ref:old' } });
+  pick(store, 'ref:old');
   await row('old-only.md');
   const n = calls.filter((u) => u.startsWith('/tree')).length;
   act(() => void store.dispatch(serverEvent(result())));
   await new Promise((r) => setTimeout(r, 20));
   expect(calls.filter((u) => u.startsWith('/tree')).length).toBe(n);
-  fireEvent.change(await picker(), { target: { value: 'ref:feature/x' } });
+  pick(store, 'ref:feature/x');
   await row('only-x.md');
   const m = calls.filter((u) => u.startsWith('/tree')).length;
   act(() => void store.dispatch(serverEvent(result())));
@@ -94,7 +91,7 @@ it('a branch source does not refresh after a turn; a worktree does', async () =>
 
 it('reveal switches to the tab’s source and clears an active filter so the row is visible', async () => {
   const store = setup();
-  await picker();
+  await waitFor(() => expect(sourcesKnown()).toBe(true));
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'zzz' } });
   act(() => void store.dispatch(revealFile('xdir/deep.md', 'ref:feature/x')));
   expect(selectTree(store.getState()).src).toBe('ref:feature/x');
