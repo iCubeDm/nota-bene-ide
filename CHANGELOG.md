@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.1 — 2026-11-02
 
 - The Usage tab sits on the same card as Settings and Markdown files.
 
