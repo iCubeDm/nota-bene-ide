@@ -246,7 +246,7 @@ The task indicator under the message box counts running subagents and background
 
 **Sessions** in the header opens a picker over the selected provider's sessions on the machine, grouped by folder, with the current project first and a filter box (title or folder). Pick one to switch the window to it in place, without a reload. If the session is from another folder, the window moves to that project (tree, file access and the agent's working folder). The dialog warns you not to keep the same session open in another agent client at the same time: the history would get mixed up. **+ new session in this project** starts a fresh one. A new session can only start in the current folder or in a folder that already has sessions.
 
-✎ on a row renames that session, the open one or any other, without switching to it. Enter saves, Esc cancels. The title is the agent's own, so Claude Code or Codex shows it too.
+✎ on a row renames that session, the open one or any other, without switching to it. The open session also has **Rename** in the chat tab's right-click menu. Enter saves, Esc cancels. The title is the agent's own, so Claude Code or Codex shows it too.
 
 Branches of a conversation: `/nb fork` from Claude Code, or `nota-bene --resume ID --fork`, opens a copy of a conversation that continues on its own. The original is untouched.
 

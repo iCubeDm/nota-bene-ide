@@ -49,6 +49,12 @@ export const brief = (status: number | null, body: string): string => {
   return s.length > 120 ? `${s.slice(0, 119)}…` : s;
 };
 
+/** Renames a session (the open one or any other): null, or what went wrong. */
+export const renameSession = async (id: string, title: string): Promise<string | null> => {
+  const r = await apiFetch('/sessions/rename', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, title }) }).catch(() => null);
+  return r?.ok ? null : brief(r?.status ?? null, r ? await r.text().catch(() => '') : '');
+};
+
 /**
  * "Sessions ▾" in the header (claude --resume): every session of every folder, this project first. Picking one asks,
  * then sends `switch`; the header says "switching…" until the new session is announced. Off while the agent works or
@@ -119,8 +125,8 @@ export function SessionPicker() {
     const { id } = edit;
     const title = edit.text.trim();
     if (!title) return setEdit(null);
-    const r = await apiFetch('/sessions/rename', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, title }) }).catch(() => null);
-    if (!r?.ok) return showNote(t('renameFail') + brief(r?.status ?? null, r ? await r.text().catch(() => '') : ''));
+    const failed = await renameSession(id, title);
+    if (failed !== null) return showNote(t('renameFail') + failed);
     setView((w) => (w && typeof w === 'object' ? { ...w, sessions: w.sessions.map((x) => (x.id === id ? { ...x, title } : x)) } : w));
     setEdit(null);
     filter.current?.focus({ preventScroll: true });

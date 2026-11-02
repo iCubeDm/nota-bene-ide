@@ -1,11 +1,13 @@
-import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { selectPendingCountByPath } from '@/comments/slice.ts';
+import { renameSession } from '@/controls/SessionPicker.tsx';
 import { FileIcon } from '@/files/FileIcon.tsx';
 import { fileKey } from '@/files/sources.ts';
 import { SourceChip } from '@/files/SourcePicker.tsx';
 import { selectSession, useAppDispatch, useAppSelector, useMedia } from '@/store/store.ts';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu.tsx';
+import { toast } from '@/shell/toast.ts';
 import { activate, closeAll, closeOthers, closeRight, closeTab, selectTabs, type Tab } from './slice.ts';
 import { TabsMenu } from './TabsMenu.tsx';
 
@@ -41,16 +43,52 @@ export const focusTab = (id: string) =>
     el?.focus({ preventScroll: true });
   });
 
+/** The chat tab's title being edited. Enter saves, Esc or a click elsewhere cancels; a failed save stays open. */
+function RenameInput({ ref, id, title, done }: { ref: Ref<HTMLInputElement>; id: string; title: string; done: (back: boolean) => void }) {
+  const t = useT();
+  const [text, setText] = useState(title);
+  const save = async () => {
+    const name = text.trim();
+    if (!name || name === title) return done(true);
+    const failed = await renameSession(id, name);
+    if (failed === null) done(true);
+    else toast(t('renameSess'), t('renameFail') + failed);
+  };
+  return (
+    <input
+      ref={ref}
+      value={text}
+      maxLength={200}
+      aria-label={t('renameSess')}
+      placeholder={t('untitled')}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => setText(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      // another app taking the focus is no click elsewhere: the title may be copied from there
+      onBlur={() => { if (document.hasFocus()) done(false); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') { e.preventDefault(); done(true); } // prevented: the composer does not read it as an interrupt
+        else if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void save(); }
+      }}
+      className="w-44 min-w-0 rounded border border-primary bg-transparent px-1 text-[12.5px] font-medium text-foreground outline-none"
+    />
+  );
+}
+
 function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; last: boolean; playing: boolean }) {
   const t = useT();
   const d = useAppDispatch();
   const badge = useAppSelector((s) => (tab.kind === 'file' ? selectPendingCountByPath(s)[fileKey(tab.path, tab.ref)] ?? 0 : 0));
   const title = useAppSelector((s) => selectSession(s)?.title ?? null);
+  const session = useAppSelector((s) => selectSession(s)?.id ?? null);
+  const [renaming, setRenaming] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
   const label = tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : basename(tab.path);
   const isChat = tab.kind === 'chat';
   return (
     <ContextMenu>
-      <ContextMenuTrigger asChild>
+      {/* off while renaming: the input keeps the browser's own menu, for a paste */}
+      <ContextMenuTrigger asChild disabled={renaming}>
         <div
           role="tab"
           tabIndex={active ? 0 : -1}
@@ -69,7 +107,9 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
         >
           <span className="hidden size-1.5 flex-none animate-pulse rounded-full bg-primary group-data-[playing=true]:inline-block" />
           <TabIcon tab={tab} />
-          <span className="truncate">{label}</span>
+          {renaming && session
+            ? <RenameInput ref={input} id={session} title={title ?? ''} done={(back) => { setRenaming(false); if (back) focusTab(tab.id); }} />
+            : <span className="truncate">{label}</span>}
           {tab.kind === 'file' && tab.ref && <SourceChip name={tab.ref} />}
           {badge > 0 && <span data-badge className="rounded-full bg-nb-accent/[.18] px-1.5 text-[10px] font-semibold leading-4 text-nb-accent">{badge}</span>}
           {!isChat && (
@@ -85,7 +125,14 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
           )}
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      {/* the menu gives the focus back when it closes: to the title being edited, if that is what was picked */}
+      <ContextMenuContent onCloseAutoFocus={(e) => { if (input.current) { e.preventDefault(); input.current.focus(); } }}>
+        {isChat && session && (
+          <>
+            <ContextMenuItem onSelect={() => setRenaming(true)}>{t('renameSess')}</ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
         {!isChat && <ContextMenuItem onSelect={() => d(closeTab(tab.id))}>{t('close')}</ContextMenuItem>}
         <ContextMenuItem onSelect={() => d(closeOthers(tab.id))}>{t('closeOthers')}</ContextMenuItem>
         {!isChat && !last && <ContextMenuItem onSelect={() => d(closeRight(tab.id))}>{t('closeRight')}</ContextMenuItem>}
