@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 — 2026-11-03
+
+- Git in the header: a branch picker over the worktrees and branches next to your checkout, a Changes view of uncommitted work or of a whole branch, and the Git log. All read-only; a dot marks a branch whose Nota Bene window has the agent at work.
+- Only the stop button stops the agent: Esc no longer interrupts a turn, wherever the focus is.
+- An audit log of what happens in each window, for working out later why a turn stopped or a socket dropped: `~/.nota-bene/audit/`, one file a day, kept 14 days. System events only, never what anyone wrote. Settings → Defaults turns it off.
+
 ## 1.3.0 — 2026-11-02
 
 - The header says when a newer version is out and how to update. Settings → Defaults turns the check off, so does `NOTA_BENE_NO_UPDATE_CHECK=1`.

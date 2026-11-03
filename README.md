@@ -57,13 +57,13 @@ codex plugin add nota-bene@nota-bene
 ```
 
 The plugin provides `$nb`, `$nb new`, and `$nb fork`. On first use it downloads
-`nota-bene-ide@1.3.0` (about 70 MB, without the Claude Code binary) through npm; later
+`nota-bene-ide@1.4.0` (about 70 MB, without the Claude Code binary) through npm; later
 launches reuse npm's cache. No global npm
 install or manual skill copying is needed. Node.js, npm, and a signed-in Codex CLI
 must already be available. This is a repository marketplace for local Codex clients,
 not a listing in the public ChatGPT plugin directory.
 
-Alternatively, install the launcher with `npm i -g nota-bene-ide@1.3.0`, then ask
+Alternatively, install the launcher with `npm i -g nota-bene-ide@1.4.0`, then ask
 Codex to install just the skill. If you only use Codex, add `--omit=optional` to skip
 the Claude Code binary; a Claude window then cannot start from that install.
 
@@ -122,12 +122,13 @@ and on single frames of a video:
 - Markup on images and video frames with a rectangle, ellipse, pen or arrow, and a comment on the marked frame.
 - File tree and viewers: Markdown, highlighted code, images, video and audio with seeking. Mermaid and SVG diagrams render in the chat.
 - Edit a text file by hand, without overwriting a change made on disk meanwhile.
-- Read-only views of other git worktrees and branches next to your own checkout.
+- Git in the header: a branch picker over other worktrees and branches, a Changes view and the Git log, all read-only.
 - `@` mentions a file, `/` opens the agent's commands and skills, `!` runs a shell command in the project folder.
 - Subagent conversations in their own tabs, and a drawer for background tasks.
 - Sessions from any folder, branches of a conversation, the history from before each compaction.
 - Agent permission modes, model and effort, context and plan-limit meters.
 - A Usage tab: tokens across every project and both agents, limit hits and what was spent before them, extra usage.
+- An audit log of each window's system events (never what anyone wrote), for working out later why a turn stopped.
 - Interface in English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German.
 
 ![The window: chat, file tree and comments panel](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/overview.png)
@@ -136,9 +137,9 @@ and on single frames of a video:
 
 ![A Codex window: model, approval card, sandbox profile and account limits](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/codex.png)
 
-## Updating to 1.3.0
+## Updating to 1.4.0
 
-For the terminal install, run `npm i -g nota-bene-ide@1.3.0`. For the Claude plugin,
+For the terminal install, run `npm i -g nota-bene-ide@1.4.0`. For the Claude plugin,
 update the marketplace and installed plugin through Claude Code. Close old windows
 and launch again to use the new package. Existing Claude state stays in place; Codex
 uses its own state directory. See [release notes](https://github.com/iCubeDm/nota-bene-ide/blob/main/CHANGELOG.md).
