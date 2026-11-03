@@ -113,8 +113,9 @@ function system(m: Frame): AgentEvent[] {
     case 'task_started': case 'task_progress': case 'task_updated': case 'task_notification':
       return task(m);
     default:
-      // not shown, but worth knowing afterwards (API retries and errors, hooks): the audit log gets its name and numbers
-      auditNote('agent-system', systemFields(m));
+      // not shown, but worth knowing afterwards (API retries and errors, hooks): the audit log gets its name and numbers;
+      // a counter sent for every chunk of thinking is not an event
+      if (m.subtype !== 'thinking_tokens') auditNote('agent-system', systemFields(m));
       return [];
   }
 }
