@@ -113,6 +113,13 @@ it('a system message the chat does not show reaches the log by its kind and numb
   expect(raw()).not.toContain('secret output');
 });
 
+it('the per-chunk thinking counter stays out of the log', () => {
+  mk();
+  expect(mapSdk({ type: 'system', subtype: 'thinking_tokens', session_id: 's', uuid: 'u' } as never)).toEqual([]);
+  auditNote('marker');
+  expect(lines().map((l) => l.ev)).toEqual(['marker']);
+});
+
 it('a hub tap sees every event; one that throws is dropped and the emit goes on', () => {
   const hub = new EventHub();
   const seen: string[] = [];
