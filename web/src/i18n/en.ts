@@ -294,6 +294,8 @@ export const en: Dict = {
   defMode: 'Agent mode for projects without their own',
   defUpdate: 'Check npm for new versions',
   defUpdateEnv: 'Off by NOTA_BENE_NO_UPDATE_CHECK',
+  defAudit: 'Write an audit log of system events',
+  defAuditHint: (dir: string) => `Windows record what happens (turns, stops, errors, connections) to ${dir}, one file a day, kept 14 days. Never the text of messages, comments or commands.`,
   aboutVersion: 'Version',
   aboutState: 'State folder',
   aboutLogs: 'Logs',

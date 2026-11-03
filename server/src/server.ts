@@ -24,6 +24,7 @@ import type { IdleConfig } from './idle.ts';
 import { listSessionsView, renameRoute } from './sessions.ts';
 import { codeChecker } from './codeStamp.ts';
 import { stateDir } from './state.ts';
+import { AuditLog } from './audit.ts';
 import { registerWindow } from './windows.ts';
 import { controlToken, systemRoutes } from './system.ts';
 import { usageRoutes } from './usage/routes.ts';
@@ -78,6 +79,8 @@ export async function startServer(o: {
   insecureNoAuth?: boolean;
   /** this launch's nonce (public; auth.ts): the launcher makes it so a relaunch keeps it. Default: a fresh one */
   nonce?: string;
+  /** the audit log of system events (audit.ts); absent = none (tests). `dir` / `enabled`: tests */
+  audit?: { dir?: string; enabled?: () => boolean };
   /** one tab at a time (R-M7-5); default true. Tests that need several live sockets pass false */
   oneTab?: boolean;
   /** tests shorten the reload grace (R-M7-6) and the heartbeat (R-M7-7) */
@@ -87,6 +90,11 @@ export async function startServer(o: {
   const hub = new EventHub();
   installProcessHandlers();
   hubs.add(hub);
+  const audit = o.audit ? new AuditLog({ port: o.port, ...o.audit }) : null;
+  if (audit) {
+    audit.prune();
+    hub.tap((ev) => audit.server(ev));
+  }
   try {
     // the secrets first: a refused one (loose mode, foreign owner, ...) must stop the start before the agent is spawned
     // the access token: read once at start (a rotated file takes effect at the next start). Auth is on unless a test says no
@@ -139,6 +147,7 @@ export async function startServer(o: {
     const exitWith = (code: number) => {
       if (exiting) return; // the first exit wins
       exiting = true;
+      audit?.write('server-exit', { code });
       void Promise.race([close(), new Promise<void>((r) => setTimeout(r, 2000))]).then(() => {
         setTimeout(() => (o.exit ?? process.exit)(code), 100);
       });
@@ -515,6 +524,7 @@ export async function startServer(o: {
     };
     const role = new WeakMap<WebSocket, 'pending' | 'occupied' | 'owner'>();
 
+    let conns = 0;
     wss.on('connection', (ws, req) => {
       // this page instance's id (in memory on the page): the same tab reconnecting after a drop is not a second tab
       const params = new URL(req.url ?? '/', 'http://x').searchParams;
@@ -522,13 +532,19 @@ export async function startServer(o: {
       // a page that is occupied or taken reconnects passive: with no owner it must not win the window by being first
       // (a restart drops both tabs); it is told `occupied` and takes over only on the user's click
       const passive = params.get('passive') === '1';
+      const conn = ++conns;
+      audit?.write('ws-open', { conn, tab, passive });
+      ws.on('close', (code) => audit?.write('ws-close', { conn, code }));
       ws.on('error', (e) => reportError(hub, 'ws', e));
       ws.on('message', guard(hub, 'ws', (data) => {
         const r = role.get(ws);
         if (r === 'pending') return; // still waiting out the grace: nothing it says counts yet
         const msg = parseClientMessage(String(data));
         if (r === 'occupied') {
-          if (!('error' in msg) && msg.type === 'takeover') takeover(ws, tab);
+          if (!('error' in msg) && msg.type === 'takeover') {
+            audit?.write('client', { conn, type: 'takeover' });
+            takeover(ws, tab);
+          }
           return; // everything else from an occupied socket is ignored
         }
         if ('error' in msg) {
@@ -536,6 +552,7 @@ export async function startServer(o: {
           return;
         }
         if (msg.type === 'takeover') return; // the owner has nothing to take
+        audit?.client(msg, conn);
         handleOwner(ws, msg);
       }));
       if (oneTab && !passive && owner && tab !== null && owner.tab === tab) {
@@ -594,6 +611,10 @@ export async function startServer(o: {
 
     const port = (server.address() as AddressInfo).port;
     ownPort = port;
+    if (audit) {
+      audit.port = port;
+      audit.write('server-start', { root: root(), agent: process.env.NOTA_BENE_AGENT ?? 'claude', node: process.version, supervised: supervised() });
+    }
     // a supervised window keeps its registry entry's root current, so a relaunch reopens the folder it switched to
     manager.onSwitch((_id, { restart }) => {
       if (restart || !supervised()) return;
@@ -608,6 +629,8 @@ export async function startServer(o: {
 
     let closing: Promise<void> | null = null;
     const close = () => (closing ??= new Promise<void>((resolve) => {
+      audit?.write('server-stop');
+      audit?.close();
       hubs.delete(hub);
       if (heartbeat) clearInterval(heartbeat);
       manager.close();
@@ -621,6 +644,7 @@ export async function startServer(o: {
     }));
     return { url: `http://127.0.0.1:${port}`, close };
   } catch (e) {
+    audit?.close();
     hubs.delete(hub);
     throw e;
   }

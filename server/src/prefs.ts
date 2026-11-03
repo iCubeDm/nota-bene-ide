@@ -7,8 +7,9 @@ import { stateDir } from './state.ts';
 /** `idleCompact[root]`: idle compaction per project dir; absent = on (the default) */
 /** `defaultMode`: the mode of a project with no entry in `modes` (Settings → Defaults; absent = auto) */
 /** `updateCheck`: asking npm for a newer version (Settings → Defaults; absent = on) */
+/** `audit`: the audit log of system events (Settings → Defaults; absent = on) */
 /** `models[root]`: the model (and effort) a project's next session starts with; absent = the agent's default */
-export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean };
+export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean; audit?: boolean };
 
 const isEffort = (v: unknown): v is EffortLevel => (EFFORT_LEVELS as readonly unknown[]).includes(v);
 const isMode = (v: unknown): v is Mode => (ALL_MODES as readonly unknown[]).includes(v);
@@ -38,7 +39,7 @@ export function readPrefs(): Prefs {
   try {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('prefs.json is not an object');
-    const { modes, models, lang, idleCompact, defaultMode, updateCheck } = data as { modes?: unknown; models?: unknown; lang?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown };
+    const { modes, models, lang, idleCompact, defaultMode, updateCheck, audit } = data as { modes?: unknown; models?: unknown; lang?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown; audit?: unknown };
     const out: Prefs = { modes: {}, models: {}, idleCompact: {} };
     if (modes && typeof modes === 'object' && !Array.isArray(modes)) {
       for (const [k, v] of Object.entries(modes)) if (isMode(v)) out.modes[k] = v;
@@ -57,6 +58,7 @@ export function readPrefs(): Prefs {
     if (isUiLang(lang)) out.lang = lang;
     if (isMode(defaultMode)) out.defaultMode = defaultMode;
     if (typeof updateCheck === 'boolean') out.updateCheck = updateCheck;
+    if (typeof audit === 'boolean') out.audit = audit;
     return out;
   } catch (e) {
     if (!reported) {
@@ -136,6 +138,11 @@ export function setDefaultModePref(mode: Mode): void {
 /** Settings → Defaults: one for every window of this provider, like the language. */
 export function setUpdateCheckPref(on: boolean): void {
   updateRawPrefs((raw) => void (raw.updateCheck = on));
+}
+
+/** Settings → Defaults: the audit log, one for every window of this provider. */
+export function setAuditPref(on: boolean): void {
+  updateRawPrefs((raw) => void (raw.audit = on));
 }
 
 /** The UI language, one for every window of this user (not per project, not per port). */

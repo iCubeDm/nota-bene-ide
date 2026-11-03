@@ -128,6 +128,7 @@ async function main(): Promise<void> {
       allowedOrigins: args.allowOrigins,
       ...(args.agent !== 'codex' && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),
       ...(nonce ? { nonce } : {}),
+      audit: {},
     });
   } catch (e) {
     if ((e as NodeJS.ErrnoException).syscall !== 'listen') throw e;

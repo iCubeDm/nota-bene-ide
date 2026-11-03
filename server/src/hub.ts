@@ -21,12 +21,27 @@ export class EventHub {
    */
   private archived = new WeakSet<ServerEvent>();
   private socks = new Set<Sock>();
+  /** sees every emitted event, stored or not (the audit log) */
+  private taps = new Set<(ev: ServerEvent) => void>();
+
+  /** Returns its removal. A tap that throws is dropped: an observer never breaks the window. */
+  tap(fn: (ev: ServerEvent) => void): () => void {
+    this.taps.add(fn);
+    return () => void this.taps.delete(fn);
+  }
 
   /** Returns whether a `lossy` frame was skipped for some socket (it was far behind): the sender sends the state again later. */
   emit(ev: EmitInput, o: { store?: boolean; lossy?: boolean } = {}): boolean {
     let skipped = false;
     const stamped = this.stamp(ev);
     if (o.store ?? true) this.history.push(stamped);
+    for (const fn of this.taps) {
+      try {
+        fn(stamped);
+      } catch {
+        this.taps.delete(fn);
+      }
+    }
     const frame = JSON.stringify(stamped);
     for (const s of [...this.socks]) {
       if (o.lossy && (s.buffered?.() ?? 0) > LOSSY_BACKLOG) {

@@ -286,6 +286,8 @@ export const es: Dict = {
   defMode: 'Modo del agente para proyectos sin uno propio',
   defUpdate: 'Buscar nuevas versiones en npm',
   defUpdateEnv: 'Desactivado por NOTA_BENE_NO_UPDATE_CHECK',
+  defAudit: 'Escribir un registro de eventos del sistema',
+  defAuditHint: (dir: string) => `Las ventanas registran lo que pasa (turnos, paradas, errores, conexiones) en ${dir}: un archivo por día, guardado 14 días. Nunca el texto de mensajes, comentarios o comandos.`,
   aboutVersion: 'Versión',
   aboutState: 'Carpeta de estado',
   aboutLogs: 'Registros',

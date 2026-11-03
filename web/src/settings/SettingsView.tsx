@@ -77,7 +77,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const windows = useLoad<WindowRow[]>('/system/windows', active);
   const storage = useLoad<Storage>('/system/storage', active);
   const about = useLoad<About>('/system/about', active);
-  const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean }>('/system/prefs', active);
+  const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean; audit?: boolean; auditDir?: string }>('/system/prefs', active);
   const [ask, setAsk] = useState<{ title: string; body: string; confirm: string; run: () => Promise<void> } | null>(null);
   // the port whose action is in flight: that row's buttons are off until it settles (no double relays)
   const [pending, setPending] = useState<number | null>(null);
@@ -119,7 +119,7 @@ export function SettingsView({ active }: { active: boolean }) {
     }
     storage.reload();
   };
-  const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean }) => {
+  const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean } | { audit: boolean }) => {
     try {
       const r = await postJson('/system/prefs', pref);
       if (!r.ok) throw new Error(`${r.status}`);
@@ -210,6 +210,16 @@ export function SettingsView({ active }: { active: boolean }) {
                 onChange={(e) => void savePref({ updateCheck: e.target.checked }).then(recheckUpdate)}
                 className="size-3.5 accent-primary" />
               {prefs.data.updateCheckForcedOff && <span className="text-xs text-muted-foreground">{t('defUpdateEnv')}</span>}
+            </span>
+          )}
+        </Row>
+        <Row label={t('defAudit')}>
+          {prefs.data && (
+            <span className="flex flex-col gap-1">
+              <input type="checkbox" aria-label={t('defAudit')} checked={prefs.data.audit !== false}
+                onChange={(e) => void savePref({ audit: e.target.checked })}
+                className="size-3.5 accent-primary" />
+              {prefs.data.auditDir && <span className="text-xs text-muted-foreground">{t('defAuditHint', prefs.data.auditDir)}</span>}
             </span>
           )}
         </Row>
