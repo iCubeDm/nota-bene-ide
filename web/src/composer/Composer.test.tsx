@@ -56,21 +56,24 @@ it('keeps text when send fails', async () => {
 
 it('Stop is disabled when idle and Esc does nothing', async () => {
   const { sent, box } = setup(true);
-  expect(screen.getByRole('button', { name: 'Stop the agent · Esc' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Stop the agent' })).toBeDisabled();
   await userEvent.type(box, '{Escape}');
   expect(sent).toHaveLength(0);
 });
 
-it('when busy: status shows, Esc interrupts, Ctrl+Enter forces', async () => {
+it('when busy: status shows, Ctrl+Enter forces, only the stop button stops (Esc does not)', async () => {
   const { sent, store, box } = setup(true);
   act(() => {
     store.dispatch({ type: 'server/event', payload: { kind: 'user', id: 'u1', text: 'x', ts: 0 } });
   });
   expect(screen.getByText('agent is working…')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Stop the agent · Esc' })).toBeEnabled();
   await userEvent.type(box, 'now{Control>}{Enter}{/Control}');
   expect(sent[0]).toMatchObject({ type: 'send', text: 'now', force: true });
   await userEvent.keyboard('{Escape}');
+  box.blur();
+  await userEvent.keyboard('{Escape}');
+  expect(sent).toHaveLength(1);
+  await userEvent.click(screen.getByRole('button', { name: 'Stop the agent' }));
   expect(sent[1]).toEqual({ type: 'interrupt' });
 });
 

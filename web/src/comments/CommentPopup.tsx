@@ -146,7 +146,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   }, [placed]);
 
   useEffect(() => {
-    // capture + preventDefault: this Esc must not also interrupt the agent (Composer skips defaultPrevented)
+    // capture + preventDefault: this Esc must not also reach the document hotkeys (they skip defaultPrevented)
     if (hidden) return;
     // while a drawing is being saved, neither cancels: the save finishes and adds the comment
     const onKey = (e: globalThis.KeyboardEvent) => {

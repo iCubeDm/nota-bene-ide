@@ -69,7 +69,7 @@ function RenameInput({ ref, id, title, done }: { ref: Ref<HTMLInputElement>; id:
       // another app taking the focus is no click elsewhere: the title may be copied from there
       onBlur={() => { if (document.hasFocus()) done(false); }}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') { e.preventDefault(); done(true); } // prevented: the composer does not read it as an interrupt
+        if (e.key === 'Escape') { e.preventDefault(); done(true); } // prevented: the document hotkeys skip it
         else if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void save(); }
       }}
       className="w-44 min-w-0 rounded border border-primary bg-transparent px-1 text-[12.5px] font-medium text-foreground outline-none"

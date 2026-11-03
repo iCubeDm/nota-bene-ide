@@ -83,7 +83,7 @@ A window also has one owner tab. Open the same address in a second browser tab a
 The chat is the first tab and cannot be closed. Type a message and press Enter to send, Shift+Enter for a new line.
 
 - A message sent while the agent is working is injected into the running turn.
-- Cmd/Ctrl+Enter interrupts the agent and sends. Esc or the stop button stops the agent.
+- Cmd/Ctrl+Enter interrupts the agent and sends. The stop button stops the agent; Esc does not, so a stray Esc never ends a turn.
 - Shift+Tab in the message field cycles the permission mode (see below).
 - Tool calls appear as lines such as `Read` or `Bash` with their argument. Click one to see the full input and output; errors are red.
 - A permission request shows as a card with **Allow** and **Deny**. In plan mode, the plan appears as a card: **Approve** continues in the previous mode, **Keep planning** stays in plan mode.
@@ -322,7 +322,6 @@ The full list is in the window's Hotkeys help. Tab keys use Alt because Chrome k
 | Shift+Tab (in the message box) | next permission mode |
 | Enter, Shift+Enter | send, new line |
 | Cmd/Ctrl+Enter | interrupt the agent and send |
-| Esc (agent busy) | stop the agent |
 | Cmd/Ctrl+Enter (comment popup) | add the comment |
 
 ## Security

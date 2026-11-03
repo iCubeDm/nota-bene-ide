@@ -131,7 +131,7 @@ export function SelectionButton({ onComment }: { onComment: (s: PendingSelection
       setTimeout(() => setSel(switchingNow.current ? null : readSelection(agentsOkNow.current)));
     };
     const hide = () => setSel(null);
-    // capture phase + preventDefault: Esc that dismisses the button must not also interrupt the agent (Composer skips defaultPrevented)
+    // capture phase + preventDefault: Esc that dismisses the button must not also reach the document hotkeys (they skip defaultPrevented)
     const onKey = (e: KeyboardEvent) => {
       const s = selNow.current;
       if (!s || e.isComposing) return;

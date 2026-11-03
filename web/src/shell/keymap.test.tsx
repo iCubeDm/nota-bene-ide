@@ -190,7 +190,7 @@ it('behind a modal dialog only Alt+E runs: the tabs behind the overlay stay', as
   expect(recentModal.get()).toBe(false);
 });
 
-it('Esc on empty space focuses the composer and still stops a busy agent', () => {
+it('Esc on empty space focuses the composer and does not stop a busy agent', () => {
   const sent: unknown[] = [];
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: (m: unknown) => (sent.push(m), true), close() {} }) });
   act(() => void store.dispatch(serverEvent({ kind: 'session', id: 's1', root: '/p', title: null, model: null })));
@@ -198,7 +198,7 @@ it('Esc on empty space focuses the composer and still stops a busy agent', () =>
   render(<Provider store={store}><App /></Provider>);
   key('Escape');
   expect(document.activeElement).toBe(document.getElementById('composer-input'));
-  expect(sent).toContainEqual({ type: 'interrupt' });
+  expect(sent).not.toContainEqual({ type: 'interrupt' });
 });
 
 it('while the window is occupied or taken (the overlay) no hotkey runs; once open again they do', () => {

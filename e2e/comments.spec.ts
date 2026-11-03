@@ -342,7 +342,7 @@ test('selection survives a streaming turn @slow', async ({ page }) => {
   await clearPending(page);
 });
 
-test('Esc while the agent works: picker, then popup, then the turn @slow', async ({ page }) => {
+test('Esc while the agent works: picker, then popup, never the turn @slow', async ({ page }) => {
   test.setTimeout(60_000);
   await open(page);
   await clearPending(page);
@@ -369,7 +369,10 @@ test('Esc while the agent works: picker, then popup, then the turn @slow', async
   await expect(working).toBeVisible();
   await expect(donesAfter(page, next)).toHaveCount(0);
 
-  await page.keyboard.press('Escape'); // 3: now it interrupts the turn
+  await page.keyboard.press('Escape'); // 3: on empty space Esc no longer stops the agent
+  await expect(working).toBeVisible();
+  await expect(donesAfter(page, next)).toHaveCount(0);
+  await page.getByRole('button', { name: /^(Stop the agent|Остановить агента)/ }).click();
   await expect(donesAfter(page, next).first()).toHaveText(/прервано|interrupted/);
   await expect(working).toBeHidden();
 });

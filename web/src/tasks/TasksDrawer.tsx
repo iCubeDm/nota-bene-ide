@@ -38,7 +38,7 @@ export function TasksDrawer() {
   useEffect(() => {
     if (!open) return;
     const close = () => d(setDrawer(false));
-    // capture phase + preventDefault: the composer's Esc (interrupt the agent) sees it handled
+    // capture phase + preventDefault: the document hotkeys see this Esc handled
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       // what really owns Esc: modal dialogs, menus, listboxes, Radix popovers. A plain role=dialog (the comment popup) does not:

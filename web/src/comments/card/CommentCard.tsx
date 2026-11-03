@@ -62,7 +62,7 @@ export function CommentCard({ id, index, popover = false }: { id: string; index:
       e.preventDefault();
       finish(true);
     } else if (e.key === 'Escape') {
-      // handled here: neither the popover nor the composer's interrupt may see this Esc
+      // handled here: neither the popover nor the document hotkeys may see this Esc
       e.preventDefault();
       e.stopPropagation();
       finish(false);

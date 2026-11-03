@@ -191,7 +191,7 @@ it('a whole user bubble yields a quote without the meta header', async () => {
   expect((onComment.mock.calls[0][0].anchor as TextAnchor).quote).toBe('do the thing');
 });
 
-it('Esc dismissing the button does not interrupt a busy agent; the next Esc does', async () => {
+it('Esc dismisses the button and never interrupts a busy agent', async () => {
   const sent: ClientMessage[] = [];
   const store = makeStore({
     url: 'ws://x',
@@ -220,7 +220,7 @@ it('Esc dismissing the button does not interrupt a busy agent; the next Esc does
   expect(screen.queryByRole('button', { name: '💬 Comment' })).toBeNull();
   expect(sent.filter((m) => m.type === 'interrupt')).toHaveLength(0);
   fireEvent.keyDown(document, { key: 'Escape' });
-  expect(sent.filter((m) => m.type === 'interrupt')).toHaveLength(1);
+  expect(sent.filter((m) => m.type === 'interrupt')).toHaveLength(0);
 });
 
 // ---- M3-13: selections in an open file view ----

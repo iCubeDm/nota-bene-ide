@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '@/i18n/index.ts';
 
-/** Full-size view. Esc / click closes; this Esc is consumed here (preventDefault + stop), so it never interrupts the agent. */
+/** Full-size view. Esc / click closes; this Esc is consumed here (preventDefault + stop), so nothing else acts on it. */
 export function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
