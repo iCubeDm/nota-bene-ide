@@ -179,7 +179,7 @@ it('undo removes the last shape; Esc with shapes asks before discarding; Esc wit
   drag([[100, 300], [200, 400]]);
   const ev = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true });
   act(() => { document.body.dispatchEvent(ev); });
-  expect(ev.defaultPrevented).toBe(true); // the Composer does not also interrupt the agent
+  expect(ev.defaultPrevented).toBe(true); // the document hotkeys do not also act on it
   expect(screen.getByRole('dialog')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
   expect(draft().on).toBe(true);
@@ -293,7 +293,7 @@ it('Esc with focus inside the chat feed is not taken by the markup', () => {
   link.focus();
   const ev = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true });
   act(() => { link.dispatchEvent(ev); });
-  expect(ev.defaultPrevented).toBe(false); // the Composer interrupts the agent
+  expect(ev.defaultPrevented).toBe(false); // not taken by markup: the document hotkeys get it
   expect(screen.queryByRole('dialog')).toBeNull();
   fireEvent.keyDown(link, { key: 'Enter', code: 'Enter' });
   expect(draft().on).toBe(true);

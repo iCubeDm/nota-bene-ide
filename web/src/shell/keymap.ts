@@ -110,7 +110,7 @@ export function installKeymap(store: AppStore): () => void {
     const b = BINDINGS.find((x) => matches(x, e));
     if (!b || (!inField(b) && editable(e.target))) return;
     if (b.id !== 'hk_recent' && modalOpen()) return;
-    // Esc keeps its other meaning (stop the agent, Composer's own listener): it is not consumed here
+    // Esc is not consumed here: a widget under it may still close on it
     if (e.code !== 'Escape') e.preventDefault();
     b.run({ store, e });
   };

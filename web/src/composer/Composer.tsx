@@ -108,16 +108,6 @@ export function Composer() {
     if (conn === 'open') setFailed(false);
   }, [conn]);
 
-  // Esc interrupts while busy, unless something else already handled it
-  useEffect(() => {
-    if (!busy) return;
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented) dispatch(interrupt());
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [busy, dispatch]);
-
   const submit = (force: boolean) => {
     if (uploading || switching) return;
     const r = dispatch(sendBatch(force));

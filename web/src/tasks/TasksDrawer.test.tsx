@@ -98,16 +98,16 @@ describe('the drawer opens and closes', () => {
     expect(selectDrawerOpen(store.getState())).toBe(false);
   });
 
-  it('Esc closes it and the composer\'s Esc (interrupt) does not also fire', () => {
+  it('Esc closes it and never interrupts the agent', () => {
     const { store, sent, task, ev } = setup();
     task(start('a'));
-    ev({ kind: 'user', id: 'u1', text: 'go', ts: 1 }); // busy: the composer would interrupt on Esc
+    ev({ kind: 'user', id: 'u1', text: 'go', ts: 1 }); // busy
     fireEvent.click(indicator()!);
     fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape', bubbles: true });
     expect(selectDrawerOpen(store.getState())).toBe(false);
     expect(sent.some((m) => m.type === 'interrupt')).toBe(false);
-    fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape', bubbles: true }); // second Esc: the usual meaning
-    expect(sent.some((m) => m.type === 'interrupt')).toBe(true);
+    fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape', bubbles: true }); // a second Esc: still not a stop
+    expect(sent.some((m) => m.type === 'interrupt')).toBe(false);
   });
 
   it('a click outside closes it; a click inside does not', () => {

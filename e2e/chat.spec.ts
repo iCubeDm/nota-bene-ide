@@ -97,22 +97,19 @@ test('force send interrupts @slow', async ({ page }) => {
   await expect(page.getByText(WORKING)).toBeHidden();
 });
 
-test('Esc and Stop interrupt @slow', async ({ page }) => {
+test('only Stop interrupts; Esc leaves the turn running @slow', async ({ page }) => {
   await open(page);
   const stop = page.getByRole('button', { name: /^(Stop the agent|Остановить агента)/ });
-  const a = uniq('to be escaped');
-  const b = uniq('to be stopped');
+  const a = uniq('to be stopped');
 
   await send(page, a);
   await expect(stop).toBeEnabled();
   await page.keyboard.press('Escape');
-  await expect(donesAfter(page, a).first()).toHaveText(INTERRUPTED);
-  await expect(stop).toBeDisabled();
-
-  await send(page, b);
+  await page.locator('body').press('Escape');
   await expect(stop).toBeEnabled();
+  await expect(donesAfter(page, a)).toHaveCount(0);
   await stop.click();
-  await expect(donesAfter(page, b).first()).toHaveText(INTERRUPTED);
+  await expect(donesAfter(page, a).first()).toHaveText(INTERRUPTED);
   await expect(stop).toBeDisabled();
 });
 
