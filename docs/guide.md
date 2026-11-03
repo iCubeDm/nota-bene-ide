@@ -359,6 +359,10 @@ The store keeps what it read after the transcripts themselves are gone. Sessions
 
 An installed window asks the npm registry for the latest version at most once in 6 hours. The request carries no project, session or account data. When a newer version is out, the header shows `↑ <version>` with how to update; **Later** hides it until the next version. Turn the check off in Settings → Defaults, for every window of that agent; `NOTA_BENE_NO_UPDATE_CHECK=1` turns it off whatever Settings say. A source checkout never checks.
 
+### Audit log
+
+Every window writes what happens in it to `~/.nota-bene/audit/YYYY-MM-DD.jsonl`, one JSON line per event: the server starting and stopping, the page connecting and disconnecting, each send, stop, permission answer, mode or model change, each tool call by name, each turn's end and how it ended (done, interrupted, failed), tasks, API retries and errors. The windows share one file a day; `port` and `pid` tell them apart. It is for working out afterwards why something happened, for instance what stopped a turn. It never holds the text of messages, comments, commands, tool input or output: only names, ids, counts and times. Files are private to you, kept 14 days, at most 50 MB a day. Nothing leaves the machine. Turn it off in Settings → Defaults, for every window of that agent.
+
 ## State on disk
 
 All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME` to use another folder. `npm run dev` of a source checkout uses `~/.nota-bene-dev`.
@@ -377,6 +381,7 @@ All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME`
 | `history/<sessionId>.jsonl` | the conversation before each compaction |
 | `cache/blend/` | `.blend` files converted for the 3D tab (safe to delete) |
 | `trash/` | what Settings, Storage, Clean moved |
+| `audit/YYYY-MM-DD.jsonl` | the audit log of system events of every window ([Audit log](#audit-log)) |
 | `usage/` | the Usage tab: token counts of every project and short labels (the first 64 characters of a prompt, a subagent's description) |
 
 The one exception is media marks: `<project>/.nota-bene/marks/<comment id>/frame.jpg` and `layer.png`, with a `.nota-bene/.gitignore` containing `*`. They are the only thing Nota Bene writes into a project folder.

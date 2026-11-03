@@ -286,6 +286,8 @@ export const ptBR: Dict = {
   defMode: 'Modo do agente para projetos sem modo próprio',
   defUpdate: 'Verificar novas versões no npm',
   defUpdateEnv: 'Desativado por NOTA_BENE_NO_UPDATE_CHECK',
+  defAudit: 'Gravar um log de eventos do sistema',
+  defAuditHint: (dir: string) => `As janelas registram o que acontece (turnos, paradas, erros, conexões) em ${dir}: um arquivo por dia, mantido por 14 dias. Nunca o texto de mensagens, comentários ou comandos.`,
   aboutVersion: 'Versão',
   aboutState: 'Pasta de estado',
   aboutLogs: 'Logs',

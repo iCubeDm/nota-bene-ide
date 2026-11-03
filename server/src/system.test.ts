@@ -205,6 +205,18 @@ describe('defaults and about', () => {
     vi.unstubAllEnvs();
   });
 
+  it('the audit log is on until turned off; prefs name its folder', async () => {
+    const s = await boot();
+    const read = async () => (await fetch(`${s.url}/system/prefs`)).json() as Promise<{ audit: boolean; auditDir: string }>;
+    const got = await read();
+    expect(got.audit).toBe(true);
+    expect(got.auditDir).toBe(path.join(process.env.NOTA_BENE_HOME!, 'audit'));
+    expect((await post(`${s.url}/system/prefs`, { audit: 'no' }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { audit: false }, { origin: s.origin })).status).toBe(200);
+    expect(await read()).toMatchObject({ audit: false });
+    expect(readPrefs().audit).toBe(false);
+  });
+
   it('the default mode is stored and validated', async () => {
     const s = await boot();
     expect(await (await fetch(`${s.url}/system/prefs`)).json()).toMatchObject({ defaultMode: 'auto' });

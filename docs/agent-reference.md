@@ -136,6 +136,15 @@ Restart semantics: ↻ restarts the agent, not the server process; it stays avai
 
 Smoke hygiene (manual run with the real agent): restart the server before reloading the page (a new page against an old server is the reverse version skew); use a temp `NOTA_BENE_HOME`, a temp `CLAUDE_JOURNAL_VAULT` (or the agent in the temp project follows the global journal protocol and writes into the real vault) on port 4790. Afterwards move the temp projects' transcripts (`~/.claude/projects/-private-tmp-nb-*`) to the Trash, or they clutter the session picker.
 
+## Audit log
+
+When a window misbehaved (a stopped turn, a lost connection, a crash loop), read its audit log before guessing: `<NOTA_BENE_HOME>/audit/YYYY-MM-DD.jsonl` (UTC days), one JSON object per line with `ts` (ISO, UTC), `port`, `pid`, `ev` and the event's fields. `ev` is `server-start` (`root`, `agent`, `node`, `supervised`), `server-stop`, `server-exit` (`code`: 75 is the user's restart), `ws-open` / `ws-close` (`conn`, `code`; 4001 is a takeover), `client` (what the page asked: `type` is the client message type, `conn` the socket; `send` has `chars`, `force`, `comments`, `images`), `event` (what the server told the page: `kind` as in the protocol, `turn-end` has `stop` and `secs`, `tool-call` has `tool`) and `agent-system` (an SDK system message the chat does not show: `subtype`, retry numbers, a short `error`). A turn that ended `interrupted` was stopped by a `client` `interrupt` (the stop button), a `send` with `force`, or a `restart` just before it. Text is never there, so quote what you find freely.
+
+```sh
+jq -c 'select(.port == 4778)' ~/.nota-bene/audit/2026-11-03.jsonl | tail -50
+jq -c 'select(.ev == "client" and .type == "interrupt")' ~/.nota-bene/audit/*.jsonl
+```
+
 ## You may be running inside this tool
 
 If the project root is this directory, the chat window you are talking through is most likely served by the rebuild (root).

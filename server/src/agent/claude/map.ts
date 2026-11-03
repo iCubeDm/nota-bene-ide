@@ -4,9 +4,10 @@ export type { SDKMessage };
 import { MODES, TASK_ID, TOOL_USE_ID, taskKind } from '@nota-bene/shared';
 import type { AgentEvent, Mode, SlashCommand, WireAgentEvent } from '@nota-bene/shared';
 import { toSlash } from './commands.ts';
+import { auditNote, type Fields } from '../../audit.ts';
 
 /**
- * The one place that knows the Claude SDK's frame shapes (R-M7-13). Pure: one frame gives zero or more events.
+ * The one place that knows the Claude SDK's frame shapes (R-M7-13). Pure but for the audit note of what it drops: one frame gives zero or more events.
  * It carries the reading that used to sit in the consumers (web feed/tasks/controls, session pump, stats), so
  * the rest of the app sees only AgentEvent. Real shapes: server/test/fixtures/real-frames.json.
  */
@@ -112,6 +113,8 @@ function system(m: Frame): AgentEvent[] {
     case 'task_started': case 'task_progress': case 'task_updated': case 'task_notification':
       return task(m);
     default:
+      // not shown, but worth knowing afterwards (API retries and errors, hooks): the audit log gets its name and numbers
+      auditNote('agent-system', systemFields(m));
       return [];
   }
 }
@@ -199,3 +202,17 @@ export async function* mapFrames(frames: AsyncIterable<SDKMessage>): AsyncGenera
 
 /** The events a client may get (R-M7-14): `init`, `rate-limit` and `commands` stay in the server. */
 export const isWire = (e: AgentEvent): e is WireAgentEvent => e.t !== 'init' && e.t !== 'rate-limit' && e.t !== 'commands';
+
+/** The safe part of a system message nobody shows: its kind and plain numbers or names, never content or output. */
+function systemFields(m: Frame): Fields {
+  const r = m as unknown as Record<string, unknown>;
+  const f: Fields = { subtype: str(m.subtype) ?? null };
+  for (const k of ['attempt', 'max_retries', 'retry_delay_ms', 'error_status', 'hook_name', 'hook_event', 'exit_code', 'outcome']) {
+    const v = r[k];
+    if (typeof v === 'number' || typeof v === 'boolean' || (typeof v === 'string' && v.length <= 80)) f[k] = v;
+  }
+  const err = r.error;
+  const text = typeof err === 'string' ? err : err && typeof err === 'object' ? (err as { message?: unknown }).message : undefined;
+  if (typeof text === 'string') f.error = text.replace(/\s+/g, ' ').slice(0, 300);
+  return f;
+}

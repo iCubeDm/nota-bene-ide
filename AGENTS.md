@@ -12,6 +12,7 @@ Load the reference relevant to the task; do not read every document at startup.
 - Development, launcher and packaging: [agent reference](docs/agent-reference.md#rebuild-root).
 - Auth, state, socket and protocol invariants: [agent reference](docs/agent-reference.md#access-token).
 - Running inside a Nota Bene window: [runtime precautions](docs/agent-reference.md#you-may-be-running-inside-this-tool).
+- Why a window did something (a stopped turn, a dropped socket): its [audit log](docs/agent-reference.md#audit-log).
 - User-facing behavior: [docs/guide.md](docs/guide.md).
 - Release checks and packaging: [agent reference](docs/agent-reference.md#releasing).
 

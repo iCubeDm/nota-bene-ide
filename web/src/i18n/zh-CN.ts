@@ -286,6 +286,8 @@ export const zhCN: Dict = {
   defMode: '没有自己模式的项目所用的代理模式',
   defUpdate: '在 npm 上检查新版本',
   defUpdateEnv: '已被 NOTA_BENE_NO_UPDATE_CHECK 关闭',
+  defAudit: '记录系统事件审计日志',
+  defAuditHint: (dir: string) => `窗口会把发生的事情（回合、停止、错误、连接）记录到 ${dir}：每天一个文件，保留 14 天。绝不记录消息、评论或命令的文本。`,
   aboutVersion: '版本',
   aboutState: '状态文件夹',
   aboutLogs: '日志',

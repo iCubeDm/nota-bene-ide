@@ -16,7 +16,8 @@ import { isUiLang, MODES, type AgentMode as Mode } from '@nota-bene/shared';
 import { SecretError, stateSecret, verifiedBearer } from './auth.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
-import { readPrefs, setDefaultModePref, setLangPref, setUpdateCheckPref } from './prefs.ts';
+import { readPrefs, setAuditPref, setDefaultModePref, setLangPref, setUpdateCheckPref } from './prefs.ts';
+import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
 import { stateDir } from './state.ts';
 import { updateCheck, updateCheckForcedOff } from './update.ts';
@@ -323,15 +324,17 @@ export function systemRoutes(o: {
     '/system/prefs': (req, res) => {
       if (req.method === 'POST') {
         void readJson(req).then((b) => {
-          const { defaultMode: mode, lang, ifUnset, updateCheck } = b as { defaultMode?: unknown; lang?: unknown; ifUnset?: unknown; updateCheck?: unknown };
-          if (mode === undefined && lang === undefined && updateCheck === undefined) return text(res, 400, 'bad defaultMode');
+          const { defaultMode: mode, lang, ifUnset, updateCheck, audit } = b as { defaultMode?: unknown; lang?: unknown; ifUnset?: unknown; updateCheck?: unknown; audit?: unknown };
+          if (mode === undefined && lang === undefined && updateCheck === undefined && audit === undefined) return text(res, 400, 'bad defaultMode');
           if (mode !== undefined && !((o.modes ?? MODES) as readonly unknown[]).includes(mode)) return text(res, 400, 'bad defaultMode');
           if (lang !== undefined && !isUiLang(lang)) return text(res, 400, 'bad lang');
           if (updateCheck !== undefined && typeof updateCheck !== 'boolean') return text(res, 400, 'bad updateCheck');
+          if (audit !== undefined && typeof audit !== 'boolean') return text(res, 400, 'bad audit');
           if (mode !== undefined) setDefaultModePref(mode as Mode);
           if (lang !== undefined) setLangPref(lang, ifUnset === true);
           if (updateCheck !== undefined) setUpdateCheckPref(updateCheck);
-          json(res, 200, { ...(mode !== undefined ? { defaultMode: mode } : {}), ...(lang !== undefined ? { lang: readPrefs().lang ?? lang } : {}), ...(updateCheck !== undefined ? { updateCheck } : {}) });
+          if (audit !== undefined) setAuditPref(audit);
+          json(res, 200, { ...(mode !== undefined ? { defaultMode: mode } : {}), ...(lang !== undefined ? { lang: readPrefs().lang ?? lang } : {}), ...(updateCheck !== undefined ? { updateCheck } : {}), ...(audit !== undefined ? { audit } : {}) });
         }).catch((e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/system/prefs', e)));
         return;
       }
@@ -341,6 +344,8 @@ export function systemRoutes(o: {
         defaultMode: prefs.defaultMode ?? (o.modes?.includes('auto') ? 'auto' : o.modes?.[0] ?? 'auto'),
         updateCheck: !updateCheckForcedOff() && prefs.updateCheck !== false,
         updateCheckForcedOff: updateCheckForcedOff(),
+        audit: prefs.audit !== false,
+        auditDir: auditDir(),
       });
     },
 

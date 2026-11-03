@@ -136,6 +136,20 @@ it('Defaults: the update check is switched on the server; the variable leaves th
   expect(screen.getByText('Off by NOTA_BENE_NO_UPDATE_CHECK')).toBeInTheDocument();
 });
 
+it('Defaults: the audit log is on by default, names its folder and is switched on the server', async () => {
+  let prefs: unknown = { defaultMode: 'auto', audit: true, auditDir: '/home/u/.nota-bene/audit' };
+  const real = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, init) => (url === '/system/prefs' && !init?.method ? Response.json(prefs) : real(url, init)));
+  setup();
+  const box = await screen.findByRole('checkbox', { name: 'Write an audit log of system events' });
+  expect(box).toBeChecked();
+  expect(screen.getByText(/to \/home\/u\/\.nota-bene\/audit, one file a day/)).toBeInTheDocument();
+  prefs = { defaultMode: 'auto', audit: false, auditDir: '/home/u/.nota-bene/audit' };
+  fireEvent.click(box);
+  await waitFor(() => expect(posts).toContainEqual({ url: '/system/prefs', body: { audit: false } }));
+  await waitFor(() => expect(box).not.toBeChecked());
+});
+
 it('Defaults: the mode is saved on the server; About shows the version', async () => {
   setup();
   const mode = await screen.findByRole('combobox', { name: 'Agent mode for projects without their own' });
