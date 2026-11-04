@@ -61,13 +61,15 @@ it('Stop is disabled when idle and Esc does nothing', async () => {
   expect(sent).toHaveLength(0);
 });
 
-it('when busy: status shows, Ctrl+Enter forces, only the stop button stops (Esc does not)', async () => {
+const busyNow = (store: ReturnType<typeof setup>['store']) => act(() => {
+  store.dispatch({ type: 'server/event', payload: { kind: 'user', id: 'u1', text: 'x', ts: 0 } });
+});
+
+it('when busy: status shows, Ctrl+Enter twice forces, only the stop button stops (Esc does not)', async () => {
   const { sent, store, box } = setup(true);
-  act(() => {
-    store.dispatch({ type: 'server/event', payload: { kind: 'user', id: 'u1', text: 'x', ts: 0 } });
-  });
+  busyNow(store);
   expect(screen.getByText('agent is working…')).toBeInTheDocument();
-  await userEvent.type(box, 'now{Control>}{Enter}{/Control}');
+  await userEvent.type(box, 'now{Control>}{Enter}{Enter}{/Control}');
   expect(sent[0]).toMatchObject({ type: 'send', text: 'now', force: true });
   await userEvent.keyboard('{Escape}');
   box.blur();
@@ -95,11 +97,49 @@ it('a failed send is forgotten once the socket reopens: a later drop shows no st
   expect(screen.queryByText('no connection to the server…')).toBeNull();
 });
 
-it('Ctrl+Shift+Enter forces', async () => {
+it('Ctrl+Shift+Enter forces, after the same confirmation', async () => {
   const { sent, store, box } = setup(true);
-  act(() => {
-    store.dispatch({ type: 'server/event', payload: { kind: 'user', id: 'u1', text: 'x', ts: 0 } });
-  });
-  await userEvent.type(box, 'go{Control>}{Shift>}{Enter}{/Shift}{/Control}');
+  busyNow(store);
+  await userEvent.type(box, 'go{Control>}{Shift>}{Enter}{Enter}{/Shift}{/Control}');
   expect(sent[0]).toMatchObject({ text: 'go', force: true });
+});
+
+it('when busy, the first Ctrl+Enter only warns; the button confirms', async () => {
+  const { sent, store, box } = setup(true);
+  busyNow(store);
+  await userEvent.type(box, 'now{Control>}{Enter}{/Control}');
+  expect(sent).toHaveLength(0);
+  expect(screen.getByRole('alert')).toHaveTextContent('The agent will be interrupted');
+  expect(box.value).toBe('now');
+  await userEvent.click(screen.getByRole('button', { name: 'Interrupt and send' }));
+  expect(sent).toEqual([expect.objectContaining({ type: 'send', text: 'now', force: true })]);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('the warning is cancelled by Esc, by its Cancel button, or by a plain Enter that injects instead', async () => {
+  const { sent, store, box } = setup(true);
+  busyNow(store);
+  await userEvent.type(box, 'a{Control>}{Enter}{/Control}{Escape}');
+  expect(screen.queryByRole('alert')).toBeNull();
+  await userEvent.keyboard('{Control>}{Enter}{/Control}');
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(sent).toHaveLength(0);
+  box.focus();
+  await userEvent.keyboard('{Control>}{Enter}{/Control}{Enter}');
+  expect(sent).toEqual([expect.objectContaining({ text: 'a', force: false })]);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('the warning goes when the turn ends; idle, Ctrl+Enter sends at once', async () => {
+  const { sent, store, box } = setup(true);
+  busyNow(store);
+  await userEvent.type(box, 'a{Control>}{Enter}{/Control}');
+  expect(screen.getByRole('alert')).toBeInTheDocument();
+  act(() => {
+    store.dispatch({ type: 'server/event', payload: { kind: 'agent', e: { t: 'turn-end', stop: 'done', secs: 1, answers: 'all', queued: 0 }, ts: 1 } });
+  });
+  expect(screen.queryByRole('alert')).toBeNull();
+  await userEvent.keyboard('{Control>}{Enter}{/Control}');
+  expect(sent).toEqual([expect.objectContaining({ text: 'a', force: false })]); // nothing to interrupt: a plain send
 });

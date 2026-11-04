@@ -117,7 +117,7 @@ and on single frames of a video:
 
 ## Features
 
-- Chat with Claude Code or Codex. A message sent while the agent works is injected into the running turn; Cmd/Ctrl+Enter interrupts the agent and sends.
+- Chat with Claude Code or Codex. A message sent while the agent works is injected into the running turn; Cmd/Ctrl+Enter interrupts the agent and sends, after a confirmation.
 - Margin comments on any reply, on your own messages and on any open file, sent as one batch. Eleven one-click labels (Looks good, Clarify this, Verify this, and others).
 - Markup on images and video frames with a rectangle, ellipse, pen or arrow, and a comment on the marked frame.
 - File tree and viewers: Markdown, highlighted code, images, video and audio with seeking. Mermaid and SVG diagrams render in the chat.
