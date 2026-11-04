@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add omp (https://omp.sh, 18.16.0+) as a third agent: `--agent omp` speaks the Agent
+  Client Protocol to `omp acp`, with streamed replies, tool rows, approval and question
+  cards, sessions (list, resume, fork, rename, clear), models, effort, cost and four
+  modes (Write, Ask, Plan, Yolo); a new project starts in Write. An omp skill (`/skill:nb`) opens the window from omp.
+  Not available over ACP: subagent tabs, task controls, compaction events and file search.
+
 ## 1.4.0 — 2026-11-03
 
 - Git in the header: a branch picker over the worktrees and branches next to your checkout, a Changes view of uncommitted work or of a whole branch, and the Git log. All read-only; a dot marks a branch whose Nota Bene window has the agent at work.

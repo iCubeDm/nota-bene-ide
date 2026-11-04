@@ -78,6 +78,8 @@ it('a read-only install runs: --find / --last answer, a window serves /info and 
   }
   expect(fs.readFileSync(path.join(pkg, 'codex/skills/nb/SKILL.md'), 'utf8')).toContain('name: nb');
   expect(fs.existsSync(path.join(pkg, 'codex/skills/nb/open.mjs'))).toBe(true);
+  expect(fs.readFileSync(path.join(pkg, 'omp/skills/nb/SKILL.md'), 'utf8')).toContain('name: nb');
+  expect(fs.existsSync(path.join(pkg, 'omp/skills/nb/open.mjs'))).toBe(true);
   const before = snapshot(pkg);
 
   expect(run(['--find', project]).status).toBe(1); // no window yet

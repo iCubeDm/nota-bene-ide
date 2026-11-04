@@ -62,7 +62,7 @@ export const renameSession = async (id: string, title: string): Promise<string |
  */
 export function SessionPicker() {
   const t = useT();
-  const codex = useAppSelector((s) => s.controls.capabilities?.provider === 'codex');
+  const provider = useAppSelector((s) => s.controls.capabilities?.provider);
   const dispatch = useAppDispatch();
   const busy = useAppSelector(selectBusy);
   const switching = useAppSelector(selectSwitching);
@@ -148,7 +148,7 @@ export function SessionPicker() {
             ref={trigger}
             type="button"
             id="sessBtn"
-            title={t(codex ? 'sessTipCodex' : 'sessTip')}
+            title={t(provider === 'codex' ? 'sessTipCodex' : provider === 'omp' ? 'sessTipOmp' : 'sessTip')}
             disabled={off}
             className="inline-flex flex-none items-center gap-1 rounded border border-border-soft px-2 py-px font-mono text-[11px] text-muted-foreground hover:enabled:border-primary hover:enabled:text-foreground disabled:cursor-default disabled:opacity-35"
           >
@@ -255,7 +255,7 @@ export function SessionPicker() {
       {ask && v && (
         <ConfirmDialog
           title={ask.id ? t('openQ', ask.title) : t('newQ')}
-          body={`${ask.dir !== v.root ? t('moveQ', ask.dir) : ''}${t(codex ? 'switchWarnCodex' : 'switchWarn')}`.trim()}
+          body={`${ask.dir !== v.root ? t('moveQ', ask.dir) : ''}${t(provider === 'codex' ? 'switchWarnCodex' : provider === 'omp' ? 'switchWarnOmp' : 'switchWarn')}`.trim()}
           confirm={t('switchBtn')}
           onConfirm={() => {
             setAsk(null);

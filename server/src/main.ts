@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { SecretError, isNonce } from './auth.ts';
 import { fakeFromScript } from './agent/fake.ts';
 import { codexBackend } from './agent/codex/backend.ts';
+import { ompBackend } from './agent/acp/omp.ts';
 import { sdkBackend } from './agent/claude/sdk.ts';
 import { startServer } from './server.ts';
 import { hitRecorder, limitRecorder } from './usage/routes.ts';
@@ -13,7 +14,7 @@ import { lastSession, stateDir } from './state.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
 
 const USAGE =
-  'Usage: node server/src/main.ts [dir] [--agent claude|codex] [--port N] [--resume ID [--fork]] [--new] [--continue] [--fake script.json] [--allow-origin URL]';
+  'Usage: node server/src/main.ts [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--continue] [--fake script.json] [--allow-origin URL]';
 
 export function parseArgs(
   argv: string[],
@@ -112,7 +113,8 @@ async function main(): Promise<void> {
   process.env.NOTA_BENE_AGENT = args.agent ?? 'claude';
   const backend = args.fake
     ? fakeFromScript(JSON.parse(fs.readFileSync(args.fake, 'utf8')), args.dir)
-    : args.agent === 'codex' ? codexBackend() : sdkBackend();
+    : args.agent === 'codex' ? codexBackend() : args.agent === 'omp' ? ompBackend() : sdkBackend();
+  const native = args.agent === 'codex' || args.agent === 'omp';
   // the launcher's launch nonce (public, but it stays out of the agent's and the `!` commands' environment all the same)
   const nonce = isNonce(process.env.NOTA_BENE_NONCE) ? process.env.NOTA_BENE_NONCE : undefined;
   delete process.env.NOTA_BENE_NONCE;
@@ -123,10 +125,10 @@ async function main(): Promise<void> {
       cwd: args.dir,
       port: args.port,
       backend,
-      ...(args.agent === 'codex' ? (args.resume ? { resume: args.resume, ...(args.fork ? { fork: true } : {}) } : !args.new && lastSession(args.dir) ? { resume: lastSession(args.dir)! } : {}) : launchTarget(args)),
+      ...(native ? (args.resume ? { resume: args.resume, ...(args.fork ? { fork: true } : {}) } : !args.new && lastSession(args.dir) ? { resume: lastSession(args.dir)! } : {}) : launchTarget(args)),
       webDist,
       allowedOrigins: args.allowOrigins,
-      ...(args.agent !== 'codex' && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),
+      ...(!native && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),
       ...(nonce ? { nonce } : {}),
       audit: {},
     });

@@ -9,7 +9,7 @@ export function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'perm
   const [values, setValues] = useState<Record<string, string>>({});
   const prompt = item.prompt;
   useEffect(() => { if (item.answer !== undefined) setValues({}); }, [item.answer]);
-  const choiceLabel = (label: string) => ({ accept: t('allow'), decline: t('deny'), cancel: t('cancel'), acceptForSession: t('allowSession'), 'Allow for this turn': t('allowTurn'), 'Allow for this session': t('allowSession'), 'Deny': t('deny'), 'Cancel': t('cancel'), 'Accept': t('allow'), 'Decline': t('deny'), 'Send answers': t('sendAnswers') })[label] ?? label;
+  const choiceLabel = (label: string) => /^Approve .+ for this session$/.test(label) ? t('allowSession') : ({ accept: t('allow'), decline: t('deny'), cancel: t('cancel'), acceptForSession: t('allowSession'), 'Allow for this turn': t('allowTurn'), 'Allow for this session': t('allowSession'), 'Deny': t('deny'), 'Cancel': t('cancel'), 'Accept': t('allow'), 'Decline': t('deny'), 'Send answers': t('sendAnswers'), 'Approve': t('allow'), 'Allow once': t('allow'), 'Always allow': t('allowAlways'), 'Reject': t('deny'), 'Always reject': t('denyAlways') })[label] ?? label;
   const title = prompt?.title === 'Additional Codex permissions' ? t('codexPermissions') : prompt?.title === 'MCP request' ? t('nativeMcpRequest') : prompt?.title;
   const resolved = item.answer !== undefined;
   const body = String(item.input.command ?? item.input.file_path ?? JSON.stringify(item.input, null, 2));

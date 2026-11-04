@@ -19,8 +19,8 @@ Load the reference relevant to the task; do not read every document at startup.
 ## Development constraints
 
 - Checkout requires Node >=23.6; it runs server TypeScript directly. Published package supports Node >=22.
-- Preserve existing Claude and Codex features and behavior. Both direct backends are shipped.
-  ACP remains a future separate backend; unify abstractions after it is working.
+- Preserve existing Claude, Codex and omp features and behavior. All three backends are shipped;
+  omp runs on the generic ACP adapter (`server/src/agent/acp/`), so another ACP agent is a profile there.
 - Keep provider SDK shapes inside their adapters. Use the shared event contract and explicit capabilities.
 - Prefer focused changes and composition; preserve persistence and session-generation invariants.
 - Every feature merged into `main` supports every UI language: user-visible text goes through `web/src/i18n`, and each
