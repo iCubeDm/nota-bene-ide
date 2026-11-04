@@ -155,3 +155,25 @@ it('a ref that is a branch stays a branch, whatever it looks like', () => {
   act(() => { store.dispatch(openChanges()); store.dispatch(openLog()); });
   expect(selectTabs(store.getState()).open.map((t) => t.id)).toEqual(expect.arrayContaining(['changes', 'log']));
 });
+
+it('the Tree checkbox shows the files as folders, folds a folder, filters, and is remembered', async () => {
+  const f = (path: string) => ({ path, status: 'M' as const, add: 1, del: 0, binary: false });
+  diff = repo({ files: [f('README.md'), f('server/src/agent/codex/map.ts'), f('server/src/main.ts'), f('web/src/i18n/ru.ts')] });
+  setup(<ChangesPanel />);
+  act(() => setPanel(true));
+  const box = await screen.findByRole('checkbox', { name: 'Tree' });
+  expect(box).not.toBeChecked();
+  expect(screen.getByRole('button', { name: /map\.ts/ })).toHaveTextContent('server/src/agent/codex'); // flat: the folder after the name
+  fireEvent.click(box);
+  expect(localStorage.getItem('panel:changes:tree')).toBe('1');
+  const rows = () => [...document.querySelectorAll('#changes-sheet .nb-thin button')].map((b) => b.textContent);
+  expect(rows()).toEqual(['▾server/src', '▾agent/codex', 'Mmap.ts', 'Mmain.ts', '▾web/src/i18n', 'Mru.ts', 'MREADME.md']);
+  fireEvent.click(screen.getByRole('button', { name: /agent\/codex/ }));
+  expect(rows()).toEqual(['▾server/src', '▸agent/codex', 'Mmain.ts', '▾web/src/i18n', 'Mru.ts', 'MREADME.md']);
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Filter files' }), { target: { value: 'ru' } });
+  expect(rows()).toEqual(['▾web/src/i18n', 'Mru.ts']);
+  cleanup();
+  setup(<ChangesPanel />);
+  act(() => setPanel(true));
+  expect(await screen.findByRole('checkbox', { name: 'Tree' })).toBeChecked();
+});

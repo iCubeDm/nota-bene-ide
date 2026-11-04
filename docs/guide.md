@@ -212,6 +212,8 @@ In a git repository the left strip has two more buttons. Both only read: nothing
 
 Git does not record a branch's parent. X is the branch named in the record of its creation, and otherwise the default branch (`origin/HEAD`, then `main`, then `master`). The choice is kept per project and per branch.
 
+The file list is flat, each name followed by its folder; **Tree** shows the same files as folders (a folder holding just one folder is one row, `server/src`), each folds with a click, and the choice is remembered.
+
 The list shows at most 3000 files and a patch at most 3 MB; the view says when something was cut. `node_modules`, `.nota-bene` and the state folder are never shown. If git does not answer, the view says so and keeps the last result.
 
 **Git log** is a tab with the commit graph of all branches or of the branch shown, at most the latest 400 commits. The filter dims what does not match by text, author or hash, and a chip of a branch switches the view to it. Click a commit for its message, its files and the diff of one file; the card's width can be dragged.

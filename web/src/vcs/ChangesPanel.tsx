@@ -5,11 +5,14 @@ import { PanelResizer, usePanelWidth } from '@/shell/PanelResizer.tsx';
 import { openChanges } from '@/tabs/slice.ts';
 import { selectTree } from '@/tree/slice.ts';
 import { StatusMark } from './DiffBody.tsx';
+import { fileTree, type TreeDir } from './fileTree.ts';
 import { currentFile, focusFile, loadDiff, pickBase, setPanel, useVcsUi } from './store.ts';
 import { useLiveDiff } from './useLiveDiff.ts';
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 const dir = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+const TREE_KEY = 'panel:changes:tree';
+const readTree = () => { try { return localStorage.getItem(TREE_KEY) === '1'; } catch { return false; } };
 
 /** The tool window next to Files: what changed, from where. Clicking a file jumps to it in the Changes tab. */
 export function ChangesPanel() {
@@ -22,6 +25,13 @@ export function ChangesPanel() {
   const files = repo?.files ?? [];
   const size = usePanelWidth('panel:changes:width', 300, 200);
   const [filter, setFilter] = useState('');
+  const [tree, setTreeView] = useState(readTree);
+  const [shut, setShut] = useState<ReadonlySet<string>>(new Set()); // folders of the tree folded by hand
+  const setTree = (on: boolean) => {
+    setTreeView(on);
+    try { localStorage.setItem(TREE_KEY, on ? '1' : '0'); } catch { /* storage unavailable: not persisted */ }
+  };
+  const toggle = (path: string) => setShut((s) => { const n = new Set(s); if (!n.delete(path)) n.add(path); return n; });
   useEffect(() => { if (treeOpen) setPanel(false); }, [treeOpen]); // a reveal opened Files
   if (!panel) return null;
   const add = files.reduce((n, f) => n + (f.add ?? 0), 0), del = files.reduce((n, f) => n + (f.del ?? 0), 0);
@@ -29,6 +39,13 @@ export function ChangesPanel() {
   const shown = files.filter((f) => f.path.toLowerCase().includes(filter.trim().toLowerCase()));
   const value = picked === 'BASE' || (picked && repo?.candidates.includes(picked)) ? picked : ''; // a stored branch may be gone
   const how = value === 'BASE' && repo?.how === 'reflog' ? t('vcsHowReflog') : value === 'BASE' && repo?.how === 'default' ? t('vcsHowDefault') : '';
+  const fileRow = (f: (typeof files)[number], depth?: number) => (
+    <button key={f.path} type="button" title={f.path} onClick={() => { d(openChanges()); focusFile(f.path); }} style={depth === undefined ? undefined : { paddingLeft: 6 + depth * 14 }} className={`flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[12.5px] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
+      <StatusMark s={f.status} />
+      <span className="flex-none truncate text-foreground">{base(f.path)}</span>
+      {depth === undefined && <span className="min-w-0 truncate text-[11px] text-muted-foreground">{dir(f.path)}</span>}
+    </button>
+  );
   return (
     <aside id="changes-sheet" style={{ width: size.width, maxWidth: '45vw' }} className="relative flex flex-none flex-col border-r border-border-soft bg-chrome">
       <PanelResizer edge="right" width={size.width} onWidth={size.set} onReset={size.reset} min={200} label={t('vcsPanelWidth')} />
@@ -49,6 +66,11 @@ export function ChangesPanel() {
           </label>
           <div className="mx-3 mt-2 flex flex-none items-center gap-2 font-mono text-[11px] text-muted-foreground">
             <span>{t('vcsNofM', shown.length, files.length)}</span><span className="text-success">+{add}</span><span className="text-destructive">−{del}</span>
+            <span className="flex-1" />
+            <label className="flex cursor-pointer items-center gap-1 font-sans">
+              <input type="checkbox" checked={tree} onChange={(e) => setTree(e.target.checked)} className="accent-primary" />
+              {t('vcsTree')}
+            </label>
           </div>
           {!!repo.commits.length && (
             <details className="mx-2 mt-1.5 flex-none text-[12px] text-muted-foreground">
@@ -61,16 +83,34 @@ export function ChangesPanel() {
           )}
           <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterFiles')} aria-label={t('vcsFilterFiles')} className="mx-2 mt-2 mb-1 h-[30px] flex-none rounded-lg border border-transparent bg-muted/50 px-2.5 text-[12.5px] text-foreground outline-0 focus:border-primary/50" />
           <div className="nb-thin min-h-0 flex-1 overflow-auto px-1.5 pb-3">
-            {shown.map((f) => (
-              <button key={f.path} type="button" title={f.path} onClick={() => { d(openChanges()); focusFile(f.path); }} className={`flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[12.5px] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
-                <StatusMark s={f.status} />
-                <span className="flex-none truncate text-foreground">{base(f.path)}</span>
-                <span className="min-w-0 truncate text-[11px] text-muted-foreground">{dir(f.path)}</span>
-              </button>
-            ))}
+            {tree ? (
+              <Folder d={fileTree(shown)} depth={0} shut={shut} toggle={toggle} row={(f, depth) => fileRow(f, depth)} />
+            ) : shown.map((f) => fileRow(f))}
           </div>
         </>
       )}
     </aside>
+  );
+}
+
+/** A folder of the tree view and what is under it; the root draws no row of its own. */
+function Folder<F extends { path: string }>({ d, depth, shut, toggle, row }: { d: TreeDir<F>; depth: number; shut: ReadonlySet<string>; toggle: (path: string) => void; row: (f: F, depth: number) => React.ReactNode }) {
+  const open = !shut.has(d.path);
+  const inner = depth + (d.path ? 1 : 0);
+  return (
+    <>
+      {d.path && (
+        <button type="button" aria-expanded={open} title={d.path} onClick={() => toggle(d.path)} style={{ paddingLeft: 6 + depth * 14 }} className="flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[12.5px] text-muted-foreground hover:bg-muted">
+          <span aria-hidden className="w-3 flex-none text-[10px]">{open ? '▾' : '▸'}</span>
+          <span className="min-w-0 truncate">{d.name}</span>
+        </button>
+      )}
+      {open && (
+        <>
+          {d.dirs.map((s) => <Folder key={s.path} d={s} depth={inner} shut={shut} toggle={toggle} row={row} />)}
+          {d.files.map((f) => row(f, inner))}
+        </>
+      )}
+    </>
   );
 }

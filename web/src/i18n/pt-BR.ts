@@ -321,6 +321,7 @@ export const ptBR: Dict = {
   vcsHowReflog: 'pelo registro de criação do branch',
   vcsHowDefault: 'branch padrão',
   vcsFilterFiles: 'Filtrar arquivos',
+  vcsTree: 'Árvore',
   vcsPanelWidth: 'Largura do painel',
   vcsNoChanges: 'Sem alterações',
   vcsTooBig: 'O arquivo é grande demais: só o início é mostrado',

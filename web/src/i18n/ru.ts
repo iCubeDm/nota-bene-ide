@@ -329,6 +329,7 @@ export const ru = {
   vcsHowReflog: 'по записи о создании ветки',
   vcsHowDefault: 'ветка по умолчанию',
   vcsFilterFiles: 'Фильтр файлов',
+  vcsTree: 'Дерево',
   vcsPanelWidth: 'Ширина панели',
   vcsNoChanges: 'Изменений нет',
   vcsTooBig: 'Файл слишком большой: показано только начало',

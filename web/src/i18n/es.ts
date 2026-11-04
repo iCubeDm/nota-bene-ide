@@ -321,6 +321,7 @@ export const es: Dict = {
   vcsHowReflog: 'según el registro de creación de la rama',
   vcsHowDefault: 'rama predeterminada',
   vcsFilterFiles: 'Filtrar archivos',
+  vcsTree: 'Árbol',
   vcsPanelWidth: 'Ancho del panel',
   vcsNoChanges: 'Sin cambios',
   vcsTooBig: 'El archivo es demasiado grande: solo se muestra el principio',

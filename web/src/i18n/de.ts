@@ -321,6 +321,7 @@ export const de: Dict = {
   vcsHowReflog: 'laut Erstellungseintrag des Branches',
   vcsHowDefault: 'Standard-Branch',
   vcsFilterFiles: 'Dateien filtern',
+  vcsTree: 'Baum',
   vcsPanelWidth: 'Panelbreite',
   vcsNoChanges: 'Keine Änderungen',
   vcsTooBig: 'Die Datei ist zu groß: Nur der Anfang wird angezeigt',
