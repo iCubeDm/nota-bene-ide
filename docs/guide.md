@@ -288,7 +288,7 @@ The mode pill under the message box, or Shift+Tab in the box, cycles through:
 | Plan | Only reads and thinks, changes nothing, and ends with a plan to approve. |
 | Auto | A classifier approves safe actions itself and asks about the rest. |
 
-The mode is saved per project folder. The model and effort pill in the header sets the model and the effort (Low, Medium, High, Extra high, Max); a change applies from the next reply, and the pill warns when it makes the next reply re-read the whole context.
+The mode is saved per project folder. The model and effort pill in the header sets the model and the effort (Low, Medium, High, Extra high, Max); a change applies from the next reply, and the pill warns when it makes the next reply re-read the whole context. A long list (a router such as OpenRouter offers dozens of models) has a search field at the top, scrolls inside the menu and is grouped by provider, the provider in use first.
 
 ### Settings
 

@@ -430,6 +430,8 @@ export const de: Dict = {
   mode_auto_desc: 'Ein Klassifizierer genehmigt sichere Aktionen selbst, fragt bei den übrigen',
   modelTip: 'Modell und Effort · eine Änderung gilt ab der nächsten Antwort',
   modelOthers: 'Andere Versionen',
+  modelSearch: 'Modelle suchen',
+  modelNone: 'Kein Modell gefunden',
   modelUnknown: 'Standard',
   effortLabel: 'Effort',
   effort_low: 'Niedrig',

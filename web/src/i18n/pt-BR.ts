@@ -430,6 +430,8 @@ export const ptBR: Dict = {
   mode_auto_desc: 'Um classificador aprova sozinho as ações seguras e pergunta sobre o resto',
   modelTip: 'Modelo e esforço · a mudança vale a partir da próxima resposta',
   modelOthers: 'Outras versões',
+  modelSearch: 'Buscar modelos',
+  modelNone: 'Nenhum modelo encontrado',
   modelUnknown: 'Padrão',
   effortLabel: 'Esforço',
   effort_low: 'Baixo',

@@ -445,6 +445,8 @@ export const en: Dict = {
   // model and effort
   modelTip: 'Model and effort · a change applies from the next reply',
   modelOthers: 'Other versions',
+  modelSearch: 'Search models',
+  modelNone: 'No model matches',
   modelUnknown: 'Default',
   effortLabel: 'Effort',
   effort_low: 'Low',
