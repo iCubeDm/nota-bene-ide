@@ -202,3 +202,60 @@ it('13 rows are too long: aliases first, explicit ids under a collapsed "Other v
   const m2 = await open();
   expect(within(m2).getByText('Sonnet 5')).toBeInTheDocument(); // the model in use is listed there: shown open
 });
+
+const ROUTER: ModelOption[] = [
+  ...['fable-5', 'haiku-5-5', 'opus-5', 'opus-5-5', 'sonnet-5', 'sonnet-5-5'].map((m) => ({ value: `anthropic/claude-${m}`, name: `Claude ${m}`, description: `anthropic/claude-${m}` })),
+  ...['gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-flash'].map((m) => ({ value: `google/${m}`, name: m, description: `google/${m}` })),
+  { value: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', description: 'openai/gpt-oss-120b' },
+  { value: 'local-model', name: 'Local', description: 'no provider' },
+];
+
+it('a router\'s list: grouped by provider, the provider in use first; it scrolls inside the menu', async () => {
+  const { emit } = setup();
+  emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: ROUTER }, { kind: 'model', model: 'google/gemini-3-flash' });
+  const menu = await open();
+  const groups = within(menu).getAllByRole('group').filter((g) => g.getAttribute('aria-label') !== 'Effort');
+  expect(groups.map((g) => g.getAttribute('aria-label'))).toEqual(['google', 'anthropic', 'openai']);
+  expect(within(groups[0]!).getAllByRole('menuitem').map((r) => r.querySelector('b')?.textContent)).toEqual(['gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-flash']);
+  expect(within(menu).getByText('Local')).toBeInTheDocument(); // no provider: listed too, without a header
+  expect(within(menu).queryByText(/Other versions/)).toBeNull();
+  expect(screen.getByTestId('model-list').className).toMatch(/overflow-y-auto/);
+});
+
+it('a long list has a search field, focused on open: every word must match the name, id or description', async () => {
+  const { emit, sent } = setup();
+  emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: ROUTER }, { kind: 'model', model: 'anthropic/claude-opus-5' });
+  const menu = await open();
+  const search = within(menu).getByRole('searchbox', { name: 'Search models' });
+  await vi.waitFor(() => expect(search).toHaveFocus());
+  await userEvent.type(search, 'opus 5-5');
+  expect(within(menu).getAllByRole('menuitem').map((r) => r.querySelector('b')?.textContent)).toEqual(['Claude opus-5-5']);
+  await userEvent.clear(search);
+  await userEvent.type(search, 'google flash');
+  expect(within(menu).getAllByRole('menuitem').map((r) => r.querySelector('b')?.textContent)).toEqual(['gemini-3-flash', 'gemini-2.5-flash']);
+  await userEvent.keyboard('{ArrowDown}');
+  expect(within(menu).getByText('gemini-3-flash').closest('[role="menuitem"]')).toHaveFocus();
+  await userEvent.keyboard('{Enter}');
+  expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'google/gemini-3-flash' });
+});
+
+it('search: nothing found says so; Esc clears the query first, then closes', async () => {
+  const { emit } = setup();
+  emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: ROUTER }, { kind: 'model', model: 'anthropic/claude-opus-5' });
+  const menu = await open();
+  const search = within(menu).getByRole('searchbox');
+  await userEvent.type(search, 'zzz');
+  expect(within(menu).getByText('No model matches')).toBeInTheDocument();
+  await userEvent.keyboard('{Escape}');
+  expect(search).toHaveValue('');
+  expect(screen.getByRole('menu')).toBeInTheDocument();
+  await userEvent.keyboard('{Escape}');
+  expect(screen.queryByRole('menu')).toBeNull();
+});
+
+it('a short list has no search field', async () => {
+  const { ready } = setup();
+  ready();
+  const menu = await open();
+  expect(within(menu).queryByRole('searchbox')).toBeNull();
+});
