@@ -40,5 +40,6 @@ it('every release pin follows package.json', () => {
   expect((JSON.parse(read('package-lock.json')) as { version: string }).version).toBe(version);
   expect(read('codex/skills/nb/SKILL.md')).toContain(`--package=nota-bene-ide@${version} `);
   expect(read('server/src/agent/codex/rpc.ts')).toContain(`title: 'Nota Bene', version: '${version}'`);
+  expect(read('server/src/agent/acp/rpc.ts')).toContain(`CLIENT_VERSION = '${version}'`);
   for (const pin of read('README.md').match(/nota-bene-ide@\d+\.\d+\.\d+/g) ?? []) expect(pin).toBe(`nota-bene-ide@${version}`);
 });

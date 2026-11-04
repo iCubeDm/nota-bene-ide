@@ -271,6 +271,15 @@ it('structured questions send actual typed answers and stop accepting input afte
   expect(screen.queryByLabelText('Colour')).toBeNull();
 });
 
+it('ACP permission options and omp approval answers read as the UI\'s own words', () => {
+  const { store } = setup();
+  act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'acp', toolName: 'omp', input: { command: 'echo hi' }, prompt: { title: 'echo hi', choices: [{ id: 'allow_once', label: 'Allow once', allow: true }, { id: 'allow_always', label: 'Always allow', allow: true }, { id: 'reject_once', label: 'Reject' }, { id: 'reject_always', label: 'Always reject' }] }, ts: 1 })); });
+  expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Allow', 'Always allow', 'Deny', 'Always reject']);
+  act(() => { store.dispatch(serverEvent({ kind: 'permission-done', id: 'acp', allow: true, ts: 2 })); });
+  act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'form', toolName: 'omp', input: { path: 'hello.txt' }, prompt: { title: 'Allow tool: write', choices: [{ id: 'Approve', label: 'Approve', allow: true }, { id: 'Approve write for this session', label: 'Approve write for this session', allow: true }, { id: 'Deny', label: 'Deny' }] }, ts: 3 })); });
+  expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Allow', 'Allow for this session', 'Deny']);
+});
+
 it('native compaction with unknown token count does not display an invented zero', () => {
   const { store, view } = setup();
   act(() => { store.dispatch(serverEvent({ kind: 'agent', e: { t: 'compacted' }, ts: 0 })); });

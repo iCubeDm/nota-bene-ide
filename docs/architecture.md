@@ -4,12 +4,14 @@ State as of 2026-11-03, release 1.4.0 on `main`.
 
 ## 1. Overview
 
-Nota Bene is a local web application. One **window** is one server process, one project folder, one port from 4777 to 4799 and one agent session (Claude Code or Codex). The provider is fixed at launch; session discovery and persisted state are scoped to it. One browser tab works with the window (the owner); other tabs see "the window is already open" and can take it over.
+Nota Bene is a local web application. One **window** is one server process, one project folder, one port from 4777 to 4799 and one agent session (Claude Code, Codex or omp). The provider is fixed at launch; session discovery and persisted state are scoped to it. One browser tab works with the window (the owner); other tabs see "the window is already open" and can take it over.
 
-Both providers implement the same `AgentBackend` / `AgentSession` contract. The
+All providers implement the same `AgentBackend` / `AgentSession` contract. The
 server selects one at startup; the browser consumes normalized events and declared
-capabilities. Claude SDK types and Codex RPC frames stay inside their adapters.
-ACP remains a future backend.
+capabilities. Claude SDK types, Codex RPC frames and ACP frames stay inside their adapters.
+omp runs on a generic ACP adapter (`agent/acp/`): transport, mapper and session are
+agent-neutral; `acp/omp.ts` is the profile with omp's binary, launch flags, approval-form
+wording, hidden commands and error texts.
 
 ```mermaid
 flowchart TB
@@ -31,9 +33,12 @@ flowchart TB
     SDK["agent/claude: Claude Agent SDK"]
     CX["agent/codex: session, mapper, controls"]
     RPC["CodexRpc: JSON-RPC over stdio"]
+    ACP["agent/acp: session, mapper, omp profile"]
+    ARPC["AcpRpc: ACP JSON-RPC over stdio"]
   end
   CLI["Claude Code CLI (SDK-owned child)"]
   CODEX["codex app-server (adapter-owned child)"]
+  OMP["omp --approval-mode M acp (adapter-owned child)"]
   L["bin/nota-bene.mjs: launcher and supervisor"]
   WSC <--> WSS
   HTTPC --> HTTP
@@ -44,6 +49,7 @@ flowchart TB
   SM --> AB
   AB --> SDK --> CLI
   AB --> CX --> RPC --> CODEX
+  AB --> ACP --> ARPC --> OMP
   HTTP --> FR
   HTTP --> STORES
   L -- "spawn, exit code 75 = restart" --> Server
@@ -58,8 +64,9 @@ flowchart TB
 | `web/` | React 19, Redux Toolkit 2, Radix UI, Tailwind 4, Vite 8. Markdown on `marked` + `dompurify` + `highlight.js` + `mermaid`. Fonts (Inter, Geist Mono) are bundled; the page makes no request to a font service. |
 | `bin/nota-bene.mjs` | The launcher: port choice, folder lock, rebuild of a stale `web/dist`, supervision, and the helpers `--find`, `--last`, `--url`, `--front`. |
 | `codex/` | Codex marketplace plugin (`plugin.json`) and CLI/Desktop skill (`skills/nb/`). `.agents/plugins/marketplace.json` selects this plugin for Codex. |
+| `omp/skills/nb/` | The omp skill (`/skill:nb`): `open.mjs` opens a detached omp window, `new`, or a fork of the invoking omp session. |
 | `plugin/skills/nb/` | The `/nb` skill for Claude Code (inside the plugin `plugin/`): `open.sh --plan / --wait / --run`. |
-| `e2e/` | Playwright on scripted fake agents, plus Codex browser acceptance through a fixture app-server (`codex.config.ts`). |
+| `e2e/` | Playwright on scripted fake agents, plus Codex and omp browser acceptance through fixture agents (`codex.config.ts`, `omp.config.ts`). |
 
 ## 2. Processes and lifecycle
 
@@ -111,7 +118,7 @@ stays and loads, and only a Claude session would need the binary. No global npm 
 or manual skill copy is required. The helper selects `--agent codex`, handles
 CLI/Desktop lifetime and redacts browser login fragments from its output.
 
-The npm archive contains the compiled application and standalone Codex skill;
+The npm archive contains the compiled application and the standalone Codex and omp skills;
 the marketplace manifest and bootstrap instructions are distributed separately
 from GitHub. Each `v<version>` tag identifies the exact npm source; repository-only
 plugin/docs additions may follow it on `main`. Publishing a plugin update does not replace

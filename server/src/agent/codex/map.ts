@@ -1,10 +1,9 @@
 import { createHash } from 'node:crypto';
 import { cutTail, type AgentEvent } from '@nota-bene/shared';
 import type { SendImage } from '../types.ts';
+import { array, record, string } from '../json.ts';
 
-export const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-export const string = (value: unknown): string => typeof value === 'string' ? value : '';
-export const array = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
+export { record, string, array };
 const CAP = 64 * 1024;
 
 /** Native ids are opaque, never paths. The same transform is used for live/replay/routes. */

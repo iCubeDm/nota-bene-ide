@@ -1,6 +1,6 @@
 # Nota Bene
 
-A browser IDE over Claude Code and Codex: the chat with the agent, inline margin comments on any reply or file (sent as one batch), file tree, media viewer, sessions. Claude uses the Agent SDK; Codex uses its installed CLI app-server (0.166.0+).
+A browser IDE over Claude Code, Codex and omp: the chat with the agent, inline margin comments on any reply or file (sent as one batch), file tree, media viewer, sessions. Claude uses the Agent SDK; Codex uses its installed CLI app-server (0.166.0+); omp runs over ACP (`omp acp`, 18.16.0+).
 
 ## Layout
 
@@ -20,6 +20,7 @@ Node >= 23.6 (the server runs `.ts` directly). From the repo root:
 - `npm run dev` — (login: `npm run dev:open`, see Access token) server on 4780 (`node --watch`, with `--allow-origin http://localhost:5173`) + Vite on 5173 (proxies `/info` and `/ws` to the server). Open http://localhost:5173. Dev has its own state dir, `~/.nota-bene-dev` (set `NOTA_BENE_HOME` to override), so experiments never touch the working `~/.nota-bene`; the server logs `state: <dir>` at startup.
 - `npm test` — unit tests (Vitest, ports are 0 / random). All projects set a fixed default provider and clear inherited supervision flags, so a run inside a Claude or Codex window has the same baseline. Provider tests override it explicitly.
 - `npm run e2e:codex` — Codex browser acceptance; run separately from `npm run e2e` because they share ports.
+- `npm run e2e:omp` — omp browser acceptance on the scripted ACP agent `server/test/fixtures/acp-server.mjs`; also run separately.
 - `npm run e2e` — Playwright, ports 4791-4795. The `files` project uses `ffmpeg` on PATH to generate its media fixtures at startup; without it the media tests are skipped with a message (`NB_E2E_FFMPEG=0` forces that path).
 
 - `node scripts/build-package.mjs [--out DIR]` — builds the publishable npm package into `pkg/` (git-ignored; never publishes): esbuild bundles `server/src/main.ts` and `bin/nota-bene.mjs` to plain JS at the same depth (`server/src/main.js`, `bin/nota-bene.mjs`; `@nota-bene/shared` inlined, `ws` and the Agent SDK external), a FRESH `web/dist` (own outDir, emptied; the local `web/dist` keeps its old chunks), the two blend assets, LICENSE, README and a generated `package.json`. The name (`PACKAGE_NAME`, now `nota-bene-ide`; the command is `nota-bene`) and the Node floor live as constants in that script; the version is the root `package.json` `version` (the root stays `private`). Installed, there is no `web/src`: the launcher never builds, `/info.codeChanged` is false (no `.ts`), About reads the package version, and nothing is written next to the code (state is in `NOTA_BENE_HOME`). Test: `bin/package.test.ts`.
@@ -45,9 +46,9 @@ State lives in `~/.nota-bene/` (override with `NOTA_BENE_HOME`), never in the re
 
 ## Providers
 
-Launch with `--agent claude|codex` (Claude by default). Each window stays bound to
-one backend. Claude state remains at the base `NOTA_BENE_HOME`; Codex uses
-`providers/codex` under that base. Window discovery, locks, secrets, preferences,
+Launch with `--agent claude|codex|omp` (Claude by default). Each window stays bound to
+one backend. Claude state remains at the base `NOTA_BENE_HOME`; Codex and omp use
+`providers/codex` and `providers/omp` under that base. Window discovery, locks, secrets, preferences,
 comments and archives are isolated. The session picker only lists its provider.
 
 Codex's native transport, event mapper, paginated history and lifecycle live in
@@ -59,6 +60,14 @@ standalone skills use the bundled launcher or PATH. The npm runtime and reposito
 plugin are separate distribution artifacts; adding marketplace metadata does not
 replace an already published npm version.
 See the guide's Codex section for API gaps; do not infer parity from the shared UI.
+
+omp runs on the generic ACP adapter in `server/src/agent/acp/` (`rpc.ts`, `map.ts`,
+`session.ts`, `backend.ts`); everything omp-specific is the `OMP` profile in `acp/omp.ts`.
+Keep ACP frame shapes inside that folder and omp wording inside the profile. omp is
+spawned as `omp --approval-mode <m> acp` (flags before `acp`), needs
+`clientCapabilities.elicitation.form` (without it omp denies tool approvals) and keeps
+its sessions in its default storage (never pass `--session-dir`). The omp skill is
+`omp/skills/nb/`.
 
 ## Workflow
 
@@ -79,7 +88,7 @@ A release follows the workflow above, then publishes from a tag on `main`.
 1. Open an issue for the release; its body is the changelog of the version.
 2. Bump the version on the issue's branch. Root `package.json` is the version source.
    Keep its lockfile root entries, `plugin/.claude-plugin/plugin.json`, `codex/plugin.json`,
-   the npm pin in `codex/skills/nb/SKILL.md`, the Codex client metadata, the README pins
+   the npm pin in `codex/skills/nb/SKILL.md`, the Codex and ACP client metadata (`CLIENT_VERSION` in `server/src/agent/acp/rpc.ts`), the README pins
    and the `docs/architecture.md` header in sync.
 3. Move the notes under `## Unreleased` in CHANGELOG to the version's section. Update README
    and guide for user-visible changes. Keep AGENTS.md short; CLAUDE.md imports it and this

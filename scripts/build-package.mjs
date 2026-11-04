@@ -41,15 +41,15 @@ export function packageJson() {
   return {
     name: PACKAGE_NAME,
     version: rootJson.version,
-    description: 'A browser IDE over Claude Code and Codex: agent chat, inline margin comments sent as one batch, a file tree and viewers.',
+    description: 'A browser IDE over Claude Code, Codex and omp: agent chat, inline margin comments sent as one batch, a file tree and viewers.',
     license: 'Apache-2.0',
     repository: { type: 'git', url: 'git+https://github.com/iCubeDm/nota-bene-ide.git' },
     type: 'module',
     bin: { [BIN]: 'bin/nota-bene.mjs' },
-    files: ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/blend', 'web/dist', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'codex/skills/nb'],
+    files: ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/blend', 'web/dist', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'codex/skills/nb', 'omp/skills/nb'],
     engines: { node: NODE_RANGE },
     dependencies: runtimeDependencies(),
-    keywords: ['claude', 'claude-code', 'codex', 'ide', 'agent'],
+    keywords: ['claude', 'claude-code', 'codex', 'omp', 'ide', 'agent'],
   };
 }
 
@@ -84,6 +84,7 @@ export async function buildPackage({ out = path.join(ROOT, 'pkg'), skipWeb = fal
   fs.mkdirSync(path.join(out, 'server/src/blend'), { recursive: true });
   for (const f of ['export.py', 'sandbox.sb']) fs.copyFileSync(path.join(ROOT, 'server/src/blend', f), path.join(out, 'server/src/blend', f));
   fs.cpSync(path.join(ROOT, 'codex/skills/nb'), path.join(out, 'codex/skills/nb'), { recursive: true });
+  fs.cpSync(path.join(ROOT, 'omp/skills/nb'), path.join(out, 'omp/skills/nb'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'CHANGELOG.md'), path.join(out, 'CHANGELOG.md'));
   fs.copyFileSync(path.join(ROOT, 'LICENSE'), path.join(out, 'LICENSE'));
   fs.copyFileSync(path.join(ROOT, 'README.md'), path.join(out, 'README.md'));

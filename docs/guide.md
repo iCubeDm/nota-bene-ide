@@ -1,6 +1,6 @@
 # Nota Bene guide
 
-Nota Bene is a browser window over Claude Code or Codex. Claude is the default; use `--agent codex` for Codex CLI or local Desktop. This guide covers starting it, each feature with an example, the security model, where state is kept, and what to do when something goes wrong. For a short introduction see the [README](https://github.com/iCubeDm/nota-bene-ide/blob/main/README.md); for how it is built see [architecture](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/architecture.md).
+Nota Bene is a browser window over Claude Code, Codex or omp. Claude is the default; use `--agent codex` for Codex CLI or local Desktop, `--agent omp` for omp. This guide covers starting it, each feature with an example, the security model, where state is kept, and what to do when something goes wrong. For a short introduction see the [README](https://github.com/iCubeDm/nota-bene-ide/blob/main/README.md); for how it is built see [architecture](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/architecture.md).
 
 Contents
 
@@ -54,8 +54,8 @@ npx nota-bene-ide [dir] [options]
 | `--new` | Start a fresh session. Cannot be combined with `--resume`. |
 | `--detach` | Start the window on its own and return after printing one line, `opened URL` or `already-open URL`. The log is `$TMPDIR/nota-bene-PORT.log`. |
 | `--no-open` | Do not open the browser. |
-| `--url PORT` | Print the login URL of the window on PORT. Use it to log in a second browser. For a Codex window add `--agent codex`. |
-| `--front PORT` | Bring the window on PORT to the front in the browser, logged in. For a Codex window add `--agent codex`. |
+| `--url PORT` | Print the login URL of the window on PORT. Use it to log in a second browser. For a Codex or omp window add `--agent codex` or `--agent omp`. |
+| `--front PORT` | Bring the window on PORT to the front in the browser, logged in. For a Codex or omp window add `--agent codex` or `--agent omp`. |
 
 Without `--detach` the launcher stays in the foreground; Ctrl-C stops the server and closes the window. The first line it prints after any build is `Nota Bene: URL  project: DIR`.
 
@@ -74,7 +74,7 @@ The launcher supervises the server. When you pick "Restart the server" in the wi
 
 ## One window per folder, one tab per window
 
-A folder has at most one window per provider. Claude and Codex can each have a window on the same folder. Launching again on a folder that is already open (with `/nb` or `nota-bene`) does not start a second server for that provider: it brings the existing window to the front. If the window is in the middle of a restart, the launch waits up to 10 seconds for it.
+A folder has at most one window per provider. Claude, Codex and omp can each have a window on the same folder. Launching again on a folder that is already open (with `/nb` or `nota-bene`) does not start a second server for that provider: it brings the existing window to the front. If the window is in the middle of a restart, the launch waits up to 10 seconds for it.
 
 A window also has one owner tab. Open the same address in a second browser tab and that tab shows "The window is already open in another tab". Press **Work here** to take the window over: the first tab then shows "Open in another tab" and stops. A reload of the owner tab within a moment is not counted as a second tab.
 
@@ -491,3 +491,36 @@ termination of a running terminal when its owning session closes. It makes no
 paid model calls. Native ChatGPT account discovery was checked separately without
 reading credentials; the existing Claude browser suite also remains part of the
 acceptance run.
+
+## omp support
+
+Select omp at launch: `nota-bene . --agent omp --detach`. The window spawns
+`omp acp` (omp 18.16.0 or newer; `NOTA_BENE_OMP` can select the executable) and uses
+omp's own login, models and session storage. A window on an older omp says so and
+starts no session. State is under the Nota Bene state root's `providers/omp`.
+
+Modes map to omp's approval levels: **Write** (shell and exec ask), **Ask**
+(every write and exec asks), **Plan** (omp's read-only plan mode; writes ask) and **Yolo**
+(omp's own default: nothing asks except restricted folders and critical commands). A new
+project starts in Write, not in omp's Yolo; Settings → Defaults picks another start mode,
+and each project keeps the mode last chosen in it.
+Switching to another approval level (Yolo, Write, or Ask/Plan) restarts the omp process on the same
+conversation and is refused while the agent is working; switching between Ask and Plan happens in place.
+
+Implemented flows: new, resume, fork, list and switch of omp sessions; streamed
+replies; tool rows; approval cards for shell (Allow, Always allow, Deny, Always
+reject) and for writes; the `ask` tool's questions with a free-text answer; a message
+sent while omp works joins the running turn; Stop; `/clear`; rename of the open
+conversation; model (the current model's provider first, the others under **Other
+providers**) and effort; context use and session cost.
+
+Not available over ACP: subagent tabs (a `task` call shows only its progress text),
+task stop/background/output controls, compaction events and `@` file search.
+Renaming a session other than the open one is refused; open it first.
+
+From omp, install the skill once (`ln -sfn "$PWD/omp/skills/nb" ~/.omp/agent/skills/nb`
+from a checkout), then `/skill:nb` opens or brings forward the window for the current
+folder, `/skill:nb new` starts a fresh conversation and `/skill:nb fork` continues the
+invoking omp conversation as a branch. The window runs detached; Stop in the window
+ends it. Do not keep working in the same conversation from an omp terminal while the
+window owns it.

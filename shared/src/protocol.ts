@@ -103,7 +103,9 @@ export const TAKEN_OVER_CODE = 4001;
 
 export const MODES = ['default', 'acceptEdits', 'plan', 'auto'] as const;
 export const CODEX_MODES = ['codex-configured', 'codex-read-only', 'codex-workspace', 'codex-full-access'] as const;
-export const ALL_MODES = [...MODES, ...CODEX_MODES] as const;
+/** Write first: a new project starts there (omp's own default, yolo, asks about nothing) */
+export const OMP_MODES = ['omp-write', 'omp-ask', 'omp-plan', 'omp-yolo'] as const;
+export const ALL_MODES = [...MODES, ...CODEX_MODES, ...OMP_MODES] as const;
 export type Mode = (typeof MODES)[number];
 export type AgentMode = (typeof ALL_MODES)[number];
 
@@ -132,7 +134,7 @@ export type Capabilities = {
   compact: boolean; clear: boolean; modes: AgentMode[]; usage: boolean; fileSuggestions: boolean; fork: boolean; idleCompact: boolean; models: boolean;
   /** the server runs with the experimental 3D viewer on (env NOTA_BENE_EXPERIMENTAL_3D=1); absent / false: model files are plain files. Set by the server, not by the agent. */
   model3d?: boolean;
-  provider?: 'claude' | 'codex';
+  provider?: 'claude' | 'codex' | 'omp';
   modeDescriptors?: { id: AgentMode; name: string; description: string }[];
   taskBackground?: boolean;
   taskOutput?: boolean;

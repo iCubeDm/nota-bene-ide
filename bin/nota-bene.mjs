@@ -44,7 +44,7 @@ const SELF = fileURLToPath(import.meta.url);
 // the source checkout runs the server's .ts directly; the published package ships it compiled (Node does not strip types
 // under node_modules) at the same relative place
 const MAIN = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/main.js')) ? 'server/src/main.js' : 'server/src/main.ts');
-const USAGE = 'Usage: nota-bene [dir] [--agent claude|codex] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]\n'
+const USAGE = 'Usage: nota-bene [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]\n'
   + '       nota-bene --find DIR [--scan] | --last DIR | --url PORT | --front PORT\n'
   + '       nota-bene --help | --version';
 const DEV_BACKEND_PORT = 4780; // `npm run dev`'s server (scripts/dev.mjs, web/vite.config.ts)
@@ -405,7 +405,7 @@ export async function loginTarget(base) {
 
 function last(dir) {
   const id = lastSession(realDir(dir));
-  if (!id || (process.env.NOTA_BENE_AGENT !== 'codex' && !transcriptExists(id))) return 1;
+  if (!id || (process.env.NOTA_BENE_AGENT === 'claude' && !transcriptExists(id))) return 1;
   process.stdout.write(`${id}\n`);
   return 0;
 }
