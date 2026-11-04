@@ -143,10 +143,12 @@ it('a second Enter before the echo sends nothing', async () => {
   expect(sent).toHaveLength(1);
 });
 
-it('Cmd+Enter with comments while busy sends force:true', async () => {
+it('Cmd+Enter with comments while busy sends force:true, once confirmed', async () => {
   const { sent, store, box } = setup([cm('c1')]);
   act(() => void store.dispatch(serverEvent({ kind: 'user', id: 'u9', text: 'work', ts: 3 })));
   await userEvent.type(box, '{Meta>}{Enter}{/Meta}');
+  expect(sent).toHaveLength(0);
+  await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
   expect(sent).toHaveLength(1);
   expect(sentOf(sent[0]).force).toBe(true);
 });

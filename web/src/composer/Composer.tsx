@@ -46,6 +46,11 @@ export function Composer() {
   const [failed, setFailed] = useState(false);
   const [note, setNote] = useState('');
   const [dropping, setDropping] = useState(false);
+  // Cmd/Ctrl+Enter while the agent works would interrupt it: the first press only asks, a second one (or the button) confirms
+  const [askForce, setAskForce] = useState(false);
+  useEffect(() => {
+    if (!busy) setAskForce(false);
+  }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileIn = useRef<HTMLInputElement>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -110,6 +115,11 @@ export function Composer() {
 
   const submit = (force: boolean) => {
     if (uploading || switching) return;
+    if (force && busy && !askForce) {
+      setAskForce(true);
+      return;
+    }
+    setAskForce(false);
     const r = dispatch(sendBatch(force));
     if (r === 'empty' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
@@ -128,6 +138,11 @@ export function Composer() {
     if (e.key === 'Tab' && e.shiftKey && !e.nativeEvent.isComposing && mode && caps.modes.length > 1) {
       e.preventDefault();
       dispatch(pickMode(nextMode(mode, caps.modes)));
+      return;
+    }
+    if (e.key === 'Escape' && askForce) {
+      e.preventDefault(); // the document hotkeys skip it
+      setAskForce(false);
       return;
     }
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
@@ -150,6 +165,18 @@ export function Composer() {
         {note && <span className="text-warn">{note}</span>}
         <CtxNudge />
       </div>
+      {askForce && (
+        <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-foreground">
+          <span>{t('forceAsk')}</span>
+          <span className="grow" />
+          <Button type="button" size="sm" variant="destructive" className="h-7" onClick={() => submit(true)}>
+            {t('forceYes')}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => { setAskForce(false); ref.current?.focus(); }}>
+            {t('forceNo')}
+          </Button>
+        </div>
+      )}
       <Attachments
         data-testid="composer-thumbs"
         ids={images.map((i) => i.id)}

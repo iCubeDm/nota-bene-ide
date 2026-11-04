@@ -83,13 +83,19 @@ test('mid-turn send is marked while working @slow', async ({ page }) => {
   await expect(page.getByText(WORKING)).toBeHidden();
 });
 
-test('force send interrupts @slow', async ({ page }) => {
+test('force send asks first, then interrupts @slow', async ({ page }) => {
   await open(page);
   const a = uniq('first force');
   const b = uniq('second force');
   await send(page, a);
   await expect(page.getByText(WORKING)).toBeVisible();
   await send(page, b, 'Control+Enter');
+  // the first press only warns: nothing is sent, the turn goes on
+  await expect(page.getByRole('alert')).toContainText(/will be interrupted|будет прерван/);
+  await expect(bubble(page, b)).toHaveCount(0);
+  await expect(donesAfter(page, a)).toHaveCount(0);
+  await composer(page).press('Control+Enter');
+  await expect(page.getByRole('alert')).toBeHidden();
   await expect(bubble(page, b)).toContainText(/interrupted the agent|прервал/);
   await expect(donesAfter(page, a).nth(0)).toHaveText(INTERRUPTED);
   // the forced message's own turn completes normally
