@@ -321,6 +321,7 @@ export const zhCN: Dict = {
   vcsHowReflog: '来自分支创建记录',
   vcsHowDefault: '默认分支',
   vcsFilterFiles: '筛选文件',
+  vcsTree: '树状',
   vcsPanelWidth: '面板宽度',
   vcsNoChanges: '没有更改',
   vcsTooBig: '文件太大：只显示开头部分',

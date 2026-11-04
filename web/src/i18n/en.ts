@@ -330,6 +330,7 @@ export const en: Dict = {
   vcsHowReflog: 'from the record of the branch\'s creation',
   vcsHowDefault: 'default branch',
   vcsFilterFiles: 'Filter files',
+  vcsTree: 'Tree',
   vcsPanelWidth: 'Panel width',
   vcsNoChanges: 'No changes',
   vcsTooBig: 'This file is too large: only its start is shown',
