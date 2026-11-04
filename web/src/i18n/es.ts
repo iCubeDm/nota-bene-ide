@@ -431,6 +431,8 @@ export const es: Dict = {
   mode_auto_desc: 'Un clasificador aprueba por sí mismo las acciones seguras y pregunta por el resto',
   modelTip: 'Modelo y esfuerzo · un cambio se aplica desde la siguiente respuesta',
   modelOthers: 'Otras versiones',
+  modelSearch: 'Buscar modelos',
+  modelNone: 'Ningún modelo coincide',
   modelUnknown: 'Predeterminado',
   effortLabel: 'Esfuerzo',
   effort_low: 'Bajo',

@@ -431,6 +431,8 @@ export const zhCN: Dict = {
   mode_auto_desc: '由分类器自行批准安全的操作，其余的会询问',
   modelTip: '模型和强度 · 更改从下一次回复起生效',
   modelOthers: '其他版本',
+  modelSearch: '搜索模型',
+  modelNone: '没有匹配的模型',
   modelUnknown: '默认',
   effortLabel: '强度',
   effort_low: '低',

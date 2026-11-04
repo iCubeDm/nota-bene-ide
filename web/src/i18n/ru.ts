@@ -444,6 +444,8 @@ export const ru = {
   // model and effort
   modelTip: 'Модель и усилие · смена применяется со следующего ответа',
   modelOthers: 'Другие версии',
+  modelSearch: 'Поиск модели',
+  modelNone: 'Ничего не найдено',
   modelUnknown: 'По умолчанию',
   effortLabel: 'Усилие',
   effort_low: 'Низкое',
