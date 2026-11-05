@@ -2,12 +2,15 @@
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** m:ss, or h:mm:ss from an hour on. Anything not a finite non-negative number reads as 0:00. */
+/** m:ss.mmm, or h:mm:ss.mmm from an hour on. Anything not a finite non-negative number reads as 0:00.000. */
 export function formatTime(s: number): string {
-  const t = Number.isFinite(s) && s > 0 ? Math.floor(s) : 0;
+  // to the nearest ms: a float like 1.001 s is 1000.999… ms
+  const ms = Number.isFinite(s) && s > 0 ? Math.round(s * 1000) : 0;
+  const t = Math.floor(ms / 1000);
   const h = Math.floor(t / 3600);
   const m = Math.floor((t % 3600) / 60);
-  return h > 0 ? `${h}:${pad(m)}:${pad(t % 60)}` : `${m}:${pad(t % 60)}`;
+  const sec = `${pad(t % 60)}.${String(ms % 1000).padStart(3, '0')}`;
+  return h > 0 ? `${h}:${pad(m)}:${sec}` : `${m}:${sec}`;
 }
 
 export type MarkerIn = { id: string; time: number; text: string; dim: boolean };

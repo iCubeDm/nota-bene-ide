@@ -1,15 +1,18 @@
 import { expect, it } from 'vitest';
 import { formatTime, layoutMarkers } from './timelineMath.ts';
 
-it('formats m:ss, and h:mm:ss from an hour', () => {
-  expect(formatTime(5)).toBe('0:05');
-  expect(formatTime(5.9)).toBe('0:05');
-  expect(formatTime(90)).toBe('1:30');
-  expect(formatTime(3723)).toBe('1:02:03');
-  expect(formatTime(3600)).toBe('1:00:00');
-  expect(formatTime(NaN)).toBe('0:00');
-  expect(formatTime(-3)).toBe('0:00');
-  expect(formatTime(Infinity)).toBe('0:00');
+it('formats m:ss.mmm, and h:mm:ss.mmm from an hour', () => {
+  expect(formatTime(5)).toBe('0:05.000');
+  expect(formatTime(5.9)).toBe('0:05.900');
+  expect(formatTime(1.001)).toBe('0:01.001');
+  expect(formatTime(0.0004)).toBe('0:00.000');
+  expect(formatTime(59.9996)).toBe('1:00.000');
+  expect(formatTime(90.25)).toBe('1:30.250');
+  expect(formatTime(3723.042)).toBe('1:02:03.042');
+  expect(formatTime(3600)).toBe('1:00:00.000');
+  expect(formatTime(NaN)).toBe('0:00.000');
+  expect(formatTime(-3)).toBe('0:00.000');
+  expect(formatTime(Infinity)).toBe('0:00.000');
 });
 
 const c = (id: string, time: number, o: { dim?: boolean; text?: string } = {}) => ({ id, time, text: o.text ?? id, dim: o.dim ?? false });

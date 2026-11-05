@@ -11,6 +11,7 @@
   in Markdown; Mark (N) comments on an element, or on an area of an SVG diagram dragged as a box.
   The agent gets the place as a path of named elements and, for an area, its viewBox
   coordinates and what it covers. The page's scripts never run.
+- The player's clock and timeline show milliseconds: `1:02.345`, as comments already quote the time.
 
 ## 1.4.0 — 2026-11-03
 
