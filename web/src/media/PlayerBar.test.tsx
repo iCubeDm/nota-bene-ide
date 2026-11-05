@@ -73,9 +73,9 @@ it('play/pause button toggles through the player key logic and follows the eleme
 
 it('shows the time and the slider values', () => {
   const s = setup();
-  expect(screen.getByText('0:20 / 1:40')).toBeTruthy();
+  expect(screen.getByText('0:20.000 / 1:40.000')).toBeTruthy();
   const sl = s.slider();
-  expect([sl.getAttribute('aria-valuemin'), sl.getAttribute('aria-valuemax'), sl.getAttribute('aria-valuenow'), sl.getAttribute('aria-valuetext')]).toEqual(['0', '100', '20', '0:20 of 1:40']);
+  expect([sl.getAttribute('aria-valuemin'), sl.getAttribute('aria-valuemax'), sl.getAttribute('aria-valuenow'), sl.getAttribute('aria-valuetext')]).toEqual(['0', '100', '20', '0:20.000 of 1:40.000']);
 });
 
 it('a press on the timeline at x seeks to x/width of the duration; dragging keeps seeking, the pointer up ends it', () => {
@@ -94,7 +94,7 @@ it('a press on the timeline at x seeks to x/width of the duration; dragging keep
 it('the time tooltip follows the pointer', () => {
   const s = setup();
   fireEvent.pointerMove(s.slider(), { clientX: 500, pointerId: 1 });
-  expect(document.querySelector('[data-timeline-tip]')?.textContent).toBe('0:50');
+  expect(document.querySelector('[data-timeline-tip]')?.textContent).toBe('0:50.000');
   fireEvent.pointerLeave(s.slider());
   expect(document.querySelector('[data-timeline-tip]')).toBeNull();
 });
@@ -110,7 +110,7 @@ it('comment ticks: at their %, sent and other-version ones dimmed, near ones mer
   expect(ticks().map((t) => [t.dataset.marker, t.dataset.count, t.style.left])).toEqual([['old', '1', '10%'], ['a b', '2', '41%'], ['sent', '1', '80%']]);
   const dim = (t: HTMLElement) => (t.firstElementChild as HTMLElement).style.opacity;
   expect(ticks().map(dim)).toEqual(['1', '1', '0.45']);
-  expect(ticks()[1].getAttribute('aria-label')).toBe('0:41 · 2 comments');
+  expect(ticks()[1].getAttribute('aria-label')).toBe('0:41.000 · 2 comments');
   cleanup();
   // another version of the file is known now: the old one is dimmed too
   const { store } = setup({ comments: [comment('old', 10, { anchor: { ...(comment('x', 10).anchor as MediaAnchor), version: 'W/"1"' } })] });
@@ -123,7 +123,7 @@ it('hovering a tick tells the time, the count and the start of the text', () => 
   setup({ comments: [comment('a', 41, { text: 'x'.repeat(60) }), comment('b', 41.1)] });
   fireEvent.pointerEnter(ticks()[0], { pointerId: 1 });
   const tip = document.querySelector('[data-timeline-tip]')!;
-  expect(tip.textContent).toBe(`● 0:41 · 2 comments${'x'.repeat(40)}`);
+  expect(tip.textContent).toBe(`● 0:41.000 · 2 comments${'x'.repeat(40)}`);
   fireEvent.pointerLeave(ticks()[0], { pointerId: 1 });
   expect(document.querySelector('[data-timeline-tip]')).toBeNull();
 });
