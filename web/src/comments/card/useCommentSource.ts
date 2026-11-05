@@ -1,4 +1,4 @@
-import { isMediaAnchor, type Comment } from '@nota-bene/shared';
+import { isMediaAnchor, isPageAnchor, type Comment } from '@nota-bene/shared';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { scrollRangeIntoView } from '@/anchors/scroll.ts';
@@ -10,6 +10,8 @@ import { revealToolOf, TOOL_SRC } from '@/feed/uiSlice.ts';
 import { t } from '@/i18n/index.ts';
 import { selectReplyLabel, useAppDispatch, useAppSelector, type RootState } from '@/store/store.ts';
 import { whereOfFile } from '../send.ts';
+import { resolvePage } from '@/page/anchor.ts';
+import { pageRoot, textRootOf, usePageGen } from '@/page/frame.ts';
 
 /** How many times (100 ms apart) a jump into a subagent's tab waits for its conversation to be on screen. */
 const JUMP_TRIES = 40;
@@ -92,6 +94,8 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
   // a media comment: the file's current version, known while its tab is open (undefined = unknown, no claim)
   const version = useAppSelector((s) => (c && isMediaAnchor(c.anchor) ? selectFileVersion(s, c.anchor.source.path, c.anchor.source.ref) : undefined));
   const [orphan, setOrphan] = useState(false);
+  // a rendered page loads after its text (its frame): judged again once it is on screen
+  const pageGen = usePageGen();
 
   // a source missing from the feed is an orphan (also an interrupted `stream:N` reply after a restart); for a
   // settled item the DOM is the truth: only a rendered item whose text no longer matches counts
@@ -102,9 +106,14 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
     if (isMediaAnchor(c.anchor)) return setOrphan(false); // a media mark is drawn from relative coordinates: never orphaned
     if (!fileLoad || fileLoad.s === 'loading') return setOrphan(false);
     if (fileLoad.s === 'gone') return setOrphan(true);
-    const root = fileRoot(src.path, src.ref);
-    setOrphan(!!root && !rangeForAnchor(root, c.anchor));
-  }, [c, fileLoad]);
+    const pane = fileRoot(src.path, src.ref);
+    if (isPageAnchor(c.anchor)) {
+      // a page place is judged only against the page as rendered: the source view (or a page still loading) makes no claim
+      const page = pane && pageRoot(pane);
+      return setOrphan(!!page && !resolvePage(page.ownerDocument, c.anchor));
+    }
+    setOrphan(!!pane && !rangeForAnchor(textRootOf(pane), c.anchor));
+  }, [c, fileLoad, pageGen]);
   useEffect(() => {
     const src = c?.anchor.source;
     if (src?.kind === 'file') return;

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { isMediaAnchor, type Comment } from '@nota-bene/shared';
+import { isMediaAnchor, isPageAnchor, type Comment, type PageAnchor } from '@nota-bene/shared';
 import { rangeForAnchor } from '@/anchors/text.ts';
+import { areaRect, resolvePage } from '@/page/anchor.ts';
+import { outOf, pageRoot, pageSelection, rangeRects, textRootOf } from '@/page/frame.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { fileKey } from '@/files/sources.ts';
 import { openCommentCard, selectComments } from './slice.ts';
@@ -11,10 +13,18 @@ const MARK = {
   sent: 'bg-[oklch(0.75_0.18_280/.18)]',
   pending: 'bg-[oklch(0.88_0.18_95/.38)]',
 } as const;
+/** an element or an area of a page: an outline around it, the page stays readable underneath */
+const OUTLINE = {
+  sent: 'border-2 border-[oklch(0.75_0.18_280/.7)]',
+  pending: 'border-2 border-[oklch(0.82_0.18_95)] bg-[oklch(0.88_0.18_95/.12)]',
+} as const;
+/** an outline larger than this (px, each side) opens its card only from its edge: inside, the text stays selectable */
+const OUTLINE_INNER = 160;
+const EDGE = 6;
 
 /** One rect per line: getClientRects() also returns boxes of nested inline elements, so drop the contained ones. */
 function lineRects(range: Range): DOMRect[] {
-  const rs = [...range.getClientRects()].filter((r) => r.width > 1 && r.height > 1);
+  const rs = rangeRects(range).filter((r) => r.width > 1 && r.height > 1);
   return rs.filter(
     (r, i) =>
       !rs.some(
@@ -25,7 +35,8 @@ function lineRects(range: Range): DOMRect[] {
   );
 }
 
-type Drawn = { id: string; range: Range };
+/** What a paint drew for one comment: a text range (one box per line), or the outline of a page element or area. */
+type Drawn = { id: string; range: Range; place?: undefined } | { id: string; range?: undefined; place: () => DOMRect | null };
 type Cached = { c: Comment; root: HTMLElement; range: Range };
 type Source = Comment['anchor']['source'];
 
@@ -52,7 +63,7 @@ function rootsIn(pane: HTMLElement, file: PaneFile | null, isDiff: boolean): Map
   } else if (file === undefined) {
     for (const e of pane.querySelectorAll<HTMLElement>('#items [data-item-id], [data-items] [data-item-id]')) if (e.dataset.itemId) roots.set(`m:${e.dataset.itemId}`, e);
   } else if (file && pane.dataset.filePath === file.path && (pane.dataset.fileRef ?? '') === (file.ref ?? '')) {
-    roots.set(`f:${fileKey(file.path, file.ref)}`, pane);
+    roots.set(`f:${fileKey(file.path, file.ref)}`, textRootOf(pane)); // a rendered page: its body, in the page's frame
   }
   return roots;
 }
@@ -65,7 +76,7 @@ const keyOf = (src: Source) => (src.kind === 'message' ? `m:${src.id}` : `f:${fi
  * (Markdown sets innerHTML, CodeText sets textContent), so `isConnected` drops the stale range; an unchanged text keeps them.
  */
 function rangeOf(roots: Map<string, HTMLElement>, cache: Map<string, Cached>, c: Comment): Range | null {
-  if (isMediaAnchor(c.anchor)) return null; // media marks are drawn over the media, not as text highlights
+  if (isMediaAnchor(c.anchor) || isPageAnchor(c.anchor)) return null; // media marks are drawn over the media, page places as outlines
   const root = roots.get(keyOf(c.anchor.source));
   if (!root || (root.dataset.kind === 'assistant' && root.dataset.final !== 'true')) return null;
   const hit = cache.get(c.id);
@@ -75,10 +86,33 @@ function rangeOf(roots: Map<string, HTMLElement>, cache: Map<string, Cached>, c:
   return range;
 }
 
-/** Positions one box per line of `range`, in the coordinates of a layer at the pane's content origin. */
-function boxes(range: Range, pane: HTMLElement, className: string, data?: Record<string, string>): HTMLElement[] {
+/**
+ * Where a page anchor is now, in this window's coordinates (the element's box, or the area through the SVG's transform),
+ * read again on every call: the page lays out on its own. null: the page is not shown, or the place is gone.
+ */
+function placeOf(root: HTMLElement | undefined, a: PageAnchor): (() => DOMRect | null) | null {
+  const doc = root?.hasAttribute('data-page-root') ? root.ownerDocument : null;
+  const el = doc && resolvePage(doc, a);
+  if (!el) return null;
+  return () => {
+    if (!el.isConnected) return null;
+    const r = a.box ? areaRect(el, a.box) : el.getBoundingClientRect();
+    return r && r.width + r.height > 0 ? outOf(el, r) : null;
+  };
+}
+
+/** Whether a click lands on a drawn outline: anywhere on a small one, on the edge of a large one. */
+function onOutline(r: DOMRect, x: number, y: number): boolean {
+  const inside = (p: number) => x >= r.left - p && x <= r.right + p && y >= r.top - p && y <= r.bottom + p;
+  if (!inside(EDGE)) return false;
+  if (r.width <= OUTLINE_INNER && r.height <= OUTLINE_INNER) return true;
+  return !(x > r.left + EDGE && x < r.right - EDGE && y > r.top + EDGE && y < r.bottom - EDGE);
+}
+
+/** Positions boxes (this window's coordinates) in the coordinates of a layer at the pane's content origin. */
+function placeBoxes(rects: DOMRect[], pane: HTMLElement, className: string, data?: Record<string, string>): HTMLElement[] {
   const base = pane.getBoundingClientRect();
-  return lineRects(range).map((r) => {
+  return rects.map((r) => {
     const m = document.createElement('div');
     if (data) Object.assign(m.dataset, data);
     m.className = `absolute rounded-[4px] ${className}`;
@@ -90,11 +124,20 @@ function boxes(range: Range, pane: HTMLElement, className: string, data?: Record
   });
 }
 
+/** One box per line of `range`, placed in the pane's layer. */
+const boxes = (range: Range, pane: HTMLElement, className: string, data?: Record<string, string>): HTMLElement[] =>
+  placeBoxes(lineRects(range), pane, className, data);
+
 /** A one-off flash over a fragment (jump to source in a file): drawn in the pane's layer, apart from the marks it repaints. */
 export function flashRange(pane: HTMLElement, range: Range) {
+  flashRects(pane, lineRects(range));
+}
+
+/** The same flash over boxes in this window's coordinates (a page element or area). */
+export function flashRects(pane: HTMLElement, rects: DOMRect[]) {
   const host = pane.querySelector<HTMLElement>(':scope > [data-hl-layer] > [data-hl-flash]');
   if (!host) return;
-  const nodes = boxes(range, pane, 'nb-flash');
+  const nodes = placeBoxes(rects, pane, 'nb-flash');
   host.append(...nodes);
   setTimeout(() => nodes.forEach((n) => n.remove()), 1300);
 }
@@ -160,9 +203,16 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
       const list: (Drawn & { kind: 'sent' | 'pending' })[] = [];
       const roots = rootsIn(pane, state.current.file, state.current.isDiff);
       for (const [k, r] of roots) if (k.startsWith('f:')) for (const e of r.children) if (!e.hasAttribute('data-hl-layer')) observe(e);
+      // a page's frame grows with the page (HtmlBody sets its height): what moves the page's marks
+      if (pageRoot(pane)) for (const e of pane.children) if (!e.hasAttribute('data-hl-layer')) observe(e);
       const prev = cache.current;
       const next = new Map<string, Cached>(); // only what this paint drew survives: removed / orphaned comments drop out
       for (const c of state.current.comments) {
+        if (isPageAnchor(c.anchor)) {
+          const place = placeOf(roots.get(`f:${fileKey(c.anchor.source.path, c.anchor.source.ref)}`), c.anchor);
+          if (place) list.push({ id: c.id, place, kind: c.status });
+          continue;
+        }
         const hit = prev.get(c.id);
         if (hit) next.set(c.id, hit);
         const range = rangeOf(roots, next, c);
@@ -172,7 +222,11 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
       cache.current = next;
       list.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'sent' ? -1 : 1)); // pending painted last = on top
       drawn.current = list;
-      host.replaceChildren(...list.flatMap(({ range, kind }) => boxes(range, pane, MARK[kind], { hl: kind })));
+      host.replaceChildren(...list.flatMap((d) => {
+        if (d.range) return boxes(d.range, pane, MARK[d.kind], { hl: d.kind });
+        const r = d.place();
+        return r ? placeBoxes([r], pane, OUTLINE[d.kind], { hl: d.kind, hlPlace: d.id }) : [];
+      }));
     };
     paint.current = () => {
       if (!raf) raf = requestAnimationFrame(draw);
@@ -186,11 +240,13 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
     void document.fonts?.ready.then(() => paint.current());
 
     const onClick = (e: MouseEvent) => {
-      if (!window.getSelection()?.isCollapsed) return;
+      if (!window.getSelection()?.isCollapsed || pageSelection(pane)) return;
       for (let i = drawn.current.length - 1; i >= 0; i--) {
-        const hit = lineRects(drawn.current[i].range).find(
+        const d = drawn.current[i];
+        const place = d.place?.();
+        const hit = d.range ? lineRects(d.range).find(
           (r) => e.clientX >= r.left - PAD_X && e.clientX <= r.right + PAD_X && e.clientY >= r.top - PAD_Y && e.clientY <= r.bottom + PAD_Y,
-        );
+        ) : place && onOutline(place, e.clientX, e.clientY) ? place : undefined;
         if (!hit) continue;
         e.stopPropagation();
         e.preventDefault();

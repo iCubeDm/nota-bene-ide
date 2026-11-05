@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
-import { isMediaAnchor, type Anchor, type QuickLabelId } from '@nota-bene/shared';
+import { isMediaAnchor, isPageAnchor, type Anchor, type QuickLabelId } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
-import { useT } from '@/i18n/index.ts';
+import { getLang, useT } from '@/i18n/index.ts';
+import { pageQuote } from '@/page/quote.ts';
 import { selectSwitching } from '@/controls/slice.ts';
 import { useAppDispatch, useAppSelector, type RootState } from '@/store/store.ts';
 import { toast } from '@/shell/toast.ts';
@@ -18,6 +19,7 @@ import type { ImageEntry } from '@/composer/slice.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
 import { deleteMarks, type MediaAnchorPatch } from '@/media/markup/createMediaComment.ts';
 import { addComment, setPanelOpen } from './slice.ts';
+import { clearPageSelections } from '@/page/frame.ts';
 
 /**
  * What the popup comments on. A text selection: anchor + rect (+ the letter typed to open it). A media drawing adds
@@ -36,6 +38,7 @@ const baseName = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 function quoteOf(a: Anchor, t: ReturnType<typeof useT>): string {
   return isMediaAnchor(a)
     ? `${baseName(a.source.path)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${t('markShapes', a.shapes.length)}`
+    : isPageAnchor(a) ? pageQuote(a, getLang())
     : `«${a.quote.trim()}»`;
 }
 
@@ -129,7 +132,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     if (has) dispatch(addComment({ ...(id && { id }), anchor, text: body, ...(label && { label }), ...(all.length && { images: all }), ...(prepared.length && { genImages: prepared.length }) }));
     // the user has moved on (the tab closed or in the background): their selection and the panel are not ours to touch
     const seen = alive.current && !hiddenNow.current;
-    if (seen) window.getSelection()?.removeAllRanges();
+    if (seen) { window.getSelection()?.removeAllRanges(); clearPageSelections(); }
     if (has) onAdded?.();
     onClose();
     if (has && seen) dispatch(setPanelOpen(true));

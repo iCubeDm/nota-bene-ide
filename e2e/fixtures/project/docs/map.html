@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Town map</title>
+<style>
+  :root { --ink: #1b2a3a; }
+  body { font: 16px/1.5 Georgia, serif; color: var(--ink); background: #f6f1e7; margin: 24px; }
+  h2 { color: #7a3b12; }
+  .node circle { fill: #e9c46a; stroke: var(--ink); }
+</style>
+<script>document.documentElement.dataset.ran = 'yes';</script>
+</head>
+<body onload="document.body.dataset.ran = 'yes'">
+<h1>Town map</h1>
+<p>The market sits between the mill and the harbour.</p>
+<img src="pic.png" alt="a pixel" width="4" height="4">
+<p><a href="#map">To the map</a> · <a href="../notes.md">notes</a></p>
+<h2>Map</h2>
+<svg id="map" viewBox="0 0 400 200" width="400" height="200" role="img" aria-label="Town">
+  <g class="node"><circle cx="60" cy="100" r="30"><title>Mill: grinds the grain</title></circle><text x="60" y="150" text-anchor="middle">Mill</text></g>
+  <g class="node"><circle cx="200" cy="100" r="30"><title>Market: open on Fridays</title></circle><text x="200" y="150" text-anchor="middle">Market</text></g>
+  <g class="node"><circle cx="340" cy="100" r="30"><title>Harbour: two piers</title></circle><text x="340" y="150" text-anchor="middle">Harbour</text></g>
+</svg>
+<p>Roads are not drawn yet.</p>
+</body>
+</html>

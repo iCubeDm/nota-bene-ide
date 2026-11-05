@@ -7,6 +7,7 @@ export const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
 export const MODEL = /\.(glb|gltf|blend)$/i;
 export const BLEND = /\.blend$/i;
 export const MD = /\.(md|markdown)$/i;
+export const HTML = /\.html?$/i;
 
 export type FileKind = 'md' | 'image' | 'video' | 'audio' | 'model' | 'text';
 

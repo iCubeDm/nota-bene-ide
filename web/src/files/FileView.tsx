@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { isMediaAnchor } from '@nota-bene/shared';
+import { PAGE_PROTOCOL } from '@/page/frame.ts';
+import { isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
+import { editable as isEditable } from '@/lib/editable.ts';
 import { scrollRangeIntoView } from '@/anchors/scroll.ts';
 import { rangeForAnchor } from '@/anchors/text.ts';
 import { flashRange } from '@/comments/HighlightLayer.tsx';
@@ -9,13 +11,14 @@ import { seekAndPause } from '@/media/mediaController.ts';
 import { selectDraft } from '@/media/markup/slice.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { fileTabId } from '@/tabs/slice.ts';
-import { fileUrl, kindOf, useModel3d } from './kinds.ts';
+import { fileUrl, HTML, kindOf, useModel3d } from './kinds.ts';
 import { tmpImageUrl, isTmpTabPath } from './tmpImages.ts';
 import { isFixed, sourcesKnown, useSources } from './sources.ts';
 import { SourceChip } from './SourcePicker.tsx';
 import { clearJump, selectJump } from './slice.ts';
 import { HIGHLIGHT_MAX } from './view/CodeText.tsx';
 import { FileEditor, hasDraft } from './view/FileEditor.tsx';
+import { HtmlBody } from './view/HtmlBody.tsx';
 import { MediaBody } from './view/MediaBody.tsx';
 import { ModelPane } from './view/ModelPane.tsx';
 import { TextBody } from './view/TextBody.tsx';
@@ -65,6 +68,34 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   // by hand: text of this checkout; a draft left by a closed tab or a reload opens again
   const editable = src === 'here' && !fixed && !tmp && (kind === 'md' || kind === 'text');
   const [editing, setEditing] = useState(() => editable && hasDraft(path));
+  // an .html file opens as the page; ‹Source› shows its text like any other file
+  const html = kind === 'text' && HTML.test(path);
+  const [pageView, setPageView] = useState(true);
+  const page = html && pageView && !editing && data?.s === 'text';
+  const [pageMarking, setPageMarking] = useState(false);
+  const [scripts, setScripts] = useState(false);
+  // an older server would refuse a comment on an element (PAGE_PROTOCOL): marking is offered from it on
+  const canMark = useAppSelector((s) => s.controls.protocol >= PAGE_PROTOCOL);
+  const marksPage = page && canMark && pageMarking;
+  useEffect(() => { if (!page) setPageMarking(false); }, [page]);
+  const pageMarkingNow = useRef(pageMarking);
+  pageMarkingNow.current = pageMarking;
+  // N marks, Esc leaves (an open comment popup takes its own Esc first)
+  useEffect(() => {
+    if (!active || !page || !canMark) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || isEditable(e.target)) return;
+      if (e.code === 'KeyN' && !e.shiftKey) {
+        e.preventDefault();
+        setPageMarking((v) => !v);
+      } else if (e.key === 'Escape' && pageMarkingNow.current) {
+        e.preventDefault();
+        setPageMarking(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [active, page, canMark]);
 
   // "jump to source" (CommentCard): once this view shows fresh text and is visible, scroll to the fragment and flash it
   const jump = useAppSelector(selectJump);
@@ -73,6 +104,10 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   useEffect(() => {
     // a model's jump is the model view's (ModelMarkup): a text load that won before the hello flipped the kind must not eat it
     if (kind === 'model' || jump?.path !== path || jump.src !== src || !active || !data) return;
+    // a rendered page takes its own jump once it is on screen (HtmlBody); a place on the page shows the page
+    if (page) return;
+    const target = comments.find((x) => x.id === jump.id);
+    if (html && target && isPageAnchor(target.anchor)) return void setPageView(true);
     const fresh = loadedRev.current?.path === path && loadedRev.current.rev === rev;
     if (!fresh) return; // a stale view reloads on activation: wait for that load
     dispatch(clearJump());
@@ -83,7 +118,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
     if (!range) return; // orphaned: the tab is open, nothing to point at
     scrollRangeIntoView(range, el);
     flashRange(el, range);
-  }, [kind, jump, active, data, rev, path, src, comments, dispatch, loadedRev]);
+  }, [kind, jump, active, data, rev, path, src, comments, dispatch, loadedRev, page, html]);
 
   // "jump to source" on a media tab: the tab is open and active; a video also seeks to the comment's time and pauses
   // (not while marking: the drawing belongs to the frame on screen)
@@ -96,7 +131,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
     seekAndPause(markable, c.anchor.time);
   }, [markableKind, jump, active, markable, path, src, comments, dispatch, resumeAt]);
 
-  const large = data?.s === 'text' && kind === 'text' && data.text.length > HIGHLIGHT_MAX;
+  const large = !page && data?.s === 'text' && kind === 'text' && data.text.length > HIGHLIGHT_MAX;
 
   return (
     <div data-file-view hidden={!active} className="min-h-0 flex-1 flex-col [&:not([hidden])]:flex">
@@ -104,7 +139,20 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
         <span className="min-w-0 flex-1 truncate" title={ref ? `${path} @ ${ref}` : path}>{path}</span>
         {ref && <SourceChip name={ref} />}
         {large && <span>{t('noHighlight')}</span>}
-        {kind === 'text' && (
+        {page && scripts && <span title={t('pageScriptsOffTip')}>{t('pageScriptsOff')}</span>}
+        {html && !editing && (
+          <span role="group" aria-label={t('pageViewTip')} title={t('pageViewTip')} className="flex overflow-hidden rounded border border-border-soft">
+            {([true, false] as const).map((v) => (
+              <button key={String(v)} type="button" aria-pressed={pageView === v} onClick={() => setPageView(v)}
+                className={`px-1.5 hover:text-foreground ${pageView === v ? 'bg-muted text-foreground' : ''}`}>{t(v ? 'pageView' : 'sourceView')}</button>
+            ))}
+          </span>
+        )}
+        {page && canMark && (
+          <button type="button" aria-pressed={pageMarking} title={t('pageMarkTip')} onClick={() => setPageMarking((v) => !v)}
+            className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${pageMarking ? 'bg-muted text-foreground' : ''}`}>{t('pageMark')}</button>
+        )}
+        {kind === 'text' && !page && (
           <button type="button" aria-label={t('wrapLines')} aria-pressed={wrap} title={`${t('wrapLines')} (Alt+Z)`} onClick={wrapLines.toggle}
             className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${wrap ? 'text-foreground' : ''}`}>↩</button>
         )}
@@ -122,6 +170,8 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
           onToggleNatural={() => setNatural((v) => !v)} mediaUrl={mediaUrl} failed={failed} srcGone={srcGone}
           onError={load.onError} note={note} onMediaMeta={load.onMediaMeta} markup={markup} mediaEl={load.mediaEl}
         />
+      ) : page && data?.s === 'text' ? (
+        <HtmlBody html={data.text} path={path} src={src} fileRef={ref} tabId={tabId} active={active} paneRef={pane} marking={marksPage} onScripts={setScripts} />
       ) : editing ? (
         <FileEditor path={path} onClose={(saved) => { setEditing(false); if (saved) load.reloadClick(); }} />
       ) : (

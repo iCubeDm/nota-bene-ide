@@ -72,3 +72,19 @@ it('media: scaled files, changed file line, pasted images after the labelled one
   const ru = composeBatch('', [media('m1', 'x', { scale: 0.75 })], 'ru', none, mwhere, () => undefined, [[4]], () => true);
   expect(ru).toContain('📎 картинки: 4 (кадр с разметкой)\n   файлы: .nota-bene/marks/m1/frame.jpg (уменьшен ×0.75), .nota-bene/marks/m1/layer.png (уменьшен ×0.75)\n   (отмечено на более ранней версии файла; кадр это показывает)');
 });
+
+it('a page place is quoted as its trail, the area and what it covers, then its element path, in the batch language', () => {
+  const page = (box?: boolean): Comment => ({
+    id: 'p', text: 'add a road', status: 'pending', createdAt: 1,
+    anchor: {
+      kind: 'page', source: { kind: 'file', path: 'docs/map.html' }, selector: 'body>:nth-child(6)', trail: ['h2 «Map»', 'svg#map «Town»'],
+      ...(box ? { box: { x: 100, y: 60, w: 60, h: 80 }, near: ['g.node «Mill»', 'g.node «Market»'] } : {}),
+    },
+  });
+  const fileWhere = () => 'docs/map.html';
+  expect(composeBatch('', [page(true)], 'en', none, fileWhere, () => undefined)).toContain([
+    '1. [docs/map.html]', '> h2 «Map» › svg#map «Town»', '> area x 100, y 60, 60×80 (viewBox units)',
+    '> covers or is next to: g.node «Mill», g.node «Market»', '> element: body>:nth-child(6)', '→ add a road',
+  ].join('\n'));
+  expect(composeBatch('', [page()], 'ru', none, fileWhere, () => undefined)).toContain('> h2 «Map» › svg#map «Town»\n> элемент: body>:nth-child(6)\n→ add a road');
+});

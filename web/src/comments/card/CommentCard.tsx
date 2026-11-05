@@ -1,10 +1,11 @@
-import { generatedImages, isMediaAnchor } from '@nota-bene/shared';
+import { generatedImages, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
+import { pageQuote } from '@/page/quote.ts';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Attachments } from '@/attachments/Attachments.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { selectSwitching } from '@/controls/slice.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
-import { useT } from '@/i18n/index.ts';
+import { getLang, useT } from '@/i18n/index.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { CardActions } from './CardActions.tsx';
@@ -96,7 +97,7 @@ export function CommentCard({ id, index, popover = false }: { id: string; index:
           onClick={popover || beforeCompact ? undefined : jump}
           className={`line-clamp-3 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover || beforeCompact ? '' : 'cursor-pointer'}`}
         >
-          {isMediaAnchor(c.anchor) ? null : c.anchor.quote}
+          {isMediaAnchor(c.anchor) ? null : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : c.anchor.quote}
         </div>
       )}
       {orphan && <div className="mt-1 text-[11px] text-destructive">({t('orphaned')})</div>}

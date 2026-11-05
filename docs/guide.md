@@ -184,6 +184,7 @@ The **Files** panel (Cmd/Ctrl+Shift+F) is the project tree. It has a filter box,
 Click a file to open it in a tab:
 
 - Markdown renders and can be commented on. Code is highlighted and can be commented on. Alt+Z wraps long lines.
+- An HTML file opens as the page; **Source** shows its text (next section).
 - Code blocks in replies and Markdown files wrap, with a number per source line, and a button on hover copies the block.
 - Images, video and audio open in a viewer (next section).
 - Files over 2 MB and binary files are not shown ("File is too large to show", "Binary file, not shown"). **Open raw** shows the file as the server sends it.
@@ -191,6 +192,32 @@ Click a file to open it in a tab:
 - Paths in `code` spans and relative links in the chat are clickable. A path whose file does not exist is struck through.
 
 Tabs have a right-click menu: Close, Close others, Close to the right, Close all, and for files Copy path. A middle click closes a tab. Alt+W closes the active tab and Alt+Shift+T reopens the last closed one.
+
+### HTML pages
+
+An `.html` file opens as the page itself, the way a browser shows it. **Page** and **Source** in the tab's header switch between the page and its text. The page's scripts never run, because the window holds your access key: a page that needs them shows "scripts off" in the header and looks the way it does without them. Images and stylesheets next to the file load from the project. A link to another file of the project opens it as a tab, a web link opens in a new browser tab.
+
+- Select text on the page and comment on it, as in a Markdown file.
+- **Mark** (N) comments on the page itself. The element under the mouse is outlined; a click comments on it. In a diagram the click takes the nearest shape that has its own tooltip, else its group. A drag inside an SVG draws a box and comments on that area, also where nothing is drawn yet. Esc leaves.
+- The comment is outlined on the page. A click on a small outline, or on the edge of a large one, opens its card.
+
+**Example: commenting on a map.** Open `docs/map.html`, press **Mark**, click the market's circle and type `move it closer to the harbour`. Then drag a box between the mill and the market and type `a road is missing here`. The agent receives the places as they read on the page, with the element path to find them in the source:
+
+```
+1. [docs/map.html]
+> h2 «Map» › svg#map «Town» › g.node «Market» › circle «Market: open on Fridays»
+> element: body>:nth-child(6)>:nth-child(2)>:nth-child(1)
+→ move it closer to the harbour
+
+2. [docs/map.html]
+> h2 «Map» › svg#map «Town»
+> area x 100, y 60, 60×80 (viewBox units)
+> covers or is next to: g.node «Mill», g.node «Market», g.node «Harbour»
+> element: body>:nth-child(6)
+→ a road is missing here
+```
+
+When the agent changes the page, a comment finds its element again by what it reads as; one whose element is gone is marked "fragment changed". Marking needs a server from this version; after an update, restart the server.
 
 ### Other branches and worktrees
 
@@ -320,6 +347,7 @@ The full list is in the window's Hotkeys help. Tab keys use Alt because Chrome k
 | Cmd/Ctrl+Shift+C | Comments panel |
 | Alt+T | Tasks drawer |
 | Alt+Z | wrap lines in a text file |
+| N (an HTML page) | mark an element or an area; Esc leaves |
 | Alt+F1 | reveal the current file in the tree |
 | / or Esc | focus the message box (outside text fields) |
 | Shift+Tab (in the message box) | next permission mode |

@@ -1,6 +1,7 @@
-import { isMediaAnchor, type Comment } from '@nota-bene/shared';
+import { isMediaAnchor, isPageAnchor, type Comment } from '@nota-bene/shared';
 import { tIn, type Lang } from '../i18n/index.ts';
 import { describeShape } from '../media/markup/geometry.ts';
+import { pageLines } from '../page/quote.ts';
 
 /**
  * The text sent to the agent: the general message, then the numbered comment list (prototype format).
@@ -28,6 +29,7 @@ export function composeBatch(
     const a = c.anchor;
     const quote = isMediaAnchor(a)
       ? a.shapes.map((s) => '> ' + describeShape(s, a.width, a.height)).join('\n')
+      : isPageAnchor(a) ? pageLines(a, lang).map((l) => '> ' + l).join('\n')
       : a.quote.split('\n').map((l) => '> ' + l).join('\n');
     let tail = '';
     if (isMediaAnchor(a)) {
