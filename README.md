@@ -129,6 +129,7 @@ and on single frames of a video:
 - Chat with Claude Code, Codex or omp. A message sent while the agent works is injected into the running turn; Cmd/Ctrl+Enter interrupts the agent and sends, after a confirmation.
 - Margin comments on any reply, on your own messages and on any open file, sent as one batch. Eleven one-click labels (Looks good, Clarify this, Verify this, and others).
 - Markup on images and video frames with a rectangle, ellipse, pen or arrow, and a comment on the marked frame.
+- HTML pages render in a tab: comment on their text, on an element, or on an area of an SVG diagram.
 - File tree and viewers: Markdown, highlighted code, images, video and audio with seeking. Mermaid and SVG diagrams render in the chat.
 - Edit a text file by hand, without overwriting a change made on disk meanwhile.
 - Git in the header: a branch picker over other worktrees and branches, a Changes view and the Git log, all read-only.

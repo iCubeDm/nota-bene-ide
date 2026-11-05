@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { Comment, ServerEvent } from '@nota-bene/shared';
+import type { Comment, MediaAnchor, ServerEvent } from '@nota-bene/shared';
 import { setFileVersion } from '@/files/slice.ts';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
@@ -103,7 +103,7 @@ it('comment ticks: at their %, sent and other-version ones dimmed, near ones mer
   const s = setup({
     comments: [
       comment('a', 41), comment('b', 41.2), comment('sent', 80, { status: 'sent', sentIn: 'u' }),
-      comment('old', 10, { anchor: { ...comment('x', 10).anchor, version: 'W/"1"' } }),
+      comment('old', 10, { anchor: { ...(comment('x', 10).anchor as MediaAnchor), version: 'W/"1"' } }),
       comment('image-like', undefined),
     ],
   });
@@ -113,7 +113,7 @@ it('comment ticks: at their %, sent and other-version ones dimmed, near ones mer
   expect(ticks()[1].getAttribute('aria-label')).toBe('0:41 · 2 comments');
   cleanup();
   // another version of the file is known now: the old one is dimmed too
-  const { store } = setup({ comments: [comment('old', 10, { anchor: { ...comment('x', 10).anchor, version: 'W/"1"' } })] });
+  const { store } = setup({ comments: [comment('old', 10, { anchor: { ...(comment('x', 10).anchor as MediaAnchor), version: 'W/"1"' } })] });
   expect(ticks().map(dim)).toEqual(['1']); // current version unknown: nothing to compare with
   act(() => void store.dispatch(setFileVersion({ path: PATH, version: 'W/"2"' })));
   expect(ticks().map(dim)).toEqual(['0.45']);

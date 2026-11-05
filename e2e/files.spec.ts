@@ -848,11 +848,9 @@ test('player bar: the timeline seeks, Space after a bar button toggles once, F f
   await expect.poll(paused).toBe(false);
   await page.keyboard.press('Space');
   await expect.poll(paused).toBe(true);
-  await page.waitForTimeout(300);
   expect(await paused()).toBe(true);
   await page.keyboard.press('Space');
   await expect.poll(paused).toBe(false);
-  await page.waitForTimeout(300);
   expect(await paused()).toBe(false);
 
   // F: the container is fullscreen (with the bar in it), and the keys still work there
@@ -1065,7 +1063,6 @@ test('a chat video has our bar: the timeline seeks, Space plays only after a cli
   await expect.poll(paused).toBe(false);
   await page.keyboard.press('Space');
   await expect.poll(paused).toBe(true);
-  await page.waitForTimeout(300);
   expect(await paused()).toBe(true);
 });
 
@@ -1396,4 +1393,91 @@ test('mark up a model: orbit, N, rect, comment, send (camera line + frame); orbi
   await expect.poll(cam).toBe(marked);
   await expect(pane.locator(`[data-media-marks] [data-mark="${id}"]`)).toHaveCount(1);
   await cards(page).filter({ hasText: text2 }).getByRole('button', { name: /^(Delete|Удалить)$/ }).click(); // leaves no pending comment behind
+});
+
+// An .html file opens as the page, in a sandboxed frame: its text is commented on as in Markdown, Mark comments on an
+// element or (a drag in an SVG) an area; the batch names the place. Frames and layout cannot be checked in jsdom.
+test('an html page: scripts off, text, element and area comments, links, the source view @files', async ({ page }) => {
+  const PAGE = 'docs/map.html';
+  const frames = sentFrames(page);
+  await start(page);
+  await clearPending(page);
+  await openFromTree(page, PAGE);
+  const pane = mediaPane(page, PAGE);
+  const frame = pane.frameLocator('iframe[data-page-frame]');
+  await expect(frame.locator('h1')).toHaveText('Town map');
+  // nothing of the page ran: neither its script nor its handler; its relative image comes from the project
+  await expect(frame.locator('html')).not.toHaveAttribute('data-ran', 'yes');
+  await expect(frame.locator('body')).not.toHaveAttribute('data-ran', 'yes');
+  await expect.poll(() => frame.locator('img').evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBeGreaterThan(0);
+  await expect(pane.locator('xpath=..').getByText(/^(scripts off|скрипты выкл\.)$/)).toBeVisible();
+  // the frame is as tall as the page: the pane scrolls it
+  await expect.poll(async () => (await pane.locator('iframe').boundingBox())!.height).toBeGreaterThan(400);
+
+  // text: select a word in the page, comment on it
+  const textNote = uniq('page text');
+  await frame.locator('p').first().getByText('market', { exact: false }).dblclick({ position: { x: 60, y: 8 } });
+  await page.getByTestId('selection-bar').getByRole('button', { name: /(Comment|Комментировать)$/ }).click();
+  await page.getByPlaceholder('Comment…').fill(textNote);
+  await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
+  await expect(cards(page).filter({ hasText: textNote })).toHaveCount(1);
+  await expect(pane.locator('[data-hl="pending"]:not([data-hl-place])')).toHaveCount(1);
+
+  // an element: Mark, hover outlines it, a click on the market's circle comments on it (the shape with its title)
+  await page.getByRole('button', { name: /^(Mark|Отметить)$/ }).click();
+  const svg = (await frame.locator('svg#map').boundingBox())!;
+  await page.mouse.move(svg.x + 200, svg.y + 100);
+  await expect(pane.locator('[data-page-hover]')).toBeVisible();
+  await page.mouse.down();
+  await page.mouse.up();
+  const elNote = uniq('page element');
+  await page.getByPlaceholder('Comment…').fill(elNote);
+  await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
+  await expect(cards(page).filter({ hasText: elNote })).toContainText('circle «Market: open on Fridays»');
+
+  // an area: a drag between the mill and the market, in the SVG's own units (the SVG is drawn 1:1)
+  const areaNote = uniq('page area');
+  // Playwright's mouse never finishes a move with a pressed button over a frame: the drag is sent as the page's own events
+  await frame.locator('svg#map').evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const fire = (type: string, x: number, y: number) => el.ownerDocument.elementFromPoint(r.left + x, r.top + y)!
+      .dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, buttons: type === 'mouseup' ? 0 : 1, clientX: r.left + x, clientY: r.top + y }));
+    fire('mousedown', 100, 60);
+    for (let i = 1; i <= 8; i++) fire('mousemove', 100 + 7.5 * i, 60 + 10 * i);
+    fire('mouseup', 160, 140);
+  });
+  await page.getByPlaceholder('Comment…').fill(areaNote);
+  await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
+  await expect(cards(page).filter({ hasText: areaNote })).toContainText('svg#map «Town»');
+  await expect(pane.locator('[data-hl-place]')).toHaveCount(2);
+  await page.keyboard.press('Escape'); // leaves marking
+  await expect(page.getByRole('button', { name: /^(Mark|Отметить)$/ })).toHaveAttribute('aria-pressed', 'false');
+
+  // a jump from the element's card (from another tab) shows the page and flashes the shape
+  await chatTab(page).click();
+  await cards(page).filter({ hasText: elNote }).getByText('circle «Market: open on Fridays»').click();
+  await expect(tabOf(page, PAGE)).toHaveAttribute('aria-selected', 'true');
+  await expect(pane.locator('[data-hl-flash] .nb-flash')).toHaveCount(1);
+
+  await sendAndSettle(page);
+  await expect.poll(() => batchText(frames, areaNote)).toBeTruthy();
+  const batch = batchText(frames, areaNote)!;
+  expect(batch).toContain(`[${PAGE}]`);
+  expect(batch).toContain('> market');
+  expect(batch).toContain('> h2 «Map» › svg#map «Town» › g.node «Market» › circle «Market: open on Fridays»');
+  const area = /> area x ([\d.]+), y ([\d.]+), ([\d.]+)×([\d.]+) \(viewBox units\)/.exec(batch);
+  expect(area, batch).not.toBeNull();
+  for (const [got, want] of area!.slice(1).map((v, i) => [Number(v), [100, 60, 60, 80][i]!])) expect(Math.abs(got - want), batch).toBeLessThanOrEqual(1);
+  expect(batch).toMatch(/> covers or is next to: g\.node «(Mill|Market)», g\.node «(Mill|Market)», g\.node «Harbour»/);
+  expect(batch).toContain('> element: body>');
+
+  // links: a file beside the page opens as a tab; the source view shows the text
+  await tabOf(page, PAGE).click();
+  await frame.getByRole('link', { name: 'notes' }).click();
+  await expect(tabOf(page, 'notes.md')).toHaveAttribute('aria-selected', 'true');
+  await tabOf(page, PAGE).click();
+  await page.getByRole('button', { name: /^(Source|Исходник)$/ }).click();
+  await expect(page.locator(`[data-file-path="${PAGE}"]`)).toContainText('<svg id="map"');
+  await page.getByRole('button', { name: /^(Page|Страница)$/ }).click();
+  await expect(frame.locator('h1')).toHaveText('Town map');
 });

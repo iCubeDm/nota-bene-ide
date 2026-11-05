@@ -187,6 +187,33 @@ test.each(rejectCases)('rejects a media anchor: %s', (_name, a) => {
   expect(parseMedia(a)).toHaveProperty('error');
 });
 
+const pageAnchor = (over: Record<string, unknown> = {}) => ({
+  kind: 'page', source: { kind: 'file', path: 'docs/map.html' }, selector: 'body>:nth-child(2)',
+  trail: ['h2 «Map»', 'svg#map «Town»'], box: { x: -10, y: 5.5, w: 20, h: 30 }, near: ['g.node «Mill»'], ...over,
+});
+
+test('parses a comment with a page anchor (an element, or an area of an SVG)', () => {
+  for (const a of [pageAnchor(), pageAnchor({ box: undefined, near: undefined })]) {
+    const clean = JSON.parse(JSON.stringify(a));
+    expect(parseMedia(a)).toEqual({ type: 'comments', sessionId: null, items: [comment({ anchor: clean })] });
+  }
+  expect(toAnchor({ ...pageAnchor(), junk: 1 } as never)).toEqual(pageAnchor());
+});
+
+test.each([
+  ['no trail', pageAnchor({ trail: [] })],
+  ['a trail entry over 300 chars', pageAnchor({ trail: ['x'.repeat(301)] })],
+  ['13 near entries', pageAnchor({ near: new Array(13).fill('g') })],
+  ['an empty selector', pageAnchor({ selector: '' })],
+  ['a selector over 2000 chars', pageAnchor({ selector: 'x'.repeat(2001) })],
+  ['a box of width 0', pageAnchor({ box: { x: 0, y: 0, w: 0, h: 1 } })],
+  ['a box with NaN (null)', pageAnchor({ box: { x: null, y: 0, w: 1, h: 1 } })],
+  ['source is a message', pageAnchor({ source: { kind: 'message', id: 'm1' } })],
+  ['an unknown anchor kind', { ...pageAnchor(), kind: 'shape' }],
+])('rejects a page anchor: %s', (_name, a) => {
+  expect(parseMedia(a)).toHaveProperty('error');
+});
+
 test('a rect/ellipse may touch the far edge, with 4-decimal rounding slack (1e-4)', () => {
   for (const kind of ['rect', 'ellipse']) {
     for (const box of [{ x: 0.7, y: 0.6, w: 0.3, h: 0.4 }, { x: 0.3334, y: 0.5, w: 0.6667, h: 0.5 }, { x: 0, y: 0.00005, w: 1, h: 1 }]) {

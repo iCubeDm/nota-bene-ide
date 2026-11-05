@@ -48,8 +48,26 @@ export type MediaAnchor = {
   shapes: MediaShape[];
 };
 export type TextAnchor = { source: AnchorSource; start: number; end: number; quote: string; prefix: string; suffix: string };
-export type Anchor = TextAnchor | MediaAnchor;
+/** the most entries a page anchor's `trail` and `near` may carry, and the longest of each */
+export const PAGE_LIST_MAX = 12;
+export const PAGE_TEXT_MAX = 300;
+/** the longest element path (`selector`) */
+export const PAGE_SELECTOR_MAX = 2000;
+/**
+ * A place on a rendered HTML page (protocol 13): an element, or an area of an inline SVG. `selector`: the element by its
+ * child positions from `body` (an area: its `svg`). `trail`: how it reads, outermost first, the element itself last;
+ * also how it is found again when the page changed. `box`: the area in the SVG's own user units (its viewBox).
+ * `near`: what an area covers or lies next to.
+ */
+export type PageAnchor = {
+  kind: 'page'; source: FileSource; selector: string; trail: string[];
+  box?: { x: number; y: number; w: number; h: number };
+  near?: string[];
+};
+export type Anchor = TextAnchor | MediaAnchor | PageAnchor;
 export const isMediaAnchor = (a: Anchor): a is MediaAnchor => (a as MediaAnchor).kind === 'media';
+export const isPageAnchor = (a: Anchor): a is PageAnchor => (a as PageAnchor).kind === 'page';
+export const isTextAnchor = (a: Anchor): a is TextAnchor => !('kind' in a);
 export const QUICK_LABEL_IDS = ['looks-good', 'fire', 'clarify', 'verify', 'example', 'overview', 'patterns',
   'alternatives', 'no-regression', 'out-of-scope', 'needs-tests'] as const;
 export type QuickLabelId = (typeof QUICK_LABEL_IDS)[number];
@@ -96,7 +114,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
  * 11: `! cmd` in the composer: the client's `shell-run` and `shell-stop`, the server's `shell-start`, `shell-out` and `shell-end` events. An older server would send `! cmd` to the agent, so the page runs it as a shell command only from 11.
  */
 // 12: provider modes/descriptors, structured interaction answers and variable-duration usage windows.
-export const PROTOCOL = 12;
+// 13: page anchors (a comment on an element or an SVG area of an HTML page); an older server would refuse the comment.
+export const PROTOCOL = 13;
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
 export const TAKEN_OVER_CODE = 4001;
@@ -329,9 +348,22 @@ function isMediaAnchorShape(v: Obj): boolean {
     && Array.isArray(v.shapes) && v.shapes.length > 0 && v.shapes.every(isMediaShape);
 }
 
+const isPageText = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= PAGE_TEXT_MAX;
+const isPageList = (v: unknown): v is string[] => Array.isArray(v) && v.length <= PAGE_LIST_MAX && v.every(isPageText);
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+function isPageAnchorShape(v: Obj): boolean {
+  const b = v.box;
+  return isObj(v.source) && isFileSource(v.source) && typeof v.selector === 'string' && v.selector.length > 0 && v.selector.length <= PAGE_SELECTOR_MAX && isPageList(v.trail) && v.trail.length > 0
+    && (b === undefined || (isObj(b) && isNum(b.x) && isNum(b.y) && isPos(b.w) && isPos(b.h)))
+    && (v.near === undefined || isPageList(v.near));
+}
+
 function isAnchor(v: unknown): v is Anchor {
   if (!isObj(v)) return false;
   if (v.kind === 'media') return isMediaAnchorShape(v);
+  if (v.kind === 'page') return isPageAnchorShape(v);
+  if (v.kind !== undefined) return false;
   if (!isObj(v.source)) return false;
   const s = v.source;
   const sourceOk = (s.kind === 'message' && typeof s.id === 'string' && (s.agent === undefined || (typeof s.agent === 'string' && TOOL_USE_ID.test(s.agent)))) || isFileSource(s);
@@ -385,6 +417,13 @@ export function toAnchor(a: Anchor): Anchor {
       ...(a.camera === undefined ? {} : { camera: toCamera(a.camera) }),
       ...(a.scale === undefined ? {} : { scale: a.scale }),
       shapes: a.shapes.map(toShape),
+    };
+  }
+  if (isPageAnchor(a)) {
+    return {
+      kind: 'page', source: toSource(a.source) as FileSource, selector: a.selector, trail: [...a.trail],
+      ...(a.box === undefined ? {} : { box: { x: a.box.x, y: a.box.y, w: a.box.w, h: a.box.h } }),
+      ...(a.near === undefined ? {} : { near: [...a.near] }),
     };
   }
   return { source: toSource(a.source), start: a.start, end: a.end, quote: a.quote, prefix: a.prefix, suffix: a.suffix };

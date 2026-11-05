@@ -13,6 +13,7 @@ import { LabelTip } from './LabelTip.tsx';
 import { addComment, setPanelOpen } from './slice.ts';
 import { editable } from '@/lib/editable.ts';
 import { AGENT_PROTOCOL } from '@/subagent/slice.ts';
+import { clearPageSelections, pageRoot, pageSelection, rangeRect } from '@/page/frame.ts';
 
 /** What the popup (M1-10) needs: where the text is anchored and where to put the popup; `text` is what was typed to open it. */
 export type PendingSelection = { anchor: Anchor; rect: DOMRect; text?: string };
@@ -59,13 +60,24 @@ function rootOf(start: Element, agentsOk: boolean): { root: HTMLElement; source:
   return root && path ? { root, source: ref ? { kind: 'file', path, ref } : { kind: 'file', path } } : null;
 }
 
-/** The selection inside one commentable root, clipped to that root. */
+/** A rendered page's text root, when the selection starts in it: the page's body, named by its pane's file. */
+function pageRootOf(pane: HTMLElement, start: Element): { root: HTMLElement; source: AnchorSource } | null {
+  const root = pageRoot(pane);
+  const path = pane.dataset.filePath;
+  if (!root || !path || !root.contains(start)) return null;
+  const ref = pane.dataset.fileRef;
+  return { root, source: ref ? { kind: 'file', path, ref } : { kind: 'file', path } };
+}
+
+/** The selection inside one commentable root, clipped to that root. A rendered page has a selection of its own. */
 function readSelection(agentsOk: boolean): PendingSelection | null {
-  const sel = window.getSelection();
+  const pane = activePane();
+  const inPage = pane && pageSelection(pane);
+  const sel = inPage || window.getSelection();
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
   const range = sel.getRangeAt(0);
   const start = elementOf(range.startContainer);
-  const hit = start && rootOf(start, agentsOk);
+  const hit = start && (inPage && pane ? pageRootOf(pane, start) : rootOf(start, agentsOk));
   if (!hit) return null;
   const { root, source } = hit;
 
@@ -75,7 +87,7 @@ function readSelection(agentsOk: boolean): PendingSelection | null {
   if (!o || o.start === o.end) return null;
   const text = textOf(root);
   if (!text.slice(o.start, o.end).trim()) return null;
-  return { anchor: makeAnchor(source, text, o.start, o.end), rect: clipped.getBoundingClientRect() };
+  return { anchor: makeAnchor(source, text, o.start, o.end), rect: rangeRect(clipped) };
 }
 
 type View = { left: number; right: number; top: number; bottom: number };
@@ -188,6 +200,7 @@ export function SelectionButton({ onComment }: { onComment: (s: PendingSelection
     dismissed.current = true;
     dispatch(addComment({ anchor: sel.anchor, text: '', label: id }));
     window.getSelection()?.removeAllRanges();
+    clearPageSelections();
     dispatch(setPanelOpen(true));
     setSel(null);
   };
