@@ -5,6 +5,7 @@ import { App } from './App.tsx';
 import { loginFromFragment } from './net/auth.ts';
 import { defaultSocketUrl } from './net/socket.ts';
 import { makeStore } from './store/store.ts';
+import './shell/theme.ts';
 import './fonts.css';
 import './theme.css';
 
