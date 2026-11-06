@@ -3,6 +3,7 @@
 ## Unreleased
 
 - An interface scale, 90–150 %: text and spacing grow, in every window at once. The gear in the header is now a menu with the language, the scale and All settings; Alt+= / Alt+− / Alt+0 step the scale. The globe button is gone: the language is in that menu.
+- omp: a new project starts in Yolo, omp's own default, instead of Write.
 
 ## 1.5.0 — 2026-11-06
 

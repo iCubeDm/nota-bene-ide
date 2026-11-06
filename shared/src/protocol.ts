@@ -122,8 +122,7 @@ export const TAKEN_OVER_CODE = 4001;
 
 export const MODES = ['default', 'acceptEdits', 'plan', 'auto'] as const;
 export const CODEX_MODES = ['codex-configured', 'codex-read-only', 'codex-workspace', 'codex-full-access'] as const;
-/** Write first: a new project starts there (omp's own default, yolo, asks about nothing) */
-export const OMP_MODES = ['omp-write', 'omp-ask', 'omp-plan', 'omp-yolo'] as const;
+export const OMP_MODES = ['omp-yolo', 'omp-write', 'omp-ask', 'omp-plan'] as const;
 export const ALL_MODES = [...MODES, ...CODEX_MODES, ...OMP_MODES] as const;
 export type Mode = (typeof MODES)[number];
 export type AgentMode = (typeof ALL_MODES)[number];

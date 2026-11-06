@@ -44,7 +44,7 @@ const reply = async (s: AcpSession, text: string) => {
 
 it('lists stored sessions, resumes one through the replay\'s own process and forks another', async () => {
   const { b, start, spawned } = backend();
-  const first = start({ cwd: project, permissionMode: 'omp-write' });
+  const first = start({ cwd: project, permissionMode: 'omp-yolo' });
   await first.ready;
   const events = await reply(first, 'hello');
   expect(events.find((e) => e.t === 'message')).toMatchObject({ text: 'omp: hello' });
@@ -58,13 +58,13 @@ it('lists stored sessions, resumes one through the replay\'s own process and for
   const before = spawned.length;
   const history = await b.history(id, project, {} as AttachmentStore);
   expect(history).toEqual([{ kind: 'user', id: 'acp-u1', text: 'hello', ts: 0, historic: true }, { kind: 'agent', e: { t: 'message', id: 'acp-b0', text: 'omp: hello' }, ts: 0 }]);
-  const resumed = start({ cwd: project, resume: id, permissionMode: 'omp-write' });
+  const resumed = start({ cwd: project, resume: id, permissionMode: 'omp-yolo' });
   await resumed.ready;
   expect(spawned.length).toBe(before + 1); // the replay's process goes on as the session
   expect(resumed.sessionId).toBe(id);
   resumed.close();
 
-  const forked = start({ cwd: project, resume: id, fork: true, permissionMode: 'omp-write' });
+  const forked = start({ cwd: project, resume: id, fork: true, permissionMode: 'omp-yolo' });
   await forked.ready;
   expect(forked.sessionId).not.toBe(id);
   await expect(b.history('01a1a000-0000-7000-8000-999999999999', project, {} as AttachmentStore)).rejects.toThrow('omp conversation not found');
@@ -87,12 +87,12 @@ it('a mode on another approval level respawns on the same stored session, and th
 
 it('a restart reads history while the closing session is still going down, and the adopting session gets omp\'s commands', async () => {
   const { b, start } = backend();
-  const first = start({ cwd: project, permissionMode: 'omp-write' });
+  const first = start({ cwd: project, permissionMode: 'omp-yolo' });
   await first.ready; await reply(first, 'hello');
   const id = first.sessionId;
   first.close();
   expect((await b.history(id, project, {} as AttachmentStore)).some((e) => e.kind === 'user')).toBe(true);
-  const resumed = start({ cwd: project, resume: id, permissionMode: 'omp-write' });
+  const resumed = start({ cwd: project, resume: id, permissionMode: 'omp-yolo' });
   await resumed.ready;
   expect(resumed.sessionId).toBe(id);
   expect((await resumed.supportedCommands()).map((c) => c.name)).toContain('green');
