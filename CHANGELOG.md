@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Settings → Defaults: an interface scale, 90–150 %. Text and spacing grow, in every window at once.
+- An interface scale, 90–150 %: text and spacing grow, in every window at once. The gear in the header is now a menu with the language, the scale and All settings; Alt+= / Alt+− / Alt+0 step the scale. The globe button is gone: the language is in that menu.
 
 ## 1.5.0 — 2026-11-06
 

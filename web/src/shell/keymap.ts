@@ -7,6 +7,9 @@ import { activate, closeTab, reopenClosed } from '@/tabs/slice.ts';
 import { toggleDrawer } from '@/tasks/slice.ts';
 import { revealFile, setTreeOpen } from '@/tree/slice.ts';
 import { editable } from '@/lib/editable.ts';
+import { getLang, t } from '@/i18n/index.ts';
+import { scaleLabel, uiScale } from './uiScale.ts';
+import { toast } from './toast.ts';
 
 /**
  * The app's global hotkeys (M6-14, R-M6-5): the ONE document listener for them. Chrome keeps Cmd/Ctrl+W/T/1-9 and
@@ -46,6 +49,8 @@ const step = (store: AppStore, by: number) => {
   const i = open.findIndex((t) => t.id === active);
   return open[(i + by + open.length) % open.length]?.id;
 };
+/** a key changed the scale: say where it is now (there is no other sign of the step on screen) */
+const scaled = (v: number) => toast(t('defScale'), scaleLabel(v, getLang()));
 const focusComposer = () => (document.getElementById('composer-input') as HTMLTextAreaElement | null)?.focus();
 
 export const BINDINGS: Binding[] = [
@@ -70,6 +75,10 @@ export const BINDINGS: Binding[] = [
   // Alt+T, in a field too (also on a Mac, where Option+T is the † key): the drawer of background tasks. Alt+Shift+T is the reopen above
   { id: 'hk_tasks', codes: ['KeyT'], mods: { alt: true }, inFields: true, run: ({ store }) => void store.dispatch(toggleDrawer()) },
   { id: 'hk_wrap', codes: ['KeyZ'], mods: { alt: true }, inFields: 'notMac', run: () => wrapLines.toggle() },
+  // Alt, not Cmd/Ctrl: the browser's own zoom keeps Cmd/Ctrl +/−/0. Off a Mac in a field too (Option+− types – on a Mac)
+  { id: 'hk_scaleUp', codes: ['Equal', 'NumpadAdd'], mods: { alt: true }, inFields: 'notMac', run: () => scaled(uiScale.step(1)) },
+  { id: 'hk_scaleDown', codes: ['Minus', 'NumpadSubtract'], mods: { alt: true }, inFields: 'notMac', run: () => scaled(uiScale.step(-1)) },
+  { id: 'hk_scaleReset', codes: ['Digit0', 'Numpad0'], mods: { alt: true }, inFields: 'notMac', run: () => { uiScale.choose(1); scaled(1); } },
   { id: 'hk_reveal', codes: ['F1'], mods: { alt: true }, inFields: true,
     run: ({ store }) => {
       const st = store.getState();
@@ -125,7 +134,8 @@ export function keysLabel(b: Binding): string {
   if (b.mods.mod) parts.push(mac ? '⌘' : 'Ctrl+');
   if (b.mods.alt) parts.push(mac ? '⌥' : 'Alt+');
   if (b.mods.shift) parts.push(mac ? '⇧' : 'Shift+');
-  const key = (c: string) => ({ ArrowLeft: '←', ArrowRight: '→', Slash: '/', Escape: 'Esc' } as Record<string, string>)[c] ?? c.replace(/^(Key|Digit)/, '');
-  const keys = b.id === 'hk_tabN' ? '1…9' : b.codes.map(key).join(', ');
+  const key = (c: string) => ({ ArrowLeft: '←', ArrowRight: '→', Slash: '/', Escape: 'Esc', Equal: '=', Minus: '−' } as Record<string, string>)[c] ?? c.replace(/^(Key|Digit)/, '');
+  // the numpad twins are not listed: the help names a key once
+  const keys = b.id === 'hk_tabN' ? '1…9' : b.codes.filter((c) => !c.startsWith('Numpad')).map(key).join(', ');
   return parts.join('') + keys;
 }

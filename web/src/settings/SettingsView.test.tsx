@@ -40,17 +40,22 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+/** ⚙ is a menu: its last item opens the tab */
+function openTab() {
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Settings' }), { key: 'Enter' });
+  fireEvent.click(screen.getByRole('menuitem', { name: 'All settings…' }));
+}
 function setup() {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   render(<Provider store={store}><App /></Provider>);
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  openTab();
   return store;
 }
 const win = async (port: number) => (await screen.findByText(`:${port}`)).closest<HTMLElement>('[data-window]')!;
 
-it('⚙ opens one Settings tab; a second click activates the same one; it closes like a file tab', () => {
+it('⚙ → All settings opens one Settings tab; a second time activates the same one; it closes like a file tab', () => {
   const store = setup();
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  openTab();
   expect(selectTabs(store.getState()).open.filter((t) => t.kind === 'settings')).toHaveLength(1);
   expect(selectTabs(store.getState()).active).toBe('settings');
   expect(screen.getByRole('tab', { name: /Settings/ })).toBeInTheDocument();
