@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 — 2026-11-06
 
-- Add omp (https://omp.sh, 18.16.0+) as a third agent: `--agent omp` speaks the Agent
+- Add omp (https://omp.sh, 18.16.0+) as a third agent, a preview: `--agent omp` speaks the Agent
   Client Protocol to `omp acp`, with streamed replies, tool rows, approval and question
   cards, sessions (list, resume, fork, rename, clear), models, effort, cost and four
   modes (Write, Ask, Plan, Yolo); a new project starts in Write. An omp skill (`/skill:nb`) opens the window from omp.
@@ -12,6 +12,9 @@
   The agent gets the place as a path of named elements and, for an area, its viewBox
   coordinates and what it covers. The page's scripts never run.
 - The player's clock and timeline show milliseconds: `1:02.345`, as comments already quote the time.
+- The model menu handles long lists (a router offers dozens of models): a search field, scrolling inside the menu, groups by provider with the one in use first.
+- Changes: a **Tree** checkbox shows the changed files as a folder tree that folds; the choice is remembered.
+- Cmd/Ctrl+Enter asks before it interrupts a working agent; a message sent with Enter is still injected into the running turn.
 
 ## 1.4.0 — 2026-11-03
 
