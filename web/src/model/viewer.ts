@@ -20,7 +20,7 @@ import type { CameraPose, LoadOptions, ModelStats, ModelViewer, ViewerOptions } 
 
 const FOV = 50;
 
-/** Any CSS colour (including oklch(), which three cannot parse) as a three Color, via a 1×1 canvas. */
+/** Any CSS colour (including OKLCH, which three cannot parse) as a three Color, via a 1×1 canvas. */
 function cssToColor(css: string): Color {
   const g = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
   if (!g) return new Color(0x202020);

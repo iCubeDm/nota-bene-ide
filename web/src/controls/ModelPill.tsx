@@ -144,7 +144,7 @@ export function ModelPill() {
               }
               if (e.key !== 'Escape') e.stopPropagation(); // typed letters are the query, not the menu's typeahead
             }}
-            className="mx-1 mt-0.5 mb-1 h-7 shrink-0 rounded-md border border-border-soft bg-transparent px-2 text-[0.75rem] text-foreground outline-none placeholder:text-muted-foreground focus:border-[oklch(0.75_0.18_280/0.6)]"
+            className="mx-1 mt-0.5 mb-1 h-7 shrink-0 rounded-md border border-border-soft bg-transparent px-2 text-[0.75rem] text-foreground outline-none placeholder:text-muted-foreground focus:border-focus-border"
           />
         )}
         <div ref={listRef} data-testid="model-list" className="min-h-0 flex-1 overflow-y-auto">

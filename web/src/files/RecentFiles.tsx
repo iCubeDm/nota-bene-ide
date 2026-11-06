@@ -78,7 +78,7 @@ export function RecentFiles() {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o) close(); }}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim/40" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
           data-nb-modal=""

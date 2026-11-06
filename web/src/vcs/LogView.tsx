@@ -20,9 +20,9 @@ function Lanes({ r, width }: { r: ReturnType<typeof layout>[number]; width: numb
   const mid = ROW / 2;
   return (
     <svg width={width} height={ROW} className="flex-none">
-      {r.up.map(([a, b], i) => <path key={`u${i}`} d={`M${x(a)} 0 C${x(a)} ${mid / 2} ${x(b)} ${mid / 2} ${x(b)} ${mid}`} fill="none" stroke={COLORS[a % COLORS.length]} strokeWidth="1.5" />)}
-      {r.down.map(([a, b], i) => <path key={`d${i}`} d={`M${x(a)} ${mid} C${x(a)} ${mid * 1.5} ${x(b)} ${mid * 1.5} ${x(b)} ${ROW}`} fill="none" stroke={COLORS[b % COLORS.length]} strokeWidth="1.5" />)}
-      <circle cx={x(r.col)} cy={mid} r="3.5" fill={COLORS[r.col % COLORS.length]} />
+      {r.up.map(([a, b], i) => <path key={`u${i}`} d={`M${x(a)} 0 C${x(a)} ${mid / 2} ${x(b)} ${mid / 2} ${x(b)} ${mid}`} fill="none" style={{ stroke: COLORS[a % COLORS.length] }} strokeWidth="1.5" />)}
+      {r.down.map(([a, b], i) => <path key={`d${i}`} d={`M${x(a)} ${mid} C${x(a)} ${mid * 1.5} ${x(b)} ${mid * 1.5} ${x(b)} ${ROW}`} fill="none" style={{ stroke: COLORS[b % COLORS.length] }} strokeWidth="1.5" />)}
+      <circle cx={x(r.col)} cy={mid} r="3.5" style={{ fill: COLORS[r.col % COLORS.length] }} />
     </svg>
   );
 }

@@ -80,7 +80,7 @@ export function CompactingLine({ since, now = Date.now }: { since: number; now?:
       >
         <div
           data-part="fill"
-          className="h-full rounded-full bg-[var(--nb-accent,oklch(0.70_0.20_60))] transition-[width] duration-500 ease-linear"
+          className="h-full rounded-full bg-nb-accent transition-[width] duration-500 ease-linear"
           style={{ width: `${pct}%` }}
         />
       </div>

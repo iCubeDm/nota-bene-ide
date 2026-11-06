@@ -3,8 +3,8 @@ import { AUDIO, IMAGE, isModelFile, useModel3d, VIDEO } from './kinds.ts';
 
 /**
  * File-type icons (M6-11), after IntelliJ's new UI: a coloured letter mark for source and config files, a coloured
- * glyph for media, folders and a few well-known names. Built in (inline SVG, no dependency); the colours are picked to
- * read on the dark theme.
+ * glyph for media, folders and a few well-known names. Built in (inline SVG, no dependency); the colours are the
+ * theme's --hue-1..8.
  */
 export type IconId =
   | 'ts' | 'js' | 'json' | 'md' | 'css' | 'html' | 'py' | 'sh' | 'yml' | 'toml'
@@ -13,14 +13,14 @@ export type IconId =
 type Mark = { text: string; color: string } | { glyph: ReactNode; color: string };
 
 const C = {
-  blue: 'oklch(0.70 0.14 250)',
-  yellow: 'oklch(0.82 0.15 90)',
-  orange: 'oklch(0.72 0.16 50)',
-  red: 'oklch(0.66 0.19 25)',
-  purple: 'oklch(0.70 0.15 300)',
-  green: 'oklch(0.72 0.14 150)',
-  teal: 'oklch(0.74 0.11 200)',
-  folder: 'oklch(0.72 0.05 250)',
+  blue: 'var(--hue-1)',
+  yellow: 'var(--hue-2)',
+  orange: 'var(--hue-3)',
+  red: 'var(--hue-4)',
+  purple: 'var(--hue-5)',
+  green: 'var(--hue-6)',
+  teal: 'var(--hue-7)',
+  folder: 'var(--hue-8)',
   plain: 'currentColor',
 };
 

@@ -156,7 +156,7 @@ export function EmojiMenu({ target }: { target: RefObject<HTMLTextAreaElement | 
           ref={pop}
           role="dialog"
           aria-label={t('emojiTip')}
-          className="fixed z-30 flex w-[288px] flex-col rounded-[10px] border border-border bg-popover p-1.5 shadow-[0_10px_32px_rgba(0,0,0,0.5)]"
+          className="fixed z-30 flex w-[288px] flex-col rounded-[10px] border border-border bg-popover p-1.5 shadow-[0_10px_32px_color-mix(in_oklch,var(--shade)_50%,transparent)]"
           style={{ left: place?.left, top: place?.top, bottom: place?.bottom, height: place?.height }}
         >
           <input

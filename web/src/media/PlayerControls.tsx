@@ -14,7 +14,7 @@ export function BarButton({ label, onClick, children, pressed, className = '' }:
       title={label}
       aria-pressed={pressed}
       onClick={onClick}
-      className={`grid size-8 flex-none cursor-pointer place-items-center rounded-full text-white/90 outline-none hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-primary ${className}`}
+      className={`grid size-8 flex-none cursor-pointer place-items-center rounded-full text-on-scrim/90 outline-none hover:bg-on-scrim/15 hover:text-on-scrim focus-visible:ring-2 focus-visible:ring-primary ${className}`}
     >
       {children}
     </button>
@@ -62,7 +62,7 @@ export function VolumeControl({ media, state, onMute }: { media: HTMLMediaElemen
           className="relative mx-1 flex h-6 cursor-pointer touch-none items-center outline-none"
           style={{ width: SLIDER }}
         >
-          <div className="relative h-1 w-full rounded-full bg-white/25">
+          <div className="relative h-1 w-full rounded-full bg-on-scrim/25">
             <div className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${level * 100}%` }} />
             <div className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary" style={{ left: `${level * 100}%` }} />
           </div>
@@ -116,7 +116,7 @@ export function ChoiceMenu({ label, options, value, text, item = text, onPick, o
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => toggle(!open)}
-        className="h-8 min-w-9 cursor-pointer rounded-full px-2 text-[0.8125rem] font-medium text-white/90 tabular-nums outline-none hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-primary"
+        className="h-8 min-w-9 cursor-pointer rounded-full px-2 text-[0.8125rem] font-medium text-on-scrim/90 tabular-nums outline-none hover:bg-on-scrim/15 hover:text-on-scrim focus-visible:ring-2 focus-visible:ring-primary"
       >
         {text(value)}
       </button>

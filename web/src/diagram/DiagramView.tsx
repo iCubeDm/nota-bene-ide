@@ -117,7 +117,7 @@ export function DiagramView({ tab, active }: { tab: DiagramTab; active: boolean 
       onPointerCancel={onPointerUp}
       onClick={onClick}
       // mermaid's dark theme is drawn for a dark ground, a plain svg for a light one (as in the chat)
-      className={`grid-pane relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden select-none active:cursor-grabbing ${tab.lang === 'svg' ? 'bg-[oklch(0.97_0.005_260)]' : ''}`}
+      className={`grid-pane relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden select-none active:cursor-grabbing ${tab.lang === 'svg' ? 'bg-svg' : ''}`}
     >
       {rendered && 'error' in rendered ? (
         <p className="p-4 text-sm text-destructive">{rendered.error}</p>

@@ -1,6 +1,7 @@
 export const ROW = 26;
 export const STEP = 13;
-export const COLORS = ['#7aa2f7', '#9ece6a', '#e0af68', '#f7768e', '#bb9af7', '#7dcfff', '#ff9e64', '#73daca'];
+/** Lane colours: the theme's --hue-9..16 (CSS values, so set them as style, not as SVG attributes). */
+export const COLORS = [9, 10, 11, 12, 13, 14, 15, 16].map((n) => `var(--hue-${n})`);
 
 type C = { sha: string; parents: string[] };
 export type Lane = { col: number; up: [number, number][]; down: [number, number][]; width: number };

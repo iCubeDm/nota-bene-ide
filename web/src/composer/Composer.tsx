@@ -198,7 +198,7 @@ export function Composer() {
           onKeyDown={onKeyDown}
           onPaste={intake.onPaste}
           data-shell={shellMode || undefined}
-          className={`max-h-[40vh] min-h-10 w-full resize-none rounded-[10px] border border-border-soft bg-[oklch(0.15_0.02_260/0.7)] px-3 py-[9px] text-foreground transition-[border-color,box-shadow] outline-none focus:border-[oklch(0.75_0.18_280/0.6)] focus:shadow-[0_0_0_3px_oklch(0.75_0.18_280/0.12)] data-[shell]:border-nb-accent/60 data-[shell]:pr-32 data-[shell]:font-mono data-[shell]:focus:border-nb-accent data-[shell]:focus:shadow-[0_0_0_3px_oklch(0.70_0.20_60/0.15)] ${showSug ? 'pr-16 placeholder:text-foreground placeholder:opacity-45' : 'placeholder:truncate'}`}
+          className={`max-h-[40vh] min-h-10 w-full resize-none rounded-[10px] border border-border-soft bg-background/70 px-3 py-[9px] text-foreground transition-[border-color,box-shadow] outline-none focus:border-focus-border focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_12%,transparent)] data-[shell]:border-nb-accent/60 data-[shell]:pr-32 data-[shell]:font-mono data-[shell]:focus:border-nb-accent data-[shell]:focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--nb-accent)_15%,transparent)] ${showSug ? 'pr-16 placeholder:text-foreground placeholder:opacity-45' : 'placeholder:truncate'}`}
         />
         {shellMode && (
           <span aria-hidden data-testid="shell-cue" className="pointer-events-none absolute right-2.5 bottom-2.5 rounded bg-muted px-1.5 py-px font-mono text-[0.65625rem] text-nb-accent">

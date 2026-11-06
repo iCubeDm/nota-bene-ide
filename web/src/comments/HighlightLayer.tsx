@@ -10,13 +10,13 @@ import { openCommentCard, selectComments } from './slice.ts';
 const PAD_X = 2;
 const PAD_Y = 1;
 const MARK = {
-  sent: 'bg-[oklch(0.75_0.18_280/.18)]',
-  pending: 'bg-[oklch(0.88_0.18_95/.38)]',
+  sent: 'bg-primary/18',
+  pending: 'bg-mark-pending/38',
 } as const;
 /** an element or an area of a page: an outline around it, the page stays readable underneath */
 const OUTLINE = {
-  sent: 'border-2 border-[oklch(0.75_0.18_280/.7)]',
-  pending: 'border-2 border-[oklch(0.82_0.18_95)] bg-[oklch(0.88_0.18_95/.12)]',
+  sent: 'border-2 border-primary/70',
+  pending: 'border-2 border-mark-pending-line bg-mark-pending/12',
 } as const;
 /** an outline larger than this (px, each side) opens its card only from its edge: inside, the text stays selectable */
 const OUTLINE_INNER = 160;

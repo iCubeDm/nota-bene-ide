@@ -204,7 +204,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     <div
       ref={root}
       role="dialog"
-      className="fixed z-10 w-[340px] rounded-[10px] border border-border bg-popover p-2 data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary shadow-[0_10px_32px_rgba(0,0,0,0.5)]"
+      className="fixed z-10 w-[340px] rounded-[10px] border border-border bg-popover p-2 data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary shadow-[0_10px_32px_color-mix(in_oklch,var(--shade)_50%,transparent)]"
       data-dropping={dropping || undefined}
       onDragOver={(e) => {
         if (!hasFiles(e.nativeEvent)) return;

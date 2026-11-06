@@ -1,6 +1,6 @@
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.min.css';
+import './hljs.css';
 import { marked } from 'marked';
 import { memo, type MouseEvent as ReactMouseEvent, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';

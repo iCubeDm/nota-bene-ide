@@ -14,7 +14,7 @@ export function Toasts() {
           data-testid="toast"
           onMouseEnter={() => pauseToast(x.id)}
           onMouseLeave={() => resumeToast(x.id)}
-          className="pointer-events-auto rounded-xl border border-destructive/40 bg-card p-3 text-xs text-foreground shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
+          className="pointer-events-auto rounded-xl border border-destructive/40 bg-card p-3 text-xs text-foreground shadow-[0_8px_30px_color-mix(in_oklch,var(--shade)_40%,transparent)]"
         >
           <div className="flex items-start gap-2">
             <b className="min-w-0 flex-1 text-destructive">{x.title}{x.count > 1 ? ` ×${x.count}` : ''}</b>
