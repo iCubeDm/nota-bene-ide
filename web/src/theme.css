@@ -94,6 +94,8 @@
   --input-focus: var(--focus-border);
   --input-focus-soft: var(--focus-border);
   --input-ring: var(--focus-ring);
+  /* the composer's focus halo: the same 2px ring as the other inputs */
+  --composer-halo: 0 0 0 2px var(--input-ring);
   /* "jump to source" (.nb-flash); a comment's highlight in the text while it is pending */
   --flash: rgb(255 198 109 / .3);
   --mark-pending: #ffc66d;
@@ -199,6 +201,8 @@
   --input-focus: var(--primary);
   --input-focus-soft: color-mix(in oklab, var(--primary) 50%, transparent);
   --input-ring: transparent;
+  /* the composer's focus halo: no ring here, the 3px primary tint it always had */
+  --composer-halo: 0 0 0 3px color-mix(in oklch, var(--primary) 12%, transparent);
   /* "jump to source" (.nb-flash); a comment's highlight in the text while it is pending */
   --flash: oklch(0.88 0.18 95 / 0.35);
   --mark-pending: oklch(0.88 0.18 95);

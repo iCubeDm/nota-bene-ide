@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { getLang, chooseLang, LANGS, useT } from '@/i18n/index.ts';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { selectConn, selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openSettings, openUsage } from '@/tabs/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
@@ -12,7 +12,7 @@ import { RestartMenu } from './RestartMenu.tsx';
 import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
 import { UI_SCALES } from '@nota-bene/shared';
-import { THEMES } from '@nota-bene/shared';
+import { THEMES, type ThemeId } from '@nota-bene/shared';
 import { theme, THEME_NAMES, useTheme } from './theme.ts';
 import { scaleLabel, uiScale, useUiScale } from './uiScale.ts';
 
@@ -94,11 +94,13 @@ export function Header() {
               <span className="text-muted-foreground">{THEME_NAMES[themeId]}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              {THEMES.map((id) => (
-                <DropdownMenuItem key={id} data-theme-id={id} onSelect={() => theme.choose(id)} className={id === themeId ? 'font-semibold text-foreground' : undefined}>
-                  {THEME_NAMES[id]}
-                </DropdownMenuItem>
-              ))}
+              <DropdownMenuRadioGroup value={themeId} onValueChange={(id) => theme.choose(id as ThemeId)}>
+                {THEMES.map((id) => (
+                  <DropdownMenuRadioItem key={id} value={id} data-theme-id={id}>
+                    {THEME_NAMES[id]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           {/* not a menu item: a step keeps the menu open, so the change is seen while choosing */}

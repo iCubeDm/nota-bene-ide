@@ -57,10 +57,10 @@ it('the Theme row lists the themes and picks one', async () => {
   expect(row).toHaveAttribute('id', 'themeMenu');
   expect(row).toHaveTextContent('Darcula');
   fireEvent.keyDown(row, { key: 'ArrowRight' });
-  const dark = await screen.findByRole('menuitem', { name: 'Darcula' });
-  expect(dark.className).toContain('font-semibold');
-  expect(screen.getByRole('menuitem', { name: 'Plannotator' }).className).not.toContain('font-semibold');
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Plannotator' }));
+  const dark = await screen.findByRole('menuitemradio', { name: 'Darcula' });
+  expect(dark).toHaveAttribute('aria-checked', 'true');
+  expect(screen.getByRole('menuitemradio', { name: 'Plannotator' })).toHaveAttribute('aria-checked', 'false');
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'Plannotator' }));
   expect(theme.get()).toBe('plannotator');
   theme.choose('darcula');
 });

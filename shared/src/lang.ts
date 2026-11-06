@@ -10,7 +10,7 @@ export const UI_SCALES = [0.9, 1, 1.1, 1.25, 1.5] as const;
 export type UiScale = (typeof UI_SCALES)[number];
 export const isUiScale = (v: unknown): v is UiScale => (UI_SCALES as readonly unknown[]).includes(v);
 
-/** The colour themes (Settings → Defaults), in the order the picker lists them; kept with the language, one for every window. */
+/** The colour themes (Settings → Themes), in the order the picker lists them; kept with the language, one for every window. */
 export const THEMES = ['darcula', 'plannotator'] as const;
 export type ThemeId = (typeof THEMES)[number];
 export const DEFAULT_THEME: ThemeId = 'darcula';
