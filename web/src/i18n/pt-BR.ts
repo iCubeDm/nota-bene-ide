@@ -286,6 +286,7 @@ export const ptBR: Dict = {
   stCleaned: (n: number, size: string, dir: string) => `${n} movidos (${size}) para ${dir}`,
   stNothing: 'Nada para limpar',
   defLang: 'Idioma da interface',
+  defScale: 'Escala da interface',
   defMode: 'Modo do agente para projetos sem modo próprio',
   defUpdate: 'Verificar novas versões no npm',
   defUpdateEnv: 'Desativado por NOTA_BENE_NO_UPDATE_CHECK',

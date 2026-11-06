@@ -40,31 +40,31 @@ export function ChangesPanel() {
   const value = picked === 'BASE' || (picked && repo?.candidates.includes(picked)) ? picked : ''; // a stored branch may be gone
   const how = value === 'BASE' && repo?.how === 'reflog' ? t('vcsHowReflog') : value === 'BASE' && repo?.how === 'default' ? t('vcsHowDefault') : '';
   const fileRow = (f: (typeof files)[number], depth?: number) => (
-    <button key={f.path} type="button" title={f.path} onClick={() => { d(openChanges()); focusFile(f.path); }} style={depth === undefined ? undefined : { paddingLeft: 6 + depth * 14 }} className={`flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[12.5px] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
+    <button key={f.path} type="button" title={f.path} onClick={() => { d(openChanges()); focusFile(f.path); }} style={depth === undefined ? undefined : { paddingLeft: 6 + depth * 14 }} className={`flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[0.78125rem] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
       <StatusMark s={f.status} />
       <span className="flex-none truncate text-foreground">{base(f.path)}</span>
-      {depth === undefined && <span className="min-w-0 truncate text-[11px] text-muted-foreground">{dir(f.path)}</span>}
+      {depth === undefined && <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">{dir(f.path)}</span>}
     </button>
   );
   return (
     <aside id="changes-sheet" style={{ width: size.width, maxWidth: '45vw' }} className="relative flex flex-none flex-col border-r border-border-soft bg-chrome">
       <PanelResizer edge="right" width={size.width} onWidth={size.set} onReset={size.reset} min={200} label={t('vcsPanelWidth')} />
-      <div className="flex h-9 flex-none items-center gap-2 px-3 text-[13px] font-semibold text-foreground">
+      <div className="flex h-9 flex-none items-center gap-2 px-3 text-[0.8125rem] font-semibold text-foreground">
         {t('vcsChanges')}
         <span className="flex-1" />
         <button type="button" title={t('vcsRefresh')} aria-label={t('vcsRefresh')} onClick={() => void loadDiff(root, src, picked)} className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted">↻</button>
       </div>
       {!repo ? data && <p className="p-3 text-xs text-muted-foreground">{t('vcsNoRepo')}</p> : (
         <>
-          <label className="mx-2 flex flex-none flex-col gap-1 text-[11px] text-muted-foreground">
+          <label className="mx-2 flex flex-none flex-col gap-1 text-[0.6875rem] text-muted-foreground">
             <span>{t('vcsShow')}{how && ` · ${how}`}</span>
-            <select aria-label={t('vcsCompare')} value={value} onChange={(e) => pickBase(root, src, e.target.value || null)} className="h-[30px] truncate rounded-lg border border-transparent bg-muted/50 px-2 text-[12.5px] text-foreground outline-0 focus:border-primary/50">
+            <select aria-label={t('vcsCompare')} value={value} onChange={(e) => pickBase(root, src, e.target.value || null)} className="h-[30px] truncate rounded-lg border border-transparent bg-muted/50 px-2 text-[0.78125rem] text-foreground outline-0 focus:border-primary/50">
               <option value="">{repo.live ? t('vcsUncommitted') : repo.detected ? t('vcsWholeBranch', repo.detected) : t('vcsNoBase')}</option>
               {repo.live && repo.detected && <option value="BASE">{t('vcsWholeBranch', repo.detected)}</option>}
               {repo.candidates.map((b) => <option key={b} value={b}>{t('vcsWholeBranch', b)}</option>)}
             </select>
           </label>
-          <div className="mx-3 mt-2 flex flex-none items-center gap-2 font-mono text-[11px] text-muted-foreground">
+          <div className="mx-3 mt-2 flex flex-none items-center gap-2 font-mono text-[0.6875rem] text-muted-foreground">
             <span>{t('vcsNofM', shown.length, files.length)}</span><span className="text-success">+{add}</span><span className="text-destructive">−{del}</span>
             <span className="flex-1" />
             <label className="flex cursor-pointer items-center gap-1 font-sans">
@@ -73,15 +73,15 @@ export function ChangesPanel() {
             </label>
           </div>
           {!!repo.commits.length && (
-            <details className="mx-2 mt-1.5 flex-none text-[12px] text-muted-foreground">
+            <details className="mx-2 mt-1.5 flex-none text-[0.75rem] text-muted-foreground">
               <summary className="cursor-pointer rounded px-1 py-0.5 hover:bg-muted">{t('vcsCommitsN', repo.commitCount)}</summary>
               <ul className="nb-thin max-h-40 overflow-auto px-1 py-1">
-                {repo.commits.map((c) => <li key={c.sha} className="truncate" title={c.subject}><span className="font-mono text-[11px] opacity-70">{c.sha}</span> {c.subject}</li>)}
+                {repo.commits.map((c) => <li key={c.sha} className="truncate" title={c.subject}><span className="font-mono text-[0.6875rem] opacity-70">{c.sha}</span> {c.subject}</li>)}
                 {repo.commitCount > repo.commits.length && <li>…</li>}
               </ul>
             </details>
           )}
-          <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterFiles')} aria-label={t('vcsFilterFiles')} className="mx-2 mt-2 mb-1 h-[30px] flex-none rounded-lg border border-transparent bg-muted/50 px-2.5 text-[12.5px] text-foreground outline-0 focus:border-primary/50" />
+          <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterFiles')} aria-label={t('vcsFilterFiles')} className="mx-2 mt-2 mb-1 h-[30px] flex-none rounded-lg border border-transparent bg-muted/50 px-2.5 text-[0.78125rem] text-foreground outline-0 focus:border-primary/50" />
           <div className="nb-thin min-h-0 flex-1 overflow-auto px-1.5 pb-3">
             {tree ? (
               <Folder d={fileTree(shown)} depth={0} shut={shut} toggle={toggle} row={(f, depth) => fileRow(f, depth)} />
@@ -100,8 +100,8 @@ function Folder<F extends { path: string }>({ d, depth, shut, toggle, row }: { d
   return (
     <>
       {d.path && (
-        <button type="button" aria-expanded={open} title={d.path} onClick={() => toggle(d.path)} style={{ paddingLeft: 6 + depth * 14 }} className="flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[12.5px] text-muted-foreground hover:bg-muted">
-          <span aria-hidden className="w-3 flex-none text-[10px]">{open ? '▾' : '▸'}</span>
+        <button type="button" aria-expanded={open} title={d.path} onClick={() => toggle(d.path)} style={{ paddingLeft: 6 + depth * 14 }} className="flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[0.78125rem] text-muted-foreground hover:bg-muted">
+          <span aria-hidden className="w-3 flex-none text-[0.625rem]">{open ? '▾' : '▸'}</span>
           <span className="min-w-0 truncate">{d.name}</span>
         </button>
       )}

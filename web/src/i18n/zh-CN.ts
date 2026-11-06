@@ -286,6 +286,7 @@ export const zhCN: Dict = {
   stCleaned: (n: number, size: string, dir: string) => `已将 ${n} 个（${size}）移到 ${dir}`,
   stNothing: '没有需要清理的内容',
   defLang: '界面语言',
+  defScale: '界面缩放',
   defMode: '没有自己模式的项目所用的代理模式',
   defUpdate: '在 npm 上检查新版本',
   defUpdateEnv: '已被 NOTA_BENE_NO_UPDATE_CHECK 关闭',

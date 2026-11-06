@@ -4,7 +4,7 @@ import { useT } from '@/i18n/index.ts';
 export function SourceChip({ name }: { name: string }) {
   const t = useT();
   return (
-    <span data-src-chip title={t('readOnly')} className="max-w-[120px] flex-none truncate rounded bg-muted px-1 font-mono text-[10.5px] leading-4 text-muted-foreground">
+    <span data-src-chip title={t('readOnly')} className="max-w-[120px] flex-none truncate rounded bg-muted px-1 font-mono text-[0.65625rem] leading-4 text-muted-foreground">
       {name}
     </span>
   );

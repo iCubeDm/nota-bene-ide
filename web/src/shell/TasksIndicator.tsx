@@ -20,7 +20,7 @@ export function TasksIndicator() {
   if (running + finished + watchers === 0) return null;
   const live = running > 0;
   return (
-    <div className="flex pt-1.5 text-[11.5px] text-muted-foreground">
+    <div className="flex pt-1.5 text-[0.71875rem] text-muted-foreground">
       <button
         type="button"
         id={INDICATOR_ID}

@@ -70,8 +70,8 @@ export function AgentView({ tab, active }: { tab: AgentTab; active: boolean }) {
   const ok = entry?.status === 'ok';
   return (
     <main data-chat-pane data-pane={tab.id} data-agent={tool} hidden={!active} className="grid-pane relative min-h-0 flex-1 overflow-auto">
-      <div data-items className="nb-card nb-prose px-10 pt-5 pb-7 text-[15px] leading-[1.625] text-foreground/90">
-        <div data-anchor-skip data-kind="agent-note" className="mb-3 flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+      <div data-items className="nb-card nb-prose px-10 pt-5 pb-7 text-[0.9375rem] leading-[1.625] text-foreground/90">
+        <div data-anchor-skip data-kind="agent-note" className="mb-3 flex items-center gap-2 font-mono text-[0.6875rem] text-muted-foreground">
           <span>{t('agentReadOnly')}</span>
           {noComment && <span data-agent-nocomment className="text-destructive">· {t('agentNoComment')}</span>}
           {ok && entry.running && <span data-agent-running className="text-nb-accent">· {t('agentRunning')}</span>}

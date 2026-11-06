@@ -64,7 +64,7 @@ export function Attachments({ ids, pending = [], onRemove, ...rest }: {
                 e.stopPropagation();
                 onRemove(id);
               }}
-              className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-background text-[10px] leading-none text-muted-foreground ring-1 ring-border hover:text-destructive"
+              className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-background text-[0.625rem] leading-none text-muted-foreground ring-1 ring-border hover:text-destructive"
             >
               ×
             </button>

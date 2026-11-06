@@ -41,10 +41,10 @@ const modelName = (id: string): string =>
   id.replace(/^claude-/, '').replace(/^([a-z])([a-z]*)-(\d+)-(\d+)$/, (_, a: string, b: string, major: string, minor: string) => `${a.toUpperCase()}${b} ${major}.${minor}`);
 
 const CHOICE = 'cursor-pointer text-muted-foreground hover:text-foreground aria-pressed:text-foreground aria-pressed:shadow-[0_1px_0_currentColor]';
-const ACTION = 'cursor-pointer rounded-md border border-border-soft px-3 py-1 text-[13px] text-muted-foreground hover:text-foreground';
+const ACTION = 'cursor-pointer rounded-md border border-border-soft px-3 py-1 text-[0.8125rem] text-muted-foreground hover:text-foreground';
 const LINE = 'flex justify-between gap-4';
 const ELLIPSIS = 'min-w-0 truncate';
-const VALUE = 'font-mono text-[13px] whitespace-nowrap';
+const VALUE = 'font-mono text-[0.8125rem] whitespace-nowrap';
 const TH = 'border-b border-border px-2 py-1 text-left text-xs font-medium text-muted-foreground first:pl-0';
 const TD = 'border-b border-border-soft px-2 py-1.5 align-top first:pl-0';
 
@@ -54,7 +54,7 @@ function Odometer({ value }: { value: number }) {
   const WHEEL = 'block min-w-[0.82em] rounded-[3px] px-[0.06em] py-[0.2em] text-center';
   return (
     <>
-      <span role="img" aria-label={fmtTokens(value)} className="inline-flex gap-0.5 font-mono text-[34px] leading-none font-medium tabular-nums">
+      <span role="img" aria-label={fmtTokens(value)} className="inline-flex gap-0.5 font-mono text-[2.125rem] leading-none font-medium tabular-nums">
         {[...whole].map((c, i) => <span key={i} className={`${WHEEL} bg-muted`}>{c}</span>)}
         {tenth && <><span className="block py-[0.2em]">.</span><span className={`${WHEEL} bg-primary text-primary-foreground`}>{tenth}</span></>}
       </span>
@@ -84,7 +84,7 @@ function ModelMix({ r }: { r: UsageReport }) {
   return (
     <div className="mt-4">
       <Mix parts={parts} className="h-2" />
-      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
+      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[0.8125rem]">
         {parts.map((p) => (
           <span key={p.key} title={p.tip}>
             <i className={`mr-1.5 inline-block size-2 rounded-sm ${p.color}`} />
@@ -137,7 +137,7 @@ function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; fi
           ))}
         </div>
       </div>
-      <div className="mt-1 flex justify-between font-mono text-[11px] text-muted-foreground"><span>{first}</span><span>{last}</span></div>
+      <div className="mt-1 flex justify-between font-mono text-[0.6875rem] text-muted-foreground"><span>{first}</span><span>{last}</span></div>
     </figure>
   );
 }
@@ -196,7 +196,7 @@ function Limits({ r }: { r: UsageReport }) {
       {hits.length > 0 && (
         <div className="min-w-0">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-[13px]">
+            <table className="w-full border-collapse text-[0.8125rem]">
               <thead>
                 <tr>
                   <th className={TH}>{t('usageWhen')}</th><th className={TH}>{t('usageLimit')}</th><th className={`${TH} text-right`}>{t('usageTokensCol')}</th>
@@ -206,17 +206,17 @@ function Limits({ r }: { r: UsageReport }) {
               <tbody>{hits.slice(0, all ? Infinity : ROWS_SHOWN).map((h) => <HitRow key={`${h.kind}${h.ts}`} h={h} currency={r.extra?.currency ?? null} />)}</tbody>
             </table>
           </div>
-          {hits.length > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[13px]`}>{all ? t('usageShowTop') : t('usageShowAll', hits.length)}</button>}
+          {hits.length > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[0.8125rem]`}>{all ? t('usageShowTop') : t('usageShowAll', hits.length)}</button>}
         </div>
       )}
       {extra && (
-        <p className="text-[13px] text-muted-foreground" title={t('usageExtraTip')}>
+        <p className="text-[0.8125rem] text-muted-foreground" title={t('usageExtraTip')}>
           {t('usageExtra', fmtTokens(extra.w), extra.spent === null ? t('usageSumUnknown') : money(extra.spent, extra.currency))}
           {extra.month !== null && ` ${extra.limit === null ? t('usageExtraMonth', money(extra.month, extra.currency)) : t('usageExtraOf', money(extra.month, extra.currency), money(extra.limit, extra.currency))}`}
         </p>
       )}
       {r.tanks.length > 0 && (
-        <p className="text-[13px] text-muted-foreground" title={t('usageTankTip')}>
+        <p className="text-[0.8125rem] text-muted-foreground" title={t('usageTankTip')}>
           {t('usageTank')} <span className="font-mono text-foreground">{r.tanks.slice(-TANKS_SHOWN).map((k) => fmtTokens(k.perPct)).join(' → ')}</span>
         </p>
       )}
@@ -229,7 +229,7 @@ function TaskDetail({ task, color }: { task: UsageTaskRow; color: (model: string
   const agents = new Map(task.agents.map((a) => [a.id, a.label]));
   const parts = Object.entries(task.models).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, value, color: color(key) }));
   return (
-    <div className="grid gap-2 px-2 pt-1 pb-3 pl-4 text-[13px] text-muted-foreground">
+    <div className="grid gap-2 px-2 pt-1 pb-3 pl-4 text-[0.8125rem] text-muted-foreground">
       <div>
         <div className="mb-1">{t('usageTaskLine', num(task.calls), pct(task.sub, task.w), when(task.ts))}</div>
         <Mix parts={parts} />
@@ -257,7 +257,7 @@ function Row({ share, children, ...button }: { share: number; children: ReactNod
       {children}
     </>
   );
-  const ROW = 'relative isolate my-px flex w-full items-baseline gap-4 rounded px-2 py-1.5 text-left text-[13px]';
+  const ROW = 'relative isolate my-px flex w-full items-baseline gap-4 rounded px-2 py-1.5 text-left text-[0.8125rem]';
   return button.onClick ? <button type="button" className={`group ${ROW} cursor-pointer`} {...button}>{body}</button> : <div className={ROW} title={button.title}>{body}</div>;
 }
 
@@ -273,8 +273,8 @@ function Spent({ r, color }: { r: UsageReport; color: (model: string) => string 
     <section className="min-w-0">
       <div className="mb-1.5 flex items-baseline gap-3.5">
         <h2 className="text-sm font-semibold text-foreground">{t('usageSpent')}</h2>
-        <button type="button" aria-pressed={list === 'tasks'} onClick={() => pick('tasks')} className={`${CHOICE} text-[13px]`}>{t('usageTasks')}</button>
-        <button type="button" aria-pressed={list === 'projects'} onClick={() => pick('projects')} className={`${CHOICE} text-[13px]`}>{t('usageProjects')}</button>
+        <button type="button" aria-pressed={list === 'tasks'} onClick={() => pick('tasks')} className={`${CHOICE} text-[0.8125rem]`}>{t('usageTasks')}</button>
+        <button type="button" aria-pressed={list === 'projects'} onClick={() => pick('projects')} className={`${CHOICE} text-[0.8125rem]`}>{t('usageProjects')}</button>
       </div>
       {list === 'tasks' ? r.tasks.slice(0, shown).map((task) => (
         <Fragment key={task.id}>
@@ -292,7 +292,7 @@ function Spent({ r, color }: { r: UsageReport; color: (model: string) => string 
           <span className={VALUE}>{fmtTokens(p.w)}</span>
         </Row>
       ))}
-      {items > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[13px]`}>{all ? t('usageShowTop') : t('usageShowAll', items)}</button>}
+      {items > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[0.8125rem]`}>{all ? t('usageShowTop') : t('usageShowAll', items)}</button>}
     </section>
   );
 }
@@ -305,7 +305,7 @@ function Report({ r }: { r: UsageReport }) {
     <>
       <div className="min-w-0">
         <ModelMix r={r} />
-        <p className="mt-1 text-[13px] text-muted-foreground">{t('usageSide', num(r.total.calls), pct(r.total.sub, r.total.w))}</p>
+        <p className="mt-1 text-[0.8125rem] text-muted-foreground">{t('usageSide', num(r.total.calls), pct(r.total.sub, r.total.w))}</p>
       </div>
       <Limits r={r} />
       <Spent r={r} color={color} />
@@ -358,7 +358,7 @@ export function UsageView({ active }: { active: boolean }) {
   return (
     <div className="nb-card nb-prose grid gap-6 px-6 py-5">
       <div className="grid gap-5">
-        <div className="flex flex-wrap items-baseline gap-5 text-[13px]">
+        <div className="flex flex-wrap items-baseline gap-5 text-[0.8125rem]">
           <div className="flex gap-3">
             {PROVIDERS.map((p) => <button key={p.id} type="button" aria-pressed={provider === p.id} className={CHOICE} onClick={() => setChoice(p.id)}>{p.name}</button>)}
           </div>
@@ -370,23 +370,23 @@ export function UsageView({ active }: { active: boolean }) {
           <div className="flex flex-wrap items-center gap-3.5">
             <Odometer value={shown.total.w} />
             <span className="text-muted-foreground underline decoration-dotted underline-offset-3" title={t('usageTotalsTip', fmtTokens(shown.total.read), fmtTokens(shown.total.out))}>{t('usageTokens')}</span>
-            {shown.from && shown.period === 'trip' && <span className="text-[13px] text-muted-foreground">{t('usageSince', when(shown.from))}</span>}
+            {shown.from && shown.period === 'trip' && <span className="text-[0.8125rem] text-muted-foreground">{t('usageSince', when(shown.from))}</span>}
             <button type="button" onClick={() => setAsking(!asking)} aria-expanded={asking} className={`${ACTION} ml-auto`}>{t('usageReset')}</button>
           </div>
         )}
         {shown && !live(shown) && <div className="flex"><button type="button" onClick={() => setAsking(!asking)} aria-expanded={asking} className={`${ACTION} ml-auto`}>{t('usageReset')}</button></div>}
       </div>
       {asking && (
-        <div className="flex flex-wrap items-center gap-3 rounded-md bg-muted px-3 py-2 text-[13px]">
+        <div className="flex flex-wrap items-center gap-3 rounded-md bg-muted px-3 py-2 text-[0.8125rem]">
           <span className="flex-1">{t('usageResetQ')}</span>
           <button type="button" onClick={() => void reset()} className={ACTION}>{t('usageReset')}</button>
           <button type="button" onClick={() => setAsking(false)} className={ACTION}>{t('cancel')}</button>
         </div>
       )}
-      {error && <p role="alert" className="text-[13px] text-destructive">{t('usageLoadFail', error)}</p>}
-      {shown?.importing && <p role="status" className="text-[13px] text-warn">{t('usageImporting')}</p>}
-      {!shown && !error && <p className="text-[13px] text-muted-foreground">{t('usageLoading')}</p>}
-      {shown && (live(shown) ? <Report r={shown} /> : <p className="text-[13px] text-muted-foreground">{t('usageEmpty')}</p>)}
+      {error && <p role="alert" className="text-[0.8125rem] text-destructive">{t('usageLoadFail', error)}</p>}
+      {shown?.importing && <p role="status" className="text-[0.8125rem] text-warn">{t('usageImporting')}</p>}
+      {!shown && !error && <p className="text-[0.8125rem] text-muted-foreground">{t('usageLoading')}</p>}
+      {shown && (live(shown) ? <Report r={shown} /> : <p className="text-[0.8125rem] text-muted-foreground">{t('usageEmpty')}</p>)}
     </div>
   );
 }

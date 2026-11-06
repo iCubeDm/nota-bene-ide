@@ -67,7 +67,7 @@ export function ModelPill() {
       type="button"
       aria-label={t('modelTip')}
       disabled={switching || !switchable}
-      className="inline-flex h-[24px] items-center rounded-full border border-border-soft bg-transparent px-2.5 font-mono text-[11px] text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground disabled:opacity-70"
+      className="inline-flex h-[24px] items-center rounded-full border border-border-soft bg-transparent px-2.5 font-mono text-[0.6875rem] text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground disabled:opacity-70"
     >
       {label}
     </button>
@@ -97,9 +97,9 @@ export function ModelPill() {
         onSelect={() => pick(o, here ? cur?.effort : cur?.effort && o.efforts?.includes(cur.effort) ? cur.effort : undefined)}
         className={`flex items-baseline gap-2 px-2.5 py-1.5 ${here ? 'bg-muted' : ''}`}
       >
-        <b className="shrink-0 text-[13px] font-medium">{o.name}</b>
-        <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">{o.description}</span>
-        <span aria-hidden className="w-3 shrink-0 text-[12px]">{here ? '✓' : ''}</span>
+        <b className="shrink-0 text-[0.8125rem] font-medium">{o.name}</b>
+        <span className="min-w-0 flex-1 truncate text-[0.71875rem] text-muted-foreground">{o.description}</span>
+        <span aria-hidden className="w-3 shrink-0 text-[0.75rem]">{here ? '✓' : ''}</span>
       </DropdownMenuItem>
     );
   };
@@ -144,15 +144,15 @@ export function ModelPill() {
               }
               if (e.key !== 'Escape') e.stopPropagation(); // typed letters are the query, not the menu's typeahead
             }}
-            className="mx-1 mt-0.5 mb-1 h-7 shrink-0 rounded-md border border-border-soft bg-transparent px-2 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-[oklch(0.75_0.18_280/0.6)]"
+            className="mx-1 mt-0.5 mb-1 h-7 shrink-0 rounded-md border border-border-soft bg-transparent px-2 text-[0.75rem] text-foreground outline-none placeholder:text-muted-foreground focus:border-[oklch(0.75_0.18_280/0.6)]"
           />
         )}
         <div ref={listRef} data-testid="model-list" className="min-h-0 flex-1 overflow-y-auto">
-        {shown.length === 0 && <p className="m-0 px-2.5 py-1.5 text-[12px] text-muted-foreground">{t('modelNone')}</p>}
+        {shown.length === 0 && <p className="m-0 px-2.5 py-1.5 text-[0.75rem] text-muted-foreground">{t('modelNone')}</p>}
         {grouped
           ? byProvider(shown, current).map(([p, rows]) => (
               <div key={p} role={p ? 'group' : undefined} aria-label={p || undefined}>
-                {p && <div aria-hidden className="px-2.5 pt-1.5 pb-0.5 text-[11px] font-medium text-muted-foreground">{p}</div>}
+                {p && <div aria-hidden className="px-2.5 pt-1.5 pb-0.5 text-[0.6875rem] font-medium text-muted-foreground">{p}</div>}
                 {rows.map(row)}
               </div>
             ))
@@ -162,7 +162,7 @@ export function ModelPill() {
             <DropdownMenuItem
               aria-expanded={showMore}
               onSelect={(e) => { e.preventDefault(); setMore(!more); }}
-              className="px-2.5 py-1.5 text-[12px] text-muted-foreground"
+              className="px-2.5 py-1.5 text-[0.75rem] text-muted-foreground"
             >
               {showMore ? '▾' : '▸'} {t('modelOthers')}
             </DropdownMenuItem>
@@ -172,21 +172,21 @@ export function ModelPill() {
         </div>
         {current?.efforts && (
           <div role="group" aria-label={t('effortLabel')} className="flex shrink-0 flex-wrap items-center gap-1 border-t border-border-soft px-2.5 pb-1 pt-1.5">
-            <span className="mr-1 text-[11px] text-muted-foreground">{t('effortLabel')}</span>
+            <span className="mr-1 text-[0.6875rem] text-muted-foreground">{t('effortLabel')}</span>
             {current.efforts.map((e) => (
               <DropdownMenuItem
                 key={e}
                 aria-current={cur?.effort === e || undefined}
                 onFocus={() => setHover(null)}
                 onSelect={() => pick(current, e)}
-                className={`inline-flex h-[22px] w-auto items-center rounded-full border border-border-soft px-2 py-0 text-[11px] ${cur?.effort === e ? 'bg-muted font-medium' : ''}`}
+                className={`inline-flex h-[22px] w-auto items-center rounded-full border border-border-soft px-2 py-0 text-[0.6875rem] ${cur?.effort === e ? 'bg-muted font-medium' : ''}`}
               >
                 {t(`effort_${e}`)}
               </DropdownMenuItem>
             ))}
           </div>
         )}
-        {warn && <p data-testid="cache-warn" className="m-0 shrink-0 border-t border-border-soft px-2.5 pb-1.5 pt-1.5 text-[11.5px] leading-snug text-warn">{t('modelCacheWarn', kTokens)}</p>}
+        {warn && <p data-testid="cache-warn" className="m-0 shrink-0 border-t border-border-soft px-2.5 pb-1.5 pt-1.5 text-[0.71875rem] leading-snug text-warn">{t('modelCacheWarn', kTokens)}</p>}
       </DropdownMenuContent>
     </DropdownMenu>
   );

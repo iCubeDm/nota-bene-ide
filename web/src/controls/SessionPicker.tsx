@@ -150,7 +150,7 @@ export function SessionPicker() {
             id="sessBtn"
             title={t(provider === 'codex' ? 'sessTipCodex' : provider === 'omp' ? 'sessTipOmp' : 'sessTip')}
             disabled={off}
-            className="inline-flex flex-none items-center gap-1 rounded border border-border-soft px-2 py-px font-mono text-[11px] text-muted-foreground hover:enabled:border-primary hover:enabled:text-foreground disabled:cursor-default disabled:opacity-35"
+            className="inline-flex flex-none items-center gap-1 rounded border border-border-soft px-2 py-px font-mono text-[0.6875rem] text-muted-foreground hover:enabled:border-primary hover:enabled:text-foreground disabled:cursor-default disabled:opacity-35"
           >
             {t('sessions')}
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
@@ -186,7 +186,7 @@ export function SessionPicker() {
               disabled={!v}
               className="block w-full rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
             >
-              <span data-t className="block text-[13px] text-primary">{t('newHere')}</span>
+              <span data-t className="block text-[0.8125rem] text-primary">{t('newHere')}</span>
             </button>
             {view === null && <div className="px-2.5 py-2 text-xs text-muted-foreground">{t('loading')}</div>}
             {typeof view === 'string' && <div className="px-2.5 py-2 text-xs text-destructive">{view}</div>}
@@ -196,7 +196,7 @@ export function SessionPicker() {
                   data-sess-group=""
                   data-here={g.here || undefined}
                   title={g.dir}
-                  className={`truncate px-2.5 pt-2.5 pb-1 font-mono text-[10.5px] ${g.here ? 'text-primary' : 'text-muted-foreground'}`}
+                  className={`truncate px-2.5 pt-2.5 pb-1 font-mono text-[0.65625rem] ${g.here ? 'text-primary' : 'text-muted-foreground'}`}
                 >
                   {g.here ? t('thisProject') : ''}{short(g.dir)}
                 </div>
@@ -215,7 +215,7 @@ export function SessionPicker() {
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => setEdit({ id: x.id, text: e.target.value })}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void rename(); } }}
-                        className="mx-1 my-0.5 block w-[calc(100%-0.5rem)] rounded-md border border-primary bg-transparent px-2 py-1.5 text-[13px] text-foreground outline-none"
+                        className="mx-1 my-0.5 block w-[calc(100%-0.5rem)] rounded-md border border-primary bg-transparent px-2 py-1.5 text-[0.8125rem] text-foreground outline-none"
                       />
                     );
                   }
@@ -229,8 +229,8 @@ export function SessionPicker() {
                         onClick={() => pick({ id: x.id, title, dir: x.cwd })}
                         className={`block w-full rounded-md py-1.5 pr-8 pl-2.5 text-left hover:enabled:bg-muted ${cur ? 'cursor-default bg-primary/10' : ''}`}
                       >
-                        <span data-t className="block truncate text-[13px] text-foreground">{title}</span>
-                        <span className="block font-mono text-[10.5px] text-muted-foreground">
+                        <span data-t className="block truncate text-[0.8125rem] text-foreground">{title}</span>
+                        <span className="block font-mono text-[0.65625rem] text-muted-foreground">
                           {x.id.slice(0, 8)} · {ago(x.at)} · {kb(x.size)}{cur ? t('openNow') : ''}
                         </span>
                       </button>
@@ -251,7 +251,7 @@ export function SessionPicker() {
           </div>
         </PopoverContent>
       </Popover>
-      {note && <span role="status" className="flex-none text-[11px] text-warn">{note}</span>}
+      {note && <span role="status" className="flex-none text-[0.6875rem] text-warn">{note}</span>}
       {ask && v && (
         <ConfirmDialog
           title={ask.id ? t('openQ', ask.title) : t('newQ')}

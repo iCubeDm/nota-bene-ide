@@ -134,7 +134,7 @@ export function ModelMarkup({ tabId, path, src, fileRef, url, active, viewer, re
                 aria-pressed={atView.has(c.id)}
                 title={`${t('modelViewGo')}${text ? `: ${text}` : ''}${changedSince(c, current) ? ` (${t('fileChanged')})` : ''}`}
                 onClick={() => viewer?.setPose(c.anchor.camera!)}
-                className={`rounded-full border border-border-soft bg-chrome/90 px-2 py-0.5 text-[11px] text-muted-foreground backdrop-blur hover:text-foreground aria-pressed:border-nb-accent aria-pressed:text-nb-accent ${stale ? 'opacity-60' : ''}`}
+                className={`rounded-full border border-border-soft bg-chrome/90 px-2 py-0.5 text-[0.6875rem] text-muted-foreground backdrop-blur hover:text-foreground aria-pressed:border-nb-accent aria-pressed:text-nb-accent ${stale ? 'opacity-60' : ''}`}
               >
                 {[n || '', text.length > CHIP_CHARS ? `${text.slice(0, CHIP_CHARS)}…` : text].filter(Boolean).join(' · ') || '◉'}
               </button>

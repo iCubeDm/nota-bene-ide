@@ -13,12 +13,12 @@ export function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'perm
   const title = prompt?.title === 'Additional Codex permissions' ? t('codexPermissions') : prompt?.title === 'MCP request' ? t('nativeMcpRequest') : prompt?.title;
   const resolved = item.answer !== undefined;
   const body = String(item.input.command ?? item.input.file_path ?? JSON.stringify(item.input, null, 2));
-  const btn = 'rounded-lg border border-transparent px-3 py-1 text-[13px] font-medium';
+  const btn = 'rounded-lg border border-transparent px-3 py-1 text-[0.8125rem] font-medium';
   return (
     <div
       data-kind="permission"
       className={
-        'my-2.5 rounded-[10px] border bg-card px-3 py-2 text-[13px] ' +
+        'my-2.5 rounded-[10px] border bg-card px-3 py-2 text-[0.8125rem] ' +
         (resolved || item.archived ? 'border-border-soft opacity-60' : 'border-warn')
       }
     >

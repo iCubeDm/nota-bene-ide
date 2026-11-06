@@ -325,7 +325,7 @@ The gear in the header opens **Settings**:
 
 - **Windows**: every running window with its folder, port, state (working or idle), number of open tabs and uptime. Open, Restart agent, Restart server and Stop work on any of them.
 - **Storage**: what is on disk for pasted images, comments, chat history from before compaction and media marks, with **Clean unreferenced files**, which moves pasted images that no comment references and that are over a day old, and the history of sessions that no longer exist, to the state folder's `trash/`. Nothing is deleted.
-- **Defaults**: interface language, and the agent mode for projects that have none of their own.
+- **Defaults**: interface language, interface scale (90–150 %: text and spacing grow, for every window at once), and the agent mode for projects that have none of their own.
 - **About**: version, state folder, where the logs are, Node version.
 
 ### Languages

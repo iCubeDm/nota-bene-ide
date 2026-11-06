@@ -47,7 +47,7 @@ function Clipped({ text, className, cap = LAZY_CHARS }: { text: string; classNam
     <>
       <pre className={className}>{cut ? text.slice(0, cap) : text}</pre>
       {cut && (
-        <button type="button" data-anchor-skip className="mt-1 text-[11px] underline" onClick={() => setAll(true)}>
+        <button type="button" data-anchor-skip className="mt-1 text-[0.6875rem] underline" onClick={() => setAll(true)}>
           {t('showAll')}
         </button>
       )}
@@ -55,7 +55,7 @@ function Clipped({ text, className, cap = LAZY_CHARS }: { text: string; classNam
   );
 }
 
-const BOX = 'max-h-[50vh] overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 p-2 font-mono text-[11.5px] leading-snug';
+const BOX = 'max-h-[50vh] overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 p-2 font-mono text-[0.71875rem] leading-snug';
 
 /** `end`: the furthest comment's anchor end in this panel's text (0 = none), so the output renders at least up to it. */
 function Panel({ item, id, end }: { item: Tool; id: string; end: number }) {
@@ -71,21 +71,21 @@ function Panel({ item, id, end }: { item: Tool; id: string; end: number }) {
   const out = item.result?.text ?? '';
   const outStart = useMemo(() => { const n = collapsedLength(input); return n ? n + 1 : 0; }, [input]);
   const cap = end > outStart ? Math.max(LAZY_CHARS, rawIndexOf(out, end - outStart) + MARGIN) : LAZY_CHARS;
-  const none = <div data-anchor-skip className="text-[11.5px] italic text-muted-foreground">{t('toolNoOutput')}</div>;
+  const none = <div data-anchor-skip className="text-[0.71875rem] italic text-muted-foreground">{t('toolNoOutput')}</div>;
   return (
     // a commentable root (R-M7-18): its anchor text is the command, then the output; labels and hints stay out of it
     <div id={id} data-item-id={toolSrcId(item.id)} data-kind="tool-panel" data-testid="tool-panel" className={'mb-2.5 text-foreground' + (item.sub ? ' pl-5' : '')}>
       {input && (
         <>
-          <div data-anchor-skip className="mb-0.5 text-[10.5px] text-muted-foreground">{t('toolInput')}</div>
+          <div data-anchor-skip className="mb-0.5 text-[0.65625rem] text-muted-foreground">{t('toolInput')}</div>
           <Clipped text={input} className={BOX} cap={Infinity} />
         </>
       )}
-      <div data-anchor-skip className="mb-0.5 mt-1.5 text-[10.5px] text-muted-foreground">{t('toolOutput')}</div>
+      <div data-anchor-skip className="mb-0.5 mt-1.5 text-[0.65625rem] text-muted-foreground">{t('toolOutput')}</div>
       {item.result ? (
         item.result.text ? <Clipped text={out} className={BOX + (failed ? ' text-destructive' : '')} cap={cap} /> : none
       ) : busy ? (
-        <div data-anchor-skip className="text-[11.5px] italic text-muted-foreground">{t('toolRunning')}</div>
+        <div data-anchor-skip className="text-[0.71875rem] italic text-muted-foreground">{t('toolRunning')}</div>
       ) : (
         none
       )}
@@ -119,7 +119,7 @@ function AgentCard({ item, open, panelId, comments, onToggle }: { item: Tool; op
     <div
       data-kind="agent-card"
       data-status={status}
-      className="my-2.5 flex items-center gap-2 rounded-md border border-border-soft bg-muted/30 py-1 pr-1.5 pl-2 font-mono text-[11.5px] leading-normal"
+      className="my-2.5 flex items-center gap-2 rounded-md border border-border-soft bg-muted/30 py-1 pr-1.5 pl-2 font-mono text-[0.71875rem] leading-normal"
     >
       <button
         type="button"
@@ -167,7 +167,7 @@ function TmpImages({ input }: { input: Record<string, unknown> }) {
   }, [input, dirs]);
   if (!paths.length) return null;
   return (
-    <div data-anchor-skip className="-mt-1.5 mb-1.5 flex flex-wrap gap-x-3 font-mono text-[11.5px]">
+    <div data-anchor-skip className="-mt-1.5 mb-1.5 flex flex-wrap gap-x-3 font-mono text-[0.71875rem]">
       {paths.map((p) => (
         <button key={p} type="button" data-tmp-image={p} title={`${t('tmpImageOpen')}: ${p}`} onClick={() => dispatch(openFile({ path: p }))}
           className="ref max-w-full cursor-pointer truncate text-nb-accent hover:underline">
@@ -204,7 +204,7 @@ export function ToolLine({ item }: { item: Tool }) {
         onClick={() => dispatch(toggleTool(key))}
         data-anchor-skip
         className={
-          'my-2.5 block w-full cursor-pointer truncate rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring font-mono text-[11.5px] leading-normal ' +
+          'my-2.5 block w-full cursor-pointer truncate rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring font-mono text-[0.71875rem] leading-normal ' +
           (item.result?.isError ? 'text-destructive' : 'text-muted-foreground') +
           (item.sub ? ' pl-5 opacity-65' : '')
         }

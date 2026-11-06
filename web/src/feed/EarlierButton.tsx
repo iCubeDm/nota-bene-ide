@@ -21,7 +21,7 @@ export function EarlierButton({ beforePrepend }: { beforePrepend?: () => void })
   };
   const loading = state === 'loading';
   return (
-    <div data-earlier className="mb-3 flex items-center justify-center gap-2 font-mono text-[11px] text-muted-foreground">
+    <div data-earlier className="mb-3 flex items-center justify-center gap-2 font-mono text-[0.6875rem] text-muted-foreground">
       <button
         type="button"
         onClick={() => void load()}

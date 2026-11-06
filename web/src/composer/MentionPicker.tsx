@@ -153,7 +153,7 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
             aria-selected={k === state.sel}
             onMouseDown={(e) => e.preventDefault() /* keep focus in the textarea */}
             onClick={() => pick(k)}
-              className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-[12.5px] text-foreground ${k === state.sel ? 'bg-primary/15' : 'hover:bg-accent'}`}
+              className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-[0.78125rem] text-foreground ${k === state.sel ? 'bg-primary/15' : 'hover:bg-accent'}`}
           >
             <FileIcon path={p} dir={dir} />
             <span className="flex-none">{highlight(clean.slice(cut) + (dir ? '/' : ''), state.q)}</span>

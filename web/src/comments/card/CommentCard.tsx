@@ -73,9 +73,9 @@ export function CommentCard({ id, index, popover = false }: { id: string; index:
     <div
       data-comment-id={c.id}
       data-editing={editing || undefined}
-      className={`rounded-[10px] border px-3 py-2.5 text-[13px] ${popover ? 'bg-popover' : 'bg-card/50'} ${editing ? 'border-primary' : 'border-border-soft hover:border-border'}`}
+      className={`rounded-[10px] border px-3 py-2.5 text-[0.8125rem] ${popover ? 'bg-popover' : 'bg-card/50'} ${editing ? 'border-primary' : 'border-border-soft hover:border-border'}`}
     >
-      <div className="mb-1 flex items-center justify-between font-mono text-[10px] text-muted-foreground">
+      <div className="mb-1 flex items-center justify-between font-mono text-[0.625rem] text-muted-foreground">
         <span>
           {index + 1}{where ? ` · ${where}` : ''}{sent ? ` · ${t('sentTag')}` : ''}
         </span>
@@ -88,7 +88,7 @@ export function CommentCard({ id, index, popover = false }: { id: string; index:
           className={`flex items-end gap-2 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover ? '' : 'cursor-pointer'}`}
         >
           {c.images?.[0] && <img src={`/attach/${c.images[0]}`} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
-          <span className="min-w-0 truncate font-mono text-[11px]">
+          <span className="min-w-0 truncate font-mono text-[0.6875rem]">
             {media.source.path.slice(media.source.path.lastIndexOf('/') + 1)}{media.time !== undefined ? ` @ ${mediaTime(media.time)}` : ''}
           </span>
         </div>
@@ -100,8 +100,8 @@ export function CommentCard({ id, index, popover = false }: { id: string; index:
           {isMediaAnchor(c.anchor) ? null : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : c.anchor.quote}
         </div>
       )}
-      {orphan && <div className="mt-1 text-[11px] text-destructive">({t('orphaned')})</div>}
-      {changed && <div className="mt-1 text-[11px] text-warn">{t('fileChanged')}</div>}
+      {orphan && <div className="mt-1 text-[0.6875rem] text-destructive">({t('orphaned')})</div>}
+      {changed && <div className="mt-1 text-[0.6875rem] text-warn">{t('fileChanged')}</div>}
       <div
         key={String(editing)}
         ref={body}

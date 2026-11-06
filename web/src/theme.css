@@ -68,7 +68,7 @@
     overflow: hidden;
     background: var(--background);
     color: var(--foreground);
-    font: 14px/1.6 var(--font-sans);
+    font: 0.875rem/1.6 var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
   #root { display: flex; flex-direction: column; min-height: 0; }
@@ -106,7 +106,7 @@
 
 /* Prose (chat card, md files) keeps the prototype's 860 px; code is wider. Both are centred paper cards. */
 /* 3rem: a narrow column (docked panels) still leaves a margin around the card */
-.nb-prose { width: min(100% - 3rem, 860px); }
+.nb-prose { width: min(100% - 3rem, 53.75rem); }
 /* in the code's own font (the pre is mono): 256 characters per line, plus the padding and border */
 .nb-code { width: min(100% - 3rem, calc(256ch + 2rem + 2px)); }
 .nb-card {

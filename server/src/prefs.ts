@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { EFFORT_LEVELS, ALL_MODES, isUiLang } from '@nota-bene/shared';
-import type { AgentEffort as EffortLevel, AgentMode as Mode, ModelChoice, UiLang } from '@nota-bene/shared';
+import { EFFORT_LEVELS, ALL_MODES, isUiLang, isUiScale } from '@nota-bene/shared';
+import type { AgentEffort as EffortLevel, AgentMode as Mode, ModelChoice, UiLang, UiScale } from '@nota-bene/shared';
 import { stateDir } from './state.ts';
 
 /** `idleCompact[root]`: idle compaction per project dir; absent = on (the default) */
@@ -9,7 +9,7 @@ import { stateDir } from './state.ts';
 /** `updateCheck`: asking npm for a newer version (Settings → Defaults; absent = on) */
 /** `audit`: the audit log of system events (Settings → Defaults; absent = on) */
 /** `models[root]`: the model (and effort) a project's next session starts with; absent = the agent's default */
-export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean; audit?: boolean };
+export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; uiScale?: UiScale; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean; audit?: boolean };
 
 const isEffort = (v: unknown): v is EffortLevel => (EFFORT_LEVELS as readonly unknown[]).includes(v);
 const isMode = (v: unknown): v is Mode => (ALL_MODES as readonly unknown[]).includes(v);
@@ -39,7 +39,7 @@ export function readPrefs(): Prefs {
   try {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('prefs.json is not an object');
-    const { modes, models, lang, idleCompact, defaultMode, updateCheck, audit } = data as { modes?: unknown; models?: unknown; lang?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown; audit?: unknown };
+    const { modes, models, lang, uiScale, idleCompact, defaultMode, updateCheck, audit } = data as { modes?: unknown; models?: unknown; lang?: unknown; uiScale?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown; audit?: unknown };
     const out: Prefs = { modes: {}, models: {}, idleCompact: {} };
     if (modes && typeof modes === 'object' && !Array.isArray(modes)) {
       for (const [k, v] of Object.entries(modes)) if (isMode(v)) out.modes[k] = v;
@@ -56,6 +56,7 @@ export function readPrefs(): Prefs {
       for (const [k, v] of Object.entries(idleCompact)) if (typeof v === 'boolean') out.idleCompact[k] = v;
     }
     if (isUiLang(lang)) out.lang = lang;
+    if (isUiScale(uiScale)) out.uiScale = uiScale;
     if (isMode(defaultMode)) out.defaultMode = defaultMode;
     if (typeof updateCheck === 'boolean') out.updateCheck = updateCheck;
     if (typeof audit === 'boolean') out.audit = audit;
@@ -150,4 +151,9 @@ export function setLangPref(lang: UiLang, ifUnset = false): void {
   // ifUnset (the migration of an old localStorage choice): decided inside the read-modify-write, so it can never overwrite
   // a choice another window made a moment earlier
   updateRawPrefs((raw) => void (ifUnset && isUiLang(raw.lang) ? undefined : (raw.lang = lang)));
+}
+
+/** The interface scale, one for every window of this user, like the language. */
+export function setUiScalePref(scale: UiScale): void {
+  updateRawPrefs((raw) => void (raw.uiScale = scale));
 }
