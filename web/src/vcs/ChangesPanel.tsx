@@ -58,7 +58,7 @@ export function ChangesPanel() {
         <>
           <label className="mx-2 flex flex-none flex-col gap-1 text-[0.6875rem] text-muted-foreground">
             <span>{t('vcsShow')}{how && ` · ${how}`}</span>
-            <select aria-label={t('vcsCompare')} value={value} onChange={(e) => pickBase(root, src, e.target.value || null)} className="h-[30px] truncate rounded-lg border border-transparent bg-muted/50 px-2 text-[0.78125rem] text-foreground outline-0 focus:border-primary/50">
+            <select aria-label={t('vcsCompare')} value={value} onChange={(e) => pickBase(root, src, e.target.value || null)} className="h-[30px] truncate rounded-lg border border-transparent bg-muted/50 px-2 text-[0.78125rem] text-foreground outline-0 focus:border-input-focus-soft focus:ring-2 focus:ring-input-ring">
               <option value="">{repo.live ? t('vcsUncommitted') : repo.detected ? t('vcsWholeBranch', repo.detected) : t('vcsNoBase')}</option>
               {repo.live && repo.detected && <option value="BASE">{t('vcsWholeBranch', repo.detected)}</option>}
               {repo.candidates.map((b) => <option key={b} value={b}>{t('vcsWholeBranch', b)}</option>)}
@@ -81,7 +81,7 @@ export function ChangesPanel() {
               </ul>
             </details>
           )}
-          <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterFiles')} aria-label={t('vcsFilterFiles')} className="mx-2 mt-2 mb-1 h-[30px] flex-none rounded-lg border border-transparent bg-muted/50 px-2.5 text-[0.78125rem] text-foreground outline-0 focus:border-primary/50" />
+          <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterFiles')} aria-label={t('vcsFilterFiles')} className="mx-2 mt-2 mb-1 h-[30px] flex-none rounded-lg border border-transparent bg-muted/50 px-2.5 text-[0.78125rem] text-foreground outline-0 focus:border-input-focus-soft focus:ring-2 focus:ring-input-ring" />
           <div className="nb-thin min-h-0 flex-1 overflow-auto px-1.5 pb-3">
             {tree ? (
               <Folder d={fileTree(shown)} depth={0} shut={shut} toggle={toggle} row={(f, depth) => fileRow(f, depth)} />

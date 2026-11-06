@@ -23,8 +23,8 @@ const LITERAL = new RegExp(
 
 /**
  * Colours that are the same in every theme, by file and literal. The markup colours are what the agent sees on the
- * frame (the shared MARK_COLORS table, and the discs, halo and swatch ring drawn around them); white text on a coloured
- * button; the favicon and the canvas fallback of the 3D view.
+ * frame (the shared MARK_COLORS table, and the discs, halo and swatch ring drawn around them); the
+ * favicon and the canvas fallback of the 3D view.
  */
 const ALLOWED: Record<string, string[] | '*'> = {
   'shell/Favicon.ts': '*',
@@ -32,7 +32,6 @@ const ALLOWED: Record<string, string[] | '*'> = {
   'media/markup/render.ts': ['#ffffff'],
   'media/markup/overlay.tsx': ['rgba('],
   'media/markup/MarkupToolbar.tsx': ['border-black'],
-  'components/ui/button.tsx': ['text-white'],
   'model/viewer.ts': ['#202020'],
 };
 
@@ -120,7 +119,8 @@ it('Darcula passes AA', () => {
     ['--foreground', '--background'], ['--foreground', '--card'], ['--foreground', '--popover'],
     ['--muted-fg', '--card'], ['--muted-fg', '--muted'], ['--muted-fg', '--popover'], ['--muted-fg', '--side'],
     ['--primary-fg', '--primary'], ['--tab-on-fg', '--tab-on-bg'], ['--tool-on-fg', '--tool-on'],
-    ['--tool-on-fg', '--tool-on-idle'], ['--link', '--card'], ['--code-inline-fg', '--code-inline-bg'],
+    ['--tool-on-fg', '--tool-on-idle'], ['--link', '--card'], ['--link', '--popover'],
+    ['--destructive', '--card'], ['--destructive-fg', '--destructive'], ['--code-inline-fg', '--code-inline-bg'],
     ['--accent-sessions', '--chrome'], ['--accent-agent', '--chrome'], ['--accent-model', '--chrome'],
     ['--accent-usage', '--chrome'],
     // code: every syntax colour on the code block

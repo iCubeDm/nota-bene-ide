@@ -232,7 +232,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         readOnly={busy}
         placeholder={t('commentPh')}
         aria-label={t('commentPh')}
-        className="max-h-[40vh] min-h-16 w-full resize-none overflow-y-auto rounded-md border border-border-soft bg-background px-2 py-1.5 text-[0.8125rem] leading-[1.45] text-foreground focus:border-primary focus:outline-none"
+        className="max-h-[40vh] min-h-16 w-full resize-none overflow-y-auto rounded-md border border-border-soft bg-background px-2 py-1.5 text-[0.8125rem] leading-[1.45] text-foreground focus:border-input-focus focus:ring-2 focus:ring-input-ring focus:outline-none"
       />
       <Attachments
         data-testid="popup-thumbs"

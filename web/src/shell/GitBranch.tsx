@@ -109,7 +109,7 @@ export function GitBranch() {
     const i = info.find((x) => x.id === s.id);
     return (
       <button key={s.id} type="button" onClick={() => { d(pickSource(s.id)); setOpen(false); }} className={`flex h-7 w-full items-center gap-2 rounded px-2 text-left text-[0.78125rem] hover:bg-muted ${s.id === src ? 'bg-primary/10' : ''}`}>
-        <span className="w-3 flex-none text-primary">{s.id === src ? '✓' : ''}</span>
+        <span className="w-3 flex-none text-link">{s.id === src ? '✓' : ''}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-foreground">{s.id === 'here' ? here : s.label}</span>
         {i?.busy && <span data-agent-dot role="img" aria-label={t('vcsAgentHere')} title={t('vcsAgentHere')} className="size-2 flex-none animate-pulse rounded-full bg-nb-accent" />}
         {i?.base && <span title={t('vcsAgainst', i.base)} className="flex-none font-mono text-[0.6875rem] text-muted-foreground">↑{i.ahead}</span>}
@@ -132,7 +132,7 @@ export function GitBranch() {
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[340px] p-1.5">
-        <input autoFocus type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('vcsFindBranch')} aria-label={t('vcsFindBranch')} className="mb-1 h-[28px] w-full rounded-md border border-transparent bg-muted/50 px-2 text-[0.78125rem] text-foreground outline-0 focus:border-primary/50" />
+        <input autoFocus type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('vcsFindBranch')} aria-label={t('vcsFindBranch')} className="mb-1 h-[28px] w-full rounded-md border border-transparent bg-muted/50 px-2 text-[0.78125rem] text-foreground outline-0 focus:border-input-focus-soft focus:ring-2 focus:ring-input-ring" />
         <div className="max-h-[60vh] overflow-auto">
           {label(t('vcsThisFolder'))}
           {sources.filter((s) => s.id === 'here').map(row)}

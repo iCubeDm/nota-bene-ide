@@ -146,7 +146,7 @@ export function SettingsView({ active }: { active: boolean }) {
                 <span className="font-semibold text-foreground">{w.root.split('/').filter(Boolean).pop() ?? w.root}</span>
                 <span className="font-mono text-[0.6875rem] text-muted-foreground">{short(w.root)}</span>
                 <span className="font-mono text-[0.6875rem] text-muted-foreground">:{w.port}</span>
-                {w.current && <span className="rounded bg-primary/15 px-1.5 text-[0.6875rem] text-primary">{t('winThis')}</span>}
+                {w.current && <span className="rounded bg-primary/15 px-1.5 text-[0.6875rem] text-link">{t('winThis')}</span>}
                 {w.state !== 'live' && <span className="text-[0.6875rem] text-warn">{t(`win_${w.state}`)}</span>}
               </div>
               {w.state === 'live' && (

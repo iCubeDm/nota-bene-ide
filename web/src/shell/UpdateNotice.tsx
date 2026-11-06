@@ -42,7 +42,7 @@ export function UpdateNotice() {
           type="button"
           id="updateBtn"
           title={t('updateTitle', update.latest)}
-          className="flex-none rounded border border-primary px-1.5 py-px font-mono text-[0.6875rem] text-primary hover:bg-primary/10"
+          className="flex-none rounded border border-primary px-1.5 py-px font-mono text-[0.6875rem] text-link hover:bg-primary/10"
         >
           ↑ {update.latest}
         </button>
@@ -57,7 +57,7 @@ export function UpdateNotice() {
             href={`https://github.com/iCubeDm/nota-bene-ide/releases/tag/v${update.latest}`}
             target="_blank"
             rel="noreferrer"
-            className="text-primary hover:underline"
+            className="text-link hover:underline"
           >
             {t('updateNotes')}
           </a>

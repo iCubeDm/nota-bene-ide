@@ -12,8 +12,8 @@ export function SplitToggle({ split }: { split: boolean }) {
   const t = useT();
   return (
     <div className="flex flex-none overflow-hidden rounded-md border border-border-soft text-[0.6875rem]">
-      <button type="button" aria-pressed={!split} onClick={() => setSplit(false)} className={`px-2 py-0.5 ${split ? 'text-muted-foreground' : 'bg-primary/15 text-primary'}`}>{t('vcsOneColumn')}</button>
-      <button type="button" aria-pressed={split} onClick={() => setSplit(true)} className={`px-2 py-0.5 ${split ? 'bg-primary/15 text-primary' : 'text-muted-foreground'}`}>{t('vcsTwoColumns')}</button>
+      <button type="button" aria-pressed={!split} onClick={() => setSplit(false)} className={`px-2 py-0.5 ${split ? 'text-muted-foreground' : 'bg-primary/15 text-link'}`}>{t('vcsOneColumn')}</button>
+      <button type="button" aria-pressed={split} onClick={() => setSplit(true)} className={`px-2 py-0.5 ${split ? 'bg-primary/15 text-link' : 'text-muted-foreground'}`}>{t('vcsTwoColumns')}</button>
     </div>
   );
 }

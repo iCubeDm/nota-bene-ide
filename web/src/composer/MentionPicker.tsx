@@ -16,7 +16,7 @@ interface Open { items: string[]; sel: number; start: number; q: string }
 /** Bolds the matched characters: the same subsequence walk as the server. */
 export function highlight(text: string, q: string): ReactNode[] {
   let i = 0;
-  return [...text].map((ch, k) => (i < q.length && ch.toLowerCase() === q[i] ? (i++, <mark key={k} className="bg-transparent font-semibold text-primary">{ch}</mark> ) : ch));
+  return [...text].map((ch, k) => (i < q.length && ch.toLowerCase() === q[i] ? (i++, <mark key={k} className="bg-transparent font-semibold text-link">{ch}</mark> ) : ch));
 }
 
 /**

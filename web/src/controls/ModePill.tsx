@@ -8,7 +8,7 @@ import { pickMode, selectCapabilitiesKnown, selectMode, selectSwitching } from '
 // colours as in the CLI's mode line (prototype #modeBtn.m-*)
 const TONE: Partial<Record<Mode, string>> = {
   default: 'text-muted-foreground border-border-soft',
-  acceptEdits: 'text-primary border-primary/45',
+  acceptEdits: 'text-link border-primary/45',
   plan: 'text-hue-17 border-hue-18/45',
   auto: 'text-hue-19 border-hue-20/40',
 };

@@ -23,14 +23,15 @@
   --muted: #3a3c3e;
   --muted-fg: #a4aab1; /* #8f959c: 3.66 on muted, 3.51 on popover */
   --nb-accent: #ffc66d;
-  --destructive: #e06c64;
+  --destructive: #ee7870; /* #e06c64: 3.87 as text on card */
+  --destructive-fg: #2b2b2b; /* white is 2.78 on the fill */
   --success: #66bf31;
   --border: #4c4f52; /* #45484b: 1.36 on card */
   --border-soft: rgb(255 255 255 / .07);
   --code-bg: #2b2b2b;
   --side: #2f3031;
   --chrome: rgb(47 48 49 / .6);
-  --link: #589df6;
+  --link: #66acff; /* #589df6: 3.82 on popover */
   /* shadows (mixed with transparent where used), scrims behind dialogs and over video, the text on a scrim */
   --shade: #000;
   --scrim: #000;
@@ -82,8 +83,9 @@
   --syn-del-bg: #5c2e2e;
   --focus-border: #466d94;
   --focus-ring: #3d6185;
-  /* a focused input in a popover: its border and its 2px ring */
+  /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring */
   --input-focus: var(--focus-border);
+  --input-focus-soft: var(--focus-border);
   --input-ring: var(--focus-ring);
   /* "jump to source" (.nb-flash); a comment's highlight in the text while it is pending */
   --flash: rgb(255 198 109 / .3);
@@ -128,6 +130,7 @@
   --muted-fg: oklch(0.72 0.02 260);
   --nb-accent: oklch(0.70 0.20 60); /* the prototype's orange; shadcn's own `accent` (in @theme) is the grey hover background */
   --destructive: oklch(0.65 0.20 25);
+  --destructive-fg: #fff;
   --success: oklch(0.72 0.17 150);
   --border: oklch(0.35 0.02 260);
   --border-soft: oklch(0.35 0.02 260 / 0.5);
@@ -182,8 +185,9 @@
   --syn-del-bg: #67060c;
   --focus-border: color-mix(in oklch, var(--primary) 60%, transparent);
   --focus-ring: color-mix(in oklch, var(--primary) 60%, transparent);
-  /* a focused input in a popover: its border and its 2px ring (none here) */
+  /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring (none here) */
   --input-focus: var(--primary);
+  --input-focus-soft: color-mix(in oklab, var(--primary) 50%, transparent);
   --input-ring: transparent;
   /* "jump to source" (.nb-flash); a comment's highlight in the text while it is pending */
   --flash: oklch(0.88 0.18 95 / 0.35);
@@ -233,6 +237,7 @@
   --color-nb-accent: var(--nb-accent);
   --color-warn: var(--nb-accent);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-fg);
   --color-success: var(--success);
   --color-border: var(--border);
   --color-border-soft: var(--border-soft);
@@ -261,6 +266,7 @@
   --color-focus-border: var(--focus-border);
   --color-focus-ring: var(--focus-ring);
   --color-input-focus: var(--input-focus);
+  --color-input-focus-soft: var(--input-focus-soft);
   --color-input-ring: var(--input-ring);
   --color-mark-pending: var(--mark-pending);
   --color-mark-pending-line: var(--mark-pending-line);

@@ -114,7 +114,7 @@ export function TabsMenu({ strip }: { strip: RefObject<HTMLElement | null> }) {
                     className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-xs ${i === cur ? 'bg-muted text-foreground' : 'text-foreground/85'}`}
                   >
                     <TabIcon tab={tab} />
-                    <span className={`truncate ${tab.id === active ? 'font-semibold text-primary' : ''}`}>{label(tab)}</span>
+                    <span className={`truncate ${tab.id === active ? 'font-semibold text-link' : ''}`}>{label(tab)}</span>
                     {tab.kind === 'diagram' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('diagramTab')}</span>}
                     {tab.kind === 'shell' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('shellTab')}</span>}
                     {tab.kind === 'agent' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('agentTab')}</span>}

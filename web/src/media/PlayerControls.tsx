@@ -129,7 +129,7 @@ export function ChoiceMenu({ label, options, value, text, item = text, onPick, o
               role="menuitemradio"
               aria-checked={o === value}
               onClick={() => { onPick(o); toggle(false); btn.current?.focus(); }}
-              className={`flex w-full cursor-pointer items-center rounded-md px-2 py-1 text-xs outline-none hover:bg-muted focus-visible:bg-muted ${o === value ? 'font-semibold text-primary' : ''}`}
+              className={`flex w-full cursor-pointer items-center rounded-md px-2 py-1 text-xs outline-none hover:bg-muted focus-visible:bg-muted ${o === value ? 'font-semibold text-link' : ''}`}
             >
               {item(o)}
             </button>

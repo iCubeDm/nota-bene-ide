@@ -186,7 +186,7 @@ export function SessionPicker() {
               disabled={!v}
               className="block w-full rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
             >
-              <span data-t className="block text-[0.8125rem] text-primary">{t('newHere')}</span>
+              <span data-t className="block text-[0.8125rem] text-link">{t('newHere')}</span>
             </button>
             {view === null && <div className="px-2.5 py-2 text-xs text-muted-foreground">{t('loading')}</div>}
             {typeof view === 'string' && <div className="px-2.5 py-2 text-xs text-destructive">{view}</div>}
@@ -196,7 +196,7 @@ export function SessionPicker() {
                   data-sess-group=""
                   data-here={g.here || undefined}
                   title={g.dir}
-                  className={`truncate px-2.5 pt-2.5 pb-1 font-mono text-[0.65625rem] ${g.here ? 'text-primary' : 'text-muted-foreground'}`}
+                  className={`truncate px-2.5 pt-2.5 pb-1 font-mono text-[0.65625rem] ${g.here ? 'text-link' : 'text-muted-foreground'}`}
                 >
                   {g.here ? t('thisProject') : ''}{short(g.dir)}
                 </div>
