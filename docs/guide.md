@@ -522,6 +522,8 @@ acceptance run.
 
 ## omp support
 
+omp support is a preview: it is tested against a scripted omp, less in daily use than Claude and Codex.
+
 Select omp at launch: `nota-bene . --agent omp --detach`. The window spawns
 `omp acp` (omp 18.16.0 or newer; `NOTA_BENE_OMP` can select the executable) and uses
 omp's own login, models and session storage. A window on an older omp says so and
