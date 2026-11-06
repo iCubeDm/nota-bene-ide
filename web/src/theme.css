@@ -25,6 +25,9 @@
   --nb-accent: #ffc66d;
   --destructive: #ee7870; /* #e06c64: 3.87 as text on card */
   --destructive-fg: #2b2b2b; /* white is 2.78 on the fill */
+  /* the destructive button's fill, and on hover */
+  --destructive-fill: var(--destructive);
+  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 90%, transparent);
   --success: #66bf31;
   --border: #4c4f52; /* #45484b: 1.36 on card */
   --border-soft: rgb(255 255 255 / .07);
@@ -38,12 +41,16 @@
   --on-scrim: #fff;
   /* an HTML page's own canvas, behind the iframe */
   --page-bg: #fff;
-  /* the pane behind the paper card (.grid-pane): millimetre paper, white hairlines at 10, 5 and 1 mm */
+  /*
+   * the pane behind the paper card (.grid-pane): millimetre paper, white hairlines at 10, 5 and 1 mm. The finer layers
+   * also draw on the coarser lines, so the coarser alphas are what composites to .06 (10 mm) and .035 (5 mm):
+   * 1-(1-.018)(1-.0173) = .035, 1-(1-.018)(1-.0173)(1-.0259) = .06.
+   */
   --pane-image:
-    linear-gradient(rgb(255 255 255 / .06) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / .06) 1px, transparent 1px),
-    repeating-linear-gradient(rgb(255 255 255 / .035) 0 1px, transparent 1px 5mm),
-    repeating-linear-gradient(90deg, rgb(255 255 255 / .035) 0 1px, transparent 1px 5mm),
+    linear-gradient(rgb(255 255 255 / .0259) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / .0259) 1px, transparent 1px),
+    repeating-linear-gradient(rgb(255 255 255 / .0173) 0 1px, transparent 1px 5mm),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / .0173) 0 1px, transparent 1px 5mm),
     repeating-linear-gradient(rgb(255 255 255 / .018) 0 1px, transparent 1px 1mm),
     repeating-linear-gradient(90deg, rgb(255 255 255 / .018) 0 1px, transparent 1px 1mm);
   --pane-size: 10mm 10mm;
@@ -131,6 +138,9 @@
   --nb-accent: oklch(0.70 0.20 60); /* the prototype's orange; shadcn's own `accent` (in @theme) is the grey hover background */
   --destructive: oklch(0.65 0.20 25);
   --destructive-fg: #fff;
+  /* the destructive button's fill, and on hover; a dark OS gets shadcn's 60% fill (below) */
+  --destructive-fill: var(--destructive);
+  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 90%, transparent);
   --success: oklch(0.72 0.17 150);
   --border: oklch(0.35 0.02 260);
   --border-soft: oklch(0.35 0.02 260 / 0.5);
@@ -219,6 +229,14 @@
   --hue-20: oklch(0.82 0.13 80);
 }
 
+/* Plannotator keeps shadcn's `dark:bg-destructive/60` (a dark OS, hover included); Darcula's fill is solid */
+@media (prefers-color-scheme: dark) {
+  [data-theme="plannotator"] {
+    --destructive-fill: color-mix(in oklab, var(--destructive) 60%, transparent);
+    --destructive-fill-hover: var(--destructive-fill);
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -238,6 +256,8 @@
   --color-warn: var(--nb-accent);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-fg);
+  --color-destructive-fill: var(--destructive-fill);
+  --color-destructive-fill-hover: var(--destructive-fill-hover);
   --color-success: var(--success);
   --color-border: var(--border);
   --color-border-soft: var(--border-soft);

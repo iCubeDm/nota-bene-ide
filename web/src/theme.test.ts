@@ -120,7 +120,7 @@ it('Darcula passes AA', () => {
     ['--muted-fg', '--card'], ['--muted-fg', '--muted'], ['--muted-fg', '--popover'], ['--muted-fg', '--side'],
     ['--primary-fg', '--primary'], ['--tab-on-fg', '--tab-on-bg'], ['--tool-on-fg', '--tool-on'],
     ['--tool-on-fg', '--tool-on-idle'], ['--link', '--card'], ['--link', '--popover'],
-    ['--destructive', '--card'], ['--destructive-fg', '--destructive'], ['--code-inline-fg', '--code-inline-bg'],
+    ['--destructive', '--card'], ['--destructive-fg', '--destructive'], ['--destructive-fg', '--destructive-fill'], ['--code-inline-fg', '--code-inline-bg'],
     ['--accent-sessions', '--chrome'], ['--accent-agent', '--chrome'], ['--accent-model', '--chrome'],
     ['--accent-usage', '--chrome'],
     // code: every syntax colour on the code block

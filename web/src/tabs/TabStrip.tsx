@@ -107,7 +107,7 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
           onKeyDown={(e) => {
             if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); d(activate(tab.id)); }
           }}
-          className={`group flex h-7 max-w-[260px] flex-none cursor-pointer items-center gap-1.5 rounded-lg pr-1.5 pl-2.5 text-[0.78125rem] font-medium whitespace-nowrap hover:bg-muted/50 hover:text-foreground ${active ? 'bg-tab-on-bg text-tab-on-fg shadow-[inset_0_-2px_0_var(--tab-line)]' : 'text-muted-foreground'}`}
+          className={`group relative flex h-7 max-w-[260px] flex-none cursor-pointer items-center gap-1.5 rounded-lg pr-1.5 pl-2.5 text-[0.78125rem] font-medium whitespace-nowrap hover:bg-muted/50 hover:text-foreground ${active ? 'bg-tab-on-bg text-tab-on-fg after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-tab-line' : 'text-muted-foreground'}`}
         >
           <span className="hidden size-1.5 flex-none animate-pulse rounded-full bg-primary group-data-[playing=true]:inline-block" />
           <TabIcon tab={tab} />
