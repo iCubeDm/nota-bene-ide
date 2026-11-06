@@ -1,5 +1,5 @@
 import type { WireAgentEvent } from './agent.ts';
-import type { UiLang, UiScale } from './lang.ts';
+import type { ThemeId, UiLang, UiScale } from './lang.ts';
 
 /** A tool-use id as the wire carries it (the Agent call's id, `agent` of a source, `tool` of `/subagent`): ids only, never path pieces. */
 export const TOOL_USE_ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -224,7 +224,7 @@ export type ServerEvent =
   /** to the owner just before it is closed with code 4001: another tab took the window over */
   | { kind: 'taken-over' }
   /** right after the replay on every connection (servers before it send none: protocol 0) */
-  | { kind: 'hello'; protocol: number; capabilities?: Capabilities; /** the UI language chosen on any window (server prefs.json); absent = none chosen yet */ lang?: UiLang; /** the interface scale chosen on any window, the same way; absent = none chosen (1) */ uiScale?: UiScale; /** the temp folders (real and as named) whose images /tmpimage serves; the page links a path under one of them */ tmpDirs?: string[] }
+  | { kind: 'hello'; protocol: number; capabilities?: Capabilities; /** the UI language chosen on any window (server prefs.json); absent = none chosen yet */ lang?: UiLang; /** the interface scale chosen on any window, the same way; absent = none chosen (1) */ uiScale?: UiScale; /** the colour theme chosen on any window, the same way; absent = none chosen (the default theme) */ theme?: ThemeId; /** the temp folders (real and as named) whose images /tmpimage serves; the page links a path under one of them */ tmpDirs?: string[] }
   /** `earlier`: how many segments of this conversation, from before its compactions, `/history` holds (R-M7-4); absent for none */
   | { kind: 'replay'; events: ServerEvent[]; earlier?: number }
   /** what the agent said (R-M7-14); `init` and `rate-limit` are server-internal and never sent */
@@ -521,7 +521,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
 
 export type { AgentEvent, StopReason, WireAgentEvent } from './agent.ts';
 export { FINISHED_CAP, orderedTasks, reduceTasks, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
-export { BATCH_HEAD, BATCH_HEADS, isUiLang, isUiScale, UI_LANGS, UI_SCALES, type UiLang, type UiScale } from './lang.ts';
+export { BATCH_HEAD, BATCH_HEADS, DEFAULT_THEME, isThemeId, isUiLang, isUiScale, THEME_KIND, THEMES, UI_LANGS, UI_SCALES, type ThemeId, type UiLang, type UiScale } from './lang.ts';
 export type { VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsPatch } from './vcs.ts';
 export { USAGE_PERIODS, type TokenCounts, type UsageAgentRow, type UsageCallRow, type UsageExtra, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageRow, type UsageTank, type UsageTaskRow } from './usage.ts';
 

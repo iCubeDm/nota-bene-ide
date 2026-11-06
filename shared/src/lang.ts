@@ -10,6 +10,14 @@ export const UI_SCALES = [0.9, 1, 1.1, 1.25, 1.5] as const;
 export type UiScale = (typeof UI_SCALES)[number];
 export const isUiScale = (v: unknown): v is UiScale => (UI_SCALES as readonly unknown[]).includes(v);
 
+/** The colour themes (Settings → Defaults), in the order the picker lists them; kept with the language, one for every window. */
+export const THEMES = ['darcula', 'plannotator'] as const;
+export type ThemeId = (typeof THEMES)[number];
+export const DEFAULT_THEME: ThemeId = 'darcula';
+export const isThemeId = (v: unknown): v is ThemeId => (THEMES as readonly unknown[]).includes(v);
+/** Whether a theme is dark or light, for the parts that must follow the browser's colour-scheme (scrollbars, diagrams, code). */
+export const THEME_KIND: Record<ThemeId, 'dark' | 'light'> = { darcula: 'dark', plannotator: 'dark' };
+
 /** The heading of a sent batch of comments, kept here because the server reads it back from transcripts too. */
 export const BATCH_HEADS: Record<UiLang, string> = {
   en: 'Comments on fragments:',
