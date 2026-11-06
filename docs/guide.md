@@ -321,7 +321,7 @@ The mode is saved per project folder. The model and effort pill in the header se
 
 ### Settings
 
-The gear in the header opens **Settings**:
+The gear in the header opens a menu: the interface language, the interface scale (− and + step it and keep the menu open; Alt+= and Alt+− do the same anywhere, Alt+0 goes back to 100 %), and **All settings…**, the Settings tab:
 
 - **Windows**: every running window with its folder, port, state (working or idle), number of open tabs and uptime. Open, Restart agent, Restart server and Stop work on any of them.
 - **Storage**: what is on disk for pasted images, comments, chat history from before compaction and media marks, with **Clean unreferenced files**, which moves pasted images that no comment references and that are over a day old, and the history of sessions that no longer exist, to the state folder's `trash/`. Nothing is deleted.
@@ -330,7 +330,7 @@ The gear in the header opens **Settings**:
 
 ### Languages
 
-The globe in the header lists the interface languages: English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German. The choice is saved in `prefs.json` and shared by all windows. English is the default whatever the browser language is.
+The gear menu in the header lists the interface languages: English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German. The choice is saved in `prefs.json` and shared by all windows. English is the default whatever the browser language is.
 
 ## Hotkeys
 
@@ -347,6 +347,7 @@ The full list is in the window's Hotkeys help. Tab keys use Alt because Chrome k
 | Cmd/Ctrl+Shift+C | Comments panel |
 | Alt+T | Tasks drawer |
 | Alt+Z | wrap lines in a text file |
+| Alt+= / Alt+− / Alt+0 | a larger interface / a smaller one / back to 100 % |
 | N (an HTML page) | mark an element or an area; Esc leaves |
 | Alt+F1 | reveal the current file in the tree |
 | / or Esc | focus the message box (outside text fields) |

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { getLang, chooseLang, LANGS, useT } from '@/i18n/index.ts';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { selectConn, selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openSettings, openUsage } from '@/tabs/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
@@ -9,12 +9,19 @@ import { SessionPicker } from '@/controls/SessionPicker.tsx';
 import { UpdateNotice } from './UpdateNotice.tsx';
 import { GitBranch } from './GitBranch.tsx';
 import { RestartMenu } from './RestartMenu.tsx';
+import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
+import { UI_SCALES } from '@nota-bene/shared';
+import { scaleLabel, uiScale, useUiScale } from './uiScale.ts';
+
+const stepBtn = 'grid size-6 cursor-pointer place-items-center rounded-md border border-border-soft text-foreground hover:bg-muted disabled:cursor-default disabled:opacity-40';
+const isMacLabel = (k: string) => `${isMac() ? '⌥' : 'Alt+'}${k}`;
 
 export function Header() {
   const t = useT();
   const d = useAppDispatch();
   const lang = getLang();
+  const scale = useUiScale();
   const conn = useAppSelector(selectConn);
   const session = useAppSelector(selectSession);
   const switching = useAppSelector(selectSwitching);
@@ -47,34 +54,45 @@ export function Header() {
       >
         <Svg size={15}>{ICONS.usage}</Svg>
       </button>
-      <button
-        type="button"
-        id="settingsBtn"
-        aria-label={t('settings')}
-        title={t('settingsTip')}
-        onClick={() => d(openSettings())}
-        className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <Svg size={15}>{ICONS.settings}</Svg>
-      </button>
+      {/* the settings at hand: language and scale here, the rest in the Settings tab */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            id="langBtn"
-            aria-label={t('langTip')}
-            title={t('langTip')}
+            id="settingsBtn"
+            aria-label={t('settings')}
+            title={t('settingsTip')}
             className="grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            <Svg size={15}>{ICONS.globe}</Svg>
+            <Svg size={15}>{ICONS.settings}</Svg>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {LANGS.map((l) => (
-            <DropdownMenuItem key={l.id} data-lang={l.id} onSelect={() => chooseLang(l.id)} className={l.id === lang ? 'font-semibold text-foreground' : undefined}>
-              {l.name}
-            </DropdownMenuItem>
-          ))}
+        <DropdownMenuContent align="end" className="min-w-56">
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger id="langMenu">
+              <Svg size={13}>{ICONS.globe}</Svg>
+              <span>{t('langTip')}</span>
+              <span className="ml-auto text-muted-foreground">{LANGS.find((l) => l.id === lang)?.name}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {LANGS.map((l) => (
+                <DropdownMenuItem key={l.id} data-lang={l.id} onSelect={() => chooseLang(l.id)} className={l.id === lang ? 'font-semibold text-foreground' : undefined}>
+                  {l.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          {/* not menu items: a step keeps the menu open, so the change is seen while choosing */}
+          <div className="flex items-center gap-2 px-2 py-1 text-xs">
+            <span className="flex-1">{t('defScale')}</span>
+            <button type="button" id="scaleDown" aria-label={t('scaleSmaller')} title={`${t('scaleSmaller')} (${isMacLabel('−')})`} disabled={scale === UI_SCALES[0]}
+              onClick={() => uiScale.step(-1)} className={stepBtn}>−</button>
+            <span id="scaleValue" className="w-11 text-center tabular-nums text-foreground">{scaleLabel(scale, lang)}</span>
+            <button type="button" id="scaleUp" aria-label={t('scaleLarger')} title={`${t('scaleLarger')} (${isMacLabel('=')})`} disabled={scale === UI_SCALES[UI_SCALES.length - 1]}
+              onClick={() => uiScale.step(1)} className={stepBtn}>+</button>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem id="allSettings" onSelect={() => d(openSettings())}>{t('allSettings')}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>

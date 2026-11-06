@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { isUiScale, type UiScale } from '@nota-bene/shared';
+import { isUiScale, UI_SCALES, type UiScale } from '@nota-bene/shared';
 import { apiFetch } from '@/net/auth.ts';
 
 const KEY = 'nb.uiScale';
@@ -21,7 +21,7 @@ function read(): UiScale {
 }
 
 function apply(): void {
-  if (typeof document !== 'undefined') document.documentElement.style.fontSize = cur === 1 ? '' : `${cur * 100}%`;
+  if (typeof document !== 'undefined') document.documentElement.style.fontSize = cur === 1 ? '' : `${Math.round(cur * 100)}%`;
 }
 apply();
 
@@ -48,6 +48,12 @@ export const uiScale = {
     setLocal(v);
     persist(v);
   },
+  /** the next scale up (`by` 1) or down (-1), stopping at the ends; the scale it chose */
+  step: (by: 1 | -1): UiScale => {
+    const next = UI_SCALES[Math.max(0, Math.min(UI_SCALES.length - 1, UI_SCALES.indexOf(cur) + by))]!;
+    if (next !== cur) uiScale.choose(next);
+    return next;
+  },
   /** the server's `hello.uiScale` wins over this origin's cache, except while our own choice is unconfirmed */
   adopt: (server: unknown) => {
     if (unsynced !== null) return persist(unsynced);
@@ -59,3 +65,6 @@ export const uiScale = {
 };
 
 export const useUiScale = () => useSyncExternalStore(uiScale.subscribe, uiScale.get);
+
+/** How a scale reads in the interface language: `125 %`, `125%`. */
+export const scaleLabel = (v: number, lang: string): string => new Intl.NumberFormat(lang, { style: 'percent' }).format(v);

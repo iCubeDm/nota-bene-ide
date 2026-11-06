@@ -109,13 +109,24 @@ test('Alt+E: the recent files with the previous one selected; Enter flips back; 
   await expect(composer(page)).toHaveValue('');
 });
 
-test('Settings → Defaults: the interface scale grows the text, and a reload keeps it @files', async ({ page }) => {
+test('the interface scale: the settings menu steps it and stays open, Alt+= / Alt+0 step it, Settings → Defaults picks it; a reload keeps it @files', async ({ page }) => {
   await start(page);
   const body = () => page.evaluate(() => getComputedStyle(document.body).fontSize);
   expect(await body()).toBe('14px');
-  await page.locator('#settingsBtn').click();
   const pick = page.getByRole('combobox', { name: /^(Interface scale|Масштаб интерфейса)$/ });
   try {
+    await page.locator('#settingsBtn').click();
+    await page.locator('#scaleUp').click();
+    await expect.poll(body).toBe('15.4px'); // 110 %
+    await expect(page.locator('#scaleValue')).toBeVisible(); // the menu stayed open
+    await page.keyboard.press('Escape');
+    await blur(page);
+    await page.keyboard.press('Alt+Equal');
+    await expect.poll(body).toBe('17.5px'); // 125 %
+    await page.keyboard.press('Alt+Digit0');
+    await expect.poll(body).toBe('14px');
+    await page.locator('#settingsBtn').click();
+    await page.locator('#allSettings').click();
     await pick.selectOption('1.25');
     await expect.poll(body).toBe('17.5px');
     if (process.env.NB_SCALE_SHOTS) await page.screenshot({ path: `${process.env.NB_SCALE_SHOTS}/settings-125.png` });
@@ -123,13 +134,16 @@ test('Settings → Defaults: the interface scale grows the text, and a reload ke
     await expect(composer(page)).toBeVisible();
     expect(await body()).toBe('17.5px');
     if (process.env.NB_SCALE_SHOTS) {
-      await page.evaluate(() => (document.documentElement.style.fontSize = '150%'));
-      await page.screenshot({ path: `${process.env.NB_SCALE_SHOTS}/chat-150.png` });
+      await page.locator('#settingsBtn').click();
+      await page.locator('#langMenu').hover();
+      await page.screenshot({ path: `${process.env.NB_SCALE_SHOTS}/menu-125.png` });
+      await page.keyboard.press('Escape');
     }
   } finally {
     // the fixture's prefs are shared by the other tests: back to 100 %
-    await page.locator('#settingsBtn').click();
-    await pick.selectOption('1');
+    await page.keyboard.press('Escape');
+    await blur(page);
+    await page.keyboard.press('Alt+Digit0');
   }
   await expect.poll(body).toBe('14px');
 });
