@@ -54,7 +54,7 @@ function DropdownMenuSubTrigger({ className, children, ...props }: React.Compone
       {...props}
     >
       {children}
-      <span aria-hidden className="ml-auto pl-3 opacity-60">›</span>
+      <svg aria-hidden viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto flex-none opacity-60"><path d="m9 6 6 6-6 6" /></svg>
     </DropdownMenuPrimitive.SubTrigger>
   )
 }

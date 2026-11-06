@@ -14,7 +14,8 @@ import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
 import { UI_SCALES } from '@nota-bene/shared';
 import { scaleLabel, uiScale, useUiScale } from './uiScale.ts';
 
-const stepBtn = 'grid size-6 cursor-pointer place-items-center rounded-md border border-border-soft text-foreground hover:bg-muted disabled:cursor-default disabled:opacity-40';
+const row = 'gap-2.5 px-2 py-1.5 text-[0.8125rem] text-foreground [&>svg]:text-muted-foreground';
+const stepBtn = 'grid size-6 cursor-pointer place-items-center rounded-md text-[0.9375rem] leading-none text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent';
 const isMacLabel = (k: string) => `${isMac() ? '⌥' : 'Alt+'}${k}`;
 
 export function Header() {
@@ -67,12 +68,13 @@ export function Header() {
             <Svg size={15}>{ICONS.settings}</Svg>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-56">
+        {/* rows as in a browser's side menu: an icon, the label, then the value, the steps or the submenu arrow */}
+        <DropdownMenuContent align="end" className="min-w-60">
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger id="langMenu">
-              <Svg size={13}>{ICONS.globe}</Svg>
-              <span>{t('langTip')}</span>
-              <span className="ml-auto text-muted-foreground">{LANGS.find((l) => l.id === lang)?.name}</span>
+            <DropdownMenuSubTrigger id="langMenu" className={row}>
+              <Svg size={15}>{ICONS.globe}</Svg>
+              <span className="flex-1">{t('langTip')}</span>
+              <span className="text-muted-foreground">{LANGS.find((l) => l.id === lang)?.name}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {LANGS.map((l) => (
@@ -82,17 +84,23 @@ export function Header() {
               ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          {/* not menu items: a step keeps the menu open, so the change is seen while choosing */}
-          <div className="flex items-center gap-2 px-2 py-1 text-xs">
+          {/* not a menu item: a step keeps the menu open, so the change is seen while choosing */}
+          <div className={`${row} flex items-center rounded-md`}>
+            <Svg size={15}>{ICONS.textSize}</Svg>
             <span className="flex-1">{t('defScale')}</span>
-            <button type="button" id="scaleDown" aria-label={t('scaleSmaller')} title={`${t('scaleSmaller')} (${isMacLabel('−')})`} disabled={scale === UI_SCALES[0]}
-              onClick={() => uiScale.step(-1)} className={stepBtn}>−</button>
-            <span id="scaleValue" className="w-11 text-center tabular-nums text-foreground">{scaleLabel(scale, lang)}</span>
-            <button type="button" id="scaleUp" aria-label={t('scaleLarger')} title={`${t('scaleLarger')} (${isMacLabel('=')})`} disabled={scale === UI_SCALES[UI_SCALES.length - 1]}
-              onClick={() => uiScale.step(1)} className={stepBtn}>+</button>
+            <span className="-mr-1 flex items-center">
+              <button type="button" id="scaleDown" aria-label={t('scaleSmaller')} title={`${t('scaleSmaller')} (${isMacLabel('−')})`} disabled={scale === UI_SCALES[0]}
+                onClick={() => uiScale.step(-1)} className={stepBtn}>−</button>
+              <span id="scaleValue" className="w-10 text-center tabular-nums text-muted-foreground">{scaleLabel(scale, lang)}</span>
+              <button type="button" id="scaleUp" aria-label={t('scaleLarger')} title={`${t('scaleLarger')} (${isMacLabel('=')})`} disabled={scale === UI_SCALES[UI_SCALES.length - 1]}
+                onClick={() => uiScale.step(1)} className={stepBtn}>+</button>
+            </span>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem id="allSettings" onSelect={() => d(openSettings())}>{t('allSettings')}</DropdownMenuItem>
+          <DropdownMenuItem id="allSettings" onSelect={() => d(openSettings())} className={row}>
+            <Svg size={15}>{ICONS.settings}</Svg>
+            <span className="flex-1">{t('allSettings')}</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
