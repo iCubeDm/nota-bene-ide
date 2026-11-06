@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Security updates: mermaid 10.9.8, DOMPurify 3.4.17 and uuid 11.1.1 (through mermaid) close Dependabot alerts on diagram and Markdown rendering. KaTeX 0.16 (low) stays until mermaid 12.
 - An interface scale, 90–150 %: text and spacing grow, in every window at once. The gear in the header is now a menu with the language, the scale and All settings; Alt+= / Alt+− / Alt+0 step the scale. The globe button is gone: the language is in that menu.
 - omp: a new project starts in Yolo, omp's own default, instead of Write.
 
