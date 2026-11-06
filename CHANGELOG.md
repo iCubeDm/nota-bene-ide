@@ -11,6 +11,7 @@
   cards, sessions (list, resume, fork, rename, clear), models, effort, cost and four
   modes (Write, Ask, Plan, Yolo); a new project starts in Write. An omp skill (`/skill:nb`) opens the window from omp.
   Not available over ACP: subagent tabs, task controls, compaction events and file search.
+  Contributed by [Milos Marinkovic](https://github.com/milosmns).
 - An `.html` file opens as the page, with a Page / Source switch. Its text takes comments as
   in Markdown; Mark (N) comments on an element, or on an area of an SVG diagram dragged as a box.
   The agent gets the place as a path of named elements and, for an area, its viewBox

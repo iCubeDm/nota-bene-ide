@@ -158,6 +158,10 @@ uses its own state directory. See [release notes](https://github.com/iCubeDm/not
 
 Starting options, every feature with an example, the security model, where state is kept and troubleshooting: [the guide](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md). How it is built: [architecture](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/architecture.md).
 
+## Contributors
+
+- [Milos Marinkovic](https://github.com/milosmns): the omp backend over ACP (1.5.0).
+
 ## Licence
 
 Apache-2.0. See [LICENSE](https://github.com/iCubeDm/nota-bene-ide/blob/main/LICENSE) and [THIRD-PARTY-NOTICES.md](https://github.com/iCubeDm/nota-bene-ide/blob/main/THIRD-PARTY-NOTICES.md).
