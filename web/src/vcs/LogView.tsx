@@ -97,7 +97,7 @@ export function LogView({ active }: { active: boolean }) {
     <div data-pane="log" data-file-ref={ref} hidden={!active} className="grid-pane relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex h-9 flex-none items-center gap-3 px-4 text-xs text-muted-foreground">
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> {t('vcsAllBranches')}</label>
-        <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterCommits')} aria-label={t('vcsFilterCommitsLabel')} className="h-[26px] w-56 rounded-md border border-transparent bg-muted/50 px-2 text-[12px] text-foreground outline-0 focus:border-primary/50" />
+        <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterCommits')} aria-label={t('vcsFilterCommitsLabel')} className="h-[26px] w-56 rounded-md border border-transparent bg-muted/50 px-2 text-[0.75rem] text-foreground outline-0 focus:border-primary/50" />
         {log?.more && <span>{t('vcsLogCut', log.commits.length)}</span>}
         {(failed || got?.failed) && <span role="alert" className="text-warn">{t('vcsFailed')}</span>}
         <span className="flex-1" />
@@ -109,16 +109,16 @@ export function LogView({ active }: { active: boolean }) {
         {log?.commits.map((c, i) => {
           const hit = !q || c.subject.toLowerCase().includes(q) || c.author.toLowerCase().includes(q) || c.sha.startsWith(q);
           return (
-            <button key={c.sha} type="button" onClick={() => pickCommit(picked(c.sha) ? null : c.sha)} className={`flex w-full items-center gap-2 pr-2 text-left text-[12.5px] hover:bg-muted ${picked(c.sha) ? 'bg-primary/15' : ''} ${hit ? '' : 'opacity-25'}`} style={{ height: ROW }}>
+            <button key={c.sha} type="button" onClick={() => pickCommit(picked(c.sha) ? null : c.sha)} className={`flex w-full items-center gap-2 pr-2 text-left text-[0.78125rem] hover:bg-muted ${picked(c.sha) ? 'bg-primary/15' : ''} ${hit ? '' : 'opacity-25'}`} style={{ height: ROW }}>
               <Lanes r={rows[i]!} width={width} />
               {c.refs.filter((x) => !x.endsWith('/HEAD')).map((x) => {
                 const id = srcOfRef(refName(x));
-                return <span key={x} role={id ? 'link' : undefined} title={id ? t('vcsViewBranch') : x} onClick={id ? (e) => { e.stopPropagation(); d(pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[10.5px] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary'}`}>{refName(x)}</span>;
+                return <span key={x} role={id ? 'link' : undefined} title={id ? t('vcsViewBranch') : x} onClick={id ? (e) => { e.stopPropagation(); d(pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[0.65625rem] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary'}`}>{refName(x)}</span>;
               })}
               <span className={`min-w-0 flex-1 truncate ${c.sha === log.tip ? 'font-semibold text-foreground' : 'text-foreground/85'}`}>{c.subject}</span>
-              <span className="flex-none text-[11px] text-muted-foreground">{c.author}</span>
-              <span className="flex-none font-mono text-[11px] text-muted-foreground">{when(c.at)}</span>
-              <span className="w-[52px] flex-none font-mono text-[11px] text-muted-foreground">{c.sha.slice(0, 7)}</span>
+              <span className="flex-none text-[0.6875rem] text-muted-foreground">{c.author}</span>
+              <span className="flex-none font-mono text-[0.6875rem] text-muted-foreground">{when(c.at)}</span>
+              <span className="w-[52px] flex-none font-mono text-[0.6875rem] text-muted-foreground">{c.sha.slice(0, 7)}</span>
             </button>
           );
         })}
@@ -127,11 +127,11 @@ export function LogView({ active }: { active: boolean }) {
         <div className="mx-4 mb-3 flex min-h-0 flex-1 gap-3">
           <div style={{ width: side.width }} className="relative flex-none">
           <div className="nb-card m-0! flex h-full w-full flex-col overflow-hidden p-2 text-xs text-muted-foreground">
-            <div className="nb-thin max-h-[40%] flex-none overflow-auto whitespace-pre-wrap text-[12.5px] text-foreground">{detail.message}</div>
-            <div className="mt-1 mb-1.5 flex-none font-mono text-[11px]">{detail.sha.slice(0, 7)} · {detail.author} · {when(detail.at)}</div>
+            <div className="nb-thin max-h-[40%] flex-none overflow-auto whitespace-pre-wrap text-[0.78125rem] text-foreground">{detail.message}</div>
+            <div className="mt-1 mb-1.5 flex-none font-mono text-[0.6875rem]">{detail.sha.slice(0, 7)} · {detail.author} · {when(detail.at)}</div>
             <div className="nb-thin min-h-0 flex-1 overflow-auto">
               {files.map((f) => (
-                <button key={f.path} type="button" title={f.path} onClick={() => setPick(f.path)} className={`flex h-6 w-full items-center gap-1.5 rounded px-1 text-left text-[12px] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
+                <button key={f.path} type="button" title={f.path} onClick={() => setPick(f.path)} className={`flex h-6 w-full items-center gap-1.5 rounded px-1 text-left text-[0.75rem] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
                   <StatusMark s={f.status} />
                   <span className="min-w-0 truncate text-foreground">{f.path.slice(f.path.lastIndexOf('/') + 1)}</span>
                 </button>

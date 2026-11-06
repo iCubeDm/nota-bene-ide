@@ -69,7 +69,7 @@ export function RightStrip() {
       <ToolButton id="toggleComments" label={n ? t('commentsN', n) : t('comments')} pressed={open} side="right" onClick={() => d(setPanelOpen(!open))}>
         <Svg size={16}>{ICONS.comments}</Svg>
         {n > 0 && (
-          <span data-testid="pending-badge" className="absolute -top-0.5 -right-0.5 min-w-3.5 rounded-full bg-nb-accent px-1 text-center text-[9px] font-semibold leading-3.5 text-background">
+          <span data-testid="pending-badge" className="absolute -top-0.5 -right-0.5 min-w-3.5 rounded-full bg-nb-accent px-1 text-center text-[0.5625rem] font-semibold leading-3.5 text-background">
             {n}
           </span>
         )}

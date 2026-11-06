@@ -14,7 +14,7 @@ const btn = 'grid size-[26px] place-items-center rounded-lg text-muted-foregroun
 export function TreeHeader({ canReveal, onReveal, expanding, onExpandAll, onCollapseAll, spinning, onRefresh }: Props) {
   const t = useT();
   return (
-    <div className="flex h-10 flex-none items-center gap-0.5 border-b border-border-soft pr-2 pl-3.5 text-[13px] font-medium text-foreground">
+    <div className="flex h-10 flex-none items-center gap-0.5 border-b border-border-soft pr-2 pl-3.5 text-[0.8125rem] font-medium text-foreground">
       <span className="min-w-0 flex-1 truncate">{t('files')}</span>
       {/* IntelliJ's "Select Opened File": the active file tab's row, in that tab's source */}
       <button type="button" aria-label={t('revealOpened')} title={t('revealOpened')} disabled={!canReveal} onClick={onReveal}

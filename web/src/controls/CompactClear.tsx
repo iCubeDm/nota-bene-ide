@@ -69,7 +69,7 @@ export function CompactClear() {
         </TooltipTrigger>
         <TooltipContent className="max-w-[300px] whitespace-pre-line">{t('clearTip')}</TooltipContent>
       </Tooltip>}
-      {note && <span role="status" className="flex-none text-[11px] text-warn">{note}</span>}
+      {note && <span role="status" className="flex-none text-[0.6875rem] text-warn">{note}</span>}
       {asking && (
         <ConfirmDialog
           title={t('clearTitle')}

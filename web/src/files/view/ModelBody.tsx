@@ -322,7 +322,7 @@ export function ModelBody({ path, src, fileRef, tabId, active, reloadKey, releas
         playing={playing} onPause={onPause} onMarking={setMarking}
       />
       {ready && (
-        <div ref={bar} data-anchor-skip className="absolute inset-x-0 bottom-0 border-t border-border-soft bg-chrome px-3 py-1 font-mono text-[11.5px] text-muted-foreground backdrop-blur">
+        <div ref={bar} data-anchor-skip className="absolute inset-x-0 bottom-0 border-t border-border-soft bg-chrome px-3 py-1 font-mono text-[0.71875rem] text-muted-foreground backdrop-blur">
          <div className="flex flex-wrap items-center gap-2">
           <span data-model-info className="min-w-0 flex-1 truncate">
             {t('modelInfo', fmtSize(ready.size, t), ready.stats.meshes, ready.stats.triangles, ready.stats.materials, ready.stats.clips.length)}

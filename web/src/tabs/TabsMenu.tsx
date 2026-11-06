@@ -96,7 +96,7 @@ export function TabsMenu({ strip }: { strip: RefObject<HTMLElement | null> }) {
           {!flat.length && <div className="px-2 py-3 text-center text-xs text-muted-foreground">{t('tabsNone')}</div>}
           {sections.map((s) => (
             <div key={s.name || 'all'}>
-              {s.name && <div className="px-2 pt-1.5 pb-0.5 text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">{s.name}</div>}
+              {s.name && <div className="px-2 pt-1.5 pb-0.5 text-[0.65625rem] font-semibold tracking-wide text-muted-foreground uppercase">{s.name}</div>}
               {s.items.map((tab) => {
                 const i = ++n;
                 return (
@@ -115,10 +115,10 @@ export function TabsMenu({ strip }: { strip: RefObject<HTMLElement | null> }) {
                   >
                     <TabIcon tab={tab} />
                     <span className={`truncate ${tab.id === active ? 'font-semibold text-primary' : ''}`}>{label(tab)}</span>
-                    {tab.kind === 'diagram' && <span className="min-w-0 flex-1 truncate text-right text-[10.5px] text-muted-foreground">{t('diagramTab')}</span>}
-                    {tab.kind === 'shell' && <span className="min-w-0 flex-1 truncate text-right text-[10.5px] text-muted-foreground">{t('shellTab')}</span>}
-                    {tab.kind === 'agent' && <span className="min-w-0 flex-1 truncate text-right text-[10.5px] text-muted-foreground">{t('agentTab')}</span>}
-                    {tab.kind === 'file' && <span className="min-w-0 flex-1 truncate text-right font-mono text-[10.5px] text-muted-foreground">{dirOf(tab.path)}{tab.ref ? ` @ ${tab.ref}` : ''}</span>}
+                    {tab.kind === 'diagram' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('diagramTab')}</span>}
+                    {tab.kind === 'shell' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('shellTab')}</span>}
+                    {tab.kind === 'agent' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('agentTab')}</span>}
+                    {tab.kind === 'file' && <span className="min-w-0 flex-1 truncate text-right font-mono text-[0.65625rem] text-muted-foreground">{dirOf(tab.path)}{tab.ref ? ` @ ${tab.ref}` : ''}</span>}
                   </button>
                 );
               })}

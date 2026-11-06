@@ -5,6 +5,7 @@ import type { ServerEvent } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
 import { Header } from './Header.tsx';
+import { uiScale } from './uiScale.ts';
 
 afterEach(cleanup);
 
@@ -22,16 +23,27 @@ function setup() {
   };
 }
 
-it('the globe opens the language list; a pick re-renders the header', () => {
+it('⚙ is a menu: the language is a submenu, a pick re-renders the header; the scale steps with the menu open', async () => {
   setLang('ru');
   setup();
-  const btn = screen.getByRole('button', { name: 'Язык интерфейса' });
+  const btn = screen.getByRole('button', { name: 'Настройки' });
   expect(screen.getByText('подключение…')).toBeInTheDocument();
   fireEvent.keyDown(btn, { key: 'Enter' });
-  expect(screen.getByRole('menuitem', { name: 'Русский' })).toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Язык интерфейса/ }), { key: 'ArrowRight' });
+  expect(await screen.findByRole('menuitem', { name: 'Русский' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('menuitem', { name: 'English' }));
-  expect(screen.getByRole('button', { name: 'Interface language' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
   expect(screen.getByText('connecting…')).toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Settings' }), { key: 'Enter' });
+  expect(document.getElementById('scaleValue')).toHaveTextContent('100%');
+  expect(screen.getByRole('button', { name: 'Smaller' })).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Larger' }));
+  expect(document.getElementById('scaleValue')).toHaveTextContent('110%'); // still open
+  expect(document.documentElement.style.fontSize).toBe('110%');
+  uiScale.choose(1.5);
+  await act(async () => {});
+  expect(screen.getByRole('button', { name: 'Larger' })).toBeDisabled(); // the last step
+  uiScale.choose(1);
   setLang('ru');
 });
 

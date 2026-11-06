@@ -42,15 +42,15 @@ export function UpdateNotice() {
           type="button"
           id="updateBtn"
           title={t('updateTitle', update.latest)}
-          className="flex-none rounded border border-primary px-1.5 py-px font-mono text-[11px] text-primary hover:bg-primary/10"
+          className="flex-none rounded border border-primary px-1.5 py-px font-mono text-[0.6875rem] text-primary hover:bg-primary/10"
         >
           ↑ {update.latest}
         </button>
       </PopoverTrigger>
       <PopoverContent aria-label={t('updateTitle', update.latest)} collisionPadding={8} className="grid w-[340px] gap-2 p-3 text-xs">
-        <b className="text-[13px] font-semibold text-foreground">{t('updateTitle', update.latest)}</b>
+        <b className="text-[0.8125rem] font-semibold text-foreground">{t('updateTitle', update.latest)}</b>
         <span className="text-muted-foreground">{t('updateYours', update.current)}</span>
-        <code className="rounded bg-muted px-2 py-1 font-mono text-[11px] text-foreground select-all">npm i -g nota-bene-ide@{update.latest}</code>
+        <code className="rounded bg-muted px-2 py-1 font-mono text-[0.6875rem] text-foreground select-all">npm i -g nota-bene-ide@{update.latest}</code>
         <span className="text-muted-foreground">{t('updateHow')}</span>
         <span className="flex items-center justify-between pt-1">
           <a

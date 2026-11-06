@@ -11,7 +11,7 @@ import { useLiveDiff } from './useLiveDiff.ts';
 export function SplitToggle({ split }: { split: boolean }) {
   const t = useT();
   return (
-    <div className="flex flex-none overflow-hidden rounded-md border border-border-soft text-[11px]">
+    <div className="flex flex-none overflow-hidden rounded-md border border-border-soft text-[0.6875rem]">
       <button type="button" aria-pressed={!split} onClick={() => setSplit(false)} className={`px-2 py-0.5 ${split ? 'text-muted-foreground' : 'bg-primary/15 text-primary'}`}>{t('vcsOneColumn')}</button>
       <button type="button" aria-pressed={split} onClick={() => setSplit(true)} className={`px-2 py-0.5 ${split ? 'bg-primary/15 text-primary' : 'text-muted-foreground'}`}>{t('vcsTwoColumns')}</button>
     </div>
@@ -50,10 +50,10 @@ export function ChangesView({ active }: { active: boolean }) {
   return (
     <div data-pane="changes" data-file-ref={ref} hidden={!active} className="grid-pane relative min-h-0 flex-1 overflow-auto">
       <div className="flex h-9 items-center gap-3 px-4 text-xs text-muted-foreground">
-        <span className="min-w-0 truncate font-mono text-[11.5px]">{repo ? baseLine(repo, t) : data && t('vcsNoRepo')}</span>
+        <span className="min-w-0 truncate font-mono text-[0.71875rem]">{repo ? baseLine(repo, t) : data && t('vcsNoRepo')}</span>
         <span className="flex-1" />
         {files.length > 1 && (
-          <span className="flex flex-none items-center gap-1.5 font-mono text-[11px]">
+          <span className="flex flex-none items-center gap-1.5 font-mono text-[0.6875rem]">
             <button type="button" aria-label={t('vcsPrevFile')} className={arrow} disabled={at <= 0} onClick={() => focusFile(files[at - 1]!.path)}>‹</button>
             {t('vcsNofM', at + 1, files.length)}
             <button type="button" aria-label={t('vcsNextFile')} className={arrow} disabled={at >= files.length - 1} onClick={() => focusFile(files[at + 1]!.path)}>›</button>

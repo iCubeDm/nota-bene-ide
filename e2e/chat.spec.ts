@@ -171,8 +171,11 @@ test('the language menu switches the placeholder @chat', async ({ page }) => {
   const saved = (lang: string) => page.waitForResponse((r) => r.url().endsWith('/system/prefs') && r.request().method() === 'POST' && r.request().postData()?.includes(`"${lang}"`) === true);
   await expect(page.getByPlaceholder(en.composerPh)).toBeVisible();
   const pick = async (lang: string) => {
-    await page.locator('#langBtn').click();
-    await page.locator(`[data-lang="${lang}"]`).click();
+    await page.locator('#settingsBtn').click();
+    await page.locator('#langMenu').hover(); // the language is a submenu of the settings menu
+    // picked by keyboard: Playwright jumps the pointer across the gap in one move, which Radix reads as leaving the submenu
+    await page.locator(`[data-lang="${lang}"]`).focus();
+    await page.keyboard.press('Enter');
   };
   let done = saved('ru');
   await pick('ru');

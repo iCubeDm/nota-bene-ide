@@ -10,7 +10,7 @@ export const STOP_CONFIRM_MS = 3000;
 /** How long a sent Stop waits for its answer before the button is offered again. */
 export const STOP_WAIT_MS = 5000;
 
-export const BTN = 'flex-none cursor-pointer rounded border border-border-soft px-2 py-0.5 text-[11px] text-foreground hover:border-border hover:bg-muted';
+export const BTN = 'flex-none cursor-pointer rounded border border-border-soft px-2 py-0.5 text-[0.6875rem] text-foreground hover:border-border hover:bg-muted';
 
 /**
  * Stop, with the confirmation inline: the first click turns the button into "Stop?" for STOP_CONFIRM_MS, a second click

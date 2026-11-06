@@ -118,9 +118,9 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
         ) : (
           <>
             {out.error && out.status !== 'ok' ? <div role="alert" className="mb-2 text-sm text-destructive">{t('shellFailed', out.error)}</div> : null}
-            {out.error && out.status === 'ok' ? <div data-shell-stale className="mb-2 text-[11px] text-destructive">{t('shellStale', out.error)}</div> : null}
-            {earlierKb > 0 && <div data-shell-truncated className="mb-1 font-mono text-[11px] text-muted-foreground">{t('shellEarlier', earlierKb)}</div>}
-            <pre data-shell-output className="font-mono text-[12px] leading-[1.45] break-words whitespace-pre-wrap text-foreground/90">{text || (out.status === 'ok' ? t('shellEmpty') : '')}</pre>
+            {out.error && out.status === 'ok' ? <div data-shell-stale className="mb-2 text-[0.6875rem] text-destructive">{t('shellStale', out.error)}</div> : null}
+            {earlierKb > 0 && <div data-shell-truncated className="mb-1 font-mono text-[0.6875rem] text-muted-foreground">{t('shellEarlier', earlierKb)}</div>}
+            <pre data-shell-output className="font-mono text-[0.75rem] leading-[1.45] break-words whitespace-pre-wrap text-foreground/90">{text || (out.status === 'ok' ? t('shellEmpty') : '')}</pre>
           </>
         )}
       </div>

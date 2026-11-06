@@ -7,7 +7,7 @@ import { selectIdleCompact } from '@/controls/slice.ts';
 import { compactProgress, expectedCompactMs, mmss } from './compactTiming.ts';
 import { timeOf } from './UserMessage.tsx';
 
-const BASE = 'mt-4 border-t border-dashed border-border-soft pt-1 font-mono text-[10.5px]';
+const BASE = 'mt-4 border-t border-dashed border-border-soft pt-1 font-mono text-[0.65625rem]';
 const LINE = `${BASE} text-muted-foreground`;
 
 export function DoneLine({ item }: { item: Extract<FeedItem, { kind: 'done' }> }) {

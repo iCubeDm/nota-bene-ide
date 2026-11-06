@@ -135,7 +135,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
 
   return (
     <div data-file-view hidden={!active} className="min-h-0 flex-1 flex-col [&:not([hidden])]:flex">
-      <div data-anchor-skip className="flex h-8 flex-none items-center gap-2 border-b border-border-soft bg-chrome px-3 font-mono text-[11.5px] text-muted-foreground">
+      <div data-anchor-skip className="flex h-8 flex-none items-center gap-2 border-b border-border-soft bg-chrome px-3 font-mono text-[0.71875rem] text-muted-foreground">
         <span className="min-w-0 flex-1 truncate" title={ref ? `${path} @ ${ref}` : path}>{path}</span>
         {ref && <SourceChip name={ref} />}
         {large && <span>{t('noHighlight')}</span>}

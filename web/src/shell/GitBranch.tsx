@@ -108,31 +108,31 @@ export function GitBranch() {
   const row = (s: Source) => {
     const i = info.find((x) => x.id === s.id);
     return (
-      <button key={s.id} type="button" onClick={() => { d(pickSource(s.id)); setOpen(false); }} className={`flex h-7 w-full items-center gap-2 rounded px-2 text-left text-[12.5px] hover:bg-muted ${s.id === src ? 'bg-primary/10' : ''}`}>
+      <button key={s.id} type="button" onClick={() => { d(pickSource(s.id)); setOpen(false); }} className={`flex h-7 w-full items-center gap-2 rounded px-2 text-left text-[0.78125rem] hover:bg-muted ${s.id === src ? 'bg-primary/10' : ''}`}>
         <span className="w-3 flex-none text-primary">{s.id === src ? '✓' : ''}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-foreground">{s.id === 'here' ? here : s.label}</span>
         {i?.busy && <span data-agent-dot role="img" aria-label={t('vcsAgentHere')} title={t('vcsAgentHere')} className="size-2 flex-none animate-pulse rounded-full bg-nb-accent" />}
-        {i?.base && <span title={t('vcsAgainst', i.base)} className="flex-none font-mono text-[11px] text-muted-foreground">↑{i.ahead}</span>}
-        {i?.dirty && <span title={t('vcsHasUncommitted')} className="flex-none text-[11px] text-nb-accent">✗</span>}
+        {i?.base && <span title={t('vcsAgainst', i.base)} className="flex-none font-mono text-[0.6875rem] text-muted-foreground">↑{i.ahead}</span>}
+        {i?.dirty && <span title={t('vcsHasUncommitted')} className="flex-none text-[0.6875rem] text-nb-accent">✗</span>}
       </button>
     );
   };
   const trees = sources.filter((s) => s.kind === 'worktree' && match(s));
   const plain = sources.filter((s) => s.kind === 'branch' && match(s));
-  const label = (s: string) => <div className="px-2 pt-2 pb-0.5 text-[10.5px] uppercase tracking-wide text-muted-foreground">{s}</div>;
+  const label = (s: string) => <div className="px-2 pt-2 pb-0.5 text-[0.65625rem] uppercase tracking-wide text-muted-foreground">{s}</div>;
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQ(''); }}>
       <PopoverTrigger asChild>
-        <button type="button" id="git-branch" title={viewing ? t('vcsViewingTip', shown ?? '', here ?? '') : `${t('gitBranch')} · ${st.dirty ? t('gitDirty') : t('gitClean')}`} className={`flex h-7 flex-none items-center gap-1.5 rounded-md px-2 font-mono text-[11.5px] whitespace-nowrap hover:bg-muted ${viewing ? 'bg-nb-accent/15 text-nb-accent' : 'text-foreground/85'}`}>
+        <button type="button" id="git-branch" title={viewing ? t('vcsViewingTip', shown ?? '', here ?? '') : `${t('gitBranch')} · ${st.dirty ? t('gitDirty') : t('gitClean')}`} className={`flex h-7 flex-none items-center gap-1.5 rounded-md px-2 font-mono text-[0.71875rem] whitespace-nowrap hover:bg-muted ${viewing ? 'bg-nb-accent/15 text-nb-accent' : 'text-foreground/85'}`}>
           <Svg size={13}>{ICONS.log}</Svg>
-          {viewing && <span className="font-sans text-[10.5px] opacity-80">{t('vcsViewing')}</span>}
+          {viewing && <span className="font-sans text-[0.65625rem] opacity-80">{t('vcsViewing')}</span>}
           {shown}
           {dirty ? <span data-dirty className="text-nb-accent/80">✗</span> : dirty === false && <span className="text-success/80">✔</span>}
           <span className="opacity-60">▾</span>
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[340px] p-1.5">
-        <input autoFocus type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('vcsFindBranch')} aria-label={t('vcsFindBranch')} className="mb-1 h-[28px] w-full rounded-md border border-transparent bg-muted/50 px-2 text-[12.5px] text-foreground outline-0 focus:border-primary/50" />
+        <input autoFocus type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('vcsFindBranch')} aria-label={t('vcsFindBranch')} className="mb-1 h-[28px] w-full rounded-md border border-transparent bg-muted/50 px-2 text-[0.78125rem] text-foreground outline-0 focus:border-primary/50" />
         <div className="max-h-[60vh] overflow-auto">
           {label(t('vcsThisFolder'))}
           {sources.filter((s) => s.id === 'here').map(row)}

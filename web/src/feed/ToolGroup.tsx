@@ -30,7 +30,7 @@ export function ToolGroup({ items, live }: { items: Tool[]; live: boolean }) {
         aria-expanded={open}
         onClick={() => dispatch(toggleGroup(scopedId(agent, items[0]!.id)))}
         data-anchor-skip
-        className="my-2.5 block w-full cursor-pointer truncate rounded-sm text-left font-mono text-[11.5px] leading-normal text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        className="my-2.5 block w-full cursor-pointer truncate rounded-sm text-left font-mono text-[0.71875rem] leading-normal text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
       >
         <span aria-hidden="true">{open ? '▾' : '▸'}</span> {t('nActions', items.length)}
         {errors > 0 && <span className="text-destructive"> · {t('nErrors', errors)}</span>}

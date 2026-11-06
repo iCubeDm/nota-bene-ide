@@ -25,6 +25,8 @@ export const ICONS = {
   changes: <><path d="M12 4v7M8.5 7.5h7M8.5 17h7" /><rect x="3" y="2.5" width="18" height="19" rx="2" /></>,
   log: <><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="9" r="2" /><path d="M6 7v10M16.2 10a8 8 0 0 1-8.2 7" /></>,
   usage: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
+  // the interface scale: a large and a small A
+  textSize: <path d="M3 19 8.5 5 14 19M5.3 14h6.4M15 19l3-7.5 3 7.5M16.1 16.5h3.8" />,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></>,
 };
 
@@ -72,7 +74,7 @@ function RenameInput({ ref, id, title, done }: { ref: Ref<HTMLInputElement>; id:
         if (e.key === 'Escape') { e.preventDefault(); done(true); } // prevented: the document hotkeys skip it
         else if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void save(); }
       }}
-      className="w-44 min-w-0 rounded border border-primary bg-transparent px-1 text-[12.5px] font-medium text-foreground outline-none"
+      className="w-44 min-w-0 rounded border border-primary bg-transparent px-1 text-[0.78125rem] font-medium text-foreground outline-none"
     />
   );
 }
@@ -105,7 +107,7 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
           onKeyDown={(e) => {
             if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); d(activate(tab.id)); }
           }}
-          className={`group flex h-7 max-w-[260px] flex-none cursor-pointer items-center gap-1.5 rounded-lg pr-1.5 pl-2.5 text-[12.5px] font-medium whitespace-nowrap hover:bg-muted/50 hover:text-foreground ${active ? 'bg-primary/15 text-primary' : 'text-muted-foreground'}`}
+          className={`group flex h-7 max-w-[260px] flex-none cursor-pointer items-center gap-1.5 rounded-lg pr-1.5 pl-2.5 text-[0.78125rem] font-medium whitespace-nowrap hover:bg-muted/50 hover:text-foreground ${active ? 'bg-primary/15 text-primary' : 'text-muted-foreground'}`}
         >
           <span className="hidden size-1.5 flex-none animate-pulse rounded-full bg-primary group-data-[playing=true]:inline-block" />
           <TabIcon tab={tab} />
@@ -113,7 +115,7 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
             ? <RenameInput ref={input} id={session} title={title ?? ''} done={(back) => { setRenaming(false); if (back) focusTab(tab.id); }} />
             : <span className="truncate">{label}</span>}
           {tab.kind === 'file' && tab.ref && <SourceChip name={tab.ref} />}
-          {badge > 0 && <span data-badge className="rounded-full bg-nb-accent/[.18] px-1.5 text-[10px] font-semibold leading-4 text-nb-accent">{badge}</span>}
+          {badge > 0 && <span data-badge className="rounded-full bg-nb-accent/[.18] px-1.5 text-[0.625rem] font-semibold leading-4 text-nb-accent">{badge}</span>}
           {!isChat && (
             <button
               type="button"

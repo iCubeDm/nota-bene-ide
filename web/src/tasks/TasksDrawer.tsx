@@ -86,12 +86,12 @@ export function TasksDrawer() {
                 data-status={task.status}
                 data-kind={task.kind}
                 style={{ paddingLeft: 12 + depth * 18 }}
-                className="flex items-center gap-2 py-1 pr-3 text-[12px] hover:bg-muted/40"
+                className="flex items-center gap-2 py-1 pr-3 text-[0.75rem] hover:bg-muted/40"
               >
                 <span aria-label={t(icon.key)} title={t(icon.key)} data-task-status className={`w-3 flex-none text-center ${icon.cls}`}>{icon.glyph}</span>
                 <span className="min-w-0 flex-[0_1_40%] truncate text-foreground/90" title={task.desc}>{task.desc}</span>
-                <span className="flex-none font-mono text-[10.5px] text-muted-foreground" data-task-meta>{meta}</span>
-                <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground" title={task.summary || undefined} data-task-summary>{task.summary}</span>
+                <span className="flex-none font-mono text-[0.65625rem] text-muted-foreground" data-task-meta>{meta}</span>
+                <span className="min-w-0 flex-1 truncate text-[0.6875rem] text-muted-foreground" title={task.summary || undefined} data-task-summary>{task.summary}</span>
                 {canOpen && (
                   <button
                     type="button"

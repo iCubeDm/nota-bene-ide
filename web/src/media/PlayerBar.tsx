@@ -122,7 +122,7 @@ export function PlayerBar({ media, box, tabId, path = '', refName, flash, onTick
         <div className="flex items-center gap-1">
           <BarButton label={t(label)} onClick={() => key('KeyK')}><Play /></BarButton>
           <VolumeControl media={media} state={state} onMute={() => key('KeyM')} />
-          <span className="ml-1 text-[13px] tabular-nums opacity-90">{formatTime(state.time)} / {formatTime(state.duration)}</span>
+          <span className="ml-1 text-[0.8125rem] tabular-nums opacity-90">{formatTime(state.time)} / {formatTime(state.duration)}</span>
           <span className="flex-1" />
           {!compact && <ChoiceMenu label={t('pb_seekStep')} options={SEEK_STEPS} value={step} text={(v) => `±${v} ${unit}`} item={(v) => `${v} ${unit}`} onPick={(v) => seekStep.set(v as SeekStepValue)} onOpen={setMenu} />}
           {!compact && <ChoiceMenu label={t('pb_speed')} options={SPEEDS} value={state.rate} text={(r) => `${r}×`} onPick={(r) => void (media.playbackRate = r)} onOpen={setMenu} />}

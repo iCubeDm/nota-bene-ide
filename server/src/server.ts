@@ -322,8 +322,8 @@ export async function startServer(o: {
     // the hello every socket gets, owner or not
     const sendHello = (ws: WebSocket) => {
       try {
-        const lang = readPrefs().lang; // the user's UI language, shared by every window; absent until one is chosen
-        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d }, ...(lang ? { lang } : {}), tmpDirs: tmpDirNames() }));
+        const { lang, uiScale } = readPrefs(); // the user's UI language and scale, shared by every window; absent until chosen
+        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), tmpDirs: tmpDirNames() }));
       } catch (e) {
         reportError(hub, 'hello', e);
       }
