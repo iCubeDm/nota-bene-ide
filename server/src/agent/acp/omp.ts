@@ -42,9 +42,9 @@ async function assertNotLeased(id: string): Promise<void> {
 export const OMP: AcpProfile = {
   name: 'omp', capabilities: OMP_CAPABILITIES, minVersion: OMP_MIN_VERSION, command,
   // launch flags go before `acp`: after it omp ignores them
-  args: (mode) => ['--approval-mode', APPROVAL[mode] ?? 'write', 'acp'],
+  args: (mode) => ['--approval-mode', APPROVAL[mode] ?? 'yolo', 'acp'],
   acpMode: (mode) => mode === 'omp-plan' ? 'plan' : 'default',
-  sameProcess: (a, b) => (APPROVAL[a] ?? 'write') === (APPROVAL[b] ?? 'write'),
+  sameProcess: (a, b) => (APPROVAL[a] ?? 'yolo') === (APPROVAL[b] ?? 'yolo'),
   approvalForm, hideCommands: OMP_HIDDEN_COMMANDS, beforeResume: assertNotLeased,
   errors: {
     install: ' Install omp (https://omp.sh) or set NOTA_BENE_OMP.',

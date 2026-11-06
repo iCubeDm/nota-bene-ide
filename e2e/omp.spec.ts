@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('omp browser: ACP questions, an approval after a mode respawn, stable replay @omp', async ({ page }) => {
   await page.goto('/');
   const composer = page.getByPlaceholder(/Message the agent/);
-  const pill = page.getByRole('button', { name: /mode/i }).filter({ hasText: /^Write$/ }); // a new project starts in Write, not omp's own Yolo
+  const pill = page.getByRole('button', { name: /mode/i }).filter({ hasText: /^Yolo$/ });
   await expect(pill).toBeVisible();
   await composer.fill('question'); await composer.press('Enter');
   await expect(page.getByLabel('Which colour?')).toBeVisible();

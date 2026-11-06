@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- omp: a new project starts in Yolo, omp's own default, instead of Write.
+
 ## 1.5.0 — 2026-11-06
 
 - Add omp (https://omp.sh, 18.16.0+) as a third agent, a preview: `--agent omp` speaks the Agent

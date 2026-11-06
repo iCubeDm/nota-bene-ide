@@ -529,10 +529,10 @@ Select omp at launch: `nota-bene . --agent omp --detach`. The window spawns
 omp's own login, models and session storage. A window on an older omp says so and
 starts no session. State is under the Nota Bene state root's `providers/omp`.
 
-Modes map to omp's approval levels: **Write** (shell and exec ask), **Ask**
-(every write and exec asks), **Plan** (omp's read-only plan mode; writes ask) and **Yolo**
-(omp's own default: nothing asks except restricted folders and critical commands). A new
-project starts in Write, not in omp's Yolo; Settings → Defaults picks another start mode,
+Modes map to omp's approval levels: **Yolo** (omp's default: nothing asks except
+restricted folders and critical commands), **Write** (shell and exec ask), **Ask**
+(every write and exec asks) and **Plan** (omp's read-only plan mode; writes ask).
+A new project starts in Yolo; Settings → Defaults picks another start mode,
 and each project keeps the mode last chosen in it.
 Switching to another approval level (Yolo, Write, or Ask/Plan) restarts the omp process on the same
 conversation and is refused while the agent is working; switching between Ask and Plan happens in place.
