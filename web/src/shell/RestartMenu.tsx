@@ -46,7 +46,7 @@ export function RestartMenu() {
       )}
       <span className="flex items-center">
         {/* enabled while busy: the escape hatch for a stuck agent (R-M4-4); only a running switch/restart disables it */}
-        <button type="button" id="restartBtn" title={t('restartTip')} disabled={switching} onClick={() => d(restartAgent())} className={`${btn} rounded-l-md`}>
+        <button type="button" id="restartBtn" title={t('restartTip')} disabled={switching} onClick={() => d(restartAgent())} className={`${btn} rounded-l-md [&>svg]:text-accent-agent`}>
           {t('restart')}
         </button>
         <DropdownMenu>

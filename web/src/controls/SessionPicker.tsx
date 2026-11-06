@@ -150,7 +150,7 @@ export function SessionPicker() {
             id="sessBtn"
             title={t(provider === 'codex' ? 'sessTipCodex' : provider === 'omp' ? 'sessTipOmp' : 'sessTip')}
             disabled={off}
-            className="inline-flex flex-none items-center gap-1 rounded border border-border-soft px-2 py-px font-mono text-[0.6875rem] text-muted-foreground hover:enabled:border-primary hover:enabled:text-foreground disabled:cursor-default disabled:opacity-35"
+            className="inline-flex flex-none items-center gap-1 rounded border border-border-soft px-2 py-px font-mono text-[0.6875rem] text-muted-foreground hover:enabled:border-primary hover:enabled:text-foreground disabled:cursor-default disabled:opacity-35 [&>svg]:text-accent-sessions"
           >
             {t('sessions')}
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
@@ -176,7 +176,7 @@ export function SessionPicker() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t('sessFilter')}
-            className="m-1 flex-none rounded-md border border-border-soft bg-transparent px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary"
+            className="m-1 flex-none rounded-md border border-border-soft bg-transparent px-2 py-1.5 text-xs text-foreground outline-none focus-visible:border-input-focus focus-visible:ring-2 focus-visible:ring-input-ring"
           />
           <div className="min-h-0 overflow-auto">
             <button

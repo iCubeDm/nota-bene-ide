@@ -75,3 +75,62 @@ it('every theme defines every token', () => {
   expect(plannotator.size).toBeGreaterThan(40);
   expect([...darcula].sort()).toEqual([...plannotator].sort());
 });
+
+/** A theme block's declarations, `var()` resolved within the block. Colours: hex and `rgb()` only. */
+function themeTokens(selector: string): Record<string, string> {
+  const at = css.indexOf(`${selector} {`);
+  const body = css.slice(css.indexOf('{', at) + 1, css.indexOf('}', at));
+  const out: Record<string, string> = {};
+  for (const m of body.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[m[1]!] = m[2]!.trim();
+  return out;
+}
+
+type RGB = [number, number, number];
+function parseColour(v: string, tokens: Record<string, string>): RGB {
+  const ref = /^var\((--[\w-]+)\)$/.exec(v);
+  if (ref) return parseColour(tokens[ref[1]!]!, tokens);
+  const hex = /^#([0-9a-f]{6})$/i.exec(v);
+  if (hex) return [0, 2, 4].map((i) => parseInt(hex[1]!.slice(i, i + 2), 16)) as RGB;
+  const rgb = /^rgb\((\d+)\s+(\d+)\s+(\d+)(?:\s*\/\s*([\d.]+))?\)$/.exec(v);
+  if (rgb) {
+    const c = [rgb[1], rgb[2], rgb[3]].map(Number) as RGB;
+    const a = rgb[4] === undefined ? 1 : Number(rgb[4]);
+    if (a === 1) return c;
+    // a translucent colour is seen over the window's background
+    const bg = parseColour(tokens['--background']!, tokens);
+    return c.map((x, i) => x * a + bg[i]! * (1 - a)) as RGB;
+  }
+  throw new Error(`not a hex or rgb() colour: ${v}`);
+}
+
+/** WCAG 2 relative luminance and contrast ratio. */
+const luminance = ([r, g, b]: RGB) => {
+  const lin = (c: number) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+};
+const contrast = (a: RGB, b: RGB) => {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p) as [number, number];
+  return (x + 0.05) / (y + 0.05);
+};
+
+it('Darcula passes AA', () => {
+  const tk = themeTokens(':root, [data-theme="darcula"]');
+  const ratio = (fg: string, bg: string) => contrast(parseColour(tk[fg]!, tk), parseColour(tk[bg]!, tk));
+  const text: [string, string][] = [
+    ['--foreground', '--background'], ['--foreground', '--card'], ['--foreground', '--popover'],
+    ['--muted-fg', '--card'], ['--muted-fg', '--muted'], ['--muted-fg', '--popover'], ['--muted-fg', '--side'],
+    ['--primary-fg', '--primary'], ['--tab-on-fg', '--tab-on-bg'], ['--tool-on-fg', '--tool-on'],
+    ['--tool-on-fg', '--tool-on-idle'], ['--link', '--card'], ['--code-inline-fg', '--code-inline-bg'],
+    ['--accent-sessions', '--chrome'], ['--accent-agent', '--chrome'], ['--accent-model', '--chrome'],
+    ['--accent-usage', '--chrome'],
+    // code: every syntax colour on the code block
+    ...['text', 'keyword', 'string', 'function', 'number', 'comment', 'type', 'variable', 'property', 'param', 'builtin',
+      'tag', 'section', 'bullet'].map((s): [string, string] => [`--syn-${s}`, '--syn-bg']),
+    ['--syn-add', '--syn-add-bg'], ['--syn-del', '--syn-del-bg'],
+    // file-type letters and the mode pills' text, on the card and the side panels
+    ...[1, 2, 3, 4, 5, 6, 7, 8, 17, 19].flatMap((n): [string, string][] => [[`--hue-${n}`, '--card'], [`--hue-${n}`, '--side']]),
+  ];
+  const failing = text.map(([fg, bg]) => `${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`).filter((_, i) => ratio(...text[i]!) < 4.5);
+  expect(failing).toEqual([]);
+  expect(ratio('--border', '--card')).toBeGreaterThanOrEqual(1.5);
+});

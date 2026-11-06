@@ -51,7 +51,7 @@ export function Header() {
         aria-label={t('usage')}
         title={t('usageTip')}
         onClick={() => d(openUsage())}
-        className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground [&>svg]:text-accent-usage"
       >
         <Svg size={15}>{ICONS.usage}</Svg>
       </button>

@@ -47,3 +47,27 @@ it('a closed tree stays closed on the next load', () => {
   cleanup();
   expect(makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) }).getState().tree.open).toBe(false);
 });
+
+it('pressed button is grey until its panel has focus', () => {
+  setup();
+  // the panels themselves live elsewhere (FileTree, Composer): stand-ins with the same ids
+  const sheet = document.createElement('aside');
+  sheet.id = 'tree-sheet';
+  const row = document.createElement('button');
+  sheet.append(row);
+  const composer = document.createElement('textarea');
+  document.body.append(sheet, composer);
+  try {
+    const files = document.getElementById('toggleTree')!;
+    expect(files).toHaveAttribute('aria-pressed', 'true');
+    expect(document.activeElement).toBe(document.body);
+    expect(files).toHaveAttribute('data-focused', 'false');
+    act(() => row.focus());
+    expect(files).toHaveAttribute('data-focused', 'true');
+    act(() => composer.focus());
+    expect(files).toHaveAttribute('data-focused', 'false');
+  } finally {
+    sheet.remove();
+    composer.remove();
+  }
+});
