@@ -107,14 +107,14 @@ export function SlashPicker({ target }: { target: RefObject<HTMLTextAreaElement 
           aria-selected={k === sel}
           onMouseDown={(e) => e.preventDefault() /* keep focus in the textarea */}
           onClick={() => { target.current?.focus(); pick.current(c); }}
-          className={`flex min-w-0 cursor-pointer flex-col gap-px rounded-md px-2 py-1 text-[12.5px] text-foreground ${k === sel ? 'bg-primary/15' : 'hover:bg-accent'}`}
+          className={`flex min-w-0 cursor-pointer flex-col gap-px rounded-md px-2 py-1 text-[0.78125rem] text-foreground ${k === sel ? 'bg-primary/15' : 'hover:bg-accent'}`}
         >
           <div className="flex min-w-0 items-baseline gap-2">
             <span className="min-w-0 shrink truncate font-mono">/{highlight(c.name, state.q.toLowerCase())}</span>
-            {c.hint && <span className="min-w-0 shrink-[2] truncate font-mono text-[11.5px] text-muted-foreground">{c.hint}</span>}
-            {c.builtin && <span className="ml-auto flex-none rounded bg-muted px-1 text-[10.5px] text-muted-foreground">{t('slashBuiltin')}</span>}
+            {c.hint && <span className="min-w-0 shrink-[2] truncate font-mono text-[0.71875rem] text-muted-foreground">{c.hint}</span>}
+            {c.builtin && <span className="ml-auto flex-none rounded bg-muted px-1 text-[0.65625rem] text-muted-foreground">{t('slashBuiltin')}</span>}
           </div>
-          {c.description && <div className="truncate text-[11.5px] text-muted-foreground">{c.description}</div>}
+          {c.description && <div className="truncate text-[0.71875rem] text-muted-foreground">{c.description}</div>}
         </div>
       ))}
     </div>

@@ -27,7 +27,7 @@ export function Toasts() {
               ✕
             </button>
           </div>
-          <pre className="mt-1.5 max-h-40 overflow-auto font-mono text-[11px] whitespace-pre-wrap">{x.msg}</pre>
+          <pre className="mt-1.5 max-h-40 overflow-auto font-mono text-[0.6875rem] whitespace-pre-wrap">{x.msg}</pre>
         </div>
       ))}
     </div>

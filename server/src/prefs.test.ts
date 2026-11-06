@@ -43,6 +43,12 @@ describe('prefs', () => {
     setModePref('/a', 'plan');
     expect(readPrefs().modes[prefsKey('/a')]).toBe('plan');
   });
+  it('keeps a known interface scale, drops any other', () => {
+    fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ uiScale: 1.5 }));
+    expect(readPrefs().uiScale).toBe(1.5);
+    fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ uiScale: 3 }));
+    expect('uiScale' in readPrefs()).toBe(false);
+  });
   it('drops unknown mode values', () => {
     fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ modes: { '/a': 'bogus', '/b': 'plan' }, lang: 'en' }));
     expect(readPrefs()).toEqual({ modes: { '/b': 'plan' }, models: {}, lang: 'en', idleCompact: {} });

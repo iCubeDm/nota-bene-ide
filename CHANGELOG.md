@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Settings → Defaults: an interface scale, 90–150 %. Text and spacing grow, in every window at once.
+
 ## 1.5.0 — 2026-11-06
 
 - Add omp (https://omp.sh, 18.16.0+) as a third agent, a preview: `--agent omp` speaks the Agent

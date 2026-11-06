@@ -1,12 +1,13 @@
 import { useAppSelector } from '@/store/store.ts';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { MODES, type AgentMode as Mode } from '@nota-bene/shared';
+import { MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
 import { apiFetch } from '@/net/auth.ts';
 import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
 import { kb } from '@/controls/SessionPicker.tsx';
 import { getLang, chooseLang, LANGS, t as tNow, useT, type Lang } from '@/i18n/index.ts';
 import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
+import { uiScale, useUiScale } from '@/shell/uiScale.ts';
 
 type Size = { bytes: number; files: number };
 /** `history`: the archive before compactions (R-M7-1); absent from a server older than M7-12 */
@@ -52,7 +53,7 @@ function Section({ title, children, aside }: { title: string; children: ReactNod
   return (
     <section className="nb-card nb-prose px-6 py-5">
       <div className="mb-3 flex items-center gap-2">
-        <h2 className="flex-1 text-[15px] font-semibold text-foreground">{title}</h2>
+        <h2 className="flex-1 text-[0.9375rem] font-semibold text-foreground">{title}</h2>
         {aside}
       </div>
       {children}
@@ -61,7 +62,7 @@ function Section({ title, children, aside }: { title: string; children: ReactNod
 }
 
 const Row = ({ label, children }: { label: ReactNode; children: ReactNode }) => (
-  <div className="flex items-baseline gap-4 py-1.5 text-[13px]">
+  <div className="flex items-baseline gap-4 py-1.5 text-[0.8125rem]">
     <div className="w-56 flex-none text-muted-foreground">{label}</div>
     <div className="min-w-0 flex-1 break-words text-foreground">{children}</div>
   </div>
@@ -74,6 +75,7 @@ const Row = ({ label, children }: { label: ReactNode; children: ReactNode }) => 
 export function SettingsView({ active }: { active: boolean }) {
   const capabilities = useAppSelector((s) => s.controls.capabilities);
   const t = useT();
+  const scale = useUiScale();
   const windows = useLoad<WindowRow[]>('/system/windows', active);
   const storage = useLoad<Storage>('/system/storage', active);
   const about = useLoad<About>('/system/about', active);
@@ -139,13 +141,13 @@ export function SettingsView({ active }: { active: boolean }) {
         {windows.data && !windows.data.length && <div className="text-xs text-muted-foreground">{t('winNone')}</div>}
         <div className="flex flex-col gap-2">
           {windows.data?.map((w) => (
-            <div key={w.port} data-window={w.port} className="rounded-lg border border-border-soft px-3 py-2 text-[13px]">
+            <div key={w.port} data-window={w.port} className="rounded-lg border border-border-soft px-3 py-2 text-[0.8125rem]">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="font-semibold text-foreground">{w.root.split('/').filter(Boolean).pop() ?? w.root}</span>
-                <span className="font-mono text-[11px] text-muted-foreground">{short(w.root)}</span>
-                <span className="font-mono text-[11px] text-muted-foreground">:{w.port}</span>
-                {w.current && <span className="rounded bg-primary/15 px-1.5 text-[11px] text-primary">{t('winThis')}</span>}
-                {w.state !== 'live' && <span className="text-[11px] text-warn">{t(`win_${w.state}`)}</span>}
+                <span className="font-mono text-[0.6875rem] text-muted-foreground">{short(w.root)}</span>
+                <span className="font-mono text-[0.6875rem] text-muted-foreground">:{w.port}</span>
+                {w.current && <span className="rounded bg-primary/15 px-1.5 text-[0.6875rem] text-primary">{t('winThis')}</span>}
+                {w.state !== 'live' && <span className="text-[0.6875rem] text-warn">{t(`win_${w.state}`)}</span>}
               </div>
               {w.state === 'live' && (
                 <div className="mt-0.5 text-xs text-muted-foreground">
@@ -189,8 +191,14 @@ export function SettingsView({ active }: { active: boolean }) {
       <Section title={t('setDefaults')}>
         <Row label={t('defLang')}>
           <select aria-label={t('defLang')} value={getLang()} onChange={(e) => chooseLang(e.target.value as Lang)}
-            className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[13px] text-foreground">
+            className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[0.8125rem] text-foreground">
             {LANGS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </Row>
+        <Row label={t('defScale')}>
+          <select aria-label={t('defScale')} value={scale} onChange={(e) => uiScale.choose(Number(e.target.value) as UiScale)}
+            className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[0.8125rem] text-foreground">
+            {UI_SCALES.map((v) => <option key={v} value={v}>{new Intl.NumberFormat(getLang(), { style: 'percent' }).format(v)}</option>)}
           </select>
         </Row>
         <Row label={t('defMode')}>
@@ -198,7 +206,7 @@ export function SettingsView({ active }: { active: boolean }) {
           {prefs.data && (
             <select aria-label={t('defMode')} value={prefs.data.defaultMode}
               onChange={(e) => void savePref({ defaultMode: e.target.value })}
-              className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[13px] text-foreground">
+              className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[0.8125rem] text-foreground">
               {(capabilities?.modes ?? MODES).map((m) => <option key={m} value={m}>{t(`mode_${m}`)}</option>)}
             </select>
           )}

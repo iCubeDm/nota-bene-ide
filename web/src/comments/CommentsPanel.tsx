@@ -34,7 +34,7 @@ export function CommentsPanel({ onSend }: { onSend: () => void }) {
       className="relative flex min-h-0 flex-none flex-col border-l border-border bg-side"
     >
       <PanelResizer edge="left" width={size.width} onWidth={size.set} onReset={size.reset} min={240} label={t('resizeComments')} />
-      <div className="flex h-[41px] flex-none items-center justify-between border-b border-border-soft pr-2 pl-3.5 text-[13px] font-medium">
+      <div className="flex h-[41px] flex-none items-center justify-between border-b border-border-soft pr-2 pl-3.5 text-[0.8125rem] font-medium">
         <span id="cTitle">{n ? t('commentsN', n) : t('comments')}</span>
         <button
           type="button"

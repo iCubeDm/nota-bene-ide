@@ -72,7 +72,7 @@ function RenameInput({ ref, id, title, done }: { ref: Ref<HTMLInputElement>; id:
         if (e.key === 'Escape') { e.preventDefault(); done(true); } // prevented: the document hotkeys skip it
         else if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void save(); }
       }}
-      className="w-44 min-w-0 rounded border border-primary bg-transparent px-1 text-[12.5px] font-medium text-foreground outline-none"
+      className="w-44 min-w-0 rounded border border-primary bg-transparent px-1 text-[0.78125rem] font-medium text-foreground outline-none"
     />
   );
 }
@@ -105,7 +105,7 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
           onKeyDown={(e) => {
             if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); d(activate(tab.id)); }
           }}
-          className={`group flex h-7 max-w-[260px] flex-none cursor-pointer items-center gap-1.5 rounded-lg pr-1.5 pl-2.5 text-[12.5px] font-medium whitespace-nowrap hover:bg-muted/50 hover:text-foreground ${active ? 'bg-primary/15 text-primary' : 'text-muted-foreground'}`}
+          className={`group flex h-7 max-w-[260px] flex-none cursor-pointer items-center gap-1.5 rounded-lg pr-1.5 pl-2.5 text-[0.78125rem] font-medium whitespace-nowrap hover:bg-muted/50 hover:text-foreground ${active ? 'bg-primary/15 text-primary' : 'text-muted-foreground'}`}
         >
           <span className="hidden size-1.5 flex-none animate-pulse rounded-full bg-primary group-data-[playing=true]:inline-block" />
           <TabIcon tab={tab} />
@@ -113,7 +113,7 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
             ? <RenameInput ref={input} id={session} title={title ?? ''} done={(back) => { setRenaming(false); if (back) focusTab(tab.id); }} />
             : <span className="truncate">{label}</span>}
           {tab.kind === 'file' && tab.ref && <SourceChip name={tab.ref} />}
-          {badge > 0 && <span data-badge className="rounded-full bg-nb-accent/[.18] px-1.5 text-[10px] font-semibold leading-4 text-nb-accent">{badge}</span>}
+          {badge > 0 && <span data-badge className="rounded-full bg-nb-accent/[.18] px-1.5 text-[0.625rem] font-semibold leading-4 text-nb-accent">{badge}</span>}
           {!isChat && (
             <button
               type="button"

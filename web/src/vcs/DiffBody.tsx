@@ -56,7 +56,7 @@ function Split({ h, l, side }: { h: Hunk; l: string | null; side: 'o' | 'n' }) {
 
 const STATUS = { A: ['A', 'text-success'], M: ['M', 'text-nb-accent'], D: ['D', 'text-destructive'], R: ['R', 'text-primary'] } as const;
 
-export const StatusMark = ({ s }: { s: VcsFile['status'] }) => <span className={`w-3 flex-none text-center font-mono text-[11px] font-semibold ${STATUS[s][1]}`}>{STATUS[s][0]}</span>;
+export const StatusMark = ({ s }: { s: VcsFile['status'] }) => <span className={`w-3 flex-none text-center font-mono text-[0.6875rem] font-semibold ${STATUS[s][1]}`}>{STATUS[s][0]}</span>;
 
 export const FileDiff = memo(function FileDiff({ f, split, src, gitRef, canOpen }: { f: DiffFile; split: boolean; src: string; gitRef: string | undefined; canOpen: boolean }) {
   const t = useT();
@@ -72,9 +72,9 @@ export const FileDiff = memo(function FileDiff({ f, split, src, gitRef, canOpen 
       <header className="sticky top-0 z-[2] flex h-8 items-center gap-2 rounded-t-lg border-b border-border-soft bg-chrome px-2 text-xs">
         <button type="button" aria-label={t(shut ? 'vcsExpand' : 'vcsCollapse')} onClick={() => setShut(!shut)} className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-muted">{shut ? '▸' : '▾'}</button>
         <StatusMark s={f.status} />
-        <span className="min-w-0 truncate font-mono text-[12px] text-foreground" title={f.path}>{f.old ? `${f.old} → ${f.path}` : f.path}</span>
-        <span className="flex-none font-mono text-[11px] text-success">+{f.add ?? 0}</span>
-        <span className="flex-none font-mono text-[11px] text-destructive">−{f.del ?? 0}</span>
+        <span className="min-w-0 truncate font-mono text-[0.75rem] text-foreground" title={f.path}>{f.old ? `${f.old} → ${f.path}` : f.path}</span>
+        <span className="flex-none font-mono text-[0.6875rem] text-success">+{f.add ?? 0}</span>
+        <span className="flex-none font-mono text-[0.6875rem] text-destructive">−{f.del ?? 0}</span>
         <span className="flex-1" />
         {canOpen && f.status !== 'D' && (
           <button type="button" title={t('vcsOpenFile')} aria-label={t('vcsOpenFile')} onClick={() => d(openFile({ path: f.path, src, ...(gitRef ? { ref: gitRef } : {}) }))} className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground">
@@ -89,7 +89,7 @@ export const FileDiff = memo(function FileDiff({ f, split, src, gitRef, canOpen 
           <div data-file-path={f.path} onMouseDown={(e) => { const s = (e.target as Element).closest<HTMLElement>('[data-side]')?.dataset.side; if (s === 'o' || s === 'n') setSide(s); }} className="nb-code py-1 font-mono text-xs leading-[1.55]">
             {f.hunks.map((h, i) => (
               <div key={i}>
-                <div data-n={h.head} className="select-none overflow-hidden bg-primary/10 px-3 py-0.5 text-[11px] whitespace-nowrap text-muted-foreground before:content-[attr(data-n)]" />
+                <div data-n={h.head} className="select-none overflow-hidden bg-primary/10 px-3 py-0.5 text-[0.6875rem] whitespace-nowrap text-muted-foreground before:content-[attr(data-n)]" />
                 {split ? <Split h={h} l={l} side={side} /> : <Unified h={h} l={l} />}
               </div>
             ))}

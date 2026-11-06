@@ -294,6 +294,7 @@ export const en: Dict = {
   stCleaned: (n: number, size: string, dir: string) => `Moved ${n} (${size}) to ${dir}`,
   stNothing: 'Nothing to clean',
   defLang: 'Interface language',
+  defScale: 'Interface scale',
   defMode: 'Agent mode for projects without their own',
   defUpdate: 'Check npm for new versions',
   defUpdateEnv: 'Off by NOTA_BENE_NO_UPDATE_CHECK',

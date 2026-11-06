@@ -62,5 +62,5 @@ export function Meters() {
     ),
   ].filter(Boolean);
   if (!parts.length) return null;
-  return <span className="flex flex-none items-center gap-3 font-mono text-[11px] text-muted-foreground">{parts}</span>;
+  return <span className="flex flex-none items-center gap-3 font-mono text-[0.6875rem] text-muted-foreground">{parts}</span>;
 }

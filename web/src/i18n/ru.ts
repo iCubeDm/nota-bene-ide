@@ -293,6 +293,7 @@ export const ru = {
   stCleaned: (n: number, size: string, dir: string) => `Перенесено ${n} (${size}) в ${dir}`,
   stNothing: 'Убирать нечего',
   defLang: 'Язык интерфейса',
+  defScale: 'Масштаб интерфейса',
   defMode: 'Режим агента для проектов без своего',
   defUpdate: 'Проверять новые версии в npm',
   defUpdateEnv: 'Выключено через NOTA_BENE_NO_UPDATE_CHECK',

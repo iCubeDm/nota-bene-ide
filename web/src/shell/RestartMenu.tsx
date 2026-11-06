@@ -36,7 +36,7 @@ export function RestartMenu() {
   const d = useAppDispatch();
   const switching = useAppSelector(selectSwitching);
   const { supervised, codeChanged } = useServerInfo();
-  const btn = 'cursor-pointer border border-border-soft px-2 py-0.5 text-[11px] font-medium hover:text-foreground disabled:cursor-default disabled:opacity-50';
+  const btn = 'cursor-pointer whitespace-nowrap border border-border-soft px-2 py-0.5 text-[0.6875rem] font-medium hover:text-foreground disabled:cursor-default disabled:opacity-50';
   return (
     <span className="flex items-center gap-1.5">
       {supervised && codeChanged && (

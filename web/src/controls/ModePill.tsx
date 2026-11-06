@@ -52,8 +52,8 @@ export function ModePill() {
             onSelect={() => void dispatch(pickMode(m))}
             className={`block px-2.5 py-[7px] ${m === mode ? 'bg-muted' : ''}`}
           >
-            <b className="block text-[13px] font-medium">{label(m)}</b>
-            <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">{description(m)}</span>
+            <b className="block text-[0.8125rem] font-medium">{label(m)}</b>
+            <span className="mt-0.5 block text-[0.71875rem] leading-snug text-muted-foreground">{description(m)}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

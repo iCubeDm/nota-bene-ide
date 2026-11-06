@@ -116,7 +116,7 @@ export function ChoiceMenu({ label, options, value, text, item = text, onPick, o
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => toggle(!open)}
-        className="h-8 min-w-9 cursor-pointer rounded-full px-2 text-[13px] font-medium text-white/90 tabular-nums outline-none hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-primary"
+        className="h-8 min-w-9 cursor-pointer rounded-full px-2 text-[0.8125rem] font-medium text-white/90 tabular-nums outline-none hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-primary"
       >
         {text(value)}
       </button>

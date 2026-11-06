@@ -103,7 +103,7 @@ export function RecentFiles() {
             aria-expanded
             aria-controls="nb-recent-list"
             aria-activedescendant={items.length ? `nb-recent-opt-${cur}` : undefined}
-            className="mx-1 mb-1 flex-none rounded-md border border-border-soft bg-transparent px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-primary"
+            className="mx-1 mb-1 flex-none rounded-md border border-border-soft bg-transparent px-2.5 py-1.5 text-[0.8125rem] text-foreground outline-none focus:border-primary"
           />
           <div id="nb-recent-list" role="listbox" aria-label={t('recentTitle')} className="min-h-0 overflow-auto">
             {!items.length && (
@@ -123,11 +123,11 @@ export function RecentFiles() {
                 onMouseMove={() => setAt(i)}
                 onClick={() => pick(f)}
                 ref={(el) => { if (i === cur) el?.scrollIntoView?.({ block: 'nearest' }); }}
-                className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-[12.5px] ${i === cur ? 'bg-muted text-foreground' : 'text-foreground/85'}`}
+                className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-[0.78125rem] ${i === cur ? 'bg-muted text-foreground' : 'text-foreground/85'}`}
               >
                 <FileIcon path={f.path} />
                 <span className="truncate">{f.path.split('/').pop()}</span>
-                <span className="min-w-0 flex-1 truncate text-right font-mono text-[10.5px] text-muted-foreground">{dirOf(f.path)}{f.ref ? ` @ ${f.ref}` : ''}</span>
+                <span className="min-w-0 flex-1 truncate text-right font-mono text-[0.65625rem] text-muted-foreground">{dirOf(f.path)}{f.ref ? ` @ ${f.ref}` : ''}</span>
               </button>
             ))}
           </div>

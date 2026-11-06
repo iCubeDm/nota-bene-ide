@@ -13,11 +13,11 @@ export function PlanCard({ item }: { item: Extract<FeedItem, { kind: 'permission
   const dispatch = useAppDispatch();
   const before = useAppSelector((s) => s.controls.modeBeforePlan);
   const resolved = item.answer !== undefined;
-  const btn = 'rounded-lg border border-transparent px-3 py-1 text-[13px] font-medium';
+  const btn = 'rounded-lg border border-transparent px-3 py-1 text-[0.8125rem] font-medium';
   return (
     <div
       data-kind="plan-card"
-      className={'my-2.5 rounded-[10px] border bg-card px-3 py-2 text-[13px] ' + (resolved || item.archived ? 'border-border-soft' : 'border-[oklch(0.78_0.12_185/0.7)]')}
+      className={'my-2.5 rounded-[10px] border bg-card px-3 py-2 text-[0.8125rem] ' + (resolved || item.archived ? 'border-border-soft' : 'border-[oklch(0.78_0.12_185/0.7)]')}
     >
       <b>{t('planQ')}</b>
       <div data-kind="plan" data-item-id={`plan:${item.id}`} data-final="true" className="my-1.5 max-h-[60vh] overflow-auto">

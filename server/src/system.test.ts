@@ -234,6 +234,26 @@ describe('defaults and about', () => {
     expect(mode).toBe('plan');
   });
 
+  it('the interface scale is one global pref like the language: validated, stored, sent in hello', async () => {
+    const s = await boot();
+    const hello = async (url: string) => {
+      const ws = new WebSocket(url.replace('http', 'ws') + '/ws');
+      closers.push(async () => void ws.terminate());
+      return new Promise<{ uiScale?: number }>((res) => ws.on('message', (d) => {
+        const e = JSON.parse(String(d)) as { kind: string; uiScale?: number };
+        if (e.kind === 'hello') res(e);
+      }));
+    };
+    expect('uiScale' in (await hello(s.url))).toBe(false); // none chosen: the client keeps 100 %
+    expect((await post(`${s.url}/system/prefs`, { uiScale: 1.3 }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { uiScale: '1.25' }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { lang: 'de' }, { origin: s.origin })).status).toBe(200);
+    expect((await post(`${s.url}/system/prefs`, { uiScale: 1.25 }, { origin: s.origin })).status).toBe(200);
+    expect(readPrefs()).toMatchObject({ lang: 'de', uiScale: 1.25 });
+    const other = await boot(mkExtra('nb-system-scale-')); // another folder's window: the same scale
+    expect((await hello(other.url)).uiScale).toBe(1.25);
+  });
+
   it('the UI language is one global pref: validated, stored in prefs.json, merged with the default mode, sent in hello', async () => {
     const s = await boot();
     const hello = async (url: string) => {

@@ -286,6 +286,7 @@ export const de: Dict = {
   stCleaned: (n: number, size: string, dir: string) => `${n} (${size}) nach ${dir} verschoben`,
   stNothing: 'Nichts zu bereinigen',
   defLang: 'Oberflächensprache',
+  defScale: 'Oberflächengröße',
   defMode: 'Agent-Modus für Projekte ohne eigenen',
   defUpdate: 'Neue Versionen auf npm prüfen',
   defUpdateEnv: 'Deaktiviert durch NOTA_BENE_NO_UPDATE_CHECK',

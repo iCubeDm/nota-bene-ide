@@ -222,7 +222,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
       }}
       style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? 'visible' : 'hidden' }}
     >
-      <div className="mb-1.5 truncate border-l-2 border-nb-accent pl-1.5 text-[11px] text-muted-foreground">{quote}</div>
+      <div className="mb-1.5 truncate border-l-2 border-nb-accent pl-1.5 text-[0.6875rem] text-muted-foreground">{quote}</div>
       <textarea
         ref={area}
         value={text}
@@ -232,7 +232,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         readOnly={busy}
         placeholder={t('commentPh')}
         aria-label={t('commentPh')}
-        className="max-h-[40vh] min-h-16 w-full resize-none overflow-y-auto rounded-md border border-border-soft bg-background px-2 py-1.5 text-[13px] leading-[1.45] text-foreground focus:border-primary focus:outline-none"
+        className="max-h-[40vh] min-h-16 w-full resize-none overflow-y-auto rounded-md border border-border-soft bg-background px-2 py-1.5 text-[0.8125rem] leading-[1.45] text-foreground focus:border-primary focus:outline-none"
       />
       <Attachments
         data-testid="popup-thumbs"
@@ -240,7 +240,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         pending={intake.pending}
         onRemove={(id) => setImages((l) => l.filter((x) => x.id !== id))}
       />
-      {note && <div className="mt-1 text-[11px] text-warn">{note}</div>}
+      {note && <div className="mt-1 text-[0.6875rem] text-warn">{note}</div>}
       <ShortcodePicker target={area} />
       <MentionPicker target={area} />
       <div className="mt-1.5 flex flex-wrap gap-1">
@@ -263,7 +263,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           </Tooltip>
         ))}
       </div>
-      <div className="mt-1.5 flex items-center justify-between gap-2 text-[10.5px] text-muted-foreground">
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-[0.65625rem] text-muted-foreground">
         <span>{t('popHint')}</span>
         <span className="flex items-center gap-1">
           <input

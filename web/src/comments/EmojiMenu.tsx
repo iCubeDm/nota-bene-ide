@@ -147,7 +147,7 @@ export function EmojiMenu({ target }: { target: RefObject<HTMLTextAreaElement | 
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => (open ? close() : openMenu())}
-        className="inline-flex size-6 items-center justify-center rounded-md text-[14px] leading-none hover:bg-accent"
+        className="inline-flex size-6 items-center justify-center rounded-md text-[0.875rem] leading-none hover:bg-accent"
       >
         😊
       </button>
@@ -165,13 +165,13 @@ export function EmojiMenu({ target }: { target: RefObject<HTMLTextAreaElement | 
             onChange={(e) => setQ(e.target.value)}
             placeholder={t('emojiSearchPh')}
             aria-label={t('emojiSearchPh')}
-            className="mb-1.5 w-full rounded-md border border-border-soft bg-background px-2 py-1 text-[12.5px] text-foreground focus:border-primary focus:outline-none"
+            className="mb-1.5 w-full rounded-md border border-border-soft bg-background px-2 py-1 text-[0.78125rem] text-foreground focus:border-primary focus:outline-none"
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {sections.length === 0 && all.length > 0 && <div className="px-1 py-2 text-[12px] text-muted-foreground">{t('emojiNone')}</div>}
+            {sections.length === 0 && all.length > 0 && <div className="px-1 py-2 text-[0.75rem] text-muted-foreground">{t('emojiNone')}</div>}
             {sections.map((s) => (
               <section key={s.key} style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 120px' }}>
-                <h4 className="px-1 pb-0.5 pt-1 text-[10.5px] font-medium text-muted-foreground">{s.title}</h4>
+                <h4 className="px-1 pb-0.5 pt-1 text-[0.65625rem] font-medium text-muted-foreground">{s.title}</h4>
                 <div className="flex flex-wrap">
                   {s.items.map((i) => (
                     <button
@@ -181,7 +181,7 @@ export function EmojiMenu({ target }: { target: RefObject<HTMLTextAreaElement | 
                       aria-label={i.label || i.emoji}
                       onMouseDown={(e) => e.preventDefault() /* keep the caret/selection where it was */}
                       onClick={() => pick(i.emoji)}
-                      className="size-8 rounded-md text-[18px] leading-none hover:bg-accent"
+                      className="size-8 rounded-md text-[1.125rem] leading-none hover:bg-accent"
                     >
                       {i.emoji}
                     </button>

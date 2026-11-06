@@ -31,7 +31,7 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
       data-item-id={item.id}
       className="my-2.5 rounded-[10px] border border-border-soft bg-muted/55 px-3 py-2"
     >
-      <div data-anchor-skip className="mb-0.5 font-mono text-[10.5px] text-muted-foreground">
+      <div data-anchor-skip className="mb-0.5 font-mono text-[0.65625rem] text-muted-foreground">
         {inAgent ? t('agentPrompt') : t('you')}
         {time}
         {mode}
@@ -43,7 +43,7 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
       )}
       {item.images && <Attachments ids={item.images.map((i) => i.id)} />}
       {(sent.length > 0 || raw) && (
-        <details data-anchor-skip className="mt-1.5 text-[13px] text-muted-foreground">
+        <details data-anchor-skip className="mt-1.5 text-[0.8125rem] text-muted-foreground">
           <summary className="cursor-pointer">{sent.length ? t('nComments', sent.length) : t('commentsLc')}</summary>
           {sent.length
             ? sent.map((c) => (

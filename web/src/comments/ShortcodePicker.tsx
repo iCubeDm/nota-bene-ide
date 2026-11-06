@@ -132,9 +132,9 @@ export function ShortcodePicker({ target }: { target: RefObject<HTMLTextAreaElem
           aria-selected={k === state.sel}
           onMouseDown={(e) => e.preventDefault() /* keep focus in the textarea */}
           onClick={() => pick(k)}
-          className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 font-mono text-[12.5px] text-foreground ${k === state.sel ? 'bg-primary/15' : 'hover:bg-accent'}`}
+          className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 font-mono text-[0.78125rem] text-foreground ${k === state.sel ? 'bg-primary/15' : 'hover:bg-accent'}`}
         >
-          <span className="w-5 text-center text-[15px] leading-none">{it.emoji}</span>
+          <span className="w-5 text-center text-[0.9375rem] leading-none">{it.emoji}</span>
           <span className="truncate">:{it.code}:</span>
         </div>
       ))}

@@ -183,7 +183,7 @@ it('while switching: Add and the quick labels are disabled with the switching to
   const add = screen.getByRole('button', { name: 'Add' });
   expect(add).toBeDisabled();
   expect(add).toHaveAttribute('title', 'switching…');
-  const chips = screen.getAllByRole('button').filter((b) => b.closest('.flex-wrap'));
+  const chips = QUICK_LABELS.map((l) => screen.getByRole('button', { name: labelText(l.id) }));
   expect(chips.length).toBeGreaterThan(0);
   for (const chip of chips) expect(chip).toBeDisabled();
   fireEvent.change(box(), { target: { value: 'x' } });

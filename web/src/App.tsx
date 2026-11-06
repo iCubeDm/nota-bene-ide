@@ -60,7 +60,7 @@ export function App() {
                 <>
                   <div
                     id="items"
-                    className="nb-card nb-prose px-10 pt-5 pb-7 text-[15px] leading-[1.625] text-foreground/90"
+                    className="nb-card nb-prose px-10 pt-5 pb-7 text-[0.9375rem] leading-[1.625] text-foreground/90"
                   >
                     <Feed />
                   </div>

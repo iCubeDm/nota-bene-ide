@@ -286,6 +286,7 @@ export const es: Dict = {
   stCleaned: (n: number, size: string, dir: string) => `Se movieron ${n} (${size}) a ${dir}`,
   stNothing: 'Nada que limpiar',
   defLang: 'Idioma de la interfaz',
+  defScale: 'Escala de la interfaz',
   defMode: 'Modo del agente para proyectos sin uno propio',
   defUpdate: 'Buscar nuevas versiones en npm',
   defUpdateEnv: 'Desactivado por NOTA_BENE_NO_UPDATE_CHECK',
