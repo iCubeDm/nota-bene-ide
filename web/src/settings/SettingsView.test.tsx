@@ -6,6 +6,7 @@ import { makeStore, serverEvent } from '@/store/store.ts';
 import { CLAUDE_CAPABILITIES } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
 import { selectTabs } from '@/tabs/slice.ts';
+import { theme } from '@/shell/theme.ts';
 
 const now = Date.now();
 const WINDOWS = [
@@ -183,4 +184,23 @@ it('the language select follows a change made elsewhere (a hello), with no copy 
   expect(sel.value).toBe('en');
   act(() => setLang('ru')); // what adoptServerLang does when the server's value arrives
   expect(await screen.findByDisplayValue('Русский')).toBeInTheDocument();
+});
+
+it('a Themes section after Defaults: radios with a swatch of the theme\'s own tokens', async () => {
+  theme.choose('darcula');
+  setup();
+  await screen.findByText('v0.9-12-gabc');
+  const heads = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+  expect(heads.slice(-3)).toEqual(['Defaults', 'Themes', 'About']);
+  const group = screen.getByRole('radiogroup', { name: 'Themes' });
+  const radios = within(group).getAllByRole('radio');
+  expect(radios.map((r) => r.textContent)).toEqual(['Darcula', 'Plannotator']);
+  expect(radios[0]).toBeChecked();
+  const swatch = radios[1].querySelector('[data-theme="plannotator"]')!;
+  expect([...swatch.querySelectorAll('span')].map((s) => (s as HTMLElement).style.backgroundColor))
+    .toEqual(['var(--background)', 'var(--card)', 'var(--primary)']);
+  fireEvent.click(radios[1]);
+  expect(radios[1]).toBeChecked();
+  expect(theme.get()).toBe('plannotator');
+  theme.choose('darcula');
 });

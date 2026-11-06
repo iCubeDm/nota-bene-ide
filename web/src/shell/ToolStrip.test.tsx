@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/store/store.ts';
@@ -70,4 +71,13 @@ it('pressed button is grey until its panel has focus', () => {
     sheet.remove();
     composer.remove();
   }
+});
+
+it.each([['toggleTree', 'Files (⌘⇧F)'], ['toggleComments', 'Comments (⌘⇧C)']])('the %s tooltip names the key', async (id, text) => {
+  const plat = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
+  try {
+    setup();
+    await userEvent.hover(document.getElementById(id)!);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(text);
+  } finally { plat.mockRestore(); }
 });

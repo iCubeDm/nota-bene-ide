@@ -4,6 +4,10 @@ import { BATCH_HEADS } from '@nota-bene/shared';
 // the prototype's <kbd> tags are dropped and <br> became "\n"; consumers render them as text (whitespace-pre-line).
 export const ru = {
   langTip: 'Язык интерфейса',
+  theme: 'Тема',
+  setThemes: 'Темы',
+  themeTip: 'Цветовая тема интерфейса',
+  openRawTip: 'Открыть сам файл в новой вкладке браузера',
   toLatest: 'В конец разговора',
   emptyChat: 'Напиши агенту, чтобы начать',
   // the conversation before its compactions (M7-13, R-M7-4)
@@ -557,7 +561,6 @@ export const ru = {
   switchWarn: '\n\nОкно переключится сразу, без перезагрузки.\nНе держи эту же сессию открытой в терминальном claude: история перемешается.',
   switchBtn: 'Переключить',
   switching: 'переключение…',
-  restart: '↻ Агент',
   restarting: 'перезапуск…',
   restartTip: 'Перезапустить агента и продолжить ту же сессию',
   restartAgent: 'Перезапустить агента',

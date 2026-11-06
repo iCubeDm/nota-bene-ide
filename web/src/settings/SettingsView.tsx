@@ -1,6 +1,6 @@
 import { useAppSelector } from '@/store/store.ts';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
+import { MODES, THEMES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
 import { apiFetch } from '@/net/auth.ts';
 import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
@@ -8,6 +8,7 @@ import { kb } from '@/controls/SessionPicker.tsx';
 import { getLang, chooseLang, LANGS, t as tNow, useT, type Lang } from '@/i18n/index.ts';
 import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
 import { uiScale, useUiScale } from '@/shell/uiScale.ts';
+import { theme, THEME_NAMES, useTheme } from '@/shell/theme.ts';
 
 type Size = { bytes: number; files: number };
 /** `history`: the archive before compactions (R-M7-1); absent from a server older than M7-12 */
@@ -76,6 +77,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const capabilities = useAppSelector((s) => s.controls.capabilities);
   const t = useT();
   const scale = useUiScale();
+  const themeId = useTheme();
   const windows = useLoad<WindowRow[]>('/system/windows', active);
   const storage = useLoad<Storage>('/system/storage', active);
   const about = useLoad<About>('/system/about', active);
@@ -231,6 +233,21 @@ export function SettingsView({ active }: { active: boolean }) {
             </span>
           )}
         </Row>
+      </Section>
+
+      <Section title={t('setThemes')}>
+        <div role="radiogroup" aria-label={t('setThemes')} className="flex flex-wrap gap-3">
+          {THEMES.map((id) => (
+            <button key={id} type="button" role="radio" aria-checked={themeId === id} onClick={() => theme.choose(id)}
+              className={`flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 text-[0.8125rem] text-foreground hover:bg-muted ${themeId === id ? 'border-primary' : 'border-border-soft'}`}>
+              {/* data-theme re-scopes the tokens: the swatch shows this theme's colours, not the current one's */}
+              <span data-theme={id} className="flex overflow-hidden rounded border border-border-soft" aria-hidden>
+                {['--background', '--card', '--primary'].map((v) => <span key={v} className="size-4" style={{ backgroundColor: `var(${v})` }} />)}
+              </span>
+              {THEME_NAMES[id]}
+            </button>
+          ))}
+        </div>
       </Section>
 
       <Section title={t('setAbout')}>

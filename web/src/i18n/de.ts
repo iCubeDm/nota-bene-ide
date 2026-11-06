@@ -6,6 +6,10 @@ type Dict = { [K in keyof typeof ru]: (typeof ru)[K] };
 
 export const de: Dict = {
   langTip: 'Oberflächensprache',
+  theme: 'Design',
+  setThemes: 'Designs',
+  themeTip: 'Farbschema der Oberfläche',
+  openRawTip: 'Die Datei selbst in einem neuen Browser-Tab öffnen',
   toLatest: 'Zum Neuesten springen',
   emptyChat: 'Schreib dem Agenten, um zu starten',
   earlierShow: 'Vor der Komprimierung anzeigen',
@@ -541,7 +545,6 @@ export const de: Dict = {
   switchWarn: '\n\nDas Fenster wechselt an Ort und Stelle, ohne Neuladen.\nHalte dieselbe Sitzung nicht zugleich in einem Terminal-claude offen: Der Verlauf würde durcheinandergeraten.',
   switchBtn: 'Wechseln',
   switching: 'wechsle…',
-  restart: '↻ Agent',
   restarting: 'startet neu…',
   restartTip: 'Agenten neu starten und dieselbe Sitzung fortsetzen',
   restartAgent: 'Agenten neu starten',

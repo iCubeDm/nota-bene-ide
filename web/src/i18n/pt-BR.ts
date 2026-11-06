@@ -6,6 +6,10 @@ type Dict = { [K in keyof typeof ru]: (typeof ru)[K] };
 
 export const ptBR: Dict = {
   langTip: 'Idioma da interface',
+  theme: 'Tema',
+  setThemes: 'Temas',
+  themeTip: 'Tema de cores da interface',
+  openRawTip: 'Abrir o próprio arquivo em uma nova aba do navegador',
   toLatest: 'Ir para o mais recente',
   emptyChat: 'Escreva para o agente para começar',
   earlierShow: 'Mostrar antes da compactação',
@@ -541,7 +545,6 @@ export const ptBR: Dict = {
   switchWarn: '\n\nA janela muda no lugar, sem recarregar.\nNão mantenha esta mesma sessão aberta em um claude no terminal: o histórico ficaria misturado.',
   switchBtn: 'Trocar',
   switching: 'trocando…',
-  restart: '↻ Agente',
   restarting: 'reiniciando…',
   restartTip: 'Reiniciar o agente e continuar a mesma sessão',
   restartAgent: 'Reiniciar o agente',

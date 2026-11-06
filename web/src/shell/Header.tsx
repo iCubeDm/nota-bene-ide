@@ -12,6 +12,8 @@ import { RestartMenu } from './RestartMenu.tsx';
 import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
 import { UI_SCALES } from '@nota-bene/shared';
+import { THEMES } from '@nota-bene/shared';
+import { theme, THEME_NAMES, useTheme } from './theme.ts';
 import { scaleLabel, uiScale, useUiScale } from './uiScale.ts';
 
 const row = 'gap-2.5 px-2 py-1.5 text-[0.8125rem] text-foreground [&>svg]:text-muted-foreground';
@@ -23,6 +25,7 @@ export function Header() {
   const d = useAppDispatch();
   const lang = getLang();
   const scale = useUiScale();
+  const themeId = useTheme();
   const conn = useAppSelector(selectConn);
   const session = useAppSelector(selectSession);
   const switching = useAppSelector(selectSwitching);
@@ -80,6 +83,20 @@ export function Header() {
               {LANGS.map((l) => (
                 <DropdownMenuItem key={l.id} data-lang={l.id} onSelect={() => chooseLang(l.id)} className={l.id === lang ? 'font-semibold text-foreground' : undefined}>
                   {l.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger id="themeMenu" title={t('themeTip')} className={row}>
+              <Svg size={15}>{ICONS.palette}</Svg>
+              <span className="flex-1">{t('theme')}</span>
+              <span className="text-muted-foreground">{THEME_NAMES[themeId]}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {THEMES.map((id) => (
+                <DropdownMenuItem key={id} data-theme-id={id} onSelect={() => theme.choose(id)} className={id === themeId ? 'font-semibold text-foreground' : undefined}>
+                  {THEME_NAMES[id]}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuSubContent>

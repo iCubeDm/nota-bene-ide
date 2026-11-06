@@ -3,6 +3,7 @@ import { useT } from '@/i18n/index.ts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { restartAgent, restartServer, selectSwitching } from '@/controls/slice.ts';
 import { selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { apiFetch } from '@/net/auth.ts';
 
 export const INFO_POLL_MS = 20_000;
@@ -46,8 +47,8 @@ export function RestartMenu() {
       )}
       <span className="flex items-center">
         {/* enabled while busy: the escape hatch for a stuck agent (R-M4-4); only a running switch/restart disables it */}
-        <button type="button" id="restartBtn" title={t('restartTip')} disabled={switching} onClick={() => d(restartAgent())} className={`${btn} rounded-l-md [&>svg]:text-accent-agent`}>
-          {t('restart')}
+        <button type="button" id="restartBtn" aria-label={t('restartAgent')} title={t('restartTip')} disabled={switching} onClick={() => d(restartAgent())} className={`${btn} rounded-l-md [&>svg]:text-accent-agent`}>
+          <Svg size={14}>{ICONS.restart}</Svg>
         </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

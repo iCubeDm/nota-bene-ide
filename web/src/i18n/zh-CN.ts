@@ -6,6 +6,10 @@ type Dict = { [K in keyof typeof ru]: (typeof ru)[K] };
 
 export const zhCN: Dict = {
   langTip: '界面语言',
+  theme: '主题',
+  setThemes: '主题',
+  themeTip: '界面配色主题',
+  openRawTip: '在新的浏览器标签页中打开文件本身',
   toLatest: '跳到最新',
   emptyChat: '给代理发条消息即可开始',
   earlierShow: '显示压缩前的内容',
@@ -541,7 +545,6 @@ export const zhCN: Dict = {
   switchWarn: '\n\n窗口将原地切换，无需重新加载。\n不要在终端的 claude 中同时打开同一个会话：历史记录会混在一起。',
   switchBtn: '切换',
   switching: '正在切换…',
-  restart: '↻ 代理',
   restarting: '正在重启…',
   restartTip: '重启代理并继续同一会话',
   restartAgent: '重启代理',

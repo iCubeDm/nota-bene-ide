@@ -4,6 +4,9 @@ import { apiFetch } from '@/net/auth.ts';
 
 const KEY = 'nb.theme';
 
+/** The names are not translated (a theme is a proper name, like a language's own name). */
+export const THEME_NAMES: Record<ThemeId, string> = { darcula: 'Darcula', plannotator: 'Plannotator' };
+
 // The colour theme (Settings → Defaults): <html data-theme> selects one token block in theme.css. One for every window,
 // like the interface scale: the server keeps it (prefs.json, hello.theme), this origin's localStorage caches it, and this
 // module sets the attribute on import so the first paint already wears it.

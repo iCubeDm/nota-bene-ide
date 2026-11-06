@@ -127,6 +127,12 @@ export function installKeymap(store: AppStore): () => void {
   return () => document.removeEventListener('keydown', onKey);
 }
 
+/** A control's label with its shortcut, for its tooltip: `Files (⌘⇧F)`. */
+export function withKey(label: string, id: Binding['id']): string {
+  const b = BINDINGS.find((x) => x.id === id);
+  return b ? `${label} (${keysLabel(b)})` : label;
+}
+
 /** The keys of a binding as the platform shows them, for the help. */
 export function keysLabel(b: Binding): string {
   const mac = isMac();

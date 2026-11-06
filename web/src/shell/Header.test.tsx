@@ -6,6 +6,7 @@ import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
 import { Header } from './Header.tsx';
 import { uiScale } from './uiScale.ts';
+import { theme } from './theme.ts';
 
 afterEach(cleanup);
 
@@ -45,6 +46,23 @@ it('⚙ is a menu: the language is a submenu, a pick re-renders the header; the 
   expect(screen.getByRole('button', { name: 'Larger' })).toBeDisabled(); // the last step
   uiScale.choose(1);
   setLang('ru');
+});
+
+it('the Theme row lists the themes and picks one', async () => {
+  setLang('en');
+  theme.choose('darcula');
+  setup();
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Settings' }), { key: 'Enter' });
+  const row = screen.getByRole('menuitem', { name: /^Theme/ });
+  expect(row).toHaveAttribute('id', 'themeMenu');
+  expect(row).toHaveTextContent('Darcula');
+  fireEvent.keyDown(row, { key: 'ArrowRight' });
+  const dark = await screen.findByRole('menuitem', { name: 'Darcula' });
+  expect(dark.className).toContain('font-semibold');
+  expect(screen.getByRole('menuitem', { name: 'Plannotator' }).className).not.toContain('font-semibold');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Plannotator' }));
+  expect(theme.get()).toBe('plannotator');
+  theme.choose('darcula');
 });
 
 it('connection label: connecting before the first open, nothing while open, offline after a drop', () => {

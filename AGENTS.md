@@ -23,6 +23,7 @@ Load the reference relevant to the task; do not read every document at startup.
   omp runs on the generic ACP adapter (`server/src/agent/acp/`), so another ACP agent is a profile there.
 - Keep provider SDK shapes inside their adapters. Use the shared event contract and explicit capabilities.
 - Prefer focused changes and composition; preserve persistence and session-generation invariants.
+- A control with a shortcut names it in its tooltip (`withKey` in `web/src/shell/keymap.ts`), new controls included.
 - Every feature merged into `main` supports every UI language: user-visible text goes through `web/src/i18n`, and each
   new or changed string gets a real translation in all of `LANGS` in the same change. `i18n.test.ts` catches a missing key,
   not a string hard-coded in a component, so check that by hand.

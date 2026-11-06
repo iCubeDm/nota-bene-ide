@@ -8,13 +8,14 @@ import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openChanges, openLog, selectTabs } from '@/tabs/slice.ts';
 import { setPanel, useVcsUi } from '@/vcs/store.ts';
 import { useFocusWithin } from './focusWithin.ts';
+import { withKey, type Binding } from './keymap.ts';
 
 /**
  * One tool-window button: an icon that toggles its panel, the name in a tooltip on the panel's side. Pressed, it is
  * --tool-on while its panel has the focus and --tool-on-idle otherwise (IntelliJ's blue and grey).
  */
-function ToolButton({ id, label, pressed, focused, side, onClick, children }: {
-  id: string; label: string; pressed: boolean; focused: boolean; side: 'left' | 'right'; onClick: () => void; children: ReactNode;
+function ToolButton({ id, label, keyId, pressed, focused, side, onClick, children }: {
+  id: string; label: string; keyId?: Binding['id']; pressed: boolean; focused: boolean; side: 'left' | 'right'; onClick: () => void; children: ReactNode;
 }) {
   return (
     <Tooltip>
@@ -31,7 +32,7 @@ function ToolButton({ id, label, pressed, focused, side, onClick, children }: {
           {children}
         </button>
       </TooltipTrigger>
-      <TooltipContent side={side === 'left' ? 'right' : 'left'}>{label}</TooltipContent>
+      <TooltipContent side={side === 'left' ? 'right' : 'left'}>{keyId ? withKey(label, keyId) : label}</TooltipContent>
     </Tooltip>
   );
 }
@@ -56,7 +57,7 @@ export function LeftStrip() {
   const inLog = useFocusWithin(logPane);
   return (
     <nav aria-label={t('toolsLeft')} data-strip="left" className={`${strip} border-r border-border-soft`}>
-      <ToolButton id="toggleTree" label={t('files')} pressed={open} focused={inTree} side="left" onClick={() => { setPanel(false); d(setTreeOpen(!open)); }}>
+      <ToolButton id="toggleTree" label={t('files')} keyId="hk_files" pressed={open} focused={inTree} side="left" onClick={() => { setPanel(false); d(setTreeOpen(!open)); }}>
         <Svg size={16}>{ICONS.dir}</Svg>
       </ToolButton>
       {ui.hasRepo && (
@@ -81,7 +82,7 @@ export function RightStrip() {
   const inComments = useFocusWithin(commentsPanel);
   return (
     <nav aria-label={t('toolsRight')} data-strip="right" className={`${strip} border-l border-border-soft`}>
-      <ToolButton id="toggleComments" label={n ? t('commentsN', n) : t('comments')} pressed={open} focused={inComments} side="right" onClick={() => d(setPanelOpen(!open))}>
+      <ToolButton id="toggleComments" label={n ? t('commentsN', n) : t('comments')} keyId="hk_comments" pressed={open} focused={inComments} side="right" onClick={() => d(setPanelOpen(!open))}>
         <Svg size={16}>{ICONS.comments}</Svg>
         {n > 0 && (
           <span data-testid="pending-badge" className="absolute -top-0.5 -right-0.5 min-w-3.5 rounded-full bg-nb-accent px-1 text-center text-[0.5625rem] font-semibold leading-3.5 text-background">

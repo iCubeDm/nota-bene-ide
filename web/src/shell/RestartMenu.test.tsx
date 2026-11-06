@@ -46,7 +46,7 @@ it('hides the server item when the server is not supervised', async () => {
 it('a plain click on ↻ still restarts the agent', async () => {
   mockFetch(true, () => new Response(''));
   const { sent } = setup();
-  await userEvent.click(screen.getByRole('button', { name: '↻ Agent' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Restart the agent' }));
   expect(sent).toEqual([{ type: 'restart' }]);
 });
 
