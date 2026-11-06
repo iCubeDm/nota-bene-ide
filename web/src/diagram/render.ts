@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
 import { t } from '@/i18n/index.ts';
+import { theme } from '@/shell/theme.ts';
 
 /**
  * Markdown from any repo branch is rendered, so it is hostile input: no <style> (global CSS), no form controls, and no
@@ -12,16 +13,23 @@ export type DiagramLang = 'mermaid' | 'svg';
 /** An svg string safe to put in the DOM, or the message to show instead (already in the current language). */
 export type Rendered = { svg: string } | { error: string };
 
-type MermaidApi = { render: (id: string, code: string) => Promise<{ svg: string }> };
+type MermaidApi = { render: (id: string, code: string) => Promise<{ svg: string }>; initialize: (c: object) => void };
 let mermaidP: Promise<MermaidApi> | undefined;
+/** The theme kind mermaid was last initialized for: a switch between a dark and a light theme re-initializes it. */
+let initedKind: 'dark' | 'light' | undefined;
+function initMermaid(m: MermaidApi): void {
+  const kind = theme.kind();
+  m.initialize({
+    startOnLoad: false,
+    theme: kind === 'light' ? 'default' : 'dark',
+    securityLevel: 'strict',
+    themeVariables: { background: 'transparent', fontFamily: 'Inter, system-ui, sans-serif' },
+  });
+  initedKind = kind;
+}
 function loadMermaid(): Promise<MermaidApi> {
   mermaidP ??= import('mermaid').then((m) => {
-    m.default.initialize({
-      startOnLoad: false,
-      theme: 'dark',
-      securityLevel: 'strict',
-      themeVariables: { background: 'transparent', fontFamily: 'Inter, system-ui, sans-serif' },
-    });
+    initMermaid(m.default as MermaidApi);
     return m.default as MermaidApi;
   });
   // a failed chunk load must not stick for the page's lifetime: the next diagram tries again
@@ -44,6 +52,7 @@ export async function renderMermaid(code: string): Promise<Rendered> {
   }
   const id = `m${++seq}`;
   try {
+    if (initedKind !== theme.kind()) initMermaid(m);
     return { svg: (await m.render(id, code)).svg };
   } catch (e) {
     // on a syntax error mermaid leaves its error graphic (the "bomb") in <body>, under the app
