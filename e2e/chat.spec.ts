@@ -163,6 +163,19 @@ test('typing ":smi" in the composer opens the emoji list; Enter inserts 😄 and
   await composer(page).fill('');
 });
 
+// gh-94: a long unbreakable token in inline code wraps inside the message instead of running past it
+test('long inline code wraps inside the message @chat', async ({ page }) => {
+  await open(page);
+  const text = uniq('wrap');
+  const token = 'org.example.' + 'VeryLongQualifiedName.'.repeat(12) + 'testSomething';
+  await send(page, `${text} \`./gradlew :a:test --tests "${token}"\``);
+  const b = bubble(page, text).last();
+  const code = b.locator('code').last();
+  await expect(code).toContainText('VeryLongQualifiedName');
+  const [box, codeBox] = [await b.boundingBox(), await code.boundingBox()];
+  expect(codeBox!.x + codeBox!.width).toBeLessThanOrEqual(box!.x + box!.width + 0.5);
+});
+
 // M6-06: the user's message is markdown (and a single newline stays a line break)
 test('the language menu switches the placeholder @chat', async ({ page }) => {
   await open(page);
