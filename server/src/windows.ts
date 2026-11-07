@@ -18,6 +18,8 @@ export type WindowEntry = {
   startedAt: number;
   /** the release the launcher runs this window from (plain x.y.z), when it knows; absent in older entries */
   version?: string;
+  /** the launch nonce, written by a launcher that exits 77: the outer part hands the window over with it (bin/nota-bene.mjs) */
+  nonce?: string;
 };
 
 const dir = () => path.join(stateDir(), 'windows');
@@ -49,11 +51,11 @@ export function readWindows(): Record<string, WindowEntry> {
   return out;
 }
 
-export function registerWindow(port: number, root: string, pid: number, launcherPid?: number, version?: string): void {
+export function registerWindow(port: number, root: string, pid: number, launcherPid?: number, version?: string, nonce?: string): void {
   fs.mkdirSync(dir(), { recursive: true });
   const f = fileOf(port);
   const tmp = `${f}.tmp${process.pid}`;
-  const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now(), ...(version !== undefined ? { version } : {}) };
+  const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now(), ...(version !== undefined ? { version } : {}), ...(nonce !== undefined ? { nonce } : {}) };
   fs.writeFileSync(tmp, JSON.stringify(entry, null, 2));
   fs.renameSync(tmp, f);
 }

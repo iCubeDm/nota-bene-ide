@@ -61,7 +61,9 @@ const RESTART = 75;
 const LISTEN_FAILED = 98; // server/src/main.ts LISTEN_FAILED
 const NO_AGENT_BINARY = 76; // server/src/main.ts NO_AGENT_BINARY: the server said why, a relaunch cannot help
 export const HANDOVER = 77; // server/src/main.ts HANDOVER: a newer version is current, the outer part hands the window over
-const HANDOVER_INFO_MS = 20_000; // a new version whose window does not answer /info within this is rolled back
+// a new version whose window does not answer /info within this is rolled back
+// TEST-ONLY: NOTA_BENE_TEST_HANDOVER_INFO_MS shortens it for bin/nota-bene.test.ts. Never set it otherwise.
+const HANDOVER_INFO_MS = Number(process.env.NOTA_BENE_TEST_HANDOVER_INFO_MS) || 20_000;
 const HANDOVER_EXIT_MS = 60_000; // ... as is one whose launcher exits (not cleanly, not 77) within this
 const CLEAN_EXITS = new Set([0, 130, 143]);
 const MAX_CRASHES = 5;
@@ -675,13 +677,15 @@ async function supervise(o, autoPort, release, state) {
   let nonce = state.nonce ?? newNonce();
   let crashed = false;
   const version = packageVersion();
+  // the outer part withholds the permission to exit 77 once it stopped handing over (a loop, a refused release)
+  const mayHandOver = PUBLISHED && state.handover !== false;
   for (;;) {
     if (crashed) {
       nonce = newNonce();
     }
     state.nonce = nonce;
     // the version updated from: for the window's first server only, so a later restart does not say "updated" again
-    const env = serverEnv(process.env, process.pid, { handover: PUBLISHED, updatedFrom: first ? state.updatedFrom : undefined });
+    const env = serverEnv(process.env, process.pid, { handover: mayHandOver, updatedFrom: first ? state.updatedFrom : undefined });
     env.NOTA_BENE_NONCE = nonce;
     delete env.NOTA_BENE_AUTOPORT;
     delete env.NOTA_BENE_LOCKED;
@@ -753,7 +757,15 @@ async function supervise(o, autoPort, release, state) {
     }
 
     if (code === NO_AGENT_BINARY) return code;
-    if (code === HANDOVER) return code; // the entry stays: the outer part reads the port and folder from it
+    if (code === HANDOVER && mayHandOver) {
+      // the entry stays: the outer part reads the port, the folder and this launch's nonce from it (the state dir is private)
+      try {
+        registerWindow(port, dir, c.pid, process.pid, version, nonce);
+      } catch (e) {
+        say(`cannot update the window registry: ${e.message}`); // the outer part then hands over with a fresh nonce
+      }
+      return code;
+    }
 
     if (code === RESTART) {
       const n = recent(restarts);
@@ -903,7 +915,7 @@ async function outer(o, autoPort, release) {
   let inner = null;
   const onSignal = (sig) => {
     stopping = true;
-    inner?.kill(sig); // in-process, supervise has its own handlers
+    inner?.kill(sig); // in its own process group, so a terminal's Ctrl-C reaches it only from here; in-process, supervise has its own
   };
   const sigs = ['SIGINT', 'SIGTERM', 'SIGHUP'];
   for (const sig of sigs) process.on(sig, onSignal);
@@ -918,17 +930,19 @@ async function outer(o, autoPort, release) {
   let previous = own; // what the window ran before the next handover: a rollback goes back to it
   let retried = false;
   const refused = new Set(); // rolled back: never handed over to again by this outer part
+  let handingOver = true; // false once a loop or a refused release stopped it: the own version runs, its server may not exit 77
   const handovers = [];
   const innerPids = new Set();
   try {
     for (;;) {
       const t = PUBLISHED ? handoverTarget({ own, current: readCurrent(), published: true }) : null; // a checkout never reads it
-      const target = t !== null && !refused.has(t) ? t : null;
+      if (t !== null && refused.has(t)) handingOver = false;
+      const target = handingOver ? t : null;
       const opts = up ? { ...o, resume: undefined, fork: false, new: false, continue: true, open: false } : o;
       let code;
       let ran = own;
       if (target === null) {
-        const state = { nonce, updatedFrom: from };
+        const state = { nonce, updatedFrom: from, handover: handingOver };
         code = await run(opts, up ? false : autoPort, registered, state);
         nonce = state.nonce ?? nonce;
         o.port = state.port; // a first start may have moved on a lost port race
@@ -943,7 +957,8 @@ async function outer(o, autoPort, release) {
         delete env.NOTA_BENE_UPDATED_FROM;
         if (from) env.NOTA_BENE_UPDATED_FROM = from;
         const started = Date.now();
-        const c = spawn(process.execPath, [launcherOf(target), ...args], { env, stdio: 'inherit' });
+        // its own process group: a version that hangs is stopped with its server, which may ignore SIGTERM and hold the port
+        const c = spawn(process.execPath, [launcherOf(target), ...args], { env, stdio: 'inherit', detached: true });
         inner = c;
         innerPids.add(c.pid);
         const exited = new Promise((resolve) => {
@@ -966,13 +981,13 @@ async function outer(o, autoPort, release) {
         else if (!done && !stopping) {
           failed = `no answer on /info within ${HANDOVER_INFO_MS / 1000} s`;
           c.kill('SIGTERM');
-          const killed = await Promise.race([exited, sleep(5000).then(() => null)]);
-          if (!killed) c.kill('SIGKILL');
+          if (!(await Promise.race([exited, sleep(5000).then(() => null)]))) killGroup(c.pid);
         }
         const r = await exited;
         inner = null;
         if (r.error && !failed) failed = `its launcher did not start (${r.error.message})`;
         if (stopping) return r.code ?? 0;
+        if (r.code === NO_AGENT_BINARY) return r.code; // the server said why; not the new version's fault, no rollback
         if (!failed && r.code === LISTEN_FAILED && !up) {
           // the port was taken (between our pick and its listen, or an explicit busy --port): not the new version's fault
           if (!autoPort || retried) return LISTEN_FAILED;
@@ -988,6 +1003,8 @@ async function outer(o, autoPort, release) {
           failed = `its launcher exited ${r.code !== null ? `with code ${r.code}` : `by ${r.signal}`} within ${HANDOVER_EXIT_MS / 1000} s`;
         }
         if (failed) {
+          killGroup(c.pid); // whatever of it is left (a hung server)
+          await portFreed(o.port);
           rollBack(target, previous, failed);
           refused.add(target);
           from = undefined;
@@ -998,6 +1015,8 @@ async function outer(o, autoPort, release) {
         if (code === HANDOVER) {
           // the inner launcher kept its entry: the window's port and folder now; keep the port reserved by us for the gap
           const hit = Object.entries(readWindows()).find(([, w]) => w.launcherPid === c.pid);
+          // its nonce, when it recorded one: a launch that replaced it after a crash never gets the stale one back
+          nonce = isNonce(hit?.[1].nonce) ? hit[1].nonce : newNonce();
           if (hit) {
             const [key, w] = hit;
             o.port = Number(key);
@@ -1017,8 +1036,9 @@ async function outer(o, autoPort, release) {
       while (handovers.length && now - handovers[0] >= GUARD_WINDOW_MS) handovers.shift();
       handovers.push(now);
       if (handovers.length > MAX_RESTARTS) {
-        say(`${handovers.length} handovers in the last minute — handing over in a loop, giving up`);
-        return HANDOVER;
+        // the window keeps running: on the own version, whose server may not exit 77
+        say(`${handovers.length} handovers in the last minute — handing over in a loop, staying on ${own}`);
+        handingOver = false;
       }
       from = ran;
       previous = ran;
@@ -1033,6 +1053,21 @@ async function outer(o, autoPort, release) {
       say(`cannot update the window registry: ${e.message}`);
     }
   }
+}
+
+/** SIGKILLs a process group, if any of it is left. */
+function killGroup(pgid) {
+  try {
+    process.kill(-pgid, 'SIGKILL');
+  } catch {
+    // all gone
+  }
+}
+
+/** Waits (bounded) until a killed window's port is free again, so the next run does not fail to listen on it. */
+async function portFreed(port, ms = 5000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end && !(await portFree(port))) await sleep(100);
 }
 
 /** `current` goes back to the version that ran before (only while it still names the failed one); the window says why. */
