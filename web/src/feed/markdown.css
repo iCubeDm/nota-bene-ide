@@ -16,11 +16,12 @@
 .md pre { position: relative; background: var(--code-bg); border: 1px solid var(--border-soft); padding: 10px 34px 10px 12px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .md code, .md pre code { font: 12.5px/1.5 var(--font-mono); }
 .md :not(pre) > code { background: var(--code-inline-bg); padding: 1px 5px; border-radius: 4px; color: var(--code-inline-fg); font-size: 0.75rem; }
+.md code.md-color::before { content: ''; display: inline-block; width: 0.85em; height: 0.85em; margin-right: 4px; vertical-align: -0.1em; border-radius: 2px; background: var(--md-swatch); box-shadow: 0 0 0 1px var(--border); }
 .md pre code.hljs { background: none; padding: 0; display: block; overflow: visible; white-space: inherit; counter-reset: md-line; }
 /* line numbers: one per source line, so the part of a line that wraps has none; a counter is no text to select or anchor on */
 .md-line { display: block; position: relative; padding-left: calc(var(--md-digits) * 1ch + 1.4ch); counter-increment: md-line; }
-.md-line::before { content: counter(md-line); position: absolute; left: 0; width: calc(var(--md-digits) * 1ch); text-align: right; color: var(--muted-foreground); opacity: 0.6; user-select: none; }
-.md-copy-code { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--muted-foreground); opacity: 0; cursor: pointer; transition: opacity 0.12s; }
+.md-line::before { content: counter(md-line); position: absolute; left: 0; width: calc(var(--md-digits) * 1ch); text-align: right; color: var(--md-aux); opacity: 0.6; user-select: none; }
+.md-copy-code { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--md-aux); opacity: 0; cursor: pointer; transition: opacity 0.12s; }
 .md pre:hover > .md-copy-code, .md-copy-code:focus-visible { opacity: 1; }
 .md-copy-code:hover { background: var(--muted); color: var(--foreground); }
 .md img, .md video { max-width: 100%; max-height: 380px; border-radius: 8px; display: block; margin: 8px 0; }

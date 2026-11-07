@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { prefsKey, readPrefs, setIdleCompactPref, setModePref, setModelPref } from './prefs.ts';
+import { prefsKey, readPrefs, setIdleCompactPref, setModePref, setModelPref, setThemePref } from './prefs.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -54,6 +54,11 @@ describe('prefs', () => {
     expect(readPrefs().theme).toBe('plannotator');
     fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ theme: 'neon' }));
     expect('theme' in readPrefs()).toBe(false);
+  });
+  it('theme: a light theme round-trips through prefs.json', () => {
+    setThemePref('intellij-light');
+    expect(JSON.parse(fs.readFileSync(path.join(home, 'prefs.json'), 'utf8')).theme).toBe('intellij-light');
+    expect(readPrefs().theme).toBe('intellij-light');
   });
   it('drops unknown mode values', () => {
     fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ modes: { '/a': 'bogus', '/b': 'plan' }, lang: 'en' }));

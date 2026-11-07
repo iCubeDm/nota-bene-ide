@@ -326,14 +326,14 @@ The gear in the header opens a menu: the interface language, the colour theme, t
 - **Windows**: every running window with its folder, port, state (working or idle), number of open tabs and uptime. Open, Restart agent, Restart server and Stop work on any of them.
 - **Storage**: what is on disk for pasted images, comments, chat history from before compaction and media marks, with **Clean unreferenced files**, which moves pasted images that no comment references and that are over a day old, and the history of sessions that no longer exist, to the state folder's `trash/`. Nothing is deleted.
 - **Defaults**: interface language, interface scale (90–150 %: text and spacing grow, for every window at once), and the agent mode for projects that have none of their own.
-- **Themes**: the colour themes, each with a swatch of its own colours; pick one. It is the same choice as the Theme row of the gear menu.
+- **Themes**: the five colour themes, each with a swatch of its own colours; pick one. It is the same choice as the Theme row of the gear menu.
 - **About**: version, state folder, where the logs are, Node version.
 
 Sessions, Restart the agent and a file's Open raw are icons; each names itself in a tooltip, and a tooltip also names the key when the action has one.
 
 ### Themes
 
-Two colour themes ship: **Darcula**, the default, with IntelliJ's colours on millimetre paper, and **Plannotator**, the look earlier versions had. Pick one in the gear menu (Theme) or in Settings → Themes. The choice is saved in `prefs.json` and shared by all windows; a window that is already open takes it when it next connects. Code highlighting and mermaid diagrams follow the theme. Layout, tabs and keys do not change with it.
+Five colour themes ship: **Darcula** (the default, with IntelliJ's colours on millimetre paper) and **Plannotator** (the look earlier versions had), dark; **IntelliJ Light**, **GitHub Light** and **Solarized Light**, light. Pick one in the gear menu (Theme) or in Settings → Themes. The choice is saved in `prefs.json` and shared by all windows; a window that is already open takes it when it next connects. A light theme stays light when the operating system is dark. Code highlighting, mermaid diagrams and the header logo follow the theme. Inline code that is a colour, such as `#ff8980` or `oklch(0.7 0.2 60)`, shows a swatch of it before the text. Layout, tabs and keys do not change with it.
 
 ### Languages
 

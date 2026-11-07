@@ -5,7 +5,7 @@ import { apiFetch } from '@/net/auth.ts';
 const KEY = 'nb.theme';
 
 /** The names are not translated (a theme is a proper name, like a language's own name). */
-export const THEME_NAMES: Record<ThemeId, string> = { darcula: 'Darcula', plannotator: 'Plannotator' };
+export const THEME_NAMES: Record<ThemeId, string> = { darcula: 'Darcula', plannotator: 'Plannotator', 'intellij-light': 'IntelliJ Light', 'github-light': 'GitHub Light', 'solarized-light': 'Solarized Light' };
 
 // The colour theme (Settings → Themes): <html data-theme> selects one token block in theme.css. One for every window,
 // like the interface scale: the server keeps it (prefs.json, hello.theme), this origin's localStorage caches it, and this

@@ -56,8 +56,8 @@ shared by every window. An unknown or missing id falls back to Darcula; the fiel
 |---|---|
 | background | `#2b2b2b` |
 | foreground | `#c9ced6` |
-| card | `#323435`, card and background kept visibly apart |
-| side panels | `#2f3031`; header and strips translucent `rgb(47 48 49 / .6)` |
+| card | `#313131`, a step above the paper around it (`#2a2b2c`); code blocks stay on `#2b2b2b`, a step below |
+| side panels | `#3c3f41`, Darcula's panel; header and strips `rgb(60 63 65 / .9)` |
 | popover (menus, search) | `#3c3f41`, separators `#505050` |
 | muted / muted text | `#3a3c3e` / `#8f959c` |
 | border / soft border | `#45484b` / `rgb(255 255 255 / .07)` |

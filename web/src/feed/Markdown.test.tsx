@@ -12,13 +12,6 @@ import { setLang, t } from '@/i18n/index.ts';
 import { theme } from '@/shell/theme.ts';
 import { Markdown } from './Markdown';
 
-// no light theme ships yet: a test kind for Plannotator stands in for one
-const kinds = vi.hoisted(() => ({ plannotator: 'dark' as 'dark' | 'light' }));
-vi.mock('@nota-bene/shared', async (orig) => {
-  const real = await orig<typeof import('@nota-bene/shared')>();
-  return { ...real, THEME_KIND: new Proxy(real.THEME_KIND, { get: (o, k) => (k === 'plannotator' ? kinds.plannotator : Reflect.get(o, k)) }) };
-});
-
 vi.mock('mermaid', () => ({
   default: {
     initialize: vi.fn(),
@@ -29,6 +22,15 @@ vi.mock('mermaid', () => ({
 const MERMAID = '```mermaid\ngraph TD; A-->B\n```';
 
 describe('Markdown', () => {
+  it('a colour in inline code gets a swatch of it, its text untouched', () => {
+    const { container } = render(<Markdown text={'`#ff8980`, `rgb(60 63 65 / .9)`, `#12` and `npm test`'} final />);
+    const codes = [...container.querySelectorAll<HTMLElement>(':not(pre) > code')];
+    expect(codes.map((c) => c.classList.contains('md-color'))).toEqual([true, true, false, false]);
+    expect(codes[0]!.style.getPropertyValue('--md-swatch')).toBe('#ff8980');
+    expect(codes[1]!.style.getPropertyValue('--md-swatch')).toBe('rgb(60 63 65 / .9)');
+    expect(codes[0]!.textContent).toBe('#ff8980');
+  });
+
   it('renders code with hljs classes', () => {
     const { container } = render(<Markdown text={'```js\nconst a = 1;\n```'} final />);
     expect(container.querySelector('pre code.hljs')).not.toBeNull();
@@ -53,15 +55,18 @@ describe('Markdown', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(mermaid.render).toHaveBeenCalledTimes(1);
     theme.choose('darcula');
-    kinds.plannotator = 'light';
+    theme.reload(); // forget the unconfirmed choice, so the server's value (adopt) is taken
     try {
-      theme.choose('plannotator');
+      theme.adopt('github-light'); // what the server sends: a real light kind
       await waitFor(() => expect(mermaid.render).toHaveBeenCalledTimes(2));
       expect(vi.mocked(mermaid.initialize).mock.calls.at(-1)![0]).toMatchObject({ theme: 'default' });
       await waitFor(() => expect(container.querySelector('.mermaid-out > button')).not.toBeNull());
+      theme.adopt('darcula');
+      await waitFor(() => expect(mermaid.render).toHaveBeenCalledTimes(3));
+      expect(vi.mocked(mermaid.initialize).mock.calls.at(-1)![0]).toMatchObject({ theme: 'dark' });
     } finally {
-      kinds.plannotator = 'dark';
       theme.choose('darcula');
+      theme.reload();
     }
   });
 

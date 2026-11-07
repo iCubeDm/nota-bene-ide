@@ -27,7 +27,7 @@ function ToolButton({ id, label, keyId, pressed, focused, side, onClick, childre
           aria-label={label}
           data-focused={focused}
           onClick={onClick}
-          className={`relative grid size-[28px] place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground ${pressed ? `${focused ? 'bg-tool-on' : 'bg-tool-on-idle'} text-tool-on-fg hover:text-tool-on-fg` : ''}`}
+          className={`relative grid size-[28px] place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground ${pressed ? (focused ? 'bg-tool-on text-tool-on-fg hover:text-tool-on-fg' : 'bg-tool-on-idle text-tool-on-idle-fg hover:text-tool-on-idle-fg') : ''}`}
         >
           {children}
         </button>

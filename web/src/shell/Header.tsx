@@ -13,6 +13,7 @@ import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
 import { UI_SCALES } from '@nota-bene/shared';
 import { THEMES, type ThemeId } from '@nota-bene/shared';
+import { Logo } from './Logo.tsx';
 import { theme, THEME_NAMES, useTheme } from './theme.ts';
 import { scaleLabel, uiScale, useUiScale } from './uiScale.ts';
 
@@ -36,7 +37,7 @@ export function Header() {
   useEffect(() => { document.title = `${title ? title + ' · ' : ''}${project} · Nota Bene`; }, [title, project]);
   return (
     <header className="relative z-[6] flex h-12 flex-none items-center gap-3 border-b border-border-soft bg-chrome px-4 text-xs text-muted-foreground backdrop-blur-[24px]">
-      <img id="logo" src="/icon.svg" alt="Nota Bene" className="-mr-1 size-6" />
+      <Logo className="-mr-1 size-6 flex-none" />
       <b id="proj" className="text-[0.9375rem] font-semibold tracking-[-0.01em] text-foreground">{project}</b>
       <span id="root-path" className="min-w-0 truncate font-mono text-[0.6875rem] opacity-70">{session?.root ?? ''}</span>
       <GitBranch />
