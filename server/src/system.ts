@@ -20,7 +20,7 @@ import { readPrefs, setAuditPref, setDefaultModePref, setLangPref, setThemePref,
 import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
 import { stateDir } from './state.ts';
-import { changelog, updateCheck, updateCheckForcedOff } from './update.ts';
+import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from './update.ts';
 import type { Updater } from './updater.ts';
 import { pidAlive, readWindows } from './windows.ts';
 
@@ -344,6 +344,14 @@ export function systemRoutes(o: {
     // what the newer version changes, for the notice's popover: asked when it opens, never with the check off
     '/system/update/changes': (req, res) => {
       if (!only('GET', req, res)) return;
+      // ?from=x.y.z: what the running version changed since that one ("Updated to" after a handover)
+      const from = new URL(req.url ?? '/', 'http://x').searchParams.get('from');
+      if (from !== null) {
+        void o.updater.status().then(async (s) => {
+          json(res, 200, { text: RELEASE.test(from) && RELEASE.test(s.current) && isNewer(s.current, from) ? await changes(from, s.current) : null });
+        }).catch((e: unknown) => fail(res, '/system/update/changes', e));
+        return;
+      }
       void gitDescribe(o.repoDir).then(async (current) => {
         const latest = await newer(current);
         json(res, 200, { text: latest ? await changes(current, latest) : null });

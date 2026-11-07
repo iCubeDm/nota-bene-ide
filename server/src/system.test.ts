@@ -388,7 +388,7 @@ describe('windows', () => {
 
 describe('update routes', () => {
   const status: UpdateStatus = { current: '1.7.0', latest: '1.8.0', phase: 'available', canUpdate: true, auto: false, busy: false, log: '/log' };
-  async function serve(stub: Partial<Updater> & { can?: boolean; restartIs?: 'ok' | 'busy' | 'not-ready' }) {
+  async function serve(stub: Partial<Updater> & { can?: boolean; restartIs?: 'ok' | 'busy' | 'not-ready' }, changes?: (current: string, latest: string) => Promise<string | null>) {
     const calls: string[] = [];
     const updater: Updater = {
       status: async () => ({ ...status, canUpdate: stub.can ?? true }),
@@ -397,7 +397,7 @@ describe('update routes', () => {
       setAuto: (on) => void calls.push(`auto ${on}`),
       stop: () => undefined,
     };
-    const routes = systemRoutes({ hub: new EventHub(), root: () => proj, port: () => 0, repoDir: proj, updater, newer: async () => null, control: { supervised: () => false, exiting: () => false, restartAgent() {}, restartServer() {}, stop() {} } });
+    const routes = systemRoutes({ hub: new EventHub(), root: () => proj, port: () => 0, repoDir: proj, updater, newer: async () => null, ...(changes ? { changes } : {}), control: { supervised: () => false, exiting: () => false, restartAgent() {}, restartServer() {}, stop() {} } });
     const srv = http.createServer((req, res) => routes[new URL(req.url!, 'http://x').pathname]!(req, res));
     await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
     closers.push(() => new Promise<void>((r) => srv.close(() => r())));
@@ -429,6 +429,16 @@ describe('update routes', () => {
       const r = await send(`${(await serve({ restartIs: is })).url}/restart`);
       expect([r.status, await r.text()]).toEqual([code, body]);
     }
+  });
+
+  it('changes?from= answers what changed between that version and the running one', async () => {
+    const asked: string[] = [];
+    const s = await serve({}, async (a, b) => { asked.push(`${a}..${b}`); return `## ${b}`; });
+    expect(await (await fetch(`${s.url}/changes?from=1.6.0`)).json()).toEqual({ text: '## 1.7.0' });
+    expect(asked).toEqual(['1.6.0..1.7.0']);
+    // not a release, or not older than the running one: nothing is asked
+    for (const from of ['x', '1.7.0', '1.8.0', '1.6']) expect(await (await fetch(`${s.url}/changes?from=${from}`)).json()).toEqual({ text: null });
+    expect(asked).toHaveLength(1);
   });
 
   it('auto takes a boolean and answers 204', async () => {

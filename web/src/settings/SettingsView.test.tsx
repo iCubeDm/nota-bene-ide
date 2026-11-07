@@ -142,6 +142,30 @@ it('Defaults: the update check is switched on the server; the variable leaves th
   expect(screen.getByText('Off by NOTA_BENE_NO_UPDATE_CHECK')).toBeInTheDocument();
 });
 
+it('Defaults: Update automatically posts to the server and is off while the update check is off', async () => {
+  let prefs: unknown = { defaultMode: 'auto', updateCheck: true, updateCheckForcedOff: false };
+  let auto = false;
+  const real = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, init) => {
+    if (url === '/system/prefs' && !init?.method) return Response.json(prefs);
+    if (url === '/system/update' && !init?.method) return Response.json({ auto });
+    if (url === '/system/update/auto') { posts.push({ url, body: JSON.parse(String(init!.body)) }); auto = (JSON.parse(String(init!.body)) as { on: boolean }).on; return new Response(null, { status: 204 }); }
+    return real(url, init);
+  });
+  setup();
+  const box = await screen.findByRole('checkbox', { name: 'Update automatically' });
+  await waitFor(() => expect(box).toBeEnabled());
+  expect(box).not.toBeChecked();
+  expect(screen.getByText(/Installs new releases and restarts each window when it is idle/)).toBeInTheDocument();
+  fireEvent.click(box);
+  await waitFor(() => expect(posts).toContainEqual({ url: '/system/update/auto', body: { on: true } }));
+  await waitFor(() => expect(box).toBeChecked());
+  cleanup();
+  prefs = { defaultMode: 'auto', updateCheck: false, updateCheckForcedOff: false };
+  setup();
+  expect(await screen.findByRole('checkbox', { name: 'Update automatically' })).toBeDisabled();
+});
+
 it('Defaults: the audit log is on by default, names its folder and is switched on the server', async () => {
   let prefs: unknown = { defaultMode: 'auto', audit: true, auditDir: '/home/u/.nota-bene/audit' };
   const real = vi.mocked(fetch).getMockImplementation()!;

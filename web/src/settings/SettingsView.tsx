@@ -82,6 +82,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const storage = useLoad<Storage>('/system/storage', active);
   const about = useLoad<About>('/system/about', active);
   const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean; audit?: boolean; auditDir?: string }>('/system/prefs', active);
+  const upd = useLoad<{ auto: boolean }>('/system/update', active);
   const [ask, setAsk] = useState<{ title: string; body: string; confirm: string; run: () => Promise<void> } | null>(null);
   // the port whose action is in flight: that row's buttons are off until it settles (no double relays)
   const [pending, setPending] = useState<number | null>(null);
@@ -220,6 +221,16 @@ export function SettingsView({ active }: { active: boolean }) {
                 onChange={(e) => void savePref({ updateCheck: e.target.checked }).then(recheckUpdate)}
                 className="size-3.5 accent-primary" />
               {prefs.data.updateCheckForcedOff && <span className="text-xs text-muted-foreground">{t('defUpdateEnv')}</span>}
+            </span>
+          )}
+        </Row>
+        <Row label={t('settingsAutoUpdate')}>
+          {prefs.data && (
+            <span className="flex flex-col gap-1">
+              <input type="checkbox" aria-label={t('settingsAutoUpdate')} checked={upd.data?.auto === true} disabled={prefs.data.updateCheck !== true || !upd.data}
+                onChange={(e) => void postJson('/system/update/auto', { on: e.target.checked }).then((r) => { if (!r.ok) throw new Error(`${r.status}`); }).catch((err: unknown) => setNote(t('setLoadFail', err instanceof Error ? err.message : String(err)))).then(upd.reload).then(recheckUpdate)}
+                className="size-3.5 accent-primary" />
+              <span className="text-xs text-muted-foreground">{t('settingsAutoUpdateHint')}</span>
             </span>
           )}
         </Row>
