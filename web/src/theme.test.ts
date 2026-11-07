@@ -80,11 +80,10 @@ it('every theme defines every token', () => {
   for (const id of THEMES) expect([...themeVars(themeSelector(id))].sort(), id).toEqual([...plannotator].sort());
 });
 
-it('a light theme says so to the browser', () => {
+it('every theme says its kind to the browser: its scrollbars and native controls follow the theme, not the OS', () => {
   for (const id of THEMES) {
     const scheme = /color-scheme\s*:\s*([\w ]+);/.exec(blockBody(themeSelector(id)))?.[1];
-    if (THEME_KIND[id] === 'light') expect(scheme, id).toBe('light');
-    else expect(scheme, id).toBeUndefined();
+    expect(scheme, id).toBe(THEME_KIND[id]);
   }
 });
 

@@ -209,7 +209,7 @@ test('themes: the gear menu and Settings pick one, a reload keeps it, nothing ke
     await page.keyboard.press('Enter');
     await expect.poll(attr).toBe('solarized-dark');
     await page.keyboard.press('Escape');
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).not.toBe('light');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('dark');
     const solarizedDark = await sample();
     for (const k of Object.keys(darcula) as (keyof typeof darcula)[]) {
       expect(solarizedDark[k], k).not.toBe(darcula[k]);
@@ -224,6 +224,8 @@ test('themes: the gear menu and Settings pick one, a reload keeps it, nothing ke
   }
   await expect.poll(attr).toBe('darcula');
   expect(await bodyBg()).toBe('rgb(43, 43, 43)');
+  // a dark theme on a light OS: dark scrollbars and native controls
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('dark');
   // the swatch paints its own theme's colours while the page is Darcula
   const cardSpan = page.getByRole('radiogroup', { name: 'Themes' }).locator('[data-theme="solarized-light"] [data-swatch="--card"]');
   expect(await cardSpan.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(253, 246, 227)');
