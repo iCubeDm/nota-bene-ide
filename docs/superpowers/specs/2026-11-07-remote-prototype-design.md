@@ -101,6 +101,10 @@ streams:
 - HTTP request/response streams to that window's routes (`/file` with Range, `/marks`, `/usage`, `/sessions`, …);
 - a host-level stream for the session list (windows, provider, project, status) and the host's online state.
 
+The streams live inside the encrypted channel, so the relay never sees them: it sees one connection per host and
+one per phone, and its cost is connections and bytes. A Go relay on 1 vCPU and 512 MB holds thousands of idle
+connections; for this prototype (one host, one or two phones) the limit is the droplet's bandwidth.
+
 The connector adds the credentials; the phone never holds a window's key or cookie. The protocol types come from
 `shared/src/protocol.ts` through a JSON Schema generated from it, and the Dart types are generated from that
 schema, so the two cannot drift silently; generation runs in CI and fails on a stale output.
@@ -134,8 +138,12 @@ The sketches in the brainstorm (screens A–G) are the reference. Decided with t
 - **Controls:** stop the turn, compact, switch model (and effort), restart the agent, usage statistics.
 - **Dictation:** a microphone button in the composer and in the comment sheet turns speech into text with the
   phone's own speech recognition (Android `SpeechRecognizer`, in the UI language); the text lands in the field and
-  is edited and sent as typed text. No audio leaves the phone through Nota Bene and the agent gets text only (my
-  call: agents do not take audio, and a transcriber on the host would be a much larger piece).
+  is edited and sent as typed text. The agent gets text only: agents do not take audio.
+- **Whisper on the host** (the author's decision): an optional feature, off by default. Turning it on in Settings
+  downloads and installs a local Whisper runtime and model on the host, under `~/.nota-bene/`, with the download
+  size shown first. When it is on, the microphone records on the phone, the audio goes to the host through the
+  channel, the host transcribes it and returns the text to the same field. Without it, or with the host offline,
+  the phone's own recognition is used. It ships after the phone's recognition, as part of the same child issue.
 - **Rendering:** Markdown, code highlighting, KaTeX through a Dart port (`flutter_math_fork` family), Mermaid through
   a native renderer (`mermaid_flutter` or `merman`), checked against the diagrams the project's agents actually
   produce; a WebView only as the fallback for diagrams those cannot draw.
