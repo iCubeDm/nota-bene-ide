@@ -598,6 +598,8 @@ export const es: Dict = {
   updateLog: (p) => `Registro: ${p}`,
   updateRolledBack: (v) => `Se revirtió la actualización a ${v}`,
   updatedTo: (v) => `Actualizado a ${v}`,
+  updateReload: 'Recargar',
+  updateReloadTip: (v) => `La ventana ya ejecuta ${v}; esta página aún tiene el código de la versión anterior. Recarga para usar ${v}.`,
   renameSess: 'Renombrar',
   renameFail: 'No se pudo renombrar la sesión: ',
   newHere: '+ sesión nueva en este proyecto',

@@ -615,6 +615,8 @@ export const en: Dict = {
   updateLog: (p) => `Log: ${p}`,
   updateRolledBack: (v) => `Update to ${v} was rolled back`,
   updatedTo: (v) => `Updated to ${v}`,
+  updateReload: 'Reload',
+  updateReloadTip: (v) => `The window now runs ${v}; this page still has the code of the version before. Reload to use ${v}.`,
   renameSess: 'Rename',
   renameFail: 'Could not rename the session: ',
   newHere: '+ new session in this project',

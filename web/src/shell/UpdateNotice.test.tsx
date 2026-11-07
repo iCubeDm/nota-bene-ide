@@ -3,9 +3,12 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { connState, makeStore, serverEvent } from '@/store/store.ts';
 import { draftSent, setBuilding, setDraft, uploadStarted } from '@/composer/slice.ts';
+import { reloadPage } from './reloadPage.ts';
 import { recheckUpdate, UpdateNotice } from './UpdateNotice.tsx';
+
+vi.mock('./reloadPage.ts', () => ({ reloadPage: vi.fn() }));
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 
@@ -23,6 +26,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.mocked(reloadPage).mockClear();
 });
 
 const button = () => screen.findByRole('button', { name: '↑ 1.3.0' });
@@ -229,4 +233,56 @@ it('Updated to shows once per window and version', async () => {
   const again = render(<UpdateNotice />);
   await vi.waitFor(() => expect(asks('/system/update')).toBeGreaterThanOrEqual(2));
   expect(again.container).toBeEmptyDOMElement();
+});
+
+it('after a handover the page reloads itself once it reconnects to the new version, when idle', async () => {
+  answer = { ...status, latest: null, phase: 'none', canUpdate: true };
+  act(() => void store.dispatch(connState('open')));
+  render(<UpdateNotice />);
+  await vi.waitFor(() => expect(asks('/system/update')).toBe(1));
+  answer = { ...status, current: '1.3.0', latest: null, phase: 'none', canUpdate: true, updatedFrom: '1.2.0' };
+  act(() => void store.dispatch(connState('closed')));
+  act(() => void store.dispatch(connState('open'))); // the server of the new version answers
+  await vi.waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1));
+});
+
+it('after a handover with a draft the page stays, and Updated to offers Reload', async () => {
+  answer = { ...status, latest: null, phase: 'none', canUpdate: true };
+  act(() => void store.dispatch(setDraft('half a thought')));
+  act(() => void store.dispatch(connState('open')));
+  render(<UpdateNotice />);
+  await vi.waitFor(() => expect(asks('/system/update')).toBe(1));
+  answer = { ...status, current: '1.3.0', latest: null, phase: 'none', canUpdate: true, updatedFrom: '1.2.0' };
+  act(() => void store.dispatch(connState('closed')));
+  act(() => void store.dispatch(connState('open')));
+  const reload = await screen.findByRole('button', { name: 'Reload' });
+  expect(screen.getByRole('button', { name: 'Updated to 1.3.0' })).toBeInTheDocument();
+  expect(reloadPage).not.toHaveBeenCalled();
+  await userEvent.click(reload);
+  expect(reloadPage).toHaveBeenCalledTimes(1);
+});
+
+it('a page loaded on the new version never reloads', async () => {
+  answer = { ...status, current: '1.3.0', latest: null, phase: 'none', canUpdate: true, updatedFrom: '1.2.0' };
+  act(() => void store.dispatch(connState('open')));
+  render(<UpdateNotice />);
+  await screen.findByRole('button', { name: 'Updated to 1.3.0' });
+  act(() => void store.dispatch(connState('closed')));
+  act(() => void store.dispatch(connState('open')));
+  await vi.waitFor(() => expect(asks('/system/update')).toBe(2));
+  expect(reloadPage).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
+});
+
+it('a source checkout whose version changed does not reload', async () => {
+  answer = { ...status, current: 'v1.2.0-3-gabc', latest: null, phase: 'none' };
+  act(() => void store.dispatch(connState('open')));
+  render(<UpdateNotice />);
+  await vi.waitFor(() => expect(asks('/system/update')).toBe(1));
+  answer = { ...status, current: 'v1.2.0-4-gdef', latest: null, phase: 'none' };
+  act(() => void store.dispatch(connState('closed')));
+  act(() => void store.dispatch(connState('open')));
+  await vi.waitFor(() => expect(asks('/system/update')).toBe(2));
+  await new Promise((r) => setTimeout(r, 50));
+  expect(reloadPage).not.toHaveBeenCalled();
 });

@@ -614,6 +614,8 @@ export const ru = {
   updateLog: (p: string) => `Журнал: ${p}`,
   updateRolledBack: (v: string) => `Обновление до ${v} отменено`,
   updatedTo: (v: string) => `Обновлено до ${v}`,
+  updateReload: 'Перезагрузить',
+  updateReloadTip: (v: string) => `Окно уже работает на ${v}, а на странице код прежней версии. Перезагрузи её, чтобы перейти на ${v}.`,
   renameSess: 'Переименовать',
   renameFail: 'Не удалось переименовать сессию: ',
   newHere: '+ новая сессия в этом проекте',

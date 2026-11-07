@@ -598,6 +598,8 @@ export const de: Dict = {
   updateLog: (p) => `Protokoll: ${p}`,
   updateRolledBack: (v) => `Aktualisierung auf ${v} wurde zurückgenommen`,
   updatedTo: (v) => `Aktualisiert auf ${v}`,
+  updateReload: 'Neu laden',
+  updateReloadTip: (v) => `Das Fenster läuft jetzt mit ${v}, diese Seite noch mit dem Code der Vorversion. Neu laden, um ${v} zu nutzen.`,
   renameSess: 'Umbenennen',
   renameFail: 'Sitzung konnte nicht umbenannt werden: ',
   newHere: '+ neue Sitzung in diesem Projekt',

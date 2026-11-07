@@ -598,6 +598,8 @@ export const ptBR: Dict = {
   updateLog: (p) => `Registro: ${p}`,
   updateRolledBack: (v) => `A atualização para ${v} foi revertida`,
   updatedTo: (v) => `Atualizado para ${v}`,
+  updateReload: 'Recarregar',
+  updateReloadTip: (v) => `A janela já roda ${v}; esta página ainda tem o código da versão anterior. Recarregue para usar ${v}.`,
   renameSess: 'Renomear',
   renameFail: 'Não foi possível renomear a sessão: ',
   newHere: '+ nova sessão neste projeto',

@@ -598,6 +598,8 @@ export const zhCN: Dict = {
   updateLog: (p) => `日志：${p}`,
   updateRolledBack: (v) => `更新到 ${v} 已回滚`,
   updatedTo: (v) => `已更新到 ${v}`,
+  updateReload: '重新加载',
+  updateReloadTip: (v) => `窗口已在运行 ${v}，此页面仍是旧版本的代码。重新加载以使用 ${v}。`,
   renameSess: '重命名',
   renameFail: '无法重命名会话：',
   newHere: '+ 在此项目中新建会话',

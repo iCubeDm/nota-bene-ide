@@ -6,9 +6,12 @@ import { Markdown } from '@/feed/Markdown.tsx';
 import { selectBuilding, selectDraft, selectImages, selectUploading } from '@/composer/slice.ts';
 import { selectShellRunning } from '@/composer/shellMode.ts';
 import { selectRunningCount } from '@/tasks/slice.ts';
-import { selectFeed, useAppSelector } from '@/store/store.ts';
+import { selectConn, selectFeed, useAppSelector } from '@/store/store.ts';
+import { reloadPage } from './reloadPage.ts';
 
 const SEEN_KEY = 'nb.updateSeen';
+/** a plain release version (server/src/update.ts RELEASE) */
+const RELEASE = /^\d+\.\d+\.\d+$/;
 const RECHECK = 'nb-update-recheck';
 /** how often the page asks: at rest, while the install runs, while it waits for a pause */
 const ASK_MS = 60_000;
@@ -54,13 +57,22 @@ function Changes({ text }: { text: string }) {
   );
 }
 
-/** "Updated to 1.7.0" once per window and version, after a handover: what changed since the version before. */
-function UpdatedTo({ v, from }: { v: string; from: string }) {
+/** The Reload of a page whose code is of the version before (it was not in a pause to reload by itself). */
+function Reload({ v }: { v: string }) {
+  const t = useT();
+  return <button type="button" id="updateReloadBtn" title={t('updateReloadTip', v)} onClick={reloadPage} className={primary}>{t('updateReload')}</button>;
+}
+
+/**
+ * "Updated to 1.7.0" once per window and version, after a handover: what changed since the version before. While the
+ * page still runs the code of the version before (`stale`), it stays and offers Reload.
+ */
+function UpdatedTo({ v, from, stale }: { v: string; from: string; stale: boolean }) {
   const t = useT();
   const key = `nb.updated.${location.port}.${v}`;
   const [gone, setGone] = useState(() => localStorage.getItem(key) !== null);
   const [changes, setChanges] = useState<string | null>(null);
-  if (gone) return null;
+  if (gone && !stale) return null;
   const open = (on: boolean) => {
     if (on) {
       void apiFetch(`/system/update/changes?from=${encodeURIComponent(from)}`)
@@ -72,15 +84,18 @@ function UpdatedTo({ v, from }: { v: string; from: string }) {
     }
   };
   return (
-    <Popover onOpenChange={open}>
-      <PopoverTrigger asChild>
-        <button type="button" id="updatedBtn" className={chip}>{t('updatedTo', v)}</button>
-      </PopoverTrigger>
-      <PopoverContent aria-label={t('updatedTo', v)} collisionPadding={8} className={popoverStyle}>
-        <b className="text-[0.8125rem] font-semibold text-foreground">{t('updatedTo', v)}</b>
-        {changes && <Changes text={changes} />}
-      </PopoverContent>
-    </Popover>
+    <>
+      <Popover onOpenChange={open}>
+        <PopoverTrigger asChild>
+          <button type="button" id="updatedBtn" className={chip}>{t('updatedTo', v)}</button>
+        </PopoverTrigger>
+        <PopoverContent aria-label={t('updatedTo', v)} collisionPadding={8} className={popoverStyle}>
+          <b className="text-[0.8125rem] font-semibold text-foreground">{t('updatedTo', v)}</b>
+          {changes && <Changes text={changes} />}
+        </PopoverContent>
+      </Popover>
+      {stale && <Reload v={v} />}
+    </>
   );
 }
 
@@ -109,12 +124,25 @@ export function UpdateNotice() {
   const idle = draft.trim() === '' && images.length === 0 && uploading === 0 && !building && !sending && !shellRunning && tasks === 0
     && !feed.busy && !feed.items.some((it) => it.kind === 'permission' && it.answer === undefined && !it.archived);
   const restartedAt = useRef(0);
+  // the server version this page's code came with: another one after a reconnect means a handover happened
+  const loadedWith = useRef<string | null>(null);
 
   const ask = useCallback(() => {
     void apiFetch('/system/update')
       .then(async (r) => (r.ok ? ((await r.json()) as Status) : null))
-      .then((u) => { setUpdate(u); }, () => {});
+      .then((u) => {
+        if (u && loadedWith.current === null) loadedWith.current = u.current;
+        setUpdate(u);
+      }, () => {});
   }, []);
+  // a reconnect may be to a server of another version (a handover): ask at once
+  const conn = useAppSelector(selectConn);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (conn !== 'open') return;
+    if (wasOpen.current) ask();
+    wasOpen.current = true;
+  }, [conn, ask]);
   useEffect(() => {
     ask();
     window.addEventListener('focus', ask); // the server keeps the answer, so this asks npm no more often
@@ -135,9 +163,20 @@ export function UpdateNotice() {
     restartedAt.current = Date.now();
     void post('/system/update/restart').catch(() => {});
   }, [update, idle]);
+  // after a handover the page still runs the code of the version before: it reloads by itself in a pause (drafts are
+  // not kept across a reload), otherwise Updated to offers Reload
+  // (releases only: a source checkout's version changes with each commit, and its reloads stay the developer's)
+  const stale = update !== null && loadedWith.current !== null && update.current !== loadedWith.current
+    && RELEASE.test(update.current) && RELEASE.test(loadedWith.current);
+  const serverBusy = update?.busy === true;
+  useEffect(() => {
+    if (stale && idle && !serverBusy) reloadPage();
+  }, [stale, idle, serverBusy]);
 
   if (!update) return null;
-  const updated = update.updatedFrom ? <UpdatedTo key={update.current} v={update.current} from={update.updatedFrom} /> : null;
+  const updated = update.updatedFrom
+    ? <UpdatedTo key={update.current} v={update.current} from={update.updatedFrom} stale={stale} />
+    : stale ? <Reload v={update.current} /> : null;
   const install = () => {
     void post('/system/update/install')
       .then(async (r) => (r.ok ? ((await r.json()) as Status) : null))
