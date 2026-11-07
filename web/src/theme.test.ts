@@ -154,6 +154,7 @@ const AA_PAIRS: [string, string][] = [
   ['--destructive', '--card'], ['--destructive-fg', '--destructive'], ['--destructive-fg', '--destructive-fill'], ['--code-inline-fg', '--code-inline-bg'],
   ['--accent-sessions', '--chrome'], ['--accent-agent', '--chrome'], ['--accent-model', '--chrome'],
   ['--accent-usage', '--chrome'], ['--meter-fg', '--chrome'], ['--destructive', '--chrome'],
+  ['--nb-accent', '--chrome'], ['--nb-accent', '--card'], ['--nb-accent', '--side'], ['--nb-accent', '--popover'],
   // code: every syntax colour on the code block
   ...['text', 'keyword', 'string', 'function', 'number', 'comment', 'type', 'variable', 'property', 'param', 'builtin',
     'tag', 'section', 'bullet'].map((s): [string, string] => [`--syn-${s}`, '--syn-bg']),
@@ -175,4 +176,11 @@ it.each(THEMES.filter((id) => id !== 'plannotator'))('%s passes AA', (id) => {
   expect(ratio('--focus-ring', '--chrome')).toBeGreaterThanOrEqual(3);
   // hover and row fills (hover:bg-muted, bg-muted/50) must show on the surfaces they sit on
   for (const on of ['--chrome', '--side', '--popover']) expect(ratio('--muted', on), `muted on ${on}`).toBeGreaterThanOrEqual(1.1);
+});
+
+it('the header logo paints only with tokens every theme defines', () => {
+  const logo = readFileSync(resolve(__dirname, 'shell/Logo.tsx'), 'utf8');
+  const used = [...new Set([...logo.matchAll(/var\((--logo-[\w-]+)\)/g)].map((m) => m[1]!))];
+  expect(used.length).toBeGreaterThan(5);
+  for (const id of THEMES) expect(used.filter((v) => !themeVars(themeSelector(id)).has(v)), id).toEqual([]);
 });

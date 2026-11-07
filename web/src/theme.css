@@ -75,6 +75,16 @@
   --accent-agent: #66bf31;
   --accent-model: #c29ed3; /* #ae8abe: 3.74 on chrome */
   --accent-usage: #ffc66d;
+  /* the header logo: Darcula greys, its yellow and blue */
+  --logo-tile: #4b4e51;
+  --logo-tile-2: #2b2b2b;
+  --logo-paper: #eef0f2;
+  --logo-paper-2: #c3c9cf;
+  --logo-ink: #2b2b2b;
+  --logo-mark: #ffc66d;
+  --logo-note: #8fb8e0;
+  --logo-note-2: #4a78c2;
+  --logo-glyph: #ffffff;
   /* the footer's meters: their text, the track a bar runs in (the footer itself) and its outline */
   --meter-fg: #bbbbbb;
   --meter-track: transparent;
@@ -191,6 +201,16 @@
   --accent-agent: currentColor;
   --accent-model: currentColor;
   --accent-usage: currentColor;
+  /* the header logo: public/icon.svg as drawn */
+  --logo-tile: #2d3050;
+  --logo-tile-2: #13141d;
+  --logo-paper: #f7f5ff;
+  --logo-paper-2: #d8d1f6;
+  --logo-ink: #2d3050;
+  --logo-mark: #f7cf38;
+  --logo-note: #bcaaff;
+  --logo-note-2: #7a5ff0;
+  --logo-glyph: #ffffff;
   --meter-fg: var(--muted-fg);
   --meter-track: var(--muted);
   --meter-line: transparent;
@@ -267,7 +287,7 @@
   --primary-fg: #ffffff;
   --muted: #e6e7eb; /* #ebecf0: 1.07 on chrome, 1.06 on side; darkened in OKLCH lightness only so a hover fill shows: 1.12, 1.10 */
   --muted-fg: #636775; /* #6c707e: 4.18 on muted, 4.41 on side; then #666a78, 4.36 on the darker muted */
-  --nb-accent: #e0a800;
+  --nb-accent: #8b6705; /* #e0a800: 1.92 on side; also the warnings */
   --destructive: #c7222d;
   --destructive-fg: #ffffff;
   /* the destructive button's fill, and on hover */
@@ -309,6 +329,16 @@
   --accent-agent: #067d17;
   --accent-model: #871094;
   --accent-usage: #846e00; /* #9e880d: 3.17 on chrome */
+  /* the header logo: IntelliJ blue, its orange */
+  --logo-tile: #3d7cf5;
+  --logo-tile-2: #2154c4;
+  --logo-paper: #ffffff;
+  --logo-paper-2: #e6edfc;
+  --logo-ink: #1e1f22;
+  --logo-mark: #ffd23f;
+  --logo-note: #ffa25c;
+  --logo-note-2: #e8590c;
+  --logo-glyph: #ffffff;
   /* the footer's meters: their text, the track a bar runs in (the footer itself) and its outline */
   --meter-fg: #6b6f7d; /* #6c707e: 4.46 on chrome */
   --meter-track: transparent;
@@ -388,7 +418,7 @@
   --primary-fg: #ffffff;
   --muted: #eaedf0; /* #eff2f5: 1.06 on chrome, 1.06 on side; darkened in OKLCH lightness only so a hover fill shows: 1.11, 1.10 */
   --muted-fg: #59636e;
-  --nb-accent: #d4a72c;
+  --nb-accent: #8d6c06; /* #d4a72c: 2.11 on side; also the warnings */
   --destructive: #d1242f;
   --destructive-fg: #ffffff;
   /* the destructive button's fill, and on hover */
@@ -430,6 +460,16 @@
   --accent-agent: #1a7f37;
   --accent-model: #8250df;
   --accent-usage: #9a6700;
+  /* the header logo: GitHub's dark header, its purple */
+  --logo-tile: #2f363d;
+  --logo-tile-2: #1f2328;
+  --logo-paper: #ffffff;
+  --logo-paper-2: #e6eaef;
+  --logo-ink: #1f2328;
+  --logo-mark: #f2cc60;
+  --logo-note: #a475f9;
+  --logo-note-2: #8250df;
+  --logo-glyph: #ffffff;
   /* the footer's meters: their text, the track a bar runs in (the footer itself) and its outline */
   --meter-fg: #59636e;
   --meter-track: transparent;
@@ -509,7 +549,7 @@
   --primary-fg: #ffffff;
   --muted: #e3ddcb; /* #eee8d5: 1.01 on chrome, 1.00 on side; darkened in OKLCH lightness only so a hover fill shows: 1.12, 1.11 */
   --muted-fg: #4f646c; /* #657b83: 4.13 on card, 3.64 on muted; then #576c74, 4.07 on the darker muted */
-  --nb-accent: #b58900;
+  --nb-accent: #836205; /* #b58900: 2.62 on side; also the warnings */
   --destructive: #cd1e21; /* #dc322f: 4.29 on card, 3.82 on chrome */
   --destructive-fg: #ffffff;
   /* the destructive button's fill, and on hover */
@@ -551,6 +591,16 @@
   --accent-agent: #5f7000; /* #859900: 2.64 on chrome */
   --accent-model: #5d60b2; /* #6c71c4: 3.61 on chrome */
   --accent-usage: #bc3d00; /* #cb4b16: 3.80 on chrome */
+  /* the header logo: Solarized blue, its orange */
+  --logo-tile: #2a9bdf;
+  --logo-tile-2: #1a6fa8;
+  --logo-paper: #fdf6e3;
+  --logo-paper-2: #eee8d5;
+  --logo-ink: #073642;
+  --logo-mark: #f0c840;
+  --logo-note: #e06a30;
+  --logo-note-2: #cb4b16;
+  --logo-glyph: #fdf6e3;
   /* the footer's meters: their text, the track a bar runs in (the footer itself) and its outline */
   --meter-fg: #576c74; /* #657b83: 3.68 on chrome */
   --meter-track: transparent;
