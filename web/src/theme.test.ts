@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
+import { THEMES, THEME_KIND, type ThemeId } from '@nota-bene/shared';
 
 // jsdom computes no layout: the content widths are checked in e2e/files.spec.ts, on real layout
 const css = readFileSync(resolve(__dirname, 'theme.css'), 'utf8');
@@ -68,11 +69,38 @@ function themeVars(selector: string): Set<string> {
   return new Set([...body.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]!));
 }
 
+/** A theme block's selector as theme.css writes it. */
+const themeSelector = (id: ThemeId) => (id === 'darcula' ? ':root, [data-theme="darcula"]' : `[data-theme="${id}"]`);
+const blockBody = (selector: string) => {
+  const at = css.indexOf(`${selector} {`);
+  return css.slice(css.indexOf('{', at) + 1, css.indexOf('}', at));
+};
+
 it('every theme defines every token', () => {
-  const plannotator = themeVars('[data-theme="plannotator"]');
-  const darcula = themeVars(':root, [data-theme="darcula"]');
+  const plannotator = themeVars(themeSelector('plannotator'));
   expect(plannotator.size).toBeGreaterThan(40);
-  expect([...darcula].sort()).toEqual([...plannotator].sort());
+  for (const id of THEMES) expect([...themeVars(themeSelector(id))].sort(), id).toEqual([...plannotator].sort());
+});
+
+it('a light theme says so to the browser', () => {
+  for (const id of THEMES) {
+    const scheme = /color-scheme\s*:\s*([\w ]+);/.exec(blockBody(themeSelector(id)))?.[1];
+    if (THEME_KIND[id] === 'light') expect(scheme, id).toBe('light');
+    else expect(scheme, id).toBeUndefined();
+  }
+});
+
+it('dark: variants only apply to dark themes', () => {
+  const variant = /@custom-variant dark\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+  expect(variant).toContain('prefers-color-scheme: dark');
+  expect(variant).toContain(':not([data-theme$="-light"])');
+  expect(variant).toContain('@slot');
+});
+
+it('the inline script knows every theme', () => {
+  const html = readFileSync(resolve(__dirname, '../index.html'), 'utf8');
+  const list = /var ids = \[([^\]]*)\]/.exec(html)?.[1] ?? '';
+  expect([...list.matchAll(/'([\w-]+)'/g)].map((m) => m[1])).toEqual([...THEMES]);
 });
 
 /** A theme block's declarations, `var()` resolved within the block. Colours: hex and `rgb()` only. */
@@ -112,25 +140,27 @@ const contrast = (a: RGB, b: RGB) => {
   return (x + 0.05) / (y + 0.05);
 };
 
-it('Darcula passes AA', () => {
-  const tk = themeTokens(':root, [data-theme="darcula"]');
+/** The pairs every theme's text and controls must keep at 4.5:1 (the outlines have their own thresholds below). */
+const AA_PAIRS: [string, string][] = [
+  ['--foreground', '--background'], ['--foreground', '--card'], ['--foreground', '--popover'],
+  ['--muted-fg', '--card'], ['--muted-fg', '--muted'], ['--muted-fg', '--popover'], ['--muted-fg', '--side'],
+  ['--primary-fg', '--primary'], ['--tab-on-fg', '--tab-on-bg'], ['--tool-on-fg', '--tool-on'],
+  ['--tool-on-idle-fg', '--tool-on-idle'], ['--link', '--card'], ['--link', '--popover'],
+  ['--destructive', '--card'], ['--destructive-fg', '--destructive'], ['--destructive-fg', '--destructive-fill'], ['--code-inline-fg', '--code-inline-bg'],
+  ['--accent-sessions', '--chrome'], ['--accent-agent', '--chrome'], ['--accent-model', '--chrome'],
+  ['--accent-usage', '--chrome'], ['--meter-fg', '--chrome'], ['--destructive', '--chrome'],
+  // code: every syntax colour on the code block
+  ...['text', 'keyword', 'string', 'function', 'number', 'comment', 'type', 'variable', 'property', 'param', 'builtin',
+    'tag', 'section', 'bullet'].map((s): [string, string] => [`--syn-${s}`, '--syn-bg']),
+  ['--syn-add', '--syn-add-bg'], ['--syn-del', '--syn-del-bg'],
+  // file-type letters and the mode pills' text, on the card and the side panels
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 17, 19].flatMap((n): [string, string][] => [[`--hue-${n}`, '--card'], [`--hue-${n}`, '--side']]),
+];
+
+it.each(THEMES.filter((id) => id !== 'plannotator'))('%s passes AA', (id) => {
+  const tk = themeTokens(themeSelector(id));
   const ratio = (fg: string, bg: string) => contrast(parseColour(tk[fg]!, tk), parseColour(tk[bg]!, tk));
-  const text: [string, string][] = [
-    ['--foreground', '--background'], ['--foreground', '--card'], ['--foreground', '--popover'],
-    ['--muted-fg', '--card'], ['--muted-fg', '--muted'], ['--muted-fg', '--popover'], ['--muted-fg', '--side'],
-    ['--primary-fg', '--primary'], ['--tab-on-fg', '--tab-on-bg'], ['--tool-on-fg', '--tool-on'],
-    ['--tool-on-fg', '--tool-on-idle'], ['--link', '--card'], ['--link', '--popover'],
-    ['--destructive', '--card'], ['--destructive-fg', '--destructive'], ['--destructive-fg', '--destructive-fill'], ['--code-inline-fg', '--code-inline-bg'],
-    ['--accent-sessions', '--chrome'], ['--accent-agent', '--chrome'], ['--accent-model', '--chrome'],
-    ['--accent-usage', '--chrome'], ['--meter-fg', '--chrome'], ['--destructive', '--chrome'],
-    // code: every syntax colour on the code block
-    ...['text', 'keyword', 'string', 'function', 'number', 'comment', 'type', 'variable', 'property', 'param', 'builtin',
-      'tag', 'section', 'bullet'].map((s): [string, string] => [`--syn-${s}`, '--syn-bg']),
-    ['--syn-add', '--syn-add-bg'], ['--syn-del', '--syn-del-bg'],
-    // file-type letters and the mode pills' text, on the card and the side panels
-    ...[1, 2, 3, 4, 5, 6, 7, 8, 17, 19].flatMap((n): [string, string][] => [[`--hue-${n}`, '--card'], [`--hue-${n}`, '--side']]),
-  ];
-  const failing = text.map(([fg, bg]) => `${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`).filter((_, i) => ratio(...text[i]!) < 4.5);
+  const failing = AA_PAIRS.map(([fg, bg]) => `${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`).filter((_, i) => ratio(...AA_PAIRS[i]!) < 4.5);
   expect(failing).toEqual([]);
   expect(ratio('--border', '--card')).toBeGreaterThanOrEqual(1.5);
   // a meter's outline is the part of the control that has to show (WCAG 1.4.11)

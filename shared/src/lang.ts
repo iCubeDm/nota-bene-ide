@@ -11,12 +11,12 @@ export type UiScale = (typeof UI_SCALES)[number];
 export const isUiScale = (v: unknown): v is UiScale => (UI_SCALES as readonly unknown[]).includes(v);
 
 /** The colour themes (Settings → Themes), in the order the picker lists them; kept with the language, one for every window. */
-export const THEMES = ['darcula', 'plannotator'] as const;
+export const THEMES = ['darcula', 'plannotator', 'intellij-light'] as const;
 export type ThemeId = (typeof THEMES)[number];
 export const DEFAULT_THEME: ThemeId = 'darcula';
 export const isThemeId = (v: unknown): v is ThemeId => (THEMES as readonly unknown[]).includes(v);
 /** Whether a theme is dark or light, for the parts that must follow the browser's colour-scheme (scrollbars, diagrams, code). */
-export const THEME_KIND: Record<ThemeId, 'dark' | 'light'> = { darcula: 'dark', plannotator: 'dark' };
+export const THEME_KIND: Record<ThemeId, 'dark' | 'light'> = { darcula: 'dark', plannotator: 'dark', 'intellij-light': 'light' };
 
 /** The heading of a sent batch of comments, kept here because the server reads it back from transcripts too. */
 export const BATCH_HEADS: Record<UiLang, string> = {
