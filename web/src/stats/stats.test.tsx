@@ -56,6 +56,15 @@ it('meter has aria value and label', () => {
   expect(m).toHaveAttribute('aria-valuemax', '100');
 });
 
+it('the track keeps its 4px height and takes no space for its outline', () => {
+  const { stats } = setup();
+  stats({ ...none, context: ctx(41.6) });
+  const track = screen.getByRole('meter').querySelector('span')!;
+  expect(track).toHaveClass('h-1', 'w-11', 'outline', 'outline-1', 'outline-meter-line');
+  expect(track).not.toHaveClass('h-1.5');
+  expect(track).not.toHaveClass('border');
+});
+
 it('cost shows only without limits', () => {
   const { stats } = setup();
   stats({ ...none, cost: 1.234 });

@@ -27,8 +27,8 @@
   --separator: #505050;
   --primary: #4876c0; /* #4a78c2: white text at 4.41 */
   --primary-fg: #ffffff;
-  --muted: #3a3c3e;
-  --muted-fg: #a4aab1; /* #8f959c: 3.66 on muted, 3.51 on popover */
+  --muted: #434547; /* #3a3c3e: 1.01 on chrome, 1.04 on side and popover; lifted in OKLCH lightness only so a hover fill shows: 1.14, 1.10 */
+  --muted-fg: #adb3ba; /* #8f959c: 3.66 on muted, 3.51 on popover; then #a4aab1, 4.11 on the lifted muted */
   --nb-accent: #ffc66d;
   --destructive: #ff8980; /* #e06c64: 3.87 as text on card; #ee7870: 3.93 on chrome */
   --destructive-fg: #2b2b2b; /* white is 2.78 on the fill */
@@ -103,7 +103,7 @@
   --syn-del: #ffb4ae;
   --syn-del-bg: #5c2e2e;
   --focus-border: #466d94;
-  --focus-ring: #3d6185;
+  --focus-ring: #658bb1; /* #3d6185: 2.01 on card, 1.69 on chrome; lifted in OKLCH lightness only: 3.64 on card, 3.06 on chrome (a button's focus outline needs 3:1) */
   /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring */
   --input-focus: var(--focus-border);
   --input-focus-soft: var(--focus-border);
@@ -126,6 +126,7 @@
   --hue-6: #66bf31;
   --hue-7: #52bbba; /* #299999: 3.64 on card, 3.85 lifted on side */
   --hue-8: #a6acb3; /* #8f959c: 4.14 on card, 3.83 lifted on side */
+  /* git-graph lanes (--hue-9..16) keep their published values on purpose: not text, told apart by position */
   --hue-9: #589df6;
   --hue-10: #66bf31;
   --hue-11: #ffc66d;
@@ -135,6 +136,7 @@
   --hue-15: #cc7832;
   --hue-16: #a9b7c6;
   --hue-17: #52bbba; /* #40abaa: 3.85 on side */
+  /* --hue-18 and --hue-20 are decorative (a mark, not text); where one differs from the published value, it is noted beside it */
   --hue-18: #299999;
   --hue-19: #ffc66d;
   --hue-20: #e8bf6a;
@@ -263,8 +265,8 @@
   --separator: #ebecf0;
   --primary: #3170ec; /* #3574f0: white text at 4.28 */
   --primary-fg: #ffffff;
-  --muted: #ebecf0;
-  --muted-fg: #666a78; /* #6c707e: 4.18 on muted, 4.41 on side */
+  --muted: #e6e7eb; /* #ebecf0: 1.07 on chrome, 1.06 on side; darkened in OKLCH lightness only so a hover fill shows: 1.12, 1.10 */
+  --muted-fg: #636775; /* #6c707e: 4.18 on muted, 4.41 on side; then #666a78, 4.36 on the darker muted */
   --nb-accent: #e0a800;
   --destructive: #c7222d;
   --destructive-fg: #ffffff;
@@ -335,7 +337,7 @@
   --syn-del: #a3141f;
   --syn-del-bg: #fbe1e1;
   --focus-border: #3574f0;
-  --focus-ring: #9db9f5;
+  --focus-ring: #718bc5; /* #9db9f5: 1.96 on card, 1.77 on chrome; lifted in OKLCH lightness only: 3.39 on card, 3.06 on chrome (a button's focus outline needs 3:1) */
   /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring */
   --input-focus: var(--focus-border);
   --input-focus-soft: var(--focus-border);
@@ -358,6 +360,7 @@
   --hue-6: #067d17;
   --hue-7: #007a86; /* #00838f: 4.04 on side */
   --hue-8: #6a6e7c; /* #6c707e: 4.41 on side */
+  /* git-graph lanes (--hue-9..16) keep their published values on purpose: not text, told apart by position */
   --hue-9: #3574f0;
   --hue-10: #067d17;
   --hue-11: #e0a800;
@@ -367,6 +370,7 @@
   --hue-15: #c25a0a;
   --hue-16: #6c707e;
   --hue-17: #007a86; /* #00838f: 4.04 on side */
+  /* --hue-18 and --hue-20 are decorative (a mark, not text); where one differs from the published value, it is noted beside it */
   --hue-18: #00627a;
   --hue-19: #836d00; /* #9e880d: 3.51 on card, 3.14 on side */
   --hue-20: #8a6d00;
@@ -382,7 +386,7 @@
   --separator: #eff2f5;
   --primary: #1f883d; /* GitHub's own button */
   --primary-fg: #ffffff;
-  --muted: #eff2f5;
+  --muted: #eaedf0; /* #eff2f5: 1.06 on chrome, 1.06 on side; darkened in OKLCH lightness only so a hover fill shows: 1.11, 1.10 */
   --muted-fg: #59636e;
   --nb-accent: #d4a72c;
   --destructive: #d1242f;
@@ -416,7 +420,7 @@
   /* the active tab (Primer's underline nav); a pressed tool-window button in a focused panel and in an unfocused one */
   --tab-on-bg: #ffffff;
   --tab-on-fg: #1f2328;
-  --tab-line: #fd8c73;
+  --tab-line: #fd8c73; /* Primer's coral, published as is on purpose: 2.29 on white; the active tab also differs by its text colour */
   --tool-on: #0969da;
   --tool-on-idle: #e6eaef;
   --tool-on-fg: #ffffff;
@@ -454,7 +458,7 @@
   --syn-del: #82071e;
   --syn-del-bg: #ffebe9;
   --focus-border: #0969da;
-  --focus-ring: #54aeff;
+  --focus-ring: #3793e2; /* #54aeff: 2.37 on card, 2.24 on chrome; lifted in OKLCH lightness only: 3.26 on card, 3.09 on chrome (a button's focus outline needs 3:1) */
   /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring */
   --input-focus: var(--focus-border);
   --input-focus-soft: var(--focus-border);
@@ -477,6 +481,7 @@
   --hue-6: #1a7f37;
   --hue-7: #1b7c83;
   --hue-8: #59636e;
+  /* git-graph lanes (--hue-9..16) keep their published values on purpose: not text, told apart by position */
   --hue-9: #0969da;
   --hue-10: #1a7f37;
   --hue-11: #bf8700;
@@ -486,6 +491,7 @@
   --hue-15: #bc4c00;
   --hue-16: #59636e;
   --hue-17: #1b7c83;
+  /* --hue-18 and --hue-20 are decorative (a mark, not text); where one differs from the published value, it is noted beside it */
   --hue-18: #0550ae;
   --hue-19: #9a6700;
   --hue-20: #7d4e00;
@@ -495,14 +501,14 @@
 [data-theme="solarized-light"] {
   color-scheme: light;
   --background: #fdf6e3;
-  --foreground: #3d5259; /* #586e75: 4.39 on side; darkened in OKLCH lightness only so the text:muted-fg contrast, 1.49, is at least Darcula's 1.48 */
+  --foreground: #364a51; /* #586e75: 4.39 on side; darkened in OKLCH lightness only so the text:muted-fg contrast stays at least Darcula's 1.48 (1.50); was #3d5259 against the previous muted-fg */
   --card: #fdf6e3;
   --popover: #fdf6e3;
   --separator: #eee8d5;
   --primary: #006cb1; /* #268bd2: white text at 3.68 */
   --primary-fg: #ffffff;
-  --muted: #eee8d5;
-  --muted-fg: #576c74; /* #657b83: 4.13 on card, 3.64 on muted */
+  --muted: #e3ddcb; /* #eee8d5: 1.01 on chrome, 1.00 on side; darkened in OKLCH lightness only so a hover fill shows: 1.12, 1.11 */
+  --muted-fg: #4f646c; /* #657b83: 4.13 on card, 3.64 on muted; then #576c74, 4.07 on the darker muted */
   --nb-accent: #b58900;
   --destructive: #cd1e21; /* #dc322f: 4.29 on card, 3.82 on chrome */
   --destructive-fg: #ffffff;
@@ -534,7 +540,7 @@
   --pane-bg: #f5eedb; /* a step below the card: the paper steps up to it */
   /* the active tab; a pressed tool-window button in a focused panel and in an unfocused one */
   --tab-on-bg: #fdf6e3;
-  --tab-on-fg: #3d5259; /* #586e75, as --foreground */
+  --tab-on-fg: #364a51; /* #586e75, as --foreground */
   --tab-line: #268bd2; /* a line, not text: 3.41 on card clears 3:1 */
   --tool-on: #006cb1; /* #268bd2, as --primary */
   --tool-on-idle: #e4ddc8;
@@ -573,7 +579,7 @@
   --syn-del: #cd1e21;
   --syn-del-bg: #faece4;
   --focus-border: #268bd2;
-  --focus-ring: #a1c9ee;
+  --focus-ring: #6288aa; /* #a1c9ee: 1.61 on card, 1.43 on chrome; lifted in OKLCH lightness only: 3.46 on card, 3.09 on chrome (a button's focus outline needs 3:1) */
   /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring */
   --input-focus: var(--focus-border);
   --input-focus-soft: var(--focus-border);
@@ -596,6 +602,7 @@
   --hue-6: #5f7000; /* #859900: 2.97 on card, 2.62 on side */
   --hue-7: #00756e; /* #2aa198: 2.93 on card, 2.58 on side */
   --hue-8: #576c74; /* #657b83: 4.13 on card, 3.64 on side */
+  /* git-graph lanes (--hue-9..16) keep their published values on purpose: not text, told apart by position */
   --hue-9: #268bd2;
   --hue-10: #859900;
   --hue-11: #b58900;
@@ -605,6 +612,7 @@
   --hue-15: #cb4b16;
   --hue-16: #93a1a1;
   --hue-17: #00756e; /* #2aa198: 2.93 on card, 2.58 on side */
+  /* --hue-18 and --hue-20 are decorative (a mark, not text); where one differs from the published value, it is noted beside it */
   --hue-18: #006cb1; /* #268bd2: 3.41 on card, 3.00 on side */
   --hue-19: #8b6100; /* #b58900: 2.98 on card, 2.62 on side */
   --hue-20: #bc3d00; /* #cb4b16: 3.76 on side */

@@ -28,7 +28,7 @@ function Meter({ label, pct, tip }: { label: string; pct: number; tip: string })
           className={`meter ${level} inline-flex cursor-default items-center gap-1.5 ${level === 'hot' ? 'text-destructive' : ''}`}
         >
           {label}
-          <span className="block h-1.5 w-11 overflow-hidden rounded-sm border border-meter-line bg-meter-track">
+          <span className="block h-1 w-11 overflow-hidden rounded-sm outline outline-1 outline-meter-line bg-meter-track">
             <i className={`block h-full ${FILL[level]}`} style={{ width: `${Math.min(100, pct)}%` }} />
           </span>
           {shown}%
