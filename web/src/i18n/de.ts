@@ -584,6 +584,7 @@ export const de: Dict = {
   updateYours: (v) => `Du nutzt ${v}. Bei einer Installation im Terminal:`,
   updateHow: 'Mit einem Plugin aktualisiere es in Claude Code oder Codex. Dann schließe die Fenster und starte neu.',
   updateNotes: 'Versionshinweise',
+  updateChanges: 'Was ist neu',
   updateLater: 'Später',
   renameSess: 'Umbenennen',
   renameFail: 'Sitzung konnte nicht umbenannt werden: ',

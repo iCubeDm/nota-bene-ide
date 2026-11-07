@@ -584,6 +584,7 @@ export const zhCN: Dict = {
   updateYours: (v) => `当前版本 ${v}。在终端安装时运行：`,
   updateHow: '如使用插件，请在 Claude Code 或 Codex 中更新。然后关闭窗口并重新启动。',
   updateNotes: '更新说明',
+  updateChanges: '更新内容',
   updateLater: '稍后',
   renameSess: '重命名',
   renameFail: '无法重命名会话：',

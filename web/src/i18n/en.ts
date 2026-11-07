@@ -601,6 +601,7 @@ export const en: Dict = {
   updateYours: (v) => `You run ${v}. In a terminal install:`,
   updateHow: 'With a plugin, update it in Claude Code or Codex. Then close the windows and start again.',
   updateNotes: 'Release notes',
+  updateChanges: 'What’s new',
   updateLater: 'Later',
   renameSess: 'Rename',
   renameFail: 'Could not rename the session: ',

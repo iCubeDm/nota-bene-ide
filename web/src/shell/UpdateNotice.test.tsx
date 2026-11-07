@@ -54,11 +54,36 @@ it('Later hides this version across a reload, and the next version shows again',
   await userEvent.click(screen.getByRole('button', { name: 'Later' }));
   expect(screen.queryByRole('button', { name: '↑ 1.3.0' })).toBeNull();
   unmount();
+  const asks = () => vi.mocked(fetch).mock.calls.filter(([u]) => String(u).endsWith('/system/update')).length;
   render(<UpdateNotice />);
-  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(asks()).toBe(2));
   expect(screen.queryByRole('button', { name: '↑ 1.3.0' })).toBeNull();
   cleanup();
   answer = { current: '1.2.0', latest: '1.4.0' };
   render(<UpdateNotice />);
   expect(await screen.findByRole('button', { name: '↑ 1.4.0' })).toBeInTheDocument();
+});
+
+it('the popover shows what the newer version changes, asked once when it opens', async () => {
+  vi.mocked(fetch).mockImplementation(async (url) => new Response(JSON.stringify(String(url).endsWith('/system/update/changes')
+    ? { text: '## 1.3.0 — 2026-11-02\n\n- Themes: Darcula is the new default.' }
+    : answer)));
+  render(<UpdateNotice />);
+  await userEvent.click(await button());
+  const box = await screen.findByTestId('update-changes');
+  expect(box).toHaveTextContent('Themes: Darcula is the new default.');
+  expect(screen.getByRole('region', { name: 'What’s new' })).toBeInTheDocument();
+  await userEvent.keyboard('{Escape}');
+  await userEvent.click(await button());
+  const asked = vi.mocked(fetch).mock.calls.filter(([u]) => String(u).endsWith('/system/update/changes'));
+  expect(asked).toHaveLength(1);
+});
+
+it('no changelog to be had: the popover is as before', async () => {
+  vi.mocked(fetch).mockImplementation(async (url) => new Response(JSON.stringify(String(url).endsWith('/system/update/changes') ? { text: null } : answer)));
+  render(<UpdateNotice />);
+  await userEvent.click(await button());
+  await vi.waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).endsWith('/changes'))).toBe(true));
+  expect(screen.queryByTestId('update-changes')).toBeNull();
+  expect(screen.getByRole('link', { name: 'Release notes' })).toBeInTheDocument();
 });
