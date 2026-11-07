@@ -24,6 +24,12 @@
 // A relaunch keeps the port, so the open tab reconnects by itself, reopens the folder the window has now (it may have
 // switched), and drops --resume/--fork/--new for --continue. The registry entry stays through the restart gap (it is
 // removed only when the launcher ends), so no other launch picks the port meanwhile; a 98 on a relaunch gives up.
+//
+// Handover (in-app update): a published launcher whose runtime/current (server/src/runtime.ts) names a newer x.y.z runs that
+// version's launcher as a child instead of its own (the outer part, `outer`), on the same port with the same nonce, and again
+// whenever a server or an inner launcher exits 77 (a newer version is current; the server may do so only with
+// NOTA_BENE_HANDOVER=1). A new version that does not answer /info within 20 s, or whose launcher exits within its first 60 s,
+// is rolled back: current goes back to the version that ran before, and the window runs on that one. A checkout never hands over.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
@@ -31,10 +37,12 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SecretError, accessToken, loginCredential, newNonce, proveListener, stateSecret } from '../server/src/auth.ts';
+import { SecretError, accessToken, isNonce, loginCredential, newNonce, proveListener, stateSecret } from '../server/src/auth.ts';
+import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } from '../server/src/runtime.ts';
 import { transcriptExists } from '../server/src/sessions.ts';
 import { lastSession, stateDir } from '../server/src/state.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
+import { RELEASE, isNewer } from '../server/src/update.ts';
 import {
   liveWindows, pidAlive, probeInfo, readWindows, registerWindow, restartingWindows, unregisterWindow,
 } from '../server/src/windows.ts';
@@ -52,6 +60,9 @@ const EXIT_SECRET = 3; // a secret file is refused (loose mode, foreign owner, .
 const RESTART = 75;
 const LISTEN_FAILED = 98; // server/src/main.ts LISTEN_FAILED
 const NO_AGENT_BINARY = 76; // server/src/main.ts NO_AGENT_BINARY: the server said why, a relaunch cannot help
+export const HANDOVER = 77; // server/src/main.ts HANDOVER: a newer version is current, the outer part hands the window over
+const HANDOVER_INFO_MS = 20_000; // a new version whose window does not answer /info within this is rolled back
+const HANDOVER_EXIT_MS = 60_000; // ... as is one whose launcher exits (not cleanly, not 77) within this
 const CLEAN_EXITS = new Set([0, 130, 143]);
 const MAX_CRASHES = 5;
 const MAX_RESTARTS = 10;
@@ -69,6 +80,18 @@ export function packageVersion() {
   } catch {
     return 'unknown';
   }
+}
+
+/**
+ * A published package (no `.git` at its root, the rule server/src/system.ts uses for the version) may hand over; a checkout never.
+ * TEST-ONLY: NOTA_BENE_TEST_PUBLISHED=1 makes bin/nota-bene.test.ts's checkout launcher count as published. Never set it otherwise.
+ */
+const PUBLISHED = process.env.NOTA_BENE_TEST_PUBLISHED === '1' || !fs.existsSync(path.join(REPO, '.git'));
+const INNER = process.env.NOTA_BENE_INNER === '1'; // started by an outer part: run the window here, return 77 to it
+
+/** The version to hand over to: `current` when it is a newer plain release and this launcher is published; else null. */
+export function handoverTarget({ own, current, published }) {
+  return published && current !== null && RELEASE.test(own) && RELEASE.test(current) && isNewer(current, own) ? current : null;
 }
 
 const say = (msg) => process.stderr.write(`nota-bene: ${msg}\n`);
@@ -134,8 +157,13 @@ export function serverArgs(o, port, relaunch) {
  * The server child's environment. Started through npx / npm run, we inherit npm's `npm_*` variables and a PATH that npm
  * prefixed with the package's node_modules/.bin (and node-gyp-bin); the server and the agent it runs must not see either.
  */
-export function serverEnv(base, launcherPid) {
+export function serverEnv(base, launcherPid, { handover = false, updatedFrom } = {}) {
   const env = { ...base, NOTA_BENE_SUPERVISED: '1', NOTA_BENE_LAUNCHER_PID: String(launcherPid) };
+  // the server's permission to exit 77, and the version it was updated from: ours to give, never inherited
+  delete env.NOTA_BENE_HANDOVER;
+  delete env.NOTA_BENE_UPDATED_FROM;
+  if (handover) env.NOTA_BENE_HANDOVER = '1';
+  if (updatedFrom) env.NOTA_BENE_UPDATED_FROM = updatedFrom;
   // only when npm / npx started us: a plain shell launch keeps the user's own NPM_TOKEN, npm_config_registry, PATH
   if (!(base.npm_execpath || base.npm_lifecycle_event)) return env;
   for (const k of Object.keys(env)) if (/^npm_/.test(k)) delete env[k];
@@ -537,10 +565,12 @@ async function detach(o, argv, autoPort, buildOutput) {
   while (Date.now() < end) {
     const gone = exitCode !== undefined;
     for (const [key, w] of Object.entries(readWindows())) {
-      if (w.root !== o.dir || !(w.launcherPid === child.pid || (gone && exitCode === 0 && pidAlive(w.pid)))) continue;
+      // a window handed over to the current version is registered by the inner launcher (our child's child) on our port
+      const mine = w.launcherPid === child.pid || (!gone && Number(key) === o.port);
+      if (w.root !== o.dir || !(mine || (gone && exitCode === 0 && pidAlive(w.pid)))) continue;
       if ((await probeInfo(Number(key)))?.root === o.dir) {
         // ours, or the window our launcher gave way to (it lost a port race to a launcher of the same folder)
-        process.stdout.write(`${w.launcherPid === child.pid ? 'opened' : 'already-open'} ${(await loginTarget(`http://127.0.0.1:${key}`)) ?? `http://127.0.0.1:${key}`}\n`);
+        process.stdout.write(`${mine ? 'opened' : 'already-open'} ${(await loginTarget(`http://127.0.0.1:${key}`)) ?? `http://127.0.0.1:${key}`}\n`);
         return 0;
       }
     }
@@ -568,13 +598,18 @@ function tail(text, n = 15) {
   return lines.slice(-n).map((l) => `${l}\n`).join('');
 }
 
-/** The supervisor loop. Resolves with the launcher's exit code; the window's registry entry goes with it. */
-async function run(o, autoPort, release = () => {}) {
-  const state = { port: o.port, pid: undefined };
+/**
+ * The supervisor loop. Resolves with the launcher's exit code; the window's registry entry goes with it, except on 77 (the
+ * window goes on in another version). `init`: the launch nonce and the version the window was updated from (a handover).
+ */
+async function run(o, autoPort, release = () => {}, init = {}) {
+  const state = Object.assign(init, { port: o.port, pid: undefined }); // the caller reads port and nonce back
+  let code;
   try {
-    return await supervise(o, autoPort, release, state);
+    code = await supervise(o, autoPort, release, state);
+    return code;
   } finally {
-    if (state.pid !== undefined) dropEntry(state.port, state.pid);
+    if (state.pid !== undefined && code !== HANDOVER) dropEntry(state.port, state.pid);
   }
 }
 
@@ -636,16 +671,22 @@ async function supervise(o, autoPort, release, state) {
   // restart keeps open tabs logged in while a value captured from an earlier launch is dead
   // Exit 75 (the user's restart) keeps it; after a crash it is replaced and the browser is opened on a fresh login, so whatever
   // the crashed launch handed out (a leaked URL, a cookie) dies with it
-  let nonce = newNonce();
+  // A handover passes the nonce on (state.nonce, kept up to date for the outer part)
+  let nonce = state.nonce ?? newNonce();
   let crashed = false;
+  const version = packageVersion();
   for (;;) {
     if (crashed) {
       nonce = newNonce();
     }
-    const env = serverEnv(process.env, process.pid);
+    state.nonce = nonce;
+    // the version updated from: for the window's first server only, so a later restart does not say "updated" again
+    const env = serverEnv(process.env, process.pid, { handover: PUBLISHED, updatedFrom: first ? state.updatedFrom : undefined });
     env.NOTA_BENE_NONCE = nonce;
     delete env.NOTA_BENE_AUTOPORT;
     delete env.NOTA_BENE_LOCKED;
+    delete env.NOTA_BENE_INNER;
+    delete env.NOTA_BENE_HANDOVER_NONCE;
     const c = spawn(process.execPath, [MAIN, ...serverArgs({ ...o, dir }, port, !first)], {
       cwd: REPO,
       env,
@@ -662,7 +703,7 @@ async function supervise(o, autoPort, release, state) {
       const got = await probeInfo(port);
       if (got && !done) {
         try {
-          registerWindow(port, got.root, c.pid, process.pid);
+          registerWindow(port, got.root, c.pid, process.pid, version);
         } catch (e) {
           say(`cannot register the window: ${e.message}`); // the window works without it; --find falls back
         }
@@ -712,6 +753,7 @@ async function supervise(o, autoPort, release, state) {
     }
 
     if (code === NO_AGENT_BINARY) return code;
+    if (code === HANDOVER) return code; // the entry stays: the outer part reads the port and folder from it
 
     if (code === RESTART) {
       const n = recent(restarts);
@@ -807,7 +849,8 @@ async function main(argv) {
     return 1;
   }
   // one window per folder: wait for any launch in progress on it, then give way to a window already serving it
-  const locked = process.env.NOTA_BENE_LOCKED === '1'; // a detached child: the parent holds the lock and checked
+  // a detached child (the parent holds the lock and checked) or an inner launcher (its outer part did)
+  const locked = process.env.NOTA_BENE_LOCKED === '1' || INNER;
   const release = locked ? () => {} : await acquireLaunchLock(o.dir);
   try {
     if (!locked) {
@@ -837,7 +880,172 @@ async function launch(o, argv, buildOutput, release) {
     }
   }
   if (o.detach) return detach(o, argv, picked, buildOutput);
-  return run(o, autoPort, release);
+  if (INNER) {
+    const from = process.env.NOTA_BENE_UPDATED_FROM;
+    return run(o, autoPort, release, {
+      nonce: isNonce(process.env.NOTA_BENE_HANDOVER_NONCE) ? process.env.NOTA_BENE_HANDOVER_NONCE : undefined,
+      updatedFrom: from && RELEASE.test(from) ? from : undefined,
+    });
+  }
+  return outer(o, autoPort, release);
+}
+
+/**
+ * The outer part: runs the window in the newest version, and again in the current one each time a version exits 77. The
+ * version is this launcher's own (in-process, `run`) unless `current` names a newer release: then that version's launcher
+ * runs as a child (NOTA_BENE_INNER), stdio inherited, signals passed on, its exit code passed through. Every run keeps the
+ * port and the launch nonce; after the first one the window continues its session and the browser is not opened again.
+ * A handed-over version that fails (see the top of the file) is rolled back and not tried again by this outer part.
+ */
+async function outer(o, autoPort, release) {
+  const own = packageVersion();
+  let stopping = false;
+  let inner = null;
+  const onSignal = (sig) => {
+    stopping = true;
+    inner?.kill(sig); // in-process, supervise has its own handlers
+  };
+  const sigs = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  for (const sig of sigs) process.on(sig, onSignal);
+  watchParent(onSignal);
+  let up = false; // a window answered: later runs continue it, without --resume/--new and without opening the browser
+  const registered = () => {
+    up = true;
+    release();
+  };
+  let nonce = newNonce();
+  let from; // the version the window was just updated from (NOTA_BENE_UPDATED_FROM)
+  let previous = own; // what the window ran before the next handover: a rollback goes back to it
+  let retried = false;
+  const refused = new Set(); // rolled back: never handed over to again by this outer part
+  const handovers = [];
+  const innerPids = new Set();
+  try {
+    for (;;) {
+      const t = PUBLISHED ? handoverTarget({ own, current: readCurrent(), published: true }) : null; // a checkout never reads it
+      const target = t !== null && !refused.has(t) ? t : null;
+      const opts = up ? { ...o, resume: undefined, fork: false, new: false, continue: true, open: false } : o;
+      let code;
+      let ran = own;
+      if (target === null) {
+        const state = { nonce, updatedFrom: from };
+        code = await run(opts, up ? false : autoPort, registered, state);
+        nonce = state.nonce ?? nonce;
+        o.port = state.port; // a first start may have moved on a lost port race
+        const w = entryOf(o.port);
+        if (code === HANDOVER && w?.launcherPid === process.pid && fs.existsSync(w.root)) o.dir = w.root;
+      } else {
+        ran = target;
+        const args = [...serverArgs({ ...opts, agent: o.agent ?? 'claude' }, o.port, false), ...(opts.open ? [] : ['--no-open'])];
+        const env = { ...process.env, NOTA_BENE_INNER: '1', NOTA_BENE_HANDOVER_NONCE: nonce };
+        delete env.NOTA_BENE_LOCKED; // the inner launcher watches us as its parent
+        delete env.NOTA_BENE_AUTOPORT;
+        delete env.NOTA_BENE_UPDATED_FROM;
+        if (from) env.NOTA_BENE_UPDATED_FROM = from;
+        const started = Date.now();
+        const c = spawn(process.execPath, [launcherOf(target), ...args], { env, stdio: 'inherit' });
+        inner = c;
+        innerPids.add(c.pid);
+        const exited = new Promise((resolve) => {
+          c.on('exit', (code, signal) => resolve({ code, signal }));
+          c.on('error', (e) => resolve({ code: null, signal: null, error: e }));
+        });
+        let done = false;
+        void exited.then(() => (done = true));
+        let failed = null;
+        let answered = false;
+        while (!done && !stopping) {
+          if (await probeInfo(o.port)) {
+            answered = true;
+            break;
+          }
+          if (Date.now() - started >= HANDOVER_INFO_MS) break;
+          await Promise.race([sleep(250), exited]);
+        }
+        if (answered) registered();
+        else if (!done && !stopping) {
+          failed = `no answer on /info within ${HANDOVER_INFO_MS / 1000} s`;
+          c.kill('SIGTERM');
+          const killed = await Promise.race([exited, sleep(5000).then(() => null)]);
+          if (!killed) c.kill('SIGKILL');
+        }
+        const r = await exited;
+        inner = null;
+        if (r.error && !failed) failed = `its launcher did not start (${r.error.message})`;
+        if (stopping) return r.code ?? 0;
+        if (!failed && r.code === LISTEN_FAILED && !up) {
+          // the port was taken (between our pick and its listen, or an explicit busy --port): not the new version's fault
+          if (!autoPort || retried) return LISTEN_FAILED;
+          const next = await firstFreePort(new Set([o.port]));
+          if (next === null) return LISTEN_FAILED;
+          say(`port ${o.port} was taken meanwhile, retrying on ${next}`);
+          o.port = next;
+          retried = true;
+          continue;
+        }
+        const clean = r.code !== null && (CLEAN_EXITS.has(r.code) || r.code === HANDOVER);
+        if (!failed && !clean && Date.now() - started < HANDOVER_EXIT_MS) {
+          failed = `its launcher exited ${r.code !== null ? `with code ${r.code}` : `by ${r.signal}`} within ${HANDOVER_EXIT_MS / 1000} s`;
+        }
+        if (failed) {
+          rollBack(target, previous, failed);
+          refused.add(target);
+          from = undefined;
+          delete process.env.NOTA_BENE_TEST_CRASH;
+          continue; // on the previous version, same port and nonce
+        }
+        code = r.code ?? 128 + (os.constants.signals[r.signal] ?? 0);
+        if (code === HANDOVER) {
+          // the inner launcher kept its entry: the window's port and folder now; keep the port reserved by us for the gap
+          const hit = Object.entries(readWindows()).find(([, w]) => w.launcherPid === c.pid);
+          if (hit) {
+            const [key, w] = hit;
+            o.port = Number(key);
+            if (fs.existsSync(w.root)) o.dir = w.root;
+            try {
+              registerWindow(o.port, w.root, w.pid, process.pid, w.version);
+            } catch (e) {
+              say(`cannot update the window registry: ${e.message}`);
+            }
+          }
+        }
+      }
+      // TEST-ONLY hook (server/src/main.ts): fires on the first server run only, so a test's own server does not exit 77 for good
+      delete process.env.NOTA_BENE_TEST_CRASH;
+      if (stopping || code !== HANDOVER) return code;
+      const now = Date.now();
+      while (handovers.length && now - handovers[0] >= GUARD_WINDOW_MS) handovers.shift();
+      handovers.push(now);
+      if (handovers.length > MAX_RESTARTS) {
+        say(`${handovers.length} handovers in the last minute — handing over in a loop, giving up`);
+        return HANDOVER;
+      }
+      from = ran;
+      previous = ran;
+    }
+  } finally {
+    for (const sig of sigs) process.off(sig, onSignal);
+    // an entry left by a 77 that no run took over (we stopped in the gap): ours to remove
+    try {
+      const w = entryOf(o.port);
+      if (w && (w.launcherPid === process.pid || innerPids.has(w.launcherPid)) && !pidAlive(w.pid)) unregisterWindow(o.port, w.pid);
+    } catch (e) {
+      say(`cannot update the window registry: ${e.message}`);
+    }
+  }
+}
+
+/** `current` goes back to the version that ran before (only while it still names the failed one); the window says why. */
+function rollBack(failedVersion, back, reason) {
+  say(`${failedVersion} did not come up (${reason}) — rolled back to ${back}`);
+  try {
+    writeCurrent(back, failedVersion);
+    patchUpdateState((s) => ({ ...s, rolledBack: { version: failedVersion, at: Date.now() } }));
+    fs.appendFileSync(path.join(runtimeDir(), 'update.log'),
+      `${new Date().toISOString()} ${failedVersion} failed in a window: ${reason}; rolled back to ${back}\n`, { mode: 0o600 });
+  } catch (e) {
+    say(`cannot record the rollback: ${e.message}`);
+  }
 }
 
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(SELF)) {

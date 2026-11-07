@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WS from 'ws';
 import { shellEnv } from '../server/src/session/shellText.ts';
 // @ts-expect-error plain ESM, no types
-import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, needsBuild, portFree, serverEnv } from './nota-bene.mjs';
+import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, handoverTarget, needsBuild, portFree, serverEnv } from './nota-bene.mjs';
 
 const BIN = fileURLToPath(new URL('./nota-bene.mjs', import.meta.url));
 const FAKE = fileURLToPath(new URL('../server/test/fixtures/hello.json', import.meta.url));
@@ -560,6 +560,139 @@ describe('nota-bene launcher', () => {
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe(id);
   });
+});
+
+describe('handoverTarget', () => {
+  it('is current only when published, both plain x.y.z, and current is newer', () => {
+    const t = (own: string, current: string | null, published: boolean) => handoverTarget({ own, current, published });
+    expect(t('1.6.0', '1.7.0', true)).toBe('1.7.0');
+    expect(t('1.7.0', '1.6.0', true)).toBeNull();
+    expect(t('1.7.0', '1.7.0', true)).toBeNull();
+    expect(t('1.6.0', '1.7.0', false)).toBeNull();
+    expect(t('1.6.0', null, true)).toBeNull();
+    expect(t('1.6.0', '1.7.0-rc.1', true)).toBeNull();
+    expect(t('v1.6.0-3-gabc', '1.7.0', true)).toBeNull(); // a checkout's git describe never compares
+  });
+});
+
+describe('handover to the current version', () => {
+  const OWN = (JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
+  const runtime = () => path.join(home, 'runtime');
+  const stubLog = () => path.join(tmp, 'stub.log');
+  const serverLog = () => path.join(tmp, 'server.log');
+  /** runtime/<v>/ with a stub launcher that appends its argv and env to stub.log and exits with `code` (a JS expression) */
+  function installStub(v: string, code: number | string): void {
+    const bin = path.join(runtime(), v, 'node_modules', 'nota-bene-ide', 'bin', 'nota-bene.mjs');
+    fs.mkdirSync(path.dirname(bin), { recursive: true });
+    fs.writeFileSync(bin, `import fs from 'node:fs';\nconst code = ${code};\nfs.appendFileSync(${JSON.stringify(stubLog())}, JSON.stringify({ argv: process.argv.slice(2), env: process.env }) + '\\n');\nprocess.exit(code);\n`);
+  }
+  const setCurrent = (v: string) => {
+    fs.mkdirSync(runtime(), { recursive: true });
+    fs.writeFileSync(path.join(runtime(), 'current'), v);
+  };
+  const stubRuns = (): { argv: string[]; env: Record<string, string> }[] =>
+    fs.existsSync(stubLog()) ? fs.readFileSync(stubLog(), 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : [];
+  /**
+   * NODE_OPTIONS preload: in each checkout server (not the launchers, not the stub) records the env it got to server.log,
+   * and in the first one, with `thenCurrent`, points runtime/current at it (so the launcher's first start runs itself).
+   */
+  function serverPreload(thenCurrent?: string): Record<string, string> {
+    const f = path.join(tmp, 'preload.mjs');
+    const main = fileURLToPath(new URL('../server/src/main.ts', import.meta.url));
+    fs.writeFileSync(f, `import fs from 'node:fs';
+if (process.argv[1] === ${JSON.stringify(main)}) {
+  const first = !fs.existsSync(${JSON.stringify(serverLog())});
+  fs.appendFileSync(${JSON.stringify(serverLog())}, JSON.stringify({ env: process.env }) + '\\n');
+  ${thenCurrent ? `if (first) fs.writeFileSync(${JSON.stringify(path.join(runtime(), 'current'))}, ${JSON.stringify(thenCurrent)});` : ''}
+}
+`);
+    return { NODE_OPTIONS: `--import ${f}` };
+  }
+  const serverRuns = (): { env: Record<string, string> }[] =>
+    fs.existsSync(serverLog()) ? fs.readFileSync(serverLog(), 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : [];
+
+  it('a server exit 77 starts the current launcher on the same port with the same nonce', async () => {
+    installStub('1.99.0', 0);
+    fs.mkdirSync(runtime(), { recursive: true });
+    const r = launch(['--port', '4791'], { NOTA_BENE_TEST_PUBLISHED: '1', NOTA_BENE_TEST_CRASH: '77', ...serverPreload('1.99.0') });
+    expect(await r.exited).toBe(0);
+    const [srv] = serverRuns();
+    expect(serverRuns()).toHaveLength(1);
+    expect(srv!.env.NOTA_BENE_HANDOVER).toBe('1'); // a published launcher's server may exit 77
+    const runs = stubRuns();
+    expect(runs).toHaveLength(1);
+    const { argv, env: e } = runs[0]!;
+    expect(argv[0]).toBe(project);
+    expect(argv.slice(argv.indexOf('--port'), argv.indexOf('--port') + 2)).toEqual(['--port', '4791']);
+    expect(argv).toContain('--no-open');
+    expect(e.NOTA_BENE_INNER).toBe('1');
+    expect(e.NOTA_BENE_HANDOVER_NONCE).toMatch(/^[0-9a-f]{32}$/);
+    expect(e.NOTA_BENE_HANDOVER_NONCE).toBe(srv!.env.NOTA_BENE_NONCE);
+    expect(e.NOTA_BENE_UPDATED_FROM).toBe(OWN);
+    expect(e.NOTA_BENE_TEST_CRASH).toBeUndefined(); // the test hook fires once per outer part
+  }, 20000);
+
+  it('an inner launcher exit 77 runs the current launcher again, updated from the version that exited', async () => {
+    installStub('1.99.0', `fs.existsSync(${JSON.stringify(stubLog())}) ? 0 : 77`);
+    setCurrent('1.99.0');
+    const r = launch(['--port', '4794'], { NOTA_BENE_TEST_PUBLISHED: '1' });
+    expect(await r.exited).toBe(0);
+    const runs = stubRuns();
+    expect(runs).toHaveLength(2);
+    expect(runs[0]!.env.NOTA_BENE_UPDATED_FROM).toBeUndefined(); // the first start is no update
+    expect(runs[1]!.env.NOTA_BENE_UPDATED_FROM).toBe('1.99.0');
+    expect(runs[1]!.env.NOTA_BENE_HANDOVER_NONCE).toBe(runs[0]!.env.NOTA_BENE_HANDOVER_NONCE);
+    expect(runs[1]!.argv).toContain('4794');
+    expect(fs.readFileSync(path.join(runtime(), 'current'), 'utf8')).toBe('1.99.0'); // a 77 is no failure
+  }, 20000);
+
+  it('a new version that exits at once is rolled back', async () => {
+    installStub('1.99.0', 1);
+    setCurrent(OWN); // what the update replaced
+    setCurrent('1.99.0');
+    fs.writeFileSync(path.join(runtime(), 'state.json'), JSON.stringify({ auto: false, previous: OWN }));
+    const r = launch(['--port', '4792'], { NOTA_BENE_TEST_PUBLISHED: '1' });
+    await waitFor(async () => (await info(4792))?.root === project, 15000);
+    expect(stubRuns()).toHaveLength(1); // the first start went to the new version, with the user's own args
+    expect(stubRuns()[0]!.argv).toContain('--fake');
+    expect(fs.readFileSync(path.join(runtime(), 'current'), 'utf8').trim()).toBe(OWN);
+    const state = JSON.parse(fs.readFileSync(path.join(runtime(), 'state.json'), 'utf8'));
+    expect(state.rolledBack.version).toBe('1.99.0');
+    expect(fs.readFileSync(path.join(runtime(), 'update.log'), 'utf8')).toMatch(/1\.99\.0.*rolled back/);
+    expect(r.err()).toMatch(/rolled back/);
+    const w = await waitFor(() => windows()['4792']);
+    expect(w.launcherPid).toBe(r.p.pid); // the outer part runs the window itself now
+    expect((w as Win & { version?: string }).version).toBe(OWN);
+    expect(alive(r.p.pid!)).toBe(true);
+  }, 30000);
+
+  it('--detach with a handover prints the URL of the window the new version runs (its registry entry is the inner launcher\'s)', async () => {
+    // runtime 1.99.0's launcher is this checkout's (a symlink): a real window, run by an inner launcher
+    const v = path.join(runtime(), '1.99.0', 'node_modules', 'nota-bene-ide', 'bin');
+    fs.mkdirSync(v, { recursive: true });
+    fs.symlinkSync(BIN, path.join(v, 'nota-bene.mjs'));
+    setCurrent('1.99.0');
+    const r = spawnSync(process.execPath, [BIN, project, '--port', '4795', '--detach', '--fake', FAKE, '--no-open'], {
+      env: env({ NOTA_BENE_TEST_PUBLISHED: '1' }), encoding: 'utf8', timeout: 25000,
+    });
+    const w = windows()['4795'];
+    if (w?.launcherPid) groups.add(Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(w.launcherPid)], { encoding: 'utf8' }).trim())); // the outer part
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe(`opened ${await loginUrlOf(4795)}\n`);
+    expect(argsOf(w!.launcherPid!)).toContain(path.join(v, 'nota-bene.mjs'));
+    expect(await info(4795)).toMatchObject({ root: project });
+  }, 30000);
+
+  it('a checkout never hands over', async () => {
+    installStub('1.99.0', 0);
+    setCurrent('1.99.0');
+    const r = launch(['--port', '4793'], serverPreload());
+    await waitFor(async () => (await info(4793))?.root === project, 15000);
+    expect(stubRuns()).toHaveLength(0);
+    expect(serverRuns()[0]!.env.NOTA_BENE_HANDOVER).toBeUndefined();
+    expect((await waitFor(() => windows()['4793']) as Win & { version?: string }).version).toBe(OWN);
+    expect(alive(r.p.pid!)).toBe(true);
+  }, 20000);
 });
 
 describe('web/dist freshness', () => {
