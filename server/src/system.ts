@@ -329,7 +329,9 @@ export function systemRoutes(o: {
     '/system/update/restart': (req, res) => {
       if (!only('POST', req, res)) return;
       const r = o.updater.restart();
-      if (r === 'ok') json(res, 200, { ok: true }); else text(res, 409, r);
+      if (r !== 'ok') return text(res, 409, r);
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      res.end('{"ok":true}', () => o.updater.replied()); // the exit waits for the reply, and checks the pause once more
     },
     '/system/update/auto': (req, res) => {
       if (!only('POST', req, res)) return;

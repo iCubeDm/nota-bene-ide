@@ -609,7 +609,7 @@ export const ru = {
   updateInstalling: (v: string) => `Обновление до ${v}…`,
   updateReady: (v: string) => `Версия ${v} готова`,
   updateRestart: 'Перезапустить',
-  updateRestartBusy: 'Когда агент закончит',
+  updateRestartBusy: 'Когда закончат агент и запущенные команды',
   updateFailed: 'Обновление не удалось',
   updateLog: (p: string) => `Журнал: ${p}`,
   updateRolledBack: (v: string) => `Обновление до ${v} отменено`,

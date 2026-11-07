@@ -159,7 +159,7 @@ describe('updater', () => {
     u.stop();
   });
 
-  it('restart answers busy while a turn runs', async () => {
+  it('restart answers busy while a turn runs; the exit follows the reply', async () => {
     current('1.8.0');
     let busy = true;
     const { u, exit } = make({ busy: () => busy });
@@ -167,7 +167,32 @@ describe('updater', () => {
     busy = false;
     expect(u.restart()).toBe('ok');
     expect(exit).not.toHaveBeenCalled(); // after the reply
-    await vi.advanceTimersByTimeAsync(500);
+    u.replied();
+    expect(exit).toHaveBeenCalledWith(77);
+    u.stop();
+  });
+
+  it('a send between the accepted restart and its reply cancels the exit; the next pause restarts', async () => {
+    current('1.8.0');
+    let busy = false;
+    const { u, exit } = make({ busy: () => busy });
+    expect(u.restart()).toBe('ok');
+    busy = true; // a turn started meanwhile
+    u.replied();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(exit).not.toHaveBeenCalled();
+    busy = false;
+    expect(u.restart()).toBe('ok');
+    u.replied();
+    expect(exit).toHaveBeenCalledWith(77);
+    u.stop();
+  });
+
+  it('a reply that never finishes still exits, in a pause, after a grace', async () => {
+    current('1.8.0');
+    const { u, exit } = make();
+    expect(u.restart()).toBe('ok');
+    await vi.advanceTimersByTimeAsync(5_000);
     expect(exit).toHaveBeenCalledWith(77);
     u.stop();
   });

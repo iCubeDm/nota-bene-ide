@@ -593,7 +593,7 @@ export const es: Dict = {
   updateInstalling: (v) => `Actualizando a ${v}…`,
   updateReady: (v) => `${v} está lista`,
   updateRestart: 'Reiniciar',
-  updateRestartBusy: 'Cuando el agente termine',
+  updateRestartBusy: 'Cuando terminen el agente y los comandos en curso',
   updateFailed: 'La actualización falló',
   updateLog: (p) => `Registro: ${p}`,
   updateRolledBack: (v) => `Se revirtió la actualización a ${v}`,

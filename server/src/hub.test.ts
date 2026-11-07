@@ -365,3 +365,16 @@ describe('callState', () => {
     expect(hub.callState('toolu_A')).toEqual({ live: false, hasResult: true }); // finished: no longer live
   });
 });
+
+describe('EventHub.tasksRunning', () => {
+  it('counts the running tasks, not the watchers (ambient) nor the finished ones', () => {
+    const hub = new EventHub();
+    const task = (e: object) => hub.emit({ kind: 'agent', e: { t: 'task', ...e } as never });
+    expect(hub.tasksRunning()).toBe(0);
+    task({ id: 'a', phase: 'started', desc: 'build', type: 'local_bash' });
+    task({ id: 'w', phase: 'started', desc: 'watch', type: 'monitor_mcp', ambient: true });
+    expect(hub.tasksRunning()).toBe(1);
+    task({ id: 'a', phase: 'done', status: 'done' });
+    expect(hub.tasksRunning()).toBe(0);
+  });
+});

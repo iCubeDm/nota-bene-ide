@@ -8,8 +8,8 @@ import { CHECK_EVERY_MS, isNewer, RELEASE, updateCheckForcedOff } from './update
 export const HANDOVER = 77;
 /** While a newer version waits, the window looks for a pause this often. */
 const READY_EVERY_MS = 30_000;
-/** restart() answers first; the exit follows once the reply is out. */
-const REPLY_GRACE_MS = 200;
+/** restart() answers first; the exit follows once the reply is out (replied()), or after this long when that never comes. */
+const REPLY_LIMIT_MS = 2_000;
 /** A failed release is tried again by the automatic update this long after it failed (a transient npm failure must not end it). */
 export const RETRY_FAILED_MS = 60 * 60_000;
 
@@ -30,7 +30,10 @@ export type UpdateStatus = {
 export type Updater = {
   status(): Promise<UpdateStatus>;
   install(): Promise<UpdateStatus>;
+  /** accepts a restart in a pause; the exit itself waits for replied() */
   restart(): 'ok' | 'busy' | 'not-ready';
+  /** the accepted restart's reply is out: exits, unless the pause ended meanwhile (a send came), then the next pause does */
+  replied(): void;
   setAuto(on: boolean): void;
   stop(): void;
 };
@@ -61,6 +64,7 @@ export function updater(o: {
   const version = () => (own ??= Promise.resolve(typeof o.version === 'string' ? o.version : o.version()));
   let running: Promise<unknown> | null = null; // this window's own install
   let exiting = false;
+  let accepted: NodeJS.Timeout | null = null; // a restart said ok, its reply not yet out
 
   const allowed = (v: string) => o.canUpdate && RELEASE.test(v) && checkOn();
 
@@ -137,6 +141,16 @@ export function updater(o: {
     for (const t of timers) t.unref();
   }
 
+  // checked again at the exit: a send that came after restart() said ok must not be cut off
+  function replied(): void {
+    if (!accepted) return;
+    clearTimeout(accepted);
+    accepted = null;
+    if (exiting || ownVersion === null || o.busy() || !ready(ownVersion)) return;
+    exiting = true;
+    o.exit(HANDOVER);
+  }
+
   let ownVersion: string | null = typeof o.version === 'string' ? o.version : null;
   void version().then((v) => { ownVersion = v; });
 
@@ -145,12 +159,17 @@ export function updater(o: {
     install: doInstall,
     restart() {
       if (o.busy()) return 'busy';
-      if (ownVersion === null || exiting || !ready(ownVersion)) return 'not-ready';
-      exiting = true;
-      setTimeout(() => o.exit(HANDOVER), REPLY_GRACE_MS).unref();
+      if (ownVersion === null || exiting || accepted || !ready(ownVersion)) return 'not-ready';
+      accepted = setTimeout(replied, REPLY_LIMIT_MS);
+      accepted.unref();
       return 'ok';
     },
+    replied,
     setAuto(on) { patchUpdateState((s) => ({ ...s, auto: on })); },
-    stop() { for (const t of timers) clearInterval(t); },
+    stop() {
+      for (const t of timers) clearInterval(t);
+      if (accepted) clearTimeout(accepted);
+      accepted = null;
+    },
   };
 }

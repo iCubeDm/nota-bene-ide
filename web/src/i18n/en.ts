@@ -610,7 +610,7 @@ export const en: Dict = {
   updateInstalling: (v) => `Updating to ${v}…`,
   updateReady: (v) => `${v} is ready`,
   updateRestart: 'Restart',
-  updateRestartBusy: 'After the agent finishes',
+  updateRestartBusy: 'After the agent and running commands finish',
   updateFailed: 'Update failed',
   updateLog: (p) => `Log: ${p}`,
   updateRolledBack: (v) => `Update to ${v} was rolled back`,

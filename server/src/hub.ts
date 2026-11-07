@@ -72,6 +72,11 @@ export class EventHub {
     return reduceTasks({}, { kind: 'replay', events: this.history, ts: 0 } as ServerEvent)[id];
   }
 
+  /** The agent's tasks still running, not counting watchers (`ambient`): a window with one is not in a pause for an update. */
+  tasksRunning(): number {
+    return Object.values(reduceTasks({}, { kind: 'replay', events: this.history, ts: 0 } as ServerEvent)).filter((t) => t.status === 'running' && !t.ambient).length;
+  }
+
   /** Attached sockets. */
   clients(): number {
     return this.socks.size;

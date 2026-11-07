@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
-import { setDraft } from '@/composer/slice.ts';
+import { draftSent, setBuilding, setDraft, uploadStarted } from '@/composer/slice.ts';
 import { recheckUpdate, UpdateNotice } from './UpdateNotice.tsx';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
@@ -167,9 +167,29 @@ it('ready: a draft in the composer, a waiting approval or a busy agent hold the 
   render(<UpdateNotice />);
   const restart = await screen.findByRole('button', { name: 'Restart' });
   expect(restart).toBeDisabled();
-  expect(restart).toHaveAttribute('title', 'After the agent finishes');
+  expect(restart).toHaveAttribute('title', 'After the agent and running commands finish');
   await new Promise((r) => setTimeout(r, 50));
   expect(posted()).toEqual([]);
+});
+
+it('ready: an upload, a send not yet echoed, a combined image being built, a running ! command or task hold the restart', async () => {
+  answer = { ...status, canUpdate: true, phase: 'ready' };
+  const holds: [string, () => void][] = [
+    ['upload', () => store.dispatch(uploadStarted())],
+    ['unconfirmed send', () => store.dispatch(draftSent({ id: 'u1', text: 'hi', images: [], commentIds: [] }))],
+    ['building', () => store.dispatch(setBuilding(true))],
+    ['! command', () => store.dispatch(serverEvent({ kind: 'shell-start', id: 's1', cmd: 'npm test', ts: 1 }))],
+    ['task', () => store.dispatch(serverEvent({ kind: 'agent', e: { t: 'task', id: 't1', phase: 'started', desc: 'build', type: 'local_bash' }, ts: 1 }))],
+  ];
+  for (const [what, hold] of holds) {
+    store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+    act(hold);
+    const { unmount } = render(<UpdateNotice />);
+    await screen.findByText('1.3.0 is ready');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posted(), what).toEqual([]);
+    unmount();
+  }
 });
 
 it('ready: the Restart button restarts at once', async () => {

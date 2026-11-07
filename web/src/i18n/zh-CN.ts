@@ -593,7 +593,7 @@ export const zhCN: Dict = {
   updateInstalling: (v) => `正在更新到 ${v}…`,
   updateReady: (v) => `${v} 已就绪`,
   updateRestart: '重启',
-  updateRestartBusy: '待智能体完成后',
+  updateRestartBusy: '待智能体和运行中的命令完成后',
   updateFailed: '更新失败',
   updateLog: (p) => `日志：${p}`,
   updateRolledBack: (v) => `更新到 ${v} 已回滚`,

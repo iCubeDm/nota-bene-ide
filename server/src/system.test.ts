@@ -394,6 +394,7 @@ describe('update routes', () => {
       status: async () => ({ ...status, canUpdate: stub.can ?? true }),
       install: async () => { calls.push('install'); return { ...status, phase: 'installing' }; },
       restart: () => { calls.push('restart'); return stub.restartIs ?? 'ok'; },
+      replied: () => void calls.push('replied'),
       setAuto: (on) => void calls.push(`auto ${on}`),
       stop: () => undefined,
     };
@@ -424,10 +425,12 @@ describe('update routes', () => {
     expect((await fetch(`${s.url}/install`)).status).toBe(405);
   });
 
-  it('restart answers 200, 409 busy or 409 not-ready', async () => {
+  it('restart answers 200, 409 busy or 409 not-ready; only an accepted one hears that its reply is out', async () => {
     for (const [is, code, body] of [['ok', 200, '{"ok":true}'], ['busy', 409, 'busy'], ['not-ready', 409, 'not-ready']] as const) {
-      const r = await send(`${(await serve({ restartIs: is })).url}/restart`);
+      const s = await serve({ restartIs: is });
+      const r = await send(`${s.url}/restart`);
       expect([r.status, await r.text()]).toEqual([code, body]);
+      expect(s.calls).toEqual(is === 'ok' ? ['restart', 'replied'] : ['restart']);
     }
   });
 

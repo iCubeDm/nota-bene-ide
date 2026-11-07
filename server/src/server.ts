@@ -163,7 +163,8 @@ export async function startServer(o: {
     const win = updater({
       version: () => describeVersion(repoDir),
       canUpdate: process.env.NOTA_BENE_HANDOVER === '1',
-      busy: () => manager.busy(), // a turn, a waiting question or approval, or a switch in progress
+      // not a pause: a turn, a waiting question or approval, a switch, a `! cmd` run or a task of the agent still running
+      busy: () => manager.busy() || manager.shellRunning() || hub.tasksRunning() > 0,
       tabs: () => hub.clients(),
       exit: exitWith,
       newer,

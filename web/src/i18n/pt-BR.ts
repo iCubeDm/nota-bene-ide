@@ -593,7 +593,7 @@ export const ptBR: Dict = {
   updateInstalling: (v) => `Atualizando para ${v}…`,
   updateReady: (v) => `${v} está pronta`,
   updateRestart: 'Reiniciar',
-  updateRestartBusy: 'Depois que o agente terminar',
+  updateRestartBusy: 'Depois que o agente e os comandos em execução terminarem',
   updateFailed: 'A atualização falhou',
   updateLog: (p) => `Registro: ${p}`,
   updateRolledBack: (v) => `A atualização para ${v} foi revertida`,

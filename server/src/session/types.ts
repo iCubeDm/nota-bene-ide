@@ -67,6 +67,8 @@ export type SessionManager = {
   shellStop(id: string): void;
   /** The output so far of the run in progress, for a socket that attached meanwhile (null: none running or no output yet). */
   shellSnapshot(): { id: string; text: string; truncated: boolean } | null;
+  /** A `! cmd` run is in progress (an update waits for it: not a pause). */
+  shellRunning(): boolean;
   /** Context, plan limits and cost as last measured (what a new socket gets). */
   stats(): Stats;
   /** A socket attached: the stats catch up when the skipped 5-minute ticks left them stale. */
