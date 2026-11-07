@@ -102,6 +102,7 @@ it('throws on an unsupported shape, naming the definition and the pointer', () =
   expect(() => schemaToDart(schema({ Odd: { anyOf: [{ type: 'string' }, { type: 'number' }] } }))).toThrow(/Odd/);
 });
 
+// building the schema compiles protocol.ts: seconds on a loaded CI runner
 it('the real schema converts', () => {
   const dart = schemaToDart(buildSchema());
   expect(dart).toContain('const int protocolVersion = 13;');
@@ -112,4 +113,4 @@ it('the real schema converts', () => {
   expect(dart).toContain('final class MediaShapeRectOrEllipse extends MediaShape');
   expect(dart).toContain('enum AgentMode');
   expect(schemaToDart(buildSchema())).toBe(dart);
-});
+}, 60_000);

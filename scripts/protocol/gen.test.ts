@@ -15,10 +15,11 @@ function writeAll(files: Map<string, string>): string {
   return tmp;
 }
 
+// building the schema compiles protocol.ts: seconds on a loaded CI runner
 it('check passes on fresh output', () => {
   const files = generate();
   expect(check(files, writeAll(files))).toEqual([]);
-});
+}, 60_000);
 
 it('check names a stale file', () => {
   const files = generate();
@@ -29,4 +30,4 @@ it('check names a stale file', () => {
   expect(check(files, tmp)).toEqual([SCHEMA_PATH]);
   fs.appendFileSync(path.join(tmp, DART_PATH), ' ');
   expect(check(files, tmp)).toEqual([SCHEMA_PATH, DART_PATH]);
-});
+}, 60_000);

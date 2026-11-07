@@ -13,17 +13,18 @@ function refs(v: unknown, out: string[] = []): string[] {
   return out;
 }
 
+// building the schema compiles protocol.ts: seconds on a loaded CI runner
 it('holds every root and what it reaches', () => {
   const s = buildSchema();
   for (const k of ['ClientMessage', 'ServerEvent', 'UsageReport', 'Comment', 'Anchor', 'WireAgentEvent']) expect(s.definitions).toHaveProperty(k);
   const missing = refs(s).filter((r) => !(r.replace('#/definitions/', '') in s.definitions));
   expect(missing).toEqual([]);
-});
+}, 60_000);
 
 it('carries the protocol version', () => {
   expect(buildSchema()['x-protocol']).toBe(PROTOCOL);
-});
+}, 60_000);
 
 it('is deterministic', () => {
   expect(serialize(buildSchema())).toBe(serialize(buildSchema()));
-});
+}, 60_000);
