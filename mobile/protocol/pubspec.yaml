@@ -1,0 +1,10 @@
+name: nb_protocol
+description: Nota Bene wire protocol types, generated from the TypeScript protocol in shared/.
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0
