@@ -491,7 +491,7 @@
 [data-theme="solarized-light"] {
   color-scheme: light;
   --background: #fdf6e3;
-  --foreground: #566c73; /* #586e75: 4.39 on side */
+  --foreground: #3d5259; /* #586e75: 4.39 on side; darkened in OKLCH lightness only so the text:muted-fg contrast, 1.49, is at least Darcula's 1.48 */
   --card: #fdf6e3;
   --popover: #fdf6e3;
   --separator: #eee8d5;
@@ -530,7 +530,7 @@
   --pane-bg: #f5eedb; /* a step below the card: the paper steps up to it */
   /* the active tab; a pressed tool-window button in a focused panel and in an unfocused one */
   --tab-on-bg: #fdf6e3;
-  --tab-on-fg: #566c73; /* #586e75, as --foreground */
+  --tab-on-fg: #3d5259; /* #586e75, as --foreground */
   --tab-line: #268bd2; /* a line, not text: 3.41 on card clears 3:1 */
   --tool-on: #006cb1; /* #268bd2, as --primary */
   --tool-on-idle: #e4ddc8;
