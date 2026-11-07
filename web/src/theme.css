@@ -329,9 +329,9 @@
   --accent-agent: #067d17;
   --accent-model: #871094;
   --accent-usage: #846e00; /* #9e880d: 3.17 on chrome */
-  /* the header logo: IntelliJ blue, its orange */
-  --logo-tile: #3d7cf5;
-  --logo-tile-2: #2154c4;
+  /* the header logo: the tile is the button colour, its top a step lighter; its orange */
+  --logo-tile: #4584ff;
+  --logo-tile-2: var(--primary);
   --logo-paper: #ffffff;
   --logo-paper-2: #e6edfc;
   --logo-ink: #1e1f22;
@@ -591,9 +591,9 @@
   --accent-agent: #5f7000; /* #859900: 2.64 on chrome */
   --accent-model: #5d60b2; /* #6c71c4: 3.61 on chrome */
   --accent-usage: #bc3d00; /* #cb4b16: 3.80 on chrome */
-  /* the header logo: Solarized blue, its orange */
-  --logo-tile: #2a9bdf;
-  --logo-tile-2: #1a6fa8;
+  /* the header logo: the tile is the button colour, its top a step lighter; its orange */
+  --logo-tile: #237ec5;
+  --logo-tile-2: var(--primary);
   --logo-paper: #fdf6e3;
   --logo-paper-2: #eee8d5;
   --logo-ink: #073642;
