@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { installRelease, installing, launcherOf, pruneRuntime, readCurrent, readUpdateState, runtimeDir, writeCurrent } from './runtime.ts';
-import { registerWindow } from './windows.ts';
+import { moveWindow, registerWindow } from './windows.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -111,6 +111,15 @@ describe('runtime store', () => {
     pruneRuntime();
     const left = fs.readdirSync(runtimeDir()).filter((n) => /^\d/.test(n)).sort();
     expect(left).toEqual(['1.1.0', '1.3.0', '1.4.0']);
+  });
+
+  it('a folder switch keeps the version a window runs, so prune still keeps its release', () => {
+    for (const v of ['1.7.0', '1.8.0', '1.9.0']) fakeInstalled(v);
+    registerWindow(4791, '/p', process.pid, undefined, '1.7.0');
+    moveWindow(4791, '/q', process.pid); // the server re-registers after a switch
+    writeCurrent('1.8.0'); writeCurrent('1.9.0'); // previous = 1.8.0: 1.7.0 is protected only by the window
+    pruneRuntime();
+    expect(fs.existsSync(path.join(runtimeDir(), '1.7.0'))).toBe(true);
   });
 
   it('installing the current version never touches its folder, even if npm would fail', async () => {

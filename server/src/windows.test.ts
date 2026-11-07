@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { stateDir } from './state.ts';
-import { liveWindows, pidAlive, readWindows, registerWindow, restartingWindows, unregisterWindow } from './windows.ts';
+import { liveWindows, moveWindow, pidAlive, readWindows, registerWindow, restartingWindows, unregisterWindow } from './windows.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -35,6 +35,16 @@ describe('windows registry', () => {
     registerWindow(4791, '/p2', 112);
     expect(readWindows()).toMatchObject({ 4791: { root: '/p2', pid: 112 }, 4792: { root: '/q', pid: 5 } });
     expect(fs.readdirSync(path.join(home, 'windows')).sort()).toEqual(['4791.json', '4792.json']);
+  });
+
+  it('moveWindow changes the root and keeps what the launcher wrote (version, nonce)', () => {
+    registerWindow(4791, '/p', 111, 222, '1.7.0', 'n'.repeat(32));
+    moveWindow(4791, '/p2', 111, 222);
+    expect(readWindows()['4791']).toMatchObject({ root: '/p2', pid: 111, launcherPid: 222, version: '1.7.0', nonce: 'n'.repeat(32) });
+    registerWindow(4791, '/p', 999, 222, '1.6.0'); // another server on the port: its fields are not ours to keep
+    moveWindow(4791, '/p3', 111, 222);
+    expect(readWindows()['4791']).toMatchObject({ root: '/p3', pid: 111 });
+    expect(readWindows()['4791']!.version).toBeUndefined();
   });
 
   it('unregisters only when the pid matches', () => {

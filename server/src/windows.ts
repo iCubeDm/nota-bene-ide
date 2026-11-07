@@ -60,6 +60,16 @@ export function registerWindow(port: number, root: string, pid: number, launcher
   fs.renameSync(tmp, f);
 }
 
+/**
+ * A server's own re-register after a folder switch: the new root, and the fields only its launcher knows (the release it
+ * runs, which keeps that release from being pruned; the nonce) kept from the entry, when the entry is this server's.
+ */
+export function moveWindow(port: number, root: string, pid: number, launcherPid?: number): void {
+  const w = readEntry(port);
+  const own = w?.pid === pid ? w : undefined;
+  registerWindow(port, root, pid, launcherPid, own?.version, own?.nonce);
+}
+
 /** Removes the port's entry only if it is still this pid's (or unreadable): a newer window on the port keeps its own. */
 export function unregisterWindow(port: number, pid: number): void {
   if (fs.existsSync(fileOf(port)) && (readEntry(port)?.pid ?? pid) === pid) fs.rmSync(fileOf(port), { force: true });

@@ -26,7 +26,7 @@ import { listSessionsView, renameRoute } from './sessions.ts';
 import { codeChecker } from './codeStamp.ts';
 import { stateDir } from './state.ts';
 import { AuditLog } from './audit.ts';
-import { registerWindow } from './windows.ts';
+import { moveWindow } from './windows.ts';
 import { controlToken, describeVersion, systemRoutes } from './system.ts';
 import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
@@ -638,7 +638,7 @@ export async function startServer(o: {
     manager.onSwitch((_id, { restart }) => {
       if (restart || !supervised()) return;
       try {
-        registerWindow(port, root(), process.pid, process.ppid);
+        moveWindow(port, root(), process.pid, process.ppid); // keeps the release it runs: prune must not remove it
       } catch (e) {
         reportError(hub, 'windows', e);
       }
