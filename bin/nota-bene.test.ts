@@ -707,6 +707,29 @@ setInterval(() => {}, 1000);
     expect(alive(r.p.pid!)).toBe(true);
   }, 30000);
 
+  it('a signal while a failed new version\'s port is still held stops the launcher: the previous version is not started', async () => {
+    const go = path.join(tmp, 'go');
+    // the new version: records its run, then exits 1 (a failure within 60 s) once the test holds the port
+    const bin = path.join(runtime(), '1.99.0', 'node_modules', 'nota-bene-ide', 'bin', 'nota-bene.mjs');
+    fs.mkdirSync(path.dirname(bin), { recursive: true });
+    fs.writeFileSync(bin, `import fs from 'node:fs';
+fs.appendFileSync(${JSON.stringify(stubLog())}, JSON.stringify({ argv: process.argv.slice(2), env: {} }) + '\\n');
+setInterval(() => { if (fs.existsSync(${JSON.stringify(go)})) process.exit(1); }, 20);
+`);
+    setCurrent('1.99.0');
+    const r = launch(['--port', '4793'], { NOTA_BENE_TEST_PUBLISHED: '1', ...serverPreload() });
+    await waitFor(() => stubRuns().length === 1);
+    await hold(4793); // the port stays taken: the launcher waits for it before it would start the previous version
+    fs.writeFileSync(go, '');
+    await new Promise((res) => setTimeout(res, 1000)); // it exited: the launcher waits (up to 5 s) for the port
+    const at = Date.now();
+    r.p.kill('SIGTERM');
+    expect(await r.exited).toBe(0);
+    expect(Date.now() - at).toBeLessThan(3000);
+    expect(serverRuns()).toHaveLength(0); // the previous version never ran
+    expect(JSON.parse(fs.readFileSync(path.join(runtime(), 'state.json'), 'utf8')).rolledBack.version).toBe('1.99.0'); // it failed all the same
+  }, 30000);
+
   it('a new version whose server finds no agent binary (76) is not rolled back: the launcher exits 76', async () => {
     installStub('1.99.0', 76);
     setCurrent('1.99.0');

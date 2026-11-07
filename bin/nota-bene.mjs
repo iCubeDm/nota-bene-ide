@@ -1004,9 +1004,10 @@ async function outer(o, autoPort, release) {
         }
         if (failed) {
           killGroup(c.pid); // whatever of it is left (a hung server)
-          await portFreed(o.port);
+          await portFreed(o.port, () => stopping);
           rollBack(target, previous, failed);
           refused.add(target);
+          if (stopping) return 0; // a signal during the wait: the window stops, the previous version is not started
           from = undefined;
           delete process.env.NOTA_BENE_TEST_CRASH;
           continue; // on the previous version, same port and nonce
@@ -1064,10 +1065,10 @@ function killGroup(pgid) {
   }
 }
 
-/** Waits (bounded) until a killed window's port is free again, so the next run does not fail to listen on it. */
-async function portFreed(port, ms = 5000) {
+/** Waits (bounded, and no longer once `stop()` says so) until a killed window's port is free again, so the next run does not fail to listen on it. */
+async function portFreed(port, stop = () => false, ms = 5000) {
   const end = Date.now() + ms;
-  while (Date.now() < end && !(await portFree(port))) await sleep(100);
+  while (Date.now() < end && !stop() && !(await portFree(port))) await sleep(100);
 }
 
 /** `current` goes back to the version that ran before (only while it still names the failed one); the window says why. */
