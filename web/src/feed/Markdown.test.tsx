@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import hljs from 'highlight.js';
 import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
@@ -9,7 +9,15 @@ import { makeStore } from '@/store/store.ts';
 import { selectActiveTab } from '@/tabs/slice.ts';
 import { textOf } from '@/anchors/text.ts';
 import { setLang, t } from '@/i18n/index.ts';
+import { theme } from '@/shell/theme.ts';
 import { Markdown } from './Markdown';
+
+// no light theme ships yet: a test kind for Plannotator stands in for one
+const kinds = vi.hoisted(() => ({ plannotator: 'dark' as 'dark' | 'light' }));
+vi.mock('@nota-bene/shared', async (orig) => {
+  const real = await orig<typeof import('@nota-bene/shared')>();
+  return { ...real, THEME_KIND: new Proxy(real.THEME_KIND, { get: (o, k) => (k === 'plannotator' ? kinds.plannotator : Reflect.get(o, k)) }) };
+});
 
 vi.mock('mermaid', () => ({
   default: {
@@ -31,6 +39,30 @@ describe('Markdown', () => {
     const { container } = render(<Markdown text={MERMAID} final />);
     await waitFor(() => expect(container.querySelector('.mermaid-out svg[data-test="m"]')).not.toBeNull());
     expect(container.querySelector('pre')).toBeNull();
+  });
+
+  it('a theme switch re-renders mermaid only when the kind changes', async () => {
+    cleanup(); // earlier tests' blocks would draw again too
+    theme.choose('darcula');
+    vi.mocked(mermaid.render).mockClear();
+    const { container } = render(<Markdown text={MERMAID} final />);
+    await waitFor(() => expect(container.querySelector('.mermaid-out svg')).not.toBeNull());
+    expect(mermaid.render).toHaveBeenCalledTimes(1);
+    expect(mermaid.initialize).not.toHaveBeenCalledWith(expect.objectContaining({ theme: 'default' }));
+    theme.choose('plannotator'); // dark, like Darcula: nothing to draw again
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mermaid.render).toHaveBeenCalledTimes(1);
+    theme.choose('darcula');
+    kinds.plannotator = 'light';
+    try {
+      theme.choose('plannotator');
+      await waitFor(() => expect(mermaid.render).toHaveBeenCalledTimes(2));
+      expect(vi.mocked(mermaid.initialize).mock.calls.at(-1)![0]).toMatchObject({ theme: 'default' });
+      await waitFor(() => expect(container.querySelector('.mermaid-out > button')).not.toBeNull());
+    } finally {
+      kinds.plannotator = 'dark';
+      theme.choose('darcula');
+    }
   });
 
   it('numbers a code block by source line, a token across lines reopened, the text untouched', () => {

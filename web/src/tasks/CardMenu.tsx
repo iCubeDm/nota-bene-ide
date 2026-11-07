@@ -30,7 +30,7 @@ export function CardMenu({ call }: { call: string }) {
     <span ref={box} data-anchor-skip className="relative flex-none">
       <button type="button" data-agent-menu aria-haspopup="menu" aria-expanded={open} aria-label={t('taskMenu')} title={t('taskMenu')} onClick={() => setOpen((v) => !v)} className={`${BTN} px-1.5`}>⋯</button>
       {open && (
-        <span role="menu" data-agent-menu-items className="absolute top-full right-0 z-[16] mt-1 flex flex-col gap-1 rounded-md border border-border-soft bg-card p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
+        <span role="menu" data-agent-menu-items className="absolute top-full right-0 z-[16] mt-1 flex flex-col gap-1 rounded-md border border-border-soft bg-card p-1.5 shadow-[0_8px_30px_color-mix(in_oklch,var(--shade)_40%,transparent)]">
           <StopButton id={id} className={`${BTN} w-full text-left whitespace-nowrap`} />
           {foreground && <BackgroundButton id={id} task={task} className={`${BTN} w-full text-left whitespace-nowrap`} after={() => setOpen(false)} />}
         </span>

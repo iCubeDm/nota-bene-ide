@@ -1,8 +1,8 @@
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.min.css';
+import './hljs.css';
 import { marked } from 'marked';
-import { memo, type MouseEvent as ReactMouseEvent, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, type MouseEvent as ReactMouseEvent, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ReactReduxContext } from 'react-redux';
 import { t } from '@/i18n/index.ts';
@@ -13,6 +13,7 @@ import { openDiagram } from '@/tabs/slice.ts';
 import { HARDEN, renderMermaid, sanitizeSvg, type DiagramLang } from '@/diagram/render.ts';
 import { fileOfImage, markMentions, markRefs, openMediaFile } from '@/refs/refs.ts';
 import { fileTabId } from '@/tabs/slice.ts';
+import { theme } from '@/shell/theme.ts';
 import { ChatPlayer } from '@/media/ChatPlayer.tsx';
 import { setStartAt } from '@/files/startAt.ts';
 import { toast } from '@/shell/toast.ts';
@@ -103,6 +104,21 @@ function addMediaButtons(root: HTMLElement) {
   });
 }
 
+/** The source and theme kind of every mermaid drawing in the chat: a theme switch draws again the ones of the other kind. */
+const mermaidBlocks = new WeakMap<HTMLElement, { code: string; kind: 'dark' | 'light' }>();
+
+function drawMermaid(out: HTMLElement, code: string) {
+  const kind = theme.kind();
+  mermaidBlocks.set(out, { code, kind });
+  void renderMermaid(code).then((r) => {
+    if (mermaidBlocks.get(out)?.kind !== kind) return; // a newer drawing owns the block
+    if ('svg' in r) {
+      out.innerHTML = r.svg;
+      addOpenButton(out, code, 'mermaid');
+    } else out.textContent = r.error;
+  });
+}
+
 function postProcess(root: HTMLElement, final: boolean) {
   if (final) addMediaButtons(root);
   root.querySelectorAll<HTMLElement>('pre code').forEach((c) => {
@@ -113,12 +129,7 @@ function postProcess(root: HTMLElement, final: boolean) {
       out.className = 'mermaid-out';
       pre.replaceWith(out);
       const code = c.textContent ?? '';
-      void renderMermaid(code).then((r) => {
-        if ('svg' in r) {
-          out.innerHTML = r.svg;
-          addOpenButton(out, code, 'mermaid');
-        } else out.textContent = r.error;
-      });
+      drawMermaid(out, code);
     } else if (final && lang === 'svg') {
       const out = document.createElement('div');
       out.className = 'svg-out';
@@ -180,6 +191,12 @@ export const Markdown = memo(
       if (!final || !redux) return setPlayers((p) => (p.length ? [] : p));
       setPlayers(Array.from(ref.current.querySelectorAll<HTMLMediaElement>('.md-media > video, .md-media > audio'), (media) => ({ media, box: media.parentElement! })));
     }, [html, final, redux]);
+    useEffect(() => theme.subscribe(() => {
+      ref.current?.querySelectorAll<HTMLElement>('.mermaid-out').forEach((out) => {
+        const b = mermaidBlocks.get(out);
+        if (b && b.kind !== theme.kind()) drawMermaid(out, b.code);
+      });
+    }), []);
     const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
       const cb = (e.target as Element).closest('button.md-copy-code');
       if (cb && e.currentTarget.contains(cb)) {

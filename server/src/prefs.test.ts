@@ -49,6 +49,12 @@ describe('prefs', () => {
     fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ uiScale: 3 }));
     expect('uiScale' in readPrefs()).toBe(false);
   });
+  it('theme: kept when known, dropped when not', () => {
+    fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ theme: 'plannotator' }));
+    expect(readPrefs().theme).toBe('plannotator');
+    fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ theme: 'neon' }));
+    expect('theme' in readPrefs()).toBe(false);
+  });
   it('drops unknown mode values', () => {
     fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ modes: { '/a': 'bogus', '/b': 'plan' }, lang: 'en' }));
     expect(readPrefs()).toEqual({ modes: { '/b': 'plan' }, models: {}, lang: 'en', idleCompact: {} });

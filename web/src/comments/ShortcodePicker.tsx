@@ -122,7 +122,7 @@ export function ShortcodePicker({ target }: { target: RefObject<HTMLTextAreaElem
     <div
       ref={menu}
       role="listbox"
-      className="fixed z-20 max-h-[min(20rem,40vh)] overflow-y-auto w-60 rounded-[10px] border border-border bg-popover p-1 shadow-[0_10px_32px_rgba(0,0,0,0.5)]"
+      className="fixed z-20 max-h-[min(20rem,40vh)] overflow-y-auto w-60 rounded-[10px] border border-border bg-popover p-1 shadow-[0_10px_32px_color-mix(in_oklch,var(--shade)_50%,transparent)]"
       style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? 'visible' : 'hidden' }}
     >
       {state.items.map((it, k) => (

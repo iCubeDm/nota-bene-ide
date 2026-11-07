@@ -16,7 +16,7 @@ interface Open { items: string[]; sel: number; start: number; q: string }
 /** Bolds the matched characters: the same subsequence walk as the server. */
 export function highlight(text: string, q: string): ReactNode[] {
   let i = 0;
-  return [...text].map((ch, k) => (i < q.length && ch.toLowerCase() === q[i] ? (i++, <mark key={k} className="bg-transparent font-semibold text-primary">{ch}</mark> ) : ch));
+  return [...text].map((ch, k) => (i < q.length && ch.toLowerCase() === q[i] ? (i++, <mark key={k} className="bg-transparent font-semibold text-link">{ch}</mark> ) : ch));
 }
 
 /**
@@ -138,7 +138,7 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
     <div
       ref={menu}
       role="listbox"
-      className="fixed z-20 max-h-[min(20rem,40vh)] overflow-y-auto w-80 max-w-[90vw] rounded-[10px] border border-border bg-popover p-1 shadow-[0_10px_32px_rgba(0,0,0,0.5)]"
+      className="fixed z-20 max-h-[min(20rem,40vh)] overflow-y-auto w-80 max-w-[90vw] rounded-[10px] border border-border bg-popover p-1 shadow-[0_10px_32px_color-mix(in_oklch,var(--shade)_50%,transparent)]"
       style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? 'visible' : 'hidden' }}
     >
       {state.items.length === 0 && <div className="px-2 py-1 text-xs text-muted-foreground">{t('atNone')}</div>}

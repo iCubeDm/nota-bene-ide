@@ -1,25 +1,244 @@
 @import 'tailwindcss';
 
-/* Palette borrowed from Plannotator's default theme; values copied from prototype/public/index.html :root. */
+/* Fonts; the colours live in one block per theme below, selected by <html data-theme> (shell/theme.ts). */
 :root {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/*
+ * One block per theme, each with the same set of tokens (theme.test.ts). Not qualified by :root, so any element with a
+ * data-theme re-scopes the tokens below it (the swatches in Settings). Darcula is the default.
+ * Values that failed WCAG AA (theme.test.ts) moved in OKLCH lightness only; the spec's value is in the comment.
+ */
+/* Darcula: IntelliJ's Darcula (Classic UI) neutrals and accents on today's shadcn/ui shapes */
+:root, [data-theme="darcula"] {
+  --background: #2b2b2b;
+  --foreground: #c9ced6;
+  --card: #323435;
+  --popover: #3c3f41;
+  --separator: #505050;
+  --primary: #4876c0; /* #4a78c2: white text at 4.41 */
+  --primary-fg: #ffffff;
+  --muted: #3a3c3e;
+  --muted-fg: #a4aab1; /* #8f959c: 3.66 on muted, 3.51 on popover */
+  --nb-accent: #ffc66d;
+  --destructive: #ee7870; /* #e06c64: 3.87 as text on card */
+  --destructive-fg: #2b2b2b; /* white is 2.78 on the fill */
+  /* the destructive button's fill, and on hover */
+  --destructive-fill: var(--destructive);
+  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 90%, transparent);
+  --success: #66bf31;
+  --border: #4c4f52; /* #45484b: 1.36 on card */
+  --border-soft: rgb(255 255 255 / .07);
+  --code-bg: #2b2b2b;
+  --side: #2f3031;
+  --chrome: rgb(47 48 49 / .6);
+  --link: #66acff; /* #589df6: 3.82 on popover */
+  /* shadows (mixed with transparent where used), scrims behind dialogs and over video, the text on a scrim */
+  --shade: #000;
+  --scrim: #000;
+  --on-scrim: #fff;
+  /* an HTML page's own canvas, behind the iframe */
+  --page-bg: #fff;
+  /*
+   * the pane behind the paper card (.grid-pane): millimetre paper, white hairlines at 10, 5 and 1 mm. The finer layers
+   * also draw on the coarser lines, so the coarser alphas are what composites to .06 (10 mm) and .035 (5 mm):
+   * 1-(1-.018)(1-.0173) = .035, 1-(1-.018)(1-.0173)(1-.0259) = .06.
+   */
+  --pane-image:
+    linear-gradient(rgb(255 255 255 / .0259) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / .0259) 1px, transparent 1px),
+    repeating-linear-gradient(rgb(255 255 255 / .0173) 0 1px, transparent 1px 5mm),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / .0173) 0 1px, transparent 1px 5mm),
+    repeating-linear-gradient(rgb(255 255 255 / .018) 0 1px, transparent 1px 1mm),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / .018) 0 1px, transparent 1px 1mm);
+  --pane-size: 10mm 10mm;
+  /* the active tab; a pressed tool-window button in a focused panel and in an unfocused one */
+  --tab-on-bg: #45484b;
+  --tab-on-fg: #ffffff;
+  --tab-line: #4a88c7;
+  --tool-on: #4876c0; /* #4a78c2, as --primary */
+  --tool-on-idle: #4b4e51;
+  --tool-on-fg: #ffffff;
+  /* the header's function icons; the gear stays neutral */
+  --accent-sessions: #589df6;
+  --accent-agent: #66bf31;
+  --accent-model: #ae8abe;
+  --accent-usage: #ffc66d;
+  --code-inline-bg: #2e2e2e;
+  --code-inline-fg: #5f97df; /* #4f86cd: 3.64 */
+  /* code highlighting (feed/hljs.css): Darcula's editor colours */
+  --syn-text: #a9b7c6;
+  --syn-bg: #2b2b2b;
+  --syn-keyword: #d17d38; /* #cc7832: 4.25 */
+  --syn-string: #66bf31;
+  --syn-function: #ffc66d;
+  --syn-number: #6897bb;
+  --syn-comment: #929292; /* #808080: 3.59 */
+  --syn-type: #ffc66d;
+  --syn-variable: #f99e71;
+  --syn-property: #a785ba; /* #9876aa: 3.71 */
+  --syn-param: var(--syn-property);
+  --syn-builtin: var(--syn-keyword);
+  --syn-tag: #e8bf6a;
+  --syn-section: var(--syn-keyword);
+  --syn-bullet: var(--syn-keyword);
+  --syn-add: #b5e3a0;
+  --syn-add-bg: #294436;
+  --syn-del: #ffb4ae;
+  --syn-del-bg: #5c2e2e;
+  --focus-border: #466d94;
+  --focus-ring: #3d6185;
+  /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring */
+  --input-focus: var(--focus-border);
+  --input-focus-soft: var(--focus-border);
+  --input-ring: var(--focus-ring);
+  /* the composer's focus halo: the same 2px ring as the other inputs */
+  --composer-halo: 0 0 0 2px var(--input-ring);
+  /* "jump to source" (.nb-flash); a comment's highlight in the text while it is pending */
+  --flash: rgb(255 198 109 / .3);
+  --mark-pending: #ffc66d;
+  --mark-pending-line: #e8bf6a;
+  /* mermaid's canvas; the light canvas under an SVG (its strokes are usually dark) */
+  --diagram-bg: #2b2b2b;
+  --svg-bg: #f2f2f2;
+  /* colours that tell items apart, one set per theme: file-type marks (1-8), git-graph lanes (9-16), mode pills (17-20) */
+  --hue-1: #589df6;
+  --hue-2: #ffc66d;
+  --hue-3: #dc8742; /* #cc7832: 3.75 on card */
+  --hue-4: #ee7870; /* #e06c64: 3.87 on card */
+  --hue-5: #b38fc3; /* #ae8abe: 4.28 on card */
+  --hue-6: #66bf31;
+  --hue-7: #40abaa; /* #299999: 3.64 on card */
+  --hue-8: #969ca3; /* #8f959c: 4.14 on card */
+  --hue-9: #589df6;
+  --hue-10: #66bf31;
+  --hue-11: #ffc66d;
+  --hue-12: #e06c64;
+  --hue-13: #ae8abe;
+  --hue-14: #299999;
+  --hue-15: #cc7832;
+  --hue-16: #a9b7c6;
+  --hue-17: #40abaa;
+  --hue-18: #299999;
+  --hue-19: #ffc66d;
+  --hue-20: #e8bf6a;
+}
+
+/* Plannotator's default theme; values first copied from prototype/public/index.html :root. */
+[data-theme="plannotator"] {
   --background: oklch(0.15 0.02 260);
   --foreground: oklch(0.90 0.01 260);
   --card: oklch(0.22 0.02 260);
   --popover: oklch(0.28 0.025 260);
+  --separator: var(--border-soft);
   --primary: oklch(0.75 0.18 280);
   --primary-fg: oklch(0.15 0.02 260);
   --muted: oklch(0.26 0.02 260);
   --muted-fg: oklch(0.72 0.02 260);
   --nb-accent: oklch(0.70 0.20 60); /* the prototype's orange; shadcn's own `accent` (in @theme) is the grey hover background */
   --destructive: oklch(0.65 0.20 25);
+  --destructive-fg: #fff;
+  /* the destructive button's fill, and on hover; a dark OS gets shadcn's 60% fill (below) */
+  --destructive-fill: var(--destructive);
+  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 90%, transparent);
   --success: oklch(0.72 0.17 150);
   --border: oklch(0.35 0.02 260);
   --border-soft: oklch(0.35 0.02 260 / 0.5);
   --code-bg: oklch(0.26 0.02 260);
   --side: oklch(0.22 0.02 260);
   --chrome: oklch(0.22 0.02 260 / 0.5);
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --link: var(--primary);
+  /* shadows (mixed with transparent where used), scrims behind dialogs and over video, the text on a scrim */
+  --shade: #000;
+  --scrim: #000;
+  --on-scrim: #fff;
+  /* an HTML page's own canvas, behind the iframe */
+  --page-bg: #fff;
+  /* the pane behind the paper card (.grid-pane): a 24px grid */
+  --pane-image:
+    linear-gradient(oklch(0.90 0.01 260 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.90 0.01 260 / 0.035) 1px, transparent 1px);
+  --pane-size: 24px 24px;
+  /* the active tab; a pressed tool-window button in a focused panel and in an unfocused one */
+  --tab-on-bg: color-mix(in oklch, var(--primary) 15%, transparent);
+  --tab-on-fg: var(--primary);
+  --tab-line: transparent;
+  --tool-on: color-mix(in oklch, var(--primary) 15%, transparent);
+  --tool-on-idle: var(--tool-on);
+  --tool-on-fg: var(--primary);
+  /* the header's function icons: currentColor keeps the trigger's own text colour */
+  --accent-sessions: currentColor;
+  --accent-agent: currentColor;
+  --accent-model: currentColor;
+  --accent-usage: currentColor;
+  --code-inline-bg: var(--muted);
+  --code-inline-fg: var(--muted-fg);
+  /* code highlighting (feed/hljs.css): highlight.js's github-dark; currentColor leaves a class in its parent's colour */
+  --syn-text: #c9d1d9;
+  --syn-bg: #0d1117;
+  --syn-keyword: #ff7b72;
+  --syn-string: #a5d6ff;
+  --syn-function: #d2a8ff;
+  --syn-number: #79c0ff;
+  --syn-comment: #8b949e;
+  --syn-type: #ff7b72;
+  --syn-variable: #79c0ff;
+  --syn-property: #79c0ff;
+  --syn-param: currentColor;
+  --syn-builtin: #ffa657;
+  --syn-tag: #7ee787;
+  --syn-section: #1f6feb;
+  --syn-bullet: #f2cc60;
+  --syn-add: #aff5b4;
+  --syn-add-bg: #033a16;
+  --syn-del: #ffdcd7;
+  --syn-del-bg: #67060c;
+  --focus-border: color-mix(in oklch, var(--primary) 60%, transparent);
+  --focus-ring: color-mix(in oklch, var(--primary) 60%, transparent);
+  /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring (none here) */
+  --input-focus: var(--primary);
+  --input-focus-soft: color-mix(in oklab, var(--primary) 50%, transparent);
+  --input-ring: transparent;
+  /* the composer's focus halo: no ring here, the 3px primary tint it always had */
+  --composer-halo: 0 0 0 3px color-mix(in oklch, var(--primary) 12%, transparent);
+  /* "jump to source" (.nb-flash); a comment's highlight in the text while it is pending */
+  --flash: oklch(0.88 0.18 95 / 0.35);
+  --mark-pending: oklch(0.88 0.18 95);
+  --mark-pending-line: oklch(0.82 0.18 95);
+  /* mermaid's canvas; the light canvas under an SVG (its strokes are usually dark) */
+  --diagram-bg: oklch(0.19 0.02 260);
+  --svg-bg: oklch(0.97 0.005 260);
+  /* colours that tell items apart, one set per theme: file-type marks (1-8), git-graph lanes (9-16), mode pills (17-20) */
+  --hue-1: oklch(0.70 0.14 250);
+  --hue-2: oklch(0.82 0.15 90);
+  --hue-3: oklch(0.72 0.16 50);
+  --hue-4: oklch(0.66 0.19 25);
+  --hue-5: oklch(0.70 0.15 300);
+  --hue-6: oklch(0.72 0.14 150);
+  --hue-7: oklch(0.74 0.11 200);
+  --hue-8: oklch(0.72 0.05 250);
+  --hue-9: #7aa2f7;
+  --hue-10: #9ece6a;
+  --hue-11: #e0af68;
+  --hue-12: #f7768e;
+  --hue-13: #bb9af7;
+  --hue-14: #7dcfff;
+  --hue-15: #ff9e64;
+  --hue-16: #73daca;
+  --hue-17: oklch(0.80 0.12 185);
+  --hue-18: oklch(0.78 0.12 185);
+  --hue-19: oklch(0.84 0.13 80);
+  --hue-20: oklch(0.82 0.13 80);
+}
+
+/* Plannotator keeps shadcn's `dark:bg-destructive/60` (a dark OS, hover included); Darcula's fill is solid */
+@media (prefers-color-scheme: dark) {
+  [data-theme="plannotator"] {
+    --destructive-fill: color-mix(in oklab, var(--destructive) 60%, transparent);
+    --destructive-fill-hover: var(--destructive-fill);
+  }
 }
 
 @theme inline {
@@ -40,6 +259,9 @@
   --color-nb-accent: var(--nb-accent);
   --color-warn: var(--nb-accent);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-fg);
+  --color-destructive-fill: var(--destructive-fill);
+  --color-destructive-fill-hover: var(--destructive-fill-hover);
   --color-success: var(--success);
   --color-border: var(--border);
   --color-border-soft: var(--border-soft);
@@ -48,6 +270,52 @@
   --color-code: var(--code-bg);
   --color-side: var(--side);
   --color-chrome: var(--chrome);
+  --color-separator: var(--separator);
+  --color-link: var(--link);
+  --color-scrim: var(--scrim);
+  --color-on-scrim: var(--on-scrim);
+  --color-page: var(--page-bg);
+  --color-tab-on-bg: var(--tab-on-bg);
+  --color-tab-on-fg: var(--tab-on-fg);
+  --color-tab-line: var(--tab-line);
+  --color-tool-on: var(--tool-on);
+  --color-tool-on-idle: var(--tool-on-idle);
+  --color-tool-on-fg: var(--tool-on-fg);
+  --color-accent-sessions: var(--accent-sessions);
+  --color-accent-agent: var(--accent-agent);
+  --color-accent-model: var(--accent-model);
+  --color-accent-usage: var(--accent-usage);
+  --color-code-inline: var(--code-inline-bg);
+  --color-code-inline-foreground: var(--code-inline-fg);
+  --color-focus-border: var(--focus-border);
+  --color-focus-ring: var(--focus-ring);
+  --color-input-focus: var(--input-focus);
+  --color-input-focus-soft: var(--input-focus-soft);
+  --color-input-ring: var(--input-ring);
+  --color-mark-pending: var(--mark-pending);
+  --color-mark-pending-line: var(--mark-pending-line);
+  --color-diagram: var(--diagram-bg);
+  --color-svg: var(--svg-bg);
+  --color-hue-1: var(--hue-1);
+  --color-hue-2: var(--hue-2);
+  --color-hue-3: var(--hue-3);
+  --color-hue-4: var(--hue-4);
+  --color-hue-5: var(--hue-5);
+  --color-hue-6: var(--hue-6);
+  --color-hue-7: var(--hue-7);
+  --color-hue-8: var(--hue-8);
+  --color-hue-9: var(--hue-9);
+  --color-hue-10: var(--hue-10);
+  --color-hue-11: var(--hue-11);
+  --color-hue-12: var(--hue-12);
+  --color-hue-13: var(--hue-13);
+  --color-hue-14: var(--hue-14);
+  --color-hue-15: var(--hue-15);
+  --color-hue-16: var(--hue-16);
+  --color-hue-17: var(--hue-17);
+  --color-hue-18: var(--hue-18);
+  --color-hue-19: var(--hue-19);
+  --color-hue-20: var(--hue-20);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --radius-sm: 4px;
@@ -76,22 +344,20 @@
   /* Chinese wraps between any two characters: a short label in a tight pill would stand on end */
   :lang(zh-CN) button { word-break: keep-all; }
   button:focus { outline: none; }
-  button:focus-visible { outline: 2px solid oklch(0.75 0.18 280 / 0.6); outline-offset: 1px; }
+  button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 }
 
-/* 24px grid behind the paper card, as in the prototype's .pane */
+/* the theme's texture behind the paper card (Plannotator: the prototype's 24px grid, as in its .pane) */
 .grid-pane {
   background-color: var(--background);
-  background-image:
-    linear-gradient(oklch(0.90 0.01 260 / 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.90 0.01 260 / 0.035) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-image: var(--pane-image);
+  background-size: var(--pane-size);
   background-attachment: local;
 }
 
 /* brief highlight on the source item after "jump to source" in a comment card */
 @keyframes nb-player-flash { 0% { opacity: 0.95; transform: scale(0.9); } 15% { transform: scale(1); } 100% { opacity: 0; } }
-@keyframes nb-flash { from { background-color: oklch(0.88 0.18 95 / 0.35); } to { background-color: transparent; } }
+@keyframes nb-flash { from { background-color: var(--flash); } to { background-color: transparent; } }
 .nb-flash { animation: nb-flash 1.2s ease-out; }
 
 /* the tasks drawer slides up over the feed */
@@ -114,7 +380,7 @@
   border: 1px solid var(--border-soft);
   border-radius: 0.75rem;
   background: var(--card);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 3px color-mix(in oklch, var(--shade) 25%, transparent);
 }
 /* Media panes: one definite grid cell, so max-height in % resolves; a click toggles the natural size (.nb-natural scrolls). */
 .nb-media-pane:not([hidden]) { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; }

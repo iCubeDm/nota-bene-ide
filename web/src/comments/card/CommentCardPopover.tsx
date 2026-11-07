@@ -78,7 +78,7 @@ export function CommentCardPopover() {
     <div
       ref={root}
       role="dialog"
-      className="fixed z-10 w-[340px] shadow-[0_10px_32px_rgba(0,0,0,0.5)]"
+      className="fixed z-10 w-[340px] shadow-[0_10px_32px_color-mix(in_oklch,var(--shade)_50%,transparent)]"
       style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? 'visible' : 'hidden' }}
     >
       <CommentCard id={card.id} index={Math.max(0, index)} popover />

@@ -78,7 +78,7 @@ export function RecentFiles() {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o) close(); }}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim/40" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
           data-nb-modal=""
@@ -103,7 +103,7 @@ export function RecentFiles() {
             aria-expanded
             aria-controls="nb-recent-list"
             aria-activedescendant={items.length ? `nb-recent-opt-${cur}` : undefined}
-            className="mx-1 mb-1 flex-none rounded-md border border-border-soft bg-transparent px-2.5 py-1.5 text-[0.8125rem] text-foreground outline-none focus:border-primary"
+            className="mx-1 mb-1 flex-none rounded-md border border-border-soft bg-transparent px-2.5 py-1.5 text-[0.8125rem] text-foreground outline-none focus-visible:border-input-focus focus-visible:ring-2 focus-visible:ring-input-ring"
           />
           <div id="nb-recent-list" role="listbox" aria-label={t('recentTitle')} className="min-h-0 overflow-auto">
             {!items.length && (

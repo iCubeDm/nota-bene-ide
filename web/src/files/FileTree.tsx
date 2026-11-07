@@ -91,7 +91,7 @@ export function FileTree() {
         spinning={loading > 0} onRefresh={() => { void refresh(); void loadSources(true); }}
       />
       <input type="search" role="searchbox" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('filterPh')} aria-label={t('filterPh')}
-        className="mx-2 mt-2.5 mb-1.5 h-[30px] flex-none rounded-lg border border-transparent bg-muted/50 px-2.5 text-[0.78125rem] text-foreground outline-0 focus:border-primary/50" />
+        className="mx-2 mt-2.5 mb-1.5 h-[30px] flex-none rounded-lg border border-transparent bg-muted/50 px-2.5 text-[0.78125rem] text-foreground outline-0 focus:border-input-focus-soft focus:ring-2 focus:ring-input-ring" />
       {failed && <div role="alert" className="mx-2 mb-1 text-xs text-warn">{t('serverError', '/tree')}</div>}
       <div ref={scroller} className="min-h-0 flex-1 overflow-auto px-1.5 pt-0.5 pb-3">{renderDir(rows, '', 0)}</div>
     </aside>

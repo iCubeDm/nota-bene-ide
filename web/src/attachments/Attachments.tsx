@@ -21,7 +21,7 @@ export function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
       data-anchor-skip
       data-lightbox
       onClick={onClose}
-      className="fixed inset-0 z-50 grid cursor-zoom-out place-items-center bg-black/80"
+      className="fixed inset-0 z-50 grid cursor-zoom-out place-items-center bg-scrim/80"
     >
       <img src={`/attach/${id}`} alt="" className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain" />
     </div>,

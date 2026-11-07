@@ -21,7 +21,7 @@ export function TextBody({ data, kind, path, src, fileRef, tabId, active, url, p
     <p className="p-4 text-sm text-muted-foreground">
       {t(key)}
       {key !== 'fileGone' && (
-        <> · <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary underline">{t('openRaw')}</a></>
+        <> · <a href={url} target="_blank" rel="noopener noreferrer" className="text-link underline">{t('openRaw')}</a></>
       )}
     </p>
   );

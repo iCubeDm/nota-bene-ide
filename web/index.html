@@ -6,6 +6,11 @@
 <title>Nota Bene</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon-180.png">
+<script>
+// Apply the cached theme before the first paint (shell/theme.ts does it again once loaded).
+// Keep this list in step with THEMES in shared/src/lang.ts.
+try { var t = localStorage.getItem('nb.theme'); if (t === 'darcula' || t === 'plannotator') document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 </head>
 <body>
 <div id="root"></div>

@@ -147,3 +147,56 @@ test('the interface scale: the settings menu steps it and stays open, Alt+= / Al
   }
   await expect.poll(body).toBe('14px');
 });
+
+// Themes: the chat fixture's reply "show me" holds a code block and a mermaid block (the files fixture has neither).
+test('themes: the gear menu and Settings pick one, a reload keeps it, nothing keeps the old colours @chat', async ({ page }) => {
+  await start(page);
+  await composer(page).fill(`show me themes ${Date.now().toString(36)}`);
+  await composer(page).press('Enter');
+  await expect(page.locator('pre code .hljs-keyword').last()).toBeVisible();
+  await expect(page.locator('.mermaid-out svg').last()).toBeVisible();
+  const attr = () => page.evaluate(() => document.documentElement.dataset.theme);
+  const bodyBg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  /** Colours of the pieces that must follow the theme, as one record. */
+  const sample = () => page.evaluate(() => {
+    const css = (sel: string, prop: 'color' | 'backgroundColor') => {
+      const el = document.querySelectorAll(sel).item(document.querySelectorAll(sel).length - 1);
+      return el ? getComputedStyle(el)[prop] : 'missing';
+    };
+    return {
+      card: css('.nb-card', 'backgroundColor'),
+      keyword: css('pre code .hljs-keyword', 'color'),
+      diagram: css('.mermaid-out', 'backgroundColor'),
+      composer: css('textarea', 'backgroundColor') + '|' + css('textarea', 'color'),
+      sessions: css('#sessBtn svg', 'color'),
+    };
+  });
+  expect(await attr()).toBe('darcula');
+  expect(await bodyBg()).toBe('rgb(43, 43, 43)');
+  const darcula = await sample();
+  try {
+    await page.locator('#settingsBtn').click();
+    await page.locator('#themeMenu').focus(); // a submenu of the settings menu: the keyboard opens it
+    await page.keyboard.press('ArrowRight');
+    await page.locator('[data-theme-id="plannotator"]').focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(attr).toBe('plannotator');
+    await page.keyboard.press('Escape');
+    const body = await bodyBg();
+    expect(body).not.toBe('rgb(43, 43, 43)');
+    const plannotator = await sample();
+    for (const k of Object.keys(darcula) as (keyof typeof darcula)[]) expect(plannotator[k], k).not.toBe(darcula[k]);
+    await page.reload();
+    await expect(composer(page)).toBeVisible();
+    expect(await attr()).toBe('plannotator');
+    expect(await bodyBg()).toBe(body);
+  } finally {
+    // the fixture's prefs are shared by the other tests: back to Darcula, picked in Settings → Themes
+    await page.keyboard.press('Escape');
+    await page.locator('#settingsBtn').click();
+    await page.locator('#allSettings').click();
+    await page.getByRole('radiogroup', { name: 'Themes' }).getByRole('radio', { name: 'Darcula' }).click();
+  }
+  await expect.poll(attr).toBe('darcula');
+  expect(await bodyBg()).toBe('rgb(43, 43, 43)');
+});

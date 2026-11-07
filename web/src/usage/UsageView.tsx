@@ -149,7 +149,7 @@ function HitRow({ h, currency }: { h: UsageHit; currency: string | null }) {
   return (
     <>
       <tr className="group cursor-pointer" onClick={() => setOpen(!open)}>
-        <td className={TD}><button type="button" aria-expanded={open} className="cursor-pointer text-left whitespace-nowrap group-hover:text-primary">{when(h.ts)}</button></td>
+        <td className={TD}><button type="button" aria-expanded={open} className="cursor-pointer text-left whitespace-nowrap group-hover:text-link">{when(h.ts)}</button></td>
         <td className={`${TD} whitespace-nowrap`}>{h.kind === 'week' ? t('usageWeek') : t('usageH5')}</td>
         <td className={`${TD} text-right font-mono whitespace-nowrap`}>{fmtTokens(h.w)}</td>
         <td className={`${TD} text-right font-mono whitespace-nowrap`}>{num(h.calls)}</td>
@@ -279,7 +279,7 @@ function Spent({ r, color }: { r: UsageReport; color: (model: string) => string 
       {list === 'tasks' ? r.tasks.slice(0, shown).map((task) => (
         <Fragment key={task.id}>
           <Row share={task.w / r.tasks[0]!.w} aria-expanded={open === task.id} onClick={() => setOpen(open === task.id ? null : task.id)}>
-            <span className={`${ELLIPSIS} flex-1 group-hover:text-primary`}>{task.label || t('usageNoLabel')}</span>
+            <span className={`${ELLIPSIS} flex-1 group-hover:text-link`}>{task.label || t('usageNoLabel')}</span>
             <span className="text-xs whitespace-nowrap text-muted-foreground">{task.project}</span>
             <span className={VALUE}>{fmtTokens(task.w)}</span>
           </Row>

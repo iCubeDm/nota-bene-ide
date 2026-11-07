@@ -156,7 +156,7 @@ export function EmojiMenu({ target }: { target: RefObject<HTMLTextAreaElement | 
           ref={pop}
           role="dialog"
           aria-label={t('emojiTip')}
-          className="fixed z-30 flex w-[288px] flex-col rounded-[10px] border border-border bg-popover p-1.5 shadow-[0_10px_32px_rgba(0,0,0,0.5)]"
+          className="fixed z-30 flex w-[288px] flex-col rounded-[10px] border border-border bg-popover p-1.5 shadow-[0_10px_32px_color-mix(in_oklch,var(--shade)_50%,transparent)]"
           style={{ left: place?.left, top: place?.top, bottom: place?.bottom, height: place?.height }}
         >
           <input
@@ -165,7 +165,7 @@ export function EmojiMenu({ target }: { target: RefObject<HTMLTextAreaElement | 
             onChange={(e) => setQ(e.target.value)}
             placeholder={t('emojiSearchPh')}
             aria-label={t('emojiSearchPh')}
-            className="mb-1.5 w-full rounded-md border border-border-soft bg-background px-2 py-1 text-[0.78125rem] text-foreground focus:border-primary focus:outline-none"
+            className="mb-1.5 w-full rounded-md border border-border-soft bg-background px-2 py-1 text-[0.78125rem] text-foreground focus:border-input-focus focus:ring-2 focus:ring-input-ring focus:outline-none"
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
             {sections.length === 0 && all.length > 0 && <div className="px-1 py-2 text-[0.75rem] text-muted-foreground">{t('emojiNone')}</div>}

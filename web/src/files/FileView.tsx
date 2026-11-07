@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { PAGE_PROTOCOL } from '@/page/frame.ts';
 import { isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
 import { editable as isEditable } from '@/lib/editable.ts';
@@ -160,7 +161,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
           <button type="button" aria-label={t('editFile')} title={t('editFile')} onClick={() => setEditing(true)} className="rounded px-1.5 hover:bg-muted hover:text-foreground">✎</button>
         )}
         <button type="button" aria-label={t('reload')} title={t('reload')} onClick={load.reloadClick} className="rounded px-1.5 hover:bg-muted hover:text-foreground">↻</button>
-        <a href={tmp ? (blob.s === 'ok' ? blob.url : undefined) : url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">{t('openRaw')}</a>
+        <a href={tmp ? (blob.s === 'ok' ? blob.url : undefined) : url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground" aria-label={t('openRaw')} title={t('openRawTip')}><Svg size={14}>{ICONS.external}</Svg></a>
       </div>
       {kind === 'model' ? (
         <ModelPane path={path} src={src} fileRef={ref} tabId={tabId} active={active} reloadKey={load.bust} srcGone={srcGone} />

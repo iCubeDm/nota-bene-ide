@@ -52,7 +52,7 @@ it('one box per line rect with the pending class', async () => {
   const { marks } = setup([comment({})]);
   await waitFor(() => expect(marks()).toHaveLength(2));
   expect(marks()[0].getAttribute('data-hl')).toBe('pending');
-  expect(marks()[0].className).toContain('oklch(0.88_0.18_95/.38)');
+  expect(marks()[0].className).toContain('bg-mark-pending/38');
   expect((marks()[0] as HTMLElement).style.left).toBe('8px'); // 10 - 2 padding
 });
 
@@ -60,7 +60,7 @@ it('sent comments use the sent class', async () => {
   const { marks } = setup([comment({ status: 'sent' })]);
   await waitFor(() => expect(marks()).toHaveLength(2));
   expect(marks()[0].getAttribute('data-hl')).toBe('sent');
-  expect(marks()[0].className).toContain('oklch(0.75_0.18_280/.18)');
+  expect(marks()[0].className).toContain('bg-primary/18');
 });
 
 it('an orphaned comment draws nothing', async () => {

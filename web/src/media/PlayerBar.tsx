@@ -114,7 +114,7 @@ export function PlayerBar({ media, box, tabId, path = '', refName, flash, onTick
       onPointerLeave={() => setHover(false)}
       style={video && place ? { left: place.left, width: place.width, bottom: place.bottom } : undefined}
       className={video
-        ? `pointer-events-none absolute ${place ? '' : 'inset-x-0 bottom-0 '}z-20 bg-gradient-to-t from-black/75 to-transparent px-3 pt-10 pb-1.5 text-white transition-opacity duration-200 ${show ? 'opacity-100' : 'opacity-0'}`
+        ? `pointer-events-none absolute ${place ? '' : 'inset-x-0 bottom-0 '}z-20 bg-gradient-to-t from-scrim/75 to-transparent px-3 pt-10 pb-1.5 text-on-scrim transition-opacity duration-200 ${show ? 'opacity-100' : 'opacity-0'}`
         : 'w-full max-w-[min(36rem,calc(100%-2rem))] rounded-lg border border-border bg-card px-3 pt-1.5 pb-1 text-foreground'}
     >
       <div className={video ? 'pointer-events-auto' : ''}>

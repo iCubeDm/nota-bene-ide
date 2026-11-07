@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { DiagramTab } from '@/tabs/slice.ts';
+import { useTheme } from '@/shell/theme.ts';
 import { renderDiagram, svgSize, type Rendered } from './render.ts';
 import { centered, fitView, zoomAt, type View } from './zoom.ts';
 
@@ -20,12 +21,13 @@ export function DiagramView({ tab, active }: { tab: DiagramTab; active: boolean 
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [box, setBox] = useState({ cw: 0, ch: 0 });
   const [free, setFree] = useState<View | null>(null);
+  const themeId = useTheme(); // a mermaid diagram is drawn in the theme's kind: draw it again on a switch
 
   useEffect(() => {
     let live = true;
     void renderDiagram(tab.lang, tab.source).then((r) => live && setRendered(r));
     return () => { live = false; };
-  }, [tab.lang, tab.source]);
+  }, [tab.lang, tab.source, themeId]);
 
   // the drawing at its own size, so the pane's transform is the only thing that scales it
   useLayoutEffect(() => {
@@ -117,7 +119,7 @@ export function DiagramView({ tab, active }: { tab: DiagramTab; active: boolean 
       onPointerCancel={onPointerUp}
       onClick={onClick}
       // mermaid's dark theme is drawn for a dark ground, a plain svg for a light one (as in the chat)
-      className={`grid-pane relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden select-none active:cursor-grabbing ${tab.lang === 'svg' ? 'bg-[oklch(0.97_0.005_260)]' : ''}`}
+      className={`grid-pane relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden select-none active:cursor-grabbing ${tab.lang === 'svg' ? 'bg-svg' : ''}`}
     >
       {rendered && 'error' in rendered ? (
         <p className="p-4 text-sm text-destructive">{rendered.error}</p>

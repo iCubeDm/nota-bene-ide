@@ -48,7 +48,7 @@ export function CompactClear() {
                 aria-pressed={idleOn}
                 disabled={idle.blocked}
                 aria-label={idleTip}
-                className={idleOn ? 'text-[var(--nb-accent,oklch(0.70_0.20_60))]' : 'text-muted-foreground/60'}
+                className={idleOn ? 'text-nb-accent' : 'text-muted-foreground/60'}
                 onClick={() => dispatch(toggleIdleCompact())}
               >
                 {/* a clock with the compact chevron */}

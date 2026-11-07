@@ -6,7 +6,7 @@ import { connState, makeStore, serverEvent } from '@/store/store.ts';
 import { App } from '@/App.tsx';
 import { recentModal } from '@/files/recent.ts';
 import { openFile, selectTabs } from '@/tabs/slice.ts';
-import { BINDINGS, keysLabel } from './keymap.ts';
+import { BINDINGS, keysLabel, withKey } from './keymap.ts';
 
 beforeEach(() => {
   localStorage.clear();
@@ -217,4 +217,9 @@ it('while the window is occupied or taken (the overlay) no hotkey runs; once ope
   act(() => void s.dispatch(connState('open')));
   key('ArrowRight', { alt: true });
   expect(active(s)).toBe('chat');
+});
+
+it('withKey names the key', () => {
+  const plat = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
+  try { expect(withKey('Files', 'hk_files')).toBe('Files (⌘⇧F)'); } finally { plat.mockRestore(); }
 });

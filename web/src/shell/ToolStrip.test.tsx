@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/store/store.ts';
@@ -46,4 +47,37 @@ it('a closed tree stays closed on the next load', () => {
   expect(localStorage.getItem('panel:tree')).toBe('0');
   cleanup();
   expect(makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) }).getState().tree.open).toBe(false);
+});
+
+it('pressed button is grey until its panel has focus', () => {
+  setup();
+  // the panels themselves live elsewhere (FileTree, Composer): stand-ins with the same ids
+  const sheet = document.createElement('aside');
+  sheet.id = 'tree-sheet';
+  const row = document.createElement('button');
+  sheet.append(row);
+  const composer = document.createElement('textarea');
+  document.body.append(sheet, composer);
+  try {
+    const files = document.getElementById('toggleTree')!;
+    expect(files).toHaveAttribute('aria-pressed', 'true');
+    expect(document.activeElement).toBe(document.body);
+    expect(files).toHaveAttribute('data-focused', 'false');
+    act(() => row.focus());
+    expect(files).toHaveAttribute('data-focused', 'true');
+    act(() => composer.focus());
+    expect(files).toHaveAttribute('data-focused', 'false');
+  } finally {
+    sheet.remove();
+    composer.remove();
+  }
+});
+
+it.each([['toggleTree', 'Files (⌘⇧F)'], ['toggleComments', 'Comments (⌘⇧C)']])('the %s tooltip names the key', async (id, text) => {
+  const plat = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
+  try {
+    setup();
+    await userEvent.hover(document.getElementById(id)!);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(text);
+  } finally { plat.mockRestore(); }
 });

@@ -187,7 +187,7 @@ Click a file to open it in a tab:
 - An HTML file opens as the page; **Source** shows its text (next section).
 - Code blocks in replies and Markdown files wrap, with a number per source line, and a button on hover copies the block.
 - Images, video and audio open in a viewer (next section).
-- Files over 2 MB and binary files are not shown ("File is too large to show", "Binary file, not shown"). **Open raw** shows the file as the server sends it.
+- Files over 2 MB and binary files are not shown ("File is too large to show", "Binary file, not shown"). The **Open raw** icon (the arrow out of a box) in the file's header shows the file as the server sends it.
 - **✎** in a text file's header edits it by hand: Alt+S or Cmd/Ctrl+S saves. Text that is not saved stays through a closed tab or a reload. If the file changed on disk during your edit (the agent wrote it, say), nothing is overwritten until you choose: overwrite it, or take the version on disk. Files of another branch or worktree stay read-only.
 - Paths in `code` spans and relative links in the chat are clickable. A path whose file does not exist is struck through.
 
@@ -294,7 +294,7 @@ The task indicator under the message box counts running subagents and background
 
 ## Sessions and history
 
-**Sessions** in the header opens a picker over the selected provider's sessions on the machine, grouped by folder, with the current project first and a filter box (title or folder). Pick one to switch the window to it in place, without a reload. If the session is from another folder, the window moves to that project (tree, file access and the agent's working folder). The dialog warns you not to keep the same session open in another agent client at the same time: the history would get mixed up. **+ new session in this project** starts a fresh one. A new session can only start in the current folder or in a folder that already has sessions.
+The **Sessions** icon in the header opens a picker over the selected provider's sessions on the machine, grouped by folder, with the current project first and a filter box (title or folder). Pick one to switch the window to it in place, without a reload. If the session is from another folder, the window moves to that project (tree, file access and the agent's working folder). The dialog warns you not to keep the same session open in another agent client at the same time: the history would get mixed up. **+ new session in this project** starts a fresh one. A new session can only start in the current folder or in a folder that already has sessions.
 
 ✎ on a row renames that session, the open one or any other, without switching to it. The open session also has **Rename** in the chat tab's right-click menu. Enter saves, Esc cancels. The title is the agent's own, so Claude Code or Codex shows it too.
 
@@ -302,7 +302,7 @@ Branches of a conversation: `/nb fork` from Claude Code, or `nota-bene --resume 
 
 Claude Code replays a session only from its last compaction. Nota Bene keeps what came before: after a `/compact` an earlier part of the chat shows a "Show before compaction" link that loads the archived segment. The archive is in `history/<sessionId>.jsonl` in the state folder.
 
-The **↻ Agent** button restarts the agent and continues the same session. It stays available while the agent is busy, as an escape hatch for a stuck turn. The arrow next to it has **Restart the server**, shown when the window runs under the launcher (always for `/nb` and `nota-bene`, never for `npm start` or `npm run dev`). A **Restart server · code updated** button appears when the server's code changed after it started; this only matters when you are developing Nota Bene itself.
+The **Restart the agent** icon (↻) restarts the agent and continues the same session. It stays available while the agent is busy, as an escape hatch for a stuck turn. The arrow next to it has **Restart the server**, shown when the window runs under the launcher (always for `/nb` and `nota-bene`, never for `npm start` or `npm run dev`). A **Restart server · code updated** button appears when the server's code changed after it started; this only matters when you are developing Nota Bene itself.
 
 ## Permission modes, settings, languages
 
@@ -321,12 +321,19 @@ The mode is saved per project folder. The model and effort pill in the header se
 
 ### Settings
 
-The gear in the header opens a menu: the interface language, the interface scale (− and + step it and keep the menu open; Alt+= and Alt+− do the same anywhere, Alt+0 goes back to 100 %), and **All settings…**, the Settings tab:
+The gear in the header opens a menu: the interface language, the colour theme, the interface scale (− and + step it and keep the menu open; Alt+= and Alt+− do the same anywhere, Alt+0 goes back to 100 %), and **All settings…**, the Settings tab:
 
 - **Windows**: every running window with its folder, port, state (working or idle), number of open tabs and uptime. Open, Restart agent, Restart server and Stop work on any of them.
 - **Storage**: what is on disk for pasted images, comments, chat history from before compaction and media marks, with **Clean unreferenced files**, which moves pasted images that no comment references and that are over a day old, and the history of sessions that no longer exist, to the state folder's `trash/`. Nothing is deleted.
 - **Defaults**: interface language, interface scale (90–150 %: text and spacing grow, for every window at once), and the agent mode for projects that have none of their own.
+- **Themes**: the colour themes, each with a swatch of its own colours; pick one. It is the same choice as the Theme row of the gear menu.
 - **About**: version, state folder, where the logs are, Node version.
+
+Sessions, Restart the agent and a file's Open raw are icons; each names itself in a tooltip, and a tooltip also names the key when the action has one.
+
+### Themes
+
+Two colour themes ship: **Darcula**, the default, with IntelliJ's colours on millimetre paper, and **Plannotator**, the look earlier versions had. Pick one in the gear menu (Theme) or in Settings → Themes. The choice is saved in `prefs.json` and shared by all windows; a window that is already open takes it when it next connects. Code highlighting and mermaid diagrams follow the theme. Layout, tabs and keys do not change with it.
 
 ### Languages
 

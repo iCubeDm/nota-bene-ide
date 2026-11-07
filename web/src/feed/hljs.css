@@ -1,0 +1,59 @@
+/*
+ * highlight.js classes on the theme's --syn-* tokens. The selectors, their grouping and order are those of
+ * highlight.js/styles/github-dark.css (which this file replaces), so Plannotator, whose tokens hold github-dark's
+ * colours, looks as before.
+ */
+pre code.hljs { display: block; overflow-x: auto; padding: 1em; }
+code.hljs { padding: 3px 5px; }
+.hljs { color: var(--syn-text); background: var(--syn-bg); }
+
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-variable.language_ { color: var(--syn-keyword); }
+.hljs-type { color: var(--syn-type); }
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ { color: var(--syn-function); }
+
+.hljs-attr,
+.hljs-attribute { color: var(--syn-property); }
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id { color: var(--syn-number); }
+.hljs-variable { color: var(--syn-variable); }
+
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string { color: var(--syn-string); }
+
+.hljs-built_in,
+.hljs-symbol { color: var(--syn-builtin); }
+
+.hljs-comment,
+.hljs-code,
+.hljs-formula { color: var(--syn-comment); }
+
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo { color: var(--syn-tag); }
+
+.hljs-subst { color: var(--syn-text); }
+.hljs-section { color: var(--syn-section); font-weight: bold; }
+.hljs-bullet { color: var(--syn-bullet); }
+.hljs-emphasis { color: var(--syn-text); font-style: italic; }
+.hljs-strong { color: var(--syn-text); font-weight: bold; }
+.hljs-addition { color: var(--syn-add); background-color: var(--syn-add-bg); }
+.hljs-deletion { color: var(--syn-del); background-color: var(--syn-del-bg); }
+
+.hljs-params,
+.hljs-property { color: var(--syn-param); }

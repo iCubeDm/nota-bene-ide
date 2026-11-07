@@ -254,6 +254,24 @@ describe('defaults and about', () => {
     expect((await hello(other.url)).uiScale).toBe(1.25);
   });
 
+  it('theme: saved for every window, unknown ids refused', async () => {
+    const s = await boot();
+    const hello = async (url: string) => {
+      const ws = new WebSocket(url.replace('http', 'ws') + '/ws');
+      closers.push(async () => void ws.terminate());
+      return new Promise<{ theme?: string }>((res) => ws.on('message', (d) => {
+        const e = JSON.parse(String(d)) as { kind: string; theme?: string };
+        if (e.kind === 'hello') res(e);
+      }));
+    };
+    expect('theme' in (await hello(s.url))).toBe(false);
+    expect((await post(`${s.url}/system/prefs`, { theme: 'neon' }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { theme: 'plannotator' }, { origin: s.origin })).status).toBe(200);
+    expect(readPrefs().theme).toBe('plannotator');
+    const other = await boot(mkExtra('nb-system-theme-'));
+    expect((await hello(other.url)).theme).toBe('plannotator');
+  });
+
   it('the UI language is one global pref: validated, stored in prefs.json, merged with the default mode, sent in hello', async () => {
     const s = await boot();
     const hello = async (url: string) => {

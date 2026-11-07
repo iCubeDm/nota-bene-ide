@@ -250,7 +250,7 @@ export function HtmlBody({ html, path, src, fileRef, tabId, active, paneRef, mar
     >
       <iframe
         ref={frame} data-page-frame title={path} sandbox="allow-same-origin" srcDoc={page.doc} onLoad={onLoad}
-        className="block w-full border-0 bg-white [color-scheme:light]" style={{ height: height || '100%' }}
+        className="block w-full border-0 bg-page [color-scheme:light]" style={{ height: height || '100%' }}
       />
       <div ref={hover} hidden data-page-hover className="pointer-events-none absolute rounded-[3px] border-2 border-nb-accent bg-nb-accent/10" />
       <div ref={drag} hidden data-page-drag className="pointer-events-none absolute border-2 border-dashed border-nb-accent bg-nb-accent/15" />

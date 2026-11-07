@@ -69,7 +69,7 @@ export function TasksDrawer() {
       role="region"
       aria-label={t('tasksDrawer')}
       data-tasks-drawer
-      className="nb-drawer absolute inset-x-0 bottom-0 z-[15] mx-auto max-h-[60%] max-w-[860px] overflow-auto rounded-t-xl border border-b-0 border-border-soft bg-card/95 shadow-[0_-8px_30px_rgba(0,0,0,0.35)] backdrop-blur-[16px]"
+      className="nb-drawer absolute inset-x-0 bottom-0 z-[15] mx-auto max-h-[60%] max-w-[860px] overflow-auto rounded-t-xl border border-b-0 border-border-soft bg-card/95 shadow-[0_-8px_30px_color-mix(in_oklch,var(--shade)_35%,transparent)] backdrop-blur-[16px]"
     >
       {rows.length === 0 ? (
         <div className="px-4 py-3 text-xs text-muted-foreground">{t('tasksNone')}</div>

@@ -7,10 +7,15 @@ import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openChanges, openLog, selectTabs } from '@/tabs/slice.ts';
 import { setPanel, useVcsUi } from '@/vcs/store.ts';
+import { useFocusWithin } from './focusWithin.ts';
+import { withKey, type Binding } from './keymap.ts';
 
-/** One tool-window button: an icon that toggles its panel, the name in a tooltip on the panel's side. */
-function ToolButton({ id, label, pressed, side, onClick, children }: {
-  id: string; label: string; pressed: boolean; side: 'left' | 'right'; onClick: () => void; children: ReactNode;
+/**
+ * One tool-window button: an icon that toggles its panel, the name in a tooltip on the panel's side. Pressed, it is
+ * --tool-on while its panel has the focus and --tool-on-idle otherwise (IntelliJ's blue and grey).
+ */
+function ToolButton({ id, label, keyId, pressed, focused, side, onClick, children }: {
+  id: string; label: string; keyId?: Binding['id']; pressed: boolean; focused: boolean; side: 'left' | 'right'; onClick: () => void; children: ReactNode;
 }) {
   return (
     <Tooltip>
@@ -20,16 +25,23 @@ function ToolButton({ id, label, pressed, side, onClick, children }: {
           id={id}
           aria-pressed={pressed}
           aria-label={label}
+          data-focused={focused}
           onClick={onClick}
-          className={`relative grid size-[28px] place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground ${pressed ? 'bg-primary/15 text-primary hover:text-primary' : ''}`}
+          className={`relative grid size-[28px] place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground ${pressed ? `${focused ? 'bg-tool-on' : 'bg-tool-on-idle'} text-tool-on-fg hover:text-tool-on-fg` : ''}`}
         >
           {children}
         </button>
       </TooltipTrigger>
-      <TooltipContent side={side === 'left' ? 'right' : 'left'}>{label}</TooltipContent>
+      <TooltipContent side={side === 'left' ? 'right' : 'left'}>{keyId ? withKey(label, keyId) : label}</TooltipContent>
     </Tooltip>
   );
 }
+
+// the panels the buttons open (module-level getters: the hook re-subscribes when its getter changes)
+const treeSheet = () => document.getElementById('tree-sheet');
+const changesSheet = () => document.getElementById('changes-sheet');
+const logPane = () => document.querySelector('[data-pane="log"]');
+const commentsPanel = () => document.getElementById('comments');
 
 const strip = 'flex w-9 flex-none flex-col items-center gap-1 bg-chrome py-1.5';
 
@@ -40,17 +52,20 @@ export function LeftStrip() {
   const open = useAppSelector(selectTree).open;
   const ui = useVcsUi();
   const active = useAppSelector(selectTabs).active;
+  const inTree = useFocusWithin(treeSheet);
+  const inChanges = useFocusWithin(changesSheet);
+  const inLog = useFocusWithin(logPane);
   return (
     <nav aria-label={t('toolsLeft')} data-strip="left" className={`${strip} border-r border-border-soft`}>
-      <ToolButton id="toggleTree" label={t('files')} pressed={open} side="left" onClick={() => { setPanel(false); d(setTreeOpen(!open)); }}>
+      <ToolButton id="toggleTree" label={t('files')} keyId="hk_files" pressed={open} focused={inTree} side="left" onClick={() => { setPanel(false); d(setTreeOpen(!open)); }}>
         <Svg size={16}>{ICONS.dir}</Svg>
       </ToolButton>
       {ui.hasRepo && (
         <>
-          <ToolButton id="toggleChanges" label={t('vcsChanges')} pressed={ui.panel} side="left" onClick={() => { d(setTreeOpen(false)); setPanel(!ui.panel); if (!ui.panel) d(openChanges()); }}>
+          <ToolButton id="toggleChanges" label={t('vcsChanges')} pressed={ui.panel} focused={inChanges} side="left" onClick={() => { d(setTreeOpen(false)); setPanel(!ui.panel); if (!ui.panel) d(openChanges()); }}>
             <Svg size={16}>{ICONS.changes}</Svg>
           </ToolButton>
-          <ToolButton id="toggleLog" label={t('vcsLog')} pressed={active === 'log'} side="left" onClick={() => d(openLog())}>
+          <ToolButton id="toggleLog" label={t('vcsLog')} pressed={active === 'log'} focused={inLog} side="left" onClick={() => d(openLog())}>
             <Svg size={16}>{ICONS.log}</Svg>
           </ToolButton>
         </>
@@ -64,9 +79,10 @@ export function RightStrip() {
   const d = useAppDispatch();
   const open = useAppSelector(selectCommentsUi).panelOpen;
   const n = useAppSelector(selectPending).length;
+  const inComments = useFocusWithin(commentsPanel);
   return (
     <nav aria-label={t('toolsRight')} data-strip="right" className={`${strip} border-l border-border-soft`}>
-      <ToolButton id="toggleComments" label={n ? t('commentsN', n) : t('comments')} pressed={open} side="right" onClick={() => d(setPanelOpen(!open))}>
+      <ToolButton id="toggleComments" label={n ? t('commentsN', n) : t('comments')} keyId="hk_comments" pressed={open} focused={inComments} side="right" onClick={() => d(setPanelOpen(!open))}>
         <Svg size={16}>{ICONS.comments}</Svg>
         {n > 0 && (
           <span data-testid="pending-badge" className="absolute -top-0.5 -right-0.5 min-w-3.5 rounded-full bg-nb-accent px-1 text-center text-[0.5625rem] font-semibold leading-3.5 text-background">

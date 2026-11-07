@@ -6,6 +6,10 @@ type Dict = { [K in keyof typeof ru]: (typeof ru)[K] };
 
 export const en: Dict = {
   langTip: 'Interface language',
+  theme: 'Theme',
+  setThemes: 'Themes',
+  themeTip: 'Colour theme of the interface',
+  openRawTip: 'Open the file itself in a new browser tab',
   toLatest: 'Jump to the latest',
   emptyChat: 'Write to the agent to get started',
   earlierShow: 'Show before compaction',
@@ -558,7 +562,6 @@ export const en: Dict = {
   switchWarn: '\n\nThe window switches in place, without a reload.\nDon’t keep this same session open in a terminal claude: the history would get mixed up.',
   switchBtn: 'Switch',
   switching: 'switching…',
-  restart: '↻ Agent', // the prototype's '↻ Server' restarted the server; here the button restarts the agent (the server is in the ▾ menu)
   restarting: 'restarting…',
   restartTip: 'Restart the agent and continue the same session',
   restartAgent: 'Restart the agent',

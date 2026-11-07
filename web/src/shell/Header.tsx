@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { getLang, chooseLang, LANGS, useT } from '@/i18n/index.ts';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { selectConn, selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openSettings, openUsage } from '@/tabs/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
@@ -12,6 +12,8 @@ import { RestartMenu } from './RestartMenu.tsx';
 import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
 import { UI_SCALES } from '@nota-bene/shared';
+import { THEMES, type ThemeId } from '@nota-bene/shared';
+import { theme, THEME_NAMES, useTheme } from './theme.ts';
 import { scaleLabel, uiScale, useUiScale } from './uiScale.ts';
 
 const row = 'gap-2.5 px-2 py-1.5 text-[0.8125rem] text-foreground [&>svg]:text-muted-foreground';
@@ -23,6 +25,7 @@ export function Header() {
   const d = useAppDispatch();
   const lang = getLang();
   const scale = useUiScale();
+  const themeId = useTheme();
   const conn = useAppSelector(selectConn);
   const session = useAppSelector(selectSession);
   const switching = useAppSelector(selectSwitching);
@@ -51,7 +54,7 @@ export function Header() {
         aria-label={t('usage')}
         title={t('usageTip')}
         onClick={() => d(openUsage())}
-        className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground [&>svg]:text-accent-usage"
       >
         <Svg size={15}>{ICONS.usage}</Svg>
       </button>
@@ -82,6 +85,22 @@ export function Header() {
                   {l.name}
                 </DropdownMenuItem>
               ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger id="themeMenu" title={t('themeTip')} className={row}>
+              <Svg size={15}>{ICONS.palette}</Svg>
+              <span className="flex-1">{t('theme')}</span>
+              <span className="text-muted-foreground">{THEME_NAMES[themeId]}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup value={themeId} onValueChange={(id) => theme.choose(id as ThemeId)}>
+                {THEMES.map((id) => (
+                  <DropdownMenuRadioItem key={id} value={id} data-theme-id={id}>
+                    {THEME_NAMES[id]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           {/* not a menu item: a step keeps the menu open, so the change is seen while choosing */}

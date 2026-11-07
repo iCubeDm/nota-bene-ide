@@ -74,6 +74,12 @@ function setup() {
 }
 const btn = () => screen.getByRole('button', { name: 'Sessions' });
 const menu = () => screen.getByRole('dialog', { name: 'Sessions' });
+it('the Sessions button is an icon: no visible text, the tooltip keeps the old sentence', () => {
+  setup();
+  expect(btn().textContent).toBe('');
+  expect(btn().title).toMatch(/^Open another Claude Code session/);
+});
+
 async function openPicker() {
   await userEvent.click(btn());
   await screen.findByText('current talk');

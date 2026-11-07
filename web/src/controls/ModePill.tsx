@@ -8,9 +8,9 @@ import { pickMode, selectCapabilitiesKnown, selectMode, selectSwitching } from '
 // colours as in the CLI's mode line (prototype #modeBtn.m-*)
 const TONE: Partial<Record<Mode, string>> = {
   default: 'text-muted-foreground border-border-soft',
-  acceptEdits: 'text-primary border-[oklch(0.75_0.18_280/0.45)]',
-  plan: 'text-[oklch(0.80_0.12_185)] border-[oklch(0.78_0.12_185/0.45)]',
-  auto: 'text-[oklch(0.84_0.13_80)] border-[oklch(0.82_0.13_80/0.4)]',
+  acceptEdits: 'text-link border-primary/45',
+  plan: 'text-hue-17 border-hue-18/45',
+  auto: 'text-hue-19 border-hue-20/40',
 };
 
 export function ModePill() {

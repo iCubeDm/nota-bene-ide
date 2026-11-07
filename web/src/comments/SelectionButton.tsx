@@ -208,7 +208,7 @@ export function SelectionButton({ onComment }: { onComment: (s: PendingSelection
     <div
       ref={btn}
       data-testid="selection-bar"
-      className="fixed z-10 flex items-center gap-1 rounded-[10px] border border-border bg-popover p-1 shadow-[0_6px_20px_rgba(0,0,0,0.4)]"
+      className="fixed z-10 flex items-center gap-1 rounded-[10px] border border-border bg-popover p-1 shadow-[0_6px_20px_color-mix(in_oklch,var(--shade)_40%,transparent)]"
       style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? 'visible' : 'hidden' }}
       onMouseDown={(e) => e.preventDefault()} // keep the text selected through the click
     >

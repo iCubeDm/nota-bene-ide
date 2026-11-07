@@ -54,7 +54,7 @@ function Split({ h, l, side }: { h: Hunk; l: string | null; side: 'o' | 'n' }) {
   return pairs(h.rows).map(([a, b], i) => <div key={i} className="flex">{cell(a, 'o')}<div className="w-px flex-none bg-border-soft" />{cell(b, 'n')}</div>);
 }
 
-const STATUS = { A: ['A', 'text-success'], M: ['M', 'text-nb-accent'], D: ['D', 'text-destructive'], R: ['R', 'text-primary'] } as const;
+const STATUS = { A: ['A', 'text-success'], M: ['M', 'text-nb-accent'], D: ['D', 'text-destructive'], R: ['R', 'text-link'] } as const;
 
 export const StatusMark = ({ s }: { s: VcsFile['status'] }) => <span className={`w-3 flex-none text-center font-mono text-[0.6875rem] font-semibold ${STATUS[s][1]}`}>{STATUS[s][0]}</span>;
 
@@ -83,7 +83,7 @@ export const FileDiff = memo(function FileDiff({ f, split, src, gitRef, canOpen 
         )}
       </header>
       {!shut && (f.binary ? <p className="p-3 text-xs text-muted-foreground">{t('binary')}</p>
-        : big ? <p className="p-3 text-xs text-muted-foreground">{t('vcsBigDiff', size)} <button type="button" className="text-primary underline" onClick={() => setForce(true)}>{t('vcsShowAnyway')}</button></p>
+        : big ? <p className="p-3 text-xs text-muted-foreground">{t('vcsBigDiff', size)} <button type="button" className="text-link underline" onClick={() => setForce(true)}>{t('vcsShowAnyway')}</button></p>
         : !f.hunks.length ? <p className="p-3 text-xs text-muted-foreground">{t(f.status === 'A' ? 'vcsEmptyFile' : 'vcsOnlyMeta')}</p>
         : (
           <div data-file-path={f.path} onMouseDown={(e) => { const s = (e.target as Element).closest<HTMLElement>('[data-side]')?.dataset.side; if (s === 'o' || s === 'n') setSide(s); }} className="nb-code py-1 font-mono text-xs leading-[1.55]">

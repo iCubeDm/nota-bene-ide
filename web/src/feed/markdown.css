@@ -1,4 +1,4 @@
-.md { color: oklch(0.90 0.01 260 / 0.9); font-size: 0.9375rem; line-height: 1.625; }
+.md { color: color-mix(in oklch, var(--foreground) 90%, transparent); font-size: 0.9375rem; line-height: 1.625; }
 .md p { margin: 0.5em 0; }
 .md h1, .md h2, .md h3 { line-height: 1.3; margin: 1em 0 0.4em; }
 /* Tailwind preflight strips list markers and heading sizes */
@@ -15,7 +15,7 @@
 .md hr { border-top: 1px solid var(--border); margin: 1em 0; }
 .md pre { position: relative; background: var(--code-bg); border: 1px solid var(--border-soft); padding: 10px 34px 10px 12px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .md code, .md pre code { font: 12.5px/1.5 var(--font-mono); }
-.md :not(pre) > code { background: var(--muted); padding: 1px 5px; border-radius: 4px; color: oklch(0.72 0.02 260); font-size: 0.75rem; }
+.md :not(pre) > code { background: var(--code-inline-bg); padding: 1px 5px; border-radius: 4px; color: var(--code-inline-fg); font-size: 0.75rem; }
 .md pre code.hljs { background: none; padding: 0; display: block; overflow: visible; white-space: inherit; counter-reset: md-line; }
 /* line numbers: one per source line, so the part of a line that wraps has none; a counter is no text to select or anchor on */
 .md-line { display: block; position: relative; padding-left: calc(var(--md-digits) * 1ch + 1.4ch); counter-increment: md-line; }
@@ -27,10 +27,10 @@
 .md audio { width: 100%; }
 .md table { border-collapse: collapse; }
 .md td, .md th { border: 1px solid var(--border); padding: 4px 8px; }
-.md a { color: var(--primary); }
+.md a { color: var(--link); }
 .md blockquote { border-left: 2px solid var(--border); margin: 0.5em 0; padding-left: 12px; color: var(--muted-fg); }
-.mermaid-out, .svg-out { position: relative; background: oklch(0.97 0.005 260); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 8px 0; }
-.mermaid-out { background: oklch(0.19 0.02 260); border: 1px solid var(--border-soft); }
+.mermaid-out, .svg-out { position: relative; background: var(--svg-bg); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 8px 0; }
+.mermaid-out { background: var(--diagram-bg); border: 1px solid var(--border-soft); }
 
 .ref { text-decoration: underline dotted var(--nb-accent); text-underline-offset: 3px; cursor: pointer; }
 .ref.missing { text-decoration: line-through; cursor: not-allowed; opacity: 0.6; }
@@ -46,19 +46,19 @@
 .md-tight .md pre { margin: 0.4em 0; }
 
 /* ⤢ on a rendered diagram: shown on hover or keyboard focus (Markdown.tsx adds it after sanitizing) */
-.md-open-diagram { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); background: var(--card, oklch(0.22 0.02 260)); color: var(--foreground, #ddd); font-size: 0.9375rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
+.md-open-diagram { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--foreground); font-size: 0.9375rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
 .mermaid-out:hover > .md-open-diagram, .svg-out:hover > .md-open-diagram, .md-open-diagram:focus-visible { opacity: 1; }
 .md-open-diagram:hover { background: var(--muted); }
 
 /* ⤢ on a project image/video/audio in a reply: hover or keyboard focus (Markdown.tsx wraps the element after sanitizing) */
 .md-media { position: relative; display: block; width: fit-content; max-width: 100%; }
 .md-media > img, .md-media > video { margin: 8px 0; }
-.md-open-media { position: absolute; top: 14px; right: 6px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); background: var(--card, oklch(0.22 0.02 260)); color: var(--foreground, #ddd); font-size: 0.9375rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
+.md-open-media { position: absolute; top: 14px; right: 6px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--foreground); font-size: 0.9375rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
 .md-media:hover > .md-open-media, .md-open-media:focus-visible { opacity: 1; }
 .md-open-media:hover { background: var(--muted); }
 .md-media:has(> audio) { width: 100%; }
 
 /* our player bar (media/ChatPlayer.tsx) lives in the wrapper: focus ring off, fullscreen fills the screen with the video */
 .md-media:focus { outline: none; }
-.md-media:fullscreen { display: flex; align-items: center; justify-content: center; background: #000; }
+.md-media:fullscreen { display: flex; align-items: center; justify-content: center; background: var(--scrim); }
 .md-media:fullscreen > video { max-width: 100%; max-height: 100%; width: 100%; height: 100%; margin: 0; border-radius: 0; object-fit: contain; }

@@ -124,13 +124,13 @@ export function Timeline({ media, state, items, onScrub, onTick }: {
       {hover && (
         <div
           data-timeline-tip
-          className="pointer-events-none absolute bottom-full mb-2 max-w-60 -translate-x-1/2 rounded-md bg-black/85 px-2 py-1 text-xs whitespace-nowrap text-white shadow"
+          className="pointer-events-none absolute bottom-full mb-2 max-w-60 -translate-x-1/2 rounded-md bg-scrim/85 px-2 py-1 text-xs whitespace-nowrap text-on-scrim shadow"
           style={{ left: `clamp(${tip ? '7.5rem' : '2rem'}, ${hover.x}px, calc(100% - ${tip ? '7.5rem' : '2rem'}))` }}
         >
           {tip ? (
             <>
               <div><span className="text-[var(--nb-accent)]">●</span> {formatTime(tip.time)} · {t('pb_comments', tip.count)}</div>
-              {tip.text && <div className="truncate text-white/70">{tip.text}</div>}
+              {tip.text && <div className="truncate text-on-scrim/70">{tip.text}</div>}
             </>
           ) : 'time' in hover ? formatTime(hover.time) : null}
         </div>

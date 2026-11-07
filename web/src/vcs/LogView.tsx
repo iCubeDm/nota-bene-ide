@@ -20,9 +20,9 @@ function Lanes({ r, width }: { r: ReturnType<typeof layout>[number]; width: numb
   const mid = ROW / 2;
   return (
     <svg width={width} height={ROW} className="flex-none">
-      {r.up.map(([a, b], i) => <path key={`u${i}`} d={`M${x(a)} 0 C${x(a)} ${mid / 2} ${x(b)} ${mid / 2} ${x(b)} ${mid}`} fill="none" stroke={COLORS[a % COLORS.length]} strokeWidth="1.5" />)}
-      {r.down.map(([a, b], i) => <path key={`d${i}`} d={`M${x(a)} ${mid} C${x(a)} ${mid * 1.5} ${x(b)} ${mid * 1.5} ${x(b)} ${ROW}`} fill="none" stroke={COLORS[b % COLORS.length]} strokeWidth="1.5" />)}
-      <circle cx={x(r.col)} cy={mid} r="3.5" fill={COLORS[r.col % COLORS.length]} />
+      {r.up.map(([a, b], i) => <path key={`u${i}`} d={`M${x(a)} 0 C${x(a)} ${mid / 2} ${x(b)} ${mid / 2} ${x(b)} ${mid}`} fill="none" style={{ stroke: COLORS[a % COLORS.length] }} strokeWidth="1.5" />)}
+      {r.down.map(([a, b], i) => <path key={`d${i}`} d={`M${x(a)} ${mid} C${x(a)} ${mid * 1.5} ${x(b)} ${mid * 1.5} ${x(b)} ${ROW}`} fill="none" style={{ stroke: COLORS[b % COLORS.length] }} strokeWidth="1.5" />)}
+      <circle cx={x(r.col)} cy={mid} r="3.5" style={{ fill: COLORS[r.col % COLORS.length] }} />
     </svg>
   );
 }
@@ -97,7 +97,7 @@ export function LogView({ active }: { active: boolean }) {
     <div data-pane="log" data-file-ref={ref} hidden={!active} className="grid-pane relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex h-9 flex-none items-center gap-3 px-4 text-xs text-muted-foreground">
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> {t('vcsAllBranches')}</label>
-        <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterCommits')} aria-label={t('vcsFilterCommitsLabel')} className="h-[26px] w-56 rounded-md border border-transparent bg-muted/50 px-2 text-[0.75rem] text-foreground outline-0 focus:border-primary/50" />
+        <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('vcsFilterCommits')} aria-label={t('vcsFilterCommitsLabel')} className="h-[26px] w-56 rounded-md border border-transparent bg-muted/50 px-2 text-[0.75rem] text-foreground outline-0 focus:border-input-focus-soft focus:ring-2 focus:ring-input-ring" />
         {log?.more && <span>{t('vcsLogCut', log.commits.length)}</span>}
         {(failed || got?.failed) && <span role="alert" className="text-warn">{t('vcsFailed')}</span>}
         <span className="flex-1" />
@@ -113,7 +113,7 @@ export function LogView({ active }: { active: boolean }) {
               <Lanes r={rows[i]!} width={width} />
               {c.refs.filter((x) => !x.endsWith('/HEAD')).map((x) => {
                 const id = srcOfRef(refName(x));
-                return <span key={x} role={id ? 'link' : undefined} title={id ? t('vcsViewBranch') : x} onClick={id ? (e) => { e.stopPropagation(); d(pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[0.65625rem] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary'}`}>{refName(x)}</span>;
+                return <span key={x} role={id ? 'link' : undefined} title={id ? t('vcsViewBranch') : x} onClick={id ? (e) => { e.stopPropagation(); d(pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[0.65625rem] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-link'}`}>{refName(x)}</span>;
               })}
               <span className={`min-w-0 flex-1 truncate ${c.sha === log.tip ? 'font-semibold text-foreground' : 'text-foreground/85'}`}>{c.subject}</span>
               <span className="flex-none text-[0.6875rem] text-muted-foreground">{c.author}</span>

@@ -90,7 +90,7 @@ export function TabsMenu({ strip }: { strip: RefObject<HTMLElement | null> }) {
           aria-expanded
           aria-controls="nb-tabs-list"
           aria-activedescendant={flat.length ? `nb-tabs-opt-${cur}` : undefined}
-          className="m-1 flex-none rounded-md border border-border-soft bg-transparent px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary"
+          className="m-1 flex-none rounded-md border border-border-soft bg-transparent px-2 py-1.5 text-xs text-foreground outline-none focus-visible:border-input-focus focus-visible:ring-2 focus-visible:ring-input-ring"
         />
         <div id="nb-tabs-list" role="listbox" aria-label={t('tabsAll')} className="min-h-0 overflow-auto">
           {!flat.length && <div className="px-2 py-3 text-center text-xs text-muted-foreground">{t('tabsNone')}</div>}
@@ -114,7 +114,7 @@ export function TabsMenu({ strip }: { strip: RefObject<HTMLElement | null> }) {
                     className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-xs ${i === cur ? 'bg-muted text-foreground' : 'text-foreground/85'}`}
                   >
                     <TabIcon tab={tab} />
-                    <span className={`truncate ${tab.id === active ? 'font-semibold text-primary' : ''}`}>{label(tab)}</span>
+                    <span className={`truncate ${tab.id === active ? 'font-semibold text-link' : ''}`}>{label(tab)}</span>
                     {tab.kind === 'diagram' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('diagramTab')}</span>}
                     {tab.kind === 'shell' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('shellTab')}</span>}
                     {tab.kind === 'agent' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('agentTab')}</span>}
