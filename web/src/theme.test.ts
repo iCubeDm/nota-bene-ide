@@ -122,7 +122,7 @@ it('Darcula passes AA', () => {
     ['--tool-on-fg', '--tool-on-idle'], ['--link', '--card'], ['--link', '--popover'],
     ['--destructive', '--card'], ['--destructive-fg', '--destructive'], ['--destructive-fg', '--destructive-fill'], ['--code-inline-fg', '--code-inline-bg'],
     ['--accent-sessions', '--chrome'], ['--accent-agent', '--chrome'], ['--accent-model', '--chrome'],
-    ['--accent-usage', '--chrome'],
+    ['--accent-usage', '--chrome'], ['--meter-fg', '--chrome'], ['--destructive', '--chrome'],
     // code: every syntax colour on the code block
     ...['text', 'keyword', 'string', 'function', 'number', 'comment', 'type', 'variable', 'property', 'param', 'builtin',
       'tag', 'section', 'bullet'].map((s): [string, string] => [`--syn-${s}`, '--syn-bg']),
@@ -133,4 +133,6 @@ it('Darcula passes AA', () => {
   const failing = text.map(([fg, bg]) => `${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`).filter((_, i) => ratio(...text[i]!) < 4.5);
   expect(failing).toEqual([]);
   expect(ratio('--border', '--card')).toBeGreaterThanOrEqual(1.5);
+  // a meter's outline is the part of the control that has to show (WCAG 1.4.11)
+  expect(ratio('--meter-line', '--chrome')).toBeGreaterThanOrEqual(3);
 });

@@ -28,7 +28,7 @@ function Meter({ label, pct, tip }: { label: string; pct: number; tip: string })
           className={`meter ${level} inline-flex cursor-default items-center gap-1.5 ${level === 'hot' ? 'text-destructive' : ''}`}
         >
           {label}
-          <span className="block h-1 w-11 overflow-hidden rounded-sm bg-muted">
+          <span className="block h-1.5 w-11 overflow-hidden rounded-sm border border-meter-line bg-meter-track">
             <i className={`block h-full ${FILL[level]}`} style={{ width: `${Math.min(100, pct)}%` }} />
           </span>
           {shown}%
@@ -62,5 +62,5 @@ export function Meters() {
     ),
   ].filter(Boolean);
   if (!parts.length) return null;
-  return <span className="flex flex-none items-center gap-3 font-mono text-[0.6875rem] text-muted-foreground">{parts}</span>;
+  return <span className="flex flex-none items-center gap-3 font-mono text-[0.6875rem] text-meter-fg">{parts}</span>;
 }
