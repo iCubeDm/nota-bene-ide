@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.0 — 2026-11-07
 
 - Long inline code (a path, a qualified name in a command) wraps inside the message instead of running past the window.
 - The update notice shows what changed since your version: the changelog of every newer release, read from GitHub when you open it.

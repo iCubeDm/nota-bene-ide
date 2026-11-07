@@ -57,13 +57,13 @@ codex plugin add nota-bene@nota-bene
 ```
 
 The plugin provides `$nb`, `$nb new`, and `$nb fork`. On first use it downloads
-`nota-bene-ide@1.5.0` (about 70 MB, without the Claude Code binary) through npm; later
+`nota-bene-ide@1.6.0` (about 70 MB, without the Claude Code binary) through npm; later
 launches reuse npm's cache. No global npm
 install or manual skill copying is needed. Node.js, npm, and a signed-in Codex CLI
 must already be available. This is a repository marketplace for local Codex clients,
 not a listing in the public ChatGPT plugin directory.
 
-Alternatively, install the launcher with `npm i -g nota-bene-ide@1.5.0`, then ask
+Alternatively, install the launcher with `npm i -g nota-bene-ide@1.6.0`, then ask
 Codex to install just the skill. If you only use Codex, add `--omit=optional` to skip
 the Claude Code binary; a Claude window then cannot start from that install.
 
@@ -147,12 +147,13 @@ and on single frames of a video:
 
 ![A Codex window: model, approval card, sandbox profile and account limits](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/codex.png)
 
-## Updating to 1.5.0
+## Updating to 1.6.0
 
-For the terminal install, run `npm i -g nota-bene-ide@1.5.0`. For the Claude plugin,
+For the terminal install, run `npm i -g nota-bene-ide@1.6.0`. For the Claude plugin,
 update the marketplace and installed plugin through Claude Code. Close old windows
 and launch again to use the new package. Existing Claude state stays in place; Codex
-uses its own state directory. See [release notes](https://github.com/iCubeDm/nota-bene-ide/blob/main/CHANGELOG.md).
+uses its own state directory. The default look is now the Darcula theme; to keep the
+previous one, pick Plannotator in the gear menu. See [release notes](https://github.com/iCubeDm/nota-bene-ide/blob/main/CHANGELOG.md).
 
 ## Guide
 
