@@ -219,6 +219,8 @@ Protocol rules:
 ├── attachments/<sha>.<ext>, trash/attachments/<stamp>/
 ├── history/<sid>.jsonl    archive of the conversation before each compaction, trash/history/<stamp>/
 ├── cache/blend/<sha>-<version>.glb   result of a .blend conversion (re-creatable; not part of Settings, Storage)
+├── update-check.json      newest version seen on npm (one ask a minute per machine)
+├── runtime/               in-app update: <x.y.z>/ packages, current, state.json, update.lock, update.log
 ├── windows/<port>.json    window registry
 ├── locks/<hash>           launch locks
 └── providers/codex/       Codex-owned copy of the state layout above (no recursive providers/)

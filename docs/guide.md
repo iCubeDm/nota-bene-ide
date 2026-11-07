@@ -394,9 +394,17 @@ Anything a period has nothing to show for is left out.
 
 The store keeps what it read after the transcripts themselves are gone. Sessions under a temporary folder are skipped.
 
-### Update check
+### Updates
 
-An installed window asks the npm registry for the latest version at most once in 6 hours. The request carries no project, session or account data. When a newer version is out, the header shows `↑ <version>` with how to update and what changed since your version: opening it reads that version's CHANGELOG from GitHub, once per version; **Later** hides it until the next version. Turn the check off in Settings → Defaults, for every window of that agent; `NOTA_BENE_NO_UPDATE_CHECK=1` turns it off whatever Settings say. A source checkout never checks.
+An installed window asks the npm registry for the latest version, at most once a minute per machine (the answer is shared by all windows through `update-check.json`), and when you come back to its tab. The request carries no project, session or account data. When a newer version is out, the header shows `↑ <version>` with what changed since your version (read from the CHANGELOG on GitHub, once per version). **Later** hides it until the next version.
+
+- **Update** installs the newest release this machine has seen on npm (never a version the page names) into `runtime/` in the state folder, next to the version you run. Then the header says `<version> is ready`.
+- **Restart** (or, with no page open, the window by itself) switches to the new version: the server restarts on the same port and the same session continues, and the header shows **Updated to <version>** once. A restart waits for a pause: no turn running, no question or approval waiting (the button reads "After the agent finishes").
+- **Update automatically** (in the same notice, off by default, one setting for the whole machine and every agent) installs each new release by itself; the window still restarts only in a pause.
+- If the install fails, or the new version does not answer within 20 seconds, or exits within its first minute, the window keeps (or goes back to) the version it had. The notice says **Update failed** or **Update to <version> was rolled back** and shows the log, `runtime/update.log` in the state folder. A failed version is not tried again by itself; **Update** tries it by hand.
+- A source checkout never checks, installs or restarts. Windows older than the first one with this feature update once by hand ([Updating](../README.md#updating)).
+
+Turn the check off in Settings → Defaults, for every window of that agent; `NOTA_BENE_NO_UPDATE_CHECK=1` turns it off whatever Settings say. With the check off nothing is asked and nothing is installed.
 
 ### Audit log
 
@@ -420,6 +428,8 @@ All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME`
 | `history/<sessionId>.jsonl` | the conversation before each compaction |
 | `cache/blend/` | `.blend` files converted for the 3D tab (safe to delete) |
 | `trash/` | what Settings, Storage, Clean moved |
+| `update-check.json` | the newest version seen on npm and when it was asked, shared by every window |
+| `runtime/` | releases installed by the in-app update, and its state and log (see [Updates](#updates)) |
 | `audit/YYYY-MM-DD.jsonl` | the audit log of system events of every window ([Audit log](#audit-log)) |
 | `usage/` | the Usage tab: token counts of every project and short labels (the first 64 characters of a prompt, a subagent's description) |
 

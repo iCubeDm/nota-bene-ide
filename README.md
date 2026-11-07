@@ -147,13 +147,30 @@ and on single frames of a video:
 
 ![A Codex window: model, approval card, sandbox profile and account limits](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/codex.png)
 
-## Updating to 1.6.0
+## Updating
 
-For the terminal install, run `npm i -g nota-bene-ide@1.6.0`. For the Claude plugin,
-update the marketplace and installed plugin through Claude Code. Close old windows
-and launch again to use the new package. Existing Claude state stays in place; Codex
-uses its own state directory. The default look is now the Darcula theme; to keep the
-previous one, pick Plannotator in the gear menu. See [release notes](https://github.com/iCubeDm/nota-bene-ide/blob/main/CHANGELOG.md).
+From this version on, a window updates itself. When a newer release is out, the header shows `↑ <version>`: **Update** installs it, and the window restarts in a pause (no turn running, nothing in the composer, no question or approval waiting) with the same session; **Update automatically** does this by itself for every new release (off by default; per machine). If the new version does not start, the window goes back to the one before and says so. A source checkout never updates.
+
+Versions up to 1.6.0 cannot do this, so update them once by hand, with the block for how you installed it:
+
+```sh
+# terminal
+npm i -g nota-bene-ide@latest
+```
+
+```sh
+# Claude Code plugin; then restart Claude Code
+claude plugin marketplace update nota-bene
+claude plugin update nota-bene@nota-bene
+```
+
+```sh
+# Codex plugin
+codex plugin marketplace upgrade
+codex plugin add nota-bene@nota-bene
+```
+
+Then close the old windows and open them again. A window started by `/nb` is a background task of that Claude Code session (stop it in `/tasks`); a terminal window stops with Ctrl+C. Your sessions, comments and settings stay in place. See [release notes](https://github.com/iCubeDm/nota-bene-ide/blob/main/CHANGELOG.md) and [Updates in the guide](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#updates).
 
 ## Guide
 
