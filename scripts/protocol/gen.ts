@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { DART_PATH, schemaToDart } from './dart.ts';
 import { buildSchema, SCHEMA_PATH, serialize } from './schema.ts';
 
 /** repo-relative path -> the file's text */
 export function generate(): Map<string, string> {
-  return new Map([[SCHEMA_PATH, serialize(buildSchema())]]);
+  const schema = buildSchema();
+  return new Map([[SCHEMA_PATH, serialize(schema)], [DART_PATH, schemaToDart(schema)]]);
 }
 
 /** the paths whose file under `root` is missing or differs from `files` */

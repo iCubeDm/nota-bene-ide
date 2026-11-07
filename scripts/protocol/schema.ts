@@ -1,5 +1,6 @@
 // The JSON Schema of the browser/server protocol, generated from shared/src/protocol.ts. The schema is the contract
 // other-language clients (the Dart types, a later task) are generated from; `npm run gen:protocol -- --check` fails on drift.
+import { fileURLToPath } from 'node:url';
 import { PROTOCOL } from '@nota-bene/shared';
 import type { JSONSchema7Definition } from 'json-schema';
 import { createGenerator } from 'ts-json-schema-generator';
@@ -13,7 +14,7 @@ export type ProtocolSchema = {
   definitions: Record<string, JSONSchema7Definition>;
 };
 
-const REPO = new URL('../../', import.meta.url).pathname;
+const REPO = fileURLToPath(new URL('../../', import.meta.url));
 
 export function buildSchema(): ProtocolSchema {
   const definitions: Record<string, JSONSchema7Definition> = {};

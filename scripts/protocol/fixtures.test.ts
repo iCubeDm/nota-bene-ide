@@ -7,6 +7,7 @@ import { SCHEMA_PATH } from './schema.ts';
 const read = (p: string) => JSON.parse(fs.readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8'));
 const schema = read(SCHEMA_PATH);
 const fx = read('shared/fixtures/protocol.json') as { client: any[]; server: any[]; usage: any[] };
+// strict: false because the schema generator emits `type` beside `const`, which strict mode rejects
 const ajv = new Ajv({ strict: false, allErrors: true });
 ajv.addSchema(schema, 'p');
 const validator = (root: string) => ajv.compile({ $ref: `p#/definitions/${root}` });

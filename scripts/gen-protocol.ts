@@ -1,9 +1,10 @@
 // npm run gen:protocol: write the protocol's generated files; with --check, fail when one is stale or missing.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { check, generate } from './protocol/gen.ts';
 
-const root = new URL('../', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../', import.meta.url));
 const files = generate();
 if (process.argv.includes('--check')) {
   const stale = check(files, root);

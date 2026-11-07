@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expect, it } from 'vitest';
+import { DART_PATH } from './dart.ts';
 import { check, generate } from './gen.ts';
 import { SCHEMA_PATH } from './schema.ts';
 
@@ -26,4 +27,6 @@ it('check names a stale file', () => {
   expect(check(files, tmp)).toEqual([SCHEMA_PATH]);
   fs.rmSync(path.join(tmp, SCHEMA_PATH));
   expect(check(files, tmp)).toEqual([SCHEMA_PATH]);
+  fs.appendFileSync(path.join(tmp, DART_PATH), ' ');
+  expect(check(files, tmp)).toEqual([SCHEMA_PATH, DART_PATH]);
 });
