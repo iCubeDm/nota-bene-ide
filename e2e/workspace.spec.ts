@@ -201,6 +201,20 @@ test('themes: the gear menu and Settings pick one, a reload keeps it, nothing ke
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('light');
     const solarized = await sample();
     for (const k of Object.keys(darcula) as (keyof typeof darcula)[]) expect(solarized[k], k).not.toBe(darcula[k]);
+    // its dark counterpart: no light colour scheme, and every sampled piece differs from both
+    await page.locator('#settingsBtn').click();
+    await page.locator('#themeMenu').focus();
+    await page.keyboard.press('ArrowRight');
+    await page.locator('[data-theme-id="solarized-dark"]').focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(attr).toBe('solarized-dark');
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).not.toBe('light');
+    const solarizedDark = await sample();
+    for (const k of Object.keys(darcula) as (keyof typeof darcula)[]) {
+      expect(solarizedDark[k], k).not.toBe(darcula[k]);
+      expect(solarizedDark[k], k).not.toBe(solarized[k]);
+    }
   } finally {
     // the fixture's prefs are shared by the other tests: back to Darcula, picked in Settings → Themes
     await page.keyboard.press('Escape');

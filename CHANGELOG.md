@@ -3,7 +3,7 @@
 ## Unreleased
 
 - The update notice shows what changed since your version: the changelog of every newer release, read from GitHub when you open it.
-- Themes: Darcula, the new default, with IntelliJ's colours on millimetre paper, and Plannotator, the previous look; pick one in the gear menu or Settings → Themes. To get the old look back, choose Plannotator. Three light themes join them: IntelliJ Light, GitHub Light and Solarized Light; Darcula is tuned too (lighter panels, readable footer meters). The header logo takes each theme's colours; inline code that is a colour (`#ff8980`, `rgb(…)`) shows a swatch of it.
+- Themes: Darcula, the new default, with IntelliJ's colours on millimetre paper, and Plannotator, the previous look; pick one in the gear menu or Settings → Themes. To get the old look back, choose Plannotator. Solarized Dark and three light themes join them: IntelliJ Light, GitHub Light and Solarized Light; Darcula is tuned too (lighter panels, readable footer meters). The header logo takes each theme's colours; inline code that is a colour (`#ff8980`, `rgb(…)`) shows a swatch of it.
 - Sessions, ↻ Agent and Open raw are icons now; their names and keys are in the tooltips.
 - Security updates: mermaid 10.9.8, DOMPurify 3.4.17 and uuid 11.1.1 (through mermaid) close Dependabot alerts on diagram and Markdown rendering. KaTeX 0.16 (low) stays until mermaid 12.
 - An interface scale, 90–150 %: text and spacing grow, in every window at once. The gear in the header is now a menu with the language, the scale and All settings; Alt+= / Alt+− / Alt+0 step the scale. The globe button is gone: the language is in that menu.
