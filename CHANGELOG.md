@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Long inline code (a path, a qualified name in a command) wraps inside the message instead of running past the window.
 - The update notice shows what changed since your version: the changelog of every newer release, read from GitHub when you open it.
 - Themes: Darcula, the new default, with IntelliJ's colours on millimetre paper, and Plannotator, the previous look; pick one in the gear menu or Settings → Themes. To get the old look back, choose Plannotator. Solarized Dark and three light themes join them: IntelliJ Light, GitHub Light and Solarized Light; Darcula is tuned too (lighter panels, readable footer meters). The header logo takes each theme's colours; inline code that is a colour (`#ff8980`, `rgb(…)`) shows a swatch of it.
 - Sessions, ↻ Agent and Open raw are icons now; their names and keys are in the tooltips.

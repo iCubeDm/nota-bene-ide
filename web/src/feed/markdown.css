@@ -15,7 +15,8 @@
 .md hr { border-top: 1px solid var(--border); margin: 1em 0; }
 .md pre { position: relative; background: var(--code-bg); border: 1px solid var(--border-soft); padding: 10px 34px 10px 12px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .md code, .md pre code { font: 12.5px/1.5 var(--font-mono); }
-.md :not(pre) > code { background: var(--code-inline-bg); padding: 1px 5px; border-radius: 4px; color: var(--code-inline-fg); font-size: 0.75rem; }
+/* a long token (a path, a qualified name) breaks where it must rather than run past the message; the chip continues on each line */
+.md :not(pre) > code { background: var(--code-inline-bg); padding: 1px 5px; border-radius: 4px; color: var(--code-inline-fg); font-size: 0.75rem; overflow-wrap: anywhere; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .md code.md-color::before { content: ''; display: inline-block; width: 0.85em; height: 0.85em; margin-right: 4px; vertical-align: -0.1em; border-radius: 2px; background: var(--md-swatch); box-shadow: 0 0 0 1px var(--border); }
 .md pre code.hljs { background: none; padding: 0; display: block; overflow: visible; white-space: inherit; counter-reset: md-line; }
 /* line numbers: one per source line, so the part of a line that wraps has none; a counter is no text to select or anchor on */
