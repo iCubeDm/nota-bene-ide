@@ -39,7 +39,7 @@ jobs:
       - run: npm run gen:protocol -- --check
       - uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          sdk: 3.13.7
       - run: dart pub get
         working-directory: mobile/protocol
       - run: dart analyze --fatal-infos

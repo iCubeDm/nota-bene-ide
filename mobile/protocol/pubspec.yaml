@@ -3,7 +3,7 @@ description: Nota Bene wire protocol types, generated from the TypeScript protoc
 publish_to: none
 
 environment:
-  sdk: ^3.7.0
+  sdk: ^3.8.0
 
 dev_dependencies:
   lints: ^6.0.0

@@ -311,12 +311,8 @@ function render(d: Decl): string {
 
 const q = (s: string) => `'${s.replace(/[\\']/g, '\\$&').replace(/\$/g, '\\$')}'`;
 
-function unknownArm(name: string): string[] {
-  const msg = q(`${name}.$unknown cannot be sent`);
-  if (`    $unknown => throw StateError(${msg}),`.length <= WIDTH) return [`    $unknown => throw StateError(${msg}),`];
-  if (`      throw StateError(${msg}),`.length <= WIDTH) return ['    $unknown =>', `      throw StateError(${msg}),`];
-  return ['    $unknown =>', '      throw StateError(', `        ${msg},`, '      ),'];
-}
+// one short line whatever the enum's name, so no formatter version has a reason to wrap it
+const unknownArm = (name: string): string[] => [`    $unknown => _unsendable(${q(name)}),`];
 
 function renderEnum(d: EnumDecl): string {
   const members = d.values.map(memberName);
@@ -428,6 +424,7 @@ const HELPERS: { name: string; uses: string[]; code: string }[] = [
   { name: '_map', uses: [], code: 'Map<String, T> _map<T>(Object? v, T Function(Object?) f) {\n  return (v as Map<String, Object?>).map((k, e) => MapEntry(k, f(e)));\n}' },
   { name: '_mapOrNull', uses: ['_map'], code: 'Map<String, T>? _mapOrNull<T>(Object? v, T Function(Object?) f) {\n  return v == null ? null : _map(v, f);\n}' },
   { name: '_jsonList', uses: [], code: 'List<Object?>? _jsonList(List<_Json>? xs) {\n  return xs?.map((x) => x.toJson()).toList();\n}' },
+  { name: '_unsendable', uses: [], code: "Never _unsendable(String type) {\n  throw StateError('$type.\\$unknown cannot be sent');\n}" },
   { name: '_jsonMap', uses: [], code: 'Map<String, Object?>? _jsonMap(Map<String, _Json>? xs) {\n  return xs?.map((k, x) => MapEntry(k, x.toJson()));\n}' },
 ];
 

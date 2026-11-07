@@ -33,7 +33,7 @@ enum AgentEffort implements _Json {
     max => 'max',
     none => 'none',
     minimal => 'minimal',
-    $unknown => throw StateError('AgentEffort.\$unknown cannot be sent'),
+    $unknown => _unsendable('AgentEffort'),
   };
 }
 
@@ -82,7 +82,7 @@ enum AgentMode implements _Json {
     ompWrite => 'omp-write',
     ompAsk => 'omp-ask',
     ompPlan => 'omp-plan',
-    $unknown => throw StateError('AgentMode.\$unknown cannot be sent'),
+    $unknown => _unsendable('AgentMode'),
   };
 }
 
@@ -293,8 +293,7 @@ enum CapabilitiesProvider implements _Json {
     claude => 'claude',
     codex => 'codex',
     omp => 'omp',
-    $unknown =>
-      throw StateError('CapabilitiesProvider.\$unknown cannot be sent'),
+    $unknown => _unsendable('CapabilitiesProvider'),
   };
 }
 
@@ -381,8 +380,7 @@ enum ClientMessageCommandName implements _Json {
   String toJson() => switch (this) {
     compact => 'compact',
     clear => 'clear',
-    $unknown =>
-      throw StateError('ClientMessageCommandName.\$unknown cannot be sent'),
+    $unknown => _unsendable('ClientMessageCommandName'),
   };
 }
 
@@ -731,7 +729,7 @@ enum CommentStatus implements _Json {
   String toJson() => switch (this) {
     pending => 'pending',
     sent => 'sent',
-    $unknown => throw StateError('CommentStatus.\$unknown cannot be sent'),
+    $unknown => _unsendable('CommentStatus'),
   };
 }
 
@@ -839,7 +837,7 @@ enum ImageType implements _Json {
     image_jpeg => 'image/jpeg',
     image_gif => 'image/gif',
     image_webp => 'image/webp',
-    $unknown => throw StateError('ImageType.\$unknown cannot be sent'),
+    $unknown => _unsendable('ImageType'),
   };
 }
 
@@ -1000,7 +998,7 @@ enum MarkColor implements _Json {
     v_34c759 => '#34c759',
     v_0a84ff => '#0a84ff',
     v_ffffff => '#ffffff',
-    $unknown => throw StateError('MarkColor.\$unknown cannot be sent'),
+    $unknown => _unsendable('MarkColor'),
   };
 }
 
@@ -1192,8 +1190,7 @@ enum MediaShapeRectOrEllipseKind implements _Json {
   String toJson() => switch (this) {
     rect => 'rect',
     ellipse => 'ellipse',
-    $unknown =>
-      throw StateError('MediaShapeRectOrEllipseKind.\$unknown cannot be sent'),
+    $unknown => _unsendable('MediaShapeRectOrEllipseKind'),
   };
 }
 
@@ -1371,7 +1368,7 @@ enum QuickLabelId implements _Json {
     noRegression => 'no-regression',
     outOfScope => 'out-of-scope',
     needsTests => 'needs-tests',
-    $unknown => throw StateError('QuickLabelId.\$unknown cannot be sent'),
+    $unknown => _unsendable('QuickLabelId'),
   };
 }
 
@@ -1742,8 +1739,7 @@ enum ServerEventSendRefusedReason implements _Json {
   String toJson() => switch (this) {
     busy => 'busy',
     switching => 'switching',
-    $unknown =>
-      throw StateError('ServerEventSendRefusedReason.\$unknown cannot be sent'),
+    $unknown => _unsendable('ServerEventSendRefusedReason'),
   };
 }
 
@@ -1914,10 +1910,7 @@ enum ServerEventShellRefusedReason implements _Json {
   String toJson() => switch (this) {
     running => 'running',
     switching => 'switching',
-    $unknown =>
-      throw StateError(
-        'ServerEventShellRefusedReason.\$unknown cannot be sent',
-      ),
+    $unknown => _unsendable('ServerEventShellRefusedReason'),
   };
 }
 
@@ -2037,7 +2030,7 @@ enum ShellStop implements _Json {
   String toJson() => switch (this) {
     user => 'user',
     timeout => 'timeout',
-    $unknown => throw StateError('ShellStop.\$unknown cannot be sent'),
+    $unknown => _unsendable('ShellStop'),
   };
 }
 
@@ -2225,7 +2218,7 @@ enum StopReason implements _Json {
     done => 'done',
     interrupted => 'interrupted',
     failed => 'failed',
-    $unknown => throw StateError('StopReason.\$unknown cannot be sent'),
+    $unknown => _unsendable('StopReason'),
   };
 }
 
@@ -2297,7 +2290,7 @@ enum ThemeId implements _Json {
     intellijLight => 'intellij-light',
     githubLight => 'github-light',
     solarizedLight => 'solarized-light',
-    $unknown => throw StateError('ThemeId.\$unknown cannot be sent'),
+    $unknown => _unsendable('ThemeId'),
   };
 }
 
@@ -2328,7 +2321,7 @@ enum UiLang implements _Json {
     es => 'es',
     ptBR => 'pt-BR',
     de => 'de',
-    $unknown => throw StateError('UiLang.\$unknown cannot be sent'),
+    $unknown => _unsendable('UiLang'),
   };
 }
 
@@ -2517,7 +2510,7 @@ enum UsageHitKind implements _Json {
   String toJson() => switch (this) {
     v5h => '5h',
     week => 'week',
-    $unknown => throw StateError('UsageHitKind.\$unknown cannot be sent'),
+    $unknown => _unsendable('UsageHitKind'),
   };
 }
 
@@ -2567,7 +2560,7 @@ enum UsagePeriod implements _Json {
     v7d => '7d',
     v30d => '30d',
     all => 'all',
-    $unknown => throw StateError('UsagePeriod.\$unknown cannot be sent'),
+    $unknown => _unsendable('UsagePeriod'),
   };
 }
 
@@ -2586,7 +2579,7 @@ enum UsageProvider implements _Json {
   String toJson() => switch (this) {
     claude => 'claude',
     codex => 'codex',
-    $unknown => throw StateError('UsageProvider.\$unknown cannot be sent'),
+    $unknown => _unsendable('UsageProvider'),
   };
 }
 
@@ -3290,8 +3283,7 @@ enum WireAgentEventTaskPhase implements _Json {
     progress => 'progress',
     updated => 'updated',
     done => 'done',
-    $unknown =>
-      throw StateError('WireAgentEventTaskPhase.\$unknown cannot be sent'),
+    $unknown => _unsendable('WireAgentEventTaskPhase'),
   };
 }
 
@@ -3310,8 +3302,7 @@ enum WireAgentEventTaskStatus implements _Json {
   String toJson() => switch (this) {
     failed => 'failed',
     stopped => 'stopped',
-    $unknown =>
-      throw StateError('WireAgentEventTaskStatus.\$unknown cannot be sent'),
+    $unknown => _unsendable('WireAgentEventTaskStatus'),
   };
 }
 
@@ -3384,10 +3375,7 @@ enum WireAgentEventToolCallToolKind implements _Json {
     agent => 'agent',
     search => 'search',
     other => 'other',
-    $unknown =>
-      throw StateError(
-        'WireAgentEventToolCallToolKind.\$unknown cannot be sent',
-      ),
+    $unknown => _unsendable('WireAgentEventToolCallToolKind'),
   };
 }
 
@@ -3459,10 +3447,7 @@ enum WireAgentEventToolUpdateToolKind implements _Json {
     agent => 'agent',
     search => 'search',
     other => 'other',
-    $unknown =>
-      throw StateError(
-        'WireAgentEventToolUpdateToolKind.\$unknown cannot be sent',
-      ),
+    $unknown => _unsendable('WireAgentEventToolUpdateToolKind'),
   };
 }
 
@@ -3534,4 +3519,8 @@ Map<String, T>? _mapOrNull<T>(Object? v, T Function(Object?) f) {
 
 List<Object?>? _jsonList(List<_Json>? xs) {
   return xs?.map((x) => x.toJson()).toList();
+}
+
+Never _unsendable(String type) {
+  throw StateError('$type.\$unknown cannot be sent');
 }
