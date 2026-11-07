@@ -15,7 +15,7 @@
 :root, [data-theme="darcula"] {
   --background: #2b2b2b;
   --foreground: #c9ced6;
-  --card: #323435;
+  --card: #313131; /* a step over the editor's #2b2b2b; the spec had #323435 */
   --popover: #3c3f41;
   --separator: #505050;
   --primary: #4876c0; /* #4a78c2: white text at 4.41 */
@@ -32,8 +32,8 @@
   --border: #4c4f52; /* #45484b: 1.36 on card */
   --border-soft: rgb(255 255 255 / .07);
   --code-bg: #2b2b2b;
-  --side: #2f3031;
-  --chrome: rgb(47 48 49 / .6);
+  --side: #3c3f41; /* Darcula's panel; the spec had #2f3031 */
+  --chrome: rgb(60 63 65 / .9); /* the spec had rgb(47 48 49 / .6) */
   --link: #66acff; /* #589df6: 3.82 on popover */
   /* shadows (mixed with transparent where used), scrims behind dialogs and over video, the text on a scrim */
   --shade: #000;
@@ -54,6 +54,7 @@
     repeating-linear-gradient(rgb(255 255 255 / .018) 0 1px, transparent 1px 1mm),
     repeating-linear-gradient(90deg, rgb(255 255 255 / .018) 0 1px, transparent 1px 1mm);
   --pane-size: 10mm 10mm;
+  --pane-bg: #2a2b2c; /* darker than the card: the paper steps up to it */
   /* the active tab; a pressed tool-window button in a focused panel and in an unfocused one */
   --tab-on-bg: #45484b;
   --tab-on-fg: #ffffff;
@@ -62,11 +63,11 @@
   --tool-on-idle: #4b4e51;
   --tool-on-fg: #ffffff;
   /* the header's function icons; the gear stays neutral */
-  --accent-sessions: #589df6;
+  --accent-sessions: #69afff; /* #589df6: 3.94 on chrome */
   --accent-agent: #66bf31;
-  --accent-model: #ae8abe;
+  --accent-model: #c29ed3; /* #ae8abe: 3.74 on chrome */
   --accent-usage: #ffc66d;
-  --code-inline-bg: #2e2e2e;
+  --code-inline-bg: #2b2b2b; /* #2e2e2e sits too close to the card */
   --code-inline-fg: #5f97df; /* #4f86cd: 3.64 */
   /* code highlighting (feed/hljs.css): Darcula's editor colours */
   --syn-text: #a9b7c6;
@@ -104,14 +105,14 @@
   --diagram-bg: #2b2b2b;
   --svg-bg: #f2f2f2;
   /* colours that tell items apart, one set per theme: file-type marks (1-8), git-graph lanes (9-16), mode pills (17-20) */
-  --hue-1: #589df6;
+  --hue-1: #69afff; /* #589df6: 3.82 on side */
   --hue-2: #ffc66d;
-  --hue-3: #dc8742; /* #cc7832: 3.75 on card */
-  --hue-4: #ee7870; /* #e06c64: 3.87 on card */
-  --hue-5: #b38fc3; /* #ae8abe: 4.28 on card */
+  --hue-3: #ed9752; /* #cc7832: 3.75 on card, 3.83 lifted on side */
+  --hue-4: #ff8980; /* #e06c64: 3.87 on card, 3.82 lifted on side */
+  --hue-5: #c29ed3; /* #ae8abe: 4.28 on card, 3.86 lifted on side */
   --hue-6: #66bf31;
-  --hue-7: #40abaa; /* #299999: 3.64 on card */
-  --hue-8: #969ca3; /* #8f959c: 4.14 on card */
+  --hue-7: #52bbba; /* #299999: 3.64 on card, 3.85 lifted on side */
+  --hue-8: #a6acb3; /* #8f959c: 4.14 on card, 3.83 lifted on side */
   --hue-9: #589df6;
   --hue-10: #66bf31;
   --hue-11: #ffc66d;
@@ -120,7 +121,7 @@
   --hue-14: #299999;
   --hue-15: #cc7832;
   --hue-16: #a9b7c6;
-  --hue-17: #40abaa;
+  --hue-17: #52bbba; /* #40abaa: 3.85 on side */
   --hue-18: #299999;
   --hue-19: #ffc66d;
   --hue-20: #e8bf6a;
@@ -161,6 +162,7 @@
     linear-gradient(oklch(0.90 0.01 260 / 0.035) 1px, transparent 1px),
     linear-gradient(90deg, oklch(0.90 0.01 260 / 0.035) 1px, transparent 1px);
   --pane-size: 24px 24px;
+  --pane-bg: var(--background);
   /* the active tab; a pressed tool-window button in a focused panel and in an unfocused one */
   --tab-on-bg: color-mix(in oklch, var(--primary) 15%, transparent);
   --tab-on-fg: var(--primary);
@@ -349,7 +351,7 @@
 
 /* the theme's texture behind the paper card (Plannotator: the prototype's 24px grid, as in its .pane) */
 .grid-pane {
-  background-color: var(--background);
+  background-color: var(--pane-bg);
   background-image: var(--pane-image);
   background-size: var(--pane-size);
   background-attachment: local;
