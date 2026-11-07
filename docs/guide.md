@@ -333,7 +333,7 @@ Sessions, Restart the agent and a file's Open raw are icons; each names itself i
 
 ### Themes
 
-Five colour themes ship: **Darcula** (the default, with IntelliJ's colours on millimetre paper) and **Plannotator** (the look earlier versions had), dark; **IntelliJ Light**, **GitHub Light** and **Solarized Light**, light. Pick one in the gear menu (Theme) or in Settings → Themes. The choice is saved in `prefs.json` and shared by all windows; a window that is already open takes it when it next connects. A light theme stays light when the operating system is dark. Code highlighting and mermaid diagrams follow the theme. Layout, tabs and keys do not change with it.
+Five colour themes ship: **Darcula** (the default, with IntelliJ's colours on millimetre paper) and **Plannotator** (the look earlier versions had), dark; **IntelliJ Light**, **GitHub Light** and **Solarized Light**, light. Pick one in the gear menu (Theme) or in Settings → Themes. The choice is saved in `prefs.json` and shared by all windows; a window that is already open takes it when it next connects. A light theme stays light when the operating system is dark. Code highlighting, mermaid diagrams and the header logo follow the theme. Inline code that is a colour, such as `#ff8980` or `oklch(0.7 0.2 60)`, shows a swatch of it before the text. Layout, tabs and keys do not change with it.
 
 ### Languages
 

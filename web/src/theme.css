@@ -89,8 +89,8 @@
   --meter-fg: #bbbbbb;
   --meter-track: transparent;
   --meter-line: #888b8f;
-  --code-inline-bg: #2b2b2b; /* #2e2e2e sits too close to the card */
-  --code-inline-fg: #6aab73; /* IntelliJ's green for inline code in Markdown */
+  --code-inline-bg: var(--muted); /* as Plannotator: a muted chip, the text near the body's */
+  --code-inline-fg: var(--muted-fg);
   --md-aux: var(--muted-fg); /* code line numbers and the copy button */
   /* code highlighting (feed/hljs.css): Darcula's editor colours */
   --syn-text: #a9b7c6;
@@ -343,8 +343,8 @@
   --meter-fg: #6b6f7d; /* #6c707e: 4.46 on chrome */
   --meter-track: transparent;
   --meter-line: #888c9c; /* #a8adbd: 2.02 on chrome */
-  --code-inline-bg: #ebecf0;
-  --code-inline-fg: #0033b3;
+  --code-inline-bg: var(--muted); /* as Plannotator: a muted chip, the text near the body's */
+  --code-inline-fg: var(--muted-fg);
   --md-aux: var(--muted-fg); /* code line numbers and the copy button */
   /* code highlighting (feed/hljs.css): IntelliJ Light's editor colours */
   --syn-text: #080808;
@@ -474,8 +474,8 @@
   --meter-fg: #59636e;
   --meter-track: transparent;
   --meter-line: #88919b; /* #8c959f: 2.88 on chrome */
-  --code-inline-bg: #eff2f5;
-  --code-inline-fg: #1f2328;
+  --code-inline-bg: var(--muted); /* as Plannotator: a muted chip, the text near the body's */
+  --code-inline-fg: var(--muted-fg);
   --md-aux: var(--muted-fg); /* code line numbers and the copy button */
   /* code highlighting (feed/hljs.css): GitHub's light syntax */
   --syn-text: #1f2328;
@@ -605,8 +605,8 @@
   --meter-fg: #576c74; /* #657b83: 3.68 on chrome */
   --meter-track: transparent;
   --meter-line: #7b8888; /* #93a1a1: 2.21 on chrome */
-  --code-inline-bg: #eee8d5;
-  --code-inline-fg: #c22374; /* #d33682: 3.71 on inline bg */
+  --code-inline-bg: var(--muted); /* as Plannotator: a muted chip, the text near the body's */
+  --code-inline-fg: var(--muted-fg);
   --md-aux: var(--muted-fg); /* code line numbers and the copy button */
   /* code highlighting (feed/hljs.css): Solarized's own mapping */
   --syn-text: #566c73; /* #586e75 */
