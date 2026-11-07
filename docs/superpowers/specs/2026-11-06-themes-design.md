@@ -36,7 +36,7 @@ differ in beyond the shadcn set:
 - the focus ring of inputs;
 - popover and separator colours.
 
-A theme is a block of token values on `:root[data-theme="<id>"]`. Light themes also set `color-scheme: light`.
+A theme is a block of token values on `:root[data-theme="<id>"]`. Each theme also sets `color-scheme` to its kind (`light` or `dark`), so scrollbars and native controls follow the theme, not the OS.
 Diagrams (mermaid) and the SVG canvas take a light or dark base from the theme's kind.
 
 **Choosing.** A Theme row in the gear menu, above the scale, with a submenu of the five names, and a section of
