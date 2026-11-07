@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readPrefs } from './prefs.ts';
-import { installing, installRelease, patchUpdateState, readCurrent, readUpdateState, runtimeDir } from './runtime.ts';
+import { installing, installRelease, patchUpdateState, rawCurrent, readCurrent, readUpdateState, runtimeDir } from './runtime.ts';
 import { CHECK_EVERY_MS, isNewer, RELEASE, updateCheckForcedOff } from './update.ts';
 
 /** Exit code for "a newer version is current": the launcher hands the window over to it (only with NOTA_BENE_HANDOVER=1). */
@@ -62,15 +62,16 @@ export function updater(o: {
 
   const allowed = (v: string) => o.canUpdate && RELEASE.test(v) && checkOn();
 
-  // a newer `current` than this window (never the rolled-back one: the launcher refuses it), or, in a handed-over
-  // window on a rolled-back release, the older `current` it falls back to
+  // a newer installed `current` than this window (never the rolled-back one: the launcher refuses it), or, in a
+  // handed-over window on a rolled-back release, the older `current` it falls back to. That one may have no runtime
+  // folder (the launcher's own version, after the first update): the launcher then runs its own version
   function ready(v: string): boolean {
     if (!allowed(v)) return false;
-    const cur = readCurrent();
-    if (!cur || cur === v) return false;
     const rb = readUpdateState().rolledBack?.version;
-    if (isNewer(cur, v)) return cur !== rb;
-    return !!o.fromRuntime && rb === v;
+    const cur = readCurrent();
+    if (cur && isNewer(cur, v)) return cur !== rb;
+    const named = rawCurrent();
+    return !!o.fromRuntime && rb === v && named !== null && RELEASE.test(named) && isNewer(v, named);
   }
 
   async function status(): Promise<UpdateStatus> {

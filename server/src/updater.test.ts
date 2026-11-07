@@ -88,6 +88,25 @@ describe('updater', () => {
     u.stop();
   });
 
+  it('goes back to the launcher\'s own version too, which has no runtime folder (the first update)', async () => {
+    writeCurrent('1.6.0'); // the rollback names the launcher's own version: no runtime/1.6.0
+    patchUpdateState((s) => ({ ...s, rolledBack: { version: '1.7.0', at: 1 } }));
+    const { u, exit } = make({ newer: async () => null, fromRuntime: true, tabs: () => 0 });
+    expect((await u.status()).phase).toBe('ready');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(exit).toHaveBeenCalledWith(77);
+    u.stop();
+  });
+
+  it('a newer current with no runtime folder is not ready', async () => {
+    writeCurrent('1.8.0');
+    const { u, exit } = make({ tabs: () => 0 });
+    expect((await u.status()).phase).not.toBe('ready');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(exit).not.toHaveBeenCalled();
+    u.stop();
+  });
+
   it('a window on its own carried version never goes back', async () => {
     current('1.6.0');
     patchUpdateState((s) => ({ ...s, rolledBack: { version: '1.7.0', at: 1 } }));

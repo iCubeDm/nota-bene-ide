@@ -23,7 +23,8 @@ function writeAtomic(file: string, text: string): void {
   fs.renameSync(tmp, file);
 }
 
-const rawCurrent = (): string | null => {
+/** What `current` says, installed or not: after a rollback to a launcher's own version there is no runtime folder for it. */
+export const rawCurrent = (): string | null => {
   try { return fs.readFileSync(currentFile(), 'utf8').trim(); } catch { return null; }
 };
 
