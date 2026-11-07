@@ -47,8 +47,10 @@ export function RestartMenu() {
       )}
       <span className="flex items-center">
         {/* enabled while busy: the escape hatch for a stuck agent (R-M4-4); only a running switch/restart disables it */}
-        <button type="button" id="restartBtn" aria-label={t('restartAgent')} title={t('restartTip')} disabled={switching} onClick={() => d(restartAgent())} className={`${btn} rounded-l-md [&>svg]:text-accent-agent`}>
+        <button type="button" id="restartBtn" aria-label={t('restartAgent')} title={t('restartTip')} disabled={switching} onClick={() => d(restartAgent())} className={`${btn} relative rounded-l-md [&>svg]:text-accent-agent`}>
           <Svg size={14}>{ICONS.restart}</Svg>
+          {/* the A of Agent on the arrow's corner: this ↻ restarts the agent, the server is in the menu */}
+          <span data-agent-mark aria-hidden className="pointer-events-none absolute right-[3px] bottom-[1px] font-sans text-[0.5rem] font-bold leading-none text-accent-agent">A</span>
         </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

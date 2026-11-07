@@ -43,6 +43,14 @@ it('hides the server item when the server is not supervised', async () => {
   expect(screen.queryByText('Restart the server')).toBeNull();
 });
 
+it('↻ carries a small A for the agent; its name stays the label, not the letter', () => {
+  mockFetch(true, () => new Response(''));
+  setup();
+  const b = screen.getByRole('button', { name: 'Restart the agent' });
+  expect(b.querySelector('[data-agent-mark]')).toHaveTextContent('A');
+  expect(b.querySelector('[data-agent-mark]')).toHaveAttribute('aria-hidden');
+});
+
 it('a plain click on ↻ still restarts the agent', async () => {
   mockFetch(true, () => new Response(''));
   const { sent } = setup();
