@@ -63,27 +63,58 @@ export function writeCurrent(v: string, expect?: string | null): boolean {
   return true;
 }
 
-export function installing(): { version: string; pid: number } | null {
+/** An unparseable lock younger than this is a write in progress, not a stale lock. */
+const LOCK_GRACE_MS = 10_000;
+/** npm is killed and the install fails after this long, so a hung npm cannot hold the lock for good. */
+export const NPM_TIMEOUT_MS = 10 * 60_000;
+
+type LockRead = { version: string; pid: number } | 'stale' | null;
+function readLock(file: string): LockRead {
+  let text: string;
+  try { text = fs.readFileSync(file, 'utf8'); } catch { return null; }
   try {
-    const l = JSON.parse(fs.readFileSync(lockFile(), 'utf8')) as { version?: unknown; pid?: unknown };
-    return typeof l.version === 'string' && typeof l.pid === 'number' && pidAlive(l.pid) ? { version: l.version, pid: l.pid } : null;
-  } catch { return null; }
+    const l = JSON.parse(text) as { version?: unknown; pid?: unknown };
+    if (typeof l.version === 'string' && typeof l.pid === 'number') return pidAlive(l.pid) ? { version: l.version, pid: l.pid } : 'stale';
+  } catch { /* unparseable: judged by age below */ }
+  try { return Date.now() - fs.statSync(file).mtimeMs < LOCK_GRACE_MS ? { version: '', pid: 0 } : 'stale'; } catch { return null; }
 }
 
-/** Takes update.lock (exclusive create); false when a live install holds it. A stale lock is replaced. */
+export function installing(): { version: string; pid: number } | null {
+  const l = readLock(lockFile());
+  return l && l !== 'stale' ? l : null;
+}
+
+/** Takes update.lock atomically (a complete tmp file hard-linked into place); false when a live install holds it. */
 function takeLock(version: string): boolean {
   fs.mkdirSync(runtimeDir(), { recursive: true, mode: 0o700 });
-  for (let tries = 0; tries < 3; tries++) {
-    try {
-      fs.writeFileSync(lockFile(), JSON.stringify({ version, pid: process.pid }), { flag: 'wx', mode: 0o600 });
-      return true;
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
-      if (installing()) return false;
-      fs.rmSync(lockFile(), { force: true });
+  const uniq = `${process.pid}.${Math.random().toString(36).slice(2)}`;
+  const tmp = `${lockFile()}.${uniq}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ version, pid: process.pid }), { mode: 0o600 });
+  try {
+    for (let tries = 0; tries < 3; tries++) {
+      try {
+        fs.linkSync(tmp, lockFile());
+        return true;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+      }
+      const l = readLock(lockFile());
+      if (l && l !== 'stale') return false;
+      // stale: move it aside (one winner), and re-check what was really moved
+      const aside = `${lockFile()}.${uniq}.stale`;
+      try { fs.renameSync(lockFile(), aside); } catch { continue; }
+      const moved = readLock(aside);
+      if (moved && moved !== 'stale') {
+        try { fs.linkSync(aside, lockFile()); } catch { /* the newer owner already re-created it */ }
+        fs.rmSync(aside, { force: true });
+        return false;
+      }
+      fs.rmSync(aside, { force: true });
     }
+    return false;
+  } finally {
+    fs.rmSync(tmp, { force: true });
   }
-  return false;
 }
 
 function defaultNpm(): string | null {
@@ -95,37 +126,44 @@ function defaultNpm(): string | null {
   return null;
 }
 
-function run(cmd: string, args: string[], out: number | 'pipe'): Promise<{ code: number | null; stdout: string }> {
+function run(cmd: string, args: string[], out: number | 'pipe', timeoutMs = NPM_TIMEOUT_MS): Promise<{ code: number | null; stdout: string; timedOut: boolean }> {
   return new Promise((resolve) => {
     const c = spawn(cmd, args, { stdio: ['ignore', out, out === 'pipe' ? 'ignore' : out] });
     let stdout = '';
+    let timedOut = false;
+    const t = setTimeout(() => { timedOut = true; c.kill('SIGKILL'); }, timeoutMs);
     c.stdout?.on('data', (d: Buffer) => { stdout += d; });
-    c.on('error', () => resolve({ code: null, stdout }));
-    c.on('close', (code) => resolve({ code, stdout }));
+    c.on('error', () => { clearTimeout(t); resolve({ code: null, stdout, timedOut }); });
+    c.on('close', (code) => { clearTimeout(t); resolve({ code, stdout, timedOut }); });
   });
 }
 
-export async function installRelease(version: string, o: { npm?: string; node?: string; log?: string } = {}): Promise<'installed' | 'running' | { failed: string }> {
+export async function installRelease(version: string, o: { npm?: string; node?: string; log?: string; npmTimeoutMs?: number } = {}): Promise<'installed' | 'running' | { failed: string }> {
   if (!RELEASE.test(version)) return { failed: `not a release version: ${version}` };
+  if (readCurrent() === version) return 'installed'; // already there: nothing to fetch, nothing to disturb
   if (!takeLock(version)) return 'running';
   const dir = path.join(runtimeDir(), version);
+  // a folder that is previous or run by a live window is somebody's: never removed here, reused when complete
+  const owned = protectedVersions().has(version);
+  const removeOwn = () => { if (!owned) fs.rmSync(dir, { recursive: true, force: true }); };
   let reason: string | null = null;
   try {
     const npm = o.npm ?? defaultNpm();
     if (!npm) {
       reason = 'npm not found';
-    } else {
-      fs.rmSync(dir, { recursive: true, force: true }); // a leftover of an earlier failure
+    } else if (!(owned && fs.existsSync(launcherOf(version)))) {
+      removeOwn(); // a leftover of an earlier failure
       const log = fs.openSync(o.log ?? path.join(runtimeDir(), 'update.log'), 'a', 0o600);
       try {
-        const got = await run(npm, ['install', '--prefix', dir, `nota-bene-ide@${version}`, '--no-audit', '--no-fund'], log);
-        if (got.code !== 0) reason = `npm install exited with ${got.code}`;
+        const got = await run(npm, ['install', '--prefix', dir, `nota-bene-ide@${version}`, '--no-audit', '--no-fund'], log, o.npmTimeoutMs);
+        if (got.timedOut) reason = 'npm timed out';
+        else if (got.code !== 0) reason = `npm install exited with ${got.code}`;
       } finally { fs.closeSync(log); }
-      if (reason === null) {
-        const check = await run(o.node ?? process.execPath, [launcherOf(version), '--version'], 'pipe');
-        const said = check.stdout.trim();
-        if (check.code !== 0 || said !== version) reason = `installed version check said ${said || `exit ${check.code}`}, expected ${version}`;
-      }
+    }
+    if (reason === null) {
+      const check = await run(o.node ?? process.execPath, [launcherOf(version), '--version'], 'pipe', o.npmTimeoutMs);
+      const said = check.stdout.trim();
+      if (check.code !== 0 || said !== version) reason = `installed version check said ${said || `exit ${check.code}`}, expected ${version}`;
     }
     if (reason === null && !writeCurrent(version)) reason = 'could not write current';
     if (reason === null) {
@@ -134,12 +172,12 @@ export async function installRelease(version: string, o: { npm?: string; node?: 
       return 'installed';
     }
     patchUpdateState((s) => ({ ...s, failed: { version, at: Date.now(), reason: reason! } }));
-    fs.rmSync(dir, { recursive: true, force: true });
+    removeOwn();
     return { failed: reason };
   } catch (e) {
     reason = e instanceof Error ? e.message : String(e);
     try { patchUpdateState((s) => ({ ...s, failed: { version, at: Date.now(), reason: reason! } })); } catch { /* best effort */ }
-    fs.rmSync(dir, { recursive: true, force: true });
+    removeOwn();
     return { failed: reason };
   } finally {
     fs.rmSync(lockFile(), { force: true });
@@ -163,13 +201,19 @@ function versionsInUse(): Set<string> {
   return used;
 }
 
-/** Removes the installed releases that are neither `current`, its predecessor nor run by a live window. */
-export function pruneRuntime(): void {
+/** `current`, its predecessor and every version a live window runs: never removed. */
+function protectedVersions(): Set<string> {
   const keep = versionsInUse();
   const cur = rawCurrent();
   if (cur) keep.add(cur);
   const prev = readUpdateState().previous;
   if (prev) keep.add(prev);
+  return keep;
+}
+
+/** Removes the installed releases that are neither `current`, its predecessor nor run by a live window. */
+export function pruneRuntime(): void {
+  const keep = protectedVersions();
   let names: string[] = [];
   try { names = fs.readdirSync(runtimeDir()); } catch { return; }
   for (const n of names) {

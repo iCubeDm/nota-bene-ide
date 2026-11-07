@@ -38,7 +38,7 @@ fs.writeFileSync(path.join(pkg, 'bin', 'nota-bene.mjs'), 'console.log(process.en
   return f;
 }
 const deadPid = () => spawnSync('true').pid!;
-const install = (v: string, npm = fakeNpm()) => installRelease(v, { npm, node: process.execPath });
+const install = (v: string, npm = fakeNpm(), extra: { npmTimeoutMs?: number } = {}) => installRelease(v, { npm, node: process.execPath, ...extra });
 const lockFile = () => path.join(runtimeDir(), 'update.lock');
 function fakeInstalled(v: string) {
   const l = launcherOf(v);
@@ -111,5 +111,37 @@ describe('runtime store', () => {
     pruneRuntime();
     const left = fs.readdirSync(runtimeDir()).filter((n) => /^\d/.test(n)).sort();
     expect(left).toEqual(['1.1.0', '1.3.0', '1.4.0']);
+  });
+
+  it('installing the current version never touches its folder, even if npm would fail', async () => {
+    expect(await install('1.7.0')).toBe('installed');
+    process.env.FAKE_NPM_FAIL = '1';
+    expect(await install('1.7.0')).toBe('installed');
+    expect(readCurrent()).toBe('1.7.0');
+    expect(fs.existsSync(launcherOf('1.7.0'))).toBe(true);
+  });
+
+  it('a failed install of a version a live window runs keeps its folder', async () => {
+    fakeInstalled('1.6.0'); // its bin is empty: the version check fails
+    registerWindow(4791, '/p', process.pid, undefined, '1.6.0');
+    expect(await install('1.6.0')).toMatchObject({ failed: expect.any(String) });
+    expect(fs.existsSync(launcherOf('1.6.0'))).toBe(true);
+  });
+
+  it('a lock just created and still empty reads as installing and is not removed', async () => {
+    fs.mkdirSync(runtimeDir(), { recursive: true });
+    fs.writeFileSync(lockFile(), '');
+    expect(installing()).not.toBeNull();
+    expect(await install('1.7.0')).toBe('running');
+    expect(fs.existsSync(lockFile())).toBe(true);
+  });
+
+  it('a hung npm is killed after the timeout and the install fails', async () => {
+    const f = path.join(home, 'slow-npm.mjs');
+    fs.writeFileSync(f, `#!${process.execPath}\nsetTimeout(() => {}, 60000);\n`, { mode: 0o755 });
+    const r = await install('1.7.0', f, { npmTimeoutMs: 200 });
+    expect(r).toEqual({ failed: 'npm timed out' });
+    expect(installing()).toBeNull();
+    expect(fs.existsSync(path.join(runtimeDir(), '1.7.0'))).toBe(false);
   });
 });
