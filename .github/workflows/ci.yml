@@ -26,3 +26,25 @@ jobs:
       - run: npm ci
       - run: npx tsc -b
       - run: npm test
+
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run gen:protocol -- --check
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+        working-directory: mobile/protocol
+      - run: dart analyze --fatal-infos
+        working-directory: mobile/protocol
+      - run: dart format --output=none --set-exit-if-changed lib test
+        working-directory: mobile/protocol
+      - run: dart test
+        working-directory: mobile/protocol
