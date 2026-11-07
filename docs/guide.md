@@ -396,7 +396,7 @@ The store keeps what it read after the transcripts themselves are gone. Sessions
 
 ### Update check
 
-An installed window asks the npm registry for the latest version at most once in 6 hours. The request carries no project, session or account data. When a newer version is out, the header shows `↑ <version>` with how to update; **Later** hides it until the next version. Turn the check off in Settings → Defaults, for every window of that agent; `NOTA_BENE_NO_UPDATE_CHECK=1` turns it off whatever Settings say. A source checkout never checks.
+An installed window asks the npm registry for the latest version at most once in 6 hours. The request carries no project, session or account data. When a newer version is out, the header shows `↑ <version>` with how to update and what changed since your version: opening it reads that version's CHANGELOG from GitHub, once per version; **Later** hides it until the next version. Turn the check off in Settings → Defaults, for every window of that agent; `NOTA_BENE_NO_UPDATE_CHECK=1` turns it off whatever Settings say. A source checkout never checks.
 
 ### Audit log
 

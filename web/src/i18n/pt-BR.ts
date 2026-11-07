@@ -584,6 +584,7 @@ export const ptBR: Dict = {
   updateYours: (v) => `Você usa a ${v}. Se instalou pelo terminal:`,
   updateHow: 'Com um plugin, atualize-o no Claude Code ou no Codex. Depois feche as janelas e inicie de novo.',
   updateNotes: 'Notas da versão',
+  updateChanges: 'Novidades',
   updateLater: 'Mais tarde',
   renameSess: 'Renomear',
   renameFail: 'Não foi possível renomear a sessão: ',

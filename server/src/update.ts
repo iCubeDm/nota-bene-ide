@@ -41,3 +41,44 @@ export function updateCheck(o: { fetch?: typeof fetch; now?: () => number; off?:
     return known && isNewer(known, current) ? known : null;
   };
 }
+
+const CHANGELOG_URL = (v: string) => `https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/v${v}/CHANGELOG.md`;
+const SECTION = /^## (\d+\.\d+\.\d+)\b.*$/;
+
+/** The CHANGELOG sections of the versions newer than `current`, newest first, as written; '' when there are none. */
+export function changesSince(md: string, current: string): string {
+  const out: string[] = [];
+  let take = false;
+  for (const line of md.split('\n')) {
+    if (line.startsWith('## ')) {
+      const v = SECTION.exec(line)?.[1];
+      take = !!v && isNewer(v, current);
+      if (v && !take) break; // the file runs newest first: the rest is older still
+    }
+    if (take) out.push(line);
+  }
+  return out.join('\n').trim();
+}
+
+/**
+ * What changed between the running version and a newer one, from CHANGELOG.md at the newer one's tag; null when it
+ * cannot be read. The file is fetched once per version (a failure is not kept, so the next ask tries again).
+ */
+export function changelog(o: { fetch?: typeof fetch } = {}): (current: string, latest: string) => Promise<string | null> {
+  const get = o.fetch ?? fetch;
+  const files = new Map<string, Promise<string | null>>();
+  const read = async (v: string) => {
+    try {
+      const r = await get(CHANGELOG_URL(v), { signal: AbortSignal.timeout(TIMEOUT_MS) });
+      return r.ok ? await r.text() : null;
+    } catch { return null; }
+  };
+  return async (current, latest) => {
+    if (!RELEASE.test(latest)) return null;
+    let file = files.get(latest);
+    if (!file) files.set(latest, (file = read(latest)));
+    const md = await file;
+    if (md === null) files.delete(latest);
+    return md === null ? null : changesSince(md, current);
+  };
+}

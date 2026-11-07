@@ -600,6 +600,7 @@ export const ru = {
   updateYours: (v: string) => `У тебя ${v}. Если ставил из терминала:`,
   updateHow: 'Если стоит плагин, обнови его в Claude Code или Codex. Потом закрой окна и запусти снова.',
   updateNotes: 'Что нового',
+  updateChanges: 'Что нового',
   updateLater: 'Позже',
   renameSess: 'Переименовать',
   renameFail: 'Не удалось переименовать сессию: ',

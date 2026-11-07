@@ -584,6 +584,7 @@ export const es: Dict = {
   updateYours: (v) => `Usas la ${v}. Si instalaste desde la terminal:`,
   updateHow: 'Con un plugin, actualízalo en Claude Code o Codex. Luego cierra las ventanas y vuelve a iniciar.',
   updateNotes: 'Notas de la versión',
+  updateChanges: 'Novedades',
   updateLater: 'Más tarde',
   renameSess: 'Renombrar',
   renameFail: 'No se pudo renombrar la sesión: ',

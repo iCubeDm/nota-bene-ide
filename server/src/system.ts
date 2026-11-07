@@ -20,7 +20,7 @@ import { readPrefs, setAuditPref, setDefaultModePref, setLangPref, setThemePref,
 import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
 import { stateDir } from './state.ts';
-import { updateCheck, updateCheckForcedOff } from './update.ts';
+import { changelog, updateCheck, updateCheckForcedOff } from './update.ts';
 import { pidAlive, readWindows } from './windows.ts';
 
 export const CONTROL_HEADER = 'x-nota-bene-control';
@@ -287,6 +287,8 @@ export function systemRoutes(o: {
   repoDir: string;
   /** the newer version on npm, or null (tests stub it) */
   newer?: (current: string) => Promise<string | null>;
+  /** the CHANGELOG sections between two versions, or null (tests stub it) */
+  changes?: (current: string, latest: string) => Promise<string | null>;
   /** run after the reply is out; `supervised` says whether restart-server can be caught by a launcher */
   control: { supervised(): boolean; exiting(): boolean; restartAgent(): void; restartServer(): void; stop(): void };
   probe?: (port: number) => Promise<WindowInfo | null>;
@@ -306,11 +308,20 @@ export function systemRoutes(o: {
   };
 
   const newer = o.newer ?? updateCheck();
+  const changes = o.changes ?? changelog();
   return {
     '/system/update': (req, res) => {
       if (!only('GET', req, res)) return;
       void gitDescribe(o.repoDir).then(async (current) => json(res, 200, { current, latest: await newer(current) }))
         .catch((e: unknown) => fail(res, '/system/update', e));
+    },
+    // what the newer version changes, for the notice's popover: asked when it opens, never with the check off
+    '/system/update/changes': (req, res) => {
+      if (!only('GET', req, res)) return;
+      void gitDescribe(o.repoDir).then(async (current) => {
+        const latest = await newer(current);
+        json(res, 200, { text: latest ? await changes(current, latest) : null });
+      }).catch((e: unknown) => fail(res, '/system/update/changes', e));
     },
     '/system/about': (req, res) => {
       if (!only('GET', req, res)) return;
