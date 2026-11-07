@@ -668,6 +668,135 @@
   --hue-20: #bc3d00; /* #cb4b16: 3.76 on side */
 }
 
+[data-theme="solarized-dark"] {
+  --background: #002b36;
+  --foreground: #bac9c9 /* #93a1a1 (base1), lifted in OKLCH lightness only to stay a clear step above the muted text */;
+  --card: #002b36;
+  --popover: #073642;
+  --separator: #0e4452;
+  --primary: #006cb1 /* #268bd2: white text at 3.68 */;
+  --primary-fg: #ffffff;
+  --muted: #11424f;
+  --muted-fg: #9bacae /* #839496 (base0): 3.47 on muted, 4.11 on side */;
+  --nb-accent: #c69925 /* #b58900: 4.05 on side; also the warnings */;
+  --destructive: #ff7569 /* #dc322f: 3.25 on card */;
+  --destructive-fg: #002b36;
+  /* the destructive button's fill, and on hover */
+  --destructive-fill: var(--destructive);
+  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 90%, transparent);
+  --success: #94a924 /* #859900: 4.06 on side */;
+  --border: #2f5a66;
+  --border-soft: rgb(255 255 255 / .07);
+  --code-bg: #00232c;
+  --side: #073642;
+  --chrome: rgb(7 54 66 / .9);
+  --link: #47a6ef /* #268bd2: 4.08 on card */;
+  /* shadows (mixed with transparent where used), scrims behind dialogs and over video, the text on a scrim */
+  --shade: #000;
+  --scrim: #000;
+  --on-scrim: #fff;
+  /* an HTML page's own canvas, behind the iframe */
+  --page-bg: #fff;
+  /* the pane behind the paper card (.grid-pane): Darcula's millimetre paper with white hairlines, same composited opacities */
+  --pane-image:
+    linear-gradient(rgb(255 255 255 / .0259) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / .0259) 1px, transparent 1px),
+    repeating-linear-gradient(rgb(255 255 255 / .0173) 0 1px, transparent 1px 5mm),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / .0173) 0 1px, transparent 1px 5mm),
+    repeating-linear-gradient(rgb(255 255 255 / .018) 0 1px, transparent 1px 1mm),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / .018) 0 1px, transparent 1px 1mm);
+  --pane-size: 10mm 10mm;
+  --pane-bg: #00222b /* a step below the card: the paper steps up to it */;
+  /* the active tab; a pressed tool-window button in a focused panel and in an unfocused one */
+  --tab-on-bg: #002b36;
+  --tab-on-fg: var(--foreground);
+  --tab-line: #268bd2 /* a line, not text: 4.08 on card */;
+  --tool-on: #006cb1 /* #268bd2, as --primary */;
+  --tool-on-idle: #11424f;
+  --tool-on-fg: #ffffff;
+  --tool-on-idle-fg: var(--foreground);
+  /* the header's function icons; the gear stays neutral */
+  --accent-sessions: #47a6ef /* #268bd2: 3.30 on chrome */;
+  --accent-agent: #94a924 /* #859900 */;
+  --accent-model: #9299f0 /* #6c71c4: 2.77 on chrome */;
+  --accent-usage: #fd794a /* #cb4b16: 2.64 on chrome */;
+  /* the header logo: a Solarized Dark tile, Solarized's paper and orange */
+  --logo-tile: #0a4250;
+  --logo-tile-2: #002b36;
+  --logo-paper: #fdf6e3;
+  --logo-paper-2: #eee8d5;
+  --logo-ink: #073642;
+  --logo-mark: #f0c840;
+  --logo-note: #e06a30;
+  --logo-note-2: #cb4b16;
+  --logo-glyph: #fdf6e3;
+  /* the footer's meters: their text, the track a bar runs in (the footer itself) and its outline */
+  --meter-fg: var(--muted-fg);
+  --meter-track: transparent;
+  --meter-line: #6f8f95;
+  --code-inline-bg: var(--muted); /* as Plannotator: a muted chip, the text near the body's */
+  --code-inline-fg: var(--muted-fg);
+  --md-aux: var(--muted-fg); /* code line numbers and the copy button */
+  /* code highlighting (feed/hljs.css): Solarized's own mapping */
+  --syn-text: #91a3a5 /* #839496 */;
+  --syn-bg: #00232c;
+  --syn-keyword: #94a924 /* #859900 */;
+  --syn-string: #3eb0a7 /* #2aa198 */;
+  --syn-function: #47a6ef /* #268bd2 */;
+  --syn-number: #ff6cab /* #d33682: 3.30 on card */;
+  --syn-comment: #7f969d /* #586e75: 2.79 on card */;
+  --syn-type: #c69925 /* #b58900 */;
+  --syn-variable: #47a6ef /* #268bd2 */;
+  --syn-property: #9299f0 /* #6c71c4 */;
+  --syn-param: var(--syn-property);
+  --syn-builtin: var(--syn-keyword);
+  --syn-tag: var(--syn-function);
+  --syn-section: var(--syn-function);
+  --syn-bullet: var(--syn-keyword);
+  --syn-add: #b8cc5a;
+  --syn-add-bg: #12382a;
+  --syn-del: #ff9d94;
+  --syn-del-bg: #3d1f24;
+  --focus-border: #268bd2;
+  --focus-ring: #47a6ef /* #268bd2: lifted in OKLCH lightness only so a button's focus outline clears 3:1 on the chrome */;
+  /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring */
+  --input-focus: var(--focus-border);
+  --input-focus-soft: var(--focus-border);
+  --input-ring: var(--focus-ring);
+  /* the composer's focus halo: the same 2px ring as the other inputs */
+  --composer-halo: 0 0 0 2px var(--input-ring);
+  /* "jump to source" (.nb-flash); a comment's highlight in the text while it is pending */
+  --flash: rgb(181 137 0 / .3);
+  --mark-pending: #b58900;
+  --mark-pending-line: #c69925;
+  /* mermaid's canvas; the light canvas under an SVG (its strokes are usually dark) */
+  --diagram-bg: #00232c;
+  --svg-bg: #fdf6e3;
+  /* colours that tell items apart, one set per theme: file-type marks (1-8), git-graph lanes (9-16), mode pills (17-20) */
+  --hue-1: #47a6ef /* #268bd2: 3.53 on side */;
+  --hue-2: #c69925 /* #b58900: 4.05 on side */;
+  --hue-3: #fd794a /* #cb4b16: 2.82 on side */;
+  --hue-4: #ff7569 /* #dc322f: 2.81 on side */;
+  --hue-5: #ff6cab /* #d33682: 2.86 on side */;
+  --hue-6: #94a924 /* #859900: 4.06 on side */;
+  --hue-7: #3eb0a7 /* #2aa198: 4.12 on side */;
+  --hue-8: #91a3a5 /* #839496: 4.11 on side */;
+  /* git-graph lanes (--hue-9..16) keep their published values on purpose: not text, told apart by position */
+  --hue-9: #268bd2;
+  --hue-10: #859900;
+  --hue-11: #b58900;
+  --hue-12: #dc322f;
+  --hue-13: #6c71c4;
+  --hue-14: #2aa198;
+  --hue-15: #cb4b16;
+  --hue-16: #93a1a1;
+  --hue-17: #3eb0a7 /* #2aa198 */;
+  /* --hue-18 and --hue-20 are decorative (a mark, not text); where one differs from the published value, it is noted beside it */
+  --hue-18: #47a6ef /* #268bd2 */;
+  --hue-19: #c69925 /* #b58900 */;
+  --hue-20: #fd794a /* #cb4b16 */;
+}
+
 /* Plannotator keeps shadcn's `dark:bg-destructive/60` (a dark OS, hover included); Darcula's fill is solid */
 @media (prefers-color-scheme: dark) {
   [data-theme="plannotator"] {
