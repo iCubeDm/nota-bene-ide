@@ -194,7 +194,7 @@ it('a Themes section after Defaults: radios with a swatch of the theme\'s own to
   expect(heads.slice(-3)).toEqual(['Defaults', 'Themes', 'About']);
   const group = screen.getByRole('radiogroup', { name: 'Themes' });
   const radios = within(group).getAllByRole('radio');
-  expect(radios.map((r) => r.textContent)).toEqual(['Darcula', 'Plannotator', 'IntelliJ Light', 'GitHub Light']);
+  expect(radios.map((r) => r.textContent)).toEqual(['Darcula', 'Plannotator', 'IntelliJ Light', 'GitHub Light', 'Solarized Light']);
   expect(radios[0]).toBeChecked();
   const swatch = radios[1].querySelector('[data-theme="plannotator"]')!;
   expect([...swatch.querySelectorAll('span')].map((s) => (s as HTMLElement).style.backgroundColor))
