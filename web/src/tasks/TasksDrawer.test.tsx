@@ -145,6 +145,7 @@ describe('rows', () => {
 
   it('a finished row shows how it ended and its duration, and stops ticking', () => {
     const { task } = setup();
+    const others = vi.getTimerCount(); // the app's own timers (the update notice polls), not the row's
     task(start('a'), 100_000);
     task({ t: 'task', id: 'a', phase: 'done', status: 'failed' }, 107_000);
     fireEvent.click(indicator()!);
@@ -152,7 +153,7 @@ describe('rows', () => {
     expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('7s');
     act(() => void vi.advanceTimersByTime(30_000));
     expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('7s');
-    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBeLessThanOrEqual(others);
   });
 
   it('children nest under their parent', () => {
