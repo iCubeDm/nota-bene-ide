@@ -81,6 +81,7 @@
   --meter-line: #888b8f;
   --code-inline-bg: #2b2b2b; /* #2e2e2e sits too close to the card */
   --code-inline-fg: #5f97df; /* #4f86cd: 3.64 */
+  --md-aux: var(--muted-fg); /* code line numbers and the copy button */
   /* code highlighting (feed/hljs.css): Darcula's editor colours */
   --syn-text: #a9b7c6;
   --syn-bg: #2b2b2b;
@@ -193,6 +194,7 @@
   --meter-line: transparent;
   --code-inline-bg: var(--muted);
   --code-inline-fg: var(--muted-fg);
+  --md-aux: currentColor; /* code line numbers and the copy button */
   /* code highlighting (feed/hljs.css): highlight.js's github-dark; currentColor leaves a class in its parent's colour */
   --syn-text: #c9d1d9;
   --syn-bg: #0d1117;
@@ -311,6 +313,7 @@
   --meter-line: #888c9c; /* #a8adbd: 2.02 on chrome */
   --code-inline-bg: #ebecf0;
   --code-inline-fg: #0033b3;
+  --md-aux: var(--muted-fg); /* code line numbers and the copy button */
   /* code highlighting (feed/hljs.css): IntelliJ Light's editor colours */
   --syn-text: #080808;
   --syn-bg: #f7f8fa;
@@ -429,6 +432,7 @@
   --meter-line: #88919b; /* #8c959f: 2.88 on chrome */
   --code-inline-bg: #eff2f5;
   --code-inline-fg: #1f2328;
+  --md-aux: var(--muted-fg); /* code line numbers and the copy button */
   /* code highlighting (feed/hljs.css): GitHub's light syntax */
   --syn-text: #1f2328;
   --syn-bg: #f6f8fa;
@@ -547,6 +551,7 @@
   --meter-line: #7b8888; /* #93a1a1: 2.21 on chrome */
   --code-inline-bg: #eee8d5;
   --code-inline-fg: #c22374; /* #d33682: 3.71 on inline bg */
+  --md-aux: var(--muted-fg); /* code line numbers and the copy button */
   /* code highlighting (feed/hljs.css): Solarized's own mapping */
   --syn-text: #566c73; /* #586e75 */
   --syn-bg: #fdf6e3;

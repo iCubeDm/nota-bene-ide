@@ -242,7 +242,7 @@ export function SettingsView({ active }: { active: boolean }) {
               className={`flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 text-[0.8125rem] text-foreground hover:bg-muted ${themeId === id ? 'border-primary' : 'border-border-soft'}`}>
               {/* data-theme re-scopes the tokens: the swatch shows this theme's colours, not the current one's */}
               <span data-theme={id} className="flex overflow-hidden rounded border border-border-soft" aria-hidden>
-                {['--background', '--card', '--primary'].map((v) => <span key={v} className="size-4" style={{ backgroundColor: `var(${v})` }} />)}
+                {['--background', '--card', '--primary'].map((v) => <span key={v} data-swatch={v} className="size-4" style={{ backgroundColor: `var(${v})` }} />)}
               </span>
               {THEME_NAMES[id]}
             </button>

@@ -19,8 +19,8 @@
 .md pre code.hljs { background: none; padding: 0; display: block; overflow: visible; white-space: inherit; counter-reset: md-line; }
 /* line numbers: one per source line, so the part of a line that wraps has none; a counter is no text to select or anchor on */
 .md-line { display: block; position: relative; padding-left: calc(var(--md-digits) * 1ch + 1.4ch); counter-increment: md-line; }
-.md-line::before { content: counter(md-line); position: absolute; left: 0; width: calc(var(--md-digits) * 1ch); text-align: right; color: var(--muted-foreground); opacity: 0.6; user-select: none; }
-.md-copy-code { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--muted-foreground); opacity: 0; cursor: pointer; transition: opacity 0.12s; }
+.md-line::before { content: counter(md-line); position: absolute; left: 0; width: calc(var(--md-digits) * 1ch); text-align: right; color: var(--md-aux); opacity: 0.6; user-select: none; }
+.md-copy-code { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--md-aux); opacity: 0; cursor: pointer; transition: opacity 0.12s; }
 .md pre:hover > .md-copy-code, .md-copy-code:focus-visible { opacity: 1; }
 .md-copy-code:hover { background: var(--muted); color: var(--foreground); }
 .md img, .md video { max-width: 100%; max-height: 380px; border-radius: 8px; display: block; margin: 8px 0; }

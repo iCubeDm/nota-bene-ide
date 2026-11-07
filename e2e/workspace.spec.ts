@@ -190,6 +190,17 @@ test('themes: the gear menu and Settings pick one, a reload keeps it, nothing ke
     await expect(composer(page)).toBeVisible();
     expect(await attr()).toBe('plannotator');
     expect(await bodyBg()).toBe(body);
+    // a light theme: the colour scheme says light and every sampled piece has its own colour
+    await page.locator('#settingsBtn').click();
+    await page.locator('#themeMenu').focus();
+    await page.keyboard.press('ArrowRight');
+    await page.locator('[data-theme-id="solarized-light"]').focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(attr).toBe('solarized-light');
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('light');
+    const solarized = await sample();
+    for (const k of Object.keys(darcula) as (keyof typeof darcula)[]) expect(solarized[k], k).not.toBe(darcula[k]);
   } finally {
     // the fixture's prefs are shared by the other tests: back to Darcula, picked in Settings → Themes
     await page.keyboard.press('Escape');
@@ -199,4 +210,71 @@ test('themes: the gear menu and Settings pick one, a reload keeps it, nothing ke
   }
   await expect.poll(attr).toBe('darcula');
   expect(await bodyBg()).toBe('rgb(43, 43, 43)');
+  // the swatch paints its own theme's colours while the page is Darcula
+  const cardSpan = page.getByRole('radiogroup', { name: 'Themes' }).locator('[data-theme="solarized-light"] [data-swatch="--card"]');
+  expect(await cardSpan.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(253, 246, 227)');
+});
+
+test('a light theme on a dark OS keeps light colours @chat', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await start(page);
+  const attr = () => page.evaluate(() => document.documentElement.dataset.theme);
+  const pick = async (id: string) => {
+    await page.locator('#settingsBtn').click();
+    await page.locator('#themeMenu').focus();
+    await page.keyboard.press('ArrowRight');
+    await page.locator(`[data-theme-id="${id}"]`).focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(attr).toBe(id);
+    await page.keyboard.press('Escape');
+  };
+  /** A ghost button (hover:bg-accent, dark:hover:bg-accent/50) probed on its own, and the document's colour scheme. */
+  const probe = () => page.evaluate(() => {
+    const b = document.createElement('button');
+    b.className = 'inline-flex items-center hover:bg-accent dark:hover:bg-accent/50';
+    b.textContent = 'probe';
+    b.id = 'themeProbe';
+    b.style.cssText = 'position:fixed;top:40px;left:40px;z-index:9999;padding:8px';
+    const d = document.createElement('button');
+    d.className = 'bg-destructive-fill';
+    d.id = 'destructiveProbe';
+    d.style.cssText = 'position:fixed;top:90px;left:40px;z-index:9999;padding:8px';
+    document.body.append(b, d);
+    return getComputedStyle(document.documentElement).colorScheme;
+  });
+  const hoverBg = async () => {
+    await page.locator('#themeProbe').hover();
+    return page.locator('#themeProbe').evaluate((el) => getComputedStyle(el).backgroundColor);
+  };
+  try {
+    await pick('intellij-light');
+    expect(await probe()).toBe('light');
+    const onDarkOs = await hoverBg();
+    await page.emulateMedia({ colorScheme: 'light' });
+    const onLightOs = await hoverBg();
+    expect(onDarkOs).toBe(onLightOs); // the dark: variant stayed out of the light theme
+    await page.emulateMedia({ colorScheme: 'dark' });
+    // the destructive fill is the opaque --destructive colour, not a translucent mix
+    const fill = await page.locator('#destructiveProbe').evaluate((el) => {
+      const probe = document.createElement('i');
+      probe.style.color = 'var(--destructive)';
+      document.body.append(probe);
+      const want = getComputedStyle(probe).color;
+      probe.remove();
+      return { bg: getComputedStyle(el).backgroundColor, want };
+    });
+    expect(fill.bg).toBe(fill.want);
+    expect(fill.bg).toMatch(/^rgb\(/);
+    await pick('darcula');
+    const darculaDarkOs = await hoverBg();
+    await page.emulateMedia({ colorScheme: 'light' });
+    expect(darculaDarkOs).not.toBe(await hoverBg()); // the dark: variant does apply in a dark theme on a dark OS
+  } finally {
+    await page.emulateMedia({ colorScheme: null });
+    await page.keyboard.press('Escape');
+    await page.locator('#settingsBtn').click();
+    await page.locator('#allSettings').click();
+    await page.getByRole('radiogroup', { name: 'Themes' }).getByRole('radio', { name: 'Darcula' }).click();
+  }
+  await expect.poll(attr).toBe('darcula');
 });
