@@ -1,0 +1,1044 @@
+{
+  "client": [
+    {
+      "type": "send",
+      "id": "s1",
+      "text": "hello"
+    },
+    {
+      "type": "send",
+      "id": "s2",
+      "text": "again",
+      "force": true,
+      "commentIds": [
+        "c1"
+      ],
+      "images": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "image/png",
+          "label": "image 1"
+        }
+      ]
+    },
+    {
+      "type": "comments",
+      "sessionId": "0b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8",
+      "items": [
+        {
+          "id": "c1",
+          "anchor": {
+            "source": {
+              "kind": "file",
+              "path": "src/a.ts"
+            },
+            "start": 4,
+            "end": 9,
+            "quote": "hello",
+            "prefix": "say ",
+            "suffix": " world"
+          },
+          "text": "rename this",
+          "label": "clarify",
+          "status": "pending",
+          "createdAt": 1700000000000
+        },
+        {
+          "id": "c2",
+          "anchor": {
+            "kind": "media",
+            "source": {
+              "kind": "file",
+              "path": "media/clip.mp4",
+              "ref": "main"
+            },
+            "width": 640,
+            "height": 360,
+            "time": 1.5,
+            "version": "etag-1",
+            "scale": 0.5,
+            "shapes": [
+              {
+                "kind": "pen",
+                "color": "#ff3b30",
+                "points": [
+                  0.1,
+                  0.1,
+                  0.2,
+                  0.3
+                ]
+              },
+              {
+                "kind": "ellipse",
+                "color": "#34c759",
+                "x": 0.1,
+                "y": 0.2,
+                "w": 0.3,
+                "h": 0.4
+              },
+              {
+                "kind": "rect",
+                "color": "#0a84ff",
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              {
+                "kind": "arrow",
+                "color": "#ffffff",
+                "x1": 0,
+                "y1": 0,
+                "x2": 1,
+                "y2": 1
+              }
+            ]
+          },
+          "text": "too dark",
+          "status": "sent",
+          "createdAt": 1700000001000,
+          "sentIn": "u1",
+          "images": [
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          ],
+          "genImages": 2
+        },
+        {
+          "id": "c3",
+          "anchor": {
+            "kind": "page",
+            "source": {
+              "kind": "file",
+              "path": "docs/page.html"
+            },
+            "selector": "div:nth-child(2) > p:nth-child(1)",
+            "trail": [
+              "div",
+              "p"
+            ],
+            "box": {
+              "x": 0,
+              "y": 0,
+              "w": 10,
+              "h": 20
+            },
+            "near": [
+              "title"
+            ]
+          },
+          "text": "wrong heading",
+          "status": "pending",
+          "createdAt": 1700000002000
+        },
+        {
+          "id": "c5",
+          "anchor": {
+            "kind": "media",
+            "source": {
+              "kind": "file",
+              "path": "models/a.glb"
+            },
+            "width": 800,
+            "height": 600,
+            "camera": {
+              "position": [
+                1,
+                2,
+                3
+              ],
+              "target": [
+                0,
+                0,
+                0
+              ],
+              "fov": 50
+            },
+            "shapes": [
+              {
+                "kind": "arrow",
+                "color": "#ffcc00",
+                "x1": 0.1,
+                "y1": 0.1,
+                "x2": 0.5,
+                "y2": 0.5
+              }
+            ]
+          },
+          "text": "angle",
+          "status": "pending",
+          "createdAt": 1700000004000
+        },
+        {
+          "id": "c4",
+          "anchor": {
+            "source": {
+              "kind": "message",
+              "id": "m1:0",
+              "agent": "toolu_01"
+            },
+            "start": 0,
+            "end": 5,
+            "quote": "Hello",
+            "prefix": "",
+            "suffix": " there"
+          },
+          "text": "from chat",
+          "status": "pending",
+          "createdAt": 1700000003000
+        }
+      ]
+    },
+    {
+      "type": "comments",
+      "sessionId": null,
+      "items": []
+    },
+    {
+      "type": "interrupt"
+    },
+    {
+      "type": "permission",
+      "id": "p1",
+      "allow": true
+    },
+    {
+      "type": "permission",
+      "id": "p2",
+      "allow": false,
+      "input": {
+        "path": "src/a.ts"
+      },
+      "response": {
+        "choice": "ok",
+        "values": {
+          "name": "x"
+        }
+      }
+    },
+    {
+      "type": "mode",
+      "mode": "plan",
+      "id": "k1"
+    },
+    {
+      "type": "model",
+      "model": "sonnet",
+      "effort": "high",
+      "id": "k2"
+    },
+    {
+      "type": "command",
+      "name": "compact"
+    },
+    {
+      "type": "switch",
+      "id": "0b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8",
+      "dir": "/proj"
+    },
+    {
+      "type": "switch",
+      "id": null,
+      "dir": "/proj"
+    },
+    {
+      "type": "restart"
+    },
+    {
+      "type": "activity"
+    },
+    {
+      "type": "idle-compact",
+      "on": true
+    },
+    {
+      "type": "takeover"
+    },
+    {
+      "type": "task-stop",
+      "id": "task_1"
+    },
+    {
+      "type": "task-background",
+      "toolUseId": "toolu_01"
+    },
+    {
+      "type": "shell-run",
+      "id": "r1",
+      "cmd": "ls"
+    },
+    {
+      "type": "shell-stop",
+      "id": "r1"
+    }
+  ],
+  "server": [
+    {
+      "kind": "occupied"
+    },
+    {
+      "kind": "taken-over"
+    },
+    {
+      "kind": "hello",
+      "protocol": 13,
+      "capabilities": {
+        "compact": true,
+        "clear": true,
+        "modes": [
+          "default",
+          "plan"
+        ],
+        "usage": true,
+        "fileSuggestions": true,
+        "fork": false,
+        "idleCompact": true,
+        "models": true,
+        "model3d": false,
+        "provider": "claude",
+        "modeDescriptors": [
+          {
+            "id": "plan",
+            "name": "Plan",
+            "description": "Plan first"
+          }
+        ],
+        "taskBackground": true,
+        "taskOutput": true,
+        "suggestions": true
+      },
+      "lang": "en",
+      "uiScale": 1,
+      "theme": "darcula",
+      "tmpDirs": [
+        "/tmp"
+      ]
+    },
+    {
+      "kind": "hello",
+      "protocol": 0
+    },
+    {
+      "kind": "replay",
+      "earlier": 1,
+      "events": [
+        {
+          "kind": "user",
+          "id": "u1",
+          "text": "hello",
+          "ts": 1700000000000
+        },
+        {
+          "kind": "agent",
+          "e": {
+            "t": "message",
+            "id": "m1:0",
+            "text": "Hello"
+          },
+          "ts": 1700000000000
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "message-start"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "message-chunk",
+        "text": "Hel"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "message",
+        "id": "m1:0",
+        "text": "Hello"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "tool-call",
+        "id": "toolu_01",
+        "name": "Read",
+        "input": {
+          "file_path": "src/a.ts"
+        },
+        "sub": false,
+        "toolKind": "file",
+        "childSessionId": "child1"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "tool-update",
+        "id": "toolu_01",
+        "text": "ok",
+        "isError": false,
+        "toolKind": "file"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "turn-end",
+        "stop": "done",
+        "secs": 3.2,
+        "answers": "all",
+        "queued": 0
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "turn-end",
+        "stop": "failed",
+        "secs": 1,
+        "error": "boom",
+        "answers": [
+          "m1:0"
+        ],
+        "queued": 1
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "cancelled",
+        "sendId": "s1"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "compacting"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "compact-failed",
+        "error": "no"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "compacted",
+        "preTokens": 1000,
+        "ms": 20,
+        "boundaryId": "b1"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "compact-end"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "reset",
+        "newId": "0b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "mode",
+        "mode": "plan"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "task",
+        "id": "task_1",
+        "phase": "started",
+        "desc": "build",
+        "type": "bash",
+        "call": "toolu_01",
+        "parent": "task_0",
+        "bg": true,
+        "ambient": false
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "task",
+        "id": "task_1",
+        "phase": "done",
+        "tokens": 10,
+        "tool": "Bash",
+        "summary": "done",
+        "status": "stopped"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
+        "t": "suggestion",
+        "text": "run tests"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "user",
+      "id": "u2",
+      "text": "hi",
+      "ts": 1700000000000,
+      "force": true,
+      "historic": true,
+      "images": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "image/png",
+          "label": "image 1"
+        }
+      ],
+      "idle": false
+    },
+    {
+      "kind": "permission",
+      "id": "p1",
+      "toolName": "Bash",
+      "input": {
+        "command": "ls"
+      },
+      "prompt": {
+        "title": "Run?",
+        "choices": [
+          {
+            "id": "y",
+            "label": "Yes",
+            "allow": true
+          }
+        ],
+        "fields": [
+          {
+            "id": "f",
+            "label": "F",
+            "secret": true,
+            "options": [
+              "a"
+            ],
+            "required": true
+          }
+        ],
+        "url": "https://example.com"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "permission-done",
+      "id": "p1",
+      "allow": true,
+      "ts": 1700000000000
+    },
+    {
+      "kind": "comments",
+      "items": [
+        {
+          "id": "c1",
+          "anchor": {
+            "source": {
+              "kind": "file",
+              "path": "src/a.ts"
+            },
+            "start": 4,
+            "end": 9,
+            "quote": "hello",
+            "prefix": "say ",
+            "suffix": " world"
+          },
+          "text": "rename this",
+          "label": "clarify",
+          "status": "pending",
+          "createdAt": 1700000000000
+        },
+        {
+          "id": "c2",
+          "anchor": {
+            "kind": "media",
+            "source": {
+              "kind": "file",
+              "path": "media/clip.mp4",
+              "ref": "main"
+            },
+            "width": 640,
+            "height": 360,
+            "time": 1.5,
+            "version": "etag-1",
+            "scale": 0.5,
+            "shapes": [
+              {
+                "kind": "pen",
+                "color": "#ff3b30",
+                "points": [
+                  0.1,
+                  0.1,
+                  0.2,
+                  0.3
+                ]
+              },
+              {
+                "kind": "ellipse",
+                "color": "#34c759",
+                "x": 0.1,
+                "y": 0.2,
+                "w": 0.3,
+                "h": 0.4
+              },
+              {
+                "kind": "rect",
+                "color": "#0a84ff",
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              {
+                "kind": "arrow",
+                "color": "#ffffff",
+                "x1": 0,
+                "y1": 0,
+                "x2": 1,
+                "y2": 1
+              }
+            ]
+          },
+          "text": "too dark",
+          "status": "sent",
+          "createdAt": 1700000001000,
+          "sentIn": "u1",
+          "images": [
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          ],
+          "genImages": 2
+        },
+        {
+          "id": "c3",
+          "anchor": {
+            "kind": "page",
+            "source": {
+              "kind": "file",
+              "path": "docs/page.html"
+            },
+            "selector": "div:nth-child(2) > p:nth-child(1)",
+            "trail": [
+              "div",
+              "p"
+            ],
+            "box": {
+              "x": 0,
+              "y": 0,
+              "w": 10,
+              "h": 20
+            },
+            "near": [
+              "title"
+            ]
+          },
+          "text": "wrong heading",
+          "status": "pending",
+          "createdAt": 1700000002000
+        },
+        {
+          "id": "c5",
+          "anchor": {
+            "kind": "media",
+            "source": {
+              "kind": "file",
+              "path": "models/a.glb"
+            },
+            "width": 800,
+            "height": 600,
+            "camera": {
+              "position": [
+                1,
+                2,
+                3
+              ],
+              "target": [
+                0,
+                0,
+                0
+              ],
+              "fov": 50
+            },
+            "shapes": [
+              {
+                "kind": "arrow",
+                "color": "#ffcc00",
+                "x1": 0.1,
+                "y1": 0.1,
+                "x2": 0.5,
+                "y2": 0.5
+              }
+            ]
+          },
+          "text": "angle",
+          "status": "pending",
+          "createdAt": 1700000004000
+        },
+        {
+          "id": "c4",
+          "anchor": {
+            "source": {
+              "kind": "message",
+              "id": "m1:0",
+              "agent": "toolu_01"
+            },
+            "start": 0,
+            "end": 5,
+            "quote": "Hello",
+            "prefix": "",
+            "suffix": " there"
+          },
+          "text": "from chat",
+          "status": "pending",
+          "createdAt": 1700000003000
+        }
+      ]
+    },
+    {
+      "kind": "session",
+      "id": null,
+      "root": "/proj",
+      "title": null,
+      "model": null
+    },
+    {
+      "kind": "session",
+      "id": "0b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8",
+      "root": "/proj",
+      "title": "A title",
+      "model": "sonnet"
+    },
+    {
+      "kind": "stats",
+      "stats": {
+        "context": {
+          "used": 10,
+          "max": 100,
+          "pct": 10
+        },
+        "limits": {
+          "five_hour": {
+            "utilization": 5,
+            "resets_at": "2026-01-01T00:00:00Z"
+          },
+          "seven_day": null
+        },
+        "cost": 0.5,
+        "windows": [
+          {
+            "utilization": 1,
+            "resets_at": null,
+            "label": "5h",
+            "minutes": 300
+          }
+        ],
+        "extra": {
+          "used": 100,
+          "limit": null,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "kind": "mode",
+      "mode": "plan",
+      "ack": "k1"
+    },
+    {
+      "kind": "model",
+      "model": "sonnet",
+      "effort": "high",
+      "ack": "k2"
+    },
+    {
+      "kind": "model",
+      "model": null
+    },
+    {
+      "kind": "models",
+      "models": [
+        {
+          "value": "sonnet",
+          "name": "Sonnet",
+          "description": "fast",
+          "resolved": "claude-x",
+          "efforts": [
+            "low",
+            "high"
+          ],
+          "defaultEffort": "low"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "commands": [
+        {
+          "name": "compact",
+          "description": "Compact",
+          "hint": "[focus]",
+          "aliases": [
+            "c"
+          ],
+          "builtin": true
+        }
+      ]
+    },
+    {
+      "kind": "idle-compact",
+      "state": {
+        "on": true,
+        "blocked": false,
+        "minutes": 30,
+        "awayMinutes": 5,
+        "minTokens": 1000
+      }
+    },
+    {
+      "kind": "resumed",
+      "id": "0b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8"
+    },
+    {
+      "kind": "server-error",
+      "where": "send",
+      "message": "bad"
+    },
+    {
+      "kind": "send-refused",
+      "id": "s1",
+      "reason": "busy"
+    },
+    {
+      "kind": "shell-start",
+      "id": "r1",
+      "cmd": "ls",
+      "ts": 1700000000000
+    },
+    {
+      "kind": "shell-out",
+      "id": "r1",
+      "text": "a\n",
+      "truncated": false
+    },
+    {
+      "kind": "shell-refused",
+      "id": "r1",
+      "reason": "running"
+    },
+    {
+      "kind": "shell-end",
+      "id": "r1",
+      "cmd": "ls",
+      "output": "a\n",
+      "truncated": false,
+      "code": 0,
+      "ts": 1700000000000
+    },
+    {
+      "kind": "shell-end",
+      "id": "r2",
+      "cmd": "sleep 9",
+      "output": "",
+      "truncated": true,
+      "code": null,
+      "stop": "timeout",
+      "error": "x",
+      "ts": 1700000000000
+    }
+  ],
+  "usage": [
+    {
+      "provider": "claude",
+      "period": "7d",
+      "from": 1700000000000,
+      "trip": null,
+      "importing": false,
+      "total": {
+        "in": 1,
+        "out": 2,
+        "write": 3,
+        "read": 4,
+        "calls": 1,
+        "w": 5,
+        "sub": 0
+      },
+      "models": [
+        {
+          "in": 1,
+          "out": 2,
+          "write": 3,
+          "read": 4,
+          "calls": 1,
+          "w": 5,
+          "sub": 0,
+          "key": "sonnet"
+        }
+      ],
+      "projects": [
+        {
+          "in": 1,
+          "out": 2,
+          "write": 3,
+          "read": 4,
+          "calls": 1,
+          "w": 5,
+          "sub": 0,
+          "key": "/proj"
+        }
+      ],
+      "tasks": [
+        {
+          "in": 1,
+          "out": 2,
+          "write": 3,
+          "read": 4,
+          "calls": 1,
+          "w": 5,
+          "sub": 0,
+          "id": "t1",
+          "ts": 1700000000000,
+          "label": "task",
+          "project": "/proj",
+          "models": {
+            "sonnet": 1
+          },
+          "agents": [
+            {
+              "id": "a1",
+              "label": "sub",
+              "model": "sonnet",
+              "calls": 1,
+              "w": 5
+            }
+          ],
+          "top": [
+            {
+              "in": 1,
+              "out": 2,
+              "write": 3,
+              "read": 4,
+              "ts": 1700000000000,
+              "model": "sonnet",
+              "w": 5,
+              "agent": "a1"
+            }
+          ]
+        }
+      ],
+      "hits": [
+        {
+          "ts": 1700000000000,
+          "kind": "5h",
+          "calls": 1,
+          "w": 5,
+          "projects": {
+            "/proj": 5
+          },
+          "models": {
+            "sonnet": 5
+          },
+          "tasks": [
+            {
+              "id": "t1",
+              "label": "task",
+              "w": 5
+            }
+          ],
+          "extra": {
+            "calls": 1,
+            "w": 1,
+            "spent": null
+          }
+        }
+      ],
+      "weeks": [
+        {
+          "key": "2026-01-05",
+          "w": 5,
+          "hit": true,
+          "extra": 1
+        }
+      ],
+      "windows": [
+        {
+          "from": 1700000000000,
+          "w": 5,
+          "hit": false
+        }
+      ],
+      "tanks": [
+        {
+          "from": 1,
+          "to": 2,
+          "pct": 10,
+          "w": 100,
+          "perPct": 10
+        }
+      ],
+      "extra": {
+        "calls": 1,
+        "w": 1,
+        "spent": 100,
+        "month": 100,
+        "limit": 1000,
+        "currency": "USD"
+      }
+    },
+    {
+      "provider": "codex",
+      "period": "all",
+      "from": null,
+      "trip": 1700000000000,
+      "importing": true,
+      "total": {
+        "in": 1,
+        "out": 2,
+        "write": 3,
+        "read": 4,
+        "calls": 1,
+        "w": 5,
+        "sub": 0
+      },
+      "models": [],
+      "projects": [],
+      "tasks": [],
+      "hits": [],
+      "weeks": [],
+      "windows": [],
+      "tanks": [],
+      "extra": null
+    }
+  ]
+}

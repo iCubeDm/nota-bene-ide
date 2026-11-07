@@ -1,0 +1,2717 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "AgentEffort": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "none",
+        "minimal"
+      ],
+      "type": "string"
+    },
+    "AgentMode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "auto",
+        "codex-configured",
+        "codex-read-only",
+        "codex-workspace",
+        "codex-full-access",
+        "omp-yolo",
+        "omp-write",
+        "omp-ask",
+        "omp-plan"
+      ],
+      "type": "string"
+    },
+    "Anchor": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/TextAnchor"
+        },
+        {
+          "$ref": "#/definitions/MediaAnchor"
+        },
+        {
+          "$ref": "#/definitions/PageAnchor"
+        }
+      ]
+    },
+    "AnchorSource": {
+      "anyOf": [
+        {
+          "properties": {
+            "agent": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "message",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "file",
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "`ref`: the branch a file comes from when it is not this window's checkout (a branch, or a worktree's branch)."
+    },
+    "Capabilities": {
+      "description": "What the agent behind the server can do (R-M7-15), announced in `hello`; the UI hides a control whose capability is false and the server refuses the matching client message. `modes`: the permission modes it offers (empty: no mode pill). `models`: it lists models and switches model and effort on a running session (the server refuses the `model` message otherwise).",
+      "properties": {
+        "clear": {
+          "type": "boolean"
+        },
+        "compact": {
+          "type": "boolean"
+        },
+        "fileSuggestions": {
+          "type": "boolean"
+        },
+        "fork": {
+          "type": "boolean"
+        },
+        "idleCompact": {
+          "type": "boolean"
+        },
+        "modeDescriptors": {
+          "items": {
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "id": {
+                "$ref": "#/definitions/AgentMode"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "description"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "model3d": {
+          "description": "the server runs with the experimental 3D viewer on (env NOTA_BENE_EXPERIMENTAL_3D=1); absent / false: model files are plain files. Set by the server, not by the agent.",
+          "type": "boolean"
+        },
+        "models": {
+          "type": "boolean"
+        },
+        "modes": {
+          "items": {
+            "$ref": "#/definitions/AgentMode"
+          },
+          "type": "array"
+        },
+        "provider": {
+          "enum": [
+            "claude",
+            "codex",
+            "omp"
+          ],
+          "type": "string"
+        },
+        "suggestions": {
+          "type": "boolean"
+        },
+        "taskBackground": {
+          "type": "boolean"
+        },
+        "taskOutput": {
+          "type": "boolean"
+        },
+        "usage": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "compact",
+        "clear",
+        "modes",
+        "usage",
+        "fileSuggestions",
+        "fork",
+        "idleCompact",
+        "models"
+      ],
+      "type": "object"
+    },
+    "ClientMessage": {
+      "anyOf": [
+        {
+          "properties": {
+            "commentIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "force": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "images": {
+              "items": {
+                "$ref": "#/definitions/ImageRef"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "send",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/definitions/Comment"
+              },
+              "type": "array"
+            },
+            "sessionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "comments",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "sessionId",
+            "items"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "interrupt",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "allow": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "input": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "response": {
+              "$ref": "#/definitions/InteractionAnswer"
+            },
+            "type": {
+              "const": "permission",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "allow"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "mode": {
+              "$ref": "#/definitions/AgentMode"
+            },
+            "type": {
+              "const": "mode",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "mode"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "effort": {
+              "$ref": "#/definitions/AgentEffort"
+            },
+            "id": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            },
+            "type": {
+              "const": "model",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "model"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "name": {
+              "enum": [
+                "compact",
+                "clear"
+              ],
+              "type": "string"
+            },
+            "type": {
+              "const": "command",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "dir": {
+              "type": "string"
+            },
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "switch",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "dir"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "restart",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "activity",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "on": {
+              "type": "boolean"
+            },
+            "type": {
+              "const": "idle-compact",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "on"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "takeover",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "task-stop",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "toolUseId": {
+              "type": "string"
+            },
+            "type": {
+              "const": "task-background",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "toolUseId"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "shell-run",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "cmd"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "shell-stop",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Comment": {
+      "properties": {
+        "anchor": {
+          "$ref": "#/definitions/Anchor"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "genImages": {
+          "description": "media comments: how many leading `images` the app generated (the frame, plus the transparent layer in old comments); the rest were pasted. Absent = 2 (old comments).",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "images": {
+          "description": "attachment ids; labels are assigned at send time",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "label": {
+          "$ref": "#/definitions/QuickLabelId"
+        },
+        "sentIn": {
+          "description": "id of the user message that carried it",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "sent"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "anchor",
+        "text",
+        "status",
+        "createdAt"
+      ],
+      "type": "object"
+    },
+    "FileSource": {
+      "properties": {
+        "kind": {
+          "const": "file",
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path"
+      ],
+      "type": "object"
+    },
+    "IdleCompact": {
+      "description": "`minutes` after the last turn, if the window saw no activity for `awayMinutes`",
+      "properties": {
+        "awayMinutes": {
+          "type": "number"
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "minTokens": {
+          "type": "number"
+        },
+        "minutes": {
+          "type": "number"
+        },
+        "on": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "on",
+        "blocked",
+        "minutes",
+        "awayMinutes",
+        "minTokens"
+      ],
+      "type": "object"
+    },
+    "ImageRef": {
+      "description": "id = sha256 hex (64 chars) of the stored bytes",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "mediaType": {
+          "$ref": "#/definitions/ImageType"
+        }
+      },
+      "required": [
+        "id",
+        "mediaType",
+        "label"
+      ],
+      "type": "object"
+    },
+    "ImageType": {
+      "enum": [
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp"
+      ],
+      "type": "string"
+    },
+    "Interaction": {
+      "properties": {
+        "choices": {
+          "items": {
+            "properties": {
+              "allow": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "fields": {
+          "items": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "options": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "secret": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "choices"
+      ],
+      "type": "object"
+    },
+    "InteractionAnswer": {
+      "properties": {
+        "choice": {
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "choice"
+      ],
+      "type": "object"
+    },
+    "Limit": {
+      "description": "percent 0..100",
+      "properties": {
+        "resets_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "utilization": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "utilization",
+        "resets_at"
+      ],
+      "type": "object"
+    },
+    "MarkColor": {
+      "enum": [
+        "#ff3b30",
+        "#ffcc00",
+        "#34c759",
+        "#0a84ff",
+        "#ffffff"
+      ],
+      "type": "string"
+    },
+    "MediaAnchor": {
+      "properties": {
+        "camera": {
+          "$ref": "#/definitions/ModelCamera",
+          "description": "a 3D model comment (protocol 9): the camera the frame was rendered from. A model comment has no `time`."
+        },
+        "height": {
+          "type": "number"
+        },
+        "kind": {
+          "const": "media",
+          "type": "string"
+        },
+        "scale": {
+          "description": "set only when the frame and layer files were downscaled to fit MARK_MAX_BYTES (0 < scale < 1; both files)",
+          "type": "number"
+        },
+        "shapes": {
+          "items": {
+            "$ref": "#/definitions/MediaShape"
+          },
+          "type": "array"
+        },
+        "source": {
+          "$ref": "#/definitions/FileSource"
+        },
+        "time": {
+          "description": "seconds at the pause (video only), ms precision",
+          "type": "number"
+        },
+        "version": {
+          "description": "the /file ETag when drawn",
+          "type": "string"
+        },
+        "width": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "source",
+        "width",
+        "height",
+        "shapes"
+      ],
+      "type": "object"
+    },
+    "MediaShape": {
+      "anyOf": [
+        {
+          "properties": {
+            "color": {
+              "$ref": "#/definitions/MarkColor"
+            },
+            "h": {
+              "type": "number"
+            },
+            "kind": {
+              "enum": [
+                "rect",
+                "ellipse"
+              ],
+              "type": "string"
+            },
+            "w": {
+              "type": "number"
+            },
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "color",
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "color": {
+              "$ref": "#/definitions/MarkColor"
+            },
+            "kind": {
+              "const": "arrow",
+              "type": "string"
+            },
+            "x1": {
+              "type": "number"
+            },
+            "x2": {
+              "type": "number"
+            },
+            "y1": {
+              "type": "number"
+            },
+            "y2": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "color",
+            "x1",
+            "y1",
+            "x2",
+            "y2"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "color": {
+              "$ref": "#/definitions/MarkColor"
+            },
+            "kind": {
+              "const": "pen",
+              "type": "string"
+            },
+            "points": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "color",
+            "points"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "all coordinates are relative to the media's natural size, 0..1"
+    },
+    "ModelCamera": {
+      "description": "A 3D view's camera (protocol 9): where it is, what it looks at, its vertical field of view in degrees (0 < fov < 180).",
+      "properties": {
+        "fov": {
+          "type": "number"
+        },
+        "position": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "target": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "position",
+        "target",
+        "fov"
+      ],
+      "type": "object"
+    },
+    "ModelOption": {
+      "description": "A model the agent offers. `value` is what is sent back to pick it (an alias such as `sonnet`); `resolved` the full id the agent reports for it once running (`claude-…`), to match the two; `efforts` only for a model that has effort levels.",
+      "properties": {
+        "defaultEffort": {
+          "$ref": "#/definitions/AgentEffort"
+        },
+        "description": {
+          "type": "string"
+        },
+        "efforts": {
+          "items": {
+            "$ref": "#/definitions/AgentEffort"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "resolved": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "name",
+        "description"
+      ],
+      "type": "object"
+    },
+    "PageAnchor": {
+      "description": "A place on a rendered HTML page (protocol 13): an element, or an area of an inline SVG. `selector`: the element by its child positions from `body` (an area: its `svg`). `trail`: how it reads, outermost first, the element itself last; also how it is found again when the page changed. `box`: the area in the SVG's own user units (its viewBox). `near`: what an area covers or lies next to.",
+      "properties": {
+        "box": {
+          "properties": {
+            "h": {
+              "type": "number"
+            },
+            "w": {
+              "type": "number"
+            },
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "type": "object"
+        },
+        "kind": {
+          "const": "page",
+          "type": "string"
+        },
+        "near": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "selector": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/definitions/FileSource"
+        },
+        "trail": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "source",
+        "selector",
+        "trail"
+      ],
+      "type": "object"
+    },
+    "QuickLabelId": {
+      "enum": [
+        "looks-good",
+        "fire",
+        "clarify",
+        "verify",
+        "example",
+        "overview",
+        "patterns",
+        "alternatives",
+        "no-regression",
+        "out-of-scope",
+        "needs-tests"
+      ],
+      "type": "string"
+    },
+    "ServerEvent": {
+      "anyOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "occupied",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "taken-over",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "capabilities": {
+              "$ref": "#/definitions/Capabilities"
+            },
+            "kind": {
+              "const": "hello",
+              "type": "string"
+            },
+            "lang": {
+              "$ref": "#/definitions/UiLang"
+            },
+            "protocol": {
+              "type": "number"
+            },
+            "theme": {
+              "$ref": "#/definitions/ThemeId"
+            },
+            "tmpDirs": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "uiScale": {
+              "$ref": "#/definitions/UiScale"
+            }
+          },
+          "required": [
+            "kind",
+            "protocol"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "earlier": {
+              "type": "number"
+            },
+            "events": {
+              "items": {
+                "$ref": "#/definitions/ServerEvent"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "replay",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "events"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "e": {
+              "$ref": "#/definitions/WireAgentEvent"
+            },
+            "kind": {
+              "const": "agent",
+              "type": "string"
+            },
+            "ts": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "e",
+            "ts"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "force": {
+              "type": "boolean"
+            },
+            "historic": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "idle": {
+              "type": "boolean"
+            },
+            "images": {
+              "items": {
+                "$ref": "#/definitions/ImageRef"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "user",
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "ts": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "text",
+            "ts"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "input": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "kind": {
+              "const": "permission",
+              "type": "string"
+            },
+            "prompt": {
+              "$ref": "#/definitions/Interaction"
+            },
+            "toolName": {
+              "type": "string"
+            },
+            "ts": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "toolName",
+            "input",
+            "ts"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "allow": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "permission-done",
+              "type": "string"
+            },
+            "ts": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "allow",
+            "ts"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/definitions/Comment"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "comments",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "items"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "session",
+              "type": "string"
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "root": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "root",
+            "title",
+            "model"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "stats",
+              "type": "string"
+            },
+            "stats": {
+              "$ref": "#/definitions/Stats"
+            }
+          },
+          "required": [
+            "kind",
+            "stats"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "ack": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "mode",
+              "type": "string"
+            },
+            "mode": {
+              "$ref": "#/definitions/AgentMode"
+            }
+          },
+          "required": [
+            "kind",
+            "mode"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "ack": {
+              "type": "string"
+            },
+            "effort": {
+              "$ref": "#/definitions/AgentEffort"
+            },
+            "kind": {
+              "const": "model",
+              "type": "string"
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "model"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "models",
+              "type": "string"
+            },
+            "models": {
+              "items": {
+                "$ref": "#/definitions/ModelOption"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "models"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "commands": {
+              "items": {
+                "$ref": "#/definitions/SlashCommand"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "commands",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "commands"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "idle-compact",
+              "type": "string"
+            },
+            "state": {
+              "$ref": "#/definitions/IdleCompact"
+            }
+          },
+          "required": [
+            "kind",
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "resumed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "server-error",
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "where": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "where",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "send-refused",
+              "type": "string"
+            },
+            "reason": {
+              "enum": [
+                "busy",
+                "switching"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "shell-start",
+              "type": "string"
+            },
+            "ts": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "cmd",
+            "ts"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "shell-out",
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "text",
+            "truncated"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "shell-refused",
+              "type": "string"
+            },
+            "reason": {
+              "enum": [
+                "running",
+                "switching"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "code": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "error": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "shell-end",
+              "type": "string"
+            },
+            "output": {
+              "type": "string"
+            },
+            "stop": {
+              "$ref": "#/definitions/ShellStop"
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "ts": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "cmd",
+            "output",
+            "truncated",
+            "code",
+            "ts"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ShellStop": {
+      "enum": [
+        "user",
+        "timeout"
+      ],
+      "type": "string"
+    },
+    "SlashCommand": {
+      "description": "A slash command or skill the composer's `/` menu offers (already filtered by the server: nothing bound to a terminal). `hint` is the argument hint (`[name]`), `aliases` other names that run it; `builtin`: the agent's own, not the user's or a plugin's.",
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "builtin": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "type": "object"
+    },
+    "Stats": {
+      "properties": {
+        "context": {
+          "anyOf": [
+            {
+              "properties": {
+                "max": {
+                  "type": "number"
+                },
+                "pct": {
+                  "type": "number"
+                },
+                "used": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "used",
+                "max",
+                "pct"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cost": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "extra": {
+          "description": "extra usage in this billing period, in minor units of `currency`",
+          "properties": {
+            "currency": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "limit": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "used": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "used",
+            "limit",
+            "currency"
+          ],
+          "type": "object"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "properties": {
+                "five_hour": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/Limit"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "seven_day": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/Limit"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "five_hour",
+                "seven_day"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "windows": {
+          "items": {
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "minutes": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "resets_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "utilization": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "label",
+              "minutes",
+              "resets_at",
+              "utilization"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "context",
+        "limits",
+        "cost"
+      ],
+      "type": "object"
+    },
+    "StopReason": {
+      "description": "What an agent backend says to the server, whatever agent is behind it (R-M7-13, R-M7-14). Named after ACP's session updates so an ACP adapter is a thin mapping. The Claude mapping lives in server/src/agent/claude/map.ts.",
+      "enum": [
+        "done",
+        "interrupted",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "TextAnchor": {
+      "properties": {
+        "end": {
+          "type": "number"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "quote": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/definitions/AnchorSource"
+        },
+        "start": {
+          "type": "number"
+        },
+        "suffix": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "start",
+        "end",
+        "quote",
+        "prefix",
+        "suffix"
+      ],
+      "type": "object"
+    },
+    "ThemeId": {
+      "enum": [
+        "darcula",
+        "plannotator",
+        "solarized-dark",
+        "intellij-light",
+        "github-light",
+        "solarized-light"
+      ],
+      "type": "string"
+    },
+    "UiLang": {
+      "enum": [
+        "en",
+        "ru",
+        "zh-CN",
+        "es",
+        "pt-BR",
+        "de"
+      ],
+      "type": "string"
+    },
+    "UiScale": {
+      "enum": [
+        0.9,
+        1,
+        1.1,
+        1.25,
+        1.5
+      ],
+      "type": "number"
+    },
+    "UsageAgentRow": {
+      "properties": {
+        "calls": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "w": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "model",
+        "calls",
+        "w"
+      ],
+      "type": "object"
+    },
+    "UsageCallRow": {
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "in": {
+          "type": "number"
+        },
+        "model": {
+          "type": "string"
+        },
+        "out": {
+          "type": "number"
+        },
+        "read": {
+          "type": "number"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "write": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "in",
+        "model",
+        "out",
+        "read",
+        "ts",
+        "w",
+        "write"
+      ],
+      "type": "object"
+    },
+    "UsageExtra": {
+      "description": "`month`, `limit`: the last reading, for the billing period it was in",
+      "properties": {
+        "calls": {
+          "type": "number"
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "month": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "spent": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "w": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "calls",
+        "currency",
+        "limit",
+        "month",
+        "spent",
+        "w"
+      ],
+      "type": "object"
+    },
+    "UsageHit": {
+      "properties": {
+        "calls": {
+          "type": "number"
+        },
+        "extra": {
+          "$ref": "#/definitions/UsageSpend",
+          "description": "from the hit to the reset, when the work went on past it"
+        },
+        "kind": {
+          "enum": [
+            "5h",
+            "week"
+          ],
+          "type": "string"
+        },
+        "models": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "projects": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "tasks": {
+          "description": "the costliest tasks of the window",
+          "items": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "w": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "w"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "ts",
+        "kind",
+        "calls",
+        "w",
+        "projects",
+        "models",
+        "tasks"
+      ],
+      "type": "object"
+    },
+    "UsagePeriod": {
+      "enum": [
+        "trip",
+        "7d",
+        "30d",
+        "all"
+      ],
+      "type": "string"
+    },
+    "UsageProvider": {
+      "enum": [
+        "claude",
+        "codex"
+      ],
+      "type": "string"
+    },
+    "UsageReport": {
+      "properties": {
+        "extra": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/UsageExtra"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Claude only; null: none"
+        },
+        "from": {
+          "description": "the start of the period; null: all of it",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "hits": {
+          "items": {
+            "$ref": "#/definitions/UsageHit"
+          },
+          "type": "array"
+        },
+        "importing": {
+          "description": "the first import is still running: the numbers will grow",
+          "type": "boolean"
+        },
+        "models": {
+          "items": {
+            "properties": {
+              "calls": {
+                "type": "number"
+              },
+              "in": {
+                "type": "number"
+              },
+              "key": {
+                "type": "string"
+              },
+              "out": {
+                "type": "number"
+              },
+              "read": {
+                "type": "number"
+              },
+              "sub": {
+                "type": "number"
+              },
+              "w": {
+                "type": "number"
+              },
+              "write": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "calls",
+              "in",
+              "key",
+              "out",
+              "read",
+              "sub",
+              "w",
+              "write"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "period": {
+          "$ref": "#/definitions/UsagePeriod"
+        },
+        "projects": {
+          "items": {
+            "properties": {
+              "calls": {
+                "type": "number"
+              },
+              "in": {
+                "type": "number"
+              },
+              "key": {
+                "type": "string"
+              },
+              "out": {
+                "type": "number"
+              },
+              "read": {
+                "type": "number"
+              },
+              "sub": {
+                "type": "number"
+              },
+              "w": {
+                "type": "number"
+              },
+              "write": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "calls",
+              "in",
+              "key",
+              "out",
+              "read",
+              "sub",
+              "w",
+              "write"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "provider": {
+          "$ref": "#/definitions/UsageProvider"
+        },
+        "tanks": {
+          "items": {
+            "$ref": "#/definitions/UsageTank"
+          },
+          "type": "array"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/definitions/UsageTaskRow"
+          },
+          "type": "array"
+        },
+        "total": {
+          "$ref": "#/definitions/UsageRow"
+        },
+        "trip": {
+          "description": "the last reset; null: never",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "weeks": {
+          "description": "every week since the first, idle ones too, whatever the period; `key`: its Monday, YYYY-MM-DD, local time; `hit`: the weekly limit was hit in it; `extra`: the part of `w` on extra usage, when there is one",
+          "items": {
+            "properties": {
+              "extra": {
+                "type": "number"
+              },
+              "hit": {
+                "type": "boolean"
+              },
+              "key": {
+                "type": "string"
+              },
+              "w": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "key",
+              "w",
+              "hit"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "windows": {
+          "description": "every five-hour window of work, whatever the period, oldest first; `hit`: it ended on a limit hit, and what went past the hit counts in",
+          "items": {
+            "properties": {
+              "extra": {
+                "type": "number"
+              },
+              "from": {
+                "type": "number"
+              },
+              "hit": {
+                "type": "boolean"
+              },
+              "w": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "from",
+              "w",
+              "hit"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "provider",
+        "period",
+        "from",
+        "trip",
+        "importing",
+        "total",
+        "models",
+        "projects",
+        "tasks",
+        "hits",
+        "weeks",
+        "windows",
+        "tanks",
+        "extra"
+      ],
+      "type": "object"
+    },
+    "UsageRow": {
+      "description": "`w`: weighted tokens, the comparison number; `sub`: the part of `w` spent by subagents.",
+      "properties": {
+        "calls": {
+          "type": "number"
+        },
+        "in": {
+          "type": "number"
+        },
+        "out": {
+          "type": "number"
+        },
+        "read": {
+          "type": "number"
+        },
+        "sub": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "write": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "calls",
+        "in",
+        "out",
+        "read",
+        "sub",
+        "w",
+        "write"
+      ],
+      "type": "object"
+    },
+    "UsageSpend": {
+      "description": "What went on on extra usage. `spent`: minor units of the currency, by the vendor's readings; null: no reading covers it.",
+      "properties": {
+        "calls": {
+          "type": "number"
+        },
+        "spent": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "w": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "calls",
+        "w",
+        "spent"
+      ],
+      "type": "object"
+    },
+    "UsageTank": {
+      "description": "One weekly limit window: the tokens between its first and last reading, per percent gained.",
+      "properties": {
+        "from": {
+          "type": "number"
+        },
+        "pct": {
+          "type": "number"
+        },
+        "perPct": {
+          "type": "number"
+        },
+        "to": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "pct",
+        "w",
+        "perPct"
+      ],
+      "type": "object"
+    },
+    "UsageTaskRow": {
+      "properties": {
+        "agents": {
+          "items": {
+            "$ref": "#/definitions/UsageAgentRow"
+          },
+          "type": "array"
+        },
+        "calls": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "in": {
+          "type": "number"
+        },
+        "label": {
+          "type": "string"
+        },
+        "models": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "out": {
+          "type": "number"
+        },
+        "project": {
+          "type": "string"
+        },
+        "read": {
+          "type": "number"
+        },
+        "sub": {
+          "type": "number"
+        },
+        "top": {
+          "items": {
+            "$ref": "#/definitions/UsageCallRow"
+          },
+          "type": "array"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "write": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "agents",
+        "calls",
+        "id",
+        "in",
+        "label",
+        "models",
+        "out",
+        "project",
+        "read",
+        "sub",
+        "top",
+        "ts",
+        "w",
+        "write"
+      ],
+      "type": "object"
+    },
+    "WireAgentEvent": {
+      "anyOf": [
+        {
+          "properties": {
+            "t": {
+              "const": "message-start",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "message-chunk",
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "t",
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "t": {
+              "const": "message",
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "t",
+            "id",
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "childSessionId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "input": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "name": {
+              "type": "string"
+            },
+            "sub": {
+              "type": "boolean"
+            },
+            "t": {
+              "const": "tool-call",
+              "type": "string"
+            },
+            "toolKind": {
+              "enum": [
+                "command",
+                "file",
+                "mcp",
+                "agent",
+                "search",
+                "other"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "t",
+            "id",
+            "name",
+            "input",
+            "sub"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "childSessionId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "isError": {
+              "type": "boolean"
+            },
+            "t": {
+              "const": "tool-update",
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "toolKind": {
+              "enum": [
+                "command",
+                "file",
+                "mcp",
+                "agent",
+                "search",
+                "other"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "t",
+            "id",
+            "text",
+            "isError"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "answers": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "const": "all",
+                  "type": "string"
+                },
+                {
+                  "const": "none",
+                  "type": "string"
+                }
+              ]
+            },
+            "error": {
+              "type": "string"
+            },
+            "queued": {
+              "type": "number"
+            },
+            "secs": {
+              "type": "number"
+            },
+            "stop": {
+              "$ref": "#/definitions/StopReason"
+            },
+            "t": {
+              "const": "turn-end",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t",
+            "stop",
+            "secs",
+            "answers",
+            "queued"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "sendId": {
+              "type": "string"
+            },
+            "t": {
+              "const": "cancelled",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t",
+            "sendId"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "compacting",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "error": {
+              "type": "string"
+            },
+            "t": {
+              "const": "compact-failed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "boundaryId": {
+              "type": "string"
+            },
+            "ms": {
+              "type": "number"
+            },
+            "preTokens": {
+              "type": "number"
+            },
+            "t": {
+              "const": "compacted",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "compact-end",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "newId": {
+              "type": "string"
+            },
+            "t": {
+              "const": "reset",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "mode": {
+              "$ref": "#/definitions/AgentMode"
+            },
+            "t": {
+              "const": "mode",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t",
+            "mode"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "ambient": {
+              "type": "boolean"
+            },
+            "bg": {
+              "type": "boolean"
+            },
+            "call": {
+              "type": "string"
+            },
+            "desc": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "parent": {
+              "type": "string"
+            },
+            "phase": {
+              "enum": [
+                "started",
+                "progress",
+                "updated",
+                "done"
+              ],
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "failed",
+                "stopped"
+              ],
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "t": {
+              "const": "task",
+              "type": "string"
+            },
+            "tokens": {
+              "type": "number"
+            },
+            "tool": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "t",
+            "id",
+            "phase"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "suggestion",
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "t",
+            "text"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
+    }
+  },
+  "x-protocol": 13
+}
