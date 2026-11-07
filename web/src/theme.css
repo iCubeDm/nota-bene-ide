@@ -369,6 +369,124 @@
   --hue-20: #8a6d00;
 }
 
+/* GitHub Light: Primer's light primitives and GitHub's light syntax on the same shapes */
+[data-theme="github-light"] {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #1f2328;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --separator: #eff2f5;
+  --primary: #1f883d; /* GitHub's own button */
+  --primary-fg: #ffffff;
+  --muted: #eff2f5;
+  --muted-fg: #59636e;
+  --nb-accent: #d4a72c;
+  --destructive: #d1242f;
+  --destructive-fg: #ffffff;
+  /* the destructive button's fill, and on hover */
+  --destructive-fill: var(--destructive);
+  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 90%, transparent);
+  --success: #1a7f37;
+  --border: #ccd3da; /* #d1d9e0: 1.43 on card */
+  --border-soft: rgb(31 35 40 / .08);
+  --code-bg: #f6f8fa;
+  --side: #f6f8fa;
+  --chrome: rgb(246 248 250 / .9);
+  --link: #0969da;
+  /* shadows (mixed with transparent where used), scrims behind dialogs and over video, the text on a scrim */
+  --shade: #000;
+  --scrim: #000;
+  --on-scrim: #fff;
+  /* an HTML page's own canvas, behind the iframe */
+  --page-bg: #fff;
+  /* the pane behind the paper card (.grid-pane): Darcula's millimetre paper with black hairlines, same composited opacities */
+  --pane-image:
+    linear-gradient(rgb(0 0 0 / .0259) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(0 0 0 / .0259) 1px, transparent 1px),
+    repeating-linear-gradient(rgb(0 0 0 / .0173) 0 1px, transparent 1px 5mm),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / .0173) 0 1px, transparent 1px 5mm),
+    repeating-linear-gradient(rgb(0 0 0 / .018) 0 1px, transparent 1px 1mm),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / .018) 0 1px, transparent 1px 1mm);
+  --pane-size: 10mm 10mm;
+  --pane-bg: #f3f5f7; /* a step below the card: the paper steps up to it */
+  /* the active tab (Primer's underline nav); a pressed tool-window button in a focused panel and in an unfocused one */
+  --tab-on-bg: #ffffff;
+  --tab-on-fg: #1f2328;
+  --tab-line: #fd8c73;
+  --tool-on: #0969da;
+  --tool-on-idle: #e6eaef;
+  --tool-on-fg: #ffffff;
+  --tool-on-idle-fg: #1f2328;
+  /* the header's function icons; the gear stays neutral */
+  --accent-sessions: #0969da;
+  --accent-agent: #1a7f37;
+  --accent-model: #8250df;
+  --accent-usage: #9a6700;
+  /* the footer's meters: their text, the track a bar runs in (the footer itself) and its outline */
+  --meter-fg: #59636e;
+  --meter-track: transparent;
+  --meter-line: #88919b; /* #8c959f: 2.88 on chrome */
+  --code-inline-bg: #eff2f5;
+  --code-inline-fg: #1f2328;
+  /* code highlighting (feed/hljs.css): GitHub's light syntax */
+  --syn-text: #1f2328;
+  --syn-bg: #f6f8fa;
+  --syn-keyword: #cf222e;
+  --syn-string: #0a3069;
+  --syn-function: #6639ba;
+  --syn-number: #0550ae;
+  --syn-comment: #59636e;
+  --syn-type: #953800;
+  --syn-variable: #953800;
+  --syn-property: #0550ae;
+  --syn-param: var(--syn-property);
+  --syn-builtin: var(--syn-keyword);
+  --syn-tag: #116329;
+  --syn-section: var(--syn-number);
+  --syn-bullet: var(--syn-type);
+  --syn-add: #116329;
+  --syn-add-bg: #dafbe1;
+  --syn-del: #82071e;
+  --syn-del-bg: #ffebe9;
+  --focus-border: #0969da;
+  --focus-ring: #54aeff;
+  /* a focused input: its border (the soft one on filters drawn on a muted fill) and its 2px ring */
+  --input-focus: var(--focus-border);
+  --input-focus-soft: var(--focus-border);
+  --input-ring: var(--focus-ring);
+  /* the composer's focus halo: the same 2px ring as the other inputs */
+  --composer-halo: 0 0 0 2px var(--input-ring);
+  /* "jump to source" (.nb-flash); a comment's highlight in the text while it is pending */
+  --flash: rgb(212 167 44 / .3);
+  --mark-pending: #d4a72c;
+  --mark-pending-line: #bf8700;
+  /* mermaid's canvas; the light canvas under an SVG (its strokes are usually dark) */
+  --diagram-bg: #f6f8fa;
+  --svg-bg: #ffffff;
+  /* colours that tell items apart, one set per theme: file-type marks (1-8), git-graph lanes (9-16), mode pills (17-20) */
+  --hue-1: #0969da;
+  --hue-2: #9a6700;
+  --hue-3: #bc4c00;
+  --hue-4: #cf222e;
+  --hue-5: #8250df;
+  --hue-6: #1a7f37;
+  --hue-7: #1b7c83;
+  --hue-8: #59636e;
+  --hue-9: #0969da;
+  --hue-10: #1a7f37;
+  --hue-11: #bf8700;
+  --hue-12: #cf222e;
+  --hue-13: #8250df;
+  --hue-14: #1b7c83;
+  --hue-15: #bc4c00;
+  --hue-16: #59636e;
+  --hue-17: #1b7c83;
+  --hue-18: #0550ae;
+  --hue-19: #9a6700;
+  --hue-20: #7d4e00;
+}
+
 /* Plannotator keeps shadcn's `dark:bg-destructive/60` (a dark OS, hover included); Darcula's fill is solid */
 @media (prefers-color-scheme: dark) {
   [data-theme="plannotator"] {
