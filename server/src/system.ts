@@ -21,6 +21,7 @@ import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
 import { stateDir } from './state.ts';
 import { changelog, updateCheck, updateCheckForcedOff } from './update.ts';
+import type { Updater } from './updater.ts';
 import { pidAlive, readWindows } from './windows.ts';
 
 export const CONTROL_HEADER = 'x-nota-bene-control';
@@ -285,6 +286,8 @@ export function systemRoutes(o: {
   port: () => number;
   /** the checkout the server runs from, for the version */
   repoDir: string;
+  /** this window's part of the in-app update: the routes below only relay to it (tests stub it) */
+  updater: Updater;
   /** the newer version on npm, or null (tests stub it) */
   newer?: (current: string) => Promise<string | null>;
   /** the CHANGELOG sections between two versions, or null (tests stub it) */
@@ -312,8 +315,31 @@ export function systemRoutes(o: {
   return {
     '/system/update': (req, res) => {
       if (!only('GET', req, res)) return;
-      void gitDescribe(o.repoDir).then(async (current) => json(res, 200, { current, latest: await newer(current) }))
-        .catch((e: unknown) => fail(res, '/system/update', e));
+      void o.updater.status().then((s) => json(res, 200, s)).catch((e: unknown) => fail(res, '/system/update', e));
+    },
+    // installs the newest release the machine has seen (never a version the page names); 409 where this window cannot update
+    '/system/update/install': (req, res) => {
+      if (!only('POST', req, res)) return;
+      void (async () => {
+        if (!(await o.updater.status()).canUpdate) return text(res, 409, 'cannot update');
+        json(res, 200, await o.updater.install());
+      })().catch((e: unknown) => fail(res, '/system/update/install', e));
+    },
+    // the reply goes out first, then the window exits for its launcher to hand it over
+    '/system/update/restart': (req, res) => {
+      if (!only('POST', req, res)) return;
+      const r = o.updater.restart();
+      if (r === 'ok') json(res, 200, { ok: true }); else text(res, 409, r);
+    },
+    '/system/update/auto': (req, res) => {
+      if (!only('POST', req, res)) return;
+      void readJson(req).then((b) => {
+        const on = (b as { on?: unknown }).on;
+        if (typeof on !== 'boolean') return text(res, 400, 'bad on');
+        o.updater.setAuto(on);
+        res.writeHead(204);
+        res.end();
+      }).catch((e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/system/update/auto', e)));
     },
     // what the newer version changes, for the notice's popover: asked when it opens, never with the check off
     '/system/update/changes': (req, res) => {

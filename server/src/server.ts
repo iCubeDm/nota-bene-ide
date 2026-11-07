@@ -1,4 +1,5 @@
 import http from 'node:http';
+import fs from 'node:fs';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { EventEmitter } from 'node:events';
@@ -26,7 +27,10 @@ import { codeChecker } from './codeStamp.ts';
 import { stateDir } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { registerWindow } from './windows.ts';
-import { controlToken, systemRoutes } from './system.ts';
+import { controlToken, describeVersion, systemRoutes } from './system.ts';
+import { updateCheck } from './update.ts';
+import { updater } from './updater.ts';
+import { runtimeDir } from './runtime.ts';
 import { usageRoutes } from './usage/routes.ts';
 import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, keyCredential, loginCredential, newNonce, proofFor, sameSecret, sessionCookie } from './auth.ts';
 
@@ -152,6 +156,20 @@ export async function startServer(o: {
         setTimeout(() => (o.exit ?? process.exit)(code), 100);
       });
     };
+    // the in-app update: this window's notice, install and hand-over to a newer version (exit 77 in a pause)
+    const repoDir = o.repoDir ?? path.resolve(import.meta.dirname, '..', '..');
+    const newer = updateCheck();
+    const real = (p: string) => { try { return fs.realpathSync(p); } catch { return p; } };
+    const win = updater({
+      version: () => describeVersion(repoDir),
+      canUpdate: process.env.NOTA_BENE_HANDOVER === '1',
+      busy: () => manager.busy(), // a turn, a waiting question or approval, or a switch in progress
+      tabs: () => hub.clients(),
+      exit: exitWith,
+      newer,
+      fromRuntime: real(repoDir).startsWith(real(runtimeDir()) + path.sep),
+      updatedFrom: process.env.NOTA_BENE_UPDATED_FROM,
+    });
     // experimental 3D is off unless asked for: no converter means /model is a plain 404 and Blender is never looked up
     const model3d = o.experimental3d ?? process.env.NOTA_BENE_EXPERIMENTAL_3D === '1';
     const blend = model3d ? new BlendConverter({ stateDir }) : undefined;
@@ -262,7 +280,8 @@ export async function startServer(o: {
         },
         ...usageRoutes({ hub }),
         ...systemRoutes({
-          hub, root, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir: o.repoDir ?? path.resolve(import.meta.dirname, '..', '..'),
+          updater: win, newer,
+          hub, root, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir,
           control: {
             supervised,
             exiting: () => exiting,
@@ -633,6 +652,7 @@ export async function startServer(o: {
       audit?.close();
       hubs.delete(hub);
       if (heartbeat) clearInterval(heartbeat);
+      win.stop();
       manager.close();
       const backendClose = o.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
       blend?.dispose();

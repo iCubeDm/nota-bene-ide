@@ -7,6 +7,7 @@ import { codexBackend } from './agent/codex/backend.ts';
 import { ompBackend } from './agent/acp/omp.ts';
 import { sdkBackend } from './agent/claude/sdk.ts';
 import { startServer } from './server.ts';
+import { HANDOVER } from './updater.ts';
 import { hitRecorder, limitRecorder } from './usage/routes.ts';
 import { UsageStore } from './usage/store.ts';
 import { transcriptExists } from './sessions.ts';
@@ -86,8 +87,7 @@ export function stateLine(): string {
 /** Exit code for a failed listen (port taken): the launcher retries its first start on another port. */
 export const LISTEN_FAILED = 98;
 export const NO_AGENT_BINARY = 76; // bin/nota-bene.mjs: no relaunch
-/** Exit code for "a newer version is current": the launcher hands the window over to it (only with NOTA_BENE_HANDOVER=1). */
-export const HANDOVER = 77;
+export { HANDOVER }; // updater.ts: a newer version is current, the launcher hands the window over (only with NOTA_BENE_HANDOVER=1)
 
 /**
  * The launcher's env vars are ours only if that launcher is our parent right now. Anything started from a shell inside

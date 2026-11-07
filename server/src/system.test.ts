@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,7 +8,9 @@ import { fakeBackend } from './agent/fake.ts';
 import { readPrefs } from './prefs.ts';
 import { startServer } from './server.ts';
 import { accessToken } from './auth.ts';
-import { CLEAN_MIN_AGE_MS, CONTROL_HEADER, cleanAttachments, cleanCandidates, cleanStaleArchives, controlToken, describeVersion, dirSize, staleArchives } from './system.ts';
+import { EventHub } from './hub.ts';
+import type { Updater, UpdateStatus } from './updater.ts';
+import { CLEAN_MIN_AGE_MS, CONTROL_HEADER, cleanAttachments, cleanCandidates, cleanStaleArchives, controlToken, describeVersion, dirSize, staleArchives, systemRoutes } from './system.ts';
 import { registerWindow } from './windows.ts';
 
 let home: string;
@@ -380,5 +383,60 @@ describe('windows', () => {
     expect(r.status).toBe(409);
     await new Promise((res) => setTimeout(res, 150));
     expect(b.exits).toEqual([]);
+  });
+});
+
+describe('update routes', () => {
+  const status: UpdateStatus = { current: '1.7.0', latest: '1.8.0', phase: 'available', canUpdate: true, auto: false, busy: false, log: '/log' };
+  async function serve(stub: Partial<Updater> & { can?: boolean; restartIs?: 'ok' | 'busy' | 'not-ready' }) {
+    const calls: string[] = [];
+    const updater: Updater = {
+      status: async () => ({ ...status, canUpdate: stub.can ?? true }),
+      install: async () => { calls.push('install'); return { ...status, phase: 'installing' }; },
+      restart: () => { calls.push('restart'); return stub.restartIs ?? 'ok'; },
+      setAuto: (on) => void calls.push(`auto ${on}`),
+      stop: () => undefined,
+    };
+    const routes = systemRoutes({ hub: new EventHub(), root: () => proj, port: () => 0, repoDir: proj, updater, newer: async () => null, control: { supervised: () => false, exiting: () => false, restartAgent() {}, restartServer() {}, stop() {} } });
+    const srv = http.createServer((req, res) => routes[new URL(req.url!, 'http://x').pathname]!(req, res));
+    await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+    closers.push(() => new Promise<void>((r) => srv.close(() => r())));
+    return { url: `http://127.0.0.1:${(srv.address() as { port: number }).port}/system/update`, calls };
+  }
+  const send = (url: string, body?: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+
+  it('GET answers the status', async () => {
+    const s = await serve({});
+    const r = await fetch(s.url);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual(status);
+    expect((await send(s.url)).status).toBe(405);
+  });
+
+  it('install answers the status, and 409 where the window cannot update', async () => {
+    const s = await serve({});
+    const r = await send(`${s.url}/install`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ phase: 'installing' });
+    const no = await serve({ can: false });
+    expect((await send(`${no.url}/install`)).status).toBe(409);
+    expect(no.calls).toEqual([]);
+    expect((await fetch(`${s.url}/install`)).status).toBe(405);
+  });
+
+  it('restart answers 200, 409 busy or 409 not-ready', async () => {
+    for (const [is, code, body] of [['ok', 200, '{"ok":true}'], ['busy', 409, 'busy'], ['not-ready', 409, 'not-ready']] as const) {
+      const r = await send(`${(await serve({ restartIs: is })).url}/restart`);
+      expect([r.status, await r.text()]).toEqual([code, body]);
+    }
+  });
+
+  it('auto takes a boolean and answers 204', async () => {
+    const s = await serve({});
+    expect((await send(`${s.url}/auto`, { on: true })).status).toBe(204);
+    expect((await send(`${s.url}/auto`, { on: false })).status).toBe(204);
+    expect((await send(`${s.url}/auto`, { on: 'yes' })).status).toBe(400);
+    expect((await send(`${s.url}/auto`, {})).status).toBe(400);
+    expect(s.calls).toEqual(['auto true', 'auto false']);
   });
 });
