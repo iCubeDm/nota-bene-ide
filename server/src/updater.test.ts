@@ -70,12 +70,26 @@ describe('updater', () => {
     u.stop();
   });
 
-  it('a failed install shows its reason and is not retried by the tick', async () => {
-    patchUpdateState((s) => ({ ...s, auto: true, failed: { version: '1.8.0', at: 1, reason: 'boom' } }));
+  it('a failed install shows its reason and is not retried by the tick within the hour', async () => {
+    patchUpdateState((s) => ({ ...s, auto: true, failed: { version: '1.8.0', at: Date.now(), reason: 'boom' } }));
     const { u, install } = make();
     await vi.advanceTimersByTimeAsync(120_000);
     expect(install).not.toHaveBeenCalled();
     expect(await u.status()).toMatchObject({ phase: 'failed', failed: 'boom' });
+    u.stop();
+  });
+
+  it('auto retries a failed release an hour after it failed', async () => {
+    const fail = () => patchUpdateState((s) => ({ ...s, failed: { version: '1.8.0', at: Date.now(), reason: 'boom' } }));
+    patchUpdateState((s) => ({ ...s, auto: true }));
+    fail();
+    const install = vi.fn(async () => { fail(); return { failed: 'boom' }; }); // it fails again: the next try is an hour on
+    const { u } = make({ install });
+    await vi.advanceTimersByTimeAsync(59 * 60_000);
+    expect(install).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    expect(install).toHaveBeenCalledTimes(1);
+    expect(install).toHaveBeenCalledWith('1.8.0');
     u.stop();
   });
 

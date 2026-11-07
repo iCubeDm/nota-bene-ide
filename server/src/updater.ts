@@ -10,6 +10,8 @@ export const HANDOVER = 77;
 const READY_EVERY_MS = 30_000;
 /** restart() answers first; the exit follows once the reply is out. */
 const REPLY_GRACE_MS = 200;
+/** A failed release is tried again by the automatic update this long after it failed (a transient npm failure must not end it). */
+export const RETRY_FAILED_MS = 60 * 60_000;
 
 export type UpdatePhase = 'none' | 'available' | 'installing' | 'ready' | 'failed' | 'rolled-back';
 export type UpdateStatus = {
@@ -116,7 +118,8 @@ export function updater(o: {
     if (!st.auto || running || installing()) return;
     const latest = await o.newer(v);
     if (!latest || !isNewer(latest, v) || latest === readCurrent()) return;
-    if (latest === st.rolledBack?.version || latest === st.failed?.version) return; // by hand only, once it went wrong
+    if (latest === st.rolledBack?.version) return; // by hand only, once it went wrong in a window
+    if (latest === st.failed?.version && Date.now() - st.failed.at < RETRY_FAILED_MS) return; // and once an hour after a failed install
     if (!running) start(latest);
   }
 
