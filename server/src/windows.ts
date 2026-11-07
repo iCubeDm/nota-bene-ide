@@ -16,6 +16,8 @@ export type WindowEntry = {
   /** the supervising launcher (survives the server's relaunches) */
   launcherPid?: number;
   startedAt: number;
+  /** the release the launcher runs this window from (plain x.y.z), when it knows; absent in older entries */
+  version?: string;
 };
 
 const dir = () => path.join(stateDir(), 'windows');
@@ -47,11 +49,11 @@ export function readWindows(): Record<string, WindowEntry> {
   return out;
 }
 
-export function registerWindow(port: number, root: string, pid: number, launcherPid?: number): void {
+export function registerWindow(port: number, root: string, pid: number, launcherPid?: number, version?: string): void {
   fs.mkdirSync(dir(), { recursive: true });
   const f = fileOf(port);
   const tmp = `${f}.tmp${process.pid}`;
-  const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now() };
+  const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now(), ...(version !== undefined ? { version } : {}) };
   fs.writeFileSync(tmp, JSON.stringify(entry, null, 2));
   fs.renameSync(tmp, f);
 }

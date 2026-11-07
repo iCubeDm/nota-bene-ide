@@ -8,7 +8,7 @@ const LATEST_URL = 'https://registry.npmjs.org/nota-bene-ide/latest';
 /** npm is asked at most this often per machine: the answer is shared through a file in the state folder. */
 export const CHECK_EVERY_MS = 60_000;
 const TIMEOUT_MS = 5000;
-const RELEASE = /^\d+\.\d+\.\d+$/;
+export const RELEASE = /^\d+\.\d+\.\d+$/;
 
 /** NOTA_BENE_NO_UPDATE_CHECK: the check stays off whatever Settings say. */
 export const updateCheckForcedOff = (): boolean => !!process.env.NOTA_BENE_NO_UPDATE_CHECK;
