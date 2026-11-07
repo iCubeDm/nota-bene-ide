@@ -22,6 +22,15 @@ vi.mock('mermaid', () => ({
 const MERMAID = '```mermaid\ngraph TD; A-->B\n```';
 
 describe('Markdown', () => {
+  it('a colour in inline code gets a swatch of it, its text untouched', () => {
+    const { container } = render(<Markdown text={'`#ff8980`, `rgb(60 63 65 / .9)`, `#12` and `npm test`'} final />);
+    const codes = [...container.querySelectorAll<HTMLElement>(':not(pre) > code')];
+    expect(codes.map((c) => c.classList.contains('md-color'))).toEqual([true, true, false, false]);
+    expect(codes[0]!.style.getPropertyValue('--md-swatch')).toBe('#ff8980');
+    expect(codes[1]!.style.getPropertyValue('--md-swatch')).toBe('rgb(60 63 65 / .9)');
+    expect(codes[0]!.textContent).toBe('#ff8980');
+  });
+
   it('renders code with hljs classes', () => {
     const { container } = render(<Markdown text={'```js\nconst a = 1;\n```'} final />);
     expect(container.querySelector('pre code.hljs')).not.toBeNull();

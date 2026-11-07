@@ -119,8 +119,22 @@ function drawMermaid(out: HTMLElement, code: string) {
   });
 }
 
+/** A colour as written in CSS: hex, or a colour function. Named colours are left alone (`red` is as often a word). */
+const COLOUR = /^(?:#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\([^()]*\))$/i;
+
+/** Inline code that is a colour shows a swatch of it, as IntelliJ does; drawn by CSS, so the text stays as written. */
+function markColours(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>(':not(pre) > code').forEach((c) => {
+    const v = c.textContent?.trim() ?? '';
+    if (!COLOUR.test(v) || (typeof CSS !== 'undefined' && CSS.supports && !CSS.supports('color', v))) return;
+    c.classList.add('md-color');
+    c.style.setProperty('--md-swatch', v);
+  });
+}
+
 function postProcess(root: HTMLElement, final: boolean) {
   if (final) addMediaButtons(root);
+  markColours(root);
   root.querySelectorAll<HTMLElement>('pre code').forEach((c) => {
     const lang = /language-(\w+)/.exec(c.className)?.[1];
     const pre = c.parentElement!;
