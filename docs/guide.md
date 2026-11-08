@@ -47,7 +47,7 @@ npx nota-bene-ide [dir] [options]
 
 | Option | Meaning |
 |---|---|
-| `--agent claude\|codex` | Select the agent for this window (default: Claude). Sessions and state are separate per provider. |
+| `--agent claude\|codex\|omp` | Select the agent for this window (default: Claude). Sessions and state are separate per provider. |
 | `--port N` | Listen on port N. Without it the launcher takes the first free port from 4777 to 4799, skipping 4780 and 4790 to 4795. |
 | `--resume ID` | Open the session with this id instead of the folder's last one. |
 | `--resume ID --fork` | Open that session as a new branch; the original stays as it is. `--fork` needs `--resume`. |
