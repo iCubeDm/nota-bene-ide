@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+## 1.7.0 — 2026-11-08
+
 - Windows update themselves from this version on: **Update** in the header installs the newest release and restarts the window in a pause (no turn, no question, no running command), with the same session, and the open page reloads to the new version; **Update automatically** (off by default, per machine) does it for every release. A new version that does not start is rolled back. npm is asked once a minute per machine. Versions up to 1.6.0 cannot do this: make the last manual update once, see [Updating](README.md#updating).
 - A turn the agent starts itself (woken by a background task, for example after feedback it waited for) shows as working: Stop works, and an update waits for it. When the agent dies, its background tasks no longer stay "running".
 - `nota-bene` without `--agent`, in a terminal, finds the installed agents (Claude Code, Codex, omp) and, when there is more than one, asks which to start; Enter takes the one last used in the folder. Scripts and the `/nb`, `$nb` and `/skill:nb` skills are not asked.
+- Security updates: glob 14 (development only) and KaTeX 0.18.11 under mermaid close the open Dependabot alerts.
+- README: a link bar to every section, one table of the supported agents (models, what runs them, minimum version, how to open a window from each) and install steps per agent.
 
 ## 1.6.0 — 2026-11-07
 
