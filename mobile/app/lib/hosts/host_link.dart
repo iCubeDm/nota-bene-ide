@@ -67,15 +67,22 @@ class HostLink extends ChangeNotifier {
   void start() {
     if (_running) return;
     _running = true;
+    if (_state != LinkState.online) _set(LinkState.connecting);
     unawaited(_loop(++_gen));
   }
 
+  /// Drops the channel; the link shows offline until [start].
   void stop() {
+    final was = _running;
     _running = false;
     _gen++;
     final ch = _channel;
     _channel = null;
     unawaited(ch?.close());
+    if (was && _state != LinkState.unpaired) {
+      if (_state == LinkState.online) _lastSeen = _clock();
+      _set(LinkState.offline);
+    }
   }
 
   @override
@@ -122,7 +129,7 @@ class HostLink extends ChangeNotifier {
         _notify();
       });
       _set(LinkState.online);
-      await ch.closed;
+      final code = await ch.closed;
       await sub.cancel();
       if (identical(_channel, ch)) _channel = null;
       if (gen != _gen) return;
@@ -132,6 +139,12 @@ class HostLink extends ChangeNotifier {
       }
       _set(LinkState.offline);
       _notify();
+      if (code == 4409) {
+        // this phone's key connected again elsewhere (a pairing run, a second copy): the relay keeps the newer one,
+        // and a client closed so must not reconnect on its own (relay/PROTOCOL.md); start() resumes
+        _running = false;
+        return;
+      }
       if (!live()) return;
       await _backoff();
     }
@@ -170,9 +183,12 @@ class Links extends ChangeNotifier {
   Iterable<HostLink> get all => _hosts.all.map((h) => _links[h.id]).nonNulls;
 
   void _sync() {
-    final ids = {for (final h in _hosts.all) h.id};
+    final current = {for (final h in _hosts.all) h.id: h};
     for (final id in [..._links.keys]) {
-      if (!ids.contains(id)) _links.remove(id)!.dispose();
+      // gone, or paired again (a new relay, a link that had stopped as unpaired): its link starts over
+      if (!identical(current[id], _links[id]!.host)) {
+        _links.remove(id)!.dispose();
+      }
     }
     for (final h in _hosts.all) {
       _links.putIfAbsent(h.id, () {
@@ -183,6 +199,14 @@ class Links extends ChangeNotifier {
       });
     }
     notifyListeners();
+  }
+
+  /// Stops one host's link (its key is about to connect for pairing; two connections with one key fight for the slot).
+  void pauseHost(String id) => _links[id]?.stop();
+
+  void resumeHost(String id) {
+    final l = _links[id];
+    if (l != null && l.state != LinkState.unpaired) l.start();
   }
 
   /// The app spent long in the background: drop the connections until it is back.

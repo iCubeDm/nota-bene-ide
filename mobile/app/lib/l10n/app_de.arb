@@ -36,5 +36,6 @@
   "hoursAgo": "{n, plural, =1{vor 1 Stunde} other{vor {n} Stunden}}",
   "daysAgo": "{n, plural, =1{vor 1 Tag} other{vor {n} Tagen}}",
   "storeUnreadable": "Der gespeicherte Schlüssel dieses Telefons ließ sich nicht lesen. Eine Neuinstallation erzeugt einen neuen Schlüssel; die Hosts müssen dann neu gekoppelt werden.",
-  "chatSoon": "Der Chat kommt mit dem nächsten Build der App."
+  "chatSoon": "Der Chat kommt mit dem nächsten Build der App.",
+  "cancel": "Abbrechen"
 }

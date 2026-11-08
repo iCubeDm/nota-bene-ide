@@ -23,6 +23,7 @@ class _PairScreenState extends State<PairScreen> {
   bool _busy = false;
   PairError? _error;
   Paired? _done;
+  final _gate = ScanGate();
 
   Future<void> _pair(String code) async {
     if (_busy) return;
@@ -30,7 +31,13 @@ class _PairScreenState extends State<PairScreen> {
       _busy = true;
       _error = null;
     });
-    final r = await widget.flow.pair(code, deviceName: await deviceName());
+    PairResult r;
+    try {
+      r = await widget.flow.pair(code, deviceName: await deviceName());
+    } on Object {
+      r = PairFailed(PairError.unreachable);
+    }
+    if (r is PairFailed) _gate.failed(code);
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -86,7 +93,7 @@ class _PairScreenState extends State<PairScreen> {
                       onDetect: (c) {
                         for (final b in c.barcodes) {
                           final v = b.rawValue;
-                          if (v != null && v.startsWith('nbremote://')) {
+                          if (v != null && _gate.accept(v)) {
                             _pair(v);
                             return;
                           }

@@ -71,5 +71,6 @@
     }
   },
   "storeUnreadable": "This phone's stored key could not be read. Reinstalling the app makes a new key; the hosts then need pairing again.",
-  "chatSoon": "The chat arrives in the next build of the app."
+  "chatSoon": "The chat arrives in the next build of the app.",
+  "cancel": "Cancel"
 }

@@ -12,19 +12,11 @@ import 'store/vault.dart';
 import 'theme.dart';
 
 void main() => runApp(
-  const NbApp(
-    home: LockGate(authenticator: _device, child: AppRoot()),
+  NbApp(
+    home: const AppRoot(),
+    lock: (nav) => LockGate(authenticator: DeviceAuthenticator(), child: nav),
   ),
 );
-
-const _device = _DeviceAuth();
-
-class _DeviceAuth implements Authenticator {
-  const _DeviceAuth();
-  @override
-  Future<AuthResult> authenticate(String reason) =>
-      DeviceAuthenticator().authenticate(reason);
-}
 
 /// Loads the phone key and the pairings, then the start screen.
 class AppRoot extends StatefulWidget {
@@ -42,6 +34,12 @@ class _AppRootState extends State<AppRoot> {
         final hosts = await Hosts.load(v);
         return (id: id, hosts: hosts, links: Links(hosts, connectChannel, id));
       }();
+
+  @override
+  void dispose() {
+    _load.then((d) => d.links.dispose(), onError: (Object _) {});
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder(
@@ -69,8 +67,15 @@ class _AppRootState extends State<AppRoot> {
         links: d.links,
         onPair: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) =>
-                PairScreen(flow: PairFlow(connectChannel, d.id, d.hosts)),
+            builder: (_) => PairScreen(
+              flow: PairFlow(
+                connectChannel,
+                d.id,
+                d.hosts,
+                pause: d.links.pauseHost,
+                resume: d.links.resumeHost,
+              ),
+            ),
           ),
         ),
         chat: (hostId, w) => Scaffold(
@@ -94,9 +99,12 @@ Locale resolveLocale(List<Locale>? preferred) {
 }
 
 class NbApp extends StatelessWidget {
-  const NbApp({super.key, this.home});
+  const NbApp({super.key, this.home, this.lock});
 
   final Widget? home;
+
+  /// Wraps the whole Navigator (every route), when given.
+  final Widget Function(Widget navigator)? lock;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -106,5 +114,8 @@ class NbApp extends StatelessWidget {
     supportedLocales: AppLocalizations.supportedLocales,
     localeListResolutionCallback: (preferred, _) => resolveLocale(preferred),
     home: home ?? const Scaffold(),
+    builder: lock == null
+        ? null
+        : (context, nav) => lock!(nav ?? const SizedBox.shrink()),
   );
 }

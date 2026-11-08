@@ -58,12 +58,31 @@ Future<String> deviceName() async {
   return 'Android phone';
 }
 
+/// What the camera may pair with: Nota Bene codes, and not the one that just failed (the camera keeps seeing it).
+class ScanGate {
+  String? _failed;
+
+  bool accept(String code) => code.startsWith('nbremote://') && code != _failed;
+
+  void failed(String code) => _failed = code;
+}
+
 class PairFlow {
-  PairFlow(this._connect, this._identity, this._hosts);
+  PairFlow(
+    this._connect,
+    this._identity,
+    this._hosts, {
+    void Function(String hostId)? pause,
+    void Function(String hostId)? resume,
+  }) : _pause = pause,
+       _resume = resume;
 
   final ChannelFactory _connect;
   final Identity _identity;
   final Hosts _hosts;
+
+  /// The host's own link, stopped while the pairing connection (the same key) is up.
+  final void Function(String hostId)? _pause, _resume;
 
   /// Pairs with the host of [qr]. Pairing a host again (its list lost this phone, say) replaces the saved one.
   Future<PairResult> pair(
@@ -78,6 +97,21 @@ class PairFlow {
       return PairFailed(PairError.notACode);
     }
     final key = _identity.key;
+    final hostId = b64u(code.hostPub);
+    _pause?.call(hostId);
+    try {
+      return await _pairWith(code, key, deviceName, windowsWait);
+    } finally {
+      _resume?.call(hostId);
+    }
+  }
+
+  Future<PairResult> _pairWith(
+    ({Uri relay, Uint8List hostPub, Uint8List secret}) code,
+    KeyPair key,
+    String deviceName,
+    Duration windowsWait,
+  ) async {
     final Channel ch;
     try {
       ch = await _connect(

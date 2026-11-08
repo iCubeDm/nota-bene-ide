@@ -2,24 +2,35 @@
 // (BiometricPrompt with device credential). It locks again after five minutes in the background.
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:local_auth_android/local_auth_android.dart';
 
 import '../l10n/app_localizations.dart';
 
 enum AuthResult { ok, failed, unavailable }
 
+/// What the system's own dialog shows, in the app's language.
+typedef AuthTexts = ({String title, String reason, String cancel});
+
 abstract class Authenticator {
-  Future<AuthResult> authenticate(String reason);
+  Future<AuthResult> authenticate(AuthTexts texts);
 }
 
 class DeviceAuthenticator implements Authenticator {
   final _auth = LocalAuthentication();
 
   @override
-  Future<AuthResult> authenticate(String reason) async {
+  Future<AuthResult> authenticate(AuthTexts texts) async {
     try {
       if (!await _auth.isDeviceSupported()) return AuthResult.unavailable;
       final ok = await _auth.authenticate(
-        localizedReason: reason,
+        localizedReason: texts.reason,
+        authMessages: [
+          AndroidAuthMessages(
+            signInTitle: texts.title,
+            signInHint: texts.reason,
+            cancelButton: texts.cancel,
+          ),
+        ],
         persistAcrossBackgrounding: true,
       );
       return ok ? AuthResult.ok : AuthResult.failed;
@@ -84,9 +95,12 @@ class _LockGateState extends State<LockGate> {
   Future<void> _ask() async {
     if (_asking || !mounted) return;
     _asking = true;
-    final r = await widget.authenticator.authenticate(
-      AppLocalizations.of(context).lockReason,
-    );
+    final t = AppLocalizations.of(context);
+    final r = await widget.authenticator.authenticate((
+      title: t.lockTitle,
+      reason: t.lockReason,
+      cancel: t.cancel,
+    ));
     _asking = false;
     if (!mounted) return;
     setState(() {
@@ -95,9 +109,21 @@ class _LockGateState extends State<LockGate> {
     });
   }
 
+  /// The app stays mounted under the lock (its connections and its place in the navigation survive a relock); while
+  /// locked it is offstage, so nothing of it is painted, hit or read out.
   @override
-  Widget build(BuildContext context) {
-    if (_open) return widget.child;
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      Offstage(
+        offstage: !_open,
+        child: TickerMode(enabled: _open, child: widget.child),
+      ),
+      if (!_open) _lockScreen(context),
+    ],
+  );
+
+  Widget _lockScreen(BuildContext context) {
     final t = AppLocalizations.of(context);
     return Scaffold(
       body: SafeArea(

@@ -124,4 +124,106 @@ void main() {
     expect(n, before + 1);
     l.stop();
   });
+
+  test('stop goes offline and a new start runs one loop', () async {
+    final ch = FakeChannel([window(4791, '/p')]);
+    f.results.add(ch);
+    final l = link()..start();
+    await settle();
+    expect(l.state, LinkState.online);
+    l.stop();
+    await settle();
+    expect(l.state, LinkState.offline);
+    expect(l.channel, isNull);
+    f.results.add(FakeChannel([window(4791, '/p')]));
+    l.start();
+    expect(l.state, LinkState.connecting);
+    l.start(); // twice: still one loop
+    await settle();
+    expect(l.state, LinkState.online);
+    expect(f.calls, hasLength(2));
+    l.stop();
+  });
+
+  test(
+    '4409 (this key connected elsewhere) stops instead of fighting for the slot',
+    () async {
+      final ch = FakeChannel([window(4791, '/p')]);
+      f.results.add(ch);
+      final l = link()..start();
+      await settle();
+      ch.drop(4409);
+      await settle();
+      expect(l.state, LinkState.offline);
+      expect(
+        sleeps,
+        isEmpty,
+        reason: 'no automatic reconnect (relay/PROTOCOL.md)',
+      );
+      expect(f.calls, hasLength(1));
+      l.start();
+      await settle();
+      expect(f.calls, hasLength(2));
+      l.stop();
+    },
+  );
+
+  test('a host paired again gets a fresh link', () async {
+    final v = MemoryVault();
+    final hosts = await Hosts.load(v);
+    final h = paired(b64u(List.filled(32, 1)));
+    await hosts.add(h);
+    f.results.add(ChannelError('closed', relayCode: 4403));
+    final links = Links(
+      hosts,
+      f.factory,
+      id,
+      sleep: (_) => Completer<void>().future,
+    );
+    await settle();
+    expect(links.of(h.id)!.state, LinkState.unpaired);
+    f.results.add(FakeChannel([window(4791, '/p')]));
+    await hosts.add(
+      PairedHost(
+        id: h.id,
+        relay: Uri.parse('wss://other.example.com'),
+        label: 'again',
+        pairedAt: DateTime(2027),
+      ),
+    );
+    await settle();
+    final l = links.of(h.id)!;
+    expect(l.state, LinkState.online);
+    expect(l.host.relay, Uri.parse('wss://other.example.com'));
+    links.dispose();
+  });
+
+  test('pausing one host stops only its link', () async {
+    final v = MemoryVault();
+    final hosts = await Hosts.load(v);
+    final a = paired(b64u(List.filled(32, 1))),
+        b = paired(b64u(List.filled(32, 2)));
+    await hosts.add(a);
+    await hosts.add(b);
+    f.results.addAll([
+      FakeChannel([window(1, '/a')]),
+      FakeChannel([window(2, '/b')]),
+    ]);
+    final links = Links(
+      hosts,
+      f.factory,
+      id,
+      sleep: (_) => Completer<void>().future,
+    );
+    await settle();
+    links.pauseHost(a.id);
+    await settle();
+    expect(links.of(a.id)!.state, LinkState.offline);
+    expect(links.of(b.id)!.state, LinkState.online);
+    f.results.add(FakeChannel([window(1, '/a')]));
+    links.resumeHost(a.id);
+    await settle();
+    expect(links.of(a.id)!.state, LinkState.online);
+    links.dispose();
+  });
 }

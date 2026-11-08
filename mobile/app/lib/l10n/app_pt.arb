@@ -36,5 +36,6 @@
   "hoursAgo": "{n, plural, =1{há 1 hora} other{há {n} horas}}",
   "daysAgo": "{n, plural, =1{há 1 dia} other{há {n} dias}}",
   "storeUnreadable": "Não foi possível ler a chave salva deste telefone. Reinstalar o app cria uma nova chave; os hosts precisarão ser pareados de novo.",
-  "chatSoon": "O chat chega na próxima versão do app."
+  "chatSoon": "O chat chega na próxima versão do app.",
+  "cancel": "Cancelar"
 }

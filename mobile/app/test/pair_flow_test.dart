@@ -51,6 +51,32 @@ void main() {
     expect(p.phoneFingerprint, await id.fingerprint);
   });
 
+  test(
+    'the host\'s own link is paused while pairing and resumed after',
+    () async {
+      final events = <String>[];
+      flow = PairFlow(
+        f.factory,
+        id,
+        hosts,
+        pause: (h) => events.add('pause $h'),
+        resume: (h) => events.add('resume $h'),
+      );
+      f.results.add(ChannelError('closed', relayCode: 4403));
+      await flow.pair(qr(), deviceName: 'x');
+      expect(events, ['pause ${b64u(seq(0x21))}', 'resume ${b64u(seq(0x21))}']);
+    },
+  );
+
+  test('a scanner seeing the same failed code again does not retry it', () {
+    final g = ScanGate();
+    expect(g.accept('nbremote://a'), isTrue);
+    g.failed('nbremote://a');
+    expect(g.accept('nbremote://a'), isFalse);
+    expect(g.accept('nbremote://b'), isTrue);
+    expect(g.accept('https://x'), isFalse);
+  });
+
   test('a host that lists no window yet is named by its fingerprint', () async {
     final r = await flow.pair(
       qr(),
