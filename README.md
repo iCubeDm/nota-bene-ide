@@ -109,7 +109,7 @@ An open window owns its conversation: don't keep writing to it from another clie
 
 ## Quick start
 
-1. Open a window on a project folder in either of two ways: from your agent's session (`/nb` in Claude Code, `$nb` in Codex, `/skill:nb` in omp), or from a plain terminal in that folder with `nota-bene` (no agent session needed; Nota Bene starts the agent itself). The browser opens on the window, already logged in.
+1. Open a window on a project folder in either of two ways: from your agent's session (`/nb` in Claude Code, `$nb` in Codex, `/skill:nb` in omp), or from a plain terminal in that folder with `nota-bene` (no agent session needed; Nota Bene starts the agent itself: Claude, or Codex with `--agent codex`, omp with `--agent omp`). The browser opens on the window, already logged in.
 2. Ask the agent something. When the reply arrives, select a sentence in it and press **Comment**. Type the note and press Cmd/Ctrl+Enter to add it.
 3. Open a file from the **Files** panel, select a line of code, and comment on that too. Comments from every reply and file collect in the **Comments** panel.
 4. Press **Send (2)**. The agent receives one message that lists each fragment with your note on it.
