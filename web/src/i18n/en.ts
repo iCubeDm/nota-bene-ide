@@ -572,7 +572,7 @@ export const en: Dict = {
   codeUpdated: 'Restart server · code updated',
   codeUpdatedTip: "the server's code changed after it started; the session resumes",
   restartFail: 'Could not restart the server: ',
-  stopWindow: 'Stop window…',
+  stopWindow: 'Stop window',
   stopWindowTip: 'stops the agent and this window; the session stays and can be resumed',
   stopWindowTitle: 'Stop this window?',
   stopWindowQ: 'The agent and this window stop; the session stays and can be resumed with /nb or nota-bene.',

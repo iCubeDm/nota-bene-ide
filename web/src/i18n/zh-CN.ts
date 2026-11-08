@@ -555,7 +555,7 @@ export const zhCN: Dict = {
   codeUpdated: '重启服务器 · 代码已更新',
   codeUpdatedTip: '服务器启动后其代码发生了变化；会话将恢复',
   restartFail: '无法重启服务器：',
-  stopWindow: '停止窗口…',
+  stopWindow: '停止窗口',
   stopWindowTip: '停止代理和此窗口；会话保留，可以恢复',
   stopWindowTitle: '停止此窗口？',
   stopWindowQ: '代理和此窗口将停止；会话保留，可用 /nb 或 nota-bene 恢复。',

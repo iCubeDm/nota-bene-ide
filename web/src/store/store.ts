@@ -63,7 +63,7 @@ export const feedSlice = createSlice({
 
 // unauthorized = the server refused the page's login (the access token, net/auth.ts)
 // connecting = never open yet; closed = dropped after an open; occupied = another tab owns the window; taken = another tab took it from us (M7-15)
-/** `stopped`: this tab stopped its own window (the ↻ menu's Stop window); nothing reconnects after it */
+/** `stopped`: this tab stopped its own window (the header's Stop window); nothing reconnects after it */
 export type ConnState = 'connecting' | 'open' | 'closed' | 'occupied' | 'taken' | 'unauthorized' | 'stopped';
 
 export const connSlice = createSlice({

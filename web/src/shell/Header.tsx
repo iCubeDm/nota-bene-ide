@@ -9,6 +9,7 @@ import { SessionPicker } from '@/controls/SessionPicker.tsx';
 import { UpdateNotice } from './UpdateNotice.tsx';
 import { GitBranch } from './GitBranch.tsx';
 import { RestartMenu } from './RestartMenu.tsx';
+import { StopButton } from './StopButton.tsx';
 import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
 import { UI_SCALES } from '@nota-bene/shared';
@@ -123,6 +124,7 @@ export function Header() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <StopButton />
     </header>
   );
 }

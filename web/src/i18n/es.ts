@@ -555,7 +555,7 @@ export const es: Dict = {
   codeUpdated: 'Reiniciar servidor · código actualizado',
   codeUpdatedTip: 'el código del servidor cambió después de iniciarse; la sesión se reanuda',
   restartFail: 'No se pudo reiniciar el servidor: ',
-  stopWindow: 'Detener la ventana…',
+  stopWindow: 'Detener la ventana',
   stopWindowTip: 'detiene el agente y esta ventana; la sesión se conserva y se puede reanudar',
   stopWindowTitle: '¿Detener esta ventana?',
   stopWindowQ: 'El agente y esta ventana se detienen; la sesión se conserva y se puede reanudar con /nb o nota-bene.',

@@ -279,7 +279,7 @@ export async function startServer(o: {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end('{"ok":true}', () => exitWith(75));
         },
-        // the ↻ menu's Stop window, as Settings → Windows stops another one: 0 tells a launcher to unregister and exit
+        // the header's Stop window (⏻), as Settings → Windows stops another one: 0 tells a launcher to unregister and exit
         '/stop': (req, res) => {
           if (req.method !== 'POST') {
             res.writeHead(405, { allow: 'POST', 'content-type': 'text/plain; charset=utf-8' });

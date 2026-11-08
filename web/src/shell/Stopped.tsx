@@ -2,7 +2,7 @@ import { useT } from '@/i18n/index.ts';
 import { selectConn, useAppSelector } from '@/store/store.ts';
 
 /**
- * This tab stopped its own window (the ↻ menu's Stop window). The server is gone and nothing reconnects; a page cannot close
+ * This tab stopped its own window (the header's Stop window). The server is gone and nothing reconnects; a page cannot close
  * a tab the launcher opened, so it says so and leaves the tab to the user. `/nb` or `nota-bene` opens the window again.
  */
 export function Stopped() {

@@ -555,7 +555,7 @@ export const ptBR: Dict = {
   codeUpdated: 'Reiniciar servidor · código atualizado',
   codeUpdatedTip: 'o código do servidor mudou depois que ele iniciou; a sessão é retomada',
   restartFail: 'Não foi possível reiniciar o servidor: ',
-  stopWindow: 'Parar a janela…',
+  stopWindow: 'Parar a janela',
   stopWindowTip: 'para o agente e esta janela; a sessão permanece e pode ser retomada',
   stopWindowTitle: 'Parar esta janela?',
   stopWindowQ: 'O agente e esta janela param; a sessão permanece e pode ser retomada com /nb ou nota-bene.',

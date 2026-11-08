@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Stop window…** in the ↻ menu stops the window you are in, its agent and its launcher, after a confirmation: no more looking for the terminal or the `/nb` task to close it. The session stays and can be resumed; the tab says the window is stopped.
+- **Stop window** (⏻, right of the gear in the header) stops the window you are in, its agent and its launcher, after a confirmation: no more looking for the terminal or the `/nb` task to close it. The session stays and can be resumed; the tab says the window is stopped.
 - KaTeX 0.19.1 under mermaid instead of 0.18.11, which npm marks as deprecated (published with breaking changes).
 
 ## 1.7.0 — 2026-11-08

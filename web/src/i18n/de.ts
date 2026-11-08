@@ -555,7 +555,7 @@ export const de: Dict = {
   codeUpdated: 'Server neu starten · Code aktualisiert',
   codeUpdatedTip: 'der Code des Servers hat sich nach seinem Start geändert; die Sitzung wird fortgesetzt',
   restartFail: 'Server konnte nicht neu gestartet werden: ',
-  stopWindow: 'Fenster stoppen…',
+  stopWindow: 'Fenster stoppen',
   stopWindowTip: 'stoppt den Agenten und dieses Fenster; die Sitzung bleibt und kann fortgesetzt werden',
   stopWindowTitle: 'Dieses Fenster stoppen?',
   stopWindowQ: 'Der Agent und dieses Fenster stoppen; die Sitzung bleibt und kann mit /nb oder nota-bene fortgesetzt werden.',
