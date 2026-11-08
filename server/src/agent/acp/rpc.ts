@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 
 /** what Nota Bene says it is in `initialize`; the release pin test keeps it at package.json's version */
-export const CLIENT_VERSION = '1.7.0';
+export const CLIENT_VERSION = '1.7.1';
 
 export class AcpError extends Error {
   readonly code: number | undefined;
