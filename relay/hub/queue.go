@@ -141,7 +141,7 @@ func (q *queue) push(ctx context.Context, msg []byte) error {
 // guard is evaluated under the queue lock at the moment of insertion; when it
 // returns false the message is dropped (errSkipped). With slow > 0 the push
 // gives up with errSlow once the queue has stayed full for slow, whether that
-// shows while waiting or on a later push. stall, when set, is called when the
+// shows while waiting (for room or for the budget) or on a later push. stall, when set, is called when the
 // push starts waiting, and the function it returns when the wait ends.
 func (q *queue) pushSlow(ctx context.Context, msg []byte, guard func() bool, slow time.Duration, stall func() func()) error {
 	c := cost(msg)
@@ -177,7 +177,9 @@ func (q *queue) pushSlow(ctx context.Context, msg []byte, guard func() bool, slo
 			q.mu.Unlock()
 			return nil
 		}
-		if !fits && q.fullSince.IsZero() {
+		// Here the queue is not empty (an empty one always takes the
+		// message), so any wait, for room or for the budget, is a stall.
+		if q.fullSince.IsZero() {
 			q.fullSince = time.Now()
 		}
 		wake := q.wake

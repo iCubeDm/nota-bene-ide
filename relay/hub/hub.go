@@ -16,6 +16,7 @@ import (
 const (
 	codeMalformed   = websocket.StatusCode(4400)
 	codeBadProof    = websocket.StatusCode(4401)
+	codeHostRefused = websocket.StatusCode(4402)
 	codeNotAllowed  = websocket.StatusCode(4403)
 	codeHostOffline = websocket.StatusCode(4404)
 	codeTooSlow     = websocket.StatusCode(4408)
@@ -40,7 +41,7 @@ type Options struct {
 	// connections are refused with 4429.
 	TotalBytes int
 	// Admit, when set, is asked about every proven host id; false refuses it
-	// with 4403. ctx ends at the hello deadline or at server shutdown.
+	// with 4402. ctx ends at the hello deadline or at server shutdown.
 	Admit func(ctx context.Context, hostID string) bool
 	// Log receives counts and close codes only. Nil discards.
 	Log *slog.Logger

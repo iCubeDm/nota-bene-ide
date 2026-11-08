@@ -257,7 +257,7 @@ func TestAdmitHook(t *testing.T) {
 	o.Admit = func(_ context.Context, id string) bool { return id != bad }
 	s, url := newTestServer(t, o)
 	h := dialHostNoWait(t, url, badPriv, nil, nil)
-	if c := closeCode(t, h.c); c != 4403 {
+	if c := closeCode(t, h.c); c != 4402 {
 		t.Fatalf("refused host closed %d", c)
 	}
 	if hs, _ := s.Stats(); hs != 0 {
@@ -1059,10 +1059,59 @@ func TestAdmitContext(t *testing.T) {
 	_, url := newTestServer(t, o)
 	start := time.Now()
 	h := dialHostNoWait(t, url, mustKey(t), nil, nil)
-	if c := closeCode(t, h.c); c != 4403 {
+	if c := closeCode(t, h.c); c != 4402 {
 		t.Fatalf("host closed %d", c)
 	}
 	if time.Since(start) > testWait/2 {
 		t.Fatalf("hook ran %v", time.Since(start))
+	}
+}
+
+// A device with queued data that waits on the hub-wide budget alone is cut
+// 4408 after SlowTimeout like a full queue, and the host's reader then moves
+// on to its other device.
+func TestBudgetWaitCutsSlowDevice(t *testing.T) {
+	const slow = 200 * time.Millisecond
+	noLog := func(string, websocket.StatusCode) {}
+	b := newBudget(32 << 10)
+	hp := newPeer(nil, "host", noLog, 1<<20, b)
+	h := newHost("h", hp, []string{"a", "b"}, nil, slow)
+	mk := func(hash string) (*device, *peer) {
+		p := newPeer(nil, "device", noLog, 1<<20, b)
+		p.once.Do(func() {}) // no socket: closeWith is a no-op
+		d, code := h.admit(p, hash, nil, 0)
+		if d == nil {
+			t.Fatalf("refused %d", code)
+		}
+		return d, p
+	}
+	a, _ := mk("a")
+	bd, bp := mk("b")
+
+	h.deliver(a.conn, make([]byte, 1<<10)) // A now holds data and never reads
+	b.charge(64 << 10)                     // another pair exhausts the budget
+	if over, _ := b.over(); !over {
+		t.Fatal("budget not exhausted")
+	}
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		h.deliver(a.conn, make([]byte, 1<<10)) // waits on the budget alone
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(testWait):
+		t.Fatal("budget wait was never cut")
+	}
+	if !a.gone.Load() {
+		t.Fatal("device not cut")
+	}
+	if el := time.Since(start); el < slow/2 {
+		t.Fatalf("cut after %v, before the slow timeout", el)
+	}
+	h.deliver(bd.conn, make([]byte, 1<<10)) // the other device still gets frames
+	if _, n := bp.q.queued(); n != 1 {
+		t.Fatalf("other device holds %d frames", n)
 	}
 }

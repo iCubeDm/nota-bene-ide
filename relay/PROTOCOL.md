@@ -65,8 +65,8 @@ ticket id derived from it.
    ticket. On success the relay answers `{"t":"ok","conn":<n>}`.
 
 5. A proven hello is still refused with 4429 while the relay is over its
-   memory budget (see Flow control), and a host may be refused with 4403 by
-   the operator's admission hook.
+   memory budget (see Flow control), and a host may be refused with 4402 by
+   the operator's admission hook (for example, no subscription).
 
 Worked example (test keys, never use them). Keys are written as 32 bytes,
 the private ones for illustration only:
@@ -161,8 +161,11 @@ on the way: messages read and waiting to enter a queue, queued, and being
 written. While the budget is exceeded, a sender waits even when its target's
 own queue has room (a message still enters an empty queue, so every connection
 keeps moving), and new connections are refused with 4429 after their hello.
-Waiting for the budget alone does not start the 10 s rule, so during such a
-wait a host's other devices and control messages can be delayed longer.
+A wait for the budget counts toward the 10 s rule like a wait for room: a
+frame for a device whose queue holds data and has not drained for 10 s, even
+if the wait is only for the budget, cuts that device with 4408. (A message
+always enters an empty queue, so a wait never happens there.) A host's other
+devices and control messages are thus delayed by at most about 10 s.
 
 ## Keepalive
 
@@ -181,15 +184,16 @@ connection); they need not ping themselves.
 | --- | --- |
 | 4400 | Malformed hello, wrong first message, or hello not received within 10 s; also malformed host control messages |
 | 4401 | Proof failed |
-| 4403 | Not allowed: device not in the list and its ticket missing, wrong, or the host has no current ticket; device removed or closed by the host; also a host refused by the relay's admission hook |
+| 4402 | Host not admitted: the relay's admission hook refused this host id (for example, no subscription); do not retry unchanged |
+| 4403 | Not allowed: device not in the list and its ticket missing, wrong, or the host has no current ticket; device removed or closed by the host |
 | 4404 | Host offline (device side); also sent to every device when its host leaves or is replaced |
-| 4408 | Too slow or unresponsive: a device whose queue stayed full for 10 s, a peer that failed keepalive, or a peer with more than 1024 control messages waiting |
+| 4408 | Too slow or unresponsive: a device whose queue stayed full or blocked on the budget for 10 s, a peer that failed keepalive, or a peer with more than 1024 control messages waiting |
 | 4409 | Replaced by a newer connection of the same host, or of the same device to the same host |
 | 4413 | Message too large |
 | 4429 | Limit reached: too many hosts, too many devices for this host, or the relay's memory budget is exceeded |
 
 The relay going down closes connections with `1001`, or drops them without a
-close frame; reconnect with backoff. A client that is closed with 4403, 4401
+close frame; reconnect with backoff. A client that is closed with 4402, 4403, 4401
 or 4413 should not retry unchanged, and one closed with 4409 must not reconnect
 automatically (see Admission). After 4429 retry with backoff.
 

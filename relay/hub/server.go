@@ -322,7 +322,7 @@ func (s *Server) runHost(ctx context.Context, p *peer, _ *http.Request, ch Chall
 		allowed := s.o.Admit(actx, id)
 		cancel()
 		if !allowed {
-			p.closeWith(codeNotAllowed)
+			p.closeWith(codeHostRefused)
 			return
 		}
 	}
