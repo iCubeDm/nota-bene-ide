@@ -20,5 +20,21 @@
   "errCodeUsed": "El código caducó o ya se usó. Ejecuta `nota-bene remote pair` de nuevo.",
   "errUnreachable": "No se pudo contactar con el relé ni con el equipo. Comprueba la conexión y que `nota-bene remote` esté en marcha.",
   "cameraDenied": "Nota Bene no puede usar la cámara. Permítelo en los ajustes de Android o pega el código.",
-  "cameraFailed": "La cámara no se inició. Pega el código."
+  "cameraFailed": "La cámara no se inició. Pega el código.",
+  "pairHost": "Vincular un equipo",
+  "noHosts": "Aún no hay equipos. Ejecuta `nota-bene remote` en tu ordenador y vincula este teléfono.",
+  "settings": "Ajustes",
+  "connecting": "Conectando…",
+  "offline": "Sin conexión",
+  "offlineSeen": "Sin conexión · visto {ago}",
+  "unpaired": "Este teléfono ya no está vinculado con este equipo.",
+  "forget": "Olvidar",
+  "untitled": "sin título",
+  "noWindows": "No hay ventanas abiertas",
+  "justNow": "hace un momento",
+  "minutesAgo": "hace {n} min",
+  "hoursAgo": "{n, plural, =1{hace 1 hora} other{hace {n} horas}}",
+  "daysAgo": "{n, plural, =1{hace 1 día} other{hace {n} días}}",
+  "storeUnreadable": "No se pudo leer la clave guardada de este teléfono. Reinstalar la app crea una clave nueva y habrá que vincular los equipos otra vez.",
+  "chatSoon": "El chat llega en la próxima versión de la app."
 }

@@ -20,5 +20,21 @@
   "errCodeUsed": "配对码已过期或已被使用。请重新运行 `nota-bene remote pair`。",
   "errUnreachable": "无法连接中继或主机。请检查网络，并确认 `nota-bene remote` 正在运行。",
   "cameraDenied": "Nota Bene 无法使用相机。请在 Android 设置中允许，或粘贴代码。",
-  "cameraFailed": "相机未能启动。请改为粘贴代码。"
+  "cameraFailed": "相机未能启动。请改为粘贴代码。",
+  "pairHost": "配对主机",
+  "noHosts": "还没有主机。在电脑上运行 `nota-bene remote`，然后将这部手机与之配对。",
+  "settings": "设置",
+  "connecting": "正在连接…",
+  "offline": "离线",
+  "offlineSeen": "离线 · 上次在线 {ago}",
+  "unpaired": "这部手机已不再与该主机配对。",
+  "forget": "移除",
+  "untitled": "未命名",
+  "noWindows": "没有打开的窗口",
+  "justNow": "刚刚",
+  "minutesAgo": "{n} 分钟前",
+  "hoursAgo": "{n} 小时前",
+  "daysAgo": "{n} 天前",
+  "storeUnreadable": "无法读取这部手机保存的密钥。重新安装应用会生成新密钥，之后需要重新配对主机。",
+  "chatSoon": "聊天将在应用的下一个版本中提供。"
 }

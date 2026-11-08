@@ -27,5 +27,49 @@
         "type": "String"
       }
     }
-  }
+  },
+  "pairHost": "Pair a host",
+  "noHosts": "No hosts yet. Run `nota-bene remote` on your computer, then pair this phone with it.",
+  "settings": "Settings",
+  "connecting": "Connecting…",
+  "offline": "Offline",
+  "offlineSeen": "Offline · seen {ago}",
+  "unpaired": "This phone is no longer paired with this host.",
+  "forget": "Forget",
+  "untitled": "untitled",
+  "noWindows": "No open windows",
+  "justNow": "just now",
+  "minutesAgo": "{n, plural, =1{1 min ago} other{{n} min ago}}",
+  "hoursAgo": "{n, plural, =1{1 hour ago} other{{n} hours ago}}",
+  "daysAgo": "{n, plural, =1{1 day ago} other{{n} days ago}}",
+  "@offlineSeen": {
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "@minutesAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@hoursAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@daysAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "storeUnreadable": "This phone's stored key could not be read. Reinstalling the app makes a new key; the hosts then need pairing again.",
+  "chatSoon": "The chat arrives in the next build of the app."
 }
