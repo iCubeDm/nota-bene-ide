@@ -56,3 +56,45 @@ checks this table against the code.
 | relay ticket | `DDKWMnMYXab17ezikDLd7uircFsUBcu40ksUtkI0_Jg` |
 | pairing proof | `YRz0Sr3BMUsRN5L4FiM1AYx_uBwdAmnmW9zZrBBXqxE` |
 | device fingerprint | `vkup-75yd-wufs-ff7u` |
+
+## Streams
+
+The plaintext of every transport message is one frame:
+
+`type u8 | stream u32 big-endian | flags u8 | body`
+
+| Type | Name | Body |
+| --- | --- | --- |
+| 1 | `OPEN` | JSON: what to open (see Stream kinds). Only the phone opens streams, with odd ids counting up from 1. |
+| 2 | `HEAD` | JSON: a response head (`{status, headers}` for HTTP). |
+| 3 | `DATA` | Bytes. Flags: bit 0 `FIN` ends one message, bit 1 `BIN` marks a binary WebSocket message. |
+| 4 | `END` | Empty: this side sends no more `DATA` on the stream. A stream that both sides ended is over (code 1000). |
+| 5 | `CLOSE` | JSON `{code, reason?}`: the stream is over both ways; queued data is dropped. |
+| 6 | `CREDIT` | u32 big-endian: more bytes the sender may send. Stream 0 is the connection. |
+
+A message larger than a frame is split into `DATA` chunks, `FIN` on the last;
+an empty message is one empty `DATA` frame with `FIN`. The flags byte is 0 for
+every type except `DATA`.
+
+Flow control, as in HTTP/2: each stream starts with a window of 262144 bytes
+(256 KiB) of `DATA` bodies in each direction and the connection with 524288
+(512 KiB) for all streams together. A sender stops when either is used up; a
+receiver grants more with `CREDIT` as its consumer finishes with the data
+(this side grants once half a window has been consumed). Sending more than
+granted is a protocol error: the receiver closes every stream with 4900 and
+drops the connection. At most 64 streams are open per channel; more are
+refused with `CLOSE` 4929.
+
+| Code | Meaning |
+| --- | --- |
+| 1000 | Both sides ended the stream |
+| 4900 | Bad frame, bad request or credit exceeded |
+| 4902 | The window could not be reached |
+| 4904 | No such window, or the window has gone (restarted or closed) |
+| 4913 | A message larger than the receiver accepts (64 MiB here) |
+| 4929 | Too many streams |
+
+A WebSocket stream passes the window's own close code instead (for example
+4001 when another tab took the window over).
+
+Example: `DATA` on stream 1 with `FIN` carrying `hi` is `03 00000001 01 6869`.
