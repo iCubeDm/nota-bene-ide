@@ -164,6 +164,12 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
         idle.disarm();
         break;
       // `compact-end` (a compaction that ended with no boundary) neither arms nor disarms: the turn's end decides
+      case 'message-start': case 'message-chunk': case 'message':
+        agentSpoke();
+        break;
+      case 'tool-call':
+        if (!e.sub) agentSpoke(); // a background subagent's call after the turn is its task's work, not a turn
+        break;
       default:
         break;
     }
@@ -172,6 +178,11 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     stats.onAgent(e);
     // the CLI can change the mode itself (plan approval, its own keys): follow it, but only on a real change
     if (e.t === 'mode') modes.adopt(e.mode, who.root);
+  }
+
+  /** main-thread output with no send waiting: the agent started a turn itself (#102); busy until its turn-end */
+  function agentSpoke(): void {
+    if (turns.agentSpoke()) hub.emit({ kind: 'agent', e: { t: 'turn-start' } });
   }
 
   /**
@@ -198,6 +209,8 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     slot.died(a);
     permissions.denyAll();
     hub.emit({ kind: 'agent', e: turns.crashed(e) }); // only the sends the agent had; the queued ones run on the next
+    // its tasks died with it, and no one will say they ended: a task left running would hold an update back for good
+    for (const id of hub.runningTasks()) hub.emit({ kind: 'agent', e: { t: 'task', id, phase: 'done', status: 'stopped' } });
   }
 
   /** the server answers for the agent: the send `id` it could not hand over */

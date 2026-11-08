@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Windows update themselves from this version on: **Update** in the header installs the newest release and restarts the window in a pause (no turn, no question, no running command), with the same session, and the open page reloads to the new version; **Update automatically** (off by default, per machine) does it for every release. A new version that does not start is rolled back. npm is asked once a minute per machine. Versions up to 1.6.0 cannot do this: make the last manual update once, see [Updating](README.md#updating).
+- A turn the agent starts itself (woken by a background task, for example after feedback it waited for) shows as working: Stop works, and an update waits for it. When the agent dies, its background tasks no longer stay "running".
 
 ## 1.6.0 — 2026-11-07
 

@@ -2482,6 +2482,18 @@
         },
         {
           "properties": {
+            "t": {
+              "const": "turn-start",
+              "type": "string"
+            }
+          },
+          "required": [
+            "t"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
             "answers": {
               "anyOf": [
                 {

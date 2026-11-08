@@ -2995,6 +2995,7 @@ sealed class WireAgentEvent implements _Json {
       'message' => WireAgentEventMessage.fromJson(json),
       'tool-call' => WireAgentEventToolCall.fromJson(json),
       'tool-update' => WireAgentEventToolUpdate.fromJson(json),
+      'turn-start' => WireAgentEventTurnStart.fromJson(json),
       'turn-end' => WireAgentEventTurnEnd.fromJson(json),
       'cancelled' => WireAgentEventCancelled.fromJson(json),
       'compacting' => WireAgentEventCompacting.fromJson(json),
@@ -3486,6 +3487,19 @@ final class WireAgentEventTurnEnd extends WireAgentEvent {
       'answers': answers,
       'queued': queued,
     };
+  }
+}
+
+final class WireAgentEventTurnStart extends WireAgentEvent {
+  const WireAgentEventTurnStart();
+
+  factory WireAgentEventTurnStart.fromJson(Map<String, Object?> json) {
+    return const WireAgentEventTurnStart();
+  }
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'t': 'turn-start'};
   }
 }
 

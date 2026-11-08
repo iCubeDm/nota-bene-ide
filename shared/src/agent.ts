@@ -11,6 +11,7 @@ export type AgentEvent =
   | { t: 'message'; id: string; text: string }               // the final text of a block; id `${uuid}:${index}`
   | { t: 'tool-call'; id: string; name: string; input: Record<string, unknown>; sub: boolean; toolKind?: 'command' | 'file' | 'mcp' | 'agent' | 'search' | 'other'; childSessionId?: string } // ACP tool_call
   | { t: 'tool-update'; id: string; text: string; isError: boolean; toolKind?: 'command' | 'file' | 'mcp' | 'agent' | 'search' | 'other'; childSessionId?: string }                          // ACP tool_call_update
+  | { t: 'turn-start' }                                      // server-made: a turn the agent started itself (no send waits), e.g. woken by a background task
   | { t: 'turn-end'; stop: StopReason; secs: number; error?: string; answers: string[] | 'all' | 'none'; queued: number }
   | { t: 'cancelled'; sendId: string }
   | { t: 'compacting' } | { t: 'compact-failed'; error?: string } | { t: 'compacted'; preTokens?: number; ms?: number; boundaryId?: string }

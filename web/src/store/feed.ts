@@ -35,6 +35,8 @@ export type FeedState = {
   forcePending: boolean;
   /** ids of live sends no turn-end has answered yet (a turn-end names them in `answers`). */
   waiting: string[];
+  /** a turn the agent started itself runs (`turn-start`, a background task woke it): busy until a turn-end. */
+  agentTurn: boolean;
   /** counter behind the streaming ids `stream:${n}`; kept in state so reduce stays pure and replay is deterministic. */
   streamN: number;
   /** counter behind the `key` of done / marker / notice lines (React keys that survive a prepend); in state like streamN. */
@@ -55,7 +57,7 @@ export type FeedState = {
   epoch: number;
 };
 
-export const emptyFeed: FeedState = { items: [], busy: false, session: null, forcePending: false, waiting: [], streamN: 0, lineN: 0, turnSeq: 0, compacting: null, earlier: 0, epoch: 0 };
+export const emptyFeed: FeedState = { items: [], busy: false, session: null, forcePending: false, waiting: [], agentTurn: false, streamN: 0, lineN: 0, turnSeq: 0, compacting: null, earlier: 0, epoch: 0 };
 
 /** One `GET /history` page: the archived events of segment `segment`; `more`: older segments exist. */
 export type HistoryPage = { events: ServerEvent[]; segment: number; more: boolean };
@@ -181,6 +183,8 @@ function reduceAgent(s: FeedState, e: WireAgentEvent, ts: number): FeedState {
       if (!cur || cur.kind !== 'tool') return s;
       return { ...s, items: replaceAt(s.items, i, { ...cur, ...(e.toolKind ? { toolKind: e.toolKind } : {}), ...(e.childSessionId ? { childSessionId: e.childSessionId } : {}), result: { text: e.text, isError: e.isError } }) };
     }
+    case 'turn-start':
+      return { ...s, busy: true, agentTurn: true };
     case 'turn-end': {
       // a forced send interrupts the running turn: whatever ends it shows as interrupted (R-M7-14), except a failure
       // with an error text: the CLI's interrupt is never `failed` (map.ts), so that one is a real crash (M7-18)
@@ -203,13 +207,13 @@ function reduceAgent(s: FeedState, e: WireAgentEvent, ts: number): FeedState {
       const lastCleared = closed.findLastIndex((it) => it.kind === 'marker' && it.what === 'cleared');
       const orphan = lastCleared >= 0 && !closed.slice(lastCleared).some((it) => it.kind === 'user');
       // a turn never ends mid-compaction: a turn-end with one still shown means its end event was lost (the agent died)
-      return { ...s, items: orphan ? closed : [...closed, done], busy, forcePending: false, waiting, lineN: orphan ? s.lineN : lineN, turnSeq: s.turnSeq + 1, compacting: null };
+      return { ...s, items: orphan ? closed : [...closed, done], busy, forcePending: false, waiting, agentTurn: false, lineN: orphan ? s.lineN : lineN, turnSeq: s.turnSeq + 1, compacting: null };
     }
     case 'cancelled': {
       // a queued send that was cancelled (e.g. Stop with cancel_queued) never gets a turn-end of its own
       if (!s.waiting.includes(e.sendId)) return s;
       const waiting = s.waiting.filter((id) => id !== e.sendId);
-      return { ...s, waiting, busy: s.forcePending || waiting.length > 0 };
+      return { ...s, waiting, busy: s.forcePending || waiting.length > 0 || s.agentTurn };
     }
     case 'mode': // the controls slice reads the `mode` server event
     case 'task': // the tasks slice
