@@ -8,6 +8,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -22,7 +24,8 @@ import (
 	"github.com/iCubeDm/nota-bene-ide/relay/internal/relay"
 )
 
-const shutdownGrace = 5 * time.Second
+// shutdownGrace bounds the whole shutdown; a variable so a test can shorten it.
+var shutdownGrace = 5 * time.Second
 
 func main() {
 	if err := run(os.Args[1:], nil); err != nil {
@@ -61,11 +64,10 @@ func runCtx(ctx context.Context, args []string, ready func(addr string)) error {
 		}
 	}
 
-	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	o := relay.DefaultOptions()
-	o.MaxHosts, o.MaxDevicesPerHost, o.Log = *maxHosts, *maxDevices, log
+	o.MaxHosts, o.MaxDevicesPerHost, o.Log = *maxHosts, *maxDevices, logger
 	hub := relay.NewServer(o)
-	defer hub.Close()
 	handler := hub.Handler()
 
 	var servers []*http.Server
@@ -121,7 +123,7 @@ func runCtx(ctx context.Context, args []string, ready func(addr string)) error {
 		serve(newServer(m.HTTPHandler(nil)), hln, false)
 	}
 
-	log.Info("start")
+	logger.Info("start")
 	if ready != nil {
 		ready(mainAddr)
 	}
@@ -132,30 +134,54 @@ func runCtx(ctx context.Context, args []string, ready func(addr string)) error {
 		select {
 		case <-tick.C:
 			hosts, devices := hub.Stats()
-			log.Info("connections", "hosts", hosts, "devices", devices)
+			logger.Info("connections", "hosts", hosts, "devices", devices)
 		case err := <-errc:
-			hub.Close()
+			stopAll(hub, servers)
 			return err
 		case <-ctx.Done():
-			// Close the hub first: hijacked WebSocket connections are not
-			// tracked by http.Server.Shutdown.
-			hub.Close()
-			sctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
-			defer cancel()
-			var first error
-			for _, srv := range servers {
-				if err := srv.Shutdown(sctx); err != nil && first == nil {
-					first = err
-				}
-			}
-			log.Info("stop")
-			return first
+			err := stopAll(hub, servers)
+			logger.Info("stop")
+			return err
 		}
 	}
 }
 
+// stopAll closes the hub and shuts the servers down, all within shutdownGrace.
+// The hub goes first: hijacked WebSocket connections are not tracked by
+// http.Server.Shutdown. A peer that never completes its close handshake cannot
+// hold the process past the deadline.
+func stopAll(hub *relay.Server, servers []*http.Server) error {
+	sctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+	defer cancel()
+	closed := make(chan struct{})
+	go func() { hub.Close(); close(closed) }()
+	select {
+	case <-closed:
+	case <-sctx.Done():
+	}
+	var first error
+	for _, srv := range servers {
+		if err := srv.Shutdown(sctx); err != nil {
+			srv.Close()
+			if first == nil {
+				first = err
+			}
+		}
+	}
+	return first
+}
+
 func newServer(h http.Handler) *http.Server {
-	return &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	return &http.Server{
+		Handler: h,
+		// ReadTimeout also bounds a stalled TLS handshake; hijacking a
+		// WebSocket clears the deadlines, so it does not limit connections.
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		// net/http would log client addresses ("TLS handshake error from ...").
+		ErrorLog: log.New(io.Discard, "", 0),
+	}
 }
 
 // checkLoopback refuses a -listen address that is not on the loopback

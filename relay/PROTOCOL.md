@@ -52,7 +52,9 @@ ticket id derived from it.
 
 3. Host hello adds `"devices":[<deviceHash>, ...]` (at most 32; absent means
    none) and optionally `"ticket":<32 B>`. On success the relay answers
-   `{"t":"ok"}`. Fields not listed here are ignored (a device's `devices`).
+   `{"t":"ok"}`. Unknown fields are ignored. A `devices` array is parsed in
+   either hello, so one with more than 32 entries ends with 4400 even in a
+   device hello (where the list is otherwise unused).
 
 4. Device hello adds optionally `"ticket":<32 B>`. The relay finds the host
    named by the `host` query parameter. The device is admitted when its
@@ -131,8 +133,10 @@ carry on. A device sending to a slow host just waits.
 ## Keepalive
 
 The relay sends a WebSocket ping every 30 s and closes a peer that has not
-answered within 60 s with 4408. Clients answer pings as WebSocket libraries do
-by default; they need not ping themselves.
+answered within 60 s with 4408. A failed ping is forgiven while the relay has
+that peer's reader parked in backpressure (it cannot see pongs then), so a
+stalled transfer is judged by the 10 s queue rule instead. Clients answer pings
+as WebSocket libraries do by default; they need not ping themselves.
 
 ## Close codes
 
@@ -140,9 +144,9 @@ by default; they need not ping themselves.
 | --- | --- |
 | 4400 | Malformed hello, wrong first message, or hello not received within 10 s; also malformed host control messages |
 | 4401 | Proof failed |
-| 4403 | Not allowed: device not in the list or removed, or the host closed it; also a host refused by the relay's admission hook |
+| 4403 | Not allowed: device not in the list and its ticket missing, wrong, or the host has no current ticket; device removed or closed by the host; also a host refused by the relay's admission hook |
 | 4404 | Host offline (device side); also sent to every device when its host leaves or is replaced |
-| 4408 | Too slow or unresponsive: a device whose queue stayed full for 10 s, or a peer that failed keepalive |
+| 4408 | Too slow or unresponsive: a device whose queue stayed full for 10 s, a peer that failed keepalive, or a peer with more than 1024 control messages waiting |
 | 4409 | Replaced by a newer connection of the same host |
 | 4413 | Message too large |
 | 4429 | Limit reached: too many hosts, or too many devices for this host |
@@ -150,3 +154,21 @@ by default; they need not ping themselves.
 The relay going down closes connections with `1001`, or drops them without a
 close frame; reconnect with backoff. A client that is closed with 4403, 4401
 or 4413 should not retry unchanged.
+
+## Default limits
+
+Budget for these; the production relay runs with them (`-max-hosts` and
+`-max-devices` change the first two).
+
+| Limit | Default | Exceeded |
+| --- | --- | --- |
+| hosts connected at once | 1000 | new host id: 4429 (a replacement of a connected id is always allowed) |
+| devices per host | 16 | 4429 |
+| listed devices (hello and `devices`) | 32 | 4400 |
+| connections still in the challenge phase | 256 | HTTP 503 before the upgrade |
+| hello size | 4096 bytes | WebSocket 1009 |
+| hello deadline | 10 s | 4400 |
+| device message / host frame | 1 MiB / 1 MiB + 4 | 4413 |
+| outgoing queue per connection | 1 MiB | backpressure; a device is cut with 4408 after 10 s |
+| control messages waiting per connection | 1024 | 4408 |
+| ping interval / pong deadline | 30 s / 60 s | 4408 |

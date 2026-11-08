@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -120,5 +123,61 @@ func TestProtocolExample(t *testing.T) {
 		if !strings.Contains(string(doc), v) {
 			t.Errorf("PROTOCOL.md does not contain %s", v)
 		}
+	}
+}
+
+func TestServersNeverLogAddresses(t *testing.T) {
+	srv := newServer(http.NewServeMux())
+	if srv.ErrorLog == nil {
+		t.Fatal("ErrorLog is nil: net/http would log client addresses to stderr")
+	}
+	r, w, _ := os.Pipe()
+	old := os.Stderr
+	os.Stderr = w
+	srv.ErrorLog.Print("http: TLS handshake error from 192.0.2.1:1234")
+	os.Stderr = old
+	w.Close()
+	if b, _ := io.ReadAll(r); len(b) != 0 {
+		t.Fatalf("ErrorLog wrote %q", b)
+	}
+	if srv.ReadTimeout <= 0 {
+		t.Fatal("no ReadTimeout: a stalled TLS handshake would hold a goroutine forever")
+	}
+}
+
+func TestShutdownBoundedByStuckPeer(t *testing.T) {
+	old := shutdownGrace
+	shutdownGrace = 300 * time.Millisecond
+	defer func() { shutdownGrace = old }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	addrc := make(chan string, 1)
+	done := make(chan error, 1)
+	go func() { done <- runCtx(ctx, []string{"-listen", "127.0.0.1:0"}, func(a string) { addrc <- a }) }()
+	addr := <-addrc
+
+	// A raw client that completes the upgrade and then never reads again, so
+	// it never answers the relay's close frame.
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fmt.Fprintf(conn, "GET /v1/host HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
+	br := bufio.NewReader(conn)
+	if line, err := br.ReadString('\n'); err != nil || !strings.Contains(line, "101") {
+		t.Fatalf("upgrade: %q %v", line, err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	start := time.Now()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("run did not return within the grace period")
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("shutdown took %v", d)
 	}
 }
