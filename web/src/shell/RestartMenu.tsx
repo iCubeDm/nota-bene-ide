@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
-import { restartAgent, restartServer, selectSwitching } from '@/controls/slice.ts';
-import { selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { restartAgent, restartServer, selectSwitching, stopWindow } from '@/controls/slice.ts';
+import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
+import { selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { apiFetch } from '@/net/auth.ts';
 
@@ -31,12 +32,17 @@ function useServerInfo(): { supervised: boolean; codeChanged: boolean } {
   return info;
 }
 
-/** ↻ restarts the agent (R-M4-1); the chevron opens the menu, whose second item restarts the whole server (R-M5-1). */
+/**
+ * ↻ restarts the agent (R-M4-1); the chevron opens the menu, whose second item restarts the whole server (R-M5-1) and whose
+ * last stops the window, after a confirmation that warns of a running turn.
+ */
 export function RestartMenu() {
   const t = useT();
   const d = useAppDispatch();
   const switching = useAppSelector(selectSwitching);
   const { supervised, codeChanged } = useServerInfo();
+  const busy = useAppSelector(selectBusy);
+  const [askStop, setAskStop] = useState(false);
   const btn = 'cursor-pointer whitespace-nowrap border border-border-soft px-2 py-0.5 text-[0.6875rem] font-medium hover:text-foreground disabled:cursor-default disabled:opacity-50';
   return (
     <span className="flex items-center gap-1.5">
@@ -63,9 +69,14 @@ export function RestartMenu() {
             {supervised && (
               <DropdownMenuItem title={t('restartServerTip')} onSelect={() => void d(restartServer())}>{t('restartServer')}</DropdownMenuItem>
             )}
+            <DropdownMenuItem title={t('stopWindowTip')} onSelect={() => setAskStop(true)}>{t('stopWindow')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </span>
+      {askStop && (
+        <ConfirmDialog title={t('stopWindowTitle')} body={busy ? `${t('stopWindowQ')}\n${t('stopWindowBusy')}` : t('stopWindowQ')} confirm={t('winStop')}
+          onCancel={() => setAskStop(false)} onConfirm={() => { setAskStop(false); void d(stopWindow()); }} />
+      )}
     </span>
   );
 }

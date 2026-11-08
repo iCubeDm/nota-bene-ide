@@ -25,7 +25,7 @@ export const faviconSvg = (fill: string) =>
  */
 export function favState(s: RootState, unseen: Unseen): FavState {
   // an occupied / taken tab is not broken, it is parked: quiet grey, never the red of a dropped connection
-  if (s.conn.state === 'occupied' || s.conn.state === 'taken') return 'idle';
+  if (s.conn.state === 'occupied' || s.conn.state === 'taken' || s.conn.state === 'stopped') return 'idle';
   if (s.conn.state === 'closed') return 'error';
   if (s.feed.items.some((it) => it.kind === 'permission' && it.answer === undefined)) return 'ask';
   if (s.feed.busy || Object.values(s.tasks).some((t) => t.status === 'running' && !t.ambient)) return 'work';

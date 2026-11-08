@@ -355,6 +355,34 @@ describe('server', () => {
     });
   });
 
+  describe('POST /stop', () => {
+    afterEach(restoreSup);
+    const post = (url: string, origin?: string) => fetch(`${url}/stop`, { method: 'POST', ...(origin ? { headers: { origin } } : {}) });
+
+    it('answers 200, then exits with 0, without a supervisor too', async () => {
+      delete process.env.NOTA_BENE_SUPERVISED;
+      const codes: number[] = [];
+      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
+      closers.push(s.close);
+      const r = await post(s.url, s.url);
+      expect(r.status).toBe(200);
+      expect(codes).toEqual([]); // the reply came first
+      await until(() => codes.length === 1);
+      expect(codes).toEqual([0]);
+    });
+
+    it('403 for a foreign Origin (and for none), 405 for a GET, and never exits', async () => {
+      const codes: number[] = [];
+      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
+      closers.push(s.close);
+      expect((await post(s.url, 'http://evil.example')).status).toBe(403);
+      expect((await post(s.url)).status).toBe(403);
+      expect((await fetch(`${s.url}/stop`)).status).toBe(405);
+      await new Promise((r) => setTimeout(r, 250));
+      expect(codes).toEqual([]);
+    });
+  });
+
   describe('capabilities (R-M7-15)', () => {
     const bootCaps = async (capabilities: Partial<Capabilities>) => {
       const backend = fakeBackend([{ text: 'hello' }], { capabilities });

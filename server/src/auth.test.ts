@@ -206,11 +206,11 @@ describe('credentials', () => {
   });
 });
 
-async function boot(o: { allowedOrigins?: string[]; oneTab?: boolean; nonce?: string; port?: number } = {}) {
+async function boot(o: { allowedOrigins?: string[]; oneTab?: boolean; nonce?: string; port?: number; exit?: (code: number) => void } = {}) {
   const { port: want, ...rest } = o;
   const s = await startServer({
     cwd: path.join(tmp, 'proj'), port: want ?? 0, backend: fakeBackend([{ text: 'hello' }]), webDist: path.join(tmp, 'dist'),
-    takeoverGraceMs: 40, ...rest,
+    takeoverGraceMs: 40, exit: () => {}, ...rest, // a /stop or /restart-server that gets through must not end the test process
   });
   closers.push(s.close);
   const port = Number(new URL(s.url).port);
@@ -290,6 +290,18 @@ describe('the route matrix: each route x no credentials, cookie, cookie plus key
       expect((await call(m, { cookie: s.cookie, 'x-nota-bene-key': s.key })).status, `${label}: cookie + key`).not.toBe(401);
       expect((await call(m, { authorization: `Bearer ${s.helper}` })).status, `${label}: helper bearer`).not.toBe(401);
     }
+  });
+
+  // not in the table: a call that gets through stops the server, so the row comes last, in its own server
+  it('POST /stop: refused without credentials, with the cookie alone and with a wrong key; cookie + key stops', async () => {
+    const codes: number[] = [];
+    const s = await boot({ nonce: N1, exit: (c) => { codes.push(c); } });
+    const call = (headers: Record<string, string>) => req(s.port, '/stop', { method: 'POST', headers: { origin: s.origin, ...headers }, body: '{}' });
+    expect((await call({})).status).toBe(401);
+    expect((await call({ cookie: s.cookie })).status).toBe(401);
+    expect((await call({ cookie: s.cookie, 'x-nota-bene-key': 'f'.repeat(64) })).status).toBe(401);
+    expect((await call({ cookie: s.cookie, 'x-nota-bene-key': s.key })).status).toBe(200);
+    await vi.waitFor(() => expect(codes).toEqual([0]));
   });
 
   it('the socket: no credentials, cookie, and a wrong key are refused; cookie + key and a bearer are not', async () => {

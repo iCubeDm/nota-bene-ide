@@ -32,7 +32,7 @@ With the plugin installed (see the README), type in any Claude Code session:
 | `/nb new` | Opens the window on a fresh session. |
 | `/nb fork` | Continues the current Claude Code conversation in the browser as a separate branch. Messages sent here and there no longer see each other. |
 
-The window runs as a background task of that Claude Code session. It shows in the task list, its output is the window's log, and it stops when you stop the task or end the session. The first `/nb` after installing or updating the plugin installs the npm package into the plugin's data folder (about 330 MB per plugin version) and takes a few minutes.
+The window runs as a background task of that Claude Code session. It shows in the task list, its output is the window's log, and it stops when you stop the task, end the session, or pick **Stop window…** in the window. The first `/nb` after installing or updating the plugin installs the npm package into the plugin's data folder (about 330 MB per plugin version) and takes a few minutes.
 
 If a window for the folder is already open, `/nb` brings it to the front instead of starting another.
 
@@ -315,7 +315,7 @@ Branches of a conversation: `/nb fork` from Claude Code, or `nota-bene --resume 
 
 Claude Code replays a session only from its last compaction. Nota Bene keeps what came before: after a `/compact` an earlier part of the chat shows a "Show before compaction" link that loads the archived segment. The archive is in `history/<sessionId>.jsonl` in the state folder.
 
-The **Restart the agent** icon (↻) restarts the agent and continues the same session. It stays available while the agent is busy, as an escape hatch for a stuck turn. The arrow next to it has **Restart the server**, shown when the window runs under the launcher (always for `/nb` and `nota-bene`, never for `npm start` or `npm run dev`). A **Restart server · code updated** button appears when the server's code changed after it started; this only matters when you are developing Nota Bene itself.
+The **Restart the agent** icon (↻) restarts the agent and continues the same session. It stays available while the agent is busy, as an escape hatch for a stuck turn. The arrow next to it has **Restart the server**, shown when the window runs under the launcher (always for `/nb` and `nota-bene`, never for `npm start` or `npm run dev`). The last item, **Stop window…**, stops the agent and the window after a confirmation, which warns when a turn is running; the launcher exits with it (a `/nb` background task ends, a terminal gets its prompt back). The tab then says the window is stopped and does not reconnect; the session stays, and `/nb` or `nota-bene` opens it again. A **Restart server · code updated** button appears when the server's code changed after it started; this only matters when you are developing Nota Bene itself.
 
 ## Permission modes, settings, languages
 
@@ -583,6 +583,6 @@ Renaming a session other than the open one is refused; open it first.
 From omp, install the skill once (`ln -sfn "$PWD/omp/skills/nb" ~/.omp/agent/skills/nb`
 from a checkout), then `/skill:nb` opens or brings forward the window for the current
 folder, `/skill:nb new` starts a fresh conversation and `/skill:nb fork` continues the
-invoking omp conversation as a branch. The window runs detached; Stop in the window
+invoking omp conversation as a branch. The window runs detached; **Stop window…** in the window's ↻ menu
 ends it. Do not keep working in the same conversation from an omp terminal while the
 window owns it.

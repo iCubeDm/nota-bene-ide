@@ -243,6 +243,23 @@ export const restartAgent = (): AppThunk<boolean> => (dispatch, getState, { send
   return true;
 };
 
+/**
+ * ↻ menu, "Stop window": POST /stop; the server answers, then exits 0 and its launcher with it (the session stays and can
+ * be resumed). The tab parks on the Stopped overlay at once, before the socket drops, so it never shows a reconnect.
+ */
+export const stopWindow = (): AppThunk<Promise<boolean>> => async (_dispatch, getState, { stopSocket }) => {
+  if (getState().controls.switching) return false;
+  try {
+    const r = await apiFetch('/stop', { method: 'POST' });
+    if (!r.ok) { toast(t('stopFail'), (await r.text().catch(() => '')) || String(r.status)); return false; }
+  } catch (e) {
+    toast(t('stopFail'), e instanceof Error ? e.message : String(e));
+    return false;
+  }
+  stopSocket();
+  return true;
+};
+
 /** How long a full restart may wait for the socket to come back before the UI is released. */
 export const SERVER_RESTART_TIMEOUT_MS = 30_000;
 let serverRestartTimer: ReturnType<typeof setTimeout> | undefined;
