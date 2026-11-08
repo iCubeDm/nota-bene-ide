@@ -392,6 +392,13 @@
     {
       "kind": "agent",
       "e": {
+        "t": "turn-start"
+      },
+      "ts": 1700000000000
+    },
+    {
+      "kind": "agent",
+      "e": {
         "t": "turn-end",
         "stop": "done",
         "secs": 3.2,

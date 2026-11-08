@@ -267,3 +267,38 @@ describe('TurnLedger: failure', () => {
     expect(t.state('a')).toBe('failed');
   });
 });
+
+describe('TurnLedger: a turn the agent starts itself (#102)', () => {
+  const none = { pending: () => 0 };
+
+  it('opens once, with no send waiting, and its turn-end closes it', () => {
+    const t = new TurnLedger();
+    expect(t.agentSpoke()).toBe(true);
+    expect(t.agentSpoke()).toBe(false);
+    expect(activity(t, none)).toBe('turn');
+    t.turnEnd(end('none'));
+    expect(activity(t, none)).toBe('idle');
+  });
+
+  it('opens nothing while a send waits', () => {
+    const t = new TurnLedger();
+    t.sent('a'); t.running('a');
+    expect(t.agentSpoke()).toBe(false);
+    t.turnEnd(end(['a']));
+    expect(activity(t, none)).toBe('idle');
+  });
+
+  it('a crash, a reset or a new session ends it; a send the server could not hand over does not', () => {
+    for (const stop of [(t: TurnLedger) => t.crashed(new Error('x')), (t: TurnLedger) => t.reset(), (t: TurnLedger) => t.clear()]) {
+      const t = new TurnLedger();
+      t.agentSpoke();
+      stop(t);
+      expect(activity(t, none)).toBe('idle');
+    }
+    const t = new TurnLedger();
+    t.agentSpoke();
+    t.sent('a');
+    t.failure(new Error('x'), 'a');
+    expect(activity(t, none)).toBe('turn');
+  });
+});

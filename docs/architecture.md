@@ -181,6 +181,8 @@ it is not a listing in the public ChatGPT plugin directory.
 - **`PermissionBroker`**: a request goes `open → answered | aborted`; an answer to an unknown or closed request is ignored (a second socket, a click after withdrawal).
 - **`pump()`** reads `a.messages`, a stream of `AgentEvent` (Claude SDK frames are translated by `agent/claude/map.ts`; Codex notifications/items by `agent/codex/map.ts`):
   - it reconciles `waiting` with `turn-end` by `answers` and with `cancelled`;
+  - main-thread output (text, or a tool call that is not a subagent's) while no send waits is a turn the agent started itself, for example woken by a background task's notification: it emits `turn-start` (stored, so a reload shows it) and counts as busy until the next `turn-end`, a crash or a reset;
+  - when the agent dies, its tasks still running end as `stopped` (nobody else would say so, and a running task holds an update back);
   - it intercepts `reset` (`/clear`);
   - it watches `init` (session id, model, mode, the entry in `sessions.json`) and `compacted`;
   - everything except `init` and `rate-limit` and `commands` (which are handled separately) goes to the hub as `{kind:'agent', e}` (protocol 5).

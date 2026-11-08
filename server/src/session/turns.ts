@@ -27,6 +27,8 @@ export class TurnLedger {
   private clearSent = false;
   private clearResultDue = false;
   private compactedInTurn = false;
+  // a turn the agent started itself (a background task's notification woke it): no send of ours waits for its result
+  private agentTurn = false;
 
   /** throws when the id is known; registers nothing (a refused send must have no side effects) */
   assertNew(id: string): void {
@@ -70,6 +72,7 @@ export class TurnLedger {
   /** applies a result frame: `store` false for a /clear's own result, `arm` whether idle compaction should arm */
   turnEnd(e: TurnEnd): { store: boolean; arm: boolean } {
     this.settle(e.answers, e.stop === 'failed' ? 'failed' : 'answered');
+    this.agentTurn = false;
     const store = !this.clearResultDue;
     this.clearResultDue = false;
     // a command's result (a /compact that failed or was stopped, a /clear) never arms: a failed idle compaction
@@ -87,6 +90,7 @@ export class TurnLedger {
 
   /** failed(id), and the failed turn-end that says so, as the mapper makes of an SDKResultError */
   failure(e: unknown, id?: string | string[]): TurnEnd {
+    if (typeof id !== 'string') this.agentTurn = false; // a crash, or an error answering every send, ends it too
     const message = e instanceof Error ? e.message : String(e);
     const ids = typeof id === 'string' ? [id] : id;
     if (ids) this.settle(ids, 'failed'); else this.failed();
@@ -115,6 +119,7 @@ export class TurnLedger {
 
   /** a conversation_reset: clears waiting; the next result is a /clear's own when a /clear was sent */
   reset(): void {
+    this.agentTurn = false;
     this.settle('all', 'answered'); // the CLI's result for a /clear follows the reset; waiting must not depend on it
     this.clearResultDue = this.clearSent;
     this.clearSent = false;
@@ -131,10 +136,25 @@ export class TurnLedger {
     return n;
   }
 
+  /**
+   * The agent said something of its own (main-thread text or a tool call). True once, when that opens a turn: no send
+   * waits, so the agent started it (the caller announces it with `turn-start`). Its turn-end, a crash or a reset ends it.
+   */
+  agentSpoke(): boolean {
+    if (this.agentTurn || this.waiting() > 0) return false;
+    this.agentTurn = true;
+    return true;
+  }
+
+  /** a send or a command is waiting, or a turn the agent started runs */
+  working(): boolean {
+    return this.agentTurn || this.waiting() > 0;
+  }
+
   /** a new session: every send and flag forgotten */
   clear(): void {
     this.sends.clear();
-    this.clearSent = this.clearResultDue = this.compactedInTurn = false;
+    this.clearSent = this.clearResultDue = this.compactedInTurn = this.agentTurn = false;
   }
 
   private settle(ids: TurnEnd['answers'], to: SendState): void {
@@ -156,5 +176,5 @@ export type Activity = 'idle' | 'turn' | 'asking';
 /** The global activity, derived, never stored (R-M7-17): sends and asks overlap, so only their counts are the truth. */
 export function activity(turns: TurnLedger, permissions: { pending(): number }): Activity {
   if (permissions.pending() > 0) return 'asking';
-  return turns.waiting() > 0 ? 'turn' : 'idle';
+  return turns.working() ? 'turn' : 'idle';
 }

@@ -1094,3 +1094,109 @@ describe('rename', () => {
     s.close();
   });
 });
+
+describe('a turn the agent starts itself (#102)', () => {
+  // frames pushed by the test, as a CLI that wakes on a background task's notification sends them
+  function pushedAgent() {
+    const sends: { uuid: string }[] = [];
+    const q: object[] = [];
+    let wake: (() => void) | null = null;
+    let fail: ((e: Error) => void) | null = null;
+    const backend: AgentBackend = {
+      ...noSessions,
+      history: async () => [],
+      start: () => ({
+        messages: mapFrames((async function* () {
+          yield { type: 'system', subtype: 'init', session_id: 'fake-session' } as never;
+          while (true) {
+            while (q.length) yield q.shift() as never;
+            await new Promise<void>((r, j) => { wake = r; fail = j; });
+          }
+        })()),
+        send: (m) => { sends.push({ uuid: m.uuid }); },
+        interrupt: async () => {}, setPermissionMode: async () => {}, supportedModels: async () => [], supportedCommands: async () => [], setModel: async () => {}, setEffort: async () => {}, fileSuggestions: async () => [],
+        contextUsage: async () => ({ used: 0, max: 1, pct: 0 }), usage: async () => ({ cost: null, limits: null }), ...noTasks, close() {},
+      }),
+    };
+    return { backend, sends, push: (f: object) => { q.push(f); wake?.(); }, crash: (e: Error) => fail?.(e) };
+  }
+  const result = (uuids?: string[]) => ({ type: 'result', subtype: 'success', is_error: false, duration_ms: 1, terminal_reason: 'completed', ...(uuids ? { user_message_uuids: uuids } : {}) });
+  const said = (uuid: string, text: string) => ({ type: 'assistant', uuid, message: { content: [{ type: 'text', text }] } });
+  const tool = (id: string, sub?: string) => ({ type: 'assistant', uuid: `m-${id}`, parent_tool_use_id: sub ?? null, message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command: 'sleep 15' } }] } });
+
+  /** a session whose first user turn has ended: the agent runs and nothing waits */
+  async function idleSession() {
+    const a = pushedAgent();
+    const { hub, events, make } = setup(a.backend);
+    const s = await make();
+    s.send({ id: 'u1', text: 'start a background task' });
+    await until(() => a.sends.length === 1);
+    a.push(result(['u1']));
+    await until(() => agentOf(events, 'turn-end').length === 1);
+    expect(s.busy()).toBe(false);
+    return { ...a, hub, events, s };
+  }
+
+  it('the first main-thread output with no send waiting opens a turn: turn-start first, busy until its turn-end', async () => {
+    const { push, events, s } = await idleSession();
+    push(tool('toolu_w1'));
+    await until(() => agentOf(events, 'tool-call').length === 1);
+    const kinds = events.filter((e): e is Agent => e.kind === 'agent').map((e) => e.e.t);
+    expect(kinds.slice(-2)).toEqual(['turn-start', 'tool-call']);
+    expect(s.busy()).toBe(true);
+    expect((await feedOf(events)).busy).toBe(true); // the page shows it working: Stop is on
+    push(said('m2', 'woke done'));
+    await until(() => agentOf(events, 'message').length === 1);
+    expect(agentOf(events, 'turn-start')).toHaveLength(1); // once per turn
+    push(result()); // answers no send
+    await until(() => agentOf(events, 'turn-end').length === 2);
+    expect(s.busy()).toBe(false);
+    expect((await feedOf(events)).busy).toBe(false);
+    s.close();
+  });
+
+  it('a reload in the middle of that turn still shows it working', async () => {
+    const { push, events, hub, s } = await idleSession();
+    push(said('m1', 'woke'));
+    await until(() => agentOf(events, 'message').length === 1);
+    const attached: ServerEvent[] = [];
+    hub.attach({ send: (d) => attached.push(...(JSON.parse(d) as { events: ServerEvent[] }).events) });
+    expect((await feedOf(attached)).busy).toBe(true);
+    s.close();
+  });
+
+  it('output of a user turn, and a subagent\'s after the turn, open nothing', async () => {
+    const { push, sends, events, s } = await idleSession();
+    s.send({ id: 'u2', text: 'two' });
+    await until(() => sends.length === 2);
+    push(said('m1', 'answer'));
+    push(result(['u2']));
+    await until(() => agentOf(events, 'turn-end').length === 2);
+    push(tool('toolu_s1', 'toolu_agent')); // a background subagent keeps working after the turn: a task, not a turn
+    await until(() => agentOf(events, 'tool-call').length === 1);
+    expect(agentOf(events, 'turn-start')).toHaveLength(0);
+    expect(s.busy()).toBe(false);
+    s.close();
+  });
+
+  it('a crash in that turn ends it', async () => {
+    const { push, crash, events, s } = await idleSession();
+    push(said('m1', 'woke'));
+    await until(() => agentOf(events, 'message').length === 1);
+    crash(new Error('dead'));
+    await until(() => agentOf(events, 'turn-end').length === 2);
+    expect(s.busy()).toBe(false);
+    expect((await feedOf(events)).busy).toBe(false);
+  });
+
+  it('a crash stops the dead agent\'s running tasks', async () => {
+    const { push, crash, events, hub } = await idleSession();
+    push({ type: 'system', subtype: 'task_started', task_id: 'bash1', task_type: 'local_bash', description: 'sleep 25', is_backgrounded: true });
+    await until(() => agentOf(events, 'task').length === 1);
+    expect(hub.tasksRunning()).toBe(1);
+    crash(new Error('dead'));
+    await until(() => agentOf(events, 'turn-end').length === 2);
+    expect(agentOf(events, 'task').at(-1)!.e).toEqual({ t: 'task', id: 'bash1', phase: 'done', status: 'stopped' });
+    expect(hub.tasksRunning()).toBe(0);
+  });
+});

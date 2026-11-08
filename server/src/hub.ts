@@ -77,6 +77,11 @@ export class EventHub {
     return Object.values(reduceTasks({}, { kind: 'replay', events: this.history, ts: 0 } as ServerEvent)).filter((t) => t.status === 'running' && !t.ambient).length;
   }
 
+  /** The ids of every task still running, watchers included: what a dead agent leaves behind. */
+  runningTasks(): string[] {
+    return Object.entries(reduceTasks({}, { kind: 'replay', events: this.history, ts: 0 } as ServerEvent)).filter(([, t]) => t.status === 'running').map(([id]) => id);
+  }
+
   /** Attached sockets. */
   clients(): number {
     return this.socks.size;

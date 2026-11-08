@@ -135,7 +135,7 @@ function serverFields(ev: ServerEvent): Fields | null {
         case 'tool-update': return { kind: 'tool-update', id: e.id, isError: e.isError };
         case 'turn-end': return { kind: 'turn-end', stop: e.stop, secs: e.secs, error: short(e.error), queued: e.queued };
         case 'cancelled': return { kind: 'cancelled', id: e.sendId };
-        case 'compacting': case 'compact-end': return { kind: e.t };
+        case 'turn-start': case 'compacting': case 'compact-end': return { kind: e.t };
         case 'compact-failed': return { kind: e.t, error: short(e.error) };
         case 'compacted': return { kind: e.t, preTokens: e.preTokens, ms: e.ms };
         case 'reset': return { kind: e.t, session: e.newId };

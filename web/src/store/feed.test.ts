@@ -512,3 +512,26 @@ describe('an archived ! command block', () => {
     expect(p.items.filter((i) => i.kind === 'shell')).toMatchObject([{ id: 'r1', running: true }]);
   });
 });
+
+describe('a turn the agent starts itself (#102)', () => {
+  const run = (...evs: ServerEvent[]) => evs.reduce(reduce, emptyFeed);
+  const user = (id: string): ServerEvent => ({ kind: 'user', id, text: id, ts: 1 });
+  const end = (answers: 'none' | string[]): ServerEvent => agent({ t: 'turn-end', stop: 'done', secs: 1, answers, queued: 0 });
+
+  test('turn-start makes the feed busy until a turn-end', () => {
+    const s = run(agent({ t: 'turn-start' }));
+    expect(s.busy).toBe(true);
+    expect(reduce(s, end('none')).busy).toBe(false);
+  });
+
+  test('a queued send cancelled during that turn leaves it busy', () => {
+    const s = run(agent({ t: 'turn-start' }), user('u1'), agent({ t: 'cancelled', sendId: 'u1' }));
+    expect(s.busy).toBe(true);
+  });
+
+  test('a send made during that turn still waits after it ends', () => {
+    const s = run(agent({ t: 'turn-start' }), user('u1'), end('none'));
+    expect(s.busy).toBe(true);
+    expect(reduce(s, end(['u1'])).busy).toBe(false);
+  });
+});
