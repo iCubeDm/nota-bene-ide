@@ -46,7 +46,7 @@ export function packageJson() {
     repository: { type: 'git', url: 'git+https://github.com/iCubeDm/nota-bene-ide.git' },
     type: 'module',
     bin: { [BIN]: 'bin/nota-bene.mjs' },
-    files: ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/blend', 'web/dist', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'codex/skills/nb', 'omp/skills/nb'],
+    files: ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/remote/cli.js', 'server/src/blend', 'web/dist', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'codex/skills/nb', 'omp/skills/nb'],
     engines: { node: NODE_RANGE },
     dependencies: runtimeDependencies(),
     keywords: ['claude', 'claude-code', 'codex', 'omp', 'ide', 'agent'],
@@ -78,6 +78,7 @@ export async function buildPackage({ out = path.join(ROOT, 'pkg'), skipWeb = fal
   const external = Object.keys(runtimeDependencies());
   const common = { bundle: true, platform: 'node', format: 'esm', target: 'node22', external, logLevel: 'warning', legalComments: 'none' };
   await build({ ...common, entryPoints: [path.join(ROOT, 'server/src/main.ts')], outfile: path.join(out, 'server/src/main.js') });
+  await build({ ...common, entryPoints: [path.join(ROOT, 'server/src/remote/cli.ts')], outfile: path.join(out, 'server/src/remote/cli.js') });
   await build({ ...common, entryPoints: [path.join(ROOT, 'bin/nota-bene.mjs')], outfile: path.join(out, 'bin/nota-bene.mjs') });
   fs.chmodSync(path.join(out, 'bin/nota-bene.mjs'), 0o755);
 

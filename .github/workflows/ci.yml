@@ -21,6 +21,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # the remote connector's tests run against the real relay (server/src/remote/testRelay.ts)
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: relay/go.mod
+          cache-dependency-path: relay/go.sum
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y trash-cli
       - run: npm ci

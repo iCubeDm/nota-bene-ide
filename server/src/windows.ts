@@ -22,22 +22,23 @@ export type WindowEntry = {
   nonce?: string;
 };
 
-const dir = () => path.join(stateDir(), 'windows');
-const fileOf = (port: number | string) => path.join(dir(), `${port}.json`);
+const dir = (base?: string) => path.join(base ?? stateDir(), 'windows');
+const fileOf = (port: number | string, base?: string) => path.join(dir(base), `${port}.json`);
 
-function readEntry(port: number | string): WindowEntry | undefined {
+function readEntry(port: number | string, base?: string): WindowEntry | undefined {
   try {
-    const w: unknown = JSON.parse(fs.readFileSync(fileOf(port), 'utf8'));
+    const w: unknown = JSON.parse(fs.readFileSync(fileOf(port, base), 'utf8'));
     return w && typeof w === 'object' && typeof (w as WindowEntry).root === 'string' ? (w as WindowEntry) : undefined;
   } catch {
     return undefined;
   }
 }
 
-export function readWindows(): Record<string, WindowEntry> {
+/** The entries of this provider's registry, or of the state dir `base` (the remote connector reads every provider's). */
+export function readWindows(base?: string): Record<string, WindowEntry> {
   let names: string[];
   try {
-    names = fs.readdirSync(dir());
+    names = fs.readdirSync(dir(base));
   } catch {
     return {};
   }
@@ -45,7 +46,7 @@ export function readWindows(): Record<string, WindowEntry> {
   for (const n of names) {
     const m = /^(\d+)\.json$/.exec(n);
     if (!m) continue;
-    const w = readEntry(m[1]!);
+    const w = readEntry(m[1]!, base);
     if (w) out[m[1]!] = w;
   }
   return out;

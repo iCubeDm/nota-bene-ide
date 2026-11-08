@@ -38,7 +38,15 @@ export const COOKIE_MAX_AGE_S = 365 * 24 * 3600;
  * rotation race could hand two processes two tokens.
  */
 function readSecret(file: string): string | null {
-  const fix = `fix it with \`chmod 600 ${file}\`, or delete it to make a new token (every open window then has to be reopened)`;
+  return readPrivateFile(file, TOKEN_RE, 'a token (64 hex characters)', 'delete it to make a new token (every open window then has to be reopened)');
+}
+
+/**
+ * `readSecret`'s checks for any private file: `valid` is what its trimmed content must match, `what` names that content,
+ * `remedy` says what deleting it does.
+ */
+export function readPrivateFile(file: string, valid: RegExp, what: string, remedy: string): string | null {
+  const fix = `fix it with \`chmod 600 ${file}\`, or ${remedy}`;
   let fd: number;
   try {
     // O_NOFOLLOW: a symlink is refused (ELOOP); O_NONBLOCK: a FIFO cannot hang the open
@@ -46,21 +54,35 @@ function readSecret(file: string): string | null {
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') return null;
-    if (code === 'ELOOP') throw new SecretError(`${file} is a symbolic link; refusing to read it. Delete it to make a new token`);
+    if (code === 'ELOOP') throw new SecretError(`${file} is a symbolic link; refusing to read it. ${cap(remedy)}`);
     throw new SecretError(`cannot read ${file}: ${(e as Error).message}; ${fix}`);
   }
   try {
     const st = fs.fstatSync(fd);
-    if (!st.isFile()) throw new SecretError(`${file} is not a regular file; refusing to read it. Delete it to make a new token`);
+    if (!st.isFile()) throw new SecretError(`${file} is not a regular file; refusing to read it. ${cap(remedy)}`);
     if (process.getuid && st.uid !== process.getuid()) {
-      throw new SecretError(`${file} belongs to another user (uid ${st.uid}); refusing to use it. Delete it to make a new token`);
+      throw new SecretError(`${file} belongs to another user (uid ${st.uid}); refusing to use it. ${cap(remedy)}`);
     }
     if (st.mode & 0o077) throw new SecretError(`${file} is readable by other users (mode ${(st.mode & 0o777).toString(8)}); ${fix}`);
     const t = fs.readFileSync(fd, 'utf8').trim();
-    if (!TOKEN_RE.test(t)) throw new SecretError(`${file} does not hold a token (64 hex characters); delete it to make a new token (every open window then has to be reopened)`);
+    if (!valid.test(t)) throw new SecretError(`${file} does not hold ${what}; ${remedy}`);
     return t;
   } finally {
     fs.closeSync(fd);
+  }
+}
+
+const cap = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
+
+/** Writes a private file whole: a tmp file (mode 600) in the same folder, then renamed over the old one. */
+export function writePrivateFile(file: string, content: string): void {
+  const tmp = `${file}.tmp${process.pid}-${randomBytes(4).toString('hex')}`;
+  fs.writeFileSync(tmp, content, { mode: 0o600, flag: 'wx' });
+  try {
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    throw e;
   }
 }
 
@@ -123,8 +145,8 @@ export const KEY_PROTOCOL = 'nb.';
  * the dev proxy that is the backend's, not the one dialled). Returns the launch nonce of a checked proof, else null. A bad or
  * missing proof means "not ours": the caller sends nothing. Fresh challenge per call, constant-time comparison.
  */
-export async function proveListener(o: { dial: number; bound?: number; host?: string; timeoutMs: number; fetchFn?: typeof fetch }): Promise<string | null> {
-  const token = accessToken(); // a refused secret is the user's to fix: it throws, it is never "not ours"
+export async function proveListener(o: { dial: number; bound?: number; host?: string; timeoutMs: number; fetchFn?: typeof fetch; token?: string }): Promise<string | null> {
+  const token = o.token ?? accessToken(); // a refused secret is the user's to fix: it throws, it is never "not ours"
   try {
     const c = randomBytes(16).toString('hex');
     const r = await (o.fetchFn ?? fetch)(`http://${o.host ?? '127.0.0.1'}:${o.dial}/hello?c=${c}`, { signal: AbortSignal.timeout(o.timeoutMs), redirect: 'error' });
@@ -138,9 +160,9 @@ export async function proveListener(o: { dial: number; bound?: number; host?: st
 }
 
 /** `Authorization` value for a window on `port`, or null when its listener did not prove itself (nothing is sent to it). */
-export async function verifiedBearer(port: number, timeoutMs: number, fetchFn?: typeof fetch): Promise<string | null> {
-  const n = await proveListener({ dial: port, timeoutMs, ...(fetchFn ? { fetchFn } : {}) });
-  return n === null ? null : `Bearer ${helperCredential(accessToken(), port, n)}`;
+export async function verifiedBearer(port: number, timeoutMs: number, fetchFn?: typeof fetch, token?: string): Promise<string | null> {
+  const n = await proveListener({ dial: port, timeoutMs, ...(fetchFn ? { fetchFn } : {}), ...(token ? { token } : {}) });
+  return n === null ? null : `Bearer ${helperCredential(token ?? accessToken(), port, n)}`;
 }
 
 const digest = (s: string): Buffer => createHash('sha256').update(s).digest();
