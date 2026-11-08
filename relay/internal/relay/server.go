@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
 )
@@ -152,9 +153,11 @@ type hello struct {
 // readHello waits for the client's hello and checks its proof. On failure it
 // closes the peer and returns ok=false.
 func (s *Server) readHello(ctx context.Context, p *peer, ch Challenge, role string) (h hello, key [32]byte, ticket []byte, ok bool) {
-	hctx, cancel := context.WithTimeout(ctx, s.o.HelloTimeout)
-	defer cancel()
-	typ, data, err := p.c.Read(hctx)
+	// An expiring Read context would drop the socket without a close frame, so
+	// the deadline is a timer that closes with 4400 instead.
+	timer := time.AfterFunc(s.o.HelloTimeout, func() { p.closeWith(codeMalformed) })
+	typ, data, err := p.c.Read(ctx)
+	timer.Stop()
 	if err != nil || typ != websocket.MessageText {
 		p.closeWith(codeMalformed)
 		return

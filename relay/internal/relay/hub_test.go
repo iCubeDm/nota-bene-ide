@@ -2,7 +2,10 @@ package relay
 
 import (
 	"bytes"
+	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/coder/websocket"
 )
@@ -313,5 +316,47 @@ func TestHostLeaves(t *testing.T) {
 	}
 	if hs, ds := s.Stats(); hs != 0 || ds != 0 {
 		t.Fatalf("stats %d %d", hs, ds)
+	}
+}
+
+func TestHelloTimeout(t *testing.T) {
+	o := DefaultOptions()
+	o.HelloTimeout = 200 * time.Millisecond
+	_, url := newTestServer(t, o)
+	r := dialRaw(t, url+"/v1/host")
+	if c := closeCode(t, r.c); c != 4400 {
+		t.Fatalf("silent client closed %d", c)
+	}
+}
+
+// A frame from a device the host was already told is gone must not reach it.
+func TestRouteAfterGone(t *testing.T) {
+	noLog := func(string, websocket.StatusCode) {}
+	hp := newPeer(nil, "host", noLog)
+	h := newHost("h", hp, []string{"d"}, nil)
+	dp := newPeer(nil, "device", noLog)
+	dp.once.Do(func() {}) // no socket in this test: make closeWith a no-op
+	d, code := h.admit(dp, "d", nil)
+	if d == nil {
+		t.Fatalf("refused %d", code)
+	}
+	h.route(d, []byte{1}) // before the kick: forwarded
+	h.updateDevices(nil)  // kick: host is told gone
+	h.route(d, []byte{2}) // in-flight frame after the kick: dropped
+	h.shutdown()
+	h.route(d, []byte{3})
+	var kinds []string
+	for len(hp.q) > 0 {
+		m := <-hp.q
+		if m.typ == websocket.MessageBinary {
+			kinds = append(kinds, "bin")
+		} else {
+			var v struct{ T string }
+			json.Unmarshal(m.data, &v)
+			kinds = append(kinds, v.T)
+		}
+	}
+	if got := strings.Join(kinds, ","); got != "open,bin,gone" {
+		t.Fatalf("host queue: %s", got)
 	}
 }

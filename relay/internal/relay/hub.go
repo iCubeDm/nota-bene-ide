@@ -176,7 +176,14 @@ func (h *host) kick(d *device) {
 	d.p.closeWith(codeNotAllowed)
 }
 
+// route forwards a device frame to the host, unless the device was already
+// reported gone: under h.mu this keeps frames from following their "gone".
 func (h *host) route(device *device, payload []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.conns[device.conn] != device {
+		return
+	}
 	frame := make([]byte, 4+len(payload))
 	frame[0], frame[1], frame[2], frame[3] = byte(device.conn>>24), byte(device.conn>>16), byte(device.conn>>8), byte(device.conn)
 	copy(frame[4:], payload)
