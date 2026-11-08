@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -63,7 +65,7 @@ async function windows() {
 }
 
 type Link = { phone: Phone; channel: DeviceChannel; dropped: () => boolean };
-function link(o: { windows: Windows; host: KeyPair; listed?: Set<string>; secret?: Buffer; onPaired?: (pub: Buffer, name?: string) => boolean; key?: KeyPair }): Link {
+function link(o: { windows: Windows; host: KeyPair; listed?: Set<string>; secret?: Buffer; onPaired?: (pub: Buffer, name?: string) => boolean; key?: KeyPair; expectHash?: string }): Link {
   let dropped = false;
   let phone!: Phone;
   const channel = new DeviceChannel({
@@ -74,6 +76,7 @@ function link(o: { windows: Windows; host: KeyPair; listed?: Set<string>; secret
     pairing: () => (o.secret ? { secret: o.secret } : null),
     onPaired: o.onPaired ?? (() => true),
     isListed: (pub) => o.listed?.has(b64u(pub)) ?? false,
+    ...(o.expectHash ? { deviceHash: o.expectHash } : {}),
   });
   phone = new Phone({ hostPub: o.host.pub, ...(o.key ? { key: o.key } : {}), send: (b) => queueMicrotask(() => channel.receive(b)) });
   closers.push(() => channel.close());
@@ -169,13 +172,51 @@ describe('device channel', () => {
     expect((await ws.closed).code).toBe(4900);
   });
 
+  it('a path that is not plain ASCII closes that stream, nothing more', async () => {
+    const a = await window();
+    const l = await paired(await windows());
+    await expect(l.phone.http(a.port, 'GET', '/file?path=заметки.md')).rejects.toMatchObject({ code: 4900 });
+    await expect(l.phone.http(a.port, 'GET', '/file?path=a\u0001.md')).rejects.toMatchObject({ code: 4900 });
+    expect((await l.phone.ws(a.port, '/ws?tab=t#x').closed).code).toBe(4900);
+    fs.writeFileSync(path.join(tmp, 'proj', 'а.txt'), 'cyrillic name');
+    expect((await l.phone.http(a.port, 'GET', '/file?path=%D0%B0.txt')).body.toString()).toBe('cyrillic name');
+    expect(l.dropped()).toBe(false);
+    expect((await l.phone.http(a.port, 'GET', '/info')).status).toBe(200);
+  });
+
+  it('a phone whose key is not the one the relay named is dropped', async () => {
+    const key = generateKeyPair();
+    const l = link({ windows: await windows(), host: hostKey(), listed: new Set([b64u(key.pub)]), key, expectHash: 'x'.repeat(43) });
+    l.phone.hello();
+    await until(() => l.dropped());
+  });
+
+  it('a POST is not sent twice when the window drops the connection', async () => {
+    let posts = 0;
+    const srv = http.createServer((req) => {
+      posts++;
+      req.socket.destroy();
+    });
+    await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+    closers.push(() => new Promise<void>((r) => srv.close(() => r())));
+    const port = (srv.address() as AddressInfo).port;
+    const w = { port, provider: 'claude' as const, root: tmp, bearer: 'Bearer x', nonce: 'n' };
+    const stub = { get: () => w, list: () => [w], reprove: async () => w, on() {}, off() {} } as unknown as Windows;
+    const key = generateKeyPair();
+    const l = link({ windows: stub, host: hostKey(), listed: new Set([b64u(key.pub)]), key });
+    l.phone.hello();
+    await l.phone.ready;
+    await expect(l.phone.http(port, 'POST', '/send', { body: Buffer.from('{}') })).rejects.toMatchObject({ code: 4902 });
+    expect(posts).toBe(1);
+  });
+
   it('a window that restarted on its port: http is re-proved, an open ws stream closes', async () => {
     const a = await window();
     const l = await paired(await windows());
     const t1 = l.phone.ws(a.port, '/ws?tab=t1');
     await until(() => t1.events.some((e) => e.kind === 'hello'));
     await a.close();
-    expect((await t1.closed).code).not.toBe(1000);
+    expect((await t1.closed).code).toBe(4904);
     await window(a.port);
     const info = await l.phone.http(a.port, 'GET', '/info');
     expect(info.status).toBe(200);

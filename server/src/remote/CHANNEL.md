@@ -135,7 +135,8 @@ The `OPEN` body names what the stream is:
   `if-range`, `if-modified-since`; others are dropped (the host adds the
   window's credentials). `set-cookie` never comes back. Refused with `CLOSE`
   4900: a path that does not start with `/`, starts with `//`, holds
-  whitespace or `\`, or is under `/control/`. A request body may hold at most
+  anything but printable ASCII (percent-encode the rest, as in a URL), `\` or
+  `#`, or is under `/control/`. The same path rule applies to `ws`. A request body may hold at most
   32 MiB (4913 beyond).
 
 An unknown `port` closes the stream with 4904.

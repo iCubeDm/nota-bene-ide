@@ -9,7 +9,8 @@ export const REMOTE_USAGE = 'Usage: nota-bene remote [--relay wss://HOST]   run 
   + '       nota-bene remote pair                    show a QR code to pair a phone\n'
   + '       nota-bene remote devices                 list the paired phones\n'
   + '       nota-bene remote revoke ID               unpair a phone and cut it off\n'
-  + '       nota-bene remote status';
+  + '       nota-bene remote status\n'
+  + '(a folder named remote opens with `nota-bene ./remote`)';
 
 type Io = { out: (s: string) => void; err: (s: string) => void };
 const stdio: Io = { out: (s) => void process.stdout.write(s), err: (s) => void process.stderr.write(s) };
@@ -53,7 +54,8 @@ async function run(argv: string[], io: Io): Promise<number> {
   }
   relay ??= readConfig().relay;
   if (!relay) {
-    io.err('nota-bene: no relay set. Start it once with `nota-bene remote --relay wss://relay.example.com` (your relay\'s address); it is saved for later runs.\n');
+    io.err('nota-bene: no relay set. Start it once with `nota-bene remote --relay wss://relay.example.com` (your relay\'s address); it is saved for later runs.\n'
+      + 'To open a folder named remote in a window, run `nota-bene ./remote`.\n');
     return 2;
   }
   const c = new Connector({ relay });

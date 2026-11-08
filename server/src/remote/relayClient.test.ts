@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import WebSocket from 'ws';
+import WebSocket, { WebSocketServer } from 'ws';
 import { generateKeyPair, publicOf, type KeyPair } from './noise.ts';
 import { relayProof, RelayClient } from './relayClient.ts';
 import { b64u, deviceHash, fromB64u, hostId } from './store.ts';
@@ -130,5 +130,25 @@ describe('relay client', () => {
     expect(a.ev.online).toBe(1);
     await b.c.stop();
     await a.c.stop();
+  });
+
+  it('a relay that goes silent (a laptop that slept through the close) is dropped and reconnected', async () => {
+    let conns = 0;
+    const wss = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    await new Promise((r) => wss.once('listening', r));
+    wss.on('connection', (ws) => {
+      conns++;
+      ws.send(JSON.stringify({ t: 'challenge', eph: b64u(generateKeyPair().pub), nonce: b64u(seq(0x61)) }));
+      ws.once('message', () => ws.send(JSON.stringify({ t: 'ok' }))); // and then nothing: no pings, no close
+    });
+    const port = (wss.address() as { port: number }).port;
+    const c = new RelayClient({ url: `ws://127.0.0.1:${port}`, key: generateKeyPair(), devices: () => [], ticket: () => null, backoff: { minMs: 20, maxMs: 50 }, silenceMs: 300 });
+    let online = 0;
+    c.on('online', () => online++);
+    c.start();
+    await until(() => online >= 2 && conns >= 2, 5000);
+    await c.stop();
+    for (const ws of wss.clients) ws.terminate();
+    await new Promise((r) => wss.close(r));
   });
 });

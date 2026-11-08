@@ -127,6 +127,22 @@ describe('mux', () => {
     expect(host.size).toBe(0);
   });
 
+  it('a stream that closes with data still queued gives its connection credit back', async () => {
+    const { phone, sent } = pair((s) => {
+      if (sent.phone === 0) s.ondata = () => new Promise(() => {}); // the first stream never consumes
+    });
+    const held = phone.open({ kind: 'x' });
+    held.write(Buffer.alloc(STREAM_WINDOW));
+    await settle();
+    held.close(4001);
+    await settle();
+    // two fresh streams (nobody consumes them): together they may fill the whole connection window again
+    const before = sent.phone;
+    for (let i = 0; i < 2; i++) phone.open({ kind: 'x' }).write(Buffer.alloc(STREAM_WINDOW));
+    await settle();
+    expect(sent.phone - before).toBe(CONN_WINDOW);
+  });
+
   it('close drops queued data and reaches the other side', async () => {
     const remote: number[] = [];
     const { phone, sent } = pair((s) => {

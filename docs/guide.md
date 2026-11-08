@@ -448,6 +448,7 @@ nota-bene remote status
   refused and named in the `pair` output. A new `pair`, Ctrl-C or the 5 minutes end the code.
 - A paired phone is fully trusted: it can do in a window what a tab of that window can (and the one-tab rule applies:
   "Work here" on the phone takes the window over).
+- `remote` is a command now: a project folder named `remote` opens with `nota-bene ./remote`.
 - Only one connector runs per user; a second one stops with "already running". If the relay says another connector
   with the same key is connected, this one stops instead of fighting it.
 

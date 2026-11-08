@@ -98,6 +98,8 @@ export class Stream extends EventEmitter {
   #closed = false;
   #in: Inbound[] = [];
   #delivering = false;
+  /** the chunk the handler holds right now */
+  #inHand = 0;
   #ondata: DataHandler | undefined;
 
   constructor(mux: Mux, id: number) {
@@ -211,19 +213,27 @@ export class Stream extends EventEmitter {
         if (item === 'end') {
           this.#in.shift();
           this.#remoteEnded = true;
-          this.emit('end');
+          try {
+            this.emit('end');
+          } catch {
+            this.close(BAD_FRAME, 'the receiver failed');
+            return;
+          }
           this.#maybeFinish();
           continue;
         }
         const h = this.#ondata;
         if (!h) return;
         this.#in.shift();
+        this.#inHand = item.chunk.length;
         try {
           await h(item.chunk, (item.flags & FIN) !== 0, (item.flags & BIN) !== 0);
         } catch {
           this.close(BAD_FRAME, 'the receiver failed');
           return;
         }
+        if (this.#closed) return; // `gone` gave its credit back already
+        this.#inHand = 0;
         this.#grant(item.chunk.length);
       }
     } finally {
@@ -251,7 +261,11 @@ export class Stream extends EventEmitter {
     if (this.#closed) return;
     this.#closed = true;
     this.#out = [];
+    // chunks never delivered still hold connection credit: give it back, or the whole channel slowly freezes
+    const dropped = this.#in.reduce((n, i) => (i === 'end' ? n : n + i.chunk.length), this.#inHand);
+    this.#inHand = 0;
     this.#in = [];
+    if (dropped > 0) this.#mux.consumed(dropped);
     this.#mux.forget(this);
     this.emit('close', reason === undefined ? { code } : { code, reason });
   }

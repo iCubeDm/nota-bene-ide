@@ -111,8 +111,7 @@ export class Connector extends EventEmitter {
   }
 
   #view(d: Device): Msg {
-    const hash = deviceHash(fromB64u(d.pub, 32));
-    const online = [...this.#channels.values()].some((c) => c.hash === hash && c.ch.devicePub !== undefined);
+    const online = [...this.#channels.values()].some((c) => c.ch.devicePub !== undefined && b64u(c.ch.devicePub) === d.pub);
     return { id: d.id, ...(d.name ? { name: d.name } : {}), fingerprint: fingerprint(fromB64u(d.pub, 32)), online };
   }
 
@@ -128,6 +127,7 @@ export class Connector extends EventEmitter {
       pairing: () => this.#pairing ?? null,
       onPaired: (pub, name) => this.#paired(pub, name),
       isListed: (pub) => readDevices().some((d) => d.pub === b64u(pub)),
+      deviceHash: hash,
     });
     this.#channels.set(conn, { ch, hash });
   }
@@ -180,10 +180,10 @@ export class Connector extends EventEmitter {
       return { ok: false, error: (e as Error).message };
     }
     if (!d) return { ok: false, error: `no paired device ${id}` };
-    const hash = deviceHash(fromB64u(d.pub, 32));
     this.#relay.setDevices(this.#hashes());
     for (const [conn, c] of [...this.#channels]) {
-      if (c.hash !== hash) continue;
+      // by the key the phone proved in the handshake, not the relay's label (a channel still in its handshake goes too)
+      if (c.ch.devicePub ? b64u(c.ch.devicePub) !== d.pub : c.hash !== deviceHash(fromB64u(d.pub, 32))) continue;
       c.ch.close(); // its frames are ignored from now on, whatever the relay still delivers
       this.#channels.delete(conn);
       this.#relay.closeConn(conn);

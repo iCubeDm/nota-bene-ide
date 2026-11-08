@@ -181,6 +181,7 @@ describe('connector', () => {
     const io = { out: (s: string) => void out.push(s), err: (s: string) => void out.push(s) };
     expect(await remoteMain([], io)).toBe(2);
     expect(out.join('')).toMatch(/--relay wss:\/\//);
+    expect(out.join('')).toMatch(/nota-bene \.\/remote/); // a folder named remote is opened with ./remote
     expect(await remoteMain(['--relay', 'http://x'], io)).toBe(2);
   });
 });

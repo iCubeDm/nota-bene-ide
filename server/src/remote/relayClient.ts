@@ -24,7 +24,7 @@ const FATAL: Record<number, string> = {
  * `frame(conn, payload)`, `fatal(code, message)` (no reconnect follows).
  */
 export class RelayClient extends EventEmitter {
-  #o: { url: string; key: KeyPair; devices: () => string[]; ticket: () => Buffer | null; backoff: { minMs: number; maxMs: number } };
+  #o: { url: string; key: KeyPair; devices: () => string[]; ticket: () => Buffer | null; backoff: { minMs: number; maxMs: number }; silenceMs: number };
   #ws: WebSocket | undefined;
   #online = false;
   #onlineAt = 0;
@@ -33,9 +33,13 @@ export class RelayClient extends EventEmitter {
   #stopped = false;
   #conns = new Set<number>();
 
-  constructor(o: { url: string; key: KeyPair; devices: () => string[]; ticket: () => Buffer | null; backoff?: { minMs: number; maxMs: number } }) {
+  /**
+   * `silenceMs`: with nothing from the relay for this long (it pings every 30 s), the connection is presumed dead and
+   * replaced. A laptop that slept through the relay's close never gets its FIN, and its socket would look alive forever.
+   */
+  constructor(o: { url: string; key: KeyPair; devices: () => string[]; ticket: () => Buffer | null; backoff?: { minMs: number; maxMs: number }; silenceMs?: number }) {
     super();
-    this.#o = { ...o, backoff: o.backoff ?? { minMs: 1000, maxMs: 30_000 } };
+    this.#o = { ...o, backoff: o.backoff ?? { minMs: 1000, maxMs: 30_000 }, silenceMs: o.silenceMs ?? 75_000 };
   }
 
   get online(): boolean {
@@ -86,7 +90,15 @@ export class RelayClient extends EventEmitter {
     const ws = new WebSocket(url, { maxPayload: 1024 * 1024 + 4, perMessageDeflate: false });
     this.#ws = ws;
     let greeted = false;
+    let quiet: NodeJS.Timeout | undefined;
+    const heard = () => {
+      clearTimeout(quiet);
+      quiet = setTimeout(() => ws.terminate(), this.#o.silenceMs);
+    };
+    ws.on('open', heard);
+    ws.on('ping', heard);
     ws.on('message', (data: Buffer, binary: boolean) => {
+      heard();
       if (binary) {
         if (!this.#online || data.length < 4) return;
         this.emit('frame', data.readUInt32BE(0), data.subarray(4));
@@ -123,6 +135,7 @@ export class RelayClient extends EventEmitter {
     });
     ws.on('error', () => { /* the close that follows decides */ });
     ws.on('close', (code: number) => {
+      clearTimeout(quiet);
       if (this.#ws !== ws) return;
       const was = this.#online;
       this.#online = false;

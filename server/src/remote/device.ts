@@ -7,7 +7,7 @@ import WebSocket from 'ws';
 import { windowInfo, type HostWindow, type Windows } from './discover.ts';
 import { BAD_FRAME, Mux, TOO_LARGE, UNKNOWN_WINDOW, UNREACHABLE, type Stream } from './mux.ts';
 import { CipherState, Handshake, MAX_PLAINTEXT, PROLOGUE, type KeyPair } from './noise.ts';
-import { fromB64u, pairProof } from './store.ts';
+import { deviceHash, fromB64u, pairProof } from './store.ts';
 
 const METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']);
 const FORWARDED = ['accept', 'content-type', 'range', 'if-none-match', 'if-range', 'if-modified-since'];
@@ -18,7 +18,7 @@ const INFO_FIELDS = ['title', 'session', 'model', 'busy', 'supervised'];
 
 /** A path the proxy sends on: one of the window's own routes, never another host, never the control routes. */
 const goodPath = (p: unknown): p is string =>
-  typeof p === 'string' && p.length <= 8192 && p.startsWith('/') && !p.startsWith('//') && !/[\s\\]/.test(p) && !/^\/control(\/|\?|$)/.test(p);
+  typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !p.startsWith('//') && !/[\\#]/.test(p) && !/^\/control(\/|\?|$)/.test(p);
 
 export type DeviceOptions = {
   hostKey: KeyPair;
@@ -32,6 +32,8 @@ export type DeviceOptions = {
   /** an unlisted phone proved the pairing code: false refuses it (the code was already used) */
   onPaired: (pub: Buffer, name?: string) => boolean;
   isListed: (pub: Buffer) => boolean;
+  /** the device hash the relay announced for this conn: the phone's Noise key must be the one it names */
+  deviceHash?: string;
 };
 
 export class DeviceChannel {
@@ -87,6 +89,7 @@ export class DeviceChannel {
     const payload = JSON.parse(hs.readMessage(b).toString('utf8')) as { v?: unknown; name?: unknown; pair?: unknown };
     const pub = hs.remoteStatic!;
     if (payload?.v !== 1) return this.#fail();
+    if (this.#o.deviceHash !== undefined && deviceHash(pub) !== this.#o.deviceHash) return this.#fail();
     const name = typeof payload.name === 'string' ? payload.name : undefined;
     if (!this.#o.isListed(pub)) {
       const p = this.#o.pairing();
@@ -127,6 +130,14 @@ export class DeviceChannel {
   }
 
   #open(s: Stream, open: unknown): void {
+    try {
+      this.#openKind(s, open);
+    } catch {
+      s.close(BAD_FRAME, 'bad request'); // one bad stream, not the channel
+    }
+  }
+
+  #openKind(s: Stream, open: unknown): void {
     const o = (open && typeof open === 'object' ? open : {}) as { kind?: unknown; port?: unknown; path?: unknown; method?: unknown; headers?: unknown };
     if (o.kind === 'host') return this.#hostStream(s);
     if (o.kind !== 'ws' && o.kind !== 'http') return s.close(BAD_FRAME, 'unknown stream kind');
@@ -187,7 +198,10 @@ export class DeviceChannel {
       s.close(UNKNOWN_WINDOW, 'the window refused the connection');
       up.terminate();
     });
-    up.on('error', () => s.close(UNREACHABLE, 'the window could not be reached'));
+    let wasOpen = false;
+    up.once('open', () => (wasOpen = true));
+    // after the open, an error is the window going away (a reset before the close frame)
+    up.on('error', () => s.close(wasOpen ? UNKNOWN_WINDOW : UNREACHABLE, wasOpen ? 'the window has gone' : 'the window could not be reached'));
     up.on('message', (data: Buffer, binary: boolean) => {
       if (!s.write(data, binary)) up.pause();
     });
@@ -218,32 +232,15 @@ export class DeviceChannel {
       const h: Record<string, string> = { ...headers, authorization: w.bearer, host: `127.0.0.1:${w.port}` };
       if (method !== 'GET' && method !== 'HEAD') h.origin = `http://127.0.0.1:${w.port}`;
       if (body.length > 0 || (method !== 'GET' && method !== 'HEAD')) h['content-length'] = String(body.length);
-      req = http.request({ host: '127.0.0.1', port: w.port, method, path, headers: h }, (res) => {
-        if (res.statusCode === 401 && !retried) {
-          res.resume();
-          void this.#o.windows.reprove(w.port).then((again) => {
-            if (s.closed) return;
-            if (again) send(again, true);
-            else s.close(UNKNOWN_WINDOW, 'the window has gone');
-          });
-          return;
-        }
-        const out: Record<string, string> = {};
-        for (const [k, v] of Object.entries(res.headers)) {
-          if (v !== undefined && !DROPPED.has(k)) out[k] = Array.isArray(v) ? v.join(', ') : v;
-        }
-        s.head({ status: res.statusCode ?? 502, headers: out });
-        res.on('data', (c: Buffer) => {
-          if (!s.write(c)) res.pause();
-        });
-        s.on('drain', () => res.resume());
-        res.on('end', () => s.end());
-        res.on('error', () => s.close(UNREACHABLE, 'the response broke off'));
-      });
-      req.on('error', () => {
+      try {
+        req = http.request({ host: '127.0.0.1', port: w.port, method, path, headers: h }, (res) => this.#answer(s, res, w, retried, send));
+      } catch {
+        return s.close(BAD_FRAME, 'bad request');
+      }
+      req.on('error', (e: NodeJS.ErrnoException) => {
         if (s.closed) return;
-        if (!retried) {
-          // a window that went away between the proof and the request: one more proof decides
+        // only a refused connection is sure to have done nothing: a reset may come after the window acted on it
+        if (!retried && e.code === 'ECONNREFUSED') {
           void this.#o.windows.reprove(w.port).then((again) => (s.closed ? undefined : again ? send(again, true) : s.close(UNKNOWN_WINDOW, 'the window has gone')));
         } else s.close(UNREACHABLE, 'the window could not be reached');
       });
@@ -253,5 +250,27 @@ export class DeviceChannel {
       if (!s.closed) send(w0, false);
     });
   }
-}
 
+  #answer(s: Stream, res: http.IncomingMessage, w: HostWindow, retried: boolean, send: (w: HostWindow, retried: boolean) => void): void {
+    if (res.statusCode === 401 && !retried) {
+      res.resume();
+      void this.#o.windows.reprove(w.port).then((again) => {
+        if (s.closed) return;
+        if (again) send(again, true);
+        else s.close(UNKNOWN_WINDOW, 'the window has gone');
+      });
+      return;
+    }
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(res.headers)) {
+      if (v !== undefined && !DROPPED.has(k)) out[k] = Array.isArray(v) ? v.join(', ') : v;
+    }
+    s.head({ status: res.statusCode ?? 502, headers: out });
+    res.on('data', (c: Buffer) => {
+      if (!s.write(c)) res.pause();
+    });
+    s.on('drain', () => res.resume());
+    res.on('end', () => s.end());
+    res.on('error', () => s.close(UNREACHABLE, 'the response broke off'));
+  }
+}
