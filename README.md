@@ -30,7 +30,7 @@ Nota Bene brings your agent into a window made for review: margin comments on re
 | **Codex** (CLI and local Desktop) | Those of your Codex account (ChatGPT or API key) | Codex `app-server` | Codex CLI 0.166.0+, `codex login` | `$nb` ([plugin](#install)) | Stable; [a few native gaps](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#codex-support) |
 | **omp** | Any provider set up in omp | Agent Client Protocol (`omp acp`) | omp 18.16.0+, logged in | `/skill:nb` ([skill](#install)) | Preview; [limits](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#omp-support) |
 
-From any terminal: `nota-bene . --agent claude|codex|omp` (Claude when `--agent` is left out). Each agent has its own windows and saved settings; two agents can work in the same project.
+No agent session is needed to start a window: in a plain terminal, `nota-bene . --agent claude|codex|omp` (Claude when `--agent` is left out) starts the agent itself, with the agent's own login. Each agent has its own windows and saved settings; two agents can work in the same project.
 
 | Platform | |
 |---|---|
@@ -109,7 +109,7 @@ An open window owns its conversation: don't keep writing to it from another clie
 
 ## Quick start
 
-1. Run `/nb` (or `nota-bene`) in a project folder. The window opens already logged in.
+1. Open a window on a project folder in either of two ways: from your agent's session (`/nb` in Claude Code, `$nb` in Codex, `/skill:nb` in omp), or from a plain terminal in that folder with `nota-bene` (no agent session needed; Nota Bene starts the agent itself). The browser opens on the window, already logged in.
 2. Ask the agent something. When the reply arrives, select a sentence in it and press **Comment**. Type the note and press Cmd/Ctrl+Enter to add it.
 3. Open a file from the **Files** panel, select a line of code, and comment on that too. Comments from every reply and file collect in the **Comments** panel.
 4. Press **Send (2)**. The agent receives one message that lists each fragment with your note on it.
