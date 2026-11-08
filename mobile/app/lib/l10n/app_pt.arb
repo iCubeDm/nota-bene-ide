@@ -6,5 +6,19 @@
   "unlock": "Desbloquear",
   "lockFailed": "Não foi desbloqueado. Tente novamente.",
   "noScreenLock": "Este telefone não tem bloqueio de tela. Defina um PIN, padrão ou digital nas configurações do Android e volte: o Nota Bene só abre protegido por um.",
-  "retry": "Tentar de novo"
+  "retry": "Tentar de novo",
+  "pairTitle": "Parear um host",
+  "scanHint": "No computador, execute `nota-bene remote pair` e aponte a câmera para o código QR.",
+  "pasteCode": "Colar o código",
+  "pairing": "Pareando…",
+  "pairedTitle": "Pareado com {host}",
+  "compareHint": "Confira se correspondem ao que o computador mostrou.",
+  "hostFingerprint": "Impressão digital do host",
+  "phoneFingerprint": "Impressão digital deste telefone",
+  "done": "Concluído",
+  "errNotACode": "Isso não é um código de pareamento do Nota Bene.",
+  "errCodeUsed": "O código expirou ou já foi usado. Execute `nota-bene remote pair` novamente.",
+  "errUnreachable": "Não foi possível alcançar o relay ou o host. Verifique a conexão e se `nota-bene remote` está em execução.",
+  "cameraDenied": "O Nota Bene não pode usar a câmera. Permita nas configurações do Android ou cole o código.",
+  "cameraFailed": "A câmera não iniciou. Cole o código."
 }

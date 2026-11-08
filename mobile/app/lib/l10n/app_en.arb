@@ -6,5 +6,26 @@
   "unlock": "Unlock",
   "lockFailed": "Not unlocked. Try again.",
   "noScreenLock": "This phone has no screen lock. Set a PIN, pattern or fingerprint in Android settings, then come back: Nota Bene opens only behind one.",
-  "retry": "Retry"
+  "retry": "Retry",
+  "pairTitle": "Pair a host",
+  "scanHint": "On the computer run `nota-bene remote pair` and point the camera at its QR code.",
+  "pasteCode": "Paste the code instead",
+  "pairing": "Pairing…",
+  "pairedTitle": "Paired with {host}",
+  "compareHint": "Check that these match what the computer printed.",
+  "hostFingerprint": "Host fingerprint",
+  "phoneFingerprint": "This phone's fingerprint",
+  "done": "Done",
+  "errNotACode": "That is not a Nota Bene pairing code.",
+  "errCodeUsed": "The code expired or was already used. Run `nota-bene remote pair` again.",
+  "errUnreachable": "Could not reach the relay or the host. Check the connection and that `nota-bene remote` runs.",
+  "cameraDenied": "Nota Bene may not use the camera. Allow it in Android settings, or paste the code.",
+  "cameraFailed": "The camera did not start. Paste the code instead.",
+  "@pairedTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  }
 }

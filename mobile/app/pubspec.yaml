@@ -8,6 +8,7 @@ environment:
   flutter: 3.47.9
 
 dependencies:
+  device_info_plus: ^13.3.0
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -15,6 +16,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   intl: any
   local_auth: ^3.0.2
+  mobile_scanner: ^7.5.0
   nb_channel:
     path: ../channel
   nb_protocol:

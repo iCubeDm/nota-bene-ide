@@ -6,5 +6,19 @@
   "unlock": "Entsperren",
   "lockFailed": "Nicht entsperrt. Versuche es erneut.",
   "noScreenLock": "Dieses Telefon hat keine Displaysperre. Richte in den Android-Einstellungen eine PIN, ein Muster oder einen Fingerabdruck ein und komm zurück: Nota Bene öffnet sich nur dahinter.",
-  "retry": "Erneut versuchen"
+  "retry": "Erneut versuchen",
+  "pairTitle": "Host koppeln",
+  "scanHint": "Führe auf dem Computer `nota-bene remote pair` aus und richte die Kamera auf den QR-Code.",
+  "pasteCode": "Code stattdessen einfügen",
+  "pairing": "Wird gekoppelt…",
+  "pairedTitle": "Gekoppelt mit {host}",
+  "compareHint": "Prüfe, dass sie mit der Ausgabe des Computers übereinstimmen.",
+  "hostFingerprint": "Fingerabdruck des Hosts",
+  "phoneFingerprint": "Fingerabdruck dieses Telefons",
+  "done": "Fertig",
+  "errNotACode": "Das ist kein Nota-Bene-Kopplungscode.",
+  "errCodeUsed": "Der Code ist abgelaufen oder wurde schon benutzt. Führe `nota-bene remote pair` erneut aus.",
+  "errUnreachable": "Relay oder Host nicht erreichbar. Prüfe die Verbindung und ob `nota-bene remote` läuft.",
+  "cameraDenied": "Nota Bene darf die Kamera nicht nutzen. Erlaube es in den Android-Einstellungen oder füge den Code ein.",
+  "cameraFailed": "Die Kamera ist nicht gestartet. Füge den Code stattdessen ein."
 }

@@ -6,5 +6,19 @@
   "unlock": "解锁",
   "lockFailed": "未能解锁，请重试。",
   "noScreenLock": "这部手机没有设置锁屏。请在 Android 设置中设置 PIN、图案或指纹后再回来：Nota Bene 只在锁屏保护下打开。",
-  "retry": "重试"
+  "retry": "重试",
+  "pairTitle": "配对主机",
+  "scanHint": "在电脑上运行 `nota-bene remote pair`，然后用相机对准二维码。",
+  "pasteCode": "改为粘贴代码",
+  "pairing": "正在配对…",
+  "pairedTitle": "已与 {host} 配对",
+  "compareHint": "请确认它们与电脑上显示的一致。",
+  "hostFingerprint": "主机指纹",
+  "phoneFingerprint": "本机指纹",
+  "done": "完成",
+  "errNotACode": "这不是 Nota Bene 配对码。",
+  "errCodeUsed": "配对码已过期或已被使用。请重新运行 `nota-bene remote pair`。",
+  "errUnreachable": "无法连接中继或主机。请检查网络，并确认 `nota-bene remote` 正在运行。",
+  "cameraDenied": "Nota Bene 无法使用相机。请在 Android 设置中允许，或粘贴代码。",
+  "cameraFailed": "相机未能启动。请改为粘贴代码。"
 }
