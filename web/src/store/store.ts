@@ -63,7 +63,8 @@ export const feedSlice = createSlice({
 
 // unauthorized = the server refused the page's login (the access token, net/auth.ts)
 // connecting = never open yet; closed = dropped after an open; occupied = another tab owns the window; taken = another tab took it from us (M7-15)
-export type ConnState = 'connecting' | 'open' | 'closed' | 'occupied' | 'taken' | 'unauthorized';
+/** `stopped`: this tab stopped its own window (the header's Stop window); nothing reconnects after it */
+export type ConnState = 'connecting' | 'open' | 'closed' | 'occupied' | 'taken' | 'unauthorized' | 'stopped';
 
 export const connSlice = createSlice({
   name: 'conn',
@@ -73,7 +74,7 @@ export const connSlice = createSlice({
 });
 
 type Send = (m: ClientMessage) => boolean;
-type Extra = { send: Send; takeOver(): void };
+type Extra = { send: Send; takeOver(): void; stopSocket(): void };
 
 /** Whether Redux DevTools are on: dev builds only. Read at call time so tests can stub it. */
 export const devToolsEnabled = (): boolean => import.meta.env.DEV;
@@ -143,6 +144,11 @@ export function makeStore(o: {
       conn?.reconnect?.();
     }
   };
+  // the window was stopped from this tab: the socket stays down, and its close must not turn `stopped` back into `closed`
+  const stopSocket = () => {
+    store.dispatch(connState('stopped'));
+    conn?.close();
+  };
   // one media controller per store; it holds DOM elements, so it lives here and not in state (components reach it via useMedia)
   const media: MediaController = new MediaController({
     pip: o.pip ?? browserPip,
@@ -157,7 +163,7 @@ export function makeStore(o: {
   persistListeners(persist);
   const store = configureStore({
     reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer },
-    middleware: (gdm) => gdm({ thunk: { extraArgument: { send, takeOver } satisfies Extra } }).prepend(controlsListener.middleware, persist.middleware).concat(toastMiddleware, compactTimingMiddleware, refusedMiddleware, mediaMiddleware(media)),
+    middleware: (gdm) => gdm({ thunk: { extraArgument: { send, takeOver, stopSocket } satisfies Extra } }).prepend(controlsListener.middleware, persist.middleware).concat(toastMiddleware, compactTimingMiddleware, refusedMiddleware, mediaMiddleware(media)),
     devTools: devToolsEnabled(),
   });
   mediaByStore.set(store, media);
@@ -179,6 +185,7 @@ export function makeStore(o: {
       store.dispatch(serverEvent(ev));
     },
     (s) => {
+      if (store.getState().conn.state === 'stopped') return;
       store.dispatch(connState(s));
       if (s === 'open') store.dispatch(resyncComments());
     },

@@ -66,7 +66,7 @@ codex plugin marketplace add iCubeDm/nota-bene-ide --ref main
 codex plugin add nota-bene@nota-bene
 ```
 
-Reload skills or restart Codex, then use `$nb`, `$nb new` or `$nb fork` (or pick nb in the Desktop skill picker). The first use downloads the package through npm (about 70 MB, without the Claude Code binary). A window started from Desktop keeps running after the chat turn ends; Stop in the window shuts it down.
+Reload skills or restart Codex, then use `$nb`, `$nb new` or `$nb fork` (or pick nb in the Desktop skill picker). The first use downloads the package through npm (about 70 MB, without the Claude Code binary). A window started from Desktop keeps running after the chat turn ends; **Stop window** (⏻) in its header shuts it down.
 
 Without the plugin: `npm i -g nota-bene-ide` (add `--omit=optional` if you only use Codex), then ask Codex:
 
@@ -184,7 +184,7 @@ codex plugin marketplace upgrade
 codex plugin add nota-bene@nota-bene
 ```
 
-Then close the old windows and open them again. A window started by `/nb` is a background task of that Claude Code session (stop it in `/tasks`); a terminal window stops with Ctrl+C. Your sessions, comments and settings stay in place. See [Updates in the guide](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#updates).
+Then close the old windows and open them again. A window started by `/nb` is a background task of that Claude Code session (stop it in `/tasks`); a terminal window stops with Ctrl+C. Versions after 1.7.0 also stop from the window itself: **Stop window** (⏻) in its header. Your sessions, comments and settings stay in place. See [Updates in the guide](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#updates).
 
 ## Guide
 

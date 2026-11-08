@@ -10,7 +10,7 @@ Run `node "<this-skill-directory>/open.mjs" [new|fork]` with the bash tool in th
 - No argument: resume the folder's last Nota Bene omp session, or start one. `new`: start fresh. `fork`: continue this omp conversation as a separate branch. The helper reads `PI_SESSION_ID`, which omp sets for every bash call, or accepts `--source` with a session id. If neither is available, stop and explain; never guess the source from other sessions.
 - The command prints one `opened URL` or `already-open URL` line. Reply with that plain URL in one short line. Never add or look for a token, and never call `nota-bene --url`.
 - An already open omp window is brought forward; a requested `new` or `fork` is then not applied to its conversation. Relay the helper's explanation.
-- The window runs detached: it survives the end of this turn. Stop in the window ends it.
+- The window runs detached: it survives the end of this turn. Stop window (⏻) in the window's header ends it.
 
 Relay launch errors in one or two lines and do not retry. Do not modify global skills or install global packages during invocation.
 
