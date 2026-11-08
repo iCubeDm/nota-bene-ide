@@ -12,7 +12,9 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  flutter_secure_storage: ^11.2.0
   intl: any
+  local_auth: ^3.0.2
   nb_channel:
     path: ../channel
   nb_protocol:
