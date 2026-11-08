@@ -95,14 +95,17 @@ often because more windows are open.
 
 ### When a window restarts (the author's decision: wait for a pause)
 
-- A window restarts only in a pause: no turn running, nothing in the composer, no question or approval waiting.
+- A window restarts only in a pause: no turn running, nothing in the composer, no question or approval waiting, no `!`
+  command and no task of the agent running (controller ruling R12).
 - Until then its header shows **1.7.0 is ready · Restart**; a click restarts it at once (the user's choice, draft or not:
-  drafts already survive a reload).
+  the page reconnects without a reload, so the draft stays; drafts are not kept across a reload).
+- After a handover the open page still runs the old version's code: it reloads itself once it is in a pause with an
+  empty composer, otherwise **Updated to** offers **Reload** (controller ruling R11).
 - This holds for both modes; with **Update** the clicked window usually restarts right away, because the user is in a pause
   when they click.
 - The composer's state lives in the page, so the page tells its server whether the composer is empty (a new client
-  message; my call). A window with no tab connected is in a pause when no turn runs and nothing waits for an answer: its
-  drafts are kept in the browser and come back after the reload. Turn and approval state come from the session, the same
+  message; my call). As built, the page itself asks for the restart when it is idle. A window with no tab connected is in
+  a pause when no turn, `!` command or task runs and nothing waits for an answer. Turn and approval state come from the session, the same
   for every backend.
 
 ### Automatic updates (the author's decision: both modes; off by default)

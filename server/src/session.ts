@@ -389,6 +389,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     },
     shellStop: (id) => shell.stop(id),
     shellSnapshot: () => shell.snapshot(),
+    shellRunning: () => shell.running !== null,
     stats: () => stats.current(),
     clientAttached: () => stats.onAttach(),
     close() {

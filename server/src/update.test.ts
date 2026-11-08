@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setUpdateCheckPref } from './prefs.ts';
-import { changelog, changesSince, isNewer, updateCheck } from './update.ts';
+import { CHECK_EVERY_MS, changelog, changesSince, isNewer, latestKnown, updateCheck } from './update.ts';
 
 const npm = (version: unknown) => vi.fn(async () => new Response(JSON.stringify({ version }))) as unknown as typeof fetch;
 
@@ -18,18 +18,28 @@ describe('isNewer', () => {
 });
 
 describe('updateCheck', () => {
-  const on = { off: () => false };
+  // Every check gets its own file: the default one is the machine's real state folder.
+  const dirs: string[] = [];
+  const tmpFile = () => {
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-update-'));
+    dirs.push(d);
+    return path.join(d, 'update-check.json');
+  };
+  afterEach(() => { for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true }); });
+  const mk = () => ({ off: () => false, file: tmpFile() });
+  let on = mk();
+  beforeEach(() => { on = mk(); });
 
   it('says the newer version, and nothing when this one is the latest or ahead', async () => {
     expect(await updateCheck({ ...on, fetch: npm('1.3.0') })('1.2.0')).toBe('1.3.0');
-    expect(await updateCheck({ ...on, fetch: npm('1.2.0') })('1.2.0')).toBeNull();
-    expect(await updateCheck({ ...on, fetch: npm('1.2.0') })('1.3.0')).toBeNull();
+    expect(await updateCheck({ ...on, file: tmpFile(), fetch: npm('1.2.0') })('1.2.0')).toBeNull();
+    expect(await updateCheck({ ...on, file: tmpFile(), fetch: npm('1.2.0') })('1.3.0')).toBeNull();
   });
 
   it('a source checkout and the off switch never ask', async () => {
     const f = npm('9.0.0');
     expect(await updateCheck({ ...on, fetch: f })('v1.2.0-5-gabcdef')).toBeNull();
-    expect(await updateCheck({ fetch: f, off: () => true })('1.2.0')).toBeNull();
+    expect(await updateCheck({ file: on.file, fetch: f, off: () => true })('1.2.0')).toBeNull();
     expect(f).not.toHaveBeenCalled();
   });
 
@@ -38,7 +48,7 @@ describe('updateCheck', () => {
     vi.stubEnv('NOTA_BENE_HOME', home);
     vi.stubEnv('NOTA_BENE_NO_UPDATE_CHECK', '');
     const f = npm('1.3.0');
-    const check = updateCheck({ fetch: f });
+    const check = updateCheck({ fetch: f, file: on.file });
     setUpdateCheckPref(false);
     expect(await check('1.2.0')).toBeNull();
     expect(f).not.toHaveBeenCalled();
@@ -48,17 +58,64 @@ describe('updateCheck', () => {
     fs.rmSync(home, { recursive: true });
   });
 
-  it('asks npm once in 6 hours, however many windows ask', async () => {
+  it('asks npm once a minute, however many windows ask', async () => {
     const f = npm('1.3.0');
     let t = 0;
     const check = updateCheck({ ...on, fetch: f, now: () => t });
     await Promise.all([check('1.2.0'), check('1.2.0')]);
-    t = 6 * 3600_000 - 1;
+    t = CHECK_EVERY_MS - 1;
     await check('1.2.0');
     expect(f).toHaveBeenCalledTimes(1);
-    t = 6 * 3600_000;
+    t = CHECK_EVERY_MS;
     await check('1.2.0');
     expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it('two checkers on one file ask npm once a minute', async () => {
+    const f = npm('1.7.0');
+    let t = 0;
+    const a = updateCheck({ ...on, fetch: f, now: () => t });
+    const b = updateCheck({ ...on, fetch: f, now: () => t });
+    expect(await a('1.6.0')).toBe('1.7.0');
+    expect(await b('1.6.0')).toBe('1.7.0');
+    t = 50_000;
+    expect(await a('1.6.0')).toBe('1.7.0');
+    expect(await b('1.6.0')).toBe('1.7.0');
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks again after a minute', async () => {
+    const f = npm('1.7.0');
+    let t = 0;
+    const check = updateCheck({ ...on, fetch: f, now: () => t });
+    await check('1.6.0');
+    t = 60_000;
+    await check('1.6.0');
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it('a broken file counts as stale', async () => {
+    fs.writeFileSync(on.file, 'not json');
+    const f = npm('1.7.0');
+    expect(await updateCheck({ ...on, fetch: f, now: () => 0 })('1.6.0')).toBe('1.7.0');
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fs.readFileSync(on.file, 'utf8'))).toEqual({ latest: '1.7.0', at: 0 });
+    expect(fs.statSync(on.file).mode & 0o777).toBe(0o600);
+  });
+
+  it('off asks nothing and reads nothing', async () => {
+    const f = npm('1.7.0');
+    expect(await updateCheck({ file: on.file, fetch: f, off: () => true })('1.6.0')).toBeNull();
+    expect(f).not.toHaveBeenCalled();
+    expect(fs.existsSync(on.file)).toBe(false);
+  });
+
+  it('latestKnown reads the file without asking', async () => {
+    expect(latestKnown({ file: on.file })).toBeNull();
+    await updateCheck({ ...on, fetch: npm('1.7.0'), now: () => 0 })('1.6.0');
+    expect(latestKnown({ file: on.file })).toBe('1.7.0');
+    fs.writeFileSync(on.file, 'not json');
+    expect(latestKnown({ file: on.file })).toBeNull();
   });
 
   it('no network, an error page or a strange answer keep what was known', async () => {
@@ -73,7 +130,7 @@ describe('updateCheck', () => {
       async () => new Response('not json'),
     ]) {
       answer = next;
-      t += 6 * 3600_000;
+      t += CHECK_EVERY_MS;
       expect(await check('1.2.0')).toBe('1.3.0');
     }
   });

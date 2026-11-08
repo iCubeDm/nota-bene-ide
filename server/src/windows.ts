@@ -16,6 +16,10 @@ export type WindowEntry = {
   /** the supervising launcher (survives the server's relaunches) */
   launcherPid?: number;
   startedAt: number;
+  /** the release the launcher runs this window from (plain x.y.z), when it knows; absent in older entries */
+  version?: string;
+  /** the launch nonce, written by a launcher that exits 77: the outer part hands the window over with it (bin/nota-bene.mjs) */
+  nonce?: string;
 };
 
 const dir = () => path.join(stateDir(), 'windows');
@@ -47,13 +51,23 @@ export function readWindows(): Record<string, WindowEntry> {
   return out;
 }
 
-export function registerWindow(port: number, root: string, pid: number, launcherPid?: number): void {
+export function registerWindow(port: number, root: string, pid: number, launcherPid?: number, version?: string, nonce?: string): void {
   fs.mkdirSync(dir(), { recursive: true });
   const f = fileOf(port);
   const tmp = `${f}.tmp${process.pid}`;
-  const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now() };
+  const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now(), ...(version !== undefined ? { version } : {}), ...(nonce !== undefined ? { nonce } : {}) };
   fs.writeFileSync(tmp, JSON.stringify(entry, null, 2));
   fs.renameSync(tmp, f);
+}
+
+/**
+ * A server's own re-register after a folder switch: the new root, and the fields only its launcher knows (the release it
+ * runs, which keeps that release from being pruned; the nonce) kept from the entry, when the entry is this server's.
+ */
+export function moveWindow(port: number, root: string, pid: number, launcherPid?: number): void {
+  const w = readEntry(port);
+  const own = w?.pid === pid ? w : undefined;
+  registerWindow(port, root, pid, launcherPid, own?.version, own?.nonce);
 }
 
 /** Removes the port's entry only if it is still this pid's (or unreadable): a newer window on the port keeps its own. */

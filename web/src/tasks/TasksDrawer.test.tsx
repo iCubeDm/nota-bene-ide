@@ -152,7 +152,10 @@ describe('rows', () => {
     expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('7s');
     act(() => void vi.advanceTimersByTime(30_000));
     expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('7s');
-    expect(vi.getTimerCount()).toBe(0);
+    const settled = vi.getTimerCount(); // the app's own timers (the update notice polls) remain; a ticking row would add one
+    act(() => void vi.advanceTimersByTime(30_000));
+    expect(vi.getTimerCount()).toBe(settled);
+    expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('7s');
   });
 
   it('children nest under their parent', () => {

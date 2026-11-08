@@ -1,10 +1,14 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { readPrefs } from './prefs.ts';
+import { stateBaseDir } from './state.ts';
 
 // Whether a newer version is on npm, for the window's notice. The browser never asks: `/system/update` answers from here.
 const LATEST_URL = 'https://registry.npmjs.org/nota-bene-ide/latest';
-const CHECK_EVERY_MS = 6 * 3600_000;
+/** npm is asked at most this often per machine: the answer is shared through a file in the state folder. */
+export const CHECK_EVERY_MS = 60_000;
 const TIMEOUT_MS = 5000;
-const RELEASE = /^\d+\.\d+\.\d+$/;
+export const RELEASE = /^\d+\.\d+\.\d+$/;
 
 /** NOTA_BENE_NO_UPDATE_CHECK: the check stays off whatever Settings say. */
 export const updateCheckForcedOff = (): boolean => !!process.env.NOTA_BENE_NO_UPDATE_CHECK;
@@ -15,29 +19,54 @@ export const isNewer = (a: string, b: string): boolean => {
   return i >= 0 && x[i]! > y[i]!;
 };
 
+const checkFile = () => path.join(stateBaseDir(), 'update-check.json');
+
+type Cached = { latest: string | null; at: number };
+
+function readCached(file: string): Cached | null {
+  try {
+    const c = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<Cached>;
+    const latest = typeof c.latest === 'string' && RELEASE.test(c.latest) ? c.latest : null;
+    return typeof c.at === 'number' && Number.isFinite(c.at) ? { latest, at: c.at } : null;
+  } catch { return null; }
+}
+
+/** The newest version the machine has seen on npm, from the shared file; no fetch. */
+export function latestKnown(o: { file?: string } = {}): string | null {
+  return readCached(o.file ?? checkFile())?.latest ?? null;
+}
+
 /**
  * The newer version than `current`, or null: also in a source checkout (its version is `git describe`), with the
- * check off (read per call, so Settings apply at once), and when npm cannot be reached. npm is asked at most once per 6 hours.
+ * check off (read per call, so Settings apply at once), and when npm cannot be reached. npm is asked at most once a
+ * minute per machine: the time and the answer live in `file`, shared by every window, and a broken file counts as stale.
  */
-export function updateCheck(o: { fetch?: typeof fetch; now?: () => number; off?: () => boolean } = {}): (current: string) => Promise<string | null> {
+export function updateCheck(o: { fetch?: typeof fetch; now?: () => number; off?: () => boolean; file?: string } = {}): (current: string) => Promise<string | null> {
   const get = o.fetch ?? fetch;
   const now = o.now ?? Date.now;
   const off = o.off ?? (() => updateCheckForcedOff() || readPrefs().updateCheck === false);
-  let known: string | null = null;
-  let at = -Infinity;
   let running: Promise<void> | null = null;
-  const ask = async () => {
+  const ask = async (file: string) => {
+    let latest = readCached(file)?.latest ?? null; // a failed ask keeps what was known
     try {
       const r = await get(LATEST_URL, { signal: AbortSignal.timeout(TIMEOUT_MS) });
       const v = r.ok ? ((await r.json()) as { version?: unknown }).version : null;
-      if (typeof v === 'string' && RELEASE.test(v)) known = v;
+      if (typeof v === 'string' && RELEASE.test(v)) latest = v;
     } catch { /* no network is not a fault: the notice just does not show */ }
-    at = now();
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      const tmp = `${file}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify({ latest, at: now() } satisfies Cached), { mode: 0o600 });
+      fs.renameSync(tmp, file);
+    } catch { /* an unwritable folder only means the next ask is not spared */ }
     running = null;
   };
   return async (current) => {
     if (off() || !RELEASE.test(current)) return null;
-    if (now() - at >= CHECK_EVERY_MS) await (running ??= ask());
+    const file = o.file ?? checkFile();
+    const c = readCached(file);
+    if (!c || now() - c.at >= CHECK_EVERY_MS || c.at > now()) await (running ??= ask(file));
+    const known = latestKnown({ file });
     return known && isNewer(known, current) ? known : null;
   };
 }
