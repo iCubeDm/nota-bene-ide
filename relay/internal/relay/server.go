@@ -11,61 +11,80 @@ import (
 )
 
 // peer is one WebSocket connection with its write path. All writes go through
-// enqueue (the only producer) and drain (the only consumer), so the queue can
-// change without touching the hub.
+// the byte-bounded queue: data is pushed with backpressure (queue.push), small
+// control messages never wait (sendJSON), and drain is the only writer.
 type peer struct {
 	c    *websocket.Conn
 	log  func(role string, code websocket.StatusCode)
 	role string
 
-	q    chan queued
+	q    *queue
 	done chan struct{} // closed by closeWith
 	shut chan struct{} // closed when the close handshake attempt has ended
 	once sync.Once
+
+	release func() // frees the pending-handshake slot; set by serve
+
+	// pctx ends when the peer is closed or its handler ends. Producers wait on
+	// it so a closed peer never leaves them blocked. Reads must not use it:
+	// cancelling a Read would drop the socket without a close frame.
+	pctx    context.Context
+	pcancel context.CancelFunc
 }
 
-type queued struct {
-	typ  websocket.MessageType
-	data []byte
+func newPeer(c *websocket.Conn, role string, log func(string, websocket.StatusCode), queueBytes int) *peer {
+	p := &peer{c: c, role: role, log: log, q: newQueue(queueBytes), done: make(chan struct{}), shut: make(chan struct{})}
+	p.pctx, p.pcancel = context.WithCancel(context.Background())
+	return p
 }
 
-const queueLen = 256
-
-func newPeer(c *websocket.Conn, role string, log func(string, websocket.StatusCode)) *peer {
-	return &peer{c: c, role: role, log: log, q: make(chan queued, queueLen), done: make(chan struct{}), shut: make(chan struct{})}
-}
-
-// enqueue hands a message to the writer without blocking. A peer whose queue
-// is full is cut with 4408 (a placeholder for the bounded byte queue).
-func (p *peer) enqueue(typ websocket.MessageType, data []byte) {
+// sendJSON queues a control message without waiting. A peer that is hundreds
+// of control messages behind is cut with 4408.
+func (p *peer) sendJSON(v any) {
 	select {
 	case <-p.done:
 		return
 	default:
 	}
-	select {
-	case p.q <- queued{typ, data}:
-	default:
+	b, _ := json.Marshal(v)
+	if !p.q.pushControl(b) {
 		p.closeWith(codeTooSlow)
 	}
-}
-
-func (p *peer) sendJSON(v any) {
-	b, _ := json.Marshal(v)
-	p.enqueue(websocket.MessageText, b)
 }
 
 // drain writes queued messages until the peer is closed.
 func (p *peer) drain(ctx context.Context) {
 	for {
+		it, err := p.q.popItem(ctx)
+		if err != nil {
+			return
+		}
+		if err := p.c.Write(ctx, it.typ, it.data); err != nil {
+			return
+		}
+	}
+}
+
+// keepalive pings until the peer or the handler ends; a peer that has not
+// answered within PongTimeout is closed.
+func (p *peer) keepalive(ctx context.Context, every, timeout time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
 		select {
-		case m := <-p.q:
-			if err := p.c.Write(ctx, m.typ, m.data); err != nil {
-				return
-			}
+		case <-t.C:
 		case <-p.done:
 			return
 		case <-ctx.Done():
+			return
+		}
+		pc, cancel := context.WithTimeout(ctx, timeout)
+		err := p.c.Ping(pc)
+		cancel()
+		if err != nil {
+			if ctx.Err() == nil {
+				p.closeWith(codeTooSlow)
+			}
 			return
 		}
 	}
@@ -75,6 +94,8 @@ func (p *peer) drain(ctx context.Context) {
 func (p *peer) closeWith(code websocket.StatusCode) {
 	p.once.Do(func() {
 		close(p.done)
+		p.q.close()
+		p.pcancel()
 		p.log(p.role, code)
 		go func() { p.c.Close(code, ""); close(p.shut) }()
 	})
@@ -89,6 +110,7 @@ func (p *peer) finish() {
 	default:
 	}
 	p.c.CloseNow()
+	p.pcancel()
 }
 
 // Handler serves /v1/host, /v1/device and /healthz.
@@ -110,21 +132,42 @@ type session func(ctx context.Context, p *peer, r *http.Request, ch Challenge)
 
 func (s *Server) serve(role string, run session) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Admission before the upgrade: a full challenge room or a closing
+		// server answers 503 and costs nothing.
+		release := func() {}
+		if s.pending != nil {
+			select {
+			case s.pending <- struct{}{}:
+				release = sync.OnceFunc(func() { <-s.pending })
+			default:
+				http.Error(w, "busy", http.StatusServiceUnavailable)
+				return
+			}
+		}
+		defer release()
+
 		c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 		if err != nil {
 			return
 		}
-		s.wg.Add(1)
+		if !s.enter() {
+			c.Close(websocket.StatusGoingAway, "")
+			return
+		}
 		defer s.wg.Done()
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		stop := context.AfterFunc(s.ctx, cancel)
 		defer stop()
 
-		p := newPeer(c, role, s.logClose)
+		p := newPeer(c, role, s.logClose, s.o.QueueBytes)
+		p.release = release
+		stopP := context.AfterFunc(ctx, p.pcancel)
+		defer stopP()
 		var wdone sync.WaitGroup
-		wdone.Add(1)
+		wdone.Add(2)
 		go func() { defer wdone.Done(); p.drain(ctx) }()
+		go func() { defer wdone.Done(); p.keepalive(ctx, s.o.PingInterval, s.o.PongTimeout) }()
 		defer func() {
 			p.finish()
 			cancel()
@@ -142,6 +185,18 @@ func (s *Server) serve(role string, run session) http.HandlerFunc {
 	}
 }
 
+// enter registers a connection with the wait group unless the server is
+// closing. The check and the Add share a lock, so Close never races them.
+func (s *Server) enter() bool {
+	s.cmu.Lock()
+	defer s.cmu.Unlock()
+	if s.closing {
+		return false
+	}
+	s.wg.Add(1)
+	return true
+}
+
 type hello struct {
 	T       string   `json:"t"`
 	Key     string   `json:"key"`
@@ -155,6 +210,7 @@ type hello struct {
 func (s *Server) readHello(ctx context.Context, p *peer, ch Challenge, role string) (h hello, key [32]byte, ticket []byte, ok bool) {
 	// An expiring Read context would drop the socket without a close frame, so
 	// the deadline is a timer that closes with 4400 instead.
+	defer p.release()
 	timer := time.AfterFunc(s.o.HelloTimeout, func() { p.closeWith(codeMalformed) })
 	typ, data, err := p.c.Read(ctx)
 	timer.Stop()
@@ -182,7 +238,9 @@ func (s *Server) readHello(ctx context.Context, p *peer, ch Challenge, role stri
 		p.closeWith(codeBadProof)
 		return
 	}
-	p.c.SetReadLimit(int64(s.o.MaxMessage) + 4)
+	// The library would answer an oversize message with 1009; the limit is set
+	// above the real bound so that the loops can close with 4413 instead.
+	p.c.SetReadLimit(2*int64(s.o.MaxMessage) + 8)
 	return h, key, ticket, true
 }
 
@@ -204,13 +262,20 @@ func (s *Server) runHost(ctx context.Context, p *peer, _ *http.Request, ch Chall
 		p.closeWith(codeNotAllowed)
 		return
 	}
-	hs := newHost(id, p, h.Devices, ticket)
-	s.register(hs)
+	hs := newHost(id, p, h.Devices, ticket, s.o.SlowTimeout)
+	if !s.register(hs) {
+		p.closeWith(codeLimit)
+		return
+	}
 	defer s.unregister(hs)
 
 	for {
 		typ, data, err := p.c.Read(ctx)
 		if err != nil {
+			return
+		}
+		if len(data) > s.o.MaxMessage+4 {
+			p.closeWith(codeTooLarge)
 			return
 		}
 		if typ == websocket.MessageBinary {
@@ -261,7 +326,7 @@ func (s *Server) runDevice(ctx context.Context, p *peer, r *http.Request, ch Cha
 		p.closeWith(codeHostOffline)
 		return
 	}
-	d, code := hs.admit(p, DeviceHash(key), ticket)
+	d, code := hs.admit(p, DeviceHash(key), ticket, s.o.MaxDevicesPerHost)
 	if d == nil {
 		p.closeWith(code)
 		return
@@ -271,6 +336,10 @@ func (s *Server) runDevice(ctx context.Context, p *peer, r *http.Request, ch Cha
 	for {
 		typ, data, err := p.c.Read(ctx)
 		if err != nil {
+			return
+		}
+		if len(data) > s.o.MaxMessage {
+			p.closeWith(codeTooLarge)
 			return
 		}
 		if typ == websocket.MessageBinary {

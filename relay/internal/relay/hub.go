@@ -3,8 +3,10 @@ package relay
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -18,12 +20,14 @@ const (
 	codeHostOffline = websocket.StatusCode(4404)
 	codeTooSlow     = websocket.StatusCode(4408)
 	codeReplaced    = websocket.StatusCode(4409)
+	codeTooLarge    = websocket.StatusCode(4413)
+	codeLimit       = websocket.StatusCode(4429)
 )
 
 const maxListed = 32
 
-// Options configure a Server. Limits and timeouts other than HelloTimeout and
-// MaxMessage are enforced by later changes; the fields are defined now.
+// Options configure a Server. A limit of zero or less means unlimited for the
+// counts; the timeouts and byte bounds must be set (see DefaultOptions).
 type Options struct {
 	MaxHosts, MaxDevicesPerHost, MaxPending int
 	HelloTimeout, PingInterval              time.Duration
@@ -56,11 +60,19 @@ type Server struct {
 
 	mu    sync.Mutex // guards hosts
 	hosts map[string]*host
+
+	pending chan struct{} // semaphore of connections still in the challenge; nil = unlimited
+
+	cmu     sync.Mutex // guards closing and wg.Add
+	closing bool
 }
 
 // NewServer builds a hub.
 func NewServer(o Options) *Server {
 	s := &Server{o: o, log: o.Log, hosts: map[string]*host{}}
+	if o.MaxPending > 0 {
+		s.pending = make(chan struct{}, o.MaxPending)
+	}
 	if s.log == nil {
 		s.log = slog.New(slog.DiscardHandler)
 	}
@@ -70,6 +82,9 @@ func NewServer(o Options) *Server {
 
 // Close drops every connection and waits for the handlers to finish.
 func (s *Server) Close() {
+	s.cmu.Lock()
+	s.closing = true
+	s.cmu.Unlock()
 	s.cancel()
 	s.wg.Wait()
 }
@@ -89,8 +104,9 @@ func (s *Server) Stats() (hosts, devices int) {
 
 // host is one admitted host connection and its devices.
 type host struct {
-	id string
-	p  *peer
+	id   string
+	p    *peer
+	slow time.Duration // how long a frame may wait for a device's queue
 
 	mu      sync.Mutex // guards everything below
 	closed  bool
@@ -104,11 +120,12 @@ type device struct {
 	p      *peer
 	conn   uint32
 	hash   string
-	ticket []byte // ticket it was admitted with, nil if admitted by the list
+	ticket []byte      // ticket it was admitted with, nil if admitted by the list
+	gone   atomic.Bool // set under host.mu before "gone" is queued
 }
 
-func newHost(id string, p *peer, devices []string, ticket []byte) *host {
-	h := &host{id: id, p: p, ticket: ticket, conns: map[uint32]*device{}}
+func newHost(id string, p *peer, devices []string, ticket []byte, slow time.Duration) *host {
+	h := &host{id: id, p: p, slow: slow, ticket: ticket, conns: map[uint32]*device{}}
 	h.setDevices(devices)
 	return h
 }
@@ -135,7 +152,7 @@ func (h *host) allowed(hash string, ticket []byte) bool {
 
 // admit registers a device and tells both sides. It returns nil with a close
 // code when the device is refused.
-func (h *host) admit(p *peer, hash string, ticket []byte) (*device, websocket.StatusCode) {
+func (h *host) admit(p *peer, hash string, ticket []byte, maxDevices int) (*device, websocket.StatusCode) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closed {
@@ -143,6 +160,9 @@ func (h *host) admit(p *peer, hash string, ticket []byte) (*device, websocket.St
 	}
 	if !h.allowed(hash, ticket) {
 		return nil, codeNotAllowed
+	}
+	if maxDevices > 0 && len(h.conns) >= maxDevices {
+		return nil, codeLimit
 	}
 	h.last++
 	d := &device{p: p, conn: h.last, hash: hash}
@@ -162,40 +182,51 @@ func (h *host) remove(d *device) {
 	if h.conns[d.conn] != d {
 		return
 	}
+	d.gone.Store(true)
 	delete(h.conns, d.conn)
 	if !h.closed {
 		h.p.sendJSON(map[string]any{"t": "gone", "conn": d.conn})
 	}
 }
 
-// kick removes a device on the host's behalf and closes it with 4403.
-// Caller holds h.mu.
-func (h *host) kick(d *device) {
-	delete(h.conns, d.conn)
-	h.p.sendJSON(map[string]any{"t": "gone", "conn": d.conn})
-	d.p.closeWith(codeNotAllowed)
-}
-
-// route forwards a device frame to the host, unless the device was already
-// reported gone: under h.mu this keeps frames from following their "gone".
-func (h *host) route(device *device, payload []byte) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.conns[device.conn] != device {
+// cut removes a device on the relay's or the host's behalf, tells the host and
+// closes the device with code. Caller holds h.mu. Nothing here waits.
+func (h *host) cut(d *device, code websocket.StatusCode) {
+	if h.conns[d.conn] != d {
 		return
 	}
-	frame := make([]byte, 4+len(payload))
-	frame[0], frame[1], frame[2], frame[3] = byte(device.conn>>24), byte(device.conn>>16), byte(device.conn>>8), byte(device.conn)
-	copy(frame[4:], payload)
-	h.p.enqueue(websocket.MessageBinary, frame)
+	d.gone.Store(true)
+	delete(h.conns, d.conn)
+	h.p.sendJSON(map[string]any{"t": "gone", "conn": d.conn})
+	d.p.closeWith(code)
 }
 
+// route forwards a device frame to the host. It waits while the host's queue
+// is full, which stops the device's reads (backpressure) and never drops or
+// cuts. The guard keeps a frame from following its device's "gone".
+func (h *host) route(d *device, payload []byte) {
+	frame := make([]byte, 4+len(payload))
+	frame[0], frame[1], frame[2], frame[3] = byte(d.conn>>24), byte(d.conn>>16), byte(d.conn>>8), byte(d.conn)
+	copy(frame[4:], payload)
+	h.p.q.pushIf(d.p.pctx, frame, func() bool { return !d.gone.Load() })
+}
+
+// deliver forwards a host frame to one device, waiting up to the slow timeout
+// for room. A device that stays full is cut with 4408; the host carries on.
 func (h *host) deliver(conn uint32, payload []byte) {
 	h.mu.Lock()
 	d := h.conns[conn]
 	h.mu.Unlock()
-	if d != nil {
-		d.p.enqueue(websocket.MessageBinary, payload)
+	if d == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(h.p.pctx, h.slow)
+	err := d.p.q.pushIf(ctx, payload, func() bool { return !d.gone.Load() })
+	cancel()
+	if errors.Is(err, context.DeadlineExceeded) && h.p.pctx.Err() == nil {
+		h.mu.Lock()
+		h.cut(d, codeTooSlow)
+		h.mu.Unlock()
 	}
 }
 
@@ -205,7 +236,7 @@ func (h *host) updateDevices(list []string) {
 	h.setDevices(list)
 	for _, d := range h.conns {
 		if !h.allowed(d.hash, d.ticket) {
-			h.kick(d)
+			h.cut(d, codeNotAllowed)
 		}
 	}
 }
@@ -220,7 +251,7 @@ func (h *host) kickConn(conn uint32) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if d := h.conns[conn]; d != nil {
-		h.kick(d)
+		h.cut(d, codeNotAllowed)
 	}
 }
 
@@ -230,6 +261,9 @@ func (h *host) shutdown() {
 	h.closed = true
 	conns := h.conns
 	h.conns = map[uint32]*device{}
+	for _, d := range conns {
+		d.gone.Store(true)
+	}
 	h.mu.Unlock()
 	for _, d := range conns {
 		d.p.closeWith(codeHostOffline)
@@ -239,9 +273,13 @@ func (h *host) shutdown() {
 // register makes h the host for its id, replacing and closing any previous
 // one, then confirms to the host. The confirmation is queued under the lock so
 // it precedes any "open" a device can trigger.
-func (s *Server) register(h *host) {
+func (s *Server) register(h *host) bool {
 	s.mu.Lock()
 	old := s.hosts[h.id]
+	if old == nil && s.o.MaxHosts > 0 && len(s.hosts) >= s.o.MaxHosts {
+		s.mu.Unlock()
+		return false
+	}
 	s.hosts[h.id] = h
 	h.p.sendJSON(map[string]any{"t": "ok"})
 	s.mu.Unlock()
@@ -249,6 +287,7 @@ func (s *Server) register(h *host) {
 		old.p.closeWith(codeReplaced)
 		old.shutdown()
 	}
+	return true
 }
 
 // unregister drops h if it is still the registered host, then closes its devices.

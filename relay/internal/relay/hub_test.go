@@ -2,8 +2,10 @@ package relay
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -332,11 +334,11 @@ func TestHelloTimeout(t *testing.T) {
 // A frame from a device the host was already told is gone must not reach it.
 func TestRouteAfterGone(t *testing.T) {
 	noLog := func(string, websocket.StatusCode) {}
-	hp := newPeer(nil, "host", noLog)
-	h := newHost("h", hp, []string{"d"}, nil)
-	dp := newPeer(nil, "device", noLog)
+	hp := newPeer(nil, "host", noLog, 1<<20)
+	h := newHost("h", hp, []string{"d"}, nil, time.Second)
+	dp := newPeer(nil, "device", noLog, 1<<20)
 	dp.once.Do(func() {}) // no socket in this test: make closeWith a no-op
-	d, code := h.admit(dp, "d", nil)
+	d, code := h.admit(dp, "d", nil, 0)
 	if d == nil {
 		t.Fatalf("refused %d", code)
 	}
@@ -346,8 +348,8 @@ func TestRouteAfterGone(t *testing.T) {
 	h.shutdown()
 	h.route(d, []byte{3})
 	var kinds []string
-	for len(hp.q) > 0 {
-		m := <-hp.q
+	hp.q.close() // pop reports closed once drained below
+	for _, m := range hp.q.items {
 		if m.typ == websocket.MessageBinary {
 			kinds = append(kinds, "bin")
 		} else {
@@ -358,5 +360,228 @@ func TestRouteAfterGone(t *testing.T) {
 	}
 	if got := strings.Join(kinds, ","); got != "open,bin,gone" {
 		t.Fatalf("host queue: %s", got)
+	}
+}
+
+func smallOptions() Options {
+	o := DefaultOptions()
+	o.QueueBytes = 64 << 10
+	o.SlowTimeout = 300 * time.Millisecond
+	return o
+}
+
+func TestSlowDeviceCut(t *testing.T) {
+	_, url := newTestServer(t, smallOptions())
+	hpriv, _ := keyPair(t)
+	apriv, ahash := devKey(t)
+	bpriv, bhash := devKey(t)
+	h := dialHost(t, url, hpriv, []string{ahash, bhash}, nil)
+	a, err := dialDevice(t, url, h.id, apriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.nextOpen()
+	b, err := dialDevice(t, url, h.id, bpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.nextOpen()
+
+	gone := make(chan struct{})
+	go func() { // host reader: waits for gone(A)
+		for {
+			typ, data, err := h.c.Read(context.Background())
+			if err != nil {
+				return
+			}
+			var m struct {
+				T    string `json:"t"`
+				Conn uint32 `json:"conn"`
+			}
+			if typ == websocket.MessageText && json.Unmarshal(data, &m) == nil && m.T == "gone" && m.Conn == a.conn {
+				close(gone)
+				return
+			}
+		}
+	}()
+	var got atomic.Int64
+	go func() { // B reads everything
+		for {
+			if _, _, err := b.c.Read(context.Background()); err != nil {
+				return
+			}
+			got.Add(1)
+		}
+	}()
+
+	sent := 0
+	deadline := time.Now().Add(testWait)
+loop:
+	for {
+		select {
+		case <-gone:
+			break loop
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("slow device was never cut")
+		}
+		ctx := testCtx(t)
+		for _, conn := range []uint32{a.conn, b.conn} {
+			buf := append([]byte{byte(conn >> 24), byte(conn >> 16), byte(conn >> 8), byte(conn)}, make([]byte, 16<<10)...)
+			if err := h.c.Write(ctx, websocket.MessageBinary, buf); err != nil {
+				t.Fatal(err)
+			}
+		}
+		sent++
+	}
+	eventually(t, "B to receive every frame", func() bool { return got.Load() == int64(sent) })
+	if c := closeCode(t, a.c); c != 4408 {
+		t.Fatalf("slow device closed %d", c)
+	}
+}
+
+func TestDeviceBackpressure(t *testing.T) {
+	_, url := newTestServer(t, smallOptions())
+	hpriv, _ := keyPair(t)
+	dpriv, dhash := devKey(t)
+	h := dialHost(t, url, hpriv, []string{dhash}, nil)
+	_ = h // never reads again
+	d, err := dialDevice(t, url, h.id, dpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const maxFrames = 6000 // 16 KiB each: far beyond socket buffers plus the queue
+	var done atomic.Int64
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		for i := 0; i < maxFrames; i++ {
+			if err := d.c.Write(context.Background(), websocket.MessageBinary, make([]byte, 16<<10)); err != nil {
+				return
+			}
+			done.Add(1)
+		}
+	}()
+	// Blocked = the counter stays put for 200 ms while the sender is not done.
+	last, still := int64(-1), 0
+	deadline := time.Now().Add(testWait)
+	for still < 4 {
+		if time.Now().After(deadline) {
+			t.Fatalf("sender never blocked (%d frames)", done.Load())
+		}
+		select {
+		case <-finished:
+			t.Fatalf("all %d frames went through a host that reads nothing", maxFrames)
+		case <-time.After(50 * time.Millisecond):
+		}
+		if n := done.Load(); n == last && n > 0 {
+			still++
+		} else {
+			still, last = 0, n
+		}
+	}
+	d.c.CloseNow()
+	<-finished
+}
+
+func TestTooLarge(t *testing.T) {
+	o := smallOptions()
+	o.MaxMessage = 1024
+	_, url := newTestServer(t, o)
+	hpriv, _ := keyPair(t)
+	dpriv, dhash := devKey(t)
+	h := dialHost(t, url, hpriv, []string{dhash}, nil)
+	d, err := dialDevice(t, url, h.id, dpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.nextOpen()
+	d.sendBinary(make([]byte, 1024)...) // exactly the limit passes
+	if _, data := h.next(); len(data) != 1028 {
+		t.Fatalf("host got %d bytes", len(data))
+	}
+	d.sendBinary(make([]byte, 1025)...)
+	if c := closeCode(t, d.c); c != 4413 {
+		t.Fatalf("oversize device frame closed %d", c)
+	}
+	h2priv, _ := keyPair(t)
+	h2 := dialHost(t, url, h2priv, nil, nil)
+	if err := h2.c.Write(testCtx(t), websocket.MessageBinary, make([]byte, 1029)); err != nil {
+		t.Fatal(err)
+	}
+	if c := closeCode(t, h2.c); c != 4413 {
+		t.Fatalf("oversize host frame closed %d", c)
+	}
+}
+
+func TestLimits(t *testing.T) {
+	o := DefaultOptions()
+	o.MaxHosts, o.MaxDevicesPerHost = 1, 1
+	_, url := newTestServer(t, o)
+	hpriv, _ := keyPair(t)
+	h := dialHost(t, url, hpriv, nil, nil)
+	h2priv, _ := keyPair(t)
+	h2 := dialHostNoWait(t, url, h2priv, nil, nil)
+	if c := closeCode(t, h2.c); c != 4429 {
+		t.Fatalf("second host closed %d", c)
+	}
+	// The same host id reconnecting replaces, it does not count twice.
+	dialHost(t, url, hpriv, nil, nil)
+	_ = h
+	a, ahash := devKey(t)
+	b, bhash := devKey(t)
+	h3 := dialHost(t, url, hpriv, []string{ahash, bhash}, nil)
+	if _, err := dialDevice(t, url, h3.id, a, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dialDevice(t, url, h3.id, b, nil); websocket.CloseStatus(err) != 4429 {
+		t.Fatalf("second device: %v", err)
+	}
+}
+
+func TestPendingLimit(t *testing.T) {
+	o := DefaultOptions()
+	o.MaxPending = 1
+	_, url := newTestServer(t, o)
+	first := dialRaw(t, url+"/v1/host") // sits in the challenge
+	_ = first
+	_, resp, err := websocket.Dial(testCtx(t), url+"/v1/host", nil)
+	if err == nil || resp == nil || resp.StatusCode != 503 {
+		t.Fatalf("over the pending limit: %v %v", resp, err)
+	}
+	// Once the first one answers, a slot is free again.
+	priv, pub := keyPair(t)
+	first.hello("host", priv, pub, map[string]any{"devices": []string{}})
+	if _, data, err := first.c.Read(testCtx(t)); err != nil || !strings.Contains(string(data), "ok") {
+		t.Fatalf("%s %v", data, err)
+	}
+	dialHost(t, url, mustKey(t), nil, nil)
+}
+
+func mustKey(t *testing.T) [32]byte {
+	priv, _ := keyPair(t)
+	return priv
+}
+
+func TestPongTimeout(t *testing.T) {
+	o := DefaultOptions()
+	o.PingInterval, o.PongTimeout = 50*time.Millisecond, 150*time.Millisecond
+	_, url := newTestServer(t, o)
+	pr, _ := keyPair(t)
+	idle := dialHost(t, url, pr, nil, nil)
+	pr2, _ := keyPair(t)
+	live := dialHost(t, url, pr2, nil, nil)
+
+	// The live client keeps reading, which answers pings.
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	_, _, err := live.c.Read(ctx)
+	if websocket.CloseStatus(err) != -1 || ctx.Err() == nil {
+		t.Fatalf("normal client dropped: %v", err)
+	}
+	// The idle one did not read, so it never answered: now it learns why.
+	if c := closeCode(t, idle.c); c != 4408 {
+		t.Fatalf("unanswered pings closed %d", c)
 	}
 }
