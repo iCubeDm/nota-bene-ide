@@ -201,6 +201,40 @@ class WindowTab extends ChangeNotifier {
     if (_state == TabState.open) _raw(m);
   }
 
+  bool _loadingEarlier = false;
+
+  /// The next archived segment before the feed (the transcript before its compactions), as the desktop loads it.
+  Future<void> loadEarlier() async {
+    final ch = link.channel, session = feed.sessionId;
+    if (_loadingEarlier || ch == null || session == null || feed.earlier == 0) {
+      return;
+    }
+    _loadingEarlier = true;
+    try {
+      final segment = feed.earlier;
+      final r = await ch.http(
+        port,
+        'GET',
+        '/history?session=${Uri.encodeQueryComponent(session)}&before=${segment + 1}',
+      );
+      if (r.status != 200 || feed.sessionId != session) return;
+      final j = jsonDecode(utf8.decode(r.body)) as Map<String, Object?>;
+      feed.prepend(
+        [
+          for (final e in j['events'] as List)
+            ServerEvent.fromJson((e as Map).cast<String, Object?>()),
+        ],
+        segment: (j['segment'] as num).toInt(),
+        more: j['more'] == true,
+      );
+      _notify();
+    } on Object {
+      // the channel went or the page was not readable: the button stays for another try
+    } finally {
+      _loadingEarlier = false;
+    }
+  }
+
   /// Work here: from occupied, at once; from taken, on a new socket whose occupied is answered with takeover.
   void takeOver() {
     _takeoverWanted = true;

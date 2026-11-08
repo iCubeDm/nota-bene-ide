@@ -1,0 +1,69 @@
+<!doctype html>
+<!-- The app's offscreen Mermaid renderer: the desktop's own mermaid.js (copied here by `npm run mobile:assets`) draws a
+     diagram, and the SVG is painted onto a canvas and returned as a PNG. Offline: nothing is fetched. -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:">
+<script src="mermaid.min.js"></script>
+</head>
+<body>
+<script>
+let kind;
+function init(dark) {
+  if (kind === dark) return;
+  kind = dark;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: dark ? 'dark' : 'default',
+    securityLevel: 'strict',
+    // SVG text, not HTML labels: a foreignObject would taint the canvas and the PNG could not be read back
+    htmlLabels: false,
+    flowchart: { htmlLabels: false },
+    class: { htmlLabels: false },
+    state: { htmlLabels: false },
+    themeVariables: { background: 'transparent', fontFamily: 'sans-serif' },
+  });
+}
+
+function size(svg) {
+  const vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+  if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) return { w: vb[2], h: vb[3] };
+  const w = parseFloat(svg.getAttribute('width')), h = parseFloat(svg.getAttribute('height'));
+  return w > 0 && h > 0 ? { w, h } : { w: 800, h: 600 };
+}
+
+let seq = 0;
+/** Resolves to {png: data URL, w, h} or {error}. Also posts the result to the app's NB channel with `id`. */
+async function render(id, source, dark, scale) {
+  let out;
+  try {
+    init(dark);
+    const { svg } = await mermaid.render(`m${++seq}`, source);
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    const el = doc.documentElement;
+    if (el.querySelector('foreignObject')) throw new Error('this diagram uses HTML labels');
+    const { w, h } = size(el);
+    el.setAttribute('width', String(w));
+    el.setAttribute('height', String(h));
+    const img = new Image();
+    const text = new XMLSerializer().serializeToString(el);
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(text)));
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(w * scale);
+    c.height = Math.ceil(h * scale);
+    const g = c.getContext('2d');
+    g.scale(scale, scale);
+    g.drawImage(img, 0, 0, w, h);
+    out = { png: c.toDataURL('image/png'), w, h };
+  } catch (e) {
+    for (const n of document.querySelectorAll('[id^="dm"]')) n.remove(); // mermaid's error graphic
+    out = { error: String((e && e.message) || e).split('\n')[0] };
+  }
+  if (window.NB) NB.postMessage(JSON.stringify({ id, ...out }));
+  return out;
+}
+</script>
+</body>
+</html>

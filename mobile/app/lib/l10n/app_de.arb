@@ -37,5 +37,22 @@
   "daysAgo": "{n, plural, =1{vor 1 Tag} other{vor {n} Tagen}}",
   "storeUnreadable": "Der gespeicherte Schlüssel dieses Telefons ließ sich nicht lesen. Eine Neuinstallation erzeugt einen neuen Schlüssel; die Hosts müssen dann neu gekoppelt werden.",
   "chatSoon": "Der Chat kommt mit dem nächsten Build der App.",
-  "cancel": "Abbrechen"
+  "cancel": "Abbrechen",
+  "copy": "Kopieren",
+  "showEarlier": "Früheres anzeigen",
+  "working": "Arbeitet…",
+  "windowGone": "Das Fenster wurde geschlossen oder neu gestartet; warte auf seine Rückkehr",
+  "idleCompact": "Nach einer Pause verdichtet",
+  "turnDone": "Fertig in {time}",
+  "turnInterrupted": "Nach {time} gestoppt",
+  "turnFailed": "Nach {time} fehlgeschlagen {error}",
+  "markerCompacted": "Kontext verdichtet",
+  "markerCompactFailed": "Verdichtung fehlgeschlagen {error}",
+  "markerCleared": "Kontext geleert",
+  "permissionAsked": "{tool} bittet um Erlaubnis",
+  "allowed": "Erlaubt",
+  "denied": "Abgelehnt",
+  "resumed": "Sitzung {id} fortgesetzt",
+  "durationSecs": "{s} s",
+  "durationMins": "{m} Min. {s} s"
 }

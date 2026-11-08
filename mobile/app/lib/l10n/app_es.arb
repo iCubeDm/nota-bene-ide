@@ -37,5 +37,22 @@
   "daysAgo": "{n, plural, =1{hace 1 día} other{hace {n} días}}",
   "storeUnreadable": "No se pudo leer la clave guardada de este teléfono. Reinstalar la app crea una clave nueva y habrá que vincular los equipos otra vez.",
   "chatSoon": "El chat llega en la próxima versión de la app.",
-  "cancel": "Cancelar"
+  "cancel": "Cancelar",
+  "copy": "Copiar",
+  "showEarlier": "Mostrar anteriores",
+  "working": "Trabajando…",
+  "windowGone": "La ventana se cerró o se reinició; esperando a que vuelva",
+  "idleCompact": "Compactado tras un rato de inactividad",
+  "turnDone": "Hecho en {time}",
+  "turnInterrupted": "Detenido tras {time}",
+  "turnFailed": "Falló tras {time} {error}",
+  "markerCompacted": "Contexto compactado",
+  "markerCompactFailed": "La compactación falló {error}",
+  "markerCleared": "Contexto borrado",
+  "permissionAsked": "{tool} pide permiso",
+  "allowed": "Permitido",
+  "denied": "Denegado",
+  "resumed": "Sesión {id} reanudada",
+  "durationSecs": "{s} s",
+  "durationMins": "{m} min {s} s"
 }

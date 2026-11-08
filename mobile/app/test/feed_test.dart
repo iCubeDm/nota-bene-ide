@@ -182,4 +182,95 @@ void main() {
     ]);
     expect((f.title, f.model), ('Plan', 'opus'));
   });
+
+  test('an earlier page goes before the feed, once', () {
+    final f = run([
+      {
+        'kind': 'replay',
+        'earlier': 2,
+        'events': [
+          {
+            'kind': 'user',
+            'id': 'u3',
+            'text': 'now',
+            'ts': 3,
+            'historic': true,
+          },
+        ],
+      },
+    ]);
+    f.prepend(
+      [
+        ev({
+          'kind': 'user',
+          'id': 'u1',
+          'text': 'long ago',
+          'ts': 1,
+          'historic': true,
+        }),
+        ev({
+          'kind': 'permission',
+          'id': 'p0',
+          'toolName': 'Bash',
+          'input': {'command': 'x'},
+          'ts': 1,
+        }),
+        ev({
+          'kind': 'user',
+          'id': 'u3',
+          'text': 'now',
+          'ts': 3,
+          'historic': true,
+        }),
+      ],
+      segment: 2,
+      more: true,
+    );
+    expect(
+      [
+        for (final i in f.items)
+          i is UserItem ? i.id : (i as PermissionItem).id,
+      ],
+      ['u1', 'p0', 'u3'],
+    );
+    expect(
+      (f.items[1] as PermissionItem).archived,
+      isTrue,
+      reason: 'nobody waits for an archived ask',
+    );
+    expect(f.earlier, 1);
+    f.prepend(
+      [
+        ev({
+          'kind': 'user',
+          'id': 'u0',
+          'text': 'older',
+          'ts': 0,
+          'historic': true,
+        }),
+      ],
+      segment: 5,
+      more: false,
+    );
+    expect(
+      f.items.first,
+      isNot(isA<UserItem>().having((u) => u.id, 'id', 'u0')),
+      reason: 'a page newer than earlier is not ours',
+    );
+    f.prepend(
+      [
+        ev({
+          'kind': 'user',
+          'id': 'u0',
+          'text': 'older',
+          'ts': 0,
+          'historic': true,
+        }),
+      ],
+      segment: 1,
+      more: false,
+    );
+    expect((f.items.first as UserItem).id, 'u0');
+    expect(f.earlier, 0);
+  });
 }

@@ -37,5 +37,22 @@
   "daysAgo": "{n} 天前",
   "storeUnreadable": "无法读取这部手机保存的密钥。重新安装应用会生成新密钥，之后需要重新配对主机。",
   "chatSoon": "聊天将在应用的下一个版本中提供。",
-  "cancel": "取消"
+  "cancel": "取消",
+  "copy": "复制",
+  "showEarlier": "显示更早的内容",
+  "working": "正在工作…",
+  "windowGone": "窗口已关闭或正在重启，等待其恢复",
+  "idleCompact": "空闲一段时间后已压缩",
+  "turnDone": "用时 {time} 完成",
+  "turnInterrupted": "{time} 后停止",
+  "turnFailed": "{time} 后失败 {error}",
+  "markerCompacted": "上下文已压缩",
+  "markerCompactFailed": "压缩失败 {error}",
+  "markerCleared": "上下文已清除",
+  "permissionAsked": "{tool} 请求权限",
+  "allowed": "已允许",
+  "denied": "已拒绝",
+  "resumed": "已恢复会话 {id}",
+  "durationSecs": "{s} 秒",
+  "durationMins": "{m} 分 {s} 秒"
 }

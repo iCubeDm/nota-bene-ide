@@ -37,5 +37,22 @@
   "daysAgo": "{n, plural, =1{há 1 dia} other{há {n} dias}}",
   "storeUnreadable": "Não foi possível ler a chave salva deste telefone. Reinstalar o app cria uma nova chave; os hosts precisarão ser pareados de novo.",
   "chatSoon": "O chat chega na próxima versão do app.",
-  "cancel": "Cancelar"
+  "cancel": "Cancelar",
+  "copy": "Copiar",
+  "showEarlier": "Mostrar anteriores",
+  "working": "Trabalhando…",
+  "windowGone": "A janela fechou ou reiniciou; aguardando ela voltar",
+  "idleCompact": "Compactado após um período ocioso",
+  "turnDone": "Concluído em {time}",
+  "turnInterrupted": "Parado após {time}",
+  "turnFailed": "Falhou após {time} {error}",
+  "markerCompacted": "Contexto compactado",
+  "markerCompactFailed": "A compactação falhou {error}",
+  "markerCleared": "Contexto limpo",
+  "permissionAsked": "{tool} pede permissão",
+  "allowed": "Permitido",
+  "denied": "Negado",
+  "resumed": "Sessão {id} retomada",
+  "durationSecs": "{s} s",
+  "durationMins": "{m} min {s} s"
 }

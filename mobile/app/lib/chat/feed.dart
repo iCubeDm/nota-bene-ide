@@ -69,6 +69,9 @@ class PermissionItem extends FeedItem {
   /// structured choices and fields (Codex, omp); null for a plain allow / deny
   final Interaction? prompt;
   bool? answer;
+
+  /// from an earlier page of the history: nobody waits for its answer any more
+  bool archived = false;
 }
 
 class ShellItem extends FeedItem {
@@ -225,6 +228,42 @@ class Feed {
       default:
         break; // not feed items (controls, comments, stats, the one-tab rule, errors)
     }
+  }
+
+  String? _idOf(FeedItem i) => switch (i) {
+    UserItem(:final id) => 'u:$id',
+    AssistantItem(:final id) => 'a:$id',
+    ToolItem(:final id) => 't:$id',
+    PermissionItem(:final id) => 'p:$id',
+    ShellItem(:final id) => 's:$id',
+    _ => null,
+  };
+
+  /// Puts one `GET /history` page (archived segment [segment]) before the feed. An item already in the feed is not
+  /// duplicated; a page for a segment beyond [earlier] (another feed's) changes nothing.
+  void prepend(
+    List<ServerEvent> events, {
+    required int segment,
+    required bool more,
+  }) {
+    if (segment > earlier || earlier == 0) return;
+    final page = Feed();
+    for (final e in events) {
+      page.apply(e);
+    }
+    final live = {for (final i in items) ?_idOf(i)};
+    final head = [
+      for (final i in page.items)
+        if (!live.contains(_idOf(i)))
+          if (i is PermissionItem)
+            (i..archived = true)
+          else if (i is ShellItem)
+            (i..running = false)
+          else
+            i,
+    ];
+    items = [...head, ...items];
+    earlier = more ? (segment - 1 < 0 ? 0 : segment - 1) : 0;
   }
 
   void _take(Feed f) {

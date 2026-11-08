@@ -37,5 +37,22 @@
   "daysAgo": "{n, plural, one{{n} день назад} few{{n} дня назад} other{{n} дней назад}}",
   "storeUnreadable": "Не удалось прочитать сохранённый ключ телефона. Переустановка приложения создаст новый ключ, и хосты придётся сопрячь заново.",
   "chatSoon": "Чат появится в следующей сборке приложения.",
-  "cancel": "Отмена"
+  "cancel": "Отмена",
+  "copy": "Копировать",
+  "showEarlier": "Показать раньше",
+  "working": "Работает…",
+  "windowGone": "Окно закрылось или перезапускается; ждём его возвращения",
+  "idleCompact": "Сжато после паузы",
+  "turnDone": "Готово за {time}",
+  "turnInterrupted": "Остановлено через {time}",
+  "turnFailed": "Ошибка через {time} {error}",
+  "markerCompacted": "Контекст сжат",
+  "markerCompactFailed": "Сжатие не удалось {error}",
+  "markerCleared": "Контекст очищен",
+  "permissionAsked": "{tool} просит разрешения",
+  "allowed": "Разрешено",
+  "denied": "Отклонено",
+  "resumed": "Продолжена сессия {id}",
+  "durationSecs": "{s} с",
+  "durationMins": "{m} мин {s} с"
 }
