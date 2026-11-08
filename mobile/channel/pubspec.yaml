@@ -7,7 +7,10 @@ environment:
 
 dependencies:
   cryptography: ^2.9.0
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   lints: ^6.0.0
+  nb_protocol:
+    path: ../protocol
   test: ^1.25.0

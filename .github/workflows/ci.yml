@@ -53,6 +53,9 @@ jobs:
         working-directory: mobile/protocol
       - run: dart test
         working-directory: mobile/protocol
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: relay/go.mod
       - run: dart pub get
         working-directory: mobile/channel
       - run: dart analyze --fatal-infos
