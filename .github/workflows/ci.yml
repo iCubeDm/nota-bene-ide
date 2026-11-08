@@ -65,6 +65,47 @@ jobs:
       - run: dart test
         working-directory: mobile/channel
 
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: mobile/app/pubspec.yaml
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --fatal-infos
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter test
+      # a release APK signed with the author's keystore when the repository has it (a newer APK then installs over the
+      # older one); a debug APK otherwise (forks). The keystore and its password never reach the log or the artifact.
+      - name: APK
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_B64" ]; then
+            export NB_KEYSTORE_FILE="$RUNNER_TEMP/nb-release.p12"
+            printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > "$NB_KEYSTORE_FILE"
+            flutter build apk --release
+            rm -f "$NB_KEYSTORE_FILE"
+          else
+            flutter build apk --debug
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nota-bene-android
+          path: mobile/app/build/app/outputs/flutter-apk/app-*.apk
+          retention-days: 14
+
   relay:
     runs-on: ubuntu-latest
     steps:

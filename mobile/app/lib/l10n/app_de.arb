@@ -1,0 +1,10 @@
+{
+  "@@locale": "de",
+  "appTitle": "Nota Bene",
+  "lockTitle": "Nota Bene ist gesperrt",
+  "lockReason": "Entsperren, um deine Sitzungen zu öffnen",
+  "unlock": "Entsperren",
+  "lockFailed": "Nicht entsperrt. Versuche es erneut.",
+  "noScreenLock": "Dieses Telefon hat keine Displaysperre. Richte in den Android-Einstellungen eine PIN, ein Muster oder einen Fingerabdruck ein und komm zurück: Nota Bene öffnet sich nur dahinter.",
+  "retry": "Erneut versuchen"
+}

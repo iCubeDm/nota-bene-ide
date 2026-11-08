@@ -1,0 +1,10 @@
+{
+  "@@locale": "en",
+  "appTitle": "Nota Bene",
+  "lockTitle": "Nota Bene is locked",
+  "lockReason": "Unlock to reach your sessions",
+  "unlock": "Unlock",
+  "lockFailed": "Not unlocked. Try again.",
+  "noScreenLock": "This phone has no screen lock. Set a PIN, pattern or fingerprint in Android settings, then come back: Nota Bene opens only behind one.",
+  "retry": "Retry"
+}

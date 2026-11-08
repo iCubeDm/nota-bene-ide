@@ -1,0 +1,10 @@
+{
+  "@@locale": "zh",
+  "appTitle": "Nota Bene",
+  "lockTitle": "Nota Bene 已锁定",
+  "lockReason": "解锁以访问你的会话",
+  "unlock": "解锁",
+  "lockFailed": "未能解锁，请重试。",
+  "noScreenLock": "这部手机没有设置锁屏。请在 Android 设置中设置 PIN、图案或指纹后再回来：Nota Bene 只在锁屏保护下打开。",
+  "retry": "重试"
+}

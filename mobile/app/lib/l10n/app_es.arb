@@ -1,0 +1,10 @@
+{
+  "@@locale": "es",
+  "appTitle": "Nota Bene",
+  "lockTitle": "Nota Bene está bloqueada",
+  "lockReason": "Desbloquea para acceder a tus sesiones",
+  "unlock": "Desbloquear",
+  "lockFailed": "No se desbloqueó. Inténtalo de nuevo.",
+  "noScreenLock": "Este teléfono no tiene bloqueo de pantalla. Configura un PIN, patrón o huella en los ajustes de Android y vuelve: Nota Bene solo se abre protegida por uno.",
+  "retry": "Reintentar"
+}
