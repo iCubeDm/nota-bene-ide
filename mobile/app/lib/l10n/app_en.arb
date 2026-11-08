@@ -1,0 +1,76 @@
+{
+  "@@locale": "en",
+  "appTitle": "Nota Bene",
+  "lockTitle": "Nota Bene is locked",
+  "lockReason": "Unlock to reach your sessions",
+  "unlock": "Unlock",
+  "lockFailed": "Not unlocked. Try again.",
+  "noScreenLock": "This phone has no screen lock. Set a PIN, pattern or fingerprint in Android settings, then come back: Nota Bene opens only behind one.",
+  "retry": "Retry",
+  "pairTitle": "Pair a host",
+  "scanHint": "On the computer run `nota-bene remote pair` and point the camera at its QR code.",
+  "pasteCode": "Paste the code instead",
+  "pairing": "Pairing…",
+  "pairedTitle": "Paired with {host}",
+  "compareHint": "Check that these match what the computer printed.",
+  "hostFingerprint": "Host fingerprint",
+  "phoneFingerprint": "This phone's fingerprint",
+  "done": "Done",
+  "errNotACode": "That is not a Nota Bene pairing code.",
+  "errCodeUsed": "The code expired or was already used. Run `nota-bene remote pair` again.",
+  "errUnreachable": "Could not reach the relay or the host. Check the connection and that `nota-bene remote` runs.",
+  "cameraDenied": "Nota Bene may not use the camera. Allow it in Android settings, or paste the code.",
+  "cameraFailed": "The camera did not start. Paste the code instead.",
+  "@pairedTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "pairHost": "Pair a host",
+  "noHosts": "No hosts yet. Run `nota-bene remote` on your computer, then pair this phone with it.",
+  "settings": "Settings",
+  "connecting": "Connecting…",
+  "offline": "Offline",
+  "offlineSeen": "Offline · seen {ago}",
+  "unpaired": "This phone is no longer paired with this host.",
+  "forget": "Forget",
+  "untitled": "untitled",
+  "noWindows": "No open windows",
+  "justNow": "just now",
+  "minutesAgo": "{n, plural, =1{1 min ago} other{{n} min ago}}",
+  "hoursAgo": "{n, plural, =1{1 hour ago} other{{n} hours ago}}",
+  "daysAgo": "{n, plural, =1{1 day ago} other{{n} days ago}}",
+  "@offlineSeen": {
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "@minutesAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@hoursAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@daysAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "storeUnreadable": "This phone's stored key could not be read. Reinstalling the app makes a new key; the hosts then need pairing again.",
+  "chatSoon": "The chat arrives in the next build of the app.",
+  "cancel": "Cancel"
+}

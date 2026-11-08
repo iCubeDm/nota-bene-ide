@@ -1,0 +1,33 @@
+name: nb_app
+description: Nota Bene on the phone, a tab of a host's windows through the relay.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.8.0
+  flutter: 3.47.9
+
+dependencies:
+  device_info_plus: ^13.3.0
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_secure_storage: ^11.2.0
+  intl: any
+  local_auth: ^3.0.2
+  local_auth_android: ^2.3.0
+  mobile_scanner: ^7.5.0
+  nb_channel:
+    path: ../channel
+  nb_protocol:
+    path: ../protocol
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true
