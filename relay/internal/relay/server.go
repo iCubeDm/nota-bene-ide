@@ -3,8 +3,11 @@ package relay
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -22,6 +25,11 @@ type peer struct {
 	done chan struct{} // closed by closeWith
 	shut chan struct{} // closed when the close handshake attempt has ended
 	once sync.Once
+
+	// stalls counts reader stalls begun, inStall those running: while a reader
+	// is parked in backpressure the library cannot see pongs.
+	stalls  atomic.Int64
+	inStall atomic.Int32
 
 	release func() // frees the pending-handshake slot; set by serve
 
@@ -65,6 +73,14 @@ func (p *peer) drain(ctx context.Context) {
 	}
 }
 
+// stall marks the peer's reader as parked in backpressure until the returned
+// function is called.
+func (p *peer) stall() func() {
+	p.stalls.Add(1)
+	p.inStall.Add(1)
+	return func() { p.inStall.Add(-1) }
+}
+
 // keepalive pings until the peer or the handler ends; a peer that has not
 // answered within PongTimeout is closed.
 func (p *peer) keepalive(ctx context.Context, every, timeout time.Duration) {
@@ -78,13 +94,20 @@ func (p *peer) keepalive(ctx context.Context, every, timeout time.Duration) {
 		case <-ctx.Done():
 			return
 		}
+		before, parked := p.stalls.Load(), p.inStall.Load() > 0
 		pc, cancel := context.WithTimeout(ctx, timeout)
 		err := p.c.Ping(pc)
 		cancel()
 		if err != nil {
-			if ctx.Err() == nil {
-				p.closeWith(codeTooSlow)
+			if ctx.Err() != nil {
+				return
 			}
+			// A ping that overlapped a backpressure stall failed because the
+			// reader was parked, not because the peer is gone.
+			if parked || p.inStall.Load() > 0 || p.stalls.Load() != before {
+				continue
+			}
+			p.closeWith(codeTooSlow)
 			return
 		}
 	}
@@ -110,6 +133,7 @@ func (p *peer) finish() {
 	default:
 	}
 	p.c.CloseNow()
+	p.q.close() // wakes producers still waiting for room in this queue
 	p.pcancel()
 }
 
@@ -238,9 +262,9 @@ func (s *Server) readHello(ctx context.Context, p *peer, ch Challenge, role stri
 		p.closeWith(codeBadProof)
 		return
 	}
-	// The library would answer an oversize message with 1009; the limit is set
-	// above the real bound so that the loops can close with 4413 instead.
-	p.c.SetReadLimit(2*int64(s.o.MaxMessage) + 8)
+	// Messages are read through readMessage, which enforces the bound itself
+	// (and answers 4413, not the library's 1009).
+	p.c.SetReadLimit(-1)
 	return h, key, ticket, true
 }
 
@@ -270,12 +294,12 @@ func (s *Server) runHost(ctx context.Context, p *peer, _ *http.Request, ch Chall
 	defer s.unregister(hs)
 
 	for {
-		typ, data, err := p.c.Read(ctx)
-		if err != nil {
+		typ, data, err := readMessage(ctx, p.c, s.o.MaxMessage+4, 0)
+		if err == errTooBig {
+			p.closeWith(codeTooLarge)
 			return
 		}
-		if len(data) > s.o.MaxMessage+4 {
-			p.closeWith(codeTooLarge)
+		if err != nil {
 			return
 		}
 		if typ == websocket.MessageBinary {
@@ -334,16 +358,50 @@ func (s *Server) runDevice(ctx context.Context, p *peer, r *http.Request, ch Cha
 	defer hs.remove(d)
 
 	for {
-		typ, data, err := p.c.Read(ctx)
-		if err != nil {
-			return
-		}
-		if len(data) > s.o.MaxMessage {
+		typ, frame, err := readMessage(ctx, p.c, s.o.MaxMessage, 4)
+		if err == errTooBig {
 			p.closeWith(codeTooLarge)
 			return
 		}
+		if err != nil {
+			return
+		}
 		if typ == websocket.MessageBinary {
-			hs.route(d, data)
+			hs.routeFrame(d, frame)
+		}
+	}
+}
+
+var errTooBig = errors.New("message too large")
+
+// readMessage reads one message of at most max bytes into a buffer that has
+// head spare bytes in front (the result includes them). The library's own
+// limit is off, so it never buffers beyond max+1 and the caller can answer an
+// oversize message with 4413. After errTooBig the rest of the message is left
+// unread; the caller closes the connection.
+func readMessage(ctx context.Context, c *websocket.Conn, max, head int) (websocket.MessageType, []byte, error) {
+	typ, r, err := c.Reader(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	limit := head + max + 1
+	buf := make([]byte, head, head+512)
+	for {
+		if len(buf) == cap(buf) {
+			grown := make([]byte, len(buf), min(2*cap(buf), limit))
+			copy(grown, buf)
+			buf = grown
+		}
+		n, err := r.Read(buf[len(buf):cap(buf)])
+		buf = buf[:len(buf)+n]
+		if len(buf) >= limit {
+			return 0, nil, errTooBig
+		}
+		if err == io.EOF {
+			return typ, buf, nil
+		}
+		if err != nil {
+			return 0, nil, err
 		}
 	}
 }

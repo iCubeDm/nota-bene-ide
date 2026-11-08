@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -583,5 +585,218 @@ func TestPongTimeout(t *testing.T) {
 	// The idle one did not read, so it never answered: now it learns why.
 	if c := closeCode(t, idle.c); c != 4408 {
 		t.Fatalf("unanswered pings closed %d", c)
+	}
+}
+
+// A device that leaves while its queue is full must not park the host's
+// reader for the slow timeout.
+func TestDeviceLeavesWhileFull(t *testing.T) {
+	o := smallOptions()
+	o.SlowTimeout = 3 * time.Second
+	_, url := newTestServer(t, o)
+	hpriv, _ := keyPair(t)
+	apriv, ahash := devKey(t)
+	bpriv, bhash := devKey(t)
+	h := dialHost(t, url, hpriv, []string{ahash, bhash}, nil)
+	a, err := dialDevice(t, url, h.id, apriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.nextOpen()
+	b, err := dialDevice(t, url, h.id, bpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.nextOpen()
+
+	var stop atomic.Bool
+	var sent atomic.Int64
+	writerDone := make(chan struct{})
+	go func() { // fills A until the relay stops reading the host
+		defer close(writerDone)
+		buf := append([]byte{byte(a.conn >> 24), byte(a.conn >> 16), byte(a.conn >> 8), byte(a.conn)}, make([]byte, 16<<10)...)
+		for !stop.Load() {
+			if err := h.c.Write(context.Background(), websocket.MessageBinary, buf); err != nil {
+				return
+			}
+			sent.Add(1)
+		}
+	}()
+	last, still := int64(-1), 0
+	deadline := time.Now().Add(testWait)
+	for still < 4 {
+		if time.Now().After(deadline) {
+			t.Fatal("host reader never parked on the full device")
+		}
+		time.Sleep(50 * time.Millisecond)
+		if n := sent.Load(); n == last && n > 0 {
+			still++
+		} else {
+			still, last = 0, n
+		}
+	}
+	a.c.CloseNow()
+	stop.Store(true)
+	start := time.Now()
+	select {
+	case <-writerDone:
+	case <-time.After(time.Second):
+		t.Fatal("host reader stayed parked after the device left")
+	}
+	h.sendBinary(b.conn, 7)
+	if got := b.nextBinary(); len(got) != 1 || got[0] != 7 {
+		t.Fatalf("B got %v", got)
+	}
+	if time.Since(start) > o.SlowTimeout/2 {
+		t.Fatalf("B waited %v", time.Since(start))
+	}
+}
+
+// A device that drains a little at a time is as stuck as one that drains
+// nothing: it is cut once its queue has stayed full for SlowTimeout.
+func TestSteadySlowDeviceCut(t *testing.T) {
+	_, url := newTestServer(t, smallOptions())
+	hpriv, _ := keyPair(t)
+	apriv, ahash := devKey(t)
+	bpriv, bhash := devKey(t)
+	h := dialHost(t, url, hpriv, []string{ahash, bhash}, nil)
+	a, err := dialDevice(t, url, h.id, apriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.nextOpen()
+	b, err := dialDevice(t, url, h.id, bpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.nextOpen()
+
+	gone := make(chan struct{})
+	go func() {
+		for {
+			typ, data, err := h.c.Read(context.Background())
+			if err != nil {
+				return
+			}
+			var m struct {
+				T    string `json:"t"`
+				Conn uint32 `json:"conn"`
+			}
+			if typ == websocket.MessageText && json.Unmarshal(data, &m) == nil && m.T == "gone" && m.Conn == a.conn {
+				close(gone)
+				return
+			}
+		}
+	}()
+	var got atomic.Int64
+	go func() {
+		for {
+			if _, _, err := b.c.Read(context.Background()); err != nil {
+				return
+			}
+			got.Add(1)
+		}
+	}()
+	var stopA atomic.Bool
+	aDone := make(chan struct{})
+	go func() { // one 16 KiB frame per 40 ms: always behind, never idle
+		defer close(aDone)
+		for !stopA.Load() {
+			if _, _, err := a.c.Read(context.Background()); err != nil {
+				return
+			}
+			time.Sleep(40 * time.Millisecond)
+		}
+	}()
+
+	sent := 0
+	wctx := testCtx(t)
+	deadline := time.Now().Add(testWait)
+loop:
+	for {
+		select {
+		case <-gone:
+			break loop
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("steadily slow device was never cut (sent %d)", sent)
+		}
+		for _, conn := range []uint32{a.conn, b.conn} {
+			buf := append([]byte{byte(conn >> 24), byte(conn >> 16), byte(conn >> 8), byte(conn)}, make([]byte, 16<<10)...)
+			if err := h.c.Write(wctx, websocket.MessageBinary, buf); err != nil {
+				t.Fatal(err)
+			}
+		}
+		sent++
+	}
+	eventually(t, "B to receive every frame", func() bool { return got.Load() == int64(sent) })
+	stopA.Store(true)
+	<-aDone
+	if c := closeCode(t, a.c); c != 4408 {
+		t.Fatalf("slow device closed %d", c)
+	}
+}
+
+// A ping that fails while the reader is parked in backpressure is not a dead
+// peer.
+func TestKeepaliveIgnoresStall(t *testing.T) {
+	peers := make(chan *peer, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+		if err != nil {
+			return
+		}
+		p := newPeer(c, "device", func(string, websocket.StatusCode) {}, 1<<10)
+		peers <- p
+		end := p.stall()
+		p.keepalive(r.Context(), 20*time.Millisecond, 60*time.Millisecond)
+		end()
+		c.CloseNow()
+	}))
+	defer ts.Close()
+	c, _, err := websocket.Dial(testCtx(t), "ws"+strings.TrimPrefix(ts.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()
+	p := <-peers // the client never reads, so no ping is ever answered
+	select {
+	case <-p.done:
+		t.Fatal("peer closed while its reader was parked")
+	case <-time.After(400 * time.Millisecond):
+	}
+	// Once the stall ends the same silence is a real failure.
+	p.inStall.Add(-1)
+	select {
+	case <-p.done:
+	case <-time.After(testWait):
+		t.Fatal("silent peer never closed")
+	}
+}
+
+// A device whose reader is parked behind a stalled host is not closed 4408.
+func TestStalledHostDoesNotKillDevice(t *testing.T) {
+	o := smallOptions()
+	o.PingInterval, o.PongTimeout = 50*time.Millisecond, 200*time.Millisecond
+	_, url := newTestServer(t, o)
+	hpriv, _ := keyPair(t)
+	dpriv, dhash := devKey(t)
+	h := dialHost(t, url, hpriv, []string{dhash}, nil)
+	d, err := dialDevice(t, url, h.id, dpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = h // stalled: reads nothing
+	go func() {
+		for {
+			if err := d.c.Write(context.Background(), websocket.MessageBinary, make([]byte, 16<<10)); err != nil {
+				return
+			}
+		}
+	}()
+	// The device may see the host's death (4404) but never a keepalive cut.
+	if c := closeCode(t, d.c); c == 4408 {
+		t.Fatalf("device closed %d", c)
 	}
 }

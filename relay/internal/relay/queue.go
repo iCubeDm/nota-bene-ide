@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
 )
@@ -11,6 +12,7 @@ import (
 var (
 	errQueueClosed = errors.New("queue closed")
 	errSkipped     = errors.New("message dropped")
+	errSlow        = errors.New("queue stayed full")
 )
 
 // maxControl bounds the control messages (ok, open, gone) waiting in one
@@ -34,7 +36,11 @@ type queue struct {
 	bytes  int // payload bytes of data items
 	ctrl   int // control items waiting
 	closed bool
-	wake   chan struct{} // closed and replaced on every change
+	// fullSince is when a producer first had to wait; it is cleared only once
+	// the queued bytes fall below half the limit, so a consumer that drains a
+	// little at a time still counts as stuck.
+	fullSince time.Time
+	wake      chan struct{} // closed and replaced on every change
 }
 
 func newQueue(limit int) *queue {
@@ -55,6 +61,12 @@ func (q *queue) push(ctx context.Context, msg []byte) error {
 // pushIf is push with a guard evaluated under the queue lock at the moment of
 // insertion; when it returns false the message is dropped (errSkipped).
 func (q *queue) pushIf(ctx context.Context, msg []byte, guard func() bool) error {
+	return q.pushSlow(ctx, msg, guard, 0)
+}
+
+// pushSlow is pushIf that gives up with errSlow once the queue has stayed full
+// for slow (when slow > 0), whether that shows while waiting or on a later push.
+func (q *queue) pushSlow(ctx context.Context, msg []byte, guard func() bool, slow time.Duration) error {
 	for {
 		q.mu.Lock()
 		if q.closed {
@@ -65,6 +77,10 @@ func (q *queue) pushIf(ctx context.Context, msg []byte, guard func() bool) error
 			q.mu.Unlock()
 			return errSkipped
 		}
+		if slow > 0 && !q.fullSince.IsZero() && time.Since(q.fullSince) >= slow {
+			q.mu.Unlock()
+			return errSlow
+		}
 		if q.bytes == 0 || q.bytes+len(msg) <= q.limit {
 			q.items = append(q.items, qitem{typ: websocket.MessageBinary, data: msg})
 			q.bytes += len(msg)
@@ -72,12 +88,28 @@ func (q *queue) pushIf(ctx context.Context, msg []byte, guard func() bool) error
 			q.mu.Unlock()
 			return nil
 		}
+		if q.fullSince.IsZero() {
+			q.fullSince = time.Now()
+		}
 		wake := q.wake
+		var expire <-chan time.Time
+		var timer *time.Timer
+		if slow > 0 {
+			timer = time.NewTimer(time.Until(q.fullSince.Add(slow)))
+			expire = timer.C
+		}
 		q.mu.Unlock()
 		select {
 		case <-wake:
+		case <-expire:
 		case <-ctx.Done():
+			if timer != nil {
+				timer.Stop()
+			}
 			return ctx.Err()
+		}
+		if timer != nil {
+			timer.Stop()
 		}
 	}
 }
@@ -112,6 +144,9 @@ func (q *queue) popItem(ctx context.Context) (qitem, error) {
 				q.ctrl--
 			} else {
 				q.bytes -= len(it.data)
+				if q.bytes < q.limit/2 {
+					q.fullSince = time.Time{}
+				}
 			}
 			q.broadcast()
 			q.mu.Unlock()

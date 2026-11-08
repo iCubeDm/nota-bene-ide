@@ -206,13 +206,21 @@ func (h *host) cut(d *device, code websocket.StatusCode) {
 // cuts. The guard keeps a frame from following its device's "gone".
 func (h *host) route(d *device, payload []byte) {
 	frame := make([]byte, 4+len(payload))
-	frame[0], frame[1], frame[2], frame[3] = byte(d.conn>>24), byte(d.conn>>16), byte(d.conn>>8), byte(d.conn)
 	copy(frame[4:], payload)
-	h.p.q.pushIf(d.p.pctx, frame, func() bool { return !d.gone.Load() })
+	h.routeFrame(d, frame)
 }
 
-// deliver forwards a host frame to one device, waiting up to the slow timeout
-// for room. A device that stays full is cut with 4408; the host carries on.
+// routeFrame is route for a frame that already has 4 spare bytes in front of
+// the payload (the reader leaves them), so no copy is made.
+func (h *host) routeFrame(d *device, frame []byte) {
+	frame[0], frame[1], frame[2], frame[3] = byte(d.conn>>24), byte(d.conn>>16), byte(d.conn>>8), byte(d.conn)
+	end := d.p.stall() // the device's reader is parked here, not reading pongs
+	h.p.q.pushIf(d.p.pctx, frame, func() bool { return !d.gone.Load() })
+	end()
+}
+
+// deliver forwards a host frame to one device, waiting for room. A device whose
+// queue stayed full for the slow timeout is cut with 4408; the host carries on.
 func (h *host) deliver(conn uint32, payload []byte) {
 	h.mu.Lock()
 	d := h.conns[conn]
@@ -220,10 +228,10 @@ func (h *host) deliver(conn uint32, payload []byte) {
 	if d == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(h.p.pctx, h.slow)
-	err := d.p.q.pushIf(ctx, payload, func() bool { return !d.gone.Load() })
-	cancel()
-	if errors.Is(err, context.DeadlineExceeded) && h.p.pctx.Err() == nil {
+	end := h.p.stall() // the host's reader is parked here, not reading pongs
+	err := d.p.q.pushSlow(h.p.pctx, payload, func() bool { return !d.gone.Load() }, h.slow)
+	end()
+	if errors.Is(err, errSlow) {
 		h.mu.Lock()
 		h.cut(d, codeTooSlow)
 		h.mu.Unlock()

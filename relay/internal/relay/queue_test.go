@@ -86,3 +86,32 @@ func TestQueueControlBypassesLimit(t *testing.T) {
 		t.Fatal("control queue unbounded")
 	}
 }
+
+func TestQueueStaysFull(t *testing.T) {
+	q := newQueue(10)
+	ctx := testCtx(t)
+	q.push(ctx, make([]byte, 6))
+	q.push(ctx, make([]byte, 4))
+	// A consumer that frees room one message at a time never lets the queue
+	// drop below half, so the producer is eventually told it stayed full.
+	go func() {
+		for i := 0; i < 100; i++ {
+			time.Sleep(10 * time.Millisecond)
+			if _, err := q.pop(ctx); err != nil {
+				return
+			}
+			q.push(ctx, make([]byte, 6))
+		}
+	}()
+	start := time.Now()
+	var err error
+	for err == nil {
+		err = q.pushSlow(ctx, make([]byte, 4), nil, 100*time.Millisecond)
+		if time.Since(start) > 3*time.Second {
+			t.Fatal("never told the queue stayed full")
+		}
+	}
+	if err != errSlow {
+		t.Fatalf("got %v", err)
+	}
+}
