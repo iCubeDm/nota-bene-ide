@@ -129,6 +129,8 @@ it is not a listing in the public ChatGPT plugin directory.
 
 `relay/` holds `nb-relay`, a separate Go program for remote control: a stateless WebSocket hub that pairs a host (the Nota Bene server on a computer) with its devices (phones) by host id and forwards opaque frames. It stores nothing except the TLS certificate cache, and its admission checks are only a noise filter; the real authentication and confidentiality are the end-to-end handshake between host and phone. The hub is the importable Go package `relay/hub`; `relay/cmd/nb-relay` wraps it with TLS and flags. The wire contract is [relay/PROTOCOL.md](../relay/PROTOCOL.md); building, running and the container image are in [relay/README.md](../relay/README.md).
 
+The host side is `nota-bene remote` (`server/src/remote/`), one process per user and the only new code that touches window servers. It keeps one outgoing connection to the relay (`relayClient.ts`), finds the windows of all three providers in their registries and proves each with that provider's token before sending anything (`discover.ts`), and runs one end-to-end channel per phone connection (`device.ts`): Noise IK (`noise.ts`, on `node:crypto`, checked against the official vectors), then a stream mux with per-stream and per-connection credit (`mux.ts`) carrying the host's window list, WebSockets to a window's `/ws` and HTTP requests to its routes, with the window's helper bearer added on the host. Pairing, the device list and revoking are in `connector.ts`; `pair`, `devices` and `revoke` reach the running connector over a Unix socket (`control.ts`). The channel's contract, for the phone's implementation, is [server/src/remote/CHANNEL.md](../server/src/remote/CHANNEL.md).
+
 ## 3. Server
 
 ### 3.1 Modules

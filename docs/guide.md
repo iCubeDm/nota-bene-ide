@@ -426,6 +426,31 @@ Turn the check off in Settings → Defaults, for every window of that agent; `NO
 
 Every window writes what happens in it to `~/.nota-bene/audit/YYYY-MM-DD.jsonl`, one JSON line per event: the server starting and stopping, the page connecting and disconnecting, each send, stop, permission answer, mode or model change, each tool call by name, each turn's end and how it ended (done, interrupted, failed), tasks, API retries and errors. The windows share one file a day; `port` and `pid` tell them apart. It is for working out afterwards why something happened, for instance what stopped a turn. It never holds the text of messages, comments, commands, tool input or output: only names, ids, counts and times. Files are private to you, kept 14 days, at most 50 MB a day. Nothing leaves the machine. Turn it off in Settings → Defaults, for every window of that agent.
 
+## Remote access (prototype)
+
+`nota-bene remote` lets a paired phone reach this computer's windows through a relay, without anything on the computer
+accepting connections: the computer and the phone each connect out to the relay, and everything between them is
+end-to-end encrypted (the relay sees only ciphertext and which phone talks to which host). The phone app is still being
+built (issue #63); this is the computer's side.
+
+```sh
+nota-bene remote --relay wss://relay.example.com   # run the connector (the relay is saved; later just `nota-bene remote`)
+nota-bene remote pair                             # in another terminal: a QR code for the app, valid 5 minutes
+nota-bene remote devices                          # the paired phones: id, name, fingerprint, online
+nota-bene remote revoke <id>                      # unpair a phone; its connection is cut at once
+nota-bene remote status
+```
+
+- The connector runs in the foreground; it reaches every window of every agent (Claude, Codex, omp) the way the
+  launcher does, with each window's own credentials, which never leave the computer.
+- Pairing: `pair` prints the QR code and the computer's fingerprint; when the phone has scanned it, it prints the
+  phone's fingerprint. Compare both with what the app shows. A code pairs one phone; another phone presenting it is
+  refused and named in the `pair` output. A new `pair`, Ctrl-C or the 5 minutes end the code.
+- A paired phone is fully trusted: it can do in a window what a tab of that window can (and the one-tab rule applies:
+  "Work here" on the phone takes the window over).
+- Only one connector runs per user; a second one stops with "already running". If the relay says another connector
+  with the same key is connected, this one stops instead of fighting it.
+
 ## State on disk
 
 All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME` to use another folder. `npm run dev` of a source checkout uses `~/.nota-bene-dev`.
@@ -448,6 +473,7 @@ All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME`
 | `runtime/` | releases installed by the in-app update, and its state and log (see [Updates](#updates)) |
 | `audit/YYYY-MM-DD.jsonl` | the audit log of system events of every window ([Audit log](#audit-log)) |
 | `usage/` | the Usage tab: token counts of every project and short labels (the first 64 characters of a prompt, a subagent's description) |
+| `remote/` | the remote connector's host key (`host.key`), paired phones (`devices.json`), relay address (`config.json`), all mode 600, and its control socket (`control.sock`); deleting `host.key` unpairs every phone |
 
 The one exception is media marks: `<project>/.nota-bene/marks/<comment id>/frame.jpg` and `layer.png`, with a `.nota-bene/.gitignore` containing `*`. They are the only thing Nota Bene writes into a project folder.
 
