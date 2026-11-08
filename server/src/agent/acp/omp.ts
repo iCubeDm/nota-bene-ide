@@ -2,8 +2,9 @@ import { execFile } from 'node:child_process';
 import { OMP_MODES, type AgentMode, type Capabilities } from '@nota-bene/shared';
 import { array, record } from '../json.ts';
 import { acpBackend, type AcpProfile, type ApprovalForm } from './backend.ts';
+import { OMP_MIN_VERSION } from '../versions.ts';
 
-export const OMP_MIN_VERSION = '18.16.0';
+export { OMP_MIN_VERSION };
 export const OMP_CAPABILITIES: Capabilities = {
   provider: 'omp', compact: false, clear: true, fork: true, usage: true, fileSuggestions: false, idleCompact: false, models: true,
   modes: [...OMP_MODES], taskBackground: false, taskOutput: false, suggestions: false,

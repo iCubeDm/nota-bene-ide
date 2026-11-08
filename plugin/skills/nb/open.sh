@@ -233,7 +233,7 @@ if [ -z "$FIRST_RUN" ]; then
 fi
 [ -n "$FERR" ] && rm -f "$FERR"
 
-ARGS=(--detach) NOTE=""
+ARGS=(--detach --agent claude) NOTE=""   # explicit: a launcher never picks another agent for /nb
 if [ "$MODE" = last ]; then
   # the server itself resumes the folder's last session; --last only tells us which note to print
   if [ -n "$FIRST_RUN" ]; then

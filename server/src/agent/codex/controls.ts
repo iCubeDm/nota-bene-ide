@@ -3,6 +3,7 @@ import type { RpcRequest } from './rpc.ts';
 import type { ProviderStartOptions as StartOptions } from '../types.ts';
 import { array, record, string } from './map.ts';
 import { validateForm } from '../form.ts';
+import { CODEX_MIN_VERSION } from '../versions.ts';
 
 export interface CodexConnection {
   request(method: string, params?: unknown, options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<unknown>;
@@ -14,7 +15,7 @@ export interface CodexConnection {
   close(): Promise<void>;
 }
 
-export const CODEX_MIN_VERSION = '0.166.0';
+export { CODEX_MIN_VERSION };
 
 /** The version in app-server's `userAgent` (`<client>/<x.y.z> ...`) when it is below the minimum. A wording we cannot read passes: only a known old CLI is refused. */
 export function codexTooOld(userAgent: unknown): string | null {
