@@ -24,6 +24,7 @@
   "pairHost": "Parear um host",
   "noHosts": "Ainda não há hosts. Execute `nota-bene remote` no computador e pareie este telefone com ele.",
   "settings": "Configurações",
+  "theme": "Temas",
   "connecting": "Conectando…",
   "offline": "Offline",
   "offlineSeen": "Offline · visto {ago}",

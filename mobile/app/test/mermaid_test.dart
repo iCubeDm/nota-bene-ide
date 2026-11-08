@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/mermaid.dart';
 import 'package:nb_app/main.dart';
+import 'package:nb_app/store/theme_choice.dart';
+import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/theme.dart';
 
 import 'support/mermaid_fake.dart';
 
@@ -90,6 +93,28 @@ void main() {
       throwsA(isA<MermaidError>()),
     );
     expect(flaky.calls, 3);
+  });
+
+  testWidgets('a light theme draws a light diagram, and a switch redraws', (
+    t,
+  ) async {
+    final themes = await ThemeChoice.load(MemoryVault());
+    await themes.choose(NbTheme.intellijLight);
+    await t.pumpWidget(
+      NbApp(
+        themes: themes,
+        home: MermaidScope(
+          renderer: CachedMermaid(fake),
+          child: const Scaffold(body: MermaidBlock('flowchart LR\n  A --> B')),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(fake.darks, [false]);
+    await themes.choose(NbTheme.solarizedDark);
+    await t.pumpAndSettle();
+    expect(fake.darks, [false, true]);
+    expect(find.byType(Image), findsOneWidget);
   });
 }
 

@@ -24,6 +24,7 @@
   "pairHost": "Vincular un equipo",
   "noHosts": "Aún no hay equipos. Ejecuta `nota-bene remote` en tu ordenador y vincula este teléfono.",
   "settings": "Ajustes",
+  "theme": "Temas",
   "connecting": "Conectando…",
   "offline": "Sin conexión",
   "offlineSeen": "Sin conexión · visto {ago}",

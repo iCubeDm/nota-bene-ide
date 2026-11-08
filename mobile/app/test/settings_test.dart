@@ -6,7 +6,9 @@ import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/settings_screen.dart';
 import 'package:nb_app/store/hosts.dart';
+import 'package:nb_app/store/theme_choice.dart';
 import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/theme.dart';
 import 'package:nb_channel/nb_channel.dart';
 
 import 'support/fakes.dart';
@@ -34,7 +36,12 @@ void main() {
     );
     await t.pumpWidget(
       NbApp(
-        home: SettingsScreen(identity: id, hosts: hosts, onPair: () {}),
+        home: SettingsScreen(
+          identity: id,
+          hosts: hosts,
+          themes: await ThemeChoice.load(v),
+          onPair: () {},
+        ),
       ),
     );
     await t.pumpAndSettle();
@@ -50,5 +57,40 @@ void main() {
     expect(ch.isClosed, isTrue, reason: 'its connection is closed');
     expect(find.text('laptop'), findsNothing);
     links.dispose();
+  });
+
+  testWidgets('a theme picked in Settings is applied and kept', (t) async {
+    final v = MemoryVault();
+    final id = await Identity.load(v);
+    final hosts = await Hosts.load(v);
+    final themes = await ThemeChoice.load(v);
+    await t.pumpWidget(
+      NbApp(
+        themes: themes,
+        home: SettingsScreen(
+          identity: id,
+          hosts: hosts,
+          themes: themes,
+          onPair: () {},
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    for (final th in NbTheme.values) {
+      await t.scrollUntilVisible(
+        find.text(th.label),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text(th.label), findsOneWidget);
+    }
+    await t.tap(find.text('Solarized Dark'));
+    await t.pumpAndSettle();
+    expect(themes.theme, NbTheme.solarizedDark);
+    expect(
+      Theme.of(t.element(find.text('Solarized Dark'))).extension<NbColors>(),
+      NbTheme.solarizedDark.colors,
+    );
+    expect((await ThemeChoice.load(v)).theme, NbTheme.solarizedDark);
   });
 }

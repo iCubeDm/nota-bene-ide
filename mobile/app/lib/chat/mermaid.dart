@@ -201,17 +201,25 @@ class MermaidBlock extends StatefulWidget {
 
 class _MermaidBlockState extends State<MermaidBlock> {
   Future<MermaidImage>? _image;
+  bool? _dark;
 
-  void _draw() => _image = MermaidScope.of(context)?.render(
-    widget.source,
-    dark: true,
-    scale: MediaQuery.devicePixelRatioOf(context),
-  );
+  void _draw() {
+    _dark = Theme.of(context).brightness == Brightness.dark;
+    _image = MermaidScope.of(context)?.render(
+      widget.source,
+      dark: _dark!,
+      scale: MediaQuery.devicePixelRatioOf(context),
+    );
+  }
 
+  /// A switch between a dark and a light theme draws the diagram again, in mermaid's matching theme.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_image == null) _draw();
+    if (_image == null ||
+        _dark != (Theme.of(context).brightness == Brightness.dark)) {
+      _draw();
+    }
   }
 
   /// A reply still streaming grows its diagram: each new source is drawn again.

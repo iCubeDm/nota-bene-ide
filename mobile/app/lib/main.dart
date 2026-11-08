@@ -11,15 +11,20 @@ import 'pairing/pair_flow.dart';
 import 'pairing/scan_screen.dart';
 import 'settings_screen.dart';
 import 'store/hosts.dart';
+import 'store/theme_choice.dart';
 import 'store/vault.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // read before the first frame, so the app opens in the chosen theme
+  final themes = await ThemeChoice.load(SecureVault());
   // one hidden WebView for every diagram of the app, kept above the Navigator with the lock
   final mermaid = CachedMermaid(WebViewMermaid());
   runApp(
     NbApp(
-      home: const AppRoot(),
+      themes: themes,
+      home: AppRoot(themes: themes),
       lock: (nav) => LockGate(
         authenticator: DeviceAuthenticator(),
         child: MermaidScope(renderer: mermaid, child: nav),
@@ -30,7 +35,9 @@ void main() {
 
 /// Loads the phone key and the pairings, then the start screen.
 class AppRoot extends StatefulWidget {
-  const AppRoot({super.key});
+  const AppRoot({super.key, required this.themes});
+
+  final ThemeChoice themes;
 
   @override
   State<AppRoot> createState() => _AppRootState();
@@ -91,8 +98,12 @@ class _AppRootState extends State<AppRoot> {
         onPair: pair,
         onSettings: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) =>
-                SettingsScreen(identity: d.id, hosts: d.hosts, onPair: pair),
+            builder: (_) => SettingsScreen(
+              identity: d.id,
+              hosts: d.hosts,
+              themes: widget.themes,
+              onPair: pair,
+            ),
           ),
         ),
         chat: (hostId, w) {
@@ -118,17 +129,27 @@ Locale resolveLocale(List<Locale>? preferred) {
 }
 
 class NbApp extends StatelessWidget {
-  const NbApp({super.key, this.home, this.lock});
+  const NbApp({super.key, this.home, this.lock, this.themes});
 
   final Widget? home;
+
+  /// The phone's theme choice; Darcula without one (tests).
+  final ThemeChoice? themes;
 
   /// Wraps the whole Navigator (every route), when given.
   final Widget Function(Widget navigator)? lock;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
+  Widget build(BuildContext context) => themes == null
+      ? _app(NbTheme.darcula)
+      : ListenableBuilder(
+          listenable: themes!,
+          builder: (_, _) => _app(themes!.theme),
+        );
+
+  Widget _app(NbTheme theme) => MaterialApp(
     onGenerateTitle: (c) => AppLocalizations.of(c).appTitle,
-    theme: darcula(),
+    theme: theme.data,
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     localeListResolutionCallback: (preferred, _) => resolveLocale(preferred),

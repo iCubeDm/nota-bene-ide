@@ -473,6 +473,8 @@ the turn or, with *Send now*, interrupts it), *Stop*, and in the agent menu *Com
   off.
 - **One tab.** The phone is a tab of the window: if the window is open on the computer, *Work here* takes it over,
   and the computer's tab offers to take it back.
+- **Themes.** The desktop's six themes, picked in the app's Settings. The phone keeps its own choice (Darcula until
+  one is picked) for every host; code highlighting and Mermaid diagrams follow it.
 - **Not yet:** comments on messages and files, images and video, usage statistics and dictation come with the next
   parts of #63.
 

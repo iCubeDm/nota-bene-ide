@@ -1,9 +1,10 @@
-// The paired hosts (forget one here; the host side drops this phone with `nota-bene remote revoke`) and this phone's
-// fingerprint, as the host lists it.
+// The paired hosts (forget one here; the host side drops this phone with `nota-bene remote revoke`), the colour theme
+// and this phone's fingerprint, as the host lists it.
 import 'package:flutter/material.dart';
 
 import 'l10n/app_localizations.dart';
 import 'store/hosts.dart';
+import 'store/theme_choice.dart';
 import 'theme.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -11,11 +12,13 @@ class SettingsScreen extends StatelessWidget {
     super.key,
     required this.identity,
     required this.hosts,
+    required this.themes,
     required this.onPair,
   });
 
   final Identity identity;
   final Hosts hosts;
+  final ThemeChoice themes;
   final VoidCallback onPair;
 
   Future<void> _forget(BuildContext context, PairedHost h) async {
@@ -47,7 +50,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(t.settings)),
       body: ListenableBuilder(
-        listenable: hosts,
+        listenable: Listenable.merge([hosts, themes]),
         builder: (context, _) => ListView(
           children: [
             ListTile(
@@ -81,6 +84,30 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const Divider(),
+            ListTile(
+              title: Text(
+                t.theme,
+                style: TextStyle(color: c.mutedFg, fontSize: 13),
+              ),
+            ),
+            for (final th in NbTheme.values)
+              ListTile(
+                leading: CircleAvatar(
+                  radius: 10,
+                  backgroundColor: th.colors.background,
+                  child: CircleAvatar(
+                    radius: 4,
+                    backgroundColor: th.colors.primary,
+                  ),
+                ),
+                title: Text(th.label),
+                trailing: th == themes.theme
+                    ? Icon(Icons.check, color: c.primary)
+                    : null,
+                selected: th == themes.theme,
+                onTap: () => themes.choose(th),
+              ),
           ],
         ),
       ),

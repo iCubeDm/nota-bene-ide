@@ -24,6 +24,7 @@
   "pairHost": "配对主机",
   "noHosts": "还没有主机。在电脑上运行 `nota-bene remote`，然后将这部手机与之配对。",
   "settings": "设置",
+  "theme": "主题",
   "connecting": "正在连接…",
   "offline": "离线",
   "offlineSeen": "离线 · 上次在线 {ago}",

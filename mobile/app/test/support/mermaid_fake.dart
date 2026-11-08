@@ -6,6 +6,7 @@ import 'package:nb_app/chat/mermaid.dart';
 /// A 1×1 PNG for any diagram, or an error for one whose source contains `((`.
 class FakeMermaid implements MermaidRenderer {
   final calls = <String>[];
+  final darks = <bool>[];
 
   static final png = Uint8List.fromList([
     0x89,
@@ -82,6 +83,7 @@ class FakeMermaid implements MermaidRenderer {
     required double scale,
   }) async {
     calls.add(source);
+    darks.add(dark);
     if (source.contains('((')) throw MermaidError('Parse error on line 2');
     return MermaidImage(png, 100, 50);
   }
