@@ -53,6 +53,14 @@ jobs:
         working-directory: mobile/protocol
       - run: dart test
         working-directory: mobile/protocol
+      - run: dart pub get
+        working-directory: mobile/channel
+      - run: dart analyze --fatal-infos
+        working-directory: mobile/channel
+      - run: dart format --output=none --set-exit-if-changed lib test
+        working-directory: mobile/channel
+      - run: dart test
+        working-directory: mobile/channel
 
   relay:
     runs-on: ubuntu-latest
