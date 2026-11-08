@@ -23,12 +23,14 @@ Goals:
 - An Android app (Flutter) that reaches the host only through a relay; nothing listens on the host.
 - End-to-end encryption between host and phone from day one; the relay sees only ciphertext and routing ids.
 - Pairing by a QR code shown on the host.
+- Several hosts in one app (the author's decision): each host is paired, listed and revoked on its own; the
+  phone keeps one relay connection per paired host, and the session list groups sessions by host.
 - In the app: the session list, the chat, approvals and agent questions, stop the turn, compact, switch model,
   restart the agent, usage statistics, Markdown files with text comments, images and videos with markup comments,
   dictation instead of typing.
-- A relay the author deploys on a small VPS (1 vCPU, 512 MB, Ubuntu) from a script in the repository.
+- A relay the author runs on a small VPS (1 vCPU, 512 MB, Ubuntu) as a container built from `relay/Dockerfile`.
 
-Non-goals (later, mostly as #63 lists them): push notifications; iOS; Windows hosts; a short typed pairing code
+Non-goals (later, mostly as #63 lists them): push notifications; iOS; Windows hosts (#119); a short typed pairing code
 with PAKE (the QR replaces it for now); file editing, Changes, Git log, terminal and `!` commands; 3D models and
 HTML pages on the phone; a desktop client over the relay (phase 2); hosted relays for other people.
 
@@ -65,7 +67,7 @@ flowchart LR
   then the helper bearer), and keeps one outgoing WebSocket to the relay. It is the only new thing that touches
   window servers; the servers themselves change only where a feature needs it.
 - **Relay.** A Go service in `relay/` (its own Go module): one static binary, TLS by autocert (Let's Encrypt) on
-  443, run by systemd. It pairs a host stream with device streams by host id and forwards bytes. No disk writes
+  443, shipped as a container image. It pairs a host stream with device streams by host id and forwards bytes. No disk writes
   beyond the certificate cache, no content in logs, nothing queued while a side is away.
 - **App.** Flutter in `mobile/`, distributed as an APK the author installs by hand. No store, no developer account.
 
@@ -103,7 +105,7 @@ streams:
 
 The streams live inside the encrypted channel, so the relay never sees them: it sees one connection per host and
 one per phone, and its cost is connections and bytes. A Go relay on 1 vCPU and 512 MB holds thousands of idle
-connections; for this prototype (one host, one or two phones) the limit is the droplet's bandwidth.
+connections; for this prototype (two or three hosts, one or two phones) the limit is the droplet's bandwidth.
 
 The connector adds the credentials; the phone never holds a window's key or cookie. The protocol types come from
 `shared/src/protocol.ts` through a JSON Schema generated from it, and the Dart types are generated from that
@@ -126,7 +128,7 @@ part of the schema is written by hand and a test checks it against the TypeScrip
 The sketches in the brainstorm (screens A–G) are the reference. Decided with the author:
 
 - **Start screen:** the chat opened last on this device; if there is none or its host is offline, the session
-  list grouped by host (one host in the prototype, the layout ready for several).
+  list grouped by host, one group per paired host; an offline host's group shows it as offline.
 - **Navigation:** a stack from the chat. Files open over it from the cards in the feed and from the chat's menu
   (recent files of the session); back returns to the chat.
 - **Comments accumulate** above the composer and leave with the next message, as on the desktop: the same batch,
@@ -165,11 +167,11 @@ biometric or PIN check (Android BiometricPrompt), and a revoke on the host cuts 
 
 ### Deployment
 
-`relay/deploy/` holds the systemd unit and an install script for a fresh Ubuntu droplet: a system user, the binary,
-autocert's cache directory, the firewall (22, 80 for the ACME challenge, 443). The relay's name is a domain the
-author points at the droplet or, without one, an `sslip.io` name of its IP. The author creates the droplet and DNS;
-the agent logs in to it only to deploy, with the author's go-ahead each time. Its address and name stay out of
-tracked files.
+The public repository ships the relay's source, `relay/Dockerfile` and a `docker run` example; CI builds the image
+but publishes nothing. Publishing the image, the droplet's setup and its domain live outside this repository (the
+author's decision), as does anything built on top of the relay later. The relay takes an optional admission hook
+so such a service can decide which hosts it accepts without forking the relay. The agent logs in to the droplet
+only to deploy, with the author's go-ahead each time.
 
 ## Left to the builder
 
