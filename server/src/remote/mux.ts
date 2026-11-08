@@ -153,6 +153,11 @@ export class Stream extends EventEmitter {
     return this.#out.length > 0;
   }
 
+  /** DATA bytes waiting for credit */
+  get queuedBytes(): number {
+    return this.#out.reduce((n, c) => n + c.data.length, 0);
+  }
+
   /** @internal */
   pump(): void {
     if (this.#closed) return;
@@ -272,6 +277,13 @@ export class Mux {
 
   get size(): number {
     return this.#streams.size;
+  }
+
+  /** DATA bytes waiting for credit, over all streams */
+  get queuedBytes(): number {
+    let n = 0;
+    for (const s of this.#streams.values()) n += s.queuedBytes;
+    return n;
   }
 
   /** @internal */

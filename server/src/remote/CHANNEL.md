@@ -98,3 +98,44 @@ A WebSocket stream passes the window's own close code instead (for example
 4001 when another tab took the window over).
 
 Example: `DATA` on stream 1 with `FIN` carrying `hi` is `03 00000001 01 6869`.
+
+## Payloads
+
+Handshake payloads are UTF-8 JSON.
+
+- Message 1 (phone → host): `{"v":1, "name"?: <device name>, "pair"?: <pairing proof, base64url>}`.
+  `pair` is sent only while pairing (see Pairing).
+- Message 2 (host → phone): `{"v":1, "ok":true}`.
+
+The host answers message 1 only when the phone's static key is in its device
+list, or when `pair` matches the pairing in flight and the code has not been
+used yet. Otherwise it sends nothing and closes the relay connection; the
+phone sees the relay's close (4403) and shows that it is not paired.
+
+## Stream kinds
+
+The `OPEN` body names what the stream is:
+
+- `{"kind":"host"}`: the host's own stream. The host sends one message
+  `{"t":"windows","windows":[{port, provider, root, title?, session?, model?, busy?, supervised?}]}`
+  when the stream opens and again whenever the list or a field changes (it
+  checks every 5 s while the stream is open). The phone sends nothing on it.
+  The channel being up is the host's online state.
+- `{"kind":"ws","port":n,"path":"/ws?tab=<id>…"}`: a WebSocket to that
+  window, exactly as a browser tab would open it (the one-tab rule applies).
+  Every `DATA` message is one WebSocket message (`BIN` for binary). The
+  window's close code comes back in `CLOSE`; a window that went away or
+  refused the connection closes the stream with 4904, and the phone opens a
+  new one once the host stream lists the window again.
+- `{"kind":"http","port":n,"method":"GET"|"HEAD"|"POST"|"PUT"|"PATCH"|"DELETE","path":"/…","headers"?:{…}}`:
+  one request. The phone sends the body as `DATA` (any chunking) and then
+  `END`, also when there is no body. The host answers with `HEAD`
+  `{"status":n,"headers":{…}}`, the response body as `DATA`, and `END`.
+  Request headers passed on: `accept`, `content-type`, `range`, `if-none-match`,
+  `if-range`, `if-modified-since`; others are dropped (the host adds the
+  window's credentials). `set-cookie` never comes back. Refused with `CLOSE`
+  4900: a path that does not start with `/`, starts with `//`, holds
+  whitespace or `\`, or is under `/control/`. A request body may hold at most
+  32 MiB (4913 beyond).
+
+An unknown `port` closes the stream with 4904.
