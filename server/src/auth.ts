@@ -145,8 +145,8 @@ export const KEY_PROTOCOL = 'nb.';
  * the dev proxy that is the backend's, not the one dialled). Returns the launch nonce of a checked proof, else null. A bad or
  * missing proof means "not ours": the caller sends nothing. Fresh challenge per call, constant-time comparison.
  */
-export async function proveListener(o: { dial: number; bound?: number; host?: string; timeoutMs: number; fetchFn?: typeof fetch }): Promise<string | null> {
-  const token = accessToken(); // a refused secret is the user's to fix: it throws, it is never "not ours"
+export async function proveListener(o: { dial: number; bound?: number; host?: string; timeoutMs: number; fetchFn?: typeof fetch; token?: string }): Promise<string | null> {
+  const token = o.token ?? accessToken(); // a refused secret is the user's to fix: it throws, it is never "not ours"
   try {
     const c = randomBytes(16).toString('hex');
     const r = await (o.fetchFn ?? fetch)(`http://${o.host ?? '127.0.0.1'}:${o.dial}/hello?c=${c}`, { signal: AbortSignal.timeout(o.timeoutMs), redirect: 'error' });
@@ -160,9 +160,9 @@ export async function proveListener(o: { dial: number; bound?: number; host?: st
 }
 
 /** `Authorization` value for a window on `port`, or null when its listener did not prove itself (nothing is sent to it). */
-export async function verifiedBearer(port: number, timeoutMs: number, fetchFn?: typeof fetch): Promise<string | null> {
-  const n = await proveListener({ dial: port, timeoutMs, ...(fetchFn ? { fetchFn } : {}) });
-  return n === null ? null : `Bearer ${helperCredential(accessToken(), port, n)}`;
+export async function verifiedBearer(port: number, timeoutMs: number, fetchFn?: typeof fetch, token?: string): Promise<string | null> {
+  const n = await proveListener({ dial: port, timeoutMs, ...(fetchFn ? { fetchFn } : {}), ...(token ? { token } : {}) });
+  return n === null ? null : `Bearer ${helperCredential(token ?? accessToken(), port, n)}`;
 }
 
 const digest = (s: string): Buffer => createHash('sha256').update(s).digest();
