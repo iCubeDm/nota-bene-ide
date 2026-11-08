@@ -466,7 +466,8 @@ so a newer APK installs over the older one and keeps the phone's key and pairing
   works). An offline host shows when it was last seen; a host that revoked this phone says so and offers *Forget*.
   At start the app reopens the chat used last, when its host is online and still has that window.
 - **Chat.** The window's conversation as on the desktop (Markdown, highlighted code, formulas, Mermaid diagrams as
-  pictures; tap a diagram to zoom, a tool line to see its result). Send, *Stop*, and in the agent menu *Compact*,
+  pictures; tap a diagram to zoom, a tool line to see its result). Send (while the agent works, the message waits for
+the turn or, with *Send now*, interrupts it), *Stop*, and in the agent menu *Compact*,
   *Model and effort* and *Restart agent*. A tool asking for permission opens a sheet with the whole command; questions
   with choices and fields are answered in the chat. When the host is offline what arrived stays readable and sending is
   off.
