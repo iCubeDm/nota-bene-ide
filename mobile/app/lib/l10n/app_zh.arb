@@ -92,5 +92,8 @@
   "effortMinimal": "最低",
   "occupiedTitle": "此窗口已在另一个标签页中打开。",
   "takenTitle": "另一个标签页接管了此窗口。",
-  "workHere": "在这里工作"
+  "workHere": "在这里工作",
+  "pairedHosts": "已配对的主机",
+  "forgetTitle": "移除 {host}？",
+  "forgetBody": "这部手机将不再连接它。在主机上运行 `nota-bene remote revoke` 之前，主机仍会保留这部手机。"
 }

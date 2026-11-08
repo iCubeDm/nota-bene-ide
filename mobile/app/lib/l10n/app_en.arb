@@ -196,5 +196,15 @@
         "type": "String"
       }
     }
+  },
+  "pairedHosts": "Paired hosts",
+  "forgetTitle": "Forget {host}?",
+  "forgetBody": "This phone stops connecting to it. The host still lists this phone until you run `nota-bene remote revoke` there.",
+  "@forgetTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
   }
 }

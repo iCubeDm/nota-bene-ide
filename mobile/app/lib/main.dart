@@ -9,6 +9,7 @@ import 'l10n/app_localizations.dart';
 import 'lock/lock.dart';
 import 'pairing/pair_flow.dart';
 import 'pairing/scan_screen.dart';
+import 'settings_screen.dart';
 import 'store/hosts.dart';
 import 'store/vault.dart';
 import 'theme.dart';
@@ -71,20 +72,27 @@ class _AppRootState extends State<AppRoot> {
       if (d == null) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
+      void pair() => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PairScreen(
+            flow: PairFlow(
+              connectChannel,
+              d.id,
+              d.hosts,
+              pause: d.links.pauseHost,
+              resume: d.links.resumeHost,
+            ),
+          ),
+        ),
+      );
       return Home(
         hosts: d.hosts,
         links: d.links,
-        onPair: () => Navigator.of(context).push(
+        onPair: pair,
+        onSettings: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => PairScreen(
-              flow: PairFlow(
-                connectChannel,
-                d.id,
-                d.hosts,
-                pause: d.links.pauseHost,
-                resume: d.links.resumeHost,
-              ),
-            ),
+            builder: (_) =>
+                SettingsScreen(identity: d.id, hosts: d.hosts, onPair: pair),
           ),
         ),
         chat: (hostId, w) {

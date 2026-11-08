@@ -92,5 +92,8 @@
   "effortMinimal": "mínimo",
   "occupiedTitle": "Esta janela está aberta em outra aba.",
   "takenTitle": "Outra aba assumiu esta janela.",
-  "workHere": "Trabalhar aqui"
+  "workHere": "Trabalhar aqui",
+  "pairedHosts": "Hosts pareados",
+  "forgetTitle": "Esquecer {host}?",
+  "forgetBody": "Este telefone deixa de se conectar a ele. O host continua listando o telefone até você executar `nota-bene remote revoke` lá."
 }

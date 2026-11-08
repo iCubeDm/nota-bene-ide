@@ -92,5 +92,8 @@
   "effortMinimal": "mínimo",
   "occupiedTitle": "Esta ventana está abierta en otra pestaña.",
   "takenTitle": "Otra pestaña tomó el control de esta ventana.",
-  "workHere": "Trabajar aquí"
+  "workHere": "Trabajar aquí",
+  "pairedHosts": "Equipos vinculados",
+  "forgetTitle": "¿Olvidar {host}?",
+  "forgetBody": "Este teléfono dejará de conectarse. El equipo seguirá listando el teléfono hasta que ejecutes allí `nota-bene remote revoke`."
 }

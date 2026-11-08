@@ -92,5 +92,8 @@
   "effortMinimal": "minimal",
   "occupiedTitle": "Dieses Fenster ist in einem anderen Tab geöffnet.",
   "takenTitle": "Ein anderer Tab hat dieses Fenster übernommen.",
-  "workHere": "Hier arbeiten"
+  "workHere": "Hier arbeiten",
+  "pairedHosts": "Gekoppelte Hosts",
+  "forgetTitle": "{host} entfernen?",
+  "forgetBody": "Dieses Telefon verbindet sich nicht mehr damit. Der Host führt das Telefon weiter, bis du dort `nota-bene remote revoke` ausführst."
 }

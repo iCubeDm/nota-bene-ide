@@ -4,7 +4,9 @@ The phone and the host connector (`nota-bene remote`) talk through the relay
 (`relay/PROTOCOL.md`), which forwards their binary frames without reading
 them. This document is the contract for what those frames contain: the
 handshake, the pairing, the streams. The Node side lives in this folder; the
-phone's implementation must pass the same tests and worked examples.
+phone's implementation (`mobile/channel`) passes the same vectors and worked
+examples, and `mobile/channel/test/cross_test.dart` runs it against the real
+relay and connector through `crossHost.ts`.
 
 ## Handshake
 
