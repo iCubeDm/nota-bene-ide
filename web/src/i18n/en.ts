@@ -601,6 +601,7 @@ export const en: Dict = {
   sessFilter: 'Search by title or folder…',
   updateTitle: (v) => `Nota Bene ${v} is out`,
   updateYours: (v) => `You run ${v}. In a terminal install:`,
+  updateRunning: (v) => `You run ${v}.`,
   updateHow: 'With a plugin, update it in Claude Code or Codex. Then close the windows and start again.',
   updateNotes: 'Release notes',
   updateChanges: 'What’s new',

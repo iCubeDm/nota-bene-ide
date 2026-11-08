@@ -110,6 +110,7 @@ it('offers Update and the checkbox when the window can update', async () => {
   render(<UpdateNotice />);
   await userEvent.click(await button());
   expect(screen.queryByText('npm i -g nota-bene-ide@1.3.0')).toBeNull();
+  expect(screen.getByText('You run 1.2.0.')).toBeInTheDocument(); // no "In a terminal install:" without the command
   await userEvent.click(screen.getByRole('checkbox', { name: 'Update automatically' }));
   expect(posted()).toContainEqual(['/system/update/auto', { on: true }]);
   await userEvent.click(screen.getByRole('button', { name: 'Update' }));

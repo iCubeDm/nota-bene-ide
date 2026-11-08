@@ -584,6 +584,7 @@ export const es: Dict = {
   sessFilter: 'Buscar por título o carpeta…',
   updateTitle: (v) => `Ya está Nota Bene ${v}`,
   updateYours: (v) => `Usas la ${v}. Si instalaste desde la terminal:`,
+  updateRunning: (v) => `Usas la ${v}.`,
   updateHow: 'Con un plugin, actualízalo en Claude Code o Codex. Luego cierra las ventanas y vuelve a iniciar.',
   updateNotes: 'Notas de la versión',
   updateChanges: 'Novedades',

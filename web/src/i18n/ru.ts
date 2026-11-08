@@ -600,6 +600,7 @@ export const ru = {
   sessFilter: 'Поиск по названию или папке…',
   updateTitle: (v: string) => `Вышла Nota Bene ${v}`,
   updateYours: (v: string) => `У тебя ${v}. Если ставил из терминала:`,
+  updateRunning: (v: string) => `У тебя ${v}.`,
   updateHow: 'Если стоит плагин, обнови его в Claude Code или Codex. Потом закрой окна и запусти снова.',
   updateNotes: 'Что нового',
   updateChanges: 'Что нового',

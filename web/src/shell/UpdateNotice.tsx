@@ -254,7 +254,7 @@ export function UpdateNotice() {
         </PopoverTrigger>
         <PopoverContent aria-label={t('updateTitle', latest)} collisionPadding={8} className={popoverStyle}>
           <b className="text-[0.8125rem] font-semibold text-foreground">{t('updateTitle', latest)}</b>
-          <span className="text-muted-foreground">{t('updateYours', update.current)}</span>
+          <span className="text-muted-foreground">{update.canUpdate ? t('updateRunning', update.current) : t('updateYours', update.current)}</span>
           {!update.canUpdate && (
             <>
               <code className="rounded bg-muted px-2 py-1 font-mono text-[0.6875rem] text-foreground select-all">npm i -g nota-bene-ide@{latest}</code>

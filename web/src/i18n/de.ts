@@ -584,6 +584,7 @@ export const de: Dict = {
   sessFilter: 'Nach Titel oder Ordner suchen…',
   updateTitle: (v) => `Nota Bene ${v} ist da`,
   updateYours: (v) => `Du nutzt ${v}. Bei einer Installation im Terminal:`,
+  updateRunning: (v) => `Du nutzt ${v}.`,
   updateHow: 'Mit einem Plugin aktualisiere es in Claude Code oder Codex. Dann schließe die Fenster und starte neu.',
   updateNotes: 'Versionshinweise',
   updateChanges: 'Was ist neu',

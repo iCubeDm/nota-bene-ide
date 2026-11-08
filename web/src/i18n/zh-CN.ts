@@ -584,6 +584,7 @@ export const zhCN: Dict = {
   sessFilter: '按标题或文件夹搜索…',
   updateTitle: (v) => `Nota Bene ${v} 已发布`,
   updateYours: (v) => `当前版本 ${v}。在终端安装时运行：`,
+  updateRunning: (v) => `当前版本 ${v}。`,
   updateHow: '如使用插件，请在 Claude Code 或 Codex 中更新。然后关闭窗口并重新启动。',
   updateNotes: '更新说明',
   updateChanges: '更新内容',

@@ -584,6 +584,7 @@ export const ptBR: Dict = {
   sessFilter: 'Buscar por título ou pasta…',
   updateTitle: (v) => `Saiu o Nota Bene ${v}`,
   updateYours: (v) => `Você usa a ${v}. Se instalou pelo terminal:`,
+  updateRunning: (v) => `Você usa a ${v}.`,
   updateHow: 'Com um plugin, atualize-o no Claude Code ou no Codex. Depois feche as janelas e inicie de novo.',
   updateNotes: 'Notas da versão',
   updateChanges: 'Novidades',
