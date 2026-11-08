@@ -57,6 +57,7 @@ const SELF = fileURLToPath(import.meta.url);
 const MAIN = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/main.js')) ? 'server/src/main.js' : 'server/src/main.ts');
 const USAGE = 'Usage: nota-bene [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]\n'
   + '       nota-bene --find DIR [--scan] | --last DIR | --url PORT | --front PORT\n'
+  + '       nota-bene remote [pair | devices | revoke ID | status | --relay URL]   (remote access, see nota-bene remote --help)\n'
   + '       nota-bene --help | --version';
 const DEV_BACKEND_PORT = 4780; // `npm run dev`'s server (scripts/dev.mjs, web/vite.config.ts)
 const EXIT_SECRET = 3; // a secret file is refused (loose mode, foreign owner, ...): --find & co. say so instead of "not found"
@@ -799,6 +800,8 @@ async function supervise(o, autoPort, release, state) {
 }
 
 async function main(argv) {
+  // a command of its own, with its own arguments (server/src/remote/cli.ts): before the window options are parsed
+  if (argv[0] === 'remote') return (await import('../server/src/remote/cli.ts')).remoteMain(argv.slice(1));
   let o;
   try {
     o = parseArgs(argv);
