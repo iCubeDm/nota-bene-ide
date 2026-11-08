@@ -31,6 +31,7 @@
   "pairHost": "Pair a host",
   "noHosts": "No hosts yet. Run `nota-bene remote` on your computer, then pair this phone with it.",
   "settings": "Settings",
+  "theme": "Themes",
   "connecting": "Connecting…",
   "offline": "Offline",
   "offlineSeen": "Offline · seen {ago}",
@@ -71,6 +72,142 @@
     }
   },
   "storeUnreadable": "This phone's stored key could not be read. Reinstalling the app makes a new key; the hosts then need pairing again.",
-  "chatSoon": "The chat arrives in the next build of the app.",
-  "cancel": "Cancel"
+  "cancel": "Cancel",
+  "copy": "Copy",
+  "showEarlier": "Show earlier",
+  "working": "Working…",
+  "windowGone": "The window closed or restarted; waiting for it to come back",
+  "idleCompact": "Compacted after a quiet stretch",
+  "turnDone": "Done in {time}",
+  "turnInterrupted": "Stopped after {time}",
+  "turnFailed": "Failed after {time} {error}",
+  "markerCompacted": "Context compacted",
+  "markerCompactFailed": "Compaction failed {error}",
+  "markerCleared": "Context cleared",
+  "permissionAsked": "{tool} asks for permission",
+  "allowed": "Allowed",
+  "denied": "Denied",
+  "resumed": "Resumed session {id}",
+  "@turnDone": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@turnInterrupted": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@turnFailed": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "@markerCompactFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "@permissionAsked": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "@resumed": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "durationSecs": "{s} s",
+  "durationMins": "{m} min {s} s",
+  "@durationSecs": {
+    "placeholders": {
+      "s": {
+        "type": "int"
+      }
+    }
+  },
+  "@durationMins": {
+    "placeholders": {
+      "m": {
+        "type": "int"
+      },
+      "s": {
+        "type": "int"
+      }
+    }
+  },
+  "send": "Send",
+  "stop": "Stop",
+  "messageHint": "Message",
+  "cannotSend": "Sending is off while the window is not reachable",
+  "sendNowTitle": "Send now?",
+  "sendNowBody": "The agent is working. Send the message after this turn, or now and interrupt the current turn.",
+  "sendNow": "Send now",
+  "refusedBusy": "The window is busy; the message was not sent.",
+  "refusedSwitching": "The window is switching sessions; the message was not sent.",
+  "allow": "Allow",
+  "deny": "Deny",
+  "allowSession": "Allow for this session",
+  "allowTurn": "Allow for this turn",
+  "allowAlways": "Always allow",
+  "denyAlways": "Always deny",
+  "sendAnswers": "Send answers",
+  "codexPermissions": "Additional Codex permissions",
+  "mcpRequest": "MCP request",
+  "allowTool": "Allow {tool}?",
+  "answerSent": "Answer sent",
+  "askArchived": "From an earlier part of the session: no longer waiting for an answer",
+  "agentMenu": "Agent",
+  "compact": "Compact",
+  "modelAndEffort": "Model and effort",
+  "restartAgent": "Restart agent",
+  "restartAgentTitle": "Restart the agent?",
+  "restartAgentBody": "The agent process starts again in the same session; a turn in progress stops.",
+  "restart": "Restart",
+  "apply": "Apply",
+  "effortLow": "low",
+  "effortMedium": "medium",
+  "effortHigh": "high",
+  "effortXhigh": "extra high",
+  "effortMax": "max",
+  "effortNone": "none",
+  "effortMinimal": "minimal",
+  "occupiedTitle": "This window is open in another tab.",
+  "takenTitle": "Another tab took over this window.",
+  "workHere": "Work here",
+  "@allowTool": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "pairedHosts": "Paired hosts",
+  "forgetTitle": "Forget {host}?",
+  "forgetBody": "This phone stops connecting to it. The host still lists this phone until you run `nota-bene remote revoke` there.",
+  "@forgetTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "sendAfter": "Send after this turn",
+  "diagramFailed": "The diagram could not be drawn just now; reopen the chat to try again."
 }

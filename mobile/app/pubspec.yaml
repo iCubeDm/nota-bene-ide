@@ -13,15 +13,21 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  flutter_markdown_plus: ^1.0.12
+  flutter_math_fork: ^0.7.4
   flutter_secure_storage: ^11.2.0
+  highlight: ^0.7.0
   intl: any
   local_auth: ^3.0.2
   local_auth_android: ^2.3.0
+  markdown: ^7.3.1
   mobile_scanner: ^7.5.0
   nb_channel:
     path: ../channel
   nb_protocol:
     path: ../protocol
+  url_launcher: ^6.3.3
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
@@ -30,4 +36,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/mermaid/
   generate: true

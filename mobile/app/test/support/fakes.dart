@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:nb_app/pairing/pair_flow.dart';
@@ -13,7 +14,36 @@ class FakeChannel implements Channel {
   final _ctl = StreamController<List<HostWindow>>.broadcast();
   final _closed = Completer<int>();
   List<HostWindow>? _last;
-  final opened = <Map<String, Object?>>[];
+
+  /// Every frame the phone sent, decoded; the test plays the host with [host].
+  final sent = <Frame>[];
+  late final Mux mux = Mux((b) => sent.add(decodeFrame(b)));
+
+  void host(Frame f) => mux.receive(encodeFrame(f));
+
+  /// A server event on stream [id], as the window sends it.
+  void event(int id, Map<String, Object?> e) =>
+      host(Data(id, utf8.encode(jsonEncode(e)), fin: true));
+
+  /// The OPEN bodies of ws streams, newest last.
+  List<Map<String, Object?>> get wsOpens => [
+    for (final f in sent)
+      if (f is Open && (f.json as Map)['kind'] == 'ws')
+        (f.json as Map).cast<String, Object?>(),
+  ];
+
+  /// The JSON messages the phone sent on stream [id].
+  List<Map<String, Object?>> sentOn(int id) => [
+    for (final f in sent)
+      if (f is Data && f.stream == id && f.data.isNotEmpty)
+        (jsonDecode(utf8.decode(f.data)) as Map).cast<String, Object?>(),
+  ];
+
+  int get lastWsId => sent
+      .whereType<Open>()
+      .where((f) => (f.json as Map)['kind'] == 'ws')
+      .last
+      .stream;
 
   void push(List<HostWindow> l) {
     _last = l;
@@ -22,9 +52,14 @@ class FakeChannel implements Channel {
 
   /// The relay or the network went away.
   void drop([int code = 1006]) {
+    mux.closeAll(unreachable);
     if (!_closed.isCompleted) _closed.complete(code);
     _ctl.close();
   }
+
+  @override
+  MuxStream ws(int port, String path) =>
+      mux.open({'kind': 'ws', 'port': port, 'path': path});
 
   @override
   Stream<List<HostWindow>> get windows async* {

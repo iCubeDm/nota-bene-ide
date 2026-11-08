@@ -76,6 +76,17 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        working-directory: .
+      # the desktop's own mermaid, bundled for the app's diagrams, and its page checked in Chromium
+      - run: npm run mobile:assets
+        working-directory: .
+      - run: npx playwright test -c mobile/app/web_test/playwright.config.ts
+        working-directory: .
       - uses: subosito/flutter-action@v2
         with:
           channel: stable

@@ -22,7 +22,8 @@
     "dev:open": "node scripts/dev-open.mjs",
     "e2e:codex": "playwright test -c e2e/codex.config.ts",
     "e2e:omp": "playwright test -c e2e/omp.config.ts",
-    "gen:protocol": "node scripts/gen-protocol.ts"
+    "gen:protocol": "node scripts/gen-protocol.ts",
+    "mobile:assets": "node scripts/mobile-assets.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

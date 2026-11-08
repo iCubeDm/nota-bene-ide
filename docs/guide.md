@@ -430,8 +430,8 @@ Every window writes what happens in it to `~/.nota-bene/audit/YYYY-MM-DD.jsonl`,
 
 `nota-bene remote` lets a paired phone reach this computer's windows through a relay, without anything on the computer
 accepting connections: the computer and the phone each connect out to the relay, and everything between them is
-end-to-end encrypted (the relay sees only ciphertext and which phone talks to which host). The phone app is still being
-built (issue #63); this is the computer's side.
+end-to-end encrypted (the relay sees only ciphertext and which phone talks to which host). The phone side is an
+Android app (below); this is the computer's side.
 
 ```sh
 nota-bene remote --relay wss://relay.example.com   # run the connector (the relay is saved; later just `nota-bene remote`)
@@ -451,6 +451,32 @@ nota-bene remote status
 - `remote` is a command now: a project folder named `remote` opens with `nota-bene ./remote`.
 - Only one connector runs per user; a second one stops with "already running". If the relay says another connector
   with the same key is connected, this one stops instead of fighting it.
+
+### The Android app (prototype)
+
+The app is built by CI: open the CI run of the pull request or branch, download the `nota-bene-android` artifact and
+install the APK on the phone (allow installs from that source once). Builds of this repository are signed with one key,
+so a newer APK installs over the older one and keeps the phone's key and pairings; a debug build (from a fork) does not.
+
+- **Unlock.** The app opens only after the phone's own check (fingerprint, face, or the screen lock's PIN or pattern)
+  and asks again after five minutes in the background. A phone without a screen lock cannot open it.
+- **Pair.** Run `nota-bene remote pair` on the computer, tap *Pair a host* and scan the code (or copy the
+  `nbremote://` text and use *Paste the code instead*). Compare the two fingerprints with what `pair` printed.
+- **Sessions.** One group per paired host with its open windows (folder, session title, agent, model, a dot while it
+  works). An offline host shows when it was last seen; a host that revoked this phone says so and offers *Forget*.
+  At start the app reopens the chat used last, when its host is online and still has that window.
+- **Chat.** The window's conversation as on the desktop (Markdown, highlighted code, formulas, Mermaid diagrams as
+  pictures; tap a diagram to zoom, a tool line to see its result). Send (while the agent works, the message waits for
+the turn or, with *Send now*, interrupts it), *Stop*, and in the agent menu *Compact*,
+  *Model and effort* and *Restart agent*. A tool asking for permission opens a sheet with the whole command; questions
+  with choices and fields are answered in the chat. When the host is offline what arrived stays readable and sending is
+  off.
+- **One tab.** The phone is a tab of the window: if the window is open on the computer, *Work here* takes it over,
+  and the computer's tab offers to take it back.
+- **Themes.** The desktop's six themes, picked in the app's Settings. The phone keeps its own choice (Darcula until
+  one is picked) for every host; code highlighting and Mermaid diagrams follow it.
+- **Not yet:** comments on messages and files, images and video, usage statistics and dictation come with the next
+  parts of #63.
 
 ## State on disk
 
