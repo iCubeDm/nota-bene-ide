@@ -2,13 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A stateless Go relay in `relay/` that pairs one host connector with its devices by host id and forwards their encrypted bytes, plus the scripts that deploy it on a fresh Ubuntu droplet (issue #86, part of #63).
+**Goal:** A stateless Go relay in `relay/` that pairs one host connector with its devices by host id and forwards their encrypted bytes, plus a container image recipe for it (issue #86, part of #63).
 
 **Architecture:** One static binary. Hosts and devices connect over WebSocket (TLS by autocert in production, plain on loopback in tests). Each side first proves possession of its X25519 key to the relay; the host also hands the relay the hashes of its paired device keys and, while pairing, one ticket id. After admission the relay forwards binary frames: a device's frames go to its host prefixed with a connection number, the host's frames go to the device the prefix names. Nothing is stored, queued past a small bound, or logged beyond counts.
 
-**Tech Stack:** Go 1.27 (module `github.com/iCubeDm/nota-bene-ide/relay`), `github.com/coder/websocket`, `golang.org/x/crypto` (`curve25519`, `acme/autocert`), standard `testing` with `net/http/httptest`; bash and systemd for deployment.
+**Tech Stack:** Go 1.27 (module `github.com/iCubeDm/nota-bene-ide/relay`), `github.com/coder/websocket`, `golang.org/x/crypto` (`curve25519`, `acme/autocert`), standard `testing` with `net/http/httptest`; a multi-stage `Dockerfile` (distroless static, non-root).
 
 **Spec:** `docs/superpowers/specs/2026-11-07-remote-prototype-design.md` (sections Shape, Identity/pairing/channel, What goes through the channel, Deployment).
+
 
 ## Global Constraints
 
@@ -17,7 +18,8 @@
 - Per-connection buffer bound: 1 MiB of queued bytes; beyond it the relay applies backpressure, never grows the buffer.
 - The relay's gate is only a noise filter; the end-to-end handshake (#87) is the real gate. The relay never sees a pairing secret, only a ticket id derived from it.
 - Production: TLS on 443 by autocert, ACME HTTP-01 on 80; a 1 vCPU / 512 MB Ubuntu droplet, linux/amd64, `CGO_ENABLED=0`.
-- Public repository: no domain, IP, host id or key in tracked files; deploy scripts take them as arguments.
+- Public repository: no domain, IP, host id or key in tracked files. No deploy scripts, systemd units or image publishing here: the repository ships `relay/Dockerfile` and a `docker run` example; CI builds the image and pushes nothing.
+- One device key may be paired with several hosts: the relay treats each (host, device) admission independently; a phone opens one connection per host.
 - `main` rules: issue #86, squash-merged PR, CI green. The first Go code adds Go build and tests to CI.
 
 ## Wire protocol (decided here; #87 and #88 implement the other ends)
@@ -29,10 +31,11 @@ Written out in full in `relay/PROTOCOL.md` (Task 4). Summary the tasks rely on:
 - Admission, both endpoints: the relay's first message is text JSON `{"t":"challenge","eph":<b64u 32 B>,"nonce":<b64u 32 B>}` (a fresh relay X25519 key pair and nonce per connection). The client answers within 10 s with `{"t":"hello","key":<b64u own public key>,"proof":<b64u>, ...}` where `proof` = HMAC-SHA256(key = X25519(own private, eph), message = `"nb-relay-v1 host"` or `"nb-relay-v1 device"` ‖ nonce). The relay recomputes it with X25519(eph private, key) and compares in constant time.
 - Host hello adds `"devices":[deviceHash…]` (at most 32) and optionally `"ticket":<b64u 32 B>` (a pairing ticket id). The relay answers `{"t":"ok"}`. A second admitted host with the same id replaces the first (closed with 4409).
 - Device hello adds optionally `"ticket"`. Admitted when its hash is in the host's list, or its ticket equals the host's current ticket. Answer `{"t":"ok","conn":<n>}`.
+- Optional admission hook: when `Options.Admit` is set and returns false for a proven host id, the host is closed with 4403 and never registered.
 - Host → relay text, any time after `ok`: `{"t":"devices","devices":[…]}` (replaces the list; connected devices no longer in it and not admitted by the current ticket are closed with 4403), `{"t":"ticket","ticket":<b64u>|null}`, `{"t":"close","conn":n}` (closes that device with 4403).
 - Relay → host text: `{"t":"open","conn":n,"device":<deviceHash>}` when a device is admitted, `{"t":"gone","conn":n}` when it leaves.
 - Binary frames: device → relay carries the payload only; relay → host prepends the 4-byte big-endian `conn`. Host → relay carries the 4-byte `conn` then the payload; relay → device strips it. Unknown `conn`: dropped. Max message 1 MiB + 4 bytes.
-- Close codes: 4400 malformed or late hello, 4401 proof failed, 4403 device not allowed or removed, 4404 host offline (device side; also sent to every device when its host leaves), 4408 too slow (a device whose queue stayed full 10 s), 4409 replaced by a newer host connection, 4413 message too large, 4429 limit reached (hosts or devices per host).
+- Close codes: 4400 malformed or late hello, 4401 proof failed, 4403 not allowed (a device not in the list or removed; a host refused by `Admit`), 4404 host offline (device side; also sent to every device when its host leaves), 4408 too slow (a device whose queue stayed full 10 s), 4409 replaced by a newer host connection, 4413 message too large, 4429 limit reached (hosts or devices per host).
 - Keepalive: the relay pings every 30 s and closes a side that has not answered within 60 s.
 
 ## Review Focus
@@ -51,7 +54,7 @@ Written out in full in `relay/PROTOCOL.md` (Task 4). Summary the tasks rely on:
 relay/
   go.mod, go.sum
   PROTOCOL.md              the wire protocol above, for #87/#88
-  README.md                build, run locally, deploy
+  README.md                build, run locally, run the container
   cmd/nb-relay/main.go     flags, TLS/autocert or plain loopback, /healthz, logger
   internal/relay/
     auth.go                challenge, proof, ids
@@ -62,10 +65,8 @@ relay/
     queue_test.go
     server.go              http.Handler: /v1/host, /v1/device, /healthz; limits, keepalive
     testclient_test.go     test helpers: in-process host and device clients
-  deploy/
-    nb-relay.service       systemd unit
-    install.sh             runs on the droplet as root
-    deploy.sh              runs on the dev machine: build, copy, install
+  Dockerfile               multi-stage build, distroless static, non-root
+  .dockerignore
 .github/workflows/ci.yml   new job `relay`
 ```
 
@@ -87,7 +88,7 @@ relay/
 - [ ] **Step 2:** `cd relay && go test ./...` fails (no code).
 - [ ] **Step 3:** Implement `auth.go`. The HMAC message is the ASCII label `nb-relay-v1 ` + role, then the 32 nonce bytes. Compare with `hmac.Equal`. An all-zero X25519 result is a failed proof.
 - [ ] **Step 4:** `go test ./... && go vet ./...` pass; `gofmt -l .` prints nothing.
-- [ ] **Step 5:** CI job `relay` on ubuntu-latest: `actions/setup-go@v5` with `go-version-file: relay/go.mod`, then in `relay/`: `test -z "$(gofmt -l .)"`, `go vet ./...`, `go test -race ./...`, `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/nb-relay ./cmd/nb-relay` (add the build line in Task 4 when `cmd/` exists), `bash -n deploy/*.sh` (Task 5).
+- [ ] **Step 5:** CI job `relay` on ubuntu-latest: `actions/setup-go@v5` with `go-version-file: relay/go.mod`, then in `relay/`: `test -z "$(gofmt -l .)"`, `go vet ./...`, `go test -race ./...`, `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/nb-relay ./cmd/nb-relay` (add the build line in Task 4 when `cmd/` exists), `docker build relay` (Task 5).
 - [ ] **Step 6: Commit** `gh-86: relay module and the admission proof`.
 
 ### Task 2: Hub: admission, routing, close codes
@@ -98,7 +99,7 @@ relay/
 **Interfaces:**
 - Consumes: Task 1's `NewChallenge`, `Verify`, `Proof`, `HostID`, `DeviceHash`.
 - Produces:
-  - `type Options struct { MaxHosts, MaxDevicesPerHost, MaxPending int; HelloTimeout, PingInterval, PongTimeout, SlowTimeout time.Duration; QueueBytes, MaxMessage int; Log *slog.Logger }` with `func DefaultOptions() Options` = 1000, 16, 256, 10 s, 30 s, 60 s, 10 s, 1 MiB, 1 MiB.
+  - `type Options struct { MaxHosts, MaxDevicesPerHost, MaxPending int; HelloTimeout, PingInterval, PongTimeout, SlowTimeout time.Duration; QueueBytes, MaxMessage int; Admit func(hostID string) bool; Log *slog.Logger }` with `func DefaultOptions() Options` = 1000, 16, 256, 10 s, 30 s, 60 s, 10 s, 1 MiB, 1 MiB, `Admit` nil (every proven host is admitted).
   - `func NewServer(o Options) *Server`; `func (s *Server) Handler() http.Handler` (routes `/v1/host`, `/v1/device`, `/healthz`); `func (s *Server) Close()`; `func (s *Server) Stats() (hosts, devices int)`.
   - Test helpers in `testclient_test.go`: `dialHost(t, url, priv, devices []string, ticket []byte) *testHost` and `dialDevice(t, url, hostID string, priv, ticket []byte) (*testDevice, error)`, each completing the challenge; `testHost.next()` returns the next text or binary message; close codes are read with `websocket.CloseStatus`.
 
@@ -113,6 +114,8 @@ relay/
   - `TestTicketCleared`: after `{"t":"ticket","ticket":null}` a ticket-only device is refused 4403; one already admitted by the ticket stays until the next `devices` update omits it.
   - `TestHostCloseKick`: `{"t":"close","conn":n}` closes that device with 4403.
   - `TestHostReplaceClosesOldDevices`: a second host with the same key is admitted, the first is closed 4409, its devices are closed 4404, and a device admitted afterwards appears only on the second host.
+  - `TestAdmitHook`: with `Admit` returning false for one host id that host is closed 4403 and `Stats()` stays 0; another host id is admitted.
+  - `TestDeviceSeveralHosts`: one device key, listed by two different hosts, is admitted to both at once; frames on each connection reach only its own host.
   - `TestHostLeaves`: when the host disconnects every device is closed 4404 and `Stats()` returns to 0, 0.
 - [ ] **Step 2:** `go test ./...` fails.
 - [ ] **Step 3:** Implement. One goroutine reads each connection; writes go through a per-connection writer goroutine fed by the Task 3 queue (here a plain channel is fine; Task 3 swaps it). Conn numbers are per host, start at 1, never reused while the host connection lives. A host's state (`devices` set, `ticket`, `conns map[uint32]*device`) is guarded by one mutex per host; the host map by one mutex on the hub.
@@ -159,20 +162,19 @@ relay/
 - [ ] **Step 5:** `go test -race ./...`, the linux/amd64 build, and `go run ./cmd/nb-relay -listen 127.0.0.1:4795` answering `curl 127.0.0.1:4795/healthz` with `ok`.
 - [ ] **Step 6: Commit** `gh-86: nb-relay binary with autocert, and the wire protocol`.
 
-### Task 5: Deployment and docs
+### Task 5: Container image and docs
 
 **Files:**
-- Create: `relay/deploy/nb-relay.service`, `relay/deploy/install.sh`, `relay/deploy/deploy.sh`, `relay/README.md`
-- Modify: `docs/architecture.md` (one paragraph on the relay under the remote section, or a new short section), `.github/workflows/ci.yml` (`bash -n`)
+- Create: `relay/Dockerfile`, `relay/.dockerignore`, `relay/README.md`
+- Modify: `docs/architecture.md` (one paragraph on the relay under the remote section, or a new short section), `.github/workflows/ci.yml` (`docker build relay`)
 
 **Interfaces:**
-- `deploy.sh <ssh-target> <domain> [email]`: builds linux/amd64, copies the binary, the unit and `install.sh` to `/tmp/nb-relay-deploy/` on the target over `scp`, runs `sudo bash /tmp/nb-relay-deploy/install.sh <domain> [email]` over `ssh`, then checks `https://<domain>/healthz` until `ok` (60 s).
-- `install.sh <domain> [email]` (root, idempotent): system user `nbrelay` without a shell, `/usr/local/bin/nb-relay` (0755), `/var/lib/nb-relay/autocert` owned by `nbrelay` (0700), the unit to `/etc/systemd/system/nb-relay.service` with the domain and email filled into `/etc/default/nb-relay`, `ufw` allowing 22, 80, 443 and enabled, `systemctl daemon-reload && systemctl enable --now nb-relay` (restart when already running).
-- Unit: `User=nbrelay`, `EnvironmentFile=/etc/default/nb-relay`, `ExecStart=/usr/local/bin/nb-relay -domain ${NB_RELAY_DOMAIN} -email ${NB_RELAY_EMAIL}`, `AmbientCapabilities=CAP_NET_BIND_SERVICE`, `NoNewPrivileges=yes`, `ProtectSystem=strict`, `ReadWritePaths=/var/lib/nb-relay`, `ProtectHome=yes`, `PrivateTmp=yes`, `Restart=always`, `MemoryMax=200M`.
+- `Dockerfile`: build stage `golang:1.27` with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=-s -w`; final stage `gcr.io/distroless/static-debian12:nonroot` (has CA certificates for ACME), the binary at `/nb-relay`, `VOLUME /cache`, `EXPOSE 8080 8443`, `ENTRYPOINT ["/nb-relay","-cache","/cache","-https",":8443","-http",":8080"]` so a run adds only `-domain <name> [-email <addr>]`. Unprivileged ports inside, mapped to 80/443 by the run.
 
-- [ ] **Step 1:** Write the three files; `bash -n` passes on both scripts; `systemd-analyze verify` when available (CI ubuntu has it: add it to the job).
-- [ ] **Step 2:** `README.md`: what the relay is, `go test`, a local run with `-listen`, the deploy command, what the droplet needs (Ubuntu, a DNS name or `<ip>.sslip.io`, ports), and that the address stays out of the repository.
+- [ ] **Step 1:** Write the `Dockerfile` and `.dockerignore`; `docker build relay` succeeds locally when Docker is available (otherwise CI is the check), and `docker run --rm <img> -h` prints the flag list.
+- [ ] **Step 2:** `README.md`: what the relay is, `go test`, a local run with `-listen`, building the image, and a run example `docker run -d --restart=always -p 80:8080 -p 443:8443 -v nb-relay-cache:/cache <image> -domain relay.example.com`, what the machine needs (a DNS name or `<ip>.sslip.io`, ports 80/443), that the certificate cache must be a persistent volume (Let's Encrypt rate limits), and that `relay/PROTOCOL.md` is the contract.
 - [ ] **Step 3:** `docs/architecture.md`: the relay in two or three sentences, linking `relay/PROTOCOL.md`.
-- [ ] **Step 4: Commit** `gh-86: relay deployment scripts and docs`.
+- [ ] **Step 4:** CI job `relay` gains `docker build relay` (the runner has Docker); nothing is pushed.
+- [ ] **Step 5: Commit** `gh-86: relay container image and docs`.
 
-Deploying to the author's droplet is not part of the PR: it is done after the merge, with the author's go-ahead, and verified with `/healthz` and one host plus one device run from a test client against the public name.
+Deploying to the author's droplet is not part of this repository: image publishing and the droplet's setup live elsewhere, done after the merge with the author's go-ahead, and verified with `/healthz` and one host plus one device run from a test client against the public name.
