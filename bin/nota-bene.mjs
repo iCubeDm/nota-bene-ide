@@ -15,7 +15,8 @@
 // The access token (server/src/auth.ts) is never put in argv or a URL: a browser is opened on a page in the state dir (mode 600)
 // that redirects to the login URL, and the helpers send a credential derived after the listener proved it holds the token.
 //
-// One window per folder: a launch takes the folder's lock, then gives way to a window already serving it.
+// Without --agent, in an interactive terminal, a launch asks which agent when more than one is installed (server/src/agent/choice.ts);
+// anything else gets Claude. One window per folder: a launch takes the folder's lock, then gives way to a window already serving it.
 // A picked port avoids 4780 (dev) and 4790-4795 (smoke, tests) unless NOTA_BENE_PORT_RANGE is set.
 //
 // Server exit codes 75 relaunches at once with --continue (more than 10 within 60 s give up);
@@ -36,11 +37,13 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { SecretError, accessToken, isNonce, loginCredential, newNonce, proveListener, stateSecret } from '../server/src/auth.ts';
 import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } from '../server/src/runtime.ts';
 import { transcriptExists } from '../server/src/sessions.ts';
-import { lastSession, stateDir } from '../server/src/state.ts';
+import { lastSession, stateBaseDir, stateDir } from '../server/src/state.ts';
+import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgent } from '../server/src/agent/choice.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
 import {
@@ -811,6 +814,17 @@ async function main(argv) {
     process.stdout.write(`${packageVersion()}\n`);
     return 0;
   }
+  // a bare launch in a terminal asks which agent when more than one can start; anything else (a script, a skill, the detached
+  // or inner launcher this one starts) gets Claude unless --agent says otherwise, as before
+  const launching = o.find === undefined && o.last === undefined && o.url === undefined && o.front === undefined;
+  if (launching && o.agent === undefined && !INNER && process.env.NOTA_BENE_LOCKED !== '1' && process.stdin.isTTY && process.stderr.isTTY) {
+    const chosen = await chooseAgent(o.dir);
+    if (chosen === null) return 130;
+    if (chosen !== undefined) {
+      o.agent = chosen;
+      argv = [...argv, '--agent', chosen]; // a detached launcher re-reads argv
+    }
+  }
   process.env.NOTA_BENE_AGENT = o.agent ?? 'claude';
   try {
     if (o.find !== undefined) return await find(o.find, o.scan);
@@ -843,6 +857,7 @@ async function main(argv) {
     say(`refusing to open the whole ${o.dir} as a project — cd into a project first.`);
     return 1;
   }
+  rememberAgent(stateBaseDir(), o.dir, o.agent ?? 'claude');
   // the secrets, before any spawn: a refused one is reported once here, never as a crash loop of servers that die on it
   try {
     accessToken();
@@ -877,6 +892,48 @@ async function main(argv) {
     return await launch(o, argv, buildOutput, release);
   } finally {
     release();
+  }
+}
+
+/**
+ * The agent for a bare launch in a terminal: the only one that can start here, or the user's pick from a menu on stderr (Enter
+ * takes the one last used in the folder). undefined: none found, or the folder is unreadable (the launch reports it); null: the
+ * user cancelled (Ctrl+C, Ctrl+D).
+ */
+async function chooseAgent(dir) {
+  let root;
+  try {
+    root = realDir(dir ?? '.');
+  } catch {
+    return undefined;
+  }
+  const found = await detectAgents(process.env);
+  const usable = found.filter((f) => !f.tooOld).map((f) => f.agent);
+  if (usable.length < 2) return usable[0];
+  const last = lastAgent(stateBaseDir(), root);
+  const fallback = defaultChoice(usable, last);
+  process.stderr.write(menu(found, fallback, last));
+  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+  let answered = () => {};
+  const cancel = () => answered(null);
+  rl.on('SIGINT', cancel).on('close', cancel);
+  const ask = (q) => new Promise((resolve) => {
+    answered = resolve;
+    rl.question(q, resolve);
+  });
+  try {
+    for (;;) {
+      const answer = await ask(`Agent [${usable.indexOf(fallback) + 1}]: `);
+      if (answer === null) {
+        process.stderr.write('\n');
+        return null;
+      }
+      const pick = parseChoice(answer, usable, fallback);
+      if (pick) return pick;
+      say(`type 1–${usable.length}, an agent's name, or Enter for ${fallback}`);
+    }
+  } finally {
+    rl.close();
   }
 }
 

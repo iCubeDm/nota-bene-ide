@@ -250,7 +250,7 @@ describe('arguments', () => {
   it.each(['new', 'новая'])('%j starts a new session (--new)', async (arg) => {
     const r = await nb(arg);
     expect(r.code).toBe(0);
-    expect(launches()).toEqual([[project, '--detach', '--new']]);
+    expect(launches()).toEqual([[project, '--detach', '--agent', 'claude', '--new']]);
     expect(r.out).toBe(`NB: opened http://127.0.0.1:4795 for ${project}. Log: ${tmp}/nota-bene-4795.log\n`);
   });
 
@@ -258,7 +258,7 @@ describe('arguments', () => {
     async (arg) => {
       const r = await nb(arg);
       expect(r.code).toBe(0);
-      expect(launches()).toEqual([[project, '--detach', '--resume', SID, '--fork']]);
+      expect(launches()).toEqual([[project, '--detach', '--agent', 'claude', '--resume', SID, '--fork']]);
       expect(r.out).toMatch(/\(forked from this conversation\)/);
     });
 
@@ -273,7 +273,7 @@ describe('arguments', () => {
 
   it('no argument launches with the default resume; --last only words the note', async () => {
     let r = await nb('');
-    expect(launches()).toEqual([[project, '--detach']]);
+    expect(launches()).toEqual([[project, '--detach', '--agent', 'claude']]);
     expect(r.out).toBe(`NB: opened http://127.0.0.1:4795 for ${project} (new session: no earlier window session for this `
       + `folder). Log: ${tmp}/nota-bene-4795.log\n`);
 
@@ -284,14 +284,14 @@ describe('arguments', () => {
     fs.mkdirSync(path.join(claudeDir, 'projects/p'), { recursive: true });
     fs.writeFileSync(path.join(claudeDir, 'projects/p', `${id}.jsonl`), '');
     r = await nb('');
-    expect(launches()).toEqual([[project, '--detach']]); // the server resumes it itself
+    expect(launches()).toEqual([[project, '--detach', '--agent', 'claude']]); // the server resumes it itself
     expect(r.out).toBe(`NB: opened http://127.0.0.1:4795 for ${project} (resumed the last window session feedface). `
       + `Log: ${tmp}/nota-bene-4795.log\n`);
   });
 
   it('NOTA_BENE_FAKE (test only) is passed on as --fake', async () => {
     await nb('new', { env: { NOTA_BENE_FAKE: FAKE } });
-    expect(launches()).toEqual([[project, '--detach', '--new', '--fake', FAKE]]);
+    expect(launches()).toEqual([[project, '--detach', '--agent', 'claude', '--new', '--fake', FAKE]]);
   });
 
   it('the launcher\'s lines carry #t=TOKEN; what the skill prints never does (it enters the transcript and the API)', async () => {
@@ -403,7 +403,7 @@ describe('an existing window', () => {
     register(4792, project, process.pid);
     const r = await nb('');
     expect(r.out).toMatch(/^NB: opened http:\/\/127\.0\.0\.1:4795 for /);
-    expect(launches()).toEqual([[project, '--detach']]);
+    expect(launches()).toEqual([[project, '--detach', '--agent', 'claude']]);
     expect(opened()).toEqual([]); // a wrong window is never brought to front
     expect(registry()).toEqual([]); // both pruned by --find
   });
@@ -514,7 +514,7 @@ describe('--plan', () => {
   it('new: the foreground launcher with --new, the wait, the task name; nothing launched', async () => {
     const r = await plan('new');
     expect(r.code).toBe(0);
-    expect(r.out).toBe(`NB-RUN: node ${stubBin()} ${project} --new\n`
+    expect(r.out).toBe(`NB-RUN: node ${stubBin()} ${project} --agent claude --new\n`
       + `NB-WAIT: ${stubApp} --wait ${project}\n`
       + 'NB-NAME: Nota Bene · project\n');
     expect(launches()).toEqual([]);
@@ -523,7 +523,7 @@ describe('--plan', () => {
 
   it('no argument: the default resume, and --last words the note the wait prints', async () => {
     let r = await plan('');
-    expect(lines(r)['NB-RUN']).toBe(`node ${stubBin()} ${project}`);
+    expect(lines(r)['NB-RUN']).toBe(`node ${stubBin()} ${project} --agent claude`);
     expect(lines(r)['NB-WAIT']).toBe(`${stubApp} --wait ${project} `
       + "' (new session: no earlier window session for this folder)'");
     const id = 'feedface-0000-4000-8000-000000000001';
@@ -531,7 +531,7 @@ describe('--plan', () => {
     fs.mkdirSync(path.join(claudeDir, 'projects/p'), { recursive: true });
     fs.writeFileSync(path.join(claudeDir, 'projects/p', `${id}.jsonl`), '');
     r = await plan('');
-    expect(lines(r)['NB-RUN']).toBe(`node ${stubBin()} ${project}`);
+    expect(lines(r)['NB-RUN']).toBe(`node ${stubBin()} ${project} --agent claude`);
     expect(lines(r)['NB-WAIT']).toBe(`${stubApp} --wait ${project} `
       + "' (resumed the last window session feedface)'");
     expect(launches()).toEqual([]);
@@ -540,7 +540,7 @@ describe('--plan', () => {
   it('fork with a valid session id: --resume SID --fork', async () => {
     const r = await plan('форк');
     expect(r.code).toBe(0);
-    expect(lines(r)['NB-RUN']).toBe(`node ${stubBin()} ${project} --resume ${SID} --fork`);
+    expect(lines(r)['NB-RUN']).toBe(`node ${stubBin()} ${project} --agent claude --resume ${SID} --fork`);
     expect(lines(r)['NB-WAIT']).toBe(`${stubApp} --wait ${project} ` + "' (forked from this conversation)'");
   });
 
@@ -595,7 +595,7 @@ describe('--plan', () => {
       fs.rmSync(got, { force: true });
       const e = await sh(['-c', run!], { shell, cwd: tmp, env: { PATH: `${d}:${process.env.PATH}` } });
       expect(e.code, e.out).toBe(0);
-      expect(fs.readFileSync(got, 'utf8').trim().split('\n').map((l) => JSON.parse(l))).toEqual([[stubBin(), odd, '--new']]);
+      expect(fs.readFileSync(got, 'utf8').trim().split('\n').map((l) => JSON.parse(l))).toEqual([[stubBin(), odd, '--agent', 'claude', '--new']]);
     }
     // the wait finds the window of that folder
     await fakeWindow(4792, odd);
@@ -668,7 +668,7 @@ describe('the package lookup (plugin install)', () => {
 
   it('a checkout above the skill wins over the data dir (nothing installed, npm untouched)', async () => {
     const r = await sh([stubApp, '--data', data, '--plan', 'new', SID]);
-    expect(r.out).toBe(`NB-RUN: node ${path.join(tmp, 'app/bin/nota-bene.mjs')} ${project} --new\n`
+    expect(r.out).toBe(`NB-RUN: node ${path.join(tmp, 'app/bin/nota-bene.mjs')} ${project} --agent claude --new\n`
       + `NB-WAIT: ${stubApp} --wait ${project}\n`
       + 'NB-NAME: Nota Bene · project\n');
     expect(npmCalls()).toEqual([]);
@@ -688,7 +688,7 @@ describe('the package lookup (plugin install)', () => {
     const r = await plan('new');
     expect(r.code).toBe(0);
     const l = lines(r);
-    expect(l['NB-RUN']).toBe(`${esc(pkgOpen)} --data ${esc(data)} --run ${project} --new`);
+    expect(l['NB-RUN']).toBe(`${esc(pkgOpen)} --data ${esc(data)} --run ${project} --agent claude --new`);
     expect(l['NB-WAIT']).toBe(`${esc(pkgOpen)} --data ${esc(data)} --wait ${project}`);
     expect(l['NB-NAME']).toBe('Nota Bene · project');
     expect(l['NB-NOTE']).toBe(`first run: installing nota-bene-ide@${PKG_VER} (about 330 MB) in the background task; this can take a few minutes.`);
@@ -714,7 +714,7 @@ describe('the package lookup (plugin install)', () => {
     installed();
     const r = await plan('');
     const l = lines(r);
-    expect(l['NB-RUN']).toBe(`node ${esc(pkgBin())} ${project}`);
+    expect(l['NB-RUN']).toBe(`node ${esc(pkgBin())} ${project} --agent claude`);
     expect(l['NB-WAIT']).toBe(`${esc(pkgOpen)} --data ${esc(data)} --wait ${project} `
       + "' (new session: no earlier window session for this folder)'");
     expect(l['NB-NOTE']).toBeUndefined();
@@ -724,9 +724,9 @@ describe('the package lookup (plugin install)', () => {
   it('fork and its Russian aliases behave as in a checkout; a bad session id is refused', async () => {
     installed();
     for (const a of ['fork', 'форк', 'продолжить']) {
-      expect(lines(await plan(a))['NB-RUN']).toBe(`node ${esc(pkgBin())} ${project} --resume ${SID} --fork`);
+      expect(lines(await plan(a))['NB-RUN']).toBe(`node ${esc(pkgBin())} ${project} --agent claude --resume ${SID} --fork`);
     }
-    expect(lines(await plan('заново'))['NB-RUN']).toBe(`node ${esc(pkgBin())} ${project} --new`);
+    expect(lines(await plan('заново'))['NB-RUN']).toBe(`node ${esc(pkgBin())} ${project} --agent claude --new`);
     const r = await plan('fork', { sid: 'nope' });
     expect(r.out).toBe("NB: no valid session id to fork ('nope').\n");
     expect(r.code).toBe(0);
@@ -955,7 +955,7 @@ describe('the package lookup (plugin install)', () => {
     expect(run).toContain("д'\\''Артаньяна");
     expect(run).not.toContain("$'");
     const back = execFileSync('/bin/bash', ['-c', 'eval "set -- $RUN"; printf "%s\\n" "$@"'], { encoding: 'utf8', env: { RUN: run } }).trim().split('\n');
-    expect(back.slice(-2)).toEqual([odd, '--new']);
+    expect(back.slice(-4)).toEqual([odd, '--agent', 'claude', '--new']);
   });
 
   it("a control character in a folder name keeps %q's $'...' form (the only form that can carry it)", async () => {
@@ -997,6 +997,6 @@ describe('the package lookup (plugin install)', () => {
     const r = await plan('new', { cwd: odd, data: path.join(path.dirname(project), "da ta $x") });
     const run = lines(r)['NB-RUN'];
     const back = execFileSync('/bin/bash', ['-c', 'eval "set -- $RUN"; printf "%s\\n" "$@"'], { encoding: 'utf8', env: { RUN: run } }).trim().split('\n');
-    expect(back).toEqual([pkgOpen, '--data', path.join(path.dirname(project), 'da ta $x'), '--run', odd, '--new']);
+    expect(back).toEqual([pkgOpen, '--data', path.join(path.dirname(project), 'da ta $x'), '--run', odd, '--agent', 'claude', '--new']);
   });
 });

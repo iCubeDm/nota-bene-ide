@@ -47,7 +47,7 @@ npx nota-bene-ide [dir] [options]
 
 | Option | Meaning |
 |---|---|
-| `--agent claude\|codex\|omp` | Select the agent for this window (default: Claude). Sessions and state are separate per provider. |
+| `--agent claude\|codex\|omp` | Select the agent for this window. Without it, see [Which agent](#which-agent) below. Sessions and state are separate per provider. |
 | `--port N` | Listen on port N. Without it the launcher takes the first free port from 4777 to 4799, skipping 4780 and 4790 to 4795. |
 | `--resume ID` | Open the session with this id instead of the folder's last one. |
 | `--resume ID --fork` | Open that session as a new branch; the original stays as it is. `--fork` needs `--resume`. |
@@ -71,6 +71,19 @@ nota-bene --url 4800
 ```
 
 The launcher supervises the server. When you pick "Restart the server" in the window, it relaunches the server at once and the session resumes. A crash is relaunched after one second; five crashes within a minute and it gives up.
+
+### Which agent
+
+Without `--agent`, in a terminal, the launcher looks for the agents that can start: Claude Code (`claude` on `PATH` or its config folder), Codex CLI 0.166.0 or newer and omp 18.16.0 or newer (by running `--version`; `NOTA_BENE_CODEX` and `NOTA_BENE_OMP` name other executables). It never reads their login files. With one found, that one starts. With more, it asks:
+
+```text
+Which agent for this folder?
+  1) Claude Code 2.1.319
+  2) Codex 0.166.0  (last used here)
+Agent [2]:
+```
+
+Enter takes the agent last opened on the folder (else Claude); a number or a name picks another; Ctrl+C or Ctrl+D cancels. An agent below its minimum version is listed with the reason and not offered. Without a terminal (a script, `/nb`, `$nb`, `/skill:nb`) nothing is asked: Claude starts unless `--agent` says otherwise, and the skills always pass it. The folder's last agent is kept in `agent-choice.json` in the state folder.
 
 ## One window per folder, one tab per window
 
@@ -481,7 +494,7 @@ The variable is read when the server starts. If a window for the folder is alrea
 ## Codex support
 
 Select the provider at launch: `nota-bene . --agent codex --detach`. The browser
-stays bound to that vendor. Default launches still use Claude; no transcript
+stays bound to that vendor. Without `--agent`, see [Which agent](#which-agent); no transcript
 conversion or cross-provider model switch occurs. Codex state is under the normal
 Nota Bene state root's `providers/codex` directory. Secrets, settings, windows,
 comments and archives are isolated from Claude.
