@@ -65,3 +65,4 @@ jobs:
         working-directory: relay
       - run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/nb-relay ./cmd/nb-relay
         working-directory: relay
+      - run: docker build relay
