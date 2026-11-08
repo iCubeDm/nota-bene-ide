@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:cryptography/cryptography.dart' show Sha1;
 import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 import 'package:test/test.dart';
@@ -164,6 +165,67 @@ void main() {
     expect(again, isNotNull);
     expect(await again!.windows.firstWhere((l) => l.isNotEmpty), hasLength(1));
     await again.close();
+  });
+
+  test('a refused connect leaves no unhandled error behind', () async {
+    final errors = <Object>[];
+    final free = await ServerSocket.bind('127.0.0.1', 0);
+    final port = free.port;
+    await free.close();
+    await runZonedGuarded(() async {
+      await expectLater(
+        Channel.connect(
+          relay: Uri.parse('ws://127.0.0.1:$port'),
+          hostPub: hostPub,
+          key: key,
+        ),
+        throwsA(isA<ChannelError>()),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }, (e, _) => errors.add(e));
+    expect(errors, isEmpty);
+  });
+
+  test('a relay that goes silent is dropped within the ping interval', () async {
+    // a server that completes the WebSocket upgrade and then never answers anything, not even a ping
+    final srv = await ServerSocket.bind('127.0.0.1', 0);
+    srv.listen((sock) {
+      var upgraded = false;
+      sock.listen((req) async {
+        if (upgraded) return; // pings and all: never answered
+        upgraded = true;
+        final key = RegExp(
+          r'Sec-WebSocket-Key: (\S+)',
+          caseSensitive: false,
+        ).firstMatch(ascii.decode(req))![1]!;
+        final accept = base64.encode(
+          (await Sha1().hash(
+            ascii.encode('${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11'),
+          )).bytes,
+        );
+        sock.add(
+          ascii.encode(
+            'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: $accept\r\n\r\n',
+          ),
+        );
+      });
+    });
+    final t = Stopwatch()..start();
+    await expectLater(
+      Channel.connect(
+        relay: Uri.parse('ws://127.0.0.1:${srv.port}'),
+        hostPub: key.pub,
+        key: key,
+        pingInterval: const Duration(milliseconds: 300),
+      ),
+      throwsA(isA<ChannelError>()),
+    );
+    expect(
+      t.elapsed,
+      lessThan(const Duration(seconds: 5)),
+      reason: 'not the 15 s connect timeout',
+    );
+    await srv.close();
   });
 
   test('a revoked phone gets 4403', () async {

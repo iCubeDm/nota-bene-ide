@@ -160,7 +160,11 @@ class _Out {
 /// One stream of the channel.
 class MuxStream {
   MuxStream._(this._mux, this.id) {
-    _messages = StreamController<Message>(onResume: _flushGrants);
+    // before the first listener the controller counts as paused: what arrived until then is granted on listen
+    _messages = StreamController<Message>(
+      onListen: _flushGrants,
+      onResume: _flushGrants,
+    );
     _head.future.ignore();
   }
 

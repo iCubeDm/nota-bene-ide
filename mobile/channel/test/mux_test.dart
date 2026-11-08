@@ -220,4 +220,25 @@ void main() {
     );
     await sub.cancel();
   });
+
+  test(
+    'data that arrives before anyone listens is granted once they do',
+    () async {
+      final w = Wire();
+      final s = w.mux.open({'kind': 'ws'});
+      for (var i = 0; i < 3; i++) {
+        w.host(Data(s.id, Uint8List(maxChunk), fin: true));
+      }
+      await settle();
+      expect(w.of<Credit>(), isEmpty);
+      final got = <int>[];
+      s.messages.listen((m) => got.add(m.data.length));
+      await settle();
+      expect(got, [maxChunk, maxChunk, maxChunk]);
+      expect(
+        w.of<Credit>().where((c) => c.stream == s.id).single.n,
+        3 * maxChunk,
+      );
+    },
+  );
 }

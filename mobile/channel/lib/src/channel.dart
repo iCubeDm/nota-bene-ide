@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'mux.dart';
@@ -88,11 +89,19 @@ class Channel {
     Uint8List? ticket,
     Map<String, Object?> hello = const {'v': 1},
     Duration timeout = const Duration(seconds: 15),
+
+    /// A relay that answers no ping within this long is dropped: after a network change or a sleep the socket can
+    /// look alive for many minutes otherwise (the relay itself pings every 30 s).
+    Duration pingInterval = const Duration(seconds: 25),
   }) async {
     final base = relay.toString().replaceAll(RegExp(r'/+$'), '');
-    final ws = WebSocketChannel.connect(
+    final WebSocketChannel ws = IOWebSocketChannel.connect(
       Uri.parse('$base/v1/device?host=${b64u(hostPub)}'),
+      pingInterval: pingInterval,
+      connectTimeout: timeout,
     );
+    // a refused or failed connect also fails `ready`: the stream's onError reports it, this keeps it handled
+    unawaited(ws.ready.catchError((Object _) {}));
     final hs = await Handshake.initiator(s: key, rs: hostPub);
     final ready = Completer<Channel>();
     Channel? ch;
