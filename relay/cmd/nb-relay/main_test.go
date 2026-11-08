@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"encoding/base64"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -15,7 +17,7 @@ import (
 
 	"golang.org/x/crypto/curve25519"
 
-	"github.com/iCubeDm/nota-bene-ide/relay/internal/relay"
+	"github.com/iCubeDm/nota-bene-ide/relay/hub"
 )
 
 var base64URL = base64.RawURLEncoding
@@ -70,7 +72,7 @@ func TestHealthz(t *testing.T) {
 }
 
 // The expected values were computed outside Go (pure-Python X25519 checked
-// against the RFC 7748 vector, hashlib, hmac), not with relay.Proof, so a
+// against the RFC 7748 vector, hashlib, hmac), not with hub.Proof, so a
 // change of label, role string or byte order fails here. PROTOCOL.md must show
 // the same values.
 const (
@@ -110,10 +112,10 @@ func TestProtocolExample(t *testing.T) {
 	}
 	devPub, hostPub := pub(devPriv), pub(hostPriv)
 	check("device public key", base64URL.EncodeToString(devPub[:]), exDevicePub)
-	check("device hash", relay.DeviceHash(devPub), exDeviceHash)
-	check("host id", relay.HostID(hostPub), exHostID)
-	check("device proof", base64URL.EncodeToString(relay.Proof("device", devPriv, eph, nonce)), exDeviceProof)
-	check("host proof", base64URL.EncodeToString(relay.Proof("host", hostPriv, eph, nonce)), exHostProof)
+	check("device hash", hub.DeviceHash(devPub), exDeviceHash)
+	check("host id", hub.HostID(hostPub), exHostID)
+	check("device proof", base64URL.EncodeToString(hub.Proof("device", devPriv, eph, nonce)), exDeviceProof)
+	check("host proof", base64URL.EncodeToString(hub.Proof("host", hostPriv, eph, nonce)), exHostProof)
 
 	doc, err := os.ReadFile("../../PROTOCOL.md")
 	if err != nil {
@@ -179,5 +181,25 @@ func TestShutdownBoundedByStuckPeer(t *testing.T) {
 	}
 	if d := time.Since(start); d > 2*time.Second {
 		t.Fatalf("shutdown took %v", d)
+	}
+}
+
+func TestHelpExitsZero(t *testing.T) {
+	err := runCtx(context.Background(), []string{"-h"}, nil)
+	if !errors.Is(err, flag.ErrHelp) || exitCode(err) != 0 {
+		t.Fatalf("-h: %v, exit %d", err, exitCode(err))
+	}
+	if exitCode(errors.New("boom")) != 1 {
+		t.Fatal("a failure exits 0")
+	}
+}
+
+func TestFormatCloses(t *testing.T) {
+	if got := formatCloses(nil); got != "-" {
+		t.Fatalf("empty: %q", got)
+	}
+	got := formatCloses(map[hub.CloseKey]int{{Role: "host", Code: 4409}: 1, {Role: "device", Code: 4408}: 2})
+	if got != "device/4408=2 host/4409=1" {
+		t.Fatalf("got %q", got)
 	}
 }

@@ -1,4 +1,4 @@
-package relay
+package hub
 
 import (
 	"context"
@@ -27,14 +27,21 @@ const (
 const maxListed = 32
 
 // Options configure a Server. A limit of zero or less means unlimited for the
-// counts; the timeouts and byte bounds must be set (see DefaultOptions).
+// counts and for TotalBytes; a PingInterval of zero or less disables
+// keepalive; the other timeouts and byte bounds must be set (see
+// DefaultOptions).
 type Options struct {
 	MaxHosts, MaxDevicesPerHost, MaxPending int
 	HelloTimeout, PingInterval              time.Duration
 	PongTimeout, SlowTimeout                time.Duration
 	QueueBytes, MaxMessage                  int
-	// Admit, when set, is asked about every proven host id; false refuses it.
-	Admit func(hostID string) bool
+	// TotalBytes bounds the data held for delivery across the whole hub
+	// (parked, queued and in flight). Over it, pushes wait and new
+	// connections are refused with 4429.
+	TotalBytes int
+	// Admit, when set, is asked about every proven host id; false refuses it
+	// with 4403. ctx ends at the hello deadline or at server shutdown.
+	Admit func(ctx context.Context, hostID string) bool
 	// Log receives counts and close codes only. Nil discards.
 	Log *slog.Logger
 }
@@ -45,7 +52,7 @@ func DefaultOptions() Options {
 		MaxHosts: 1000, MaxDevicesPerHost: 16, MaxPending: 256,
 		HelloTimeout: 10 * time.Second, PingInterval: 30 * time.Second,
 		PongTimeout: 60 * time.Second, SlowTimeout: 10 * time.Second,
-		QueueBytes: 1 << 20, MaxMessage: 1 << 20,
+		QueueBytes: 1 << 20, MaxMessage: 1 << 20, TotalBytes: 256 << 20,
 	}
 }
 
@@ -62,6 +69,10 @@ type Server struct {
 	hosts map[string]*host
 
 	pending chan struct{} // semaphore of connections still in the challenge; nil = unlimited
+	budget  *budget       // hub-wide data bytes; nil = unlimited
+
+	lmu    sync.Mutex // guards closes
+	closes map[CloseKey]int
 
 	cmu     sync.Mutex // guards closing and wg.Add
 	closing bool
@@ -69,7 +80,7 @@ type Server struct {
 
 // NewServer builds a hub.
 func NewServer(o Options) *Server {
-	s := &Server{o: o, log: o.Log, hosts: map[string]*host{}}
+	s := &Server{o: o, log: o.Log, hosts: map[string]*host{}, budget: newBudget(o.TotalBytes), closes: map[CloseKey]int{}}
 	if o.MaxPending > 0 {
 		s.pending = make(chan struct{}, o.MaxPending)
 	}
@@ -100,6 +111,22 @@ func (s *Server) Stats() (hosts, devices int) {
 		h.mu.Unlock()
 	}
 	return hosts, devices
+}
+
+// CloseKey names a kind of close the relay initiated.
+type CloseKey struct {
+	Role string // "host" or "device"
+	Code int
+}
+
+// TakeCloses returns how many connections the relay closed, by role and code,
+// since the previous call, and resets the counts.
+func (s *Server) TakeCloses() map[CloseKey]int {
+	s.lmu.Lock()
+	defer s.lmu.Unlock()
+	c := s.closes
+	s.closes = map[CloseKey]int{}
+	return c
 }
 
 // host is one admitted host connection and its devices.
@@ -161,6 +188,14 @@ func (h *host) admit(p *peer, hash string, ticket []byte, maxDevices int) (*devi
 	if !h.allowed(hash, ticket) {
 		return nil, codeNotAllowed
 	}
+	// A newer connection of the same device replaces the older one, so a
+	// reconnect never waits for keepalive to clear its predecessor.
+	for _, old := range h.conns {
+		if old.hash == hash {
+			h.cut(old, codeReplaced)
+			break
+		}
+	}
 	if maxDevices > 0 && len(h.conns) >= maxDevices {
 		return nil, codeLimit
 	}
@@ -214,9 +249,8 @@ func (h *host) route(d *device, payload []byte) {
 // the payload (the reader leaves them), so no copy is made.
 func (h *host) routeFrame(d *device, frame []byte) {
 	frame[0], frame[1], frame[2], frame[3] = byte(d.conn>>24), byte(d.conn>>16), byte(d.conn>>8), byte(d.conn)
-	end := d.p.stall() // the device's reader is parked here, not reading pongs
-	h.p.q.pushIf(d.p.pctx, frame, func() bool { return !d.gone.Load() })
-	end()
+	// While the push waits, the device's reader is parked, not reading pongs.
+	h.p.q.pushSlow(d.p.pctx, frame, func() bool { return !d.gone.Load() }, 0, d.p.stall)
 }
 
 // deliver forwards a host frame to one device, waiting for room. A device whose
@@ -228,9 +262,8 @@ func (h *host) deliver(conn uint32, payload []byte) {
 	if d == nil {
 		return
 	}
-	end := h.p.stall() // the host's reader is parked here, not reading pongs
-	err := d.p.q.pushSlow(h.p.pctx, payload, func() bool { return !d.gone.Load() }, h.slow)
-	end()
+	// While the push waits, the host's reader is parked, not reading pongs.
+	err := d.p.q.pushSlow(h.p.pctx, payload, func() bool { return !d.gone.Load() }, h.slow, h.p.stall)
 	if errors.Is(err, errSlow) {
 		h.mu.Lock()
 		h.cut(d, codeTooSlow)

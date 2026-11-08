@@ -1,4 +1,4 @@
-package relay
+package hub
 
 import (
 	"crypto/rand"
@@ -102,5 +102,18 @@ func TestIDs(t *testing.T) {
 	}
 	if _, err := decodeKey(base64.URLEncoding.EncodeToString(make([]byte, 32))); err == nil {
 		t.Error("decodeKey accepted padded input")
+	}
+}
+
+func TestDecodeKeyStrict(t *testing.T) {
+	_, pub := keyPair(t)
+	good := b64.EncodeToString(pub[:])
+	if _, err := decodeKey(good); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{good + "\n", good[:20] + "\r\n" + good[20:], good[:42], good + "A", good[:42] + "=", good[:42] + "+"} {
+		if _, err := decodeKey(bad); err == nil {
+			t.Errorf("decodeKey(%q) accepted", bad)
+		}
 	}
 }

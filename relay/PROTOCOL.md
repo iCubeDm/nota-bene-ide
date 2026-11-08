@@ -18,7 +18,8 @@ ticket id derived from it.
 - `GET /healthz` answers `200` with body `ok`.
 - WebSocket over HTTP/1.1. Text frames carry JSON objects with a `t` field;
   binary frames carry data. All keys, ids, nonces and proofs are **base64url
-  without padding** (RFC 4648 section 5).
+  without padding** (RFC 4648 section 5); a 32-byte value is exactly 43
+  characters, with no line breaks.
 - When too many connections are still in the challenge phase the relay answers
   the HTTP upgrade with `503` before the WebSocket starts; retry later.
 
@@ -26,7 +27,9 @@ ticket id derived from it.
 
 - `hostId` = base64url of the host's 32-byte X25519 public key.
 - `deviceHash` = base64url(SHA-256(device's 32-byte X25519 public key)).
-  The relay knows a device only by this hash.
+  The relay knows a device only by this hash. Every entry of a `devices` list
+  (in a hello or a `devices` message) must be a well-formed hash: 43 base64url
+  characters decoding to 32 bytes. Any other entry closes the sender with 4400.
 - A ticket is 32 random bytes (base64url), derived by the endpoints from a
   pairing secret. It admits a not-yet-listed device for as long as the host
   declares it.
@@ -53,13 +56,17 @@ ticket id derived from it.
 3. Host hello adds `"devices":[<deviceHash>, ...]` (at most 32; absent means
    none) and optionally `"ticket":<32 B>`. On success the relay answers
    `{"t":"ok"}`. Unknown fields are ignored. A `devices` array is parsed in
-   either hello, so one with more than 32 entries ends with 4400 even in a
-   device hello (where the list is otherwise unused).
+   either hello, so one with more than 32 entries or a malformed entry ends
+   with 4400 even in a device hello (where the list is otherwise unused).
 
 4. Device hello adds optionally `"ticket":<32 B>`. The relay finds the host
    named by the `host` query parameter. The device is admitted when its
    `deviceHash` is in the host's list, or its ticket equals the host's current
    ticket. On success the relay answers `{"t":"ok","conn":<n>}`.
+
+5. A proven hello is still refused with 4429 while the relay is over its
+   memory budget (see Flow control), and a host may be refused with 4403 by
+   the operator's admission hook.
 
 Worked example (test keys, never use them). Keys are written as 32 bytes,
 the private ones for illustration only:
@@ -85,6 +92,13 @@ connection is closed with 4409 and its devices with 4404, and the new host
 starts with no devices connected. One device key may be paired with several
 hosts; the relay treats each (host, device) admission independently, so a
 device opens one connection per host.
+
+Likewise a newer device connection with the same `deviceHash` to the same host
+replaces the older one: the old connection is closed with 4409, and the host
+receives `gone` for the old `conn`, then `open` for the new one. A client closed
+with 4409 must not reconnect automatically: the newer connection holding the
+same key is live, and two clients sharing one key that both reconnected would
+replace each other forever.
 
 ## Messages after `ok`
 
@@ -123,20 +137,43 @@ Binary frames carry the end-to-end traffic:
 
 ## Flow control
 
-Each connection has an outgoing queue of at most 1 MiB of binary data (control
-messages are small and sit outside that bound). When the target's queue is
-full the relay stops reading from the sender, so TCP backpressure reaches it;
-it never drops data to make room. A device whose queue stays full for 10 s while
-the host streams to it is closed with 4408, and the host and its other devices
-carry on. A device sending to a slow host just waits.
+Each connection has an outgoing queue of at most 1 MiB of binary data. Every
+queued message is charged the memory it holds (its bytes, rounded up to the
+allocator's size class) plus 64 bytes, so even empty frames fill a queue (about
+15 000 of them fill 1 MiB). Control messages are small and sit
+outside that bound. When the target's queue is full the relay stops reading
+from the sender, so TCP backpressure reaches it; it never drops data to make
+room. A device whose queue stays full for 10 s while the host streams to it is
+closed with 4408, and the host and its other devices carry on. A device sending
+to a slow host just waits.
+
+The host connection has a single reader, so this blocks the head of the line:
+while a frame for one device waits for that device's full queue, the relay reads
+nothing else from the host. Frames for the host's other devices and its control
+messages (`devices`, `ticket`, `close`) wait too, for up to 10 s, until the slow
+device drains or is cut. The host connector must therefore flow-control each
+device itself (for example with per-device credit in the end-to-end protocol)
+so that no device's queue fills, and must expect that a revocation (`devices`
+or `close`) can take effect up to 10 s late.
+
+The whole relay also has a memory budget, 256 MiB by default, for data it holds
+on the way: messages read and waiting to enter a queue, queued, and being
+written. While the budget is exceeded, a sender waits even when its target's
+own queue has room (a message still enters an empty queue, so every connection
+keeps moving), and new connections are refused with 4429 after their hello.
+Waiting for the budget alone does not start the 10 s rule, so during such a
+wait a host's other devices and control messages can be delayed longer.
 
 ## Keepalive
 
 The relay sends a WebSocket ping every 30 s and closes a peer that has not
-answered within 60 s with 4408. A failed ping is forgiven while the relay has
-that peer's reader parked in backpressure (it cannot see pongs then), so a
-stalled transfer is judged by the 10 s queue rule instead. Clients answer pings
-as WebSocket libraries do by default; they need not ping themselves.
+answered within 60 s with 4408, so a peer that goes silent is closed 60 to 90 s
+later. A failed ping is forgiven while the relay has that peer's reader parked
+waiting for room in a queue (it cannot see pongs then), so a stalled transfer is
+judged by the 10 s queue rule instead. Sending alone earns no forgiveness: a
+peer that keeps sending but never reads answers no ping and is closed. Clients
+answer pings as WebSocket libraries do by default (which requires reading the
+connection); they need not ping themselves.
 
 ## Close codes
 
@@ -147,13 +184,14 @@ as WebSocket libraries do by default; they need not ping themselves.
 | 4403 | Not allowed: device not in the list and its ticket missing, wrong, or the host has no current ticket; device removed or closed by the host; also a host refused by the relay's admission hook |
 | 4404 | Host offline (device side); also sent to every device when its host leaves or is replaced |
 | 4408 | Too slow or unresponsive: a device whose queue stayed full for 10 s, a peer that failed keepalive, or a peer with more than 1024 control messages waiting |
-| 4409 | Replaced by a newer connection of the same host |
+| 4409 | Replaced by a newer connection of the same host, or of the same device to the same host |
 | 4413 | Message too large |
-| 4429 | Limit reached: too many hosts, or too many devices for this host |
+| 4429 | Limit reached: too many hosts, too many devices for this host, or the relay's memory budget is exceeded |
 
 The relay going down closes connections with `1001`, or drops them without a
 close frame; reconnect with backoff. A client that is closed with 4403, 4401
-or 4413 should not retry unchanged.
+or 4413 should not retry unchanged, and one closed with 4409 must not reconnect
+automatically (see Admission). After 4429 retry with backoff.
 
 ## Default limits
 
@@ -162,13 +200,14 @@ Budget for these; the production relay runs with them (`-max-hosts` and
 
 | Limit | Default | Exceeded |
 | --- | --- | --- |
-| hosts connected at once | 1000 | new host id: 4429 (a replacement of a connected id is always allowed) |
-| devices per host | 16 | 4429 |
+| hosts connected at once | 1000 | new host id: 4429 (a replacement of a connected id is allowed unless the memory budget is exceeded) |
+| devices per host | 16 | 4429 (a device replacing its own older connection does not count twice) |
 | listed devices (hello and `devices`) | 32 | 4400 |
 | connections still in the challenge phase | 256 | HTTP 503 before the upgrade |
 | hello size | 4096 bytes | WebSocket 1009 |
 | hello deadline | 10 s | 4400 |
 | device message / host frame | 1 MiB / 1 MiB + 4 | 4413 |
-| outgoing queue per connection | 1 MiB | backpressure; a device is cut with 4408 after 10 s |
+| outgoing queue per connection | 1 MiB, each message charged its size + 64 bytes | backpressure; a device is cut with 4408 after 10 s |
+| data held by the whole relay | 256 MiB | senders wait; new connections 4429 |
 | control messages waiting per connection | 1024 | 4408 |
 | ping interval / pong deadline | 30 s / 60 s | 4408 |

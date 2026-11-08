@@ -1,4 +1,4 @@
-package relay
+package hub
 
 import (
 	"bytes"
@@ -254,7 +254,7 @@ func TestAdmitHook(t *testing.T) {
 	o := DefaultOptions()
 	badPriv, badPub := keyPair(t)
 	bad := HostID(badPub)
-	o.Admit = func(id string) bool { return id != bad }
+	o.Admit = func(_ context.Context, id string) bool { return id != bad }
 	s, url := newTestServer(t, o)
 	h := dialHostNoWait(t, url, badPriv, nil, nil)
 	if c := closeCode(t, h.c); c != 4403 {
@@ -336,9 +336,9 @@ func TestHelloTimeout(t *testing.T) {
 // A frame from a device the host was already told is gone must not reach it.
 func TestRouteAfterGone(t *testing.T) {
 	noLog := func(string, websocket.StatusCode) {}
-	hp := newPeer(nil, "host", noLog, 1<<20)
+	hp := newPeer(nil, "host", noLog, 1<<20, nil)
 	h := newHost("h", hp, []string{"d"}, nil, time.Second)
-	dp := newPeer(nil, "device", noLog, 1<<20)
+	dp := newPeer(nil, "device", noLog, 1<<20, nil)
 	dp.once.Do(func() {}) // no socket in this test: make closeWith a no-op
 	d, code := h.admit(dp, "d", nil, 0)
 	if d == nil {
@@ -350,7 +350,6 @@ func TestRouteAfterGone(t *testing.T) {
 	h.shutdown()
 	h.route(d, []byte{3})
 	var kinds []string
-	hp.q.close() // pop reports closed once drained below
 	for _, m := range hp.q.items {
 		if m.typ == websocket.MessageBinary {
 			kinds = append(kinds, "bin")
@@ -444,7 +443,8 @@ loop:
 }
 
 func TestDeviceBackpressure(t *testing.T) {
-	_, url := newTestServer(t, smallOptions())
+	o := smallOptions()
+	s, url := newTestServer(t, o)
 	hpriv, _ := keyPair(t)
 	dpriv, dhash := devKey(t)
 	h := dialHost(t, url, hpriv, []string{dhash}, nil)
@@ -482,6 +482,12 @@ func TestDeviceBackpressure(t *testing.T) {
 		} else {
 			still, last = 0, n
 		}
+	}
+	// The host's queue is full in charged bytes: within the limit, and with no
+	// room for one more frame of the size it holds.
+	b, n := s.lookup(h.id).p.q.queued()
+	if n == 0 || b > o.QueueBytes || b+b/n <= o.QueueBytes || b/n < 16<<10+4+itemOverhead {
+		t.Fatalf("host queue holds %d bytes in %d frames (limit %d)", b, n, o.QueueBytes)
 	}
 	d.c.CloseNow()
 	<-finished
@@ -747,7 +753,7 @@ func TestKeepaliveIgnoresStall(t *testing.T) {
 		if err != nil {
 			return
 		}
-		p := newPeer(c, "device", func(string, websocket.StatusCode) {}, 1<<10)
+		p := newPeer(c, "device", func(string, websocket.StatusCode) {}, 1<<10, nil)
 		peers <- p
 		end := p.stall()
 		p.keepalive(r.Context(), 20*time.Millisecond, 60*time.Millisecond)
@@ -798,5 +804,265 @@ func TestStalledHostDoesNotKillDevice(t *testing.T) {
 	// The device may see the host's death (4404) but never a keepalive cut.
 	if c := closeCode(t, d.c); c == 4408 {
 		t.Fatalf("device closed %d", c)
+	}
+}
+
+// Empty and one-byte host frames to a device that reads nothing are charged
+// like any other: the device's queue stays within its limit and the device is
+// still cut with 4408 once it has stayed full.
+func TestTinyFramesBounded(t *testing.T) {
+	const limit = 64 << 10
+	noLog := func(string, websocket.StatusCode) {}
+	hp := newPeer(nil, "host", noLog, limit, nil)
+	h := newHost("h", hp, []string{"d"}, nil, 200*time.Millisecond)
+	dp := newPeer(nil, "device", noLog, limit, nil)
+	dp.once.Do(func() {}) // no socket: make closeWith a no-op
+	d, code := h.admit(dp, "d", nil, 0)
+	if d == nil {
+		t.Fatalf("refused %d", code)
+	}
+	deadline := time.Now().Add(testWait)
+	frames := 0
+	for !d.gone.Load() {
+		if time.Now().After(deadline) {
+			t.Fatalf("device never cut after %d tiny frames", frames)
+		}
+		payload := make([]byte, frames%2) // empty, then one byte
+		h.deliver(d.conn, payload)
+		frames++
+		if b, _ := dp.q.queued(); b > limit {
+			t.Fatalf("device queue holds %d charged bytes, limit %d", b, limit)
+		}
+	}
+	if _, n := dp.q.queued(); n == 0 || n > limit/itemOverhead {
+		t.Fatalf("device queue holds %d frames", n)
+	}
+	// The host was told: open, then gone for the cut device.
+	var kinds []string
+	for _, m := range hp.q.items {
+		var v struct{ T string }
+		json.Unmarshal(m.data, &v)
+		kinds = append(kinds, v.T)
+	}
+	if got := strings.Join(kinds, ","); got != "open,gone" {
+		t.Fatalf("host queue: %s", got)
+	}
+}
+
+// Over the hub-wide budget, a sender waits even though its target's own
+// queue has room, and new connections are refused 4429; once the data
+// drains, connections are admitted again.
+func TestTotalBudget(t *testing.T) {
+	o := smallOptions()
+	o.QueueBytes = 1 << 20
+	o.TotalBytes = 128 << 10
+	o.SlowTimeout = time.Minute
+	s, url := newTestServer(t, o)
+	hpriv, _ := keyPair(t)
+	dpriv, dhash := devKey(t)
+	h := dialHost(t, url, hpriv, []string{dhash}, nil) // reads nothing for now
+	d, err := dialDevice(t, url, h.id, dpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sent atomic.Int64
+	senderDone := make(chan struct{})
+	go func() {
+		defer close(senderDone)
+		for i := 0; i < 6000; i++ {
+			if err := d.c.Write(context.Background(), websocket.MessageBinary, make([]byte, 16<<10)); err != nil {
+				return
+			}
+			sent.Add(1)
+		}
+	}()
+	last, still := int64(-1), 0
+	deadline := time.Now().Add(testWait)
+	for still < 4 {
+		if time.Now().After(deadline) {
+			t.Fatal("sender never blocked on the budget")
+		}
+		select {
+		case <-senderDone:
+			t.Fatal("every frame went through")
+		case <-time.After(50 * time.Millisecond):
+		}
+		if n := sent.Load(); n == last && n > 0 {
+			still++
+		} else {
+			still, last = 0, n
+		}
+	}
+	frame := cost(make([]byte, 0, 20<<10)) // a 16 KiB frame, rounded up generously
+	if used := s.budget.inUse(); used <= o.TotalBytes || used > o.TotalBytes+frame {
+		t.Fatalf("budget in use %d, limit %d", used, o.TotalBytes)
+	}
+	if b, _ := s.lookup(h.id).p.q.queued(); b+frame > o.QueueBytes/2 {
+		t.Fatalf("the host's own queue (%d bytes) is what stopped the sender", b)
+	}
+	h2priv, _ := keyPair(t)
+	if c := closeCode(t, dialHostNoWait(t, url, h2priv, nil, nil).c); c != 4429 {
+		t.Fatalf("host admitted over the budget: %d", c)
+	}
+	d2priv, _ := keyPair(t)
+	r := dialRaw(t, url+"/v1/device?host="+h.id)
+	r.hello("device", d2priv, pubOf(t, d2priv), nil)
+	if c := closeCode(t, r.c); c != 4429 {
+		t.Fatalf("device admitted over the budget: %d", c)
+	}
+
+	d.c.CloseNow()
+	<-senderDone
+	go func() { // now the host drains
+		for {
+			if _, _, err := h.c.Read(context.Background()); err != nil {
+				return
+			}
+		}
+	}()
+	eventually(t, "the budget to drain", func() bool { over, _ := s.budget.over(); return !over })
+	dialHost(t, url, h2priv, nil, nil)
+	s.Close() // every byte charged is released once the connections are gone
+	if used := s.budget.inUse(); used != 0 {
+		t.Fatalf("budget leaks %d bytes", used)
+	}
+}
+
+// A host that keeps sending but never reads answers no ping; sending is not a
+// backpressure stall, so keepalive closes it with 4408.
+func TestKeepaliveCutsSenderThatNeverReads(t *testing.T) {
+	o := DefaultOptions()
+	o.PingInterval, o.PongTimeout = 50*time.Millisecond, 150*time.Millisecond
+	s, url := newTestServer(t, o)
+	hpriv, _ := keyPair(t)
+	dpriv, dhash := devKey(t)
+	h := dialHost(t, url, hpriv, []string{dhash}, nil)
+	d, err := dialDevice(t, url, h.id, dpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	devClosed := make(chan websocket.StatusCode, 1)
+	go func() { // the device reads everything, so the host never waits
+		for {
+			if _, _, err := d.c.Read(context.Background()); err != nil {
+				devClosed <- websocket.CloseStatus(err)
+				return
+			}
+		}
+	}()
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case <-time.After(5 * time.Millisecond):
+			}
+			b := []byte{byte(d.conn >> 24), byte(d.conn >> 16), byte(d.conn >> 8), byte(d.conn), 1}
+			if h.c.Write(context.Background(), websocket.MessageBinary, b) != nil {
+				return
+			}
+		}
+	}()
+	total := map[CloseKey]int{}
+	eventually(t, "keepalive to close the host", func() bool {
+		for k, n := range s.TakeCloses() {
+			total[k] += n
+		}
+		return total[CloseKey{"host", 4408}] == 1
+	})
+	select {
+	case c := <-devClosed:
+		if c != 4404 {
+			t.Fatalf("device closed %d", c)
+		}
+	case <-time.After(2 * testWait): // the close handshake with a host that never reads takes up to 5 s
+		t.Fatal("device never told its host left")
+	}
+}
+
+// A newer connection of the same device replaces the older one.
+func TestDeviceReplaced(t *testing.T) {
+	_, url := newTestServer(t, DefaultOptions())
+	hpriv, _ := keyPair(t)
+	dpriv, dhash := devKey(t)
+	h := dialHost(t, url, hpriv, []string{dhash}, nil)
+	d1, err := dialDevice(t, url, h.id, dpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if conn, hash := h.nextOpen(); conn != d1.conn || hash != dhash {
+		t.Fatalf("open %d %s", conn, hash)
+	}
+	d2, err := dialDevice(t, url, h.id, dpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.expectGone(d1.conn)
+	if conn, _ := h.nextOpen(); conn != d2.conn || conn == d1.conn {
+		t.Fatalf("open %d after replacing %d", conn, d1.conn)
+	}
+	if c := closeCode(t, d1.c); c != 4409 {
+		t.Fatalf("replaced device closed %d", c)
+	}
+	d2.sendBinary(5)
+	if _, got := h.next(); len(got) != 5 || got[4] != 5 {
+		t.Fatalf("host got %v", got)
+	}
+}
+
+// Device hashes in a hello or a devices message must be 43 base64url
+// characters decoding to 32 bytes.
+func TestDeviceHashValidated(t *testing.T) {
+	_, url := newTestServer(t, DefaultOptions())
+	_, good := devKey(t)
+	for _, bad := range []string{"x", good + "\n", good[:42], good[:42] + "+"} {
+		h := dialHostNoWait(t, url, mustKey(t), []string{good, bad}, nil)
+		if c := closeCode(t, h.c); c != 4400 {
+			t.Errorf("hello with %q closed %d", bad, c)
+		}
+	}
+	h := dialHost(t, url, mustKey(t), []string{good}, nil)
+	h.sendJSON(map[string]any{"t": "devices", "devices": []string{good, good + "\r\n"}})
+	if c := closeCode(t, h.c); c != 4400 {
+		t.Fatalf("devices with a bad hash closed %d", c)
+	}
+}
+
+// PingInterval <= 0 disables keepalive instead of panicking.
+func TestKeepaliveDisabled(t *testing.T) {
+	o := DefaultOptions()
+	o.PingInterval = 0
+	_, url := newTestServer(t, o)
+	dpriv, dhash := devKey(t)
+	h := dialHost(t, url, mustKey(t), []string{dhash}, nil)
+	d, err := dialDevice(t, url, h.id, dpriv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.nextOpen()
+	h.sendBinary(d.conn, 3)
+	if got := d.nextBinary(); !bytes.Equal(got, []byte{3}) {
+		t.Fatalf("device got %v", got)
+	}
+}
+
+// The admission hook's context ends at the hello deadline.
+func TestAdmitContext(t *testing.T) {
+	o := DefaultOptions()
+	o.HelloTimeout = 300 * time.Millisecond
+	o.Admit = func(ctx context.Context, _ string) bool {
+		<-ctx.Done()
+		return false
+	}
+	_, url := newTestServer(t, o)
+	start := time.Now()
+	h := dialHostNoWait(t, url, mustKey(t), nil, nil)
+	if c := closeCode(t, h.c); c != 4403 {
+		t.Fatalf("host closed %d", c)
+	}
+	if time.Since(start) > testWait/2 {
+		t.Fatalf("hook ran %v", time.Since(start))
 	}
 }

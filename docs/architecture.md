@@ -127,7 +127,7 @@ it is not a listing in the public ChatGPT plugin directory.
 
 ### 2.3 Remote relay
 
-`relay/` holds `nb-relay`, a separate Go program for remote control: a stateless WebSocket hub that pairs a host (the Nota Bene server on a computer) with its devices (phones) by host id and forwards opaque frames. It stores nothing except the TLS certificate cache, and its admission checks are only a noise filter; the real authentication and confidentiality are the end-to-end handshake between host and phone. The wire contract is [relay/PROTOCOL.md](../relay/PROTOCOL.md); building, running and the container image are in [relay/README.md](../relay/README.md).
+`relay/` holds `nb-relay`, a separate Go program for remote control: a stateless WebSocket hub that pairs a host (the Nota Bene server on a computer) with its devices (phones) by host id and forwards opaque frames. It stores nothing except the TLS certificate cache, and its admission checks are only a noise filter; the real authentication and confidentiality are the end-to-end handshake between host and phone. The hub is the importable Go package `relay/hub`; `relay/cmd/nb-relay` wraps it with TLS and flags. The wire contract is [relay/PROTOCOL.md](../relay/PROTOCOL.md); building, running and the container image are in [relay/README.md](../relay/README.md).
 
 ## 3. Server
 

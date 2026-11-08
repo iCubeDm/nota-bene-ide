@@ -1,4 +1,4 @@
-package relay
+package hub
 
 import (
 	"context"
@@ -40,8 +40,8 @@ type peer struct {
 	pcancel context.CancelFunc
 }
 
-func newPeer(c *websocket.Conn, role string, log func(string, websocket.StatusCode), queueBytes int) *peer {
-	p := &peer{c: c, role: role, log: log, q: newQueue(queueBytes), done: make(chan struct{}), shut: make(chan struct{})}
+func newPeer(c *websocket.Conn, role string, log func(string, websocket.StatusCode), queueBytes int, b *budget) *peer {
+	p := &peer{c: c, role: role, log: log, q: newQueue(queueBytes, b), done: make(chan struct{}), shut: make(chan struct{})}
 	p.pctx, p.pcancel = context.WithCancel(context.Background())
 	return p
 }
@@ -67,7 +67,9 @@ func (p *peer) drain(ctx context.Context) {
 		if err != nil {
 			return
 		}
-		if err := p.c.Write(ctx, it.typ, it.data); err != nil {
+		err = p.c.Write(ctx, it.typ, it.data)
+		p.q.done(it) // in flight until written
+		if err != nil {
 			return
 		}
 	}
@@ -82,8 +84,11 @@ func (p *peer) stall() func() {
 }
 
 // keepalive pings until the peer or the handler ends; a peer that has not
-// answered within PongTimeout is closed.
+// answered within PongTimeout is closed. every <= 0 disables it.
 func (p *peer) keepalive(ctx context.Context, every, timeout time.Duration) {
+	if every <= 0 {
+		return
+	}
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
@@ -148,8 +153,12 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
+// logClose counts a close the relay initiated; TakeCloses reports the counts.
 func (s *Server) logClose(role string, code websocket.StatusCode) {
-	s.log.Info("close", "role", role, "code", int(code))
+	s.lmu.Lock()
+	s.closes[CloseKey{role, int(code)}]++
+	s.lmu.Unlock()
+	s.log.Debug("close", "role", role, "code", int(code))
 }
 
 type session func(ctx context.Context, p *peer, r *http.Request, ch Challenge)
@@ -184,7 +193,7 @@ func (s *Server) serve(role string, run session) http.HandlerFunc {
 		stop := context.AfterFunc(s.ctx, cancel)
 		defer stop()
 
-		p := newPeer(c, role, s.logClose, s.o.QueueBytes)
+		p := newPeer(c, role, s.logClose, s.o.QueueBytes, s.budget)
 		p.release = release
 		stopP := context.AfterFunc(ctx, p.pcancel)
 		defer stopP()
@@ -230,11 +239,13 @@ type hello struct {
 }
 
 // readHello waits for the client's hello and checks its proof. On failure it
-// closes the peer and returns ok=false.
-func (s *Server) readHello(ctx context.Context, p *peer, ch Challenge, role string) (h hello, key [32]byte, ticket []byte, ok bool) {
+// closes the peer and returns ok=false. deadline is the end of the hello
+// phase.
+func (s *Server) readHello(ctx context.Context, p *peer, ch Challenge, role string) (h hello, key [32]byte, ticket []byte, deadline time.Time, ok bool) {
 	// An expiring Read context would drop the socket without a close frame, so
 	// the deadline is a timer that closes with 4400 instead.
 	defer p.release()
+	deadline = time.Now().Add(s.o.HelloTimeout)
 	timer := time.AfterFunc(s.o.HelloTimeout, func() { p.closeWith(codeMalformed) })
 	typ, data, err := p.c.Read(ctx)
 	timer.Stop()
@@ -247,7 +258,7 @@ func (s *Server) readHello(ctx context.Context, p *peer, ch Challenge, role stri
 		return
 	}
 	key, err = decodeKey(h.Key)
-	if err != nil || len(h.Devices) > maxListed {
+	if err != nil || !validList(h.Devices) {
 		p.closeWith(codeMalformed)
 		return
 	}
@@ -257,15 +268,39 @@ func (s *Server) readHello(ctx context.Context, p *peer, ch Challenge, role stri
 			return
 		}
 	}
-	proof, err := b64.Strict().DecodeString(h.Proof)
-	if err != nil || !ch.Verify(role, key, proof) {
+	proof, err := decodeKey(h.Proof) // 32 bytes, like the keys
+	if err != nil || !ch.Verify(role, key, proof[:]) {
 		p.closeWith(codeBadProof)
 		return
 	}
 	// Messages are read through readMessage, which enforces the bound itself
 	// (and answers 4413, not the library's 1009).
 	p.c.SetReadLimit(-1)
-	return h, key, ticket, true
+	return h, key, ticket, deadline, true
+}
+
+// validList reports whether a device list has at most maxListed entries, each
+// a device hash: 43 characters of base64url decoding to 32 bytes.
+func validList(list []string) bool {
+	if len(list) > maxListed {
+		return false
+	}
+	for _, d := range list {
+		if _, err := decodeKey(d); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// overBudget refuses a newly admitted connection with 4429 while the hub-wide
+// byte budget is exceeded.
+func (s *Server) overBudget(p *peer) bool {
+	if over, _ := s.budget.over(); over {
+		p.closeWith(codeLimit)
+		return true
+	}
+	return false
 }
 
 func decodeTicket(s string) ([]byte, error) {
@@ -277,13 +312,21 @@ func decodeTicket(s string) ([]byte, error) {
 }
 
 func (s *Server) runHost(ctx context.Context, p *peer, _ *http.Request, ch Challenge) {
-	h, key, ticket, ok := s.readHello(ctx, p, ch, "host")
+	h, key, ticket, deadline, ok := s.readHello(ctx, p, ch, "host")
 	if !ok {
 		return
 	}
 	id := HostID(key)
-	if s.o.Admit != nil && !s.o.Admit(id) {
-		p.closeWith(codeNotAllowed)
+	if s.o.Admit != nil {
+		actx, cancel := context.WithDeadline(ctx, deadline)
+		allowed := s.o.Admit(actx, id)
+		cancel()
+		if !allowed {
+			p.closeWith(codeNotAllowed)
+			return
+		}
+	}
+	if s.overBudget(p) {
 		return
 	}
 	hs := newHost(id, p, h.Devices, ticket, s.o.SlowTimeout)
@@ -320,7 +363,7 @@ func (s *Server) runHost(ctx context.Context, p *peer, _ *http.Request, ch Chall
 		}
 		switch m.T {
 		case "devices":
-			if len(m.Devices) > maxListed {
+			if !validList(m.Devices) {
 				p.closeWith(codeMalformed)
 				return
 			}
@@ -341,8 +384,8 @@ func (s *Server) runHost(ctx context.Context, p *peer, _ *http.Request, ch Chall
 }
 
 func (s *Server) runDevice(ctx context.Context, p *peer, r *http.Request, ch Challenge) {
-	_, key, ticket, ok := s.readHello(ctx, p, ch, "device")
-	if !ok {
+	_, key, ticket, _, ok := s.readHello(ctx, p, ch, "device")
+	if !ok || s.overBudget(p) {
 		return
 	}
 	hs := s.lookup(r.URL.Query().Get("host"))
@@ -374,18 +417,33 @@ func (s *Server) runDevice(ctx context.Context, p *peer, r *http.Request, ch Cha
 
 var errTooBig = errors.New("message too large")
 
-// readMessage reads one message of at most max bytes into a buffer that has
-// head spare bytes in front (the result includes them). The library's own
-// limit is off, so it never buffers beyond max+1 and the caller can answer an
-// oversize message with 4413. After errTooBig the rest of the message is left
-// unread; the caller closes the connection.
+// scratch holds read buffers for reuse. Only buffers up to maxPooled go back,
+// so the pool never pins large messages' worth of memory.
+var scratch = sync.Pool{New: func() any { b := make([]byte, 0, 4096); return &b }}
+
+const maxPooled = 64 << 10
+
+// readMessage reads one message of at most max bytes and returns it in an
+// exact-size buffer with head spare bytes in front (the result includes
+// them), so what a queue charges for it is what it keeps alive. The message is
+// read into a pooled buffer and copied once. The library's own limit is off,
+// so it never buffers beyond max+1 and the caller can answer an oversize
+// message with 4413. After errTooBig the rest of the message is left unread;
+// the caller closes the connection.
 func readMessage(ctx context.Context, c *websocket.Conn, max, head int) (websocket.MessageType, []byte, error) {
 	typ, r, err := c.Reader(ctx)
 	if err != nil {
 		return 0, nil, err
 	}
 	limit := head + max + 1
-	buf := make([]byte, head, head+512)
+	bp := scratch.Get().(*[]byte)
+	buf := (*bp)[:head]
+	defer func() {
+		if cap(buf) <= maxPooled {
+			*bp = buf[:0]
+			scratch.Put(bp)
+		}
+	}()
 	for {
 		if len(buf) == cap(buf) {
 			grown := make([]byte, len(buf), min(2*cap(buf), limit))
@@ -398,7 +456,7 @@ func readMessage(ctx context.Context, c *websocket.Conn, max, head int) (websock
 			return 0, nil, errTooBig
 		}
 		if err == io.EOF {
-			return typ, buf, nil
+			return typ, append([]byte(nil), buf...), nil
 		}
 		if err != nil {
 			return 0, nil, err

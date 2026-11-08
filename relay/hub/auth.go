@@ -1,5 +1,6 @@
-// Package relay is a stateless WebSocket relay between Nota Bene hosts and devices.
-package relay
+// Package hub is the Nota Bene relay: a stateless WebSocket hub between hosts
+// and their devices. See PROTOCOL.md for the wire contract.
+package hub
 
 import (
 	"crypto/hmac"
@@ -78,9 +79,17 @@ func DeviceHash(pub [32]byte) string {
 	return b64.EncodeToString(sum[:])
 }
 
-// decodeKey parses a 32-byte key in unpadded base64url.
+// keyLen is the length of 32 bytes in unpadded base64url.
+const keyLen = 43
+
+// decodeKey parses a 32-byte value (a key, ticket or device hash) in unpadded
+// base64url: exactly 43 characters. The length check also refuses CR and LF,
+// which the strict decoder would otherwise skip.
 func decodeKey(s string) ([32]byte, error) {
 	var k [32]byte
+	if len(s) != keyLen {
+		return k, errors.New("key must be 43 base64url characters")
+	}
 	raw, err := b64.Strict().DecodeString(s)
 	if err != nil {
 		return k, err

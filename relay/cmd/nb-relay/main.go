@@ -15,22 +15,33 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
+	"strings"
 	"syscall"
 	"time"
 
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 
-	"github.com/iCubeDm/nota-bene-ide/relay/internal/relay"
+	"github.com/iCubeDm/nota-bene-ide/relay/hub"
 )
 
 // shutdownGrace bounds the whole shutdown; a variable so a test can shorten it.
 var shutdownGrace = 5 * time.Second
 
 func main() {
-	if err := run(os.Args[1:], nil); err != nil {
+	os.Exit(exitCode(run(os.Args[1:], nil)))
+}
+
+// exitCode maps run's result to the process status; -h is not a failure (the
+// flag package has already printed the usage).
+func exitCode(err error) int {
+	switch {
+	case err == nil, errors.Is(err, flag.ErrHelp):
+		return 0
+	default:
 		fmt.Fprintln(os.Stderr, "nb-relay:", err)
-		os.Exit(1)
+		return 1
 	}
 }
 
@@ -50,8 +61,8 @@ func runCtx(ctx context.Context, args []string, ready func(addr string)) error {
 	httpsAddr := fs.String("https", ":443", "TLS listen address")
 	httpAddr := fs.String("http", ":80", "ACME challenge and https redirect listen address")
 	listen := fs.String("listen", "", "plain HTTP on a loopback address, for tests and local runs")
-	maxHosts := fs.Int("max-hosts", relay.DefaultOptions().MaxHosts, "most hosts connected at once (0 = unlimited)")
-	maxDevices := fs.Int("max-devices", relay.DefaultOptions().MaxDevicesPerHost, "most devices per host (0 = unlimited)")
+	maxHosts := fs.Int("max-hosts", hub.DefaultOptions().MaxHosts, "most hosts connected at once (0 = unlimited)")
+	maxDevices := fs.Int("max-devices", hub.DefaultOptions().MaxDevicesPerHost, "most devices per host (0 = unlimited)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -65,10 +76,10 @@ func runCtx(ctx context.Context, args []string, ready func(addr string)) error {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	o := relay.DefaultOptions()
+	o := hub.DefaultOptions()
 	o.MaxHosts, o.MaxDevicesPerHost, o.Log = *maxHosts, *maxDevices, logger
-	hub := relay.NewServer(o)
-	handler := hub.Handler()
+	srv := hub.NewServer(o)
+	handler := srv.Handler()
 
 	var servers []*http.Server
 	errc := make(chan error, 2)
@@ -133,13 +144,13 @@ func runCtx(ctx context.Context, args []string, ready func(addr string)) error {
 	for {
 		select {
 		case <-tick.C:
-			hosts, devices := hub.Stats()
-			logger.Info("connections", "hosts", hosts, "devices", devices)
+			hosts, devices := srv.Stats()
+			logger.Info("connections", "hosts", hosts, "devices", devices, "closes", formatCloses(srv.TakeCloses()))
 		case err := <-errc:
-			stopAll(hub, servers)
+			stopAll(srv, servers)
 			return err
 		case <-ctx.Done():
-			err := stopAll(hub, servers)
+			err := stopAll(srv, servers)
 			logger.Info("stop")
 			return err
 		}
@@ -150,11 +161,11 @@ func runCtx(ctx context.Context, args []string, ready func(addr string)) error {
 // The hub goes first: hijacked WebSocket connections are not tracked by
 // http.Server.Shutdown. A peer that never completes its close handshake cannot
 // hold the process past the deadline.
-func stopAll(hub *relay.Server, servers []*http.Server) error {
+func stopAll(h *hub.Server, servers []*http.Server) error {
 	sctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 	defer cancel()
 	closed := make(chan struct{})
-	go func() { hub.Close(); close(closed) }()
+	go func() { h.Close(); close(closed) }()
 	select {
 	case <-closed:
 	case <-sctx.Done():
@@ -169,6 +180,20 @@ func stopAll(hub *relay.Server, servers []*http.Server) error {
 		}
 	}
 	return first
+}
+
+// formatCloses renders the minute's relay-initiated closes as
+// "device/4408=2 host/4409=1", sorted; "-" when there were none.
+func formatCloses(c map[hub.CloseKey]int) string {
+	if len(c) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(c))
+	for k, n := range c {
+		parts = append(parts, fmt.Sprintf("%s/%d=%d", k.Role, k.Code, n))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, " ")
 }
 
 func newServer(h http.Handler) *http.Server {
