@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'chat/chat_route.dart';
+import 'chat/mermaid.dart';
 import 'home.dart';
 import 'hosts/host_link.dart';
 import 'hosts/hosts_screen.dart';
@@ -11,12 +13,19 @@ import 'store/hosts.dart';
 import 'store/vault.dart';
 import 'theme.dart';
 
-void main() => runApp(
-  NbApp(
-    home: const AppRoot(),
-    lock: (nav) => LockGate(authenticator: DeviceAuthenticator(), child: nav),
-  ),
-);
+void main() {
+  // one hidden WebView for every diagram of the app, kept above the Navigator with the lock
+  final mermaid = CachedMermaid(WebViewMermaid());
+  runApp(
+    NbApp(
+      home: const AppRoot(),
+      lock: (nav) => LockGate(
+        authenticator: DeviceAuthenticator(),
+        child: MermaidScope(renderer: mermaid, child: nav),
+      ),
+    ),
+  );
+}
 
 /// Loads the phone key and the pairings, then the start screen.
 class AppRoot extends StatefulWidget {
@@ -78,10 +87,12 @@ class _AppRootState extends State<AppRoot> {
             ),
           ),
         ),
-        chat: (hostId, w) => Scaffold(
-          appBar: AppBar(title: Text(folderOf(w.root))),
-          body: Center(child: Text(AppLocalizations.of(context).chatSoon)),
-        ),
+        chat: (hostId, w) {
+          final link = d.links.of(hostId);
+          return link == null
+              ? Scaffold(appBar: AppBar(title: Text(folderOf(w.root))))
+              : ChatRoute(link: link, port: w.port, root: w.root);
+        },
       );
     },
   );

@@ -71,7 +71,6 @@
     }
   },
   "storeUnreadable": "This phone's stored key could not be read. Reinstalling the app makes a new key; the hosts then need pairing again.",
-  "chatSoon": "The chat arrives in the next build of the app.",
   "cancel": "Cancel",
   "copy": "Copy",
   "showEarlier": "Show earlier",
@@ -149,6 +148,52 @@
       },
       "s": {
         "type": "int"
+      }
+    }
+  },
+  "send": "Send",
+  "stop": "Stop",
+  "messageHint": "Message",
+  "cannotSend": "Sending is off while the window is not reachable",
+  "sendNowTitle": "Send now?",
+  "sendNowBody": "The agent is working. Sending now will interrupt the current turn.",
+  "sendNow": "Send now",
+  "refusedBusy": "The window is busy; the message was not sent.",
+  "refusedSwitching": "The window is switching sessions; the message was not sent.",
+  "allow": "Allow",
+  "deny": "Deny",
+  "allowSession": "Allow for this session",
+  "allowTurn": "Allow for this turn",
+  "allowAlways": "Always allow",
+  "denyAlways": "Always deny",
+  "sendAnswers": "Send answers",
+  "codexPermissions": "Additional Codex permissions",
+  "mcpRequest": "MCP request",
+  "allowTool": "Allow {tool}?",
+  "answerSent": "Answer sent",
+  "askArchived": "From an earlier part of the session: no longer waiting for an answer",
+  "agentMenu": "Agent",
+  "compact": "Compact",
+  "modelAndEffort": "Model and effort",
+  "restartAgent": "Restart agent",
+  "restartAgentTitle": "Restart the agent?",
+  "restartAgentBody": "The agent process starts again in the same session; a turn in progress stops.",
+  "restart": "Restart",
+  "apply": "Apply",
+  "effortLow": "low",
+  "effortMedium": "medium",
+  "effortHigh": "high",
+  "effortXhigh": "extra high",
+  "effortMax": "max",
+  "effortNone": "none",
+  "effortMinimal": "minimal",
+  "occupiedTitle": "This window is open in another tab.",
+  "takenTitle": "Another tab took over this window.",
+  "workHere": "Work here",
+  "@allowTool": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
       }
     }
   }
