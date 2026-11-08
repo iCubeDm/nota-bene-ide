@@ -53,4 +53,60 @@ void main() {
     await t.pumpAndSettle();
     expect(find.byType(InteractiveViewer), findsOneWidget);
   });
+
+  testWidgets('a diagram whose source grows is drawn again', (t) async {
+    Widget app(String src) => NbApp(
+      home: MermaidScope(
+        renderer: CachedMermaid(fake),
+        child: Scaffold(body: MermaidBlock(src)),
+      ),
+    );
+    await t.pumpWidget(app('flutter LR\n  A --> (('));
+    await t.pumpAndSettle();
+    expect(find.textContaining('Parse error'), findsOneWidget);
+    await t.pumpWidget(app('flowchart LR\n  A --> B'));
+    await t.pumpAndSettle();
+    expect(find.byType(Image), findsOneWidget);
+    expect(fake.calls.last, 'flowchart LR\n  A --> B');
+  });
+
+  testWidgets('a timeout is not remembered, an error from the page is', (
+    t,
+  ) async {
+    final flaky = _Flaky();
+    final c = CachedMermaid(flaky);
+    await expectLater(
+      c.render('x', dark: true, scale: 1),
+      throwsA(isA<MermaidTimeout>()),
+    );
+    await c.render('x', dark: true, scale: 1);
+    expect(flaky.calls, 2);
+    await expectLater(
+      c.render('bad ((', dark: true, scale: 1),
+      throwsA(isA<MermaidError>()),
+    );
+    await expectLater(
+      c.render('bad ((', dark: true, scale: 1),
+      throwsA(isA<MermaidError>()),
+    );
+    expect(flaky.calls, 3);
+  });
+}
+
+class _Flaky implements MermaidRenderer {
+  var calls = 0;
+  @override
+  Future<MermaidImage> render(
+    String source, {
+    required bool dark,
+    required double scale,
+  }) async {
+    calls++;
+    if (source.contains('((')) throw MermaidError('Parse error');
+    if (calls == 1) throw MermaidTimeout();
+    return MermaidImage(FakeMermaid.png, 1, 1);
+  }
+
+  @override
+  Widget? get engine => null;
 }

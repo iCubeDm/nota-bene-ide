@@ -66,6 +66,12 @@ class PermissionWatcher {
 
   void _check() {
     final f = _for;
+    if (f != null && tab.state != TabState.open) {
+      // the window went (offline, taken): an answer could not go; the ask opens again when it is back
+      _handled.remove(f);
+      _close();
+      return;
+    }
     if (f != null) {
       final it = tab.feed.items
           .whereType<PermissionItem>()
@@ -101,7 +107,9 @@ class PermissionWatcher {
       builder: (c) => _Sheet(
         item: p,
         onAnswer: (allow) {
-          tab.send(ClientMessagePermission(id: p.id, allow: allow));
+          if (!tab.send(ClientMessagePermission(id: p.id, allow: allow))) {
+            _handled.remove(p.id);
+          }
           _close();
         },
       ),

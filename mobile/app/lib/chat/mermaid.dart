@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../l10n/app_localizations.dart';
 import '../theme.dart';
 
 class MermaidImage {
@@ -17,12 +18,16 @@ class MermaidImage {
   final double width, height;
 }
 
+/// Mermaid itself rejected the diagram: [message] is its own error line.
 class MermaidError implements Exception {
   MermaidError(this.message);
   final String message;
   @override
   String toString() => message;
 }
+
+/// The renderer did not answer in time (a cold WebView, the app locked): worth another try later.
+class MermaidTimeout implements Exception {}
 
 abstract class MermaidRenderer {
   Future<MermaidImage> render(
@@ -35,7 +40,7 @@ abstract class MermaidRenderer {
   Widget? get engine;
 }
 
-/// Draws each source once per theme and scale; a failure is remembered too.
+/// Draws each source once per theme and scale; mermaid's own rejection is remembered too, a timeout is not.
 class CachedMermaid implements MermaidRenderer {
   CachedMermaid(this._inner);
   final MermaidRenderer _inner;
@@ -46,10 +51,19 @@ class CachedMermaid implements MermaidRenderer {
     String source, {
     required bool dark,
     required double scale,
-  }) => _cache.putIfAbsent(
-    '$dark|$scale|$source',
-    () => _inner.render(source, dark: dark, scale: scale),
-  );
+  }) {
+    final key = '$dark|$scale|$source';
+    return _cache.putIfAbsent(key, () {
+      final f = _inner.render(source, dark: dark, scale: scale);
+      f.then<void>(
+        (_) {},
+        onError: (Object e) {
+          if (e is! MermaidError) _cache.remove(key);
+        },
+      );
+      return f;
+    });
+  }
 
   @override
   Widget? get engine => _inner.engine;
@@ -84,7 +98,7 @@ class WebViewMermaid implements MermaidRenderer {
   void _answer(String msg) {
     final j = jsonDecode(msg) as Map<String, Object?>;
     final done = _pending.remove(j['id']);
-    if (done == null) return;
+    if (done == null || done.isCompleted) return; // an answer after its timeout
     final png = j['png'];
     if (png is String && png.startsWith('data:image/png;base64,')) {
       done.complete(
@@ -95,8 +109,9 @@ class WebViewMermaid implements MermaidRenderer {
         ),
       );
     } else {
+      final err = j['error'];
       done.completeError(
-        MermaidError('${j['error'] ?? 'the diagram could not be drawn'}'),
+        err is String && err.isNotEmpty ? MermaidError(err) : MermaidTimeout(),
       );
     }
   }
@@ -113,14 +128,18 @@ class WebViewMermaid implements MermaidRenderer {
           await _ready.future.timeout(const Duration(seconds: 20));
           final id = 'r${_seq++}';
           _pending[id] = out;
-          await _c.runJavaScript(
-            'render(${jsonEncode(id)}, ${jsonEncode(source)}, $dark, $scale)',
-          );
-          await out.future.timeout(const Duration(seconds: 20));
+          try {
+            await _c.runJavaScript(
+              'render(${jsonEncode(id)}, ${jsonEncode(source)}, $dark, $scale)',
+            );
+            await out.future.timeout(const Duration(seconds: 20));
+          } finally {
+            _pending.remove(id);
+          }
         })
         .catchError((Object e) {
           if (!out.isCompleted) {
-            out.completeError(MermaidError('the diagram could not be drawn'));
+            out.completeError(e is MermaidError ? e : MermaidTimeout());
           }
         });
     return out.future;
@@ -183,15 +202,23 @@ class MermaidBlock extends StatefulWidget {
 class _MermaidBlockState extends State<MermaidBlock> {
   Future<MermaidImage>? _image;
 
+  void _draw() => _image = MermaidScope.of(context)?.render(
+    widget.source,
+    dark: true,
+    scale: MediaQuery.devicePixelRatioOf(context),
+  );
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final r = MermaidScope.of(context);
-    _image ??= r?.render(
-      widget.source,
-      dark: true,
-      scale: MediaQuery.devicePixelRatioOf(context),
-    );
+    if (_image == null) _draw();
+  }
+
+  /// A reply still streaming grows its diagram: each new source is drawn again.
+  @override
+  void didUpdateWidget(MermaidBlock old) {
+    super.didUpdateWidget(old);
+    if (old.source != widget.source) _draw();
   }
 
   @override
@@ -210,8 +237,14 @@ class _MermaidBlockState extends State<MermaidBlock> {
       future: _image,
       builder: (context, snap) {
         if (snap.hasError || _image == null) {
+          final e = snap.error;
           return frame(
-            Text('${snap.error ?? ''}', style: TextStyle(color: c.mutedFg)),
+            Text(
+              e is MermaidError
+                  ? e.message
+                  : AppLocalizations.of(context).diagramFailed,
+              style: TextStyle(color: c.mutedFg),
+            ),
           );
         }
         final img = snap.data;

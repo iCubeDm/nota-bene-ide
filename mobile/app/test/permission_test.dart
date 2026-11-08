@@ -112,4 +112,17 @@ void main() {
       });
     },
   );
+
+  testWidgets(
+    'the sheet closes without sending when the tab loses the window',
+    (t) async {
+      await r.open(t);
+      r.event(plain('p1', 'ls'));
+      await t.pumpAndSettle();
+      r.event({'kind': 'occupied'});
+      await t.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(r.sent, isEmpty);
+    },
+  );
 }

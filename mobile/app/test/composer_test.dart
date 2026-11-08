@@ -35,6 +35,40 @@ void main() {
     expect(r.sent.single['force'], isTrue);
   });
 
+  testWidgets('while busy a message can wait for its turn instead', (t) async {
+    await r.open(
+      t,
+      events: [
+        {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
+      ],
+    );
+    await t.enter('After that, this');
+    await t.tap(find.byTooltip('Send'));
+    await t.pumpAndSettle();
+    await t.tapText('Send after this turn');
+    final m = r.sent.single;
+    expect((m['text'], m.containsKey('force')), ('After that, this', false));
+  });
+
+  testWidgets('a send that cannot go keeps the text', (t) async {
+    await r.open(
+      t,
+      events: [
+        {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
+      ],
+    );
+    await t.enter('Keep me');
+    await t.tap(find.byTooltip('Send'));
+    await t.pumpAndSettle();
+    r.event({
+      'kind': 'occupied',
+    }); // another tab took the window while the dialog was up
+    await t.pumpAndSettle();
+    await t.tapText('Send now');
+    expect(r.sent, isEmpty);
+    expect(find.text('Keep me'), findsOneWidget);
+  });
+
   testWidgets('send-refused keeps the text', (t) async {
     await r.open(t);
     await t.enter('Hello');

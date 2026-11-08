@@ -59,7 +59,7 @@
   "messageHint": "Mensagem",
   "cannotSend": "Não é possível enviar enquanto a janela não estiver acessível",
   "sendNowTitle": "Enviar agora?",
-  "sendNowBody": "O agente está trabalhando. Enviar agora vai interromper o turno atual.",
+  "sendNowBody": "O agente está trabalhando. Envie a mensagem após este turno, ou agora interrompendo o turno atual.",
   "sendNow": "Enviar agora",
   "refusedBusy": "A janela está ocupada; a mensagem não foi enviada.",
   "refusedSwitching": "A janela está trocando de sessão; a mensagem não foi enviada.",
@@ -95,5 +95,7 @@
   "workHere": "Trabalhar aqui",
   "pairedHosts": "Hosts pareados",
   "forgetTitle": "Esquecer {host}?",
-  "forgetBody": "Este telefone deixa de se conectar a ele. O host continua listando o telefone até você executar `nota-bene remote revoke` lá."
+  "forgetBody": "Este telefone deixa de se conectar a ele. O host continua listando o telefone até você executar `nota-bene remote revoke` lá.",
+  "sendAfter": "Enviar após este turno",
+  "diagramFailed": "Não foi possível desenhar o diagrama agora; reabra o chat para tentar de novo."
 }

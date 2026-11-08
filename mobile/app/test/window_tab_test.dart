@@ -178,4 +178,20 @@ void main() {
     expect((tab.model, tab.effort), ('opus', AgentEffort.high));
     expect((await refused).id, 's1');
   });
+
+  test('4904 with the port still listed waits for a fresh list', () async {
+    ch.event(ch.lastWsId, replay([]));
+    await settle();
+    ch.host(Close(ch.lastWsId, 4904));
+    await settle();
+    expect(tab.state, TabState.gone);
+    expect(
+      ch.wsOpens,
+      hasLength(1),
+      reason: 'no tight reopen loop on a list from before the close',
+    );
+    ch.push([window(4791, '/p')]);
+    await settle();
+    expect(ch.wsOpens, hasLength(2));
+  });
 }

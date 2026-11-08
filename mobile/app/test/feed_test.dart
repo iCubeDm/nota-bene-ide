@@ -225,6 +225,7 @@ void main() {
       ],
       segment: 2,
       more: true,
+      epoch: f.epoch,
     );
     expect(
       [
@@ -251,6 +252,7 @@ void main() {
       ],
       segment: 5,
       more: false,
+      epoch: f.epoch,
     );
     expect(
       f.items.first,
@@ -269,8 +271,65 @@ void main() {
       ],
       segment: 1,
       more: false,
+      epoch: f.epoch,
     );
     expect((f.items.first as UserItem).id, 'u0');
     expect(f.earlier, 0);
+  });
+
+  test('a page asked under an older replay is dropped', () {
+    final f = run([
+      {'kind': 'replay', 'earlier': 3, 'events': []},
+    ]);
+    final epoch = f.epoch;
+    f.apply(ev({'kind': 'replay', 'earlier': 4, 'events': []}));
+    f.prepend(
+      [
+        ev({'kind': 'user', 'id': 'x', 'text': 'x', 'ts': 1, 'historic': true}),
+      ],
+      segment: 3,
+      more: true,
+      epoch: epoch,
+    );
+    expect(f.items, isEmpty);
+    expect(f.earlier, 4);
+  });
+
+  test('a live item also in the page moves to the page position', () {
+    final f = run([
+      {
+        'kind': 'replay',
+        'earlier': 1,
+        'events': [
+          {
+            'kind': 'user',
+            'id': 'q',
+            'text': 'queued',
+            'ts': 1,
+            'historic': true,
+          },
+          agent({'t': 'message', 'id': 'a2', 'text': 'later reply'}),
+        ],
+      },
+    ]);
+    f.prepend(
+      [
+        ev({
+          'kind': 'user',
+          'id': 'q',
+          'text': 'queued',
+          'ts': 1,
+          'historic': true,
+        }),
+        ev(agent({'t': 'message', 'id': 'a1', 'text': 'its reply'})),
+      ],
+      segment: 1,
+      more: false,
+      epoch: f.epoch,
+    );
+    expect(
+      [for (final i in f.items) i is UserItem ? i.id : (i as AssistantItem).id],
+      ['q', 'a1', 'a2'],
+    );
   });
 }

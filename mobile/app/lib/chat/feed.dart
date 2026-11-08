@@ -48,14 +48,14 @@ enum MarkerKind { compacted, compactFailed, cleared }
 class MarkerItem extends FeedItem {
   MarkerItem(this.what, this.key, {this.pre, this.error});
   final MarkerKind what;
-  final String key;
+  String key;
   final num? pre;
   final String? error;
 }
 
 class DoneItem extends FeedItem {
   DoneItem(this.key, this.secs, this.status, {this.error});
-  final String key;
+  String key;
   final num secs;
   final StopReason status;
   final String? error;
@@ -85,8 +85,21 @@ class ShellItem extends FeedItem {
 /// `text`: the resumed session id's first characters.
 class NoticeItem extends FeedItem {
   NoticeItem(this.key, this.text);
-  final String key, text;
+  String key;
+  final String text;
 }
+
+/// A stable identity for a feed row (its widget key): the event id, or the line key of a done / marker / notice line.
+String feedKey(FeedItem i) => switch (i) {
+  UserItem(:final id) => 'user:$id',
+  AssistantItem(:final id) => 'assistant:$id',
+  ToolItem(:final id) => 'tool:$id',
+  PermissionItem(:final id) => 'permission:$id',
+  ShellItem(:final id) => 'shell:$id',
+  DoneItem(:final key) ||
+  MarkerItem(:final key) ||
+  NoticeItem(:final key) => key,
+};
 
 const argKeys = [
   'command',
@@ -123,6 +136,9 @@ class Feed {
 
   /// archived segments before this conversation's compactions (GET /history pages still to load)
   int earlier = 0;
+
+  /// bumped by every replay: a history page asked for under an older one belongs to another feed
+  int epoch = 0;
   String? sessionId, root, title, model;
 
   String _key() => 'l${lineN++}';
@@ -141,6 +157,7 @@ class Feed {
         // the replayed results are history: the live turn count stays
         fresh.turnSeq = turnSeq;
         fresh.earlier = (earlier ?? 0).toInt();
+        fresh.epoch = epoch + 1;
         fresh.sessionId ??= sessionId;
         fresh.root ??= root;
         fresh.title ??= title;
@@ -230,40 +247,53 @@ class Feed {
     }
   }
 
-  String? _idOf(FeedItem i) => switch (i) {
-    UserItem(:final id) => 'u:$id',
-    AssistantItem(:final id) => 'a:$id',
-    ToolItem(:final id) => 't:$id',
-    PermissionItem(:final id) => 'p:$id',
-    ShellItem(:final id) => 's:$id',
-    _ => null,
-  };
-
-  /// Puts one `GET /history` page (archived segment [segment]) before the feed. An item already in the feed is not
-  /// duplicated; a page for a segment beyond [earlier] (another feed's) changes nothing.
+  /// Puts one `GET /history` page (archived segment [segment]) before the feed, as the desktop's prependHistory: an
+  /// item already in the feed (a send that was running or queued at the cut) is not duplicated, its live object moves
+  /// to the page's position. A page for another epoch, or a segment beyond [earlier], changes nothing.
   void prepend(
     List<ServerEvent> events, {
     required int segment,
     required bool more,
+    required int epoch,
   }) {
-    if (segment > earlier || earlier == 0) return;
+    if (epoch != this.epoch || segment > earlier || earlier == 0) return;
     final page = Feed();
     for (final e in events) {
       page.apply(e);
     }
-    final live = {for (final i in items) ?_idOf(i)};
-    final head = [
-      for (final i in page.items)
-        if (!live.contains(_idOf(i)))
-          if (i is PermissionItem)
-            (i..archived = true)
-          else if (i is ShellItem)
-            (i..running = false)
-          else
-            i,
-    ];
-    items = [...head, ...items];
+    String? idOf(FeedItem i) =>
+        i is DoneItem || i is MarkerItem || i is NoticeItem ? null : feedKey(i);
+    final live = {for (final i in items) ?idOf(i): i};
+    final moved = <FeedItem>{};
+    final head = <FeedItem>[];
+    for (final i in page.items) {
+      final mine = live[idOf(i)];
+      if (mine != null) {
+        moved.add(mine); // the live object takes the page copy's place
+        head.add(mine);
+      } else {
+        head.add(_archived(i, segment));
+      }
+    }
+    items = [...head, ...items.where((i) => !moved.contains(i))];
     earlier = more ? (segment - 1 < 0 ? 0 : segment - 1) : 0;
+  }
+
+  static FeedItem _archived(FeedItem i, int segment) {
+    switch (i) {
+      case PermissionItem():
+        i.archived = true; // nobody waits for an archived ask
+      case ShellItem():
+        i.running = false;
+      case DoneItem():
+        i.key = 'h$segment${i.key}'; // segments restart the line counter
+      case MarkerItem():
+        i.key = 'h$segment${i.key}';
+      case NoticeItem():
+        i.key = 'h$segment${i.key}';
+      default:
+    }
+    return i;
   }
 
   void _take(Feed f) {
@@ -277,6 +307,7 @@ class Feed {
     turnSeq = f.turnSeq;
     compacting = f.compacting;
     earlier = f.earlier;
+    epoch = f.epoch;
     sessionId = f.sessionId;
     root = f.root;
     title = f.title;
@@ -293,6 +324,7 @@ class Feed {
           ..title = title
           ..model = model
           ..turnSeq = turnSeq
+          ..epoch = epoch
           ..lineN = lineN;
         _take(keep);
         items.add(MarkerItem(MarkerKind.cleared, _key()));

@@ -94,8 +94,20 @@ class ChatScreen extends StatelessWidget {
                           );
                         }
                         final it = items[items.length - 1 - i];
-                        return itemBuilder?.call(context, it) ??
-                            FeedItemView(it);
+                        // keyed by the item, not the index: a new item shifts every index of a reversed list
+                        return KeyedSubtree(
+                          key: ValueKey(feedKey(it)),
+                          child:
+                              itemBuilder?.call(context, it) ??
+                              FeedItemView(it),
+                        );
+                      },
+                      findChildIndexCallback: (key) {
+                        final k = (key as ValueKey<String>).value;
+                        final at = items.lastIndexWhere(
+                          (it) => feedKey(it) == k,
+                        );
+                        return at < 0 ? null : items.length - 1 - at;
                       },
                     ),
                     if (f.compacting)

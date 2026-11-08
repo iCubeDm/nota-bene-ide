@@ -136,4 +136,59 @@ void main() {
     expect(find.text('notes'), findsOneWidget);
     expect(find.textContaining('Spec work'), findsOneWidget);
   });
+
+  testWidgets(
+    'an opened tool result stays with its tool when new items arrive',
+    (t) async {
+      await open(t);
+      ch.event(ch.lastWsId, {
+        'kind': 'replay',
+        'events': [
+          agent({
+            't': 'tool-call',
+            'id': 't1',
+            'name': 'Bash',
+            'input': {'command': 'first'},
+            'sub': false,
+          }),
+          agent({
+            't': 'tool-update',
+            'id': 't1',
+            'text': 'first out',
+            'isError': false,
+          }),
+          agent({
+            't': 'tool-call',
+            'id': 't2',
+            'name': 'Bash',
+            'input': {'command': 'second'},
+            'sub': false,
+          }),
+          agent({
+            't': 'tool-update',
+            'id': 't2',
+            'text': 'second out',
+            'isError': false,
+          }),
+        ],
+      });
+      await t.pumpAndSettle();
+      await t.tap(find.textContaining('first'));
+      await t.pumpAndSettle();
+      expect(find.text('first out'), findsOneWidget);
+      ch.event(
+        ch.lastWsId,
+        agent({
+          't': 'tool-call',
+          'id': 't3',
+          'name': 'Bash',
+          'input': {'command': 'third'},
+          'sub': false,
+        }),
+      );
+      await t.pumpAndSettle();
+      expect(find.text('first out'), findsOneWidget);
+      expect(find.text('second out'), findsNothing);
+    },
+  );
 }

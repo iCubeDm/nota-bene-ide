@@ -156,7 +156,7 @@
   "messageHint": "Message",
   "cannotSend": "Sending is off while the window is not reachable",
   "sendNowTitle": "Send now?",
-  "sendNowBody": "The agent is working. Sending now will interrupt the current turn.",
+  "sendNowBody": "The agent is working. Send the message after this turn, or now and interrupt the current turn.",
   "sendNow": "Send now",
   "refusedBusy": "The window is busy; the message was not sent.",
   "refusedSwitching": "The window is switching sessions; the message was not sent.",
@@ -206,5 +206,7 @@
         "type": "String"
       }
     }
-  }
+  },
+  "sendAfter": "Send after this turn",
+  "diagramFailed": "The diagram could not be drawn just now; reopen the chat to try again."
 }

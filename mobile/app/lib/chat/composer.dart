@@ -56,32 +56,39 @@ class _ComposerState extends State<Composer> {
     if (text.isEmpty) return;
     var force = false;
     if (widget.tab.busy) {
+      // as on the desktop: a message while the agent works waits for its turn, unless it is sent now and interrupts
       final t = AppLocalizations.of(context);
-      final ok = await showDialog<bool>(
+      final choice = await showDialog<String>(
         context: context,
         builder: (c) => AlertDialog(
           title: Text(t.sendNowTitle),
           content: Text(t.sendNowBody),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(c, false),
+              onPressed: () => Navigator.pop(c),
               child: Text(t.cancel),
             ),
+            TextButton(
+              onPressed: () => Navigator.pop(c, 'queue'),
+              child: Text(t.sendAfter),
+            ),
             FilledButton(
-              onPressed: () => Navigator.pop(c, true),
+              onPressed: () => Navigator.pop(c, 'force'),
               child: Text(t.sendNow),
             ),
           ],
         ),
       );
-      if (ok != true || !mounted) return;
-      force = true;
+      if (choice == null || !mounted) return;
+      force = choice == 'force';
     }
     final id = uuidV4();
-    _last = (id: id, text: text);
-    widget.tab.send(
+    // the text stays when the window is not there to take it (the tab went offline or was taken meanwhile)
+    final sent = widget.tab.send(
       ClientMessageSend(id: id, text: text, force: force ? true : null),
     );
+    if (!sent) return;
+    _last = (id: id, text: text);
     _text.clear();
   }
 

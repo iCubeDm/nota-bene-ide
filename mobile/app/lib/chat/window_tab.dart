@@ -62,6 +62,7 @@ class WindowTab extends ChangeNotifier {
   bool _passive = false;
   bool _takeoverWanted = false;
   bool _reopening = false;
+  List<HostWindow>? _goneList;
   bool _disposed = false;
 
   TabState get state => _state;
@@ -90,8 +91,12 @@ class WindowTab extends ChangeNotifier {
       if (_state != TabState.taken) _set(TabState.offline);
       return;
     }
-    if (_state == TabState.gone && link.windows.any((w) => w.port == port)) {
-      _open(ch);
+    if (_state == TabState.gone) {
+      // only a list the host sent after the close: the one from before still names the window that just went
+      final fresh = !identical(link.windows, _goneList);
+      if (fresh && link.windows.any((w) => w.port == port)) {
+        _open(ch);
+      }
       return;
     }
     if (!identical(ch, _on) &&
@@ -133,8 +138,8 @@ class WindowTab extends ChangeNotifier {
       return;
     }
     if (code == unknownWindow) {
+      _goneList = link.windows;
       _set(TabState.gone);
-      _linkChanged();
       return;
     }
     if (link.state != LinkState.online ||
@@ -193,13 +198,15 @@ class WindowTab extends ChangeNotifier {
     _notify();
   }
 
-  void _raw(ClientMessage m) =>
-      _stream?.send(utf8.encode(jsonEncode(m.toJson()))).catchError((_) {});
-
-  /// Sends [m] when the tab owns the window; anything else would be dropped by the server anyway.
-  void send(ClientMessage m) {
-    if (_state == TabState.open) _raw(m);
+  bool _raw(ClientMessage m) {
+    final s = _stream;
+    if (s == null || s.isClosed) return false;
+    s.send(utf8.encode(jsonEncode(m.toJson()))).catchError((_) {});
+    return true;
   }
+
+  /// Sends [m] when the tab owns the window (anything else would be dropped by the server); false when it did not go.
+  bool send(ClientMessage m) => _state == TabState.open && _raw(m);
 
   bool _loadingEarlier = false;
 
@@ -211,7 +218,7 @@ class WindowTab extends ChangeNotifier {
     }
     _loadingEarlier = true;
     try {
-      final segment = feed.earlier;
+      final segment = feed.earlier, epoch = feed.epoch;
       final r = await ch.http(
         port,
         'GET',
@@ -226,6 +233,7 @@ class WindowTab extends ChangeNotifier {
         ],
         segment: (j['segment'] as num).toInt(),
         more: j['more'] == true,
+        epoch: epoch,
       );
       _notify();
     } on Object {
