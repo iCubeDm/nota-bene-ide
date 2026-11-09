@@ -79,8 +79,8 @@ Opened from the header pill, top to bottom:
   `mode_<id>_desc` strings, added to the strings generator; Codex and omp show their own modes, as on the web.
 - **Plan limits:** five-hour and weekly bars with percent and reset time, from `stats`; rows absent when the agent
   reports none.
-- **Actions:** four equal tiles, icon above a short label: Compact, Clear, Restart, Stats. Clear asks first, as on
-  the desktop, and is held back by the same pending-comments guard (`isClearCommand` in `web/src/comments/send.ts`).
+- **Actions:** four equal tiles, icon above a short label: Compact, Clear, Restart, Stats. Clear asks first, as the
+  desktop's button does; like it, it is not blocked by pending comments (only a typed `/clear` is).
 
 ### Comments in the chat
 
