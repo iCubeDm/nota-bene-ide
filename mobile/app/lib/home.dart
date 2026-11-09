@@ -9,6 +9,7 @@ import 'hosts/host_link.dart';
 import 'hosts/hosts_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'store/hosts.dart';
+import 'store/seen.dart';
 
 typedef ChatBuilder = Widget Function(String hostId, HostWindow w);
 
@@ -16,13 +17,17 @@ class Home extends StatefulWidget {
   const Home({
     super.key,
     required this.hosts,
+    required this.seen,
     required this.links,
     required this.onPair,
     required this.chat,
     this.onSettings,
+    this.clock = DateTime.now,
   });
 
   final Hosts hosts;
+  final Seen seen;
+  final DateTime Function() clock;
   final Links links;
   final VoidCallback onPair;
   final VoidCallback? onSettings;
@@ -42,6 +47,7 @@ class _HomeState extends State<Home> {
     super.initState();
     widget.links.addListener(_changed);
     widget.hosts.addListener(_changed);
+    widget.seen.addListener(_changed);
     _life = AppLifecycleListener(
       onHide: () =>
           _pause ??= Timer(const Duration(minutes: 10), widget.links.pause),
@@ -58,6 +64,7 @@ class _HomeState extends State<Home> {
   void dispose() {
     widget.links.removeListener(_changed);
     widget.hosts.removeListener(_changed);
+    widget.seen.removeListener(_changed);
     _life.dispose();
     _pause?.cancel();
     super.dispose();
@@ -143,6 +150,8 @@ class _HomeState extends State<Home> {
             )
           : HostsList(
               links: widget.links.all,
+              seen: widget.seen,
+              clock: widget.clock,
               onOpen: _open,
               onForget: (l) => widget.hosts.forget(l.host.id),
             ),

@@ -313,7 +313,7 @@ export const es: Dict = {
   dictRetry: "Reintentar",
   dictUse: "Usar Whisper para el micrófono del teléfono",
   dictRemove: "Quitar Whisper",
-  dictRemoveQ: (dir: string) => `¿Borrar los archivos de Whisper de ${dir}? El teléfono volverá a su propio dictado.`,
+  dictRemoveQ: (dir: string) => `¿Borrar los archivos de Whisper de ${dir}? El micrófono del teléfono solo funciona con Whisper.`,
   dictRemoveGo: "Quitar",
   aboutVersion: 'Versión',
   aboutState: 'Carpeta de estado',

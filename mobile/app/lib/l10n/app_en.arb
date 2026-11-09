@@ -38,6 +38,9 @@
   "unpaired": "This phone is no longer paired with this host.",
   "forget": "Forget",
   "untitled": "untitled",
+  "youPrefix": "You: ",
+  "markRead": "Mark read",
+  "openSession": "Open",
   "noWindows": "No open windows",
   "justNow": "just now",
   "minutesAgo": "{n, plural, =1{1 min ago} other{{n} min ago}}",
@@ -212,6 +215,12 @@
   "diagramFailed": "The diagram could not be drawn just now; reopen the chat to try again.",
   "comment": "Comment",
   "commentHint": "Your comment",
+  "menuComment": "Comment",
+  "menuSelectText": "Select text",
+  "menuCopy": "Copy",
+  "menuReply": "Reply",
+  "menuSelectAll": "Select all",
+  "labelsAll": "All labels",
   "save": "Save",
   "deleteComment": "Delete comment",
   "fileNotFound": "This file is not there (any more).",
@@ -260,10 +269,70 @@
   "dictate": "Dictate",
   "dictateStop": "Stop dictation",
   "dictationDenied": "Microphone access is off for Nota Bene",
-  "dictationUnavailable": "Speech recognition is not available on this phone",
   "dictationNoMatch": "Nothing was heard",
   "dictationFailed": "Dictation failed",
   "dictationTranscribing": "Transcribing…",
   "dictationHostFailed": "The computer could not transcribe it",
-  "dictationHostOff": "Whisper is off on the computer; the phone's recognition is used now"
+  "voiceHold": "Hold to record",
+  "voiceSlideCancel": "Slide to cancel",
+  "voiceCancel": "Cancel",
+  "voiceTranscribing": "Transcribing…",
+  "voiceStop": "Stop",
+  "dictationHostOff": "Whisper is off on the computer",
+  "dictationCut": "The rest of the recording was not transcribed",
+  "expandCode": "Open full screen",
+  "codeLines": "{count, plural, one{{count} line} other{{count} lines}}",
+  "@codeLines": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "windowSheetMode": "Mode",
+  "limitsTitle": "Plan limits",
+  "limit5h": "5 hours",
+  "limitWeek": "Week",
+  "limitResets": "{pct}% · resets {when}",
+  "tileCompact": "Compact",
+  "tileClear": "Clear",
+  "tileRestart": "Restart",
+  "tileStats": "Stats",
+  "@limitResets": {
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      },
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "attach": "Attach an image",
+  "attachCamera": "Camera",
+  "attachGallery": "Gallery",
+  "attachFile": "File",
+  "attachRemove": "Remove",
+  "attachFailed": "The image could not be uploaded.",
+  "attachUnsupported": "Only png, jpeg, gif and webp images can be attached.",
+  "attachTooLarge": "Too large to attach: {names}",
+  "attachUploading": "Wait for the image to finish uploading",
+  "attachDenied": "Nota Bene may not use the camera or photos. Allow it in Android settings.",
+  "attachBusy": "Another picker is still open. Finish it first.",
+  "attachUnavailable": "This phone has no app for that.",
+  "attachRead": "The image could not be read.",
+  "@attachTooLarge": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "share": "Share",
+  "shareFailed": "The image could not be shared.",
+  "whisperTitle": "Dictation by Whisper",
+  "whisperOff": "Whisper is installed on the computer but turned off. The phone's microphone records, and Whisper transcribes on the computer.",
+  "whisperTurnOn": "Turn on Whisper",
+  "whisperReady": "Whisper is on: hold the mic to speak",
+  "whisperNoAnswer": "The computer did not answer"
 }

@@ -1,5 +1,6 @@
 // The app's quick labels and comment-batch strings, from the web's own sources (web/src/comments/labels.ts and
 // web/src/i18n), so the phone sends the batch the desktop would. Written by `npm run gen:protocol`.
+import { ALL_MODES } from '../../shared/src/protocol.ts';
 import { QUICK_LABELS } from '../../web/src/comments/labels.ts';
 import { de } from '../../web/src/i18n/de.ts';
 import { en } from '../../web/src/i18n/en.ts';
@@ -15,12 +16,44 @@ const DICTS: [string, Record<string, unknown>][] = [['en', en], ['ru', ru], ['zh
 /** the batch strings the phone's composeBatch uses */
 const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale'] as const;
 /**
+ * Web strings the phone shows as they are; `webString` reads them: the usage meters' words, the window sheet's
+ * mode names and descriptions (every provider's modes, as ModePill.tsx shows them) and its clear/compact texts, and
+ * the mic's Whisper sheet.
+ * A key that is not a plain string in a dictionary fails the generator.
+ */
+export const WEB_KEYS: readonly string[] = [
+  'h5', 'week',
+  ...ALL_MODES.flatMap((m) => [`mode_${m}`, `mode_${m}_desc`]),
+  'modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip', 'clearFail', 'working', 'offline',
+  'srcMine', 'replyPlain',
+  'dictInstallGo', 'dictInstalling', 'dictFailed', 'dictRetry',
+];
+/**
  * The batch's functions, as templates: each is called with the placeholders `{0}`, `{1}` for its arguments (a list
  * argument as a one-item list: every one of them joins its list with ', ', which the phone does before filling it in).
  * The key's value is the argument kinds.
  */
 const TEMPLATE_KEYS: Record<string, ('n' | 'list')[]> = {
   imgLabel: ['n'], imgLabelC: ['n', 'n'], imgRef: ['list'], imgRefMedia: ['list'], filesLine: ['list'], scaledSfx: ['n'],
+  srcTool: ['n', 'n'], srcAgentReply: ['n'], srcAgentTool: ['n', 'n'],
+  // the mic's Whisper sheet (Settings → Dictation's question): sizes and the folder
+  dictInstallQ: ['n', 'n', 'n'],
+};
+/**
+ * The forms of the source names that drop a part when it is empty (a tool with no argument, a subagent with no name),
+ * as templates of the remaining argument: key → [the function, its arguments with '' where the part is empty].
+ */
+const BARE_KEYS: Record<string, [string, string[]]> = {
+  srcToolBare: ['srcTool', ['{0}', '']],
+  srcAgentReplyBare: ['srcAgentReply', ['']],
+  srcAgentToolBare: ['srcAgentTool', ['{0}', '']],
+};
+const bare = (d: Record<string, unknown>, key: string, args: string[]): string => {
+  const f = d[key];
+  if (typeof f !== 'function') throw new Error(`web i18n: ${key} is not a function`);
+  const out = (f as (...a: string[]) => unknown)(...args);
+  if (typeof out !== 'string') throw new Error(`web i18n: ${key} does not template`);
+  return out;
 };
 
 const template = (d: Record<string, unknown>, key: string, kinds: ('n' | 'list')[]): string => {
@@ -51,9 +84,11 @@ export function mobileStrings(): string {
       const arity = (en as Record<string, unknown>)[k] instanceof Function ? ((en as Record<string, unknown>)[k] as { length: number }).length : 0;
       return [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, arity ? template(d, k, Array(arity).fill('n')) : text(d, k)]))];
     })),
+    web: Object.fromEntries(WEB_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))])),
     batch: Object.fromEntries([
       ...BATCH_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))]),
       ...Object.entries(TEMPLATE_KEYS).map(([k, kinds]) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, template(d, k, kinds)]))]),
+      ...Object.entries(BARE_KEYS).map(([k, [fn, args]]) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, bare(d, fn, args)]))]),
     ]),
   };
   const json = JSON.stringify(data, null, 1);
@@ -96,6 +131,12 @@ String batchString(String key, String lang) {
   return m[lang] ?? m['en']!;
 }
 
+/// A string of the web's own dictionary in [lang], English for any other.
+String webString(String key, String lang) {
+  final m = ((_data['web'] as Map)[key] as Map).cast<String, String>();
+  return m[lang] ?? m['en']!;
+}
+
 /// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').
 String batchTemplate(String key, String lang, List<Object> args) =>
     _fill(batchString(key, lang), args);
@@ -110,12 +151,11 @@ String usageString(String key, String lang) {
 String usageTemplate(String key, String lang, List<Object> args) =>
     _fill(usageString(key, lang), args);
 
-String _fill(String s, List<Object> args) {
-  for (final (i, a) in args.indexed) {
-    s = s.replaceAll('{\$i}', '\$a');
-  }
-  return s;
-}
+/// One pass: an argument that itself holds a {1} is not filled again.
+String _fill(String s, List<Object> args) => s.replaceAllMapped(
+  RegExp(r'\\{(\\d+)\\}'),
+  (m) => '\${args[int.parse(m[1]!)]}',
+);
 
 const _json = r'''
 ${json}

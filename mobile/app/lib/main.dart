@@ -12,6 +12,7 @@ import 'pairing/pair_flow.dart';
 import 'pairing/scan_screen.dart';
 import 'settings_screen.dart';
 import 'store/hosts.dart';
+import 'store/seen.dart';
 import 'store/theme_choice.dart';
 import 'store/vault.dart';
 import 'theme.dart';
@@ -47,13 +48,16 @@ class AppRoot extends StatefulWidget {
 }
 
 class _AppRootState extends State<AppRoot> {
-  late final Future<({Identity id, Hosts hosts, Links links})> _load =
-      () async {
-        final v = SecureVault();
-        final id = await Identity.load(v);
-        final hosts = await Hosts.load(v);
-        return (id: id, hosts: hosts, links: Links(hosts, connectChannel, id));
-      }();
+  late final Future<({Identity id, Hosts hosts, Seen seen, Links links})>
+  _load = () async {
+    final v = SecureVault();
+    final id = await Identity.load(v);
+    final hosts = await Hosts.load(v);
+    final seen = await Seen.load(v);
+    final links = Links(hosts, connectChannel, id);
+    seen.watch(hosts, links);
+    return (id: id, hosts: hosts, seen: seen, links: links);
+  }();
 
   @override
   void dispose() {
@@ -97,6 +101,7 @@ class _AppRootState extends State<AppRoot> {
       );
       return Home(
         hosts: d.hosts,
+        seen: d.seen,
         links: d.links,
         onPair: pair,
         onSettings: () => Navigator.of(context).push(
@@ -113,7 +118,7 @@ class _AppRootState extends State<AppRoot> {
           final link = d.links.of(hostId);
           return link == null
               ? Scaffold(appBar: AppBar(title: Text(folderOf(w.root))))
-              : ChatRoute(link: link, port: w.port, root: w.root);
+              : ChatRoute(link: link, port: w.port, root: w.root, seen: d.seen);
         },
       );
     },

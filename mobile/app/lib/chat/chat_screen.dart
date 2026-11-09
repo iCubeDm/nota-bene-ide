@@ -1,14 +1,25 @@
-// One window's chat: the folder and session in the bar, a state line, the feed (newest at the bottom), and below it
+// One window's chat: the floating header pill (session, model, limits), a state line, the feed (newest at the bottom), and below it
 // whatever the caller puts there (the composer).
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
-import 'package:nb_protocol/nb_protocol.dart' show StopReason;
+import 'package:nb_protocol/nb_protocol.dart'
+    show AnchorSourceMessage, StopReason, TextAnchor;
 
 import '../hosts/hosts_screen.dart';
 import '../l10n/app_localizations.dart';
+import '../comments/anchor.dart';
+import '../comments/chat_anchor.dart';
+import '../comments/comment_strip.dart' show editComment;
+import '../files/file_markdown.dart';
 import '../theme.dart';
+import 'chat_header.dart';
+import 'comment_target.dart';
 import 'feed.dart';
 import 'files.dart';
+import 'media_card.dart';
 import 'markdown.dart';
+import 'message_menu.dart';
+import 'message_selection.dart';
 import 'window_tab.dart';
 
 class ChatScreen extends StatelessWidget {
@@ -19,14 +30,22 @@ class ChatScreen extends StatelessWidget {
     this.actions = const [],
     this.overlay,
     this.itemBuilder,
+    this.onTapTitle,
+    this.onReply,
   });
 
   final WindowTab tab;
   final Widget? bottom;
   final List<Widget> actions;
 
+  /// Tapping the header pill (the settings sheet, #143); null leaves the pill inert.
+  final VoidCallback? onTapTitle;
+
   /// Covers the feed (the one-tab rule's Work here).
   final Widget? overlay;
+
+  /// Reply in a message's menu: puts [quote] into the draft; null drops the entry's effect.
+  final void Function(String quote)? onReply;
 
   /// Overrides the default look of an item (Task 10 answers permissions in the feed); null falls back.
   final Widget? Function(BuildContext, FeedItem)? itemBuilder;
@@ -38,96 +57,105 @@ class ChatScreen extends StatelessWidget {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
       final f = tab.feed;
-      final sub = [
-        f.title ?? t.untitled,
-        if ((tab.model ?? f.model) != null) tab.model ?? f.model!,
-      ].join(' · ');
       final status = _status(t);
       final items = f.items;
+      // the feed keeps the floating header clear
+      final top = MediaQuery.paddingOf(context).top + ChatHeader.extent;
       return Scaffold(
-        appBar: AppBar(
-          titleSpacing: 0,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(folderOf(tab.root)),
-              Text(
-                sub,
-                style: TextStyle(fontSize: 12, color: c.mutedFg),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-          actions: actions,
-        ),
         body: SafeArea(
+          top: false,
           child: FileOpener(
             tab: tab,
-            child: Column(
+            child: Stack(
               children: [
-                if (status != null)
-                  Container(
-                    width: double.infinity,
-                    color: c.muted,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(color: c.mutedFg, fontSize: 13),
-                    ),
-                  ),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      // reversed: the newest item sits at the bottom and stays in view while the user is there
-                      ListView.builder(
-                        reverse: true,
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                        itemCount: items.length + (f.earlier > 0 ? 1 : 0),
-                        itemBuilder: (context, i) {
-                          if (i == items.length) {
-                            return Center(
-                              child: TextButton(
-                                onPressed: tab.loadEarlier,
-                                child: Text(t.showEarlier),
-                              ),
-                            );
-                          }
-                          final it = items[items.length - 1 - i];
-                          // keyed by the item, not the index: a new item shifts every index of a reversed list
-                          return KeyedSubtree(
-                            key: ValueKey(feedKey(it)),
-                            child:
-                                itemBuilder?.call(context, it) ??
-                                FeedItemView(it),
-                          );
-                        },
-                        findChildIndexCallback: (key) {
-                          final k = (key as ValueKey<String>).value;
-                          final at = items.lastIndexWhere(
-                            (it) => feedKey(it) == k,
-                          );
-                          return at < 0 ? null : items.length - 1 - at;
-                        },
-                      ),
-                      if (f.compacting)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: LinearProgressIndicator(
-                            minHeight: 2,
-                            color: c.accent,
-                          ),
+                Column(
+                  children: [
+                    if (status != null)
+                      Container(
+                        width: double.infinity,
+                        color: c.muted,
+                        padding: EdgeInsets.fromLTRB(12, top + 6, 12, 6),
+                        child: Text(
+                          status,
+                          style: TextStyle(color: c.mutedFg, fontSize: 13),
                         ),
-                      ?overlay,
-                    ],
+                      ),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          // reversed: the newest item sits at the bottom and stays in view while the user is there
+                          ListView.builder(
+                            reverse: true,
+                            padding: EdgeInsets.fromLTRB(
+                              12,
+                              status == null ? top : 8,
+                              12,
+                              8,
+                            ),
+                            itemCount: items.length + (f.earlier > 0 ? 1 : 0),
+                            itemBuilder: (context, i) {
+                              if (i == items.length) {
+                                return Center(
+                                  child: TextButton(
+                                    onPressed: tab.loadEarlier,
+                                    child: Text(t.showEarlier),
+                                  ),
+                                );
+                              }
+                              final it = items[items.length - 1 - i];
+                              // keyed by the item, not the index: a new item shifts every index of a reversed list
+                              return KeyedSubtree(
+                                key: ValueKey(feedKey(it)),
+                                child: _Commentable(
+                                  tab: tab,
+                                  item: it,
+                                  onReply: onReply ?? (_) {},
+                                  child:
+                                      itemBuilder?.call(context, it) ??
+                                      (chatSource(it) == null
+                                          ? FeedItemView(it)
+                                          : _Marked(tab: tab, item: it)),
+                                ),
+                              );
+                            },
+                            findChildIndexCallback: (key) {
+                              final k = (key as ValueKey<String>).value;
+                              final at = items.lastIndexWhere(
+                                (it) => feedKey(it) == k,
+                              );
+                              return at < 0 ? null : items.length - 1 - at;
+                            },
+                          ),
+                          if (f.compacting)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: LinearProgressIndicator(
+                                minHeight: 2,
+                                color: c.accent,
+                              ),
+                            ),
+                          ?overlay,
+                        ],
+                      ),
+                    ),
+                    ?bottom,
+                  ],
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    bottom: false,
+                    child: ChatHeader(
+                      tab: tab,
+                      onTapTitle: onTapTitle,
+                      actions: actions,
+                    ),
                   ),
                 ),
-                ?bottom,
               ],
             ),
           ),
@@ -151,10 +179,204 @@ class ChatScreen extends StatelessWidget {
   }
 }
 
+/// A commentable item with its pending comments painted: each passage highlighted with the comment's number in the
+/// strip, a whole-message comment as a badge at the top right. It listens to the comments itself and rebuilds only
+/// when the marks of this item change.
+class _Marked extends StatefulWidget {
+  const _Marked({required this.tab, required this.item});
+  final WindowTab tab;
+  final FeedItem item;
+
+  @override
+  State<_Marked> createState() => _MarkedState();
+}
+
+class _MarkedState extends State<_Marked> {
+  List<Mark> _marks = const [];
+  List<({String id, int n})> _whole = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.tab.comments.addListener(_changed);
+    _compute();
+  }
+
+  @override
+  void didUpdateWidget(_Marked old) {
+    super.didUpdateWidget(old);
+    if (old.tab != widget.tab) {
+      old.tab.comments.removeListener(_changed);
+      widget.tab.comments.addListener(_changed);
+    }
+    _compute();
+  }
+
+  @override
+  void dispose() {
+    widget.tab.comments.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    final before = (_marks, _whole);
+    _compute();
+    if (!listEquals(before.$1, _marks) || !listEquals(before.$2, _whole)) {
+      setState(() {});
+    }
+  }
+
+  String? get _id => switch (chatSource(widget.item)) {
+    AnchorSourceMessage(:final id) => id,
+    _ => null,
+  };
+
+  void _compute() {
+    final strip = widget.tab.comments.sendable;
+    final mine = [
+      for (final (i, c) in strip.indexed)
+        if (c.anchor case TextAnchor(
+          source: AnchorSourceMessage(:final id, agent: null),
+        ) when id == _id)
+          (c: c, a: c.anchor as TextAnchor, n: i + 1),
+    ];
+    if (mine.isEmpty) {
+      _marks = const [];
+      _whole = const [];
+      return;
+    }
+    final text = chatText(widget.item).text;
+    final marks = <Mark>[], whole = <({String id, int n})>[];
+    for (final m in mine) {
+      final at = resolveAnchor(m.a, text);
+      if (at == null) continue;
+      if (at.start == 0 && at.end == text.length) {
+        whole.add((id: m.c.id, n: m.n));
+      } else {
+        marks.add((
+          start: at.start,
+          end: at.end,
+          id: m.c.id,
+          sent: false,
+          n: m.n,
+        ));
+      }
+    }
+    _marks = marks;
+    _whole = whole;
+  }
+
+  void _open(String id) {
+    final x = widget.tab.comments.all.where((c) => c.id == id).firstOrNull;
+    if (x != null) editComment(context, widget.tab, x);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final view = FeedItemView(widget.item, marks: _marks, onMark: _open);
+    if (_whole.isEmpty) return view;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        view,
+        Positioned(
+          top: 0,
+          right: 0,
+          child: Row(
+            children: [
+              for (final w in _whole)
+                MarkBadge(id: w.id, n: w.n, onTap: () => _open(w.id)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A long press on a commentable item (a user message, a final reply) opens its menu; others pass through. "Select
+/// text" in the menu puts this one item into selection mode until a tap lands outside it.
+class _Commentable extends StatefulWidget {
+  const _Commentable({
+    required this.tab,
+    required this.item,
+    required this.onReply,
+    required this.child,
+  });
+  final WindowTab tab;
+  final FeedItem item;
+  final void Function(String quote) onReply;
+  final Widget child;
+
+  @override
+  State<_Commentable> createState() => _CommentableState();
+}
+
+class _CommentableState extends State<_Commentable> {
+  bool _selecting = false;
+  Offset? _from;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    if (chatSource(item) == null) return widget.child;
+    if (_selecting) {
+      return CommentTarget(
+        tab: widget.tab,
+        item: item,
+        child: SelectableMessage(
+          tab: widget.tab,
+          item: item,
+          from: _from,
+          onDone: () => setState(() => _selecting = false),
+        ),
+      );
+    }
+    return CommentTarget(
+      tab: widget.tab,
+      item: item,
+      child: GestureDetector(
+        onLongPressStart: (d) {
+          final box = context.findRenderObject() as RenderBox;
+          // kept in the item's own coordinates: the item may move before "Select text" is chosen
+          final at = box.globalToLocal(d.globalPosition);
+          final rect = box.localToGlobal(Offset.zero) & box.size;
+          showMessageMenu(
+            context,
+            tab: widget.tab,
+            item: item,
+            itemRect: rect,
+            onSelectText: () => setState(() {
+              _selecting = true;
+              _from = at;
+            }),
+            onReply: widget.onReply,
+          );
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 /// The default look of one feed item.
 class FeedItemView extends StatelessWidget {
-  const FeedItemView(this.item, {super.key});
+  const FeedItemView(
+    this.item, {
+    super.key,
+    this.listenerAt,
+    this.marks = const [],
+    this.onMark = _noMark,
+  });
   final FeedItem item;
+
+  /// Commented passages to paint (and number) in the text; a tap on one calls [onMark] with the comment's id.
+  final List<Mark> marks;
+  final void Function(String id) onMark;
+  static void _noMark(String id) {}
+
+  /// In selection mode: the Markdown is drawn block by block, each block's selection reported to its notifier.
+  final SelectionListenerNotifier Function(int block)? listenerAt;
 
   @override
   Widget build(BuildContext context) {
@@ -168,29 +390,76 @@ class FeedItemView extends StatelessWidget {
       ),
     );
     return switch (item) {
-      UserItem(:final text, :final idle) =>
+      UserItem(:final text, :final idle, :final images) =>
         idle
             ? line(t.idleCompact)
             : Align(
                 alignment: Alignment.centerRight,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+                child: LayoutBuilder(
+                  builder: (context, box) => Container(
+                    key: const ValueKey('bubble'),
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    constraints: BoxConstraints(maxWidth: box.maxWidth * .84),
+                    decoration: BoxDecoration(
+                      color: Color.alphaBlend(
+                        c.primary.withValues(alpha: .28),
+                        c.background,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(14),
+                        topRight: Radius.circular(14),
+                        bottomLeft: Radius.circular(14),
+                        bottomRight: Radius.circular(4),
+                      ),
+                      border: Border.all(
+                        color: c.primary.withValues(alpha: .45),
+                      ),
+                    ),
+                    // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (images.isNotEmpty && FileOpener.of(context) != null)
+                          UserImages(
+                            tab: FileOpener.of(context)!,
+                            images: images,
+                          ),
+                        if (text.isNotEmpty || images.isEmpty)
+                          listenerAt == null && marks.isEmpty
+                              ? NbMarkdown(
+                                  userMarkdownSource(text),
+                                  blockSyntaxes: userBlockSyntaxes,
+                                  inlineSyntaxes: userInlineSyntaxes,
+                                  softLineBreak: true,
+                                )
+                              : FileMarkdown(
+                                  text: text,
+                                  listenerAt: listenerAt,
+                                  marks: marks,
+                                  onMark: onMark,
+                                  parse: parseUserMessage,
+                                  softLineBreak: true,
+                                ),
+                      ],
+                    ),
                   ),
-                  constraints: const BoxConstraints(maxWidth: 560),
-                  decoration: BoxDecoration(
-                    color: c.card,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: c.border),
-                  ),
-                  child: SelectableText(text),
                 ),
               ),
       AssistantItem(:final text) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: NbMarkdown(text),
+        child: listenerAt == null && marks.isEmpty
+            ? NbMarkdown(text)
+            : FileMarkdown(
+                text: text,
+                listenerAt: listenerAt,
+                marks: marks,
+                onMark: onMark,
+              ),
       ),
       ToolItem() => ToolLine(item as ToolItem),
       DoneItem(:final secs, :final status, :final error) => line(
@@ -298,6 +567,8 @@ class _ToolLineState extends State<ToolLine> {
               ],
             ),
           ),
+          if (tab != null)
+            for (final m in mediaOf(tab, it)) MediaCard(tab: tab, spec: m),
           if (_open && it.result != null)
             Container(
               margin: const EdgeInsets.only(top: 4),

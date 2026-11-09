@@ -10,6 +10,23 @@ import '../theme.dart';
 import 'comment_sheet.dart';
 import 'comments.dart';
 
+/// The comment sheet over [x]: saving edits it, Delete removes it.
+Future<void> editComment(BuildContext context, WindowTab tab, Comment x) async {
+  final res = await showCommentSheet(
+    context,
+    quote: quoteOf(x),
+    editing: x,
+    tab: tab,
+  );
+  switch (res) {
+    case SheetSave(:final text, :final label):
+      tab.comments.edit(x.id, text, label);
+    case SheetDelete():
+      tab.comments.remove(x.id);
+    case null:
+  }
+}
+
 class CommentStrip extends StatelessWidget {
   const CommentStrip({super.key, required this.tab});
   final WindowTab tab;
@@ -77,16 +94,7 @@ class CommentStrip extends StatelessWidget {
                 _ => null,
               },
             ),
-      onLongPress: () async {
-        final res = await showCommentSheet(context, quote: quote, editing: x);
-        switch (res) {
-          case SheetSave(:final text, :final label):
-            tab.comments.edit(x.id, text, label);
-          case SheetDelete():
-            tab.comments.remove(x.id);
-          case null:
-        }
-      },
+      onLongPress: () => editComment(context, tab, x),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
         child: Text.rich(

@@ -1,6 +1,8 @@
 // A Markdown file as the chat draws it, built from our own parse so the comments' ranges can be marked in it: each
 // range of the rendered text (comments/anchor.dart) is split out of its text nodes and wrapped in a link to the mark,
 // whose style paints it.
+import 'dart:convert';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -10,13 +12,39 @@ import '../chat/markdown.dart';
 import '../comments/anchor.dart';
 import '../theme.dart';
 
-/// A range of the rendered text to paint, and what tapping it means.
-typedef Mark = ({int start, int end, String id, bool sent});
+/// A range of the rendered text to paint, and what tapping it means. [n] > 0 puts the comment's number as a badge after
+/// the first piece of the range (the chat); 0 paints only.
+typedef Mark = ({int start, int end, String id, bool sent, int n});
 
 const _markScheme = 'nbmark:';
 
-/// Wraps each mark's characters of [r]'s runs in `a(nbmark|nbsent(text))`. Math and code blocks are not split: their
-/// builders draw from the whole text, so a mark there is not painted (the comment itself is unaffected).
+/// The attribute of a `pre` element that carries the marks inside it: JSON `[[from, to, id, sent, n], …]`, offsets
+/// into the block's text.
+const codeMarksAttr = 'nbmarks';
+
+/// The offset of text node [target] in [e]'s text, or -1.
+int _offsetIn(md.Element e, md.Node target) {
+  var at = 0;
+  int walk(md.Node n) {
+    if (identical(n, target)) return at;
+    if (n is md.Text) {
+      at += n.text.length;
+    } else if (n is md.Element) {
+      for (final c in n.children ?? const <md.Node>[]) {
+        final r = walk(c);
+        if (r >= 0) return r;
+      }
+    }
+    return -1;
+  }
+
+  return walk(e);
+}
+
+/// Wraps each mark's characters of [r]'s runs in `a(nbmark|nbsent(text))`. A code block is not split: its builder
+/// draws from the whole text, so the marks inside it go to the `pre` element as its [codeMarksAttr] (the builder
+/// paints them and shows the badge in its bar). Math is not split either, so a mark there is not painted (the comment
+/// itself is unaffected).
 void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
   if (marks.isEmpty) return;
   final parents = <md.Node, md.Element>{};
@@ -29,16 +57,18 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
 
   final root = md.Element('root', nodes);
   index(root);
-  bool inCode(md.Node n) {
+  md.Element? preOf(md.Node n) {
     for (var p = parents[n]; p != null; p = parents[p]) {
-      if (p.tag == 'pre') return true;
+      if (p.tag == 'pre') return p;
     }
-    return false;
+    return null;
   }
 
+  final badged = <String>{};
+  final inPre = <md.Element, List<List<Object>>>{};
   for (final run in r.runs) {
     final node = run.node;
-    if (node is! md.Text || inCode(node)) continue;
+    if (node is! md.Text) continue;
     final raw = node.text;
     // raw boundaries where a mark starts or ends inside this node
     final cuts = <({int from, int to, Mark m})>[];
@@ -56,6 +86,23 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
     }
     if (cuts.isEmpty) continue;
     cuts.sort((a, b) => a.from.compareTo(b.from));
+    final pre = preOf(node);
+    if (pre != null) {
+      final base = _offsetIn(pre, node);
+      var end = 0;
+      for (final c in cuts) {
+        if (c.from < end) continue; // overlapping marks: the first one paints
+        (inPre[pre] ??= []).add([
+          base + c.from,
+          base + c.to,
+          c.m.id,
+          c.m.sent ? 1 : 0,
+          c.m.n > 0 && badged.add(c.m.id) ? c.m.n : 0,
+        ]);
+        end = c.to;
+      }
+      continue;
+    }
     final parts = <md.Node>[];
     var pos = 0;
     for (final c in cuts) {
@@ -66,6 +113,10 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
           md.Element(c.m.sent ? 'nbsent' : 'nbmark', [
             md.Text(raw.substring(c.from, c.to)),
           ]),
+          if (c.m.n > 0 && badged.add(c.m.id))
+            md.Element.empty('nbbadge')
+              ..attributes['id'] = c.m.id
+              ..attributes['n'] = '${c.m.n}',
         ])..attributes['href'] = '$_markScheme${c.m.id}',
       );
       pos = c.to;
@@ -77,24 +128,94 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
       ..removeAt(at)
       ..insertAll(at, parts);
   }
+  for (final e in inPre.entries) {
+    e.key.attributes[codeMarksAttr] = jsonEncode(e.value);
+  }
+}
+
+/// A comment's number in a small accent circle, keyed `badge:<id>`; a tap opens the comment.
+class MarkBadge extends StatelessWidget {
+  const MarkBadge({super.key, required this.id, required this.n, this.onTap});
+  final String id;
+  final int n;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    return GestureDetector(
+      key: ValueKey('badge:$id'),
+      onTap: onTap,
+      child: Container(
+        width: 18,
+        height: 18,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: c.accent, shape: BoxShape.circle),
+        child: Text(
+          '$n',
+          style: TextStyle(
+            color:
+                ThemeData.estimateBrightnessForColor(c.accent) ==
+                    Brightness.dark
+                ? Colors.white
+                : Colors.black,
+            fontSize: 11,
+            height: 1,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BadgeBuilder extends MarkdownElementBuilder {
+  _BadgeBuilder(this.onMark);
+  final void Function(String id) onMark;
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final id = element.attributes['id']!;
+    return MarkBadge(
+      id: id,
+      n: int.parse(element.attributes['n']!),
+      onTap: () => onMark(id),
+    );
+  }
 }
 
 class FileMarkdown extends StatefulWidget {
   const FileMarkdown({
     super.key,
     required this.text,
-    required this.marks,
-    required this.onMark,
-    required this.listenerAt,
+    this.listenerAt,
+    this.marks = const [],
+    this.onMark = _noMark,
+    this.parse = parseMarkdown,
+    this.softLineBreak = false,
   });
+
+  static void _noMark(String id) {}
 
   final String text;
   final List<Mark> marks;
   final void Function(String id) onMark;
 
+  /// How [text] becomes nodes: the chat's Markdown, or a user message's (its HTML is text).
+  final List<md.Node> Function(String text) parse;
+
+  /// A line break of the text stays one (a user message).
+  final bool softLineBreak;
+
   /// The selection of top-level block [i] is reported to this notifier: an offset Flutter gives inside one block
-  /// stays near the rendered one, where across the file code and bullets push it away.
-  final SelectionListenerNotifier Function(int i) listenerAt;
+  /// stays near the rendered one, where across the file code and bullets push it away. Null: nothing is reported.
+  final SelectionListenerNotifier Function(int i)? listenerAt;
 
   @override
   State<FileMarkdown> createState() => _FileMarkdownState();
@@ -147,12 +268,14 @@ class _FileMarkdownState extends State<FileMarkdown>
       color: c.foreground,
       backgroundColor: c.border,
     );
-    final nodes = parseMarkdown(widget.text);
+    final nodes = widget.parse(widget.text);
     wrapMarks(nodes, renderedText(nodes), widget.marks);
-    final builders = markdownBuilders();
+    final builders = markdownBuilders(onMark: widget.onMark)
+      ..['nbbadge'] = _BadgeBuilder(widget.onMark);
     List<Widget> build(md.Node n) => MarkdownBuilder(
       delegate: this,
       selectable: false,
+      softLineBreak: widget.softLineBreak,
       styleSheet: sheet,
       imageDirectory: null,
       imageBuilder: null,
@@ -176,13 +299,16 @@ class _FileMarkdownState extends State<FileMarkdown>
       children: [
         for (final (i, n) in nodes.indexed) ...[
           if (i > 0) SizedBox(height: sheet.blockSpacing),
-          SelectionListener(
-            selectionNotifier: widget.listenerAt(i),
-            child: Column(
+          () {
+            final block = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: build(n),
-            ),
-          ),
+            );
+            final at = widget.listenerAt;
+            return at == null
+                ? block
+                : SelectionListener(selectionNotifier: at(i), child: block);
+          }(),
         ],
       ],
     );

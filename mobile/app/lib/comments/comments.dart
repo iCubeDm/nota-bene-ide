@@ -4,8 +4,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../chat/feed.dart' show Feed;
 import '../chat/window_tab.dart' show uuidV4;
 import '../media/shapes.dart';
+import 'chat_anchor.dart';
 import 'strings.g.dart';
 
 /// How long a comment added here is shown before the server's set has it (a broadcast from before ours can land first).
@@ -160,15 +162,16 @@ class Comments extends ChangeNotifier {
 String _file(String path, String? ref) => ref == null ? path : '$path @ $ref';
 
 /// Where a comment's fragment lives, as the desktop's `whereOf` names it: a file as its path (`path @ ref` from another
-/// branch), a media mark with its time and size; a chat fragment as "chat", since the phone does not number the replies
-/// the way the desktop's batch does.
-String _whereOf(Comment c, String lang) => switch (c.anchor) {
+/// branch), a media mark with its time and size; a chat fragment as the desktop's plain name for it (my message, reply, or chat for one the feed no longer holds).
+String _whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
   MediaAnchor(:final source, :final time, :final width, :final height) =>
     '${_file(source.path, source.ref)}${time != null ? ' @ ${mediaTime(time.toDouble())}' : ''} · ${jsNum(width)}×${jsNum(height)}',
   TextAnchor(source: AnchorSourceFile(:final path, :final ref)) => _file(
     path,
     ref,
   ),
+  TextAnchor(source: AnchorSourceMessage(:final id, :final agent)) =>
+    whereOfChat(id, feed, lang, agent: agent),
   _ => batchString('srcChat', lang),
 };
 
@@ -194,16 +197,26 @@ int generatedImages(Comment c) =>
 /// The text sent to the agent and the images that go with it (compose.ts and send.ts's `sendNow`): [general], then the
 /// numbered comments. The images are numbered across the message, each comment's own in turn (a media comment's frame,
 /// then its pasted ones), and labelled as the desktop labels them; their type is the server's to know (it reads its own
-/// store), so png stands in. The phone has no images of its own in the composer and does not combine the frames of
-/// comments on one frame into one picture: each sends its own, the desktop's fallback.
+/// store), so png stands in. [own] are the composer's images: they go first, labelled by position as `imgLabel`, and
+/// the comments' numbering goes on after them. The phone does not combine the frames of comments on one frame into one
+/// picture: each sends its own, the desktop's fallback.
 ({String text, List<ImageRef> images}) composeSend(
   String general,
   List<Comment> items,
+  Feed feed,
   String lang, {
   bool Function(Comment)? staleOf,
+  List<ImageRef> own = const [],
 }) {
-  if (items.isEmpty) return (text: general, images: const []);
-  final images = <ImageRef>[];
+  final images = [
+    for (final (k, im) in own.indexed)
+      ImageRef(
+        id: im.id,
+        mediaType: im.mediaType,
+        label: batchTemplate('imgLabel', lang, [k + 1]),
+      ),
+  ];
+  if (items.isEmpty) return (text: general, images: images);
   final blocks = [
     for (final (i, c) in items.indexed)
       () {
@@ -262,7 +275,7 @@ int generatedImages(Comment c) =>
             .where((l) => l.id == c.label)
             .firstOrNull
             ?.instruction;
-        return '${i + 1}. [${_whereOf(c, lang)}]\n$quote\n→ $body${instr != null ? '\n   $instr' : ''}$tail';
+        return '${i + 1}. [${_whereOf(c, feed, lang)}]\n$quote\n→ $body${instr != null ? '\n   $instr' : ''}$tail';
       }(),
   ];
   return (
@@ -273,5 +286,9 @@ int generatedImages(Comment c) =>
 }
 
 /// The batch text alone.
-String composeBatch(String general, List<Comment> items, String lang) =>
-    composeSend(general, items, lang).text;
+String composeBatch(
+  String general,
+  List<Comment> items,
+  String lang, [
+  Feed? feed,
+]) => composeSend(general, items, feed ?? Feed(), lang).text;

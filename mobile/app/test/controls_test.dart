@@ -23,11 +23,11 @@ void main() {
   tearDown(() => r.dispose());
 
   Future<void> menu(WidgetTester t) async {
-    await t.tap(find.byTooltip('Agent'));
+    await t.tap(find.text('untitled'));
     await t.pumpAndSettle();
   }
 
-  testWidgets('compact is disabled while busy', (t) async {
+  testWidgets('the window sheet: compact is disabled while busy', (t) async {
     await r.open(
       t,
       events: [
@@ -35,14 +35,9 @@ void main() {
       ],
     );
     await menu(t);
-    expect(
-      t
-          .widget<PopupMenuItem<Object?>>(
-            find.widgetWithText(PopupMenuItem<Object?>, 'Compact'),
-          )
-          .enabled,
-      isFalse,
-    );
+    await t.tap(find.text('Compact'));
+    await t.pumpAndSettle();
+    expect(r.sent, isEmpty);
   });
 
   testWidgets('compact sends the command', (t) async {
@@ -84,10 +79,20 @@ void main() {
   testWidgets('restart asks first', (t) async {
     await r.open(t);
     await menu(t);
-    await t.tapText('Restart agent');
-    expect(r.sent, isEmpty);
     await t.tapText('Restart');
+    expect(r.sent, isEmpty);
+    await t.tap(find.widgetWithText(FilledButton, 'Restart'));
+    await t.pumpAndSettle();
     expect(r.sent.single, {'type': 'restart'});
+  });
+
+  testWidgets('the agent menu keeps Files only', (t) async {
+    await r.open(t);
+    await t.tap(find.byTooltip('Agent'));
+    await t.pumpAndSettle();
+    expect(find.text('Files'), findsOneWidget);
+    expect(find.text('Compact'), findsNothing);
+    expect(find.text('Restart agent'), findsNothing);
   });
 
   testWidgets('Work here calls takeover', (t) async {

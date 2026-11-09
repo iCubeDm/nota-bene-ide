@@ -1,6 +1,9 @@
 package dev.notabene.nb_app
 
 import android.Manifest
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -8,19 +11,22 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaMetadataRetriever
 import android.media.MediaRecorder
-import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
+import android.provider.MediaStore
+import android.provider.OpenableColumns
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
+import android.net.Uri
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.Executors
@@ -30,12 +36,6 @@ class MainActivity : FlutterFragmentActivity() {
     // Frame extraction blocks on I/O, so it runs off the UI thread; one thread keeps requests in order.
     private val frameExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
-
-    // Dictation: one recognizer at a time, always used on the main thread. `events` is Dart's listener on
-    // nb/speech/events; `pendingLang` is a `start` waiting for the microphone permission answer.
-    private var recognizer: SpeechRecognizer? = null
-    private var events: EventChannel.EventSink? = null
-    private var pendingLang: String? = null
 
     // Recording for the host's Whisper (`nb/record`): one recorder at a time. `recordChannel` is also how the
     // phone tells Dart the recorder stopped itself at its cap (`capped`) or failed (`failed`); `pendingStart` is a `start` waiting for the
@@ -66,157 +66,252 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         }
-        configureSpeech(flutterEngine)
         configureRecord(flutterEngine)
+        configurePick(flutterEngine)
     }
 
-    private fun configureSpeech(flutterEngine: FlutterEngine) {
-        val messenger = flutterEngine.dartExecutor.binaryMessenger
-        EventChannel(messenger, "nb/speech/events").setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, sink: EventChannel.EventSink?) {
-                events = sink
-            }
+    // Images from the system (`nb/pick`): `camera`, `gallery` and `file` each start one system activity and answer a
+    // list of {path, mime, name} (empty when cancelled; {skipped: name} for an image over MAX_PICK_BYTES). Each image
+    // is a file in cache/pick, copied there as a stream (nothing is held in the heap); Dart reads it when it prepares
+    // the image and deletes it after. No
+    // permission of ours but CAMERA, which the manifest declares for the QR scanner and which the camera intent then
+    // requires us to hold. The camera writes a full-size photo to a file of ours in cache/pick, shared through
+    // androidx.core's FileProvider. One pick at a time; reading runs off the main thread.
+    private var pickResult: MethodChannel.Result? = null
+    private var pickCamera: File? = null
+    private var pendingCamera: MethodChannel.Result? = null
+    private val pickExecutor = Executors.newSingleThreadExecutor()
 
-            override fun onCancel(arguments: Any?) {
-                events = null
+    private fun configurePick(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "nb/pick").setMethodCallHandler { call, result ->
+            if (call.method == "share") {
+                shareImage(call, result)
+                return@setMethodCallHandler
             }
-        })
-        MethodChannel(messenger, "nb/speech").setMethodCallHandler { call, result ->
+            if (call.method != "camera" && call.method != "gallery" && call.method != "file") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            if (pickResult != null || pendingCamera != null) {
+                result.error("busy", null, null)
+                return@setMethodCallHandler
+            }
             when (call.method) {
-                "start" -> {
-                    startSpeech(call.argument<String>("lang") ?: "")
-                    result.success(null)
-                }
-                "stop" -> {
-                    recognizer?.stopListening()
-                    result.success(null)
-                }
-                "cancel" -> {
-                    dropRecognizer()
-                    result.success(null)
-                }
-                else -> result.notImplemented()
+                "camera" ->
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        startCamera(result)
+                    } else {
+                        pendingCamera = result
+                        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION)
+                    }
+                "gallery" -> startGallery(result)
+                else -> startFile(result)
             }
         }
     }
 
-    private fun emit(type: String, key: String? = null, value: String? = null) {
-        val event = HashMap<String, Any>()
-        event["type"] = type
-        if (key != null && value != null) event[key] = value
-        events?.success(event)
-    }
-
-    // An error is always followed by the end of the session.
-    private fun fail(code: String) {
-        emit("error", "code", code)
-        emit("end")
-    }
-
-    private fun startSpeech(lang: String) {
-        // a new session replaces a running one, silently
-        dropRecognizer()
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            fail("unavailable")
+    // `share` {bytes, mime, name}: the image is written to cache/pick (the camera's folder and provider) and offered to the
+    // system's share sheet as ACTION_SEND. Independent of a pick in progress; answers null once the sheet is shown.
+    private fun shareImage(call: MethodCall, result: MethodChannel.Result) {
+        val bytes = call.argument<ByteArray>("bytes")
+        val mime = call.argument<String>("mime") ?: "image/*"
+        if (bytes == null) {
+            result.error("read", "no bytes", null)
             return
         }
-        if (!hasMicrophone()) {
-            pendingLang = lang
-            requestMicrophone()
+        try {
+            val dir = File(cacheDir, "pick")
+            dir.mkdirs()
+            dir.listFiles()?.forEach { if (it.name.startsWith("share-")) it.delete() } // an earlier share's copy
+            // a file name from the user's own name, stripped of anything that is not a plain character
+            val clean = (call.argument<String>("name") ?: "image").replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
+            val file = File(dir, "share-$clean")
+            file.writeBytes(bytes)
+            val uri = FileProvider.getUriForFile(this, "$packageName.pick", file)
+            val send = Intent(Intent.ACTION_SEND)
+                .setType(mime)
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val chooser = Intent.createChooser(send, null)
+            chooser.clipData = ClipData.newRawUri("", uri)
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(chooser)
+            result.success(null)
+        } catch (e: ActivityNotFoundException) {
+            result.error("unavailable", null, null)
+        } catch (e: Exception) {
+            result.error("read", e.message ?: e.javaClass.simpleName, null)
+        }
+    }
+
+    // True when the system activity started. When there is none, [noActivity] decides (default: an error reply).
+    private fun launchPick(intent: Intent, result: MethodChannel.Result, noActivity: (() -> Unit)? = null): Boolean {
+        pickResult = result
+        return try {
+            startActivityForResult(intent, PICK_REQUEST)
+            true
+        } catch (e: ActivityNotFoundException) {
+            pickResult = null
+            if (noActivity != null) noActivity() else result.error("unavailable", null, null)
+            false
+        } catch (e: SecurityException) {
+            pickResult = null
+            result.error("denied", null, null)
+            false
+        }
+    }
+
+    private fun startCamera(result: MethodChannel.Result) {
+        val dir = File(cacheDir, "pick")
+        dir.mkdirs()
+        // leftovers of an earlier pick or capture; a younger file may still be a draft's or a share's in use
+        val old = System.currentTimeMillis() - PICK_KEEP_MS
+        dir.listFiles()?.forEach { if (it.lastModified() < old) it.delete() }
+        val file = File(dir, "camera-${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(this, "$packageName.pick", file)
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            .putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        intent.clipData = ClipData.newRawUri("", uri) // the grant reaches the camera app below API 21's rules too
+        pickCamera = file
+        if (!launchPick(intent, result)) {
+            pickCamera = null
+            file.delete()
+        }
+    }
+
+    private fun startGallery(result: MethodChannel.Result) {
+        val generic = {
+            val intent = Intent(Intent.ACTION_GET_CONTENT)
+                .setType("image/*")
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            launchPick(intent, result)
+            Unit
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            val intent = Intent(MediaStore.ACTION_PICK_IMAGES)
+                .putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, minOf(MAX_PICK_COUNT, MediaStore.getPickImagesMaxLimit()))
+            launchPick(intent, result, noActivity = generic) // no photo picker on this phone: the generic chooser
+        } else {
+            generic()
+        }
+    }
+
+    private fun startFile(result: MethodChannel.Result) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .setType("image/*")
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        launchPick(intent, result)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != PICK_REQUEST) return
+        val result = pickResult ?: return
+        pickResult = null
+        val camera = pickCamera
+        pickCamera = null
+        if (resultCode != Activity.RESULT_OK) {
+            camera?.delete()
+            result.success(ArrayList<Any>())
             return
         }
-        listenSpeech(lang)
+        val uris = ArrayList<Uri>()
+        if (camera != null) {
+            uris.add(Uri.fromFile(camera))
+        } else if (data != null) {
+            data.clipData?.let { c -> for (i in 0 until minOf(c.itemCount, MAX_PICK_COUNT)) uris.add(c.getItemAt(i).uri) }
+            if (uris.isEmpty()) data.data?.let { uris.add(it) }
+        }
+        pickExecutor.execute {
+            val out = ArrayList<Map<String, Any>>()
+            try {
+                for (uri in uris) out.add(readPicked(uri, camera))
+                mainHandler.post { result.success(out) }
+            } catch (e: Throwable) {
+                // an unreadable image or an OutOfMemoryError is a reply, not a crash; what was copied is of no use now
+                out.forEach { (it["path"] as? String)?.let { p -> File(p).delete() } }
+                camera?.delete()
+                mainHandler.post { result.error("read", e.message ?: e.javaClass.simpleName, null) }
+            }
+        }
+    }
+
+    // The camera's photo is already a file of ours: it is handed over as it is (Dart deletes it after its use). Any other
+    // image is copied to its own file in cache/pick, chunk by chunk, and dropped again when it is over MAX_PICK_BYTES.
+    private fun readPicked(uri: Uri, camera: File?): Map<String, Any> {
+        if (camera != null) {
+            if (camera.length() > MAX_PICK_BYTES) {
+                camera.delete()
+                return mapOf("skipped" to "camera.jpg")
+            }
+            return mapOf("path" to camera.absolutePath, "mime" to "image/jpeg", "name" to "camera.jpg")
+        }
+        var name = uri.lastPathSegment ?: "image"
+        var size = -1L
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                c.getString(0)?.let { name = it }
+                if (!c.isNull(1)) size = c.getLong(1)
+            }
+        }
+        if (size > MAX_PICK_BYTES) return mapOf("skipped" to name)
+        val dir = File(cacheDir, "pick")
+        dir.mkdirs()
+        val dest = File.createTempFile("pick-", ".img", dir) // a name of its own: no two picks meet
+        var done = false
+        try {
+            val input = contentResolver.openInputStream(uri) ?: throw IOException("cannot open $name")
+            var total = 0L
+            input.use { src ->
+                dest.outputStream().use { out ->
+                    val chunk = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = src.read(chunk)
+                        if (n < 0) break
+                        total += n
+                        if (total > MAX_PICK_BYTES) return mapOf("skipped" to name) // the size column can be missing or wrong
+                        out.write(chunk, 0, n)
+                    }
+                }
+            }
+            done = true
+            val mime = contentResolver.getType(uri) ?: "application/octet-stream"
+            return mapOf("path" to dest.absolutePath, "mime" to mime, "name" to name)
+        } finally {
+            if (!done) dest.delete()
+        }
     }
 
     private fun hasMicrophone() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    // The one RECORD_AUDIO request, for dictation by the phone's recognizer and for recording alike.
+    // The RECORD_AUDIO request, for recording.
     private fun requestMicrophone() =
-        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), SPEECH_PERMISSION)
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), MIC_PERMISSION)
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != SPEECH_PERMISSION) return
+        if (requestCode == CAMERA_PERMISSION) {
+            val camera = pendingCamera ?: return
+            pendingCamera = null
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startCamera(camera)
+            } else {
+                camera.error("denied", null, null)
+            }
+            return
+        }
+        if (requestCode != MIC_PERMISSION) return
         val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
         pendingStart?.let { result ->
             pendingStart = null
             if (granted) startRecording(result) else result.error("denied", null, null)
         }
-        val lang = pendingLang ?: return
-        pendingLang = null
-        if (granted) listenSpeech(lang) else fail("denied")
-    }
-
-    private fun listenSpeech(lang: String) {
-        val r = SpeechRecognizer.createSpeechRecognizer(this)
-        recognizer = r
-        r.setRecognitionListener(object : RecognitionListener {
-            // A callback from a recognizer that was since replaced or cancelled must not reach Dart.
-            private fun current() = recognizer === r
-
-            override fun onPartialResults(partialResults: Bundle?) {
-                if (!current()) return
-                firstResult(partialResults)?.let { emit("partial", "text", it) }
-            }
-
-            override fun onResults(results: Bundle?) {
-                if (!current()) return
-                val text = firstResult(results)
-                if (text.isNullOrEmpty()) {
-                    // an empty result must not erase the partials
-                    fail("no_match")
-                } else {
-                    emit("final", "text", text)
-                    emit("end")
-                }
-                release(r)
-            }
-
-            override fun onError(error: Int) {
-                if (!current()) return
-                fail(
-                    when (error) {
-                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "no_match"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "denied"
-                        ERROR_LANGUAGE_NOT_SUPPORTED, ERROR_LANGUAGE_UNAVAILABLE -> "unavailable"
-                        else -> "other"
-                    }
-                )
-                release(r)
-            }
-
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
-        r.startListening(
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
-                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-        )
-    }
-
-    private fun firstResult(bundle: Bundle?): String? =
-        bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-
-    // The session is over: forget the recognizer now, so a late callback is ignored, and destroy it after the
-    // callback has returned, so the next start does not find it busy.
-    private fun release(r: SpeechRecognizer) {
-        if (recognizer === r) recognizer = null
-        mainHandler.post { r.destroy() }
-    }
-
-    private fun dropRecognizer() {
-        pendingLang = null
-        val r = recognizer ?: return
-        recognizer = null
-        r.cancel()
-        r.destroy()
     }
 
     private fun configureRecord(flutterEngine: FlutterEngine) {
@@ -286,6 +381,7 @@ class MainActivity : FlutterFragmentActivity() {
         private val pcm = ByteArrayOutputStream()
         @Volatile private var stopping = false
         private var dropped = false
+        private var lastLevelAt = 0L
         private var wav: ByteArray? = null
         private var waiting: MethodChannel.Result? = null
 
@@ -302,6 +398,12 @@ class MainActivity : FlutterFragmentActivity() {
                         break
                     }
                     pcm.write(buf, 0, minOf(n, MAX_PCM - pcm.size()))
+                    val now = android.os.SystemClock.uptimeMillis()
+                    if (now - lastLevelAt >= 100) {
+                        lastLevelAt = now
+                        val level = levelOf(buf, n)
+                        mainHandler.post { if (!dropped && !stopping) recordChannel?.invokeMethod("level", level) }
+                    }
                     if (pcm.size() >= MAX_PCM) {
                         capped = true
                         break
@@ -349,6 +451,18 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    // RMS of the 16-bit little-endian samples in the first n bytes, 0..1
+    private fun levelOf(buf: ByteArray, n: Int): Double {
+        val samples = n / 2
+        if (samples == 0) return 0.0
+        var sum = 0.0
+        for (i in 0 until samples) {
+            val v = ((buf[2 * i + 1].toInt() shl 8) or (buf[2 * i].toInt() and 0xff)).toShort().toDouble()
+            sum += v * v
+        }
+        return (Math.sqrt(sum / samples) / 32768.0).coerceIn(0.0, 1.0)
+    }
+
     // 16-bit mono PCM in a RIFF/WAVE container
     private fun wavOf(pcm: ByteArray): ByteArray {
         val h = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
@@ -380,21 +494,27 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
-        dropRecognizer()
+        mainHandler.removeCallbacksAndMessages(null)
         dropRecording()
         frameExecutor.shutdown()
+        pickExecutor.shutdown()
         super.onDestroy()
     }
 
     private companion object {
-        const val SPEECH_PERMISSION = 4791
+        const val MIC_PERMISSION = 4791
+        const val CAMERA_PERMISSION = 4792
+        const val PICK_REQUEST = 4793
 
-        // what the host takes: 16 kHz mono PCM16, at most 2 minutes (3.84 MB, under its 4 MiB limit with the header)
+        // what a pick answers: at most ten images, none over 40 MB (the phone skips it and says so)
+        const val MAX_PICK_COUNT = 10
+        const val MAX_PICK_BYTES = 40 * 1024 * 1024
+        // a file of cache/pick younger than this may still belong to a draft or a share; the camera start spares it
+        const val PICK_KEEP_MS = 60L * 60 * 1000
+
+        // what the host takes: 16 kHz mono PCM16, at most 10 minutes (19.2 MB); the app sends it in parts under the
+        // host's 4 MiB limit (wav_parts.dart)
         const val RATE = 16000
-        const val MAX_PCM = RATE * 2 * 120
-
-        // SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED / _UNAVAILABLE exist from API 31; the app's minSdk is lower
-        const val ERROR_LANGUAGE_NOT_SUPPORTED = 12
-        const val ERROR_LANGUAGE_UNAVAILABLE = 13
+        const val MAX_PCM = RATE * 2 * 600
     }
 }

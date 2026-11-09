@@ -8,6 +8,7 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../theme.dart';
+import '../files/file_markdown.dart' show codeMarksAttr;
 import 'code.dart';
 import 'mermaid.dart';
 
@@ -117,6 +118,9 @@ class _MathBuilder extends MarkdownElementBuilder {
 }
 
 class _PreBuilder extends MarkdownElementBuilder {
+  _PreBuilder(this.onMark);
+  final void Function(String id)? onMark;
+
   @override
   bool isBlockElement() => true;
 
@@ -132,12 +136,59 @@ class _PreBuilder extends MarkdownElementBuilder {
     final lang = cls.startsWith('language-') ? cls.substring(9) : null;
     final text = e.textContent;
     if (lang == 'mermaid') return MermaidBlock(text);
-    return CodeBlock(text, lang: lang);
+    final raw = e.attributes[codeMarksAttr];
+    return CodeBlock(
+      text,
+      lang: lang,
+      ordinal: int.tryParse(e.attributes[codeOrdinalAttr] ?? ''),
+      marks: raw == null ? const [] : codeMarksOf(raw),
+      onMark: onMark,
+    );
   }
 }
 
-/// The syntaxes of the chat's Markdown (math, raw HTML), shared with the file view and its anchors.
-final nbBlockSyntaxes = <md.BlockSyntax>[_BlockMath(), _HtmlBlock()];
+/// The attribute of a `pre` element with its ordinal: which of the document's code blocks it is (0-based, a mermaid
+/// diagram not counted, as the rendered text skips it). A block opened full screen names itself by it.
+const codeOrdinalAttr = 'nbcode';
+
+/// A document's count of code blocks so far: block syntaxes run in the document's order, one parse per document.
+final _codeCount = Expando<int>('code blocks');
+
+md.Node _numbered(md.BlockParser parser, md.Node n) {
+  if (n is md.Element && n.tag == 'pre') {
+    final code = n.children?.whereType<md.Element>().firstOrNull;
+    if (code?.attributes['class'] != 'language-mermaid') {
+      final i = _codeCount[parser.document] ?? 0;
+      _codeCount[parser.document] = i + 1;
+      n.attributes[codeOrdinalAttr] = '$i';
+    }
+  }
+  return n;
+}
+
+class _FencedCode extends md.FencedCodeBlockSyntax {
+  const _FencedCode();
+  @override
+  md.Node parse(md.BlockParser parser) =>
+      _numbered(parser, super.parse(parser));
+}
+
+class _IndentedCode extends md.CodeBlockSyntax {
+  const _IndentedCode();
+  @override
+  md.Node parse(md.BlockParser parser) =>
+      _numbered(parser, super.parse(parser));
+}
+
+/// The code blocks' syntaxes: the library's own, each block marked with its ordinal.
+const nbCodeSyntaxes = <md.BlockSyntax>[_FencedCode(), _IndentedCode()];
+
+/// The syntaxes of the chat's Markdown (math, raw HTML, numbered code), shared with the file view and its anchors.
+final nbBlockSyntaxes = <md.BlockSyntax>[
+  _BlockMath(),
+  _HtmlBlock(),
+  ...nbCodeSyntaxes,
+];
 final nbInlineSyntaxes = <md.InlineSyntax>[_InlineMath(), _InlineHtml()];
 
 /// [text] parsed as [NbMarkdown] parses it (flutter_markdown_plus: GitHub-flavoured, HTML not encoded).
@@ -149,8 +200,10 @@ List<md.Node> parseMarkdown(String text) => md.Document(
 ).parseLines(const LineSplitter().convert(text));
 
 /// The element builders of the chat's Markdown (code, math, diagrams), shared with the file view.
-Map<String, MarkdownElementBuilder> markdownBuilders() => {
-  'pre': _PreBuilder(),
+Map<String, MarkdownElementBuilder> markdownBuilders({
+  void Function(String id)? onMark,
+}) => {
+  'pre': _PreBuilder(onMark),
   'math': _MathBuilder(display: false),
   'mathblock': _MathBuilder(display: true),
 };
@@ -172,24 +225,43 @@ MarkdownStyleSheet markdownStyle(BuildContext context) {
   );
 }
 
+/// How a link leaves the app: the browser. Tests replace it.
+@visibleForTesting
+Future<bool> Function(Uri) launchLink = (u) =>
+    launchUrl(u, mode: LaunchMode.externalApplication);
+
 /// A link of the Markdown: only the web opens, in the browser.
 void openLink(String? href) {
   final u = href == null ? null : Uri.tryParse(href);
   if (u != null && (u.scheme == 'https' || u.scheme == 'http')) {
-    launchUrl(u, mode: LaunchMode.externalApplication);
+    launchLink(u);
   }
 }
 
 class NbMarkdown extends StatelessWidget {
-  const NbMarkdown(this.text, {super.key});
+  const NbMarkdown(
+    this.text, {
+    super.key,
+    this.blockSyntaxes,
+    this.inlineSyntaxes,
+    this.softLineBreak = false,
+  });
   final String text;
+
+  /// Instead of the chat's own (a user message: its HTML is text); null keeps them.
+  final List<md.BlockSyntax>? blockSyntaxes;
+  final List<md.InlineSyntax>? inlineSyntaxes;
+
+  /// A line break of the text stays one (a user message).
+  final bool softLineBreak;
 
   @override
   Widget build(BuildContext context) => MarkdownBody(
     data: text,
     extensionSet: md.ExtensionSet.gitHubFlavored,
-    blockSyntaxes: nbBlockSyntaxes,
-    inlineSyntaxes: nbInlineSyntaxes,
+    blockSyntaxes: blockSyntaxes ?? nbBlockSyntaxes,
+    inlineSyntaxes: inlineSyntaxes ?? nbInlineSyntaxes,
+    softLineBreak: softLineBreak,
     builders: markdownBuilders(),
     styleSheet: markdownStyle(context),
     onTapLink: (text, href, title) => openLink(href),

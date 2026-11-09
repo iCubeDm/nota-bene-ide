@@ -321,7 +321,7 @@ export const en: Dict = {
   dictRetry: "Retry",
   dictUse: "Use Whisper for the phone's microphone",
   dictRemove: "Remove Whisper",
-  dictRemoveQ: (dir: string) => `Delete the Whisper files from ${dir}? The phone goes back to its own dictation.`,
+  dictRemoveQ: (dir: string) => `Delete the Whisper files from ${dir}? The phone's microphone works only with Whisper.`,
   dictRemoveGo: "Remove",
   aboutVersion: 'Version',
   aboutState: 'State folder',

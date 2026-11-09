@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/chat/feed.dart';
 import 'package:nb_app/comments/comments.dart';
+import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/rig.dart';
@@ -103,6 +105,7 @@ void main() {
           final out = composeSend(
             k['general'] as String,
             [for (final i in k['items'] as List) all[i]!],
+            Feed(),
             e.key as String,
             staleOf: (c) => stale.contains(c.id),
           );
@@ -114,6 +117,86 @@ void main() {
         });
       }
     }
+  });
+
+  group('composeSend with the composer\'s own images', () {
+    ImageRef own(String id) =>
+        ImageRef(id: id, mediaType: ImageType.image_jpeg, label: 'x');
+    final withPaste = Comment(
+      id: 'p',
+      anchor: TextAnchor(
+        source: const AnchorSourceFile(path: 'a.md'),
+        start: 0,
+        end: 1,
+        quote: 'q',
+        prefix: '',
+        suffix: '',
+      ),
+      text: 'see',
+      images: ['c' * 64],
+      status: CommentStatus.pending,
+      createdAt: 1,
+    );
+
+    test('come first, labelled imgLabel by position, the comments after', () {
+      final out = composeSend(
+        '',
+        [withPaste],
+        Feed(),
+        'ru',
+        own: [own('a' * 64), own('b' * 64)],
+      );
+      expect(out.images.map((i) => i.id), ['a' * 64, 'b' * 64, 'c' * 64]);
+      expect(out.images.map((i) => i.mediaType).take(2), [
+        ImageType.image_jpeg,
+        ImageType.image_jpeg,
+      ]);
+      expect(out.images.map((i) => i.label), [
+        batchTemplate('imgLabel', 'ru', [1]),
+        batchTemplate('imgLabel', 'ru', [2]),
+        batchTemplate('imgLabelC', 'ru', [3, 1]),
+      ]);
+      expect(out.text, contains(batchTemplate('imgRef', 'ru', ['3'])));
+    });
+
+    test('alone, without comments or text, are the whole send', () {
+      final out = composeSend('', [], Feed(), 'en', own: [own('a' * 64)]);
+      expect((out.text, out.images.single.label), ('', '[image 1]'));
+    });
+  });
+
+  group('composeSend names a chat fragment as the desktop does', () {
+    final feed = Feed()
+      ..items = [
+        UserItem('u1', 'hello'),
+        AssistantItem('a1', 'the answer', final_: true),
+        AssistantItem('stream:0', 'still coming', final_: false),
+      ];
+    String where(String id, String lang) {
+      final out = composeSend(
+        '',
+        [c('x', 'q', 'w', source: AnchorSourceMessage(id: id))],
+        feed,
+        lang,
+      ).text;
+      return RegExp(r'1\. \[(.*)\]').firstMatch(out)![1]!;
+    }
+
+    for (final lang in ['en', 'ru', 'zh', 'es', 'pt', 'de']) {
+      test(lang, () {
+        expect(where('u1', lang), webString('srcMine', lang));
+        expect(where('a1', lang), webString('replyPlain', lang));
+        expect(where('gone', lang), batchString('srcChat', lang));
+        expect(where('stream:0', lang), batchString('srcChat', lang));
+      });
+    }
+
+    test('the words are the desktop\'s', () {
+      expect(where('u1', 'en'), 'my message');
+      expect(where('a1', 'en'), 'reply');
+      expect(where('gone', 'en'), 'chat');
+      expect(where('u1', 'ru'), isNot('my message'));
+    });
   });
 
   group('Comments', () {

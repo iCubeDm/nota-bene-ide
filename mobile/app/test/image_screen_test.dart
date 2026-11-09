@@ -1,10 +1,11 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:nb_app/files/image_screen.dart';
+import 'package:nb_app/media/picker.dart';
 import 'package:nb_channel/nb_channel.dart';
 
 import 'support/rig.dart';
@@ -36,6 +37,8 @@ Future<Rig> openImage(
   List<int>? body,
   int attachStatus = 200,
   List<Map<String, Object?>> comments = const [],
+  List<ViewerImage>? items,
+  int index = 0,
 }) async {
   final r = Rig();
   await r.open(
@@ -66,7 +69,9 @@ Future<Rig> openImage(
   await t.pumpAndSettle();
   Navigator.of(t.element(find.byType(Scaffold).first)).push(
     MaterialPageRoute<void>(
-      builder: (_) => ImageScreen(tab: r.tab!, path: 'img/shot.png'),
+      builder: (_) => items == null
+          ? ImageScreen(tab: r.tab!, path: 'img/shot.png')
+          : ImageScreen(tab: r.tab!, items: items, index: index),
     ),
   );
   await settleReal(t, 3);
@@ -262,6 +267,131 @@ void main() {
       ],
     );
     expect(shownMarks(r.tab!, 'img/shot.png').map((m) => m.n), [2]);
+    r.dispose();
+  });
+
+  final three = [
+    for (final n in ['a', 'b', 'c']) ViewerImage.file('img/$n.png'),
+  ];
+
+  testWidgets('three images opened at the second say 2 / 3 and swipe on', (
+    t,
+  ) async {
+    final r = await openImage(t, items: three, index: 1);
+    expect(find.text('2 / 3'), findsOneWidget);
+    expect(find.text('b.png'), findsOneWidget);
+    await t.fling(find.byType(PageView), const Offset(-400, 0), 1500);
+    await settleReal(t, 4);
+    expect(find.text('3 / 3'), findsOneWidget);
+    expect(find.text('c.png'), findsOneWidget);
+    r.dispose();
+  });
+
+  testWidgets('only the current image and its neighbours stay decoded', (
+    t,
+  ) async {
+    final five = [
+      for (final n in ['a', 'b', 'c', 'd', 'e']) ViewerImage.file('img/$n.png'),
+    ];
+    final r = await openImage(t, items: five);
+    int reads(String n) =>
+        r.ch.requests.where((q) => q == 'GET /file?path=img%2F$n.png').length;
+    for (var i = 0; i < 4; i++) {
+      await t.fling(find.byType(PageView), const Offset(-400, 0), 1500);
+      await settleReal(t, 4);
+    }
+    expect(find.text('5 / 5'), findsOneWidget);
+    expect(
+      [
+        for (final n in ['a', 'b', 'c', 'd', 'e']) reads(n),
+      ],
+      [1, 1, 1, 1, 1],
+    );
+    // back to the third: the pages left behind (a, b, c) were let go, so c is read again as it comes back
+    await t.fling(find.byType(PageView), const Offset(400, 0), 1500);
+    await settleReal(t, 4);
+    await t.fling(find.byType(PageView), const Offset(400, 0), 1500);
+    await settleReal(t, 4);
+    expect(find.text('3 / 5'), findsOneWidget);
+    expect(reads('c'), 2);
+    expect(reads('b'), 1); // let go too, read again only when it is shown
+    expect(reads('d'), 1);
+    expect(reads('e'), 1);
+    expect(reads('a'), 1);
+    r.dispose();
+  });
+
+  testWidgets('a swipe down at scale 1 closes the viewer', (t) async {
+    final r = await openImage(t);
+    await t.fling(find.byType(RawImage), const Offset(0, 400), 1500);
+    await settleReal(t, 4);
+    expect(find.byType(ImageScreen), findsNothing);
+    r.dispose();
+  });
+
+  testWidgets('a swipe down on a zoomed image pans and does not close', (
+    t,
+  ) async {
+    final r = await openImage(t);
+    t
+        .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+        .transformationController!
+        .value = Matrix4.diagonal3Values(
+      3,
+      3,
+      1,
+    );
+    await t.pump();
+    await t.fling(find.byType(RawImage), const Offset(0, 400), 1500);
+    await settleReal(t, 4);
+    expect(find.byType(ImageScreen), findsOneWidget);
+    r.dispose();
+  });
+
+  testWidgets('the bottom actions are Mark up, Comment and Share', (t) async {
+    final r = await openImage(t);
+    expect(find.byKey(const ValueKey('act-markup')), findsOneWidget);
+    expect(find.byKey(const ValueKey('act-comment')), findsOneWidget);
+    expect(find.byKey(const ValueKey('act-share')), findsOneWidget);
+    r.dispose();
+  });
+
+  testWidgets('Comment without a drawing is a comment on the whole image', (
+    t,
+  ) async {
+    final r = await openImage(t);
+    await t.tap(find.byKey(const ValueKey('act-comment')));
+    await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField), 'whole');
+    await t.tap(find.text('Save'));
+    await settleReal(t, 10);
+    final added = (commentSets(r).last['items'] as List).single as Map;
+    expect(added['text'], 'whole');
+    final a = added['anchor'] as Map;
+    expect(a['source'], {'kind': 'file', 'path': 'img/shot.png'});
+    expect(a['shapes'], isEmpty);
+    r.dispose();
+  });
+
+  testWidgets('Share hands the bytes to the system', (t) async {
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(pickChannel, (c) async {
+          calls.add(c);
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(pickChannel, null),
+    );
+    final r = await openImage(t);
+    await t.tap(find.byKey(const ValueKey('act-share')));
+    await t.pump();
+    expect(calls.single.method, 'share');
+    final args = calls.single.arguments as Map;
+    expect(args['bytes'], png);
+    expect(args['mime'], 'image/png');
+    expect(args['name'], 'shot.png');
     r.dispose();
   });
 }

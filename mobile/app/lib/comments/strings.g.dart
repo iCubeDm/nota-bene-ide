@@ -36,6 +36,12 @@ String batchString(String key, String lang) {
   return m[lang] ?? m['en']!;
 }
 
+/// A string of the web's own dictionary in [lang], English for any other.
+String webString(String key, String lang) {
+  final m = ((_data['web'] as Map)[key] as Map).cast<String, String>();
+  return m[lang] ?? m['en']!;
+}
+
 /// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').
 String batchTemplate(String key, String lang, List<Object> args) =>
     _fill(batchString(key, lang), args);
@@ -50,12 +56,11 @@ String usageString(String key, String lang) {
 String usageTemplate(String key, String lang, List<Object> args) =>
     _fill(usageString(key, lang), args);
 
-String _fill(String s, List<Object> args) {
-  for (final (i, a) in args.indexed) {
-    s = s.replaceAll('{$i}', '$a');
-  }
-  return s;
-}
+/// One pass: an argument that itself holds a {1} is not filled again.
+String _fill(String s, List<Object> args) => s.replaceAllMapped(
+  RegExp(r'\{(\d+)\}'),
+  (m) => '${args[int.parse(m[1]!)]}',
+);
 
 const _json = r'''
 {
@@ -619,6 +624,336 @@ const _json = r'''
    "de": "Wann"
   }
  },
+ "web": {
+  "h5": {
+   "en": "5h",
+   "ru": "5ч",
+   "zh": "5h",
+   "es": "5h",
+   "pt": "5h",
+   "de": "5 h"
+  },
+  "week": {
+   "en": "week",
+   "ru": "неделя",
+   "zh": "周",
+   "es": "semana",
+   "pt": "semana",
+   "de": "Woche"
+  },
+  "mode_default": {
+   "en": "Default",
+   "ru": "Обычный",
+   "zh": "默认",
+   "es": "Predeterminado",
+   "pt": "Padrão",
+   "de": "Standard"
+  },
+  "mode_default_desc": {
+   "en": "Asks before edits and commands",
+   "ru": "Спрашивает разрешение на правки и команды",
+   "zh": "编辑和执行命令前会询问",
+   "es": "Pregunta antes de editar y de ejecutar comandos",
+   "pt": "Pergunta antes de edições e comandos",
+   "de": "Fragt vor Änderungen und Befehlen"
+  },
+  "mode_acceptEdits": {
+   "en": "Accept edits",
+   "ru": "Принимать правки",
+   "zh": "接受编辑",
+   "es": "Aceptar ediciones",
+   "pt": "Aceitar edições",
+   "de": "Änderungen akzeptieren"
+  },
+  "mode_acceptEdits_desc": {
+   "en": "Edits files without asking, asks before commands",
+   "ru": "Правит файлы без вопросов, команды — с разрешения",
+   "zh": "无需询问即可编辑文件，执行命令前会询问",
+   "es": "Edita archivos sin preguntar, pregunta antes de los comandos",
+   "pt": "Edita arquivos sem perguntar, pergunta antes de comandos",
+   "de": "Ändert Dateien ohne Nachfrage, fragt vor Befehlen"
+  },
+  "mode_plan": {
+   "en": "Plan",
+   "ru": "План",
+   "zh": "计划",
+   "es": "Plan",
+   "pt": "Plano",
+   "de": "Plan"
+  },
+  "mode_plan_desc": {
+   "en": "Only reads and thinks, changes nothing; ends with a plan to approve",
+   "ru": "Только читает и думает, ничего не меняет; в конце покажет план на утверждение",
+   "zh": "只读取和思考，不做任何更改；最后给出待批准的计划",
+   "es": "Solo lee y piensa, no cambia nada; termina con un plan para aprobar",
+   "pt": "Apenas lê e pensa, não altera nada; termina com um plano para aprovar",
+   "de": "Liest und denkt nur, ändert nichts; endet mit einem Plan zur Genehmigung"
+  },
+  "mode_auto": {
+   "en": "Auto",
+   "ru": "Авто",
+   "zh": "自动",
+   "es": "Auto",
+   "pt": "Auto",
+   "de": "Auto"
+  },
+  "mode_auto_desc": {
+   "en": "A classifier approves safe actions itself, asks about the rest",
+   "ru": "Безопасное одобряет сам классификатор, спорное спрашивает",
+   "zh": "由分类器自行批准安全的操作，其余的会询问",
+   "es": "Un clasificador aprueba por sí mismo las acciones seguras y pregunta por el resto",
+   "pt": "Um classificador aprova sozinho as ações seguras e pergunta sobre o resto",
+   "de": "Ein Klassifizierer genehmigt sichere Aktionen selbst, fragt bei den übrigen"
+  },
+  "mode_codex-configured": {
+   "en": "Codex config",
+   "ru": "Настройки Codex",
+   "zh": "Codex 配置",
+   "es": "Config. de Codex",
+   "pt": "Config do Codex",
+   "de": "Codex-Konfig"
+  },
+  "mode_codex-configured_desc": {
+   "en": "Use native Codex settings",
+   "ru": "Исходные разрешения и sandbox Codex; применяется со следующего хода",
+   "zh": "使用 Codex 原生设置",
+   "es": "Usa los ajustes nativos de Codex",
+   "pt": "Usa as configurações nativas do Codex",
+   "de": "Native Codex-Einstellungen verwenden"
+  },
+  "mode_codex-read-only": {
+   "en": "Read only",
+   "ru": "Только чтение",
+   "zh": "只读",
+   "es": "Solo lectura",
+   "pt": "Somente leitura",
+   "de": "Nur lesen"
+  },
+  "mode_codex-read-only_desc": {
+   "en": "Read-only sandbox",
+   "ru": "Sandbox разрешает только чтение; дополнительные действия требуют одобрения",
+   "zh": "只读沙盒",
+   "es": "Sandbox de solo lectura",
+   "pt": "Sandbox somente leitura",
+   "de": "Schreibgeschützte Sandbox"
+  },
+  "mode_codex-workspace": {
+   "en": "Workspace",
+   "ru": "Рабочая папка",
+   "zh": "工作区",
+   "es": "Espacio de trabajo",
+   "pt": "Workspace",
+   "de": "Workspace"
+  },
+  "mode_codex-workspace_desc": {
+   "en": "Write inside the workspace",
+   "ru": "Запись в рабочей папке; дополнительный доступ требует одобрения",
+   "zh": "可在工作区内写入",
+   "es": "Escribe dentro del espacio de trabajo",
+   "pt": "Escrever dentro do workspace",
+   "de": "Im Workspace schreiben"
+  },
+  "mode_codex-full-access": {
+   "en": "Full access",
+   "ru": "Полный доступ",
+   "zh": "完全访问",
+   "es": "Acceso total",
+   "pt": "Acesso total",
+   "de": "Vollzugriff"
+  },
+  "mode_codex-full-access_desc": {
+   "en": "No sandbox or approval prompts",
+   "ru": "Без sandbox и запросов одобрения; применяется со следующего хода",
+   "zh": "无沙盒，无批准提示",
+   "es": "Sin sandbox ni solicitudes de aprobación",
+   "pt": "Sem sandbox nem pedidos de aprovação",
+   "de": "Keine Sandbox und keine Rückfragen"
+  },
+  "mode_omp-yolo": {
+   "en": "Yolo",
+   "ru": "Yolo",
+   "zh": "Yolo",
+   "es": "Yolo",
+   "pt": "Yolo",
+   "de": "Yolo"
+  },
+  "mode_omp-yolo_desc": {
+   "en": "No approval prompts (omp default)",
+   "ru": "Без запросов одобрения (по умолчанию в omp)",
+   "zh": "不弹出批准提示（omp 默认）",
+   "es": "Sin solicitudes de aprobación (predeterminado de omp)",
+   "pt": "Sem pedidos de aprovação (padrão do omp)",
+   "de": "Keine Rückfragen (omp-Standard)"
+  },
+  "mode_omp-write": {
+   "en": "Write",
+   "ru": "Запись",
+   "zh": "写入",
+   "es": "Escritura",
+   "pt": "Escrita",
+   "de": "Schreiben"
+  },
+  "mode_omp-write_desc": {
+   "en": "Reads and writes run; shell and exec ask",
+   "ru": "Чтение и запись без вопросов; shell и запуск команд спрашивают",
+   "zh": "读写直接执行；shell 和命令执行需批准",
+   "es": "Lecturas y escrituras sin preguntar; shell y ejecución preguntan",
+   "pt": "Leituras e escritas rodam; shell e execução perguntam",
+   "de": "Lesen und Schreiben laufen; Shell und Ausführung fragen"
+  },
+  "mode_omp-ask": {
+   "en": "Ask",
+   "ru": "Спрашивать",
+   "zh": "询问",
+   "es": "Preguntar",
+   "pt": "Perguntar",
+   "de": "Fragen"
+  },
+  "mode_omp-ask_desc": {
+   "en": "Every write and exec asks",
+   "ru": "Каждая запись и каждый запуск команды спрашивают",
+   "zh": "每次写入和执行都需批准",
+   "es": "Cada escritura y ejecución pregunta",
+   "pt": "Toda escrita e execução pergunta",
+   "de": "Jedes Schreiben und jede Ausführung fragt"
+  },
+  "mode_omp-plan": {
+   "en": "Plan",
+   "ru": "План",
+   "zh": "计划",
+   "es": "Plan",
+   "pt": "Plano",
+   "de": "Plan"
+  },
+  "mode_omp-plan_desc": {
+   "en": "Read-only planning; writes ask",
+   "ru": "Планирование только для чтения; запись спрашивает",
+   "zh": "只读规划；写入需批准",
+   "es": "Planificación de solo lectura; las escrituras preguntan",
+   "pt": "Planejamento somente leitura; escritas perguntam",
+   "de": "Nur lesende Planung; Schreiben fragt"
+  },
+  "modeTip": {
+   "en": "Agent mode · Shift+Tab in the message field — next",
+   "ru": "Режим работы агента · Shift+Tab в поле ввода — следующий",
+   "zh": "代理模式 · 在消息框中按 Shift+Tab 切换到下一个",
+   "es": "Modo del agente · Shift+Tab en el campo de mensaje — siguiente",
+   "pt": "Modo do agente · Shift+Tab no campo de mensagem — próximo",
+   "de": "Agent-Modus · Shift+Tab im Nachrichtenfeld — nächster"
+  },
+  "clearTitle": {
+   "en": "Clear context",
+   "ru": "Очистить контекст",
+   "zh": "清空上下文",
+   "es": "Limpiar contexto",
+   "pt": "Limpar contexto",
+   "de": "Kontext leeren"
+  },
+  "clearQ": {
+   "en": "Clear the context and start a new conversation?\n\nThe current session is kept — reopen it from “Sessions ▾”.",
+   "ru": "Очистить контекст и начать новый разговор?\n\nТекущая сессия сохранится — вернуться можно через «Сессии ▾».",
+   "zh": "清空上下文并开始新对话？\n\n当前会话会保留 — 可从“会话 ▾”重新打开。",
+   "es": "¿Limpiar el contexto y empezar una conversación nueva?\n\nLa sesión actual se conserva: reábrela desde «Sesiones ▾».",
+   "pt": "Limpar o contexto e começar uma nova conversa?\n\nA sessão atual é mantida — reabra-a em “Sessões ▾”.",
+   "de": "Kontext leeren und eine neue Unterhaltung beginnen?\n\nDie aktuelle Sitzung bleibt erhalten — öffne sie wieder über „Sitzungen ▾“."
+  },
+  "clearBtn": {
+   "en": "Clear",
+   "ru": "Очистить",
+   "zh": "清空",
+   "es": "Limpiar",
+   "pt": "Limpar",
+   "de": "Leeren"
+  },
+  "compactTip": {
+   "en": "Compact context — the agent summarizes the conversation and continues from the summary (/compact)",
+   "ru": "Сжать контекст — агент кратко перескажет разговор и продолжит с пересказа (/compact)",
+   "zh": "压缩上下文 — 代理会总结对话并从摘要继续 (/compact)",
+   "es": "Compactar contexto — el agente resume la conversación y continúa desde el resumen (/compact)",
+   "pt": "Compactar contexto — o agente resume a conversa e continua a partir do resumo (/compact)",
+   "de": "Kontext komprimieren — der Agent fasst die Unterhaltung zusammen und macht mit der Zusammenfassung weiter (/compact)"
+  },
+  "clearTip": {
+   "en": "Clear context — start a fresh conversation (/clear). The current session stays in “Sessions ▾”",
+   "ru": "Очистить контекст — новый разговор с нуля (/clear). Текущая сессия останется в «Сессии ▾»",
+   "zh": "清空上下文 — 开始全新的对话 (/clear)。当前会话保留在“会话 ▾”中",
+   "es": "Limpiar contexto — empezar una conversación nueva (/clear). La sesión actual queda en «Sesiones ▾»",
+   "pt": "Limpar contexto — começar uma conversa nova (/clear). A sessão atual fica em “Sessões ▾”",
+   "de": "Kontext leeren — eine neue Unterhaltung beginnen (/clear). Die aktuelle Sitzung bleibt unter „Sitzungen ▾“"
+  },
+  "clearFail": {
+   "en": "Could not clear: ",
+   "ru": "Не удалось очистить: ",
+   "zh": "无法清空：",
+   "es": "No se pudo limpiar: ",
+   "pt": "Não foi possível limpar: ",
+   "de": "Leeren fehlgeschlagen: "
+  },
+  "working": {
+   "en": "agent is working…",
+   "ru": "агент работает…",
+   "zh": "代理正在工作…",
+   "es": "el agente está trabajando…",
+   "pt": "o agente está trabalhando…",
+   "de": "Agent arbeitet…"
+  },
+  "offline": {
+   "en": "no connection to the server…",
+   "ru": "нет связи с сервером…",
+   "zh": "与服务器断开连接…",
+   "es": "sin conexión con el servidor…",
+   "pt": "sem conexão com o servidor…",
+   "de": "keine Verbindung zum Server…"
+  },
+  "srcMine": {
+   "en": "my message",
+   "ru": "моё сообщение",
+   "zh": "我的消息",
+   "es": "mi mensaje",
+   "pt": "minha mensagem",
+   "de": "meine Nachricht"
+  },
+  "replyPlain": {
+   "en": "reply",
+   "ru": "ответ",
+   "zh": "回复",
+   "es": "respuesta",
+   "pt": "resposta",
+   "de": "Antwort"
+  },
+  "dictInstallGo": {
+   "en": "Install",
+   "ru": "Установить",
+   "zh": "安装",
+   "es": "Instalar",
+   "pt": "Instalar",
+   "de": "Installieren"
+  },
+  "dictInstalling": {
+   "en": "Installing Whisper…",
+   "ru": "Устанавливается Whisper…",
+   "zh": "正在安装 Whisper…",
+   "es": "Instalando Whisper…",
+   "pt": "Instalando o Whisper…",
+   "de": "Whisper wird installiert…"
+  },
+  "dictFailed": {
+   "en": "Whisper install failed. Check the connection and try again.",
+   "ru": "Не удалось установить Whisper. Проверьте соединение и повторите.",
+   "zh": "Whisper 安装失败。请检查网络连接后重试。",
+   "es": "No se pudo instalar Whisper. Comprueba la conexión e inténtalo de nuevo.",
+   "pt": "Falha ao instalar o Whisper. Verifique a conexão e tente de novo.",
+   "de": "Die Installation von Whisper ist fehlgeschlagen. Prüfen Sie die Verbindung und versuchen Sie es erneut."
+  },
+  "dictRetry": {
+   "en": "Retry",
+   "ru": "Повторить",
+   "zh": "重试",
+   "es": "Reintentar",
+   "pt": "Tentar de novo",
+   "de": "Erneut versuchen"
+  }
+ },
  "batch": {
   "batchHead": {
    "en": "Comments on fragments:",
@@ -691,6 +1026,62 @@ const _json = r'''
    "es": " (escala ×{0})",
    "pt": " (escala ×{0})",
    "de": " (skaliert ×{0})"
+  },
+  "srcTool": {
+   "en": "{0} command ({1})",
+   "ru": "команда {0} ({1})",
+   "zh": "{0} 命令 ({1})",
+   "es": "comando {0} ({1})",
+   "pt": "comando {0} ({1})",
+   "de": "Befehl {0} ({1})"
+  },
+  "srcAgentReply": {
+   "en": "subagent reply «{0}»",
+   "ru": "ответ субагента «{0}»",
+   "zh": "子代理回复「{0}」",
+   "es": "respuesta del subagente «{0}»",
+   "pt": "resposta do subagente «{0}»",
+   "de": "Antwort des Subagents «{0}»"
+  },
+  "srcAgentTool": {
+   "en": "{0} · subagent «{1}»",
+   "ru": "{0} · субагент «{1}»",
+   "zh": "{0} · 子代理「{1}」",
+   "es": "{0} · subagente «{1}»",
+   "pt": "{0} · subagente «{1}»",
+   "de": "{0} · Subagent «{1}»"
+  },
+  "dictInstallQ": {
+   "en": "Download Whisper (≈ {0} MB, ≈ {1} MB on disk) from npm and Hugging Face into {2}? Speech is then transcribed on this computer; recordings reach it end-to-end encrypted and are not stored.",
+   "ru": "Скачать Whisper (≈ {0} МБ, ≈ {1} МБ на диске) из npm и Hugging Face в {2}? Дальше речь распознаётся на этом компьютере; записи приходят к нему со сквозным шифрованием и не сохраняются.",
+   "zh": "从 npm 和 Hugging Face 将 Whisper（约 {0} MB，磁盘约 {1} MB）下载到 {2}？之后语音将在这台电脑上转写；录音以端到端加密方式传到这台电脑，且不会被保存。",
+   "es": "¿Descargar Whisper (≈ {0} MB, ≈ {1} MB en disco) desde npm y Hugging Face en {2}? Después, el habla se transcribe en este equipo; las grabaciones le llegan cifradas de extremo a extremo y no se guardan.",
+   "pt": "Baixar o Whisper (≈ {0} MB, ≈ {1} MB em disco) do npm e do Hugging Face para {2}? Depois, a fala é transcrita neste computador; as gravações chegam a ele com criptografia de ponta a ponta e não são armazenadas.",
+   "de": "Whisper (≈ {0} MB, ≈ {1} MB auf der Platte) von npm und Hugging Face nach {2} herunterladen? Die Sprache wird danach auf diesem Computer transkribiert; Aufnahmen erreichen ihn Ende-zu-Ende-verschlüsselt und werden nicht gespeichert."
+  },
+  "srcToolBare": {
+   "en": "{0} command",
+   "ru": "команда {0}",
+   "zh": "{0} 命令",
+   "es": "comando {0}",
+   "pt": "comando {0}",
+   "de": "Befehl {0}"
+  },
+  "srcAgentReplyBare": {
+   "en": "subagent reply",
+   "ru": "ответ субагента",
+   "zh": "子代理回复",
+   "es": "respuesta del subagente",
+   "pt": "resposta do subagente",
+   "de": "Antwort des Subagents"
+  },
+  "srcAgentToolBare": {
+   "en": "{0} · subagent",
+   "ru": "{0} · субагент",
+   "zh": "{0} · 子代理",
+   "es": "{0} · subagente",
+   "pt": "{0} · subagente",
+   "de": "{0} · Subagent"
   }
  }
 }

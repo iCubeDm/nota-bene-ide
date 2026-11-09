@@ -313,7 +313,7 @@ export const ptBR: Dict = {
   dictRetry: "Tentar de novo",
   dictUse: "Usar o Whisper para o microfone do celular",
   dictRemove: "Remover o Whisper",
-  dictRemoveQ: (dir: string) => `Apagar os arquivos do Whisper de ${dir}? O celular volta ao ditado próprio.`,
+  dictRemoveQ: (dir: string) => `Apagar os arquivos do Whisper de ${dir}? O microfone do celular só funciona com o Whisper.`,
   dictRemoveGo: "Remover",
   aboutVersion: 'Versão',
   aboutState: 'Pasta de estado',

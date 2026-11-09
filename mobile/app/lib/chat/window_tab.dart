@@ -11,8 +11,10 @@ import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/comments.dart';
+import '../comments/strings.g.dart';
 
 import '../hosts/host_link.dart';
+import '../media/fetch.dart';
 import 'feed.dart';
 
 enum TabState { connecting, open, occupied, taken, gone, offline }
@@ -27,6 +29,35 @@ String uuidV4() {
   final h = b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
   return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
 }
+
+CapabilitiesModeDescriptorsItem? _descriptor(WindowTab tab, AgentMode m) =>
+    tab.capabilities?.provider == CapabilitiesProvider.codex
+    ? null
+    : tab.capabilities?.modeDescriptors?.where((d) => d.id == m).firstOrNull;
+
+/// The modes the agent offers (the known ones, in its order).
+List<AgentMode> offeredModes(WindowTab tab) => [
+  for (final m in tab.capabilities?.modes ?? const <AgentMode>[])
+    if (m != AgentMode.$unknown) m,
+];
+
+/// The mode to show: the web's mode pill is hidden below two modes (ModePill.tsx), and a mode the agent does not
+/// offer is not shown.
+AgentMode? shownMode(WindowTab tab) {
+  final m = tab.mode;
+  final modes = offeredModes(tab);
+  return m != null && modes.length >= 2 && modes.contains(m) ? m : null;
+}
+
+/// A mode's name as the web's mode pill shows it (ModePill.tsx): the host's own for any provider but Codex, else the
+/// web's string.
+String modeLabel(WindowTab tab, AgentMode m, String lang) =>
+    _descriptor(tab, m)?.name ?? webString('mode_${m.toJson()}', lang);
+
+/// A mode's description, by the same rule.
+String modeDescription(WindowTab tab, AgentMode m, String lang) =>
+    _descriptor(tab, m)?.description ??
+    webString('mode_${m.toJson()}_desc', lang);
 
 class WindowTab extends ChangeNotifier {
   WindowTab(
@@ -52,6 +83,11 @@ class WindowTab extends ChangeNotifier {
   List<ModelOption> models = const [];
   String? model;
   AgentEffort? effort;
+
+  /// The window's permission mode, as the server last said it: its `mode` event goes to a tab the moment it attaches
+  /// (server.ts, attachOwner, just before `models`), so a fresh tab has it without asking. The tab's own change shows
+  /// only when that event comes back, with its `ack`.
+  AgentMode? mode;
   num? protocol;
 
   /// The window's comments of this session (the server's set).
@@ -61,9 +97,20 @@ class WindowTab extends ChangeNotifier {
   final fileVersions = <String, String>{};
   Capabilities? capabilities;
 
-  /// The host answered 503 to a dictation: its Whisper is off. Until the next hello or reconnect the phone's own
-  /// recognizer is used (the hello's capability is stale by then).
-  bool hostWhisperOff = false;
+  /// The temp folders whose images the window serves (`/tmpimage`), from its hello; none until then.
+  List<String> tmpDirs = const [];
+
+  /// The attachments read for the feed's thumbnails and the viewer, by their request path, within a byte cap.
+  final mediaCache = MediaCache();
+
+  /// What the phone learned of the window's Whisper since its hello: on once the phone turned it on, off after a 503
+  /// to a dictation; null until then, when the hello's capability holds.
+  bool? whisperOn;
+
+  /// Whether the window transcribes the phone's recordings now.
+  bool get whisper =>
+      state == TabState.open &&
+      (whisperOn ?? capabilities?.dictation == 'whisper');
   ServerEventStats? stats;
 
   final _refusals = StreamController<ServerEventSendRefused>.broadcast();
@@ -121,7 +168,7 @@ class WindowTab extends ChangeNotifier {
   void _open(Channel ch) {
     _stream?.close(1000);
     _on = ch;
-    hostWhisperOff = false;
+    whisperOn = null;
     final s = _stream = ch.ws(
       port,
       '/ws?tab=$tabId${_passive ? '&passive=1' : ''}',
@@ -191,12 +238,23 @@ class WindowTab extends ChangeNotifier {
         } else {
           _set(TabState.occupied);
         }
-      case ServerEventHello(:final protocol, :final capabilities):
+      case ServerEventHello(
+        :final protocol,
+        :final capabilities,
+        :final tmpDirs,
+      ):
         this.protocol = protocol;
         this.capabilities = capabilities;
-        hostWhisperOff = false;
+        this.tmpDirs = [
+          for (final d in tmpDirs ?? const <String>[])
+            if (d.startsWith('/') && d.length > 1)
+              d.replaceAll(RegExp(r'/+$'), ''),
+        ];
+        whisperOn = null;
       case ServerEventModels(:final models):
         this.models = models;
+      case ServerEventMode(:final mode):
+        this.mode = mode;
       case ServerEventModel(:final model, :final effort):
         this.model = model;
         this.effort = effort;
@@ -223,6 +281,9 @@ class WindowTab extends ChangeNotifier {
 
   /// Sends [m] when the tab owns the window (anything else would be dropped by the server); false when it did not go.
   bool send(ClientMessage m) => _state == TabState.open && _raw(m);
+
+  /// Asks for permission mode [m]; the shown [mode] changes when the server's `mode` event arrives. False when it did not go.
+  bool setMode(AgentMode m) => send(ClientMessageMode(mode: m, id: uuidV4()));
 
   bool _loadingEarlier = false;
 

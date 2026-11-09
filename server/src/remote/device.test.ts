@@ -139,6 +139,14 @@ describe('device channel', () => {
     expect(h.lists[0]).toEqual([expect.objectContaining({ port: a.port, provider: 'claude', root: path.join(tmp, 'proj') })]);
   });
 
+  it('the host stream passes the pending, last and replies of a window', async () => {
+    const a = await window();
+    const l = await paired(await windows());
+    const h = l.phone.host();
+    await until(() => h.lists.length > 0);
+    expect(h.lists[0]![0]).toMatchObject({ port: a.port, pending: false, last: null, replies: 0 });
+  });
+
   it('a ws stream is a tab of the window, one-tab rule included', async () => {
     const a = await window();
     const l = await paired(await windows());
