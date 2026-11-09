@@ -23,7 +23,7 @@ for (const name of names) {
   it(`the rendered text of ${name}`, async () => {
     const md = fs.readFileSync(path.join(dir, name), 'utf8');
     // as TextBody shows a Markdown file
-    const { container } = render(<div className="nb-card nb-prose"><Markdown text={md} final src={{ kind: 'file', path: name }} /></div>);
+    const { container } = render(<div className="nb-card nb-prose"><Markdown text={md} final src="here" /></div>);
     await new Promise((r) => setTimeout(r, 50)); // a mermaid block renders after a tick; its text is skipped anyway
     const text = textOf(container);
     const out = path.join(dir, name.replace(/\.md$/, '.txt'));
