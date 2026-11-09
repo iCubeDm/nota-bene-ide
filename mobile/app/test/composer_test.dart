@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:nb_app/voice/record_button.dart';
+import 'package:nb_app/voice/record_row.dart';
+import 'package:nb_app/voice/player.dart';
 import 'package:nb_channel/nb_channel.dart';
-import 'package:nb_app/dictation/record_bar.dart';
 
-import 'host_dictation_test.dart' show Recorder, answer;
-import 'support/fake_dictation.dart' show lockVoice;
 import 'support/rig.dart';
+import 'support/voice_fakes.dart';
 
 void main() {
   late Rig r;
@@ -130,7 +133,7 @@ void main() {
   });
 
   testWidgets(
-    'busy with nothing typed the slot is stop; typing makes it send',
+    'busy: Stop sits beside Send, which is off until there is something to send',
     (t) async {
       await r.open(
         t,
@@ -138,11 +141,12 @@ void main() {
           {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
         ],
       );
-      expect(find.byKey(const ValueKey('send')), findsNothing);
       expect(find.byTooltip('Stop'), findsOneWidget);
+      final send = find.byKey(const ValueKey('send'));
+      expect(t.widget<IconButton>(send).onPressed, isNull);
       await t.enter('more');
-      expect(find.byTooltip('Stop'), findsNothing);
-      expect(find.byKey(const ValueKey('send')), findsOneWidget);
+      expect(find.byTooltip('Stop'), findsOneWidget);
+      expect(t.widget<IconButton>(send).onPressed, isNotNull);
       await t.tap(find.byKey(const ValueKey('send')));
       await t.pumpAndSettle();
       expect(textIn('interrupt'), findsWidgets);
@@ -169,53 +173,220 @@ void main() {
   });
 
   group('voice', () {
-    late Recorder rec;
-    setUp(() => rec = Recorder()..install());
+    late RecorderMock rec;
+    setUp(() {
+      rec = RecorderMock()..install();
+      VoicePlayer.shared = VoicePlayer(files: MemoryVoiceFiles());
+    });
     tearDown(() => rec.uninstall());
 
-    Future<Completer<HttpAnswer>> openWhisper(WidgetTester t) async {
-      await r.open(
-        t,
-        hello: {
-          'kind': 'hello',
-          'protocol': 13,
-          'capabilities': Rig.caps(dictation: 'whisper'),
-        },
-      );
-      final reply = Completer<HttpAnswer>();
-      r.ch.onHttp = (port, method, path) => reply.future;
-      return reply;
+    final voice = {'id': 'e' * 64, 'ms': 2000, 'wave': List.filled(48, 5)};
+    HttpAnswer ok() => (
+      status: 200,
+      headers: const <String, String>{},
+      body: Uint8List.fromList(utf8.encode(jsonEncode(voice))),
+    );
+    HttpAnswer refuse(int status) =>
+        (status: status, headers: const <String, String>{}, body: Uint8List(0));
+
+    Future<void> openVoice(
+      WidgetTester t, {
+      int protocol = 14,
+      String? dictation = 'whisper',
+      List<Map<String, Object?>> events = const [],
+    }) => r.open(
+      t,
+      events: events,
+      hello: {
+        'kind': 'hello',
+        'protocol': protocol,
+        'capabilities': Rig.caps(dictation: dictation),
+      },
+    );
+
+    Future<void> record(WidgetTester t) async {
+      final g = await t.startGesture(t.getCenter(find.byType(RecordButton)));
+      await t.pump(const Duration(milliseconds: 700));
+      await g.up();
+      await t.pump();
+      await t.pump();
     }
 
-    testWidgets('locked + send stops the dictation and sends its text', (
-      t,
-    ) async {
-      final reply = await openWhisper(t);
-      await t.enter('Fix ');
-      await lockVoice(t);
-      await t.tap(find.byTooltip('Send'));
-      await t.pump();
-      expect(rec.calls, ['start', 'stop']);
-      expect(r.sent, isEmpty);
-      reply.complete(answer(200, '{"text":"the header"}'));
-      await t.pumpAndSettle();
-      expect(r.sent.single['text'], 'Fix the header');
+    testWidgets(
+      'the mic is the round button while there is nothing to send; typing makes it Send',
+      (t) async {
+        await openVoice(t);
+        expect(find.byType(RecordButton), findsOneWidget);
+        expect(find.byKey(const ValueKey('send')), findsNothing);
+        expect(t.getSize(find.byType(RecordButton)), const Size(48, 48));
+        await t.enter('x');
+        await t.pumpAndSettle();
+        expect(find.byType(RecordButton), findsNothing);
+        expect(
+          t.getSize(find.byKey(const ValueKey('send'))),
+          const Size(48, 48),
+        );
+        await t.enter('');
+        await t.pumpAndSettle();
+        expect(find.byType(RecordButton), findsOneWidget);
+      },
+    );
+
+    testWidgets('no mic below protocol 14', (t) async {
+      await openVoice(t, protocol: 13);
+      expect(find.byType(RecordButton), findsNothing);
+      expect(find.byKey(const ValueKey('send')), findsOneWidget);
     });
 
-    testWidgets('recording swaps the pill for the record bar; stop ends it', (
-      t,
-    ) async {
-      final reply = await openWhisper(t);
-      await lockVoice(t);
-      expect(find.byType(RecordBar), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
-      await t.tap(find.byTooltip('Stop'));
-      await t.pump();
-      expect(rec.calls, ['start', 'stop']);
-      expect(find.text('Transcribing…'), findsOneWidget);
-      reply.complete(answer(200, '{"text":"x"}'));
+    testWidgets('without Whisper the mic opens its sheet', (t) async {
+      await openVoice(t, dictation: null);
+      await t.tap(find.byType(RecordButton));
       await t.pumpAndSettle();
-      expect(find.byType(RecordBar), findsNothing);
+      expect(find.text('Dictation by Whisper'), findsOneWidget);
     });
+
+    testWidgets(
+      'the paperclip is in the field, and moves to its top once the text wraps',
+      (t) async {
+        await openVoice(t);
+        final clip = find.byKey(const ValueKey('attach'));
+        final field = find.byType(TextField);
+        expect(t.getCenter(clip).dy, greaterThan(t.getTopLeft(field).dy));
+        expect(
+          t.getCenter(clip).dx,
+          greaterThan(t.getBottomRight(field).dx - 60),
+        );
+        await t.enter('word ' * 80);
+        await t.pumpAndSettle();
+        expect(
+          t.getBottomLeft(clip).dy,
+          lessThanOrEqualTo(t.getTopLeft(field).dy + 1),
+        );
+        // the text has the field's full width below it
+        await t.enter('short');
+        await t.pumpAndSettle();
+        expect(t.getCenter(clip).dy, greaterThan(t.getTopLeft(field).dy));
+      },
+    );
+
+    testWidgets(
+      'a recording is uploaded, then sent as a voice message, with the pending bubble between',
+      (t) async {
+        await openVoice(t);
+        final up = Completer<HttpAnswer>();
+        r.ch.onHttp = (port, method, path) => up.future;
+        await record(t);
+        expect(rec.calls, ['start', 'stop']);
+        expect(r.ch.requests, ['POST /voice']);
+        expect(r.ch.calls.single.headers['content-type'], 'audio/wav');
+        expect(r.sent, isEmpty);
+        expect(find.text('Sending…'), findsOneWidget);
+        up.complete(ok());
+        await t.pump();
+        await t.pump();
+        final m = r.sent.single;
+        expect(m['type'], 'send');
+        expect(m['text'], '');
+        expect(m['voice'], voice);
+        expect(m['lang'], 'en');
+        expect(m['id'], matches(RegExp(r'^[0-9a-f-]{36}$')));
+        for (final k in ['force', 'images', 'commentIds']) {
+          expect(m.containsKey(k), isFalse, reason: k);
+        }
+        // the window's user event replaces the pending bubble
+        r.event({
+          'kind': 'user',
+          'id': m['id'],
+          'text': '',
+          'voice': voice,
+          'ts': 1,
+        });
+        await t.pump();
+        expect(find.text('Sending…'), findsNothing);
+        expect(find.text('Transcribing…'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'while the agent works a voice message goes without the dialog, after the turn',
+      (t) async {
+        await openVoice(
+          t,
+          events: [
+            {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
+          ],
+        );
+        r.ch.onHttp = (port, method, path) async => ok();
+        // Stop sits beside the mic
+        expect(find.byTooltip('Stop'), findsOneWidget);
+        expect(
+          t.getSize(find.byKey(const ValueKey('stop'))),
+          const Size(40, 40),
+        );
+        expect(find.byType(RecordButton), findsOneWidget);
+        await record(t);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(r.sent.single.containsKey('force'), isFalse);
+        expect(r.sent.single['voice'], voice);
+      },
+    );
+
+    testWidgets(
+      'a failed upload stays as a bubble with Retry and is sent after it',
+      (t) async {
+        await openVoice(t);
+        r.ch.onHttp = (port, method, path) async => refuse(500);
+        await record(t);
+        expect(r.sent, isEmpty);
+        expect(find.text('Could not send the recording'), findsOneWidget);
+        r.ch.onHttp = (port, method, path) async => ok();
+        await t.tap(find.text('Retry'));
+        await t.pump();
+        await t.pump();
+        expect(r.sent.single['voice'], voice);
+        expect(r.ch.requests, ['POST /voice', 'POST /voice']);
+      },
+    );
+
+    testWidgets(
+      'a send the window does not take stays as a bubble with Retry',
+      (t) async {
+        await openVoice(t);
+        r.ch.onHttp = (port, method, path) async => ok();
+        await record(t);
+        final id = r.sent.single['id'];
+        r.event({'kind': 'send-refused', 'id': id, 'reason': 'switching'});
+        await t.pump();
+        expect(find.text('Could not send the recording'), findsOneWidget);
+        await t.tap(find.text('Retry'));
+        await t.pump();
+        expect(r.sent, hasLength(2));
+        expect(r.sent.last['id'], isNot(id));
+        // no second upload: the host has the recording
+        expect(r.ch.requests, ['POST /voice']);
+      },
+    );
+
+    testWidgets(
+      'the recording takes the field row; locked and stopped it shows its preview',
+      (t) async {
+        await openVoice(t);
+        r.ch.onHttp = (port, method, path) async => ok();
+        final g = await t.startGesture(t.getCenter(find.byType(RecordButton)));
+        await t.pump(const Duration(milliseconds: 300));
+        expect(find.text('Slide to cancel'), findsOneWidget);
+        await g.moveBy(const Offset(0, -90));
+        await g.up();
+        await t.pump();
+        await t.tap(find.byTooltip('Stop'));
+        await t.pump();
+        expect(find.byType(RecordRow), findsOneWidget);
+        expect(find.byTooltip('Delete'), findsOneWidget);
+        await t.tap(find.byTooltip('Send'));
+        await t.pump();
+        await t.pump();
+        expect(r.sent.single['voice'], voice);
+      },
+    );
   });
 }

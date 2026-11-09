@@ -19,12 +19,7 @@ import '../ui/nb_icon.dart';
 export '../media/fetch.dart' show imageMaxBytes;
 
 /// The window's own requests for a tab, through its channel; null while the host is offline.
-WindowHttp? windowHttp(WindowTab tab) {
-  final ch = tab.link.channel;
-  if (ch == null) return null;
-  return (method, path, {headers, body}) =>
-      ch.http(tab.port, method, path, headers: headers, body: body);
-}
+WindowHttp? windowHttp(WindowTab tab) => tab.http;
 
 /// The marks of [path]'s comments, numbered as the strip numbers them.
 List<ShownMark> shownMarks(WindowTab tab, String path, {double? at}) {

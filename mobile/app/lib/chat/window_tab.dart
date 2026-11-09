@@ -15,6 +15,8 @@ import '../comments/strings.g.dart';
 
 import '../hosts/host_link.dart';
 import '../media/fetch.dart';
+import '../media/media_comment.dart' show WindowHttp;
+import '../voice/outbox.dart';
 import 'feed.dart';
 
 enum TabState { connecting, open, occupied, taken, gone, offline }
@@ -92,6 +94,20 @@ class WindowTab extends ChangeNotifier {
 
   /// The window's comments of this session (the server's set).
   late final comments = Comments(send, () => feed.sessionId);
+
+  /// The voice messages recorded here that the window has not shown yet.
+  late final voiceOutbox = VoiceOutbox(send, () => http);
+
+  /// The window's own requests through its channel; null while the host is offline.
+  WindowHttp? get http {
+    final ch = link.channel;
+    if (ch == null) return null;
+    return (method, path, {headers, body}) =>
+        ch.http(port, method, path, headers: headers, body: body);
+  }
+
+  /// Whether the window speaks protocol 14, where voice messages begin.
+  bool get voiceProtocol => (protocol ?? 0) >= 14;
 
   /// path → the ETag of the file as last read here (`/file`), to tell a media comment drawn on an earlier version
   final fileVersions = <String, String>{};
@@ -230,6 +246,10 @@ class WindowTab extends ChangeNotifier {
         _takeoverWanted = false;
         _passive = false;
         feed.apply(e);
+        voiceOutbox.reconcile({
+          for (final i in feed.items)
+            if (i is UserItem) i.id,
+        });
         _set(TabState.open);
       case ServerEventOccupied():
         _passive = true;
@@ -262,8 +282,12 @@ class WindowTab extends ChangeNotifier {
         stats = e;
       case ServerEventComments(:final items):
         comments.apply(items);
-      case ServerEventSendRefused():
+      case ServerEventSendRefused(:final id):
+        voiceOutbox.refused(id);
         _refusals.add(e);
+      case ServerEventUser(:final id):
+        voiceOutbox.arrived(id);
+        feed.apply(e);
       case ServerEventServerError():
         _errors.add(e);
       default:
@@ -338,6 +362,7 @@ class WindowTab extends ChangeNotifier {
     _stream?.close(1000);
     _refusals.close();
     _errors.close();
+    voiceOutbox.dispose();
     super.dispose();
   }
 }

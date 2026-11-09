@@ -23,6 +23,7 @@ class VoiceBlock extends StatefulWidget {
     required this.stage,
     this.error,
     this.onRetry,
+    this.onDelete,
     this.transcript,
     this.player,
   });
@@ -35,6 +36,9 @@ class VoiceBlock extends StatefulWidget {
 
   /// Retry of a failed transcription or send; null while there is no way to (the window is not there).
   final VoidCallback? onRetry;
+
+  /// Drops a bubble whose send failed.
+  final VoidCallback? onDelete;
 
   /// The transcript, built when it is shown.
   final Widget Function()? transcript;
@@ -80,6 +84,15 @@ class _VoiceBlockState extends State<VoiceBlock> {
             ),
             child: Text(t.retry),
           ),
+          if (widget.onDelete != null)
+            TextButton(
+              onPressed: widget.onDelete,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                foregroundColor: c.mutedFg,
+              ),
+              child: Text(t.voiceDelete),
+            ),
         ],
       ),
     };
