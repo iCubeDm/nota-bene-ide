@@ -24,6 +24,10 @@ export type SessionOptions = {
   idle?: IdleConfig;
   /** the `! cmd` runner's timing and environment (tests shorten the timeout and the kill delay) */
   shell?: { timeoutMs?: number; killMs?: number; env?: () => NodeJS.ProcessEnv };
+  /** which user messages were voice messages (default `<stateDir>/voice.jsonl`) */
+  voices?: import('../voice/index.ts').VoiceIndex;
+  /** a stored recording to text (tests stub it); default: the host's Whisper, VoiceFailure 'off' while it is off */
+  speech?: (id: string, lang: string, alive: () => boolean) => Promise<string>;
   /** `"idleCompaction": false` in Claude Code's settings (tests stub it) */
   idleOffInSettings?: () => boolean;
 };

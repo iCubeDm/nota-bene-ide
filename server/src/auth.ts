@@ -197,7 +197,8 @@ function keyOf(headers: IncomingHttpHeaders): string | undefined {
  */
 export function cookieRoute(method: string | undefined, rawPath: string): boolean {
   if (method !== 'GET' && method !== 'HEAD') return false;
-  return rawPath === '/file' || (rawPath.startsWith('/attach/') && rawPath.length > '/attach/'.length);
+  // /voice/<id>: what <audio> plays a voice message from (not its /text)
+  return rawPath === '/file' || (rawPath.startsWith('/attach/') && rawPath.length > '/attach/'.length) || /^\/voice\/[0-9a-f]{64}$/.test(rawPath);
 }
 
 /**

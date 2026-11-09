@@ -19,6 +19,7 @@ function make(o: { interrupt?: () => Promise<void>; sendThrows?: boolean; interr
     interruptMs: o.interruptMs ?? 2000,
     report: (w, e) => errors.push(`${w}: ${(e as Error).message}`),
     fail: (e, id) => log.push(`fail ${id}: ${(e as Error).message}`),
+    drop: (id) => log.push(`drop ${id}`),
   });
   return { q, log, errors, bump: () => { gen++; }, die: () => { current = false; } };
 }
@@ -118,5 +119,49 @@ describe('SendQueue', () => {
     q.push({ id: 'B', text: 'b' });
     await q.idle();
     expect(log).toEqual(['interrupt', 'running B', 'send B:next']);
+  });
+});
+
+describe('SendQueue text later', () => {
+  it('a text that comes later is awaited in the chain: the sends behind it wait, in order', async () => {
+    const { q, log } = make();
+    let give!: (t: string) => void;
+    q.push({ id: 'V', text: () => new Promise<string>((r) => { give = r; }) });
+    q.push({ id: 'T', text: 't' });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(log).toEqual([]);
+    give('spoken');
+    await q.idle();
+    expect(log).toEqual(['running V', 'send V:next', 'running T', 'send T:next']);
+  });
+
+  it('the agent gets the text that came', async () => {
+    const texts: string[] = [];
+    const { q } = make();
+    (q as unknown as { o: { agent: () => unknown } }).o.agent = () => ({ send: (m: { text: string }) => texts.push(m.text) });
+    q.push({ id: 'V', text: async () => 'spoken' });
+    await q.idle();
+    expect(texts).toEqual(['spoken']);
+  });
+
+  it('a text that fails fails its send without a report (its getter tells), and the next one still goes', async () => {
+    const { q, log, errors } = make();
+    q.push({ id: 'V', text: async () => { throw new Error('whisper down'); } });
+    q.push({ id: 'T', text: 't' });
+    await q.idle();
+    expect(log).toEqual(['drop V', 'running T', 'send T:next']);
+    expect(errors).toEqual([]);
+  });
+
+  it('a switch while the text is awaited drops the send, silently', async () => {
+    const { q, log, errors, bump } = make();
+    let give!: (t: string) => void;
+    q.push({ id: 'V', text: () => new Promise<string>((r) => { give = r; }) });
+    await new Promise((r) => setTimeout(r, 1));
+    bump();
+    give('spoken');
+    await q.idle();
+    expect(log).toEqual([]);
+    expect(errors).toEqual([]);
   });
 });

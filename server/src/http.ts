@@ -33,7 +33,7 @@ function statFile(p: string): fs.Stats | null {
   }
 }
 
-const PREFIX_ROUTES = ['/attach/', '/marks/', '/control/'];
+const PREFIX_ROUTES = ['/attach/', '/marks/', '/control/', '/voice/'];
 
 export function isAllowedHost(host: string | undefined, allowed: readonly string[]): boolean {
   return host !== undefined && allowed.includes(host.toLowerCase());
