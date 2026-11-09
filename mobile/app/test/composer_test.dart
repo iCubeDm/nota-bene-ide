@@ -165,16 +165,24 @@ void main() {
     expect(gap(), greaterThanOrEqualTo(0));
   });
 
-  testWidgets('send while dictating cancels it and sends the field', (t) async {
+  testWidgets('locked + send stops the dictation and sends its text', (
+    t,
+  ) async {
     final saved = dictation;
     final fake = dictation = FakeDictation();
     addTearDown(() => dictation = saved);
     await r.open(t);
-    await t.enter('Fix the header');
+    await t.enter('Fix ');
     await lockVoice(t);
+    fake.last.add(const DictationPartial('the head'));
+    await t.pump();
     await t.tap(find.byTooltip('Send'));
+    await t.pump();
+    expect(fake.calls, ['listen', 'stop']);
+    expect(r.sent, isEmpty);
+    fake.last.add(const DictationFinal('the header'));
+    fake.last.add(const DictationEnd());
     await t.pumpAndSettle();
-    expect(fake.calls, ['listen', 'cancel']);
     expect(r.sent.single['text'], 'Fix the header');
   });
 

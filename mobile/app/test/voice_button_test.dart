@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -203,7 +205,7 @@ void main() {
     expect(c.text, 'Fix the words header');
   });
 
-  testWidgets('an error restores the field and says so', (t) async {
+  testWidgets('an error keeps what was recognized and says so', (t) async {
     final c = await pump(t, text: 'Fix ');
     final g = await pressVoice(t);
     fake.last.add(const DictationPartial('abc'));
@@ -213,7 +215,83 @@ void main() {
     await g.up();
     await t.pump();
     expect(find.text('Microphone access is off for Nota Bene'), findsOneWidget);
-    expect(c.text, 'Fix ');
+    expect(c.text, 'Fix abc');
+  });
+
+  testWidgets('an error with nothing recognized restores the field', (t) async {
+    final c = await pump(t, text: 'Fix header');
+    c.selection = const TextSelection(baseOffset: 4, extentOffset: 10);
+    await lockVoice(t);
+    fake.last.add(const DictationError(DictationFailure.denied));
+    fake.last.add(const DictationEnd());
+    await t.pump();
+    expect(c.text, 'Fix header');
+    expect(c.selection, const TextSelection(baseOffset: 4, extentOffset: 10));
+  });
+
+  testWidgets('no end within 3 s of stop: finishes with what was written', (
+    t,
+  ) async {
+    final c = await pump(t, text: 'Fix ');
+    await lockVoice(t);
+    fake.last.add(const DictationPartial('the header'));
+    await t.pump();
+    VoiceButton.stopRunning();
+    await t.pump(const Duration(seconds: 2));
+    expect(states.last, VoiceState.working);
+    await t.pump(const Duration(seconds: 2));
+    expect(states.last, VoiceState.idle);
+    expect(c.text, 'Fix the header');
+  });
+
+  testWidgets('finishRunning stops and waits for the final result', (t) async {
+    final c = await pump(t, text: 'Fix ');
+    await lockVoice(t);
+    fake.last.add(const DictationPartial('the'));
+    await t.pump();
+    var done = false;
+    unawaited(VoiceButton.finishRunning().then((_) => done = true));
+    await t.pump();
+    expect(fake.calls, ['listen', 'stop']);
+    expect(done, isFalse);
+    fake.last.add(const DictationFinal('the header'));
+    fake.last.add(const DictationEnd());
+    await t.pump();
+    expect(done, isTrue);
+    expect(c.text, 'Fix the header');
+  });
+
+  testWidgets('finishRunning without a final keeps the words after 3 s', (
+    t,
+  ) async {
+    final c = await pump(t, text: 'Fix ');
+    await lockVoice(t);
+    fake.last.add(const DictationPartial('the header'));
+    await t.pump();
+    var done = false;
+    unawaited(VoiceButton.finishRunning().then((_) => done = true));
+    await t.pump(const Duration(seconds: 4));
+    expect(done, isTrue);
+    expect(c.text, 'Fix the header');
+  });
+
+  testWidgets('a partial reaches the meter for the record bar', (t) async {
+    final meter = VoiceMeter();
+    final c = TextEditingController();
+    await t.pumpWidget(
+      NbApp(
+        home: Scaffold(
+          body: VoiceButton(controller: c, meter: meter),
+        ),
+      ),
+    );
+    await lockVoice(t);
+    fake.last.add(const DictationPartial('hello there'));
+    await t.pump();
+    expect(meter.partial, 'hello there');
+    expect(meter.capped, isFalse);
+    VoiceButton.cancelRunning();
+    await t.pump();
   });
 
   testWidgets('leaving while recording cancels', (t) async {
@@ -279,7 +357,9 @@ void main() {
     expect(c.text, 'Fix the header');
   });
 
-  testWidgets('a failure restores the field and its selection', (t) async {
+  testWidgets('a failure after words keeps them, selection replaced', (
+    t,
+  ) async {
     final c = await pump(t, text: 'Fix header');
     c.selection = const TextSelection(baseOffset: 4, extentOffset: 10);
     await lockVoice(t);
@@ -289,8 +369,7 @@ void main() {
     fake.last.add(const DictationError(DictationFailure.denied));
     fake.last.add(const DictationEnd());
     await t.pump();
-    expect(c.text, 'Fix header');
-    expect(c.selection, const TextSelection(baseOffset: 4, extentOffset: 10));
+    expect(c.text, 'Fix title');
   });
 
   testWidgets('typing while recording is kept and ends the dictation', (
@@ -373,13 +452,38 @@ void main() {
       expect(find.text('Transcribing…'), findsOneWidget);
     });
 
+    testWidgets('locked shows the latest partial in one ellipsized line', (
+      t,
+    ) async {
+      final m = VoiceMeter()..partial = 'so far we have said';
+      await bar(t, VoiceState.locked, m);
+      final w = t.widget<Text>(find.text('so far we have said'));
+      expect((w.maxLines, w.overflow), (1, TextOverflow.ellipsis));
+    });
+
+    testWidgets('the 110 s warning is for the host recorder only', (t) async {
+      Color? colorOf() =>
+          t.widget<Text>(find.byKey(const Key('timer'))).style?.color;
+      await bar(
+        t,
+        VoiceState.recording,
+        VoiceMeter()..elapsed = const Duration(seconds: 115),
+      );
+      final accent = Theme.of(
+        t.element(find.byType(RecordBar)),
+      ).extension<NbColors>()!.accent;
+      expect(colorOf(), isNot(accent));
+    });
+
     testWidgets('the timer turns accent from 110 s', (t) async {
       Color? colorOf() =>
           t.widget<Text>(find.byKey(const Key('timer'))).style?.color;
       await bar(
         t,
         VoiceState.recording,
-        VoiceMeter()..elapsed = const Duration(seconds: 109),
+        VoiceMeter()
+          ..capped = true
+          ..elapsed = const Duration(seconds: 109),
       );
       final accent = Theme.of(
         t.element(find.byType(RecordBar)),
@@ -388,7 +492,9 @@ void main() {
       await bar(
         t,
         VoiceState.recording,
-        VoiceMeter()..elapsed = const Duration(seconds: 110),
+        VoiceMeter()
+          ..capped = true
+          ..elapsed = const Duration(seconds: 110),
       );
       expect(colorOf(), accent);
     });

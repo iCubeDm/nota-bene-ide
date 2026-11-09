@@ -70,8 +70,9 @@ class _ComposerState extends State<Composer> {
   }
 
   Future<void> _send() async {
-    // a running dictation must not write into the field after it is read (or cleared)
-    VoiceButton.cancelRunning();
+    // a running dictation is finished first: its words are in the field before it is read (or cleared)
+    await VoiceButton.finishRunning();
+    if (!mounted) return;
     final text = _text.text.trim();
     if (text.isEmpty && widget.tab.comments.sendable.isEmpty) return;
     var force = false;

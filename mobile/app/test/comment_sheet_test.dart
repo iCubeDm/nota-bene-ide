@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/comments/comment_sheet.dart';
@@ -120,10 +122,13 @@ void main() {
           'capabilities': Rig.caps(dictation: cap),
         },
       );
-      showCommentSheet(
-        t.element(find.byType(Composer)),
-        quote: 'q',
-        tab: r.tab,
+      got = null;
+      unawaited(
+        showCommentSheet(
+          t.element(find.byType(Composer)),
+          quote: 'q',
+          tab: r.tab,
+        ).then((v) => got = v),
       );
       await t.pumpAndSettle();
       return find.descendant(
@@ -170,12 +175,18 @@ void main() {
       );
     });
 
-    testWidgets('Save cancels a recording in progress', (t) async {
+    testWidgets('Save stops a locked recording and stores its text', (t) async {
       final mic = await openSheet(t);
       await lockVoice(t, at: mic);
+      phone.last.add(const DictationPartial('the head'));
+      await t.pump();
       await t.tap(find.text('Save'));
+      await t.pump();
+      expect(phone.calls, ['listen', 'stop']);
+      phone.last.add(const DictationFinal('the header'));
+      phone.last.add(const DictationEnd());
       await t.pumpAndSettle();
-      expect(phone.calls, ['listen', 'cancel']);
+      expect((got as SheetSave).text, 'the header');
     });
 
     testWidgets('the sheet shows the record bar while it records', (t) async {

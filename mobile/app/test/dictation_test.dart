@@ -166,4 +166,38 @@ void main() {
     expect(speechTag('pt', const [Locale('pt')]), 'pt-BR');
     expect(speechTag('pt', const [Locale('pt', 'PT')]), 'pt-PT');
   });
+
+  testWidgets('no end within 3 s of stop: final with the segments, then end', (
+    t,
+  ) async {
+    final got = <DictationEvent>[];
+    var closed = false;
+    events = [
+      {'type': 'segment', 'text': 'hello'},
+    ];
+    final d = PlatformDictation();
+    d.listen('en').listen(got.add, onDone: () => closed = true);
+    await t.pump();
+    await d.stop();
+    await t.pump(const Duration(seconds: 2));
+    expect(got.whereType<DictationEnd>(), isEmpty);
+    await t.pump(const Duration(seconds: 2));
+    expect(got.whereType<DictationFinal>().single.text, 'hello');
+    expect(got.last, isA<DictationEnd>());
+    expect(closed, isTrue);
+  });
+
+  testWidgets('an end before the watchdog fires cancels it', (t) async {
+    final got = <DictationEvent>[];
+    events = [
+      {'type': 'final', 'text': 'x'},
+      {'type': 'end'},
+    ];
+    final d = PlatformDictation();
+    d.listen('en').listen(got.add);
+    await t.pump();
+    await d.stop();
+    await t.pump(const Duration(seconds: 5));
+    expect(got.whereType<DictationEnd>(), hasLength(1));
+  });
 }

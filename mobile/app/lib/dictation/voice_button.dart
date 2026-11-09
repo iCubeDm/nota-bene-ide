@@ -18,8 +18,19 @@ class VoiceMeter extends ChangeNotifier {
   List<double> levels = const [];
   Duration elapsed = Duration.zero;
 
+  /// The latest partial text of the phone's recognizer, shown in the record bar.
+  String partial = '';
+
+  /// Whether the recorder stops itself at a cap (the host's), so the timer warns near it.
+  bool capped = false;
+
   void add(double v) {
     levels = [...levels.skip(levels.length >= keep ? 1 : 0), v.clamp(0, 1)];
+    notifyListeners();
+  }
+
+  void setPartial(String text) {
+    partial = text;
     notifyListeners();
   }
 
@@ -30,6 +41,7 @@ class VoiceMeter extends ChangeNotifier {
 
   void reset() {
     levels = const [];
+    partial = '';
     elapsed = Duration.zero;
     notifyListeners();
   }
@@ -58,6 +70,11 @@ class VoiceButton extends StatefulWidget {
 
   /// Ends the dictation in progress, if any, before its field is read.
   static void cancelRunning() => _VoiceButtonState._current?._cancel();
+
+  /// Stops the dictation in progress, if any, and completes when its final result is in the field, so the field
+  /// can be read; nothing recognized is lost. The phone's recognizer is given 3 s, the host's Whisper its own timeout.
+  static Future<void> finishRunning() async =>
+      _VoiceButtonState._current?._finish();
 
   /// Stops the locked recording in progress, if any, and transcribes it.
   static void stopRunning() => _VoiceButtonState._current?._stop();
@@ -93,6 +110,8 @@ class _VoiceButtonState extends State<VoiceButton> {
   // what this button wrote between _before and _after (separators included)
   String _ins = '';
   bool _stopping = false;
+  Timer? _watchdog;
+  Completer<void>? _ended;
   Dictation _active = dictation;
   bool get _listening => _sub != null;
 
@@ -160,7 +179,12 @@ class _VoiceButtonState extends State<VoiceButton> {
     _sub = null;
     _clock?.cancel();
     _clock = null;
+    _watchdog?.cancel();
+    _watchdog = null;
     _stopping = false;
+    final ended = _ended;
+    _ended = null;
+    if (ended != null && !ended.isCompleted) ended.complete();
     // the field goes back to what it was, unless the user has typed since
     if (restore && widget.controller.value == _written) {
       widget.controller.value = _saved;
@@ -176,6 +200,14 @@ class _VoiceButtonState extends State<VoiceButton> {
 
   // cancelled by the user: nothing is inserted, nothing stays of the partials
   void _cancel() => _end(cancel: true, restore: true);
+
+  // stop, then wait for the end of the session (the watchdog bounds the wait for the phone's recognizer)
+  Future<void> _finish() {
+    if (!_listening) return Future.value();
+    final done = (_ended ??= Completer<void>()).future;
+    _stop();
+    return done;
+  }
 
   void _start() {
     _current?._end(cancel: true, restore: true);
@@ -196,9 +228,10 @@ class _VoiceButtonState extends State<VoiceButton> {
     _stopping = false;
     _current = this;
     _meter.reset();
+    _active = widget.chooser?.call() ?? dictation;
+    _meter.capped = _active is HostDictation;
     _clock?.cancel();
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _meter.tick());
-    _active = widget.chooser?.call() ?? dictation;
     _sub = _active.listen(tag).listen(_on);
     _set(VoiceState.recording);
     setState(() {});
@@ -209,6 +242,13 @@ class _VoiceButtonState extends State<VoiceButton> {
     if (!_listening || _stopping) return;
     _stopping = true;
     _fire(_active.stop());
+    // the phone's recognizer must end the session; if it never does, keep what was written and finish. The host's
+    // transcription has its own timeout and may take longer.
+    if (_active is! HostDictation) {
+      _watchdog = Timer(stopWatchdog, () {
+        if (_listening) _end(cancel: true);
+      });
+    }
     _set(VoiceState.working);
     setState(() {});
   }
@@ -257,6 +297,7 @@ class _VoiceButtonState extends State<VoiceButton> {
     switch (e) {
       case DictationPartial(:final text):
         _put(text);
+        _meter.setPartial(text);
       case DictationLevel():
         break;
       case DictationWorking():
@@ -266,8 +307,8 @@ class _VoiceButtonState extends State<VoiceButton> {
         // an empty result must not erase the partials
         if (text.isNotEmpty) _put(text);
       case DictationError(:final why):
-        // the field goes back to exactly what it was, selection included; typed text stays
-        if (!typed) widget.controller.value = _saved;
+        // what was recognized stays; the field goes back to what it was only if nothing was
+        if (!typed && _ins.isEmpty) widget.controller.value = _saved;
         final t = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

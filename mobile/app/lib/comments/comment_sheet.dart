@@ -190,9 +190,10 @@ class _SheetState extends State<_Sheet> {
                 child: Text(t.cancel),
               ),
               FilledButton(
-                onPressed: () {
-                  // a running dictation must not write after the field is read
-                  VoiceButton.cancelRunning();
+                onPressed: () async {
+                  // a running dictation is finished first: its words are in the field before it is read
+                  await VoiceButton.finishRunning();
+                  if (!context.mounted) return;
                   Navigator.pop(context, SheetSave(_text.text.trim(), _label));
                 },
                 child: Text(t.save),
