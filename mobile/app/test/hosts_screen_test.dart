@@ -156,6 +156,7 @@ void main() {
     bool pending = false,
     String role = 'assistant',
     int replies = 5,
+    DateTime? at,
   }) => HostWindow(
     port: 4791,
     provider: 'claude',
@@ -166,7 +167,7 @@ void main() {
     busy: true,
     pending: pending,
     replies: replies,
-    last: LastMessage(role: role, text: 'Done, see the diff', at: now),
+    last: LastMessage(role: role, text: 'Done, see the diff', at: at ?? now),
   );
 
   Future<Links> pumpOne(WidgetTester t, HostWindow w, {int seenTo = 2}) async {
@@ -187,6 +188,24 @@ void main() {
     expect(find.text('!'), findsNothing);
     expect(find.text('C'), findsOneWidget);
     expect(find.textContaining('notes · opus'), findsOneWidget);
+    links.dispose();
+  });
+
+  testWidgets('a last without a time shows its text and no time', (t) async {
+    final w = HostWindow(
+      port: 4791,
+      provider: 'claude',
+      root: '/home/u/notes',
+      title: 'Plan',
+      session: 's1',
+      replies: 2,
+      last: LastMessage(role: 'assistant', text: 'Restored reply'),
+    );
+    final links = await pumpOne(t, w);
+    expect(find.text('Restored reply'), findsOneWidget);
+    expect(find.textContaining('1970'), findsNothing);
+    expect(find.text('01.01'), findsNothing);
+    expect(find.text('1.01'), findsNothing);
     links.dispose();
   });
 

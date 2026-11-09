@@ -235,10 +235,10 @@ class _SessionRow extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (last != null) ...[
+                        if (last?.at case final at?) ...[
                           const SizedBox(width: 8),
                           Text(
-                            rowTime(last.at, now, lang),
+                            rowTime(at, now, lang),
                             style: TextStyle(fontSize: 12, color: c.mutedFg),
                           ),
                         ],

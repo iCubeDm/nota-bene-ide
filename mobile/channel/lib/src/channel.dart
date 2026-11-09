@@ -25,20 +25,24 @@ class ChannelError implements Exception {
 /// One window as the host stream lists it.
 /// The latest user message or final reply of a window's session, as the window sends it: one plain line.
 class LastMessage {
-  LastMessage({required this.role, required this.text, required this.at});
+  LastMessage({required this.role, required this.text, this.at});
 
   /// `user` or `assistant`.
   final String role, text;
-  final DateTime at;
+
+  /// Null when the window has no time for it (a restored history).
+  final DateTime? at;
 
   static LastMessage? fromJson(Object? j) {
     if (j is! Map) return null;
     final role = j['role'], text = j['text'], at = j['at'];
-    if (role is! String || text is! String || at is! num) return null;
+    if (role is! String || text is! String) return null;
     return LastMessage(
       role: role,
       text: text,
-      at: DateTime.fromMillisecondsSinceEpoch(at.toInt()),
+      at: at is num && at > 0
+          ? DateTime.fromMillisecondsSinceEpoch(at.toInt())
+          : null,
     );
   }
 }
@@ -69,7 +73,10 @@ class HostWindow {
     supervised: j['supervised'] == true,
     pending: j['pending'] == true,
     last: LastMessage.fromJson(j['last']),
-    replies: j['replies'] as int?,
+    replies: switch (j['replies']) {
+      final num n => n.toInt(),
+      _ => null,
+    },
   );
 
   final int port;

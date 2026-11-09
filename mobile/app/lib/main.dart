@@ -54,12 +54,9 @@ class _AppRootState extends State<AppRoot> {
     final id = await Identity.load(v);
     final hosts = await Hosts.load(v);
     final seen = await Seen.load(v);
-    return (
-      id: id,
-      hosts: hosts,
-      seen: seen,
-      links: Links(hosts, connectChannel, id),
-    );
+    final links = Links(hosts, connectChannel, id);
+    seen.watch(hosts, links);
+    return (id: id, hosts: hosts, seen: seen, links: links);
   }();
 
   @override
