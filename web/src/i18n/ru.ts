@@ -539,6 +539,7 @@ export const ru = {
   week: 'неделя',
   weekTip: 'недельный лимит плана',
   costTip: 'стоимость этой сессии по API',
+  costPlanTip: 'эта сессия по ценам API',
   resets: (at: string) => `сброс ${at}`,
   // compact and clear (M4-09)
   compactTip: 'Сжать контекст — агент кратко перескажет разговор и продолжит с пересказа (/compact)',

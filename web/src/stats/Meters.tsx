@@ -52,12 +52,13 @@ export function Meters() {
     st.context && <Meter key="ctx" label={t('ctx')} pct={st.context.pct} tip={t('ctxTip', fmtK(st.context.used), fmtK(st.context.max))} />,
     L?.five_hour && <Meter key="h5" label={t('h5')} pct={L.five_hour.utilization} tip={`${t('h5Tip')}${resets(L.five_hour)}`} />,
     L?.seven_day && <Meter key="week" label={t('week')} pct={L.seven_day.utilization} tip={`${t('weekTip')}${resets(L.seven_day)}`} />,
-    st.cost != null && !L && (
+    // on a plan the cost is not billed, but shows what the session's work is worth at API prices
+    st.cost != null && (
       <Tooltip key="cost">
         <TooltipTrigger asChild>
-          <span tabIndex={0} className="cursor-default">${st.cost.toFixed(2)}</span>
+          <span tabIndex={0} aria-label={t(L ? 'costPlanTip' : 'costTip')} className="cursor-default">${st.cost.toFixed(2)}</span>
         </TooltipTrigger>
-        <TooltipContent>{t('costTip')}</TooltipContent>
+        <TooltipContent>{t(L ? 'costPlanTip' : 'costTip')}</TooltipContent>
       </Tooltip>
     ),
   ].filter(Boolean);

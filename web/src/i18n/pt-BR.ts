@@ -524,6 +524,7 @@ export const ptBR: Dict = {
   week: 'semana',
   weekTip: 'limite semanal do plano',
   costTip: 'Custo de API desta sessão',
+  costPlanTip: 'Esta sessão a preços de API',
   resets: (at: string) => `reinicia ${at}`,
   compactTip: 'Compactar contexto — o agente resume a conversa e continua a partir do resumo (/compact)',
   clearTip: 'Limpar contexto — começar uma conversa nova (/clear). A sessão atual fica em “Sessões ▾”',
