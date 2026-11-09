@@ -217,7 +217,7 @@
   "fileNotFound": "This file is not there (any more).",
   "fileOutside": "This file is outside the project.",
   "fileTooLarge": "The file is too large for the phone (over 2 MB). Open it on the computer.",
-  "fileNotMarkdown": "Only Markdown files open on the phone for now.",
+  "fileNotMarkdown": "Only Markdown files, images and videos open on the phone.",
   "fileUnreadable": "The file could not be read. Try again when the host is online.",
   "openFile": "Open the file",
   "files": "Files",
@@ -233,5 +233,28 @@
   "commentNotPlaced": "Could not place a comment on this selection",
   "@commentNotPlaced": {
     "description": "Snackbar when a selection cannot be matched to the file's text"
-  }
+  },
+  "markUp": "Mark up",
+  "markStop": "Stop marking",
+  "toolRect": "Rectangle",
+  "toolEllipse": "Ellipse",
+  "toolPen": "Pen",
+  "toolArrow": "Arrow",
+  "markColor": "Colour {n}",
+  "@markColor": {
+    "description": "A mark colour in the toolbar, by its place",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "markUndo": "Undo",
+  "markFailed": "The mark could not be saved. Check the connection and try again.",
+  "imageTooLarge": "The image is too large for the phone (over 32 MB). Open it on the computer.",
+  "imageUnreadable": "The image could not be shown.",
+  "videoPlay": "Play",
+  "videoPause": "Pause",
+  "videoUnplayable": "The video could not be played. Try again when the host is online.",
+  "frameFailed": "The frame could not be taken from the video. Try again."
 }

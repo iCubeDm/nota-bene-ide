@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/window_tab.dart' show uuidV4;
+import '../media/shapes.dart';
 import 'strings.g.dart';
 
 /// How long a comment added here is shown before the server's set has it (a broadcast from before ours can land first).
@@ -42,12 +43,15 @@ class Comments extends ChangeNotifier {
   /// sent with a message the server has not answered yet
   final _sending = <String>{};
 
-  /// What the phone sends with a message: the pending text comments. A media or page comment made on the desktop,
-  /// or a text one with pasted images, stays pending for it (the images are the desktop's to attach).
+  /// What the phone sends with a message: the pending text and media comments, their images with them. A page
+  /// comment or a 3D model one, made on the desktop, stays pending for it (the phone cannot write their batch lines).
   List<Comment> get sendable => [
     for (final c in pending)
-      if (c.anchor is TextAnchor &&
-          (c.images?.isEmpty ?? true) &&
+      if (switch (c.anchor) {
+            TextAnchor() => true,
+            MediaAnchor(:final camera) => camera == null,
+            _ => false,
+          } &&
           !_sending.contains(c.id))
         c,
   ];
@@ -62,6 +66,16 @@ class Comments extends ChangeNotifier {
     _sending.removeAll(ids);
     notifyListeners();
   }
+
+  /// The media comments on [path] (this window's checkout).
+  List<Comment> mediaFor(String path) => [
+    for (final c in all)
+      if (c.anchor case MediaAnchor(
+        source: FileSource(path: final p, ref: null),
+        camera: null,
+      ) when p == path)
+        c,
+  ];
 
   List<Comment> forFile(String path) => [
     for (final c in all)
@@ -86,14 +100,25 @@ class Comments extends ChangeNotifier {
     notifyListeners();
   }
 
-  Comment add(TextAnchor anchor, String text, QuickLabelId? label) {
+  /// [id]: a media comment's, chosen before its files were written to `/marks/<id>`. [images] with [genImages]: the
+  /// generated frame first, as the desktop keeps them.
+  Comment add(
+    Anchor anchor,
+    String text,
+    QuickLabelId? label, {
+    String? id,
+    List<String>? images,
+    int? genImages,
+  }) {
     final c = Comment(
-      id: uuidV4(),
+      id: id ?? uuidV4(),
       anchor: anchor,
       text: text,
       label: label,
       status: CommentStatus.pending,
       createdAt: _now().millisecondsSinceEpoch,
+      images: images,
+      genImages: genImages,
     );
     final next = [...all, c];
     _mine[c.id] = (c: c, at: _now());
@@ -132,12 +157,27 @@ class Comments extends ChangeNotifier {
   }
 }
 
-/// A file as its path (`path @ ref` from another branch); a chat fragment as "chat", since the phone does not number
-/// the replies the way the desktop's batch does.
+String _file(String path, String? ref) => ref == null ? path : '$path @ $ref';
+
+/// Where a comment's fragment lives, as the desktop's `whereOf` names it: a file as its path (`path @ ref` from another
+/// branch), a media mark with its time and size; a chat fragment as "chat", since the phone does not number the replies
+/// the way the desktop's batch does.
 String _whereOf(Comment c, String lang) => switch (c.anchor) {
-  TextAnchor(source: AnchorSourceFile(:final path, :final ref)) =>
-    ref == null ? path : '$path @ $ref',
+  MediaAnchor(:final source, :final time, :final width, :final height) =>
+    '${_file(source.path, source.ref)}${time != null ? ' @ ${mediaTime(time.toDouble())}' : ''} · ${jsNum(width)}×${jsNum(height)}',
+  TextAnchor(source: AnchorSourceFile(:final path, :final ref)) => _file(
+    path,
+    ref,
+  ),
   _ => batchString('srcChat', lang),
+};
+
+/// What a comment is on, for the strip and the sheet: the quoted text, or a media file's name with the paused time.
+String quoteOf(Comment c) => switch (c.anchor) {
+  TextAnchor(:final quote) => quote,
+  MediaAnchor(:final source, :final time) =>
+    '${source.path.split('/').last}${time != null ? ' @ ${mediaTime(time.toDouble())}' : ''}',
+  _ => '',
 };
 
 /// `👍 Looks good` in [lang], or '' without a quick label.
@@ -146,17 +186,74 @@ String labelLine(QuickLabelId? id, String lang) {
   return l == null ? '' : '${l.emoji} ${l.textIn(lang)}';
 }
 
-/// The text sent to the agent: [general], then the numbered comments (compose.ts, its text-anchor branch).
-String composeBatch(String general, List<Comment> items, String lang) {
-  if (items.isEmpty) return general;
+/// How many leading images of a comment the app generated (`generatedImages`): a media one's frame (2 in old comments,
+/// the frame and its layer); the rest were pasted.
+int generatedImages(Comment c) =>
+    c.anchor is MediaAnchor ? (c.genImages ?? 2).toInt() : 0;
+
+/// The text sent to the agent and the images that go with it (compose.ts and send.ts's `sendNow`): [general], then the
+/// numbered comments. The images are numbered across the message, each comment's own in turn (a media comment's frame,
+/// then its pasted ones), and labelled as the desktop labels them; their type is the server's to know (it reads its own
+/// store), so png stands in. The phone has no images of its own in the composer and does not combine the frames of
+/// comments on one frame into one picture: each sends its own, the desktop's fallback.
+({String text, List<ImageRef> images}) composeSend(
+  String general,
+  List<Comment> items,
+  String lang, {
+  bool Function(Comment)? staleOf,
+}) {
+  if (items.isEmpty) return (text: general, images: const []);
+  final images = <ImageRef>[];
   final blocks = [
     for (final (i, c) in items.indexed)
       () {
-        final quote = switch (c.anchor) {
+        final all = c.images ?? const <String>[], gen = generatedImages(c);
+        final refs = [
+          for (final id in [...all.take(gen < 1 ? gen : 1), ...all.skip(gen)])
+            () {
+              images.add(
+                ImageRef(
+                  id: id,
+                  mediaType: ImageType.image_png,
+                  label: batchTemplate('imgLabelC', lang, [
+                    images.length + 1,
+                    i + 1,
+                  ]),
+                ),
+              );
+              return images.length;
+            }(),
+        ];
+        final a = c.anchor;
+        final quote = switch (a) {
+          MediaAnchor(:final shapes, :final width, :final height) =>
+            shapes
+                .map(
+                  (s) => '> ${describeShape(s, width.toInt(), height.toInt())}',
+                )
+                .join('\n'),
           TextAnchor(:final quote) =>
             quote.split('\n').map((l) => '> $l').join('\n'),
           _ => '',
         };
+        var tail = '';
+        if (a is MediaAnchor) {
+          final sfx = a.scale != null
+              ? batchTemplate('scaledSfx', lang, [jsNum(a.scale!)])
+              : '';
+          final dir = '.nota-bene/marks/${c.id}';
+          if (refs.isNotEmpty) {
+            tail +=
+                '\n${batchTemplate('imgRefMedia', lang, [refs.first])}${refs.skip(1).map((k) => ', $k').join()}';
+          }
+          tail +=
+              '\n${batchTemplate('filesLine', lang, ['$dir/frame.jpg$sfx, $dir/layer.png$sfx'])}';
+          if (staleOf?.call(c) ?? false) {
+            tail += '\n${batchString('markStale', lang)}';
+          }
+        } else if (refs.isNotEmpty) {
+          tail = '\n${batchTemplate('imgRef', lang, [refs.join(', ')])}';
+        }
         final body = [
           labelLine(c.label, lang),
           c.text.trim(),
@@ -165,8 +262,16 @@ String composeBatch(String general, List<Comment> items, String lang) {
             .where((l) => l.id == c.label)
             .firstOrNull
             ?.instruction;
-        return '${i + 1}. [${_whereOf(c, lang)}]\n$quote\n→ $body${instr != null ? '\n   $instr' : ''}';
+        return '${i + 1}. [${_whereOf(c, lang)}]\n$quote\n→ $body${instr != null ? '\n   $instr' : ''}$tail';
       }(),
   ];
-  return '${general.isNotEmpty ? '$general\n\n' : ''}${batchString('batchHead', lang)}\n\n${blocks.join('\n\n')}';
+  return (
+    text:
+        '${general.isNotEmpty ? '$general\n\n' : ''}${batchString('batchHead', lang)}\n\n${blocks.join('\n\n')}',
+    images: images,
+  );
 }
+
+/// The batch text alone.
+String composeBatch(String general, List<Comment> items, String lang) =>
+    composeSend(general, items, lang).text;

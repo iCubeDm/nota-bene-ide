@@ -55,19 +55,30 @@ class CommentStrip extends StatelessWidget {
   );
 
   Widget _row(BuildContext context, Comment x, String lang, NbColors c) {
-    final a = x.anchor as TextAnchor;
+    final quote = quoteOf(x);
     final body = [
       labelLine(x.label, lang),
       x.text,
     ].where((s) => s.isNotEmpty).join(' ');
-    final path = switch (a.source) {
-      AnchorSourceFile(:final path) => path,
+    final path = switch (x.anchor) {
+      TextAnchor(source: AnchorSourceFile(:final path)) => path,
+      MediaAnchor(:final source) => source.path,
       _ => null,
     };
     return InkWell(
-      onTap: path == null ? null : () => openFile(context, tab, path),
+      onTap: path == null
+          ? null
+          : () => openFile(
+              context,
+              tab,
+              path,
+              at: switch (x.anchor) {
+                MediaAnchor(:final time) => time?.toDouble(),
+                _ => null,
+              },
+            ),
       onLongPress: () async {
-        final res = await showCommentSheet(context, quote: a.quote, editing: x);
+        final res = await showCommentSheet(context, quote: quote, editing: x);
         switch (res) {
           case SheetSave(:final text, :final label):
             tab.comments.edit(x.id, text, label);
@@ -82,7 +93,7 @@ class CommentStrip extends StatelessWidget {
           TextSpan(
             children: [
               TextSpan(
-                text: '“${a.quote}” ',
+                text: '“$quote” ',
                 style: TextStyle(color: c.mutedFg),
               ),
               TextSpan(text: body),

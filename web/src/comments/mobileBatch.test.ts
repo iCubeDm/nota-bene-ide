@@ -1,0 +1,81 @@
+// The phone composes the batch with its own port (mobile/app/lib/comments/comments.dart, composeSend): this writes and
+// checks what the desktop sends for a fixed set of comments in every app language, which the app's comments_test
+// compares with its own. UPDATE_FIXTURES=1 rewrites the JSON after a deliberate change of either side.
+import fs from 'node:fs';
+import path from 'node:path';
+import { expect, it } from 'vitest';
+import { generatedImages, type Comment } from '@nota-bene/shared';
+import { tIn, type Lang } from '@/i18n/index.ts';
+import { composeBatch } from './compose.ts';
+import { instructionOf, labelOf } from './labels.ts';
+import { whereOf } from './send.ts';
+
+const base = { status: 'pending' as const, createdAt: 1 };
+const hex = (c: string) => c.repeat(64);
+const comments: Record<string, Comment> = {
+  text: {
+    ...base, id: 'c-text', text: 'why twice?', label: 'clarify',
+    anchor: { source: { kind: 'file', path: 'docs/plan.md' }, start: 0, end: 9, quote: 'the cache', prefix: '', suffix: '' },
+  },
+  pasted: {
+    ...base, id: 'c-pasted', text: 'like these', images: [hex('a'), hex('b')],
+    anchor: { source: { kind: 'file', path: 'docs/plan.md', ref: 'main' }, start: 0, end: 3, quote: 'two\nlines', prefix: '', suffix: '' },
+  },
+  image: {
+    ...base, id: '11111111-1111-4111-8111-111111111111', text: 'this button', label: 'fire', images: [hex('c')], genImages: 1,
+    anchor: {
+      kind: 'media', source: { kind: 'file', path: 'img/shot.png' }, width: 1920, height: 1080, version: 'W/"1"',
+      shapes: [{ kind: 'rect', color: '#ff3b30', x: 0.42, y: 0.4, w: 0.16, h: 0.24 }, { kind: 'arrow', color: '#0a84ff', x1: 0.9, y1: 0.1, x2: 0.5, y2: 0.55 }],
+    },
+  },
+  video: {
+    ...base, id: '22222222-2222-4222-8222-222222222222', text: 'jumps here', images: [hex('d'), hex('e')], genImages: 1,
+    anchor: {
+      kind: 'media', source: { kind: 'file', path: 'video/demo.mp4', ref: 'feature' }, width: 720, height: 1280, time: 61.5,
+      scale: 0.75, version: 'W/"old"', shapes: [{ kind: 'pen', color: '#ffffff', points: [0.1, 0.1, 0.2, 0.3, 0.25, 0.9] }],
+    },
+  },
+  old: {
+    ...base, id: '33333333-3333-4333-8333-333333333333', text: '', label: 'looks-good', images: [hex('f'), hex('0')],
+    anchor: {
+      kind: 'media', source: { kind: 'file', path: 'img/old.jpg' }, width: 7, height: 3,
+      shapes: [{ kind: 'ellipse', color: '#ffcc00', x: 0, y: 0, w: 1, h: 1 }],
+    },
+  },
+};
+const cases: { name: string; general: string; items: string[] }[] = [
+  ...Object.keys(comments).map((k) => ({ name: k, general: '', items: [k] })),
+  { name: 'all', general: 'Please look', items: Object.keys(comments) },
+];
+const LANGS: [string, Lang][] = [['en', 'en'], ['ru', 'ru'], ['zh', 'zh-CN'], ['es', 'es'], ['pt', 'pt-BR'], ['de', 'de']];
+const stale = new Set(['22222222-2222-4222-8222-222222222222']); // the video's current version differs from the drawn one
+
+/** sendNow's numbering without a composer image and without composites: each comment's own images in order. */
+function send(general: string, items: Comment[], lang: Lang) {
+  const images: { id: string; label: string }[] = [];
+  const refs = items.map((c, i) => {
+    const all = c.images ?? [], gen = generatedImages(c);
+    const own = [...all.slice(0, Math.min(1, gen)), ...all.slice(gen)];
+    return own.map((id) => (images.push({ id, label: tIn(lang, 'imgLabelC', images.length + 1, i + 1) }), images.length));
+  });
+  const text = composeBatch(general, items, lang, (c) => labelOf(c, lang), (c) => whereOf(c), instructionOf, refs, (c) => stale.has(c.id));
+  return { text, images };
+}
+
+it('the desktop side of the batch fixtures', () => {
+  const data = {
+    comments,
+    stale: [...stale],
+    cases: cases.map((c) => ({
+      ...c,
+      out: Object.fromEntries(LANGS.map(([app, web]) => [app, send(c.general, c.items.map((k) => comments[k]), web)])),
+    })),
+  };
+  const out = path.resolve(__dirname, '../../../mobile/app/test/fixtures/batch/media.json');
+  const json = JSON.stringify(data, null, 1) + '\n';
+  if (process.env.UPDATE_FIXTURES) {
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, json);
+  }
+  expect(json).toBe(fs.readFileSync(out, 'utf8'));
+});

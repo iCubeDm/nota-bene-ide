@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/comments/comments.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -28,6 +31,11 @@ Comment c(
 );
 
 Map<String, Object?> json(Comment x) => x.toJson();
+
+/// the desktop's batch for the same comments (web/src/comments/mobileBatch.test.ts)
+final fixture =
+    jsonDecode(File('test/fixtures/batch/media.json').readAsStringSync())
+        as Map<String, Object?>;
 
 void main() {
   group('composeBatch (compose.test.ts, text anchors)', () {
@@ -78,6 +86,34 @@ void main() {
     test('no comments: the general text unchanged', () {
       expect(composeBatch('just text', [], 'en'), 'just text');
     });
+  });
+
+  group('composeSend, against the desktop (mobileBatch.test.ts)', () {
+    final all = {
+      for (final e in (fixture['comments'] as Map).entries)
+        e.key as String: Comment.fromJson(
+          (e.value as Map).cast<String, Object?>(),
+        ),
+    };
+    final stale = {for (final s in fixture['stale'] as List) s as String};
+    for (final k in fixture['cases'] as List) {
+      final name = (k as Map)['name'] as String;
+      for (final e in (k['out'] as Map).entries) {
+        test('$name in ${e.key}', () {
+          final out = composeSend(
+            k['general'] as String,
+            [for (final i in k['items'] as List) all[i]!],
+            e.key as String,
+            staleOf: (c) => stale.contains(c.id),
+          );
+          final want = e.value as Map;
+          expect(out.text, want['text']);
+          expect([
+            for (final im in out.images) {'id': im.id, 'label': im.label},
+          ], want['images']);
+        });
+      }
+    }
   });
 
   group('Comments', () {
@@ -148,21 +184,56 @@ void main() {
       ]);
     });
 
-    test('a desktop text comment with pasted images stays for the desktop', () {
-      final x = c('a', 'x', 'see');
-      cs.apply([
-        Comment(
-          id: 'img',
-          anchor: x.anchor,
-          text: 'look',
-          status: CommentStatus.pending,
-          createdAt: 1,
-          images: const ['i1'],
-        ),
-        x,
-      ]);
-      expect(cs.sendable.map((x) => x.id), ['a']);
-    });
+    test(
+      'comments with images are sent; page and 3D model comments stay for the desktop',
+      () {
+        final x = c('a', 'x', 'see');
+        final media = (fixture['comments'] as Map)['video'] as Map;
+        Comment page() => Comment.fromJson({
+          'id': 'page',
+          'anchor': {
+            'kind': 'page',
+            'source': {'kind': 'file', 'path': 'a.html'},
+            'selector': 'body>div',
+            'trail': ['div'],
+          },
+          'text': 't',
+          'status': 'pending',
+          'createdAt': 1,
+        });
+        Comment model() {
+          final j = Map<String, Object?>.from(media.cast<String, Object?>());
+          final a = Map<String, Object?>.from(j['anchor'] as Map)
+            ..remove('time')
+            ..['camera'] = {
+              'position': [0, 0, 1],
+              'target': [0, 0, 0],
+              'fov': 50,
+            };
+          return Comment.fromJson({...j, 'id': 'model', 'anchor': a});
+        }
+
+        cs.apply([
+          Comment(
+            id: 'img',
+            anchor: x.anchor,
+            text: 'look',
+            status: CommentStatus.pending,
+            createdAt: 1,
+            images: const ['i1'],
+          ),
+          Comment.fromJson(media.cast<String, Object?>()),
+          page(),
+          model(),
+          x,
+        ]);
+        expect(cs.sendable.map((x) => x.id), [
+          'img',
+          '22222222-2222-4222-8222-222222222222',
+          'a',
+        ]);
+      },
+    );
 
     test(
       'comments being sent are not offered again until the server answers',
@@ -215,6 +286,47 @@ void main() {
     );
     r.dispose();
   });
+
+  testWidgets(
+    'a media comment leaves with its frame, labelled as the desktop does',
+    (t) async {
+      final r = Rig();
+      await r.open(
+        t,
+        events: [
+          {
+            'kind': 'session',
+            'id': 's1',
+            'root': '/home/u/notes',
+            'title': null,
+            'model': null,
+          },
+        ],
+      );
+      final media = (fixture['comments'] as Map)['image'] as Map;
+      r.event({
+        'kind': 'comments',
+        'items': [media],
+      });
+      await t.pumpAndSettle();
+      await t.tap(find.byTooltip('Send'));
+      await t.pumpAndSettle();
+      final send = r.sent.lastWhere((m) => m['type'] == 'send');
+      final want =
+          ((fixture['cases'] as List).firstWhere(
+                    (k) => (k as Map)['name'] == 'image',
+                  )
+                  as Map)['out']['en']
+              as Map;
+      expect(send['text'], want['text']);
+      expect(send['commentIds'], [media['id']]);
+      expect(send['images'], [
+        for (final im in want['images'] as List)
+          {...(im as Map), 'mediaType': 'image/png'},
+      ]);
+      r.dispose();
+    },
+  );
 
   testWidgets('comments alone can be sent, with an empty field', (t) async {
     final r = Rig();

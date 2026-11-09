@@ -86,6 +86,17 @@ class FakeChannel implements Channel {
   /// Every HTTP request the phone made: `METHOD path`.
   final requests = <String>[];
 
+  /// Every HTTP request with its headers and body, in order.
+  final calls =
+      <
+        ({
+          String method,
+          String path,
+          Map<String, String> headers,
+          List<int> body,
+        })
+      >[];
+
   @override
   Future<HttpAnswer> http(
     int port,
@@ -95,9 +106,44 @@ class FakeChannel implements Channel {
     List<int>? body,
   }) async {
     requests.add('$method $path');
+    calls.add((
+      method: method,
+      path: path,
+      headers: headers ?? const {},
+      body: body ?? const [],
+    ));
     final f = onHttp;
     if (f == null) throw StreamClosed(1000);
     return f(port, method, path);
+  }
+
+  /// Answers [httpStream] itself (a chunked body, say); none set: the [onHttp] answer as one chunk.
+  Future<HttpStreamAnswer> Function(int port, String method, String path)?
+  onHttpStream;
+
+  /// How many streamed answers the phone cancelled.
+  var cancels = 0;
+
+  @override
+  Future<HttpStreamAnswer> httpStream(
+    int port,
+    String method,
+    String path, {
+    Map<String, String>? headers,
+    List<int>? body,
+  }) async {
+    final s = onHttpStream;
+    if (s != null) {
+      requests.add('$method $path');
+      return s(port, method, path);
+    }
+    final a = await http(port, method, path, headers: headers, body: body);
+    return (
+      status: a.status,
+      headers: a.headers,
+      body: Stream.value(a.body),
+      cancel: () => cancels++,
+    );
   }
 
   @override

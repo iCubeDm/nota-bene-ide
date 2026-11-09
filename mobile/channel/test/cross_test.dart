@@ -134,6 +134,32 @@ void main() {
     await ch.close();
   });
 
+  test('a ranged file streams to a slow reader', () async {
+    final ch = await Channel.connect(relay: relay, hostPub: hostPub, key: key);
+    final a = await ch.httpStream(
+      port,
+      'GET',
+      '/file?path=big.bin',
+      headers: {'range': 'bytes=1000-599999'},
+    );
+    expect(a.status, 206);
+    expect(a.headers['content-range'], 'bytes 1000-599999/${700 * 1024}');
+    final got = BytesBuilder(copy: false);
+    await for (final c in a.body) {
+      got.add(c);
+      await Future<void>.delayed(
+        const Duration(milliseconds: 5),
+      ); // a player reading slower than the host sends
+    }
+    final b = got.takeBytes();
+    expect(b.length, 599000);
+    expect(
+      [for (var i = 0; i < b.length; i += 4099) b[i]],
+      [for (var i = 0; i < b.length; i += 4099) (i + 1000) % 251],
+    );
+    await ch.close();
+  });
+
   test('a ws tab gets replay and hello', () async {
     final ch = await Channel.connect(relay: relay, hostPub: hostPub, key: key);
     final s = ch.ws(port, '/ws?tab=${uuid()}');

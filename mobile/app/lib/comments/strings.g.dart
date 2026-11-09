@@ -36,6 +36,15 @@ String batchString(String key, String lang) {
   return m[lang] ?? m['en']!;
 }
 
+/// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').
+String batchTemplate(String key, String lang, List<Object> args) {
+  var s = batchString(key, lang);
+  for (final (i, a) in args.indexed) {
+    s = s.replaceAll('{$i}', '$a');
+  }
+  return s;
+}
+
 const _json = r'''
 {
  "labels": [
@@ -196,6 +205,62 @@ const _json = r'''
    "es": "chat",
    "pt": "chat",
    "de": "Chat"
+  },
+  "markStale": {
+   "en": "   (marked on an earlier version of the file; the frame shows it)",
+   "ru": "   (отмечено на более ранней версии файла; кадр это показывает)",
+   "zh": "   （标记于文件的较早版本；画面中显示的即是该版本）",
+   "es": "   (marcada en una versión anterior del archivo; el fotograma lo muestra)",
+   "pt": "   (marcado em uma versão anterior do arquivo; o quadro mostra isso)",
+   "de": "   (auf einer früheren Version der Datei markiert; der Frame zeigt sie)"
+  },
+  "imgLabel": {
+   "en": "[image {0}]",
+   "ru": "[изображение {0}]",
+   "zh": "[图片 {0}]",
+   "es": "[imagen {0}]",
+   "pt": "[imagem {0}]",
+   "de": "[Bild {0}]"
+  },
+  "imgLabelC": {
+   "en": "[image {0} · for comment {1}]",
+   "ru": "[изображение {0} · к комментарию {1}]",
+   "zh": "[图片 {0} · 用于评论 {1}]",
+   "es": "[imagen {0} · para el comentario {1}]",
+   "pt": "[imagem {0} · para o comentário {1}]",
+   "de": "[Bild {0} · zu Kommentar {1}]"
+  },
+  "imgRef": {
+   "en": "📎 images: {0}",
+   "ru": "📎 изображения: {0}",
+   "zh": "📎 图片：{0}",
+   "es": "📎 imágenes: {0}",
+   "pt": "📎 imagens: {0}",
+   "de": "📎 Bilder: {0}"
+  },
+  "imgRefMedia": {
+   "en": "📎 images: {0} (frame with marks)",
+   "ru": "📎 картинки: {0} (кадр с разметкой)",
+   "zh": "📎 图片：{0}（带标记的画面）",
+   "es": "📎 imágenes: {0} (fotograma con marcas)",
+   "pt": "📎 imagens: {0} (quadro com marcas)",
+   "de": "📎 Bilder: {0} (Frame mit Markierungen)"
+  },
+  "filesLine": {
+   "en": "   files: {0}",
+   "ru": "   файлы: {0}",
+   "zh": "   文件：{0}",
+   "es": "   archivos: {0}",
+   "pt": "   arquivos: {0}",
+   "de": "   Dateien: {0}"
+  },
+  "scaledSfx": {
+   "en": " (scaled ×{0})",
+   "ru": " (уменьшен ×{0})",
+   "zh": "（已缩放 ×{0}）",
+   "es": " (escala ×{0})",
+   "pt": " (escala ×{0})",
+   "de": " (skaliert ×{0})"
   }
  }
 }

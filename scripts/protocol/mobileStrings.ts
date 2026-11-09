@@ -12,8 +12,24 @@ export const STRINGS_PATH = 'mobile/app/lib/comments/strings.g.dart';
 
 /** the app's language codes (its ARB files) to the web's dictionaries */
 const DICTS: [string, Record<string, unknown>][] = [['en', en], ['ru', ru], ['zh', zhCN], ['es', es], ['pt', ptBR], ['de', de]];
-/** the batch strings the phone's composeBatch uses (text anchors) */
-const BATCH_KEYS = ['batchHead', 'srcChat'] as const;
+/** the batch strings the phone's composeBatch uses */
+const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale'] as const;
+/**
+ * The batch's functions, as templates: each is called with the placeholders `{0}`, `{1}` for its arguments (a list
+ * argument as a one-item list: every one of them joins its list with ', ', which the phone does before filling it in).
+ * The key's value is the argument kinds.
+ */
+const TEMPLATE_KEYS: Record<string, ('n' | 'list')[]> = {
+  imgLabel: ['n'], imgLabelC: ['n', 'n'], imgRef: ['list'], imgRefMedia: ['list'], filesLine: ['list'], scaledSfx: ['n'],
+};
+
+const template = (d: Record<string, unknown>, key: string, kinds: ('n' | 'list')[]): string => {
+  const f = d[key];
+  if (typeof f !== 'function') throw new Error(`web i18n: ${key} is not a function`);
+  const out = (f as (...a: unknown[]) => unknown)(...kinds.map((k, i) => (k === 'list' ? [`{${i}}`] : `{${i}}`)));
+  if (typeof out !== 'string' || kinds.some((_, i) => !out.includes(`{${i}}`))) throw new Error(`web i18n: ${key} does not template`);
+  return out;
+};
 
 const text = (d: Record<string, unknown>, key: string): string => {
   const v = d[key];
@@ -28,7 +44,10 @@ export function mobileStrings(): string {
       id: l.id, emoji: l.emoji, ...(l.instruction ? { instruction: l.instruction } : {}),
       text: Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, `label_${l.id}`)])),
     })),
-    batch: Object.fromEntries(BATCH_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))])),
+    batch: Object.fromEntries([
+      ...BATCH_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))]),
+      ...Object.entries(TEMPLATE_KEYS).map(([k, kinds]) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, template(d, k, kinds)]))]),
+    ]),
   };
   const json = JSON.stringify(data, null, 1);
   if (json.includes("'''")) throw new Error('web strings: three quotes in a row');
@@ -68,6 +87,15 @@ final quickLabels = [
 String batchString(String key, String lang) {
   final m = ((_data['batch'] as Map)[key] as Map).cast<String, String>();
   return m[lang] ?? m['en']!;
+}
+
+/// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').
+String batchTemplate(String key, String lang, List<Object> args) {
+  var s = batchString(key, lang);
+  for (final (i, a) in args.indexed) {
+    s = s.replaceAll('{\$i}', '\$a');
+  }
+  return s;
 }
 
 const _json = r'''

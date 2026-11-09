@@ -56,6 +56,9 @@ class WindowTab extends ChangeNotifier {
 
   /// The window's comments of this session (the server's set).
   late final comments = Comments(send, () => feed.sessionId);
+
+  /// path → the ETag of the file as last read here (`/file`), to tell a media comment drawn on an earlier version
+  final fileVersions = <String, String>{};
   Capabilities? capabilities;
   ServerEventStats? stats;
 
