@@ -54,7 +54,7 @@ The microphone in the message field and the comment sheet (`app/lib/dictation/`)
 recognition: Android's `SpeechRecognizer` behind the `nb/speech` channel in `MainActivity.kt`, in the app's language.
 The microphone permission is asked on first use. The words land in the field at the cursor and are sent as typed
 text; no audio goes to the host or the agent (the phone's recognizer may use its vendor's online service).
-Whisper on the host comes later.
+With Whisper on the host (Settings → Dictation on the phone on the desktop), the message field's microphone records 16 kHz WAV (`nb/record`) and posts it to the host's `/dictation/transcribe`, encrypted through the relay; the audio reaches the host only.
 
 ## The APK
 
