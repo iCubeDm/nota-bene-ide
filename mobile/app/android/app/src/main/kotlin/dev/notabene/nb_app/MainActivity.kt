@@ -30,7 +30,8 @@ class MainActivity : FlutterFragmentActivity() {
                     val reply = frameAt(url, us)
                     // Replies must reach Flutter on the main thread.
                     mainHandler.post { result.success(reply) }
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
+                    // an OutOfMemoryError on a large frame is a reply, not a crash
                     mainHandler.post {
                         result.error("frame", e.message ?: e.javaClass.simpleName, null)
                     }
@@ -48,9 +49,19 @@ class MainActivity : FlutterFragmentActivity() {
                 ?: throw IllegalStateException("no frame at $us")
             val out = ByteArrayOutputStream()
             bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
-            return mapOf("png" to out.toByteArray(), "width" to bmp.width, "height" to bmp.height)
+            val reply = mapOf("png" to out.toByteArray(), "width" to bmp.width, "height" to bmp.height)
+            bmp.recycle()
+            return reply
         } finally {
-            retriever.release()
+            // a failing release must not replace the frame or the real error
+            try {
+                retriever.release()
+            } catch (_: Exception) {}
         }
+    }
+
+    override fun onDestroy() {
+        frameExecutor.shutdown()
+        super.onDestroy()
     }
 }

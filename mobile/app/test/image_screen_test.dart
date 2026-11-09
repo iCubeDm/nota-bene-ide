@@ -93,7 +93,65 @@ Future<void> drawAndComment(WidgetTester t, String text) async {
   await settleReal(t, 10);
 }
 
+/// A streamed `/file` answer: [chunks] are read only as the screen listens; [read] counts them.
+HttpStreamAnswer fileStream(
+  Rig r,
+  Map<String, String> headers,
+  List<Uint8List> chunks,
+  List<int> read,
+) => (
+  status: 200,
+  headers: headers,
+  body: Stream.fromIterable(chunks).map((c) {
+    read.add(c.length);
+    return c;
+  }),
+  cancel: () => r.ch.cancels++,
+);
+
 void main() {
+  testWidgets('a file declared too large is refused without reading it', (
+    t,
+  ) async {
+    final r = await openImage(t);
+    Navigator.of(t.element(find.byType(ImageScreen))).pop();
+    await settleReal(t, 2);
+    final read = <int>[];
+    r.ch.cancels = 0;
+    r.ch.onHttpStream = (port, method, p) async =>
+        fileStream(r, {'content-length': '${40 * 1024 * 1024}'}, [png], read);
+    Navigator.of(t.element(find.byType(Scaffold).first)).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ImageScreen(tab: r.tab!, path: 'img/big.png'),
+      ),
+    );
+    await settleReal(t, 3);
+    expect(find.textContaining('too large'), findsOneWidget);
+    expect(read, isEmpty);
+    expect(r.ch.cancels, 1);
+    r.dispose();
+  });
+
+  testWidgets('a body past the limit without a length is cut off', (t) async {
+    final r = await openImage(t);
+    Navigator.of(t.element(find.byType(ImageScreen))).pop();
+    await settleReal(t, 2);
+    final read = <int>[];
+    r.ch.cancels = 0;
+    final chunk = Uint8List(8 * 1024 * 1024);
+    r.ch.onHttpStream = (port, method, p) async =>
+        fileStream(r, {}, List.filled(5, chunk), read);
+    Navigator.of(t.element(find.byType(Scaffold).first)).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ImageScreen(tab: r.tab!, path: 'img/big.png'),
+      ),
+    );
+    await settleReal(t, 3);
+    expect(find.textContaining('too large'), findsOneWidget);
+    expect(r.ch.cancels, 1);
+    r.dispose();
+  });
+
   testWidgets('a box drawn on the image becomes the desktop\'s media comment', (
     t,
   ) async {

@@ -1,5 +1,6 @@
 // An image of the window, opened over the chat: read through `/file`, zoomed with two fingers, marked up and commented
 // as on the desktop (a media anchor, the frame and layer under `/marks`, the agent's frame attached).
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -132,26 +133,45 @@ class _ImageScreenState extends State<ImageScreen> {
     ui.Image? image;
     String? etag;
     try {
-      final r = await http(
+      final ch = widget.tab.link.channel!;
+      final r = await ch.httpStream(
+        widget.tab.port,
         'GET',
         '/file?path=${Uri.encodeQueryComponent(widget.path)}',
       );
+      final length = int.tryParse(r.headers['content-length'] ?? '');
       if (r.status == 404) {
+        r.cancel();
         fail = _Fail.notFound;
       } else if (r.status == 403) {
+        r.cancel();
         fail = _Fail.outside;
       } else if (r.status != 200) {
+        r.cancel();
         fail = _Fail.unreadable;
-      } else if (r.body.length > imageMaxBytes) {
+      } else if (length != null && length > imageMaxBytes) {
+        r.cancel();
         fail = _Fail.tooLarge;
       } else {
-        etag = r.headers['etag'];
-        try {
-          final codec = await ui.instantiateImageCodec(r.body);
-          image = (await codec.getNextFrame()).image;
-          codec.dispose();
-        } catch (_) {
-          fail = _Fail.undecodable;
+        // without a length the body is counted as it comes
+        final body = BytesBuilder(copy: false);
+        await for (final c in r.body) {
+          body.add(c);
+          if (body.length > imageMaxBytes) {
+            fail = _Fail.tooLarge;
+            r.cancel();
+            break;
+          }
+        }
+        if (fail == null) {
+          etag = r.headers['etag'];
+          try {
+            final codec = await ui.instantiateImageCodec(body.takeBytes());
+            image = (await codec.getNextFrame()).image;
+            codec.dispose();
+          } catch (_) {
+            fail = _Fail.undecodable;
+          }
         }
       }
     } on Object {

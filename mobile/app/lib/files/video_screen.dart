@@ -123,7 +123,8 @@ class _VideoScreenState extends State<VideoScreen> {
     Duration? position;
     try {
       await controller.pause();
-      position = controller.value.position;
+      // the cached value lags the playhead by up to ~100 ms
+      position = await controller.position ?? controller.value.position;
       final f = await frameAt(proxy.uri, position);
       final codec = await ui.instantiateImageCodec(f.png);
       frame = (await codec.getNextFrame()).image;
@@ -131,9 +132,11 @@ class _VideoScreenState extends State<VideoScreen> {
     } on Object catch (e) {
       if (e is! PlatformException && e is! Exception) rethrow;
       frame = null;
+    } finally {
+      // an unexpected error must not leave Mark up disabled
+      if (!_disposed) setState(() => _taking = false);
     }
     if (_disposed) return frame?.dispose();
-    setState(() => _taking = false);
     if (frame == null || position == null) {
       messenger.showSnackBar(SnackBar(content: Text(t.frameFailed)));
       return;
@@ -194,10 +197,16 @@ class _VideoScreenState extends State<VideoScreen> {
           title: Text(widget.path.split('/').last),
           actions: [
             if (_ready && !_markup.marking)
-              IconButton(
-                tooltip: t.markUp,
-                icon: const Icon(Icons.draw_outlined),
-                onPressed: _taking ? null : _markUp,
+              // a player that errored has nothing to take a frame of
+              ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: _controller!,
+                builder: (context, v, _) => v.hasError
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        tooltip: t.markUp,
+                        icon: const Icon(Icons.draw_outlined),
+                        onPressed: _taking ? null : _markUp,
+                      ),
               ),
           ],
         ),
@@ -211,14 +220,7 @@ class _VideoScreenState extends State<VideoScreen> {
 
   Widget _body(AppLocalizations t) {
     final controller = _controller, frame = _frame;
-    if (_failed) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(t.videoUnplayable, textAlign: TextAlign.center),
-        ),
-      );
-    }
+    if (_failed) return _unplayable(t);
     if (!_ready || controller == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -233,10 +235,18 @@ class _VideoScreenState extends State<VideoScreen> {
     return _player(controller, t);
   }
 
+  Widget _unplayable(AppLocalizations t) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(t.videoUnplayable, textAlign: TextAlign.center),
+    ),
+  );
+
   Widget _player(VideoPlayerController c, AppLocalizations t) =>
       ValueListenableBuilder<VideoPlayerValue>(
         valueListenable: c,
         builder: (context, v, _) {
+          if (v.hasError) return _unplayable(t);
           final playing = v.isPlaying;
           return Column(
             children: [
@@ -254,7 +264,13 @@ class _VideoScreenState extends State<VideoScreen> {
                           ),
                     child: AspectRatio(
                       aspectRatio: v.aspectRatio,
-                      child: VideoPlayer(c),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          VideoPlayer(c),
+                          if (v.isBuffering) const CircularProgressIndicator(),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -74,6 +74,10 @@ class FakePlayer extends VideoPlayerPlatform with MockPlatformInterfaceMixin {
     return _events.stream;
   }
 
+  /// The host goes away while the video plays.
+  void failNow() =>
+      _events.addError(PlatformException(code: 'video', message: 'gone'));
+
   @override
   Future<void> play(int playerId) async => calls.add('play');
 
@@ -304,6 +308,30 @@ void main() {
     final r = await openVideo(t);
     expect(find.textContaining('could not be played'), findsOneWidget);
     expect(find.byTooltip('Mark up'), findsNothing);
+    r.dispose();
+  });
+
+  testWidgets('an error while playing shows the unplayable state', (t) async {
+    final r = await openVideo(t);
+    expect(find.byTooltip('Mark up'), findsOneWidget);
+    player.failNow();
+    await settleReal(t, 2);
+    expect(find.textContaining('could not be played'), findsOneWidget);
+    expect(find.byTooltip('Mark up'), findsNothing);
+    r.dispose();
+  });
+
+  testWidgets('after a failed frame the next tap takes one', (t) async {
+    frameFails = true;
+    final r = await openVideo(t, at: 3);
+    await t.tap(find.byTooltip('Mark up'));
+    await settleReal(t, 4);
+    expect(find.textContaining('could not be taken'), findsOneWidget);
+    frameFails = false;
+    await t.tap(find.byTooltip('Mark up'));
+    await settleReal(t, 4);
+    expect(frameCalls.length, 2);
+    expect(find.text('Comment'), findsOneWidget);
     r.dispose();
   });
 }
