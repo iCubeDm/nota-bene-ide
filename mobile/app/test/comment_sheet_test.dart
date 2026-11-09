@@ -5,13 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/comments/comment_sheet.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_app/chat/composer.dart';
-import 'package:nb_app/dictation/dictation.dart';
+import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_app/dictation/voice_button.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/theme.dart';
 
-import 'host_dictation_test.dart' show Recorder;
-import 'support/fake_dictation.dart';
+import 'host_dictation_test.dart' show Recorder, answer;
+import 'support/fake_dictation.dart' show holdVoice, lockVoice, pressVoice;
 import 'support/rig.dart';
 
 void main() {
@@ -100,20 +100,17 @@ void main() {
   group('voice', () {
     late Rig r;
     late Recorder rec;
-    late FakeDictation phone;
-    late Dictation saved;
+    late Completer<HttpAnswer> reply;
     setUp(() {
       r = Rig();
       rec = Recorder()..install();
-      saved = dictation;
-      dictation = phone = FakeDictation();
     });
     tearDown(() {
-      dictation = saved;
+      rec.uninstall();
       r.dispose();
     });
 
-    Future<Finder> openSheet(WidgetTester t, {String? cap}) async {
+    Future<Finder> openSheet(WidgetTester t, {String? cap = 'whisper'}) async {
       await r.open(
         t,
         hello: {
@@ -122,6 +119,8 @@ void main() {
           'capabilities': Rig.caps(dictation: cap),
         },
       );
+      reply = Completer<HttpAnswer>();
+      r.ch.onHttp = (port, method, path) => reply.future;
       got = null;
       unawaited(
         showCommentSheet(
@@ -137,39 +136,64 @@ void main() {
       );
     }
 
-    testWidgets('a whisper-capable tab: the sheet records through the host', (
-      t,
-    ) async {
-      final mic = await openSheet(t, cap: 'whisper');
+    testWidgets('the sheet records through the host', (t) async {
+      final mic = await openSheet(t);
       final g = await pressVoice(t, at: mic);
       expect(rec.calls, ['start']);
-      expect(phone.calls, isEmpty);
       await g.moveBy(const Offset(-120, 0));
       await g.up();
       await t.pump();
     });
 
-    testWidgets('without it: the phone recognizer', (t) async {
-      final mic = await openSheet(t);
-      final g = await pressVoice(t, at: mic);
-      expect(phone.calls, ['listen']);
+    testWidgets("without Whisper the sheet's mic offers it", (t) async {
+      final mic = await openSheet(t, cap: null);
+      r.ch.onHttp = (port, method, path) async => answer(
+        200,
+        '{"on":false,"phase":"none","downloadMb":1,"diskMb":2,"dir":"/w"}',
+      );
+      await holdVoice(t, at: mic);
+      await t.pumpAndSettle();
       expect(rec.calls, isEmpty);
-      await g.moveBy(const Offset(-120, 0));
-      await g.up();
-      await t.pump();
+      expect(find.text('Install'), findsOneWidget);
     });
 
-    testWidgets('an error shows inside the sheet', (t) async {
-      final mic = await openSheet(t);
-      await lockVoice(t, at: mic);
-      phone.last.add(const DictationError(DictationFailure.denied));
-      phone.last.add(const DictationEnd());
+    testWidgets('turning Whisper on from the sheet says so inside it', (
+      t,
+    ) async {
+      final mic = await openSheet(t, cap: null);
+      r.ch.onHttp = (port, method, path) async => path == '/dictation'
+          ? answer(
+              200,
+              '{"on":false,"phase":"ready","downloadMb":1,"diskMb":2,"dir":"/w"}',
+            )
+          : answer(200, '{"ok":true}');
+      await holdVoice(t, at: mic);
+      await t.pumpAndSettle();
+      await t.tap(find.text('Turn on Whisper'));
+      await t.pump();
       await t.pump();
       await t.pump(const Duration(milliseconds: 400));
       expect(
         find.descendant(
           of: find.byType(BottomSheet),
-          matching: find.text('Microphone access is off for Nota Bene'),
+          matching: find.text('Whisper is on: hold the mic to speak'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an error shows inside the sheet', (t) async {
+      final mic = await openSheet(t);
+      await lockVoice(t, at: mic);
+      VoiceButton.stopRunning();
+      reply.complete(answer(500));
+      await t.pump();
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('The computer could not transcribe it'),
         ),
         findsOneWidget,
       );
@@ -178,13 +202,10 @@ void main() {
     testWidgets('Save stops a locked recording and stores its text', (t) async {
       final mic = await openSheet(t);
       await lockVoice(t, at: mic);
-      phone.last.add(const DictationPartial('the head'));
-      await t.pump();
       await t.tap(find.text('Save'));
       await t.pump();
-      expect(phone.calls, ['listen', 'stop']);
-      phone.last.add(const DictationFinal('the header'));
-      phone.last.add(const DictationEnd());
+      expect(rec.calls, ['start', 'stop']);
+      reply.complete(answer(200, '{"text":"the header"}'));
       await t.pumpAndSettle();
       expect((got as SheetSave).text, 'the header');
     });

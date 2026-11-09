@@ -313,7 +313,7 @@ export const zhCN: Dict = {
   dictRetry: "重试",
   dictUse: "手机麦克风使用 Whisper",
   dictRemove: "移除 Whisper",
-  dictRemoveQ: (dir: string) => `从 ${dir} 删除 Whisper 文件？手机将恢复使用自带的听写。`,
+  dictRemoveQ: (dir: string) => `从 ${dir} 删除 Whisper 文件？手机麦克风只能配合 Whisper 使用。`,
   dictRemoveGo: "移除",
   aboutVersion: '版本',
   aboutState: '状态文件夹',

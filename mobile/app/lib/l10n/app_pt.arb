@@ -140,7 +140,6 @@
   "dictate": "Ditar",
   "dictateStop": "Parar o ditado",
   "dictationDenied": "O acesso ao microfone está desativado para o Nota Bene",
-  "dictationUnavailable": "O reconhecimento de voz não está disponível neste telefone",
   "dictationNoMatch": "Nada foi ouvido",
   "dictationFailed": "Falha no ditado",
   "dictationTranscribing": "Transcrevendo…",
@@ -150,7 +149,7 @@
   "voiceCancel": "Cancelar",
   "voiceTranscribing": "Transcrevendo…",
   "voiceStop": "Parar",
-  "dictationHostOff": "O Whisper está desativado no computador; agora é usado o reconhecimento do telefone",
+  "dictationHostOff": "O Whisper está desativado no computador",
   "expandCode": "Abrir em tela cheia",
   "codeLines": "{count, plural, one{{count} linha} other{{count} linhas}}",
   "windowSheetMode": "Modo",
@@ -176,5 +175,10 @@
   "attachUnavailable": "Este celular não tem um app para isso.",
   "attachRead": "Não foi possível ler a imagem.",
   "share": "Compartilhar",
-  "shareFailed": "Não foi possível compartilhar a imagem."
+  "shareFailed": "Não foi possível compartilhar a imagem.",
+  "whisperTitle": "Ditado com o Whisper",
+  "whisperOff": "O Whisper está instalado no computador, mas desativado. O microfone do celular grava e o Whisper transcreve no computador.",
+  "whisperTurnOn": "Ativar o Whisper",
+  "whisperReady": "O Whisper está ativado: segure o microfone e fale",
+  "whisperNoAnswer": "O computador não respondeu"
 }

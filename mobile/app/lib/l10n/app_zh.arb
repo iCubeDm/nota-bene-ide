@@ -140,7 +140,6 @@
   "dictate": "语音输入",
   "dictateStop": "停止语音输入",
   "dictationDenied": "Nota Bene 的麦克风权限已关闭",
-  "dictationUnavailable": "此手机不支持语音识别",
   "dictationNoMatch": "没有听到内容",
   "dictationFailed": "语音输入失败",
   "dictationTranscribing": "正在转写…",
@@ -150,7 +149,7 @@
   "voiceCancel": "取消",
   "voiceTranscribing": "正在转写…",
   "voiceStop": "停止",
-  "dictationHostOff": "电脑上的 Whisper 已关闭;现在使用手机的语音识别",
+  "dictationHostOff": "电脑上的 Whisper 已关闭",
   "expandCode": "全屏打开",
   "codeLines": "{count, plural, other{{count} 行}}",
   "windowSheetMode": "模式",
@@ -176,5 +175,10 @@
   "attachUnavailable": "此手机上没有可用的应用。",
   "attachRead": "无法读取图片。",
   "share": "分享",
-  "shareFailed": "无法分享图片。"
+  "shareFailed": "无法分享图片。",
+  "whisperTitle": "用 Whisper 语音输入",
+  "whisperOff": "电脑上已安装 Whisper，但未开启。手机麦克风负责录音，Whisper 在电脑上转写。",
+  "whisperTurnOn": "开启 Whisper",
+  "whisperReady": "Whisper 已开启：按住麦克风说话",
+  "whisperNoAnswer": "电脑没有响应"
 }

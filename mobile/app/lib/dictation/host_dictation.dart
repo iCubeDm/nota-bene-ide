@@ -12,8 +12,14 @@ import 'dictation.dart';
 // its limit and stopped itself with the audio kept.
 const recordChannel = MethodChannel('nb/record');
 
-// a hung request must not keep the spinner up
+// a hung request must not keep the spinner up; a long recording (or one queued behind another, or the model's cold
+// load) gets twice its own length on top
 const _postTimeout = Duration(seconds: 60);
+
+// 16 kHz 16-bit mono after the 44-byte header: 32 bytes a millisecond
+Duration _timeoutFor(Uint8List wav) =>
+    _postTimeout +
+    Duration(milliseconds: (wav.length - 44).clamp(0, 1 << 30) ~/ 32 * 2);
 
 enum _Phase { idle, recording, posting, done }
 
@@ -31,8 +37,8 @@ class HostDictation implements Dictation {
   String _lang = 'en';
 
   @override
-  Stream<DictationEvent> listen(String languageTag) {
-    _lang = languageTag.split('-').first;
+  Stream<DictationEvent> listen(String lang) {
+    _lang = lang;
     final out = _out = StreamController<DictationEvent>();
     out.onListen = () async {
       if (_http() == null) return _finish(DictationFailure.hostFailed);
@@ -73,6 +79,10 @@ class HostDictation implements Dictation {
       final http = _http();
       if (_phase != _Phase.posting) return;
       if (wav == null || http == null) {
+        // the recorder may still start once a permission prompt is answered: nobody would own it
+        if (wav == null) {
+          await recordChannel.invokeMethod<void>('cancel').catchError((_) {});
+        }
         return _finish(DictationFailure.hostFailed);
       }
       final r = await http(
@@ -80,7 +90,7 @@ class HostDictation implements Dictation {
         '/dictation/transcribe?lang=${Uri.encodeQueryComponent(_lang)}',
         headers: {'content-type': 'audio/wav'},
         body: wav,
-      ).timeout(_postTimeout);
+      ).timeout(_timeoutFor(wav));
       if (_phase != _Phase.posting) return;
       if (r.status == 503) {
         onHostOff?.call();

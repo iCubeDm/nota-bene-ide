@@ -103,9 +103,14 @@ class WindowTab extends ChangeNotifier {
   /// The attachments read for the feed's thumbnails and the viewer, by their request path, within a byte cap.
   final mediaCache = MediaCache();
 
-  /// The host answered 503 to a dictation: its Whisper is off. Until the next hello or reconnect the phone's own
-  /// recognizer is used (the hello's capability is stale by then).
-  bool hostWhisperOff = false;
+  /// What the phone learned of the window's Whisper since its hello: on once the phone turned it on, off after a 503
+  /// to a dictation; null until then, when the hello's capability holds.
+  bool? whisperOn;
+
+  /// Whether the window transcribes the phone's recordings now.
+  bool get whisper =>
+      state == TabState.open &&
+      (whisperOn ?? capabilities?.dictation == 'whisper');
   ServerEventStats? stats;
 
   final _refusals = StreamController<ServerEventSendRefused>.broadcast();
@@ -163,7 +168,7 @@ class WindowTab extends ChangeNotifier {
   void _open(Channel ch) {
     _stream?.close(1000);
     _on = ch;
-    hostWhisperOff = false;
+    whisperOn = null;
     final s = _stream = ch.ws(
       port,
       '/ws?tab=$tabId${_passive ? '&passive=1' : ''}',
@@ -245,7 +250,7 @@ class WindowTab extends ChangeNotifier {
             if (d.startsWith('/') && d.length > 1)
               d.replaceAll(RegExp(r'/+$'), ''),
         ];
-        hostWhisperOff = false;
+        whisperOn = null;
       case ServerEventModels(:final models):
         this.models = models;
       case ServerEventMode(:final mode):

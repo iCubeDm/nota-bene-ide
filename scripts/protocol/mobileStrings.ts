@@ -17,7 +17,8 @@ const DICTS: [string, Record<string, unknown>][] = [['en', en], ['ru', ru], ['zh
 const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale'] as const;
 /**
  * Web strings the phone shows as they are; `webString` reads them: the usage meters' words, the window sheet's
- * mode names and descriptions (every provider's modes, as ModePill.tsx shows them) and its clear/compact texts.
+ * mode names and descriptions (every provider's modes, as ModePill.tsx shows them) and its clear/compact texts, and
+ * the mic's Whisper sheet.
  * A key that is not a plain string in a dictionary fails the generator.
  */
 export const WEB_KEYS: readonly string[] = [
@@ -25,6 +26,7 @@ export const WEB_KEYS: readonly string[] = [
   ...ALL_MODES.flatMap((m) => [`mode_${m}`, `mode_${m}_desc`]),
   'modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip', 'clearFail', 'working', 'offline',
   'srcMine', 'replyPlain',
+  'dictInstallGo', 'dictInstalling', 'dictFailed', 'dictRetry',
 ];
 /**
  * The batch's functions, as templates: each is called with the placeholders `{0}`, `{1}` for its arguments (a list
@@ -34,6 +36,8 @@ export const WEB_KEYS: readonly string[] = [
 const TEMPLATE_KEYS: Record<string, ('n' | 'list')[]> = {
   imgLabel: ['n'], imgLabelC: ['n', 'n'], imgRef: ['list'], imgRefMedia: ['list'], filesLine: ['list'], scaledSfx: ['n'],
   srcTool: ['n', 'n'], srcAgentReply: ['n'], srcAgentTool: ['n', 'n'],
+  // the mic's Whisper sheet (Settings → Dictation's question): sizes and the folder
+  dictInstallQ: ['n', 'n', 'n'],
 };
 /**
  * The forms of the source names that drop a part when it is empty (a tool with no argument, a subagent with no name),

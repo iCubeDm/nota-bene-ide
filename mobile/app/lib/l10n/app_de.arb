@@ -140,7 +140,6 @@
   "dictate": "Diktieren",
   "dictateStop": "Diktat beenden",
   "dictationDenied": "Der Mikrofonzugriff ist für Nota Bene deaktiviert",
-  "dictationUnavailable": "Spracherkennung ist auf diesem Telefon nicht verfügbar",
   "dictationNoMatch": "Es wurde nichts gehört",
   "dictationFailed": "Diktat fehlgeschlagen",
   "dictationTranscribing": "Wird transkribiert…",
@@ -150,7 +149,7 @@
   "voiceCancel": "Abbrechen",
   "voiceTranscribing": "Wird transkribiert…",
   "voiceStop": "Stopp",
-  "dictationHostOff": "Whisper ist auf dem Computer aus; jetzt wird die Erkennung des Telefons verwendet",
+  "dictationHostOff": "Whisper ist auf dem Computer aus",
   "expandCode": "Im Vollbild öffnen",
   "codeLines": "{count, plural, one{{count} Zeile} other{{count} Zeilen}}",
   "windowSheetMode": "Modus",
@@ -176,5 +175,10 @@
   "attachUnavailable": "Auf diesem Telefon gibt es dafür keine App.",
   "attachRead": "Das Bild konnte nicht gelesen werden.",
   "share": "Teilen",
-  "shareFailed": "Das Bild konnte nicht geteilt werden."
+  "shareFailed": "Das Bild konnte nicht geteilt werden.",
+  "whisperTitle": "Diktat mit Whisper",
+  "whisperOff": "Whisper ist auf dem Computer installiert, aber ausgeschaltet. Das Mikrofon des Telefons nimmt auf, Whisper transkribiert auf dem Computer.",
+  "whisperTurnOn": "Whisper einschalten",
+  "whisperReady": "Whisper ist an: Mikrofon gedrückt halten und sprechen",
+  "whisperNoAnswer": "Der Computer hat nicht geantwortet"
 }

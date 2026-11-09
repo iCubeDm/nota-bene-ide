@@ -25,8 +25,8 @@ Goals:
   hold-to-record voice.
 - Comments on chat messages, with the desktop's anchors, labels and batch text.
 - Window settings on the phone: permission mode, model and effort, plan limits, compact, clear, restart, stats.
-- Voice that keeps every word: recorded and transcribed by Whisper on the host when it is on, otherwise the
-  phone's recognition without stopping on a pause.
+- Voice that keeps every word: recorded on the phone and transcribed by Whisper on the host (#154: the phone's own
+  recognizer dropped words and is gone).
 - Images in the chat: attach from camera, gallery or files; see them in bubbles; open, mark up and comment on
   images and video frames from the chat.
 - A session list that shows, per host, which windows work, wait for an approval or have unread replies.
@@ -114,9 +114,11 @@ Opened from the header pill, top to bottom:
   the WAV to `/dictation/transcribe`, and the text is inserted into the field for editing; "Transcribing…" shows
   meanwhile. Recording is capped at 120 s by the 4 MiB request cap; the timer warns before the cap, and at the cap
   the recording stops and is transcribed, never dropped.
-- **Without it:** the phone's recognizer runs continuously while recording: it sets the silence extras, restarts
-  itself after the system ends a session, and keeps the words already recognized, so a pause no longer ends the
-  dictation. Hold and lock work the same way.
+- **Without it** (#154): no recording; the microphone opens a sheet with the desktop's install question (download
+  size, folder) and installs Whisper on the host, or turns it on when it is installed and off, then follows the
+  install until Whisper is on. The phone's own recognizer was dropped: it transcribed live and lost words. A
+  transcriber on a remote server was left out: the window must be on for the phone anyway, and a small server cannot
+  hold whisper-small.
 - The same path serves the composer and the comment sheet.
 
 ### Images and video
@@ -165,6 +167,6 @@ into an integration branch, then into `main` in one PR. Each child ends with an 
 1. Layout: header pill, bubbles, composer, full-screen code.
 2. Window settings sheet: mode, model and effort, limits, the four actions.
 3. Comments in the chat.
-4. Voice: gestures, host Whisper path, continuous phone recognition, the comment sheet's microphone.
+4. Voice: gestures, host Whisper path, the comment sheet's microphone (the phone's recognizer removed in #154).
 5. Images: attach, images in bubbles, media cards, restyled viewer.
 6. Session list: host fields, rows, unread, long-press.
