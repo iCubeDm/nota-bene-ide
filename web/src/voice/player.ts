@@ -4,6 +4,8 @@ import { useSyncExternalStore } from 'react';
 export type PlayState = { playing: boolean; pos: number };
 const IDLE: PlayState = { playing: false, pos: 0 };
 
+/** Recently used elements, oldest first: a feed of many voice messages must not keep an element (and its buffered audio) for each. */
+const KEEP = 4;
 const audios = new Map<string, HTMLAudioElement>();
 const states = new Map<string, PlayState>();
 const listeners = new Set<() => void>();
@@ -18,7 +20,11 @@ const set = (id: string, s: PlayState) => {
 /** The element for a recording, made on first use: `<audio>` on the same-origin `/voice/<id>` (Range works, the cookie goes along, as for `/attach`); a recording not yet sent plays from its own `src` (a blob URL). */
 function audioOf(id: string, src = `/voice/${id}`): HTMLAudioElement {
   let a = audios.get(id);
-  if (a) return a;
+  if (a) {
+    audios.delete(id); // used now: to the young end
+    audios.set(id, a);
+    return a;
+  }
   a = new Audio(src);
   a.preload = 'none';
   const el = a;
@@ -26,6 +32,11 @@ function audioOf(id: string, src = `/voice/${id}`): HTMLAudioElement {
   for (const ev of ['play', 'pause', 'timeupdate', 'seeked']) el.addEventListener(ev, sync);
   el.addEventListener('ended', () => set(id, { playing: false, pos: 0 }));
   audios.set(id, el);
+  // over the limit: the oldest ones that are not playing go (their next play makes a new element)
+  for (const [old, e] of audios) {
+    if (audios.size <= KEEP) break;
+    if (old !== id && e.paused) release(old);
+  }
   return el;
 }
 
