@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'chat/chat_route.dart';
 import 'chat/mermaid.dart';
@@ -17,6 +18,8 @@ import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // the usage dates are written in the app's language
+  await initializeDateFormatting();
   // read before the first frame, so the app opens in the chosen theme
   final themes = await ThemeChoice.load(SecureVault());
   // one hidden WebView for every diagram of the app, kept above the Navigator with the lock
