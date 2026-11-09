@@ -147,8 +147,11 @@ void main() {
       find.byType(RichText),
     )) {
       p.text.visitChildren((s) {
-        if (s is TextSpan && s.style?.backgroundColor != null && s.text != null)
+        if (s is TextSpan &&
+            s.style?.backgroundColor != null &&
+            s.text != null) {
           marked.add(s.text!);
+        }
         return true;
       });
     }

@@ -51,8 +51,9 @@ class _FileScreenState extends State<FileScreen> {
   }
 
   Future<void> _load() async {
-    if (!isMarkdownPath(widget.path))
+    if (!isMarkdownPath(widget.path)) {
       return setState(() => _fail = _Fail.notMarkdown);
+    }
     final ch = widget.tab.link.channel;
     if (ch == null) return setState(() => _fail = _Fail.unreadable);
     _Fail? fail;
@@ -124,8 +125,8 @@ class _FileScreenState extends State<FileScreen> {
 
   Future<void> _edit(String id) async {
     final c = widget.tab.comments.all.where((c) => c.id == id).firstOrNull;
-    if (c == null || c.status == CommentStatus.sent)
-      return; // a sent comment stays as it went
+    // a sent comment stays as it went
+    if (c == null || c.status == CommentStatus.sent) return;
     final res = await showCommentSheet(
       context,
       quote: (c.anchor as TextAnchor).quote,

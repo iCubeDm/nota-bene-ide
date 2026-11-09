@@ -100,9 +100,6 @@ class _FileMarkdownState extends State<FileMarkdown>
   final _recognizers = <GestureRecognizer>[];
 
   @override
-  BuildContext get context => super.context;
-
-  @override
   GestureRecognizer createLink(String text, String? href, String title) {
     final r = TapGestureRecognizer()
       ..onTap = () {
