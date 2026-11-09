@@ -70,8 +70,9 @@ bool _offsetsHold(TextAnchor a, String text) {
 
 ({int start, int end})? resolveAnchor(TextAnchor a, String text) {
   final quote = a.quote;
-  if (_offsetsHold(a, text))
+  if (_offsetsHold(a, text)) {
     return (start: a.start.toInt(), end: a.end.toInt());
+  }
   if (quote.isEmpty) return null;
   final origin = a.start.toInt();
   var best = -1, bestScore = -1, count = 0;
