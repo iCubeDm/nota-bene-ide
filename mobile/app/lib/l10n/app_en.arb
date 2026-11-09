@@ -336,5 +336,10 @@
   "whisperReady": "Whisper is on: hold the mic to speak",
   "whisperNoAnswer": "The computer did not answer",
   "voicePlay": "Play",
-  "voicePause": "Pause"
+  "voicePause": "Pause",
+  "voiceTranscript": "Transcript",
+  "voiceNothing": "Nothing was recognised",
+  "voiceCouldNot": "Could not transcribe",
+  "voiceSending": "Sending…",
+  "voiceSendFailed": "Could not send the recording"
 }

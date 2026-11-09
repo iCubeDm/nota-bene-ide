@@ -27,6 +27,8 @@ class Rig {
     Map<String, Object?>? hello,
     Seen? seen,
     HostWindow? win,
+    // false when something on screen animates for good (a pulsing dot)
+    bool settle = true,
   }) async {
     final f = FakeFactory();
     ch = FakeChannel([win ?? window(4791, '/home/u/notes')]);
@@ -61,7 +63,11 @@ class Rig {
     await t.pump();
     event(hello ?? {'kind': 'hello', 'protocol': 13, 'capabilities': caps()});
     event({'kind': 'replay', 'events': events});
-    await t.pumpAndSettle();
+    if (settle) {
+      await t.pumpAndSettle();
+    } else {
+      await t.pump(const Duration(milliseconds: 100));
+    }
   }
 
   static Map<String, Object?> caps({

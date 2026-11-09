@@ -14,7 +14,9 @@ import 'strings.g.dart';
 /// The anchor source of [it]: a user message or a final reply. A reply still streaming has none (the desktop's
 /// `stream:*`), nor has a tool, a plan or a line of the feed.
 AnchorSource? chatSource(FeedItem it) => switch (it) {
-  UserItem(:final id, :final idle) when !idle => AnchorSourceMessage(id: id),
+  UserItem(:final id, :final idle, :final voice, :final shownText)
+      when !idle && (voice == null || shownText.isNotEmpty) =>
+    AnchorSourceMessage(id: id),
   AssistantItem(:final id, :final final_) when final_ => AnchorSourceMessage(
     id: id,
   ),
@@ -25,7 +27,7 @@ AnchorSource? chatSource(FeedItem it) => switch (it) {
 /// message without the comment batch it may carry. An item with no source is empty.
 RenderedText chatText(FeedItem it) => switch (it) {
   AssistantItem(:final text) => renderedText(parseMarkdown(text)),
-  UserItem(:final text) => renderedText(_parseUser(_general(text))),
+  UserItem(:final shownText) => renderedText(_parseUser(_general(shownText))),
   _ => renderedText(const []),
 };
 
@@ -33,7 +35,7 @@ RenderedText chatText(FeedItem it) => switch (it) {
 ({int start, int end})? chatCodeRange(FeedItem it, int ordinal) {
   final nodes = switch (it) {
     AssistantItem(:final text) => parseMarkdown(text),
-    UserItem(:final text) => _parseUser(_general(text)),
+    UserItem(:final shownText) => _parseUser(_general(shownText)),
     _ => const <md.Node>[],
   };
   md.Element? pre;
@@ -70,7 +72,7 @@ RenderedText chatText(FeedItem it) => switch (it) {
 /// The raw text of [it] a person copies or quotes: a reply's Markdown source, a user message without its batch.
 String chatRaw(FeedItem it) => switch (it) {
   AssistantItem(:final text) => text,
-  UserItem(:final text) => _general(text),
+  UserItem(:final shownText) => _general(shownText),
   _ => '',
 };
 

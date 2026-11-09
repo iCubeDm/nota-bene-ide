@@ -183,5 +183,10 @@
   "whisperReady": "Whisper 已开启：按住麦克风说话",
   "whisperNoAnswer": "电脑没有响应",
   "voicePlay": "播放",
-  "voicePause": "暂停"
+  "voicePause": "暂停",
+  "voiceTranscript": "文字稿",
+  "voiceNothing": "没有识别到内容",
+  "voiceCouldNot": "无法转写",
+  "voiceSending": "正在发送…",
+  "voiceSendFailed": "录音发送失败"
 }

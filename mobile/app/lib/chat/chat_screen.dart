@@ -12,6 +12,8 @@ import '../comments/chat_anchor.dart';
 import '../comments/comment_strip.dart' show editComment;
 import '../files/file_markdown.dart';
 import '../theme.dart';
+import '../voice/upload.dart';
+import '../voice/voice_bubble.dart';
 import 'chat_header.dart';
 import 'comment_target.dart';
 import 'feed.dart';
@@ -389,8 +391,30 @@ class FeedItemView extends StatelessWidget {
         style: TextStyle(color: color ?? c.mutedFg, fontSize: 13),
       ),
     );
+    Widget userText(String text) => listenerAt == null && marks.isEmpty
+        ? NbMarkdown(
+            userMarkdownSource(text),
+            blockSyntaxes: userBlockSyntaxes,
+            inlineSyntaxes: userInlineSyntaxes,
+            softLineBreak: true,
+          )
+        : FileMarkdown(
+            text: text,
+            listenerAt: listenerAt,
+            marks: marks,
+            onMark: onMark,
+            parse: parseUserMessage,
+            softLineBreak: true,
+          );
     return switch (item) {
-      UserItem(:final text, :final idle, :final images) =>
+      UserItem(
+        shownText: final text,
+        :final idle,
+        :final images,
+        :final voice,
+        :final voiceError,
+        :final transcribing,
+      ) =>
         idle
             ? line(t.idleCompact)
             : Align(
@@ -429,22 +453,23 @@ class FeedItemView extends StatelessWidget {
                             tab: FileOpener.of(context)!,
                             images: images,
                           ),
-                        if (text.isNotEmpty || images.isEmpty)
-                          listenerAt == null && marks.isEmpty
-                              ? NbMarkdown(
-                                  userMarkdownSource(text),
-                                  blockSyntaxes: userBlockSyntaxes,
-                                  inlineSyntaxes: userInlineSyntaxes,
-                                  softLineBreak: true,
-                                )
-                              : FileMarkdown(
-                                  text: text,
-                                  listenerAt: listenerAt,
-                                  marks: marks,
-                                  onMark: onMark,
-                                  parse: parseUserMessage,
-                                  softLineBreak: true,
-                                ),
+                        if (voice != null)
+                          VoiceBlock(
+                            id: voice.id,
+                            ms: voice.ms.toInt(),
+                            wave: voice.wave,
+                            load: voiceLoader(FileOpener.of(context), voice.id),
+                            stage: voiceError != null
+                                ? VoiceStage.error
+                                : (transcribing
+                                      ? VoiceStage.transcribing
+                                      : VoiceStage.transcribed),
+                            error: voiceError,
+                            onRetry: () => retryVoice(context, voice),
+                            transcript: () => userText(text),
+                          )
+                        else if (text.isNotEmpty || images.isEmpty)
+                          userText(text),
                       ],
                     ),
                   ),

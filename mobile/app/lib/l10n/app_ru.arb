@@ -183,5 +183,10 @@
   "whisperReady": "Whisper включён: зажми микрофон и говори",
   "whisperNoAnswer": "Компьютер не ответил",
   "voicePlay": "Воспроизвести",
-  "voicePause": "Пауза"
+  "voicePause": "Пауза",
+  "voiceTranscript": "Расшифровка",
+  "voiceNothing": "Ничего не распознано",
+  "voiceCouldNot": "Не удалось расшифровать",
+  "voiceSending": "Отправка…",
+  "voiceSendFailed": "Не удалось отправить запись"
 }

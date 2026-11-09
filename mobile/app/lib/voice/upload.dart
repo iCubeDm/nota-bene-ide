@@ -3,9 +3,12 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart' show BuildContext, Localizations;
 import 'package:nb_channel/nb_channel.dart' show HttpAnswer;
-import 'package:nb_protocol/nb_protocol.dart' show Voice, VoiceError;
+import 'package:nb_protocol/nb_protocol.dart'
+    show ClientMessageSend, Voice, VoiceError;
 
+import '../chat/files.dart' show FileOpener;
 import '../chat/window_tab.dart';
 import '../files/image_screen.dart' show windowHttp;
 import '../media/media_comment.dart';
@@ -71,8 +74,8 @@ Future<({String? text, VoiceError? error})> transcribeClip(
 }
 
 /// How the player fetches voice [id] of [tab]'s window.
-LoadVoice voiceLoader(WindowTab tab, String id) => () async {
-  final http = windowHttp(tab);
+LoadVoice voiceLoader(WindowTab? tab, String id) => () async {
+  final http = tab == null ? null : windowHttp(tab);
   if (http == null) return null;
   try {
     final r = await http('GET', '/voice/$id');
@@ -81,3 +84,17 @@ LoadVoice voiceLoader(WindowTab tab, String id) => () async {
     return null;
   }
 };
+
+/// Sends [voice] again as a new message (a Retry): the same recording under a new id, after the agent's turn, never
+/// with the busy dialog. False when the window did not take it.
+bool sendVoice(WindowTab tab, Voice voice, String lang) => tab.send(
+  ClientMessageSend(id: uuidV4(), text: '', voice: voice, lang: lang),
+);
+
+/// The Retry of a failed voice bubble.
+void retryVoice(BuildContext context, Voice voice) {
+  final tab = FileOpener.of(context);
+  if (tab != null) {
+    sendVoice(tab, voice, Localizations.localeOf(context).languageCode);
+  }
+}

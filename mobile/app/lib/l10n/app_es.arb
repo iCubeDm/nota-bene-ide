@@ -183,5 +183,10 @@
   "whisperReady": "Whisper está activado: mantén pulsado el micrófono y habla",
   "whisperNoAnswer": "El ordenador no respondió",
   "voicePlay": "Reproducir",
-  "voicePause": "Pausar"
+  "voicePause": "Pausar",
+  "voiceTranscript": "Transcripción",
+  "voiceNothing": "No se reconoció nada",
+  "voiceCouldNot": "No se pudo transcribir",
+  "voiceSending": "Enviando…",
+  "voiceSendFailed": "No se pudo enviar la grabación"
 }
