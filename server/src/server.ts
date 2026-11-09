@@ -31,6 +31,7 @@ import { controlToken, describeVersion, systemRoutes } from './system.ts';
 import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
 import { runtimeDir } from './runtime.ts';
+import { dictationRoutes } from './dictation/routes.ts';
 import { usageRoutes } from './usage/routes.ts';
 import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, keyCredential, loginCredential, newNonce, proofFor, sameSecret, sessionCookie } from './auth.ts';
 
@@ -295,6 +296,7 @@ export async function startServer(o: {
           res.end('{"ok":true}', () => exitWith(0));
         },
         ...usageRoutes({ hub }),
+        ...dictationRoutes({ hub }),
         ...systemRoutes({
           updater: win, newer,
           hub, root, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir,
