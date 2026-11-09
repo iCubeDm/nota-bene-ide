@@ -12,14 +12,17 @@ import type { ImageType } from '@nota-bene/shared';
 // target (3.5e6) stays below it.
 export const MAX_ATTACHMENT_BYTES = 3_932_160;
 
-const EXT: Record<ImageType, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+/** Images, and the recordings of voice messages and clips (voice/routes.ts): one store, so Clean covers both. */
+export type StoredType = ImageType | 'audio/wav';
+const STORED_TYPES: readonly StoredType[] = [...IMAGE_TYPES, 'audio/wav'];
+const EXT: Record<StoredType, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'audio/wav': 'wav' };
 const ID_RE = /^[0-9a-f]{64}$/;
 
 export function isImageType(v: unknown): v is ImageType {
   return typeof v === 'string' && (IMAGE_TYPES as readonly string[]).includes(v);
 }
 
-/** Content-addressed image files: `<sha256>.<ext>`. Same bytes, same file. */
+/** Content-addressed files: `<sha256>.<ext>`. Same bytes, same file. */
 export class AttachmentStore {
   private readonly dir: string;
 
@@ -31,7 +34,7 @@ export class AttachmentStore {
    * The first media type stored for given bytes is canonical: the same bytes posted again under another type
    * return the existing id and write nothing.
    */
-  put(bytes: Buffer, mediaType: ImageType): string {
+  put(bytes: Buffer, mediaType: StoredType): string {
     const id = createHash('sha256').update(bytes).digest('hex');
     const have = this.find(id);
     if (have) {
@@ -55,15 +58,15 @@ export class AttachmentStore {
     return id;
   }
 
-  private find(id: string): ImageType | null {
-    return IMAGE_TYPES.find((t) => fs.existsSync(path.join(this.dir, `${id}.${EXT[t]}`))) ?? null;
+  private find(id: string): StoredType | null {
+    return STORED_TYPES.find((t) => fs.existsSync(path.join(this.dir, `${id}.${EXT[t]}`))) ?? null;
   }
 
   /** null when absent or the id is malformed; other disk errors are thrown. A file "Clean" moved to the trash comes back. */
-  get(id: string): { bytes: Buffer; mediaType: ImageType } | null {
+  get(id: string): { bytes: Buffer; mediaType: StoredType } | null {
     if (!ID_RE.test(id)) return null;
     const read = () => {
-      for (const mediaType of IMAGE_TYPES) {
+      for (const mediaType of STORED_TYPES) {
         try {
           return { bytes: fs.readFileSync(path.join(this.dir, `${id}.${EXT[mediaType]}`)), mediaType };
         } catch (e) {
@@ -91,7 +94,7 @@ export class AttachmentStore {
       return false;
     }
     for (const s of stamps) {
-      for (const t of IMAGE_TYPES) {
+      for (const t of STORED_TYPES) {
         const name = `${id}.${EXT[t]}`;
         const from = path.join(trash, s, name);
         if (!fs.existsSync(from)) continue;
@@ -184,7 +187,8 @@ export function attachmentRoutes(store: AttachmentStore, hub?: EventHub): Record
       } catch (e) {
         return fail(req, res, e);
       }
-      if (!found) return plain(res, 404, 'not found');
+      // a recording is served by /voice/<id>, with ranges
+      if (!found || !isImageType(found.mediaType)) return plain(res, 404, 'not found');
       res.writeHead(200, {
         'content-type': found.mediaType,
         'content-length': found.bytes.length,

@@ -31,6 +31,17 @@ describe('AttachmentStore', () => {
     expect(s.get(a)?.mediaType).toBe('image/png');
   });
 
+  it('a recording is stored as .wav, found back, and restored from the trash like an image', () => {
+    const s = new AttachmentStore({ dir: path.join(dir, 'attachments') });
+    const id = s.put(Buffer.from('RIFF....WAVE'), 'audio/wav');
+    expect(fs.readdirSync(path.join(dir, 'attachments'))).toEqual([`${id}.wav`]);
+    expect(s.get(id)).toEqual({ bytes: Buffer.from('RIFF....WAVE'), mediaType: 'audio/wav' });
+    const trash = path.join(dir, 'trash', 'attachments', 'stamp');
+    fs.mkdirSync(trash, { recursive: true });
+    fs.renameSync(path.join(dir, 'attachments', `${id}.wav`), path.join(trash, `${id}.wav`));
+    expect(s.get(id)?.mediaType).toBe('audio/wav');
+  });
+
   it('get rethrows disk errors other than ENOENT', () => {
     fs.writeFileSync(path.join(dir, 'file'), 'x');
     expect(() => new AttachmentStore({ dir: path.join(dir, 'file') }).get('a'.repeat(64))).toThrow();
@@ -105,8 +116,10 @@ describe('attachment routes', () => {
     expect((await post(Buffer.from('x'), 'image/heic')).status).toBe(415);
   });
 
-  it('404 for an unknown or malformed id', async () => {
+  it('404 for an unknown or malformed id, and for a recording: /attach serves images only', async () => {
     expect((await fetch(`${base}/attach/${'0'.repeat(64)}`)).status).toBe(404);
+    const wav = new AttachmentStore({ dir: path.join(dir, 'a') }).put(Buffer.from('RIFF'), 'audio/wav');
+    expect((await fetch(`${base}/attach/${wav}`)).status).toBe(404);
     expect((await fetch(`${base}/attach/..%2F..%2Fetc`)).status).toBe(404);
   });
 

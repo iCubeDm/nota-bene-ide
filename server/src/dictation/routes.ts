@@ -3,7 +3,7 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 import type { EventHub } from '../hub.ts';
 import { readPrefs, setWhisperPref } from '../prefs.ts';
 import { installWhisper, removeWhisper, whisperDir, whisperPhase } from './install.ts';
-import { resetTranscriber, transcribe as defaultTranscribe } from './transcribe.ts';
+import { queued, resetTranscriber, transcribe as defaultTranscribe } from './transcribe.ts';
 import { pcmFromWav, WavError } from './wav.ts';
 import { WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
 import { reportError } from '../errors.ts';
@@ -21,7 +21,10 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
 }
 
 /** An ISO 639 language code, as Whisper takes it (en, ru, yue). */
-const LANG = /^[a-z]{2,3}$/;
+export const LANG = /^[a-z]{2,3}$/;
+
+/** Whisper is installed, ready and switched on. */
+export const whisperOn = (): boolean => readPrefs().whisper === true && whisperPhase() === 'ready';
 
 /** Two minutes of 16 kHz 16-bit mono is 3.84 MB. */
 const MAX_AUDIO = 4 * 1024 * 1024;
@@ -48,7 +51,6 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
     });
   };
   const run = o.transcribe ?? defaultTranscribe;
-  let queue: Promise<unknown> = Promise.resolve();
   return {
     '/dictation': (req, res) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'method not allowed' });
@@ -75,7 +77,7 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
       json(res, 200, { ok: true });
     }),
     '/dictation/transcribe': post(async (req, res) => {
-      if (readPrefs().whisper !== true || whisperPhase() !== 'ready') return json(res, 503, { error: 'dictation is off' });
+      if (!whisperOn()) return json(res, 503, { error: 'dictation is off' });
       if (!(req.headers['content-type'] ?? '').toLowerCase().startsWith('audio/wav')) return json(res, 415, { error: 'audio/wav only' });
       const lang = new URL(req.url ?? '', 'http://x').searchParams.get('lang') || 'en';
       if (!LANG.test(lang)) return json(res, 400, { error: 'bad lang' });
@@ -87,10 +89,7 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
         if (e instanceof WavError) return json(res, 400, { error: e.message });
         throw e;
       }
-      // one at a time: the model is single-threaded and memory-heavy
-      const job = queue.then(() => run(pcm, lang));
-      queue = job.catch(() => {});
-      json(res, 200, { text: await job });
+      json(res, 200, { text: await queued(() => run(pcm, lang)) });
     }),
   };
 }

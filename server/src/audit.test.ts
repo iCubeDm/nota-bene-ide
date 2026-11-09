@@ -65,9 +65,11 @@ it('what the server told the window, without streamed text, tool input or output
   a.server({ kind: 'agent', e: { t: 'tool-update', id: 't1', text: 'API_KEY=xyz', isError: false }, ts: 1 });
   a.server({ kind: 'agent', e: { t: 'turn-end', stop: 'interrupted', secs: 42, answers: 'none', queued: 0 }, ts: 1 });
   a.server({ kind: 'user', id: 'u1', text: 'private words', ts: 1 });
+  a.server({ kind: 'voice-text', id: 'u2', text: 'private words spoken', ts: 1 });
+  a.server({ kind: 'voice-text', id: 'u3', error: 'off', ts: 1 });
   a.server({ kind: 'stats', stats: {} as never });
-  expect(lines().map((l) => [l.kind, l.tool ?? l.stop ?? l.chars ?? l.isError])).toEqual([
-    ['tool-call', 'Bash'], ['tool-update', false], ['turn-end', 'interrupted'], ['user', 13],
+  expect(lines().map((l) => [l.kind, l.tool ?? l.stop ?? l.chars ?? l.error ?? l.isError])).toEqual([
+    ['tool-call', 'Bash'], ['tool-update', false], ['turn-end', 'interrupted'], ['user', 13], ['voice-text', 20], ['voice-text', 'off'],
   ]);
   expect(raw()).not.toMatch(/private|\.env|API_KEY/);
 });

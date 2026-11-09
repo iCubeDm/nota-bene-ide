@@ -29,13 +29,24 @@ export class SendQueue {
   }
 
   /**
+   * `text`: a function for a text that comes later (a voice message's transcript), awaited in the chain.
    * `lead`: asked at the hand-over, right before the agent gets the text, for what goes in front of it (the `! cmd` runs since the
    * agent's last message); its `restore` is called when the hand-over throws, so nothing is lost with the failed send.
    */
-  push(m: { id: string; text: string; force?: boolean; images?: SendImage[]; lead?: (text: string) => { text: string; restore(): void } }): void {
+  push(m: { id: string; text: string | (() => Promise<string>); force?: boolean; images?: SendImage[]; lead?: (text: string) => { text: string; restore(): void } }): void {
     const { gen, agent, report } = this.o;
     const g = gen();
     this.chain = this.chain.then(async () => {
+      if (g !== gen()) return;
+      // a voice message's text is its transcript: the sends behind it wait for it, as they wait for a forced send's
+      // interrupt. Its failure is told by the getter (the voice-text event), not reported again.
+      let text: string;
+      try {
+        text = typeof m.text === 'string' ? m.text : await m.text();
+      } catch (e) {
+        if (g === gen()) this.o.fail(e, m.id);
+        return;
+      }
       if (g !== gen()) return;
       try {
         // a stale interrupt rejection must neither toast nor start an agent; no-op when idle
@@ -51,9 +62,9 @@ export class SendQueue {
         if (g !== gen()) return;
         const a = agent();
         this.o.running(m.id);
-        const led = m.lead?.(m.text);
+        const led = m.lead?.(text);
         try {
-          a.send({ uuid: m.id, text: led?.text ?? m.text, priority: m.force ? 'now' : 'next', ...(m.images?.length ? { images: m.images } : {}) });
+          a.send({ uuid: m.id, text: led?.text ?? text, priority: m.force ? 'now' : 'next', ...(m.images?.length ? { images: m.images } : {}) });
         } catch (e) {
           led?.restore();
           throw e;
