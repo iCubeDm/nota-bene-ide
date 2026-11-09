@@ -16,15 +16,20 @@ import '../ui/nb_icon.dart';
 import 'window_tab.dart';
 
 class Composer extends StatefulWidget {
-  const Composer({super.key, required this.tab});
+  const Composer({super.key, required this.tab, this.controller, this.focus});
   final WindowTab tab;
+
+  /// The draft, when the page needs to write into it (Reply); the composer owns one otherwise.
+  final TextEditingController? controller;
+  final FocusNode? focus;
 
   @override
   State<Composer> createState() => _ComposerState();
 }
 
 class _ComposerState extends State<Composer> {
-  final _text = TextEditingController();
+  late final _own = widget.controller == null ? TextEditingController() : null;
+  TextEditingController get _text => widget.controller ?? _own!;
   StreamSubscription<ServerEventSendRefused>? _refused;
   ({String id, String text, Set<String> comments})? _last;
 
@@ -32,13 +37,16 @@ class _ComposerState extends State<Composer> {
   void initState() {
     super.initState();
     _refused = widget.tab.refusals.listen(_onRefused);
-    _text.addListener(() => setState(() {}));
+    _text.addListener(_changed);
   }
+
+  void _changed() => setState(() {});
 
   @override
   void dispose() {
+    _text.removeListener(_changed);
     _refused?.cancel();
-    _text.dispose();
+    _own?.dispose();
     super.dispose();
   }
 
@@ -103,6 +111,7 @@ class _ComposerState extends State<Composer> {
     final batch = composeSend(
       text,
       comments,
+      widget.tab.feed,
       lang,
       // "changed" only when the current version is known (the file was opened here) and differs from the drawn one
       staleOf: (c) => switch (c.anchor) {
@@ -160,6 +169,7 @@ class _ComposerState extends State<Composer> {
                     Expanded(
                       child: TextField(
                         controller: _text,
+                        focusNode: widget.focus,
                         enabled: open,
                         minLines: 1,
                         maxLines: 6,

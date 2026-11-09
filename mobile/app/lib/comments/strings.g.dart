@@ -56,12 +56,11 @@ String usageString(String key, String lang) {
 String usageTemplate(String key, String lang, List<Object> args) =>
     _fill(usageString(key, lang), args);
 
-String _fill(String s, List<Object> args) {
-  for (final (i, a) in args.indexed) {
-    s = s.replaceAll('{$i}', '$a');
-  }
-  return s;
-}
+/// One pass: an argument that itself holds a {1} is not filled again.
+String _fill(String s, List<Object> args) => s.replaceAllMapped(
+  RegExp(r'\{(\d+)\}'),
+  (m) => '${args[int.parse(m[1]!)]}',
+);
 
 const _json = r'''
 {
@@ -905,6 +904,22 @@ const _json = r'''
    "es": "sin conexión con el servidor…",
    "pt": "sem conexão com o servidor…",
    "de": "keine Verbindung zum Server…"
+  },
+  "srcMine": {
+   "en": "my message",
+   "ru": "моё сообщение",
+   "zh": "我的消息",
+   "es": "mi mensaje",
+   "pt": "minha mensagem",
+   "de": "meine Nachricht"
+  },
+  "replyPlain": {
+   "en": "reply",
+   "ru": "ответ",
+   "zh": "回复",
+   "es": "respuesta",
+   "pt": "resposta",
+   "de": "Antwort"
   }
  },
  "batch": {
@@ -979,6 +994,54 @@ const _json = r'''
    "es": " (escala ×{0})",
    "pt": " (escala ×{0})",
    "de": " (skaliert ×{0})"
+  },
+  "srcTool": {
+   "en": "{0} command ({1})",
+   "ru": "команда {0} ({1})",
+   "zh": "{0} 命令 ({1})",
+   "es": "comando {0} ({1})",
+   "pt": "comando {0} ({1})",
+   "de": "Befehl {0} ({1})"
+  },
+  "srcAgentReply": {
+   "en": "subagent reply «{0}»",
+   "ru": "ответ субагента «{0}»",
+   "zh": "子代理回复「{0}」",
+   "es": "respuesta del subagente «{0}»",
+   "pt": "resposta do subagente «{0}»",
+   "de": "Antwort des Subagents «{0}»"
+  },
+  "srcAgentTool": {
+   "en": "{0} · subagent «{1}»",
+   "ru": "{0} · субагент «{1}»",
+   "zh": "{0} · 子代理「{1}」",
+   "es": "{0} · subagente «{1}»",
+   "pt": "{0} · subagente «{1}»",
+   "de": "{0} · Subagent «{1}»"
+  },
+  "srcToolBare": {
+   "en": "{0} command",
+   "ru": "команда {0}",
+   "zh": "{0} 命令",
+   "es": "comando {0}",
+   "pt": "comando {0}",
+   "de": "Befehl {0}"
+  },
+  "srcAgentReplyBare": {
+   "en": "subagent reply",
+   "ru": "ответ субагента",
+   "zh": "子代理回复",
+   "es": "respuesta del subagente",
+   "pt": "resposta do subagente",
+   "de": "Antwort des Subagents"
+  },
+  "srcAgentToolBare": {
+   "en": "{0} · subagent",
+   "ru": "{0} · субагент",
+   "zh": "{0} · 子代理",
+   "es": "{0} · subagente",
+   "pt": "{0} · subagente",
+   "de": "{0} · Subagent"
   }
  }
 }

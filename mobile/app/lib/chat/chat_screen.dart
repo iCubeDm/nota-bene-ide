@@ -1,15 +1,24 @@
 // One window's chat: the floating header pill (session, model, limits), a state line, the feed (newest at the bottom), and below it
 // whatever the caller puts there (the composer).
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
-import 'package:nb_protocol/nb_protocol.dart' show StopReason;
+import 'package:nb_protocol/nb_protocol.dart'
+    show AnchorSourceMessage, StopReason, TextAnchor;
 
 import '../hosts/hosts_screen.dart';
 import '../l10n/app_localizations.dart';
+import '../comments/anchor.dart';
+import '../comments/chat_anchor.dart';
+import '../comments/comment_strip.dart' show editComment;
+import '../files/file_markdown.dart';
 import '../theme.dart';
 import 'chat_header.dart';
+import 'comment_target.dart';
 import 'feed.dart';
 import 'files.dart';
 import 'markdown.dart';
+import 'message_menu.dart';
+import 'message_selection.dart';
 import 'window_tab.dart';
 
 class ChatScreen extends StatelessWidget {
@@ -21,6 +30,7 @@ class ChatScreen extends StatelessWidget {
     this.overlay,
     this.itemBuilder,
     this.onTapTitle,
+    this.onReply,
   });
 
   final WindowTab tab;
@@ -32,6 +42,9 @@ class ChatScreen extends StatelessWidget {
 
   /// Covers the feed (the one-tab rule's Work here).
   final Widget? overlay;
+
+  /// Reply in a message's menu: puts [quote] into the draft; null drops the entry's effect.
+  final void Function(String quote)? onReply;
 
   /// Overrides the default look of an item (Task 10 answers permissions in the feed); null falls back.
   final Widget? Function(BuildContext, FeedItem)? itemBuilder;
@@ -92,9 +105,16 @@ class ChatScreen extends StatelessWidget {
                               // keyed by the item, not the index: a new item shifts every index of a reversed list
                               return KeyedSubtree(
                                 key: ValueKey(feedKey(it)),
-                                child:
-                                    itemBuilder?.call(context, it) ??
-                                    FeedItemView(it),
+                                child: _Commentable(
+                                  tab: tab,
+                                  item: it,
+                                  onReply: onReply ?? (_) {},
+                                  child:
+                                      itemBuilder?.call(context, it) ??
+                                      (chatSource(it) == null
+                                          ? FeedItemView(it)
+                                          : _Marked(tab: tab, item: it)),
+                                ),
                               );
                             },
                             findChildIndexCallback: (key) {
@@ -158,10 +178,204 @@ class ChatScreen extends StatelessWidget {
   }
 }
 
+/// A commentable item with its pending comments painted: each passage highlighted with the comment's number in the
+/// strip, a whole-message comment as a badge at the top right. It listens to the comments itself and rebuilds only
+/// when the marks of this item change.
+class _Marked extends StatefulWidget {
+  const _Marked({required this.tab, required this.item});
+  final WindowTab tab;
+  final FeedItem item;
+
+  @override
+  State<_Marked> createState() => _MarkedState();
+}
+
+class _MarkedState extends State<_Marked> {
+  List<Mark> _marks = const [];
+  List<({String id, int n})> _whole = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.tab.comments.addListener(_changed);
+    _compute();
+  }
+
+  @override
+  void didUpdateWidget(_Marked old) {
+    super.didUpdateWidget(old);
+    if (old.tab != widget.tab) {
+      old.tab.comments.removeListener(_changed);
+      widget.tab.comments.addListener(_changed);
+    }
+    _compute();
+  }
+
+  @override
+  void dispose() {
+    widget.tab.comments.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    final before = (_marks, _whole);
+    _compute();
+    if (!listEquals(before.$1, _marks) || !listEquals(before.$2, _whole)) {
+      setState(() {});
+    }
+  }
+
+  String? get _id => switch (chatSource(widget.item)) {
+    AnchorSourceMessage(:final id) => id,
+    _ => null,
+  };
+
+  void _compute() {
+    final strip = widget.tab.comments.sendable;
+    final mine = [
+      for (final (i, c) in strip.indexed)
+        if (c.anchor case TextAnchor(
+          source: AnchorSourceMessage(:final id, agent: null),
+        ) when id == _id)
+          (c: c, a: c.anchor as TextAnchor, n: i + 1),
+    ];
+    if (mine.isEmpty) {
+      _marks = const [];
+      _whole = const [];
+      return;
+    }
+    final text = chatText(widget.item).text;
+    final marks = <Mark>[], whole = <({String id, int n})>[];
+    for (final m in mine) {
+      final at = resolveAnchor(m.a, text);
+      if (at == null) continue;
+      if (at.start == 0 && at.end == text.length) {
+        whole.add((id: m.c.id, n: m.n));
+      } else {
+        marks.add((
+          start: at.start,
+          end: at.end,
+          id: m.c.id,
+          sent: false,
+          n: m.n,
+        ));
+      }
+    }
+    _marks = marks;
+    _whole = whole;
+  }
+
+  void _open(String id) {
+    final x = widget.tab.comments.all.where((c) => c.id == id).firstOrNull;
+    if (x != null) editComment(context, widget.tab, x);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final view = FeedItemView(widget.item, marks: _marks, onMark: _open);
+    if (_whole.isEmpty) return view;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        view,
+        Positioned(
+          top: 0,
+          right: 0,
+          child: Row(
+            children: [
+              for (final w in _whole)
+                MarkBadge(id: w.id, n: w.n, onTap: () => _open(w.id)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A long press on a commentable item (a user message, a final reply) opens its menu; others pass through. "Select
+/// text" in the menu puts this one item into selection mode until a tap lands outside it.
+class _Commentable extends StatefulWidget {
+  const _Commentable({
+    required this.tab,
+    required this.item,
+    required this.onReply,
+    required this.child,
+  });
+  final WindowTab tab;
+  final FeedItem item;
+  final void Function(String quote) onReply;
+  final Widget child;
+
+  @override
+  State<_Commentable> createState() => _CommentableState();
+}
+
+class _CommentableState extends State<_Commentable> {
+  bool _selecting = false;
+  Offset? _from;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    if (chatSource(item) == null) return widget.child;
+    if (_selecting) {
+      return CommentTarget(
+        tab: widget.tab,
+        item: item,
+        child: SelectableMessage(
+          tab: widget.tab,
+          item: item,
+          from: _from,
+          onDone: () => setState(() => _selecting = false),
+        ),
+      );
+    }
+    return CommentTarget(
+      tab: widget.tab,
+      item: item,
+      child: GestureDetector(
+        onLongPressStart: (d) {
+          final box = context.findRenderObject() as RenderBox;
+          // kept in the item's own coordinates: the item may move before "Select text" is chosen
+          final at = box.globalToLocal(d.globalPosition);
+          final rect = box.localToGlobal(Offset.zero) & box.size;
+          showMessageMenu(
+            context,
+            tab: widget.tab,
+            item: item,
+            itemRect: rect,
+            onSelectText: () => setState(() {
+              _selecting = true;
+              _from = at;
+            }),
+            onReply: widget.onReply,
+          );
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 /// The default look of one feed item.
 class FeedItemView extends StatelessWidget {
-  const FeedItemView(this.item, {super.key});
+  const FeedItemView(
+    this.item, {
+    super.key,
+    this.listenerAt,
+    this.marks = const [],
+    this.onMark = _noMark,
+  });
   final FeedItem item;
+
+  /// Commented passages to paint (and number) in the text; a tap on one calls [onMark] with the comment's id.
+  final List<Mark> marks;
+  final void Function(String id) onMark;
+  static void _noMark(String id) {}
+
+  /// In selection mode: the Markdown is drawn block by block, each block's selection reported to its notifier.
+  final SelectionListenerNotifier Function(int block)? listenerAt;
 
   @override
   Widget build(BuildContext context) {
@@ -204,16 +418,35 @@ class FeedItemView extends StatelessWidget {
                         color: c.primary.withValues(alpha: .45),
                       ),
                     ),
-                    child: SelectableText(
-                      text,
-                      style: TextStyle(color: c.foreground),
-                    ),
+                    // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
+                    child: listenerAt == null && marks.isEmpty
+                        ? NbMarkdown(
+                            userMarkdownSource(text),
+                            blockSyntaxes: userBlockSyntaxes,
+                            inlineSyntaxes: userInlineSyntaxes,
+                            softLineBreak: true,
+                          )
+                        : FileMarkdown(
+                            text: text,
+                            listenerAt: listenerAt,
+                            marks: marks,
+                            onMark: onMark,
+                            parse: parseUserMessage,
+                            softLineBreak: true,
+                          ),
                   ),
                 ),
               ),
       AssistantItem(:final text) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: NbMarkdown(text),
+        child: listenerAt == null && marks.isEmpty
+            ? NbMarkdown(text)
+            : FileMarkdown(
+                text: text,
+                listenerAt: listenerAt,
+                marks: marks,
+                onMark: onMark,
+              ),
       ),
       ToolItem() => ToolLine(item as ToolItem),
       DoneItem(:final secs, :final status, :final error) => line(

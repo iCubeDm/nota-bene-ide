@@ -3,27 +3,102 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../comments/anchor.dart';
+import '../comments/chat_anchor.dart';
+import '../comments/comment_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'code.dart';
+import 'feed.dart';
+import 'window_tab.dart';
 
-void openCode(BuildContext context, String code, String? lang) {
+/// Opens [code] full screen. With the [tab] and the [item] it belongs to, a selection in it can be commented.
+void openCode(
+  BuildContext context,
+  String code,
+  String? lang, {
+  WindowTab? tab,
+  FeedItem? item,
+  int? ordinal,
+}) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => CodeScreen(code: code, lang: lang),
+      builder: (_) => CodeScreen(
+        code: code,
+        lang: lang,
+        tab: tab,
+        item: item,
+        ordinal: ordinal,
+      ),
     ),
   );
 }
 
-class CodeScreen extends StatelessWidget {
-  const CodeScreen({super.key, required this.code, this.lang});
+class CodeScreen extends StatefulWidget {
+  const CodeScreen({
+    super.key,
+    required this.code,
+    this.lang,
+    this.tab,
+    this.item,
+    this.ordinal,
+  });
 
   final String code;
   final String? lang;
 
+  /// The window and the message the code is from: a selection becomes a comment on the message.
+  final WindowTab? tab;
+  final FeedItem? item;
+
+  /// Which of the message's code blocks this is (0-based): the selection is looked for inside that one.
+  final int? ordinal;
+
+  @override
+  State<CodeScreen> createState() => _CodeScreenState();
+}
+
+class _CodeScreenState extends State<CodeScreen> {
+  String _selected = '';
+
+  String get _text => widget.code.endsWith('\n')
+      ? widget.code.substring(0, widget.code.length - 1)
+      : widget.code;
+
+  /// The selection in the message's text: found inside this code block's own place there, so the same words in the
+  /// prose around it are not taken for it.
+  Future<void> _comment() async {
+    final tab = widget.tab, item = widget.item;
+    final source = item == null ? null : chatSource(item);
+    final r = item == null ? null : chatText(item);
+    if (tab == null || r == null || source == null) return;
+    final ord = widget.ordinal;
+    final block = ord == null
+        ? locateSelection(r, _text, null)
+        : chatCodeRange(item!, ord);
+    final at = locateSelection(r, _selected, block?.start, within: block);
+    if (at == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).commentNotPlaced)),
+      );
+      return;
+    }
+    final res = await showCommentSheet(
+      context,
+      quote: r.text.substring(at.start, at.end),
+    );
+    if (res is! SheetSave) return;
+    tab.comments.add(
+      makeAnchor(source, r.text, at.start, at.end),
+      res.text,
+      res.label,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final code = widget.code, lang = widget.lang;
     final c = Theme.of(context).extension<NbColors>()!;
     final t = AppLocalizations.of(context);
     final text = code.endsWith('\n')
@@ -49,9 +124,9 @@ class CodeScreen extends StatelessWidget {
                   icon: NbIcon(NbGlyph.close, color: c.foreground),
                   onPressed: () => Navigator.of(context).maybePop(),
                 ),
-                if (lang != null && lang!.isNotEmpty)
+                if (lang != null && lang.isNotEmpty)
                   Text(
-                    lang!,
+                    lang,
                     style: TextStyle(color: c.foreground, fontSize: 14),
                   ),
                 const SizedBox(width: 8),
@@ -62,6 +137,12 @@ class CodeScreen extends StatelessWidget {
                     style: TextStyle(color: c.mutedFg, fontSize: 12),
                   ),
                 ),
+                if (widget.tab != null && widget.item != null)
+                  IconButton(
+                    tooltip: t.comment,
+                    icon: NbIcon(NbGlyph.comments, color: c.foreground),
+                    onPressed: _selected.trim().isEmpty ? null : _comment,
+                  ),
                 IconButton(
                   tooltip: t.copy,
                   icon: NbIcon(NbGlyph.copy, color: c.foreground),
@@ -71,6 +152,8 @@ class CodeScreen extends StatelessWidget {
             ),
             Expanded(
               child: SelectionArea(
+                onSelectionChanged: (s) =>
+                    setState(() => _selected = s?.plainText ?? ''),
                 child: InteractiveViewer(
                   constrained: false,
                   minScale: 0.5,

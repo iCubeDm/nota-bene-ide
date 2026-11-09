@@ -24,6 +24,7 @@ export const WEB_KEYS: readonly string[] = [
   'h5', 'week',
   ...ALL_MODES.flatMap((m) => [`mode_${m}`, `mode_${m}_desc`]),
   'modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip', 'clearFail', 'working', 'offline',
+  'srcMine', 'replyPlain',
 ];
 /**
  * The batch's functions, as templates: each is called with the placeholders `{0}`, `{1}` for its arguments (a list
@@ -32,6 +33,23 @@ export const WEB_KEYS: readonly string[] = [
  */
 const TEMPLATE_KEYS: Record<string, ('n' | 'list')[]> = {
   imgLabel: ['n'], imgLabelC: ['n', 'n'], imgRef: ['list'], imgRefMedia: ['list'], filesLine: ['list'], scaledSfx: ['n'],
+  srcTool: ['n', 'n'], srcAgentReply: ['n'], srcAgentTool: ['n', 'n'],
+};
+/**
+ * The forms of the source names that drop a part when it is empty (a tool with no argument, a subagent with no name),
+ * as templates of the remaining argument: key → [the function, its arguments with '' where the part is empty].
+ */
+const BARE_KEYS: Record<string, [string, string[]]> = {
+  srcToolBare: ['srcTool', ['{0}', '']],
+  srcAgentReplyBare: ['srcAgentReply', ['']],
+  srcAgentToolBare: ['srcAgentTool', ['{0}', '']],
+};
+const bare = (d: Record<string, unknown>, key: string, args: string[]): string => {
+  const f = d[key];
+  if (typeof f !== 'function') throw new Error(`web i18n: ${key} is not a function`);
+  const out = (f as (...a: string[]) => unknown)(...args);
+  if (typeof out !== 'string') throw new Error(`web i18n: ${key} does not template`);
+  return out;
 };
 
 const template = (d: Record<string, unknown>, key: string, kinds: ('n' | 'list')[]): string => {
@@ -66,6 +84,7 @@ export function mobileStrings(): string {
     batch: Object.fromEntries([
       ...BATCH_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))]),
       ...Object.entries(TEMPLATE_KEYS).map(([k, kinds]) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, template(d, k, kinds)]))]),
+      ...Object.entries(BARE_KEYS).map(([k, [fn, args]]) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, bare(d, fn, args)]))]),
     ]),
   };
   const json = JSON.stringify(data, null, 1);
@@ -128,12 +147,11 @@ String usageString(String key, String lang) {
 String usageTemplate(String key, String lang, List<Object> args) =>
     _fill(usageString(key, lang), args);
 
-String _fill(String s, List<Object> args) {
-  for (final (i, a) in args.indexed) {
-    s = s.replaceAll('{\$i}', '\$a');
-  }
-  return s;
-}
+/// One pass: an argument that itself holds a {1} is not filled again.
+String _fill(String s, List<Object> args) => s.replaceAllMapped(
+  RegExp(r'\\{(\\d+)\\}'),
+  (m) => '\${args[int.parse(m[1]!)]}',
+);
 
 const _json = r'''
 ${json}
