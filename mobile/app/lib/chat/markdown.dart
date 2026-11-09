@@ -1,4 +1,6 @@
 // The chat's Markdown: GitHub-flavoured, with highlighted code blocks, KaTeX ($…$ and $$…$$) and Mermaid as images.
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
@@ -108,6 +110,18 @@ class _PreBuilder extends MarkdownElementBuilder {
   }
 }
 
+/// The syntaxes of the chat's Markdown, shared with the file view and its anchors.
+final mathBlockSyntaxes = <md.BlockSyntax>[_BlockMath()];
+final mathInlineSyntaxes = <md.InlineSyntax>[_InlineMath()];
+
+/// [text] parsed as [NbMarkdown] parses it (flutter_markdown_plus: GitHub-flavoured, HTML not encoded).
+List<md.Node> parseMarkdown(String text) => md.Document(
+  blockSyntaxes: mathBlockSyntaxes,
+  inlineSyntaxes: mathInlineSyntaxes,
+  extensionSet: md.ExtensionSet.gitHubFlavored,
+  encodeHtml: false,
+).parseLines(const LineSplitter().convert(text));
+
 class NbMarkdown extends StatelessWidget {
   const NbMarkdown(this.text, {super.key});
   final String text;
@@ -119,8 +133,8 @@ class NbMarkdown extends StatelessWidget {
     return MarkdownBody(
       data: text,
       extensionSet: md.ExtensionSet.gitHubFlavored,
-      blockSyntaxes: [_BlockMath()],
-      inlineSyntaxes: [_InlineMath()],
+      blockSyntaxes: mathBlockSyntaxes,
+      inlineSyntaxes: mathInlineSyntaxes,
       builders: {
         'pre': _PreBuilder(),
         'math': _MathBuilder(display: false),
