@@ -66,9 +66,9 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   const report = (where: string, e: unknown) => reportError(hub, where, e);
   const attachments = o.attachments ?? new AttachmentStore({ dir: path.join(stateDir(), 'attachments') });
   const voices = o.voices ?? new VoiceIndex({ file: path.join(stateDir(), 'voice.jsonl') });
-  const speech = o.speech ?? (async (id: string, lang: string) => {
+  const speech = o.speech ?? (async (id: string, lang: string, alive: () => boolean) => {
     if (!whisperOn()) throw new VoiceFailure('off');
-    return transcribeVoice(attachments, id, lang);
+    return transcribeVoice(attachments, id, lang, undefined, alive);
   });
   const titles: TitleTracker = new TitleTracker({
     lookup: async (id, dir) => titleOf(await backend.sessionInfo(id, dir)),
@@ -251,7 +251,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     const g = slot.gen;
     return async () => {
       try {
-        const text = (await speech(voiceId, lang)).trim();
+        const text = (await speech(voiceId, lang, () => g === slot.gen)).trim();
         if (!text) throw new VoiceFailure('empty');
         if (g === slot.gen) hub.emit({ kind: 'voice-text', id, text });
         // said, not typed: a leading slash must not run a command behind trackedCommand's back (a zero-width space)

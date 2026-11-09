@@ -27,7 +27,7 @@ export type SessionOptions = {
   /** which user messages were voice messages (default `<stateDir>/voice.jsonl`) */
   voices?: import('../voice/index.ts').VoiceIndex;
   /** a stored recording to text (tests stub it); default: the host's Whisper, VoiceFailure 'off' while it is off */
-  speech?: (id: string, lang: string) => Promise<string>;
+  speech?: (id: string, lang: string, alive: () => boolean) => Promise<string>;
   /** `"idleCompaction": false` in Claude Code's settings (tests stub it) */
   idleOffInSettings?: () => boolean;
 };

@@ -7,11 +7,11 @@ const PART_MIN = 30 * RATE, PART_MAX = 60 * RATE;
 const FRAME = RATE / 20;
 const WINDOW = 5;
 
-/** Views into `pcm` (16 kHz mono), nothing copied; a recording up to a minute is returned as it is. */
-export function splitPcm(pcm: Float32Array): Float32Array[] {
+/** Views into `pcm` (16 kHz mono, floats or 16-bit samples), nothing copied; a recording up to a minute is returned as it is. */
+export function splitPcm<T extends Float32Array | Int16Array>(pcm: T): T[] {
   const n = pcm.length;
   if (n <= PART_MAX) return [pcm];
-  const parts: Float32Array[] = [];
+  const parts: T[] = [];
   let start = 0;
   while (n - start > PART_MAX) {
     // the last part keeps at least 30 s too: Whisper makes words up for a short tail of silence
@@ -19,15 +19,15 @@ export function splitPcm(pcm: Float32Array): Float32Array[] {
       ? Math.min(Math.max(n - PART_MIN, start + PART_MIN), start + PART_MAX)
       : start + PART_MAX;
     const end = quietest(pcm, start + PART_MIN, hi);
-    parts.push(pcm.subarray(start, end));
+    parts.push(pcm.subarray(start, end) as T);
     start = end;
   }
-  parts.push(pcm.subarray(start));
+  parts.push(pcm.subarray(start) as T);
   return parts;
 }
 
 /** The middle of the quietest window in [lo, hi): the later one of equals, for fewer parts. */
-function quietest(pcm: Float32Array, lo: number, hi: number): number {
+function quietest(pcm: Float32Array | Int16Array, lo: number, hi: number): number {
   const frames = Array.from({ length: Math.floor((hi - lo) / FRAME) }, (_, f) => {
     let sum = 0;
     for (let i = lo + f * FRAME; i < lo + (f + 1) * FRAME; i++) sum += Math.abs(pcm[i]!);

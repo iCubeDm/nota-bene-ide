@@ -4,7 +4,7 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 import { VOICE_MAX_MS } from '@nota-bene/shared';
 import { readCapped, refuseTooLarge, type AttachmentStore } from '../attachments.ts';
 import { LANG, whisperOn } from '../dictation/routes.ts';
-import { pcmFromWav, WavError } from '../dictation/wav.ts';
+import { samplesOf, WavError } from '../dictation/wav.ts';
 import { reportError } from '../errors.ts';
 import type { EventHub } from '../hub.ts';
 import { parseRange } from '../range.ts';
@@ -73,8 +73,8 @@ export function voiceRoutes(o: { hub: EventHub; store: AttachmentStore; on?: () 
         try {
           const bytes = await readCapped(req, MAX_VOICE_BYTES);
           if (bytes === null) return refuseTooLarge(req, res, 'recording too large');
-          let pcm: Float32Array;
-          try { pcm = pcmFromWav(bytes); } catch (e) {
+          let pcm: Int16Array;
+          try { pcm = samplesOf(bytes); } catch (e) {
             if (e instanceof WavError) return json(res, 400, { error: e.message });
             throw e;
           }
