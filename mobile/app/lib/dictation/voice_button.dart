@@ -285,6 +285,8 @@ class _VoiceButtonState extends State<VoiceButton> {
       case DictationLevel():
         break;
       case DictationWorking(:final part, :final parts):
+        // the recording is over, also when the recorder's cap ended it: typing from now on keeps the session
+        _stopping = true;
         _meter.progress(part, parts);
         _set(VoiceState.working);
         setState(() {});

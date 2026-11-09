@@ -59,6 +59,11 @@ void main() {
     expect(seconds(parts.last), lessThanOrEqualTo(60));
   });
 
+  test('the last part is never a short tail: 61 s goes as two halves', () {
+    final parts = splitWav(recording(61, [(60.5, 61)]));
+    expect(parts.map(seconds), everyElement(greaterThanOrEqualTo(30)));
+  });
+
   test('each part is a WAV of its own: 16 kHz 16-bit mono', () {
     for (final p in splitWav(recording(90, [(50, 50.5)]))) {
       final b = ByteData.sublistView(p);

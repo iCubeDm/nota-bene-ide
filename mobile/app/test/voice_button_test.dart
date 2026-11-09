@@ -208,6 +208,25 @@ void main() {
     expect(c.selection.baseOffset, 'Fix words later'.length);
   });
 
+  testWidgets('typing while the parts of a capped recording are transcribed '
+      'keeps the session', (t) async {
+    final c = await pump(t, text: 'Fix ');
+    await lockVoice(t);
+    // the recorder stopped itself at the cap: the button never pressed stop
+    fake.last.add(const DictationWorking(part: 1, parts: 2));
+    await t.pump();
+    c.value = const TextEditingValue(
+      text: 'Fix later',
+      selection: TextSelection.collapsed(offset: 9),
+    );
+    fake.last.add(const DictationWorking(part: 2, parts: 2));
+    fake.last.add(const DictationFinal('words'));
+    fake.last.add(const DictationEnd());
+    await t.pump();
+    expect(fake.calls, isNot(contains('cancel')));
+    expect(c.text, 'Fix words later');
+  });
+
   testWidgets('a space separates words from text on both sides', (t) async {
     final c = await pump(t, text: 'Fix theheader');
     c.selection = const TextSelection.collapsed(offset: 7);

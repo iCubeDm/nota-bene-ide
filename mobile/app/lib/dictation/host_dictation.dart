@@ -22,6 +22,8 @@ Duration _timeoutFor(Uint8List wav) =>
     _postTimeout +
     Duration(milliseconds: (wav.length - 44).clamp(0, 1 << 30) ~/ 32 * 2);
 
+const _retryAfter = Duration(seconds: 2);
+
 enum _Phase { idle, recording, posting, done }
 
 class HostDictation implements Dictation {
@@ -119,8 +121,9 @@ class HostDictation implements Dictation {
     }
   }
 
-  // One part to the window's Whisper, tried once more after a failure other than 503 or the timeout: a hung host
-  // would only queue the second try behind the first. Null when it did not answer.
+  // One part to the window's Whisper, tried once more (2 s later after a dropped connection) after a failure other
+  // than 503 or the timeout: a hung host would only queue the second try behind the first. Null when it did not
+  // answer.
   Future<({int status, String text})?> _post(Uint8List wav) async {
     for (var tries = 0; ; tries++) {
       final http = _http();
@@ -141,6 +144,8 @@ class HostDictation implements Dictation {
         return null;
       } catch (_) {
         if (tries > 0) return null;
+        // a dropped connection through the relay comes back in a moment, not at once
+        await Future<void>.delayed(_retryAfter);
       }
       if (_phase != _Phase.posting) return null;
     }

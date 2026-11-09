@@ -623,6 +623,28 @@ void main() {
       expect(events.whereType<DictationError>(), isEmpty);
     });
 
+    testWidgets('a dropped connection is tried again after a moment', (
+      t,
+    ) async {
+      var posts = 0;
+      final d = HostDictation(
+        () => (m, p, {headers, body}) async {
+          if (posts++ == 0) throw StreamClosed(1000);
+          return answer(200, '{"text":"ok"}');
+        },
+      );
+      final events = <DictationEvent>[];
+      d.listen('en').listen(events.add);
+      await t.pump();
+      unawaited(d.stop());
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 500));
+      expect(posts, 1);
+      await t.pump(const Duration(seconds: 2));
+      expect(posts, 3);
+      expect(events.whereType<DictationFinal>().single.text, 'ok ok');
+    });
+
     test(
       'a part failing twice: the parts before it are kept, the cut is told',
       () async {

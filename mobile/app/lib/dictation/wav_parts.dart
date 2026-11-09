@@ -18,7 +18,11 @@ List<Uint8List> splitWav(Uint8List wav) {
   final parts = <Uint8List>[];
   var start = 0;
   while (pcm - start > _partMax) {
-    final end = _quietest(data, start + _partMin, start + _partMax);
+    // the last part keeps at least 30 s too: Whisper makes words up for a short tail of silence
+    final hi = pcm - start < _partMax + _partMin
+        ? (pcm - _partMin).clamp(start + _partMin, start + _partMax)
+        : start + _partMax;
+    final end = _quietest(data, start + _partMin, hi);
     parts.add(_wav(wav, start, end));
     start = end;
   }
