@@ -31,7 +31,7 @@ class SelectableMessage extends StatefulWidget {
   final WindowTab tab;
   final FeedItem item;
 
-  /// Where the press was (global): the word there starts selected; null selects all.
+  /// Where the press was, in the message's own coordinates: the word there starts selected; null selects all.
   final Offset? from;
 
   /// Selection mode ends: a tap outside, or a comment made.
@@ -79,7 +79,8 @@ class _SelectableMessageState extends State<SelectableMessage> {
 
   /// All of the message selected once the area has taken its text (a few frames in; until then ask again), then the
   /// word under the press: the area's own long press is replayed at that point, so the word, the handles and the
-  /// toolbar come as they do after a real one. Where no word is there, all stays selected.
+  /// toolbar come as they do after a real one (a select-word event sent to the area's handler selects the word but
+  /// brings neither: showing the toolbar is private to the region). Where no word is there, all stays selected.
   void _start([int tries = 0]) {
     final region = _area.currentState?.selectableRegion;
     if (!mounted || region == null) return;
@@ -88,8 +89,12 @@ class _SelectableMessageState extends State<SelectableMessage> {
       if (tries < 30) _after(1, () => _start(tries + 1));
       return;
     }
-    final at = widget.from;
-    if (at == null) return;
+    // the press as it was in the message, found again in the message's box as it is now: the message may have moved
+    // since the menu opened. Outside the box, all stays selected.
+    final rel = widget.from, box = context.findRenderObject();
+    if (rel == null || box is! RenderBox || !box.hasSize) return;
+    if (!(Offset.zero & box.size).contains(rel)) return;
+    final at = box.localToGlobal(rel);
     region.clearSelection();
     final down = PointerDownEvent(pointer: _pointer, position: at);
     GestureBinding.instance.handlePointerEvent(down);

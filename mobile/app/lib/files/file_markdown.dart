@@ -1,6 +1,8 @@
 // A Markdown file as the chat draws it, built from our own parse so the comments' ranges can be marked in it: each
 // range of the rendered text (comments/anchor.dart) is split out of its text nodes and wrapped in a link to the mark,
 // whose style paints it.
+import 'dart:convert';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -16,8 +18,33 @@ typedef Mark = ({int start, int end, String id, bool sent, int n});
 
 const _markScheme = 'nbmark:';
 
-/// Wraps each mark's characters of [r]'s runs in `a(nbmark|nbsent(text))`. Math and code blocks are not split: their
-/// builders draw from the whole text, so a mark there is not painted (the comment itself is unaffected).
+/// The attribute of a `pre` element that carries the marks inside it: JSON `[[from, to, id, sent, n], …]`, offsets
+/// into the block's text.
+const codeMarksAttr = 'nbmarks';
+
+/// The offset of text node [target] in [e]'s text, or -1.
+int _offsetIn(md.Element e, md.Node target) {
+  var at = 0;
+  int walk(md.Node n) {
+    if (identical(n, target)) return at;
+    if (n is md.Text) {
+      at += n.text.length;
+    } else if (n is md.Element) {
+      for (final c in n.children ?? const <md.Node>[]) {
+        final r = walk(c);
+        if (r >= 0) return r;
+      }
+    }
+    return -1;
+  }
+
+  return walk(e);
+}
+
+/// Wraps each mark's characters of [r]'s runs in `a(nbmark|nbsent(text))`. A code block is not split: its builder
+/// draws from the whole text, so the marks inside it go to the `pre` element as its [codeMarksAttr] (the builder
+/// paints them and shows the badge in its bar). Math is not split either, so a mark there is not painted (the comment
+/// itself is unaffected).
 void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
   if (marks.isEmpty) return;
   final parents = <md.Node, md.Element>{};
@@ -30,17 +57,18 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
 
   final root = md.Element('root', nodes);
   index(root);
-  bool inCode(md.Node n) {
+  md.Element? preOf(md.Node n) {
     for (var p = parents[n]; p != null; p = parents[p]) {
-      if (p.tag == 'pre') return true;
+      if (p.tag == 'pre') return p;
     }
-    return false;
+    return null;
   }
 
   final badged = <String>{};
+  final inPre = <md.Element, List<List<Object>>>{};
   for (final run in r.runs) {
     final node = run.node;
-    if (node is! md.Text || inCode(node)) continue;
+    if (node is! md.Text) continue;
     final raw = node.text;
     // raw boundaries where a mark starts or ends inside this node
     final cuts = <({int from, int to, Mark m})>[];
@@ -58,6 +86,23 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
     }
     if (cuts.isEmpty) continue;
     cuts.sort((a, b) => a.from.compareTo(b.from));
+    final pre = preOf(node);
+    if (pre != null) {
+      final base = _offsetIn(pre, node);
+      var end = 0;
+      for (final c in cuts) {
+        if (c.from < end) continue; // overlapping marks: the first one paints
+        (inPre[pre] ??= []).add([
+          base + c.from,
+          base + c.to,
+          c.m.id,
+          c.m.sent ? 1 : 0,
+          c.m.n > 0 && badged.add(c.m.id) ? c.m.n : 0,
+        ]);
+        end = c.to;
+      }
+      continue;
+    }
     final parts = <md.Node>[];
     var pos = 0;
     for (final c in cuts) {
@@ -82,6 +127,9 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
     parent.children!
       ..removeAt(at)
       ..insertAll(at, parts);
+  }
+  for (final e in inPre.entries) {
+    e.key.attributes[codeMarksAttr] = jsonEncode(e.value);
   }
 }
 
@@ -222,7 +270,7 @@ class _FileMarkdownState extends State<FileMarkdown>
     );
     final nodes = widget.parse(widget.text);
     wrapMarks(nodes, renderedText(nodes), widget.marks);
-    final builders = markdownBuilders()
+    final builders = markdownBuilders(onMark: widget.onMark)
       ..['nbbadge'] = _BadgeBuilder(widget.onMark);
     List<Widget> build(md.Node n) => MarkdownBuilder(
       delegate: this,

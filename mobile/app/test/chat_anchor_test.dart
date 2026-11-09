@@ -86,5 +86,60 @@ void main() {
       expect(whereOfChat('a1', feed, 'en'), 'reply');
       expect(whereOfChat('old', feed, 'en'), 'chat');
     });
+
+    group('desktop names for tool, plan and subagent sources', () {
+      final long = 'x' * 70;
+      final f = Feed()
+        ..items = [
+          ToolItem('t1', 'Bash', 'npm test', {}, sub: false),
+          ToolItem('t2', 'Bash', long, {}, sub: false),
+          ToolItem('t3', 'Task', 'go', {
+            'description': 'Find the bug',
+          }, sub: false),
+          ToolItem('t4', 'Bash', '', {}, sub: false),
+          PermissionItem('p1', 'ExitPlanMode', {}, null),
+        ];
+      test('a tool call: name and argument, the argument cut to 60', () {
+        expect(whereOfChat('tool:t1', f, 'en'), 'Bash command (npm test)');
+        expect(whereOfChat('tool:t2', f, 'en'), 'Bash command (${'x' * 60}…)');
+        expect(whereOfChat('tool:t4', f, 'en'), 'Bash command');
+        expect(whereOfChat('tool:t1', f, 'ru'), 'команда Bash (npm test)');
+        expect(whereOfChat('tool:nope', f, 'en'), 'chat');
+      });
+      test('a plan is named by the plan mode when its permission is there', () {
+        expect(whereOfChat('plan:p1', f, 'en'), 'Plan');
+        expect(whereOfChat('plan:p1', f, 'ru'), 'План');
+        expect(whereOfChat('plan:gone', f, 'en'), 'chat');
+      });
+      test('a subagent: reply, action, and the fallbacks', () {
+        expect(
+          whereOfChat('m1', f, 'en', agent: 't3'),
+          'subagent reply «Find the bug»',
+        );
+        expect(
+          whereOfChat('tool:t1', f, 'en', agent: 't3'),
+          'Bash command (npm test) · subagent «Find the bug»',
+        );
+        // no name known: the bare forms; an action the feed lacks is named as a reply
+        expect(whereOfChat('m1', f, 'en', agent: 'zz'), 'subagent reply');
+        expect(
+          whereOfChat('tool:t1', f, 'en', agent: 'zz'),
+          'Bash command (npm test) · subagent',
+        );
+        expect(
+          whereOfChat('tool:nope', f, 'en', agent: 't3'),
+          'subagent reply «Find the bug»',
+        );
+        expect(
+          whereOfChat('m1', f, 'ru', agent: 't3'),
+          'ответ субагента «Find the bug»',
+        );
+      });
+      test('an argument holding {1} is not filled twice', () {
+        final g = Feed()
+          ..items = [ToolItem('t', 'Bash', r'echo ${1}', {}, sub: false)];
+        expect(whereOfChat('tool:t', g, 'en'), r'Bash command (echo ${1})');
+      });
+    });
   });
 }

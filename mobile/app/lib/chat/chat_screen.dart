@@ -336,8 +336,9 @@ class _CommentableState extends State<_Commentable> {
       item: item,
       child: GestureDetector(
         onLongPressStart: (d) {
-          final at = d.globalPosition;
           final box = context.findRenderObject() as RenderBox;
+          // kept in the item's own coordinates: the item may move before "Select text" is chosen
+          final at = box.globalToLocal(d.globalPosition);
           final rect = box.localToGlobal(Offset.zero) & box.size;
           showMessageMenu(
             context,

@@ -49,3 +49,9 @@ it('the mobile strings carry the mode and clear texts of every provider', () => 
   for (const id of ALL_MODES) expect(out).toContain(`"mode_${id}_desc": {`);
   for (const k of ['modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip']) expect(out).toContain(`"${k}": {`);
 });
+
+it('the mobile strings carry the source names of an action and a subagent, with their bare forms', () => {
+  const out = mobileStrings();
+  for (const k of ['srcTool', 'srcToolBare', 'srcAgentReply', 'srcAgentReplyBare', 'srcAgentTool', 'srcAgentToolBare']) expect(out).toContain(`"${k}": {`);
+  expect(out).toContain(JSON.stringify(ru.srcAgentReply('')));
+});

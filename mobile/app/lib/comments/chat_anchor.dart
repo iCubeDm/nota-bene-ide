@@ -29,6 +29,44 @@ RenderedText chatText(FeedItem it) => switch (it) {
   _ => renderedText(const []),
 };
 
+/// The part of [chatText] the [ordinal]th code block of [it] covers (0-based, the order the blocks are in), or null.
+({int start, int end})? chatCodeRange(FeedItem it, int ordinal) {
+  final nodes = switch (it) {
+    AssistantItem(:final text) => parseMarkdown(text),
+    UserItem(:final text) => _parseUser(_general(text)),
+    _ => const <md.Node>[],
+  };
+  md.Element? pre;
+  void find(md.Node n) {
+    if (pre != null || n is! md.Element) return;
+    if (n.tag == 'pre' && n.attributes[codeOrdinalAttr] == '$ordinal') {
+      pre = n;
+      return;
+    }
+    n.children?.forEach(find);
+  }
+
+  nodes.forEach(find);
+  if (pre == null) return null;
+  final inside = <md.Node>{};
+  void collect(md.Node n) {
+    if (n is md.Text) inside.add(n);
+    if (n is md.Element) n.children?.forEach(collect);
+  }
+
+  collect(pre!);
+  final r = renderedText(nodes);
+  int? start, end;
+  for (final run in r.runs) {
+    if (!inside.contains(run.node)) continue;
+    start = start == null ? run.start : (run.start < start ? run.start : start);
+    end = end == null
+        ? run.map.last
+        : (run.map.last > end ? run.map.last : end);
+  }
+  return start == null || end == null ? null : (start: start, end: end);
+}
+
 /// The raw text of [it] a person copies or quotes: a reply's Markdown source, a user message without its batch.
 String chatRaw(FeedItem it) => switch (it) {
   AssistantItem(:final text) => text,
@@ -42,6 +80,7 @@ String userMarkdownSource(String text) => _escapeMentions(_general(text));
 final userBlockSyntaxes = <md.BlockSyntax>[
   nbBlockSyntaxes.first,
   _TypedHtmlBlock(),
+  ...nbCodeSyntaxes,
 ];
 final userInlineSyntaxes = <md.InlineSyntax>[
   nbInlineSyntaxes.first,
@@ -102,10 +141,59 @@ List<md.Node> _parseUser(String text) => md.Document(
   encodeHtml: false,
 ).parseLines(const LineSplitter().convert(_escapeMentions(text)));
 
-/// The batch's name for the place of a message, as `selectReplyLabel(…, plain)` gives it: "my message" for the
-/// user's, "reply" for a final reply (no number: the quote is the locator), "chat" for one the feed no longer holds
-/// (compacted away, or from before "show earlier").
-String whereOfChat(String messageId, Feed feed, String lang) {
+const _toolSrc = 'tool:';
+const _argCut = 60;
+
+/// The batch's name for the place of a source, as `whereOf` / `selectReplyLabel(…, plain)` give it: "my message" for
+/// the user's, "reply" for a final reply (no number: the quote is the locator), "Bash command (npm test)" for an
+/// action (the argument cut to 60), the plan mode's name for `plan:<id>` of a permission in the feed, and the
+/// subagent forms for a source in [agent]'s conversation; "chat" for one the feed no longer holds (compacted away, or
+/// from before "show earlier"). The phone holds no subagent's own feed: an action is looked for in the chat's, and
+/// a subagent is named by its Agent call's description there, as the desktop does after a reload with its tab closed.
+String whereOfChat(String messageId, Feed feed, String lang, {String? agent}) {
+  String fill(String key, List<Object> args) => batchTemplate(key, lang, args);
+  String? tool() {
+    if (!messageId.startsWith(_toolSrc)) return null;
+    final id = messageId.substring(_toolSrc.length);
+    for (final it in feed.items) {
+      if (it is ToolItem && it.id == id) {
+        final arg = it.arg.length > _argCut
+            ? '${it.arg.substring(0, _argCut)}…'
+            : it.arg;
+        return arg.isEmpty
+            ? fill('srcToolBare', [it.name])
+            : fill('srcTool', [it.name, arg]);
+      }
+    }
+    return null;
+  }
+
+  if (agent != null && agent.isNotEmpty) {
+    var name = '';
+    for (final it in feed.items) {
+      if (it is ToolItem && it.id == agent) {
+        final d = it.input['description'];
+        if (d is String && d.isNotEmpty) name = d;
+      }
+    }
+    final what = tool();
+    if (what != null) {
+      return name.isEmpty
+          ? fill('srcAgentToolBare', [what])
+          : fill('srcAgentTool', [what, name]);
+    }
+    return name.isEmpty
+        ? batchString('srcAgentReplyBare', lang)
+        : fill('srcAgentReply', [name]);
+  }
+  final what = tool();
+  if (what != null) return what;
+  if (messageId.startsWith('plan:')) {
+    final ok = feed.items.any(
+      (it) => it is PermissionItem && 'plan:${it.id}' == messageId,
+    );
+    return ok ? webString('mode_plan', lang) : batchString('srcChat', lang);
+  }
   for (final it in feed.items) {
     if (it is UserItem && it.id == messageId) return webString('srcMine', lang);
     if (it is AssistantItem && it.id == messageId) {

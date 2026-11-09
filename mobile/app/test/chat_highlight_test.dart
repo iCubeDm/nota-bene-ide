@@ -198,4 +198,37 @@ void main() {
     final after = t.widget<RichText>(hello);
     expect(identical(before, after), isTrue);
   });
+
+  testWidgets(
+    'a comment inside a fenced block highlights there, with its badge',
+    (t) async {
+      await openChat(t, text: 'Intro words\n\n```\nalpha beta\n  gamma\n```\n');
+      final x = on('beta');
+      final y = on('gamma');
+      await t.pumpAndSettle();
+      expect(painted(t), ['beta', 'gamma']);
+      final n = r.tab!.comments.sendable.indexWhere((e) => e.id == x.id) + 1;
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('badge:${x.id}')),
+          matching: find.text('$n'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(ValueKey('badge:${y.id}')), findsOneWidget);
+      // a tap on the badge opens the comment
+      await t.tap(find.byKey(ValueKey('badge:${x.id}')));
+      await t.pumpAndSettle();
+      expect(find.text('Delete comment'), findsOneWidget);
+    },
+  );
+
+  testWidgets('a comment across prose and a fenced block paints both parts', (
+    t,
+  ) async {
+    await openChat(t, text: 'Intro words\n\n```\nalpha beta\n```\n');
+    on('words alpha');
+    await t.pumpAndSettle();
+    expect(painted(t), ['words', 'alpha']);
+  });
 }

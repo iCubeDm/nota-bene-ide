@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/code_screen.dart';
+import 'package:nb_app/chat/message_selection.dart';
+import 'package:nb_app/main.dart';
 import 'package:nb_app/comments/chat_anchor.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -143,5 +145,124 @@ void main() {
     expect((an.source as AnchorSourceMessage).id, 'a1');
     expect(an.quote, 'beta');
     expect(an.start, text.indexOf('beta', text.indexOf('alpha')));
+  });
+
+  /// Opens the [nth] "Open full screen" of the reply, selects [word] there and comments; the saved anchor.
+  Future<TextAnchor> commentCode(
+    WidgetTester t,
+    String word, {
+    required int nth,
+  }) async {
+    await t.tap(find.byTooltip('Open full screen').at(nth));
+    await t.pumpAndSettle();
+    await t.longPressAt(wordAt(t, word, within: find.byType(CodeScreen)));
+    await t.pumpAndSettle();
+    await t.tap(
+      find.descendant(
+        of: find.byType(CodeScreen),
+        matching: find.byTooltip('Comment'),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    return r.tab!.comments.all.single.anchor as TextAnchor;
+  }
+
+  testWidgets('the second of two equal code blocks: the anchor is in it', (
+    t,
+  ) async {
+    await open(
+      t,
+      text:
+          '```\nalpha = 1\nbeta = 2\n```\n\nand again\n\n'
+          '```\nalpha = 1\nbeta = 2\n```',
+    );
+    final an = await commentCode(t, 'beta', nth: 1);
+    final text = chatText(r.tab!.feed.items.last).text;
+    expect(an.quote, 'beta');
+    expect(an.start, text.lastIndexOf('beta'));
+  });
+
+  testWidgets('code that the prose before it also says: the anchor is in the '
+      'code', (t) async {
+    await open(t, text: 'alpha = 1 beta = 2\n\n```\nalpha = 1\nbeta = 2\n```');
+    final an = await commentCode(t, 'beta', nth: 0);
+    final text = chatText(r.tab!.feed.items.last).text;
+    expect(an.quote, 'beta');
+    expect(an.start, text.lastIndexOf('beta'));
+  });
+
+  testWidgets('a mermaid block before a code block does not shift which is '
+      'which', (t) async {
+    await open(
+      t,
+      text:
+          '```mermaid\ngraph TD\nA-->B\n```\n\n'
+          '```\nalpha = 1\nbeta = 2\n```\n\n```\nalpha = 1\nbeta = 2\n```',
+    );
+    final an = await commentCode(t, 'beta', nth: 1);
+    final text = chatText(r.tab!.feed.items.last).text;
+    expect(an.start, text.lastIndexOf('beta'));
+  });
+
+  testWidgets('the message moved between the menu and Select text: the word '
+      'under the press is still the one selected, no other menu opens', (
+    t,
+  ) async {
+    await open(t);
+    await t.longPressAt(wordAt(t, 'bold'));
+    await t.pumpAndSettle();
+    // a reply arrives below while the menu is open: this one moves up
+    final before = wordAt(t, 'bold', within: find.byType(ListView));
+    r.event(
+      agent({
+        't': 'message',
+        'id': 'a2',
+        'text': 'Another reply\n\nwith two paragraphs\n\nand a third',
+      }),
+    );
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 100));
+    expect(wordAt(t, 'bold', within: find.byType(ListView)), isNot(before));
+    await t.tap(find.text('Select text'));
+    await t.pumpAndSettle();
+    await t.pump(const Duration(seconds: 1));
+    await t.pumpAndSettle();
+    expect(find.byType(SelectionArea), findsOneWidget);
+    expect(find.text('Select text'), findsNothing);
+    await t.tap(find.text('Comment'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    final an = r.tab!.comments.all.single.anchor as TextAnchor;
+    expect(an.quote, 'bold');
+    expect((an.source as AnchorSourceMessage).id, 'a1');
+  });
+
+  testWidgets('a press position outside the message selects all of it', (
+    t,
+  ) async {
+    await open(t);
+    final item = r.tab!.feed.items.last;
+    await t.pumpWidget(
+      NbApp(
+        home: Scaffold(
+          body: SelectableMessage(
+            tab: r.tab!,
+            item: item,
+            from: const Offset(9000, 9000),
+            onDone: () {},
+          ),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Comment'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    final an = r.tab!.comments.all.single.anchor as TextAnchor;
+    expect(an.quote, chatText(item).text);
   });
 }

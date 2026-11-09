@@ -1,9 +1,12 @@
 // A fenced code block: highlighted with the Darcula syntax tokens (highlight.js grammars, as the desktop), scrollable
 // sideways, with expand (full screen) and copy buttons.
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:highlight/highlight.dart' show highlight, Node;
 
+import '../files/file_markdown.dart' show MarkBadge;
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
@@ -81,11 +84,83 @@ List<TextSpan> highlightSpans(String code, String? lang, NbColors c) {
   return out;
 }
 
+/// A comment's passage inside a code block: [start]..[end] of the block's text; [n] > 0 puts the comment's number in
+/// the block's bar.
+typedef CodeMark = ({int start, int end, String id, bool sent, int n});
+
+/// The marks [wrapMarks] left on a `pre` element (its JSON attribute).
+List<CodeMark> codeMarksOf(String json) => [
+  for (final m in jsonDecode(json) as List)
+    (
+      start: (m as List)[0] as int,
+      end: m[1] as int,
+      id: m[2] as String,
+      sent: m[3] == 1,
+      n: m[4] as int,
+    ),
+];
+
+/// [spans] (the leaves of [highlightSpans], covering the block's text from 0) with each mark's characters painted.
+List<TextSpan> paintMarks(
+  List<TextSpan> spans,
+  List<CodeMark> marks,
+  NbColors c,
+) {
+  if (marks.isEmpty) return spans;
+  final out = <TextSpan>[];
+  var at = 0;
+  for (final s in spans) {
+    final text = s.text ?? '';
+    var i = 0;
+    while (i < text.length) {
+      // the next boundary of a mark after at + i
+      var cut = text.length;
+      CodeMark? in_;
+      for (final m in marks) {
+        if (m.start <= at + i && at + i < m.end) in_ ??= m;
+        if (m.start > at + i) cut = cut < m.start - at ? cut : m.start - at;
+        if (m.end > at + i) cut = cut < m.end - at ? cut : m.end - at;
+      }
+      final bg = in_ == null
+          ? null
+          : (in_.sent ? c.border : c.accent.withValues(alpha: 0.28));
+      out.add(
+        TextSpan(
+          text: text.substring(i, cut),
+          style: bg == null
+              ? s.style
+              : (s.style ?? const TextStyle()).copyWith(
+                  backgroundColor: bg,
+                  color: c.foreground,
+                ),
+        ),
+      );
+      i = cut;
+    }
+    at += text.length;
+  }
+  return out;
+}
+
 class CodeBlock extends StatelessWidget {
-  const CodeBlock(this.code, {super.key, this.lang});
+  const CodeBlock(
+    this.code, {
+    super.key,
+    this.lang,
+    this.ordinal,
+    this.marks = const [],
+    this.onMark,
+  });
 
   final String code;
   final String? lang;
+
+  /// Which of the message's code blocks this is (0-based), for a comment made from the full-screen view.
+  final int? ordinal;
+
+  /// Pending comments inside the block: their passages painted, their numbers in the bar (a tap calls [onMark]).
+  final List<CodeMark> marks;
+  final void Function(String id)? onMark;
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +191,9 @@ class CodeBlock extends StatelessWidget {
                   ),
                 ),
               ),
+              for (final m in marks)
+                if (m.n > 0)
+                  MarkBadge(id: m.id, n: m.n, onTap: () => onMark?.call(m.id)),
               IconButton(
                 tooltip: t.expandCode,
                 visualDensity: VisualDensity.compact,
@@ -128,6 +206,7 @@ class CodeBlock extends StatelessWidget {
                     lang,
                     tab: target?.tab,
                     item: target?.item,
+                    ordinal: ordinal,
                   );
                 },
               ),
@@ -150,7 +229,7 @@ class CodeBlock extends StatelessWidget {
                   color: c.synText,
                   height: 1.4,
                 ),
-                children: highlightSpans(text, lang, c),
+                children: paintMarks(highlightSpans(text, lang, c), marks, c),
               ),
             ),
           ),

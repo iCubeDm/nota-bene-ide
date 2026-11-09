@@ -170,8 +170,8 @@ String _whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
     path,
     ref,
   ),
-  TextAnchor(source: AnchorSourceMessage(:final id, agent: null)) =>
-    whereOfChat(id, feed, lang),
+  TextAnchor(source: AnchorSourceMessage(:final id, :final agent)) =>
+    whereOfChat(id, feed, lang, agent: agent),
   _ => batchString('srcChat', lang),
 };
 

@@ -20,10 +20,17 @@ void openCode(
   String? lang, {
   WindowTab? tab,
   FeedItem? item,
+  int? ordinal,
 }) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => CodeScreen(code: code, lang: lang, tab: tab, item: item),
+      builder: (_) => CodeScreen(
+        code: code,
+        lang: lang,
+        tab: tab,
+        item: item,
+        ordinal: ordinal,
+      ),
     ),
   );
 }
@@ -35,6 +42,7 @@ class CodeScreen extends StatefulWidget {
     this.lang,
     this.tab,
     this.item,
+    this.ordinal,
   });
 
   final String code;
@@ -43,6 +51,9 @@ class CodeScreen extends StatefulWidget {
   /// The window and the message the code is from: a selection becomes a comment on the message.
   final WindowTab? tab;
   final FeedItem? item;
+
+  /// Which of the message's code blocks this is (0-based): the selection is looked for inside that one.
+  final int? ordinal;
 
   @override
   State<CodeScreen> createState() => _CodeScreenState();
@@ -62,7 +73,10 @@ class _CodeScreenState extends State<CodeScreen> {
     final source = item == null ? null : chatSource(item);
     final r = item == null ? null : chatText(item);
     if (tab == null || r == null || source == null) return;
-    final block = locateSelection(r, _text, null);
+    final ord = widget.ordinal;
+    final block = ord == null
+        ? locateSelection(r, _text, null)
+        : chatCodeRange(item!, ord);
     final at = locateSelection(r, _selected, block?.start, within: block);
     if (at == null) {
       ScaffoldMessenger.of(context).showSnackBar(

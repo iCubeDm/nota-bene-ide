@@ -69,6 +69,20 @@ Future<void> showMessageMenu(
 
   back.close = close;
   route?.registerPopEntry(back);
+  // the menu belongs to its route: once another is pushed over it (a permission sheet), or this one or the message
+  // is gone, the scrim must not stay. A frame follows each of those; look after it.
+  void watch() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (closed) return;
+      if (!context.mounted || (route != null && !route.isCurrent)) {
+        close();
+      } else {
+        watch();
+      }
+    });
+  }
+
+  watch();
   HapticFeedback.selectionClick();
   entry = OverlayEntry(
     builder: (_) => _Menu(

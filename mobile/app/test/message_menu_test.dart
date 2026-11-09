@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/chat/markdown.dart' show launchLink;
 import 'package:nb_app/comments/chat_anchor.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -237,5 +238,76 @@ void main() {
     );
     final plain = rich.text.toPlainText();
     expect(plain, 'a b\nc <i>d</i>');
+  });
+
+  group('long press on what the reply holds', () {
+    const body =
+        'Intro text\n\n```dart\nfinal answer = 42;\n```\n\nSee [the docs](https://example.com/d) now';
+    Future<void> open(WidgetTester t) => r.open(
+      t,
+      events: [
+        {'kind': 'user', 'id': 'u1', 'text': 'Hello', 'ts': 1},
+        agent({'t': 'message', 'id': 'a1', 'text': body}),
+      ],
+    );
+
+    testWidgets('a code block opens the message menu', (t) async {
+      await open(t);
+      await t.longPressAt(t.getCenter(find.textContaining('answer').first));
+      await t.pumpAndSettle();
+      expect(menuEntry('Select text'), findsOneWidget);
+      expect(menuEntry('Comment'), findsOneWidget);
+    });
+
+    testWidgets('a link opens the menu and does not open the link; a tap '
+        'on it opens the link and no menu', (t) async {
+      final opened = <Uri>[];
+      launchLink = (u) async {
+        opened.add(u);
+        return true;
+      };
+      addTearDown(() => launchLink = (u) async => false);
+      await open(t);
+      await t.longPressAt(t.getCenter(find.textContaining('the docs').first));
+      await t.pumpAndSettle();
+      expect(menuEntry('Select text'), findsOneWidget);
+      expect(opened, isEmpty);
+      await t.tapAt(const Offset(2, 2)); // the scrim
+      await t.pumpAndSettle();
+      expect(menuEntry('Select text'), findsNothing);
+      await t.tapOnText(find.textRange.ofSubstring('the docs').first);
+      await t.pumpAndSettle();
+      expect(opened, [Uri.parse('https://example.com/d')]);
+      expect(menuEntry('Select text'), findsNothing);
+    });
+  });
+
+  group('the menu lives as long as its route is the current one', () {
+    testWidgets('a route pushed over the chat closes it', (t) async {
+      await openChat(t);
+      await hold(t, find.textContaining('First'));
+      expect(menuEntry('Select text'), findsOneWidget);
+      final nav = Navigator.of(t.element(find.byType(Scaffold).first));
+      nav.push(MaterialPageRoute<void>(builder: (_) => const Text('covering')));
+      await t.pumpAndSettle();
+      expect(find.text('covering'), findsOneWidget);
+      expect(menuEntry('Select text'), findsNothing);
+      expect(find.byKey(const ValueKey('menu-scrim')), findsNothing);
+      nav.pop();
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('menu-scrim')), findsNothing);
+    });
+
+    testWidgets('a bottom sheet over the chat closes it', (t) async {
+      await openChat(t);
+      await hold(t, find.textContaining('First'));
+      showModalBottomSheet<void>(
+        context: t.element(find.byType(Scaffold).first),
+        builder: (_) => const SizedBox(height: 100, child: Text('sheet')),
+      );
+      await t.pumpAndSettle();
+      expect(find.text('sheet'), findsOneWidget);
+      expect(find.byKey(const ValueKey('menu-scrim')), findsNothing);
+    });
   });
 }
