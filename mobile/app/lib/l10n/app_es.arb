@@ -147,6 +147,5 @@
   "tileCompact": "Compactar",
   "tileClear": "Borrar",
   "tileRestart": "Reiniciar",
-  "tileStats": "Estadísticas",
-  "clearFailed": "No se pudo borrar: la ventana está ocupada o sin conexión."
+  "tileStats": "Estadísticas"
 }

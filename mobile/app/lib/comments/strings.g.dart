@@ -881,6 +881,30 @@ const _json = r'''
    "es": "Limpiar contexto — empezar una conversación nueva (/clear). La sesión actual queda en «Sesiones ▾»",
    "pt": "Limpar contexto — começar uma conversa nova (/clear). A sessão atual fica em “Sessões ▾”",
    "de": "Kontext leeren — eine neue Unterhaltung beginnen (/clear). Die aktuelle Sitzung bleibt unter „Sitzungen ▾“"
+  },
+  "clearFail": {
+   "en": "Could not clear: ",
+   "ru": "Не удалось очистить: ",
+   "zh": "无法清空：",
+   "es": "No se pudo limpiar: ",
+   "pt": "Não foi possível limpar: ",
+   "de": "Leeren fehlgeschlagen: "
+  },
+  "working": {
+   "en": "agent is working…",
+   "ru": "агент работает…",
+   "zh": "代理正在工作…",
+   "es": "el agente está trabajando…",
+   "pt": "o agente está trabalhando…",
+   "de": "Agent arbeitet…"
+  },
+  "offline": {
+   "en": "no connection to the server…",
+   "ru": "нет связи с сервером…",
+   "zh": "与服务器断开连接…",
+   "es": "sin conexión con el servidor…",
+   "pt": "sem conexão com o servidor…",
+   "de": "keine Verbindung zum Server…"
   }
  },
  "batch": {

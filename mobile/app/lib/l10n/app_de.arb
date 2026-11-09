@@ -147,6 +147,5 @@
   "tileCompact": "Verdichten",
   "tileClear": "Leeren",
   "tileRestart": "Neustart",
-  "tileStats": "Statistik",
-  "clearFailed": "Leeren nicht möglich: Das Fenster ist beschäftigt oder offline."
+  "tileStats": "Statistik"
 }

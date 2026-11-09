@@ -29,13 +29,29 @@ Future<void> showWindowSheet(BuildContext context, WindowTab tab) {
   );
 }
 
-/// When a limit resets, for a person: `HH:mm` if it is today, else the short weekday; null when [iso] is null or not a
-/// date.
+/// Sends the window command [name] as the web's runCommand does (web/src/controls/slice.ts): refused while the agent
+/// works or when the tab is not open. Null when it went, else the web's reason text in [lang] (`working`, `offline`).
+String? runWindowCommand(
+  WindowTab tab,
+  ClientMessageCommandName name,
+  String lang,
+) {
+  if (tab.busy) return webString('working', lang);
+  if (!tab.send(ClientMessageCommand(name: name))) {
+    return webString('offline', lang);
+  }
+  return null;
+}
+
+/// When a limit resets, for a person: `HH:mm` if it is today, else the short weekday and `HH:mm`; null when [iso] is
+/// null or not a date.
 String? resetWhen(String? iso, DateTime now, String locale) {
   final d = iso == null ? null : DateTime.tryParse(iso)?.toLocal();
   if (d == null) return null;
   final today = d.year == now.year && d.month == now.month && d.day == now.day;
-  return (today ? DateFormat.Hm(locale) : DateFormat.E(locale)).format(d);
+  return (today ? DateFormat.Hm(locale) : DateFormat('E HH:mm', locale)).format(
+    d,
+  );
 }
 
 class WindowSheet extends StatelessWidget {
@@ -55,11 +71,8 @@ class WindowSheet extends StatelessWidget {
       final caps = tab.capabilities;
       final open = tab.state == TabState.open;
       final busy = tab.busy;
-      final modes = [
-        for (final m in caps?.modes ?? const <AgentMode>[])
-          if (m != AgentMode.$unknown) m,
-      ];
-      final mode = tab.mode == AgentMode.$unknown ? null : tab.mode;
+      final modes = offeredModes(tab);
+      final mode = shownMode(tab);
       final limits = tab.stats?.stats.limits;
       final five = limits?.fiveHour;
       final week = limits?.sevenDay;
@@ -101,7 +114,7 @@ class WindowSheet extends StatelessWidget {
                 style: TextStyle(fontSize: 12, color: c.mutedFg),
               ),
               if (modelSwitchable(tab)) ...[gap, _ModelRow(tab: tab)],
-              if (modes.isNotEmpty) ...[
+              if (modes.length >= 2) ...[
                 gap,
                 Text(t.windowSheetMode, style: label),
                 const SizedBox(height: 6),
@@ -152,12 +165,19 @@ class WindowSheet extends StatelessWidget {
                         tooltip: webString('compactTip', lang),
                         enabled: open && !busy,
                         onTap: () {
+                          // the web shows no note for a refused Compact; the phone says why, as it does for Clear
+                          final messenger = ScaffoldMessenger.maybeOf(outer);
                           Navigator.pop(context);
-                          tab.send(
-                            const ClientMessageCommand(
-                              name: ClientMessageCommandName.compact,
-                            ),
+                          final why = runWindowCommand(
+                            tab,
+                            ClientMessageCommandName.compact,
+                            lang,
                           );
+                          if (why != null) {
+                            messenger?.showSnackBar(
+                              SnackBar(content: Text(why)),
+                            );
+                          }
                         },
                       ),
                     ),
@@ -237,13 +257,11 @@ class WindowSheet extends StatelessWidget {
     if (ok != true) return;
     if (context.mounted) Navigator.pop(context);
     // the agent can turn busy while the dialog is open (another window sent): say so, as the desktop does
-    final sent =
-        !tab.busy &&
-        tab.send(
-          const ClientMessageCommand(name: ClientMessageCommandName.clear),
-        );
-    if (!sent) {
-      messenger?.showSnackBar(SnackBar(content: Text(t.clearFailed)));
+    final why = runWindowCommand(tab, ClientMessageCommandName.clear, lang);
+    if (why != null) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text(webString('clearFail', lang) + why)),
+      );
     }
   }
 }

@@ -147,6 +147,5 @@
   "tileCompact": "Сжать",
   "tileClear": "Очистить",
   "tileRestart": "Перезапуск",
-  "tileStats": "Статистика",
-  "clearFailed": "Не удалось очистить: окно занято или не в сети."
+  "tileStats": "Статистика"
 }

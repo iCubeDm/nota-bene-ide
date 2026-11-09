@@ -284,7 +284,6 @@
   "tileClear": "Clear",
   "tileRestart": "Restart",
   "tileStats": "Stats",
-  "clearFailed": "Could not clear: the window is busy or offline.",
   "@limitResets": {
     "placeholders": {
       "pct": {

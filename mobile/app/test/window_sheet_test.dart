@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/window_sheet.dart';
+import 'package:nb_protocol/nb_protocol.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_app/usage/usage_screen.dart';
 
@@ -88,9 +89,10 @@ void main() {
     await sheet(
       t,
       hi: hello(
-        modes: ['default'],
+        modes: ['default', 'plan'],
         descriptors: [
           {'id': 'default', 'name': 'Ask first', 'description': 'Asks a lot'},
+          {'id': 'plan', 'name': 'Think', 'description': 'Plans'},
         ],
       ),
     );
@@ -104,7 +106,7 @@ void main() {
     await sheet(
       t,
       hi: hello(
-        modes: ['codex-read-only'],
+        modes: ['codex-read-only', 'codex-workspace'],
         provider: 'codex',
         descriptors: [
           {
@@ -135,6 +137,12 @@ void main() {
     expect(find.text('Mode'), findsNothing);
   });
 
+  testWidgets('one mode, no mode row and no heading', (t) async {
+    await sheet(t, hi: hello(modes: ['default']));
+    expect(find.byWidgetPredicate((w) => w is SegmentedButton), findsNothing);
+    expect(find.text('Mode'), findsNothing);
+  });
+
   testWidgets('limits show as two bars, none without stats', (t) async {
     await sheet(t);
     expect(find.text('Plan limits'), findsNothing);
@@ -153,6 +161,20 @@ void main() {
     expect(find.text('Week'), findsOneWidget);
     expect(inSheet(find.text('34%')), findsOneWidget);
     expect(inSheet(find.text('62%')), findsOneWidget);
+  });
+
+  testWidgets('a reset another day shows the weekday and the time', (t) async {
+    await sheet(t);
+    r.event({
+      'kind': 'stats',
+      'stats': {
+        'limits': {
+          'seven_day': {'utilization': 62, 'resets_at': '2030-01-02T17:30:00'},
+        },
+      },
+    });
+    await t.pumpAndSettle();
+    expect(inSheet(find.text('62% · resets Wed 17:30')), findsOneWidget);
   });
 
   testWidgets('Compact sends the command and closes the sheet', (t) async {
@@ -178,6 +200,60 @@ void main() {
     await t.pumpAndSettle();
     expect(r.sent.single, {'type': 'command', 'name': 'clear'});
     expect(find.byType(WindowSheet), findsNothing);
+  });
+
+  Future<void> confirmClear(WidgetTester t) async {
+    await t.tap(find.text('Clear'));
+    await t.pumpAndSettle();
+  }
+
+  testWidgets('Clear refused while the agent works: the web\'s note', (
+    t,
+  ) async {
+    await sheet(t);
+    await confirmClear(t);
+    r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
+    await t.pump();
+    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
+    await t.pumpAndSettle();
+    expect(r.sent, isEmpty);
+    expect(
+      find.text(webString('clearFail', 'en') + webString('working', 'en')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Clear refused offline: the web\'s note', (t) async {
+    await sheet(t);
+    await confirmClear(t);
+    r.ch.drop();
+    await t.pump();
+    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
+    await t.pumpAndSettle();
+    expect(
+      find.text(webString('clearFail', 'en') + webString('offline', 'en')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Compact refused offline says why', (t) async {
+    await sheet(t);
+    r.ch.drop();
+    await t.tap(find.text('Compact'));
+    await t.pumpAndSettle();
+    expect(find.text(webString('offline', 'en')), findsOneWidget);
+  });
+
+  testWidgets('Compact refused while the agent works says why', (t) async {
+    await sheet(t);
+    r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
+    await t.pump();
+    final tab = r.tab!;
+    expect(
+      runWindowCommand(tab, ClientMessageCommandName.compact, 'en'),
+      webString('working', 'en'),
+    );
+    expect(r.sent, isEmpty);
   });
 
   testWidgets('Restart asks, then sends', (t) async {

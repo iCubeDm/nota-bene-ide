@@ -147,6 +147,5 @@
   "tileCompact": "Compactar",
   "tileClear": "Limpar",
   "tileRestart": "Reiniciar",
-  "tileStats": "Estatísticas",
-  "clearFailed": "Não foi possível limpar: a janela está ocupada ou offline."
+  "tileStats": "Estatísticas"
 }
