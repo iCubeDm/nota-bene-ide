@@ -302,22 +302,63 @@ class _Mix extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(3),
-    child: SizedBox(
-      height: height,
-      child: Row(
-        spacing: 2,
-        children: [
-          for (final (v, c) in parts)
-            Expanded(
-              flex: (v <= 0 ? 1 : v).round().clamp(1, 1 << 30),
-              child: ColoredBox(color: c, child: const SizedBox.expand()),
-            ),
-        ],
+  Widget build(BuildContext context) {
+    final total = parts.fold<num>(0, (a, p) => a + (p.$1 > 0 ? p.$1 : 0));
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(3),
+      child: SizedBox(
+        height: height,
+        child: Row(
+          spacing: 2,
+          children: [
+            for (final (v, c) in parts)
+              Expanded(
+                flex: _flex(v, total),
+                child: ColoredBox(color: c, child: const SizedBox.expand()),
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+}
+
+/// A part's share of [whole] as a flex: the proportion holds at any size, and a tiny part stays visible.
+int _flex(num v, num whole) =>
+    whole > 0 && v > 0 ? (v / whole * 10000).round().clamp(1, 10000) : 1;
+
+/// A bar's tip: the time, then a line for each figure, as the desktop's.
+class _Tip extends StatelessWidget {
+  const _Tip({required this.bar, required this.lang});
+  final _Bar bar;
+  final String lang;
+
+  @override
+  Widget build(BuildContext context) {
+    final b = bar;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(b.label, style: _small(context)),
+        Text(
+          '${usageString('usageBarTotal', lang)} ${fmtTokens(b.w, lang)}',
+          style: _small(context),
+        ),
+        if (b.extra > 0 && b.w > b.extra)
+          Text(
+            '${usageString('usageBarLimit', lang)} ${fmtTokens(b.w - b.extra, lang)}',
+            style: _small(context),
+          ),
+        if (b.extra > 0)
+          Text(
+            'extra usage ${fmtTokens(b.extra, lang)}',
+            style: _small(context),
+          ),
+        if (b.hit)
+          Text(usageString('usageHitShort', lang), style: _small(context)),
+      ],
+    );
+  }
 }
 
 class _ModelMix extends StatelessWidget {
@@ -430,17 +471,7 @@ class _BarsState extends State<_Bars> {
       children: [
         Text(widget.title, style: _small(context)),
         const SizedBox(height: 4),
-        SizedBox(
-          height: 18,
-          child: tip == null
-              ? null
-              : Text(
-                  '${tip.label}: ${usageString('usageBarTotal', lang)} ${fmtTokens(tip.w, lang)}'
-                  '${tip.extra > 0 ? ', extra usage ${fmtTokens(tip.extra, lang)}' : ''}'
-                  '${tip.hit ? ', ${usageString('usageHitShort', lang)}' : ''}',
-                  style: _small(context),
-                ),
-        ),
+        if (tip != null) _Tip(bar: tip, lang: lang),
         SizedBox(
           height: 56,
           child: Row(
@@ -459,20 +490,14 @@ class _BarsState extends State<_Bars> {
                           children: [
                             if (b.extra > 0)
                               Expanded(
-                                flex: (b.extra * 1000).round().clamp(
-                                  1,
-                                  1 << 40,
-                                ),
+                                flex: _flex(b.extra, b.w),
                                 child: const SizedBox.expand(
                                   child: ColoredBox(color: _warn),
                                 ),
                               ),
                             if (b.w > b.extra)
                               Expanded(
-                                flex: ((b.w - b.extra) * 1000).round().clamp(
-                                  1,
-                                  1 << 40,
-                                ),
+                                flex: _flex(b.w - b.extra, b.w),
                                 child: SizedBox.expand(
                                   child: ColoredBox(
                                     color: b.hit
@@ -807,7 +832,14 @@ class _SpentState extends State<_Spent> {
                       style: const TextStyle(fontSize: 13),
                     ),
                   ),
-                  Text(task.project, style: _small(context)),
+                  Flexible(
+                    child: Text(
+                      task.project,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _small(context),
+                    ),
+                  ),
                   Text(fmtTokens(task.w, lang), style: _mono),
                 ],
               ),

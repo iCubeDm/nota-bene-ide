@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nb_app/comments/strings.g.dart';
+import 'package:nb_app/usage/format.dart';
 import 'package:nb_app/usage/usage_screen.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -263,6 +264,72 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text(w('usageTopCalls')), findsOneWidget);
     expect(find.text(w('usageSubagents')), findsWidgets);
+  });
+
+  testWidgets('the model mix keeps its proportions at billions of tokens', (
+    t,
+  ) async {
+    final rep = report(total: 4.7e9);
+    rep['models'] = [
+      {'key': 'claude-opus-5-5', ...row(8, 3.2e9)},
+      {'key': 'claude-sonnet-5-5', ...row(4, 1.5e9)},
+    ];
+    host((p) async => answer(200, jsonEncode(rep)));
+    await show(t);
+    final parts = find.descendant(
+      of: find.byType(ClipRRect),
+      matching: find.byType(ColoredBox),
+    );
+    final a = t.getSize(parts.at(0)).width, b = t.getSize(parts.at(1)).width;
+    expect(a / (a + b), closeTo(0.68, 0.02));
+  });
+
+  testWidgets('a bar\'s tip names every line and does not overflow', (t) async {
+    t.view.devicePixelRatio = 1;
+    t.view.physicalSize = const Size(400, 900);
+    t.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(t.view.reset);
+    addTearDown(t.platformDispatcher.clearAllTestValues);
+    final rep = report();
+    rep['windows'] = [
+      {'from': 1700000000000, 'w': 5000, 'hit': true, 'extra': 2000},
+    ];
+    host((p) async => answer(200, jsonEncode(rep)));
+    await show(t);
+    final bar = find
+        .byWidgetPredicate((x) => x is SizedBox && x.height == 56)
+        .first;
+    await t.ensureVisible(bar);
+    await t.pumpAndSettle();
+    await t.tap(bar);
+    await t.pumpAndSettle();
+    for (final line in [
+      when(1700000000000, 'en'),
+      '${w('usageBarTotal')} ${fmtTokens(5000, 'en')}',
+      '${w('usageBarLimit')} ${fmtTokens(3000, 'en')}',
+      'extra usage ${fmtTokens(2000, 'en')}',
+      w('usageHitShort'),
+    ]) {
+      expect(find.text(line), findsOneWidget, reason: line);
+    }
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('a long project and task name do not overflow a task row', (
+    t,
+  ) async {
+    t.view.devicePixelRatio = 1;
+    t.view.physicalSize = const Size(320, 900);
+    addTearDown(t.view.reset);
+    final rep = report();
+    final task = ((rep['tasks'] as List).first as Map).cast<String, Object?>();
+    task['label'] = 'L' * 120;
+    task['project'] = 'P' * 120;
+    host((p) async => answer(200, jsonEncode(rep)));
+    await show(t);
+    await t.scrollUntilVisible(find.text(fmtTokens(900000, 'en')), 300);
+    expect(t.takeException(), isNull);
+    expect(find.text(fmtTokens(900000, 'en')), findsOneWidget);
   });
 
   testWidgets('the agent menu opens the screen', (t) async {

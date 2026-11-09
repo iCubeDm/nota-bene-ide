@@ -11,6 +11,7 @@ void main() {
           as Map<String, Object?>;
   final pairs = [for (final p in fx['pairs'] as List) (p as List).cast<num>()];
   final tokens = (fx['tokens'] as List).cast<num>();
+  final currencies = (fx['currencies'] as List).cast<String>();
   final models = (fx['models'] as List).cast<String>();
   final langs = (fx['langs'] as Map).cast<String, Map>();
 
@@ -38,6 +39,11 @@ void main() {
         [money(12345, 'USD', lang), money(500, 'JPY', lang)],
         want['money'],
         reason: 'money $lang',
+      );
+      expect(
+        [for (final c in currencies) money(12345, c, lang)],
+        want['currencies'],
+        reason: 'currencies $lang',
       );
     }
   });
