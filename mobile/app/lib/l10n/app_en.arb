@@ -1,0 +1,269 @@
+{
+  "@@locale": "en",
+  "appTitle": "Nota Bene",
+  "lockTitle": "Nota Bene is locked",
+  "lockReason": "Unlock to reach your sessions",
+  "unlock": "Unlock",
+  "lockFailed": "Not unlocked. Try again.",
+  "noScreenLock": "This phone has no screen lock. Set a PIN, pattern or fingerprint in Android settings, then come back: Nota Bene opens only behind one.",
+  "retry": "Retry",
+  "pairTitle": "Pair a host",
+  "scanHint": "On the computer run `nota-bene remote pair` and point the camera at its QR code.",
+  "pasteCode": "Paste the code instead",
+  "pairing": "Pairing…",
+  "pairedTitle": "Paired with {host}",
+  "compareHint": "Check that these match what the computer printed.",
+  "hostFingerprint": "Host fingerprint",
+  "phoneFingerprint": "This phone's fingerprint",
+  "done": "Done",
+  "errNotACode": "That is not a Nota Bene pairing code.",
+  "errCodeUsed": "The code expired or was already used. Run `nota-bene remote pair` again.",
+  "errUnreachable": "Could not reach the relay or the host. Check the connection and that `nota-bene remote` runs.",
+  "cameraDenied": "Nota Bene may not use the camera. Allow it in Android settings, or paste the code.",
+  "cameraFailed": "The camera did not start. Paste the code instead.",
+  "@pairedTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "pairHost": "Pair a host",
+  "noHosts": "No hosts yet. Run `nota-bene remote` on your computer, then pair this phone with it.",
+  "settings": "Settings",
+  "theme": "Themes",
+  "connecting": "Connecting…",
+  "offline": "Offline",
+  "offlineSeen": "Offline · seen {ago}",
+  "unpaired": "This phone is no longer paired with this host.",
+  "forget": "Forget",
+  "untitled": "untitled",
+  "noWindows": "No open windows",
+  "justNow": "just now",
+  "minutesAgo": "{n, plural, =1{1 min ago} other{{n} min ago}}",
+  "hoursAgo": "{n, plural, =1{1 hour ago} other{{n} hours ago}}",
+  "daysAgo": "{n, plural, =1{1 day ago} other{{n} days ago}}",
+  "@offlineSeen": {
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "@minutesAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@hoursAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@daysAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "storeUnreadable": "This phone's stored key could not be read. Reinstalling the app makes a new key; the hosts then need pairing again.",
+  "cancel": "Cancel",
+  "copy": "Copy",
+  "showEarlier": "Show earlier",
+  "working": "Working…",
+  "windowGone": "The window closed or restarted; waiting for it to come back",
+  "idleCompact": "Compacted after a quiet stretch",
+  "turnDone": "Done in {time}",
+  "turnInterrupted": "Stopped after {time}",
+  "turnFailed": "Failed after {time} {error}",
+  "markerCompacted": "Context compacted",
+  "markerCompactFailed": "Compaction failed {error}",
+  "markerCleared": "Context cleared",
+  "permissionAsked": "{tool} asks for permission",
+  "allowed": "Allowed",
+  "denied": "Denied",
+  "resumed": "Resumed session {id}",
+  "@turnDone": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@turnInterrupted": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@turnFailed": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "@markerCompactFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "@permissionAsked": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "@resumed": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "durationSecs": "{s} s",
+  "durationMins": "{m} min {s} s",
+  "@durationSecs": {
+    "placeholders": {
+      "s": {
+        "type": "int"
+      }
+    }
+  },
+  "@durationMins": {
+    "placeholders": {
+      "m": {
+        "type": "int"
+      },
+      "s": {
+        "type": "int"
+      }
+    }
+  },
+  "send": "Send",
+  "stop": "Stop",
+  "messageHint": "Message",
+  "cannotSend": "Sending is off while the window is not reachable",
+  "sendNowTitle": "Send now?",
+  "sendNowBody": "The agent is working. Send the message after this turn, or now and interrupt the current turn.",
+  "sendNow": "Send now",
+  "refusedBusy": "The window is busy; the message was not sent.",
+  "refusedSwitching": "The window is switching sessions; the message was not sent.",
+  "allow": "Allow",
+  "deny": "Deny",
+  "allowSession": "Allow for this session",
+  "allowTurn": "Allow for this turn",
+  "allowAlways": "Always allow",
+  "denyAlways": "Always deny",
+  "sendAnswers": "Send answers",
+  "codexPermissions": "Additional Codex permissions",
+  "mcpRequest": "MCP request",
+  "allowTool": "Allow {tool}?",
+  "answerSent": "Answer sent",
+  "askArchived": "From an earlier part of the session: no longer waiting for an answer",
+  "agentMenu": "Agent",
+  "compact": "Compact",
+  "modelAndEffort": "Model and effort",
+  "restartAgent": "Restart agent",
+  "restartAgentTitle": "Restart the agent?",
+  "restartAgentBody": "The agent process starts again in the same session; a turn in progress stops.",
+  "restart": "Restart",
+  "apply": "Apply",
+  "effortLow": "low",
+  "effortMedium": "medium",
+  "effortHigh": "high",
+  "effortXhigh": "extra high",
+  "effortMax": "max",
+  "effortNone": "none",
+  "effortMinimal": "minimal",
+  "occupiedTitle": "This window is open in another tab.",
+  "takenTitle": "Another tab took over this window.",
+  "workHere": "Work here",
+  "@allowTool": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "pairedHosts": "Paired hosts",
+  "forgetTitle": "Forget {host}?",
+  "forgetBody": "This phone stops connecting to it. The host still lists this phone until you run `nota-bene remote revoke` there.",
+  "@forgetTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "sendAfter": "Send after this turn",
+  "diagramFailed": "The diagram could not be drawn just now; reopen the chat to try again.",
+  "comment": "Comment",
+  "commentHint": "Your comment",
+  "save": "Save",
+  "deleteComment": "Delete comment",
+  "fileNotFound": "This file is not there (any more).",
+  "fileOutside": "This file is outside the project.",
+  "fileTooLarge": "The file is too large for the phone (over 2 MB). Open it on the computer.",
+  "fileNotMarkdown": "Only Markdown files, images and videos open on the phone.",
+  "fileUnreadable": "The file could not be read. Try again when the host is online.",
+  "openFile": "Open the file",
+  "files": "Files",
+  "noFiles": "No Markdown files in this session yet.",
+  "pendingComments": "{count, plural, =1{1 comment to send} other{{count} comments to send}}",
+  "@pendingComments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "commentNotPlaced": "Could not place a comment on this selection",
+  "@commentNotPlaced": {
+    "description": "Snackbar when a selection cannot be matched to the file's text"
+  },
+  "markUp": "Mark up",
+  "markStop": "Stop marking",
+  "toolRect": "Rectangle",
+  "toolEllipse": "Ellipse",
+  "toolPen": "Pen",
+  "toolArrow": "Arrow",
+  "markColor": "Colour {n}",
+  "@markColor": {
+    "description": "A mark colour in the toolbar, by its place",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "markUndo": "Undo",
+  "markFailed": "The mark could not be saved. Check the connection and try again.",
+  "imageTooLarge": "The image is too large for the phone (over 32 MB). Open it on the computer.",
+  "imageUnreadable": "The image could not be shown.",
+  "videoPlay": "Play",
+  "videoPause": "Pause",
+  "videoUnplayable": "The video could not be played. Try again when the host is online.",
+  "frameFailed": "The frame could not be taken from the video. Try again.",
+  "dictate": "Dictate",
+  "dictateStop": "Stop dictation",
+  "dictationDenied": "Microphone access is off for Nota Bene",
+  "dictationUnavailable": "Speech recognition is not available on this phone",
+  "dictationNoMatch": "Nothing was heard",
+  "dictationFailed": "Dictation failed",
+  "dictationTranscribing": "Transcribing…",
+  "dictationHostFailed": "The computer could not transcribe it",
+  "dictationHostOff": "Whisper is off on the computer; the phone's recognition is used now"
+}

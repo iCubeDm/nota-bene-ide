@@ -1,0 +1,7 @@
+# Keep the build context to what the build reads: go.mod, go.sum and the
+# sources. Tests are included (harmless, tiny); docs and the Dockerfile are not.
+*
+!go.mod
+!go.sum
+!cmd/
+!hub/

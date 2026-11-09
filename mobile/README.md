@@ -1,0 +1,67 @@
+# mobile/
+
+The phone side of remote access (issue #63), in three Dart packages:
+
+| Package | What |
+|---|---|
+| `protocol/` (`nb_protocol`) | the window protocol's types, generated from `shared/src/protocol.ts` by `npm run gen:protocol` |
+| `channel/` (`nb_channel`) | the end-to-end channel of `server/src/remote/CHANNEL.md`: Noise IK, pairing values, relay admission, the stream mux |
+| `app/` (`nb_app`) | the Android app (Flutter) |
+
+## Checks
+
+```sh
+(cd mobile/channel && dart pub get && dart analyze --fatal-infos && dart test)   # includes the cross-language test
+(cd mobile/app && flutter pub get && flutter analyze --fatal-infos && flutter test)
+npm run mobile:assets && npx playwright test -c mobile/app/web_test/playwright.config.ts   # the app's Mermaid page
+```
+
+The cross-language test (`channel/test/cross_test.dart`, tag `cross`) runs `server/src/remote/crossHost.ts` with Node
+and builds the Go relay, so it needs `node` (>=23.6) and `go` on PATH and `npm ci` done at the root. It uses a
+temporary `NOTA_BENE_HOME` and free loopback ports.
+
+Comments use the desktop's text anchors. `app/lib/comments/anchor.dart` builds the desktop's rendered text from the
+Markdown, and `web/src/anchors/mobileParity.test.tsx` writes the desktop's text of `app/test/fixtures/md/*.md` to the
+`.txt` beside each file (`UPDATE_FIXTURES=1`), which `app/test/anchor_test.dart` compares. The quick labels and the
+batch strings in `app/lib/comments/strings.g.dart` come from `web/src` through `npm run gen:protocol`.
+
+## Media on the phone
+
+Images open from the file links in the chat. The screen reads them through the window's `/file` endpoint, and it
+refuses images over 32 MiB.
+
+Videos play through a loopback proxy (`app/lib/media/proxy.dart`): an HTTP server on 127.0.0.1 under a random token
+that forwards the player's ranged requests over the encrypted channel. The app's manifest allows cleartext only to
+127.0.0.1 (`app/android/app/src/main/res/xml/network_security_config.xml`).
+
+Marking up a video pauses it. Android's MediaMetadataRetriever takes the exact paused frame (the `nb/frame` method
+channel in `MainActivity`, `app/lib/media/frame.dart`).
+
+Marks and comments are the desktop's media comments: the frame and layer are stored under `/marks/<id>/`, and the
+agent's image goes to `/attach`. Page and 3D-model comments stay desktop-only.
+
+## Usage on the phone
+
+The agent menu's Usage item opens the host's usage report (`app/lib/usage/usage_screen.dart`), which reads `GET /usage`
+and `POST /usage/reset` through the channel, like the desktop's Usage tab. Its words are the web's own: the strings
+generator copies every `usage*` key of the English dictionary, in all six languages, into
+`app/lib/comments/strings.g.dart`. The number formatters (`app/lib/usage/format.dart`) are pinned to the desktop's by
+`web/src/usage/mobileFormat.test.ts`; dates are not pinned.
+
+## Dictation
+
+The microphone in the message field and the comment sheet (`app/lib/dictation/`) uses the phone's own speech
+recognition: Android's `SpeechRecognizer` behind the `nb/speech` channel in `MainActivity.kt`, in the app's language.
+The microphone permission is asked on first use. The words land in the field at the cursor and are sent as typed
+text; no audio goes to the host or the agent (the phone's recognizer may use its vendor's online service).
+With Whisper on the host (Settings → Dictation on the phone on the desktop), the message field's microphone records 16 kHz WAV (`nb/record`) and posts it to the host's `/dictation/transcribe`, encrypted through the relay; the audio reaches the host only.
+
+## The APK
+
+CI builds it in the `mobile` job and uploads it as the `nota-bene-android` artifact. Builds of this repository are
+signed with the keystore in the repository secrets `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASSWORD` (alias
+`nota-bene`); without them (forks) the job builds a debug APK. A local build needs the Android SDK:
+`npm run mobile:assets && (cd mobile/app && flutter build apk --debug)`.
+
+`npm run mobile:assets` copies the web's own `mermaid.min.js` (MIT) into `app/assets/mermaid/` (git-ignored): the app
+draws diagrams with the same version as the desktop.

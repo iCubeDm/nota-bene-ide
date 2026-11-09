@@ -21,6 +21,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # the remote connector's tests run against the real relay (server/src/remote/testRelay.ts)
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: relay/go.mod
+          cache-dependency-path: relay/go.sum
       - if: runner.os == 'Linux'
         run: sudo apt-get install -y trash-cli
       - run: npm ci
@@ -48,3 +53,84 @@ jobs:
         working-directory: mobile/protocol
       - run: dart test
         working-directory: mobile/protocol
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: relay/go.mod
+      - run: dart pub get
+        working-directory: mobile/channel
+      - run: dart analyze --fatal-infos
+        working-directory: mobile/channel
+      - run: dart format --output=none --set-exit-if-changed lib test
+        working-directory: mobile/channel
+      - run: dart test
+        working-directory: mobile/channel
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        working-directory: .
+      # the desktop's own mermaid, bundled for the app's diagrams, and its page checked in Chromium
+      - run: npm run mobile:assets
+        working-directory: .
+      - run: npx playwright test -c mobile/app/web_test/playwright.config.ts
+        working-directory: .
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: mobile/app/pubspec.yaml
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --fatal-infos
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter test
+      # a release APK signed with the author's keystore when the repository has it (a newer APK then installs over the
+      # older one); a debug APK otherwise (forks). The keystore and its password never reach the log or the artifact.
+      - name: APK
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_B64" ]; then
+            export NB_KEYSTORE_FILE="$RUNNER_TEMP/nb-release.p12"
+            printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > "$NB_KEYSTORE_FILE"
+            flutter build apk --release
+            rm -f "$NB_KEYSTORE_FILE"
+          else
+            flutter build apk --debug
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nota-bene-android
+          path: mobile/app/build/app/outputs/flutter-apk/app-*.apk
+          retention-days: 14
+
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: relay/go.mod
+          cache-dependency-path: relay/go.sum
+      - run: test -z "$(gofmt -l .)"
+        working-directory: relay
+      - run: go vet ./...
+        working-directory: relay
+      - run: go test -race ./...
+        working-directory: relay
+      - run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/nb-relay ./cmd/nb-relay
+        working-directory: relay
+      - run: docker build relay

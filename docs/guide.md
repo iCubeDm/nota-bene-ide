@@ -340,6 +340,7 @@ The gear in the header opens a menu: the interface language, the colour theme, t
 
 - **Windows**: every running window with its folder, port, state (working or idle), number of open tabs and uptime. Open, Restart agent, Restart server and Stop work on any of them.
 - **Storage**: what is on disk for pasted images, comments, chat history from before compaction and media marks, with **Clean unreferenced files**, which moves pasted images that no comment references and that are over a day old, and the history of sessions that no longer exist, to the state folder's `trash/`. Nothing is deleted.
+- **Dictation on the phone**: off by default. **Install Whisper** downloads the `whisper-small` speech model with the transformers runtime from npm and Hugging Face (about 430 MB to download, 770 MB on disk) into the `whisper` folder of the state folder, after a confirmation that names the exact path. The model runs in a separate thread, so the window stays responsive while it transcribes; recordings reach this computer end-to-end encrypted and are not stored. Once it is installed, a checkbox turns Whisper on or off: with it on, the phone's microphone in the message field records and this computer transcribes the recording, with the text landing at the cursor; the comment sheet keeps the phone's own recognizer. **Remove Whisper** deletes those files, and the phone goes back to its own dictation.
 - **Defaults**: interface language, interface scale (90–150 %: text and spacing grow, for every window at once), and the agent mode for projects that have none of their own.
 - **Themes**: the six colour themes, each with a swatch of its own colours; pick one. It is the same choice as the Theme row of the gear menu.
 - **About**: version, state folder, where the logs are, Node version.
@@ -426,6 +427,64 @@ Turn the check off in Settings → Defaults, for every window of that agent; `NO
 
 Every window writes what happens in it to `~/.nota-bene/audit/YYYY-MM-DD.jsonl`, one JSON line per event: the server starting and stopping, the page connecting and disconnecting, each send, stop, permission answer, mode or model change, each tool call by name, each turn's end and how it ended (done, interrupted, failed), tasks, API retries and errors. The windows share one file a day; `port` and `pid` tell them apart. It is for working out afterwards why something happened, for instance what stopped a turn. It never holds the text of messages, comments, commands, tool input or output: only names, ids, counts and times. Files are private to you, kept 14 days, at most 50 MB a day. Nothing leaves the machine. Turn it off in Settings → Defaults, for every window of that agent.
 
+## Remote access (prototype)
+
+`nota-bene remote` lets a paired phone reach this computer's windows through a relay, without anything on the computer
+accepting connections: the computer and the phone each connect out to the relay, and everything between them is
+end-to-end encrypted (the relay sees only ciphertext and which phone talks to which host). The phone side is an
+Android app (below); this is the computer's side.
+
+```sh
+nota-bene remote --relay wss://relay.example.com   # run the connector (the relay is saved; later just `nota-bene remote`)
+nota-bene remote pair                             # in another terminal: a QR code for the app, valid 5 minutes
+nota-bene remote devices                          # the paired phones: id, name, fingerprint, online
+nota-bene remote revoke <id>                      # unpair a phone; its connection is cut at once
+nota-bene remote status
+```
+
+- The connector runs in the foreground; it reaches every window of every agent (Claude, Codex, omp) the way the
+  launcher does, with each window's own credentials, which never leave the computer.
+- Pairing: `pair` prints the QR code and the computer's fingerprint; when the phone has scanned it, it prints the
+  phone's fingerprint. Compare both with what the app shows. A code pairs one phone; another phone presenting it is
+  refused and named in the `pair` output. A new `pair`, Ctrl-C or the 5 minutes end the code.
+- A paired phone is fully trusted: it can do in a window what a tab of that window can (and the one-tab rule applies:
+  "Work here" on the phone takes the window over).
+- `remote` is a command now: a project folder named `remote` opens with `nota-bene ./remote`.
+- Only one connector runs per user; a second one stops with "already running". If the relay says another connector
+  with the same key is connected, this one stops instead of fighting it.
+
+### The Android app (prototype)
+
+The app is built by CI: open the CI run of the pull request or branch, download the `nota-bene-android` artifact and
+install the APK on the phone (allow installs from that source once). Builds of this repository are signed with one key,
+so a newer APK installs over the older one and keeps the phone's key and pairings; a debug build (from a fork) does not.
+
+- **Unlock.** The app opens only after the phone's own check (fingerprint, face, or the screen lock's PIN or pattern)
+  and asks again after five minutes in the background. A phone without a screen lock cannot open it.
+- **Pair.** Run `nota-bene remote pair` on the computer, tap *Pair a host* and scan the code (or copy the
+  `nbremote://` text and use *Paste the code instead*). Compare the two fingerprints with what `pair` printed.
+- **Sessions.** One group per paired host with its open windows (folder, session title, agent, model, a dot while it
+  works). An offline host shows when it was last seen; a host that revoked this phone says so and offers *Forget*.
+  At start the app reopens the chat used last, when its host is online and still has that window.
+- **Chat.** The window's conversation as on the desktop (Markdown, highlighted code, formulas, Mermaid diagrams as
+  pictures; tap a diagram to zoom, a tool line to see its result). Send (while the agent works, the message waits for
+the turn or, with *Send now*, interrupts it), *Stop*, and in the agent menu *Compact*,
+  *Model and effort* and *Restart agent*. A tool asking for permission opens a sheet with the whole command; questions
+  with choices and fields are answered in the chat. When the host is offline what arrived stays readable and sending is
+  off.
+- **One tab.** The phone is a tab of the window: if the window is open on the computer, *Work here* takes it over,
+  and the computer's tab offers to take it back.
+- **Themes.** The desktop's six themes, picked in the app's Settings. The phone keeps its own choice (Darcula until
+  one is picked) for every host; code highlighting and Mermaid diagrams follow it.
+- **Markdown files and comments.** A tool line on a Markdown file of the project has an open button, and the agent
+  menu's *Files* lists the session's Markdown files. The file opens over the chat. Select text and choose *Comment*:
+  the sheet shows the quote, the quick labels and a field. The comments gather above the composer and leave with the
+  next message as the desktop sends them, and the desktop shows them too, because they are the window's comments. A
+  comment is highlighted in its file; tap it (or long-press it above the composer) to edit or delete it. Comments
+  on images, video and pages made on the desktop stay there and are sent from the desktop.
+- **Not yet:** comments on chat messages, images and video, usage statistics and dictation come with the next parts
+  of #63.
+
 ## State on disk
 
 All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME` to use another folder. `npm run dev` of a source checkout uses `~/.nota-bene-dev`.
@@ -448,6 +507,7 @@ All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME`
 | `runtime/` | releases installed by the in-app update, and its state and log (see [Updates](#updates)) |
 | `audit/YYYY-MM-DD.jsonl` | the audit log of system events of every window ([Audit log](#audit-log)) |
 | `usage/` | the Usage tab: token counts of every project and short labels (the first 64 characters of a prompt, a subagent's description) |
+| `remote/` | the remote connector's host key (`host.key`), paired phones (`devices.json`), relay address (`config.json`), all mode 600, and its control socket (`control.sock`); deleting `host.key` unpairs every phone |
 
 The one exception is media marks: `<project>/.nota-bene/marks/<comment id>/frame.jpg` and `layer.png`, with a `.nota-bene/.gitignore` containing `*`. They are the only thing Nota Bene writes into a project folder.
 

@@ -12,10 +12,10 @@ const PERIOD_KEY = { trip: 'usagePeriodTrip', '7d': 'usagePeriod7d', '30d': 'usa
 const MODEL_COLOR = ['bg-primary', 'bg-nb-accent'];
 const REST_COLOR = 'bg-muted-foreground';
 
-const pct = (a: number, b: number): string => (b > 0 ? `${Math.round(a / b * 100)}%` : '0%');
+export const pct = (a: number, b: number): string => (b > 0 ? `${Math.round(a / b * 100)}%` : '0%');
 /** A part of the whole: a tiny one never reads as nothing. */
-const part = (a: number, b: number): string => (a / b < 0.01 ? '<1%' : pct(a, b));
-const num = (n: number): string => n.toLocaleString(getLang());
+export const part = (a: number, b: number): string => (a / b < 0.01 ? '<1%' : pct(a, b));
+export const num = (n: number): string => n.toLocaleString(getLang());
 /** Large counts in the unit that reads best. */
 export function fmtTokens(n: number): string {
   const lang = getLang();
@@ -23,7 +23,7 @@ export function fmtTokens(n: number): string {
   return n >= 1e9 ? unit(n / 1e9, 'млрд', 'B') : n >= 1e6 ? unit(n / 1e6, 'млн', 'M') : n >= 1e3 ? unit(n / 1e3, 'тыс', 'k') : String(Math.round(n));
 }
 /** Minor units to the currency's own format; the currency says how many digits a minor unit is. */
-function money(minor: number, currency: string | null): string {
+export function money(minor: number, currency: string | null): string {
   const f = new Intl.NumberFormat(getLang(), { style: 'currency', currency: currency ?? 'USD' });
   return f.format(minor / 10 ** (f.resolvedOptions().maximumFractionDigits ?? 2));
 }
@@ -37,7 +37,7 @@ const weekDay = (key: string, plus = 0): string => {
   return shortTime(d.getTime());
 };
 /** claude-opus-5-5 reads Opus 5.5; anything else as it is. */
-const modelName = (id: string): string =>
+export const modelName = (id: string): string =>
   id.replace(/^claude-/, '').replace(/^([a-z])([a-z]*)-(\d+)-(\d+)$/, (_, a: string, b: string, major: string, minor: string) => `${a.toUpperCase()}${b} ${major}.${minor}`);
 
 const CHOICE = 'cursor-pointer text-muted-foreground hover:text-foreground aria-pressed:text-foreground aria-pressed:shadow-[0_1px_0_currentColor]';

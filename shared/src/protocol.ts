@@ -152,6 +152,8 @@ export type Capabilities = {
   compact: boolean; clear: boolean; modes: AgentMode[]; usage: boolean; fileSuggestions: boolean; fork: boolean; idleCompact: boolean; models: boolean;
   /** the server runs with the experimental 3D viewer on (env NOTA_BENE_EXPERIMENTAL_3D=1); absent / false: model files are plain files. Set by the server, not by the agent. */
   model3d?: boolean;
+  /** speech to text runs on the host (Whisper installed, ready and switched on); absent: not offered. Set by the server, not by the agent. */
+  dictation?: 'whisper';
   provider?: 'claude' | 'codex' | 'omp';
   modeDescriptors?: { id: AgentMode; name: string; description: string }[];
   taskBackground?: boolean;

@@ -50,7 +50,7 @@ it('the generated package.json: unscoped name, one bin, exact runtime deps only,
   expect(j.name).not.toMatch(/^@/);
   expect(j.bin).toEqual({ [BIN]: 'bin/nota-bene.mjs' });
   expect(j.version).toBe((JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version);
-  expect(Object.keys(j.dependencies).sort()).toEqual(['@anthropic-ai/claude-agent-sdk', 'ws']);
+  expect(Object.keys(j.dependencies).sort()).toEqual(['@anthropic-ai/claude-agent-sdk', 'uqr', 'ws']);
   for (const v of Object.values(j.dependencies)) expect(v).toMatch(/^\d+\.\d+\.\d+$/);
   expect(j.private).toBeUndefined();
   expect(j.publishConfig).toBeUndefined();
@@ -63,10 +63,22 @@ it('the generated package.json: unscoped name, one bin, exact runtime deps only,
 
 it('ships compiled JS with the shared protocol inlined, the blend assets and no TypeScript', () => {
   const files = tree(pkg).map((f) => path.relative(pkg, f));
-  expect(files).toEqual(expect.arrayContaining(['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/blend/export.py', 'server/src/blend/sandbox.sb', 'web/dist/index.html', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'package.json']));
+  expect(files).toEqual(expect.arrayContaining(['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/blend/export.py', 'server/src/blend/sandbox.sb', 'server/src/dictation/pipelineWorker.mjs', 'server/src/dictation/npm-shrinkwrap.json', 'web/dist/index.html', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'package.json']));
   expect(files.filter((f) => /\.tsx?$/.test(f))).toEqual([]);
   for (const f of ['bin/nota-bene.mjs', 'server/src/main.js']) expect(fs.readFileSync(path.join(pkg, f), 'utf8')).not.toContain('@nota-bene/shared');
   expect(fs.readFileSync(path.join(pkg, 'bin/nota-bene.mjs'), 'utf8').startsWith('#!/usr/bin/env node')).toBe(true);
+});
+
+it('nota-bene remote runs from the package, its runtime deps installed beside it', () => {
+  // as npm lays out an install: the dependencies next to the package in node_modules
+  for (const dep of ['ws', 'uqr']) fs.symlinkSync(fileURLToPath(new URL(`../node_modules/${dep}`, import.meta.url)), path.join(tmp, 'node_modules', dep));
+  const r = run(['remote', '--help']);
+  expect(r.stderr).toBe('');
+  expect(r.status).toBe(0);
+  expect(r.stdout).toMatch(/nota-bene remote pair/);
+  const j = JSON.parse(fs.readFileSync(path.join(pkg, 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
+  expect(j.dependencies.uqr).toBe('0.1.3');
+  expect(fs.existsSync(path.join(pkg, 'server/src/remote/cli.js'))).toBe(true);
 });
 
 it('a read-only install runs: --find / --last answer, a window serves /info and the page, codeChanged stays false, nothing is written to it', async () => {

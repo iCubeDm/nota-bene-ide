@@ -38,7 +38,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { SecretError, accessToken, isNonce, loginCredential, newNonce, proveListener, stateSecret } from '../server/src/auth.ts';
 import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } from '../server/src/runtime.ts';
 import { transcriptExists } from '../server/src/sessions.ts';
@@ -55,8 +55,11 @@ const SELF = fileURLToPath(import.meta.url);
 // the source checkout runs the server's .ts directly; the published package ships it compiled (Node does not strip types
 // under node_modules) at the same relative place
 const MAIN = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/main.js')) ? 'server/src/main.js' : 'server/src/main.ts');
+// `nota-bene remote`: its own bundle in the package, loaded only for that command (it needs ws and uqr, the launcher does not)
+const REMOTE = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/remote/cli.js')) ? 'server/src/remote/cli.js' : 'server/src/remote/cli.ts');
 const USAGE = 'Usage: nota-bene [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]\n'
   + '       nota-bene --find DIR [--scan] | --last DIR | --url PORT | --front PORT\n'
+  + '       nota-bene remote [pair | devices | revoke ID | status | --relay URL]   (remote access, see nota-bene remote --help)\n'
   + '       nota-bene --help | --version';
 const DEV_BACKEND_PORT = 4780; // `npm run dev`'s server (scripts/dev.mjs, web/vite.config.ts)
 const EXIT_SECRET = 3; // a secret file is refused (loose mode, foreign owner, ...): --find & co. say so instead of "not found"
@@ -799,6 +802,8 @@ async function supervise(o, autoPort, release, state) {
 }
 
 async function main(argv) {
+  // a command of its own, with its own arguments (server/src/remote/cli.ts): before the window options are parsed
+  if (argv[0] === 'remote') return (await import(pathToFileURL(REMOTE).href)).remoteMain(argv.slice(1));
   let o;
   try {
     o = parseArgs(argv);

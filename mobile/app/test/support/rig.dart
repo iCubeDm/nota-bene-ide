@@ -1,0 +1,110 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/chat/chat_route.dart';
+import 'package:nb_app/chat/mermaid.dart';
+import 'package:nb_app/chat/window_tab.dart';
+import 'package:nb_app/hosts/host_link.dart';
+import 'package:nb_app/main.dart';
+import 'package:nb_app/store/hosts.dart';
+import 'package:nb_app/store/vault.dart';
+import 'package:nb_channel/nb_channel.dart';
+
+import 'fakes.dart';
+import 'mermaid_fake.dart';
+
+/// A chat on a fake host: [ch] plays the window, [tab] is the phone's tab of it.
+class Rig {
+  late FakeChannel ch;
+  late HostLink link;
+  WindowTab? tab;
+
+  Future<void> open(
+    WidgetTester t, {
+    List<Map<String, Object?>> events = const [],
+    Map<String, Object?>? hello,
+  }) async {
+    final f = FakeFactory();
+    ch = FakeChannel([window(4791, '/home/u/notes')]);
+    f.results.add(ch);
+    link = HostLink(
+      PairedHost(
+        id: b64u(List.filled(32, 1)),
+        relay: Uri.parse('wss://r.example'),
+        label: 'h',
+        pairedAt: DateTime(2026),
+      ),
+      f.factory,
+      await Identity.load(MemoryVault()),
+      sleep: (_) => Completer<void>().future,
+    )..start();
+    await t.pump();
+    await t.pumpWidget(
+      NbApp(
+        home: MermaidScope(
+          renderer: FakeMermaid(),
+          child: ChatRoute(
+            link: link,
+            port: 4791,
+            root: '/home/u/notes',
+            onTab: (x) => tab = x,
+            retry: (_) async {},
+          ),
+        ),
+      ),
+    );
+    await t.pump();
+    event(hello ?? {'kind': 'hello', 'protocol': 13, 'capabilities': caps()});
+    event({'kind': 'replay', 'events': events});
+    await t.pumpAndSettle();
+  }
+
+  static Map<String, Object?> caps({
+    bool compact = true,
+    bool models = true,
+    bool usage = true,
+    String? provider,
+    String? dictation,
+  }) => {
+    'provider': ?provider,
+    'dictation': ?dictation,
+    'compact': compact,
+    'clear': true,
+    'modes': ['default'],
+    'usage': usage,
+    'fileSuggestions': true,
+    'fork': false,
+    'idleCompact': true,
+    'models': models,
+  };
+
+  void event(Map<String, Object?> e) => ch.event(ch.lastWsId, e);
+
+  /// What the phone sent on the window's socket.
+  List<Map<String, Object?>> get sent => ch.sentOn(ch.lastWsId);
+
+  void dispose() => link.dispose();
+}
+
+Map<String, Object?> agent(Map<String, Object?> e) => {
+  'kind': 'agent',
+  'e': e,
+  'ts': 1,
+};
+
+Finder textIn(String s) => find.textContaining(s);
+
+extension Pumps on WidgetTester {
+  Future<void> enter(String text) async {
+    await enterText(find.byType(TextField), text);
+    await pump();
+  }
+
+  Future<void> tapText(String s) async {
+    await tap(find.text(s));
+    await pumpAndSettle();
+  }
+}
+
+Widget unused() => const SizedBox();
