@@ -475,8 +475,14 @@ the turn or, with *Send now*, interrupts it), *Stop*, and in the agent menu *Com
   and the computer's tab offers to take it back.
 - **Themes.** The desktop's six themes, picked in the app's Settings. The phone keeps its own choice (Darcula until
   one is picked) for every host; code highlighting and Mermaid diagrams follow it.
-- **Not yet:** comments on messages and files, images and video, usage statistics and dictation come with the next
-  parts of #63.
+- **Markdown files and comments.** A tool line on a Markdown file of the project has an open button, and the agent
+  menu's *Files* lists the session's Markdown files. The file opens over the chat. Select text and choose *Comment*:
+  the sheet shows the quote, the quick labels and a field. The comments gather above the composer and leave with the
+  next message as the desktop sends them, and the desktop shows them too, because they are the window's comments. A
+  comment is highlighted in its file; tap it (or long-press it above the composer) to edit or delete it. Comments
+  on images, video and pages made on the desktop stay there and are sent from the desktop.
+- **Not yet:** comments on chat messages, images and video, usage statistics and dictation come with the next parts
+  of #63.
 
 ## State on disk
 

@@ -107,5 +107,9 @@
   "fileOutside": "Este arquivo está fora do projeto.",
   "fileTooLarge": "O arquivo é grande demais para o celular (mais de 2 MB). Abra-o no computador.",
   "fileNotMarkdown": "Por enquanto, só arquivos Markdown abrem no celular.",
-  "fileUnreadable": "Não foi possível ler o arquivo. Tente de novo quando o host estiver online."
+  "fileUnreadable": "Não foi possível ler o arquivo. Tente de novo quando o host estiver online.",
+  "openFile": "Abrir o arquivo",
+  "files": "Arquivos",
+  "noFiles": "Ainda não há arquivos Markdown nesta sessão.",
+  "pendingComments": "{count, plural, =1{1 comentário para enviar} other{{count} comentários para enviar}}"
 }

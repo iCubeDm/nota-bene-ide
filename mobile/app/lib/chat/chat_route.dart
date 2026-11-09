@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../hosts/host_link.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import '../comments/comment_strip.dart';
 import 'chat_screen.dart';
 import 'composer.dart';
 import 'controls.dart';
@@ -88,7 +89,13 @@ class _ChatRouteState extends State<ChatRoute> {
     builder: (context, _) => ChatScreen(
       tab: _tab,
       actions: [AgentMenu(tab: _tab)],
-      bottom: Composer(tab: _tab),
+      bottom: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CommentStrip(tab: _tab),
+          Composer(tab: _tab),
+        ],
+      ),
       overlay: OneTabOverlay(tab: _tab),
       itemBuilder: _item,
     ),

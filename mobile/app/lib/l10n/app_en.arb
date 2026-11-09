@@ -218,5 +218,16 @@
   "fileOutside": "This file is outside the project.",
   "fileTooLarge": "The file is too large for the phone (over 2 MB). Open it on the computer.",
   "fileNotMarkdown": "Only Markdown files open on the phone for now.",
-  "fileUnreadable": "The file could not be read. Try again when the host is online."
+  "fileUnreadable": "The file could not be read. Try again when the host is online.",
+  "openFile": "Open the file",
+  "files": "Files",
+  "noFiles": "No Markdown files in this session yet.",
+  "pendingComments": "{count, plural, =1{1 comment to send} other{{count} comments to send}}",
+  "@pendingComments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
