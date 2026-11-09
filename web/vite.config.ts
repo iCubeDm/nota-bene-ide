@@ -42,7 +42,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      ...Object.fromEntries(['/agent-account', '/info', '/auth', '/hello', '/file', '/edit', '/tree', '/complete', '/attach', '/sources', '/git-status', '/vcs-diff', '/vcs-branches', '/vcs-log', '/vcs-commit', '/vcs-file', '/vcs-commit-file', '/marks', '/sessions', '/restart-server', '/stop', '/system', '/usage', '/history', '/subagent', '/task-output', '/model'].map((p) => [p, backend])),
+      ...Object.fromEntries(['/agent-account', '/info', '/auth', '/hello', '/file', '/edit', '/tree', '/complete', '/attach', '/voice', '/sources', '/git-status', '/vcs-diff', '/vcs-branches', '/vcs-log', '/vcs-commit', '/vcs-file', '/vcs-commit-file', '/marks', '/sessions', '/restart-server', '/stop', '/system', '/usage', '/history', '/subagent', '/task-output', '/model'].map((p) => [p, backend])),
       '/ws': { ...backend, ws: true },
     },
   },

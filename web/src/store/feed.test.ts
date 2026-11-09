@@ -1,6 +1,6 @@
 import { SHELL_OUTPUT_CAP, type ServerEvent, type WireAgentEvent } from '@nota-bene/shared';
 import { describe, expect, test } from 'vitest';
-import { emptyFeed, prependHistory, reduce, type FeedState } from './feed.ts';
+import { emptyFeed, prependHistory, reduce, retriedVoice, type FeedState } from './feed.ts';
 
 type Turn = Extract<WireAgentEvent, { t: 'turn-end' }>;
 const agent = (e: WireAgentEvent, ts = 1): ServerEvent => ({ kind: 'agent', e, ts });
@@ -533,5 +533,46 @@ describe('a turn the agent starts itself (#102)', () => {
     const s = run(agent({ t: 'turn-start' }), user('u1'), end('none'));
     expect(s.busy).toBe(true);
     expect(reduce(s, end(['u1'])).busy).toBe(false);
+  });
+});
+
+const VID = 'a'.repeat(64);
+const voice = { id: VID, ms: 4200, wave: Array.from({ length: 48 }, (_, i) => i % 32) };
+const vtext = (extra: Partial<Extract<ServerEvent, { kind: 'voice-text' }>>): ServerEvent => ({ kind: 'voice-text', id: 'v1', ts: 6, ...extra });
+
+describe('voice messages', () => {
+  test('the user item keeps its voice; voice-text puts the transcript into that message', () => {
+    const s = fold([user({ id: 'v1', text: '', voice }), vtext({ text: 'call me back' })]);
+    expect(s.items).toEqual([expect.objectContaining({ kind: 'user', id: 'v1', text: '', voice, voiceText: 'call me back' })]);
+    expect(s.items[0]).not.toHaveProperty('voiceError');
+  });
+
+  test('voice-text with an error marks the message; it does not touch busy or the waiting list', () => {
+    const before = fold([user({ id: 'v1', text: '', voice })]);
+    const s = reduce(before, vtext({ error: 'empty' }));
+    expect(s.items[0]).toMatchObject({ id: 'v1', voiceError: 'empty' });
+    expect(s.busy).toBe(before.busy);
+    expect(s.waiting).toEqual(before.waiting);
+  });
+
+  test('a voice-text inside a replay patches the message, a later one for another id changes nothing', () => {
+    const replayed = reduce(emptyFeed, { kind: 'replay', events: [user({ id: 'v1', text: '', voice, historic: true }), vtext({ text: 'hi' })] });
+    expect(replayed.items[0]).toMatchObject({ voiceText: 'hi' });
+    expect(reduce(replayed, vtext({ id: 'nope', text: 'x' }))).toBe(replayed);
+  });
+
+  test('a replayed history carries the transcript as the text itself and still shows as a voice message', () => {
+    const s = fold([user({ id: 'v1', text: 'from history', voice, historic: true })]);
+    expect(s.items[0]).toMatchObject({ text: 'from history', voice });
+  });
+
+  test('retriedVoice: a failed message is hidden once a later user item carries the same voice id', () => {
+    const failed = fold([user({ id: 'v1', text: '', voice }), vtext({ error: 'failed' })]);
+    expect(retriedVoice(failed.items).size).toBe(0);
+    const again = fold([user({ id: 'v2', text: '', voice })], failed);
+    expect([...retriedVoice(again.items)]).toEqual(['v1']);
+    // a succeeded one is never hidden, whatever follows
+    const ok = fold([user({ id: 'v1', text: '', voice }), vtext({ text: 'fine' }), user({ id: 'v2', text: '', voice })]);
+    expect(retriedVoice(ok.items).size).toBe(0);
   });
 });
