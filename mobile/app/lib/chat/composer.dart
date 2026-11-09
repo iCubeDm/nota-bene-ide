@@ -7,11 +7,9 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
 import '../comments/comments.dart';
-import '../dictation/dictation.dart';
-import '../dictation/host_dictation.dart';
 import '../dictation/record_bar.dart';
 import '../dictation/voice_button.dart';
-import '../files/image_screen.dart' show windowHttp;
+import '../dictation/voice_chooser.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'window_tab.dart';
@@ -214,15 +212,7 @@ class _ComposerState extends State<Composer> {
                       enabled: open,
                       meter: _meter,
                       onState: (v) => setState(() => _voice = v),
-                      chooser: () =>
-                          open &&
-                              widget.tab.capabilities?.dictation == 'whisper' &&
-                              !widget.tab.hostWhisperOff
-                          ? HostDictation(
-                              () => windowHttp(widget.tab),
-                              onHostOff: () => widget.tab.hostWhisperOff = true,
-                            )
-                          : dictation,
+                      chooser: voiceChooser(widget.tab),
                     ),
                   ],
                 ),

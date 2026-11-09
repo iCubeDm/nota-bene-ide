@@ -155,6 +155,7 @@ class _VideoScreenState extends State<VideoScreen> {
       quote:
           '${widget.path.split('/').last} @ '
           '${mediaTime(_framePosition.inMilliseconds / 1000)}',
+      tab: widget.tab,
     );
     if (res is! SheetSave || !mounted) return;
     setState(() => _busy = true);

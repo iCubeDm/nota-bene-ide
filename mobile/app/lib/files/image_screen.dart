@@ -195,6 +195,7 @@ class _ImageScreenState extends State<ImageScreen> {
     final res = await showCommentSheet(
       context,
       quote: widget.path.split('/').last,
+      tab: widget.tab,
     );
     if (res is! SheetSave || !mounted) return;
     setState(() => _busy = true);

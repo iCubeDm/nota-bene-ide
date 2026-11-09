@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/comments/comment_sheet.dart';
 import 'package:nb_app/comments/strings.g.dart';
+import 'package:nb_app/chat/composer.dart';
+import 'package:nb_app/dictation/dictation.dart';
+import 'package:nb_app/dictation/voice_button.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/theme.dart';
+
+import 'host_dictation_test.dart' show Recorder;
+import 'support/fake_dictation.dart';
+import 'support/rig.dart';
 
 void main() {
   SheetResult? got;
@@ -86,5 +93,103 @@ void main() {
     await t.tap(find.text('Save'));
     await t.pumpAndSettle();
     expect((got as SheetSave).label, isNull);
+  });
+
+  group('voice', () {
+    late Rig r;
+    late Recorder rec;
+    late FakeDictation phone;
+    late Dictation saved;
+    setUp(() {
+      r = Rig();
+      rec = Recorder()..install();
+      saved = dictation;
+      dictation = phone = FakeDictation();
+    });
+    tearDown(() {
+      dictation = saved;
+      r.dispose();
+    });
+
+    Future<Finder> openSheet(WidgetTester t, {String? cap}) async {
+      await r.open(
+        t,
+        hello: {
+          'kind': 'hello',
+          'protocol': 13,
+          'capabilities': Rig.caps(dictation: cap),
+        },
+      );
+      showCommentSheet(
+        t.element(find.byType(Composer)),
+        quote: 'q',
+        tab: r.tab,
+      );
+      await t.pumpAndSettle();
+      return find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byType(VoiceButton),
+      );
+    }
+
+    testWidgets('a whisper-capable tab: the sheet records through the host', (
+      t,
+    ) async {
+      final mic = await openSheet(t, cap: 'whisper');
+      final g = await pressVoice(t, at: mic);
+      expect(rec.calls, ['start']);
+      expect(phone.calls, isEmpty);
+      await g.moveBy(const Offset(-120, 0));
+      await g.up();
+      await t.pump();
+    });
+
+    testWidgets('without it: the phone recognizer', (t) async {
+      final mic = await openSheet(t);
+      final g = await pressVoice(t, at: mic);
+      expect(phone.calls, ['listen']);
+      expect(rec.calls, isEmpty);
+      await g.moveBy(const Offset(-120, 0));
+      await g.up();
+      await t.pump();
+    });
+
+    testWidgets('an error shows inside the sheet', (t) async {
+      final mic = await openSheet(t);
+      await lockVoice(t, at: mic);
+      phone.last.add(const DictationError(DictationFailure.denied));
+      phone.last.add(const DictationEnd());
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('Microphone access is off for Nota Bene'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Save cancels a recording in progress', (t) async {
+      final mic = await openSheet(t);
+      await lockVoice(t, at: mic);
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      expect(phone.calls, ['listen', 'cancel']);
+    });
+
+    testWidgets('the sheet shows the record bar while it records', (t) async {
+      final mic = await openSheet(t);
+      await lockVoice(t, at: mic);
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('Cancel'),
+        ),
+        findsNWidgets(2),
+      );
+      VoiceButton.cancelRunning();
+      await t.pump();
+    });
   });
 }

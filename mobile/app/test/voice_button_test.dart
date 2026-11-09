@@ -269,6 +269,82 @@ void main() {
     await t.pump();
   });
 
+  testWidgets('an empty final keeps the last partial', (t) async {
+    final c = await pump(t, text: 'Fix ');
+    await lockVoice(t);
+    fake.last.add(const DictationPartial('the header'));
+    fake.last.add(const DictationFinal(''));
+    fake.last.add(const DictationEnd());
+    await t.pump();
+    expect(c.text, 'Fix the header');
+  });
+
+  testWidgets('a failure restores the field and its selection', (t) async {
+    final c = await pump(t, text: 'Fix header');
+    c.selection = const TextSelection(baseOffset: 4, extentOffset: 10);
+    await lockVoice(t);
+    fake.last.add(const DictationPartial('title'));
+    await t.pump();
+    expect(c.text, 'Fix title');
+    fake.last.add(const DictationError(DictationFailure.denied));
+    fake.last.add(const DictationEnd());
+    await t.pump();
+    expect(c.text, 'Fix header');
+    expect(c.selection, const TextSelection(baseOffset: 4, extentOffset: 10));
+  });
+
+  testWidgets('typing while recording is kept and ends the dictation', (
+    t,
+  ) async {
+    final c = await pump(t, text: 'Fix ');
+    await lockVoice(t);
+    fake.last.add(const DictationPartial('the'));
+    await t.pump();
+    c.value = const TextEditingValue(
+      text: 'Fix the big',
+      selection: TextSelection.collapsed(offset: 11),
+    );
+    fake.last.add(const DictationFinal('the header'));
+    await t.pump();
+    expect(c.text, 'Fix the big');
+    expect(fake.calls, ['listen', 'cancel']);
+  });
+
+  testWidgets('disabling while recording cancels', (t) async {
+    final on = ValueNotifier(true);
+    await pump(t, enabled: on);
+    await lockVoice(t);
+    on.value = false;
+    await t.pump();
+    expect(fake.calls, ['listen', 'cancel']);
+    expect(states.last, VoiceState.idle);
+  });
+
+  testWidgets('the language tag follows the UI, not the device', (t) async {
+    t.platformDispatcher.localesTestValue = const [Locale('ja', 'JP')];
+    addTearDown(t.platformDispatcher.clearLocalesTestValue);
+    await pump(t);
+    await lockVoice(t);
+    expect(fake.tags, ['en']);
+    VoiceButton.cancelRunning();
+  });
+
+  testWidgets('a failing stop is not an unhandled error', (t) async {
+    dictation = ThrowingDictation();
+    await pump(t);
+    await holdVoice(t);
+    await t.pumpWidget(const SizedBox());
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('a second stop does nothing', (t) async {
+    await pump(t);
+    await lockVoice(t);
+    VoiceButton.stopRunning();
+    VoiceButton.stopRunning();
+    expect(fake.calls, ['listen', 'stop']);
+  });
+
   group('RecordBar', () {
     Future<void> bar(WidgetTester t, VoiceState s, VoiceMeter m) =>
         t.pumpWidget(

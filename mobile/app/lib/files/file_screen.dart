@@ -140,6 +140,7 @@ class _FileScreenState extends State<FileScreen> {
     final res = await showCommentSheet(
       context,
       quote: r.text.substring(at.start, at.end),
+      tab: widget.tab,
     );
     if (res is! SheetSave) return;
     widget.tab.comments.add(
@@ -157,6 +158,7 @@ class _FileScreenState extends State<FileScreen> {
       context,
       quote: (c.anchor as TextAnchor).quote,
       editing: c,
+      tab: widget.tab,
     );
     switch (res) {
       case SheetSave(:final text, :final label):
