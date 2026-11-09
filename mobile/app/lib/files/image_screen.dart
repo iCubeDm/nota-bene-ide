@@ -48,6 +48,7 @@ Future<bool> saveMediaComment(
   required List<MediaShape> shapes,
   required String text,
   QuickLabelId? label,
+  List<VoiceClip> voice = const [],
   String? version,
   double? time,
 }) async {
@@ -80,6 +81,7 @@ Future<bool> saveMediaComment(
       id: id,
       images: [r.image],
       genImages: 1,
+      voice: voice,
     );
     return true;
   } catch (_) {
@@ -252,6 +254,7 @@ class _ImageScreenState extends State<ImageScreen> {
       shapes: _markup.shapes,
       text: res.text,
       label: res.label,
+      voice: res.voice,
       version: _page?.etag,
     );
     if (!mounted) return;

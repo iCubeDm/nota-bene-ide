@@ -19,8 +19,8 @@ Future<void> editComment(BuildContext context, WindowTab tab, Comment x) async {
     tab: tab,
   );
   switch (res) {
-    case SheetSave(:final text, :final label):
-      tab.comments.edit(x.id, text, label);
+    case SheetSave(:final text, :final label, :final voice):
+      tab.comments.edit(x.id, text, label, voice: voice);
     case SheetDelete():
       tab.comments.remove(x.id);
     case null:
@@ -76,6 +76,8 @@ class CommentStrip extends StatelessWidget {
     final body = [
       labelLine(x.label, lang),
       x.text,
+      // the recordings' words, as the agent will get them
+      for (final v in x.voice ?? const <VoiceClip>[]) v.text,
     ].where((s) => s.isNotEmpty).join(' ');
     final path = switch (x.anchor) {
       TextAnchor(source: AnchorSourceFile(:final path)) => path,

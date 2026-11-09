@@ -16,6 +16,7 @@ Comment c(
   QuickLabelId? label,
   AnchorSource source = const AnchorSourceFile(path: 'docs/plan.md'),
   CommentStatus status = CommentStatus.pending,
+  List<VoiceClip>? voice,
 }) => Comment(
   id: id,
   anchor: TextAnchor(
@@ -30,6 +31,7 @@ Comment c(
   label: label,
   status: status,
   createdAt: 1,
+  voice: voice,
 );
 
 Map<String, Object?> json(Comment x) => x.toJson();
@@ -39,7 +41,79 @@ final fixture =
     jsonDecode(File('test/fixtures/batch/media.json').readAsStringSync())
         as Map<String, Object?>;
 
+VoiceClip clip(String text) =>
+    VoiceClip(text: text, id: 'a' * 64, ms: 2000, wave: List.filled(48, 3));
+
 void main() {
+  group('voice clips in a batch (web compose.ts)', () {
+    test('the clips follow the typed text, each on a line of its own', () {
+      final out = composeBatch('', [
+        c(
+          'a',
+          'foo',
+          'typed',
+          voice: [clip('first\n clip'), clip('  '), clip('second')],
+        ),
+      ], 'en');
+      expect(
+        out,
+        'Comments on fragments:\n\n1. [docs/plan.md]\n> foo\n→ typed\n   first clip\n   second',
+      );
+    });
+
+    test('a clips-only comment: the first clip is on the arrow line', () {
+      final out = composeBatch('', [
+        c('a', 'foo', '', voice: [clip('one'), clip('two')]),
+      ], 'en');
+      expect(out, endsWith('> foo\n→ one\n   two'));
+    });
+
+    test(
+      'the label stays with the typed text, the instruction after the clips',
+      () {
+        final out = composeBatch('', [
+          c(
+            'a',
+            'foo',
+            'why',
+            label: QuickLabelId.values.first,
+            voice: [clip('because')],
+          ),
+        ], 'en');
+        final label = quickLabels.first;
+        expect(
+          out,
+          contains('→ ${label.emoji} ${label.textIn('en')} why\n   because'),
+        );
+        final instr = label.instruction;
+        if (instr != null) {
+          expect(out.indexOf('because'), lessThan(out.indexOf(instr)));
+        }
+      },
+    );
+
+    test('add and edit keep the clips', () {
+      final sent = <ClientMessage>[];
+      final cs = Comments((m) {
+        sent.add(m);
+        return true;
+      }, () => 's');
+      final x = cs.add(
+        c('z', 'q', '').anchor,
+        'hi',
+        null,
+        voice: [clip('hello')],
+      );
+      expect(x.voice!.single.text, 'hello');
+      cs.edit(x.id, 'hi', null, voice: [clip('one'), clip('two')]);
+      expect(cs.all.single.voice!.map((v) => v.text), ['one', 'two']);
+      cs.edit(x.id, 'hi', null);
+      expect(cs.all.single.voice, isNull);
+      final m = sent.whereType<ClientMessageComments>().first;
+      expect(m.items.single.toJson()['voice'], isNotNull);
+    });
+  });
+
   group('composeBatch (compose.test.ts, text anchors)', () {
     test('general text first, then the header and numbered items', () {
       final out = composeBatch('Please fix', [
