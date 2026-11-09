@@ -140,7 +140,7 @@ Opened from the header pill, top to bottom:
 ### Session list
 
 - Grouped by host; an offline host greyed with "last seen". A row: agent avatar, session title, time of the last
-  event, the last event's text, a working dot, "!" for a waiting approval, an unread count, folder and model.
+  event, the last event's text, a working dot, "!" for a waiting approval, an unread count, the folder (a coloured prefix before the text, two lines a row, #161).
 - The host stream (`device.ts` `INFO_FIELDS`, the window info in `server.ts`) gains `pending` (an approval or
   question waits) and `last` (`{text, at}` of the latest user or assistant message, the text cut to a line).
   The window server already holds its feed, so it fills both without new tracking. Unread is computed on the

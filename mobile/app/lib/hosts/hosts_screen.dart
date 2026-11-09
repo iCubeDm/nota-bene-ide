@@ -66,7 +66,6 @@ class HostsList extends StatelessWidget {
       };
       rows.add(
         ListTile(
-          dense: true,
           leading: Icon(Icons.circle, size: 10, color: dot),
           title: Text(
             l.host.label,
@@ -163,11 +162,7 @@ class _SessionRow extends StatelessWidget {
     final lang = Localizations.localeOf(context).languageCode;
     final w = window;
     final last = w.last;
-    final mono = TextStyle(
-      fontFamily: 'monospace',
-      fontSize: 11,
-      color: c.mutedFg,
-    );
+    final folder = folderOf(w.root);
     return Opacity(
       key: ValueKey('dim-${w.port}'),
       opacity: online ? 1 : 0.5,
@@ -175,11 +170,11 @@ class _SessionRow extends StatelessWidget {
         onTap: online ? onOpen : null,
         onLongPress: () => _menu(context),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           child: Row(
             children: [
               SizedBox.square(
-                dimension: 44,
+                dimension: 54,
                 child: Stack(
                   children: [
                     Container(
@@ -191,7 +186,7 @@ class _SessionRow extends StatelessWidget {
                       child: Text(
                         providerLetter(w.provider),
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: 21,
                           fontWeight: FontWeight.w600,
                           color: c.foreground,
                         ),
@@ -202,8 +197,8 @@ class _SessionRow extends StatelessWidget {
                         right: 0,
                         bottom: 0,
                         child: Container(
-                          width: 12,
-                          height: 12,
+                          width: 14,
+                          height: 14,
                           decoration: BoxDecoration(
                             color: c.accent,
                             shape: BoxShape.circle,
@@ -217,10 +212,11 @@ class _SessionRow extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       children: [
@@ -230,8 +226,8 @@ class _SessionRow extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
@@ -239,37 +235,41 @@ class _SessionRow extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             rowTime(at, now, lang),
-                            style: TextStyle(fontSize: 12, color: c.mutedFg),
+                            style: TextStyle(fontSize: 13, color: c.mutedFg),
                           ),
                         ],
                       ],
                     ),
-                    if (last != null || w.pending || unread > 0)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              last == null
-                                  ? ''
-                                  : last.role == 'user'
-                                  ? '${t.youPrefix}${last.text}'
-                                  : last.text,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 13, color: c.mutedFg),
+                    const SizedBox(height: 3),
+                    // the folder names the window, as a messenger names the sender in a group
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: last == null ? folder : '$folder: ',
+                                  style: TextStyle(color: c.primary),
+                                ),
+                                if (last != null)
+                                  TextSpan(
+                                    text: last.role == 'user'
+                                        ? '${t.youPrefix}${last.text}'
+                                        : last.text,
+                                  ),
+                              ],
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 15, color: c.mutedFg),
                           ),
-                          if (w.pending)
-                            _Badge('!', c.accent, c.background)
-                          else if (unread > 0)
-                            _Badge('$unread', c.primary, c.primaryFg),
-                        ],
-                      ),
-                    Text(
-                      [folderOf(w.root), ?w.model].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: mono,
+                        ),
+                        if (w.pending)
+                          _Badge('!', c.accent, c.background)
+                        else if (unread > 0)
+                          _Badge('$unread', c.primary, c.primaryFg),
+                      ],
                     ),
                   ],
                 ),
@@ -291,16 +291,16 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(left: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-    constraints: const BoxConstraints(minWidth: 20),
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    constraints: const BoxConstraints(minWidth: 22),
     decoration: BoxDecoration(
       color: fill,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(11),
     ),
     child: Text(
       text,
       textAlign: TextAlign.center,
-      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
+      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg),
     ),
   );
 }

@@ -95,8 +95,8 @@ void main() {
       expect(find.text('laptop'), findsOneWidget);
       expect(find.text('desktop'), findsOneWidget);
       expect(find.text('Plan'), findsOneWidget);
-      expect(find.textContaining('notes · opus'), findsOneWidget);
-      expect(find.textContaining('site'), findsOneWidget);
+      expect(find.text('notes'), findsOneWidget);
+      expect(find.text('site'), findsOneWidget);
       expect(find.textContaining('Offline'), findsOneWidget);
       links.dispose();
     },
@@ -177,17 +177,37 @@ void main() {
     return pump(t);
   }
 
-  testWidgets('a row shows title, time, last text, count, folder and model', (
+  testWidgets(
+    'a row shows title, time, the folder before the last text, count',
+    (t) async {
+      final links = await pumpOne(t, full());
+      expect(find.text('Plan'), findsOneWidget);
+      expect(find.text('15:30'), findsOneWidget);
+      expect(find.text('notes: Done, see the diff'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('!'), findsNothing);
+      expect(find.text('C'), findsOneWidget);
+      // the model is in the chat's header, not in the list
+      expect(find.textContaining('opus'), findsNothing);
+      links.dispose();
+    },
+  );
+
+  testWidgets('a row is roomy: two lines, a 54 px avatar, 17 px title', (
     t,
   ) async {
     final links = await pumpOne(t, full());
-    expect(find.text('Plan'), findsOneWidget);
-    expect(find.text('15:30'), findsOneWidget);
-    expect(find.text('Done, see the diff'), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
-    expect(find.text('!'), findsNothing);
-    expect(find.text('C'), findsOneWidget);
-    expect(find.textContaining('notes · opus'), findsOneWidget);
+    final row = find.byKey(const ValueKey('dim-4791'));
+    expect(t.getSize(row).height, inInclusiveRange(72, 80));
+    expect(
+      t.getSize(
+        find
+            .ancestor(of: find.text('C'), matching: find.byType(SizedBox))
+            .first,
+      ),
+      const Size.square(54),
+    );
+    expect(t.widget<Text>(find.text('Plan')).style?.fontSize, 17);
     links.dispose();
   });
 
@@ -202,7 +222,7 @@ void main() {
       last: LastMessage(role: 'assistant', text: 'Restored reply'),
     );
     final links = await pumpOne(t, w);
-    expect(find.text('Restored reply'), findsOneWidget);
+    expect(find.text('notes: Restored reply'), findsOneWidget);
     expect(find.textContaining('1970'), findsNothing);
     expect(find.text('01.01'), findsNothing);
     expect(find.text('1.01'), findsNothing);
@@ -218,7 +238,7 @@ void main() {
 
   testWidgets('a user message is prefixed with You', (t) async {
     final links = await pumpOne(t, full(role: 'user'));
-    expect(find.text('You: Done, see the diff'), findsOneWidget);
+    expect(find.text('notes: You: Done, see the diff'), findsOneWidget);
     links.dispose();
   });
 
