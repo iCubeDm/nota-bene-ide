@@ -7,7 +7,8 @@ import 'package:flutter/services.dart';
 import '../media/media_comment.dart';
 import 'dictation.dart';
 
-// `start`, `stop` (answers the WAV bytes) and `cancel`; the phone calls back `capped` when the recorder reached
+// `start`, `stop` (answers the WAV bytes) and `cancel`; the phone calls back `level` (0..1, about every 100 ms
+// while recording) and `capped` when the recorder reached
 // its limit and stopped itself with the audio kept.
 const recordChannel = MethodChannel('nb/record');
 
@@ -38,6 +39,10 @@ class HostDictation implements Dictation {
       _phase = _Phase.recording;
       recordChannel.setMethodCallHandler((call) async {
         if (call.method == 'capped') await stop();
+        if (call.method == 'level' && _phase == _Phase.recording) {
+          final v = call.arguments;
+          if (v is num) _out?.add(DictationLevel(v.toDouble()));
+        }
         // the recorder failed under the phone: nothing usable was kept
         if (call.method == 'failed' && _phase == _Phase.recording) {
           _finish(DictationFailure.failed);

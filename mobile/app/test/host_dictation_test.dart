@@ -39,6 +39,16 @@ class Recorder {
         (_) {},
       );
 
+  /// The recorder reporting its input level.
+  Future<void> level(double v) => TestDefaultBinaryMessengerBinding
+      .instance
+      .defaultBinaryMessenger
+      .handlePlatformMessage(
+        recordChannel.name,
+        recordChannel.codec.encodeMethodCall(MethodCall('level', v)),
+        (_) {},
+      );
+
   /// The recorder failing under the phone (a read error).
   Future<void> fail() => TestDefaultBinaryMessengerBinding
       .instance
@@ -62,6 +72,30 @@ void main() {
   tearDown(
     () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(recordChannel, null),
+  );
+
+  test(
+    'level calls become DictationLevel while recording, none after stop',
+    () async {
+      final d = HostDictation(
+        () =>
+            (m, p, {headers, body}) async => answer(200, '{"text":"hi"}'),
+      );
+      final events = <DictationEvent>[];
+      final sub = d.listen('en').listen(events.add);
+      await tick();
+
+      await rec.level(0.5);
+      await tick();
+      expect(events.whereType<DictationLevel>().map((e) => e.value), [0.5]);
+
+      await d.stop();
+      await tick();
+      await rec.level(0.9);
+      await tick();
+      expect(events.whereType<DictationLevel>(), hasLength(1));
+      await sub.cancel();
+    },
   );
 
   test('stop posts the recording as audio/wav in the UI language', () async {

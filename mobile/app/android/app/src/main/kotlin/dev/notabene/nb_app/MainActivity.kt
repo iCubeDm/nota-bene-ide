@@ -336,6 +336,7 @@ class MainActivity : FlutterFragmentActivity() {
         private val pcm = ByteArrayOutputStream()
         @Volatile private var stopping = false
         private var dropped = false
+        private var lastLevelAt = 0L
         private var wav: ByteArray? = null
         private var waiting: MethodChannel.Result? = null
 
@@ -352,6 +353,12 @@ class MainActivity : FlutterFragmentActivity() {
                         break
                     }
                     pcm.write(buf, 0, minOf(n, MAX_PCM - pcm.size()))
+                    val now = android.os.SystemClock.uptimeMillis()
+                    if (now - lastLevelAt >= 100) {
+                        lastLevelAt = now
+                        val level = levelOf(buf, n)
+                        mainHandler.post { if (!dropped && !stopping) recordChannel?.invokeMethod("level", level) }
+                    }
                     if (pcm.size() >= MAX_PCM) {
                         capped = true
                         break
@@ -397,6 +404,18 @@ class MainActivity : FlutterFragmentActivity() {
             stopping = true
             waiting = null
         }
+    }
+
+    // RMS of the 16-bit little-endian samples in the first n bytes, 0..1
+    private fun levelOf(buf: ByteArray, n: Int): Double {
+        val samples = n / 2
+        if (samples == 0) return 0.0
+        var sum = 0.0
+        for (i in 0 until samples) {
+            val v = ((buf[2 * i + 1].toInt() shl 8) or (buf[2 * i].toInt() and 0xff)).toShort().toDouble()
+            sum += v * v
+        }
+        return (Math.sqrt(sum / samples) / 32768.0).coerceIn(0.0, 1.0)
     }
 
     // 16-bit mono PCM in a RIFF/WAVE container
