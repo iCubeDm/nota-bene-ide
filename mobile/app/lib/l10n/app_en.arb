@@ -279,6 +279,7 @@
   "voiceTranscribing": "Transcribing…",
   "voiceStop": "Stop",
   "dictationHostOff": "Whisper is off on the computer",
+  "dictationCut": "The rest of the recording was not transcribed",
   "expandCode": "Open full screen",
   "codeLines": "{count, plural, one{{count} line} other{{count} lines}}",
   "@codeLines": {

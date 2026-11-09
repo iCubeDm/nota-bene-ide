@@ -150,6 +150,7 @@
   "voiceTranscribing": "正在转写…",
   "voiceStop": "停止",
   "dictationHostOff": "电脑上的 Whisper 已关闭",
+  "dictationCut": "录音的其余部分未能转写",
   "expandCode": "全屏打开",
   "codeLines": "{count, plural, other{{count} 行}}",
   "windowSheetMode": "模式",

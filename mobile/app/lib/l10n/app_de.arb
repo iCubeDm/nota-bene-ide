@@ -150,6 +150,7 @@
   "voiceTranscribing": "Wird transkribiert…",
   "voiceStop": "Stopp",
   "dictationHostOff": "Whisper ist auf dem Computer aus",
+  "dictationCut": "Der Rest der Aufnahme wurde nicht transkribiert",
   "expandCode": "Im Vollbild öffnen",
   "codeLines": "{count, plural, one{{count} Zeile} other{{count} Zeilen}}",
   "windowSheetMode": "Modus",

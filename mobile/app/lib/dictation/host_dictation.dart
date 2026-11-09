@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../media/media_comment.dart';
 import 'dictation.dart';
+import 'wav_parts.dart';
 
 // `start`, `stop` (answers the WAV bytes) and `cancel`; the phone calls back `level` (0..1, about every 100 ms
 // while recording) and `capped` when the recorder reached
@@ -85,26 +86,63 @@ class HostDictation implements Dictation {
         }
         return _finish(DictationFailure.hostFailed);
       }
-      final r = await http(
-        'POST',
-        '/dictation/transcribe?lang=${Uri.encodeQueryComponent(_lang)}',
-        headers: {'content-type': 'audio/wav'},
-        body: wav,
-      ).timeout(_timeoutFor(wav));
-      if (_phase != _Phase.posting) return;
-      if (r.status == 503) {
-        onHostOff?.call();
-        return _finish(DictationFailure.hostOff);
+      final parts = splitWav(wav);
+      final texts = <String>[];
+      for (var i = 0; i < parts.length; i++) {
+        if (parts.length > 1) {
+          out.add(DictationWorking(part: i + 1, parts: parts.length));
+        }
+        final r = await _post(parts[i]);
+        if (_phase != _Phase.posting) return;
+        if (r?.status == 200) {
+          texts.add(r!.text);
+          continue;
+        }
+        final off = r?.status == 503;
+        if (off) onHostOff?.call();
+        // what came before the failed part is kept; the rest is said to be lost
+        final kept = texts.where((t) => t.isNotEmpty).join(' ');
+        if (kept.isEmpty) {
+          return _finish(
+            off ? DictationFailure.hostOff : DictationFailure.hostFailed,
+          );
+        }
+        out.add(DictationFinal(kept));
+        return _finish(off ? DictationFailure.hostOff : DictationFailure.cut);
       }
-      if (r.status != 200) return _finish(DictationFailure.hostFailed);
-      final text = (jsonDecode(utf8.decode(r.body)) as Map)['text'];
-      if (text is! String || text.trim().isEmpty) {
-        return _finish(DictationFailure.noMatch);
-      }
-      out.add(DictationFinal(text.trim()));
+      final text = texts.where((t) => t.isNotEmpty).join(' ');
+      if (text.isEmpty) return _finish(DictationFailure.noMatch);
+      out.add(DictationFinal(text));
       _finish();
     } catch (_) {
       if (_phase == _Phase.posting) _finish(DictationFailure.hostFailed);
+    }
+  }
+
+  // One part to the window's Whisper, tried once more after a failure other than 503 or the timeout: a hung host
+  // would only queue the second try behind the first. Null when it did not answer.
+  Future<({int status, String text})?> _post(Uint8List wav) async {
+    for (var tries = 0; ; tries++) {
+      final http = _http();
+      if (http == null) return null;
+      try {
+        final r = await http(
+          'POST',
+          '/dictation/transcribe?lang=${Uri.encodeQueryComponent(_lang)}',
+          headers: {'content-type': 'audio/wav'},
+          body: wav,
+        ).timeout(_timeoutFor(wav));
+        if (r.status == 200) {
+          final text = (jsonDecode(utf8.decode(r.body)) as Map)['text'];
+          return (status: 200, text: text is String ? text.trim() : '');
+        }
+        if (r.status == 503 || tries > 0) return (status: r.status, text: '');
+      } on TimeoutException {
+        return null;
+      } catch (_) {
+        if (tries > 0) return null;
+      }
+      if (_phase != _Phase.posting) return null;
     }
   }
 

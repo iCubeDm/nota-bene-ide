@@ -17,6 +17,7 @@ void main() {
   late List<VoiceState> states;
   late List<String> haptics;
   late int unavailable;
+  late VoiceMeter meter;
   setUp(() {
     fake = FakeDictation();
     chooser = () => fake;
@@ -44,7 +45,7 @@ void main() {
   }) async {
     final c = TextEditingController(text: text);
     c.selection = TextSelection.collapsed(offset: text.length);
-    final meter = VoiceMeter();
+    meter = VoiceMeter();
     await t.pumpWidget(
       NbApp(
         home: Scaffold(
@@ -239,6 +240,31 @@ void main() {
     expect(c.selection, const TextSelection(baseOffset: 4, extentOffset: 10));
   });
 
+  testWidgets('a cut keeps the parts transcribed and says the rest was lost', (
+    t,
+  ) async {
+    final c = await pump(t, text: 'Fix ');
+    await lockVoice(t);
+    fake.last.add(const DictationFinal('one two'));
+    fake.last.add(const DictationError(DictationFailure.cut));
+    fake.last.add(const DictationEnd());
+    await t.pump();
+    await t.pump();
+    expect(c.text, 'Fix one two');
+    expect(
+      find.text('The rest of the recording was not transcribed'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('the parts being transcribed reach the meter', (t) async {
+    await pump(t);
+    await lockVoice(t);
+    fake.last.add(const DictationWorking(part: 2, parts: 5));
+    await t.pump();
+    expect((meter.part, meter.parts), (2, 5));
+  });
+
   testWidgets('finishRunning stops and waits for the final result', (t) async {
     final c = await pump(t, text: 'Fix ');
     await lockVoice(t);
@@ -394,13 +420,24 @@ void main() {
       expect(find.text('Transcribing…'), findsOneWidget);
     });
 
-    testWidgets('the timer turns accent from 110 s', (t) async {
+    testWidgets('working on parts says which one', (t) async {
+      await bar(
+        t,
+        VoiceState.working,
+        VoiceMeter()
+          ..part = 2
+          ..parts = 5,
+      );
+      expect(find.text('Transcribing… 2/5'), findsOneWidget);
+    });
+
+    testWidgets('the timer turns accent from 9:50', (t) async {
       Color? colorOf() =>
           t.widget<Text>(find.byKey(const Key('timer'))).style?.color;
       await bar(
         t,
         VoiceState.recording,
-        VoiceMeter()..elapsed = const Duration(seconds: 109),
+        VoiceMeter()..elapsed = const Duration(seconds: 589),
       );
       final accent = Theme.of(
         t.element(find.byType(RecordBar)),
@@ -409,7 +446,7 @@ void main() {
       await bar(
         t,
         VoiceState.recording,
-        VoiceMeter()..elapsed = const Duration(seconds: 110),
+        VoiceMeter()..elapsed = const Duration(seconds: 590),
       );
       expect(colorOf(), accent);
     });
