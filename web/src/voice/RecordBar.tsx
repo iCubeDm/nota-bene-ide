@@ -1,9 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { clock } from './lang.ts';
 import type { RecState } from './useVoiceRecorder.ts';
 import { release as releasePlay } from './player.ts';
 import { VoiceView } from './VoiceView.tsx';
+
+/** The bars that are mounted, oldest first: a key nobody has focus for (the page body) belongs to the newest only. */
+const mounted: object[] = [];
 
 const ICON = 'size-9 flex-none grid place-items-center rounded-full';
 const Cross = () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6 6 18" /></svg>;
@@ -30,28 +33,50 @@ function LiveWave({ levels }: { levels: number[] }) {
 export function RecordBar({ state, onCancel, onStop, onSend, clip = false }: { state: Exclude<RecState, { phase: 'idle' }>; onCancel: () => void; onStop?: () => void; onSend: () => void; clip?: boolean }) {
   const t = useT();
   const sending = state.phase === 'sending';
-  // capture + preventDefault, as the popups do: this Esc must not also reach the document hotkeys
+  const root = useRef<HTMLDivElement>(null);
+  const me = useRef({}).current;
+  useEffect(() => {
+    mounted.push(me);
+    return () => void mounted.splice(mounted.indexOf(me), 1);
+  }, [me]);
+  const live = state.phase === 'recording';
+  // capture + preventDefault, as the popups do: this Esc must not also reach the document hotkeys. But a key another layer
+  // took (defaultPrevented: a closed menu or dialog) is not ours, and nor is one from a control outside this bar's row
+  // (`data-record-scope`, else the bar itself). With no focus at all (the page body) a recording's bar takes it, the newest
+  // one only; a stopped recording is deleted by Esc only with focus inside the bar.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.isComposing) return;
+      if (e.isComposing || e.defaultPrevented) return;
+      const target = e.target as Node | null;
+      const own = !!target && !!root.current && (root.current.contains(target) || !!root.current.closest('[data-record-scope]')?.contains(target));
+      const bare = !target || target === document.body || target === document.documentElement || target === document;
+      const isBar = target instanceof Element && root.current?.contains(target);
       if (e.key === 'Escape') {
+        if (!(own || (bare && live && mounted[mounted.length - 1] === me))) return;
+        if (!live && !isBar) return;
         e.preventDefault();
         onCancel();
       } else if (e.key === 'Enter' && !e.shiftKey && !(e.target as HTMLElement | null)?.closest?.('button, textarea, input, [contenteditable]')) {
+        if (!(own || (bare && mounted[mounted.length - 1] === me))) return;
         e.preventDefault();
         onSend();
       }
     };
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onCancel, onSend]);
+  }, [onCancel, onSend, live, me]);
+  // the stopped recording takes focus (the Stop button it came from is gone), so Esc and Enter keep working on it
+  useEffect(() => {
+    const a = document.activeElement;
+    if (!live && root.current && (!a || a === document.body)) root.current.focus({ preventScroll: true });
+  }, [live]);
   // the preview's player belongs to this bar: a deleted or sent recording must not play on
   const previewId = state.phase === 'recording' ? null : 'preview';
   useEffect(() => () => { if (previewId) releasePlay(previewId); }, [previewId]);
 
   if (state.phase === 'recording') {
     return (
-      <div data-testid="record-bar" role="group" aria-label={t('voiceRecording')} className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border border-border-soft bg-background/70 px-2">
+      <div ref={root} tabIndex={-1} data-testid="record-bar" role="group" aria-label={t('voiceRecording')} className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[10px] outline-none border border-border-soft bg-background/70 px-2">
         <span aria-hidden className="size-2.5 flex-none animate-pulse rounded-full bg-destructive" />
         <span data-testid="record-time" className="w-10 flex-none font-mono text-sm tabular-nums">{clock(state.ms)}</span>
         <LiveWave levels={state.levels} />
@@ -67,7 +92,7 @@ export function RecordBar({ state, onCancel, onStop, onSend, clip = false }: { s
   }
   const { recording } = state;
   return (
-    <div data-testid="record-bar" role="group" aria-label={t('voiceRecording')} aria-busy={sending || undefined} className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border border-border-soft bg-background/70 px-2">
+    <div ref={root} tabIndex={-1} data-testid="record-bar" role="group" aria-label={t('voiceRecording')} aria-busy={sending || undefined} className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[10px] outline-none border border-border-soft bg-background/70 px-2">
       <button type="button" aria-label={t('voiceCancel')} title={t('voiceCancel')} disabled={sending} onClick={onCancel} className={`${ICON} text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-40`}><Trash /></button>
       <div className="min-w-0 flex-1">
         <VoiceView voice={{ id: 'preview', ms: recording.ms, wave: recording.wave }} src={state.url || undefined} />

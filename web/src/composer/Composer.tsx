@@ -225,7 +225,7 @@ export function Composer() {
         pending={intake.pending}
         onRemove={(id) => void dispatch(removeImage(id))}
       />
-      <div data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
+      <div data-record-scope data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
         {recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} onCancel={rec.cancel} onStop={() => void rec.stop()} onSend={() => void rec.send()} /> : (<>
         <div className="relative flex min-w-0 flex-1">
         <textarea
