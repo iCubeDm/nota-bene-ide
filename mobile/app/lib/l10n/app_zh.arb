@@ -147,6 +147,5 @@
   "tileCompact": "压缩",
   "tileClear": "清空",
   "tileRestart": "重启",
-  "tileStats": "统计",
-  "clearFailed": "无法清空：窗口正忙或已离线。"
+  "tileStats": "统计"
 }

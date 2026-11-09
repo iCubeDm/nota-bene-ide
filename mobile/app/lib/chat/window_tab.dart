@@ -34,6 +34,20 @@ CapabilitiesModeDescriptorsItem? _descriptor(WindowTab tab, AgentMode m) =>
     ? null
     : tab.capabilities?.modeDescriptors?.where((d) => d.id == m).firstOrNull;
 
+/// The modes the agent offers (the known ones, in its order).
+List<AgentMode> offeredModes(WindowTab tab) => [
+  for (final m in tab.capabilities?.modes ?? const <AgentMode>[])
+    if (m != AgentMode.$unknown) m,
+];
+
+/// The mode to show: the web's mode pill is hidden below two modes (ModePill.tsx), and a mode the agent does not
+/// offer is not shown.
+AgentMode? shownMode(WindowTab tab) {
+  final m = tab.mode;
+  final modes = offeredModes(tab);
+  return m != null && modes.length >= 2 && modes.contains(m) ? m : null;
+}
+
 /// A mode's name as the web's mode pill shows it (ModePill.tsx): the host's own for any provider but Codex, else the
 /// web's string.
 String modeLabel(WindowTab tab, AgentMode m, String lang) =>

@@ -53,6 +53,44 @@ void main() {
     expect(find.text('X'), findsOneWidget);
   });
 
+  Future<void> modeHeader(
+    WidgetTester t,
+    List<String> modes,
+    String mode,
+  ) async {
+    await rig.open(
+      t,
+      hello: {
+        'kind': 'hello',
+        'protocol': 13,
+        'capabilities': Rig.caps(modes: modes),
+      },
+      events: [session(title: 'x')],
+    );
+    rig.event({'kind': 'mode', 'mode': mode});
+    await t.pumpAndSettle();
+  }
+
+  testWidgets('no modes, no mode in the header', (t) async {
+    await modeHeader(t, [], 'default');
+    expect(find.text(webString('mode_default', 'en')), findsNothing);
+  });
+
+  testWidgets('one mode, no mode in the header', (t) async {
+    await modeHeader(t, ['default'], 'default');
+    expect(find.text(webString('mode_default', 'en')), findsNothing);
+  });
+
+  testWidgets('two modes, the current one in the header', (t) async {
+    await modeHeader(t, ['default', 'plan'], 'plan');
+    expect(find.text(webString('mode_plan', 'en')), findsOneWidget);
+  });
+
+  testWidgets('a mode the agent does not offer is not shown', (t) async {
+    await modeHeader(t, ['default', 'plan'], 'acceptEdits');
+    expect(find.text(webString('mode_acceptEdits', 'en')), findsNothing);
+  });
+
   testWidgets('no title reads untitled', (t) async {
     await rig.open(t, events: [session()]);
     expect(find.text('untitled'), findsOneWidget);

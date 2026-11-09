@@ -2,8 +2,7 @@
 // and a round button for the actions. It floats over the feed, which scrolls under it.
 import 'package:flutter/material.dart';
 
-import 'package:nb_protocol/nb_protocol.dart'
-    show AgentMode, CapabilitiesProvider;
+import 'package:nb_protocol/nb_protocol.dart' show CapabilitiesProvider;
 
 import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
@@ -55,7 +54,7 @@ class ChatHeader extends StatelessWidget {
     final f = tab.feed;
     final model = tab.model ?? f.model;
     final limits = tab.stats?.stats.limits;
-    final mode = tab.mode == AgentMode.$unknown ? null : tab.mode;
+    final mode = shownMode(tab);
     final shape = StadiumBorder(side: BorderSide(color: c.border));
     final fill = c.popover.withValues(alpha: 0.92);
     final content = MediaQuery.withClampedTextScaling(
