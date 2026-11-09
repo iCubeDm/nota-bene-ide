@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/voice/player.dart';
+import 'package:nb_app/voice/recorder.dart';
 
 /// A WAV of [ms] of [level] (0..1) 16 kHz mono PCM16, as `nb/record` answers.
 Uint8List wavOf(int ms, {double level = .5}) {
@@ -77,6 +78,42 @@ class Player {
           .handlePlatformMessage(
             playChannel.name,
             playChannel.codec.encodeMethodCall(MethodCall(method, args)),
+            (_) {},
+          );
+}
+
+/// The phone's recorder (`nb/record`), played by the test.
+class RecorderMock {
+  final calls = <String>[];
+  Object? startError;
+  Uint8List? wav = wavOf(2000);
+  Future<void> Function()? onStart;
+
+  void install() => TestDefaultBinaryMessengerBinding
+      .instance
+      .defaultBinaryMessenger
+      .setMockMethodCallHandler(recordChannel, (call) async {
+        calls.add(call.method);
+        if (call.method == 'start') {
+          await onStart?.call();
+          if (startError != null) {
+            throw PlatformException(code: startError! as String);
+          }
+        }
+        return call.method == 'stop' ? wav : null;
+      });
+
+  void uninstall() => TestDefaultBinaryMessengerBinding
+      .instance
+      .defaultBinaryMessenger
+      .setMockMethodCallHandler(recordChannel, null);
+
+  /// The recorder calling the phone back: `level`, `capped`, `failed`.
+  Future<void> call(String method, [Object? args]) =>
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+            recordChannel.name,
+            recordChannel.codec.encodeMethodCall(MethodCall(method, args)),
             (_) {},
           );
 }

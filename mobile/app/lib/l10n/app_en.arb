@@ -341,5 +341,8 @@
   "voiceNothing": "Nothing was recognised",
   "voiceCouldNot": "Could not transcribe",
   "voiceSending": "Sending…",
-  "voiceSendFailed": "Could not send the recording"
+  "voiceSendFailed": "Could not send the recording",
+  "voiceHint": "Hold to record, release to send",
+  "voiceDelete": "Delete",
+  "voiceRecordFailed": "The recording failed"
 }

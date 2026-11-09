@@ -188,5 +188,8 @@
   "voiceNothing": "Ничего не распознано",
   "voiceCouldNot": "Не удалось расшифровать",
   "voiceSending": "Отправка…",
-  "voiceSendFailed": "Не удалось отправить запись"
+  "voiceSendFailed": "Не удалось отправить запись",
+  "voiceHint": "Удерживайте для записи, отпустите для отправки",
+  "voiceDelete": "Удалить",
+  "voiceRecordFailed": "Запись не удалась"
 }

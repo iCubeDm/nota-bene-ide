@@ -188,5 +188,8 @@
   "voiceNothing": "没有识别到内容",
   "voiceCouldNot": "无法转写",
   "voiceSending": "正在发送…",
-  "voiceSendFailed": "录音发送失败"
+  "voiceSendFailed": "录音发送失败",
+  "voiceHint": "按住录音，松开发送",
+  "voiceDelete": "删除",
+  "voiceRecordFailed": "录音失败"
 }

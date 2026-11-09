@@ -188,5 +188,8 @@
   "voiceNothing": "Nichts erkannt",
   "voiceCouldNot": "Transkription fehlgeschlagen",
   "voiceSending": "Wird gesendet…",
-  "voiceSendFailed": "Die Aufnahme konnte nicht gesendet werden"
+  "voiceSendFailed": "Die Aufnahme konnte nicht gesendet werden",
+  "voiceHint": "Halten zum Aufnehmen, loslassen zum Senden",
+  "voiceDelete": "Löschen",
+  "voiceRecordFailed": "Die Aufnahme ist fehlgeschlagen"
 }

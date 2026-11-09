@@ -188,5 +188,8 @@
   "voiceNothing": "No se reconoció nada",
   "voiceCouldNot": "No se pudo transcribir",
   "voiceSending": "Enviando…",
-  "voiceSendFailed": "No se pudo enviar la grabación"
+  "voiceSendFailed": "No se pudo enviar la grabación",
+  "voiceHint": "Mantén pulsado para grabar, suelta para enviar",
+  "voiceDelete": "Eliminar",
+  "voiceRecordFailed": "La grabación falló"
 }

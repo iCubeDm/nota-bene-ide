@@ -188,5 +188,8 @@
   "voiceNothing": "Nada foi reconhecido",
   "voiceCouldNot": "Não foi possível transcrever",
   "voiceSending": "Enviando…",
-  "voiceSendFailed": "Não foi possível enviar a gravação"
+  "voiceSendFailed": "Não foi possível enviar a gravação",
+  "voiceHint": "Segure para gravar, solte para enviar",
+  "voiceDelete": "Excluir",
+  "voiceRecordFailed": "A gravação falhou"
 }
