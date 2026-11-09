@@ -1,0 +1,229 @@
+// The floating header of a phone chat: a back button, a pill with the session (avatar, title, model, limit meters)
+// and a round button for the actions. It floats over the feed, which scrolls under it.
+import 'package:flutter/material.dart';
+
+import 'package:nb_protocol/nb_protocol.dart' show CapabilitiesProvider;
+
+import '../l10n/app_localizations.dart';
+import '../theme.dart';
+import '../ui/nb_icon.dart';
+import 'window_tab.dart';
+
+/// The avatar letter of a provider: `claude` C, `codex` X, `omp` O, else the first letter or `?`.
+String providerLetter(String? provider) => switch (provider) {
+  'claude' => 'C',
+  'codex' => 'X',
+  'omp' => 'O',
+  null || '' => '?',
+  final p => p.substring(0, 1).toUpperCase(),
+};
+
+class ChatHeader extends StatelessWidget {
+  const ChatHeader({
+    super.key,
+    required this.tab,
+    this.onTapTitle,
+    this.actions = const [],
+  });
+
+  final WindowTab tab;
+  final VoidCallback? onTapTitle;
+  final List<Widget> actions;
+
+  /// The height of the header with its margins (the feed keeps this much clear at its top).
+  static const extent = 56.0;
+  static const _size = 40.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final c = Theme.of(context).extension<NbColors>()!;
+    final f = tab.feed;
+    final model = tab.model ?? f.model;
+    final limits = tab.stats?.stats.limits;
+    final shape = StadiumBorder(side: BorderSide(color: c.border));
+    final fill = c.popover.withValues(alpha: 0.92);
+    final content = Row(
+      children: [
+        const SizedBox(width: 6),
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: c.muted, shape: BoxShape.circle),
+          child: Text(
+            providerLetter(switch (tab.capabilities?.provider) {
+              CapabilitiesProvider.$unknown || null => null,
+              final p => p.name,
+            }),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: c.foreground,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                f.title ?? t.untitled,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  height: 1.15,
+                  color: c.foreground,
+                ),
+              ),
+              Row(
+                children: [
+                  if (model != null)
+                    Flexible(
+                      child: Text(
+                        model,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.15,
+                          color: c.mutedFg,
+                        ),
+                      ),
+                    ),
+                  if (limits?.fiveHour != null)
+                    _Meter(
+                      '5h',
+                      limits!.fiveHour!.utilization,
+                      c.success,
+                      lead: model != null,
+                    ),
+                  if (limits?.sevenDay != null)
+                    _Meter(
+                      '7d',
+                      limits!.sevenDay!.utilization,
+                      c.accent,
+                      lead: model != null || limits.fiveHour != null,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      child: SizedBox(
+        height: _size,
+        child: Row(
+          children: [
+            Material(
+              color: fill,
+              shape: const CircleBorder(),
+              child: Tooltip(
+                message: MaterialLocalizations.of(context).backButtonTooltip,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => Navigator.of(context).maybePop(),
+                  child: Container(
+                    width: _size,
+                    height: _size,
+                    alignment: Alignment.center,
+                    decoration: ShapeDecoration(
+                      shape: CircleBorder(side: BorderSide(color: c.border)),
+                    ),
+                    child: NbIcon(NbGlyph.back, color: c.foreground),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Material(
+                color: fill,
+                shape: shape,
+                clipBehavior: Clip.antiAlias,
+                child: onTapTitle == null
+                    ? content
+                    : InkWell(onTap: onTapTitle, child: content),
+              ),
+            ),
+            if (actions.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Material(
+                color: fill,
+                shape: shape,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: _size),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: actions,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One limit: a label, a 22x4 bar and the percent, as the web's meters (utilization is already 0 to 100).
+class _Meter extends StatelessWidget {
+  const _Meter(this.label, this.utilization, this.color, {required this.lead});
+  final String label;
+  final num utilization;
+  final Color color;
+  final bool lead;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    final pct = utilization.clamp(0, 100).round();
+    final style = TextStyle(fontSize: 11, height: 1.15, color: c.mutedFg);
+    return Semantics(
+      container: true,
+      label: '$label $pct%',
+      child: ExcludeSemantics(
+        child: Padding(
+          padding: EdgeInsets.only(left: lead ? 8 : 0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: style),
+              const SizedBox(width: 3),
+              Container(
+                width: 22,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: c.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: pct / 100,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 3),
+              Text('$pct%', style: style),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

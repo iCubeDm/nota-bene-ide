@@ -1,4 +1,4 @@
-// One window's chat: the folder and session in the bar, a state line, the feed (newest at the bottom), and below it
+// One window's chat: the floating header pill (session, model, limits), a state line, the feed (newest at the bottom), and below it
 // whatever the caller puts there (the composer).
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart' show StopReason;
@@ -6,6 +6,7 @@ import 'package:nb_protocol/nb_protocol.dart' show StopReason;
 import '../hosts/hosts_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import 'chat_header.dart';
 import 'feed.dart';
 import 'files.dart';
 import 'markdown.dart';
@@ -19,11 +20,15 @@ class ChatScreen extends StatelessWidget {
     this.actions = const [],
     this.overlay,
     this.itemBuilder,
+    this.onTapTitle,
   });
 
   final WindowTab tab;
   final Widget? bottom;
   final List<Widget> actions;
+
+  /// Tapping the header pill (the settings sheet, #143); null leaves the pill inert.
+  final VoidCallback? onTapTitle;
 
   /// Covers the feed (the one-tab rule's Work here).
   final Widget? overlay;
@@ -38,96 +43,98 @@ class ChatScreen extends StatelessWidget {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
       final f = tab.feed;
-      final sub = [
-        f.title ?? t.untitled,
-        if ((tab.model ?? f.model) != null) tab.model ?? f.model!,
-      ].join(' · ');
       final status = _status(t);
       final items = f.items;
+      // the feed keeps the floating header clear
+      final top = MediaQuery.paddingOf(context).top + ChatHeader.extent;
       return Scaffold(
-        appBar: AppBar(
-          titleSpacing: 0,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(folderOf(tab.root)),
-              Text(
-                sub,
-                style: TextStyle(fontSize: 12, color: c.mutedFg),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-          actions: actions,
-        ),
         body: SafeArea(
+          top: false,
           child: FileOpener(
             tab: tab,
-            child: Column(
+            child: Stack(
               children: [
-                if (status != null)
-                  Container(
-                    width: double.infinity,
-                    color: c.muted,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(color: c.mutedFg, fontSize: 13),
-                    ),
-                  ),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      // reversed: the newest item sits at the bottom and stays in view while the user is there
-                      ListView.builder(
-                        reverse: true,
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                        itemCount: items.length + (f.earlier > 0 ? 1 : 0),
-                        itemBuilder: (context, i) {
-                          if (i == items.length) {
-                            return Center(
-                              child: TextButton(
-                                onPressed: tab.loadEarlier,
-                                child: Text(t.showEarlier),
-                              ),
-                            );
-                          }
-                          final it = items[items.length - 1 - i];
-                          // keyed by the item, not the index: a new item shifts every index of a reversed list
-                          return KeyedSubtree(
-                            key: ValueKey(feedKey(it)),
-                            child:
-                                itemBuilder?.call(context, it) ??
-                                FeedItemView(it),
-                          );
-                        },
-                        findChildIndexCallback: (key) {
-                          final k = (key as ValueKey<String>).value;
-                          final at = items.lastIndexWhere(
-                            (it) => feedKey(it) == k,
-                          );
-                          return at < 0 ? null : items.length - 1 - at;
-                        },
-                      ),
-                      if (f.compacting)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: LinearProgressIndicator(
-                            minHeight: 2,
-                            color: c.accent,
-                          ),
+                Column(
+                  children: [
+                    if (status != null)
+                      Container(
+                        width: double.infinity,
+                        color: c.muted,
+                        padding: EdgeInsets.fromLTRB(12, top + 6, 12, 6),
+                        child: Text(
+                          status,
+                          style: TextStyle(color: c.mutedFg, fontSize: 13),
                         ),
-                      ?overlay,
-                    ],
+                      ),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          // reversed: the newest item sits at the bottom and stays in view while the user is there
+                          ListView.builder(
+                            reverse: true,
+                            padding: EdgeInsets.fromLTRB(
+                              12,
+                              status == null ? top : 8,
+                              12,
+                              8,
+                            ),
+                            itemCount: items.length + (f.earlier > 0 ? 1 : 0),
+                            itemBuilder: (context, i) {
+                              if (i == items.length) {
+                                return Center(
+                                  child: TextButton(
+                                    onPressed: tab.loadEarlier,
+                                    child: Text(t.showEarlier),
+                                  ),
+                                );
+                              }
+                              final it = items[items.length - 1 - i];
+                              // keyed by the item, not the index: a new item shifts every index of a reversed list
+                              return KeyedSubtree(
+                                key: ValueKey(feedKey(it)),
+                                child:
+                                    itemBuilder?.call(context, it) ??
+                                    FeedItemView(it),
+                              );
+                            },
+                            findChildIndexCallback: (key) {
+                              final k = (key as ValueKey<String>).value;
+                              final at = items.lastIndexWhere(
+                                (it) => feedKey(it) == k,
+                              );
+                              return at < 0 ? null : items.length - 1 - at;
+                            },
+                          ),
+                          if (f.compacting)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: LinearProgressIndicator(
+                                minHeight: 2,
+                                color: c.accent,
+                              ),
+                            ),
+                          ?overlay,
+                        ],
+                      ),
+                    ),
+                    ?bottom,
+                  ],
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    bottom: false,
+                    child: ChatHeader(
+                      tab: tab,
+                      onTapTitle: onTapTitle,
+                      actions: actions,
+                    ),
                   ),
                 ),
-                ?bottom,
               ],
             ),
           ),

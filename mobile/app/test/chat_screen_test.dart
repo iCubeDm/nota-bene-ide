@@ -122,7 +122,7 @@ void main() {
     expect(find.textContaining('Thinking about it'), findsOneWidget);
   });
 
-  testWidgets('the title bar names the folder and the session', (t) async {
+  testWidgets('the header pill names the session and the model', (t) async {
     await open(t);
     ch.event(ch.lastWsId, {'kind': 'replay', 'events': []});
     ch.event(ch.lastWsId, {
@@ -133,8 +133,8 @@ void main() {
       'model': 'opus',
     });
     await t.pumpAndSettle();
-    expect(find.text('notes'), findsOneWidget);
-    expect(find.textContaining('Spec work'), findsOneWidget);
+    expect(find.text('Spec work'), findsOneWidget);
+    expect(find.text('opus'), findsOneWidget);
   });
 
   testWidgets(
