@@ -134,6 +134,8 @@ class PlatformDictation implements Dictation {
       out.add(DictationFinal(_done));
       out.add(const DictationEnd());
       _close();
+      // the native recognizer may still be alive; let it go
+      unawaited(speechChannel.invokeMethod<void>('cancel').catchError((_) {}));
     });
     return speechChannel.invokeMethod<void>('stop');
   }

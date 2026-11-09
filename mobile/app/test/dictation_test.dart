@@ -185,6 +185,8 @@ void main() {
     expect(got.whereType<DictationFinal>().single.text, 'hello');
     expect(got.last, isA<DictationEnd>());
     expect(closed, isTrue);
+    // the native recognizer is told to let go
+    expect(calls.map((c) => c.method), ['start', 'stop', 'cancel']);
   });
 
   testWidgets('an end before the watchdog fires cancels it', (t) async {

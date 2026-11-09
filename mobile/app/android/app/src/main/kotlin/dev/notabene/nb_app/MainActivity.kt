@@ -241,10 +241,12 @@ class MainActivity : FlutterFragmentActivity() {
             }
 
             override fun onResults(results: Bundle?) {
-                if (!current()) return
+                // a doubled result while a restart is waiting must not repeat its segment
+                if (!current() || restarting) return
                 noMatchRun = 0
                 retryRun = 0
-                val text = firstResult(results) ?: ""
+                // in a segmented session the segments are the text; a whole-session onResults would repeat them
+                val text = if (segmented) "" else firstResult(results) ?: ""
                 if (finishing) {
                     // the last stretch (possibly empty); Dart adds it to the segments
                     release(r)
@@ -257,7 +259,7 @@ class MainActivity : FlutterFragmentActivity() {
             }
 
             override fun onError(error: Int) {
-                if (!current()) return
+                if (!current() || restarting) return
                 if (finishing) {
                     // whatever went wrong, the segments already delivered are the result
                     release(r)
@@ -322,7 +324,12 @@ class MainActivity : FlutterFragmentActivity() {
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
         if (segmented && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             // one session across pauses: segments arrive in onSegmentResults, the silence length above splits them
-            intent.putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, true)
+            // the extra's value names the boundary extra (a String), not a boolean
+            // Device check: whether partials restart per segment or stay cumulative across the session is unknown.
+            intent.putExtra(
+                RecognizerIntent.EXTRA_SEGMENTED_SESSION,
+                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS
+            )
         }
         r.startListening(intent)
     }
