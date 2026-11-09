@@ -31,6 +31,9 @@ const template = (d: Record<string, unknown>, key: string, kinds: ('n' | 'list')
   return out;
 };
 
+/** The usage screen's words: every `usage*` key of en.ts, a function one as a template of its arity. */
+const USAGE_KEYS = Object.keys(en).filter((k) => k.startsWith('usage')).sort();
+
 const text = (d: Record<string, unknown>, key: string): string => {
   const v = d[key];
   if (typeof v !== 'string') throw new Error(`web i18n: ${key} is not a string`);
@@ -43,6 +46,10 @@ export function mobileStrings(): string {
     labels: QUICK_LABELS.map((l) => ({
       id: l.id, emoji: l.emoji, ...(l.instruction ? { instruction: l.instruction } : {}),
       text: Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, `label_${l.id}`)])),
+    })),
+    usage: Object.fromEntries(USAGE_KEYS.map((k) => {
+      const arity = (en as Record<string, unknown>)[k] instanceof Function ? ((en as Record<string, unknown>)[k] as { length: number }).length : 0;
+      return [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, arity ? template(d, k, Array(arity).fill('n')) : text(d, k)]))];
     })),
     batch: Object.fromEntries([
       ...BATCH_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))]),
@@ -90,8 +97,20 @@ String batchString(String key, String lang) {
 }
 
 /// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').
-String batchTemplate(String key, String lang, List<Object> args) {
-  var s = batchString(key, lang);
+String batchTemplate(String key, String lang, List<Object> args) =>
+    _fill(batchString(key, lang), args);
+
+/// A usage word of the web's Usage tab in [lang], English for any other.
+String usageString(String key, String lang) {
+  final m = ((_data['usage'] as Map)[key] as Map).cast<String, String>();
+  return m[lang] ?? m['en']!;
+}
+
+/// A usage function's text in [lang] with [args] in its places.
+String usageTemplate(String key, String lang, List<Object> args) =>
+    _fill(usageString(key, lang), args);
+
+String _fill(String s, List<Object> args) {
   for (final (i, a) in args.indexed) {
     s = s.replaceAll('{\$i}', '\$a');
   }

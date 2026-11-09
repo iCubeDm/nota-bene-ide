@@ -60,4 +60,37 @@ void main() {
       expect(batchString('markStale', lang), isNotEmpty);
     }
   });
+
+  test('the usage words are the web\'s, in every app language', () {
+    final files = {
+      'en': 'en',
+      'ru': 'ru',
+      'zh': 'zh-CN',
+      'es': 'es',
+      'pt': 'pt-BR',
+      'de': 'de',
+    };
+    for (final MapEntry(key: lang, value: file) in files.entries) {
+      final src = File('../../web/src/i18n/$file.ts').readAsStringSync();
+      final reset = RegExp(
+        r"^  usageReset: '(.*)',$",
+        multiLine: true,
+      ).firstMatch(src)![1];
+      expect(usageString('usageReset', lang), reset, reason: lang);
+      final all = RegExp(
+        r'^  usageShowAll: \(n: number\) => `(.*)`,$',
+        multiLine: true,
+      ).firstMatch(src)![1]!;
+      expect(
+        usageTemplate('usageShowAll', lang, [7]),
+        all.replaceAll(r'${n}', '7'),
+        reason: lang,
+      );
+    }
+    expect(usageString('usageReset', 'xx'), 'Reset');
+    expect(
+      usageTemplate('usageExtraOf', 'en', ['\$1', '\$5']),
+      'This billing period: \$1 of \$5.',
+    );
+  });
 }
