@@ -11,6 +11,7 @@ import { labelOf } from '@/comments/labels.ts';
 import { selectSentFor } from '@/comments/slice.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { useAppSelector } from '@/store/store.ts';
+import { VoiceBubble } from '@/voice/VoiceBubble.tsx';
 
 export const timeOf = (ts: number): string =>
   new Date(ts).toLocaleTimeString(getLang(), { hour: '2-digit', minute: '2-digit' });
@@ -23,7 +24,8 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
   const time = item.ts === 0 ? '' : ' · ' + timeOf(item.ts);
   const mode = item.force ? t('youForced') : item.duringWork ? t('youBusy') : '';
   const m = BATCH_HEAD.exec(item.text);
-  const general = m ? item.text.slice(0, m.index) : item.text;
+  // a voice message: `text` is '' until the host's transcript arrives (a replayed history has it there at once)
+  const general = item.voice ? '' : m ? item.text.slice(0, m.index) : item.text;
   const raw = m ? item.text.slice(m.index + m[0].length) : '';
   return (
     <div
@@ -36,6 +38,7 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
         {time}
         {mode}
       </div>
+      {item.voice && <VoiceBubble voice={item.voice} text={item.voiceText ?? (item.text || undefined)} error={item.voiceError} />}
       {general && (
         <div className="md-tight">
           <Markdown text={escapeMentions(general)} final breaks mentions noHtml />

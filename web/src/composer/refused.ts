@@ -4,6 +4,7 @@ import { t } from '../i18n/index.ts';
 import { toast } from '../shell/toast.ts';
 import { addImage, setDraft } from './slice.ts';
 import { serverEvent } from '../store/store.ts';
+import { takeVoiceSend, voiceSendEchoed } from '../voice/send.ts';
 import type { SentDraft, ShellDraft } from './slice.ts';
 
 // RootState is derived from this middleware's store: naming it here would make the type circular
@@ -32,6 +33,9 @@ export const refusedMiddleware: Middleware = (api) => (next) => (action) => {
   const ev = serverEvent.match(action) && action.payload.kind === 'send-refused' ? action.payload : undefined;
   const refused = ev?.id;
   const why = t(ev?.reason === 'busy' ? 'sendRefusedBusy' : 'sendRefused');
+  if (serverEvent.match(action) && action.payload.kind === 'user') voiceSendEchoed(action.payload.id);
+  // a voice message has no draft to put back: the refusal is told, and the recording can be made again
+  if (refused && takeVoiceSend(refused)) toast(t('voiceRefused', why), '');
   const last = refused ? (api.getState() as Slice).composer.unconfirmed : null;
   const result = next(action);
   if (!refused || !last || last.id !== refused) return result;
