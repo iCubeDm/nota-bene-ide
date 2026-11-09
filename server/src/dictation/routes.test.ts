@@ -9,6 +9,7 @@ import { whisperDir, whisperPhase } from './install.ts';
 import { dictationRoutes } from './routes.ts';
 import { WHISPER_MODEL, WHISPER_SIZE_MB } from './whisper.ts';
 import { readPrefs } from '../prefs.ts';
+import { makeWav } from './wavFixture.ts';
 
 let home: string;
 let server: http.Server | undefined;
@@ -25,8 +26,8 @@ afterEach(async () => {
 });
 
 type Done = { code: number | null; stdout: string; timedOut: boolean };
-async function serve(install?: Parameters<typeof dictationRoutes>[0]['install']): Promise<string> {
-  const routes = dictationRoutes({ hub: new EventHub(), install });
+async function serve(install?: Parameters<typeof dictationRoutes>[0]['install'], transcribe?: Parameters<typeof dictationRoutes>[0]['transcribe']): Promise<string> {
+  const routes = dictationRoutes({ hub: new EventHub(), install, transcribe });
   server = http.createServer(((req, res) => routes[req.url!.split('?')[0]!]!(req, res)) as RequestListener);
   await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -91,5 +92,47 @@ describe('dictation routes', () => {
     expect(fs.existsSync(whisperDir())).toBe(false);
     expect(fs.existsSync(path.join(home, 'keep.txt'))).toBe(true);
     expect(await (await fetch(`${base}/dictation`)).json()).toMatchObject({ on: false, phase: 'none' });
+  });
+
+  describe('POST /dictation/transcribe', () => {
+    const wav = { 'content-type': 'audio/wav' };
+    const setup = async (calls: string[] = []) => {
+      const base = await serve({ npm: '/fake/npm', spawn: async (): Promise<Done> => ({ code: 0, stdout: '', timedOut: false }), fetchModel: async () => {} }, async (_pcm, lang) => { calls.push(lang); return 'hi there'; });
+      return base;
+    };
+    const ready = async (base: string) => {
+      await post(base, '/dictation/install');
+      await until(() => whisperPhase() === 'ready');
+      await post(base, '/dictation/on', { on: true });
+    };
+    it('is 503 when not on and ready', async () => {
+      const base = await setup();
+      expect((await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) })).status).toBe(503);
+    });
+    it('answers 405, 415, 400, 413 and 200 { text }', async () => {
+      const langs: string[] = [];
+      const base = await setup(langs);
+      await ready(base);
+      expect((await fetch(`${base}/dictation/transcribe`)).status).toBe(405);
+      expect((await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: 'x' })).status).toBe(415);
+      expect((await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(Buffer.from('garbage garbage garbage')) })).status).toBe(400);
+      expect((await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(4 * 1024 * 1024 + 1) })).status).toBe(413);
+      const ok = await fetch(`${base}/dictation/transcribe?lang=ru`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) });
+      expect(ok.status).toBe(200);
+      expect(await ok.json()).toEqual({ text: 'hi there' });
+      expect(langs).toEqual(['ru']);
+    });
+    it('runs requests one at a time', async () => {
+      let active = 0; let peak = 0;
+      const routes = dictationRoutes({ hub: new EventHub(), install: { npm: '/fake/npm', spawn: async (): Promise<Done> => ({ code: 0, stdout: '', timedOut: false }), fetchModel: async () => {} },
+        transcribe: async () => { active++; peak = Math.max(peak, active); await new Promise((r) => setTimeout(r, 30)); active--; return 'x'; } });
+      server = http.createServer(((req, res) => routes[req.url!.split('?')[0]!]!(req, res)) as RequestListener);
+      await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));
+      const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      await ready(base);
+      const rs = await Promise.all([1, 2, 3].map(() => fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) })));
+      expect(rs.map((r) => r.status)).toEqual([200, 200, 200]);
+      expect(peak).toBe(1);
+    });
   });
 });

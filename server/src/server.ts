@@ -32,6 +32,7 @@ import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
 import { runtimeDir } from './runtime.ts';
 import { dictationRoutes } from './dictation/routes.ts';
+import { whisperPhase } from './dictation/install.ts';
 import { usageRoutes } from './usage/routes.ts';
 import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, keyCredential, loginCredential, newNonce, proofFor, sameSecret, sessionCookie } from './auth.ts';
 
@@ -359,8 +360,8 @@ export async function startServer(o: {
     // the hello every socket gets, owner or not
     const sendHello = (ws: WebSocket) => {
       try {
-        const { lang, uiScale, theme } = readPrefs(); // the user's UI language, scale and theme, shared by every window; absent until chosen
-        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), tmpDirs: tmpDirNames() }));
+        const { lang, uiScale, theme, whisper } = readPrefs(); // the user's UI language, scale and theme, shared by every window; absent until chosen
+        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d, ...(whisper === true && whisperPhase() === 'ready' ? { dictation: 'whisper' as const } : {}) }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), tmpDirs: tmpDirNames() }));
       } catch (e) {
         reportError(hub, 'hello', e);
       }

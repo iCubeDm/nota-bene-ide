@@ -36,15 +36,21 @@ export function whisperPhase(): WhisperPhase {
   return l === 'stale' || fs.existsSync(failedFile()) ? 'failed' : 'none';
 }
 
-/** Loads the pipeline once from the installed prefix, which downloads the pinned model into <dir>/models. */
-async function defaultFetchModel(dir: string): Promise<void> {
+export type Pipe = { (audio: Float32Array, opts: object): Promise<{ text?: string }>; dispose?: () => Promise<void> };
+
+/** Loads the ASR pipeline from the installed prefix; the first load downloads the pinned model into <dir>/models. */
+export async function loadPipeline(dir: string = whisperDir()): Promise<Pipe> {
   const resolved = createRequire(path.join(dir, 'package.json')).resolve(WHISPER_PACKAGE);
   const mod = await import(pathToFileURL(resolved).href) as { pipeline?: unknown; env?: { cacheDir: string }; default?: { pipeline?: unknown; env?: { cacheDir: string } } };
   const api = mod.pipeline ? mod : mod.default;
   if (!api?.pipeline || !api.env) throw new Error(`${WHISPER_PACKAGE} has no pipeline`);
   api.env.cacheDir = path.join(dir, 'models');
-  const pipe = await (api.pipeline as (task: string, model: string, o: object) => Promise<{ dispose?: () => Promise<void> }>)(
+  return (api.pipeline as (task: string, model: string, o: object) => Promise<Pipe>)(
     'automatic-speech-recognition', WHISPER_MODEL, { revision: WHISPER_REVISION, dtype: WHISPER_DTYPE });
+}
+
+async function defaultFetchModel(dir: string): Promise<void> {
+  const pipe = await loadPipeline(dir);
   await pipe.dispose?.();
 }
 

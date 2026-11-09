@@ -95,6 +95,11 @@
         "compact": {
           "type": "boolean"
         },
+        "dictation": {
+          "const": "whisper",
+          "description": "speech to text runs on the host (Whisper installed, ready and switched on); absent: not offered. Set by the server, not by the agent.",
+          "type": "string"
+        },
         "fileSuggestions": {
           "type": "boolean"
         },
