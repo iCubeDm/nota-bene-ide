@@ -453,7 +453,7 @@ export async function startServer(o: {
                 reportError(hub, 'comments', e); // the message itself must still go out
               }
             }
-            manager.send({ id: msg.id, text: msg.text, ...(msg.force ? { force: true } : {}), ...(msg.images?.length ? { images: msg.images } : {}) });
+            manager.send({ id: msg.id, text: msg.text, ...(msg.force ? { force: true } : {}), ...(msg.images?.length ? { images: msg.images } : {}), ...(msg.voice ? { voice: msg.voice, lang: msg.lang } : {}) });
             break;
           case 'comments':
             // R14: a set in flight across a switch (or a /clear) must not land in the session that replaced it

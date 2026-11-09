@@ -28,6 +28,9 @@ import { TurnLedger, activity } from './session/turns.ts';
 import type { SessionManager } from './session/types.ts';
 import { stateDir } from './state.ts';
 import { StatsService } from './stats.ts';
+import { whisperOn } from './dictation/routes.ts';
+import { VoiceIndex } from './voice/index.ts';
+import { transcribeVoice, VoiceFailure } from './voice/transcribe.ts';
 
 export { SwitchError };
 export type { SessionManager };
@@ -62,6 +65,11 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   const { hub, backend } = o;
   const report = (where: string, e: unknown) => reportError(hub, where, e);
   const attachments = o.attachments ?? new AttachmentStore({ dir: path.join(stateDir(), 'attachments') });
+  const voices = o.voices ?? new VoiceIndex({ file: path.join(stateDir(), 'voice.jsonl') });
+  const speech = o.speech ?? (async (id: string, lang: string) => {
+    if (!whisperOn()) throw new VoiceFailure('off');
+    return transcribeVoice(attachments, id, lang);
+  });
   const titles: TitleTracker = new TitleTracker({
     lookup: async (id, dir) => titleOf(await backend.sessionInfo(id, dir)),
     current: () => ({ id: who.id, dir: who.root, gen: slot.gen }),
@@ -218,6 +226,38 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     hub.emit({ kind: 'agent', e: turns.failure(e, id) });
   }
 
+  /** The history's user messages that were voice messages get their voice back: the agent kept only the text. */
+  function withVoices(events: Awaited<ReturnType<typeof readHistory>>): typeof events {
+    return events.map((ev) => {
+      if (ev.kind !== 'user') return ev;
+      let voice;
+      try { voice = voices.get(ev.id); } catch (e) { report('voice', e); }
+      return voice ? { ...ev, voice } : ev;
+    });
+  }
+
+  /**
+   * A voice message's text, for the queue: its transcript, told to the feed (`voice-text`) before the agent gets it.
+   * A failure is told too, with why, and the turn ends with no text of its own (the bubble says it). A switch while it
+   * runs drops it: the old generation's feed is gone.
+   */
+  function transcript(id: string, voiceId: string, lang: string): () => Promise<string> {
+    const g = slot.gen;
+    return async () => {
+      try {
+        const text = (await speech(voiceId, lang)).trim();
+        if (!text) throw new VoiceFailure('empty');
+        if (g === slot.gen) hub.emit({ kind: 'voice-text', id, text });
+        return text;
+      } catch (e) {
+        const why = e instanceof VoiceFailure ? e.why : 'failed';
+        if (!(e instanceof VoiceFailure)) report('voice', e);
+        if (g === slot.gen) hub.emit({ kind: 'voice-text', id, error: why });
+        throw new Error('');
+      }
+    };
+  }
+
   /** The feed of `id` in the root: emptied, then a resumed session's transcript with its `resumed` marker, then the
    * `session` event (with the title). At startup there are no sockets yet. */
   async function load(id: string | null): Promise<void> {
@@ -225,7 +265,8 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     who.forget(); // the history that held the last one is gone: always announce
     if (id) {
       const read = () => backend.history(id, who.root, attachments, (e) => report('attach', e));
-      hub.reset(await readHistory({ read, timeoutMs: o.historyTimeoutMs ?? HISTORY_TIMEOUT_MS, report }), { earlier: archive.earlier() });
+      const events = await readHistory({ read, timeoutMs: o.historyTimeoutMs ?? HISTORY_TIMEOUT_MS, report });
+      hub.reset(withVoices(events), { earlier: archive.earlier() });
       hub.emit({ kind: 'resumed', id });
       await titles.load(id, who.root);
     }
@@ -319,10 +360,21 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   stats.start();
 
   return {
-    send({ id, text, force, images }) {
+    send({ id, text, force, images, voice, lang }) {
       const refusal = refused(text);
       if (refusal) return refusal;
       turns.assertNew(id); // first: a reused id is refused with no side effects
+      if (voice) {
+        // only the voice (the parser saw to it): never a command, never forced, no images
+        turns.userTurn();
+        idle.touch();
+        slot.ensure();
+        turns.sent(id);
+        try { voices.put(id, voice); } catch (e) { report('voice', e); } // the bubble still goes; a replay would show text only
+        hub.emit({ kind: 'user', id, text: '', voice });
+        queue.push({ id, text: transcript(id, voice.id, lang ?? 'en'), lead: (t) => shell.takeFor(t) });
+        return null;
+      }
       turns.userTurn(); // a real turn follows: its result is a normal one
       idle.touch();
       slot.ensure();
