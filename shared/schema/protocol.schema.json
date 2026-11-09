@@ -199,12 +199,18 @@
               },
               "type": "array"
             },
+            "lang": {
+              "type": "string"
+            },
             "text": {
               "type": "string"
             },
             "type": {
               "const": "send",
               "type": "string"
+            },
+            "voice": {
+              "$ref": "#/definitions/Voice"
             }
           },
           "required": [
@@ -523,6 +529,13 @@
         },
         "text": {
           "type": "string"
+        },
+        "voice": {
+          "description": "protocol 14: recordings with their transcripts, at most VOICE_MAX_CLIPS; the batch carries their texts after `text`",
+          "items": {
+            "$ref": "#/definitions/VoiceClip"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -1130,12 +1143,41 @@
             },
             "ts": {
               "type": "number"
+            },
+            "voice": {
+              "$ref": "#/definitions/Voice"
             }
           },
           "required": [
             "kind",
             "id",
             "text",
+            "ts"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "error": {
+              "$ref": "#/definitions/VoiceError"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "voice-text",
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "ts": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
             "ts"
           ],
           "type": "object"
@@ -2353,6 +2395,65 @@
         "write"
       ],
       "type": "object"
+    },
+    "Voice": {
+      "description": "A stored recording (POST /voice): id = sha256 hex of the WAV, ms = its length, wave = VOICE_BARS bars of 0..31 (loudest = 31).",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ms": {
+          "type": "number"
+        },
+        "wave": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "ms",
+        "wave"
+      ],
+      "type": "object"
+    },
+    "VoiceClip": {
+      "description": "A recording of a comment with its transcript.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ms": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        },
+        "wave": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "ms",
+        "text",
+        "wave"
+      ],
+      "type": "object"
+    },
+    "VoiceError": {
+      "description": "Why a voice message has no transcript: Whisper went off, it heard nothing, or it failed.",
+      "enum": [
+        "off",
+        "empty",
+        "failed"
+      ],
+      "type": "string"
     },
     "WireAgentEvent": {
       "anyOf": [

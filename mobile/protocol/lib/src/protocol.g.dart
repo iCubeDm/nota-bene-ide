@@ -538,6 +538,8 @@ final class ClientMessageSend extends ClientMessage {
     this.force,
     this.commentIds,
     this.images,
+    this.voice,
+    this.lang,
   });
 
   factory ClientMessageSend.fromJson(Map<String, Object?> json) {
@@ -547,6 +549,8 @@ final class ClientMessageSend extends ClientMessage {
       force: json['force'] as bool?,
       commentIds: _listOrNull(json['commentIds'], _as<String>),
       images: _listOrNull(json['images'], _obj(ImageRef.fromJson)),
+      voice: _opt(json['voice'], _obj(Voice.fromJson)),
+      lang: json['lang'] as String?,
     );
   }
 
@@ -555,6 +559,8 @@ final class ClientMessageSend extends ClientMessage {
   final bool? force;
   final List<String>? commentIds;
   final List<ImageRef>? images;
+  final Voice? voice;
+  final String? lang;
 
   @override
   Map<String, Object?> toJson() {
@@ -565,6 +571,8 @@ final class ClientMessageSend extends ClientMessage {
       if (force != null) 'force': force,
       if (commentIds != null) 'commentIds': commentIds,
       if (images != null) 'images': _jsonList(images),
+      if (voice != null) 'voice': voice!.toJson(),
+      if (lang != null) 'lang': lang,
     };
   }
 }
@@ -676,6 +684,7 @@ final class Comment implements _Json {
     this.sentIn,
     this.images,
     this.genImages,
+    this.voice,
   });
 
   factory Comment.fromJson(Map<String, Object?> json) {
@@ -689,6 +698,7 @@ final class Comment implements _Json {
       sentIn: json['sentIn'] as String?,
       images: _listOrNull(json['images'], _as<String>),
       genImages: json['genImages'] as num?,
+      voice: _listOrNull(json['voice'], _obj(VoiceClip.fromJson)),
     );
   }
 
@@ -701,6 +711,7 @@ final class Comment implements _Json {
   final String? sentIn;
   final List<String>? images;
   final num? genImages;
+  final List<VoiceClip>? voice;
 
   @override
   Map<String, Object?> toJson() {
@@ -714,6 +725,7 @@ final class Comment implements _Json {
       if (sentIn != null) 'sentIn': sentIn,
       if (images != null) 'images': images,
       if (genImages != null) 'genImages': genImages,
+      if (voice != null) 'voice': _jsonList(voice),
     };
   }
 }
@@ -1387,6 +1399,7 @@ sealed class ServerEvent implements _Json {
       'replay' => ServerEventReplay.fromJson(json),
       'agent' => ServerEventAgent.fromJson(json),
       'user' => ServerEventUser.fromJson(json),
+      'voice-text' => ServerEventVoiceText.fromJson(json),
       'permission' => ServerEventPermission.fromJson(json),
       'permission-done' => ServerEventPermissionDone.fromJson(json),
       'comments' => ServerEventComments.fromJson(json),
@@ -1982,6 +1995,7 @@ final class ServerEventUser extends ServerEvent {
     this.historic,
     this.images,
     this.idle,
+    this.voice,
   });
 
   factory ServerEventUser.fromJson(Map<String, Object?> json) {
@@ -1993,6 +2007,7 @@ final class ServerEventUser extends ServerEvent {
       historic: json['historic'] as bool?,
       images: _listOrNull(json['images'], _obj(ImageRef.fromJson)),
       idle: json['idle'] as bool?,
+      voice: _opt(json['voice'], _obj(Voice.fromJson)),
     );
   }
 
@@ -2003,6 +2018,7 @@ final class ServerEventUser extends ServerEvent {
   final bool? historic;
   final List<ImageRef>? images;
   final bool? idle;
+  final Voice? voice;
 
   @override
   Map<String, Object?> toJson() {
@@ -2015,6 +2031,41 @@ final class ServerEventUser extends ServerEvent {
       if (historic != null) 'historic': historic,
       if (images != null) 'images': _jsonList(images),
       if (idle != null) 'idle': idle,
+      if (voice != null) 'voice': voice!.toJson(),
+    };
+  }
+}
+
+final class ServerEventVoiceText extends ServerEvent {
+  const ServerEventVoiceText({
+    required this.id,
+    this.text,
+    this.error,
+    required this.ts,
+  });
+
+  factory ServerEventVoiceText.fromJson(Map<String, Object?> json) {
+    return ServerEventVoiceText(
+      id: json['id'] as String,
+      text: json['text'] as String?,
+      error: _opt(json['error'], VoiceError.fromJson),
+      ts: json['ts'] as num,
+    );
+  }
+
+  final String id;
+  final String? text;
+  final VoiceError? error;
+  final num ts;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {
+      'kind': 'voice-text',
+      'id': id,
+      if (text != null) 'text': text,
+      if (error != null) 'error': error!.toJson(),
+      'ts': ts,
     };
   }
 }
@@ -2987,6 +3038,77 @@ final class UsageTaskRow implements _Json {
       'read': read,
     };
   }
+}
+
+final class Voice implements _Json {
+  const Voice({required this.id, required this.ms, required this.wave});
+
+  factory Voice.fromJson(Map<String, Object?> json) {
+    return Voice(
+      id: json['id'] as String,
+      ms: json['ms'] as num,
+      wave: _list(json['wave'], _as<num>),
+    );
+  }
+
+  final String id;
+  final num ms;
+  final List<num> wave;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'id': id, 'ms': ms, 'wave': wave};
+  }
+}
+
+final class VoiceClip implements _Json {
+  const VoiceClip({
+    required this.text,
+    required this.id,
+    required this.ms,
+    required this.wave,
+  });
+
+  factory VoiceClip.fromJson(Map<String, Object?> json) {
+    return VoiceClip(
+      text: json['text'] as String,
+      id: json['id'] as String,
+      ms: json['ms'] as num,
+      wave: _list(json['wave'], _as<num>),
+    );
+  }
+
+  final String text;
+  final String id;
+  final num ms;
+  final List<num> wave;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'text': text, 'id': id, 'ms': ms, 'wave': wave};
+  }
+}
+
+enum VoiceError implements _Json {
+  off,
+  empty,
+  failed,
+  $unknown;
+
+  static VoiceError fromJson(Object? v) => switch (v) {
+    'off' => off,
+    'empty' => empty,
+    'failed' => failed,
+    _ => $unknown,
+  };
+
+  @override
+  String toJson() => switch (this) {
+    off => 'off',
+    empty => 'empty',
+    failed => 'failed',
+    $unknown => _unsendable('VoiceError'),
+  };
 }
 
 sealed class WireAgentEvent implements _Json {
