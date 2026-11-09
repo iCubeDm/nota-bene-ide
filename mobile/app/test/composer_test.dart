@@ -109,11 +109,59 @@ void main() {
     final field = t.widget<TextField>(find.byType(TextField));
     expect(field.enabled, isFalse);
     expect(
-      t
-          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.send))
-          .onPressed,
+      t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
       isNull,
     );
+  });
+
+  testWidgets('send is always there, disabled while there is nothing to send', (
+    t,
+  ) async {
+    await r.open(t);
+    final send = find.byKey(const ValueKey('send'));
+    expect(send, findsOneWidget);
+    expect(t.widget<IconButton>(send).onPressed, isNull);
+    await t.enter('x');
+    expect(t.widget<IconButton>(send).onPressed, isNotNull);
+  });
+
+  testWidgets(
+    'busy with nothing typed the slot is stop; typing makes it send',
+    (t) async {
+      await r.open(
+        t,
+        events: [
+          {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
+        ],
+      );
+      expect(find.byKey(const ValueKey('send')), findsNothing);
+      expect(find.byTooltip('Stop'), findsOneWidget);
+      await t.enter('more');
+      expect(find.byTooltip('Stop'), findsNothing);
+      expect(find.byKey(const ValueKey('send')), findsOneWidget);
+      await t.tap(find.byKey(const ValueKey('send')));
+      await t.pumpAndSettle();
+      expect(textIn('interrupt'), findsWidgets);
+    },
+  );
+
+  testWidgets('the feed ends above the composer, also with the keyboard up', (
+    t,
+  ) async {
+    await r.open(
+      t,
+      events: [
+        {'kind': 'user', 'id': 'u1', 'text': 'newest words', 'ts': 1},
+      ],
+    );
+    double gap() =>
+        t.getTopLeft(find.byKey(const ValueKey('composer'))).dy -
+        t.getBottomLeft(find.text('newest words')).dy;
+    expect(gap(), greaterThanOrEqualTo(0));
+    t.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(t.view.resetViewInsets);
+    await t.pumpAndSettle();
+    expect(gap(), greaterThanOrEqualTo(0));
   });
 
   testWidgets('send while dictating cancels it and sends the field', (t) async {

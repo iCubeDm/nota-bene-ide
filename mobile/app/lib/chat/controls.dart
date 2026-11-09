@@ -5,6 +5,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
+import '../ui/nb_icon.dart';
 import '../usage/usage_screen.dart';
 import 'files.dart';
 import 'window_tab.dart';
@@ -25,7 +26,7 @@ class AgentMenu extends StatelessWidget {
     final lang = Localizations.localeOf(context).languageCode;
     return PopupMenuButton<Object?>(
       tooltip: t.agentMenu,
-      icon: const Icon(Icons.tune),
+      icon: const NbIcon(NbGlyph.more),
       enabled: open,
       onSelected: (v) => switch (v) {
         'compact' => tab.send(
