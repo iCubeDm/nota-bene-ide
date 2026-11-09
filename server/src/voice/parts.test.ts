@@ -31,7 +31,8 @@ describe('splitPcm', () => {
     const joined = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
     let at = 0;
     for (const p of parts) { joined.set(p, at); at += p.length; }
-    expect(joined).toEqual(pcm);
+    // bytes, not toEqual: two million elements compared one by one are slow on a CI runner
+    expect(Buffer.from(joined.buffer).equals(Buffer.from(pcm.buffer))).toBe(true);
   });
   it('without a pause the parts still stay within 30 to 60 s', () => {
     const parts = splitPcm(recording(200));
