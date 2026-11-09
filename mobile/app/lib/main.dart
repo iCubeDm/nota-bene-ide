@@ -104,6 +104,7 @@ class _AppRootState extends State<AppRoot> {
       );
       return Home(
         hosts: d.hosts,
+        seen: d.seen,
         links: d.links,
         onPair: pair,
         onSettings: () => Navigator.of(context).push(
