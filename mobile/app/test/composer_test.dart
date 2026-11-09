@@ -424,6 +424,60 @@ void main() {
       },
     );
 
+    Future<void> lockedPreview(WidgetTester t) async {
+      final g = await t.startGesture(t.getCenter(find.byType(RecordButton)));
+      await t.pump(const Duration(milliseconds: 300));
+      await g.moveBy(const Offset(0, -90));
+      await g.up();
+      await t.pump();
+    }
+
+    testWidgets(
+      'leaving the chat with a locked recording asks; Delete drops it',
+      (t) async {
+        await openVoice(t);
+        await lockedPreview(t);
+        await t.binding.handlePopRoute();
+        await t.pumpAndSettle();
+        expect(find.text('Send the voice message?'), findsOneWidget);
+        // the recording stopped into the preview, not lost
+        expect(rec.calls, ['start', 'stop']);
+        await t.tap(find.text('Delete'));
+        await t.pumpAndSettle();
+        expect(r.ch.requests, isEmpty);
+        expect(find.byType(RecordButton), findsOneWidget);
+        expect(find.text('Send the voice message?'), findsNothing);
+      },
+    );
+
+    testWidgets('leaving the chat with a recording: Send sends it', (t) async {
+      await openVoice(t);
+      r.ch.onHttp = (port, method, path) async => ok();
+      await lockedPreview(t);
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      await t.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Send'),
+        ),
+      );
+      await t.pump();
+      await t.pump();
+      expect(r.sent.single['voice'], voice);
+    });
+
+    testWidgets('Cancel in that question stays with the recording', (t) async {
+      await openVoice(t);
+      await lockedPreview(t);
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      await t.tap(find.text('Cancel'));
+      await t.pumpAndSettle();
+      expect(find.byType(RecordRow), findsOneWidget);
+      expect(r.sent, isEmpty);
+    });
+
     testWidgets(
       'the recording takes the field row; locked and stopped it shows its preview',
       (t) async {

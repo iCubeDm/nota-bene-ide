@@ -10,6 +10,7 @@ import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'record_session.dart';
+import 'recorder.dart';
 
 class RecordButton extends StatefulWidget {
   const RecordButton({
@@ -54,6 +55,7 @@ class _RecordButtonState extends State<RecordButton> {
     super.initState();
     _s.addListener(_phaseChanged);
     _s.hintAsked.addListener(_showHint);
+    Microphone.owner.addListener(_micChanged);
     // out of sight: a locked recording is kept for the preview rather than recorded into the dark
     _lifecycle = AppLifecycleListener(
       onHide: () {
@@ -78,6 +80,7 @@ class _RecordButtonState extends State<RecordButton> {
     _lifecycle.dispose();
     _s.removeListener(_phaseChanged);
     _s.hintAsked.removeListener(_showHint);
+    Microphone.owner.removeListener(_micChanged);
     _holdTimer?.cancel();
     _hintTimer?.cancel();
     _held?.remove();
@@ -85,6 +88,14 @@ class _RecordButtonState extends State<RecordButton> {
     _hint?.remove();
     super.dispose();
   }
+
+  void _micChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// The one recorder is another button's.
+  bool get _elsewhere =>
+      Microphone.owner.value != null && !identical(Microphone.owner.value, _s);
 
   void _phaseChanged() {
     final p = _s.phase;
@@ -122,7 +133,7 @@ class _RecordButtonState extends State<RecordButton> {
   }
 
   void _down(PointerDownEvent e) {
-    if (!widget.enabled || _pointer != null || _s.active) return;
+    if (!widget.enabled || _elsewhere || _pointer != null || _s.active) return;
     if (!widget.available) {
       widget.onUnavailable?.call();
       return;
@@ -164,17 +175,18 @@ class _RecordButtonState extends State<RecordButton> {
     final c = Theme.of(context).extension<NbColors>()!;
     final sending =
         _s.phase == RecordPhase.locked || _s.phase == RecordPhase.preview;
+    final on = widget.enabled && !_elsewhere;
     final button = Container(
       width: _size,
       height: _size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: widget.enabled ? c.primary : c.muted,
+        color: on ? c.primary : c.muted,
         shape: BoxShape.circle,
       ),
       child: NbIcon(
         sending ? NbGlyph.send : NbGlyph.mic,
-        color: widget.enabled ? c.primaryFg : c.mutedFg,
+        color: on ? c.primaryFg : c.mutedFg,
       ),
     );
     return CompositedTransformTarget(
@@ -194,11 +206,19 @@ class _RecordButtonState extends State<RecordButton> {
               onPointerMove: _move,
               onPointerUp: _up,
               onPointerCancel: _up,
-              child: Semantics(
-                button: true,
-                enabled: widget.enabled,
-                label: t.voiceHold,
-                child: button,
+              // a finger on the mic must not turn into a drag of a sheet or a list behind it
+              child: GestureDetector(
+                onPanUpdate: (_) {},
+                child: Semantics(
+                  button: true,
+                  enabled: on,
+                  label: t.voiceHold,
+                  // TalkBack cannot hold: a tap starts a locked recording
+                  onTap: on && widget.available
+                      ? () => _s.beginLocked()
+                      : widget.onUnavailable,
+                  child: ExcludeSemantics(child: button),
+                ),
               ),
             ),
     );

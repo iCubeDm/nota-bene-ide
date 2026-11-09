@@ -3,14 +3,15 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart' show ScaffoldMessenger, SnackBar, Text;
 import 'package:flutter/widgets.dart' show BuildContext, Localizations;
 import 'package:nb_channel/nb_channel.dart' show HttpAnswer;
-import 'package:nb_protocol/nb_protocol.dart'
-    show ClientMessageSend, Voice, VoiceError;
+import 'package:nb_protocol/nb_protocol.dart' show Voice, VoiceError;
 
 import '../chat/files.dart' show FileOpener;
 import '../chat/window_tab.dart';
 import '../files/image_screen.dart' show windowHttp;
+import '../l10n/app_localizations.dart';
 import '../media/media_comment.dart';
 import 'player.dart';
 
@@ -85,16 +86,15 @@ LoadVoice voiceLoader(WindowTab? tab, String id) => () async {
   }
 };
 
-/// Sends [voice] again as a new message (a Retry): the same recording under a new id, after the agent's turn, never
-/// with the busy dialog. False when the window did not take it.
-bool sendVoice(WindowTab tab, Voice voice, String lang) => tab.send(
-  ClientMessageSend(id: uuidV4(), text: '', voice: voice, lang: lang),
-);
-
-/// The Retry of a failed voice bubble.
+/// The Retry of a failed voice bubble: the same recording as a new message, once. Says so when the window is out of
+/// reach.
 void retryVoice(BuildContext context, Voice voice) {
   final tab = FileOpener.of(context);
-  if (tab != null) {
-    sendVoice(tab, voice, Localizations.localeOf(context).languageCode);
+  if (tab == null) return;
+  final lang = Localizations.localeOf(context).languageCode;
+  if (!tab.retryVoice(voice, lang)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context).cannotSend)),
+    );
   }
 }

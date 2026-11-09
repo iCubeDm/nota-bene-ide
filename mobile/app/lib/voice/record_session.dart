@@ -47,7 +47,13 @@ class RecordSession extends ChangeNotifier {
   Uint8List? wav;
   String previewId = '';
 
+  /// The preview's wave, drawn once when the recording stops.
+  List<int> wave = const [];
+
   bool get active => phase != RecordPhase.idle;
+
+  /// The finger is on the button.
+  bool get holding => _held;
   Duration get length =>
       wav == null ? elapsed : Duration(milliseconds: wavMs(wav!));
 
@@ -66,6 +72,11 @@ class RecordSession extends ChangeNotifier {
   /// The finger has been down long enough: start the recorder.
   Future<void> begin() async {
     if (active) return;
+    // one native recorder for the whole app
+    final mine = Microphone.owner.value;
+    if (mine != null && !identical(mine, this)) return;
+    Microphone.owner.value = this;
+    Microphone.hot.value = true;
     phase = RecordPhase.recording;
     elapsed = Duration.zero;
     level = 0;
@@ -105,6 +116,15 @@ class RecordSession extends ChangeNotifier {
       notifyListeners();
     });
     ready.complete(true);
+  }
+
+  /// A recording that starts locked, without a finger (TalkBack's tap).
+  Future<void> beginLocked() async {
+    await begin();
+    if (phase != RecordPhase.recording) return;
+    _held = false;
+    phase = RecordPhase.locked;
+    notifyListeners();
   }
 
   /// The finger moved to [total] from where it went down.
@@ -192,6 +212,8 @@ class RecordSession extends ChangeNotifier {
       return _deliver(bytes);
     }
     wav = bytes;
+    wave = waveOf(bytes);
+    Microphone.hot.value = false;
     previewId = uuidV4();
     phase = RecordPhase.preview;
     notifyListeners();
@@ -216,7 +238,12 @@ class RecordSession extends ChangeNotifier {
     level = 0;
     drag = Offset.zero;
     wav = null;
+    wave = const [];
     previewId = '';
+    if (identical(Microphone.owner.value, this)) {
+      Microphone.owner.value = null;
+      Microphone.hot.value = false;
+    }
     notifyListeners();
   }
 
@@ -225,6 +252,10 @@ class RecordSession extends ChangeNotifier {
     _clock?.cancel();
     final rec = _rec;
     if (rec != null) unawaited(rec.cancel());
+    if (identical(Microphone.owner.value, this)) {
+      Microphone.owner.value = null;
+      Microphone.hot.value = false;
+    }
     hintAsked.dispose();
     super.dispose();
   }

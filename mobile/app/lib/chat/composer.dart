@@ -187,6 +187,41 @@ class _ComposerState extends State<Composer> {
     _say(why == RecordFailure.denied ? t.dictationDenied : t.voiceRecordFailed);
   }
 
+  /// Back (or any pop) with a recording: it stops into the preview and the user chooses; nothing is dropped unasked.
+  Future<void> _leave() async {
+    if (_session.phase == RecordPhase.recording && _session.holding) return;
+    await _session.stopToPreview();
+    if (!mounted || _session.phase != RecordPhase.preview) return;
+    final t = AppLocalizations.of(context);
+    final nav = Navigator.of(context);
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t.voiceLeaveTitle),
+        content: Text(t.voiceLeaveBody),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(t.cancel)),
+          TextButton(
+            onPressed: () => Navigator.pop(c, 'delete'),
+            child: Text(t.voiceDelete),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, 'send'),
+            child: Text(t.send),
+          ),
+        ],
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'send') {
+      await _session.send();
+    } else {
+      _session.cancel();
+    }
+    // the outbox has the message now (it outlives this chat)
+    unawaited(nav.maybePop());
+  }
+
   Future<void> _send() async {
     final text = _text.text.trim();
     if (_uploading || _failed) return;
@@ -299,77 +334,86 @@ class _ComposerState extends State<Composer> {
       final recording = _session.active;
       // the mic while there is nothing to send, Send otherwise; a window older than protocol 14 has no voice
       final mic = widget.tab.voiceProtocol && (!hasContent || recording);
-      return Padding(
-        key: const ValueKey('composer'),
-        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_drafts.isNotEmpty) _strip(t, c),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(child: _field(context, t, c, open, recording)),
-                const SizedBox(width: 6),
-                // the agent works: Stop, beside the round button
-                if (open && widget.tab.busy)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6, bottom: 4),
-                    child: IconButton(
-                      key: const ValueKey('stop'),
-                      tooltip: t.stop,
-                      icon: const NbIcon(NbGlyph.stop),
-                      style: IconButton.styleFrom(
-                        fixedSize: const Size.square(40),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        backgroundColor: c.destructive,
-                        foregroundColor: c.background,
-                      ),
-                      onPressed: () =>
-                          widget.tab.send(const ClientMessageInterrupt()),
-                    ),
-                  ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  transitionBuilder: (child, anim) => ScaleTransition(
-                    scale: anim,
-                    child: FadeTransition(opacity: anim, child: child),
-                  ),
-                  child: mic
-                      ? RecordButton(
-                          key: const ValueKey('mic'),
-                          session: _session,
-                          enabled: open,
-                          available: widget.tab.whisper,
-                          onUnavailable: () =>
-                              showWhisperSheet(context, widget.tab),
-                        )
-                      : IconButton(
-                          key: const ValueKey('send'),
-                          tooltip: uploading ? t.attachUploading : t.send,
-                          icon: uploading
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const NbIcon(NbGlyph.send),
-                          style: IconButton.styleFrom(
-                            fixedSize: const Size.square(48),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            backgroundColor: canSend ? c.primary : c.muted,
-                            foregroundColor: canSend ? c.primaryFg : c.mutedFg,
-                            disabledBackgroundColor: c.muted,
-                            disabledForegroundColor: c.mutedFg,
-                          ),
-                          onPressed: canSend ? _send : null,
+      return PopScope(
+        // a recording is never dropped by a back press: it is asked about
+        canPop: !recording,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _leave();
+        },
+        child: Padding(
+          key: const ValueKey('composer'),
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_drafts.isNotEmpty) _strip(t, c),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(child: _field(context, t, c, open, recording)),
+                  const SizedBox(width: 6),
+                  // the agent works: Stop, beside the round button
+                  if (open && widget.tab.busy)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6, bottom: 4),
+                      child: IconButton(
+                        key: const ValueKey('stop'),
+                        tooltip: t.stop,
+                        icon: const NbIcon(NbGlyph.stop),
+                        style: IconButton.styleFrom(
+                          fixedSize: const Size.square(40),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          backgroundColor: c.destructive,
+                          foregroundColor: c.background,
                         ),
-                ),
-              ],
-            ),
-          ],
+                        onPressed: () =>
+                            widget.tab.send(const ClientMessageInterrupt()),
+                      ),
+                    ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    transitionBuilder: (child, anim) => ScaleTransition(
+                      scale: anim,
+                      child: FadeTransition(opacity: anim, child: child),
+                    ),
+                    child: mic
+                        ? RecordButton(
+                            key: const ValueKey('mic'),
+                            session: _session,
+                            enabled: open,
+                            available: widget.tab.whisper,
+                            onUnavailable: () =>
+                                showWhisperSheet(context, widget.tab),
+                          )
+                        : IconButton(
+                            key: const ValueKey('send'),
+                            tooltip: uploading ? t.attachUploading : t.send,
+                            icon: uploading
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const NbIcon(NbGlyph.send),
+                            style: IconButton.styleFrom(
+                              fixedSize: const Size.square(48),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              backgroundColor: canSend ? c.primary : c.muted,
+                              foregroundColor: canSend
+                                  ? c.primaryFg
+                                  : c.mutedFg,
+                              disabledBackgroundColor: c.muted,
+                              disabledForegroundColor: c.mutedFg,
+                            ),
+                            onPressed: canSend ? _send : null,
+                          ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       );
     },
@@ -392,8 +436,8 @@ class _ComposerState extends State<Composer> {
     ),
     child: LayoutBuilder(
       builder: (context, box) {
-        // one line beside the paperclip: its padding (16 + 4) and the button (44)
-        final wrapped = _wraps(context, box.maxWidth - 2 - 20 - 44);
+        // one line beside the paperclip: the border, the text's padding (16 + 4), the button (48) and the caret
+        final wrapped = _wraps(context, box.maxWidth - 2 - 16 - 4 - 48 - 2);
         final clip = IconButton(
           key: const ValueKey('attach'),
           tooltip: t.attach,

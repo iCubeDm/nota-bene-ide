@@ -110,6 +110,24 @@ class WindowTab extends ChangeNotifier {
         ch.http(port, method, path, headers: headers, body: body);
   }
 
+  // message id -> voice id of the Retry sends the window has not answered yet
+  final _retrying = <String, String>{};
+
+  /// A Retry of voice [voiceId] is out: pressing it again would send the message twice.
+  bool isRetrying(String voiceId) => _retrying.containsValue(voiceId);
+
+  /// Sends [voice] again as a new message (the Retry of a failed bubble). False when the window did not take it.
+  bool retryVoice(Voice voice, String lang) {
+    if (isRetrying(voice.id)) return true;
+    final id = uuidV4();
+    if (!send(ClientMessageSend(id: id, text: '', voice: voice, lang: lang))) {
+      return false;
+    }
+    _retrying[id] = voice.id;
+    _notify();
+    return true;
+  }
+
   /// Whether the window speaks protocol 14, where voice messages begin.
   bool get voiceProtocol => (protocol ?? 0) >= 14;
 
@@ -124,7 +142,8 @@ class WindowTab extends ChangeNotifier {
   final mediaCache = MediaCache();
 
   /// What the phone learned of the window's Whisper since its hello: on once the phone turned it on, off after a 503
-  /// to a dictation; null until then, when the hello's capability holds.
+  /// to a clip's transcription or a voice message the window could not transcribe because Whisper is off; null until
+  /// then, when the hello's capability holds.
   bool? whisperOn;
 
   /// Whether the window transcribes the phone's recordings now.
@@ -247,6 +266,7 @@ class WindowTab extends ChangeNotifier {
   void _event(ServerEvent e) {
     switch (e) {
       case ServerEventReplay():
+        _retrying.clear();
         _takeoverWanted = false;
         _passive = false;
         feed.apply(e);
@@ -289,10 +309,16 @@ class WindowTab extends ChangeNotifier {
       case ServerEventComments(:final items):
         comments.apply(items);
       case ServerEventSendRefused(:final id):
+        _retrying.remove(id);
         voiceOutbox.refused(id);
         _refusals.add(e);
       case ServerEventUser(:final id):
+        _retrying.remove(id);
         voiceOutbox.arrived(id);
+        feed.apply(e);
+      case ServerEventVoiceText(:final error):
+        // Whisper was switched off on the computer since the hello: the mic then offers to turn it on
+        if (error == VoiceError.off) whisperOn = false;
         feed.apply(e);
       case ServerEventServerError():
         _errors.add(e);

@@ -266,20 +266,13 @@
   "videoPause": "Pause",
   "videoUnplayable": "The video could not be played. Try again when the host is online.",
   "frameFailed": "The frame could not be taken from the video. Try again.",
-  "dictate": "Dictate",
-  "dictateStop": "Stop dictation",
   "dictationDenied": "Microphone access is off for Nota Bene",
-  "dictationNoMatch": "Nothing was heard",
-  "dictationFailed": "Dictation failed",
-  "dictationTranscribing": "Transcribing…",
-  "dictationHostFailed": "The computer could not transcribe it",
   "voiceHold": "Hold to record",
   "voiceSlideCancel": "Slide to cancel",
   "voiceCancel": "Cancel",
   "voiceTranscribing": "Transcribing…",
   "voiceStop": "Stop",
   "dictationHostOff": "Whisper is off on the computer",
-  "dictationCut": "The rest of the recording was not transcribed",
   "expandCode": "Open full screen",
   "codeLines": "{count, plural, one{{count} line} other{{count} lines}}",
   "@codeLines": {
@@ -344,5 +337,7 @@
   "voiceSendFailed": "Could not send the recording",
   "voiceHint": "Hold to record, release to send",
   "voiceDelete": "Delete",
-  "voiceRecordFailed": "The recording failed"
+  "voiceRecordFailed": "The recording failed",
+  "voiceLeaveTitle": "Send the voice message?",
+  "voiceLeaveBody": "The recording has not been sent yet."
 }

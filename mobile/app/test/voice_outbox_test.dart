@@ -11,6 +11,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 import 'support/voice_fakes.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late MemoryOutFiles disk;
   late VoiceStore store;
   late List<ClientMessage> sent;
@@ -193,4 +194,22 @@ void main() {
     await settle();
     box.detach(owner);
   });
+
+  test(
+    'when the real bubble replaces the pending one, the player lets go of it',
+    () async {
+      final native = Player()..install();
+      addTearDown(native.uninstall);
+      final box = attach();
+      box.submit(wavOf(1000), 'en');
+      await settle();
+      final e = box.entries.single;
+      await VoicePlayer.shared.toggle(e.key, () async => wavOf(1000));
+      expect(VoicePlayer.shared.id, e.key);
+      box.arrived((sent.single as ClientMessageSend).id);
+      await settle();
+      expect(VoicePlayer.shared.id, isNull);
+      box.detach(owner);
+    },
+  );
 }

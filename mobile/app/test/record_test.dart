@@ -385,4 +385,81 @@ void main() {
       expect(keys.every((k) => RegExp(r'^[0-9a-f-]{36}$').hasMatch(k)), isTrue);
     },
   );
+
+  testWidgets(
+    'one recorder: while one session records, another button is off',
+    (t) async {
+      final other = RecordSession(
+        onRecorded: (w, l) => got.add((wav: w, length: l)),
+      );
+      addTearDown(other.dispose);
+      await t.pumpWidget(
+        NbApp(
+          home: Scaffold(
+            body: Row(
+              children: [
+                RecordButton(session: session),
+                const SizedBox(width: 100),
+                RecordButton(key: const ValueKey('other'), session: other),
+              ],
+            ),
+          ),
+        ),
+      );
+      final g = await t.startGesture(
+        t.getCenter(find.byType(RecordButton).first),
+      );
+      await t.pump(const Duration(milliseconds: 300));
+      final h = await t.startGesture(
+        t.getCenter(find.byKey(const ValueKey('other'))),
+      );
+      await t.pump(const Duration(milliseconds: 300));
+      expect(rec.calls, ['start']);
+      expect(other.phase, RecordPhase.idle);
+      await h.up();
+      await g.up();
+      await t.pump();
+      await t.pump(const Duration(seconds: 3));
+      // the microphone is free again
+      final k = await t.startGesture(
+        t.getCenter(find.byKey(const ValueKey('other'))),
+      );
+      await t.pump(const Duration(milliseconds: 300));
+      expect(other.phase, RecordPhase.recording);
+      await k.up();
+      await t.pump();
+      await t.pump(const Duration(seconds: 3));
+    },
+  );
+
+  testWidgets('the preview wave is drawn once, not on every rebuild', (
+    t,
+  ) async {
+    await pump(t);
+    final g = await hold(t);
+    await g.moveBy(const Offset(0, -90));
+    await g.up();
+    await t.pump();
+    await t.tap(find.byTooltip('Stop'));
+    await t.pump();
+    final wave = session.wave;
+    expect(wave, hasLength(48));
+    session.debugElapsed(Duration.zero);
+    await t.pump();
+    expect(identical(session.wave, wave), isTrue);
+  });
+
+  testWidgets('TalkBack: a tap on the semantic mic starts a locked recording', (
+    t,
+  ) async {
+    final h = t.ensureSemantics();
+    await pump(t);
+    t.semantics.tap(find.semantics.byLabel('Hold to record'));
+    await t.pump(const Duration(milliseconds: 100));
+    expect(session.phase, RecordPhase.locked);
+    expect(rec.calls, ['start']);
+    session.cancel();
+    h.dispose();
+    await t.pump();
+  });
 }

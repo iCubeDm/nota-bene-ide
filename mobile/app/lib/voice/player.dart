@@ -8,6 +8,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'recorder.dart' show Microphone;
+
 const playChannel = MethodChannel('nb/play');
 
 /// The bytes of a voice, fetched when it is not cached yet.
@@ -66,6 +68,9 @@ class VoicePlayer extends ChangeNotifier {
   bool _loaded = false;
   int _turn = 0;
 
+  // where a drag over a voice that is still loading wants to play from
+  Duration? _target;
+
   bool isCurrent(String voice) => id == voice;
 
   void _reset() {
@@ -88,6 +93,8 @@ class VoicePlayer extends ChangeNotifier {
 
   /// Play [voice] from its start, or pause/resume it when it already has the speaker.
   Future<void> toggle(String voice, LoadVoice load) async {
+    // a second tap while it loads changes nothing
+    if (id == voice && loading) return;
     if (id == voice && _loaded) {
       if (playing) {
         playing = false;
@@ -101,6 +108,12 @@ class VoicePlayer extends ChangeNotifier {
 
   /// Play [voice] from [to], or move to it when it has the speaker.
   Future<void> seek(String voice, LoadVoice load, Duration to) async {
+    // dragging over a voice that is still being fetched only moves where it will start
+    if (id == voice && loading) {
+      position = _target = to;
+      notifyListeners();
+      return;
+    }
     if (id == voice && _loaded) {
       position = to;
       notifyListeners();
@@ -110,6 +123,9 @@ class VoicePlayer extends ChangeNotifier {
   }
 
   Future<void> _start(String voice, LoadVoice load, Duration from) async {
+    // the microphone would hear it, and a recording is not interrupted by a bubble
+    if (Microphone.hot.value) return;
+    _target = null;
     final turn = ++_turn;
     final other = id != null && id != voice;
     if (other) await _call('stop');
@@ -130,10 +146,12 @@ class VoicePlayer extends ChangeNotifier {
       }
       // another voice, or a stop, came while this one was fetched
       if (turn != _turn) return;
+      final start = _target ?? from;
+      _target = null;
       playChannel.setMethodCallHandler(_onCall);
       await playChannel.invokeMethod<void>('play', {
         'path': path,
-        'from': from.inMilliseconds,
+        'from': start.inMilliseconds,
       });
       if (turn != _turn) return;
       loading = false;

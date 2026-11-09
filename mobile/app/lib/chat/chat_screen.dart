@@ -453,7 +453,11 @@ class FeedItemView extends StatelessWidget {
                                   ? VoiceStage.transcribing
                                   : VoiceStage.transcribed),
                         error: voiceError,
-                        onRetry: () => retryVoice(context, voice),
+                        onRetry:
+                            FileOpener.of(context)?.isRetrying(voice.id) ??
+                                false
+                            ? null
+                            : () => retryVoice(context, voice),
                         transcript: () => userText(text),
                       )
                     else if (text.isNotEmpty || images.isEmpty)

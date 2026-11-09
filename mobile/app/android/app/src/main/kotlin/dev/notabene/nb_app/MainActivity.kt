@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.AudioFormat
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
@@ -83,6 +85,8 @@ class MainActivity : FlutterFragmentActivity() {
                     try {
                         player?.takeIf { it.isPlaying }?.pause()
                     } catch (_: IllegalStateException) {}
+                    // nothing to report while paused
+                    mainHandler.removeCallbacks(tick)
                     result.success(null)
                 }
                 "seek" -> {
@@ -105,28 +109,65 @@ class MainActivity : FlutterFragmentActivity() {
         val current = player
         if (current != null && playing == path) {
             if (from > 0) current.seekTo(from)
+            requestFocus()
             current.start()
+            mainHandler.removeCallbacks(tick)
+            mainHandler.post(tick)
             return
         }
         releasePlayer()
         val p = MediaPlayer()
-        p.setAudioAttributes(
-            AudioAttributes.Builder()
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .build()
-        )
-        p.setDataSource(path)
-        p.prepare()
-        if (from > 0) p.seekTo(from)
-        p.setOnCompletionListener {
-            releasePlayer()
-            playChannel?.invokeMethod("done", null)
+        try {
+            p.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .build()
+            )
+            p.setDataSource(path)
+            p.prepare()
+            if (from > 0) p.seekTo(from)
+            p.setOnCompletionListener {
+                releasePlayer()
+                playChannel?.invokeMethod("done", null)
+            }
+        } catch (e: Exception) {
+            // a file that cannot be read must not leave a native player behind
+            p.release()
+            throw e
         }
+        requestFocus()
         p.start()
         player = p
         playing = path
         mainHandler.post(tick)
+    }
+
+    // a call or another player takes the speaker: the voice pauses (the phone is told, as when the app leaves)
+    private var focus: AudioFocusRequest? = null
+
+    private fun requestFocus() {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        val req = focus ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .build()
+            )
+            .setOnAudioFocusChangeListener { change ->
+                if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                    val p = player
+                    if (p != null && p.isPlaying) {
+                        p.pause()
+                        mainHandler.removeCallbacks(tick)
+                        playChannel?.invokeMethod("paused", null)
+                    }
+                }
+            }
+            .build()
+        focus = req
+        am.requestAudioFocus(req)
     }
 
     private fun releasePlayer() {
@@ -134,6 +175,7 @@ class MainActivity : FlutterFragmentActivity() {
         player?.release()
         player = null
         playing = null
+        focus?.let { (getSystemService(AUDIO_SERVICE) as AudioManager).abandonAudioFocusRequest(it) }
     }
 
     // a voice does not go on playing behind the lock screen or another app
@@ -141,6 +183,7 @@ class MainActivity : FlutterFragmentActivity() {
         val p = player
         if (p != null && p.isPlaying) {
             p.pause()
+            mainHandler.removeCallbacks(tick)
             playChannel?.invokeMethod("paused", null)
         }
         super.onStop()
@@ -557,6 +600,8 @@ class MainActivity : FlutterFragmentActivity() {
         fun drop() {
             dropped = true
             stopping = true
+            // a `stop` already asked must still be answered, or its Dart future never ends
+            waiting?.error("cancelled", null, null)
             waiting = null
         }
     }
@@ -623,8 +668,8 @@ class MainActivity : FlutterFragmentActivity() {
         // a file of cache/pick younger than this may still belong to a draft or a share; the camera start spares it
         const val PICK_KEEP_MS = 60L * 60 * 1000
 
-        // what the host takes: 16 kHz mono PCM16, at most 10 minutes (19.2 MB); the app sends it in parts under the
-        // host's 4 MiB limit (wav_parts.dart)
+        // what the host takes (`POST /voice`): 16 kHz mono PCM16, at most 10 minutes (19.2 MB); the host splits it for
+        // Whisper itself
         const val RATE = 16000
         const val MAX_PCM = RATE * 2 * 600
     }

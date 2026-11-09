@@ -2,9 +2,17 @@
 // `cancel`; the phone calls back `level` (0..1, about every 100 ms while recording), `capped` when the recorder
 // reached its 10 minutes and stopped itself with the audio kept, and `failed` when a read error ended it.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 const recordChannel = MethodChannel('nb/record');
+
+/// Who has the one native recorder: a session from its first moment to its end (the preview included), and whether it
+/// is recording now. Another button stays off meanwhile, and nothing plays into the microphone.
+class Microphone {
+  static final owner = ValueNotifier<Object?>(null);
+  static final hot = ValueNotifier<bool>(false);
+}
 
 enum RecordFailure { denied, failed, cancelled }
 

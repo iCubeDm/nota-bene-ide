@@ -8,7 +8,7 @@ import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'record_session.dart';
 import 'voice_view.dart';
-import 'wav.dart';
+import 'wav.dart' show wavMs;
 
 /// `0:03,4`: minutes, seconds and tenths.
 String timer(Duration d) =>
@@ -43,7 +43,7 @@ class RecordRow extends StatelessWidget {
                   child: VoiceView(
                     id: session.previewId,
                     ms: wavMs(wav),
-                    wave: waveOf(wav),
+                    wave: session.wave,
                     load: () async => wav,
                   ),
                 ),

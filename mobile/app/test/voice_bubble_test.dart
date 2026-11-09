@@ -118,4 +118,67 @@ void main() {
       '/cache/voice/${'c' * 64}.wav',
     );
   });
+
+  testWidgets('Retry is off once pressed, until the window answers', (t) async {
+    await r.open(t, events: [user('u1')], settle: false);
+    r.event({'kind': 'voice-text', 'id': 'u1', 'error': 'failed', 'ts': 2});
+    await t.pump();
+    await t.tap(find.text('Retry'));
+    await t.pump();
+    // a second tap sends nothing more
+    await t.tap(find.text('Retry'), warnIfMissed: false);
+    await t.pump();
+    expect(r.sent, hasLength(1));
+    expect(
+      t.widget<TextButton>(find.widgetWithText(TextButton, 'Retry')).onPressed,
+      isNull,
+    );
+    // the window refuses it: Retry is on again
+    r.event({
+      'kind': 'send-refused',
+      'id': r.sent.single['id'],
+      'reason': 'switching',
+    });
+    await t.pump();
+    expect(
+      t.widget<TextButton>(find.widgetWithText(TextButton, 'Retry')).onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('Retry with the window out of reach says so', (t) async {
+    await r.open(t, events: [user('u1')], settle: false);
+    r.event({'kind': 'voice-text', 'id': 'u1', 'error': 'failed', 'ts': 2});
+    await t.pump();
+    r.ch.drop();
+    await t.pump();
+    await t.tap(find.text('Retry'));
+    await t.pump();
+    expect(r.sent, isEmpty);
+    expect(
+      find.text('Sending is off while the window is not reachable'),
+      findsWidgets,
+    );
+    expect(find.byType(SnackBar), findsOneWidget);
+  });
+
+  testWidgets(
+    'a voice-text that says Whisper is off turns the mic to the install sheet',
+    (t) async {
+      await r.open(
+        t,
+        events: [user('u1')],
+        settle: false,
+        hello: {
+          'kind': 'hello',
+          'protocol': 14,
+          'capabilities': Rig.caps(dictation: 'whisper'),
+        },
+      );
+      expect(r.tab!.whisper, isTrue);
+      r.event({'kind': 'voice-text', 'id': 'u1', 'error': 'off', 'ts': 2});
+      await t.pump();
+      expect(r.tab!.whisper, isFalse);
+    },
+  );
 }

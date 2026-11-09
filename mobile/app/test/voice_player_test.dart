@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/voice/player.dart';
+import 'package:nb_app/voice/recorder.dart';
 
 import 'support/voice_fakes.dart';
 
@@ -84,6 +86,36 @@ void main() {
     await p.toggle('a', load);
     await p.stop();
     expect(native.calls.last.method, 'stop');
+    expect(p.id, isNull);
+  });
+
+  test(
+    'dragging over an uncached voice downloads it once and plays from the last position',
+    () async {
+      final gate = Completer<Uint8List?>();
+      var loads = 0;
+      Future<Uint8List?> slow() {
+        loads++;
+        return gate.future;
+      }
+
+      final first = p.seek('a', slow, const Duration(seconds: 1));
+      await p.seek('a', slow, const Duration(seconds: 2));
+      await p.seek('a', slow, const Duration(seconds: 3));
+      expect(p.position, const Duration(seconds: 3));
+      gate.complete(Uint8List.fromList([1]));
+      await first;
+      expect(loads, 1);
+      expect(native.names, ['play']);
+      expect((native.calls.single.arguments as Map)['from'], 3000);
+    },
+  );
+
+  test('a voice does not play while the microphone is recording', () async {
+    Microphone.hot.value = true;
+    addTearDown(() => Microphone.hot.value = false);
+    await p.toggle('a', load);
+    expect(native.calls, isEmpty);
     expect(p.id, isNull);
   });
 }

@@ -345,5 +345,21 @@ void main() {
       expect(rec.calls, ['start', 'cancel']);
       expect(find.byTooltip('Play'), findsNothing);
     });
+
+    testWidgets('a finger held on the mic does not drag the sheet away', (
+      t,
+    ) async {
+      await openSheet(t);
+      final g = await t.startGesture(t.getCenter(mic()));
+      await t.pump(const Duration(milliseconds: 300));
+      await g.moveBy(const Offset(0, 300));
+      await t.pump();
+      await g.up();
+      await t.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(got, isNull);
+      // the recording was released: it is a clip
+      expect(find.byTooltip('Play'), findsOneWidget);
+    });
   });
 }
