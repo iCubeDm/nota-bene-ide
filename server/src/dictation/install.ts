@@ -2,12 +2,11 @@
 // runtime store's release install (runtime.ts): a lock, a log, an npm timeout. `ready.json` is written last and names the pins,
 // so a folder from other pins reads as not installed.
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { defaultNpm, NPM_TIMEOUT_MS, readLock, run, takeLockFile } from '../runtime.ts';
+import { dictationAssetDir, openPipeline, type Pipe, type WorkerFactory } from './pipelineHost.ts';
 import { stateBaseDir } from '../state.ts';
-import { WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
+import { FETCH_MODEL_TIMEOUT_MS, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
 
 export type WhisperPhase = 'none' | 'installing' | 'ready' | 'failed';
 type Run = typeof run;
@@ -24,38 +23,40 @@ const isReady = (): boolean => {
   } catch { return false; }
 };
 
+/**
+ * One rule for "an install is running": the lock's pid is alive (takeLockFile judges the same way). No age limit: npm and the
+ * model download each have their own timeout, so a live pid with an old lock is a slow install, not a dead one.
+ */
 export function whisperPhase(): WhisperPhase {
   const l = readLock(lockFile());
-  if (l && l !== 'stale') {
-    let age = 0;
-    try { age = Date.now() - fs.statSync(lockFile()).mtimeMs; } catch { /* gone a moment ago */ }
-    // a lock past the npm timeout is a dead install whose pid was reused
-    return age > NPM_TIMEOUT_MS ? 'failed' : 'installing';
-  }
+  if (l && l !== 'stale') return 'installing';
   if (isReady()) return 'ready';
   return l === 'stale' || fs.existsSync(failedFile()) ? 'failed' : 'none';
 }
 
-export type Pipe = { (audio: Float32Array, opts: object): Promise<{ text?: string }>; dispose?: () => Promise<void> };
+export type { Pipe };
 
-/** Loads the ASR pipeline from the installed prefix; the first load downloads the pinned model into <dir>/models. */
-export async function loadPipeline(dir: string = whisperDir()): Promise<Pipe> {
-  const resolved = createRequire(path.join(dir, 'package.json')).resolve(WHISPER_PACKAGE);
-  const mod = await import(pathToFileURL(resolved).href) as { pipeline?: unknown; env?: { cacheDir: string }; default?: { pipeline?: unknown; env?: { cacheDir: string } } };
-  const api = mod.pipeline ? mod : mod.default;
-  if (!api?.pipeline || !api.env) throw new Error(`${WHISPER_PACKAGE} has no pipeline`);
-  api.env.cacheDir = path.join(dir, 'models');
-  return (api.pipeline as (task: string, model: string, o: object) => Promise<Pipe>)(
-    'automatic-speech-recognition', WHISPER_MODEL, { revision: WHISPER_REVISION, dtype: WHISPER_DTYPE });
+/** Loads the ASR pipeline from the installed prefix, in a worker thread (never on the server's event loop). The first load downloads the pinned model into <dir>/models. */
+export function loadPipeline(dir: string = whisperDir(), o: { worker?: WorkerFactory } = {}): Promise<Pipe> {
+  return openPipeline(dir, o).ready;
 }
 
-async function defaultFetchModel(dir: string): Promise<void> {
-  const pipe = await loadPipeline(dir);
-  await pipe.dispose?.();
+/** Loads the model once in a worker that is ended afterwards; `signal` ends it early (the download timed out). */
+async function defaultFetchModel(dir: string, signal?: AbortSignal): Promise<void> {
+  const h = openPipeline(dir);
+  const stop = () => h.close(new Error('model download timed out'));
+  if (signal?.aborted) stop(); else signal?.addEventListener('abort', stop, { once: true });
+  try {
+    const pipe = await h.ready;
+    await pipe.dispose?.();
+  } finally { signal?.removeEventListener('abort', stop); }
 }
+
+/** The package.json the lockfile belongs to: the root of npm-shrinkwrap.json is `nota-bene-whisper` with this one dependency. */
+const prefixPackageJson = () => JSON.stringify({ name: 'nota-bene-whisper', version: '0.0.0', private: true, dependencies: { [WHISPER_PACKAGE]: WHISPER_VERSION } }, null, 2);
 
 /** Installs the pinned package and model. Takes the lock synchronously, so a second call right after sees `installing`. Rejects on failure. */
-export function installWhisper(o: { spawn?: Run; npm?: string | null; fetchModel?: (dir: string) => Promise<void> } = {}): Promise<void> {
+export function installWhisper(o: { spawn?: Run; npm?: string | null; fetchModel?: (dir: string, signal?: AbortSignal) => Promise<void>; fetchTimeoutMs?: number } = {}): Promise<void> {
   const dir = whisperDir();
   if (!takeLockFile(lockFile(), WHISPER_VERSION)) return Promise.reject(new Error('already installing'));
   return (async () => {
@@ -66,11 +67,17 @@ export function installWhisper(o: { spawn?: Run; npm?: string | null; fetchModel
       if (!npm) throw new Error('npm not found');
       const log = fs.openSync(path.join(dir, 'install.log'), 'a', 0o600);
       try {
-        const got = await (o.spawn ?? run)(npm, ['install', '--prefix', dir, `${WHISPER_PACKAGE}@${WHISPER_VERSION}`, '--no-audit', '--no-fund'], log, NPM_TIMEOUT_MS);
+        // the lockfile pins every transitive package by hash; --ignore-scripts because none of them needs a script on the CPU
+        // path (onnxruntime-node's postinstall only fetches the CUDA provider on linux/x64, protobufjs's only checks its version)
+        fs.writeFileSync(path.join(dir, 'package.json'), prefixPackageJson());
+        fs.copyFileSync(path.join(dictationAssetDir(), 'npm-shrinkwrap.json'), path.join(dir, 'npm-shrinkwrap.json'));
+        const got = await (o.spawn ?? run)(npm, ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--prefix', dir], log, NPM_TIMEOUT_MS);
         if (got.timedOut) throw new Error('npm timed out');
-        if (got.code !== 0) throw new Error(`npm install exited with ${got.code}`);
+        if (got.code !== 0) throw new Error(`npm ci exited with ${got.code}`);
       } finally { fs.closeSync(log); }
-      await (o.fetchModel ?? defaultFetchModel)(dir);
+      await fetchWithTimeout(o.fetchModel ?? defaultFetchModel, dir, o.fetchTimeoutMs ?? FETCH_MODEL_TIMEOUT_MS);
+      // a Remove or a cleanup under a running install must not end in a fake `ready`
+      if (!fs.existsSync(path.join(dir, 'node_modules'))) throw new Error('the install folder lost node_modules');
       fs.writeFileSync(readyFile(), JSON.stringify({ version: WHISPER_VERSION, model: WHISPER_MODEL, revision: WHISPER_REVISION }), { mode: 0o600 });
     } catch (e) {
       try { fs.writeFileSync(failedFile(), JSON.stringify({ at: Date.now(), reason: e instanceof Error ? e.message : String(e) }), { mode: 0o600 }); } catch { /* best effort */ }
@@ -81,9 +88,19 @@ export function installWhisper(o: { spawn?: Run; npm?: string | null; fetchModel
   })();
 }
 
-/** Deletes the install (never while one runs). Returns false when refused. */
+async function fetchWithTimeout(fetchModel: (dir: string, signal?: AbortSignal) => Promise<void>, dir: string, ms: number): Promise<void> {
+  const ac = new AbortController();
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { ac.abort(); reject(new Error('model download timed out')); }, ms); });
+  const job = fetchModel(dir, ac.signal);
+  job.catch(() => {}); // when the timeout wins, its late rejection is not unhandled
+  try { await Promise.race([job, timeout]); } finally { clearTimeout(timer); }
+}
+
+/** Deletes the install, never while a live process holds the install lock (this one included). Returns false when refused. */
 export function removeWhisper(): boolean {
-  if (whisperPhase() === 'installing') return false;
+  const l = readLock(lockFile());
+  if (l && l !== 'stale') return false;
   fs.rmSync(whisperDir(), { recursive: true, force: true });
   return true;
 }

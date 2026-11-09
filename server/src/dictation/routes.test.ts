@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EventHub } from '../hub.ts';
 import { whisperDir, whisperPhase } from './install.ts';
 import { dictationRoutes } from './routes.ts';
-import { WHISPER_MODEL, WHISPER_SIZE_MB } from './whisper.ts';
+import { WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
 import { readPrefs } from '../prefs.ts';
 import { makeWav } from './wavFixture.ts';
 
@@ -26,6 +26,7 @@ afterEach(async () => {
 });
 
 type Done = { code: number | null; stdout: string; timedOut: boolean };
+const npmOk = async (): Promise<Done> => { fs.mkdirSync(path.join(whisperDir(), 'node_modules'), { recursive: true }); return { code: 0, stdout: '', timedOut: false }; };
 async function serve(install?: Parameters<typeof dictationRoutes>[0]['install'], transcribe?: Parameters<typeof dictationRoutes>[0]['transcribe']): Promise<string> {
   const routes = dictationRoutes({ hub: new EventHub(), install, transcribe });
   server = http.createServer(((req, res) => routes[req.url!.split('?')[0]!]!(req, res)) as RequestListener);
@@ -40,7 +41,7 @@ describe('dictation routes', () => {
     const base = await serve();
     const r = await fetch(`${base}/dictation`);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ on: false, phase: 'none', sizeMb: WHISPER_SIZE_MB, model: WHISPER_MODEL });
+    expect(await r.json()).toEqual({ on: false, phase: 'none', downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL });
   });
 
   it('answers 405 to the wrong method', async () => {
@@ -52,7 +53,7 @@ describe('dictation routes', () => {
   it('installs once: 202, then 409 while it runs, then ready', async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => { release = r; });
-    const base = await serve({ npm: '/fake/npm', spawn: async (): Promise<Done> => { await gate; return { code: 0, stdout: '', timedOut: false }; }, fetchModel: async () => {} });
+    const base = await serve({ npm: '/fake/npm', spawn: async (): Promise<Done> => { await gate; return npmOk(); }, fetchModel: async () => {} });
     expect((await post(base, '/dictation/install')).status).toBe(202);
     expect(await (await fetch(`${base}/dictation`)).json()).toMatchObject({ phase: 'installing' });
     expect((await post(base, '/dictation/install')).status).toBe(409);
@@ -70,7 +71,7 @@ describe('dictation routes', () => {
   });
 
   it('on before ready is 409; after ready it sticks, and off is allowed anytime', async () => {
-    const base = await serve({ npm: '/fake/npm', spawn: async (): Promise<Done> => ({ code: 0, stdout: '', timedOut: false }), fetchModel: async () => {} });
+    const base = await serve({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} });
     expect((await post(base, '/dictation/on', { on: true })).status).toBe(409);
     expect((await post(base, '/dictation/on', { on: 'yes' })).status).toBe(400);
     await post(base, '/dictation/install');
@@ -83,7 +84,7 @@ describe('dictation routes', () => {
   });
 
   it('remove deletes the folder only and turns it off', async () => {
-    const base = await serve({ npm: '/fake/npm', spawn: async (): Promise<Done> => ({ code: 0, stdout: '', timedOut: false }), fetchModel: async () => {} });
+    const base = await serve({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} });
     await post(base, '/dictation/install');
     await until(() => whisperPhase() === 'ready');
     await post(base, '/dictation/on', { on: true });
@@ -97,7 +98,7 @@ describe('dictation routes', () => {
   describe('POST /dictation/transcribe', () => {
     const wav = { 'content-type': 'audio/wav' };
     const setup = async (calls: string[] = []) => {
-      const base = await serve({ npm: '/fake/npm', spawn: async (): Promise<Done> => ({ code: 0, stdout: '', timedOut: false }), fetchModel: async () => {} }, async (_pcm, lang) => { calls.push(lang); return 'hi there'; });
+      const base = await serve({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} }, async (_pcm, lang) => { calls.push(lang); return 'hi there'; });
       return base;
     };
     const ready = async (base: string) => {
@@ -122,9 +123,20 @@ describe('dictation routes', () => {
       expect(await ok.json()).toEqual({ text: 'hi there' });
       expect(langs).toEqual(['ru']);
     });
+    it('refuses a bad lang with 400 instead of a 500, and takes two or three lowercase letters', async () => {
+      const langs: string[] = [];
+      const base = await setup(langs);
+      await ready(base);
+      const go = (q: string) => fetch(`${base}/dictation/transcribe${q}`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) });
+      for (const bad of ['?lang=../x', '?lang=EN', '?lang=e', '?lang=engl', '?lang=e1', '?lang=%00%00']) expect((await go(bad)).status, bad).toBe(400);
+      expect(langs).toEqual([]);
+      expect((await go('?lang=yue')).status).toBe(200);
+      expect((await go('')).status).toBe(200);
+      expect(langs).toEqual(['yue', 'en']);
+    });
     it('runs requests one at a time', async () => {
       let active = 0; let peak = 0;
-      const routes = dictationRoutes({ hub: new EventHub(), install: { npm: '/fake/npm', spawn: async (): Promise<Done> => ({ code: 0, stdout: '', timedOut: false }), fetchModel: async () => {} },
+      const routes = dictationRoutes({ hub: new EventHub(), install: { npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} },
         transcribe: async () => { active++; peak = Math.max(peak, active); await new Promise((r) => setTimeout(r, 30)); active--; return 'x'; } });
       server = http.createServer(((req, res) => routes[req.url!.split('?')[0]!]!(req, res)) as RequestListener);
       await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));

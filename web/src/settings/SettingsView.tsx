@@ -20,7 +20,7 @@ type WindowRow = {
 };
 type About = { version: string; stateDir: string; logs: string[]; node: string; pid: number };
 /** `GET /dictation`: the optional Whisper install that transcribes the phone's microphone */
-type Dictation = { on: boolean; phase: 'none' | 'installing' | 'ready' | 'failed'; sizeMb: number; model: string };
+type Dictation = { on: boolean; phase: 'none' | 'installing' | 'ready' | 'failed'; downloadMb: number; diskMb: number; dir: string; model: string };
 type Action = 'restart-agent' | 'restart-server' | 'stop';
 
 // macOS and Linux home folders
@@ -215,8 +215,8 @@ export function SettingsView({ active }: { active: boolean }) {
         {fail(dict.error)}
         {dict.data?.phase === 'none' && (
           <Button type="button" variant="outline" size="sm"
-            onClick={() => setAsk({ title: t('dictInstall', dict.data!.sizeMb), body: t('dictInstallQ', dict.data!.sizeMb), confirm: t('dictInstallGo'), run: () => dictPost('/dictation/install') })}>
-            {t('dictInstall', dict.data.sizeMb)}
+            onClick={() => setAsk({ title: t('dictInstall', dict.data!.downloadMb, dict.data!.diskMb), body: t('dictInstallQ', dict.data!.downloadMb, dict.data!.diskMb, dict.data!.dir), confirm: t('dictInstallGo'), run: () => dictPost('/dictation/install') })}>
+            {t('dictInstall', dict.data.downloadMb, dict.data.diskMb)}
           </Button>
         )}
         {dict.data?.phase === 'installing' && <div role="status" className="text-[0.8125rem] text-muted-foreground"><span aria-hidden className="mr-1.5 inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />{t('dictInstalling')}</div>}
@@ -234,7 +234,7 @@ export function SettingsView({ active }: { active: boolean }) {
               {t('dictUse')}
             </label>
             <Button type="button" variant="outline" size="sm"
-              onClick={() => setAsk({ title: t('dictRemove'), body: t('dictRemoveQ'), confirm: t('dictRemoveGo'), run: () => dictPost('/dictation/remove') })}>
+              onClick={() => setAsk({ title: t('dictRemove'), body: t('dictRemoveQ', dict.data!.dir), confirm: t('dictRemoveGo'), run: () => dictPost('/dictation/remove') })}>
               {t('dictRemove')}
             </Button>
           </div>

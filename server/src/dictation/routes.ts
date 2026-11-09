@@ -2,10 +2,10 @@
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import type { EventHub } from '../hub.ts';
 import { readPrefs, setWhisperPref } from '../prefs.ts';
-import { installWhisper, removeWhisper, whisperPhase } from './install.ts';
+import { installWhisper, removeWhisper, whisperDir, whisperPhase } from './install.ts';
 import { resetTranscriber, transcribe as defaultTranscribe } from './transcribe.ts';
 import { pcmFromWav, WavError } from './wav.ts';
-import { WHISPER_MODEL, WHISPER_SIZE_MB } from './whisper.ts';
+import { WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
 import { reportError } from '../errors.ts';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -19,6 +19,9 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   const v: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
   return v && typeof v === 'object' ? v as Record<string, unknown> : {};
 }
+
+/** An ISO 639 language code, as Whisper takes it (en, ru, yue). */
+const LANG = /^[a-z]{2,3}$/;
 
 /** Two minutes of 16 kHz 16-bit mono is 3.84 MB. */
 const MAX_AUDIO = 4 * 1024 * 1024;
@@ -50,7 +53,7 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
     '/dictation': (req, res) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'method not allowed' });
       const phase = whisperPhase();
-      json(res, 200, { on: readPrefs().whisper === true && phase === 'ready', phase, sizeMb: WHISPER_SIZE_MB, model: WHISPER_MODEL });
+      json(res, 200, { on: readPrefs().whisper === true && phase === 'ready', phase, downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL });
     },
     '/dictation/install': post((_req, res) => {
       if (whisperPhase() === 'installing') return json(res, 409, { error: 'already installing' });
@@ -71,9 +74,11 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
       setWhisperPref(false);
       json(res, 200, { ok: true });
     }),
-     '/dictation/transcribe': post(async (req, res) => {
+    '/dictation/transcribe': post(async (req, res) => {
       if (readPrefs().whisper !== true || whisperPhase() !== 'ready') return json(res, 503, { error: 'dictation is off' });
       if (!(req.headers['content-type'] ?? '').toLowerCase().startsWith('audio/wav')) return json(res, 415, { error: 'audio/wav only' });
+      const lang = new URL(req.url ?? '', 'http://x').searchParams.get('lang') || 'en';
+      if (!LANG.test(lang)) return json(res, 400, { error: 'bad lang' });
       const declared = Number(req.headers['content-length']);
       const body = declared > MAX_AUDIO ? null : await readAudio(req, MAX_AUDIO);
       if (!body) return json(res, 413, { error: 'audio too long' });
@@ -82,7 +87,6 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
         if (e instanceof WavError) return json(res, 400, { error: e.message });
         throw e;
       }
-      const lang = new URL(req.url ?? '', 'http://x').searchParams.get('lang') || 'en';
       // one at a time: the model is single-threaded and memory-heavy
       const job = queue.then(() => run(pcm, lang));
       queue = job.catch(() => {});

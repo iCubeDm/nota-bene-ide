@@ -17,7 +17,7 @@ const WINDOWS = [
 let posts: { url: string; body: unknown }[];
 let actionReply: () => Response;
 let prefsReply: () => Response;
-let dict: { on: boolean; phase: string; sizeMb: number; model: string };
+let dict: { on: boolean; phase: string; downloadMb: number; diskMb: number; dir: string; model: string };
 let storage: { unreferenced: { files: number; bytes: number } };
 beforeEach(() => {
   localStorage.clear();
@@ -25,7 +25,7 @@ beforeEach(() => {
   posts = [];
   actionReply = () => Response.json({ status: 200 });
   prefsReply = () => Response.json({ defaultMode: 'plan' });
-  dict = { on: false, phase: 'none', sizeMb: 244, model: 'whisper-small' };
+  dict = { on: false, phase: 'none', downloadMb: 430, diskMb: 770, dir: '/srv/nb/whisper', model: 'whisper-small' };
   storage = { unreferenced: { files: 3, bytes: 3_000_000 } };
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') {
@@ -235,14 +235,18 @@ it('a Themes section after Defaults: radios with a swatch of the theme\'s own to
 
 it('Dictation on the phone, not installed: Install asks first, naming the size and the folder; the POST follows the confirm only', async () => {
   setup();
-  fireEvent.click(await screen.findByRole('button', { name: 'Install Whisper (≈ 244 MB)' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Install Whisper (≈ 430 MB download, 770 MB on disk)' }));
   expect(posts.filter((p) => p.url === '/dictation/install')).toHaveLength(0);
   const dialog = await screen.findByRole('dialog');
-  expect(dialog).toHaveTextContent('244 MB');
-  expect(dialog).toHaveTextContent('~/.nota-bene/whisper');
+  expect(dialog).toHaveTextContent('≈ 430 MB');
+  expect(dialog).toHaveTextContent('≈ 770 MB on disk');
+  expect(dialog).toHaveTextContent('/srv/nb/whisper');
+  expect(dialog).toHaveTextContent('end-to-end encrypted and are not stored');
+  expect(dialog).not.toHaveTextContent('~/.nota-bene');
+  expect(dialog).not.toHaveTextContent('nothing leaves');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
   expect(posts.filter((p) => p.url === '/dictation/install')).toHaveLength(0);
-  fireEvent.click(screen.getByRole('button', { name: 'Install Whisper (≈ 244 MB)' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Install Whisper (≈ 430 MB download, 770 MB on disk)' }));
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Install' }));
   await waitFor(() => expect(posts.filter((p) => p.url === '/dictation/install')).toHaveLength(1));
   expect(await screen.findByText('Installing Whisper…')).toBeInTheDocument();
@@ -274,7 +278,8 @@ it('Dictation ready: the checkbox posts on; Remove asks first, then posts remove
   fireEvent.click(screen.getByRole('button', { name: 'Remove Whisper' }));
   expect(posts.some((p) => p.url === '/dictation/remove')).toBe(false);
   const dialog = await screen.findByRole('dialog');
-  expect(dialog).toHaveTextContent('~/.nota-bene/whisper');
+  expect(dialog).toHaveTextContent('/srv/nb/whisper');
+  expect(dialog).not.toHaveTextContent('~/.nota-bene');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
   await waitFor(() => expect(posts.some((p) => p.url === '/dictation/remove')).toBe(true));
 });
