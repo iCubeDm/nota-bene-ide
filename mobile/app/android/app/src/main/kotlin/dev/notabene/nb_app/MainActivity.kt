@@ -1,6 +1,9 @@
 package dev.notabene.nb_app
 
 import android.Manifest
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -12,16 +15,22 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
+import android.net.Uri
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.Executors
@@ -98,6 +107,164 @@ class MainActivity : FlutterFragmentActivity() {
         }
         configureSpeech(flutterEngine)
         configureRecord(flutterEngine)
+        configurePick(flutterEngine)
+    }
+
+    // Images from the system (`nb/pick`): `camera`, `gallery` and `file` each start one system activity and answer a
+    // list of {bytes, mime, name} (empty when cancelled; {skipped: name} for an image over MAX_PICK_BYTES). No
+    // permission of ours but CAMERA, which the manifest declares for the QR scanner and which the camera intent then
+    // requires us to hold. The camera writes a full-size photo to a file of ours in cache/pick, shared through
+    // androidx.core's FileProvider. One pick at a time; reading runs off the main thread.
+    private var pickResult: MethodChannel.Result? = null
+    private var pickCamera: File? = null
+    private var pendingCamera: MethodChannel.Result? = null
+    private val pickExecutor = Executors.newSingleThreadExecutor()
+
+    private fun configurePick(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "nb/pick").setMethodCallHandler { call, result ->
+            if (call.method != "camera" && call.method != "gallery" && call.method != "file") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            if (pickResult != null || pendingCamera != null) {
+                result.error("busy", null, null)
+                return@setMethodCallHandler
+            }
+            when (call.method) {
+                "camera" ->
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        startCamera(result)
+                    } else {
+                        pendingCamera = result
+                        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION)
+                    }
+                "gallery" -> startGallery(result)
+                else -> startFile(result)
+            }
+        }
+    }
+
+    // True when the system activity started. When there is none, [noActivity] decides (default: an error reply).
+    private fun launchPick(intent: Intent, result: MethodChannel.Result, noActivity: (() -> Unit)? = null): Boolean {
+        pickResult = result
+        return try {
+            startActivityForResult(intent, PICK_REQUEST)
+            true
+        } catch (e: ActivityNotFoundException) {
+            pickResult = null
+            if (noActivity != null) noActivity() else result.error("unavailable", null, null)
+            false
+        } catch (e: SecurityException) {
+            pickResult = null
+            result.error("denied", null, null)
+            false
+        }
+    }
+
+    private fun startCamera(result: MethodChannel.Result) {
+        val dir = File(cacheDir, "pick")
+        dir.mkdirs()
+        dir.listFiles()?.forEach { it.delete() } // leftovers of an earlier capture
+        val file = File(dir, "camera-${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(this, "$packageName.pick", file)
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            .putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        intent.clipData = ClipData.newRawUri("", uri) // the grant reaches the camera app below API 21's rules too
+        pickCamera = file
+        if (!launchPick(intent, result)) {
+            pickCamera = null
+            file.delete()
+        }
+    }
+
+    private fun startGallery(result: MethodChannel.Result) {
+        val generic = {
+            val intent = Intent(Intent.ACTION_GET_CONTENT)
+                .setType("image/*")
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            launchPick(intent, result)
+            Unit
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            val intent = Intent(MediaStore.ACTION_PICK_IMAGES)
+                .putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, minOf(MAX_PICK_COUNT, MediaStore.getPickImagesMaxLimit()))
+            launchPick(intent, result, noActivity = generic) // no photo picker on this phone: the generic chooser
+        } else {
+            generic()
+        }
+    }
+
+    private fun startFile(result: MethodChannel.Result) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .setType("image/*")
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        launchPick(intent, result)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != PICK_REQUEST) return
+        val result = pickResult ?: return
+        pickResult = null
+        val camera = pickCamera
+        pickCamera = null
+        if (resultCode != Activity.RESULT_OK) {
+            camera?.delete()
+            result.success(ArrayList<Any>())
+            return
+        }
+        val uris = ArrayList<Uri>()
+        if (camera != null) {
+            uris.add(Uri.fromFile(camera))
+        } else if (data != null) {
+            data.clipData?.let { c -> for (i in 0 until minOf(c.itemCount, MAX_PICK_COUNT)) uris.add(c.getItemAt(i).uri) }
+            if (uris.isEmpty()) data.data?.let { uris.add(it) }
+        }
+        pickExecutor.execute {
+            val out = ArrayList<Map<String, Any>>()
+            try {
+                for (uri in uris) out.add(readPicked(uri, camera != null))
+                mainHandler.post { result.success(out) }
+            } catch (e: Throwable) {
+                // an unreadable image or an OutOfMemoryError is a reply, not a crash
+                mainHandler.post { result.error("read", e.message ?: e.javaClass.simpleName, null) }
+            } finally {
+                camera?.delete()
+            }
+        }
+    }
+
+    private fun readPicked(uri: Uri, isCamera: Boolean): Map<String, Any> {
+        var name = if (isCamera) "camera.jpg" else (uri.lastPathSegment ?: "image")
+        var size = -1L
+        if (!isCamera) {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    c.getString(0)?.let { name = it }
+                    if (!c.isNull(1)) size = c.getLong(1)
+                }
+            }
+        }
+        if (size > MAX_PICK_BYTES) return mapOf("skipped" to name)
+        val stream = (if (isCamera) java.io.FileInputStream(File(uri.path!!)) else contentResolver.openInputStream(uri))
+            ?: throw IOException("cannot open $name")
+        val buf = ByteArrayOutputStream()
+        stream.use { input ->
+            val chunk = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(chunk)
+                if (n < 0) break
+                buf.write(chunk, 0, n)
+                if (buf.size() > MAX_PICK_BYTES) return mapOf("skipped" to name) // the size column can be missing or wrong
+            }
+        }
+        val mime = if (isCamera) "image/jpeg" else (contentResolver.getType(uri) ?: "application/octet-stream")
+        return mapOf("bytes" to buf.toByteArray(), "mime" to mime, "name" to name)
     }
 
     private fun configureSpeech(flutterEngine: FlutterEngine) {
@@ -183,6 +350,16 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CAMERA_PERMISSION) {
+            val camera = pendingCamera ?: return
+            pendingCamera = null
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startCamera(camera)
+            } else {
+                camera.error("denied", null, null)
+            }
+            return
+        }
         if (requestCode != SPEECH_PERMISSION) return
         val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
         pendingStart?.let { result ->
@@ -578,11 +755,18 @@ class MainActivity : FlutterFragmentActivity() {
         mainHandler.removeCallbacksAndMessages(null)
         dropRecording()
         frameExecutor.shutdown()
+        pickExecutor.shutdown()
         super.onDestroy()
     }
 
     private companion object {
         const val SPEECH_PERMISSION = 4791
+        const val CAMERA_PERMISSION = 4792
+        const val PICK_REQUEST = 4793
+
+        // what a pick answers: at most ten images, none over 40 MB (the phone skips it and says so)
+        const val MAX_PICK_COUNT = 10
+        const val MAX_PICK_BYTES = 40 * 1024 * 1024
 
         // what the host takes: 16 kHz mono PCM16, at most 2 minutes (3.84 MB, under its 4 MiB limit with the header)
         const val RATE = 16000
