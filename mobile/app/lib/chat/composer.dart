@@ -11,6 +11,7 @@ import '../comments/comments.dart';
 import '../dictation/record_bar.dart';
 import '../dictation/voice_button.dart';
 import '../dictation/voice_chooser.dart';
+import '../dictation/whisper_sheet.dart';
 import '../media/attach.dart';
 import '../media/picker.dart';
 import '../theme.dart';
@@ -343,6 +344,8 @@ class _ComposerState extends State<Composer> {
                           meter: _meter,
                           onState: (v) => setState(() => _voice = v),
                           chooser: voiceChooser(widget.tab),
+                          onUnavailable: () =>
+                              showWhisperSheet(context, widget.tab),
                         ),
                       ],
                     ),

@@ -31,6 +31,11 @@ class Recorder {
         });
   }
 
+  void uninstall() => TestDefaultBinaryMessengerBinding
+      .instance
+      .defaultBinaryMessenger
+      .setMockMethodCallHandler(recordChannel, null);
+
   /// The recorder stopping itself at its cap.
   Future<void> cap() => TestDefaultBinaryMessengerBinding
       .instance
@@ -114,7 +119,7 @@ void main() {
       },
     );
     final events = <DictationEvent>[];
-    d.listen('ru-RU').listen(events.add);
+    d.listen('ru').listen(events.add);
     await tick();
     await d.stop();
     await tick();
@@ -321,41 +326,37 @@ void main() {
     });
 
     testWidgets(
-      'a 503 means Whisper is off: the phone recognizes until a new hello',
+      'a 503 means Whisper went off: the next press offers it again',
       (t) async {
-        final saved = dictation;
-        final calls = <String>[];
-        dictation = _Phone(calls);
-        addTearDown(() => dictation = saved);
         final reply = await openWith(t);
         await t.enter('Fix ');
         await holdVoice(t);
         reply.complete(answer(503));
         await t.pumpAndSettle();
         expect(find.text('Fix '), findsOneWidget);
-        expect(
-          find.text(
-            "Whisper is off on the computer; the phone's recognition is used now",
-          ),
-          findsOneWidget,
-        );
-        expect(r.tab!.hostWhisperOff, isTrue);
+        expect(find.text('Whisper is off on the computer'), findsOneWidget);
+        expect(r.tab!.whisperOn, isFalse);
         rec.calls.clear();
+        r.ch.onHttp = (port, method, path) async => answer(
+          200,
+          '{"on":false,"phase":"ready","downloadMb":1,"diskMb":2,"dir":"/w"}',
+        );
         // the snack bar would cover the button
         await t.pump(const Duration(seconds: 6));
         await t.pumpAndSettle();
-        await lockVoice(t);
-        expect(calls, ['listen']);
+        await holdVoice(t);
+        await t.pumpAndSettle();
         expect(rec.calls, isEmpty);
-        VoiceButton.cancelRunning();
-        await t.pump();
+        expect(find.text('Turn on Whisper'), findsOneWidget);
+        await t.tapAt(const Offset(10, 10));
+        await t.pumpAndSettle();
         r.event({
           'kind': 'hello',
           'protocol': 13,
           'capabilities': Rig.caps(dictation: 'whisper'),
         });
         await t.pump();
-        expect(r.tab!.hostWhisperOff, isFalse);
+        expect(r.tab!.whisperOn, isNull);
         await lockVoice(t);
         expect(rec.calls, ['start']);
       },
@@ -373,30 +374,107 @@ void main() {
       expect(find.text('The computer could not transcribe it'), findsOneWidget);
     });
 
-    testWidgets('without the capability the phone recognizes', (t) async {
-      final saved = dictation;
-      final calls = <String>[];
-      dictation = _Phone(calls);
-      addTearDown(() => dictation = saved);
-      await openWith(t, cap: null);
-      await lockVoice(t);
-      expect(calls, ['listen']);
-      expect(rec.calls, isEmpty);
+    group('without Whisper', () {
+      // the window's GET /dictation answers, in turn; the last one repeats
+      late List<String> states;
+      Future<void> openBare(WidgetTester t, List<String> s) async {
+        states = s;
+        await openWith(t, cap: null);
+        r.ch.onHttp = (port, method, path) async {
+          if (method == 'GET' && path == '/dictation') {
+            final st = states.length > 1 ? states.removeAt(0) : states.first;
+            return answer(
+              200,
+              '{"on":${st == 'on'},"phase":"${st == 'on' || st == 'off' ? 'ready' : st}",'
+              '"downloadMb":250,"diskMb":500,"dir":"/home/u/.nota-bene/whisper"}',
+            );
+          }
+          if (path == '/dictation/install') return answer(202, '{"ok":true}');
+          if (path == '/dictation/on') return answer(200, '{"ok":true}');
+          return answer(404);
+        };
+      }
+
+      List<String> posts() => [
+        for (final c in r.ch.calls)
+          if (c.method == 'POST') '${c.path} ${utf8.decode(c.body)}',
+      ];
+
+      testWidgets(
+        'the mic offers the install, follows it, turns it on, then records',
+        (t) async {
+          await openBare(t, ['none', 'installing', 'off']);
+          await holdVoice(t);
+          await t.pumpAndSettle();
+          expect(rec.calls, isEmpty);
+          expect(
+            find.textContaining(
+              'Download Whisper (≈ 250 MB, ≈ 500 MB on disk)',
+            ),
+            findsOneWidget,
+          );
+          await t.tap(find.text('Install'));
+          await t.pump();
+          expect(posts(), ['/dictation/install ']);
+          expect(find.text('Installing Whisper…'), findsOneWidget);
+          await t.pump(const Duration(seconds: 2));
+          await t.pump();
+          expect(find.text('Installing Whisper…'), findsOneWidget);
+          await t.pump(const Duration(seconds: 2));
+          await t.pumpAndSettle();
+          expect(posts(), ['/dictation/install ', '/dictation/on {"on":true}']);
+          expect(r.tab!.whisperOn, isTrue);
+          expect(
+            find.text('Whisper is on: hold the mic to speak'),
+            findsOneWidget,
+          );
+          await t.pump(const Duration(seconds: 6));
+          await t.pumpAndSettle();
+          await lockVoice(t);
+          expect(rec.calls, ['start']);
+        },
+      );
+
+      testWidgets('installed but off: Turn on turns it on', (t) async {
+        await openBare(t, ['off']);
+        await holdVoice(t);
+        await t.pumpAndSettle();
+        await t.tap(find.text('Turn on Whisper'));
+        await t.pumpAndSettle();
+        expect(posts(), ['/dictation/on {"on":true}']);
+        expect(r.tab!.whisperOn, isTrue);
+      });
+
+      testWidgets('a failed install says so and retries', (t) async {
+        await openBare(t, ['failed']);
+        await holdVoice(t);
+        await t.pumpAndSettle();
+        expect(
+          find.text(
+            'Whisper install failed. Check the connection and try again.',
+          ),
+          findsOneWidget,
+        );
+        await t.tap(find.text('Retry'));
+        await t.pump();
+        expect(posts(), ['/dictation/install ']);
+      });
+
+      testWidgets('a short tap opens it too, without the hold hint', (t) async {
+        await openBare(t, ['none']);
+        await t.tap(find.byType(VoiceButton));
+        await t.pumpAndSettle();
+        expect(find.text('Install'), findsOneWidget);
+        expect(find.text('Hold to record'), findsNothing);
+      });
+
+      testWidgets('the window not answering: the sheet says so', (t) async {
+        await openWith(t, cap: null);
+        r.ch.onHttp = (port, method, path) async => answer(500);
+        await holdVoice(t);
+        await t.pumpAndSettle();
+        expect(find.text('The computer did not answer'), findsOneWidget);
+      });
     });
   });
-}
-
-class _Phone implements Dictation {
-  _Phone(this.calls);
-  final List<String> calls;
-  @override
-  Stream<DictationEvent> listen(String languageTag) {
-    calls.add('listen');
-    return StreamController<DictationEvent>().stream;
-  }
-
-  @override
-  Future<void> stop() async {}
-  @override
-  Future<void> cancel() async {}
 }

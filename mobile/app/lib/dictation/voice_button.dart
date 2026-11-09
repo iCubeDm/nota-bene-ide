@@ -1,5 +1,5 @@
-// The voice control of a text field: hold to record, slide left to cancel, slide up to lock. The words land at the
-// cursor captured at the start, partial results replacing each other until the final one.
+// The voice control of a text field: hold to record, slide left to cancel, slide up to lock. The phone records, the
+// window's Whisper transcribes, and the words land at the cursor captured at the start.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +8,6 @@ import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'dictation.dart';
-import 'host_dictation.dart';
 
 enum VoiceState { idle, recording, locked, working }
 
@@ -18,19 +17,8 @@ class VoiceMeter extends ChangeNotifier {
   List<double> levels = const [];
   Duration elapsed = Duration.zero;
 
-  /// The latest partial text of the phone's recognizer, shown in the record bar.
-  String partial = '';
-
-  /// Whether the recorder stops itself at a cap (the host's), so the timer warns near it.
-  bool capped = false;
-
   void add(double v) {
     levels = [...levels.skip(levels.length >= keep ? 1 : 0), v.clamp(0, 1)];
-    notifyListeners();
-  }
-
-  void setPartial(String text) {
-    partial = text;
     notifyListeners();
   }
 
@@ -41,7 +29,6 @@ class VoiceMeter extends ChangeNotifier {
 
   void reset() {
     levels = const [];
-    partial = '';
     elapsed = Duration.zero;
     notifyListeners();
   }
@@ -52,15 +39,19 @@ class VoiceButton extends StatefulWidget {
     super.key,
     required this.controller,
     this.enabled = true,
-    this.chooser,
+    required this.chooser,
+    this.onUnavailable,
     this.onState,
     this.meter,
   });
   final TextEditingController controller;
   final bool enabled;
 
-  /// Picks the dictation for a session; none: the phone's recognizer.
-  final Dictation Function()? chooser;
+  /// Picks the dictation for a session; null while there is none to record with.
+  final Dictation? Function() chooser;
+
+  /// Called instead of recording when [chooser] has none, on a tap or a hold.
+  final VoidCallback? onUnavailable;
 
   /// Told of each change of state, so the host can swap its field for the record bar.
   final ValueChanged<VoiceState>? onState;
@@ -72,7 +63,7 @@ class VoiceButton extends StatefulWidget {
   static void cancelRunning() => _VoiceButtonState._current?._cancel();
 
   /// Stops the dictation in progress, if any, and completes when its final result is in the field, so the field
-  /// can be read; nothing recognized is lost. The phone's recognizer is given 3 s, the host's Whisper its own timeout.
+  /// can be read; nothing recorded is lost (the transcription has its own timeout).
   static Future<void> finishRunning() async =>
       _VoiceButtonState._current?._finish();
 
@@ -110,9 +101,10 @@ class _VoiceButtonState extends State<VoiceButton> {
   // what this button wrote between _before and _after (separators included)
   String _ins = '';
   bool _stopping = false;
-  Timer? _watchdog;
   Completer<void>? _ended;
-  Dictation _active = dictation;
+  Dictation? _active;
+  // picked on the press, used when the hold starts
+  Dictation? _next;
   bool get _listening => _sub != null;
 
   @override
@@ -131,17 +123,14 @@ class _VoiceButtonState extends State<VoiceButton> {
   void didUpdateWidget(VoiceButton old) {
     super.didUpdateWidget(old);
     if (!widget.enabled && _listening) {
-      // the host went away under a recording or a post: say so, the phone's own recognizer needs no host
-      final host = _active is HostDictation;
+      // the host went away under a recording or a post: say so
       _end(cancel: true, deferred: true);
-      if (host) {
-        // not during build: a snack bar cannot be shown from here
-        final messenger = ScaffoldMessenger.of(context);
-        final text = AppLocalizations.of(context).dictationHostFailed;
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => messenger.showSnackBar(SnackBar(content: Text(text))),
-        );
-      }
+      // not during build: a snack bar cannot be shown from here
+      final messenger = ScaffoldMessenger.of(context);
+      final text = AppLocalizations.of(context).dictationHostFailed;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => messenger.showSnackBar(SnackBar(content: Text(text))),
+      );
     }
   }
 
@@ -179,8 +168,6 @@ class _VoiceButtonState extends State<VoiceButton> {
     _sub = null;
     _clock?.cancel();
     _clock = null;
-    _watchdog?.cancel();
-    _watchdog = null;
     _stopping = false;
     final ended = _ended;
     _ended = null;
@@ -191,17 +178,18 @@ class _VoiceButtonState extends State<VoiceButton> {
     }
     _written = null;
     if (identical(_current, this)) _current = null;
-    if (cancel) _fire(_active.cancel());
+    final active = _active;
+    if (cancel && active != null) _fire(active.cancel());
     if (rebuild && mounted) {
       _set(VoiceState.idle, deferred: deferred);
       setState(() {});
     }
   }
 
-  // cancelled by the user: nothing is inserted, nothing stays of the partials
+  // cancelled by the user: nothing is inserted
   void _cancel() => _end(cancel: true, restore: true);
 
-  // stop, then wait for the end of the session (the watchdog bounds the wait for the phone's recognizer)
+  // stop, then wait for the end of the session
   Future<void> _finish() {
     if (!_listening) return Future.value();
     final done = (_ended ??= Completer<void>()).future;
@@ -209,7 +197,7 @@ class _VoiceButtonState extends State<VoiceButton> {
     return done;
   }
 
-  void _start() {
+  void _start(Dictation d) {
     _current?._end(cancel: true, restore: true);
     final value = widget.controller.value;
     final text = value.text;
@@ -220,19 +208,15 @@ class _VoiceButtonState extends State<VoiceButton> {
     _before = at.textBefore(text);
     _after = at.textAfter(text);
     _ins = '';
-    final ui = Localizations.localeOf(context).languageCode;
-    final tag = speechTag(
-      ui,
-      WidgetsBinding.instance.platformDispatcher.locales,
-    );
+    // Whisper speaks the UI's language, not the device's
+    final lang = Localizations.localeOf(context).languageCode;
     _stopping = false;
     _current = this;
     _meter.reset();
-    _active = widget.chooser?.call() ?? dictation;
-    _meter.capped = _active is HostDictation;
+    _active = d;
     _clock?.cancel();
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _meter.tick());
-    _sub = _active.listen(tag).listen(_on);
+    _sub = d.listen(lang).listen(_on);
     _set(VoiceState.recording);
     setState(() {});
   }
@@ -241,14 +225,7 @@ class _VoiceButtonState extends State<VoiceButton> {
   void _stop() {
     if (!_listening || _stopping) return;
     _stopping = true;
-    _fire(_active.stop());
-    // the phone's recognizer must end the session; if it never does, keep what was written and finish. The host's
-    // transcription has its own timeout and may take longer.
-    if (_active is! HostDictation) {
-      _watchdog = Timer(stopWatchdog, () {
-        if (_listening) _end(cancel: true);
-      });
-    }
+    _fire(_active!.stop());
     _set(VoiceState.working);
     setState(() {});
   }
@@ -295,26 +272,20 @@ class _VoiceButtonState extends State<VoiceButton> {
       return;
     }
     switch (e) {
-      case DictationPartial(:final text):
-        _put(text);
-        _meter.setPartial(text);
       case DictationLevel():
         break;
       case DictationWorking():
         _set(VoiceState.working);
         setState(() {});
       case DictationFinal(:final text):
-        // an empty result must not erase the partials
         if (text.isNotEmpty) _put(text);
       case DictationError(:final why):
-        // what was recognized stays; the field goes back to what it was only if nothing was
-        if (!typed && _ins.isEmpty) widget.controller.value = _saved;
+        if (!typed) widget.controller.value = _saved;
         final t = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(switch (why) {
               DictationFailure.denied => t.dictationDenied,
-              DictationFailure.unavailable => t.dictationUnavailable,
               DictationFailure.noMatch => t.dictationNoMatch,
               DictationFailure.failed => t.dictationFailed,
               DictationFailure.hostFailed => t.dictationHostFailed,
@@ -329,13 +300,18 @@ class _VoiceButtonState extends State<VoiceButton> {
 
   void _down(PointerDownEvent e) {
     if (!widget.enabled || _pointer != null || _vs != VoiceState.idle) return;
+    final d = _next = widget.chooser();
+    if (d == null) {
+      widget.onUnavailable?.call();
+      return;
+    }
     _pointer = e.pointer;
     _origin = e.position;
     _g = _Gesture.pending;
     _holdTimer = Timer(_holdFor, () {
       _g = _Gesture.holding;
       HapticFeedback.lightImpact();
-      _start();
+      _start(_next!);
     });
   }
 

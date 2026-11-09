@@ -11,7 +11,7 @@ class RecordBar extends StatelessWidget {
   final VoiceState state;
   final VoiceMeter meter;
 
-  // the host's recorder stops at 120 s (the phone's recognizer has no cap); its timer warns from 110
+  // the recorder stops at 120 s; the timer warns from 110
   static const warnAt = Duration(seconds: 110);
 
   static String format(Duration d) =>
@@ -26,9 +26,6 @@ class RecordBar extends StatelessWidget {
       builder: (context, _) {
         final working = state == VoiceState.working;
         final locked = state == VoiceState.locked;
-        // the field is hidden under the bar: its latest words show here, in one line
-        Widget partial(NbColors c) =>
-            Text(meter.partial, maxLines: 1, overflow: TextOverflow.ellipsis);
         return Row(
           children: [
             const SizedBox(width: 16),
@@ -46,9 +43,7 @@ class RecordBar extends StatelessWidget {
               key: const Key('timer'),
               style: TextStyle(
                 fontFeatures: const [FontFeature.tabularFigures()],
-                color: meter.capped && meter.elapsed >= warnAt
-                    ? c.accent
-                    : null,
+                color: meter.elapsed >= warnAt ? c.accent : null,
               ),
             ),
             const SizedBox(width: 12),
@@ -59,22 +54,13 @@ class RecordBar extends StatelessWidget {
                       style: TextStyle(color: c.mutedFg),
                     )
                   : locked
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (meter.partial.isNotEmpty) partial(c),
-                        SizedBox(
-                          height: meter.partial.isEmpty ? 24 : 16,
-                          child: CustomPaint(
-                            painter: _Wave(meter.levels, c.accent),
-                            size: Size.infinite,
-                          ),
-                        ),
-                      ],
+                  ? SizedBox(
+                      height: 24,
+                      child: CustomPaint(
+                        painter: _Wave(meter.levels, c.accent),
+                        size: Size.infinite,
+                      ),
                     )
-                  : meter.partial.isNotEmpty
-                  ? partial(c)
                   : Text(
                       '◀ ${t.voiceSlideCancel}',
                       style: TextStyle(color: c.mutedFg),

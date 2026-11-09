@@ -12,20 +12,15 @@ import android.media.AudioRecord
 import android.media.MediaMetadataRetriever
 import android.media.MediaRecorder
 import android.os.Build
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.OpenableColumns
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
@@ -41,41 +36,6 @@ class MainActivity : FlutterFragmentActivity() {
     // Frame extraction blocks on I/O, so it runs off the UI thread; one thread keeps requests in order.
     private val frameExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
-
-    // Dictation: one recognizer at a time, always used on the main thread. `events` is Dart's listener on
-    // nb/speech/events; `pendingLang` is a `start` waiting for the microphone permission answer.
-    private var recognizer: SpeechRecognizer? = null
-    private var events: EventChannel.EventSink? = null
-    private var pendingLang: String? = null
-
-    // The dictation session spans pauses. States (all on the main thread; `recognizer` is null in IDLE only):
-    //   IDLE        no session. `start` -> WAITING_PERMISSION (pendingLang set) or LISTENING.
-    //   WAITING_PERMISSION  `stop` -> final "" + end (IDLE); granted -> LISTENING; denied -> error + end.
-    //   LISTENING   one recognizer is listening (`restarting` false). A result or an error that means "nothing was
-    //               said" moves to RESTARTING; `stop` sets `finishing` and asks the recognizer for its last result.
-    //   RESTARTING  the same recognizer waits for a delayed startListening (`restarting` true; at least 300 ms
-    //               after the previous start); `stop` -> final "" + end (IDLE), the segments are all Dart has.
-    // From API 33 one segmented session (EXTRA_SEGMENTED_SESSION) replaces the restart loop: the recognizer itself
-    // keeps listening across pauses, each stretch arrives in onSegmentResults (event `segment`), and the session
-    // ends with onEndOfSegmentedSession (final "" + end) after `stop`. Below 33, and if a recognizer ignores the
-    // extra, each onResults is a `segment` and the loop restarts listening.
-    // Errors: while `finishing`, any error ends the session (final "" + end). Otherwise NO_MATCH / SPEECH_TIMEOUT
-    // restart, and after NO_MATCH_LIMIT immediate ones (under 500 ms each) the session ends with what was heard
-    // (final "" + end, not an error); CLIENT / BUSY / SERVER_DISCONNECTED retry after 300 ms, at most 3 times in a
-    // row, then fail; permission and language errors fail at once. Every end event is preceded by `final` or `error`.
-    private var speechLang = ""
-    private var finishing = false
-    private var restarting = false
-    private var segmented = false
-    private var lastStartAt = 0L
-    private var noMatchRun = 0
-    private var retryRun = 0
-    private var lastLevelAt = 0L
-    private val restartTask = Runnable {
-        if (!restarting) return@Runnable
-        restarting = false
-        startRound()
-    }
 
     // Recording for the host's Whisper (`nb/record`): one recorder at a time. `recordChannel` is also how the
     // phone tells Dart the recorder stopped itself at its cap (`capped`) or failed (`failed`); `pendingStart` is a `start` waiting for the
@@ -106,7 +66,6 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         }
-        configureSpeech(flutterEngine)
         configureRecord(flutterEngine)
         configurePick(flutterEngine)
     }
@@ -328,86 +287,12 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    private fun configureSpeech(flutterEngine: FlutterEngine) {
-        val messenger = flutterEngine.dartExecutor.binaryMessenger
-        EventChannel(messenger, "nb/speech/events").setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, sink: EventChannel.EventSink?) {
-                events = sink
-            }
-
-            override fun onCancel(arguments: Any?) {
-                events = null
-            }
-        })
-        MethodChannel(messenger, "nb/speech").setMethodCallHandler { call, result ->
-            when (call.method) {
-                "start" -> {
-                    startSpeech(call.argument<String>("lang") ?: "")
-                    result.success(null)
-                }
-                "stop" -> {
-                    finishing = true
-                    val r = recognizer
-                    if (pendingLang != null) {
-                        // still waiting for the permission answer: nothing was heard
-                        pendingLang = null
-                        emit("final", "text", "")
-                        emit("end")
-                    } else if (r != null && restarting) {
-                        // between two rounds: nothing more to hear, the segments are all Dart has
-                        release(r)
-                        emit("final", "text", "")
-                        emit("end")
-                    } else if (r != null) {
-                        r.stopListening()
-                    }
-                    result.success(null)
-                }
-                "cancel" -> {
-                    dropRecognizer()
-                    result.success(null)
-                }
-                else -> result.notImplemented()
-            }
-        }
-    }
-
-    private fun emit(type: String, key: String? = null, value: Any? = null) {
-        val event = HashMap<String, Any>()
-        event["type"] = type
-        if (key != null && value != null) event[key] = value
-        events?.success(event)
-    }
-
-    // An error is always followed by the end of the session.
-    private fun fail(code: String) {
-        emit("error", "code", code)
-        emit("end")
-    }
-
-    private fun startSpeech(lang: String) {
-        // a new session replaces a running one, silently
-        dropRecognizer()
-        speechLang = lang
-        finishing = false
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            fail("unavailable")
-            return
-        }
-        if (!hasMicrophone()) {
-            pendingLang = lang
-            requestMicrophone()
-            return
-        }
-        listenSpeech(lang)
-    }
-
     private fun hasMicrophone() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    // The one RECORD_AUDIO request, for dictation by the phone's recognizer and for recording alike.
+    // The RECORD_AUDIO request, for recording.
     private fun requestMicrophone() =
-        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), SPEECH_PERMISSION)
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), MIC_PERMISSION)
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -421,215 +306,12 @@ class MainActivity : FlutterFragmentActivity() {
             }
             return
         }
-        if (requestCode != SPEECH_PERMISSION) return
+        if (requestCode != MIC_PERMISSION) return
         val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
         pendingStart?.let { result ->
             pendingStart = null
             if (granted) startRecording(result) else result.error("denied", null, null)
         }
-        val lang = pendingLang ?: return
-        pendingLang = null
-        if (granted) listenSpeech(lang) else fail("denied")
-    }
-
-    private fun listenSpeech(lang: String) {
-        speechLang = lang
-        noMatchRun = 0
-        retryRun = 0
-        segmented = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-        newRecognizer()
-        startRound()
-    }
-
-    private fun newRecognizer() {
-        val r = SpeechRecognizer.createSpeechRecognizer(this)
-        recognizer = r
-        r.setRecognitionListener(listenerFor(r))
-    }
-
-    private fun listenerFor(r: SpeechRecognizer): RecognitionListener =
-        object : RecognitionListener {
-            // A callback from a recognizer that was since released or cancelled must not reach Dart.
-            private fun current() = recognizer === r
-
-            override fun onPartialResults(partialResults: Bundle?) {
-                if (!current()) return
-                firstResult(partialResults)?.let { emit("partial", "text", it) }
-            }
-
-            // segmented session (API 33+): one finished stretch of speech; the session goes on
-            override fun onSegmentResults(segmentResults: Bundle) {
-                if (!current()) return
-                noMatchRun = 0
-                retryRun = 0
-                val text = firstResult(segmentResults) ?: ""
-                if (text.isNotEmpty()) emit("segment", "text", text)
-            }
-
-            override fun onEndOfSegmentedSession() {
-                if (!current()) return
-                if (finishing) {
-                    release(r)
-                    emit("final", "text", "")
-                    emit("end")
-                } else {
-                    // the recognizer closed the session on its own: listen again
-                    nothingHeard(r)
-                }
-            }
-
-            override fun onResults(results: Bundle?) {
-                // a doubled result while a restart is waiting must not repeat its segment
-                if (!current() || restarting) return
-                noMatchRun = 0
-                retryRun = 0
-                // in a segmented session the segments are the text; a whole-session onResults would repeat them
-                val text = if (segmented) "" else firstResult(results) ?: ""
-                if (finishing) {
-                    // the last stretch (possibly empty); Dart adds it to the segments
-                    release(r)
-                    emit("final", "text", text)
-                    emit("end")
-                } else {
-                    if (text.isNotEmpty()) emit("segment", "text", text)
-                    scheduleRound()
-                }
-            }
-
-            override fun onError(error: Int) {
-                if (!current() || restarting) return
-                if (finishing) {
-                    // whatever went wrong, the segments already delivered are the result
-                    release(r)
-                    emit("final", "text", "")
-                    emit("end")
-                    return
-                }
-                when (error) {
-                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> nothingHeard(r)
-                    SpeechRecognizer.ERROR_CLIENT, SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-                    ERROR_SERVER_DISCONNECTED -> {
-                        if (++retryRun > MAX_RETRIES) {
-                            release(r)
-                            fail("other")
-                        } else {
-                            // a broken connection needs a new recognizer; a busy or confused one is reused
-                            if (error == ERROR_SERVER_DISCONNECTED) renewRecognizer(r) else r.cancel()
-                            scheduleRound(RETRY_BACKOFF_MS)
-                        }
-                    }
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
-                        release(r)
-                        fail("denied")
-                    }
-                    ERROR_LANGUAGE_NOT_SUPPORTED, ERROR_LANGUAGE_UNAVAILABLE -> {
-                        release(r)
-                        fail("unavailable")
-                    }
-                    else -> {
-                        release(r)
-                        fail("other")
-                    }
-                }
-            }
-
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {
-                if (!current()) return
-                noMatchRun = 0
-                retryRun = 0
-            }
-            override fun onRmsChanged(rmsdB: Float) {
-                if (!current()) return
-                emitLevel(((rmsdB + 2f) / 12f).coerceIn(0f, 1f))
-            }
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        }
-
-    // One listening round of the current recognizer.
-    private fun startRound() {
-        val r = recognizer ?: return
-        lastStartAt = android.os.SystemClock.uptimeMillis()
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, speechLang)
-            .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            // hints only; some recognizers ignore them, the loop in `nothingHeard`/`scheduleRound` covers that
-            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
-            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
-            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
-        if (segmented && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // one session across pauses: segments arrive in onSegmentResults, the silence length above splits them
-            // the extra's value names the boundary extra (a String), not a boolean
-            // Device check: whether partials restart per segment or stay cumulative across the session is unknown.
-            intent.putExtra(
-                RecognizerIntent.EXTRA_SEGMENTED_SESSION,
-                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS
-            )
-        }
-        r.startListening(intent)
-    }
-
-    // The next round of the same recognizer, after `delayMs` and at least MIN_GAP_MS after the last start. Posted,
-    // so the callback that asked for it returns first; a `stop` or `cancel` in the gap is handled there.
-    private fun scheduleRound(delayMs: Long = 0L) {
-        val since = android.os.SystemClock.uptimeMillis() - lastStartAt
-        restarting = true
-        mainHandler.removeCallbacks(restartTask)
-        mainHandler.postDelayed(restartTask, maxOf(delayMs, MIN_GAP_MS - since, 0L))
-    }
-
-    // A round that heard nothing (no match, timeout, or a segmented session that closed itself). Immediate ones
-    // (under 500 ms) in a row mean the recognizer is not hearing anything at all: end with the segments so far.
-    private fun nothingHeard(r: SpeechRecognizer) {
-        val immediate = android.os.SystemClock.uptimeMillis() - lastStartAt < IMMEDIATE_MS
-        noMatchRun = if (immediate) noMatchRun + 1 else 0
-        retryRun = 0
-        if (noMatchRun >= NO_MATCH_LIMIT) {
-            release(r)
-            emit("final", "text", "")
-            emit("end")
-        } else {
-            scheduleRound()
-        }
-    }
-
-    // A new recognizer in place of a broken one, same session; its first round is left to scheduleRound.
-    private fun renewRecognizer(old: SpeechRecognizer) {
-        release(old)
-        newRecognizer()
-    }
-
-    // at most one level event per 100 ms
-    private fun emitLevel(value: Float) {
-        val now = android.os.SystemClock.uptimeMillis()
-        if (now - lastLevelAt < 100) return
-        lastLevelAt = now
-        emit("level", "value", value.toDouble())
-    }
-
-    private fun firstResult(bundle: Bundle?): String? =
-        bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-
-    // The session is over: forget the recognizer now, so a late callback is ignored, and destroy it after the
-    // callback has returned, so the next start does not find it busy.
-    private fun release(r: SpeechRecognizer) {
-        if (recognizer === r) recognizer = null
-        restarting = false
-        mainHandler.removeCallbacks(restartTask)
-        mainHandler.post { r.destroy() }
-    }
-
-    private fun dropRecognizer() {
-        pendingLang = null
-        restarting = false
-        mainHandler.removeCallbacks(restartTask)
-        val r = recognizer ?: return
-        recognizer = null
-        r.cancel()
-        r.destroy()
     }
 
     private fun configureRecord(flutterEngine: FlutterEngine) {
@@ -812,7 +494,6 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
-        dropRecognizer()
         mainHandler.removeCallbacksAndMessages(null)
         dropRecording()
         frameExecutor.shutdown()
@@ -821,7 +502,7 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private companion object {
-        const val SPEECH_PERMISSION = 4791
+        const val MIC_PERMISSION = 4791
         const val CAMERA_PERMISSION = 4792
         const val PICK_REQUEST = 4793
 
@@ -834,18 +515,5 @@ class MainActivity : FlutterFragmentActivity() {
         // what the host takes: 16 kHz mono PCM16, at most 2 minutes (3.84 MB, under its 4 MiB limit with the header)
         const val RATE = 16000
         const val MAX_PCM = RATE * 2 * 120
-
-        // SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED / _UNAVAILABLE exist from API 31; the app's minSdk is lower
-        const val ERROR_LANGUAGE_NOT_SUPPORTED = 12
-        const val ERROR_LANGUAGE_UNAVAILABLE = 13
-        // ERROR_SERVER_DISCONNECTED exists from API 31
-        const val ERROR_SERVER_DISCONNECTED = 11
-
-        // restart loop: spacing of the starts, retry backoff and limits (see the state machine above)
-        const val MIN_GAP_MS = 300L
-        const val RETRY_BACKOFF_MS = 300L
-        const val MAX_RETRIES = 3
-        const val IMMEDIATE_MS = 500L
-        const val NO_MATCH_LIMIT = 10
     }
 }

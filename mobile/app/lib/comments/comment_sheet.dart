@@ -6,6 +6,7 @@ import '../chat/window_tab.dart';
 import '../dictation/record_bar.dart';
 import '../dictation/voice_button.dart';
 import '../dictation/voice_chooser.dart';
+import '../dictation/whisper_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import 'strings.g.dart';
@@ -165,12 +166,14 @@ class _SheetState extends State<_Sheet> {
                   ],
                 ),
               ),
-              VoiceButton(
-                controller: _text,
-                meter: _meter,
-                onState: (v) => setState(() => _voice = v),
-                chooser: widget.tab == null ? null : voiceChooser(widget.tab!),
-              ),
+              if (widget.tab case final tab?)
+                VoiceButton(
+                  controller: _text,
+                  meter: _meter,
+                  onState: (v) => setState(() => _voice = v),
+                  chooser: voiceChooser(tab),
+                  onUnavailable: () => showWhisperSheet(context, tab),
+                ),
             ],
           ),
           const SizedBox(height: 8),

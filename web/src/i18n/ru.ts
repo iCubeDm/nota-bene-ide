@@ -320,7 +320,7 @@ export const ru = {
   dictRetry: "Повторить",
   dictUse: "Использовать Whisper для микрофона телефона",
   dictRemove: "Удалить Whisper",
-  dictRemoveQ: (dir: string) => `Удалить файлы Whisper из ${dir}? Телефон вернётся к собственной диктовке.`,
+  dictRemoveQ: (dir: string) => `Удалить файлы Whisper из ${dir}? Микрофон телефона работает только с Whisper.`,
   dictRemoveGo: "Удалить",
   aboutVersion: 'Версия',
   aboutState: 'Папка состояния',

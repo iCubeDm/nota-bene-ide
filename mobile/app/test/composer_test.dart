@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:nb_app/dictation/dictation.dart';
+import 'dart:async';
+
+import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_app/dictation/record_bar.dart';
 
-import 'support/fake_dictation.dart';
+import 'host_dictation_test.dart' show Recorder, answer;
+import 'support/fake_dictation.dart' show lockVoice;
 import 'support/rig.dart';
 
 void main() {
@@ -165,43 +168,54 @@ void main() {
     expect(gap(), greaterThanOrEqualTo(0));
   });
 
-  testWidgets('locked + send stops the dictation and sends its text', (
-    t,
-  ) async {
-    final saved = dictation;
-    final fake = dictation = FakeDictation();
-    addTearDown(() => dictation = saved);
-    await r.open(t);
-    await t.enter('Fix ');
-    await lockVoice(t);
-    fake.last.add(const DictationPartial('the head'));
-    await t.pump();
-    await t.tap(find.byTooltip('Send'));
-    await t.pump();
-    expect(fake.calls, ['listen', 'stop']);
-    expect(r.sent, isEmpty);
-    fake.last.add(const DictationFinal('the header'));
-    fake.last.add(const DictationEnd());
-    await t.pumpAndSettle();
-    expect(r.sent.single['text'], 'Fix the header');
-  });
+  group('voice', () {
+    late Recorder rec;
+    setUp(() => rec = Recorder()..install());
+    tearDown(() => rec.uninstall());
 
-  testWidgets('recording swaps the pill for the record bar; stop ends it', (
-    t,
-  ) async {
-    final saved = dictation;
-    final fake = dictation = FakeDictation();
-    addTearDown(() => dictation = saved);
-    await r.open(t);
-    await lockVoice(t);
-    expect(find.byType(RecordBar), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
-    await t.tap(find.byTooltip('Stop'));
-    await t.pump();
-    expect(fake.calls, ['listen', 'stop']);
-    expect(find.text('Transcribing…'), findsOneWidget);
-    fake.last.add(const DictationEnd());
-    await t.pump();
-    expect(find.byType(RecordBar), findsNothing);
+    Future<Completer<HttpAnswer>> openWhisper(WidgetTester t) async {
+      await r.open(
+        t,
+        hello: {
+          'kind': 'hello',
+          'protocol': 13,
+          'capabilities': Rig.caps(dictation: 'whisper'),
+        },
+      );
+      final reply = Completer<HttpAnswer>();
+      r.ch.onHttp = (port, method, path) => reply.future;
+      return reply;
+    }
+
+    testWidgets('locked + send stops the dictation and sends its text', (
+      t,
+    ) async {
+      final reply = await openWhisper(t);
+      await t.enter('Fix ');
+      await lockVoice(t);
+      await t.tap(find.byTooltip('Send'));
+      await t.pump();
+      expect(rec.calls, ['start', 'stop']);
+      expect(r.sent, isEmpty);
+      reply.complete(answer(200, '{"text":"the header"}'));
+      await t.pumpAndSettle();
+      expect(r.sent.single['text'], 'Fix the header');
+    });
+
+    testWidgets('recording swaps the pill for the record bar; stop ends it', (
+      t,
+    ) async {
+      final reply = await openWhisper(t);
+      await lockVoice(t);
+      expect(find.byType(RecordBar), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+      await t.tap(find.byTooltip('Stop'));
+      await t.pump();
+      expect(rec.calls, ['start', 'stop']);
+      expect(find.text('Transcribing…'), findsOneWidget);
+      reply.complete(answer(200, '{"text":"x"}'));
+      await t.pumpAndSettle();
+      expect(find.byType(RecordBar), findsNothing);
+    });
   });
 }

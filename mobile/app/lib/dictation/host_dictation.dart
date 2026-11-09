@@ -31,8 +31,8 @@ class HostDictation implements Dictation {
   String _lang = 'en';
 
   @override
-  Stream<DictationEvent> listen(String languageTag) {
-    _lang = languageTag.split('-').first;
+  Stream<DictationEvent> listen(String lang) {
+    _lang = lang;
     final out = _out = StreamController<DictationEvent>();
     out.onListen = () async {
       if (_http() == null) return _finish(DictationFailure.hostFailed);
