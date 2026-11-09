@@ -18,16 +18,23 @@ Map<String, Object?> result(String id) =>
     agent({'t': 'tool-update', 'id': id, 'text': 'ok', 'isError': false});
 
 void main() {
-  test('a project Markdown path, relative to the root', () {
+  test('a project file the phone opens, relative to the root', () {
+    expect(projectFile('/home/u/notes', 'img/Shot.PNG'), 'img/Shot.PNG');
+    expect(projectFile('/home/u/notes', '/home/u/notes/v/a.mov'), 'v/a.mov');
+    expect(projectFile('/home/u/notes', 'a.svg'), isNull);
+    expect(fileKindOf('a.jpeg'), FileKind.image);
+    expect(fileKindOf('a.webm'), FileKind.video);
+    expect(fileKindOf('a.md'), FileKind.markdown);
+
     expect(
-      projectMarkdown('/home/u/notes', '/home/u/notes/docs/plan.md'),
+      projectFile('/home/u/notes', '/home/u/notes/docs/plan.md'),
       'docs/plan.md',
     );
-    expect(projectMarkdown('/home/u/notes', 'docs/plan.md'), 'docs/plan.md');
-    expect(projectMarkdown('/home/u/notes', '/home/u/other/plan.md'), isNull);
-    expect(projectMarkdown('/home/u/notes', '/home/u/notes/src/a.ts'), isNull);
-    expect(projectMarkdown('/home/u/notes', '/home/u/notesX/a.md'), isNull);
-    expect(projectMarkdown('/home/u/notes', '../a.md'), isNull);
+    expect(projectFile('/home/u/notes', 'docs/plan.md'), 'docs/plan.md');
+    expect(projectFile('/home/u/notes', '/home/u/other/plan.md'), isNull);
+    expect(projectFile('/home/u/notes', '/home/u/notes/src/a.ts'), isNull);
+    expect(projectFile('/home/u/notes', '/home/u/notesX/a.md'), isNull);
+    expect(projectFile('/home/u/notes', '../a.md'), isNull);
   });
 
   testWidgets(

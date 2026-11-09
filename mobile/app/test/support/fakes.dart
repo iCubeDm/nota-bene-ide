@@ -86,6 +86,17 @@ class FakeChannel implements Channel {
   /// Every HTTP request the phone made: `METHOD path`.
   final requests = <String>[];
 
+  /// Every HTTP request with its headers and body, in order.
+  final calls =
+      <
+        ({
+          String method,
+          String path,
+          Map<String, String> headers,
+          List<int> body,
+        })
+      >[];
+
   @override
   Future<HttpAnswer> http(
     int port,
@@ -95,6 +106,12 @@ class FakeChannel implements Channel {
     List<int>? body,
   }) async {
     requests.add('$method $path');
+    calls.add((
+      method: method,
+      path: path,
+      headers: headers ?? const {},
+      body: body ?? const [],
+    ));
     final f = onHttp;
     if (f == null) throw StreamClosed(1000);
     return f(port, method, path);

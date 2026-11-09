@@ -250,12 +250,12 @@ class _ToolLineState extends State<ToolLine> {
     final c = Theme.of(context).extension<NbColors>()!;
     final it = widget.item;
     final running = it.result == null;
-    // a Markdown file of the project opens over the chat
+    // a file of the project the phone opens (Markdown, an image, a video) opens over the chat
     final tab = FileOpener.of(context);
     final path = toolPath(it);
     final file = tab == null || path == null
         ? null
-        : projectMarkdown(tab.root, path);
+        : projectFile(tab.root, path);
     return Padding(
       padding: EdgeInsets.only(left: it.sub ? 16 : 0, top: 2, bottom: 2),
       child: Column(
@@ -292,7 +292,7 @@ class _ToolLineState extends State<ToolLine> {
                     tooltip: AppLocalizations.of(context).openFile,
                     visualDensity: VisualDensity.compact,
                     iconSize: 18,
-                    icon: Icon(Icons.description_outlined, color: c.link),
+                    icon: Icon(fileIcon(file), color: c.link),
                     onPressed: () => openFile(context, tab!, file),
                   ),
               ],
