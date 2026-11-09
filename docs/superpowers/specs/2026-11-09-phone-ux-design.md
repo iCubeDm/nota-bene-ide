@@ -109,19 +109,14 @@ Opened from the header pill, top to bottom:
 
 - **Gestures (Telegram):** hold the microphone to record; release to stop; slide left to cancel; slide up to lock,
   then a stop button ends it. A timer and level show while recording.
-- **With Whisper on the host** (`capabilities.dictation === 'whisper'`): the phone records with the existing
-  native recorder (`nb/record`) and `HostDictation`, sends
-  the WAV to `/dictation/transcribe`, and the text is inserted into the field for editing; "Transcribing…" shows
-  meanwhile. Recording is capped at 10 minutes; the timer warns before the cap, and at the cap the recording stops
-  and is transcribed, never dropped. A recording over a minute goes in parts of 30–60 s, each cut at its quietest
-  moment, one request each under the 4 MiB cap, with "Transcribing… 2/5" meanwhile; a part that fails is retried
-  once, and if it fails again the text before it is kept and the rest is said to be lost (#158).
+- **With Whisper on the host** (`capabilities.dictation === 'whisper'`, protocol 14 or later): a recording is a voice
+  message, not dictation into the field; see [the voice messages design](2026-11-09-voice-messages-design.md).
 - **Without it** (#154): no recording; the microphone opens a sheet with the desktop's install question (download
   size, folder) and installs Whisper on the host, or turns it on when it is installed and off, then follows the
   install until Whisper is on. The phone's own recognizer was dropped: it transcribed live and lost words. A
   transcriber on a remote server was left out: the window must be on for the phone anyway, and a small server cannot
   hold whisper-small.
-- The same path serves the composer and the comment sheet.
+- The same recorder serves the composer (a voice message) and the comment sheet (clips).
 
 ### Images and video
 

@@ -48,15 +48,22 @@ generator copies every `usage*` key of the English dictionary, in all six langua
 `app/lib/comments/strings.g.dart`. The number formatters (`app/lib/usage/format.dart`) are pinned to the desktop's by
 `web/src/usage/mobileFormat.test.ts`; dates are not pinned.
 
-## Dictation
+## Voice messages
 
-The microphone in the message field and the comment sheet (`app/lib/dictation/`) records 16 kHz WAV (`nb/record` in
-`MainActivity.kt`) and posts it to the window's `/dictation/transcribe`, encrypted through the relay; the window's
-Whisper (Settings → Dictation on the desktop) transcribes it and the text lands in the field at the cursor, unsent. The
-audio reaches the host only and is not stored; the agent gets text. A recording runs up to 10 minutes; one over a
-minute goes in parts of 30–60 s, cut at quiet moments (`wav_parts.dart`), one request each. The microphone permission is asked on first use.
-The phone has no recognizer of its own: without Whisper the microphone opens a sheet that installs it or turns it on
-(`/dictation/install`, `/dictation/on`) and follows the install to the end.
+The round button at the right of the message field is the microphone while there is nothing to send, and Send
+otherwise (`app/lib/voice/`, `app/lib/chat/composer.dart`). Hold it: the phone records 16 kHz WAV (`nb/record` in
+`MainActivity.kt`); let go to send, slide left to cancel, slide up to lock (then Stop leads to a preview with Delete
+and Send). The recording is uploaded to the window (`POST /voice`, encrypted through the relay) and sent as a message
+of its own (`send` with `voice`, never with text, images or comments, and after the agent's turn when it is busy).
+The window stores the audio beside the attachments, transcribes it with its Whisper and gives the agent the text; the
+bubble shows the wave, a play button (`nb/play` in `MainActivity.kt`, files cached by id) and the transcript, or why
+there is none with Retry. A recording that cannot be uploaded stays as a bubble with Retry. A recording runs up to 10
+minutes. The microphone permission is asked on first use.
+
+The comment sheet records clips the same way: each is uploaded and transcribed (`POST /voice/<id>/text`) and the
+comment's text for the agent carries the transcripts after what was typed. Voice needs a window that speaks protocol 14
+or later; without Whisper the microphone opens a sheet that installs it or turns it on (`/dictation/install`,
+`/dictation/on`) and follows the install to the end. The phone has no recognizer of its own.
 
 ## The APK
 
