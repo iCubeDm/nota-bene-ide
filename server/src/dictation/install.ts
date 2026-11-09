@@ -71,7 +71,8 @@ export function installWhisper(o: { spawn?: Run; npm?: string | null; fetchModel
         // path (onnxruntime-node's postinstall only fetches the CUDA provider on linux/x64, protobufjs's only checks its version)
         fs.writeFileSync(path.join(dir, 'package.json'), prefixPackageJson());
         fs.copyFileSync(path.join(dictationAssetDir(), 'npm-shrinkwrap.json'), path.join(dir, 'npm-shrinkwrap.json'));
-        const got = await (o.spawn ?? run)(npm, ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--prefix', dir], log, NPM_TIMEOUT_MS);
+        // the real path: npm ci reads a prefix reached through a symlink as a link root missing from the lockfile
+        const got = await (o.spawn ?? run)(npm, ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--prefix', fs.realpathSync(dir)], log, NPM_TIMEOUT_MS);
         if (got.timedOut) throw new Error('npm timed out');
         if (got.code !== 0) throw new Error(`npm ci exited with ${got.code}`);
       } finally { fs.closeSync(log); }

@@ -40,9 +40,19 @@ describe('installWhisper', () => {
     release();
     await p;
     expect(whisperPhase()).toBe('ready');
-    expect(calls[0]).toEqual(['/fake/npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund', '--prefix', whisperDir()]);
+    expect(calls[0]).toEqual(['/fake/npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund', '--prefix', fs.realpathSync(whisperDir())]);
     expect(JSON.parse(fs.readFileSync(path.join(whisperDir(), 'ready.json'), 'utf8'))).toEqual({ version: WHISPER_VERSION, model: WHISPER_MODEL, revision: WHISPER_REVISION });
     expect(fs.existsSync(path.join(whisperDir(), 'install.lock'))).toBe(false);
+  });
+
+  it('gives npm the real path when the home is reached through a symlink', async () => {
+    // npm ci reads a symlinked prefix as a link root missing from the lockfile (macOS: /tmp is /private/tmp)
+    const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-link-')), 'home');
+    fs.symlinkSync(home, link);
+    process.env.NOTA_BENE_HOME = link;
+    let prefix = '';
+    await installWhisper({ npm: '/fake/npm', spawn: async (_cmd, args) => { prefix = args[args.indexOf('--prefix') + 1]; return npmOk(); }, fetchModel: async () => {} });
+    expect(prefix).toBe(fs.realpathSync(path.join(home, 'whisper')));
   });
 
   it('runs fetchModel with the folder after npm succeeded', async () => {
