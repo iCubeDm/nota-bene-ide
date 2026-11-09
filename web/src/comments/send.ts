@@ -49,7 +49,7 @@ const stable = (v: unknown): unknown =>
   Array.isArray(v) ? v.map(stable)
   : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, stable((v as Record<string, unknown>)[k])]))
   : v;
-const printOf = (c: Comment): string => JSON.stringify(stable([c.text, c.label, c.anchor, c.images, c.genImages]));
+const printOf = (c: Comment): string => JSON.stringify(stable([c.text, c.label, c.anchor, c.images, c.genImages, c.voice]));
 const snapshotOf = (st: RootState): Snapshot => {
   const pending = selectPending(st), draft = selectDraft(st);
   return { sid: st.feed.session?.id, draft, body: draft.trim(), own: selectImages(st), pending, prints: pending.map(printOf) };

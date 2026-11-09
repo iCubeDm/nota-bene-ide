@@ -11,6 +11,7 @@ import { labelOf } from '@/comments/labels.ts';
 import { selectSentFor } from '@/comments/slice.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { useAppSelector } from '@/store/store.ts';
+import { ClipRow } from '@/voice/ClipRow.tsx';
 import { VoiceBubble } from '@/voice/VoiceBubble.tsx';
 
 export const timeOf = (ts: number): string =>
@@ -58,6 +59,7 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
                     {c.label && <span className="flex-none rounded bg-muted px-1">{labelOf(c)}</span>}
                     <div className="min-w-0 flex-1"><Markdown text={c.text} final={false} breaks noHtml /></div>
                   </div>
+                  {c.voice?.length ? <div className="mt-1 flex flex-col gap-1">{c.voice.map((v) => <ClipRow key={v.id} voice={v} text={v.text} />)}</div> : null}
                 </div>
               ))
             : <div className="md-tight mt-1.5"><Markdown text={raw} final={false} breaks noHtml /></div>}

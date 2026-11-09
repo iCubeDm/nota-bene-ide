@@ -25,8 +25,9 @@ function LiveWave({ levels }: { levels: number[] }) {
 /**
  * The composer's field while a recording is made: a blinking red dot, the time, the live wave, then Cancel, Stop (to the
  * preview; only with `onStop`) and Send. Stopped: delete, the player and Send. Esc cancels, Enter sends.
+ * `clip`: a comment's recording: the one button after Cancel is Stop, which adds the clip (no preview, nothing is sent).
  */
-export function RecordBar({ state, onCancel, onStop, onSend }: { state: Exclude<RecState, { phase: 'idle' }>; onCancel: () => void; onStop?: () => void; onSend: () => void }) {
+export function RecordBar({ state, onCancel, onStop, onSend, clip = false }: { state: Exclude<RecState, { phase: 'idle' }>; onCancel: () => void; onStop?: () => void; onSend: () => void; clip?: boolean }) {
   const t = useT();
   const sending = state.phase === 'sending';
   // capture + preventDefault, as the popups do: this Esc must not also reach the document hotkeys
@@ -36,7 +37,7 @@ export function RecordBar({ state, onCancel, onStop, onSend }: { state: Exclude<
       if (e.key === 'Escape') {
         e.preventDefault();
         onCancel();
-      } else if (e.key === 'Enter' && !e.shiftKey && !(e.target as HTMLElement | null)?.closest?.('button')) {
+      } else if (e.key === 'Enter' && !e.shiftKey && !(e.target as HTMLElement | null)?.closest?.('button, textarea, input, [contenteditable]')) {
         e.preventDefault();
         onSend();
       }
@@ -58,7 +59,7 @@ export function RecordBar({ state, onCancel, onStop, onSend }: { state: Exclude<
           <>
             <button type="button" aria-label={t('voiceCancel')} title={t('voiceCancel')} onClick={onCancel} className={`${ICON} text-muted-foreground hover:bg-muted hover:text-destructive`}><Cross /></button>
             {onStop && <button type="button" aria-label={t('voiceStop')} title={t('voiceStop')} onClick={onStop} className={`${ICON} text-destructive hover:bg-destructive/15`}><Square /></button>}
-            <button type="button" aria-label={t('voiceSendTip')} title={t('voiceSendTip')} onClick={onSend} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90`}><Plane /></button>
+            <button type="button" aria-label={clip ? t('voiceClipStop') : t('voiceSendTip')} title={clip ? t('voiceClipStop') : t('voiceSendTip')} onClick={onSend} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90`}>{clip ? <Square /> : <Plane />}</button>
           </>
         )}
       </div>
