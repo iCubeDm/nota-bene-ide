@@ -141,6 +141,8 @@ class _MicButtonState extends State<MicButton> {
     switch (e) {
       case DictationPartial(:final text):
         _put(text);
+      case DictationLevel():
+        break; // the hold-to-record control shows it; this button has no meter
       case DictationWorking():
         setState(() => _working = true);
       case DictationFinal(:final text):

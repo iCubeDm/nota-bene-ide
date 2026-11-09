@@ -37,6 +37,12 @@ class DictationFinal extends DictationEvent {
   final String text;
 }
 
+/// The input level, 0..1, while listening or recording.
+class DictationLevel extends DictationEvent {
+  const DictationLevel(this.value);
+  final double value;
+}
+
 class DictationError extends DictationEvent {
   const DictationError(this.why);
   final DictationFailure why;
@@ -62,14 +68,25 @@ class PlatformDictation implements Dictation {
   @override
   Stream<DictationEvent> listen(String languageTag) {
     late final StreamController<DictationEvent> out;
+    // Finished stretches of speech; the recognizer restarts after each pause.
+    var done = '';
+    String join(String text) => done.isEmpty ? text : '$done $text'.trim();
     StreamSubscription<Object?>? native;
     out = StreamController<DictationEvent>(
       onListen: () async {
         // Subscribe before `start`, so no early event is missed.
         native = speechEvents.receiveBroadcastStream().listen(
           (raw) {
-            final event = _decode(raw);
+            var event = _decode(raw);
             if (event == null) return;
+            if (raw is Map && raw['type'] == 'segment') {
+              done = join((raw['text'] as String? ?? '').trim());
+              event = DictationPartial(done);
+            } else if (event is DictationPartial) {
+              event = DictationPartial(join(event.text));
+            } else if (event is DictationFinal) {
+              event = DictationFinal(join(event.text.trim()));
+            }
             out.add(event);
             if (event is DictationEnd) out.close();
           },
@@ -113,6 +130,8 @@ DictationEvent? _decode(Object? raw) {
       'no_match' => DictationFailure.noMatch,
       _ => DictationFailure.failed,
     }),
+    'level' => DictationLevel(((raw['value'] as num?) ?? 0).toDouble()),
+    'segment' => DictationPartial(text is String ? text : ''),
     'end' => const DictationEnd(),
     _ => null,
   };

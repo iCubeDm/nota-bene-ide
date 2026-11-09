@@ -80,6 +80,63 @@ void main() {
     expect(got.last, isA<DictationEnd>());
   });
 
+  test('segments accumulate across pauses, once each and in order', () async {
+    events = [
+      {'type': 'segment', 'text': 'hello'},
+      {'type': 'partial', 'text': 'wor'},
+      {'type': 'segment', 'text': 'world'},
+      {'type': 'final', 'text': 'again'},
+      {'type': 'end'},
+    ];
+
+    final got = await PlatformDictation().listen('en').toList();
+
+    expect(got.whereType<DictationPartial>().map((e) => e.text), [
+      'hello',
+      'hello wor',
+      'hello world',
+    ]);
+    expect(got.whereType<DictationFinal>().single.text, 'hello world again');
+    expect(got.last, isA<DictationEnd>());
+  });
+
+  test('an empty final after segments keeps the segments', () async {
+    events = [
+      {'type': 'segment', 'text': 'hello'},
+      {'type': 'final', 'text': ''},
+      {'type': 'end'},
+    ];
+
+    final got = await PlatformDictation().listen('en').toList();
+
+    expect(got.whereType<DictationFinal>().single.text, 'hello');
+  });
+
+  test('level events pass through', () async {
+    events = [
+      {'type': 'level', 'value': 0.25},
+      {'type': 'end'},
+    ];
+
+    final got = await PlatformDictation().listen('en').toList();
+
+    expect((got.first as DictationLevel).value, 0.25);
+  });
+
+  test('an error after a segment still ends with the error', () async {
+    events = [
+      {'type': 'segment', 'text': 'hello'},
+      {'type': 'error', 'code': 'other'},
+      {'type': 'end'},
+    ];
+
+    final got = await PlatformDictation().listen('en').toList();
+
+    expect((got[0] as DictationPartial).text, 'hello');
+    expect((got[1] as DictationError).why, DictationFailure.failed);
+    expect(got[2], isA<DictationEnd>());
+  });
+
   test('stop and cancel call their methods', () async {
     final d = PlatformDictation();
     await d.stop();

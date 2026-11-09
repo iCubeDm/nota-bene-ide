@@ -37,6 +37,13 @@ class MainActivity : FlutterFragmentActivity() {
     private var events: EventChannel.EventSink? = null
     private var pendingLang: String? = null
 
+    // The session spans pauses: the recognizer is replaced after each finished stretch of speech. `finishing`
+    // is set by `stop`; `restarting` is true between one recognizer and the next, when none exists.
+    private var speechLang = ""
+    private var finishing = false
+    private var restarting = false
+    private var lastLevelAt = 0L
+
     // Recording for the host's Whisper (`nb/record`): one recorder at a time. `recordChannel` is also how the
     // phone tells Dart the recorder stopped itself at its cap (`capped`) or failed (`failed`); `pendingStart` is a `start` waiting for the
     // microphone permission answer.
@@ -88,7 +95,16 @@ class MainActivity : FlutterFragmentActivity() {
                     result.success(null)
                 }
                 "stop" -> {
-                    recognizer?.stopListening()
+                    finishing = true
+                    val r = recognizer
+                    if (r != null) {
+                        r.stopListening()
+                    } else if (restarting) {
+                        // between two recognizers: nothing more to hear, the segments are all Dart has
+                        restarting = false
+                        emit("final", "text", "")
+                        emit("end")
+                    }
                     result.success(null)
                 }
                 "cancel" -> {
@@ -100,7 +116,7 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    private fun emit(type: String, key: String? = null, value: String? = null) {
+    private fun emit(type: String, key: String? = null, value: Any? = null) {
         val event = HashMap<String, Any>()
         event["type"] = type
         if (key != null && value != null) event[key] = value
@@ -116,6 +132,8 @@ class MainActivity : FlutterFragmentActivity() {
     private fun startSpeech(lang: String) {
         // a new session replaces a running one, silently
         dropRecognizer()
+        speechLang = lang
+        finishing = false
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             fail("unavailable")
             return
@@ -162,33 +180,41 @@ class MainActivity : FlutterFragmentActivity() {
 
             override fun onResults(results: Bundle?) {
                 if (!current()) return
-                val text = firstResult(results)
-                if (text.isNullOrEmpty()) {
-                    // an empty result must not erase the partials
-                    fail("no_match")
-                } else {
+                val text = firstResult(results) ?: ""
+                release(r)
+                if (finishing) {
+                    // the last stretch (possibly empty); Dart adds it to the segments
                     emit("final", "text", text)
                     emit("end")
+                } else {
+                    if (text.isNotEmpty()) emit("segment", "text", text)
+                    restart()
                 }
-                release(r)
             }
 
             override fun onError(error: Int) {
                 if (!current()) return
-                fail(
-                    when (error) {
-                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "no_match"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "denied"
-                        ERROR_LANGUAGE_NOT_SUPPORTED, ERROR_LANGUAGE_UNAVAILABLE -> "unavailable"
-                        else -> "other"
-                    }
-                )
                 release(r)
+                when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
+                        if (finishing) {
+                            emit("final", "text", "")
+                            emit("end")
+                        } else {
+                            restart()
+                        }
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> fail("denied")
+                    ERROR_LANGUAGE_NOT_SUPPORTED, ERROR_LANGUAGE_UNAVAILABLE -> fail("unavailable")
+                    else -> fail("other")
+                }
             }
 
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onRmsChanged(rmsdB: Float) {
+                if (!current()) return
+                emitLevel(((rmsdB + 2f) / 12f).coerceIn(0f, 1f))
+            }
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -198,7 +224,30 @@ class MainActivity : FlutterFragmentActivity() {
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                // hints only; some recognizers ignore them, the restart after each result keeps the session going
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
         )
+    }
+
+    // A fresh recognizer for the next stretch. Posted, so the finished one is destroyed first; a `stop` or
+    // `cancel` that comes in the gap is handled there (no recognizer exists to be stopped).
+    private fun restart() {
+        restarting = true
+        mainHandler.post {
+            if (!restarting) return@post
+            restarting = false
+            listenSpeech(speechLang)
+        }
+    }
+
+    // at most one level event per 100 ms
+    private fun emitLevel(value: Float) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastLevelAt < 100) return
+        lastLevelAt = now
+        emit("level", "value", value.toDouble())
     }
 
     private fun firstResult(bundle: Bundle?): String? =
@@ -213,6 +262,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun dropRecognizer() {
         pendingLang = null
+        restarting = false
         val r = recognizer ?: return
         recognizer = null
         r.cancel()
