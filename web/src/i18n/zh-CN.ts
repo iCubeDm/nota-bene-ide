@@ -535,6 +535,7 @@ export const zhCN: Dict = {
   week: '周',
   weekTip: '每周套餐限额',
   costTip: '本会话的 API 费用',
+  costPlanTip: '本会话按 API 价格计算',
   resets: (at: string) => `${at} 重置`,
   compactTip: '压缩上下文 — 代理会总结对话并从摘要继续 (/compact)',
   clearTip: '清空上下文 — 开始全新的对话 (/clear)。当前会话保留在“会话 ▾”中',

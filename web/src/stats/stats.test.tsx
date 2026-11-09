@@ -65,13 +65,13 @@ it('the track keeps its 4px height and takes no space for its outline', () => {
   expect(track).not.toHaveClass('border');
 });
 
-it('cost shows only without limits', () => {
+it('cost shows with or without limits; on a plan it is labelled the cost at API prices', () => {
   const { stats } = setup();
   stats({ ...none, cost: 1.234 });
-  expect(screen.getByText('$1.23')).toBeInTheDocument();
+  expect(screen.getByLabelText('API cost of this session')).toHaveTextContent('$1.23');
   const lim = { utilization: 30, resets_at: null };
   stats({ ...none, cost: 1.234, limits: { five_hour: lim, seven_day: lim } });
-  expect(screen.queryByText('$1.23')).toBeNull();
+  expect(screen.getByLabelText('This session at API prices')).toHaveTextContent('$1.23');
   expect(screen.getAllByRole('meter')).toHaveLength(2);
 });
 

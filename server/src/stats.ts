@@ -179,7 +179,7 @@ export class StatsService {
     if (usage) {
       if ('v' in usage) {
         next.cost = usage.v.cost;
-        next.limits = usage.v.limits;
+        next.limits = usage.v.limits ?? this.knownLimits(next.limits);
         if (usage.v.windows !== undefined) next.windows = usage.v.windows;
         if (usage.v.extra !== undefined) next.extra = usage.v.extra;
       } else {
@@ -188,6 +188,18 @@ export class StatsService {
       }
     }
     this.publish(next);
+  }
+
+  /**
+   * An answer without plan limits (seen when a long-running agent's sign-in had expired) keeps the last known windows,
+   * which are the account's, until each one's reset time passes; then the window is dropped.
+   */
+  private knownLimits(prev: Stats['limits']): Stats['limits'] {
+    if (!prev) return null;
+    const now = this.now();
+    const live = (l: Limit | null) => (l && l.resets_at && Date.parse(l.resets_at) > now ? l : null);
+    const kept = { five_hour: live(prev.five_hour), seven_day: live(prev.seven_day) };
+    return kept.five_hour || kept.seven_day ? kept : null;
   }
 
   private mergeRateLimit(info: RateLimitInfo): void {

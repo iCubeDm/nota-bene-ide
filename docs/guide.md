@@ -102,7 +102,7 @@ The chat is the first tab and cannot be closed. Type a message and press Enter t
 - Tool calls appear as lines such as `Read` or `Bash` with their argument. Click one to see the full input and output; errors are red.
 - A permission request shows as a card with **Allow** and **Deny**. In plan mode, the plan appears as a card: **Approve** continues in the previous mode, **Keep planning** stays in plan mode.
 - Mermaid and SVG blocks in replies render as diagrams. The **Open diagram** button opens one full size in its own tab.
-- The bar under the message box shows the context size, the 5-hour and weekly plan limits, and the session's API cost. The compact and clear buttons by the message box run `/compact` and `/clear`.
+- The bar under the message box shows the context size, the 5-hour and weekly plan limits, and the session's API cost (on a plan, what the session would cost at API prices). An answer that comes without plan limits keeps the last known ones until their reset time. The compact and clear buttons by the message box run `/compact` and `/clear`.
 - An idle conversation is compacted for you 50 minutes after the last turn, if the window saw no activity for 15 minutes and the context is at least 200,000 tokens, so the prompt cache is not wasted. Click the idle-compaction indicator to turn it off for the project, or set `"idleCompaction": false` in `~/.claude/settings.json`.
 
 ## Margin comments and the batch send
