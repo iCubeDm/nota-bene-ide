@@ -20,6 +20,11 @@ enum NbGlyph {
   usage,
   comments,
   settings,
+  camera,
+  image,
+  file,
+  share,
+  pen,
 }
 
 /// One drawn shape of a glyph.
@@ -96,6 +101,32 @@ const Map<NbGlyph, List<_Shape>> _shapes = {
     _D('M8 9h8M8 13h5'),
   ],
   NbGlyph.settings: [_Circle(12, 12, 3), _D(_settingsD)],
+  // the web has no such icons: lucide's camera, image, file, share-2 and pen-line, which its other glyphs are
+  NbGlyph.camera: [
+    _D(
+      'M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z',
+    ),
+    _Circle(12, 13, 3),
+  ],
+  NbGlyph.image: [
+    _Rect(3, 3, 18, 18, 2),
+    _Circle(9, 9, 2),
+    _D('m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'),
+  ],
+  NbGlyph.file: [
+    _D('M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'),
+    _D('M14 2v6h6'),
+  ],
+  NbGlyph.share: [
+    _Circle(18, 5, 3),
+    _Circle(6, 12, 3),
+    _Circle(18, 19, 3),
+    _D('m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98'),
+  ],
+  NbGlyph.pen: [
+    _D('M12 20h9'),
+    _D('M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z'),
+  ],
 };
 
 final Map<NbGlyph, Path> _paths = {

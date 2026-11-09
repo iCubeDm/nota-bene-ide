@@ -304,5 +304,27 @@
         "type": "String"
       }
     }
-  }
+  },
+  "attach": "Attach an image",
+  "attachCamera": "Camera",
+  "attachGallery": "Gallery",
+  "attachFile": "File",
+  "attachRemove": "Remove",
+  "attachFailed": "The image could not be uploaded.",
+  "attachUnsupported": "Only png, jpeg, gif and webp images can be attached.",
+  "attachTooLarge": "Too large to attach: {names}",
+  "attachUploading": "Wait for the image to finish uploading",
+  "attachDenied": "Nota Bene may not use the camera or photos. Allow it in Android settings.",
+  "attachBusy": "Another picker is still open. Finish it first.",
+  "attachUnavailable": "This phone has no app for that.",
+  "attachRead": "The image could not be read.",
+  "@attachTooLarge": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "share": "Share",
+  "shareFailed": "The image could not be shared."
 }

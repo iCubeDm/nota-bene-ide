@@ -158,5 +158,20 @@
   "tileCompact": "Сжать",
   "tileClear": "Очистить",
   "tileRestart": "Перезапуск",
-  "tileStats": "Статистика"
+  "tileStats": "Статистика",
+  "attach": "Прикрепить изображение",
+  "attachCamera": "Камера",
+  "attachGallery": "Галерея",
+  "attachFile": "Файл",
+  "attachRemove": "Убрать",
+  "attachFailed": "Не удалось загрузить изображение.",
+  "attachUnsupported": "Можно прикрепить только png, jpeg, gif и webp.",
+  "attachTooLarge": "Слишком большой файл: {names}",
+  "attachUploading": "Дождитесь загрузки изображения",
+  "attachDenied": "Nota Bene не может использовать камеру или фото. Разрешите это в настройках Android.",
+  "attachBusy": "Другое окно выбора ещё открыто. Сначала закройте его.",
+  "attachUnavailable": "На этом телефоне нет подходящего приложения.",
+  "attachRead": "Не удалось прочитать изображение.",
+  "share": "Поделиться",
+  "shareFailed": "Не удалось поделиться изображением."
 }

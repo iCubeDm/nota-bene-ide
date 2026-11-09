@@ -14,6 +14,7 @@ import '../comments/comments.dart';
 import '../comments/strings.g.dart';
 
 import '../hosts/host_link.dart';
+import '../media/fetch.dart';
 import 'feed.dart';
 
 enum TabState { connecting, open, occupied, taken, gone, offline }
@@ -95,6 +96,12 @@ class WindowTab extends ChangeNotifier {
   /// path → the ETag of the file as last read here (`/file`), to tell a media comment drawn on an earlier version
   final fileVersions = <String, String>{};
   Capabilities? capabilities;
+
+  /// The temp folders whose images the window serves (`/tmpimage`), from its hello; none until then.
+  List<String> tmpDirs = const [];
+
+  /// The attachments read for the feed's thumbnails and the viewer, by their request path, within a byte cap.
+  final mediaCache = MediaCache();
 
   /// The host answered 503 to a dictation: its Whisper is off. Until the next hello or reconnect the phone's own
   /// recognizer is used (the hello's capability is stale by then).
@@ -226,9 +233,18 @@ class WindowTab extends ChangeNotifier {
         } else {
           _set(TabState.occupied);
         }
-      case ServerEventHello(:final protocol, :final capabilities):
+      case ServerEventHello(
+        :final protocol,
+        :final capabilities,
+        :final tmpDirs,
+      ):
         this.protocol = protocol;
         this.capabilities = capabilities;
+        this.tmpDirs = [
+          for (final d in tmpDirs ?? const <String>[])
+            if (d.startsWith('/') && d.length > 1)
+              d.replaceAll(RegExp(r'/+$'), ''),
+        ];
         hostWhisperOff = false;
       case ServerEventModels(:final models):
         this.models = models;

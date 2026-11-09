@@ -197,17 +197,26 @@ int generatedImages(Comment c) =>
 /// The text sent to the agent and the images that go with it (compose.ts and send.ts's `sendNow`): [general], then the
 /// numbered comments. The images are numbered across the message, each comment's own in turn (a media comment's frame,
 /// then its pasted ones), and labelled as the desktop labels them; their type is the server's to know (it reads its own
-/// store), so png stands in. The phone has no images of its own in the composer and does not combine the frames of
-/// comments on one frame into one picture: each sends its own, the desktop's fallback.
+/// store), so png stands in. [own] are the composer's images: they go first, labelled by position as `imgLabel`, and
+/// the comments' numbering goes on after them. The phone does not combine the frames of comments on one frame into one
+/// picture: each sends its own, the desktop's fallback.
 ({String text, List<ImageRef> images}) composeSend(
   String general,
   List<Comment> items,
   Feed feed,
   String lang, {
   bool Function(Comment)? staleOf,
+  List<ImageRef> own = const [],
 }) {
-  if (items.isEmpty) return (text: general, images: const []);
-  final images = <ImageRef>[];
+  final images = [
+    for (final (k, im) in own.indexed)
+      ImageRef(
+        id: im.id,
+        mediaType: im.mediaType,
+        label: batchTemplate('imgLabel', lang, [k + 1]),
+      ),
+  ];
+  if (items.isEmpty) return (text: general, images: images);
   final blocks = [
     for (final (i, c) in items.indexed)
       () {

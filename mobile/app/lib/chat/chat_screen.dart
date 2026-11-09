@@ -16,6 +16,7 @@ import 'chat_header.dart';
 import 'comment_target.dart';
 import 'feed.dart';
 import 'files.dart';
+import 'media_card.dart';
 import 'markdown.dart';
 import 'message_menu.dart';
 import 'message_selection.dart';
@@ -389,7 +390,7 @@ class FeedItemView extends StatelessWidget {
       ),
     );
     return switch (item) {
-      UserItem(:final text, :final idle) =>
+      UserItem(:final text, :final idle, :final images) =>
         idle
             ? line(t.idleCompact)
             : Align(
@@ -419,21 +420,33 @@ class FeedItemView extends StatelessWidget {
                       ),
                     ),
                     // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
-                    child: listenerAt == null && marks.isEmpty
-                        ? NbMarkdown(
-                            userMarkdownSource(text),
-                            blockSyntaxes: userBlockSyntaxes,
-                            inlineSyntaxes: userInlineSyntaxes,
-                            softLineBreak: true,
-                          )
-                        : FileMarkdown(
-                            text: text,
-                            listenerAt: listenerAt,
-                            marks: marks,
-                            onMark: onMark,
-                            parse: parseUserMessage,
-                            softLineBreak: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (images.isNotEmpty && FileOpener.of(context) != null)
+                          UserImages(
+                            tab: FileOpener.of(context)!,
+                            images: images,
                           ),
+                        if (text.isNotEmpty || images.isEmpty)
+                          listenerAt == null && marks.isEmpty
+                              ? NbMarkdown(
+                                  userMarkdownSource(text),
+                                  blockSyntaxes: userBlockSyntaxes,
+                                  inlineSyntaxes: userInlineSyntaxes,
+                                  softLineBreak: true,
+                                )
+                              : FileMarkdown(
+                                  text: text,
+                                  listenerAt: listenerAt,
+                                  marks: marks,
+                                  onMark: onMark,
+                                  parse: parseUserMessage,
+                                  softLineBreak: true,
+                                ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -554,6 +567,8 @@ class _ToolLineState extends State<ToolLine> {
               ],
             ),
           ),
+          if (tab != null)
+            for (final m in mediaOf(tab, it)) MediaCard(tab: tab, spec: m),
           if (_open && it.result != null)
             Container(
               margin: const EdgeInsets.only(top: 4),

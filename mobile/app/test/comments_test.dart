@@ -119,6 +119,52 @@ void main() {
     }
   });
 
+  group('composeSend with the composer\'s own images', () {
+    ImageRef own(String id) =>
+        ImageRef(id: id, mediaType: ImageType.image_jpeg, label: 'x');
+    final withPaste = Comment(
+      id: 'p',
+      anchor: TextAnchor(
+        source: const AnchorSourceFile(path: 'a.md'),
+        start: 0,
+        end: 1,
+        quote: 'q',
+        prefix: '',
+        suffix: '',
+      ),
+      text: 'see',
+      images: ['c' * 64],
+      status: CommentStatus.pending,
+      createdAt: 1,
+    );
+
+    test('come first, labelled imgLabel by position, the comments after', () {
+      final out = composeSend(
+        '',
+        [withPaste],
+        Feed(),
+        'ru',
+        own: [own('a' * 64), own('b' * 64)],
+      );
+      expect(out.images.map((i) => i.id), ['a' * 64, 'b' * 64, 'c' * 64]);
+      expect(out.images.map((i) => i.mediaType).take(2), [
+        ImageType.image_jpeg,
+        ImageType.image_jpeg,
+      ]);
+      expect(out.images.map((i) => i.label), [
+        batchTemplate('imgLabel', 'ru', [1]),
+        batchTemplate('imgLabel', 'ru', [2]),
+        batchTemplate('imgLabelC', 'ru', [3, 1]),
+      ]);
+      expect(out.text, contains(batchTemplate('imgRef', 'ru', ['3'])));
+    });
+
+    test('alone, without comments or text, are the whole send', () {
+      final out = composeSend('', [], Feed(), 'en', own: [own('a' * 64)]);
+      expect((out.text, out.images.single.label), ('', '[image 1]'));
+    });
+  });
+
   group('composeSend names a chat fragment as the desktop does', () {
     final feed = Feed()
       ..items = [
