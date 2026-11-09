@@ -265,5 +265,14 @@
   "dictationFailed": "Dictation failed",
   "dictationTranscribing": "Transcribing…",
   "dictationHostFailed": "The computer could not transcribe it",
-  "dictationHostOff": "Whisper is off on the computer; the phone's recognition is used now"
+  "dictationHostOff": "Whisper is off on the computer; the phone's recognition is used now",
+  "expandCode": "Open full screen",
+  "codeLines": "{count, plural, one{{count} line} other{{count} lines}}",
+  "@codeLines": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

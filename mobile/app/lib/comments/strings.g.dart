@@ -36,6 +36,12 @@ String batchString(String key, String lang) {
   return m[lang] ?? m['en']!;
 }
 
+/// A string of the web's own dictionary in [lang], English for any other.
+String webString(String key, String lang) {
+  final m = ((_data['web'] as Map)[key] as Map).cast<String, String>();
+  return m[lang] ?? m['en']!;
+}
+
 /// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').
 String batchTemplate(String key, String lang, List<Object> args) =>
     _fill(batchString(key, lang), args);
@@ -617,6 +623,24 @@ const _json = r'''
    "es": "Cuándo",
    "pt": "Quando",
    "de": "Wann"
+  }
+ },
+ "web": {
+  "h5": {
+   "en": "5h",
+   "ru": "5ч",
+   "zh": "5h",
+   "es": "5h",
+   "pt": "5h",
+   "de": "5 h"
+  },
+  "week": {
+   "en": "week",
+   "ru": "неделя",
+   "zh": "周",
+   "es": "semana",
+   "pt": "semana",
+   "de": "Woche"
   }
  },
  "batch": {

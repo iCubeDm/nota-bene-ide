@@ -159,8 +159,8 @@ test for chat-anchor batch text, and connector tests for the new host fields.
 
 ## Delivery
 
-An epic issue with one child issue per part below, merged in this order into an integration branch, then into
-`main` in one PR, as #63 was. Each child ends with an APK the author tries on the device.
+Child issues of the remote epic #63 (#142–#147, titled `[Remote] …`), one per part below, merged in this order
+into an integration branch, then into `main` in one PR. Each child ends with an APK the author tries on the device.
 
 1. Layout: header pill, bubbles, composer, full-screen code.
 2. Window settings sheet: mode, model and effort, limits, the four actions.

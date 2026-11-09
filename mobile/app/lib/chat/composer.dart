@@ -11,6 +11,8 @@ import '../dictation/dictation.dart';
 import '../dictation/host_dictation.dart';
 import '../dictation/mic_button.dart';
 import '../files/image_screen.dart' show windowHttp;
+import '../theme.dart';
+import '../ui/nb_icon.dart';
 import 'window_tab.dart';
 
 class Composer extends StatefulWidget {
@@ -131,55 +133,98 @@ class _ComposerState extends State<Composer> {
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final open = widget.tab.state == TabState.open;
+      final c = Theme.of(context).extension<NbColors>()!;
+      final canSend =
+          open &&
+          (_text.text.trim().isNotEmpty ||
+              widget.tab.comments.sendable.isNotEmpty);
+      // while the agent works and there is nothing to send, the send slot is the stop button
+      final stop = open && widget.tab.busy && !canSend;
       return Padding(
+        key: const ValueKey('composer'),
         padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
-              child: TextField(
-                controller: _text,
-                enabled: open,
-                minLines: 1,
-                maxLines: 6,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: open ? t.messageHint : t.cannotSend,
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                  suffixIcon: MicButton(
-                    controller: _text,
-                    enabled: open,
-                    chooser: () =>
-                        open &&
-                            widget.tab.capabilities?.dictation == 'whisper' &&
-                            !widget.tab.hostWhisperOff
-                        ? HostDictation(
-                            () => windowHttp(widget.tab),
-                            onHostOff: () => widget.tab.hostWhisperOff = true,
-                          )
-                        : dictation,
-                  ),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 40),
+                decoration: BoxDecoration(
+                  color: c.popover.withValues(alpha: .95),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: c.border),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _text,
+                        enabled: open,
+                        minLines: 1,
+                        maxLines: 6,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(
+                          hintText: open ? t.messageHint : t.cannotSend,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.fromLTRB(
+                            16,
+                            11,
+                            4,
+                            11,
+                          ),
+                        ),
+                      ),
+                    ),
+                    MicButton(
+                      controller: _text,
+                      enabled: open,
+                      chooser: () =>
+                          open &&
+                              widget.tab.capabilities?.dictation == 'whisper' &&
+                              !widget.tab.hostWhisperOff
+                          ? HostDictation(
+                              () => windowHttp(widget.tab),
+                              onHostOff: () => widget.tab.hostWhisperOff = true,
+                            )
+                          : dictation,
+                    ),
+                  ],
                 ),
               ),
             ),
-            if (open && widget.tab.busy)
+            const SizedBox(width: 6),
+            if (stop)
               IconButton(
+                key: const ValueKey('stop'),
                 tooltip: t.stop,
-                icon: const Icon(Icons.stop_circle_outlined),
+                icon: const NbIcon(NbGlyph.stop),
+                style: IconButton.styleFrom(
+                  fixedSize: const Size.square(40),
+                  backgroundColor: c.destructive,
+                  foregroundColor: c.background,
+                ),
                 onPressed: () =>
                     widget.tab.send(const ClientMessageInterrupt()),
+              )
+            else
+              IconButton(
+                key: const ValueKey('send'),
+                tooltip: t.send,
+                icon: const NbIcon(NbGlyph.send),
+                style: IconButton.styleFrom(
+                  fixedSize: const Size.square(40),
+                  backgroundColor: canSend ? c.primary : c.muted,
+                  foregroundColor: canSend ? c.primaryFg : c.mutedFg,
+                  disabledBackgroundColor: c.muted,
+                  disabledForegroundColor: c.mutedFg,
+                ),
+                onPressed: canSend ? _send : null,
               ),
-            IconButton(
-              tooltip: t.send,
-              icon: const Icon(Icons.send),
-              onPressed:
-                  open &&
-                      (_text.text.trim().isNotEmpty ||
-                          widget.tab.comments.sendable.isNotEmpty)
-                  ? _send
-                  : null,
-            ),
           ],
         ),
       );

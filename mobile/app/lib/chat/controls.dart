@@ -5,6 +5,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
+import '../ui/nb_icon.dart';
 import '../usage/usage_screen.dart';
 import 'files.dart';
 import 'window_tab.dart';
@@ -25,7 +26,15 @@ class AgentMenu extends StatelessWidget {
     final lang = Localizations.localeOf(context).languageCode;
     return PopupMenuButton<Object?>(
       tooltip: t.agentMenu,
-      icon: const Icon(Icons.tune),
+      icon: const NbIcon(NbGlyph.more),
+      // a round 40 x 40 button in the header's circle, not the 48 x 40 of the default icon button
+      padding: EdgeInsets.zero,
+      style: IconButton.styleFrom(
+        fixedSize: const Size(40, 40),
+        minimumSize: const Size(40, 40),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
       enabled: open,
       onSelected: (v) => switch (v) {
         'compact' => tab.send(

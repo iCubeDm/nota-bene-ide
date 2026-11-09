@@ -4,7 +4,9 @@ import path from 'node:path';
 import { expect, it } from 'vitest';
 import { DART_PATH } from './dart.ts';
 import { check, generate } from './gen.ts';
+import { mobileStrings } from './mobileStrings.ts';
 import { SCHEMA_PATH } from './schema.ts';
+import { ru } from '../../web/src/i18n/ru.ts';
 
 function writeAll(files: Map<string, string>): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-gen-'));
@@ -31,3 +33,11 @@ it('check names a stale file', () => {
   fs.appendFileSync(path.join(tmp, DART_PATH), ' ');
   expect(check(files, tmp)).toEqual([SCHEMA_PATH, DART_PATH]);
 }, 60_000);
+
+it('the mobile strings carry the web keys through webString', () => {
+  const out = mobileStrings();
+  expect(out).toContain('String webString(String key, String lang)');
+  expect(out).toContain(`"h5": {`);
+  expect(out).toContain(`"week": {`);
+  expect(out).toContain(JSON.stringify(ru.week));
+});
