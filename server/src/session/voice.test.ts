@@ -80,15 +80,37 @@ describe('voice messages', () => {
     expect(got.map((m) => m.uuid)).toEqual(['v1', 't1']);
   });
 
-  it('a failed transcription tells why, ends the turn, and the agent gets nothing', async () => {
+  it('a failed transcription tells why, settles the send as cancelled, and the agent gets nothing', async () => {
     const { got, events, make } = setup({ speech: async () => { throw new VoiceFailure('off'); } });
     const s = await make();
     s.send({ id: 'v1', text: '', voice, lang: 'en' });
-    await until(() => events.some((e) => e.kind === 'agent' && e.e.t === 'turn-end'));
+    await until(() => events.some((e) => e.kind === 'agent' && e.e.t === 'cancelled'));
+    expect(events.find((e) => e.kind === 'agent' && e.e.t === 'cancelled')).toMatchObject({ e: { sendId: 'v1' } });
+    expect(events.some((e) => e.kind === 'agent' && e.e.t === 'turn-end')).toBe(false);
     expect(events.find((e) => e.kind === 'voice-text')).toMatchObject({ id: 'v1', error: 'off' });
     expect(events.some((e) => e.kind === 'server-error')).toBe(false);
     expect(got).toEqual([]);
     expect(s.busy()).toBe(false);
+  });
+
+  it('a failure while the agent works does not end its turn', async () => {
+    const { events, make } = setup({ speech: async () => '' });
+    const s = await make();
+    s.send({ id: 't1', text: 'work' });
+    s.send({ id: 'v1', text: '', voice, lang: 'en' });
+    await until(() => events.some((e) => e.kind === 'voice-text'));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(events.some((e) => e.kind === 'agent' && e.e.t === 'turn-end')).toBe(false);
+    expect(s.busy()).toBe(true);
+  });
+
+  it('a transcript that starts with a slash is not run as a command', async () => {
+    const { got, make } = setup({ speech: async () => '/clear the cache' });
+    const s = await make();
+    s.send({ id: 'v1', text: '', voice, lang: 'en' });
+    await until(() => got.length === 1);
+    expect(got[0]!.text.startsWith('/')).toBe(false);
+    expect(got[0]!.text).toContain('/clear the cache');
   });
 
   it('silence is the error empty; any other failure is failed', async () => {
