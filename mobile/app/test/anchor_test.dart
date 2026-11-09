@@ -223,5 +223,26 @@ void main() {
       expect(locateSelection(r, 'dog', 0), isNull);
       expect(locateSelection(r, '  \n', 0), isNull);
     });
+
+    test('only an occurrence starting in the selected block is taken', () {
+      expect(locateSelection(r, 'cache', 0, within: (start: 22, end: 42)), (
+        start: 30,
+        end: 35,
+      ));
+      expect(
+        locateSelection(r, 'cache', 0, within: (start: 36, end: 42)),
+        isNull,
+      );
+    });
+
+    test(
+      'math, a picture on the phone, is spanned by a selection across it',
+      () {
+        final m = renderedText(parseMarkdown(r'Take $x^2$ and y.'));
+        expect(m.text, r'Take $x^2$ and y.');
+        expect(locateSelection(m, 'Take  and y.', 0), (start: 0, end: 17));
+        expect(locateSelection(m, 'and', 0), (start: 11, end: 14));
+      },
+    );
   });
 }

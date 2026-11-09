@@ -109,12 +109,21 @@ class TextRun {
 }
 
 class RenderedText {
-  RenderedText(this.text, this.runs);
+  RenderedText(this.text, this.runs, this.blocks);
 
   /// the desktop's anchor text model (web/src/anchors/text.ts): whitespace runs as one space, block boundaries as a
   /// space, the ends trimmed
   final String text;
   final List<TextRun> runs;
+
+  /// where each top-level node starts in [text], in the order of the nodes
+  final List<int> blocks;
+
+  /// The part of [text] the top-level node [i] covers.
+  ({int start, int end}) block(int i) => (
+    start: blocks[i],
+    end: i + 1 < blocks.length ? blocks[i + 1] : text.length,
+  );
 }
 
 // text.ts's BLOCKS; `mathblock` is a paragraph on the desktop, which shows `$$…$$` as text
@@ -192,7 +201,9 @@ RenderedText renderedText(List<md.Node> nodes) {
     if (block) pending = true;
   }
 
+  final blocks = <int>[];
   for (final n in nodes) {
+    blocks.add(len);
     visit(n);
   }
   var text = b.toString();
@@ -204,23 +215,35 @@ RenderedText renderedText(List<md.Node> nodes) {
       if (r.map[i] > total) r.map[i] = total;
     }
   }
-  return RenderedText(text, runs);
+  return RenderedText(text, runs, [
+    for (final at in blocks) at.clamp(0, total),
+  ]);
 }
 
 /// Where a selection the phone made lies in [r]: its text (Flutter joins paragraphs its own way, so whitespace is
-/// ignored when matching) found in the rendered text; of several occurrences, the one nearest [approx], the
-/// selection's offset as Flutter counts it, which runs close to the rendered one.
+/// ignored when matching, and math, a picture on the phone, is skipped) found in the rendered text; of several
+/// occurrences starting [within] the block the selection starts in, the one nearest [approx], the selection's offset
+/// as Flutter counts it, which runs close to the rendered one inside a block.
 ({int start, int end})? locateSelection(
   RenderedText r,
   String selected,
-  int? approx,
-) {
+  int? approx, {
+  ({int start, int end})? within,
+}) {
   final want = selected.replaceAll(_ws, '');
   if (want.isEmpty) return null;
+  final math = <int>{};
+  for (final run in r.runs) {
+    if (run.node is md.Element) {
+      for (var i = run.start; i < run.map.last; i++) {
+        math.add(i);
+      }
+    }
+  }
   final idx = <int>[]; // stripped index -> rendered index
   final b = StringBuffer();
   for (var i = 0; i < r.text.length; i++) {
-    if (_ws.hasMatch(r.text[i])) continue;
+    if (_ws.hasMatch(r.text[i]) || math.contains(i)) continue;
     idx.add(i);
     b.write(r.text[i]);
   }
@@ -228,6 +251,10 @@ RenderedText renderedText(List<md.Node> nodes) {
   ({int start, int end})? best;
   for (var k = hay.indexOf(want); k != -1; k = hay.indexOf(want, k + 1)) {
     final hit = (start: idx[k], end: idx[k + want.length - 1] + 1);
+    if (within != null &&
+        (hit.start < within.start || hit.start >= within.end)) {
+      continue;
+    }
     if (best == null ||
         (approx != null &&
             (hit.start - approx).abs() < (best.start - approx).abs())) {

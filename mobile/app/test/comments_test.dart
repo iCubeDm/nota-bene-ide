@@ -137,6 +137,46 @@ void main() {
       cs.remove('b');
       expect((out.last as ClientMessageComments).items.map((x) => x.id), ['a']);
     });
+
+    test('remove keeps a comment of ours the server has not echoed yet', () {
+      cs.apply([c('a', 'x', '1'), c('b', 'y', '2')]);
+      final n = cs.add(c('tmp', 'q', '').anchor as TextAnchor, 'mine', null);
+      cs.remove('b');
+      expect((out.last as ClientMessageComments).items.map((x) => x.id), [
+        'a',
+        n.id,
+      ]);
+    });
+
+    test('a desktop text comment with pasted images stays for the desktop', () {
+      final x = c('a', 'x', 'see');
+      cs.apply([
+        Comment(
+          id: 'img',
+          anchor: x.anchor,
+          text: 'look',
+          status: CommentStatus.pending,
+          createdAt: 1,
+          images: const ['i1'],
+        ),
+        x,
+      ]);
+      expect(cs.sendable.map((x) => x.id), ['a']);
+    });
+
+    test(
+      'comments being sent are not offered again until the server answers',
+      () {
+        cs.apply([c('a', 'x', '1'), c('b', 'y', '2')]);
+        cs.sending({'a'});
+        expect(cs.sendable.map((x) => x.id), ['b']);
+        cs.unsending({'a'});
+        expect(cs.sendable.map((x) => x.id), ['a', 'b']);
+        cs.sending({'a'});
+        cs.apply([c('a', 'x', '1'), c('b', 'y', '2')]);
+        expect(cs.sendable.map((x) => x.id), ['a', 'b']);
+      },
+    );
   });
 
   testWidgets('send takes the pending comments: the batch text and their ids', (
@@ -199,6 +239,83 @@ void main() {
     await t.pumpAndSettle();
     final send = r.sent.lastWhere((m) => m['type'] == 'send');
     expect(send['text'], startsWith('Comments on fragments:'));
+    r.dispose();
+  });
+
+  Future<Rig> withComments(WidgetTester t, List<Comment> items) async {
+    final r = Rig();
+    await r.open(
+      t,
+      events: [
+        {
+          'kind': 'session',
+          'id': 's1',
+          'root': '/home/u/notes',
+          'title': null,
+          'model': null,
+        },
+      ],
+    );
+    r.event({
+      'kind': 'comments',
+      'items': [for (final x in items) json(x)],
+    });
+    await t.pumpAndSettle();
+    return r;
+  }
+
+  List<Map<String, Object?>> sends(Rig r) => [
+    for (final m in r.sent)
+      if (m['type'] == 'send') m,
+  ];
+
+  testWidgets(
+    'a second tap before the server answers does not send them again',
+    (t) async {
+      final r = await withComments(t, [c('a', 'x', 'only this')]);
+      await t.tap(find.byTooltip('Send'));
+      await t.pumpAndSettle();
+      await t.tap(find.byTooltip('Send'));
+      await t.pumpAndSettle();
+      expect(sends(r), hasLength(1));
+      expect(find.text('1 comment to send'), findsNothing);
+      r.dispose();
+    },
+  );
+
+  testWidgets('a refused send offers its comments again', (t) async {
+    final r = await withComments(t, [c('a', 'x', 'only this')]);
+    await t.tap(find.byTooltip('Send'));
+    await t.pumpAndSettle();
+    r.event({
+      'kind': 'send-refused',
+      'id': sends(r).single['id'],
+      'reason': 'busy',
+    });
+    await t.pumpAndSettle();
+    expect(r.tab!.comments.sendable.map((x) => x.id), ['a']);
+    r.dispose();
+  });
+
+  testWidgets('the comments are taken as they are when the send leaves', (
+    t,
+  ) async {
+    final r = await withComments(t, [c('a', 'x', 'only this')]);
+    r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
+    await t.pumpAndSettle();
+    await t.enter('Next');
+    await t.tap(find.byTooltip('Send'));
+    await t.pumpAndSettle();
+    // the desktop sent them while the dialog was up
+    r.event({
+      'kind': 'comments',
+      'items': [json(c('a', 'x', 'only this', status: CommentStatus.sent))],
+    });
+    await t.pumpAndSettle();
+    await t.tapText('Send after this turn');
+    final send = sends(r).single;
+    expect(send['text'], 'Next');
+    expect(send.containsKey('commentIds'), isFalse);
     r.dispose();
   });
 }

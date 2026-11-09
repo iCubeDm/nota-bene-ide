@@ -39,12 +39,29 @@ class Comments extends ChangeNotifier {
       if (c.status == CommentStatus.pending) c,
   ];
 
-  /// What the phone sends with a message: the pending text comments. A media or page comment made on the desktop
-  /// stays pending for it (its frame images are the desktop's to attach).
+  /// sent with a message the server has not answered yet
+  final _sending = <String>{};
+
+  /// What the phone sends with a message: the pending text comments. A media or page comment made on the desktop,
+  /// or a text one with pasted images, stays pending for it (the images are the desktop's to attach).
   List<Comment> get sendable => [
     for (final c in pending)
-      if (c.anchor is TextAnchor) c,
+      if (c.anchor is TextAnchor &&
+          (c.images?.isEmpty ?? true) &&
+          !_sending.contains(c.id))
+        c,
   ];
+
+  /// [ids] left with a message: not offered again until the server's next set (or a refusal of that message).
+  void sending(Set<String> ids) {
+    _sending.addAll(ids);
+    notifyListeners();
+  }
+
+  void unsending(Set<String> ids) {
+    _sending.removeAll(ids);
+    notifyListeners();
+  }
 
   List<Comment> forFile(String path) => [
     for (final c in all)
@@ -57,6 +74,7 @@ class Comments extends ChangeNotifier {
   /// The server's set. A comment of ours stops being overlaid once the server has had it.
   void apply(List<Comment> items) {
     _server = List.unmodifiable(items);
+    _sending.clear();
     for (final c in items) {
       _mine.remove(c.id);
     }
@@ -110,7 +128,7 @@ class Comments extends ChangeNotifier {
       for (final c in _server)
         if (c.id != id) c,
     ];
-    _push(_server);
+    _push(all);
   }
 }
 

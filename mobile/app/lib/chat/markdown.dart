@@ -54,6 +54,32 @@ class _BlockMath extends md.BlockSyntax {
   }
 }
 
+/// Raw HTML as the desktop shows it after DOMPurify: a tag or a comment shows nothing, `<br>` breaks the line.
+class _InlineHtml extends md.InlineHtmlSyntax {
+  @override
+  bool onMatch(md.InlineParser parser, Match m) {
+    parser.addNode(
+      RegExp(r'^<br\s*/?>$', caseSensitive: false).hasMatch(m[0]!)
+          ? md.Element.empty('br')
+          : md.Text(''),
+    );
+    return true;
+  }
+}
+
+/// An HTML block as the text it shows: tags and comments dropped (the lines inside are not Markdown, as on the desktop).
+class _HtmlBlock extends md.HtmlBlockSyntax {
+  @override
+  md.Node parse(md.BlockParser parser) {
+    final raw = super.parse(parser).textContent;
+    final text = raw
+        .replaceAll(RegExp(r'<!--[^]*?-->'), '')
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .trim();
+    return text.isEmpty ? md.Text('') : md.Element('p', [md.Text(text)]);
+  }
+}
+
 class _MathBuilder extends MarkdownElementBuilder {
   _MathBuilder({required this.display});
   final bool display;
@@ -110,14 +136,14 @@ class _PreBuilder extends MarkdownElementBuilder {
   }
 }
 
-/// The syntaxes of the chat's Markdown, shared with the file view and its anchors.
-final mathBlockSyntaxes = <md.BlockSyntax>[_BlockMath()];
-final mathInlineSyntaxes = <md.InlineSyntax>[_InlineMath()];
+/// The syntaxes of the chat's Markdown (math, raw HTML), shared with the file view and its anchors.
+final nbBlockSyntaxes = <md.BlockSyntax>[_BlockMath(), _HtmlBlock()];
+final nbInlineSyntaxes = <md.InlineSyntax>[_InlineMath(), _InlineHtml()];
 
 /// [text] parsed as [NbMarkdown] parses it (flutter_markdown_plus: GitHub-flavoured, HTML not encoded).
 List<md.Node> parseMarkdown(String text) => md.Document(
-  blockSyntaxes: mathBlockSyntaxes,
-  inlineSyntaxes: mathInlineSyntaxes,
+  blockSyntaxes: nbBlockSyntaxes,
+  inlineSyntaxes: nbInlineSyntaxes,
   extensionSet: md.ExtensionSet.gitHubFlavored,
   encodeHtml: false,
 ).parseLines(const LineSplitter().convert(text));
@@ -162,8 +188,8 @@ class NbMarkdown extends StatelessWidget {
   Widget build(BuildContext context) => MarkdownBody(
     data: text,
     extensionSet: md.ExtensionSet.gitHubFlavored,
-    blockSyntaxes: mathBlockSyntaxes,
-    inlineSyntaxes: mathInlineSyntaxes,
+    blockSyntaxes: nbBlockSyntaxes,
+    inlineSyntaxes: nbInlineSyntaxes,
     builders: markdownBuilders(),
     styleSheet: markdownStyle(context),
     onTapLink: (text, href, title) => openLink(href),

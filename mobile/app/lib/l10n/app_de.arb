@@ -111,5 +111,6 @@
   "openFile": "Datei öffnen",
   "files": "Dateien",
   "noFiles": "In dieser Sitzung gibt es noch keine Markdown-Dateien.",
-  "pendingComments": "{count, plural, =1{1 Kommentar zum Senden} other{{count} Kommentare zum Senden}}"
+  "pendingComments": "{count, plural, =1{1 Kommentar zum Senden} other{{count} Kommentare zum Senden}}",
+  "commentNotPlaced": "Zu dieser Auswahl lässt sich kein Kommentar setzen"
 }

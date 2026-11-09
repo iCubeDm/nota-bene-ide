@@ -85,11 +85,16 @@ class FileMarkdown extends StatefulWidget {
     required this.text,
     required this.marks,
     required this.onMark,
+    required this.listenerAt,
   });
 
   final String text;
   final List<Mark> marks;
   final void Function(String id) onMark;
+
+  /// The selection of top-level block [i] is reported to this notifier: an offset Flutter gives inside one block
+  /// stays near the rendered one, where across the file code and bullets push it away.
+  final SelectionListenerNotifier Function(int i) listenerAt;
 
   @override
   State<FileMarkdown> createState() => _FileMarkdownState();
@@ -144,21 +149,42 @@ class _FileMarkdownState extends State<FileMarkdown>
     );
     final nodes = parseMarkdown(widget.text);
     wrapMarks(nodes, renderedText(nodes), widget.marks);
-    final children = MarkdownBuilder(
+    final builders = markdownBuilders();
+    List<Widget> build(md.Node n) => MarkdownBuilder(
       delegate: this,
       selectable: false,
       styleSheet: sheet,
       imageDirectory: null,
       imageBuilder: null,
       checkboxBuilder: null,
-      bulletBuilder: null,
-      builders: markdownBuilders(),
+      // a bullet is not text of the file: a selection across list items must match the rendered text
+      bulletBuilder: (p) => SelectionContainer.disabled(
+        child: Text(
+          p.style == BulletStyle.unorderedList ? '•' : '${p.index + 1}.',
+          textAlign: p.style == BulletStyle.unorderedList
+              ? TextAlign.center
+              : TextAlign.right,
+          style: sheet.listBullet,
+        ),
+      ),
+      builders: builders,
       paddingBuilders: const {},
       listItemCrossAxisAlignment: MarkdownListItemCrossAxisAlignment.baseline,
-    ).build(nodes);
+    ).build([n]);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: children,
+      children: [
+        for (final (i, n) in nodes.indexed) ...[
+          if (i > 0) SizedBox(height: sheet.blockSpacing),
+          SelectionListener(
+            selectionNotifier: widget.listenerAt(i),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: build(n),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -111,5 +111,6 @@
   "openFile": "打开文件",
   "files": "文件",
   "noFiles": "本会话中还没有 Markdown 文件。",
-  "pendingComments": "{count} 条评论待发送"
+  "pendingComments": "{count} 条评论待发送",
+  "commentNotPlaced": "无法将评论放到这段选区上"
 }

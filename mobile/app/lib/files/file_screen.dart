@@ -3,6 +3,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SelectionStatus;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/window_tab.dart';
@@ -35,7 +36,7 @@ class _FileScreenState extends State<FileScreen> {
   String? _text;
   RenderedText? _rendered;
   _Fail? _fail;
-  final _selection = SelectionListenerNotifier();
+  final _listeners = <int, SelectionListenerNotifier>{};
   String _selected = '';
 
   @override
@@ -46,7 +47,9 @@ class _FileScreenState extends State<FileScreen> {
 
   @override
   void dispose() {
-    _selection.dispose();
+    for (final l in _listeners.values) {
+      l.dispose();
+    }
     super.dispose();
   }
 
@@ -101,16 +104,38 @@ class _FileScreenState extends State<FileScreen> {
     ];
   }
 
+  SelectionListenerNotifier _listenerAt(int i) =>
+      _listeners.putIfAbsent(i, SelectionListenerNotifier.new);
+
+  /// The selection in [r]: searched in the block it starts in, near Flutter's offset there.
+  ({int start, int end})? _locate(RenderedText r) {
+    for (final i in _listeners.keys.toList()..sort()) {
+      final l = _listeners[i]!;
+      if (!l.registered || i >= r.blocks.length) continue;
+      final range = l.selection.range;
+      if (range == null || l.selection.status == SelectionStatus.none) {
+        continue;
+      }
+      final block = r.block(i);
+      return locateSelection(
+        r,
+        _selected,
+        block.start + range.startOffset,
+        within: block,
+      );
+    }
+    return null;
+  }
+
   Future<void> _comment() async {
     final r = _rendered;
-    final at = r == null
-        ? null
-        : locateSelection(
-            r,
-            _selected,
-            _selection.selection.range?.startOffset,
-          );
-    if (r == null || at == null) return;
+    final at = r == null ? null : _locate(r);
+    if (r == null || at == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).commentNotPlaced)),
+      );
+      return;
+    }
     final res = await showCommentSheet(
       context,
       quote: r.text.substring(at.start, at.end),
@@ -181,16 +206,18 @@ class _FileScreenState extends State<FileScreen> {
                       ...state.contextMenuButtonItems,
                     ],
                   ),
-              child: SelectionListener(
-                selectionNotifier: _selection,
-                child: ListenableBuilder(
-                  listenable: widget.tab.comments,
-                  builder: (context, _) => ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                    children: [
-                      FileMarkdown(text: text, marks: _marks(), onMark: _edit),
-                    ],
-                  ),
+              child: ListenableBuilder(
+                listenable: widget.tab.comments,
+                builder: (context, _) => ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                  children: [
+                    FileMarkdown(
+                      text: text,
+                      marks: _marks(),
+                      onMark: _edit,
+                      listenerAt: _listenerAt,
+                    ),
+                  ],
                 ),
               ),
             ),

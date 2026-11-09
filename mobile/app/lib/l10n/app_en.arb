@@ -229,5 +229,9 @@
         "type": "int"
       }
     }
+  },
+  "commentNotPlaced": "Could not place a comment on this selection",
+  "@commentNotPlaced": {
+    "description": "Snackbar when a selection cannot be matched to the file's text"
   }
 }

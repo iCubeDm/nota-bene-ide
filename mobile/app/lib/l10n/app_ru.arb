@@ -111,5 +111,6 @@
   "openFile": "Открыть файл",
   "files": "Файлы",
   "noFiles": "В этой сессии пока нет файлов Markdown.",
-  "pendingComments": "{count, plural, =1{1 комментарий к отправке} few{{count} комментария к отправке} other{{count} комментариев к отправке}}"
+  "pendingComments": "{count, plural, =1{1 комментарий к отправке} few{{count} комментария к отправке} other{{count} комментариев к отправке}}",
+  "commentNotPlaced": "Не удалось привязать комментарий к этому выделению"
 }

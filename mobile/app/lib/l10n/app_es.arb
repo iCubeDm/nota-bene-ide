@@ -111,5 +111,6 @@
   "openFile": "Abrir el archivo",
   "files": "Archivos",
   "noFiles": "Todavía no hay archivos Markdown en esta sesión.",
-  "pendingComments": "{count, plural, =1{1 comentario por enviar} other{{count} comentarios por enviar}}"
+  "pendingComments": "{count, plural, =1{1 comentario por enviar} other{{count} comentarios por enviar}}",
+  "commentNotPlaced": "No se pudo colocar un comentario en esta selección"
 }

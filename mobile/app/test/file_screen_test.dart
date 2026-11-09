@@ -181,4 +181,56 @@ void main() {
       r.dispose();
     });
   }
+
+  testWidgets(
+    'after a long code block the selected copy of a word is still the one',
+    (t) async {
+      final code = [
+        for (var i = 0; i < 6; i++) '            value = $i',
+      ].join('\n');
+      final r = await openFile(
+        t,
+        body: '```\n$code\n```\n\nthe cache, the cache and the cache.',
+      );
+      await t.longPressAt(wordAt(t, 'cache', nth: 1));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Comment'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      final a =
+          Comment.fromJson(
+                ((lastComments(r)['items'] as List).single as Map).cast(),
+              ).anchor
+              as TextAnchor;
+      expect(a.prefix, endsWith('value = 5 the cache, the '));
+      r.dispose();
+    },
+  );
+
+  testWidgets('a selection across list items and a code block is commented', (
+    t,
+  ) async {
+    final r = await openFile(
+      t,
+      body:
+          'Intro.\n\n1. Read the config.\n2. Open the store.\n\n- a\n- b\n\n```dart\nvar x;\n```\n\nDone.',
+    );
+    final region = t.state<SelectableRegionState>(
+      find.byType(SelectableRegion),
+    );
+    region.selectAll(SelectionChangedCause.toolbar);
+    await t.pumpAndSettle();
+    await t.tap(find.text('Comment'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    final a =
+        Comment.fromJson(
+              ((lastComments(r)['items'] as List).single as Map).cast(),
+            ).anchor
+            as TextAnchor;
+    expect(a.quote, 'Intro. Read the config. Open the store. a b var x; Done.');
+    r.dispose();
+  });
 }
