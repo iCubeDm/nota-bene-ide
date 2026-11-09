@@ -332,18 +332,18 @@ void main() {
     expect(find.text(fmtTokens(900000, 'en')), findsOneWidget);
   });
 
-  testWidgets('the agent menu opens the screen', (t) async {
+  testWidgets('the window sheet opens the screen', (t) async {
     await r.open(t);
     host((p) async => answer(200, jsonEncode(report())));
     install();
-    await t.tap(find.byTooltip('Agent'));
+    await t.tap(find.text('untitled'));
     await t.pumpAndSettle();
-    await t.tapText(w('usage'));
+    await t.tapText('Stats');
     expect(find.byType(UsageScreen), findsOneWidget);
     expect(usageGets(), hasLength(1));
   });
 
-  testWidgets('the menu item is disabled without the usage capability', (
+  testWidgets('the Stats tile is disabled without the usage capability', (
     t,
   ) async {
     await r.open(
@@ -354,15 +354,10 @@ void main() {
         'capabilities': Rig.caps(usage: false),
       },
     );
-    await t.tap(find.byTooltip('Agent'));
+    await t.tap(find.text('untitled'));
     await t.pumpAndSettle();
-    expect(
-      t
-          .widget<PopupMenuItem<Object?>>(
-            find.widgetWithText(PopupMenuItem<Object?>, w('usage')),
-          )
-          .enabled,
-      isFalse,
-    );
+    await t.tap(find.text('Stats'));
+    await t.pumpAndSettle();
+    expect(find.byType(UsageScreen), findsNothing);
   });
 }

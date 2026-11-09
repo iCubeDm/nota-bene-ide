@@ -97,10 +97,6 @@ void main() {
     t,
   ) async {
     await rig.open(t, events: [session(title: 'Spec work')]);
-    expect(
-      find.ancestor(of: find.text('Spec work'), matching: find.byType(InkWell)),
-      findsNothing,
-    );
     var taps = 0;
     final own = WindowTab(rig.link, 4791, '/home/u/notes', retry: (_) async {});
     addTearDown(own.dispose);
@@ -111,8 +107,21 @@ void main() {
         ),
       ),
     );
+    expect(
+      find.ancestor(of: find.text('untitled'), matching: find.byType(InkWell)),
+      findsOneWidget,
+    );
     await t.tap(find.text('untitled'));
     expect(taps, 1);
+    await t.pumpWidget(
+      NbApp(
+        home: Scaffold(body: ChatHeader(tab: own)),
+      ),
+    );
+    expect(
+      find.ancestor(of: find.text('untitled'), matching: find.byType(InkWell)),
+      findsNothing,
+    );
   });
 
   testWidgets('the back button pops the route', (t) async {

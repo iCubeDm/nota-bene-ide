@@ -138,5 +138,15 @@
   "dictationHostFailed": "电脑无法转写这段语音",
   "dictationHostOff": "电脑上的 Whisper 已关闭;现在使用手机的语音识别",
   "expandCode": "全屏打开",
-  "codeLines": "{count, plural, other{{count} 行}}"
+  "codeLines": "{count, plural, other{{count} 行}}",
+  "windowSheetMode": "模式",
+  "limitsTitle": "套餐额度",
+  "limit5h": "5 小时",
+  "limitWeek": "每周",
+  "limitResets": "{pct}% · {when} 重置",
+  "tileCompact": "压缩",
+  "tileClear": "清空",
+  "tileRestart": "重启",
+  "tileStats": "统计",
+  "clearFailed": "无法清空：窗口正忙或已离线。"
 }
