@@ -19,6 +19,7 @@ function make(o: { interrupt?: () => Promise<void>; sendThrows?: boolean; interr
     interruptMs: o.interruptMs ?? 2000,
     report: (w, e) => errors.push(`${w}: ${(e as Error).message}`),
     fail: (e, id) => log.push(`fail ${id}: ${(e as Error).message}`),
+    drop: (id) => log.push(`drop ${id}`),
   });
   return { q, log, errors, bump: () => { gen++; }, die: () => { current = false; } };
 }
@@ -148,7 +149,7 @@ describe('SendQueue text later', () => {
     q.push({ id: 'V', text: async () => { throw new Error('whisper down'); } });
     q.push({ id: 'T', text: 't' });
     await q.idle();
-    expect(log).toEqual(['fail V: whisper down', 'running T', 'send T:next']);
+    expect(log).toEqual(['drop V', 'running T', 'send T:next']);
     expect(errors).toEqual([]);
   });
 

@@ -66,9 +66,9 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   const report = (where: string, e: unknown) => reportError(hub, where, e);
   const attachments = o.attachments ?? new AttachmentStore({ dir: path.join(stateDir(), 'attachments') });
   const voices = o.voices ?? new VoiceIndex({ file: path.join(stateDir(), 'voice.jsonl') });
-  const speech = o.speech ?? (async (id: string, lang: string) => {
+  const speech = o.speech ?? (async (id: string, lang: string, alive: () => boolean) => {
     if (!whisperOn()) throw new VoiceFailure('off');
-    return transcribeVoice(attachments, id, lang);
+    return transcribeVoice(attachments, id, lang, undefined, alive);
   });
   const titles: TitleTracker = new TitleTracker({
     lookup: async (id, dir) => titleOf(await backend.sessionInfo(id, dir)),
@@ -97,7 +97,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   });
   // `! cmd` runs (protocol 11): outside the agent and the turn ledger; the root is read per run, a switch moves it
   const shell = new ShellRunner({ emit: (ev, opt) => hub.emit(ev, opt), root: () => who.root, report, ...(o.shell ?? {}) });
-  const queue = new SendQueue({ gen: () => slot.gen, agent: () => slot.ensure(), running: (id) => turns.running(id), isCurrent: (a) => slot.agent === a, interruptMs: o.interruptTimeoutMs ?? INTERRUPT_TIMEOUT_MS, report, fail: (e, id) => failTurn(e, id) });
+  const queue = new SendQueue({ gen: () => slot.gen, agent: () => slot.ensure(), running: (id) => turns.running(id), isCurrent: (a) => slot.agent === a, interruptMs: o.interruptTimeoutMs ?? INTERRUPT_TIMEOUT_MS, report, fail: (e, id) => failTurn(e, id), drop: (id) => dropSend(id) });
   /** A send not yet answered, a waiting permission, or a switch in progress (R-M4-4); `closed` is not part of it. */
   const busy = () => phase.switching || activity(turns, permissions) !== 'idle';
   const stats = new StatsService({
@@ -226,6 +226,12 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     hub.emit({ kind: 'agent', e: turns.failure(e, id) });
   }
 
+  /** A send that never reached the agent (a voice message without a transcript): settled as the CLI's own cancel is. */
+  function dropSend(id: string): void {
+    turns.cancelled(id);
+    hub.emit({ kind: 'agent', e: { t: 'cancelled', sendId: id } });
+  }
+
   /** The history's user messages that were voice messages get their voice back: the agent kept only the text. */
   function withVoices(events: Awaited<ReturnType<typeof readHistory>>): typeof events {
     return events.map((ev) => {
@@ -245,15 +251,16 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     const g = slot.gen;
     return async () => {
       try {
-        const text = (await speech(voiceId, lang)).trim();
+        const text = (await speech(voiceId, lang, () => g === slot.gen)).trim();
         if (!text) throw new VoiceFailure('empty');
         if (g === slot.gen) hub.emit({ kind: 'voice-text', id, text });
-        return text;
+        // said, not typed: a leading slash must not run a command behind trackedCommand's back (a zero-width space)
+        return text.startsWith('/') ? `\u200b${text}` : text;
       } catch (e) {
         const why = e instanceof VoiceFailure ? e.why : 'failed';
         if (!(e instanceof VoiceFailure)) report('voice', e);
         if (g === slot.gen) hub.emit({ kind: 'voice-text', id, error: why });
-        throw new Error('');
+        throw e;
       }
     };
   }

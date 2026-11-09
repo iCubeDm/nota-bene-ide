@@ -422,6 +422,7 @@ test('a voice send is only the voice, in a language', () => {
   expect(parseClientMessage(vsend({ text: 'hi' }))).toHaveProperty('error');
   expect(parseClientMessage(vsend({ images: [] }))).toHaveProperty('error');
   expect(parseClientMessage(vsend({ commentIds: ['c1'] }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ force: true }))).toHaveProperty('error');
   expect(parseClientMessage(vsend({ lang: undefined }))).toHaveProperty('error');
   expect(parseClientMessage(vsend({ lang: 'Russian' }))).toHaveProperty('error');
   // a lang without a voice means nothing: refused, not dropped

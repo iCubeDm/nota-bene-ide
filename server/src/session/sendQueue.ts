@@ -13,6 +13,8 @@ type QueueOptions = {
   report: (where: string, e: unknown) => void;
   /** the user event is already out: answer it or the feed waits forever */
   fail: (e: unknown, id: string) => void;
+  /** a later text that did not come (a voice message not transcribed): settle the send without ending a turn, the getter told why */
+  drop: (id: string) => void;
 };
 
 /**
@@ -39,12 +41,13 @@ export class SendQueue {
     this.chain = this.chain.then(async () => {
       if (g !== gen()) return;
       // a voice message's text is its transcript: the sends behind it wait for it, as they wait for a forced send's
-      // interrupt. Its failure is told by the getter (the voice-text event), not reported again.
+      // interrupt. Its failure is told by the getter (the voice-text event), not reported again, and ends no turn: the agent
+      // may be in one of its own.
       let text: string;
       try {
         text = typeof m.text === 'string' ? m.text : await m.text();
-      } catch (e) {
-        if (g === gen()) this.o.fail(e, m.id);
+      } catch {
+        if (g === gen()) this.o.drop(m.id);
         return;
       }
       if (g !== gen()) return;

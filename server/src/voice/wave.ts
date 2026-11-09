@@ -2,7 +2,7 @@
 import { VOICE_BARS } from '@nota-bene/shared';
 
 /** The peak of each of VOICE_BARS equal slices of `pcm`, scaled so the loudest is 31; silence is all zeros. */
-export function waveOf(pcm: Float32Array): number[] {
+export function waveOf(pcm: Float32Array | Int16Array): number[] {
   const peaks = Array.from({ length: VOICE_BARS }, (_, b) => {
     let peak = 0;
     const end = Math.floor(((b + 1) * pcm.length) / VOICE_BARS);
@@ -14,4 +14,4 @@ export function waveOf(pcm: Float32Array): number[] {
 }
 
 /** 16 kHz: 16 samples a millisecond. */
-export const msOf = (pcm: Float32Array): number => Math.round(pcm.length / 16);
+export const msOf = (pcm: { length: number }): number => Math.round(pcm.length / 16);

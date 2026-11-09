@@ -2,7 +2,7 @@
 import type { VoiceError } from '@nota-bene/shared';
 import type { AttachmentStore } from '../attachments.ts';
 import { queued, transcribe as defaultTranscribe } from '../dictation/transcribe.ts';
-import { pcmFromWav } from '../dictation/wav.ts';
+import { samplesOf } from '../dictation/wav.ts';
 import { splitPcm } from './parts.ts';
 
 export type Transcribe = (pcm: Float32Array, lang: string) => Promise<string>;
@@ -16,20 +16,27 @@ export class VoiceFailure extends Error {
   }
 }
 
-/** The recording's PCM; a VoiceFailure when the store has no recording under `id`. */
-export function voicePcm(store: AttachmentStore, id: string): Float32Array {
+/** The recording's samples; a VoiceFailure when the store has no recording under `id`. */
+export function voiceSamples(store: AttachmentStore, id: string): Int16Array {
   const found = store.get(id);
   if (!found || found.mediaType !== 'audio/wav') throw new VoiceFailure('failed', `unknown recording ${id}`);
-  return pcmFromWav(found.bytes);
+  return samplesOf(found.bytes);
 }
 
-export async function transcribeVoice(store: AttachmentStore, id: string, lang: string, run: Transcribe = defaultTranscribe): Promise<string> {
-  const parts = splitPcm(voicePcm(store, id));
+/**
+ * `alive`: asked before each part; false (the session moved on) stops it, so the one Whisper queue is not held for minutes
+ * by a recording nobody waits for. The parts become floats one at a time, inside their turn of the queue.
+ */
+export async function transcribeVoice(store: AttachmentStore, id: string, lang: string, run: Transcribe = defaultTranscribe, alive: () => boolean = () => true): Promise<string> {
+  const parts = splitPcm(voiceSamples(store, id));
   const texts: string[] = [];
   for (const p of parts) {
-    // a copy of a part, not a view: posting a view to the worker would clone the whole recording's buffer
-    const pcm = parts.length > 1 ? p.slice() : p;
-    const once = () => queued(() => run(pcm, lang));
+    if (!alive()) throw new VoiceFailure('failed', 'dropped');
+    const once = () => queued(() => {
+      const pcm = new Float32Array(p.length);
+      for (let i = 0; i < p.length; i++) pcm[i] = p[i]! / 32768;
+      return run(pcm, lang);
+    });
     texts.push((await once().catch(once)).trim());
   }
   return texts.filter(Boolean).join(' ');

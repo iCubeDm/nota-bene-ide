@@ -129,6 +129,19 @@ describe('transcribeVoice', () => {
     expect(await transcribeVoice(store, id, 'en', async () => { if (++calls === 1) throw new Error('flake'); return 'ok'; })).toBe('ok');
     await expect(transcribeVoice(store, id, 'en', async () => { throw new Error('down'); })).rejects.toThrow('down');
   });
+  it('stops between parts once the caller is gone (a switch), without starting the next one', async () => {
+    const id = store.put(makeWav({ seconds: 150 }), 'audio/wav');
+    let alive = true, n = 0;
+    await expect(transcribeVoice(store, id, 'en', async () => { n++; alive = false; return 'x'; }, () => alive)).rejects.toBeInstanceOf(VoiceFailure);
+    expect(n).toBe(1);
+  });
+  it('each part reaches Whisper as samples of -1..1', async () => {
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    let peak = 0;
+    await transcribeVoice(store, id, 'en', async (pcm) => { peak = Math.max(...pcm); return 'x'; });
+    expect(peak).toBeGreaterThan(0.4);
+    expect(peak).toBeLessThanOrEqual(1);
+  });
   it('an unknown recording is a VoiceFailure', async () => {
     await expect(transcribeVoice(store, '0'.repeat(64), 'en', async () => 'x')).rejects.toBeInstanceOf(VoiceFailure);
   });

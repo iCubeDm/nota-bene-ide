@@ -2,6 +2,14 @@
 export class WavError extends Error {}
 
 export function pcmFromWav(buf: Buffer): Float32Array {
+  const samples = samplesOf(buf);
+  const out = new Float32Array(samples.length);
+  for (let i = 0; i < samples.length; i++) out[i] = samples[i]! / 32768;
+  return out;
+}
+
+/** The data chunk's samples, as they are (a view when aligned, else a copy): a long recording is not turned into floats whole. */
+export function samplesOf(buf: Buffer): Int16Array {
   if (buf.length < 12 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') throw new WavError('not a WAV file');
   let fmt = false;
   for (let off = 12; off + 8 <= buf.length;) {
@@ -19,9 +27,9 @@ export function pcmFromWav(buf: Buffer): Float32Array {
       if (!fmt) throw new WavError('data before fmt');
       const end = Math.min(body + size, buf.length);
       const n = (end - body) >> 1;
-      const out = new Float32Array(n);
-      for (let i = 0; i < n; i++) out[i] = buf.readInt16LE(body + i * 2) / 32768;
-      return out;
+      const at = buf.byteOffset + body;
+      // little-endian, as every machine Nota Bene runs on
+      return at % 2 === 0 ? new Int16Array(buf.buffer, at, n) : new Int16Array(buf.buffer.slice(at, at + n * 2));
     }
     off = body + size + (size & 1);
   }
