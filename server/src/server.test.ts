@@ -92,6 +92,26 @@ describe('server', () => {
     expect(await r.json()).toMatchObject({ root: '/proj' });
   });
 
+  it('/info tells pending, last and replies: fresh, after a turn, and while an ask waits', async () => {
+    const info = async (url: string) => (await (await fetch(`${url}/info`)).json()) as { pending: boolean; last: { role: string; text: string; at: number } | null; replies: number };
+    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello\n\n**world**' }, { text: 'ok', ask: { toolName: 'Bash', input: { command: 'ls' } } }]), webDist: dist, oneTab: false });
+    closers.push(s.close);
+    expect(await info(s.url)).toMatchObject({ pending: false, last: null, replies: 0 });
+    const c = await connect(s.url);
+    c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi' }));
+    await until(() => c.events.some(isResult));
+    const done = await info(s.url);
+    expect(done).toMatchObject({ pending: false, replies: 1, last: { role: 'assistant', text: 'hello **world**' } });
+    expect(typeof done.last!.at).toBe('number');
+    c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'run' }));
+    await until(() => c.events.some((e) => e.kind === 'permission'));
+    expect((await info(s.url)).pending).toBe(true);
+    const p = c.events.find((e) => e.kind === 'permission') as Extract<ServerEvent, { kind: 'permission' }>;
+    c.ws.send(JSON.stringify({ type: 'permission', id: p.id, allow: true }));
+    await until(() => c.events.filter(isResult).length === 2);
+    expect((await info(s.url)).pending).toBe(false);
+  });
+
   it('a new socket gets the current stats, and stats never enter the replay', async () => {
     const hot = { used: 180000, max: 200000, pct: 90 };
     const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello', context: hot }]), webDist: dist, oneTab: false });

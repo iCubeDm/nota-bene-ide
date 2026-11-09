@@ -119,7 +119,12 @@ phone sees the relay's close (4403) and shows that it is not paired.
 The `OPEN` body names what the stream is:
 
 - `{"kind":"host"}`: the host's own stream. The host sends one message
-  `{"t":"windows","windows":[{port, provider, root, title?, session?, model?, busy?, supervised?}]}`
+  `{"t":"windows","windows":[{port, provider, root, title?, session?, model?, busy?, supervised?, pending?, last?, replies?}]}`
+  (`pending`: a permission or interaction prompt awaits an answer in the window;
+  `last`: `{role: "user"|"assistant", text, at}` or null, the latest user message
+  or final reply of the current session as one plain line of at most 120
+  characters plus `…`, `at` in ms since epoch; `replies`: the count of final
+  replies of the current session. An older window sends none of the three.)
   when the stream opens and again whenever the list or a field changes (it
   checks every 5 s while the stream is open). The phone sends nothing on it.
   The channel being up is the host's online state.

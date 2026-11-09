@@ -150,6 +150,24 @@ export class EventHub {
     return moved;
   }
 
+  /**
+   * What a window tells the phone's list of its session: the latest user message or final reply (one plain line) and
+   * how many final replies there are (the desktop's reply numbering: the final `message` items of the current history).
+   */
+  summary(): { last: { role: 'user' | 'assistant'; text: string; at: number } | null; replies: number } {
+    let last: { role: 'user' | 'assistant'; text: string; at: number } | null = null;
+    let replies = 0;
+    for (const ev of this.history) {
+      if (ev.kind === 'agent' && ev.e.t === 'message') {
+        replies++;
+        last = { role: 'assistant', text: oneLine(ev.e.text), at: ev.ts };
+      } else if (ev.kind === 'user' && !ev.idle) {
+        last = { role: 'user', text: oneLine(ev.text), at: ev.ts };
+      }
+    }
+    return { last, replies };
+  }
+
   private replayFrame(): string {
     return JSON.stringify({ kind: 'replay', events: this.history, ...(this.earlier > 0 ? { earlier: this.earlier } : {}) });
   }
@@ -191,4 +209,13 @@ function runningTasks(before: ServerEvent[]): Set<number> {
     }
   });
   return new Set([...last.values()].flatMap((m) => [...m.values()]).concat([...first.values()]));
+}
+
+const LAST_CUT = 120;
+
+/** Newlines and runs of whitespace collapsed to one space, cut to 120 characters with an ellipsis; Markdown markers stay. */
+function oneLine(text: string): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  const chars = [...t];
+  return chars.length > LAST_CUT ? `${chars.slice(0, LAST_CUT).join('')}…` : t;
 }
