@@ -180,19 +180,35 @@ class FeedItemView extends StatelessWidget {
             ? line(t.idleCompact)
             : Align(
                 alignment: Alignment.centerRight,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+                child: LayoutBuilder(
+                  builder: (context, box) => Container(
+                    key: const ValueKey('bubble'),
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    constraints: BoxConstraints(maxWidth: box.maxWidth * .84),
+                    decoration: BoxDecoration(
+                      color: Color.alphaBlend(
+                        c.primary.withValues(alpha: .28),
+                        c.background,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(14),
+                        topRight: Radius.circular(14),
+                        bottomLeft: Radius.circular(14),
+                        bottomRight: Radius.circular(4),
+                      ),
+                      border: Border.all(
+                        color: c.primary.withValues(alpha: .45),
+                      ),
+                    ),
+                    child: SelectableText(
+                      text,
+                      style: TextStyle(color: c.foreground),
+                    ),
                   ),
-                  constraints: const BoxConstraints(maxWidth: 560),
-                  decoration: BoxDecoration(
-                    color: c.card,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: c.border),
-                  ),
-                  child: SelectableText(text),
                 ),
               ),
       AssistantItem(:final text) => Padding(

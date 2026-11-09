@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/chat_screen.dart';
 import 'package:nb_app/chat/mermaid.dart';
@@ -9,6 +11,7 @@ import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_channel/nb_channel.dart';
+import 'package:nb_app/theme.dart';
 
 import 'support/fakes.dart';
 import 'support/mermaid_fake.dart';
@@ -105,6 +108,41 @@ void main() {
       findsOneWidget,
       reason: 'the result opens on tap',
     );
+  });
+
+  testWidgets('a user message is a bubble, an assistant one is not', (t) async {
+    await open(t);
+    ch.event(ch.lastWsId, {
+      'kind': 'replay',
+      'events': [
+        {'kind': 'user', 'id': 'u1', 'text': 'Hello there', 'ts': 1},
+        agent({'t': 'message', 'id': 'a1', 'text': 'Hi back'}),
+      ],
+    });
+    await t.pumpAndSettle();
+    final c = Theme.of(
+      t.element(find.text('Hello there')),
+    ).extension<NbColors>()!;
+    final bubble = find.byKey(const ValueKey('bubble'));
+    expect(bubble, findsOneWidget);
+    expect(
+      find.descendant(of: bubble, matching: find.text('Hello there')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: bubble, matching: find.textContaining('Hi back')),
+      findsNothing,
+    );
+    final d = (t.widget<Container>(bubble)).decoration! as BoxDecoration;
+    expect(
+      d.color,
+      Color.alphaBlend(c.primary.withValues(alpha: .28), c.background),
+    );
+    final r = d.borderRadius! as BorderRadius;
+    expect(r.bottomRight, const Radius.circular(4));
+    expect(r.topLeft, const Radius.circular(14));
+    expect(r.topRight, const Radius.circular(14));
+    expect(r.bottomLeft, const Radius.circular(14));
   });
 
   testWidgets('a streaming reply grows in place', (t) async {
