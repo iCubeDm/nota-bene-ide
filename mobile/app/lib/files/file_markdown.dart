@@ -10,8 +10,9 @@ import '../chat/markdown.dart';
 import '../comments/anchor.dart';
 import '../theme.dart';
 
-/// A range of the rendered text to paint, and what tapping it means.
-typedef Mark = ({int start, int end, String id, bool sent});
+/// A range of the rendered text to paint, and what tapping it means. [n] > 0 puts the comment's number as a badge after
+/// the first piece of the range (the chat); 0 paints only.
+typedef Mark = ({int start, int end, String id, bool sent, int n});
 
 const _markScheme = 'nbmark:';
 
@@ -36,6 +37,7 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
     return false;
   }
 
+  final badged = <String>{};
   for (final run in r.runs) {
     final node = run.node;
     if (node is! md.Text || inCode(node)) continue;
@@ -66,6 +68,10 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
           md.Element(c.m.sent ? 'nbsent' : 'nbmark', [
             md.Text(raw.substring(c.from, c.to)),
           ]),
+          if (c.m.n > 0 && badged.add(c.m.id))
+            md.Element.empty('nbbadge')
+              ..attributes['id'] = c.m.id
+              ..attributes['n'] = '${c.m.n}',
         ])..attributes['href'] = '$_markScheme${c.m.id}',
       );
       pos = c.to;
@@ -79,11 +85,68 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
   }
 }
 
+/// A comment's number in a small accent circle, keyed `badge:<id>`; a tap opens the comment.
+class MarkBadge extends StatelessWidget {
+  const MarkBadge({super.key, required this.id, required this.n, this.onTap});
+  final String id;
+  final int n;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    return GestureDetector(
+      key: ValueKey('badge:$id'),
+      onTap: onTap,
+      child: Container(
+        width: 18,
+        height: 18,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: c.accent, shape: BoxShape.circle),
+        child: Text(
+          '$n',
+          style: TextStyle(
+            color:
+                ThemeData.estimateBrightnessForColor(c.accent) ==
+                    Brightness.dark
+                ? Colors.white
+                : Colors.black,
+            fontSize: 11,
+            height: 1,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BadgeBuilder extends MarkdownElementBuilder {
+  _BadgeBuilder(this.onMark);
+  final void Function(String id) onMark;
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final id = element.attributes['id']!;
+    return MarkBadge(
+      id: id,
+      n: int.parse(element.attributes['n']!),
+      onTap: () => onMark(id),
+    );
+  }
+}
+
 class FileMarkdown extends StatefulWidget {
   const FileMarkdown({
     super.key,
     required this.text,
-    required this.listenerAt,
+    this.listenerAt,
     this.marks = const [],
     this.onMark = _noMark,
     this.parse = parseMarkdown,
@@ -103,8 +166,8 @@ class FileMarkdown extends StatefulWidget {
   final bool softLineBreak;
 
   /// The selection of top-level block [i] is reported to this notifier: an offset Flutter gives inside one block
-  /// stays near the rendered one, where across the file code and bullets push it away.
-  final SelectionListenerNotifier Function(int i) listenerAt;
+  /// stays near the rendered one, where across the file code and bullets push it away. Null: nothing is reported.
+  final SelectionListenerNotifier Function(int i)? listenerAt;
 
   @override
   State<FileMarkdown> createState() => _FileMarkdownState();
@@ -159,7 +222,8 @@ class _FileMarkdownState extends State<FileMarkdown>
     );
     final nodes = widget.parse(widget.text);
     wrapMarks(nodes, renderedText(nodes), widget.marks);
-    final builders = markdownBuilders();
+    final builders = markdownBuilders()
+      ..['nbbadge'] = _BadgeBuilder(widget.onMark);
     List<Widget> build(md.Node n) => MarkdownBuilder(
       delegate: this,
       selectable: false,
@@ -187,13 +251,16 @@ class _FileMarkdownState extends State<FileMarkdown>
       children: [
         for (final (i, n) in nodes.indexed) ...[
           if (i > 0) SizedBox(height: sheet.blockSpacing),
-          SelectionListener(
-            selectionNotifier: widget.listenerAt(i),
-            child: Column(
+          () {
+            final block = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: build(n),
-            ),
-          ),
+            );
+            final at = widget.listenerAt;
+            return at == null
+                ? block
+                : SelectionListener(selectionNotifier: at(i), child: block);
+          }(),
         ],
       ],
     );

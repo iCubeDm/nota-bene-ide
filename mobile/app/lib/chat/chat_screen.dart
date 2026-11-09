@@ -1,11 +1,15 @@
 // One window's chat: the floating header pill (session, model, limits), a state line, the feed (newest at the bottom), and below it
 // whatever the caller puts there (the composer).
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
-import 'package:nb_protocol/nb_protocol.dart' show StopReason;
+import 'package:nb_protocol/nb_protocol.dart'
+    show AnchorSourceMessage, StopReason, TextAnchor;
 
 import '../hosts/hosts_screen.dart';
 import '../l10n/app_localizations.dart';
+import '../comments/anchor.dart';
 import '../comments/chat_anchor.dart';
+import '../comments/comment_strip.dart' show editComment;
 import '../files/file_markdown.dart';
 import '../theme.dart';
 import 'chat_header.dart';
@@ -107,7 +111,9 @@ class ChatScreen extends StatelessWidget {
                                   onReply: onReply ?? (_) {},
                                   child:
                                       itemBuilder?.call(context, it) ??
-                                      FeedItemView(it),
+                                      (chatSource(it) == null
+                                          ? FeedItemView(it)
+                                          : _Marked(tab: tab, item: it)),
                                 ),
                               );
                             },
@@ -169,6 +175,121 @@ class ChatScreen extends StatelessWidget {
       TabState.gone => t.windowGone,
       TabState.occupied || TabState.taken => null,
     };
+  }
+}
+
+/// A commentable item with its pending comments painted: each passage highlighted with the comment's number in the
+/// strip, a whole-message comment as a badge at the top right. It listens to the comments itself and rebuilds only
+/// when the marks of this item change.
+class _Marked extends StatefulWidget {
+  const _Marked({required this.tab, required this.item});
+  final WindowTab tab;
+  final FeedItem item;
+
+  @override
+  State<_Marked> createState() => _MarkedState();
+}
+
+class _MarkedState extends State<_Marked> {
+  List<Mark> _marks = const [];
+  List<({String id, int n})> _whole = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.tab.comments.addListener(_changed);
+    _compute();
+  }
+
+  @override
+  void didUpdateWidget(_Marked old) {
+    super.didUpdateWidget(old);
+    if (old.tab != widget.tab) {
+      old.tab.comments.removeListener(_changed);
+      widget.tab.comments.addListener(_changed);
+    }
+    _compute();
+  }
+
+  @override
+  void dispose() {
+    widget.tab.comments.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    final before = (_marks, _whole);
+    _compute();
+    if (!listEquals(before.$1, _marks) || !listEquals(before.$2, _whole)) {
+      setState(() {});
+    }
+  }
+
+  String? get _id => switch (chatSource(widget.item)) {
+    AnchorSourceMessage(:final id) => id,
+    _ => null,
+  };
+
+  void _compute() {
+    final strip = widget.tab.comments.sendable;
+    final mine = [
+      for (final (i, c) in strip.indexed)
+        if (c.anchor case TextAnchor(
+          source: AnchorSourceMessage(:final id, agent: null),
+        ) when id == _id)
+          (c: c, a: c.anchor as TextAnchor, n: i + 1),
+    ];
+    if (mine.isEmpty) {
+      _marks = const [];
+      _whole = const [];
+      return;
+    }
+    final text = chatText(widget.item).text;
+    final marks = <Mark>[], whole = <({String id, int n})>[];
+    for (final m in mine) {
+      final at = resolveAnchor(m.a, text);
+      if (at == null) continue;
+      if (at.start == 0 && at.end == text.length) {
+        whole.add((id: m.c.id, n: m.n));
+      } else {
+        marks.add((
+          start: at.start,
+          end: at.end,
+          id: m.c.id,
+          sent: false,
+          n: m.n,
+        ));
+      }
+    }
+    _marks = marks;
+    _whole = whole;
+  }
+
+  void _open(String id) {
+    final x = widget.tab.comments.all.where((c) => c.id == id).firstOrNull;
+    if (x != null) editComment(context, widget.tab, x);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final view = FeedItemView(widget.item, marks: _marks, onMark: _open);
+    if (_whole.isEmpty) return view;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        view,
+        Positioned(
+          top: 0,
+          right: 0,
+          child: Row(
+            children: [
+              for (final w in _whole)
+                MarkBadge(id: w.id, n: w.n, onTap: () => _open(w.id)),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -238,8 +359,19 @@ class _CommentableState extends State<_Commentable> {
 
 /// The default look of one feed item.
 class FeedItemView extends StatelessWidget {
-  const FeedItemView(this.item, {super.key, this.listenerAt});
+  const FeedItemView(
+    this.item, {
+    super.key,
+    this.listenerAt,
+    this.marks = const [],
+    this.onMark = _noMark,
+  });
   final FeedItem item;
+
+  /// Commented passages to paint (and number) in the text; a tap on one calls [onMark] with the comment's id.
+  final List<Mark> marks;
+  final void Function(String id) onMark;
+  static void _noMark(String id) {}
 
   /// In selection mode: the Markdown is drawn block by block, each block's selection reported to its notifier.
   final SelectionListenerNotifier Function(int block)? listenerAt;
@@ -286,7 +418,7 @@ class FeedItemView extends StatelessWidget {
                       ),
                     ),
                     // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
-                    child: listenerAt == null
+                    child: listenerAt == null && marks.isEmpty
                         ? NbMarkdown(
                             userMarkdownSource(text),
                             blockSyntaxes: userBlockSyntaxes,
@@ -295,7 +427,9 @@ class FeedItemView extends StatelessWidget {
                           )
                         : FileMarkdown(
                             text: text,
-                            listenerAt: listenerAt!,
+                            listenerAt: listenerAt,
+                            marks: marks,
+                            onMark: onMark,
                             parse: parseUserMessage,
                             softLineBreak: true,
                           ),
@@ -304,9 +438,14 @@ class FeedItemView extends StatelessWidget {
               ),
       AssistantItem(:final text) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: listenerAt == null
+        child: listenerAt == null && marks.isEmpty
             ? NbMarkdown(text)
-            : FileMarkdown(text: text, listenerAt: listenerAt!),
+            : FileMarkdown(
+                text: text,
+                listenerAt: listenerAt,
+                marks: marks,
+                onMark: onMark,
+              ),
       ),
       ToolItem() => ToolLine(item as ToolItem),
       DoneItem(:final secs, :final status, :final error) => line(

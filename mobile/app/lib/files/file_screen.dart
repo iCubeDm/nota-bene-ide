@@ -100,6 +100,7 @@ class _FileScreenState extends State<FileScreen> {
             end: at.end,
             id: c.id,
             sent: c.status == CommentStatus.sent,
+            n: 0,
           ),
     ];
   }
