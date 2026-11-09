@@ -6,10 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/dictation/dictation.dart';
 import 'package:nb_app/dictation/host_dictation.dart';
-import 'package:nb_app/dictation/mic_button.dart';
+import 'package:nb_app/dictation/record_bar.dart';
+import 'package:nb_app/dictation/voice_button.dart';
 import 'package:nb_app/media/media_comment.dart';
 import 'package:nb_channel/nb_channel.dart';
 
+import 'support/fake_dictation.dart' show holdVoice, lockVoice;
 import 'support/rig.dart';
 
 /// The phone's recorder (`nb/record`), played by the test.
@@ -296,30 +298,22 @@ void main() {
     ) async {
       final reply = await openWith(t);
       await t.enter('Fix ');
-      await t.tap(find.byTooltip('Dictate'));
+      await holdVoice(t);
       await t.pump();
-      await t.tap(find.byTooltip('Stop dictation'));
-      await t.pump();
-      await t.pump();
-      expect(find.byTooltip('Transcribing…'), findsOneWidget);
+      expect(find.text('Transcribing…'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      await t.tap(find.byTooltip('Transcribing…'));
-      await t.pump();
       expect(r.ch.calls.length, 1);
       reply.complete(answer(200, '{"text":"the header"}'));
       await t.pumpAndSettle();
       expect(find.text('Fix the header'), findsOneWidget);
-      expect(find.byTooltip('Dictate'), findsOneWidget);
+      expect(find.byType(RecordBar), findsNothing);
       expect(r.ch.calls.single.path, '/dictation/transcribe?lang=en');
     });
 
     testWidgets('a 500 leaves the field and says so', (t) async {
       final reply = await openWith(t);
       await t.enter('Fix ');
-      await t.tap(find.byTooltip('Dictate'));
-      await t.pump();
-      await t.tap(find.byTooltip('Stop dictation'));
-      await t.pump();
+      await holdVoice(t);
       reply.complete(answer(500));
       await t.pumpAndSettle();
       expect(find.text('Fix '), findsOneWidget);
@@ -335,10 +329,7 @@ void main() {
         addTearDown(() => dictation = saved);
         final reply = await openWith(t);
         await t.enter('Fix ');
-        await t.tap(find.byTooltip('Dictate'));
-        await t.pump();
-        await t.tap(find.byTooltip('Stop dictation'));
-        await t.pump();
+        await holdVoice(t);
         reply.complete(answer(503));
         await t.pumpAndSettle();
         expect(find.text('Fix '), findsOneWidget);
@@ -353,11 +344,10 @@ void main() {
         // the snack bar would cover the button
         await t.pump(const Duration(seconds: 6));
         await t.pumpAndSettle();
-        await t.tap(find.byTooltip('Dictate'));
-        await t.pump();
+        await lockVoice(t);
         expect(calls, ['listen']);
         expect(rec.calls, isEmpty);
-        MicButton.cancelRunning();
+        VoiceButton.cancelRunning();
         await t.pump();
         r.event({
           'kind': 'hello',
@@ -366,8 +356,7 @@ void main() {
         });
         await t.pump();
         expect(r.tab!.hostWhisperOff, isFalse);
-        await t.tap(find.byTooltip('Dictate'));
-        await t.pump();
+        await lockVoice(t);
         expect(rec.calls, ['start']);
       },
     );
@@ -375,8 +364,7 @@ void main() {
     testWidgets('the host going away mid-recording says so, once', (t) async {
       await openWith(t);
       await t.enter('Fix ');
-      await t.tap(find.byTooltip('Dictate'));
-      await t.pump();
+      await lockVoice(t);
       r.ch.drop();
       await t.pump();
       await t.pump();
@@ -390,8 +378,7 @@ void main() {
       dictation = _Phone(calls);
       addTearDown(() => dictation = saved);
       await openWith(t, cap: null);
-      await t.tap(find.byTooltip('Dictate'));
-      await t.pump();
+      await lockVoice(t);
       expect(calls, ['listen']);
       expect(rec.calls, isEmpty);
     });

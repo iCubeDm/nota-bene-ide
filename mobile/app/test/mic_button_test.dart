@@ -1,43 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/comments/comment_sheet.dart';
 import 'package:nb_app/dictation/dictation.dart';
 import 'package:nb_app/dictation/mic_button.dart';
 import 'package:nb_app/main.dart';
 
-class FakeDictation implements Dictation {
-  final sessions = <StreamController<DictationEvent>>[];
-  final tags = <String>[];
-  final calls = <String>[];
-
-  StreamController<DictationEvent> get last => sessions.last;
-
-  @override
-  Stream<DictationEvent> listen(String languageTag) {
-    tags.add(languageTag);
-    calls.add('listen');
-    final c = StreamController<DictationEvent>();
-    sessions.add(c);
-    return c.stream;
-  }
-
-  @override
-  Future<void> stop() async => calls.add('stop');
-
-  @override
-  Future<void> cancel() async => calls.add('cancel');
-}
-
-class ThrowingDictation extends FakeDictation {
-  @override
-  Future<void> stop() async => throw PlatformException(code: 'x');
-
-  @override
-  Future<void> cancel() async => throw PlatformException(code: 'x');
-}
+import 'support/fake_dictation.dart';
 
 void main() {
   late FakeDictation fake;

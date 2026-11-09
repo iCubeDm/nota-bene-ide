@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nb_app/dictation/dictation.dart';
+import 'package:nb_app/dictation/record_bar.dart';
 
-import 'mic_button_test.dart' show FakeDictation;
+import 'support/fake_dictation.dart';
 import 'support/rig.dart';
 
 void main() {
@@ -170,11 +171,29 @@ void main() {
     addTearDown(() => dictation = saved);
     await r.open(t);
     await t.enter('Fix the header');
-    await t.tap(find.byTooltip('Dictate'));
-    await t.pump();
+    await lockVoice(t);
     await t.tap(find.byTooltip('Send'));
     await t.pumpAndSettle();
     expect(fake.calls, ['listen', 'cancel']);
     expect(r.sent.single['text'], 'Fix the header');
+  });
+
+  testWidgets('recording swaps the pill for the record bar; stop ends it', (
+    t,
+  ) async {
+    final saved = dictation;
+    final fake = dictation = FakeDictation();
+    addTearDown(() => dictation = saved);
+    await r.open(t);
+    await lockVoice(t);
+    expect(find.byType(RecordBar), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    await t.tap(find.byTooltip('Stop'));
+    await t.pump();
+    expect(fake.calls, ['listen', 'stop']);
+    expect(find.text('Transcribing…'), findsOneWidget);
+    fake.last.add(const DictationEnd());
+    await t.pump();
+    expect(find.byType(RecordBar), findsNothing);
   });
 }
