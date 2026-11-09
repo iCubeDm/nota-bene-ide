@@ -2,7 +2,8 @@
 // and a round button for the actions. It floats over the feed, which scrolls under it.
 import 'package:flutter/material.dart';
 
-import 'package:nb_protocol/nb_protocol.dart' show CapabilitiesProvider;
+import 'package:nb_protocol/nb_protocol.dart'
+    show AgentMode, CapabilitiesProvider;
 
 import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
@@ -25,6 +26,10 @@ int meterLevel(num pct) => pct >= 85
     : pct >= 60
     ? 1
     : 0;
+
+/// The fill of a limit meter at [utilization]: primary, accent (warn) or destructive (hot), by [meterLevel].
+Color meterFill(NbColors c, num utilization) =>
+    [c.primary, c.accent, c.destructive][meterLevel(utilization)];
 
 class ChatHeader extends StatelessWidget {
   const ChatHeader({
@@ -50,6 +55,7 @@ class ChatHeader extends StatelessWidget {
     final f = tab.feed;
     final model = tab.model ?? f.model;
     final limits = tab.stats?.stats.limits;
+    final mode = tab.mode == AgentMode.$unknown ? null : tab.mode;
     final shape = StadiumBorder(side: BorderSide(color: c.border));
     final fill = c.popover.withValues(alpha: 0.92);
     final content = MediaQuery.withClampedTextScaling(
@@ -107,6 +113,24 @@ class ChatHeader extends StatelessWidget {
                             ),
                           ),
                         ),
+                      if (mode != null)
+                        Flexible(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              left: model != null ? 6 : 0,
+                            ),
+                            child: Text(
+                              modeLabel(tab, mode, lang),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.15,
+                                color: c.accent,
+                              ),
+                            ),
+                          ),
+                        ),
                       // the meters keep their room, the model ellipsizes; too narrow even then, they scale down
                       if (limits?.fiveHour != null || limits?.sevenDay != null)
                         ConstrainedBox(
@@ -121,7 +145,7 @@ class ChatHeader extends StatelessWidget {
                                     'h5',
                                     webString('h5', lang),
                                     limits!.fiveHour!.utilization,
-                                    lead: model != null,
+                                    lead: model != null || mode != null,
                                   ),
                                 if (limits?.sevenDay != null)
                                   _Meter(
@@ -130,6 +154,7 @@ class ChatHeader extends StatelessWidget {
                                     limits!.sevenDay!.utilization,
                                     lead:
                                         model != null ||
+                                        mode != null ||
                                         limits.fiveHour != null,
                                   ),
                               ],
@@ -218,7 +243,7 @@ class _Meter extends StatelessWidget {
     final c = Theme.of(context).extension<NbColors>()!;
     final pct = utilization.clamp(0, 100).round();
     final level = meterLevel(utilization);
-    final fill = [c.primary, c.accent, c.destructive][level];
+    final fill = meterFill(c, utilization);
     final style = TextStyle(
       fontSize: 11,
       height: 1.15,
