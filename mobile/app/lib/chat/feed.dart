@@ -11,14 +11,14 @@ class UserItem extends FeedItem {
     this.force = false,
     this.duringWork = false,
     this.idle = false,
-    this.images = 0,
+    this.images = const [],
   });
   final String id, text;
   final bool force, duringWork;
 
   /// the server's own /compact after a quiet stretch: shown as a line, not as the user's message
   final bool idle;
-  final int images;
+  final List<ImageRef> images;
 }
 
 class AssistantItem extends FeedItem {
@@ -179,7 +179,7 @@ class Feed {
             text,
             force: force == true,
             idle: idle == true,
-            images: images?.length ?? 0,
+            images: images ?? const [],
             duringWork: historic != true && busy,
           ),
         );

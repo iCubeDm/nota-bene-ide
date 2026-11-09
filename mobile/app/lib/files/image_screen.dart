@@ -9,13 +9,11 @@ import 'package:nb_protocol/nb_protocol.dart';
 import '../chat/window_tab.dart';
 import '../comments/comment_sheet.dart';
 import '../l10n/app_localizations.dart';
+import '../media/fetch.dart';
 import '../media/markup.dart';
 import '../media/media_comment.dart';
 
-/// The largest image the phone opens.
-const imageMaxBytes = 32 * 1024 * 1024;
-
-enum _Fail { notFound, outside, tooLarge, unreadable, undecodable }
+export '../media/fetch.dart' show imageMaxBytes;
 
 /// The window's own requests for a tab, through its channel; null while the host is offline.
 WindowHttp? windowHttp(WindowTab tab) {
@@ -92,109 +90,135 @@ Future<bool> saveMediaComment(
   }
 }
 
+/// One image of the viewer: a file of the window (a project path, relative; or a temp image, absolute, read from
+/// `/tmpimage`) or a message's attachment (read from `/attach/<id>`, nothing to mark up or comment on).
+class ViewerImage {
+  const ViewerImage.file(String this.path) : attachId = null, label = null;
+  const ViewerImage.attach(String this.attachId, this.label) : path = null;
+
+  final String? path, attachId, label;
+
+  String get name => path?.split('/').last ?? label ?? '';
+
+  String get url => attachId != null
+      ? '/attach/$attachId'
+      : path!.startsWith('/')
+      ? '/tmpimage?path=${Uri.encodeQueryComponent(path!)}'
+      : '/file?path=${Uri.encodeQueryComponent(path!)}';
+
+  /// Comments anchor to a file's path.
+  bool get markable => path != null;
+}
+
+enum _Fail { notFound, outside, tooLarge, unreadable, undecodable }
+
+class _Page {
+  ui.Image? image;
+  Uint8List? bytes;
+  String? etag;
+  _Fail? fail;
+}
+
 class ImageScreen extends StatefulWidget {
-  const ImageScreen({super.key, required this.tab, required this.path});
+  ImageScreen({
+    super.key,
+    required this.tab,
+    String? path,
+    List<ViewerImage>? items,
+    this.index = 0,
+  }) : items = items ?? [ViewerImage.file(path!)];
 
   final WindowTab tab;
 
-  /// relative to the window's root
-  final String path;
+  /// what the viewer swipes through
+  final List<ViewerImage> items;
+
+  /// where it opens
+  final int index;
 
   @override
   State<ImageScreen> createState() => _ImageScreenState();
 }
 
 class _ImageScreenState extends State<ImageScreen> {
-  ui.Image? _image;
-  String? _etag;
-  _Fail? _fail;
+  final _pages = <int, _Page>{};
+  late int _index = widget.index;
+  late final _controller = PageController(initialPage: widget.index);
   bool _busy = false;
   final _markup = Markup();
   final _zoom = TransformationController();
 
+  ViewerImage get _item => widget.items[_index];
+  _Page? get _page => _pages[_index];
+
   @override
   void initState() {
     super.initState();
-    _load();
+    _load(_index);
   }
 
   @override
   void dispose() {
-    _image?.dispose();
+    for (final p in _pages.values) {
+      p.image?.dispose();
+    }
+    _controller.dispose();
     _markup.dispose();
     _zoom.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final http = windowHttp(widget.tab);
-    if (http == null) return setState(() => _fail = _Fail.unreadable);
-    _Fail? fail;
+  Future<void> _load(int i) async {
+    if (_pages.containsKey(i)) return;
+    final page = _pages[i] = _Page();
+    final item = widget.items[i];
+    final got = item.attachId != null
+        ? await cachedMedia(widget.tab, item.url)
+        : await fetchMedia(widget.tab, item.url);
     ui.Image? image;
-    String? etag;
-    try {
-      final ch = widget.tab.link.channel!;
-      final r = await ch.httpStream(
-        widget.tab.port,
-        'GET',
-        '/file?path=${Uri.encodeQueryComponent(widget.path)}',
-      );
-      final length = int.tryParse(r.headers['content-length'] ?? '');
-      if (r.status == 404) {
-        r.cancel();
-        fail = _Fail.notFound;
-      } else if (r.status == 403) {
-        r.cancel();
-        fail = _Fail.outside;
-      } else if (r.status != 200) {
-        r.cancel();
-        fail = _Fail.unreadable;
-      } else if (length != null && length > imageMaxBytes) {
-        r.cancel();
-        fail = _Fail.tooLarge;
-      } else {
-        // without a length the body is counted as it comes
-        final body = BytesBuilder(copy: false);
-        await for (final c in r.body) {
-          body.add(c);
-          if (body.length > imageMaxBytes) {
-            fail = _Fail.tooLarge;
-            r.cancel();
-            break;
-          }
-        }
-        if (fail == null) {
-          etag = r.headers['etag'];
-          try {
-            final codec = await ui.instantiateImageCodec(body.takeBytes());
-            image = (await codec.getNextFrame()).image;
-            codec.dispose();
-          } catch (_) {
-            fail = _Fail.undecodable;
-          }
-        }
+    _Fail? fail = switch (got.fail) {
+      FetchFail.notFound => _Fail.notFound,
+      FetchFail.outside => _Fail.outside,
+      FetchFail.tooLarge => _Fail.tooLarge,
+      FetchFail.unreadable => _Fail.unreadable,
+      null => null,
+    };
+    if (fail == null) {
+      try {
+        final codec = await ui.instantiateImageCodec(got.bytes!);
+        image = (await codec.getNextFrame()).image;
+        codec.dispose();
+      } catch (_) {
+        fail = _Fail.undecodable;
       }
-    } on Object {
-      fail = _Fail.unreadable;
     }
     if (!mounted) {
       image?.dispose();
       return;
     }
-    if (etag != null) widget.tab.fileVersions[widget.path] = etag;
+    if (got.etag != null && item.path != null) {
+      widget.tab.fileVersions[item.path!] = got.etag!;
+    }
     setState(() {
-      _fail = fail;
-      _image = image;
-      _etag = etag;
+      page.fail = fail;
+      page.image = image;
+      page.bytes = got.bytes;
+      page.etag = got.etag;
     });
   }
 
+  void _moved(int i) {
+    _zoom.value = Matrix4.identity();
+    setState(() => _index = i);
+    _load(i);
+  }
+
   Future<void> _comment() async {
-    final image = _image;
-    if (image == null || _markup.shapes.isEmpty) return;
+    final image = _page?.image, path = _item.path;
+    if (image == null || path == null || _markup.shapes.isEmpty) return;
     final res = await showCommentSheet(
       context,
-      quote: widget.path.split('/').last,
+      quote: path.split('/').last,
       tab: widget.tab,
     );
     if (res is! SheetSave || !mounted) return;
@@ -202,12 +226,12 @@ class _ImageScreenState extends State<ImageScreen> {
     final ok = await saveMediaComment(
       context,
       tab: widget.tab,
-      path: widget.path,
+      path: path,
       source: image,
       shapes: _markup.shapes,
       text: res.text,
       label: res.label,
-      version: _etag,
+      version: _page?.etag,
     );
     if (!mounted) return;
     setState(() => _busy = false);
@@ -225,14 +249,14 @@ class _ImageScreenState extends State<ImageScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final image = _image, fail = _fail;
+    final image = _page?.image;
     return ListenableBuilder(
       listenable: Listenable.merge([_markup, widget.tab.comments]),
       builder: (context, _) => Scaffold(
         appBar: AppBar(
-          title: Text(widget.path.split('/').last),
+          title: Text(_item.name),
           actions: [
-            if (image != null && !_markup.marking)
+            if (image != null && _item.markable && !_markup.marking)
               IconButton(
                 tooltip: t.markUp,
                 icon: const Icon(Icons.draw_outlined),
@@ -243,25 +267,42 @@ class _ImageScreenState extends State<ImageScreen> {
         bottomNavigationBar: _markup.marking
             ? MarkupToolbar(markup: _markup, busy: _busy, onComment: _comment)
             : null,
-        body: fail != null
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(_failText(t, fail), textAlign: TextAlign.center),
-                ),
-              )
-            : image == null
-            ? const Center(child: CircularProgressIndicator())
-            : _picture(image),
+        body: PageView.builder(
+          controller: _controller,
+          itemCount: widget.items.length,
+          physics: _markup.marking
+              ? const NeverScrollableScrollPhysics()
+              : null,
+          onPageChanged: _moved,
+          itemBuilder: (context, i) {
+            _load(i);
+            final p = _pages[i];
+            final fail = p?.fail, image = p?.image;
+            return fail != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        _failText(t, fail),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : image == null
+                ? const Center(child: CircularProgressIndicator())
+                : _picture(i, image);
+          },
+        ),
       ),
     );
   }
 
-  Widget _picture(ui.Image image) {
+  Widget _picture(int i, ui.Image image) {
+    final item = widget.items[i];
     final layer = MarkupLayer(
       natural: Size(image.width.toDouble(), image.height.toDouble()),
       markup: _markup,
-      shown: shownMarks(widget.tab, widget.path),
+      shown: item.path == null ? const [] : shownMarks(widget.tab, item.path!),
       child: RawImage(image: image, fit: BoxFit.fill),
     );
     // while marking, a drag draws: the zoom stays where it was but takes no gestures
@@ -270,7 +311,7 @@ class _ImageScreenState extends State<ImageScreen> {
             child: Transform(transform: _zoom.value, child: layer),
           )
         : InteractiveViewer(
-            transformationController: _zoom,
+            transformationController: i == _index ? _zoom : null,
             maxScale: 8,
             child: layer,
           );

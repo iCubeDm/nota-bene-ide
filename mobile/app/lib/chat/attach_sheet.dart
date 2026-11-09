@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../media/picker.dart';
+import '../ui/nb_icon.dart';
 
 /// Where the image comes from: the camera app, the photo picker or the document picker; null when dismissed.
 Future<PickSource?> showAttachSheet(BuildContext context) {
@@ -14,12 +15,12 @@ Future<PickSource?> showAttachSheet(BuildContext context) {
         mainAxisSize: MainAxisSize.min,
         children: [
           for (final (s, label, glyph) in [
-            (PickSource.camera, t.attachCamera, Icons.photo_camera_outlined),
-            (PickSource.gallery, t.attachGallery, Icons.photo_library_outlined),
-            (PickSource.file, t.attachFile, Icons.folder_open_outlined),
+            (PickSource.camera, t.attachCamera, NbGlyph.camera),
+            (PickSource.gallery, t.attachGallery, NbGlyph.image),
+            (PickSource.file, t.attachFile, NbGlyph.file),
           ])
             ListTile(
-              leading: Icon(glyph),
+              leading: NbIcon(glyph, size: 22),
               title: Text(label),
               onTap: () => Navigator.pop(c, s),
             ),
