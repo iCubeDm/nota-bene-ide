@@ -11,8 +11,8 @@ class RecordBar extends StatelessWidget {
   final VoiceState state;
   final VoiceMeter meter;
 
-  // the recorder stops at 120 s; the timer warns from 110
-  static const warnAt = Duration(seconds: 110);
+  // the recorder stops at 10 minutes; the timer warns from 9:50
+  static const warnAt = Duration(minutes: 9, seconds: 50);
 
   static String format(Duration d) =>
       '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
@@ -50,7 +50,9 @@ class RecordBar extends StatelessWidget {
             Expanded(
               child: working
                   ? Text(
-                      t.voiceTranscribing,
+                      meter.parts > 1
+                          ? '${t.voiceTranscribing} ${meter.part}/${meter.parts}'
+                          : t.voiceTranscribing,
                       style: TextStyle(color: c.mutedFg),
                     )
                   : locked

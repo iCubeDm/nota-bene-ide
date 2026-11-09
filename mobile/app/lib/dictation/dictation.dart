@@ -1,13 +1,15 @@
 // A voice session's events: the phone records, the window's Whisper transcribes (host_dictation.dart).
-enum DictationFailure { denied, noMatch, failed, hostFailed, hostOff }
+// cut: the parts after the first that failed were not transcribed; the text before it came first
+enum DictationFailure { denied, noMatch, failed, hostFailed, hostOff, cut }
 
 sealed class DictationEvent {
   const DictationEvent();
 }
 
-/// The speech is being transcribed; nothing more to say until the result.
+/// The speech is being transcribed; a long recording says which of its [parts] is (from 1), else both are 0.
 class DictationWorking extends DictationEvent {
-  const DictationWorking();
+  const DictationWorking({this.part = 0, this.parts = 0});
+  final int part, parts;
 }
 
 class DictationFinal extends DictationEvent {

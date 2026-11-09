@@ -150,6 +150,7 @@
   "voiceTranscribing": "Transcrevendo…",
   "voiceStop": "Parar",
   "dictationHostOff": "O Whisper está desativado no computador",
+  "dictationCut": "O restante da gravação não foi transcrito",
   "expandCode": "Abrir em tela cheia",
   "codeLines": "{count, plural, one{{count} linha} other{{count} linhas}}",
   "windowSheetMode": "Modo",

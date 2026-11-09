@@ -53,7 +53,8 @@ generator copies every `usage*` key of the English dictionary, in all six langua
 The microphone in the message field and the comment sheet (`app/lib/dictation/`) records 16 kHz WAV (`nb/record` in
 `MainActivity.kt`) and posts it to the window's `/dictation/transcribe`, encrypted through the relay; the window's
 Whisper (Settings → Dictation on the desktop) transcribes it and the text lands in the field at the cursor, unsent. The
-audio reaches the host only and is not stored; the agent gets text. The microphone permission is asked on first use.
+audio reaches the host only and is not stored; the agent gets text. A recording runs up to 10 minutes; one over a
+minute goes in parts of 30–60 s, cut at quiet moments (`wav_parts.dart`), one request each. The microphone permission is asked on first use.
 The phone has no recognizer of its own: without Whisper the microphone opens a sheet that installs it or turns it on
 (`/dictation/install`, `/dictation/on`) and follows the install to the end.
 

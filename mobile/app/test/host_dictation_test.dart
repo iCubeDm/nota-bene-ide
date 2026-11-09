@@ -202,8 +202,8 @@ void main() {
   });
 
   testWidgets('a long recording is given time to transcribe', (t) async {
-    // 100 s of 16 kHz 16-bit mono after the 44-byte header
-    rec.wav = Uint8List(44 + 100 * 32000);
+    // 55 s of 16 kHz 16-bit mono after the 44-byte header: one part
+    rec.wav = Uint8List(44 + 55 * 32000);
     final reply = Completer<HttpAnswer>();
     final d = HostDictation(
       () =>
@@ -566,6 +566,150 @@ void main() {
         await t.pumpAndSettle();
         expect(find.text('The computer did not answer'), findsOneWidget);
       });
+    });
+  });
+
+  group('a long recording', () {
+    // 100 s of silence: two parts
+    setUp(() => rec.wav = Uint8List(44 + 100 * 32000));
+
+    test(
+      'goes in parts, one after another, and the texts are joined',
+      () async {
+        final replies = <Completer<HttpAnswer>>[];
+        final sizes = <int>[];
+        final d = HostDictation(
+          () => (m, p, {headers, body}) {
+            sizes.add(body!.length);
+            replies.add(Completer<HttpAnswer>());
+            return replies.last.future;
+          },
+        );
+        final events = <DictationEvent>[];
+        d.listen('en').listen(events.add);
+        await tick();
+        unawaited(d.stop());
+        await tick();
+        expect(replies, hasLength(1));
+        replies[0].complete(answer(200, '{"text":" one "}'));
+        await tick();
+        expect(replies, hasLength(2));
+        replies[1].complete(answer(200, '{"text":"two"}'));
+        await tick();
+        expect(sizes.fold(0, (a, b) => a + b), rec.wav.length + 44);
+        expect(
+          events.whereType<DictationWorking>().map((e) => (e.part, e.parts)),
+          [(0, 0), (1, 2), (2, 2)],
+        );
+        expect(events.whereType<DictationFinal>().single.text, 'one two');
+        expect(events.last, isA<DictationEnd>());
+      },
+    );
+
+    test('a part that fails is tried once more', () async {
+      final statuses = [500, 200, 200];
+      final d = HostDictation(
+        () =>
+            (m, p, {headers, body}) async =>
+                answer(statuses.removeAt(0), '{"text":"ok"}'),
+      );
+      final events = <DictationEvent>[];
+      d.listen('en').listen(events.add);
+      await tick();
+      await d.stop();
+      await tick();
+      expect(statuses, isEmpty);
+      expect(events.whereType<DictationFinal>().single.text, 'ok ok');
+      expect(events.whereType<DictationError>(), isEmpty);
+    });
+
+    testWidgets('a dropped connection is tried again after a moment', (
+      t,
+    ) async {
+      var posts = 0;
+      final d = HostDictation(
+        () => (m, p, {headers, body}) async {
+          if (posts++ == 0) throw StreamClosed(1000);
+          return answer(200, '{"text":"ok"}');
+        },
+      );
+      final events = <DictationEvent>[];
+      d.listen('en').listen(events.add);
+      await t.pump();
+      unawaited(d.stop());
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 500));
+      expect(posts, 1);
+      await t.pump(const Duration(seconds: 2));
+      expect(posts, 3);
+      expect(events.whereType<DictationFinal>().single.text, 'ok ok');
+    });
+
+    test(
+      'a part failing twice: the parts before it are kept, the cut is told',
+      () async {
+        final statuses = [200, 500, 500];
+        final d = HostDictation(
+          () =>
+              (m, p, {headers, body}) async =>
+                  answer(statuses.removeAt(0), '{"text":"one"}'),
+        );
+        final events = <DictationEvent>[];
+        d.listen('en').listen(events.add);
+        await tick();
+        await d.stop();
+        await tick();
+        expect(events.whereType<DictationFinal>().single.text, 'one');
+        expect(
+          events.whereType<DictationError>().single.why,
+          DictationFailure.cut,
+        );
+        expect(events.last, isA<DictationEnd>());
+      },
+    );
+
+    test(
+      'the first part failing twice is hostFailed with nothing kept',
+      () async {
+        var posts = 0;
+        final d = HostDictation(
+          () => (m, p, {headers, body}) async {
+            posts++;
+            return answer(500);
+          },
+        );
+        final events = <DictationEvent>[];
+        d.listen('en').listen(events.add);
+        await tick();
+        await d.stop();
+        await tick();
+        expect(posts, 2);
+        expect(events.whereType<DictationFinal>(), isEmpty);
+        expect(
+          events.whereType<DictationError>().single.why,
+          DictationFailure.hostFailed,
+        );
+      },
+    );
+
+    test('a cancel between parts sends no more', () async {
+      final replies = <Completer<HttpAnswer>>[];
+      final d = HostDictation(
+        () => (m, p, {headers, body}) {
+          replies.add(Completer<HttpAnswer>());
+          return replies.last.future;
+        },
+      );
+      final events = <DictationEvent>[];
+      d.listen('en').listen(events.add);
+      await tick();
+      unawaited(d.stop());
+      await tick();
+      await d.cancel();
+      replies[0].complete(answer(200, '{"text":"one"}'));
+      await tick();
+      expect(replies, hasLength(1));
+      expect(events.whereType<DictationFinal>(), isEmpty);
     });
   });
 }

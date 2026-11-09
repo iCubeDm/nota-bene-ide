@@ -512,8 +512,9 @@ class MainActivity : FlutterFragmentActivity() {
         // a file of cache/pick younger than this may still belong to a draft or a share; the camera start spares it
         const val PICK_KEEP_MS = 60L * 60 * 1000
 
-        // what the host takes: 16 kHz mono PCM16, at most 2 minutes (3.84 MB, under its 4 MiB limit with the header)
+        // what the host takes: 16 kHz mono PCM16, at most 10 minutes (19.2 MB); the app sends it in parts under the
+        // host's 4 MiB limit (wav_parts.dart)
         const val RATE = 16000
-        const val MAX_PCM = RATE * 2 * 120
+        const val MAX_PCM = RATE * 2 * 600
     }
 }

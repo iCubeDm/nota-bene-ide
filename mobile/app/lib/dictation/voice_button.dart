@@ -17,6 +17,9 @@ class VoiceMeter extends ChangeNotifier {
   List<double> levels = const [];
   Duration elapsed = Duration.zero;
 
+  // which part of a long recording is being transcribed, of how many; 0 while there are no parts
+  int part = 0, parts = 0;
+
   void add(double v) {
     levels = [...levels.skip(levels.length >= keep ? 1 : 0), v.clamp(0, 1)];
     notifyListeners();
@@ -27,9 +30,16 @@ class VoiceMeter extends ChangeNotifier {
     notifyListeners();
   }
 
+  void progress(int part, int parts) {
+    this.part = part;
+    this.parts = parts;
+    notifyListeners();
+  }
+
   void reset() {
     levels = const [];
     elapsed = Duration.zero;
+    part = parts = 0;
     notifyListeners();
   }
 }
@@ -274,13 +284,17 @@ class _VoiceButtonState extends State<VoiceButton> {
     switch (e) {
       case DictationLevel():
         break;
-      case DictationWorking():
+      case DictationWorking(:final part, :final parts):
+        // the recording is over, also when the recorder's cap ended it: typing from now on keeps the session
+        _stopping = true;
+        _meter.progress(part, parts);
         _set(VoiceState.working);
         setState(() {});
       case DictationFinal(:final text):
         if (text.isNotEmpty) _put(text);
       case DictationError(:final why):
-        if (!typed) widget.controller.value = _saved;
+        // the parts of a long recording transcribed before a failure stay
+        if (!typed && _ins.isEmpty) widget.controller.value = _saved;
         // Whisper went off on the computer since the hello: the sheet that turns it back on opens too
         if (why == DictationFailure.hostOff) widget.onUnavailable?.call();
         final t = AppLocalizations.of(context);
@@ -292,6 +306,7 @@ class _VoiceButtonState extends State<VoiceButton> {
               DictationFailure.failed => t.dictationFailed,
               DictationFailure.hostFailed => t.dictationHostFailed,
               DictationFailure.hostOff => t.dictationHostOff,
+              DictationFailure.cut => t.dictationCut,
             }),
           ),
         );

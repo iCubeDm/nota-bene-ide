@@ -150,6 +150,7 @@
   "voiceTranscribing": "Расшифровываю…",
   "voiceStop": "Стоп",
   "dictationHostOff": "На компьютере Whisper выключен",
+  "dictationCut": "Остаток записи не распознан",
   "expandCode": "Открыть на весь экран",
   "codeLines": "{count, plural, one{{count} строка} few{{count} строки} many{{count} строк} other{{count} строки}}",
   "windowSheetMode": "Режим",

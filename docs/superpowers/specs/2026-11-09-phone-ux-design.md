@@ -112,8 +112,10 @@ Opened from the header pill, top to bottom:
 - **With Whisper on the host** (`capabilities.dictation === 'whisper'`): the phone records with the existing
   native recorder (`nb/record`) and `HostDictation`, sends
   the WAV to `/dictation/transcribe`, and the text is inserted into the field for editing; "Transcribing…" shows
-  meanwhile. Recording is capped at 120 s by the 4 MiB request cap; the timer warns before the cap, and at the cap
-  the recording stops and is transcribed, never dropped.
+  meanwhile. Recording is capped at 10 minutes; the timer warns before the cap, and at the cap the recording stops
+  and is transcribed, never dropped. A recording over a minute goes in parts of 30–60 s, each cut at its quietest
+  moment, one request each under the 4 MiB cap, with "Transcribing… 2/5" meanwhile; a part that fails is retried
+  once, and if it fails again the text before it is kept and the rest is said to be lost (#158).
 - **Without it** (#154): no recording; the microphone opens a sheet with the desktop's install question (download
   size, folder) and installs Whisper on the host, or turns it on when it is installed and off, then follows the
   install until Whisper is on. The phone's own recognizer was dropped: it transcribed live and lost words. A
