@@ -85,11 +85,34 @@ class _SheetState extends State<_Sheet> {
                 for (final l in quickLabels)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
-                    child: ChoiceChip(
-                      label: Text('${l.emoji} ${l.textIn(lang)}'),
-                      selected: _label == l.id,
-                      onSelected: (on) =>
-                          setState(() => _label = on ? l.id : null),
+                    // the name is the tooltip (a long press), as on the message menu's labels
+                    child: Tooltip(
+                      message: l.textIn(lang),
+                      child: GestureDetector(
+                        onTap: () => setState(
+                          () => _label = _label == l.id ? null : l.id,
+                        ),
+                        child: Container(
+                          key: ValueKey('label:${l.id.name}'),
+                          width: 32,
+                          height: 32,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: c.muted,
+                            border: Border.all(
+                              color: _label == l.id
+                                  ? c.accent
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            l.emoji,
+                            style: const TextStyle(fontSize: 16, height: 1),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
               ],

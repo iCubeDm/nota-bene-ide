@@ -84,9 +84,10 @@ void main() {
       findsWidgets,
       reason: 'the quote in the sheet',
     );
-    await t.ensureVisible(find.textContaining('Verify this'));
+    final verify = find.byKey(const ValueKey('label:verify'));
+    await t.ensureVisible(verify);
     await t.pumpAndSettle();
-    await t.tap(find.textContaining('Verify this'));
+    await t.tap(verify);
     await t.enterText(find.byType(TextField), 'really?');
     await t.tap(find.text('Save'));
     await t.pumpAndSettle();
