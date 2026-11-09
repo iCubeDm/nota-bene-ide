@@ -111,10 +111,18 @@ Dictation get dictation => _dictation;
 @visibleForTesting
 set dictation(Dictation value) => _dictation = value;
 
-/// The recognizer's language: the device's own tag (with its region) when its language is the UI language,
-/// else the UI language alone.
-String speechTag(String uiLang, Locale device) {
-  if (device.languageCode != uiLang) return uiLang;
-  final region = device.countryCode;
-  return region == null || region.isEmpty ? uiLang : '$uiLang-$region';
+/// The recognizer's language: the tag of the first device locale in the UI language (so its region is kept),
+/// else the UI language alone. Bare zh and pt name no single variant, so they get zh-CN and pt-BR.
+String speechTag(String uiLang, List<Locale> devices) {
+  for (final d in devices) {
+    if (d.languageCode != uiLang) continue;
+    final region = d.countryCode;
+    if (region != null && region.isNotEmpty) return '$uiLang-$region';
+    break;
+  }
+  return switch (uiLang) {
+    'zh' => 'zh-CN',
+    'pt' => 'pt-BR',
+    _ => uiLang,
+  };
 }

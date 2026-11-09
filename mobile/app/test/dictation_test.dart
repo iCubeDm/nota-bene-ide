@@ -87,9 +87,26 @@ void main() {
     expect(calls.map((c) => c.method), ['stop', 'cancel']);
   });
 
-  test('speechTag keeps the device region only for the UI language', () {
-    expect(speechTag('ru', const Locale('ru', 'RU')), 'ru-RU');
-    expect(speechTag('de', const Locale('en', 'US')), 'de');
-    expect(speechTag('en', const Locale('en')), 'en');
+  test('speechTag takes the first device locale in the UI language', () {
+    expect(speechTag('ru', const [Locale('ru', 'RU')]), 'ru-RU');
+    expect(speechTag('de', const [Locale('en', 'US')]), 'de');
+    expect(speechTag('en', const [Locale('en')]), 'en');
+    // a later device locale still counts, the first matching one wins
+    expect(
+      speechTag('de', const [
+        Locale('en', 'US'),
+        Locale('de', 'AT'),
+        Locale('de', 'DE'),
+      ]),
+      'de-AT',
+    );
+  });
+
+  test('speechTag gives zh and pt a region when the device has none', () {
+    expect(speechTag('zh', const [Locale('zh')]), 'zh-CN');
+    expect(speechTag('zh', const [Locale('en', 'US')]), 'zh-CN');
+    expect(speechTag('zh', const [Locale('zh', 'TW')]), 'zh-TW');
+    expect(speechTag('pt', const [Locale('pt')]), 'pt-BR');
+    expect(speechTag('pt', const [Locale('pt', 'PT')]), 'pt-PT');
   });
 }

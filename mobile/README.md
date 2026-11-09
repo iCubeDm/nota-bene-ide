@@ -53,7 +53,8 @@ generator copies every `usage*` key of the English dictionary, in all six langua
 The microphone in the message field and the comment sheet (`app/lib/dictation/`) uses the phone's own speech
 recognition: Android's `SpeechRecognizer` behind the `nb/speech` channel in `MainActivity.kt`, in the app's language.
 The microphone permission is asked on first use. The words land in the field at the cursor and are sent as typed
-text; no audio leaves the phone. Whisper on the host comes later.
+text; no audio goes to the host or the agent (the phone's recognizer may use its vendor's online service).
+Whisper on the host comes later.
 
 ## The APK
 

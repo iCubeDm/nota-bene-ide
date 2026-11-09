@@ -132,6 +132,6 @@
   "dictateStop": "Остановить диктовку",
   "dictationDenied": "Доступ к микрофону для Nota Bene выключен",
   "dictationUnavailable": "Распознавание речи недоступно на этом телефоне",
-  "dictationNoMatch": "Ничего не расслышано",
+  "dictationNoMatch": "Речь не распознана",
   "dictationFailed": "Не удалось надиктовать"
 }

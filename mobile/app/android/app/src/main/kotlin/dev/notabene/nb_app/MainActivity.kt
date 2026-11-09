@@ -143,8 +143,15 @@ class MainActivity : FlutterFragmentActivity() {
 
             override fun onResults(results: Bundle?) {
                 if (!current()) return
-                emit("final", "text", firstResult(results) ?: "")
-                emit("end")
+                val text = firstResult(results)
+                if (text.isNullOrEmpty()) {
+                    // an empty result must not erase the partials
+                    fail("no_match")
+                } else {
+                    emit("final", "text", text)
+                    emit("end")
+                }
+                release(r)
             }
 
             override fun onError(error: Int) {
@@ -153,9 +160,11 @@ class MainActivity : FlutterFragmentActivity() {
                     when (error) {
                         SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "no_match"
                         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "denied"
+                        ERROR_LANGUAGE_NOT_SUPPORTED, ERROR_LANGUAGE_UNAVAILABLE -> "unavailable"
                         else -> "other"
                     }
                 )
+                release(r)
             }
 
             override fun onReadyForSpeech(params: Bundle?) {}
@@ -175,6 +184,13 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun firstResult(bundle: Bundle?): String? =
         bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+
+    // The session is over: forget the recognizer now, so a late callback is ignored, and destroy it after the
+    // callback has returned, so the next start does not find it busy.
+    private fun release(r: SpeechRecognizer) {
+        if (recognizer === r) recognizer = null
+        mainHandler.post { r.destroy() }
+    }
 
     private fun dropRecognizer() {
         pendingLang = null
@@ -212,5 +228,9 @@ class MainActivity : FlutterFragmentActivity() {
 
     private companion object {
         const val SPEECH_PERMISSION = 4791
+
+        // SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED / _UNAVAILABLE exist from API 31; the app's minSdk is lower
+        const val ERROR_LANGUAGE_NOT_SUPPORTED = 12
+        const val ERROR_LANGUAGE_UNAVAILABLE = 13
     }
 }
