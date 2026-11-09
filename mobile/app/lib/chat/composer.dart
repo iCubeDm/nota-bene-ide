@@ -91,12 +91,25 @@ class _ComposerState extends State<Composer> {
     // the text stays when the window is not there to take it (the tab went offline or was taken meanwhile)
     // the pending comments leave with it, in the desktop's batch; the server marks them sent
     final lang = Localizations.localeOf(context).languageCode;
+    final versions = widget.tab.fileVersions;
+    final batch = composeSend(
+      text,
+      comments,
+      lang,
+      // "changed" only when the current version is known (the file was opened here) and differs from the drawn one
+      staleOf: (c) => switch (c.anchor) {
+        MediaAnchor(:final source, :final version?) when source.ref == null =>
+          versions[source.path] != null && versions[source.path] != version,
+        _ => false,
+      },
+    );
     final sent = widget.tab.send(
       ClientMessageSend(
         id: id,
-        text: composeBatch(text, comments, lang),
+        text: batch.text,
         force: force ? true : null,
         commentIds: comments.isEmpty ? null : [for (final c in comments) c.id],
+        images: batch.images.isEmpty ? null : batch.images,
       ),
     );
     if (!sent) return;

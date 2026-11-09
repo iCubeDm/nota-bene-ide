@@ -35,4 +35,29 @@ void main() {
     expect(batchString('batchHead', 'ru'), 'Комментарии к фрагментам:');
     expect(batchString('batchHead', 'xx'), 'Comments on fragments:');
   });
+
+  test('the batch\'s functions as templates, in every app language', () {
+    expect(
+      batchTemplate('imgLabelC', 'ru', [3, 2]),
+      '[изображение 3 · к комментарию 2]',
+    );
+    expect(
+      batchTemplate('imgRefMedia', 'en', [4]),
+      '📎 images: 4 (frame with marks)',
+    );
+    expect(batchTemplate('filesLine', 'de', ['a, b']), '   Dateien: a, b');
+    for (final lang in ['en', 'ru', 'zh', 'es', 'pt', 'de']) {
+      for (final k in [
+        'imgLabel',
+        'imgLabelC',
+        'imgRef',
+        'imgRefMedia',
+        'filesLine',
+        'scaledSfx',
+      ]) {
+        expect(batchString(k, lang), contains('{0}'), reason: '$k $lang');
+      }
+      expect(batchString('markStale', lang), isNotEmpty);
+    }
+  });
 }
