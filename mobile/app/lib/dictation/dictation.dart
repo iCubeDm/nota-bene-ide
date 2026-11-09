@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 const speechChannel = MethodChannel('nb/speech');
 const speechEvents = EventChannel('nb/speech/events');
 
-enum DictationFailure { denied, unavailable, noMatch, failed }
+enum DictationFailure { denied, unavailable, noMatch, failed, hostFailed }
 
 sealed class DictationEvent {
   const DictationEvent();
@@ -18,6 +18,11 @@ sealed class DictationEvent {
 class DictationPartial extends DictationEvent {
   const DictationPartial(this.text);
   final String text;
+}
+
+/// The speech is being transcribed; nothing more to say until the result.
+class DictationWorking extends DictationEvent {
+  const DictationWorking();
 }
 
 class DictationFinal extends DictationEvent {

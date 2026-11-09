@@ -133,5 +133,7 @@
   "dictationDenied": "O acesso ao microfone está desativado para o Nota Bene",
   "dictationUnavailable": "O reconhecimento de voz não está disponível neste telefone",
   "dictationNoMatch": "Nada foi ouvido",
-  "dictationFailed": "Falha no ditado"
+  "dictationFailed": "Falha no ditado",
+  "dictationTranscribing": "Transcrevendo…",
+  "dictationHostFailed": "O computador não conseguiu transcrever"
 }

@@ -133,5 +133,7 @@
   "dictationDenied": "Nota Bene 的麦克风权限已关闭",
   "dictationUnavailable": "此手机不支持语音识别",
   "dictationNoMatch": "没有听到内容",
-  "dictationFailed": "语音输入失败"
+  "dictationFailed": "语音输入失败",
+  "dictationTranscribing": "正在转写…",
+  "dictationHostFailed": "电脑无法转写这段语音"
 }
