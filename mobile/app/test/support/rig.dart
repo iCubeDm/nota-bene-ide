@@ -8,6 +8,7 @@ import 'package:nb_app/chat/window_tab.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
+import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -24,9 +25,11 @@ class Rig {
     WidgetTester t, {
     List<Map<String, Object?>> events = const [],
     Map<String, Object?>? hello,
+    Seen? seen,
+    HostWindow? win,
   }) async {
     final f = FakeFactory();
-    ch = FakeChannel([window(4791, '/home/u/notes')]);
+    ch = FakeChannel([win ?? window(4791, '/home/u/notes')]);
     f.results.add(ch);
     link = HostLink(
       PairedHost(
@@ -48,6 +51,7 @@ class Rig {
             link: link,
             port: 4791,
             root: '/home/u/notes',
+            seen: seen,
             onTab: (x) => tab = x,
             retry: (_) async {},
           ),

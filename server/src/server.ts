@@ -314,8 +314,8 @@ export async function startServer(o: {
       controlToken: () => control,
       info: () => {
         const { id, root, title, model } = manager.info();
-        // busy and clients: for another window's Settings → Windows
-        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), clients: hub.clients(), blender: blend?.available() ?? false };
+        // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
+        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), pending: manager.pending(), ...hub.summary(), clients: hub.clients(), blender: blend?.available() ?? false };
       },
     }));
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);

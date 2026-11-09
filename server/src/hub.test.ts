@@ -378,3 +378,57 @@ describe('EventHub.tasksRunning', () => {
     expect(hub.tasksRunning()).toBe(0);
   });
 });
+
+describe('EventHub.summary: what a window tells of its session', () => {
+  const said = (text: string, id = 'm'): Parameters<EventHub['emit']>[0] => ({ kind: 'agent', e: { t: 'message', id, text } } as never);
+
+  it('an empty history has no last message and no replies', () => {
+    expect(new EventHub().summary()).toEqual({ last: null, replies: 0 });
+  });
+
+  it('the last is the latest user message or final reply, the replies count the final ones', () => {
+    const hub = new EventHub();
+    hub.emit({ kind: 'user', id: 'u1', text: 'hi', ts: 10 });
+    expect(hub.summary()).toEqual({ last: { role: 'user', text: 'hi', at: 10 }, replies: 0 });
+    hub.emit(said('one', 'a:0'));
+    hub.emit({ kind: 'agent', e: { t: 'message-chunk', text: 'streaming' }, ts: 20 } as never);
+    hub.emit(said('two', 'a:1'));
+    const s = hub.summary();
+    expect(s.replies).toBe(2);
+    expect(s.last).toMatchObject({ role: 'assistant', text: 'two' });
+    hub.reset();
+    expect(hub.summary()).toEqual({ last: null, replies: 0 });
+  });
+
+  it('a replayed event without a time (ts 0) is summarised without `at`', () => {
+    const hub = new EventHub();
+    hub.emit({ kind: 'user', id: 'u1', text: 'old', ts: 0 });
+    expect(hub.summary().last).toEqual({ role: 'user', text: 'old' });
+    hub.emit({ kind: 'agent', e: { t: 'message', id: 'a:0', text: 'older reply' }, ts: 0 } as never);
+    expect(hub.summary().last).toEqual({ role: 'assistant', text: 'older reply' });
+    hub.emit({ kind: 'user', id: 'u2', text: 'new', ts: 5 });
+    expect(hub.summary().last).toEqual({ role: 'user', text: 'new', at: 5 });
+  });
+
+  it('only the last message is made one line, the replies are still all counted', () => {
+    const hub = new EventHub();
+    for (let i = 0; i < 4; i++) hub.emit(said(`m${i}`, `a:${i}`));
+    const evs = (hub as unknown as { history: { e?: { text: string } }[] }).history;
+    for (const ev of evs.slice(0, 3)) Object.defineProperty(ev.e, 'text', { get() { throw new Error('read'); } });
+    const s = hub.summary();
+    expect(s.replies).toBe(4);
+    expect(s.last).toMatchObject({ role: 'assistant', text: 'm3' });
+  });
+
+  it('the text is one line cut to 120 characters with an ellipsis, Markdown kept', () => {
+    const hub = new EventHub();
+    hub.emit(said(`# Title\n\n  **bold**\t\ttext ${'x'.repeat(300)}`));
+    const t = hub.summary().last!.text;
+    expect(t.startsWith('# Title **bold** text xxx')).toBe(true);
+    expect(t).toHaveLength(121);
+    expect(t.endsWith('…')).toBe(true);
+    const short = new EventHub();
+    short.emit(said('a'.repeat(120)));
+    expect(short.summary().last!.text).toBe('a'.repeat(120));
+  });
+});

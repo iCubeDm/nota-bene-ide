@@ -26,6 +26,8 @@ export type SessionManager = {
   rename(id: string, title: string): Promise<void>;
   /** A send not yet answered by a result, a waiting permission, or a switch in progress (R-M4-4). */
   busy(): boolean;
+  /** A permission or interaction prompt waits for an answer in this window. */
+  pending(): boolean;
   /** True from the start of a switch's checks to the new session's announcement. */
   switching(): boolean;
   /**
