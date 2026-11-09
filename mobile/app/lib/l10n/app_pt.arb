@@ -98,5 +98,14 @@
   "forgetTitle": "Esquecer {host}?",
   "forgetBody": "Este telefone deixa de se conectar a ele. O host continua listando o telefone até você executar `nota-bene remote revoke` lá.",
   "sendAfter": "Enviar após este turno",
-  "diagramFailed": "Não foi possível desenhar o diagrama agora; reabra o chat para tentar de novo."
+  "diagramFailed": "Não foi possível desenhar o diagrama agora; reabra o chat para tentar de novo.",
+  "comment": "Comentar",
+  "commentHint": "Seu comentário",
+  "save": "Salvar",
+  "deleteComment": "Excluir comentário",
+  "fileNotFound": "Este arquivo não existe (ou não existe mais).",
+  "fileOutside": "Este arquivo está fora do projeto.",
+  "fileTooLarge": "O arquivo é grande demais para o celular (mais de 2 MB). Abra-o no computador.",
+  "fileNotMarkdown": "Por enquanto, só arquivos Markdown abrem no celular.",
+  "fileUnreadable": "Não foi possível ler o arquivo. Tente de novo quando o host estiver online."
 }

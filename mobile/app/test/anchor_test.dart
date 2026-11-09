@@ -199,4 +199,29 @@ void main() {
       });
     },
   );
+
+  group('locateSelection', () {
+    final r = renderedText(
+      parseMarkdown('The cache, the cache.\n\nAnd   the **cache** again.'),
+    );
+
+    test('a selection is found in the rendered text, whitespace aside', () {
+      expect(r.text, 'The cache, the cache. And the cache again.');
+      expect(locateSelection(r, 'cache.\nAnd the', 18), (start: 15, end: 29));
+    });
+
+    test(
+      'of several occurrences, the one nearest the selection\'s position',
+      () {
+        expect(locateSelection(r, 'cache', 0), (start: 4, end: 9));
+        expect(locateSelection(r, 'cache', 16), (start: 15, end: 20));
+        expect(locateSelection(r, 'cache', 40), (start: 30, end: 35));
+      },
+    );
+
+    test('nothing found or only whitespace gives null', () {
+      expect(locateSelection(r, 'dog', 0), isNull);
+      expect(locateSelection(r, '  \n', 0), isNull);
+    });
+  });
 }

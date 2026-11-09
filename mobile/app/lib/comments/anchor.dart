@@ -206,3 +206,33 @@ RenderedText renderedText(List<md.Node> nodes) {
   }
   return RenderedText(text, runs);
 }
+
+/// Where a selection the phone made lies in [r]: its text (Flutter joins paragraphs its own way, so whitespace is
+/// ignored when matching) found in the rendered text; of several occurrences, the one nearest [approx], the
+/// selection's offset as Flutter counts it, which runs close to the rendered one.
+({int start, int end})? locateSelection(
+  RenderedText r,
+  String selected,
+  int? approx,
+) {
+  final want = selected.replaceAll(_ws, '');
+  if (want.isEmpty) return null;
+  final idx = <int>[]; // stripped index -> rendered index
+  final b = StringBuffer();
+  for (var i = 0; i < r.text.length; i++) {
+    if (_ws.hasMatch(r.text[i])) continue;
+    idx.add(i);
+    b.write(r.text[i]);
+  }
+  final hay = b.toString();
+  ({int start, int end})? best;
+  for (var k = hay.indexOf(want); k != -1; k = hay.indexOf(want, k + 1)) {
+    final hit = (start: idx[k], end: idx[k + want.length - 1] + 1);
+    if (best == null ||
+        (approx != null &&
+            (hit.start - approx).abs() < (best.start - approx).abs())) {
+      best = hit;
+    }
+  }
+  return best;
+}

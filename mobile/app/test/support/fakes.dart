@@ -80,6 +80,26 @@ class FakeChannel implements Channel {
   @override
   Future<void> close() async => drop(1000);
 
+  /// Answers the phone's HTTP requests to windows; none set: the stream closes, as a host without the route does.
+  Future<HttpAnswer> Function(int port, String method, String path)? onHttp;
+
+  /// Every HTTP request the phone made: `METHOD path`.
+  final requests = <String>[];
+
+  @override
+  Future<HttpAnswer> http(
+    int port,
+    String method,
+    String path, {
+    Map<String, String>? headers,
+    List<int>? body,
+  }) async {
+    requests.add('$method $path');
+    final f = onHttp;
+    if (f == null) throw StreamClosed(1000);
+    return f(port, method, path);
+  }
+
   @override
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
@@ -115,6 +135,12 @@ class FakeFactory {
         throw r;
       };
 }
+
+HttpAnswer answer(int status, String body, {Map<String, String>? headers}) => (
+  status: status,
+  headers: headers ?? const {},
+  body: Uint8List.fromList(utf8.encode(body)),
+);
 
 HostWindow window(
   int port,

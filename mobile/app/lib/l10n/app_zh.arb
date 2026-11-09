@@ -98,5 +98,14 @@
   "forgetTitle": "移除 {host}？",
   "forgetBody": "这部手机将不再连接它。在主机上运行 `nota-bene remote revoke` 之前，主机仍会保留这部手机。",
   "sendAfter": "本回合结束后发送",
-  "diagramFailed": "暂时无法绘制该图表；重新打开聊天即可重试。"
+  "diagramFailed": "暂时无法绘制该图表；重新打开聊天即可重试。",
+  "comment": "评论",
+  "commentHint": "你的评论",
+  "save": "保存",
+  "deleteComment": "删除评论",
+  "fileNotFound": "这个文件不存在（或已被删除）。",
+  "fileOutside": "这个文件在项目之外。",
+  "fileTooLarge": "文件太大，无法在手机上打开（超过 2 MB）。请在电脑上打开。",
+  "fileNotMarkdown": "目前手机上只能打开 Markdown 文件。",
+  "fileUnreadable": "无法读取文件。请在主机在线时重试。"
 }

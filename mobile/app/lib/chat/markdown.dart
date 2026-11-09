@@ -122,42 +122,50 @@ List<md.Node> parseMarkdown(String text) => md.Document(
   encodeHtml: false,
 ).parseLines(const LineSplitter().convert(text));
 
+/// The element builders of the chat's Markdown (code, math, diagrams), shared with the file view.
+Map<String, MarkdownElementBuilder> markdownBuilders() => {
+  'pre': _PreBuilder(),
+  'math': _MathBuilder(display: false),
+  'mathblock': _MathBuilder(display: true),
+};
+
+/// The chat's Markdown look in the current theme.
+MarkdownStyleSheet markdownStyle(BuildContext context) {
+  final c = Theme.of(context).extension<NbColors>()!;
+  return MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+    a: TextStyle(color: c.link),
+    code: TextStyle(
+      fontFamily: 'monospace',
+      backgroundColor: c.muted,
+      color: c.foreground,
+      fontSize: 13,
+    ),
+    blockquoteDecoration: BoxDecoration(
+      border: Border(left: BorderSide(color: c.border, width: 3)),
+    ),
+  );
+}
+
+/// A link of the Markdown: only the web opens, in the browser.
+void openLink(String? href) {
+  final u = href == null ? null : Uri.tryParse(href);
+  if (u != null && (u.scheme == 'https' || u.scheme == 'http')) {
+    launchUrl(u, mode: LaunchMode.externalApplication);
+  }
+}
+
 class NbMarkdown extends StatelessWidget {
   const NbMarkdown(this.text, {super.key});
   final String text;
 
   @override
-  Widget build(BuildContext context) {
-    final c = Theme.of(context).extension<NbColors>()!;
-    final base = MarkdownStyleSheet.fromTheme(Theme.of(context));
-    return MarkdownBody(
-      data: text,
-      extensionSet: md.ExtensionSet.gitHubFlavored,
-      blockSyntaxes: mathBlockSyntaxes,
-      inlineSyntaxes: mathInlineSyntaxes,
-      builders: {
-        'pre': _PreBuilder(),
-        'math': _MathBuilder(display: false),
-        'mathblock': _MathBuilder(display: true),
-      },
-      styleSheet: base.copyWith(
-        a: TextStyle(color: c.link),
-        code: TextStyle(
-          fontFamily: 'monospace',
-          backgroundColor: c.muted,
-          color: c.foreground,
-          fontSize: 13,
-        ),
-        blockquoteDecoration: BoxDecoration(
-          border: Border(left: BorderSide(color: c.border, width: 3)),
-        ),
-      ),
-      onTapLink: (text, href, title) {
-        final u = href == null ? null : Uri.tryParse(href);
-        if (u != null && (u.scheme == 'https' || u.scheme == 'http')) {
-          launchUrl(u, mode: LaunchMode.externalApplication);
-        }
-      },
-    );
-  }
+  Widget build(BuildContext context) => MarkdownBody(
+    data: text,
+    extensionSet: md.ExtensionSet.gitHubFlavored,
+    blockSyntaxes: mathBlockSyntaxes,
+    inlineSyntaxes: mathInlineSyntaxes,
+    builders: markdownBuilders(),
+    styleSheet: markdownStyle(context),
+    onTapLink: (text, href, title) => openLink(href),
+  );
 }

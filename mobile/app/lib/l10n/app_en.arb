@@ -209,5 +209,14 @@
     }
   },
   "sendAfter": "Send after this turn",
-  "diagramFailed": "The diagram could not be drawn just now; reopen the chat to try again."
+  "diagramFailed": "The diagram could not be drawn just now; reopen the chat to try again.",
+  "comment": "Comment",
+  "commentHint": "Your comment",
+  "save": "Save",
+  "deleteComment": "Delete comment",
+  "fileNotFound": "This file is not there (any more).",
+  "fileOutside": "This file is outside the project.",
+  "fileTooLarge": "The file is too large for the phone (over 2 MB). Open it on the computer.",
+  "fileNotMarkdown": "Only Markdown files open on the phone for now.",
+  "fileUnreadable": "The file could not be read. Try again when the host is online."
 }
