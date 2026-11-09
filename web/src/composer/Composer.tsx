@@ -19,7 +19,7 @@ import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { addImage, removeImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { BINDINGS, keysLabel, VOICE_KEY, withKey } from '@/shell/keymap.ts';
-import { openSettings } from '@/tabs/slice.ts';
+import { openDictationSettings } from '@/voice/settings.ts';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { sendVoice } from '@/voice/send.ts';
 import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
@@ -82,7 +82,7 @@ export function Composer() {
   useEffect(() => {
     const onKey = () => {
       if (!voiceOk) return;
-      if (!whisper) return void dispatch(openSettings());
+      if (!whisper) return openDictationSettings(dispatch);
       const r = recRef.current;
       if (r.st.phase === 'idle') { if (!switching) r.start(false); } else void r.send();
     };
@@ -269,7 +269,7 @@ export function Composer() {
                   disabled={switching}
                   aria-label={whisper ? t('voiceMic') : t('voiceMicSetup')}
                   onPointerDown={micDown}
-                  onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : void dispatch(openSettings()))}
+                  onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : openDictationSettings(dispatch))}
                   className="h-10 bg-muted px-2.5 text-muted-foreground hover:text-foreground"
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

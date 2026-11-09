@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
 import { pageQuote } from '@/page/quote.ts';
 import { selectCapabilities, selectSwitching } from '@/controls/slice.ts';
-import { openSettings } from '@/tabs/slice.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { whisperLang } from '@/voice/lang.ts';
+import { openDictationSettings } from '@/voice/settings.ts';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { transcribeVoice } from '@/voice/upload.ts';
 import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
@@ -339,7 +339,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
               title={!whisper ? t('voiceMicSetup') : clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
               aria-label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}
               disabled={switching || recording || (whisper && clips.length >= VOICE_MAX_CLIPS)}
-              onClick={() => (whisper ? rec.start(false) : void dispatch(openSettings()))}
+              onClick={() => (whisper ? rec.start(false) : openDictationSettings(dispatch))}
               className="rounded px-1 text-sm hover:bg-muted disabled:opacity-40"
             >
               🎤

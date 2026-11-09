@@ -52,6 +52,8 @@ const modeSet = createAction<Mode>('controls/modeSet');
 const modeSent = createAction<string>('controls/modeSent');
 /** Local, optimistic idle-compaction toggle (see toggleIdleCompact). */
 const idleCompactSet = createAction<boolean>('controls/idleCompactSet');
+/** Whisper was switched on or off (or removed) in Settings: the mic reads this, and `hello` only comes on connect. */
+export const dictationSet = createAction<boolean>('controls/dictationSet');
 
 export const controlsSlice = createSlice({
   name: 'controls',
@@ -67,6 +69,10 @@ export const controlsSlice = createSlice({
   extraReducers: (b) => {
     b.addCase(modeSet, (s, a) => setMode(s, a.payload));
     b.addCase(modeSent, (s, a) => void s.modeInFlight.push(a.payload));
+    b.addCase(dictationSet, (s, a) => {
+      const { dictation: _, ...rest } = s.capabilities ?? CLAUDE_CAPABILITIES;
+      s.capabilities = a.payload ? { ...rest, dictation: 'whisper' } : rest;
+    });
     b.addCase(idleCompactSet, (s, a) => void (s.idleCompact && (s.idleCompact.on = a.payload)));
     // a dropped socket may come back to another server (a restart): until its hello, assume an old one
     b.addCase(connState, (s, a) => void (a.payload === 'closed' && (s.protocol = 0)));

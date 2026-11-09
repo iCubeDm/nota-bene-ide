@@ -33,6 +33,7 @@ beforeEach(() => {
       if (url === '/system/storage/clean') return Response.json({ moved: 3, bytes: 3_000_000, trash: '/Users/me/.nota-bene/trash/attachments/x' });
       if (url === '/system/prefs') return prefsReply();
       if (url === '/dictation/install') { dict = { ...dict, phase: 'installing' }; return Response.json({ ok: true }, { status: 202 }); }
+      if (url === '/dictation/on') dict = { ...dict, on: JSON.parse(String(init.body)).on };
       return actionReply();
     }
     if (url === '/dictation') return Response.json(dict);
@@ -282,4 +283,19 @@ it('Dictation ready: the checkbox posts on; Remove asks first, then posts remove
   expect(dialog).not.toHaveTextContent('~/.nota-bene');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
   await waitFor(() => expect(posts.some((p) => p.url === '/dictation/remove')).toBe(true));
+});
+
+it('Dictation: switching Whisper on or off, or removing it, tells the capabilities the mic reads', async () => {
+  dict = { ...dict, phase: 'ready' };
+  const store = setup();
+  store.dispatch(serverEvent({ kind: 'hello', protocol: 14, capabilities: CLAUDE_CAPABILITIES }));
+  fireEvent.click(await screen.findByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" }));
+  await waitFor(() => expect(store.getState().controls.capabilities?.dictation).toBe('whisper'));
+  fireEvent.click(screen.getByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" }));
+  await waitFor(() => expect(store.getState().controls.capabilities?.dictation).toBeUndefined());
+  fireEvent.click(screen.getByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" }));
+  await waitFor(() => expect(store.getState().controls.capabilities?.dictation).toBe('whisper'));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Whisper' }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove' }));
+  await waitFor(() => expect(store.getState().controls.capabilities?.dictation).toBeUndefined());
 });
