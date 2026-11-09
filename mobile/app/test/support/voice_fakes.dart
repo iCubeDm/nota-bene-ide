@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_app/voice/player.dart';
 import 'package:nb_app/voice/recorder.dart';
 
@@ -116,4 +117,26 @@ class RecorderMock {
             recordChannel.codec.encodeMethodCall(MethodCall(method, args)),
             (_) {},
           );
+}
+
+/// The outbox's disk, in memory; a second [VoiceStore] over the same files is the next run of the app.
+class MemoryOutFiles implements OutFiles {
+  String? index;
+  final wavs = <String, Uint8List>{};
+
+  @override
+  Future<String?> readIndex() async => index;
+
+  @override
+  Future<void> writeIndex(String json) async => index = json;
+
+  @override
+  Future<void> writeWav(String name, Uint8List bytes) async =>
+      wavs[name] = bytes;
+
+  @override
+  Future<Uint8List?> readWav(String name) async => wavs[name];
+
+  @override
+  Future<void> deleteWav(String name) async => wavs.remove(name);
 }

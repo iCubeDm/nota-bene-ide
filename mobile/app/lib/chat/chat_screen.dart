@@ -558,7 +558,7 @@ class PendingVoiceBubble extends StatelessWidget {
       id: entry.key,
       ms: entry.ms,
       wave: entry.wave,
-      load: () async => entry.wav,
+      load: () => outbox.bytes(entry),
       stage: entry.stage == OutStage.failed
           ? VoiceStage.sendFailed
           : VoiceStage.sending,

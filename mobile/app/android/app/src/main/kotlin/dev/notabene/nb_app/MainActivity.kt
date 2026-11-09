@@ -62,6 +62,8 @@ class MainActivity : FlutterFragmentActivity() {
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "dir" -> result.success(File(cacheDir, "voice").also { it.mkdirs() }.path)
+                // recordings not yet delivered: kept (not cache) until the window has shown them
+                "outDir" -> result.success(File(filesDir, "voice-out").also { it.mkdirs() }.path)
                 "play" -> {
                     val path = call.argument<String>("path")
                     val from = (call.argument<Any>("from") as? Number)?.toInt() ?: 0

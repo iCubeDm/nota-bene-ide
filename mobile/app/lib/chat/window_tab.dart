@@ -68,6 +68,7 @@ class WindowTab extends ChangeNotifier {
     this.root, {
     Future<void> Function(Duration)? retry,
   }) : _retry = retry ?? ((d) => Future<void>.delayed(d)) {
+    voiceOutbox.attach(this, send: send, http: () => http);
     link.addListener(_linkChanged);
     _linkChanged();
   }
@@ -95,8 +96,11 @@ class WindowTab extends ChangeNotifier {
   /// The window's comments of this session (the server's set).
   late final comments = Comments(send, () => feed.sessionId);
 
-  /// The voice messages recorded here that the window has not shown yet.
-  late final voiceOutbox = VoiceOutbox(send, () => http);
+  /// The voice messages recorded for this window that it has not shown yet. They belong to the app, by host and
+  /// window, and outlive this tab: leaving the chat loses none.
+  late final voiceOutbox = VoiceStore.instance.outbox(
+    '${link.host.id}|${link.windows.where((w) => w.port == port).firstOrNull?.session ?? root}',
+  );
 
   /// The window's own requests through its channel; null while the host is offline.
   WindowHttp? get http {
@@ -251,6 +255,8 @@ class WindowTab extends ChangeNotifier {
             if (i is UserItem) i.id,
         });
         _set(TabState.open);
+        // what waited for the window goes on now that it takes messages
+        voiceOutbox.opened();
       case ServerEventOccupied():
         _passive = true;
         if (_takeoverWanted) {
@@ -362,7 +368,7 @@ class WindowTab extends ChangeNotifier {
     _stream?.close(1000);
     _refusals.close();
     _errors.close();
-    voiceOutbox.dispose();
+    voiceOutbox.detach(this);
     super.dispose();
   }
 }

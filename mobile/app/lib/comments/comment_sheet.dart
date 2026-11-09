@@ -1,4 +1,5 @@
 // The comment sheet, as the spec sketches it: the quoted selection, the quick labels in a row, a multi-line field.
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../dictation/whisper_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
+import '../voice/player.dart';
 import '../voice/record_button.dart';
 import '../voice/record_row.dart';
 import '../voice/record_session.dart';
@@ -67,7 +69,6 @@ class _SheetState extends State<_Sheet> {
     onError: _recordFailed,
   );
   final _messenger = GlobalKey<ScaffoldMessengerState>();
-  int _keys = 0;
 
   @override
   void initState() {
@@ -94,7 +95,7 @@ class _SheetState extends State<_Sheet> {
   bool get _failed => _clips.any((c) => c.error != null);
 
   void _recorded(Uint8List wav, Duration length) {
-    final c = _Clip.fresh('clip:${_keys++}', wav);
+    final c = _Clip.fresh(uuidV4(), wav);
     setState(() => _clips.add(c));
     _run(c);
   }
@@ -124,6 +125,13 @@ class _SheetState extends State<_Sheet> {
       try {
         final v = await uploadVoice(http, c.wav!);
         c.id = v.id;
+        // cached under the host's id: playing it needs no download
+        unawaited(
+          VoicePlayer.shared.files
+              .save(v.id, c.wav!)
+              .then<void>((_) {})
+              .catchError((Object _) {}),
+        );
         c.wave = v.wave;
         c.ms = v.ms.toInt();
       } on VoiceUploadError {
@@ -173,7 +181,13 @@ class _SheetState extends State<_Sheet> {
       IconButton(
         tooltip: t.voiceDelete,
         icon: NbIcon(NbGlyph.trash, color: col.mutedFg),
-        onPressed: () => setState(() => _clips.remove(c)),
+        onPressed: () {
+          setState(() => _clips.remove(c));
+          if (c.wav != null) {
+            unawaited(VoicePlayer.shared.drop(c.key));
+            if (c.id != null) unawaited(VoicePlayer.shared.drop(c.id!));
+          }
+        },
       ),
     ],
   );

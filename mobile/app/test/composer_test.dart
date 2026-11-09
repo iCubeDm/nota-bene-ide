@@ -368,6 +368,63 @@ void main() {
     );
 
     testWidgets(
+      'leaving the chat keeps a failed voice message: it is there, with Retry, when the chat opens again',
+      (t) async {
+        await openVoice(t);
+        r.ch.onHttp = (port, method, path) async => refuse(500);
+        await record(t);
+        expect(find.text('Could not send the recording'), findsOneWidget);
+        // back out of the chat: the route and its tab are gone
+        await t.pumpWidget(const SizedBox());
+        r.dispose();
+        r = Rig();
+        await r.open(
+          t,
+          keepStore: true,
+          hello: {
+            'kind': 'hello',
+            'protocol': 14,
+            'capabilities': Rig.caps(dictation: 'whisper'),
+          },
+        );
+        expect(find.text('Could not send the recording'), findsOneWidget);
+        r.ch.onHttp = (port, method, path) async => ok();
+        await t.tap(find.text('Retry'));
+        await t.pump();
+        await t.pump();
+        expect(r.sent.single['voice'], voice);
+      },
+    );
+
+    testWidgets(
+      'leaving the chat while the recording uploads: it goes out when the chat opens again',
+      (t) async {
+        await openVoice(t);
+        final up = Completer<HttpAnswer>();
+        r.ch.onHttp = (port, method, path) => up.future;
+        await record(t);
+        await t.pumpWidget(const SizedBox());
+        up.complete(ok());
+        await t.pump();
+        r.dispose();
+        r = Rig();
+        await r.open(
+          t,
+          keepStore: true,
+          hello: {
+            'kind': 'hello',
+            'protocol': 14,
+            'capabilities': Rig.caps(dictation: 'whisper'),
+          },
+        );
+        await t.pump();
+        await t.pump();
+        expect(r.sent.single['voice'], voice);
+        expect(r.sent.single['text'], '');
+      },
+    );
+
+    testWidgets(
       'the recording takes the field row; locked and stopped it shows its preview',
       (t) async {
         await openVoice(t);

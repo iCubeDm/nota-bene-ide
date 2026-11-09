@@ -364,4 +364,25 @@ void main() {
       expect(lock, findsNothing);
     },
   );
+
+  testWidgets(
+    'the preview has a fresh uuid key every time, so the player never plays a stale file',
+    (t) async {
+      await pump(t);
+      final keys = <String>[];
+      for (var k = 0; k < 2; k++) {
+        final g = await hold(t);
+        await g.moveBy(const Offset(0, -90));
+        await g.up();
+        await t.pump();
+        await t.tap(find.byTooltip('Stop'));
+        await t.pump();
+        keys.add(session.previewId);
+        await t.tap(find.byTooltip('Delete'));
+        await t.pump();
+      }
+      expect(keys.toSet(), hasLength(2));
+      expect(keys.every((k) => RegExp(r'^[0-9a-f-]{36}$').hasMatch(k)), isTrue);
+    },
+  );
 }

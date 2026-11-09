@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../chat/window_tab.dart' show uuidV4;
 import 'player.dart';
 import 'recorder.dart';
 import 'wav.dart';
@@ -55,7 +56,6 @@ class RecordSession extends ChangeNotifier {
   Completer<bool>? _ready;
   bool _held = false;
   bool _ending = false;
-  int _previews = 0;
 
   @visibleForTesting
   void debugElapsed(Duration d) {
@@ -192,7 +192,7 @@ class RecordSession extends ChangeNotifier {
       return _deliver(bytes);
     }
     wav = bytes;
-    previewId = 'rec:$hashCode:${_previews++}';
+    previewId = uuidV4();
     phase = RecordPhase.preview;
     notifyListeners();
   }

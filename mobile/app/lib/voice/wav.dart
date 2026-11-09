@@ -19,7 +19,9 @@ List<int> waveOf(Uint8List wav) {
     var to = samples * (i + 1) ~/ voiceBars;
     if (to <= from && from < samples) to = from + 1;
     var peak = 0;
-    for (var k = from; k < to; k++) {
+    // a long recording is sampled (about 1000 samples a bar): this is only the bubble's wave until the host's comes
+    final stride = ((to - from) ~/ 1000).clamp(1, 1 << 30);
+    for (var k = from; k < to; k += stride) {
       final v = pcm.getInt16(k * 2, Endian.little).abs();
       if (v > peak) peak = v;
     }
