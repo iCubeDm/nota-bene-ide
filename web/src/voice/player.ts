@@ -15,11 +15,11 @@ const set = (id: string, s: PlayState) => {
   for (const fn of listeners) fn();
 };
 
-/** The element for a recording, made on first use: `<audio>` on the same-origin `/voice/<id>` (Range works, the cookie goes along, as for `/attach`). */
-function audioOf(id: string): HTMLAudioElement {
+/** The element for a recording, made on first use: `<audio>` on the same-origin `/voice/<id>` (Range works, the cookie goes along, as for `/attach`); a recording not yet sent plays from its own `src` (a blob URL). */
+function audioOf(id: string, src = `/voice/${id}`): HTMLAudioElement {
   let a = audios.get(id);
   if (a) return a;
-  a = new Audio(`/voice/${id}`);
+  a = new Audio(src);
   a.preload = 'none';
   const el = a;
   const sync = () => set(id, { playing: !el.paused && !el.ended, pos: Math.round(el.currentTime * 1000) });
@@ -30,8 +30,8 @@ function audioOf(id: string): HTMLAudioElement {
 }
 
 /** Plays or pauses a recording. One voice plays at a time, across bubbles and clips: starting one pauses the others. */
-export function toggle(id: string): void {
-  const a = audioOf(id);
+export function toggle(id: string, src?: string): void {
+  const a = audioOf(id, src);
   if (!a.paused) {
     a.pause();
     return;
@@ -41,8 +41,8 @@ export function toggle(id: string): void {
 }
 
 /** Seeks to `ms`; the position shows at once, even before the audio has loaded. */
-export function seek(id: string, ms: number): void {
-  const a = audioOf(id);
+export function seek(id: string, ms: number, src?: string): void {
+  const a = audioOf(id, src);
   a.currentTime = ms / 1000;
   set(id, { playing: !a.paused, pos: Math.round(ms) });
 }

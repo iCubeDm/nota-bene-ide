@@ -233,7 +233,7 @@ it('a Themes section after Defaults: radios with a swatch of the theme\'s own to
   theme.choose('darcula');
 });
 
-it('Dictation on the phone, not installed: Install asks first, naming the size and the folder; the POST follows the confirm only', async () => {
+it('Dictation, not installed: Install asks first, naming the size and the folder; the POST follows the confirm only', async () => {
   setup();
   fireEvent.click(await screen.findByRole('button', { name: 'Install Whisper (≈ 430 MB download, 770 MB on disk)' }));
   expect(posts.filter((p) => p.url === '/dictation/install')).toHaveLength(0);
@@ -241,7 +241,7 @@ it('Dictation on the phone, not installed: Install asks first, naming the size a
   expect(dialog).toHaveTextContent('≈ 430 MB');
   expect(dialog).toHaveTextContent('≈ 770 MB on disk');
   expect(dialog).toHaveTextContent('/srv/nb/whisper');
-  expect(dialog).toHaveTextContent('end-to-end encrypted and are not stored');
+  expect(dialog).toHaveTextContent('end-to-end encrypted, and the audio of voice messages is kept beside the attachments');
   expect(dialog).not.toHaveTextContent('~/.nota-bene');
   expect(dialog).not.toHaveTextContent('nothing leaves');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -257,7 +257,7 @@ it('Dictation installing: a spinner line, polled every 2 s until it is ready', a
   setup();
   expect(await screen.findByText('Installing Whisper…')).toBeInTheDocument();
   dict = { ...dict, phase: 'ready' };
-  expect(await screen.findByRole('checkbox', { name: "Use Whisper for the phone's microphone" }, { timeout: 4000 })).toBeInTheDocument();
+  expect(await screen.findByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" }, { timeout: 4000 })).toBeInTheDocument();
 }, 8000);
 
 it('Dictation failed: the error line and Retry, which installs again without asking', async () => {
@@ -271,7 +271,7 @@ it('Dictation failed: the error line and Retry, which installs again without ask
 it('Dictation ready: the checkbox posts on; Remove asks first, then posts remove', async () => {
   dict = { ...dict, phase: 'ready' };
   setup();
-  const box = await screen.findByRole('checkbox', { name: "Use Whisper for the phone's microphone" });
+  const box = await screen.findByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" });
   expect(box).not.toBeChecked();
   fireEvent.click(box);
   await waitFor(() => expect(posts.find((p) => p.url === '/dictation/on')?.body).toEqual({ on: true }));

@@ -36,7 +36,7 @@ export function Wave({ wave, frac, onSeek }: { wave: number[]; frac: number; onS
 }
 
 /** A round play/pause button, the wave and the length (the position while playing): the voice part of a bubble and of a clip. */
-export function VoiceView({ voice }: { voice: Voice }) {
+export function VoiceView({ voice, src }: { voice: Voice; src?: string }) {
   const t = useT();
   const { playing, pos } = usePlay(voice.id);
   const frac = Math.min(1, pos / voice.ms);
@@ -45,7 +45,7 @@ export function VoiceView({ voice }: { voice: Voice }) {
       <button
         type="button"
         aria-label={playing ? t('voicePause') : t('voicePlay')}
-        onClick={() => toggle(voice.id)}
+        onClick={() => toggle(voice.id, src)}
         className="grid size-9 flex-none place-items-center rounded-full bg-primary text-primary-foreground hover:opacity-90"
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden>
@@ -53,7 +53,7 @@ export function VoiceView({ voice }: { voice: Voice }) {
         </svg>
       </button>
       <div className="min-w-0">
-        <Wave wave={voice.wave} frac={frac} onSeek={(f) => seek(voice.id, f * voice.ms)} />
+        <Wave wave={voice.wave} frac={frac} onSeek={(f) => seek(voice.id, f * voice.ms, src)} />
         <div data-testid="voice-time" className="font-mono text-[0.65625rem] text-muted-foreground">{playing || pos > 0 ? clock(pos) : clock(voice.ms, true)}</div>
       </div>
     </div>

@@ -18,7 +18,11 @@ import { Attachments } from '@/attachments/Attachments.tsx';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { addImage, removeImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { BINDINGS, keysLabel } from '@/shell/keymap.ts';
+import { BINDINGS, keysLabel, VOICE_KEY, withKey } from '@/shell/keymap.ts';
+import { openSettings } from '@/tabs/slice.ts';
+import { RecordBar } from '@/voice/RecordBar.tsx';
+import { sendVoice } from '@/voice/send.ts';
+import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
 import { PLAYER_HELP } from '@/media/playerKeys.ts';
 import { useSeekStep } from '@/media/seekStep.ts';
 
@@ -52,6 +56,9 @@ export function Composer() {
     if (!busy) setAskForce(false);
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
+  // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
+  const voiceOk = useAppSelector((s) => s.controls.protocol >= 14);
+  const whisper = caps.dictation === 'whisper';
   const fileIn = useRef<HTMLInputElement>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // the same status spot as "offline": a short-lived note (onlyImages / imgFail)
@@ -61,6 +68,41 @@ export function Composer() {
     noteTimer.current = setTimeout(() => setNote(''), 3000);
   };
   useEffect(() => () => clearTimeout(noteTimer.current), []);
+  const rec = useVoiceRecorder({
+    preview: true,
+    notify: flash,
+    // sent at once, apart from the draft, the images and the pending comments (they stay where they are)
+    onDone: (v) => { if (!dispatch(sendVoice(v))) flash(t('voiceRefused', t('offline'))); },
+  });
+  const recPhase = rec.st.phase;
+  const recording = recPhase !== 'idle';
+  const recRef = useRef(rec);
+  recRef.current = rec;
+  // Alt+R (the keymap): start a voice message, or send the one being made
+  useEffect(() => {
+    const onKey = () => {
+      if (!voiceOk) return;
+      if (!whisper) return void dispatch(openSettings());
+      const r = recRef.current;
+      if (r.st.phase === 'idle') { if (!switching) r.start(false); } else void r.send();
+    };
+    document.addEventListener(VOICE_KEY, onKey);
+    return () => document.removeEventListener(VOICE_KEY, onKey);
+  }, [voiceOk, whisper, switching, dispatch]);
+  // back to typing after a recording: the caret returns to the field
+  const wasRecording = useRef(false);
+  useEffect(() => {
+    if (recPhase === 'idle' && wasRecording.current) ref.current?.focus({ preventScroll: true });
+    wasRecording.current = recPhase !== 'idle';
+  }, [recPhase]);
+  const micDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || !whisper || switching || recRef.current.st.phase !== 'idle') return;
+    recRef.current.start(true);
+    // the button is gone from under the finger once the bar replaces it: the release is read on the window
+    const up = () => { window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); recRef.current.release(); };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
   const intake = useImageIntake({
     onUploaded: (im) => void dispatch(addImage(im)),
     notify: flash,
@@ -184,6 +226,7 @@ export function Composer() {
         onRemove={(id) => void dispatch(removeImage(id))}
       />
       <div data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
+        {recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} onCancel={rec.cancel} onStop={() => void rec.stop()} onSend={() => void rec.send()} /> : (<>
         <div className="relative flex min-w-0 flex-1">
         <textarea
           ref={ref}
@@ -214,11 +257,38 @@ export function Composer() {
         <MentionPicker target={ref} shell={() => shellModeRef.current} />
         <SlashPicker target={ref} />
         <ShortcodePicker target={ref} />
-        <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
-          <Button type="button" className="h-10" disabled={uploading || switching} onClick={() => submit(false)}>
-            {shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send')}
-          </Button>
-        </span>
+        </>)}
+        {voiceOk && !recording && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  data-testid="mic"
+                  disabled={switching}
+                  aria-label={whisper ? t('voiceMic') : t('voiceMicSetup')}
+                  onPointerDown={micDown}
+                  onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : void dispatch(openSettings()))}
+                  className="h-10 bg-muted px-2.5 text-muted-foreground hover:text-foreground"
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="9" y="3" width="6" height="11" rx="3" />
+                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                  </svg>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="whitespace-pre-line">{withKey(whisper ? t('voiceMic') : t('voiceMicSetup'), 'hk_voice')}</TooltipContent>
+          </Tooltip>
+        )}
+        {!recording && (
+          <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
+            <Button type="button" className="h-10" disabled={uploading || switching} onClick={() => submit(false)}>
+              {shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send')}
+            </Button>
+          </span>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex">
