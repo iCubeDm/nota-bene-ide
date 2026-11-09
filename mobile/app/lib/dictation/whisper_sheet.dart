@@ -93,7 +93,14 @@ class _WhisperSheetState extends State<WhisperSheet> {
   Future<void> _ask() async {
     final r = await _call('GET', '/dictation');
     if (!mounted) return;
-    if (r == null || r.status != 200) return _show(_Step.noAnswer);
+    if (r == null || r.status != 200) {
+      // one lost answer does not end a multi-minute install: ask again
+      if (_step == _Step.installing) {
+        _timer = Timer(_poll, _ask);
+        return;
+      }
+      return _show(_Step.noAnswer);
+    }
     final b = r.body;
     _dl = (b['downloadMb'] as num?)?.round() ?? 0;
     _disk = (b['diskMb'] as num?)?.round() ?? 0;
@@ -130,8 +137,15 @@ class _WhisperSheetState extends State<WhisperSheet> {
     setState(() => _busy = true);
     final r = await _call('POST', '/dictation/on', {'on': true});
     if (!mounted) return;
+    // 409: not installed (removed meanwhile): what is there now decides
+    if (r != null && r.status == 409) return _again();
     if (r == null || r.status != 200) return _show(_Step.noAnswer);
     _ready();
+  }
+
+  void _again() {
+    _show(_Step.asking);
+    _ask();
   }
 
   void _ready() {
@@ -164,7 +178,11 @@ class _WhisperSheetState extends State<WhisperSheet> {
       ),
       _Step.installing => (webString('dictInstalling', lang), null, null),
       _Step.off => (t.whisperOff, t.whisperTurnOn, _turnOn),
-      _Step.noAnswer => (t.whisperNoAnswer, null, null),
+      _Step.noAnswer => (
+        t.whisperNoAnswer,
+        webString('dictRetry', lang),
+        _again,
+      ),
     };
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),

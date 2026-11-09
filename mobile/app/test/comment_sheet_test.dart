@@ -157,6 +157,31 @@ void main() {
       expect(find.text('Install'), findsOneWidget);
     });
 
+    testWidgets('turning Whisper on from the sheet says so inside it', (
+      t,
+    ) async {
+      final mic = await openSheet(t, cap: null);
+      r.ch.onHttp = (port, method, path) async => path == '/dictation'
+          ? answer(
+              200,
+              '{"on":false,"phase":"ready","downloadMb":1,"diskMb":2,"dir":"/w"}',
+            )
+          : answer(200, '{"ok":true}');
+      await holdVoice(t, at: mic);
+      await t.pumpAndSettle();
+      await t.tap(find.text('Turn on Whisper'));
+      await t.pump();
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('Whisper is on: hold the mic to speak'),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('an error shows inside the sheet', (t) async {
       final mic = await openSheet(t);
       await lockVoice(t, at: mic);

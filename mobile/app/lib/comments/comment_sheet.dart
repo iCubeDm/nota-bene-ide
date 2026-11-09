@@ -22,8 +22,8 @@ class SheetSave extends SheetResult {
 
 class SheetDelete extends SheetResult {}
 
-/// Null when dismissed. With [editing], the fields start from it and Delete is offered. With the [tab], the voice
-/// control uses the host's Whisper when it has one, as the composer does; without, the phone's recognizer.
+/// Null when dismissed. With [editing], the fields start from it and Delete is offered. With the [tab], a voice
+/// control records for the window's Whisper, as the composer's does; without, there is none.
 Future<SheetResult?> showCommentSheet(
   BuildContext context, {
   required String quote,
@@ -167,12 +167,15 @@ class _SheetState extends State<_Sheet> {
                 ),
               ),
               if (widget.tab case final tab?)
-                VoiceButton(
-                  controller: _text,
-                  meter: _meter,
-                  onState: (v) => setState(() => _voice = v),
-                  chooser: voiceChooser(tab),
-                  onUnavailable: () => showWhisperSheet(context, tab),
+                // a context under the sheet's own messenger, so "Whisper is on" shows above the sheet
+                Builder(
+                  builder: (inner) => VoiceButton(
+                    controller: _text,
+                    meter: _meter,
+                    onState: (v) => setState(() => _voice = v),
+                    chooser: voiceChooser(tab),
+                    onUnavailable: () => showWhisperSheet(inner, tab),
+                  ),
                 ),
             ],
           ),

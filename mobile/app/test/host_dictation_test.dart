@@ -18,7 +18,8 @@ import 'support/rig.dart';
 class Recorder {
   final calls = <String>[];
   Object? startError;
-  final wav = Uint8List.fromList([82, 73, 70, 70, 1, 2, 3]);
+  var wav = Uint8List.fromList([82, 73, 70, 70, 1, 2, 3]);
+  bool stopNull = false;
 
   void install() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -27,7 +28,7 @@ class Recorder {
           if (call.method == 'start' && startError != null) {
             throw PlatformException(code: startError! as String);
           }
-          return call.method == 'stop' ? wav : null;
+          return call.method == 'stop' && !stopNull ? wav : null;
         });
   }
 
@@ -200,6 +201,47 @@ void main() {
     expect(events.last, isA<DictationEnd>());
   });
 
+  testWidgets('a long recording is given time to transcribe', (t) async {
+    // 100 s of 16 kHz 16-bit mono after the 44-byte header
+    rec.wav = Uint8List(44 + 100 * 32000);
+    final reply = Completer<HttpAnswer>();
+    final d = HostDictation(
+      () =>
+          (m, p, {headers, body}) => reply.future,
+    );
+    final events = <DictationEvent>[];
+    d.listen('en').listen(events.add);
+    await t.pump();
+    unawaited(d.stop());
+    await t.pump();
+    await t.pump(const Duration(seconds: 150));
+    expect(events.whereType<DictationError>(), isEmpty);
+    reply.complete(answer(200, '{"text":"long"}'));
+    await t.pump();
+    expect(events.whereType<DictationFinal>().single.text, 'long');
+  });
+
+  test(
+    'no audio from the recorder: hostFailed, and the recorder is cancelled',
+    () async {
+      rec.stopNull = true;
+      final d = HostDictation(
+        () =>
+            (m, p, {headers, body}) async => answer(200, '{"text":"x"}'),
+      );
+      final events = <DictationEvent>[];
+      d.listen('en').listen(events.add);
+      await tick();
+      await d.stop();
+      await tick();
+      expect(
+        events.whereType<DictationError>().single.why,
+        DictationFailure.hostFailed,
+      );
+      expect(rec.calls, ['start', 'stop', 'cancel']);
+    },
+  );
+
   test(
     'a recorder failure is reported as failed and ends the session',
     () async {
@@ -325,42 +367,45 @@ void main() {
       expect(find.text('The computer could not transcribe it'), findsOneWidget);
     });
 
-    testWidgets(
-      'a 503 means Whisper went off: the next press offers it again',
-      (t) async {
-        final reply = await openWith(t);
-        await t.enter('Fix ');
-        await holdVoice(t);
-        reply.complete(answer(503));
-        await t.pumpAndSettle();
-        expect(find.text('Fix '), findsOneWidget);
-        expect(find.text('Whisper is off on the computer'), findsOneWidget);
-        expect(r.tab!.whisperOn, isFalse);
-        rec.calls.clear();
-        r.ch.onHttp = (port, method, path) async => answer(
-          200,
-          '{"on":false,"phase":"ready","downloadMb":1,"diskMb":2,"dir":"/w"}',
-        );
-        // the snack bar would cover the button
-        await t.pump(const Duration(seconds: 6));
-        await t.pumpAndSettle();
-        await holdVoice(t);
-        await t.pumpAndSettle();
-        expect(rec.calls, isEmpty);
-        expect(find.text('Turn on Whisper'), findsOneWidget);
-        await t.tapAt(const Offset(10, 10));
-        await t.pumpAndSettle();
-        r.event({
-          'kind': 'hello',
-          'protocol': 13,
-          'capabilities': Rig.caps(dictation: 'whisper'),
-        });
-        await t.pump();
-        expect(r.tab!.whisperOn, isNull);
-        await lockVoice(t);
-        expect(rec.calls, ['start']);
-      },
-    );
+    testWidgets('a 503 means Whisper went off: the sheet opens to turn it on', (
+      t,
+    ) async {
+      final reply = await openWith(t);
+      await t.enter('Fix ');
+      await holdVoice(t);
+      r.ch.onHttp = (port, method, path) async => path == '/dictation'
+          ? answer(
+              200,
+              '{"on":false,"phase":"ready","downloadMb":1,"diskMb":2,"dir":"/w"}',
+            )
+          : reply.future;
+      reply.complete(answer(503));
+      await t.pumpAndSettle();
+      expect(find.text('Fix '), findsOneWidget);
+      expect(r.tab!.whisperOn, isFalse);
+      // the sheet that turns it back on opens by itself
+      expect(find.text('Turn on Whisper'), findsOneWidget);
+      rec.calls.clear();
+      await t.tapAt(const Offset(10, 10));
+      // the snack bar would cover the button
+      await t.pump(const Duration(seconds: 6));
+      await t.pumpAndSettle();
+      await holdVoice(t);
+      await t.pumpAndSettle();
+      expect(rec.calls, isEmpty);
+      expect(find.text('Turn on Whisper'), findsOneWidget);
+      await t.tapAt(const Offset(10, 10));
+      await t.pumpAndSettle();
+      r.event({
+        'kind': 'hello',
+        'protocol': 13,
+        'capabilities': Rig.caps(dictation: 'whisper'),
+      });
+      await t.pump();
+      expect(r.tab!.whisperOn, isNull);
+      await lockVoice(t);
+      expect(rec.calls, ['start']);
+    });
 
     testWidgets('the host going away mid-recording says so, once', (t) async {
       await openWith(t);
@@ -383,6 +428,7 @@ void main() {
         r.ch.onHttp = (port, method, path) async {
           if (method == 'GET' && path == '/dictation') {
             final st = states.length > 1 ? states.removeAt(0) : states.first;
+            if (st == 'error') return answer(500);
             return answer(
               200,
               '{"on":${st == 'on'},"phase":"${st == 'on' || st == 'off' ? 'ready' : st}",'
@@ -458,6 +504,51 @@ void main() {
         await t.tap(find.text('Retry'));
         await t.pump();
         expect(posts(), ['/dictation/install ']);
+      });
+
+      testWidgets('a failed poll during the install keeps following it', (
+        t,
+      ) async {
+        await openBare(t, ['none', 'error', 'installing', 'off']);
+        await holdVoice(t);
+        await t.pumpAndSettle();
+        await t.tap(find.text('Install'));
+        await t.pump();
+        await t.pump(const Duration(seconds: 2));
+        await t.pump();
+        expect(find.text('Installing Whisper…'), findsOneWidget);
+        await t.pump(const Duration(seconds: 2));
+        await t.pump();
+        await t.pump(const Duration(seconds: 2));
+        await t.pumpAndSettle();
+        expect(posts().last, '/dictation/on {"on":true}');
+        expect(r.tab!.whisperOn, isTrue);
+      });
+
+      testWidgets('no answer offers Retry, which asks again', (t) async {
+        await openBare(t, ['error', 'off']);
+        await holdVoice(t);
+        await t.pumpAndSettle();
+        expect(find.text('The computer did not answer'), findsOneWidget);
+        await t.tap(find.text('Retry'));
+        await t.pumpAndSettle();
+        expect(find.text('Turn on Whisper'), findsOneWidget);
+      });
+
+      testWidgets('Turn on refused as not installed: the sheet asks again', (
+        t,
+      ) async {
+        await openBare(t, ['off', 'none']);
+        final on = r.ch.onHttp!;
+        r.ch.onHttp = (port, method, path) async => path == '/dictation/on'
+            ? answer(409, '{"error":"not installed"}')
+            : on(port, method, path);
+        await holdVoice(t);
+        await t.pumpAndSettle();
+        await t.tap(find.text('Turn on Whisper'));
+        await t.pumpAndSettle();
+        expect(find.text('Install'), findsOneWidget);
+        expect(r.tab!.whisperOn, isNull);
       });
 
       testWidgets('a short tap opens it too, without the hold hint', (t) async {

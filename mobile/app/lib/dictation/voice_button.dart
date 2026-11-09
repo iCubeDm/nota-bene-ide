@@ -281,6 +281,8 @@ class _VoiceButtonState extends State<VoiceButton> {
         if (text.isNotEmpty) _put(text);
       case DictationError(:final why):
         if (!typed) widget.controller.value = _saved;
+        // Whisper went off on the computer since the hello: the sheet that turns it back on opens too
+        if (why == DictationFailure.hostOff) widget.onUnavailable?.call();
         final t = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
