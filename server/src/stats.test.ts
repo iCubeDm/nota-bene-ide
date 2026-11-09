@@ -69,6 +69,25 @@ describe('StatsService', () => {
     expect(usage).toHaveBeenCalledTimes(3);
   });
 
+  it('an answer without limits keeps the known windows until their reset passes', async () => {
+    const soon = new Date(1_000_000 + 10 * 60_000).toISOString(), later = new Date(1_000_000 + 3600_000).toISOString();
+    const known: Usage = { cost: 1, limits: { five_hour: { utilization: 10, resets_at: soon }, seven_day: { utilization: 20, resets_at: later } } };
+    let answer = known;
+    const { session } = stub({ usage: async () => answer });
+    const { svc } = make(session);
+    await svc.refresh({ limits: true });
+    answer = { cost: 2, limits: null };
+    await svc.refresh({ limits: true });
+    expect(svc.current().limits).toEqual(known.limits);
+    expect(svc.current().cost).toBe(2);
+    vi.advanceTimersByTime(20 * 60_000);
+    await svc.refresh({ limits: true });
+    expect(svc.current().limits).toEqual({ five_hour: null, seven_day: known.limits!.seven_day });
+    vi.advanceTimersByTime(3600_000);
+    await svc.refresh({ limits: true });
+    expect(svc.current().limits).toBeNull();
+  });
+
   it('does not emit when nothing changed', async () => {
     const { session } = stub();
     const { svc, emitted } = make(session);

@@ -524,6 +524,7 @@ export const de: Dict = {
   week: 'Woche',
   weekTip: 'Wochenlimit des Plans',
   costTip: 'API-Kosten dieser Sitzung',
+  costPlanTip: 'Diese Sitzung zu API-Preisen',
   resets: (at: string) => `Reset ${at}`,
   compactTip: 'Kontext komprimieren — der Agent fasst die Unterhaltung zusammen und macht mit der Zusammenfassung weiter (/compact)',
   clearTip: 'Kontext leeren — eine neue Unterhaltung beginnen (/clear). Die aktuelle Sitzung bleibt unter „Sitzungen ▾“',
