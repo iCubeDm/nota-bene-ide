@@ -103,7 +103,12 @@ class MediaProxy {
     }
   }
 
+  /// Whether [close] has been called.
+  bool get isClosed => _closed;
+  bool _closed = false;
+
   Future<void> close() async {
+    _closed = true;
     for (final c in [..._live]) {
       c();
     }

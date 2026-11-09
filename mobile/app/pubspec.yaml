@@ -28,12 +28,15 @@ dependencies:
   nb_protocol:
     path: ../protocol
   url_launcher: ^6.3.3
+  video_player: ^2.11.1
   webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  plugin_platform_interface: ^2.1.8
+  video_player_platform_interface: ^6.6.0
 
 flutter:
   uses-material-design: true

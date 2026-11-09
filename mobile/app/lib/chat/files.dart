@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../files/file_screen.dart';
 import '../files/image_screen.dart';
+import '../files/video_screen.dart';
 import '../l10n/app_localizations.dart';
 import 'feed.dart';
 import 'window_tab.dart';
@@ -62,11 +63,12 @@ List<String> sessionFiles(WindowTab tab) {
   ];
 }
 
-void openFile(BuildContext context, WindowTab tab, String rel) =>
+void openFile(BuildContext context, WindowTab tab, String rel, {double? at}) =>
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => switch (fileKindOf(rel)) {
           FileKind.image => ImageScreen(tab: tab, path: rel),
+          FileKind.video => VideoScreen(tab: tab, path: rel, at: at),
           _ => FileScreen(tab: tab, path: rel),
         },
       ),

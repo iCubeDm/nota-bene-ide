@@ -66,7 +66,17 @@ class CommentStrip extends StatelessWidget {
       _ => null,
     };
     return InkWell(
-      onTap: path == null ? null : () => openFile(context, tab, path),
+      onTap: path == null
+          ? null
+          : () => openFile(
+              context,
+              tab,
+              path,
+              at: switch (x.anchor) {
+                MediaAnchor(:final time) => time?.toDouble(),
+                _ => null,
+              },
+            ),
       onLongPress: () async {
         final res = await showCommentSheet(context, quote: quote, editing: x);
         switch (res) {
