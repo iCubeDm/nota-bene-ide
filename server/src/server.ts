@@ -32,6 +32,7 @@ import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
 import { runtimeDir } from './runtime.ts';
 import { dictationRoutes } from './dictation/routes.ts';
+import { voiceRoutes } from './voice/routes.ts';
 import { whisperPhase } from './dictation/install.ts';
 import { usageRoutes } from './usage/routes.ts';
 import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, keyCredential, loginCredential, newNonce, proofFor, sameSecret, sessionCookie } from './auth.ts';
@@ -246,6 +247,7 @@ export async function startServer(o: {
       extra: {
         ...fileRoutes({ root, hub, complete: (q) => complete({ session: manager, root: root() }, q), blend }),
         ...attachmentRoutes(attachments, hub),
+        ...voiceRoutes({ hub, store: attachments }),
         // only the current conversation's archive: a page of another one (before a switch or a /clear) gets 409
         ...historyRoutes(archive, () => manager.archiveId(), hub),
         // a subagent's conversation (protocol 7); same rule: only the current conversation's
