@@ -264,5 +264,6 @@
   "dictationNoMatch": "Nothing was heard",
   "dictationFailed": "Dictation failed",
   "dictationTranscribing": "Transcribing…",
-  "dictationHostFailed": "The computer could not transcribe it"
+  "dictationHostFailed": "The computer could not transcribe it",
+  "dictationHostOff": "Whisper is off on the computer; the phone's recognition is used now"
 }

@@ -135,5 +135,6 @@
   "dictationNoMatch": "没有听到内容",
   "dictationFailed": "语音输入失败",
   "dictationTranscribing": "正在转写…",
-  "dictationHostFailed": "电脑无法转写这段语音"
+  "dictationHostFailed": "电脑无法转写这段语音",
+  "dictationHostOff": "电脑上的 Whisper 已关闭;现在使用手机的语音识别"
 }

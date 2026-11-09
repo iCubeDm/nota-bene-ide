@@ -11,10 +11,16 @@ import 'dictation.dart';
 // its limit and stopped itself with the audio kept.
 const recordChannel = MethodChannel('nb/record');
 
+// a hung request must not keep the spinner up
+const _postTimeout = Duration(seconds: 60);
+
 enum _Phase { idle, recording, posting, done }
 
 class HostDictation implements Dictation {
-  HostDictation(this._http);
+  HostDictation(this._http, {this.onHostOff});
+
+  /// Called when the host answers 503: its Whisper is off or gone.
+  final void Function()? onHostOff;
 
   /// The window's requests; null while the host is offline.
   final WindowHttp? Function() _http;
@@ -32,6 +38,11 @@ class HostDictation implements Dictation {
       _phase = _Phase.recording;
       recordChannel.setMethodCallHandler((call) async {
         if (call.method == 'capped') await stop();
+        // the recorder failed under the phone: nothing usable was kept
+        if (call.method == 'failed' && _phase == _Phase.recording) {
+          _finish(DictationFailure.failed);
+          await recordChannel.invokeMethod<void>('cancel').catchError((_) {});
+        }
       });
       try {
         await recordChannel.invokeMethod<void>('start');
@@ -64,8 +75,12 @@ class HostDictation implements Dictation {
         '/dictation/transcribe?lang=${Uri.encodeQueryComponent(_lang)}',
         headers: {'content-type': 'audio/wav'},
         body: wav,
-      );
+      ).timeout(_postTimeout);
       if (_phase != _Phase.posting) return;
+      if (r.status == 503) {
+        onHostOff?.call();
+        return _finish(DictationFailure.hostOff);
+      }
       if (r.status != 200) return _finish(DictationFailure.hostFailed);
       final text = (jsonDecode(utf8.decode(r.body)) as Map)['text'];
       if (text is! String || text.trim().isEmpty) {

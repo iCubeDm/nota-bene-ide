@@ -38,7 +38,7 @@ class MainActivity : FlutterFragmentActivity() {
     private var pendingLang: String? = null
 
     // Recording for the host's Whisper (`nb/record`): one recorder at a time. `recordChannel` is also how the
-    // phone tells Dart the recorder stopped itself at its cap; `pendingStart` is a `start` waiting for the
+    // phone tells Dart the recorder stopped itself at its cap (`capped`) or failed (`failed`); `pendingStart` is a `start` waiting for the
     // microphone permission answer.
     private var recordChannel: MethodChannel? = null
     private var recording: Recording? = null
@@ -293,9 +293,14 @@ class MainActivity : FlutterFragmentActivity() {
             Thread {
                 val buf = ByteArray(chunk)
                 var capped = false
+                var failed = false
                 while (!stopping) {
                     val n = record.read(buf, 0, buf.size)
-                    if (n <= 0) break
+                    if (n <= 0) {
+                        // a read error while recording (a stop in between makes the read return early)
+                        failed = !stopping
+                        break
+                    }
                     pcm.write(buf, 0, minOf(n, MAX_PCM - pcm.size()))
                     if (pcm.size() >= MAX_PCM) {
                         capped = true
@@ -307,17 +312,20 @@ class MainActivity : FlutterFragmentActivity() {
                 } catch (_: Throwable) {}
                 record.release()
                 val bytes = wavOf(pcm.toByteArray())
-                mainHandler.post { finished(bytes, capped) }
+                mainHandler.post { finished(bytes, capped, failed) }
             }.also { it.isDaemon = true }.start()
         }
 
-        private fun finished(bytes: ByteArray, capped: Boolean) {
+        private fun finished(bytes: ByteArray, capped: Boolean, failed: Boolean) {
             if (dropped) return
             wav = bytes
             val w = waiting
             if (w != null) {
                 waiting = null
                 reply(w)
+            } else if (failed) {
+                // Dart ends the session and cancels this recording
+                recordChannel?.invokeMethod("failed", null)
             } else if (capped) {
                 // the audio is kept; Dart treats this like the user pressing stop
                 recordChannel?.invokeMethod("capped", null)

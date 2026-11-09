@@ -8,7 +8,14 @@ import 'package:flutter/services.dart';
 const speechChannel = MethodChannel('nb/speech');
 const speechEvents = EventChannel('nb/speech/events');
 
-enum DictationFailure { denied, unavailable, noMatch, failed, hostFailed }
+enum DictationFailure {
+  denied,
+  unavailable,
+  noMatch,
+  failed,
+  hostFailed,
+  hostOff,
+}
 
 sealed class DictationEvent {
   const DictationEvent();

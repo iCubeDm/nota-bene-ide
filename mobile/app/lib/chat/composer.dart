@@ -151,8 +151,13 @@ class _ComposerState extends State<Composer> {
                     controller: _text,
                     enabled: open,
                     chooser: () =>
-                        open && widget.tab.capabilities?.dictation == 'whisper'
-                        ? HostDictation(() => windowHttp(widget.tab))
+                        open &&
+                            widget.tab.capabilities?.dictation == 'whisper' &&
+                            !widget.tab.hostWhisperOff
+                        ? HostDictation(
+                            () => windowHttp(widget.tab),
+                            onHostOff: () => widget.tab.hostWhisperOff = true,
+                          )
                         : dictation,
                   ),
                 ),

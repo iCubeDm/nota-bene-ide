@@ -60,6 +60,10 @@ class WindowTab extends ChangeNotifier {
   /// path → the ETag of the file as last read here (`/file`), to tell a media comment drawn on an earlier version
   final fileVersions = <String, String>{};
   Capabilities? capabilities;
+
+  /// The host answered 503 to a dictation: its Whisper is off. Until the next hello or reconnect the phone's own
+  /// recognizer is used (the hello's capability is stale by then).
+  bool hostWhisperOff = false;
   ServerEventStats? stats;
 
   final _refusals = StreamController<ServerEventSendRefused>.broadcast();
@@ -117,6 +121,7 @@ class WindowTab extends ChangeNotifier {
   void _open(Channel ch) {
     _stream?.close(1000);
     _on = ch;
+    hostWhisperOff = false;
     final s = _stream = ch.ws(
       port,
       '/ws?tab=$tabId${_passive ? '&passive=1' : ''}',
@@ -189,6 +194,7 @@ class WindowTab extends ChangeNotifier {
       case ServerEventHello(:final protocol, :final capabilities):
         this.protocol = protocol;
         this.capabilities = capabilities;
+        hostWhisperOff = false;
       case ServerEventModels(:final models):
         this.models = models;
       case ServerEventModel(:final model, :final effort):

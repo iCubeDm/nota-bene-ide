@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import 'dictation.dart';
+import 'host_dictation.dart';
 
 class MicButton extends StatefulWidget {
   const MicButton({
@@ -57,7 +58,19 @@ class _MicButtonState extends State<MicButton> {
   @override
   void didUpdateWidget(MicButton old) {
     super.didUpdateWidget(old);
-    if (!widget.enabled && _listening) _end(cancel: true);
+    if (!widget.enabled && _listening) {
+      // the host went away under a recording or a post: say so, the phone's own recognizer needs no host
+      final host = _active is HostDictation;
+      _end(cancel: true);
+      if (host) {
+        // not during build: a snack bar cannot be shown from here
+        final messenger = ScaffoldMessenger.of(context);
+        final text = AppLocalizations.of(context).dictationHostFailed;
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => messenger.showSnackBar(SnackBar(content: Text(text))),
+        );
+      }
+    }
   }
 
   @override
@@ -145,6 +158,7 @@ class _MicButtonState extends State<MicButton> {
               DictationFailure.noMatch => t.dictationNoMatch,
               DictationFailure.failed => t.dictationFailed,
               DictationFailure.hostFailed => t.dictationHostFailed,
+              DictationFailure.hostOff => t.dictationHostOff,
             }),
           ),
         );

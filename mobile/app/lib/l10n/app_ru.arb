@@ -135,5 +135,6 @@
   "dictationNoMatch": "Речь не распознана",
   "dictationFailed": "Не удалось надиктовать",
   "dictationTranscribing": "Расшифровываю…",
-  "dictationHostFailed": "Компьютер не смог расшифровать речь"
+  "dictationHostFailed": "Компьютер не смог расшифровать речь",
+  "dictationHostOff": "На компьютере Whisper выключен; теперь используется распознавание телефона"
 }

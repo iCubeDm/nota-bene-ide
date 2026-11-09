@@ -135,5 +135,6 @@
   "dictationNoMatch": "Nada foi ouvido",
   "dictationFailed": "Falha no ditado",
   "dictationTranscribing": "Transcrevendo…",
-  "dictationHostFailed": "O computador não conseguiu transcrever"
+  "dictationHostFailed": "O computador não conseguiu transcrever",
+  "dictationHostOff": "O Whisper está desativado no computador; agora é usado o reconhecimento do telefone"
 }

@@ -135,5 +135,6 @@
   "dictationNoMatch": "Es wurde nichts gehört",
   "dictationFailed": "Diktat fehlgeschlagen",
   "dictationTranscribing": "Wird transkribiert…",
-  "dictationHostFailed": "Der Computer konnte es nicht transkribieren"
+  "dictationHostFailed": "Der Computer konnte es nicht transkribieren",
+  "dictationHostOff": "Whisper ist auf dem Computer aus; jetzt wird die Erkennung des Telefons verwendet"
 }
