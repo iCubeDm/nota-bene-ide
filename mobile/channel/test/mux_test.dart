@@ -241,4 +241,97 @@ void main() {
       );
     },
   );
+
+  test(
+    'a listener that pauses and resumes gets the stream going again',
+    () async {
+      final w = Wire();
+      final s = w.mux.open({'kind': 'http'});
+      var got = 0;
+      final sub = s.messages.listen((m) => got += m.data.length)..pause();
+      for (var i = 0; i < streamWindow ~/ maxChunk; i++) {
+        w.host(Data(s.id, Uint8List(maxChunk), fin: true));
+      }
+      await settle();
+      expect(w.of<Credit>(), isEmpty, reason: 'nothing read yet');
+      sub.resume();
+      await settle();
+      expect(got, greaterThan(streamWindow - maxChunk));
+      expect(w.of<Credit>().where((c) => c.stream == s.id), isNotEmpty);
+      await sub.cancel();
+    },
+  );
+
+  group('streamAnswer', () {
+    Future<(Wire, MuxStream, Future<HttpStreamAnswer>)> asked() async {
+      final w = Wire();
+      final s = w.mux.open({'kind': 'http', 'port': 1, 'path': '/file'});
+      s.end();
+      final a = streamAnswer(s);
+      w.host(
+        Head(s.id, {
+          'status': 206,
+          'headers': {'content-range': 'bytes 0-2/9'},
+        }),
+      );
+      return (w, s, a);
+    }
+
+    test('the body arrives chunk by chunk, in order', () async {
+      final (w, s, f) = await asked();
+      final a = await f;
+      expect((a.status, a.headers['content-range']), (206, 'bytes 0-2/9'));
+      final got = <List<int>>[];
+      final done = a.body.forEach(got.add);
+      for (final c in [
+        [1, 2],
+        [3],
+        [4, 5, 6],
+      ]) {
+        w.host(Data(s.id, c, fin: true));
+      }
+      w.host(End(s.id));
+      await done;
+      expect(got, [
+        [1, 2],
+        [3],
+        [4, 5, 6],
+      ]);
+    });
+
+    test('no credit while the listener pauses; granted on resume', () async {
+      final (w, s, f) = await asked();
+      final a = await f;
+      final sub = a.body.listen((_) {})..pause();
+      final half = Uint8List(maxChunk);
+      for (var i = 0; i < streamWindow ~/ maxChunk; i++) {
+        w.host(Data(s.id, half, fin: true));
+      }
+      await settle();
+      expect(w.of<Credit>().where((c) => c.stream == s.id), isEmpty);
+      sub.resume();
+      for (var i = 0; i < 10; i++) {
+        await settle();
+      }
+      expect(w.of<Credit>().where((c) => c.stream == s.id), isNotEmpty);
+      await sub.cancel();
+    });
+
+    test('cancel closes the stream', () async {
+      final (w, s, f) = await asked();
+      final a = await f;
+      a.cancel();
+      expect(w.of<Close>().map((c) => c.stream), [s.id]);
+      expect(s.isClosed, isTrue);
+    });
+
+    test('a stream the host breaks off fails the body', () async {
+      final (w, s, f) = await asked();
+      final a = await f;
+      final done = a.body.drain<void>();
+      w.host(Data(s.id, [1], fin: true));
+      w.host(Close(s.id, unreachable, 'the response broke off'));
+      await expectLater(done, throwsA(isA<StreamClosed>()));
+    });
+  });
 }

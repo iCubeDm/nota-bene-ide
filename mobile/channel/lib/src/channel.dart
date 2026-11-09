@@ -59,6 +59,59 @@ typedef HttpAnswer = ({
   Uint8List body,
 });
 
+/// A response whose body is read as it arrives. [cancel] closes the stream (a body that is never read must be
+/// cancelled, or its stream stays open).
+typedef HttpStreamAnswer = ({
+  int status,
+  Map<String, String> headers,
+  Stream<Uint8List> body,
+  void Function() cancel,
+});
+
+/// The answer on an http stream [s] whose request has gone out: the head, then the body as it arrives. No credit is
+/// granted while the body has no listener or its listener pauses, so a slow reader throttles the host. The body fails
+/// with [StreamClosed] when the host breaks the stream off; cancelling its subscription closes the stream.
+Future<HttpStreamAnswer> streamAnswer(MuxStream s) async {
+  final head = await s.head;
+  void cancel() {
+    if (!s.isClosed) s.close(normalClose);
+  }
+
+  StreamSubscription<Message>? sub;
+  late final StreamController<Uint8List> out;
+  out = StreamController<Uint8List>(
+    onListen: () {
+      sub = s.messages.listen(
+        (m) => out.add(m.data),
+        onDone: () async {
+          final c = await s.closed;
+          if (c.code != normalClose) {
+            out.addError(StreamClosed(c.code, c.reason));
+          }
+          await out.close();
+        },
+      );
+    },
+    onPause: () => sub?.pause(),
+    onResume: () => sub?.resume(),
+    onCancel: () {
+      cancel(); // a reader that stopped early: the host stops too
+      return sub?.cancel();
+    },
+  );
+
+  final h = head['headers'];
+  return (
+    status: head['status'] as int,
+    headers: {
+      if (h is Map)
+        for (final e in h.entries) '${e.key}': '${e.value}',
+    },
+    body: out.stream,
+    cancel: cancel,
+  );
+}
+
 /// Request headers the host passes on; the rest it drops, so they are not sent at all.
 const passedHeaders = {
   'accept',
@@ -265,6 +318,26 @@ class Channel {
     Map<String, String>? headers,
     List<int>? body,
   }) async {
+    final a = await httpStream(
+      port,
+      method,
+      path,
+      headers: headers,
+      body: body,
+    );
+    final parts = BytesBuilder(copy: false);
+    await a.body.forEach(parts.add);
+    return (status: a.status, headers: a.headers, body: parts.takeBytes());
+  }
+
+  /// One request to a window, its body read as it arrives (see [streamAnswer]).
+  Future<HttpStreamAnswer> httpStream(
+    int port,
+    String method,
+    String path, {
+    Map<String, String>? headers,
+    List<int>? body,
+  }) {
     final pass = {
       for (final e in (headers ?? const <String, String>{}).entries)
         if (passedHeaders.contains(e.key.toLowerCase()))
@@ -277,25 +350,11 @@ class Channel {
       'path': path,
       if (pass.isNotEmpty) 'headers': pass,
     });
-    final parts = BytesBuilder(copy: false);
-    final got = s.messages.forEach((m) => parts.add(m.data));
     if (body != null && body.isNotEmpty) {
       unawaited(s.send(body).catchError((_) {}));
     }
     s.end();
-    final head = await s.head;
-    await got;
-    final c = await s.closed;
-    if (c.code != normalClose) throw StreamClosed(c.code, c.reason);
-    final h = head['headers'];
-    return (
-      status: head['status'] as int,
-      headers: {
-        if (h is Map)
-          for (final e in h.entries) '${e.key}': '${e.value}',
-      },
-      body: parts.takeBytes(),
-    );
+    return streamAnswer(s);
   }
 
   Future<void> close() async {
