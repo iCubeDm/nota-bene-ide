@@ -26,6 +26,7 @@ import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -122,6 +123,10 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun configurePick(flutterEngine: FlutterEngine) {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "nb/pick").setMethodCallHandler { call, result ->
+            if (call.method == "share") {
+                shareImage(call, result)
+                return@setMethodCallHandler
+            }
             if (call.method != "camera" && call.method != "gallery" && call.method != "file") {
                 result.notImplemented()
                 return@setMethodCallHandler
@@ -143,6 +148,40 @@ class MainActivity : FlutterFragmentActivity() {
                 "gallery" -> startGallery(result)
                 else -> startFile(result)
             }
+        }
+    }
+
+    // `share` {bytes, mime, name}: the image is written to cache/pick (the camera's folder and provider) and offered to the
+    // system's share sheet as ACTION_SEND. Independent of a pick in progress; answers null once the sheet is shown.
+    private fun shareImage(call: MethodCall, result: MethodChannel.Result) {
+        val bytes = call.argument<ByteArray>("bytes")
+        val mime = call.argument<String>("mime") ?: "image/*"
+        if (bytes == null) {
+            result.error("read", "no bytes", null)
+            return
+        }
+        try {
+            val dir = File(cacheDir, "pick")
+            dir.mkdirs()
+            dir.listFiles()?.forEach { if (it.name.startsWith("share-")) it.delete() } // an earlier share's copy
+            // a file name from the user's own name, stripped of anything that is not a plain character
+            val clean = (call.argument<String>("name") ?: "image").replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
+            val file = File(dir, "share-$clean")
+            file.writeBytes(bytes)
+            val uri = FileProvider.getUriForFile(this, "$packageName.pick", file)
+            val send = Intent(Intent.ACTION_SEND)
+                .setType(mime)
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val chooser = Intent.createChooser(send, null)
+            chooser.clipData = ClipData.newRawUri("", uri)
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(chooser)
+            result.success(null)
+        } catch (e: ActivityNotFoundException) {
+            result.error("unavailable", null, null)
+        } catch (e: Exception) {
+            result.error("read", e.message ?: e.javaClass.simpleName, null)
         }
     }
 

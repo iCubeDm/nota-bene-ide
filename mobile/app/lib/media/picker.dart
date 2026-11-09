@@ -35,3 +35,32 @@ Future<({List<PickedImage> images, List<String> skipped})> pickImages(
   }
   return (images: images, skipped: skipped);
 }
+
+/// Hands [bytes] to the system's share sheet (an `ACTION_SEND` of a file in our cache, through the same provider as the
+/// camera's); throws a [PlatformException] when there is nothing to share with.
+Future<void> shareImage(Uint8List bytes, String mime, String name) =>
+    pickChannel.invokeMethod<void>('share', {
+      'bytes': bytes,
+      'mime': mime,
+      'name': name,
+    });
+
+/// The type of an image from its first bytes (png, jpeg, gif, webp), else from its [name], else any image.
+String imageMime(Uint8List b, String name) {
+  bool at(int i, List<int> m) =>
+      b.length >= i + m.length &&
+      [for (var k = 0; k < m.length; k++) b[i + k] == m[k]].every((x) => x);
+  if (at(0, [0x89, 0x50, 0x4e, 0x47])) return 'image/png';
+  if (at(0, [0xff, 0xd8, 0xff])) return 'image/jpeg';
+  if (at(0, [0x47, 0x49, 0x46, 0x38])) return 'image/gif';
+  if (at(0, [0x52, 0x49, 0x46, 0x46]) && at(8, [0x57, 0x45, 0x42, 0x50])) {
+    return 'image/webp';
+  }
+  return switch (name.split('.').last.toLowerCase()) {
+    'png' => 'image/png',
+    'jpg' || 'jpeg' => 'image/jpeg',
+    'gif' => 'image/gif',
+    'webp' => 'image/webp',
+    _ => 'image/*',
+  };
+}

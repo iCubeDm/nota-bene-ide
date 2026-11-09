@@ -171,5 +171,7 @@
   "attachDenied": "Nota Bene no puede usar la cámara ni las fotos. Permítelo en los ajustes de Android.",
   "attachBusy": "Otro selector sigue abierto. Termínalo primero.",
   "attachUnavailable": "Este teléfono no tiene una app para eso.",
-  "attachRead": "No se pudo leer la imagen."
+  "attachRead": "No se pudo leer la imagen.",
+  "share": "Compartir",
+  "shareFailed": "No se pudo compartir la imagen."
 }

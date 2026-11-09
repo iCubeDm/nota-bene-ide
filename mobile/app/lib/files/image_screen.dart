@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/window_tab.dart';
@@ -12,6 +13,8 @@ import '../l10n/app_localizations.dart';
 import '../media/fetch.dart';
 import '../media/markup.dart';
 import '../media/media_comment.dart';
+import '../media/picker.dart';
+import '../ui/nb_icon.dart';
 
 export '../media/fetch.dart' show imageMaxBytes;
 
@@ -147,6 +150,10 @@ class _ImageScreenState extends State<ImageScreen> {
   bool _busy = false;
   final _markup = Markup();
   final _zoom = TransformationController();
+  bool _zoomed = false;
+
+  /// how far a swipe down has carried the picture
+  double _drag = 0;
 
   ViewerImage get _item => widget.items[_index];
   _Page? get _page => _pages[_index];
@@ -154,6 +161,10 @@ class _ImageScreenState extends State<ImageScreen> {
   @override
   void initState() {
     super.initState();
+    _zoom.addListener(() {
+      final z = _zoom.value.getMaxScaleOnAxis() > 1.01;
+      if (z != _zoomed) setState(() => _zoomed = z);
+    });
     _load(_index);
   }
 
@@ -215,7 +226,7 @@ class _ImageScreenState extends State<ImageScreen> {
 
   Future<void> _comment() async {
     final image = _page?.image, path = _item.path;
-    if (image == null || path == null || _markup.shapes.isEmpty) return;
+    if (image == null || path == null) return;
     final res = await showCommentSheet(
       context,
       quote: path.split('/').last,
@@ -238,6 +249,74 @@ class _ImageScreenState extends State<ImageScreen> {
     if (ok) _markup.marking = false;
   }
 
+  Future<void> _share() async {
+    final bytes = _page?.bytes;
+    if (bytes == null) return;
+    final t = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final name = _item.name.isEmpty ? 'image' : _item.name;
+    try {
+      await shareImage(bytes, imageMime(bytes, name), name);
+    } on PlatformException {
+      messenger.showSnackBar(SnackBar(content: Text(t.shareFailed)));
+    }
+  }
+
+  void _dragEnd(DragEndDetails d) {
+    final close = _drag > 120 || (d.primaryVelocity ?? 0) > 800;
+    if (close) {
+      Navigator.of(context).maybePop();
+    } else {
+      setState(() => _drag = 0);
+    }
+  }
+
+  Widget _action(String key, NbGlyph glyph, String label, VoidCallback? on) =>
+      Expanded(
+        child: Tooltip(
+          message: label,
+          child: InkWell(
+            key: ValueKey(key),
+            onTap: on,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NbIcon(glyph, size: 22, color: Colors.white),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+  Widget _actions(AppLocalizations t) => ColoredBox(
+    color: Colors.black,
+    child: SafeArea(
+      top: false,
+      child: Row(
+        children: [
+          if (_item.markable)
+            _action(
+              'act-markup',
+              NbGlyph.pen,
+              t.markUp,
+              () => _markup.marking = true,
+            ),
+          if (_item.markable)
+            _action('act-comment', NbGlyph.comments, t.comment, _comment),
+          _action('act-share', NbGlyph.share, t.share, _share),
+        ],
+      ),
+    ),
+  );
+
   String _failText(AppLocalizations t, _Fail f) => switch (f) {
     _Fail.notFound => t.fileNotFound,
     _Fail.outside => t.fileOutside,
@@ -250,48 +329,59 @@ class _ImageScreenState extends State<ImageScreen> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final image = _page?.image;
+    final many = widget.items.length > 1;
     return ListenableBuilder(
       listenable: Listenable.merge([_markup, widget.tab.comments]),
       builder: (context, _) => Scaffold(
+        backgroundColor: Colors.black,
         appBar: AppBar(
-          title: Text(_item.name),
-          actions: [
-            if (image != null && _item.markable && !_markup.marking)
-              IconButton(
-                tooltip: t.markUp,
-                icon: const Icon(Icons.draw_outlined),
-                onPressed: () => _markup.marking = true,
-              ),
-          ],
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_item.name, style: const TextStyle(fontSize: 16)),
+              if (many)
+                Text(
+                  '${_index + 1} / ${widget.items.length}',
+                  style: const TextStyle(fontSize: 12, color: Colors.white70),
+                ),
+            ],
+          ),
         ),
         bottomNavigationBar: _markup.marking
             ? MarkupToolbar(markup: _markup, busy: _busy, onComment: _comment)
+            : image != null
+            ? _actions(t)
             : null,
-        body: PageView.builder(
-          controller: _controller,
-          itemCount: widget.items.length,
-          physics: _markup.marking
-              ? const NeverScrollableScrollPhysics()
-              : null,
-          onPageChanged: _moved,
-          itemBuilder: (context, i) {
-            _load(i);
-            final p = _pages[i];
-            final fail = p?.fail, image = p?.image;
-            return fail != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        _failText(t, fail),
-                        textAlign: TextAlign.center,
+        body: DefaultTextStyle.merge(
+          style: const TextStyle(color: Colors.white),
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: widget.items.length,
+            physics: _markup.marking || _zoomed
+                ? const NeverScrollableScrollPhysics()
+                : null,
+            onPageChanged: _moved,
+            itemBuilder: (context, i) {
+              _load(i);
+              final p = _pages[i];
+              final fail = p?.fail, image = p?.image;
+              return fail != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _failText(t, fail),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                    ),
-                  )
-                : image == null
-                ? const Center(child: CircularProgressIndicator())
-                : _picture(i, image);
-          },
+                    )
+                  : image == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : _picture(i, image);
+            },
+          ),
         ),
       ),
     );
@@ -306,14 +396,29 @@ class _ImageScreenState extends State<ImageScreen> {
       child: RawImage(image: image, fit: BoxFit.fill),
     );
     // while marking, a drag draws: the zoom stays where it was but takes no gestures
-    return _markup.marking
-        ? ClipRect(
-            child: Transform(transform: _zoom.value, child: layer),
-          )
-        : InteractiveViewer(
-            transformationController: i == _index ? _zoom : null,
-            maxScale: 8,
-            child: layer,
-          );
+    if (_markup.marking) {
+      return ClipRect(
+        child: Transform(transform: _zoom.value, child: layer),
+      );
+    }
+    final viewer = InteractiveViewer(
+      transformationController: i == _index ? _zoom : null,
+      maxScale: 8,
+      panEnabled: !(i == _index && !_zoomed),
+      child: layer,
+    );
+    // at scale 1 a drag down carries the picture off and closes the viewer; zoomed, it pans
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: _zoomed
+          ? null
+          : (d) => setState(() => _drag = (_drag + d.delta.dy).clamp(0, 600)),
+      onVerticalDragEnd: _zoomed ? null : _dragEnd,
+      onVerticalDragCancel: () => setState(() => _drag = 0),
+      child: Transform.translate(
+        offset: Offset(0, i == _index ? _drag : 0),
+        child: viewer,
+      ),
+    );
   }
 }

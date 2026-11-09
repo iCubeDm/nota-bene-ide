@@ -324,5 +324,7 @@
         "type": "String"
       }
     }
-  }
+  },
+  "share": "Share",
+  "shareFailed": "The image could not be shared."
 }

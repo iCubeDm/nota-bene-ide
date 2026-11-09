@@ -171,5 +171,7 @@
   "attachDenied": "Nota Bene 无权使用相机或照片。请在 Android 设置中允许。",
   "attachBusy": "另一个选择器仍处于打开状态。请先完成它。",
   "attachUnavailable": "此手机上没有可用的应用。",
-  "attachRead": "无法读取图片。"
+  "attachRead": "无法读取图片。",
+  "share": "分享",
+  "shareFailed": "无法分享图片。"
 }
