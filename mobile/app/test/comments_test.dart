@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/chat/feed.dart';
 import 'package:nb_app/comments/comments.dart';
+import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/rig.dart';
@@ -103,6 +105,7 @@ void main() {
           final out = composeSend(
             k['general'] as String,
             [for (final i in k['items'] as List) all[i]!],
+            Feed(),
             e.key as String,
             staleOf: (c) => stale.contains(c.id),
           );
@@ -114,6 +117,40 @@ void main() {
         });
       }
     }
+  });
+
+  group('composeSend names a chat fragment as the desktop does', () {
+    final feed = Feed()
+      ..items = [
+        UserItem('u1', 'hello'),
+        AssistantItem('a1', 'the answer', final_: true),
+        AssistantItem('stream:0', 'still coming', final_: false),
+      ];
+    String where(String id, String lang) {
+      final out = composeSend(
+        '',
+        [c('x', 'q', 'w', source: AnchorSourceMessage(id: id))],
+        feed,
+        lang,
+      ).text;
+      return RegExp(r'1\. \[(.*)\]').firstMatch(out)![1]!;
+    }
+
+    for (final lang in ['en', 'ru', 'zh', 'es', 'pt', 'de']) {
+      test(lang, () {
+        expect(where('u1', lang), webString('srcMine', lang));
+        expect(where('a1', lang), webString('replyPlain', lang));
+        expect(where('gone', lang), batchString('srcChat', lang));
+        expect(where('stream:0', lang), batchString('srcChat', lang));
+      });
+    }
+
+    test('the words are the desktop\'s', () {
+      expect(where('u1', 'en'), 'my message');
+      expect(where('a1', 'en'), 'reply');
+      expect(where('gone', 'en'), 'chat');
+      expect(where('u1', 'ru'), isNot('my message'));
+    });
   });
 
   group('Comments', () {

@@ -24,6 +24,7 @@ export const WEB_KEYS: readonly string[] = [
   'h5', 'week',
   ...ALL_MODES.flatMap((m) => [`mode_${m}`, `mode_${m}_desc`]),
   'modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip', 'clearFail', 'working', 'offline',
+  'srcMine', 'replyPlain',
 ];
 /**
  * The batch's functions, as templates: each is called with the placeholders `{0}`, `{1}` for its arguments (a list

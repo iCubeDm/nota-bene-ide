@@ -905,6 +905,22 @@ const _json = r'''
    "es": "sin conexión con el servidor…",
    "pt": "sem conexão com o servidor…",
    "de": "keine Verbindung zum Server…"
+  },
+  "srcMine": {
+   "en": "my message",
+   "ru": "моё сообщение",
+   "zh": "我的消息",
+   "es": "mi mensaje",
+   "pt": "minha mensagem",
+   "de": "meine Nachricht"
+  },
+  "replyPlain": {
+   "en": "reply",
+   "ru": "ответ",
+   "zh": "回复",
+   "es": "respuesta",
+   "pt": "resposta",
+   "de": "Antwort"
   }
  },
  "batch": {

@@ -103,6 +103,7 @@ class _ComposerState extends State<Composer> {
     final batch = composeSend(
       text,
       comments,
+      widget.tab.feed,
       lang,
       // "changed" only when the current version is known (the file was opened here) and differs from the drawn one
       staleOf: (c) => switch (c.anchor) {

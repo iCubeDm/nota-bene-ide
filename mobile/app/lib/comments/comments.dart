@@ -4,8 +4,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../chat/feed.dart' show Feed;
 import '../chat/window_tab.dart' show uuidV4;
 import '../media/shapes.dart';
+import 'chat_anchor.dart';
 import 'strings.g.dart';
 
 /// How long a comment added here is shown before the server's set has it (a broadcast from before ours can land first).
@@ -160,15 +162,16 @@ class Comments extends ChangeNotifier {
 String _file(String path, String? ref) => ref == null ? path : '$path @ $ref';
 
 /// Where a comment's fragment lives, as the desktop's `whereOf` names it: a file as its path (`path @ ref` from another
-/// branch), a media mark with its time and size; a chat fragment as "chat", since the phone does not number the replies
-/// the way the desktop's batch does.
-String _whereOf(Comment c, String lang) => switch (c.anchor) {
+/// branch), a media mark with its time and size; a chat fragment as the desktop's plain name for it (my message, reply, or chat for one the feed no longer holds).
+String _whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
   MediaAnchor(:final source, :final time, :final width, :final height) =>
     '${_file(source.path, source.ref)}${time != null ? ' @ ${mediaTime(time.toDouble())}' : ''} · ${jsNum(width)}×${jsNum(height)}',
   TextAnchor(source: AnchorSourceFile(:final path, :final ref)) => _file(
     path,
     ref,
   ),
+  TextAnchor(source: AnchorSourceMessage(:final id, agent: null)) =>
+    whereOfChat(id, feed, lang),
   _ => batchString('srcChat', lang),
 };
 
@@ -199,6 +202,7 @@ int generatedImages(Comment c) =>
 ({String text, List<ImageRef> images}) composeSend(
   String general,
   List<Comment> items,
+  Feed feed,
   String lang, {
   bool Function(Comment)? staleOf,
 }) {
@@ -262,7 +266,7 @@ int generatedImages(Comment c) =>
             .where((l) => l.id == c.label)
             .firstOrNull
             ?.instruction;
-        return '${i + 1}. [${_whereOf(c, lang)}]\n$quote\n→ $body${instr != null ? '\n   $instr' : ''}$tail';
+        return '${i + 1}. [${_whereOf(c, feed, lang)}]\n$quote\n→ $body${instr != null ? '\n   $instr' : ''}$tail';
       }(),
   ];
   return (
@@ -273,5 +277,9 @@ int generatedImages(Comment c) =>
 }
 
 /// The batch text alone.
-String composeBatch(String general, List<Comment> items, String lang) =>
-    composeSend(general, items, lang).text;
+String composeBatch(
+  String general,
+  List<Comment> items,
+  String lang, [
+  Feed? feed,
+]) => composeSend(general, items, feed ?? Feed(), lang).text;
