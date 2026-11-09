@@ -48,6 +48,9 @@ final userInlineSyntaxes = <md.InlineSyntax>[
   _TypedHtml(),
 ];
 
+/// The nodes of a user message as its bubble shows them (what [chatText] reads).
+List<md.Node> parseUserMessage(String text) => _parseUser(_general(text));
+
 const _langs = ['en', 'ru', 'zh', 'es', 'pt', 'de'];
 
 /// BATCH_HEAD (shared/src/lang.ts): every language's heading of a sent batch.

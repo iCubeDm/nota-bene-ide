@@ -83,14 +83,24 @@ class FileMarkdown extends StatefulWidget {
   const FileMarkdown({
     super.key,
     required this.text,
-    required this.marks,
-    required this.onMark,
     required this.listenerAt,
+    this.marks = const [],
+    this.onMark = _noMark,
+    this.parse = parseMarkdown,
+    this.softLineBreak = false,
   });
+
+  static void _noMark(String id) {}
 
   final String text;
   final List<Mark> marks;
   final void Function(String id) onMark;
+
+  /// How [text] becomes nodes: the chat's Markdown, or a user message's (its HTML is text).
+  final List<md.Node> Function(String text) parse;
+
+  /// A line break of the text stays one (a user message).
+  final bool softLineBreak;
 
   /// The selection of top-level block [i] is reported to this notifier: an offset Flutter gives inside one block
   /// stays near the rendered one, where across the file code and bullets push it away.
@@ -147,12 +157,13 @@ class _FileMarkdownState extends State<FileMarkdown>
       color: c.foreground,
       backgroundColor: c.border,
     );
-    final nodes = parseMarkdown(widget.text);
+    final nodes = widget.parse(widget.text);
     wrapMarks(nodes, renderedText(nodes), widget.marks);
     final builders = markdownBuilders();
     List<Widget> build(md.Node n) => MarkdownBuilder(
       delegate: this,
       selectable: false,
+      softLineBreak: widget.softLineBreak,
       styleSheet: sheet,
       imageDirectory: null,
       imageBuilder: null,

@@ -8,6 +8,7 @@ import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'code_screen.dart';
+import 'comment_target.dart';
 
 Color? _colorOf(String? cls, NbColors c) => switch (cls) {
   null => null,
@@ -119,7 +120,16 @@ class CodeBlock extends StatelessWidget {
                 tooltip: t.expandCode,
                 visualDensity: VisualDensity.compact,
                 icon: NbIcon(NbGlyph.expand, size: 16, color: c.mutedFg),
-                onPressed: () => openCode(context, text, lang),
+                onPressed: () {
+                  final target = CommentTarget.maybeOf(context);
+                  openCode(
+                    context,
+                    text,
+                    lang,
+                    tab: target?.tab,
+                    item: target?.item,
+                  );
+                },
               ),
               IconButton(
                 tooltip: t.copy,

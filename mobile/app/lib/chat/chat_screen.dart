@@ -6,12 +6,15 @@ import 'package:nb_protocol/nb_protocol.dart' show StopReason;
 import '../hosts/hosts_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../comments/chat_anchor.dart';
+import '../files/file_markdown.dart';
 import '../theme.dart';
 import 'chat_header.dart';
+import 'comment_target.dart';
 import 'feed.dart';
 import 'files.dart';
 import 'markdown.dart';
 import 'message_menu.dart';
+import 'message_selection.dart';
 import 'window_tab.dart';
 
 class ChatScreen extends StatelessWidget {
@@ -169,8 +172,9 @@ class ChatScreen extends StatelessWidget {
   }
 }
 
-/// A long press on a commentable item (a user message, a final reply) opens its menu; others pass through.
-class _Commentable extends StatelessWidget {
+/// A long press on a commentable item (a user message, a final reply) opens its menu; others pass through. "Select
+/// text" in the menu puts this one item into selection mode until a tap lands outside it.
+class _Commentable extends StatefulWidget {
   const _Commentable({
     required this.tab,
     required this.item,
@@ -183,31 +187,62 @@ class _Commentable extends StatelessWidget {
   final Widget child;
 
   @override
+  State<_Commentable> createState() => _CommentableState();
+}
+
+class _CommentableState extends State<_Commentable> {
+  bool _selecting = false;
+  Offset? _from;
+
+  @override
   Widget build(BuildContext context) {
-    if (chatSource(item) == null) return child;
-    return GestureDetector(
-      onLongPress: () {
-        final box = context.findRenderObject() as RenderBox;
-        final rect = box.localToGlobal(Offset.zero) & box.size;
-        showMessageMenu(
-          context,
-          tab: tab,
+    final item = widget.item;
+    if (chatSource(item) == null) return widget.child;
+    if (_selecting) {
+      return CommentTarget(
+        tab: widget.tab,
+        item: item,
+        child: SelectableMessage(
+          tab: widget.tab,
           item: item,
-          itemRect: rect,
-          // selecting inside a message arrives with the next step
-          onSelectText: () {},
-          onReply: onReply,
-        );
-      },
-      child: child,
+          from: _from,
+          onDone: () => setState(() => _selecting = false),
+        ),
+      );
+    }
+    return CommentTarget(
+      tab: widget.tab,
+      item: item,
+      child: GestureDetector(
+        onLongPressStart: (d) {
+          final at = d.globalPosition;
+          final box = context.findRenderObject() as RenderBox;
+          final rect = box.localToGlobal(Offset.zero) & box.size;
+          showMessageMenu(
+            context,
+            tab: widget.tab,
+            item: item,
+            itemRect: rect,
+            onSelectText: () => setState(() {
+              _selecting = true;
+              _from = at;
+            }),
+            onReply: widget.onReply,
+          );
+        },
+        child: widget.child,
+      ),
     );
   }
 }
 
 /// The default look of one feed item.
 class FeedItemView extends StatelessWidget {
-  const FeedItemView(this.item, {super.key});
+  const FeedItemView(this.item, {super.key, this.listenerAt});
   final FeedItem item;
+
+  /// In selection mode: the Markdown is drawn block by block, each block's selection reported to its notifier.
+  final SelectionListenerNotifier Function(int block)? listenerAt;
 
   @override
   Widget build(BuildContext context) {
@@ -251,18 +286,27 @@ class FeedItemView extends StatelessWidget {
                       ),
                     ),
                     // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
-                    child: NbMarkdown(
-                      userMarkdownSource(text),
-                      blockSyntaxes: userBlockSyntaxes,
-                      inlineSyntaxes: userInlineSyntaxes,
-                      softLineBreak: true,
-                    ),
+                    child: listenerAt == null
+                        ? NbMarkdown(
+                            userMarkdownSource(text),
+                            blockSyntaxes: userBlockSyntaxes,
+                            inlineSyntaxes: userInlineSyntaxes,
+                            softLineBreak: true,
+                          )
+                        : FileMarkdown(
+                            text: text,
+                            listenerAt: listenerAt!,
+                            parse: parseUserMessage,
+                            softLineBreak: true,
+                          ),
                   ),
                 ),
               ),
       AssistantItem(:final text) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: NbMarkdown(text),
+        child: listenerAt == null
+            ? NbMarkdown(text)
+            : FileMarkdown(text: text, listenerAt: listenerAt!),
       ),
       ToolItem() => ToolLine(item as ToolItem),
       DoneItem(:final secs, :final status, :final error) => line(
