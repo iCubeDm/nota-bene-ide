@@ -25,6 +25,21 @@ Markdown, and `web/src/anchors/mobileParity.test.tsx` writes the desktop's text 
 `.txt` beside each file (`UPDATE_FIXTURES=1`), which `app/test/anchor_test.dart` compares. The quick labels and the
 batch strings in `app/lib/comments/strings.g.dart` come from `web/src` through `npm run gen:protocol`.
 
+## Media on the phone
+
+Images open from the file links in the chat. The screen reads them through the window's `/file` endpoint, and it
+refuses images over 32 MiB.
+
+Videos play through a loopback proxy (`app/lib/media/proxy.dart`): an HTTP server on 127.0.0.1 under a random token
+that forwards the player's ranged requests over the encrypted channel. The app's manifest allows cleartext only to
+127.0.0.1 (`app/android/app/src/main/res/xml/network_security_config.xml`).
+
+Marking up a video pauses it. Android's MediaMetadataRetriever takes the exact paused frame (the `nb/frame` method
+channel in `MainActivity`, `app/lib/media/frame.dart`).
+
+Marks and comments are the desktop's media comments: the frame and layer are stored under `/marks/<id>/`, and the
+agent's image goes to `/attach`. Page and 3D-model comments stay desktop-only.
+
 ## The APK
 
 CI builds it in the `mobile` job and uploads it as the `nota-bene-android` artifact. Builds of this repository are
