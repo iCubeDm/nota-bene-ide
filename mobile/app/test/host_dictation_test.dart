@@ -368,6 +368,7 @@ void main() {
       r.ch.drop();
       await t.pump();
       await t.pump();
+      await t.pump();
       expect(find.text('Fix '), findsOneWidget);
       expect(find.text('The computer could not transcribe it'), findsOneWidget);
     });

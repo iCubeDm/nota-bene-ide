@@ -158,5 +158,18 @@
   "tileCompact": "Verdichten",
   "tileClear": "Leeren",
   "tileRestart": "Neustart",
-  "tileStats": "Statistik"
+  "tileStats": "Statistik",
+  "attach": "Bild anhängen",
+  "attachCamera": "Kamera",
+  "attachGallery": "Galerie",
+  "attachFile": "Datei",
+  "attachRemove": "Entfernen",
+  "attachFailed": "Das Bild konnte nicht hochgeladen werden.",
+  "attachUnsupported": "Nur png-, jpeg-, gif- und webp-Bilder können angehängt werden.",
+  "attachTooLarge": "Zu groß zum Anhängen: {names}",
+  "attachUploading": "Warte, bis das Bild hochgeladen ist",
+  "attachDenied": "Nota Bene darf Kamera oder Fotos nicht verwenden. Erlaube es in den Android-Einstellungen.",
+  "attachBusy": "Eine andere Auswahl ist noch offen. Schließe sie zuerst.",
+  "attachUnavailable": "Auf diesem Telefon gibt es dafür keine App.",
+  "attachRead": "Das Bild konnte nicht gelesen werden."
 }

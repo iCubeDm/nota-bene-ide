@@ -158,5 +158,18 @@
   "tileCompact": "压缩",
   "tileClear": "清空",
   "tileRestart": "重启",
-  "tileStats": "统计"
+  "tileStats": "统计",
+  "attach": "附加图片",
+  "attachCamera": "相机",
+  "attachGallery": "相册",
+  "attachFile": "文件",
+  "attachRemove": "移除",
+  "attachFailed": "图片上传失败。",
+  "attachUnsupported": "只能附加 png、jpeg、gif 和 webp 图片。",
+  "attachTooLarge": "文件过大,无法附加:{names}",
+  "attachUploading": "请等待图片上传完成",
+  "attachDenied": "Nota Bene 无权使用相机或照片。请在 Android 设置中允许。",
+  "attachBusy": "另一个选择器仍处于打开状态。请先完成它。",
+  "attachUnavailable": "此手机上没有可用的应用。",
+  "attachRead": "无法读取图片。"
 }
