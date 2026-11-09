@@ -19,6 +19,8 @@ type WindowRow = {
   session: string | null; title: string | null; supervised: boolean; busy: boolean; clients: number;
 };
 type About = { version: string; stateDir: string; logs: string[]; node: string; pid: number };
+/** `GET /dictation`: the optional Whisper install that transcribes the phone's microphone */
+type Dictation = { on: boolean; phase: 'none' | 'installing' | 'ready' | 'failed'; sizeMb: number; model: string };
 type Action = 'restart-agent' | 'restart-server' | 'stop';
 
 // macOS and Linux home folders
@@ -83,6 +85,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const about = useLoad<About>('/system/about', active);
   const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean; audit?: boolean; auditDir?: string }>('/system/prefs', active);
   const upd = useLoad<{ auto: boolean }>('/system/update', active);
+  const dict = useLoad<Dictation>('/dictation', active);
   const [ask, setAsk] = useState<{ title: string; body: string; confirm: string; run: () => Promise<void> } | null>(null);
   // the port whose action is in flight: that row's buttons are off until it settles (no double relays)
   const [pending, setPending] = useState<number | null>(null);
@@ -132,6 +135,23 @@ export function SettingsView({ active }: { active: boolean }) {
       setNote(t('setLoadFail', e instanceof Error ? e.message : String(e)));
     }
     prefs.reload();
+  };
+  // an install runs on the server with nobody awaiting it: poll its phase until it settles
+  const installing = dict.data?.phase === 'installing';
+  const reloadDict = dict.reload;
+  useEffect(() => {
+    if (!active || !installing) return;
+    const id = setInterval(reloadDict, 2000);
+    return () => clearInterval(id);
+  }, [active, installing, reloadDict]);
+  const dictPost = async (url: string, body: unknown = {}) => {
+    try {
+      const r = await postJson(url, body);
+      if (!r.ok) throw new Error(`${r.status}`);
+    } catch (e) {
+      setNote(t('setLoadFail', e instanceof Error ? e.message : String(e)));
+    }
+    dict.reload();
   };
   const fail = (e: string | null) => e && <div role="alert" className="text-xs text-warn">{t('setLoadFail', e)}</div>;
 
@@ -188,6 +208,36 @@ export function SettingsView({ active }: { active: boolean }) {
               ) : <span className="text-xs text-muted-foreground">{t('stNothing')}</span>}
             </div>
           </>
+        )}
+      </Section>
+
+      <Section title={t('setDictation')}>
+        {fail(dict.error)}
+        {dict.data?.phase === 'none' && (
+          <Button type="button" variant="outline" size="sm"
+            onClick={() => setAsk({ title: t('dictInstall', dict.data!.sizeMb), body: t('dictInstallQ', dict.data!.sizeMb), confirm: t('dictInstallGo'), run: () => dictPost('/dictation/install') })}>
+            {t('dictInstall', dict.data.sizeMb)}
+          </Button>
+        )}
+        {dict.data?.phase === 'installing' && <div role="status" className="text-[0.8125rem] text-muted-foreground"><span aria-hidden className="mr-1.5 inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />{t('dictInstalling')}</div>}
+        {dict.data?.phase === 'failed' && (
+          <div className="flex items-center gap-3">
+            <span role="alert" className="text-[0.8125rem] text-warn">{t('dictFailed')}</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => void dictPost('/dictation/install')}>{t('dictRetry')}</Button>
+          </div>
+        )}
+        {dict.data?.phase === 'ready' && (
+          <div className="flex items-center gap-4 text-[0.8125rem]">
+            <label className="flex items-center gap-2 text-foreground">
+              <input type="checkbox" aria-label={t('dictUse')} checked={dict.data.on} className="size-3.5 accent-primary"
+                onChange={(e) => void dictPost('/dictation/on', { on: e.target.checked })} />
+              {t('dictUse')}
+            </label>
+            <Button type="button" variant="outline" size="sm"
+              onClick={() => setAsk({ title: t('dictRemove'), body: t('dictRemoveQ'), confirm: t('dictRemoveGo'), run: () => dictPost('/dictation/remove') })}>
+              {t('dictRemove')}
+            </Button>
+          </div>
         )}
       </Section>
 
