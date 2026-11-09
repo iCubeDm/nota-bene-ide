@@ -1,5 +1,5 @@
-import { expect, it } from 'vitest';
-import { encodeWav, RATE, Resampler, toPcm16, waveOf } from './recorder.ts';
+import { afterEach, expect, it, vi } from 'vitest';
+import { encodeWav, RATE, startRecorder, Resampler, toPcm16, waveOf } from './recorder.ts';
 
 const sine = (rate: number, hz: number, secs: number): Float32Array =>
   Float32Array.from({ length: Math.round(rate * secs) }, (_, i) => 0.5 * Math.sin((2 * Math.PI * hz * i) / rate));
@@ -58,4 +58,31 @@ it('waveOf: 48 bars, the loudest is 31, silence is all zeros', () => {
   expect(waveOf(new Int16Array(100)).every((v) => v === 0)).toBe(true);
   expect(waveOf(new Int16Array(0))).toHaveLength(48);
   expect(waveOf(Int16Array.of(5, 9))).toHaveLength(48);
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+it('a failing AudioContext setup stops the microphone tracks it just opened', async () => {
+  const track = { stop: vi.fn() };
+  vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [track] }) } });
+  vi.stubGlobal('AudioContext', class { constructor() { throw new Error('no audio'); } });
+  await expect(startRecorder({ onLevel() {}, onCap() {} })).rejects.toThrow('no audio');
+  expect(track.stop).toHaveBeenCalled();
+});
+
+it('the recorder waits for a suspended context to resume before it reports itself open', async () => {
+  const track = { stop: vi.fn() };
+  let resumed = false;
+  vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [track] }) } });
+  vi.stubGlobal('AudioContext', class {
+    sampleRate = 48_000; destination = {}; state = 'suspended';
+    createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
+    createScriptProcessor() { return { connect() {}, disconnect() {} }; }
+    createGain() { return { gain: {}, connect() {} }; }
+    resume() { return new Promise<void>((r) => setTimeout(() => { resumed = true; r(); }, 5)); }
+    close() { return Promise.resolve(); }
+  });
+  const rec = await startRecorder({ onLevel() {}, onCap() {} });
+  expect(resumed).toBe(true);
+  rec.cancel();
 });

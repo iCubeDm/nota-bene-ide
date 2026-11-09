@@ -99,12 +99,23 @@ export type RecorderOptions = {
 export async function startRecorder(o: RecorderOptions): Promise<Recorder> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
   const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-  const ctx = new Ctx();
-  const source = ctx.createMediaStreamSource(stream);
-  const node = ctx.createScriptProcessor(4096, 1, 1);
-  const mute = ctx.createGain(); // the node only runs when connected to the output; the gain keeps the microphone out of the speakers
-  mute.gain.value = 0;
-  const resampler = new Resampler(ctx.sampleRate);
+  let ctx: AudioContext | undefined;
+  let source: MediaStreamAudioSourceNode, node: ScriptProcessorNode, mute: GainNode;
+  try {
+    ctx = new Ctx();
+    // a context made outside a gesture starts suspended and captures nothing until it resumes
+    await ctx.resume?.();
+    source = ctx.createMediaStreamSource(stream);
+    node = ctx.createScriptProcessor(4096, 1, 1);
+    mute = ctx.createGain(); // the node only runs when connected to the output; the gain keeps the microphone out of the speakers
+    mute.gain.value = 0;
+  } catch (e) {
+    for (const tr of stream.getTracks()) tr.stop(); // the microphone must not stay on after a failed setup
+    void ctx?.close?.().catch(() => {});
+    throw e;
+  }
+  const audio = ctx;
+  const resampler = new Resampler(audio.sampleRate);
   const chunks: Int16Array[] = [];
   let samples = 0;
   let live = true;
@@ -126,14 +137,14 @@ export async function startRecorder(o: RecorderOptions): Promise<Recorder> {
   };
   source.connect(node);
   node.connect(mute);
-  mute.connect(ctx.destination);
+  mute.connect(audio.destination);
   const close = () => {
     live = false;
     node.onaudioprocess = null;
     source.disconnect();
     node.disconnect();
     for (const tr of stream.getTracks()) tr.stop();
-    void ctx.close().catch(() => {});
+    void audio.close().catch(() => {});
   };
   return {
     async stop() {
