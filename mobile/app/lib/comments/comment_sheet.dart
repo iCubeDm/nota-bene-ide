@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../dictation/mic_button.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import 'strings.g.dart';
@@ -104,6 +105,7 @@ class _SheetState extends State<_Sheet> {
             decoration: InputDecoration(
               hintText: t.commentHint,
               border: const OutlineInputBorder(),
+              suffixIcon: MicButton(controller: _text),
             ),
           ),
           const SizedBox(height: 8),

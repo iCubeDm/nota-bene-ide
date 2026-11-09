@@ -127,5 +127,11 @@
   "videoPlay": "Reproducir",
   "videoPause": "Pausa",
   "videoUnplayable": "No se pudo reproducir el vídeo. Inténtalo de nuevo cuando el host esté en línea.",
-  "frameFailed": "No se pudo tomar el fotograma del vídeo. Inténtalo de nuevo."
+  "frameFailed": "No se pudo tomar el fotograma del vídeo. Inténtalo de nuevo.",
+  "dictate": "Dictar",
+  "dictateStop": "Detener el dictado",
+  "dictationDenied": "El acceso al micrófono está desactivado para Nota Bene",
+  "dictationUnavailable": "El reconocimiento de voz no está disponible en este teléfono",
+  "dictationNoMatch": "No se oyó nada",
+  "dictationFailed": "Error en el dictado"
 }

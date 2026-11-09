@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:nb_app/dictation/dictation.dart';
+
+import 'mic_button_test.dart' show FakeDictation;
 import 'support/rig.dart';
 
 void main() {
@@ -111,5 +114,19 @@ void main() {
           .onPressed,
       isNull,
     );
+  });
+
+  testWidgets('send while dictating cancels it and sends the field', (t) async {
+    final saved = dictation;
+    final fake = dictation = FakeDictation();
+    addTearDown(() => dictation = saved);
+    await r.open(t);
+    await t.enter('Fix the header');
+    await t.tap(find.byTooltip('Dictate'));
+    await t.pump();
+    await t.tap(find.byTooltip('Send'));
+    await t.pumpAndSettle();
+    expect(fake.calls, ['listen', 'cancel']);
+    expect(r.sent.single['text'], 'Fix the header');
   });
 }

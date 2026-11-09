@@ -7,6 +7,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
 import '../comments/comments.dart';
+import '../dictation/mic_button.dart';
 import 'window_tab.dart';
 
 class Composer extends StatefulWidget {
@@ -54,6 +55,8 @@ class _ComposerState extends State<Composer> {
   }
 
   Future<void> _send() async {
+    // a running dictation must not write into the field after it is read (or cleared)
+    MicButton.cancelRunning();
     final text = _text.text.trim();
     if (text.isEmpty && widget.tab.comments.sendable.isEmpty) return;
     var force = false;
@@ -141,6 +144,7 @@ class _ComposerState extends State<Composer> {
                   hintText: open ? t.messageHint : t.cannotSend,
                   border: const OutlineInputBorder(),
                   isDense: true,
+                  suffixIcon: MicButton(controller: _text, enabled: open),
                 ),
               ),
             ),
