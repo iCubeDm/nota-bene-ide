@@ -7,6 +7,7 @@ import '../hosts/hosts_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import 'feed.dart';
+import 'files.dart';
 import 'markdown.dart';
 import 'window_tab.dart';
 
@@ -61,71 +62,74 @@ class ChatScreen extends StatelessWidget {
           actions: actions,
         ),
         body: SafeArea(
-          child: Column(
-            children: [
-              if (status != null)
-                Container(
-                  width: double.infinity,
-                  color: c.muted,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(color: c.mutedFg, fontSize: 13),
-                  ),
-                ),
-              Expanded(
-                child: Stack(
-                  children: [
-                    // reversed: the newest item sits at the bottom and stays in view while the user is there
-                    ListView.builder(
-                      reverse: true,
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                      itemCount: items.length + (f.earlier > 0 ? 1 : 0),
-                      itemBuilder: (context, i) {
-                        if (i == items.length) {
-                          return Center(
-                            child: TextButton(
-                              onPressed: tab.loadEarlier,
-                              child: Text(t.showEarlier),
-                            ),
-                          );
-                        }
-                        final it = items[items.length - 1 - i];
-                        // keyed by the item, not the index: a new item shifts every index of a reversed list
-                        return KeyedSubtree(
-                          key: ValueKey(feedKey(it)),
-                          child:
-                              itemBuilder?.call(context, it) ??
-                              FeedItemView(it),
-                        );
-                      },
-                      findChildIndexCallback: (key) {
-                        final k = (key as ValueKey<String>).value;
-                        final at = items.lastIndexWhere(
-                          (it) => feedKey(it) == k,
-                        );
-                        return at < 0 ? null : items.length - 1 - at;
-                      },
+          child: FileOpener(
+            tab: tab,
+            child: Column(
+              children: [
+                if (status != null)
+                  Container(
+                    width: double.infinity,
+                    color: c.muted,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                    if (f.compacting)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: LinearProgressIndicator(
-                          minHeight: 2,
-                          color: c.accent,
-                        ),
+                    child: Text(
+                      status,
+                      style: TextStyle(color: c.mutedFg, fontSize: 13),
+                    ),
+                  ),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      // reversed: the newest item sits at the bottom and stays in view while the user is there
+                      ListView.builder(
+                        reverse: true,
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                        itemCount: items.length + (f.earlier > 0 ? 1 : 0),
+                        itemBuilder: (context, i) {
+                          if (i == items.length) {
+                            return Center(
+                              child: TextButton(
+                                onPressed: tab.loadEarlier,
+                                child: Text(t.showEarlier),
+                              ),
+                            );
+                          }
+                          final it = items[items.length - 1 - i];
+                          // keyed by the item, not the index: a new item shifts every index of a reversed list
+                          return KeyedSubtree(
+                            key: ValueKey(feedKey(it)),
+                            child:
+                                itemBuilder?.call(context, it) ??
+                                FeedItemView(it),
+                          );
+                        },
+                        findChildIndexCallback: (key) {
+                          final k = (key as ValueKey<String>).value;
+                          final at = items.lastIndexWhere(
+                            (it) => feedKey(it) == k,
+                          );
+                          return at < 0 ? null : items.length - 1 - at;
+                        },
                       ),
-                    ?overlay,
-                  ],
+                      if (f.compacting)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: LinearProgressIndicator(
+                            minHeight: 2,
+                            color: c.accent,
+                          ),
+                        ),
+                      ?overlay,
+                    ],
+                  ),
                 ),
-              ),
-              ?bottom,
-            ],
+                ?bottom,
+              ],
+            ),
           ),
         ),
       );
@@ -246,6 +250,12 @@ class _ToolLineState extends State<ToolLine> {
     final c = Theme.of(context).extension<NbColors>()!;
     final it = widget.item;
     final running = it.result == null;
+    // a Markdown file of the project opens over the chat
+    final tab = FileOpener.of(context);
+    final path = toolPath(it);
+    final file = tab == null || path == null
+        ? null
+        : projectMarkdown(tab.root, path);
     return Padding(
       padding: EdgeInsets.only(left: it.sub ? 16 : 0, top: 2, bottom: 2),
       child: Column(
@@ -277,6 +287,14 @@ class _ToolLineState extends State<ToolLine> {
                     ),
                   ),
                 ),
+                if (file != null)
+                  IconButton(
+                    tooltip: AppLocalizations.of(context).openFile,
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    icon: Icon(Icons.description_outlined, color: c.link),
+                    onPressed: () => openFile(context, tab!, file),
+                  ),
               ],
             ),
           ),

@@ -98,5 +98,19 @@
   "forgetTitle": "{host} entfernen?",
   "forgetBody": "Dieses Telefon verbindet sich nicht mehr damit. Der Host führt das Telefon weiter, bis du dort `nota-bene remote revoke` ausführst.",
   "sendAfter": "Nach diesem Zug senden",
-  "diagramFailed": "Das Diagramm ließ sich gerade nicht zeichnen; öffne den Chat erneut, um es noch einmal zu versuchen."
+  "diagramFailed": "Das Diagramm ließ sich gerade nicht zeichnen; öffne den Chat erneut, um es noch einmal zu versuchen.",
+  "comment": "Kommentieren",
+  "commentHint": "Dein Kommentar",
+  "save": "Speichern",
+  "deleteComment": "Kommentar löschen",
+  "fileNotFound": "Diese Datei gibt es nicht (mehr).",
+  "fileOutside": "Diese Datei liegt außerhalb des Projekts.",
+  "fileTooLarge": "Die Datei ist zu groß für das Telefon (über 2 MB). Öffne sie am Computer.",
+  "fileNotMarkdown": "Auf dem Telefon öffnen sich vorerst nur Markdown-Dateien.",
+  "fileUnreadable": "Die Datei ließ sich nicht lesen. Versuche es erneut, wenn der Host online ist.",
+  "openFile": "Datei öffnen",
+  "files": "Dateien",
+  "noFiles": "In dieser Sitzung gibt es noch keine Markdown-Dateien.",
+  "pendingComments": "{count, plural, =1{1 Kommentar zum Senden} other{{count} Kommentare zum Senden}}",
+  "commentNotPlaced": "Zu dieser Auswahl lässt sich kein Kommentar setzen"
 }

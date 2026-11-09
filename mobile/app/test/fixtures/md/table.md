@@ -1,0 +1,6 @@
+| Name | Size | Note |
+|------|-----:|------|
+| alpha | 10 | the first |
+| beta | 2 | `code` cell |
+
+After the table.

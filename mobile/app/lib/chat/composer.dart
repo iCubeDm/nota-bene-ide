@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
+import '../comments/comments.dart';
 import 'window_tab.dart';
 
 class Composer extends StatefulWidget {
@@ -19,7 +20,7 @@ class Composer extends StatefulWidget {
 class _ComposerState extends State<Composer> {
   final _text = TextEditingController();
   StreamSubscription<ServerEventSendRefused>? _refused;
-  ({String id, String text})? _last;
+  ({String id, String text, Set<String> comments})? _last;
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _ComposerState extends State<Composer> {
   void _onRefused(ServerEventSendRefused r) {
     final last = _last;
     if (!mounted || last == null || last.id != r.id) return;
+    widget.tab.comments.unsending(last.comments);
     if (_text.text.isEmpty) _text.text = last.text;
     final t = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -53,7 +55,7 @@ class _ComposerState extends State<Composer> {
 
   Future<void> _send() async {
     final text = _text.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && widget.tab.comments.sendable.isEmpty) return;
     var force = false;
     if (widget.tab.busy) {
       // as on the desktop: a message while the agent works waits for its turn, unless it is sent now and interrupts
@@ -82,19 +84,31 @@ class _ComposerState extends State<Composer> {
       if (choice == null || !mounted) return;
       force = choice == 'force';
     }
+    // read now: the desktop may have sent or changed them while the dialog was up
+    final comments = widget.tab.comments.sendable;
+    if (text.isEmpty && comments.isEmpty) return;
     final id = uuidV4();
     // the text stays when the window is not there to take it (the tab went offline or was taken meanwhile)
+    // the pending comments leave with it, in the desktop's batch; the server marks them sent
+    final lang = Localizations.localeOf(context).languageCode;
     final sent = widget.tab.send(
-      ClientMessageSend(id: id, text: text, force: force ? true : null),
+      ClientMessageSend(
+        id: id,
+        text: composeBatch(text, comments, lang),
+        force: force ? true : null,
+        commentIds: comments.isEmpty ? null : [for (final c in comments) c.id],
+      ),
     );
     if (!sent) return;
-    _last = (id: id, text: text);
+    final ids = {for (final c in comments) c.id};
+    widget.tab.comments.sending(ids);
+    _last = (id: id, text: text, comments: ids);
     _text.clear();
   }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.tab,
+    listenable: Listenable.merge([widget.tab, widget.tab.comments]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final open = widget.tab.state == TabState.open;
@@ -127,7 +141,12 @@ class _ComposerState extends State<Composer> {
             IconButton(
               tooltip: t.send,
               icon: const Icon(Icons.send),
-              onPressed: open && _text.text.trim().isNotEmpty ? _send : null,
+              onPressed:
+                  open &&
+                      (_text.text.trim().isNotEmpty ||
+                          widget.tab.comments.sendable.isNotEmpty)
+                  ? _send
+                  : null,
             ),
           ],
         ),

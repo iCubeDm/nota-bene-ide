@@ -98,5 +98,19 @@
   "forgetTitle": "¿Olvidar {host}?",
   "forgetBody": "Este teléfono dejará de conectarse. El equipo seguirá listando el teléfono hasta que ejecutes allí `nota-bene remote revoke`.",
   "sendAfter": "Enviar tras este turno",
-  "diagramFailed": "No se pudo dibujar el diagrama ahora; vuelve a abrir el chat para reintentarlo."
+  "diagramFailed": "No se pudo dibujar el diagrama ahora; vuelve a abrir el chat para reintentarlo.",
+  "comment": "Comentar",
+  "commentHint": "Tu comentario",
+  "save": "Guardar",
+  "deleteComment": "Eliminar comentario",
+  "fileNotFound": "Este archivo no está (o ya no está).",
+  "fileOutside": "Este archivo está fuera del proyecto.",
+  "fileTooLarge": "El archivo es demasiado grande para el teléfono (más de 2 MB). Ábrelo en el ordenador.",
+  "fileNotMarkdown": "Por ahora en el teléfono solo se abren archivos Markdown.",
+  "fileUnreadable": "No se pudo leer el archivo. Vuelve a intentarlo cuando el host esté en línea.",
+  "openFile": "Abrir el archivo",
+  "files": "Archivos",
+  "noFiles": "Todavía no hay archivos Markdown en esta sesión.",
+  "pendingComments": "{count, plural, =1{1 comentario por enviar} other{{count} comentarios por enviar}}",
+  "commentNotPlaced": "No se pudo colocar un comentario en esta selección"
 }

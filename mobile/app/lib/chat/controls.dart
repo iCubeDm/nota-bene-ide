@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
+import 'files.dart';
 import 'window_tab.dart';
 
 bool modelSwitchable(WindowTab tab) =>
@@ -29,6 +30,7 @@ class AgentMenu extends StatelessWidget {
         ),
         'model' => _model(context),
         'restart' => _restart(context),
+        'files' => showFiles(context, tab),
         _ => null,
       },
       itemBuilder: (_) => [
@@ -40,6 +42,8 @@ class AgentMenu extends StatelessWidget {
         if (modelSwitchable(tab))
           PopupMenuItem<Object?>(value: 'model', child: Text(t.modelAndEffort)),
         PopupMenuItem<Object?>(value: 'restart', child: Text(t.restartAgent)),
+        const PopupMenuDivider(),
+        PopupMenuItem<Object?>(value: 'files', child: Text(t.files)),
       ],
     );
   }

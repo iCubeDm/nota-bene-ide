@@ -105,9 +105,12 @@ class CodeBlock extends StatelessWidget {
             children: [
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  lang ?? '',
-                  style: TextStyle(color: c.mutedFg, fontSize: 12),
+                // the label is not the code: a selection across the block is the code alone
+                child: SelectionContainer.disabled(
+                  child: Text(
+                    lang ?? '',
+                    style: TextStyle(color: c.mutedFg, fontSize: 12),
+                  ),
                 ),
               ),
               IconButton(

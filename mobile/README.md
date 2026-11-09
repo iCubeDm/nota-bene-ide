@@ -20,6 +20,11 @@ The cross-language test (`channel/test/cross_test.dart`, tag `cross`) runs `serv
 and builds the Go relay, so it needs `node` (>=23.6) and `go` on PATH and `npm ci` done at the root. It uses a
 temporary `NOTA_BENE_HOME` and free loopback ports.
 
+Comments use the desktop's text anchors. `app/lib/comments/anchor.dart` builds the desktop's rendered text from the
+Markdown, and `web/src/anchors/mobileParity.test.tsx` writes the desktop's text of `app/test/fixtures/md/*.md` to the
+`.txt` beside each file (`UPDATE_FIXTURES=1`), which `app/test/anchor_test.dart` compares. The quick labels and the
+batch strings in `app/lib/comments/strings.g.dart` come from `web/src` through `npm run gen:protocol`.
+
 ## The APK
 
 CI builds it in the `mobile` job and uploads it as the `nota-bene-android` artifact. Builds of this repository are

@@ -10,6 +10,8 @@ import 'package:flutter/foundation.dart';
 import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../comments/comments.dart';
+
 import '../hosts/host_link.dart';
 import 'feed.dart';
 
@@ -51,6 +53,9 @@ class WindowTab extends ChangeNotifier {
   String? model;
   AgentEffort? effort;
   num? protocol;
+
+  /// The window's comments of this session (the server's set).
+  late final comments = Comments(send, () => feed.sessionId);
   Capabilities? capabilities;
   ServerEventStats? stats;
 
@@ -188,6 +193,8 @@ class WindowTab extends ChangeNotifier {
         this.effort = effort;
       case ServerEventStats():
         stats = e;
+      case ServerEventComments(:final items):
+        comments.apply(items);
       case ServerEventSendRefused():
         _refusals.add(e);
       case ServerEventServerError():
