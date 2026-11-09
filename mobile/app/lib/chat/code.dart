@@ -1,11 +1,13 @@
 // A fenced code block: highlighted with the Darcula syntax tokens (highlight.js grammars, as the desktop), scrollable
-// sideways, with a copy button.
+// sideways, with expand (full screen) and copy buttons.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:highlight/highlight.dart' show highlight, Node;
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import '../ui/nb_icon.dart';
+import 'code_screen.dart';
 
 Color? _colorOf(String? cls, NbColors c) => switch (cls) {
   null => null,
@@ -114,10 +116,15 @@ class CodeBlock extends StatelessWidget {
                 ),
               ),
               IconButton(
+                tooltip: t.expandCode,
+                visualDensity: VisualDensity.compact,
+                icon: NbIcon(NbGlyph.expand, size: 16, color: c.mutedFg),
+                onPressed: () => openCode(context, text, lang),
+              ),
+              IconButton(
                 tooltip: t.copy,
                 visualDensity: VisualDensity.compact,
-                iconSize: 16,
-                icon: const Icon(Icons.copy),
+                icon: NbIcon(NbGlyph.copy, size: 16, color: c.mutedFg),
                 onPressed: () => Clipboard.setData(ClipboardData(text: text)),
               ),
             ],

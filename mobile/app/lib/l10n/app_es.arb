@@ -136,5 +136,7 @@
   "dictationFailed": "Error en el dictado",
   "dictationTranscribing": "Transcribiendo…",
   "dictationHostFailed": "El ordenador no pudo transcribirlo",
-  "dictationHostOff": "Whisper está desactivado en el ordenador; ahora se usa el reconocimiento del teléfono"
+  "dictationHostOff": "Whisper está desactivado en el ordenador; ahora se usa el reconocimiento del teléfono",
+  "expandCode": "Abrir en pantalla completa",
+  "codeLines": "{count, plural, one{{count} línea} other{{count} líneas}}"
 }

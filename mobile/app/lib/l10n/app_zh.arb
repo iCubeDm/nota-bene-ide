@@ -136,5 +136,7 @@
   "dictationFailed": "语音输入失败",
   "dictationTranscribing": "正在转写…",
   "dictationHostFailed": "电脑无法转写这段语音",
-  "dictationHostOff": "电脑上的 Whisper 已关闭;现在使用手机的语音识别"
+  "dictationHostOff": "电脑上的 Whisper 已关闭;现在使用手机的语音识别",
+  "expandCode": "全屏打开",
+  "codeLines": "{count, plural, other{{count} 行}}"
 }
