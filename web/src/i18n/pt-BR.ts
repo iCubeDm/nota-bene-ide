@@ -676,6 +676,8 @@ export const ptBR: Dict = {
   voiceSendTip: "Enviar a mensagem de voz (Enter)",
   voiceRecording: "Gravando",
   voiceDenied: "O microfone não está disponível: permita-o para esta página",
+  voiceNothing: "Nada foi gravado",
+  voiceInsecure: "O microfone precisa de uma página segura: abra o Nota Bene em localhost ou via https",
   voiceUploadFail: "Não foi possível enviar a gravação ao computador",
   voiceClipAdd: "Gravar um clipe de voz",
   voiceClipStop: "Parar a gravação",

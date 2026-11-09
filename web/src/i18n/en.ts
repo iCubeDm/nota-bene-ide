@@ -693,6 +693,8 @@ export const en: Dict = {
   voiceSendTip: "Send the voice message (Enter)",
   voiceRecording: "Recording",
   voiceDenied: "The microphone is not available: allow it for this page",
+  voiceNothing: "Nothing was recorded",
+  voiceInsecure: "The microphone needs a secure page: open Nota Bene on localhost or over https",
   voiceUploadFail: "Could not send the recording to the computer",
   voiceClipAdd: "Record a voice clip",
   voiceClipStop: "Stop recording",

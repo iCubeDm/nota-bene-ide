@@ -59,3 +59,14 @@ it('inside its scope (the comment popup) the older bar takes the Esc, and the ne
   expect(popup).toHaveBeenCalledTimes(1);
   expect(composer).not.toHaveBeenCalled();
 });
+
+it('each preview plays from its own element, not a shared "preview" one', async () => {
+  const { resetPlayer } = await import('./player.ts');
+  const made: string[] = [];
+  vi.stubGlobal('Audio', class { paused = true; currentTime = 0; src: string; constructor(src: string) { this.src = src; made.push(src); } pause() {} play() { this.paused = false; return Promise.resolve(); } addEventListener() {} });
+  render(<div>{bar({ ...preview, url: 'blob:one' } as never)}{bar({ ...preview, url: 'blob:two' } as never)}</div>);
+  for (const b of screen.getAllByRole('button', { name: 'Play' })) fireEvent.click(b);
+  expect(made).toEqual(['blob:one', 'blob:two']);
+  resetPlayer();
+  vi.unstubAllGlobals();
+});

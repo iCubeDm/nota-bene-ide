@@ -676,6 +676,8 @@ export const zhCN: Dict = {
   voiceSendTip: "发送语音消息 (Enter)",
   voiceRecording: "正在录音",
   voiceDenied: "无法使用麦克风：请为此页面允许使用",
+  voiceNothing: "没有录到任何内容",
+  voiceInsecure: "麦克风需要安全页面：请通过 localhost 或 https 打开 Nota Bene",
   voiceUploadFail: "无法把录音发送到电脑",
   voiceClipAdd: "录制语音片段",
   voiceClipStop: "停止录音",

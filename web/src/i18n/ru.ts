@@ -692,6 +692,8 @@ export const ru = {
   voiceSendTip: "Отправить голосовое сообщение (Enter)",
   voiceRecording: "Идёт запись",
   voiceDenied: "Микрофон недоступен: разрешите его для этой страницы",
+  voiceNothing: "Ничего не записано",
+  voiceInsecure: "Микрофону нужна защищённая страница: откройте Nota Bene через localhost или https",
   voiceUploadFail: "Не удалось передать запись на компьютер",
   voiceClipAdd: "Записать голосовой фрагмент",
   voiceClipStop: "Остановить запись",

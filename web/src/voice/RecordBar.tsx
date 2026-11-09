@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { clock } from './lang.ts';
 import type { RecState } from './useVoiceRecorder.ts';
@@ -71,7 +71,9 @@ export function RecordBar({ state, onCancel, onStop, onSend, clip = false }: { s
     if (!live && root.current && (!a || a === document.body)) root.current.focus({ preventScroll: true });
   }, [live]);
   // the preview's player belongs to this bar: a deleted or sent recording must not play on
-  const previewId = state.phase === 'recording' ? null : 'preview';
+  const uid = useId();
+  // its own element: another preview (the comment popup's) must not share it; an uploaded recording is the host's one
+  const previewId = state.phase === 'recording' ? null : state.voice?.id ?? `preview:${uid}`;
   useEffect(() => () => { if (previewId) releasePlay(previewId); }, [previewId]);
 
   if (state.phase === 'recording') {
@@ -95,7 +97,7 @@ export function RecordBar({ state, onCancel, onStop, onSend, clip = false }: { s
     <div ref={root} tabIndex={-1} data-testid="record-bar" role="group" aria-label={t('voiceRecording')} aria-busy={sending || undefined} className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[10px] outline-none border border-border-soft bg-background/70 px-2">
       <button type="button" aria-label={t('voiceCancel')} title={t('voiceCancel')} disabled={sending} onClick={onCancel} className={`${ICON} text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-40`}><Trash /></button>
       <div className="min-w-0 flex-1">
-        <VoiceView voice={{ id: 'preview', ms: recording.ms, wave: recording.wave }} src={state.url || undefined} />
+        <VoiceView voice={{ id: previewId!, ms: recording.ms, wave: recording.wave }} src={state.url || undefined} />
       </div>
       <button type="button" aria-label={t('voiceSendTip')} title={t('voiceSendTip')} disabled={sending} onClick={onSend} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50`}>
         {sending ? <span aria-hidden className="inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Plane />}

@@ -21,7 +21,7 @@ import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } fro
 import { BINDINGS, keysLabel, VOICE_KEY, withKey } from '@/shell/keymap.ts';
 import { openDictationSettings } from '@/voice/settings.ts';
 import { RecordBar } from '@/voice/RecordBar.tsx';
-import { sendVoice } from '@/voice/send.ts';
+import { onVoiceRefused, sendVoice } from '@/voice/send.ts';
 import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
 import { PLAYER_HELP } from '@/media/playerKeys.ts';
 import { useSeekStep } from '@/media/seekStep.ts';
@@ -72,12 +72,21 @@ export function Composer() {
     preview: true,
     notify: flash,
     // sent at once, apart from the draft, the images and the pending comments (they stay where they are)
-    onDone: (v) => { if (!dispatch(sendVoice(v))) flash(t('voiceRefused', t('offline'))); },
+    // false keeps the uploaded recording in the preview: Send hands it over again
+    onDone: (v) => {
+      const ok = dispatch(sendVoice(v));
+      if (!ok) flash(t('voiceRefused', t(switchingRef.current ? 'switching' : 'offline')));
+      return ok;
+    },
   });
+  const switchingRef = useRef(switching);
+  switchingRef.current = switching;
   const recPhase = rec.st.phase;
   const recording = recPhase !== 'idle';
   const recRef = useRef(rec);
   recRef.current = rec;
+  // a send the server refused: the recording comes back to the preview (the toast tells why)
+  useEffect(() => onVoiceRefused((v) => recRef.current.restore(v)), []);
   // Alt+R (the keymap): start a voice message, or send the one being made
   useEffect(() => {
     const onKey = () => {

@@ -676,6 +676,8 @@ export const de: Dict = {
   voiceSendTip: "Sprachnachricht senden (Enter)",
   voiceRecording: "Aufnahme läuft",
   voiceDenied: "Das Mikrofon ist nicht verfügbar: erlaube es für diese Seite",
+  voiceNothing: "Es wurde nichts aufgenommen",
+  voiceInsecure: "Das Mikrofon braucht eine sichere Seite: öffne Nota Bene über localhost oder https",
   voiceUploadFail: "Die Aufnahme konnte nicht an den Computer gesendet werden",
   voiceClipAdd: "Sprachclip aufnehmen",
   voiceClipStop: "Aufnahme beenden",

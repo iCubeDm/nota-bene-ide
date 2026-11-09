@@ -6,7 +6,7 @@ import type { ClientMessage } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { CLAUDE_CAPABILITIES } from '@nota-bene/shared';
-import { makeStore } from '@/store/store.ts';
+import { connState, makeStore, serverEvent } from '@/store/store.ts';
 import { mic, type Recorder, type RecorderOptions } from '@/voice/recorder.ts';
 import { resetPlayer } from '@/voice/player.ts';
 import { installKeymap } from '@/shell/keymap.ts';
@@ -20,14 +20,16 @@ type Fake = { opts: RecorderOptions; recorder: Recorder & { stop: ReturnType<typ
 let fakes: Fake[] = [];
 let uploads: { url: string; init: RequestInit }[] = [];
 let uploadOk = true;
+let takeMs = 3000;
 
 beforeEach(() => {
   setLang('en');
   fakes = [];
   uploads = [];
   uploadOk = true;
+  takeMs = 3000;
   vi.spyOn(mic, 'start').mockImplementation(async (opts) => {
-    const recorder = { stop: vi.fn(async () => ({ wav, ms: 3000, wave: VOICE.wave })), cancel: vi.fn() };
+    const recorder = { stop: vi.fn(async () => ({ wav, ms: takeMs, wave: VOICE.wave })), cancel: vi.fn() };
     fakes.push({ opts, recorder });
     return recorder;
   });
@@ -153,7 +155,15 @@ it('Alt+R starts a recording and a second Alt+R sends it', async () => {
   off();
 });
 
+it('without navigator.mediaDevices (an insecure page) the note says the page must be secure', async () => {
+  vi.mocked(mic.start).mockRejectedValueOnce(new TypeError('undefined is not an object'));
+  setup();
+  fireEvent.click(micBtn());
+  expect(await screen.findByText(/needs a secure page.*localhost or over https/)).toBeInTheDocument();
+});
+
 it('a denied microphone says so in the status line', async () => {
+  vi.stubGlobal('navigator', { ...navigator, mediaDevices: {} });
   vi.mocked(mic.start).mockRejectedValueOnce(new Error('denied'));
   setup();
   fireEvent.click(micBtn());
@@ -174,12 +184,89 @@ it('a failed upload keeps the recording in the preview with a note; Send tries a
   await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
 });
 
-it('the 10-minute cap sends the recording as a release does', async () => {
+it('the 10-minute cap sends a held recording, as a release does', async () => {
+  const { sent } = setup();
+  fireEvent.pointerDown(micBtn(), { button: 0 });
+  await waitFor(() => expect(fakes).toHaveLength(1));
+  act(() => fakes[0]!.opts.onCap());
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+});
+
+it('the 10-minute cap on a locked recording goes to the preview, as Stop does', async () => {
   const { sent } = setup();
   fireEvent.click(micBtn());
   await screen.findByTestId('record-bar');
   act(() => fakes[0]!.opts.onCap());
+  await screen.findByRole('button', { name: 'Play' });
+  expect(sent).toHaveLength(0);
+  expect(uploads).toHaveLength(0);
+});
+
+it('an uploaded recording that cannot go out (offline) stays in the preview; Send then sends it without a second upload', async () => {
+  const { sent, store } = setup();
+  fireEvent.click(micBtn());
+  await screen.findByTestId('record-bar');
+  act(() => void store.dispatch(connState('closed')));
+  fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+  await waitFor(() => expect(uploads).toHaveLength(1));
+  expect(await screen.findByText(/The voice message was not sent/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+  act(() => void store.dispatch(connState('open')));
+  fireEvent.click(screen.getByRole('button', { name: /Send the voice message/ }));
   await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+  expect(uploads).toHaveLength(1);
+  expect(screen.queryByTestId('record-bar')).toBeNull();
+});
+
+it('a later send-refused restores the same recording in the preview; Send re-sends it without uploading again', async () => {
+  const { sent, store } = setup();
+  fireEvent.click(micBtn());
+  fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+  expect(screen.queryByTestId('record-bar')).toBeNull();
+  const id = (sent[0] as { id: string }).id;
+  act(() => void store.dispatch(serverEvent({ kind: 'send-refused', id, reason: 'busy' } as never)));
+  expect(await screen.findByRole('button', { name: 'Play' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Send the voice message/ }));
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(2));
+  expect(uploads).toHaveLength(1);
+  expect((sent[1] as { voice: unknown }).voice).toEqual(VOICE);
+});
+
+it('a take of 0 ms says so instead of going idle silently', async () => {
+  takeMs = 0;
+  setup();
+  fireEvent.click(micBtn());
+  fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+  expect(await screen.findByText('Nothing was recorded')).toBeInTheDocument();
+  expect(screen.queryByTestId('record-bar')).toBeNull();
+});
+
+it('a release before the microphone has opened (the permission prompt) locks the recording, it does not send a 0 ms take', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  let open!: (r: Recorder) => void;
+  vi.mocked(mic.start).mockImplementationOnce((opts) => new Promise<Recorder>((res) => { open = res; void opts; }));
+  const { sent } = setup();
+  fireEvent.pointerDown(micBtn(), { button: 0 });
+  vi.setSystemTime(Date.now() + 5000); // the user thought about the prompt
+  fireEvent.pointerUp(window);
+  const recorder = { stop: vi.fn(async () => ({ wav, ms: 10, wave: VOICE.wave })), cancel: vi.fn() };
+  await act(async () => { open(recorder); });
+  expect(recorder.stop).not.toHaveBeenCalled();
+  expect(sent).toHaveLength(0);
+  expect(await screen.findByRole('button', { name: /Send the voice message/ })).toBeInTheDocument();
+});
+
+it('after an unmount an upload still in flight does not send', async () => {
+  let finish!: () => void;
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((res) => { finish = () => res(Response.json(VOICE)); })));
+  const { sent, view } = setup();
+  fireEvent.click(micBtn());
+  fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+  await waitFor(() => expect(finish).toBeDefined());
+  view.unmount();
+  await act(async () => { finish(); });
+  expect(sent).toHaveLength(0);
 });
 
 it('the live wave follows the input level', async () => {
