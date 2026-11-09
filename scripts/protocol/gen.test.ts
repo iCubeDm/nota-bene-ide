@@ -6,6 +6,7 @@ import { DART_PATH } from './dart.ts';
 import { check, generate } from './gen.ts';
 import { mobileStrings } from './mobileStrings.ts';
 import { SCHEMA_PATH } from './schema.ts';
+import { ALL_MODES } from '../../shared/src/protocol.ts';
 import { ru } from '../../web/src/i18n/ru.ts';
 
 function writeAll(files: Map<string, string>): string {
@@ -40,4 +41,11 @@ it('the mobile strings carry the web keys through webString', () => {
   expect(out).toContain(`"h5": {`);
   expect(out).toContain(`"week": {`);
   expect(out).toContain(JSON.stringify(ru.week));
+});
+
+it('the mobile strings carry the mode and clear texts of every provider', () => {
+  const out = mobileStrings();
+  expect(out).toContain(JSON.stringify(ru.mode_plan));
+  for (const id of ALL_MODES) expect(out).toContain(`"mode_${id}_desc": {`);
+  for (const k of ['modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip']) expect(out).toContain(`"${k}": {`);
 });
