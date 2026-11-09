@@ -60,17 +60,22 @@ class Rig {
     await t.pumpAndSettle();
   }
 
-  static Map<String, Object?> caps({bool compact = true, bool models = true}) =>
-      {
-        'compact': compact,
-        'clear': true,
-        'modes': ['default'],
-        'usage': true,
-        'fileSuggestions': true,
-        'fork': false,
-        'idleCompact': true,
-        'models': models,
-      };
+  static Map<String, Object?> caps({
+    bool compact = true,
+    bool models = true,
+    bool usage = true,
+    String? provider,
+  }) => {
+    'provider': ?provider,
+    'compact': compact,
+    'clear': true,
+    'modes': ['default'],
+    'usage': usage,
+    'fileSuggestions': true,
+    'fork': false,
+    'idleCompact': true,
+    'models': models,
+  };
 
   void event(Map<String, Object?> e) => ch.event(ch.lastWsId, e);
 

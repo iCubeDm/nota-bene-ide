@@ -37,8 +37,20 @@ String batchString(String key, String lang) {
 }
 
 /// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').
-String batchTemplate(String key, String lang, List<Object> args) {
-  var s = batchString(key, lang);
+String batchTemplate(String key, String lang, List<Object> args) =>
+    _fill(batchString(key, lang), args);
+
+/// A usage word of the web's Usage tab in [lang], English for any other.
+String usageString(String key, String lang) {
+  final m = ((_data['usage'] as Map)[key] as Map).cast<String, String>();
+  return m[lang] ?? m['en']!;
+}
+
+/// A usage function's text in [lang] with [args] in its places.
+String usageTemplate(String key, String lang, List<Object> args) =>
+    _fill(usageString(key, lang), args);
+
+String _fill(String s, List<Object> args) {
   for (final (i, a) in args.indexed) {
     s = s.replaceAll('{$i}', '$a');
   }
@@ -189,6 +201,424 @@ const _json = r'''
    }
   }
  ],
+ "usage": {
+  "usage": {
+   "en": "Usage",
+   "ru": "Аналитика",
+   "zh": "用量",
+   "es": "Uso",
+   "pt": "Uso",
+   "de": "Nutzung"
+  },
+  "usageBarLimit": {
+   "en": "within limits",
+   "ru": "в лимите",
+   "zh": "限额内",
+   "es": "dentro del límite",
+   "pt": "dentro do limite",
+   "de": "im Limit"
+  },
+  "usageBarTotal": {
+   "en": "total",
+   "ru": "всего",
+   "zh": "总计",
+   "es": "total",
+   "pt": "total",
+   "de": "gesamt"
+  },
+  "usageByWeek": {
+   "en": "Weeks",
+   "ru": "Недели",
+   "zh": "周",
+   "es": "Semanas",
+   "pt": "Semanas",
+   "de": "Wochen"
+  },
+  "usageByWindow": {
+   "en": "5-hour windows",
+   "ru": "Окна по 5 часов",
+   "zh": "5 小时窗口",
+   "es": "Ventanas de 5 horas",
+   "pt": "Janelas de 5 horas",
+   "de": "5-Stunden-Fenster"
+  },
+  "usageCallLine": {
+   "en": "output {0}, cache read {1}",
+   "ru": "вывод {0}, чтение кэша {1}",
+   "zh": "输出 {0}，缓存读取 {1}",
+   "es": "salida {0}, lectura de caché {1}",
+   "pt": "saída {0}, leitura de cache {1}",
+   "de": "Output {0}, Cache-Read {1}"
+  },
+  "usageCalls": {
+   "en": "Calls",
+   "ru": "Вызовы",
+   "zh": "调用",
+   "es": "Llamadas",
+   "pt": "Chamadas",
+   "de": "Aufrufe"
+  },
+  "usageEmpty": {
+   "en": "No usage in this period.",
+   "ru": "За этот период расхода нет.",
+   "zh": "此期间没有用量。",
+   "es": "No hay uso en este periodo.",
+   "pt": "Nenhum uso neste período.",
+   "de": "Keine Nutzung in diesem Zeitraum."
+  },
+  "usageExtra": {
+   "en": "Extra usage: {0} tokens, {1}.",
+   "ru": "Extra usage: {0} токенов, {1}.",
+   "zh": "Extra usage：{0} 令牌，{1}。",
+   "es": "Extra usage: {0} tokens, {1}.",
+   "pt": "Extra usage: {0} tokens, {1}.",
+   "de": "Extra usage: {0} Tokens, {1}."
+  },
+  "usageExtraMark": {
+   "en": "orange: extra usage",
+   "ru": "оранжевым: extra usage",
+   "zh": "橙色：extra usage",
+   "es": "naranja: extra usage",
+   "pt": "laranja: extra usage",
+   "de": "orange: extra usage"
+  },
+  "usageExtraMonth": {
+   "en": "This billing period: {0}.",
+   "ru": "В этом расчётном периоде: {0}.",
+   "zh": "本计费周期：{0}。",
+   "es": "Este periodo de facturación: {0}.",
+   "pt": "Neste período de cobrança: {0}.",
+   "de": "Dieser Abrechnungszeitraum: {0}."
+  },
+  "usageExtraOf": {
+   "en": "This billing period: {0} of {1}.",
+   "ru": "В этом расчётном периоде: {0} из {1}.",
+   "zh": "本计费周期：{0} / {1}。",
+   "es": "Este periodo de facturación: {0} de {1}.",
+   "pt": "Neste período de cobrança: {0} de {1}.",
+   "de": "Dieser Abrechnungszeitraum: {0} von {1}."
+  },
+  "usageExtraTip": {
+   "en": "Tokens from a hit the work went past to the reset. The sum is the vendor's own, read while a window is open.",
+   "ru": "Токены от упора, после которого работа продолжилась, до сброса лимита. Сумма от вендора, снимается, пока открыто окно.",
+   "zh": "触顶后继续工作直到重置所消耗的令牌。金额由供应商给出，在窗口开启期间读取。",
+   "es": "Tokens de un tope que el trabajo superó hasta el reinicio. La suma es la del propio proveedor, leída mientras hay una ventana abierta.",
+   "pt": "Tokens de um estouro que o trabalho ultrapassou até o reset. O valor é o do próprio fornecedor, lido enquanto uma janela está aberta.",
+   "de": "Tokens ab einem erreichten Limit, mit denen die Arbeit bis zum Reset weiterlief. Der Betrag stammt vom Anbieter selbst und wird gelesen, solange ein Fenster offen ist."
+  },
+  "usageH5": {
+   "en": "5 hours",
+   "ru": "5 часов",
+   "zh": "5 小时",
+   "es": "5 horas",
+   "pt": "5 horas",
+   "de": "5 Stunden"
+  },
+  "usageHitExtra": {
+   "en": "On extra usage after this hit: {0} tokens, {1}",
+   "ru": "На extra usage после этого упора: {0} токенов, {1}",
+   "zh": "此次触顶后的 extra usage：{0} 令牌，{1}",
+   "es": "En extra usage tras este tope: {0} tokens, {1}",
+   "pt": "Em extra usage após este estouro: {0} tokens, {1}",
+   "de": "Auf extra usage nach diesem Limit: {0} Tokens, {1}"
+  },
+  "usageHitMark": {
+   "en": "red: ended on a limit hit",
+   "ru": "красным: упор в лимит",
+   "zh": "红色：以触顶结束",
+   "es": "rojo: terminó en un tope",
+   "pt": "vermelho: terminou em estouro de limite",
+   "de": "rot: endete mit erreichtem Limit"
+  },
+  "usageHitShort": {
+   "en": "limit hit",
+   "ru": "упор",
+   "zh": "触顶",
+   "es": "tope",
+   "pt": "estouro",
+   "de": "Limit erreicht"
+  },
+  "usageHits": {
+   "en": "Limit hits",
+   "ru": "Упоры",
+   "zh": "触顶",
+   "es": "Topes",
+   "pt": "Estouros de limite",
+   "de": "Limit-Treffer"
+  },
+  "usageImporting": {
+   "en": "Reading the transcripts: the numbers will grow.",
+   "ru": "Читаю транскрипты: цифры ещё вырастут.",
+   "zh": "正在读取记录：数字会继续增长。",
+   "es": "Leyendo las transcripciones: las cifras irán creciendo.",
+   "pt": "Lendo as transcrições: os números vão crescer.",
+   "de": "Lese die Transkripte: Die Zahlen wachsen noch."
+  },
+  "usageLimit": {
+   "en": "Limit",
+   "ru": "Лимит",
+   "zh": "限额",
+   "es": "Límite",
+   "pt": "Limite",
+   "de": "Limit"
+  },
+  "usageLoadFail": {
+   "en": "Could not load the report: {0}",
+   "ru": "Не удалось загрузить отчёт: {0}",
+   "zh": "无法加载报告：{0}",
+   "es": "No se pudo cargar el informe: {0}",
+   "pt": "Não foi possível carregar o relatório: {0}",
+   "de": "Bericht konnte nicht geladen werden: {0}"
+  },
+  "usageLoading": {
+   "en": "Reading the transcripts…",
+   "ru": "Читаю транскрипты…",
+   "zh": "正在读取记录…",
+   "es": "Leyendo las transcripciones…",
+   "pt": "Lendo as transcrições…",
+   "de": "Lese die Transkripte…"
+  },
+  "usageMain": {
+   "en": "main agent",
+   "ru": "основной агент",
+   "zh": "主代理",
+   "es": "agente principal",
+   "pt": "agente principal",
+   "de": "Hauptagent"
+  },
+  "usageModelTip": {
+   "en": "Calls {0}, output {1}, cache write {2}, cache read {3}",
+   "ru": "Вызовов {0}, вывод {1}, запись кэша {2}, чтение кэша {3}",
+   "zh": "调用 {0}，输出 {1}，缓存写入 {2}，缓存读取 {3}",
+   "es": "Llamadas {0}, salida {1}, escritura de caché {2}, lectura de caché {3}",
+   "pt": "Chamadas {0}, saída {1}, escrita em cache {2}, leitura de cache {3}",
+   "de": "Aufrufe {0}, Output {1}, Cache-Write {2}, Cache-Read {3}"
+  },
+  "usageMoreAgents": {
+   "en": "and {0} more",
+   "ru": "и ещё {0}",
+   "zh": "另有 {0} 个",
+   "es": "y {0} más",
+   "pt": "e mais {0}",
+   "de": "und {0} weitere"
+  },
+  "usageNoLabel": {
+   "en": "(no text)",
+   "ru": "(без текста)",
+   "zh": "（无文本）",
+   "es": "(sin texto)",
+   "pt": "(sem texto)",
+   "de": "(kein Text)"
+  },
+  "usagePeriod30d": {
+   "en": "30 days",
+   "ru": "30 дней",
+   "zh": "30 天",
+   "es": "30 días",
+   "pt": "30 dias",
+   "de": "30 Tage"
+  },
+  "usagePeriod7d": {
+   "en": "7 days",
+   "ru": "7 дней",
+   "zh": "7 天",
+   "es": "7 días",
+   "pt": "7 dias",
+   "de": "7 Tage"
+  },
+  "usagePeriodAll": {
+   "en": "All time",
+   "ru": "За всё время",
+   "zh": "全部时间",
+   "es": "Todo el tiempo",
+   "pt": "Todo o período",
+   "de": "Gesamt"
+  },
+  "usagePeriodTrip": {
+   "en": "Since reset",
+   "ru": "С сброса",
+   "zh": "自重置起",
+   "es": "Desde el reinicio",
+   "pt": "Desde o reset",
+   "de": "Seit Reset"
+  },
+  "usageProjects": {
+   "en": "Projects",
+   "ru": "Проекты",
+   "zh": "项目",
+   "es": "Proyectos",
+   "pt": "Projetos",
+   "de": "Projekte"
+  },
+  "usageReset": {
+   "en": "Reset",
+   "ru": "Сбросить",
+   "zh": "重置",
+   "es": "Reiniciar",
+   "pt": "Zerar",
+   "de": "Zurücksetzen"
+  },
+  "usageResetQ": {
+   "en": "Start counting from now? Nothing is deleted: the older data stays under “All time”.",
+   "ru": "Считать заново с этого момента? Ничего не удаляется: старые данные останутся в «За всё время».",
+   "zh": "从现在开始重新计数？不会删除任何内容：较早的数据仍保留在“全部时间”下。",
+   "es": "¿Empezar a contar desde ahora? No se borra nada: los datos anteriores siguen en «Todo el tiempo».",
+   "pt": "Começar a contar a partir de agora? Nada é excluído: os dados anteriores permanecem em “Todo o período”.",
+   "de": "Ab jetzt neu zählen? Nichts wird gelöscht: Ältere Daten bleiben unter „Gesamt“."
+  },
+  "usageRest": {
+   "en": "Others",
+   "ru": "Остальные",
+   "zh": "其他",
+   "es": "Otros",
+   "pt": "Outros",
+   "de": "Übrige"
+  },
+  "usageShowAll": {
+   "en": "All {0}",
+   "ru": "Все {0}",
+   "zh": "全部 {0} 个",
+   "es": "Los {0}",
+   "pt": "Todos os {0}",
+   "de": "Alle {0}"
+  },
+  "usageShowTop": {
+   "en": "Top five",
+   "ru": "Первые пять",
+   "zh": "前五",
+   "es": "Los cinco primeros",
+   "pt": "Os cinco primeiros",
+   "de": "Top fünf"
+  },
+  "usageSide": {
+   "en": "Calls: {0}, subagents {1}",
+   "ru": "Вызовов: {0}, субагенты {1}",
+   "zh": "调用：{0}，子代理 {1}",
+   "es": "Llamadas: {0}, subagentes {1}",
+   "pt": "Chamadas: {0}, subagentes {1}",
+   "de": "Aufrufe: {0}, Subagents {1}"
+  },
+  "usageSince": {
+   "en": "since {0}",
+   "ru": "с {0}",
+   "zh": "自 {0}",
+   "es": "desde {0}",
+   "pt": "desde {0}",
+   "de": "seit {0}"
+  },
+  "usageSpent": {
+   "en": "Where it went",
+   "ru": "Куда ушло",
+   "zh": "用在哪里",
+   "es": "En qué se fue",
+   "pt": "Para onde foi",
+   "de": "Wohin es ging"
+  },
+  "usageSubagents": {
+   "en": "Subagents",
+   "ru": "Субагенты",
+   "zh": "子代理",
+   "es": "Subagentes",
+   "pt": "Subagentes",
+   "de": "Subagents"
+  },
+  "usageSumUnknown": {
+   "en": "sum unknown",
+   "ru": "сумма неизвестна",
+   "zh": "金额未知",
+   "es": "suma desconocida",
+   "pt": "valor desconhecido",
+   "de": "Betrag unbekannt"
+  },
+  "usageTank": {
+   "en": "Per 1% of the weekly limit:",
+   "ru": "На 1% недельного лимита:",
+   "zh": "每 1% 周限额：",
+   "es": "Por 1 % del límite semanal:",
+   "pt": "Por 1% do limite semanal:",
+   "de": "Pro 1 % des Wochenlimits:"
+  },
+  "usageTankTip": {
+   "en": "Each number is one limit window. A falling line means the same 100% buys fewer tokens.",
+   "ru": "Каждое число: одно окно лимита. Падение значит, что те же 100% дают меньше токенов.",
+   "zh": "每个数字对应一个限额窗口。折线下降表示同样的 100% 能换到更少的令牌。",
+   "es": "Cada número es una ventana de límite. Una línea descendente significa que el mismo 100 % compra menos tokens.",
+   "pt": "Cada número é uma janela de limite. Uma linha em queda significa que os mesmos 100% rendem menos tokens.",
+   "de": "Jede Zahl ist ein Limit-Fenster. Eine fallende Linie heißt: Dieselben 100 % ergeben weniger Tokens."
+  },
+  "usageTaskLine": {
+   "en": "Calls: {0}, subagents {1}, {2}",
+   "ru": "Вызовов: {0}, субагенты {1}, {2}",
+   "zh": "调用：{0}，子代理 {1}，{2}",
+   "es": "Llamadas: {0}, subagentes {1}, {2}",
+   "pt": "Chamadas: {0}, subagentes {1}, {2}",
+   "de": "Aufrufe: {0}, Subagents {1}, {2}"
+  },
+  "usageTasks": {
+   "en": "Tasks",
+   "ru": "Задачи",
+   "zh": "任务",
+   "es": "Tareas",
+   "pt": "Tarefas",
+   "de": "Aufgaben"
+  },
+  "usageTip": {
+   "en": "Token usage across projects",
+   "ru": "Расход токенов по всем проектам",
+   "zh": "各项目的令牌用量",
+   "es": "Uso de tokens en todos los proyectos",
+   "pt": "Uso de tokens entre projetos",
+   "de": "Token-Nutzung über alle Projekte"
+  },
+  "usageTokens": {
+   "en": "tokens",
+   "ru": "токенов",
+   "zh": "令牌",
+   "es": "tokens",
+   "pt": "tokens",
+   "de": "Tokens"
+  },
+  "usageTokensCol": {
+   "en": "Tokens",
+   "ru": "Токены",
+   "zh": "令牌",
+   "es": "Tokens",
+   "pt": "Tokens",
+   "de": "Tokens"
+  },
+  "usageTopCalls": {
+   "en": "Costliest calls",
+   "ru": "Самые дорогие вызовы",
+   "zh": "最贵的调用",
+   "es": "Llamadas más costosas",
+   "pt": "Chamadas mais caras",
+   "de": "Teuerste Aufrufe"
+  },
+  "usageTotalsTip": {
+   "en": "Weighted tokens, a yardstick, not a price: input ×1, cache write ×1.25, cache read ×0.1, output ×5, the same for every model.\nRaw counts: cache read {0}, output {1}.",
+   "ru": "Взвешенные токены, мерка, а не цена: ввод ×1, запись кэша ×1.25, чтение кэша ×0.1, вывод ×5, одинаково для всех моделей.\nСырые счётчики: чтение кэша {0}, вывод {1}.",
+   "zh": "加权令牌，只是一把尺子，不是价格：输入 ×1，缓存写入 ×1.25，缓存读取 ×0.1，输出 ×5，所有模型相同。\n原始计数：缓存读取 {0}，输出 {1}。",
+   "es": "Tokens ponderados, una vara de medir, no un precio: entrada ×1, escritura de caché ×1,25, lectura de caché ×0,1, salida ×5, igual para todos los modelos.\nCifras sin ponderar: lectura de caché {0}, salida {1}.",
+   "pt": "Tokens ponderados, uma medida de referência, não um preço: entrada ×1, escrita em cache ×1,25, leitura de cache ×0,1, saída ×5, igual para todos os modelos.\nContagens brutas: leitura de cache {0}, saída {1}.",
+   "de": "Gewichtete Tokens, ein Maßstab, kein Preis: Input ×1, Cache-Write ×1,25, Cache-Read ×0,1, Output ×5, für jedes Modell gleich.\nRohwerte: Cache-Read {0}, Output {1}."
+  },
+  "usageWeek": {
+   "en": "week",
+   "ru": "неделя",
+   "zh": "周",
+   "es": "semana",
+   "pt": "semana",
+   "de": "Woche"
+  },
+  "usageWhen": {
+   "en": "When",
+   "ru": "Когда",
+   "zh": "时间",
+   "es": "Cuándo",
+   "pt": "Quando",
+   "de": "Wann"
+  }
+ },
  "batch": {
   "batchHead": {
    "en": "Comments on fragments:",

@@ -3,7 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
+import '../usage/usage_screen.dart';
 import 'files.dart';
 import 'window_tab.dart';
 
@@ -20,6 +22,7 @@ class AgentMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final open = tab.state == TabState.open;
+    final lang = Localizations.localeOf(context).languageCode;
     return PopupMenuButton<Object?>(
       tooltip: t.agentMenu,
       icon: const Icon(Icons.tune),
@@ -31,6 +34,9 @@ class AgentMenu extends StatelessWidget {
         'model' => _model(context),
         'restart' => _restart(context),
         'files' => showFiles(context, tab),
+        'usage' => Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => UsageScreen(tab: tab))),
         _ => null,
       },
       itemBuilder: (_) => [
@@ -44,6 +50,11 @@ class AgentMenu extends StatelessWidget {
         PopupMenuItem<Object?>(value: 'restart', child: Text(t.restartAgent)),
         const PopupMenuDivider(),
         PopupMenuItem<Object?>(value: 'files', child: Text(t.files)),
+        PopupMenuItem<Object?>(
+          value: 'usage',
+          enabled: open && (tab.capabilities?.usage ?? true),
+          child: Text(usageString('usage', lang)),
+        ),
       ],
     );
   }
