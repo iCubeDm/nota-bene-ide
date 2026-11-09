@@ -181,5 +181,7 @@
   "whisperOff": "Whisper está instalado en el ordenador, pero desactivado. El micrófono del teléfono graba y Whisper transcribe en el ordenador.",
   "whisperTurnOn": "Activar Whisper",
   "whisperReady": "Whisper está activado: mantén pulsado el micrófono y habla",
-  "whisperNoAnswer": "El ordenador no respondió"
+  "whisperNoAnswer": "El ordenador no respondió",
+  "voicePlay": "Reproducir",
+  "voicePause": "Pausar"
 }

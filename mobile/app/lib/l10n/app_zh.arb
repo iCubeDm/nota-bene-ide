@@ -181,5 +181,7 @@
   "whisperOff": "电脑上已安装 Whisper，但未开启。手机麦克风负责录音，Whisper 在电脑上转写。",
   "whisperTurnOn": "开启 Whisper",
   "whisperReady": "Whisper 已开启：按住麦克风说话",
-  "whisperNoAnswer": "电脑没有响应"
+  "whisperNoAnswer": "电脑没有响应",
+  "voicePlay": "播放",
+  "voicePause": "暂停"
 }

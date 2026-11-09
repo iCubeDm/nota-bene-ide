@@ -181,5 +181,7 @@
   "whisperOff": "Whisper установлен на компьютере, но выключен. Микрофон телефона записывает, а Whisper распознаёт на компьютере.",
   "whisperTurnOn": "Включить Whisper",
   "whisperReady": "Whisper включён: зажми микрофон и говори",
-  "whisperNoAnswer": "Компьютер не ответил"
+  "whisperNoAnswer": "Компьютер не ответил",
+  "voicePlay": "Воспроизвести",
+  "voicePause": "Пауза"
 }

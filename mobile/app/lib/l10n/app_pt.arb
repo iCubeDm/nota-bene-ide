@@ -181,5 +181,7 @@
   "whisperOff": "O Whisper está instalado no computador, mas desativado. O microfone do celular grava e o Whisper transcreve no computador.",
   "whisperTurnOn": "Ativar o Whisper",
   "whisperReady": "O Whisper está ativado: segure o microfone e fale",
-  "whisperNoAnswer": "O computador não respondeu"
+  "whisperNoAnswer": "O computador não respondeu",
+  "voicePlay": "Reproduzir",
+  "voicePause": "Pausar"
 }

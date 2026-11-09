@@ -8,8 +8,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.AudioFormat
+import android.media.AudioAttributes
 import android.media.AudioRecord
 import android.media.MediaMetadataRetriever
+import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Handler
@@ -36,6 +38,111 @@ class MainActivity : FlutterFragmentActivity() {
     // Frame extraction blocks on I/O, so it runs off the UI thread; one thread keeps requests in order.
     private val frameExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Playing voice messages (`nb/play`): one MediaPlayer on a cached WAV at a time. `dir` answers the folder of the
+    // cached files; `play {path, from}` starts the file (a paused one of the same path resumes) at `from` ms;
+    // `pause`, `seek {ms}` and `stop` do what they say. The phone calls back `position {ms}` about every 100 ms while
+    // playing, `done` at the end, and `paused` when the app leaves the screen.
+    private var playChannel: MethodChannel? = null
+    private var player: MediaPlayer? = null
+    private var playing: String? = null
+    private val tick = object : Runnable {
+        override fun run() {
+            val p = player ?: return
+            try {
+                if (p.isPlaying) playChannel?.invokeMethod("position", mapOf("ms" to p.currentPosition))
+            } catch (_: IllegalStateException) {}
+            mainHandler.postDelayed(this, 100)
+        }
+    }
+
+    private fun configurePlay(flutterEngine: FlutterEngine) {
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "nb/play")
+        playChannel = channel
+        channel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "dir" -> result.success(File(cacheDir, "voice").also { it.mkdirs() }.path)
+                "play" -> {
+                    val path = call.argument<String>("path")
+                    val from = (call.argument<Any>("from") as? Number)?.toInt() ?: 0
+                    if (path == null) {
+                        result.error("path", null, null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        playFile(path, from)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        releasePlayer()
+                        result.error("failed", e.message, null)
+                    }
+                }
+                "pause" -> {
+                    try {
+                        player?.takeIf { it.isPlaying }?.pause()
+                    } catch (_: IllegalStateException) {}
+                    result.success(null)
+                }
+                "seek" -> {
+                    val ms = (call.argument<Any>("ms") as? Number)?.toInt() ?: 0
+                    try {
+                        player?.seekTo(ms)
+                    } catch (_: IllegalStateException) {}
+                    result.success(null)
+                }
+                "stop" -> {
+                    releasePlayer()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun playFile(path: String, from: Int) {
+        val current = player
+        if (current != null && playing == path) {
+            if (from > 0) current.seekTo(from)
+            current.start()
+            return
+        }
+        releasePlayer()
+        val p = MediaPlayer()
+        p.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .build()
+        )
+        p.setDataSource(path)
+        p.prepare()
+        if (from > 0) p.seekTo(from)
+        p.setOnCompletionListener {
+            releasePlayer()
+            playChannel?.invokeMethod("done", null)
+        }
+        p.start()
+        player = p
+        playing = path
+        mainHandler.post(tick)
+    }
+
+    private fun releasePlayer() {
+        mainHandler.removeCallbacks(tick)
+        player?.release()
+        player = null
+        playing = null
+    }
+
+    // a voice does not go on playing behind the lock screen or another app
+    override fun onStop() {
+        val p = player
+        if (p != null && p.isPlaying) {
+            p.pause()
+            playChannel?.invokeMethod("paused", null)
+        }
+        super.onStop()
+    }
 
     // Recording for the host's Whisper (`nb/record`): one recorder at a time. `recordChannel` is also how the
     // phone tells Dart the recorder stopped itself at its cap (`capped`) or failed (`failed`); `pendingStart` is a `start` waiting for the
@@ -67,6 +174,7 @@ class MainActivity : FlutterFragmentActivity() {
             }
         }
         configureRecord(flutterEngine)
+        configurePlay(flutterEngine)
         configurePick(flutterEngine)
     }
 
@@ -496,6 +604,7 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
         dropRecording()
+        releasePlayer()
         frameExecutor.shutdown()
         pickExecutor.shutdown()
         super.onDestroy()

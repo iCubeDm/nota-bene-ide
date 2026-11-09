@@ -334,5 +334,7 @@
   "whisperOff": "Whisper is installed on the computer but turned off. The phone's microphone records, and Whisper transcribes on the computer.",
   "whisperTurnOn": "Turn on Whisper",
   "whisperReady": "Whisper is on: hold the mic to speak",
-  "whisperNoAnswer": "The computer did not answer"
+  "whisperNoAnswer": "The computer did not answer",
+  "voicePlay": "Play",
+  "voicePause": "Pause"
 }
