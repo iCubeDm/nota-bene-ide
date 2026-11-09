@@ -1,18 +1,43 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 
 // Images from the system: the camera app, the photo picker and the document picker, through MainActivity's `nb/pick`
-// channel. No permission of ours is involved; the system apps hand back only what the user chose.
+// channel (an image is answered as {path, mime, name}). No permission of ours is involved; the system apps hand back only what the user chose.
 const pickChannel = MethodChannel('nb/pick');
 
+Future<Uint8List> defaultReadPickedFile(String path) =>
+    File(path).readAsBytes();
+
+Future<void> defaultDeletePickedFile(String path) async {
+  try {
+    await File(path).delete();
+  } on FileSystemException {
+    // already gone
+  }
+}
+
+/// How a picked file is read and deleted; replaced in tests, where a file read cannot be waited for.
+@visibleForTesting
+Future<Uint8List> Function(String) readPickedFile = defaultReadPickedFile;
+@visibleForTesting
+Future<void> Function(String) deletePickedFile = defaultDeletePickedFile;
+
+/// An image the system handed over: a file of ours in the cache (MainActivity copied it there, streaming), read only
+/// when it is prepared and deleted after its use, so no picked image waits in memory.
 class PickedImage {
   const PickedImage({
-    required this.bytes,
+    required this.path,
     required this.mime,
     required this.name,
   });
-  final Uint8List bytes;
+  final String path;
   final String mime;
   final String name;
+
+  Future<Uint8List> read() => readPickedFile(path);
+  Future<void> delete() => deletePickedFile(path);
 }
 
 enum PickSource { camera, gallery, file }
@@ -26,11 +51,11 @@ Future<({List<PickedImage> images, List<String> skipped})> pickImages(
   final skipped = <String>[];
   for (final item in reply ?? const <Object?>[]) {
     if (item is! Map) continue;
-    final bytes = item['bytes'], mime = item['mime'], name = item['name'];
+    final path = item['path'], mime = item['mime'], name = item['name'];
     if (item['skipped'] case final String n) {
       skipped.add(n);
-    } else if (bytes is Uint8List && mime is String && name is String) {
-      images.add(PickedImage(bytes: bytes, mime: mime, name: name));
+    } else if (path is String && mime is String && name is String) {
+      images.add(PickedImage(path: path, mime: mime, name: name));
     }
   }
   return (images: images, skipped: skipped);

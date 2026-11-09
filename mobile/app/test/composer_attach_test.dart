@@ -17,17 +17,28 @@ void main() {
   Object? pickError;
   List<Map<String, Object?>> picked = [];
 
-  Map<String, Object?> item(String name, [String mime = 'image/png']) => {
-    'bytes': Uint8List.fromList([1, 2, 3]),
-    'mime': mime,
-    'name': name,
-  };
+  // the picked files, in memory: path -> bytes; the ones deleted after their use
+  final files = <String, Uint8List>{};
+  final deleted = <String>[];
+
+  Map<String, Object?> item(
+    String name, [
+    String mime = 'image/png',
+    List<int> bytes = const [1, 2, 3],
+  ]) {
+    files['/cache/pick/$name'] = Uint8List.fromList(bytes);
+    return {'path': '/cache/pick/$name', 'mime': mime, 'name': name};
+  }
 
   setUp(() {
     r = Rig();
     n = 0;
     hold = null;
     pickError = null;
+    files.clear();
+    deleted.clear();
+    readPickedFile = (path) async => files[path]!;
+    deletePickedFile = (path) async => deleted.add(path);
     picked = [item('a.png'), item('b.png')];
     prepareFor = (bytes, mime) async {
       if (!imageTypes.contains(mime)) throw UnsupportedImage(mime);
@@ -42,6 +53,8 @@ void main() {
   });
   tearDown(() {
     prepareFor = prepareImage;
+    readPickedFile = defaultReadPickedFile;
+    deletePickedFile = defaultDeletePickedFile;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pickChannel, null);
     r.dispose();
@@ -136,6 +149,83 @@ void main() {
     await t.pumpAndSettle();
     expect(thumbs, findsNWidgets(2));
     expect(find.text('look'), findsOneWidget);
+  });
+
+  testWidgets('a refused send of images alone gives them back', (t) async {
+    await open(t);
+    await attach(t, 'Gallery');
+    await t.tap(find.byKey(const ValueKey('send')));
+    await t.pumpAndSettle();
+    expect(thumbs, findsNothing);
+    r.event({
+      'kind': 'send-refused',
+      'id': r.sent.single['id'],
+      'reason': 'busy',
+    });
+    // no text came back to rebuild the composer: the images alone must
+    await t.pump();
+    await t.pump();
+    expect(thumbs, findsNWidgets(2));
+  });
+
+  testWidgets('images are prepared one at a time', (t) async {
+    await open(t);
+    picked = [item('a.png'), item('b.png'), item('c.png')];
+    var running = 0, most = 0, calls = 0;
+    prepareFor = (bytes, mime) async {
+      calls++;
+      most = most < ++running ? running : most;
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      running--;
+      return Prepared(bytes, mime);
+    };
+    await attach(t, 'Gallery');
+    expect(calls, 3);
+    expect(most, 1);
+    expect(thumbs, findsNWidgets(3));
+  });
+
+  testWidgets(
+    'the type is read from the bytes, the provider\'s is a fallback',
+    (t) async {
+      await open(t);
+      const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0x10];
+      picked = [
+        item('a.jpg', 'application/octet-stream', jpeg),
+        item('b.png', 'image/png', jpeg), // a png label on a jpeg
+        item('c', 'image/webp', [1, 2, 3]), // nothing to read: the label stays
+      ];
+      final seen = <String>[];
+      prepareFor = (bytes, mime) async {
+        seen.add(mime);
+        return Prepared(bytes, mime);
+      };
+      await attach(t, 'Gallery');
+      expect(seen, ['image/jpeg', 'image/jpeg', 'image/webp']);
+      expect(thumbs, findsNWidgets(3));
+    },
+  );
+
+  testWidgets('the draft keeps the prepared bytes and the file is deleted', (
+    t,
+  ) async {
+    await open(t);
+    picked = [item('a.png')];
+    prepareFor = (bytes, mime) async =>
+        Prepared(Uint8List.fromList([9, 9]), mime);
+    await attach(t, 'Gallery');
+    final shown =
+        (t.widget<Image>(find.byType(Image)).image as ResizeImage).imageProvider
+            as MemoryImage;
+    expect(shown.bytes, [9, 9]);
+    expect(deleted, ['/cache/pick/a.png']);
+  });
+
+  testWidgets('an unsupported file is deleted too', (t) async {
+    await open(t);
+    picked = [item('a.heic', 'image/heic')];
+    await attach(t, 'File');
+    expect(deleted, ['/cache/pick/a.heic']);
   });
 
   testWidgets('a send the tab cannot make keeps the images', (t) async {

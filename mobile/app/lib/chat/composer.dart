@@ -22,11 +22,11 @@ import 'window_tab.dart';
 @visibleForTesting
 Future<Prepared> Function(Uint8List, String) prepareFor = prepareImage;
 
-/// An image of the message being written: shown at once from [bytes], uploaded in the background. It holds [ref] once
-/// uploaded and [failed] when the upload did not work (the image stays, marked, until the user removes it).
+/// An image of the message being written, prepared and uploaded in the background. It keeps only its prepared [bytes]
+/// (the thumbnail; null until prepared), never the original. It holds [ref] once uploaded and [failed] when the upload
+/// did not work (the image stays, marked, until the user removes it).
 class _Draft {
-  _Draft(this.bytes);
-  final Uint8List bytes;
+  Uint8List? bytes;
   ImageRef? ref;
   bool failed = false;
   bool get pending => ref == null && !failed;
@@ -77,7 +77,7 @@ class _ComposerState extends State<Composer> {
     widget.tab.comments.unsending(last.comments);
     if (_text.text.isEmpty) _text.text = last.text;
     // as the desktop: the images come back only into an empty draft, they are not mixed with newer ones
-    if (_drafts.isEmpty) _drafts.addAll(last.images);
+    if (_drafts.isEmpty) setState(() => _drafts.addAll(last.images));
     final t = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -111,7 +111,7 @@ class _ComposerState extends State<Composer> {
     if (!mounted) return;
     if (got.skipped.isNotEmpty) _say(t.attachTooLarge(got.skipped.join(', ')));
     for (final p in got.images) {
-      final d = _Draft(p.bytes);
+      final d = _Draft();
       setState(() => _drafts.add(d));
       unawaited(_upload(d, p));
     }
@@ -121,10 +121,34 @@ class _ComposerState extends State<Composer> {
     context,
   ).showSnackBar(SnackBar(content: Text(message)));
 
+  /// The images wait here for their turn: preparing one decodes it in an isolate (a photo peaks near 100 MB), so one
+  /// at a time. Uploads overlap.
+  Future<void> _turn = Future.value();
+
+  /// [p] read, prepared and its file deleted, when its turn comes; null when it was removed or the composer left
+  /// meanwhile. The type comes from the bytes, the provider's own only when they say nothing.
+  Future<Prepared?> _prepare(_Draft d, PickedImage p) {
+    final run = _turn.then((_) async {
+      try {
+        if (!mounted || !_drafts.contains(d)) return null;
+        final bytes = await p.read();
+        final seen = imageMime(bytes, p.name);
+        return await prepareFor(bytes, seen == 'image/*' ? p.mime : seen);
+      } finally {
+        await p.delete();
+      }
+    });
+    _turn = run.then<void>((_) {}, onError: (Object _) {});
+    return run;
+  }
+
   Future<void> _upload(_Draft d, PickedImage p) async {
     final t = AppLocalizations.of(context);
     try {
-      final prepared = await prepareFor(p.bytes, p.mime);
+      final prepared = await _prepare(d, p);
+      if (prepared == null) return;
+      d.bytes = prepared.bytes;
+      if (mounted) setState(() {});
       // the label is the position at the send (`composeSend`); this one only has to be something
       final ref = await uploadImage(widget.tab, prepared, '');
       d.ref = ref;
@@ -390,13 +414,15 @@ class _ComposerState extends State<Composer> {
                       ),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: Image.memory(
-                      d.bytes,
-                      fit: BoxFit.cover,
-                      cacheWidth: 120,
-                      errorBuilder: (_, _, _) =>
-                          const Center(child: Icon(Icons.image_outlined)),
-                    ),
+                    child: d.bytes == null
+                        ? null
+                        : Image.memory(
+                            d.bytes!,
+                            fit: BoxFit.cover,
+                            cacheWidth: 120,
+                            errorBuilder: (_, _, _) =>
+                                const Center(child: Icon(Icons.image_outlined)),
+                          ),
                   ),
                   if (d.pending)
                     const Positioned.fill(

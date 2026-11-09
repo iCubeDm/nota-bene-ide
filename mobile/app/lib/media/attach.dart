@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:image/image.dart' as img;
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -39,13 +40,19 @@ class AttachError implements Exception {
 
 /// [bytes] as the desktop prepares a pasted image, decoded and re-encoded in an isolate so a 12 MP photo costs the UI
 /// thread nothing. Throws [UnsupportedImage] for a type `/attach` does not take or bytes that do not decode.
-Future<Prepared> prepareImage(Uint8List bytes, String mime) async {
+Future<Prepared> prepareImage(
+  Uint8List bytes,
+  String mime, {
+  @visibleForTesting
+  (Uint8List, String)? Function(Uint8List, String) prepare = _prepare,
+}) async {
   if (!imageTypes.contains(mime)) throw UnsupportedImage(mime);
   final r = await Isolate.run(() {
     try {
-      return _prepare(bytes, mime);
-    } on Exception {
-      return null; // a truncated or corrupt file
+      return prepare(bytes, mime);
+    } catch (_) {
+      // a truncated or corrupt file: the decoders also fail with a RangeError or a StateError
+      return null;
     }
   });
   if (r == null) throw UnsupportedImage(mime);

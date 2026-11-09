@@ -1,6 +1,7 @@
 // Pictures in the feed: a user message's images above its text, and under a tool line the image or video the call
-// names (a screenshot in a temp folder, a file of the project). Images are read through the window's channel once per
-// tab (WindowTab.mediaCache); a video is fetched only when it is opened.
+// names (a screenshot in a temp folder, a file of the project). Images are read through the window's channel: an
+// attachment once per tab (WindowTab.mediaCache), a file by each card that shows it; a video is fetched only when it
+// is opened.
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -92,7 +93,7 @@ void openViewer(
   ),
 );
 
-/// An image of the window read once for the tab: its bytes, or why it has none.
+/// An image of the window read for this card: its bytes, or why it has none.
 class _Picture extends StatefulWidget {
   const _Picture({required this.tab, required this.url, required this.width});
   final WindowTab tab;
@@ -106,7 +107,15 @@ class _Picture extends StatefulWidget {
 }
 
 class _PictureState extends State<_Picture> {
-  late final Future<Fetched> _got = cachedMedia(widget.tab, widget.url);
+  late Future<Fetched> _got = cachedMedia(widget.tab, widget.url);
+
+  @override
+  void didUpdateWidget(_Picture old) {
+    super.didUpdateWidget(old);
+    if (old.url != widget.url || old.tab != widget.tab) {
+      _got = cachedMedia(widget.tab, widget.url);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

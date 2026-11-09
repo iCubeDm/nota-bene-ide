@@ -49,15 +49,19 @@ Map<String, Object?> user(List<String> ids) => {
 };
 
 /// A finished tool call (cards come under finished lines).
-List<Map<String, Object?>> tool(String name, Map<String, Object?> input) => [
+List<Map<String, Object?>> tool(
+  String name,
+  Map<String, Object?> input, [
+  String id = 't1',
+]) => [
   agent({
     't': 'tool-call',
-    'id': 't1',
+    'id': id,
     'name': name,
     'input': input,
     'sub': false,
   }),
-  agent({'t': 'tool-update', 'id': 't1', 'text': 'ok', 'isError': false}),
+  agent({'t': 'tool-update', 'id': id, 'text': 'ok', 'isError': false}),
 ];
 
 /// A chat whose host answers [onHttp], with [events] replayed once it is listening.
@@ -150,6 +154,40 @@ void main() {
     expect(find.byType(MediaCard), findsOneWidget);
     expect(find.textContaining('not there'), findsOneWidget);
     expect(find.byType(Image), findsNothing);
+    r.dispose();
+  });
+
+  for (final (what, input, req) in [
+    (
+      'tmp image',
+      {'file_path': '/tmp/shot.png'},
+      'GET /tmpimage?path=%2Ftmp%2Fshot.png',
+    ),
+    (
+      'project image',
+      {'file_path': '/home/u/notes/img/a.png'},
+      'GET /file?path=img%2Fa.png',
+    ),
+  ]) {
+    testWidgets('the same $what from two tool calls is read twice', (t) async {
+      final r = await chat(t, [
+        ...tool('Read', input, 't1'),
+        ...tool('Read', input, 't2'),
+      ], (p, m, path) async => answer(200, png));
+      expect(find.byType(MediaCard), findsNWidgets(2));
+      expect(r.ch.requests.where((q) => q == req), hasLength(2));
+      r.dispose();
+    });
+  }
+
+  testWidgets('a later call finding the file gone shows it gone', (t) async {
+    var n = 0;
+    final r = await chat(t, [
+      ...tool('Read', {'file_path': '/tmp/shot.png'}, 't1'),
+      ...tool('Read', {'file_path': '/tmp/shot.png'}, 't2'),
+    ], (p, m, path) async => ++n == 1 ? answer(200, png) : answer(404));
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.textContaining('not there'), findsOneWidget);
     r.dispose();
   });
 }

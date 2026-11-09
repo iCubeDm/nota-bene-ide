@@ -179,8 +179,19 @@ class _ImageScreenState extends State<ImageScreen> {
     super.dispose();
   }
 
+  /// Lets go of the decoded pictures farther than a page from the current one: a long run of photos would otherwise
+  /// stay in memory whole. They are read again when the viewer comes back.
+  void _trim() {
+    for (final k in [
+      for (final k in _pages.keys)
+        if ((k - _index).abs() > 1) k,
+    ]) {
+      _pages.remove(k)?.image?.dispose();
+    }
+  }
+
   Future<void> _load(int i) async {
-    if (_pages.containsKey(i)) return;
+    if (_pages.containsKey(i) || (i - _index).abs() > 1) return;
     final page = _pages[i] = _Page();
     final item = widget.items[i];
     final got = item.attachId != null
@@ -203,7 +214,8 @@ class _ImageScreenState extends State<ImageScreen> {
         fail = _Fail.undecodable;
       }
     }
-    if (!mounted) {
+    // the page may have been let go while it was read
+    if (!mounted || _pages[i] != page) {
       image?.dispose();
       return;
     }
@@ -220,7 +232,10 @@ class _ImageScreenState extends State<ImageScreen> {
 
   void _moved(int i) {
     _zoom.value = Matrix4.identity();
-    setState(() => _index = i);
+    setState(() {
+      _index = i;
+      _trim();
+    });
     _load(i);
   }
 

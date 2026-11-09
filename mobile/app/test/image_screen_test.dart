@@ -287,6 +287,40 @@ void main() {
     r.dispose();
   });
 
+  testWidgets('only the current image and its neighbours stay decoded', (
+    t,
+  ) async {
+    final five = [
+      for (final n in ['a', 'b', 'c', 'd', 'e']) ViewerImage.file('img/$n.png'),
+    ];
+    final r = await openImage(t, items: five);
+    int reads(String n) =>
+        r.ch.requests.where((q) => q == 'GET /file?path=img%2F$n.png').length;
+    for (var i = 0; i < 4; i++) {
+      await t.fling(find.byType(PageView), const Offset(-400, 0), 1500);
+      await settleReal(t, 4);
+    }
+    expect(find.text('5 / 5'), findsOneWidget);
+    expect(
+      [
+        for (final n in ['a', 'b', 'c', 'd', 'e']) reads(n),
+      ],
+      [1, 1, 1, 1, 1],
+    );
+    // back to the third: the pages left behind (a, b, c) were let go, so c is read again as it comes back
+    await t.fling(find.byType(PageView), const Offset(400, 0), 1500);
+    await settleReal(t, 4);
+    await t.fling(find.byType(PageView), const Offset(400, 0), 1500);
+    await settleReal(t, 4);
+    expect(find.text('3 / 5'), findsOneWidget);
+    expect(reads('c'), 2);
+    expect(reads('b'), 1); // let go too, read again only when it is shown
+    expect(reads('d'), 1);
+    expect(reads('e'), 1);
+    expect(reads('a'), 1);
+    r.dispose();
+  });
+
   testWidgets('a swipe down at scale 1 closes the viewer', (t) async {
     final r = await openImage(t);
     await t.fling(find.byType(RawImage), const Offset(0, 400), 1500);

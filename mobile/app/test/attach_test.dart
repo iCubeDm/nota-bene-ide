@@ -31,6 +31,11 @@ img.Image noise(int w, int h) {
   return im;
 }
 
+(Uint8List, String)? _rangeError(Uint8List b, String m) =>
+    throw RangeError('past the end');
+(Uint8List, String)? _stateError(Uint8List b, String m) =>
+    throw StateError('truncated');
+
 void main() {
   group('prepareImage', () {
     test('4000x1000 is scaled to 1568 on the long edge and is a png', () async {
@@ -87,6 +92,26 @@ void main() {
       );
       await expectLater(
         prepareImage(png(8, 8), 'application/pdf'),
+        throwsA(isA<UnsupportedImage>()),
+      );
+    });
+
+    test('any decode failure, an Error too, is an UnsupportedImage', () async {
+      for (final f in [_rangeError, _stateError]) {
+        await expectLater(
+          prepareImage(png(8, 8), 'image/png', prepare: f),
+          throwsA(isA<UnsupportedImage>()),
+        );
+      }
+    });
+
+    test('a truncated file is refused', () async {
+      final whole = img.encodePng(noise(1700, 300));
+      await expectLater(
+        prepareImage(
+          Uint8List.sublistView(whole, 0, whole.length ~/ 2),
+          'image/png',
+        ),
         throwsA(isA<UnsupportedImage>()),
       );
     });

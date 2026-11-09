@@ -112,7 +112,9 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     // Images from the system (`nb/pick`): `camera`, `gallery` and `file` each start one system activity and answer a
-    // list of {bytes, mime, name} (empty when cancelled; {skipped: name} for an image over MAX_PICK_BYTES). No
+    // list of {path, mime, name} (empty when cancelled; {skipped: name} for an image over MAX_PICK_BYTES). Each image
+    // is a file in cache/pick, copied there as a stream (nothing is held in the heap); Dart reads it when it prepares
+    // the image and deletes it after. No
     // permission of ours but CAMERA, which the manifest declares for the QR scanner and which the camera intent then
     // requires us to hold. The camera writes a full-size photo to a file of ours in cache/pick, shared through
     // androidx.core's FileProvider. One pick at a time; reading runs off the main thread.
@@ -205,7 +207,9 @@ class MainActivity : FlutterFragmentActivity() {
     private fun startCamera(result: MethodChannel.Result) {
         val dir = File(cacheDir, "pick")
         dir.mkdirs()
-        dir.listFiles()?.forEach { it.delete() } // leftovers of an earlier capture
+        // leftovers of an earlier pick or capture; a younger file may still be a draft's or a share's in use
+        val old = System.currentTimeMillis() - PICK_KEEP_MS
+        dir.listFiles()?.forEach { if (it.lastModified() < old) it.delete() }
         val file = File(dir, "camera-${System.currentTimeMillis()}.jpg")
         val uri = FileProvider.getUriForFile(this, "$packageName.pick", file)
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
@@ -267,43 +271,61 @@ class MainActivity : FlutterFragmentActivity() {
         pickExecutor.execute {
             val out = ArrayList<Map<String, Any>>()
             try {
-                for (uri in uris) out.add(readPicked(uri, camera != null))
+                for (uri in uris) out.add(readPicked(uri, camera))
                 mainHandler.post { result.success(out) }
             } catch (e: Throwable) {
-                // an unreadable image or an OutOfMemoryError is a reply, not a crash
-                mainHandler.post { result.error("read", e.message ?: e.javaClass.simpleName, null) }
-            } finally {
+                // an unreadable image or an OutOfMemoryError is a reply, not a crash; what was copied is of no use now
+                out.forEach { (it["path"] as? String)?.let { p -> File(p).delete() } }
                 camera?.delete()
+                mainHandler.post { result.error("read", e.message ?: e.javaClass.simpleName, null) }
             }
         }
     }
 
-    private fun readPicked(uri: Uri, isCamera: Boolean): Map<String, Any> {
-        var name = if (isCamera) "camera.jpg" else (uri.lastPathSegment ?: "image")
+    // The camera's photo is already a file of ours: it is handed over as it is (Dart deletes it after its use). Any other
+    // image is copied to its own file in cache/pick, chunk by chunk, and dropped again when it is over MAX_PICK_BYTES.
+    private fun readPicked(uri: Uri, camera: File?): Map<String, Any> {
+        if (camera != null) {
+            if (camera.length() > MAX_PICK_BYTES) {
+                camera.delete()
+                return mapOf("skipped" to "camera.jpg")
+            }
+            return mapOf("path" to camera.absolutePath, "mime" to "image/jpeg", "name" to "camera.jpg")
+        }
+        var name = uri.lastPathSegment ?: "image"
         var size = -1L
-        if (!isCamera) {
-            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
-                if (c.moveToFirst()) {
-                    c.getString(0)?.let { name = it }
-                    if (!c.isNull(1)) size = c.getLong(1)
-                }
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                c.getString(0)?.let { name = it }
+                if (!c.isNull(1)) size = c.getLong(1)
             }
         }
         if (size > MAX_PICK_BYTES) return mapOf("skipped" to name)
-        val stream = (if (isCamera) java.io.FileInputStream(File(uri.path!!)) else contentResolver.openInputStream(uri))
-            ?: throw IOException("cannot open $name")
-        val buf = ByteArrayOutputStream()
-        stream.use { input ->
-            val chunk = ByteArray(64 * 1024)
-            while (true) {
-                val n = input.read(chunk)
-                if (n < 0) break
-                buf.write(chunk, 0, n)
-                if (buf.size() > MAX_PICK_BYTES) return mapOf("skipped" to name) // the size column can be missing or wrong
+        val dir = File(cacheDir, "pick")
+        dir.mkdirs()
+        val dest = File.createTempFile("pick-", ".img", dir) // a name of its own: no two picks meet
+        var done = false
+        try {
+            val input = contentResolver.openInputStream(uri) ?: throw IOException("cannot open $name")
+            var total = 0L
+            input.use { src ->
+                dest.outputStream().use { out ->
+                    val chunk = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = src.read(chunk)
+                        if (n < 0) break
+                        total += n
+                        if (total > MAX_PICK_BYTES) return mapOf("skipped" to name) // the size column can be missing or wrong
+                        out.write(chunk, 0, n)
+                    }
+                }
             }
+            done = true
+            val mime = contentResolver.getType(uri) ?: "application/octet-stream"
+            return mapOf("path" to dest.absolutePath, "mime" to mime, "name" to name)
+        } finally {
+            if (!done) dest.delete()
         }
-        val mime = if (isCamera) "image/jpeg" else (contentResolver.getType(uri) ?: "application/octet-stream")
-        return mapOf("bytes" to buf.toByteArray(), "mime" to mime, "name" to name)
     }
 
     private fun configureSpeech(flutterEngine: FlutterEngine) {
@@ -806,6 +828,8 @@ class MainActivity : FlutterFragmentActivity() {
         // what a pick answers: at most ten images, none over 40 MB (the phone skips it and says so)
         const val MAX_PICK_COUNT = 10
         const val MAX_PICK_BYTES = 40 * 1024 * 1024
+        // a file of cache/pick younger than this may still belong to a draft or a share; the camera start spares it
+        const val PICK_KEEP_MS = 60L * 60 * 1000
 
         // what the host takes: 16 kHz mono PCM16, at most 2 minutes (3.84 MB, under its 4 MiB limit with the header)
         const val RATE = 16000

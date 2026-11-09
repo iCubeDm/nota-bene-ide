@@ -100,8 +100,8 @@ class WindowTab extends ChangeNotifier {
   /// The temp folders whose images the window serves (`/tmpimage`), from its hello; none until then.
   List<String> tmpDirs = const [];
 
-  /// Images read for the feed's thumbnails and cards, by their request path, for the tab's life.
-  final mediaCache = <String, Future<Fetched>>{};
+  /// The attachments read for the feed's thumbnails and the viewer, by their request path, within a byte cap.
+  final mediaCache = MediaCache();
 
   /// The host answered 503 to a dictation: its Whisper is off. Until the next hello or reconnect the phone's own
   /// recognizer is used (the hello's capability is stale by then).
