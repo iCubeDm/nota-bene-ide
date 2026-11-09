@@ -70,7 +70,7 @@ const LOCK_GRACE_MS = 10_000;
 export const NPM_TIMEOUT_MS = 10 * 60_000;
 
 type LockRead = { version: string; pid: number } | 'stale' | null;
-function readLock(file: string): LockRead {
+export function readLock(file: string): LockRead {
   let text: string;
   try { text = fs.readFileSync(file, 'utf8'); } catch { return null; }
   try {
@@ -87,26 +87,31 @@ export function installing(): { version: string; pid: number } | null {
 
 /** Takes update.lock atomically (a complete tmp file hard-linked into place); false when a live install holds it. */
 function takeLock(version: string): boolean {
-  fs.mkdirSync(runtimeDir(), { recursive: true, mode: 0o700 });
+  return takeLockFile(lockFile(), version);
+}
+
+/** The same atomic lock at any path (the Whisper installer has its own). */
+export function takeLockFile(file: string, version: string): boolean {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const uniq = `${process.pid}.${Math.random().toString(36).slice(2)}`;
-  const tmp = `${lockFile()}.${uniq}.tmp`;
+  const tmp = `${file}.${uniq}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify({ version, pid: process.pid }), { mode: 0o600 });
   try {
     for (let tries = 0; tries < 3; tries++) {
       try {
-        fs.linkSync(tmp, lockFile());
+        fs.linkSync(tmp, file);
         return true;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
       }
-      const l = readLock(lockFile());
+      const l = readLock(file);
       if (l && l !== 'stale') return false;
       // stale: move it aside (one winner), and re-check what was really moved
-      const aside = `${lockFile()}.${uniq}.stale`;
-      try { fs.renameSync(lockFile(), aside); } catch { continue; }
+      const aside = `${file}.${uniq}.stale`;
+      try { fs.renameSync(file, aside); } catch { continue; }
       const moved = readLock(aside);
       if (moved && moved !== 'stale') {
-        try { fs.linkSync(aside, lockFile()); } catch { /* the newer owner already re-created it */ }
+        try { fs.linkSync(aside, file); } catch { /* the newer owner already re-created it */ }
         fs.rmSync(aside, { force: true });
         return false;
       }
@@ -118,7 +123,7 @@ function takeLock(version: string): boolean {
   }
 }
 
-function defaultNpm(): string | null {
+export function defaultNpm(): string | null {
   const beside = path.join(path.dirname(process.execPath), 'npm');
   if (fs.existsSync(beside)) return beside;
   for (const d of (process.env.PATH ?? '').split(path.delimiter)) {
@@ -127,7 +132,7 @@ function defaultNpm(): string | null {
   return null;
 }
 
-function run(cmd: string, args: string[], out: number | 'pipe', timeoutMs = NPM_TIMEOUT_MS): Promise<{ code: number | null; stdout: string; timedOut: boolean }> {
+export function run(cmd: string, args: string[], out: number | 'pipe', timeoutMs = NPM_TIMEOUT_MS): Promise<{ code: number | null; stdout: string; timedOut: boolean }> {
   return new Promise((resolve) => {
     const c = spawn(cmd, args, { stdio: ['ignore', out, out === 'pipe' ? 'ignore' : out] });
     let stdout = '';

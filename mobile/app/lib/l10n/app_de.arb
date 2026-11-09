@@ -133,5 +133,8 @@
   "dictationDenied": "Der Mikrofonzugriff ist für Nota Bene deaktiviert",
   "dictationUnavailable": "Spracherkennung ist auf diesem Telefon nicht verfügbar",
   "dictationNoMatch": "Es wurde nichts gehört",
-  "dictationFailed": "Diktat fehlgeschlagen"
+  "dictationFailed": "Diktat fehlgeschlagen",
+  "dictationTranscribing": "Wird transkribiert…",
+  "dictationHostFailed": "Der Computer konnte es nicht transkribieren",
+  "dictationHostOff": "Whisper ist auf dem Computer aus; jetzt wird die Erkennung des Telefons verwendet"
 }

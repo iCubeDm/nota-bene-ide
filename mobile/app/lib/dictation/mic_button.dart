@@ -5,11 +5,20 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import 'dictation.dart';
+import 'host_dictation.dart';
 
 class MicButton extends StatefulWidget {
-  const MicButton({super.key, required this.controller, this.enabled = true});
+  const MicButton({
+    super.key,
+    required this.controller,
+    this.enabled = true,
+    this.chooser,
+  });
   final TextEditingController controller;
   final bool enabled;
+
+  /// Picks the dictation for a session; none: the phone's recognizer.
+  final Dictation Function()? chooser;
 
   /// Ends the dictation in progress, if any, before its field is read.
   static void cancelRunning() => _MicButtonState._current?._end(cancel: true);
@@ -30,6 +39,8 @@ class _MicButtonState extends State<MicButton> {
   String _before = '';
   String _after = '';
   bool _stopping = false;
+  bool _working = false;
+  Dictation _active = dictation;
   bool get _listening => _sub != null;
 
   @override
@@ -47,7 +58,19 @@ class _MicButtonState extends State<MicButton> {
   @override
   void didUpdateWidget(MicButton old) {
     super.didUpdateWidget(old);
-    if (!widget.enabled && _listening) _end(cancel: true);
+    if (!widget.enabled && _listening) {
+      // the host went away under a recording or a post: say so, the phone's own recognizer needs no host
+      final host = _active is HostDictation;
+      _end(cancel: true);
+      if (host) {
+        // not during build: a snack bar cannot be shown from here
+        final messenger = ScaffoldMessenger.of(context);
+        final text = AppLocalizations.of(context).dictationHostFailed;
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => messenger.showSnackBar(SnackBar(content: Text(text))),
+        );
+      }
+    }
   }
 
   @override
@@ -64,9 +87,10 @@ class _MicButtonState extends State<MicButton> {
     _sub?.cancel();
     _sub = null;
     _stopping = false;
+    _working = false;
     _written = null;
     if (identical(_current, this)) _current = null;
-    if (cancel) _fire(dictation.cancel());
+    if (cancel) _fire(_active.cancel());
     if (rebuild && mounted) setState(() {});
   }
 
@@ -86,8 +110,10 @@ class _MicButtonState extends State<MicButton> {
       WidgetsBinding.instance.platformDispatcher.locales,
     );
     _stopping = false;
+    _working = false;
     _current = this;
-    _sub = dictation.listen(tag).listen(_on);
+    _active = widget.chooser?.call() ?? dictation;
+    _sub = _active.listen(tag).listen(_on);
     setState(() {});
   }
 
@@ -115,6 +141,8 @@ class _MicButtonState extends State<MicButton> {
     switch (e) {
       case DictationPartial(:final text):
         _put(text);
+      case DictationWorking():
+        setState(() => _working = true);
       case DictationFinal(:final text):
         // an empty result must not erase the partials
         if (text.isNotEmpty) _put(text);
@@ -129,6 +157,8 @@ class _MicButtonState extends State<MicButton> {
               DictationFailure.unavailable => t.dictationUnavailable,
               DictationFailure.noMatch => t.dictationNoMatch,
               DictationFailure.failed => t.dictationFailed,
+              DictationFailure.hostFailed => t.dictationHostFailed,
+              DictationFailure.hostOff => t.dictationHostOff,
             }),
           ),
         );
@@ -142,13 +172,25 @@ class _MicButtonState extends State<MicButton> {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     return IconButton(
-      tooltip: _listening ? t.dictateStop : t.dictate,
-      icon: Icon(
-        _listening ? Icons.mic : Icons.mic_none,
-        color: _listening ? c.accent : null,
-      ),
+      tooltip: _working
+          ? t.dictationTranscribing
+          : _listening
+          ? t.dictateStop
+          : t.dictate,
+      icon: _working
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              _listening ? Icons.mic : Icons.mic_none,
+              color: _listening ? c.accent : null,
+            ),
+      // a no-op, not null: a disabled button would let the tap through to the field and move its cursor
       onPressed: !widget.enabled
           ? null
+          : _working
+          ? () {}
           : _listening
           ? _stop
           : _start,
@@ -159,6 +201,6 @@ class _MicButtonState extends State<MicButton> {
   void _stop() {
     if (_stopping) return;
     _stopping = true;
-    _fire(dictation.stop());
+    _fire(_active.stop());
   }
 }

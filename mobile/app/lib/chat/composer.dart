@@ -7,7 +7,10 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
 import '../comments/comments.dart';
+import '../dictation/dictation.dart';
+import '../dictation/host_dictation.dart';
 import '../dictation/mic_button.dart';
+import '../files/image_screen.dart' show windowHttp;
 import 'window_tab.dart';
 
 class Composer extends StatefulWidget {
@@ -144,7 +147,19 @@ class _ComposerState extends State<Composer> {
                   hintText: open ? t.messageHint : t.cannotSend,
                   border: const OutlineInputBorder(),
                   isDense: true,
-                  suffixIcon: MicButton(controller: _text, enabled: open),
+                  suffixIcon: MicButton(
+                    controller: _text,
+                    enabled: open,
+                    chooser: () =>
+                        open &&
+                            widget.tab.capabilities?.dictation == 'whisper' &&
+                            !widget.tab.hostWhisperOff
+                        ? HostDictation(
+                            () => windowHttp(widget.tab),
+                            onHostOff: () => widget.tab.hostWhisperOff = true,
+                          )
+                        : dictation,
+                  ),
                 ),
               ),
             ),

@@ -184,6 +184,7 @@ final class Capabilities implements _Json {
     required this.idleCompact,
     required this.models,
     this.model3d,
+    this.dictation,
     this.provider,
     this.modeDescriptors,
     this.taskBackground,
@@ -202,6 +203,7 @@ final class Capabilities implements _Json {
       idleCompact: json['idleCompact'] as bool,
       models: json['models'] as bool,
       model3d: json['model3d'] as bool?,
+      dictation: json['dictation'] as String?,
       provider: _opt(json['provider'], CapabilitiesProvider.fromJson),
       modeDescriptors: _listOrNull(
         json['modeDescriptors'],
@@ -222,6 +224,7 @@ final class Capabilities implements _Json {
   final bool idleCompact;
   final bool models;
   final bool? model3d;
+  final String? dictation;
   final CapabilitiesProvider? provider;
   final List<CapabilitiesModeDescriptorsItem>? modeDescriptors;
   final bool? taskBackground;
@@ -240,6 +243,7 @@ final class Capabilities implements _Json {
       'idleCompact': idleCompact,
       'models': models,
       if (model3d != null) 'model3d': model3d,
+      if (dictation != null) 'dictation': dictation,
       if (provider != null) 'provider': provider!.toJson(),
       if (modeDescriptors != null)
         'modeDescriptors': _jsonList(modeDescriptors),

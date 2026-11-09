@@ -17,6 +17,7 @@ const WINDOWS = [
 let posts: { url: string; body: unknown }[];
 let actionReply: () => Response;
 let prefsReply: () => Response;
+let dict: { on: boolean; phase: string; downloadMb: number; diskMb: number; dir: string; model: string };
 let storage: { unreferenced: { files: number; bytes: number } };
 beforeEach(() => {
   localStorage.clear();
@@ -24,14 +25,17 @@ beforeEach(() => {
   posts = [];
   actionReply = () => Response.json({ status: 200 });
   prefsReply = () => Response.json({ defaultMode: 'plan' });
+  dict = { on: false, phase: 'none', downloadMb: 430, diskMb: 770, dir: '/srv/nb/whisper', model: 'whisper-small' };
   storage = { unreferenced: { files: 3, bytes: 3_000_000 } };
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') {
       posts.push({ url, body: JSON.parse(String(init.body)) });
       if (url === '/system/storage/clean') return Response.json({ moved: 3, bytes: 3_000_000, trash: '/Users/me/.nota-bene/trash/attachments/x' });
       if (url === '/system/prefs') return prefsReply();
+      if (url === '/dictation/install') { dict = { ...dict, phase: 'installing' }; return Response.json({ ok: true }, { status: 202 }); }
       return actionReply();
     }
+    if (url === '/dictation') return Response.json(dict);
     if (url === '/system/windows') return Response.json(WINDOWS);
     if (url === '/system/storage') return Response.json({ attachments: { bytes: 5e6, files: 9 }, comments: { bytes: 2e4, files: 3 }, history: { bytes: 4096, files: 2 }, trash: { bytes: 0, files: 0 }, marks: { bytes: 1e6, files: 4, root: '/Users/me/a' }, ...storage });
     if (url === '/system/about') return Response.json({ version: 'v0.9-12-gabc', stateDir: '/Users/me/.nota-bene', logs: [], node: 'v23.6.0', pid: 42 });
@@ -227,4 +231,55 @@ it('a Themes section after Defaults: radios with a swatch of the theme\'s own to
   expect(radios[1]).toBeChecked();
   expect(theme.get()).toBe('plannotator');
   theme.choose('darcula');
+});
+
+it('Dictation on the phone, not installed: Install asks first, naming the size and the folder; the POST follows the confirm only', async () => {
+  setup();
+  fireEvent.click(await screen.findByRole('button', { name: 'Install Whisper (≈ 430 MB download, 770 MB on disk)' }));
+  expect(posts.filter((p) => p.url === '/dictation/install')).toHaveLength(0);
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveTextContent('≈ 430 MB');
+  expect(dialog).toHaveTextContent('≈ 770 MB on disk');
+  expect(dialog).toHaveTextContent('/srv/nb/whisper');
+  expect(dialog).toHaveTextContent('end-to-end encrypted and are not stored');
+  expect(dialog).not.toHaveTextContent('~/.nota-bene');
+  expect(dialog).not.toHaveTextContent('nothing leaves');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(posts.filter((p) => p.url === '/dictation/install')).toHaveLength(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Install Whisper (≈ 430 MB download, 770 MB on disk)' }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Install' }));
+  await waitFor(() => expect(posts.filter((p) => p.url === '/dictation/install')).toHaveLength(1));
+  expect(await screen.findByText('Installing Whisper…')).toBeInTheDocument();
+});
+
+it('Dictation installing: a spinner line, polled every 2 s until it is ready', async () => {
+  dict = { ...dict, phase: 'installing' };
+  setup();
+  expect(await screen.findByText('Installing Whisper…')).toBeInTheDocument();
+  dict = { ...dict, phase: 'ready' };
+  expect(await screen.findByRole('checkbox', { name: "Use Whisper for the phone's microphone" }, { timeout: 4000 })).toBeInTheDocument();
+}, 8000);
+
+it('Dictation failed: the error line and Retry, which installs again without asking', async () => {
+  dict = { ...dict, phase: 'failed' };
+  setup();
+  expect(await screen.findByText(/Whisper install failed/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  await waitFor(() => expect(posts.filter((p) => p.url === '/dictation/install')).toHaveLength(1));
+});
+
+it('Dictation ready: the checkbox posts on; Remove asks first, then posts remove', async () => {
+  dict = { ...dict, phase: 'ready' };
+  setup();
+  const box = await screen.findByRole('checkbox', { name: "Use Whisper for the phone's microphone" });
+  expect(box).not.toBeChecked();
+  fireEvent.click(box);
+  await waitFor(() => expect(posts.find((p) => p.url === '/dictation/on')?.body).toEqual({ on: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Whisper' }));
+  expect(posts.some((p) => p.url === '/dictation/remove')).toBe(false);
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveTextContent('/srv/nb/whisper');
+  expect(dialog).not.toHaveTextContent('~/.nota-bene');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+  await waitFor(() => expect(posts.some((p) => p.url === '/dictation/remove')).toBe(true));
 });

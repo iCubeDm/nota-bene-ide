@@ -65,8 +65,10 @@ class Rig {
     bool models = true,
     bool usage = true,
     String? provider,
+    String? dictation,
   }) => {
     'provider': ?provider,
+    'dictation': ?dictation,
     'compact': compact,
     'clear': true,
     'modes': ['default'],

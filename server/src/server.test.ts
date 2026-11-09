@@ -8,6 +8,9 @@ import { fakeBackend } from './agent/fake.ts';
 import { HistoryArchive } from './archive.ts';
 import { startServer } from './server.ts';
 import { tmpDirNames } from './tmpImage.ts';
+import { whisperDir } from './dictation/install.ts';
+import { WHISPER_MODEL, WHISPER_REVISION, WHISPER_VERSION } from './dictation/whisper.ts';
+import { setWhisperPref } from './prefs.ts';
 
 let home: string;
 let dist: string;
@@ -54,6 +57,22 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
 const isResult = (e: ServerEvent) => e.kind === 'agent' && e.e.t === 'turn-end';
 
 describe('server', () => {
+  it('hello carries dictation: whisper only when it is on and ready', async () => {
+    const dictation = async () => {
+      const c = await connect((await boot()).url);
+      await until(() => c.events.some((e) => e.kind === 'hello'));
+      return (c.events.find((e) => e.kind === 'hello') as { capabilities: Capabilities }).capabilities.dictation;
+    };
+    expect(await dictation()).toBeUndefined();
+    setWhisperPref(true); // on, but not installed
+    expect(await dictation()).toBeUndefined();
+    fs.mkdirSync(whisperDir(), { recursive: true });
+    fs.writeFileSync(path.join(whisperDir(), 'ready.json'), JSON.stringify({ version: WHISPER_VERSION, model: WHISPER_MODEL, revision: WHISPER_REVISION }));
+    expect(await dictation()).toBe('whisper');
+    setWhisperPref(false);
+    expect(await dictation()).toBeUndefined();
+  });
+
   it('chat round-trip over ws', async () => {
     const s = await boot();
     const c = await connect(s.url);
