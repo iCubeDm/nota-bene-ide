@@ -127,5 +127,11 @@
   "videoPlay": "Abspielen",
   "videoPause": "Pause",
   "videoUnplayable": "Das Video konnte nicht abgespielt werden. Versuche es erneut, wenn der Host online ist.",
-  "frameFailed": "Das Frame konnte nicht aus dem Video genommen werden. Versuche es erneut."
+  "frameFailed": "Das Frame konnte nicht aus dem Video genommen werden. Versuche es erneut.",
+  "dictate": "Diktieren",
+  "dictateStop": "Diktat beenden",
+  "dictationDenied": "Der Mikrofonzugriff ist für Nota Bene deaktiviert",
+  "dictationUnavailable": "Spracherkennung ist auf diesem Telefon nicht verfügbar",
+  "dictationNoMatch": "Es wurde nichts gehört",
+  "dictationFailed": "Diktat fehlgeschlagen"
 }

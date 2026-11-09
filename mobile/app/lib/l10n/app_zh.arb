@@ -127,5 +127,11 @@
   "videoPlay": "播放",
   "videoPause": "暂停",
   "videoUnplayable": "无法播放此视频。请在主机在线时重试。",
-  "frameFailed": "无法从视频中截取画面。请重试。"
+  "frameFailed": "无法从视频中截取画面。请重试。",
+  "dictate": "语音输入",
+  "dictateStop": "停止语音输入",
+  "dictationDenied": "Nota Bene 的麦克风权限已关闭",
+  "dictationUnavailable": "此手机不支持语音识别",
+  "dictationNoMatch": "没有听到内容",
+  "dictationFailed": "语音输入失败"
 }

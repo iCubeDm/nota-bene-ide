@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../dictation/mic_button.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import 'strings.g.dart';
@@ -53,7 +54,7 @@ class _SheetState extends State<_Sheet> {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final lang = Localizations.localeOf(context).languageCode;
-    return Padding(
+    final sheet = Padding(
       padding: EdgeInsets.fromLTRB(
         16,
         0,
@@ -104,6 +105,7 @@ class _SheetState extends State<_Sheet> {
             decoration: InputDecoration(
               hintText: t.commentHint,
               border: const OutlineInputBorder(),
+              suffixIcon: MicButton(controller: _text),
             ),
           ),
           const SizedBox(height: 8),
@@ -123,13 +125,31 @@ class _SheetState extends State<_Sheet> {
                 child: Text(t.cancel),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(
-                  context,
-                  SheetSave(_text.text.trim(), _label),
-                ),
+                onPressed: () {
+                  // a running dictation must not write after the field is read
+                  MicButton.cancelRunning();
+                  Navigator.pop(context, SheetSave(_text.text.trim(), _label));
+                },
                 child: Text(t.save),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+    // The sheet covers the page's Scaffold, so a SnackBar shown there would be hidden under it: the sheet has
+    // its own messenger, and an invisible Scaffold of the sheet's size to show it on.
+    return ScaffoldMessenger(
+      child: Stack(
+        children: [
+          sheet,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Scaffold(
+                backgroundColor: Colors.transparent,
+                resizeToAvoidBottomInset: false,
+              ),
+            ),
           ),
         ],
       ),
