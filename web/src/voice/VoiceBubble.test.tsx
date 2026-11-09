@@ -112,6 +112,16 @@ it('a refused voice send is told, not lost silently', () => {
   expect(getToasts().some((x) => x.title.includes('The voice message was not sent'))).toBe(true);
 });
 
+it('Retry mid-switch says "switching", not "offline"', () => {
+  const { ev, store, sent } = setup();
+  ev(userV('m1'));
+  ev({ kind: 'voice-text', id: 'm1', error: 'failed', ts: 1 });
+  act(() => void store.dispatch({ type: 'controls/switchStarted' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(sent).toHaveLength(0);
+  expect(getToasts().map((x) => x.title)).toEqual(['switching…']);
+});
+
 it('play toggles the recording from /voice/<id>; starting a second one stops the first', () => {
   const { ev } = setup();
   ev(userV('m1', V1));

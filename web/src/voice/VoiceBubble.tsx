@@ -3,7 +3,8 @@ import type { Voice, VoiceError } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
 import { useT } from '@/i18n/index.ts';
 import { toast } from '@/shell/toast.ts';
-import { useAppDispatch } from '@/store/store.ts';
+import { selectSwitching } from '@/controls/slice.ts';
+import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { sendVoice } from './send.ts';
 import { VoiceView } from './VoiceView.tsx';
 
@@ -39,7 +40,9 @@ export function VoiceBubble({ voice, text, error }: { voice: Voice; text?: strin
   const t = useT();
   const d = useAppDispatch();
   const [open, setOpen] = useState(true);
-  const retry = () => { if (!d(sendVoice(voice))) toast(t('offline'), ''); };
+  const switching = useAppSelector(selectSwitching);
+  // not sent: mid-switch the server refuses sends, which is not "offline"
+  const retry = () => { if (!d(sendVoice(voice))) toast(t(switching ? 'switching' : 'offline'), ''); };
   return (
     <div data-voice>
       <div className="flex items-start gap-2">
