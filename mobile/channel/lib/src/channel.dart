@@ -23,6 +23,26 @@ class ChannelError implements Exception {
 }
 
 /// One window as the host stream lists it.
+/// The latest user message or final reply of a window's session, as the window sends it: one plain line.
+class LastMessage {
+  LastMessage({required this.role, required this.text, required this.at});
+
+  /// `user` or `assistant`.
+  final String role, text;
+  final DateTime at;
+
+  static LastMessage? fromJson(Object? j) {
+    if (j is! Map) return null;
+    final role = j['role'], text = j['text'], at = j['at'];
+    if (role is! String || text is! String || at is! num) return null;
+    return LastMessage(
+      role: role,
+      text: text,
+      at: DateTime.fromMillisecondsSinceEpoch(at.toInt()),
+    );
+  }
+}
+
 class HostWindow {
   HostWindow({
     required this.port,
@@ -33,6 +53,9 @@ class HostWindow {
     this.model,
     this.busy = false,
     this.supervised = false,
+    this.pending = false,
+    this.last,
+    this.replies,
   });
 
   factory HostWindow.fromJson(Map<String, Object?> j) => HostWindow(
@@ -44,6 +67,9 @@ class HostWindow {
     model: j['model'] as String?,
     busy: j['busy'] == true,
     supervised: j['supervised'] == true,
+    pending: j['pending'] == true,
+    last: LastMessage.fromJson(j['last']),
+    replies: j['replies'] as int?,
   );
 
   final int port;
@@ -51,6 +77,15 @@ class HostWindow {
   final String root;
   final String? title, session, model;
   final bool busy, supervised;
+
+  /// A permission or interaction prompt awaits an answer in the window.
+  final bool pending;
+
+  /// Null: no message yet, or an older window that does not tell.
+  final LastMessage? last;
+
+  /// The final replies of the session; null from an older window.
+  final int? replies;
 }
 
 typedef HttpAnswer = ({
