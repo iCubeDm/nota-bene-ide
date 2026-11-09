@@ -157,6 +157,7 @@ class _SelectableMessageState extends State<SelectableMessage> {
     final res = await showCommentSheet(
       context,
       quote: r.text.substring(at.start, at.end),
+      tab: widget.tab,
     );
     if (res is! SheetSave) return;
     widget.tab.comments.add(

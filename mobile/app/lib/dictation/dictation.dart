@@ -37,6 +37,12 @@ class DictationFinal extends DictationEvent {
   final String text;
 }
 
+/// The input level, 0..1, while listening or recording.
+class DictationLevel extends DictationEvent {
+  const DictationLevel(this.value);
+  final double value;
+}
+
 class DictationError extends DictationEvent {
   const DictationError(this.why);
   final DictationFailure why;
@@ -58,47 +64,87 @@ abstract class Dictation {
   Future<void> cancel();
 }
 
+// How long after `stop` the phone's recognizer may stay silent before the session is ended with what was heard.
+const stopWatchdog = Duration(seconds: 3);
+
 class PlatformDictation implements Dictation {
+  StreamController<DictationEvent>? _out;
+  StreamSubscription<Object?>? _native;
+  Timer? _watchdog;
+  // Finished stretches of speech; the recognizer restarts after each pause.
+  var _done = '';
+
+  String _join(String text) => _done.isEmpty ? text : '$_done $text'.trim();
+
+  void _close() {
+    _watchdog?.cancel();
+    _watchdog = null;
+    _native?.cancel();
+    _native = null;
+    _out?.close();
+    _out = null;
+  }
+
+  // The session is over with an error; always followed by the end.
+  void _fail() {
+    _out?.add(const DictationError(DictationFailure.failed));
+    _out?.add(const DictationEnd());
+    _close();
+  }
+
   @override
   Stream<DictationEvent> listen(String languageTag) {
-    late final StreamController<DictationEvent> out;
-    StreamSubscription<Object?>? native;
-    out = StreamController<DictationEvent>(
-      onListen: () async {
-        // Subscribe before `start`, so no early event is missed.
-        native = speechEvents.receiveBroadcastStream().listen(
-          (raw) {
-            final event = _decode(raw);
-            if (event == null) return;
-            out.add(event);
-            if (event is DictationEnd) out.close();
-          },
-          onError: (Object _) {
-            out.add(const DictationError(DictationFailure.failed));
-            out.add(const DictationEnd());
-            out.close();
-          },
-        );
-        try {
-          await speechChannel.invokeMethod<void>('start', {
-            'lang': languageTag,
-          });
-        } on PlatformException {
-          out.add(const DictationError(DictationFailure.failed));
-          out.add(const DictationEnd());
-          out.close();
+    _close();
+    _done = '';
+    final out = _out = StreamController<DictationEvent>();
+    out.onListen = () async {
+      // Subscribe before `start`, so no early event is missed.
+      _native = speechEvents.receiveBroadcastStream().listen((raw) {
+        if (_out != out) return;
+        var event = _decode(raw);
+        if (event == null) return;
+        if (raw is Map && raw['type'] == 'segment') {
+          _done = _join((raw['text'] as String? ?? '').trim());
+          event = DictationPartial(_done);
+        } else if (event is DictationPartial) {
+          event = DictationPartial(_join(event.text));
+        } else if (event is DictationFinal) {
+          event = DictationFinal(_join(event.text.trim()));
         }
-      },
-      onCancel: () => native?.cancel(),
-    );
+        out.add(event);
+        if (event is DictationEnd) _close();
+      }, onError: (Object _) => _out == out ? _fail() : null);
+      try {
+        await speechChannel.invokeMethod<void>('start', {'lang': languageTag});
+      } on PlatformException {
+        if (_out == out) _fail();
+      }
+    };
+    out.onCancel = () => _native?.cancel();
     return out.stream;
   }
 
   @override
-  Future<void> stop() => speechChannel.invokeMethod<void>('stop');
+  Future<void> stop() {
+    // the recognizer must answer; if it never does, the segments heard so far are the result
+    _watchdog?.cancel();
+    _watchdog = Timer(stopWatchdog, () {
+      final out = _out;
+      if (out == null) return;
+      out.add(DictationFinal(_done));
+      out.add(const DictationEnd());
+      _close();
+      // the native recognizer may still be alive; let it go
+      unawaited(speechChannel.invokeMethod<void>('cancel').catchError((_) {}));
+    });
+    return speechChannel.invokeMethod<void>('stop');
+  }
 
   @override
-  Future<void> cancel() => speechChannel.invokeMethod<void>('cancel');
+  Future<void> cancel() {
+    _close();
+    return speechChannel.invokeMethod<void>('cancel');
+  }
 }
 
 DictationEvent? _decode(Object? raw) {
@@ -113,6 +159,8 @@ DictationEvent? _decode(Object? raw) {
       'no_match' => DictationFailure.noMatch,
       _ => DictationFailure.failed,
     }),
+    'level' => DictationLevel(((raw['value'] as num?) ?? 0).toDouble()),
+    'segment' => DictationPartial(text is String ? text : ''),
     'end' => const DictationEnd(),
     _ => null,
   };

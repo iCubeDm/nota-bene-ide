@@ -95,7 +95,11 @@ Future<void> showMessageMenu(
         close();
         if (!context.mounted) return;
         final text = chatText(item).text;
-        final res = await showCommentSheet(context, quote: _cut(text));
+        final res = await showCommentSheet(
+          context,
+          quote: _cut(text),
+          tab: tab,
+        );
         if (res is SheetSave) {
           tab.comments.add(
             makeAnchor(source, text, 0, text.length),

@@ -87,6 +87,7 @@ class _CodeScreenState extends State<CodeScreen> {
     final res = await showCommentSheet(
       context,
       quote: r.text.substring(at.start, at.end),
+      tab: tab,
     );
     if (res is! SheetSave) return;
     tab.comments.add(

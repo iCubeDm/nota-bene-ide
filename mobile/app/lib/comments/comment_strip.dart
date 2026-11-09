@@ -12,7 +12,12 @@ import 'comments.dart';
 
 /// The comment sheet over [x]: saving edits it, Delete removes it.
 Future<void> editComment(BuildContext context, WindowTab tab, Comment x) async {
-  final res = await showCommentSheet(context, quote: quoteOf(x), editing: x);
+  final res = await showCommentSheet(
+    context,
+    quote: quoteOf(x),
+    editing: x,
+    tab: tab,
+  );
   switch (res) {
     case SheetSave(:final text, :final label):
       tab.comments.edit(x.id, text, label);

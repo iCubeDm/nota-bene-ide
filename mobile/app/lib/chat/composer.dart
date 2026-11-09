@@ -7,10 +7,9 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
 import '../comments/comments.dart';
-import '../dictation/dictation.dart';
-import '../dictation/host_dictation.dart';
-import '../dictation/mic_button.dart';
-import '../files/image_screen.dart' show windowHttp;
+import '../dictation/record_bar.dart';
+import '../dictation/voice_button.dart';
+import '../dictation/voice_chooser.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'window_tab.dart';
@@ -32,6 +31,8 @@ class _ComposerState extends State<Composer> {
   TextEditingController get _text => widget.controller ?? _own!;
   StreamSubscription<ServerEventSendRefused>? _refused;
   ({String id, String text, Set<String> comments})? _last;
+  final _meter = VoiceMeter();
+  VoiceState _voice = VoiceState.idle;
 
   @override
   void initState() {
@@ -47,6 +48,7 @@ class _ComposerState extends State<Composer> {
     _text.removeListener(_changed);
     _refused?.cancel();
     _own?.dispose();
+    _meter.dispose();
     super.dispose();
   }
 
@@ -68,8 +70,9 @@ class _ComposerState extends State<Composer> {
   }
 
   Future<void> _send() async {
-    // a running dictation must not write into the field after it is read (or cleared)
-    MicButton.cancelRunning();
+    // a running dictation is finished first: its words are in the field before it is read (or cleared)
+    await VoiceButton.finishRunning();
+    if (!mounted) return;
     final text = _text.text.trim();
     if (text.isEmpty && widget.tab.comments.sendable.isEmpty) return;
     var force = false;
@@ -167,41 +170,50 @@ class _ComposerState extends State<Composer> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _text,
-                        focusNode: widget.focus,
-                        enabled: open,
-                        minLines: 1,
-                        maxLines: 6,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: InputDecoration(
-                          hintText: open ? t.messageHint : t.cannotSend,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.fromLTRB(
-                            16,
-                            11,
-                            4,
-                            11,
+                      child: Stack(
+                        children: [
+                          // kept while recording: the words still land in it
+                          Visibility(
+                            visible: _voice == VoiceState.idle,
+                            maintainState: true,
+                            maintainSize: true,
+                            maintainAnimation: true,
+                            child: TextField(
+                              controller: _text,
+                              focusNode: widget.focus,
+                              enabled: open,
+                              minLines: 1,
+                              maxLines: 6,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: InputDecoration(
+                                hintText: open ? t.messageHint : t.cannotSend,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  11,
+                                  4,
+                                  11,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          if (_voice != VoiceState.idle)
+                            Positioned.fill(
+                              child: RecordBar(state: _voice, meter: _meter),
+                            ),
+                        ],
                       ),
                     ),
-                    MicButton(
+                    VoiceButton(
                       controller: _text,
                       enabled: open,
-                      chooser: () =>
-                          open &&
-                              widget.tab.capabilities?.dictation == 'whisper' &&
-                              !widget.tab.hostWhisperOff
-                          ? HostDictation(
-                              () => windowHttp(widget.tab),
-                              onHostOff: () => widget.tab.hostWhisperOff = true,
-                            )
-                          : dictation,
+                      meter: _meter,
+                      onState: (v) => setState(() => _voice = v),
+                      chooser: voiceChooser(widget.tab),
                     ),
                   ],
                 ),
