@@ -40,6 +40,14 @@ channel in `MainActivity`, `app/lib/media/frame.dart`).
 Marks and comments are the desktop's media comments: the frame and layer are stored under `/marks/<id>/`, and the
 agent's image goes to `/attach`. Page and 3D-model comments stay desktop-only.
 
+## Usage on the phone
+
+The agent menu's Usage item opens the host's usage report (`app/lib/usage/usage_screen.dart`), which reads `GET /usage`
+and `POST /usage/reset` through the channel, like the desktop's Usage tab. Its words are the web's own: the strings
+generator copies every `usage*` key of the English dictionary, in all six languages, into
+`app/lib/comments/strings.g.dart`. The number formatters (`app/lib/usage/format.dart`) are pinned to the desktop's by
+`web/src/usage/mobileFormat.test.ts`; dates are not pinned.
+
 ## The APK
 
 CI builds it in the `mobile` job and uploads it as the `nota-bene-android` artifact. Builds of this repository are
