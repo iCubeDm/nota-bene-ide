@@ -24,7 +24,7 @@ for (const name of names) {
     const md = fs.readFileSync(path.join(dir, name), 'utf8');
     // as TextBody shows a Markdown file
     const { container } = render(<div className="nb-card nb-prose"><Markdown text={md} final src="here" /></div>);
-    await new Promise((r) => setTimeout(r, 50)); // a mermaid block renders after a tick; its text is skipped anyway
+    await new Promise((r) => setTimeout(r, 50)); // a mermaid block renders after a tick; its SVG labels are text here, the phone skips the picture
     const text = textOf(container);
     const out = path.join(dir, name.replace(/\.md$/, '.txt'));
     if (process.env.UPDATE_FIXTURES) fs.writeFileSync(out, text);
