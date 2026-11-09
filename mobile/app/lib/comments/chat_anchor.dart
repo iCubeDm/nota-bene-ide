@@ -29,6 +29,25 @@ RenderedText chatText(FeedItem it) => switch (it) {
   _ => renderedText(const []),
 };
 
+/// The raw text of [it] a person copies or quotes: a reply's Markdown source, a user message without its batch.
+String chatRaw(FeedItem it) => switch (it) {
+  AssistantItem(:final text) => text,
+  UserItem(:final text) => _general(text),
+  _ => '',
+};
+
+/// What the user bubble hands the Markdown widget, so that it shows what [chatText] reads: the message without its
+/// batch, mentions kept as typed, the HTML as text, the line breaks kept.
+String userMarkdownSource(String text) => _escapeMentions(_general(text));
+final userBlockSyntaxes = <md.BlockSyntax>[
+  nbBlockSyntaxes.first,
+  _TypedHtmlBlock(),
+];
+final userInlineSyntaxes = <md.InlineSyntax>[
+  nbInlineSyntaxes.first,
+  _TypedHtml(),
+];
+
 const _langs = ['en', 'ru', 'zh', 'es', 'pt', 'de'];
 
 /// BATCH_HEAD (shared/src/lang.ts): every language's heading of a sent batch.
@@ -74,8 +93,8 @@ class _TypedHtmlBlock extends md.HtmlBlockSyntax {
 }
 
 List<md.Node> _parseUser(String text) => md.Document(
-  blockSyntaxes: [nbBlockSyntaxes.first, _TypedHtmlBlock()],
-  inlineSyntaxes: [nbInlineSyntaxes.first, _TypedHtml()],
+  blockSyntaxes: userBlockSyntaxes,
+  inlineSyntaxes: userInlineSyntaxes,
   extensionSet: md.ExtensionSet.gitHubFlavored,
   encodeHtml: false,
 ).parseLines(const LineSplitter().convert(_escapeMentions(text)));

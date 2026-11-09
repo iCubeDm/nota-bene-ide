@@ -5,11 +5,13 @@ import 'package:nb_protocol/nb_protocol.dart' show StopReason;
 
 import '../hosts/hosts_screen.dart';
 import '../l10n/app_localizations.dart';
+import '../comments/chat_anchor.dart';
 import '../theme.dart';
 import 'chat_header.dart';
 import 'feed.dart';
 import 'files.dart';
 import 'markdown.dart';
+import 'message_menu.dart';
 import 'window_tab.dart';
 
 class ChatScreen extends StatelessWidget {
@@ -21,6 +23,7 @@ class ChatScreen extends StatelessWidget {
     this.overlay,
     this.itemBuilder,
     this.onTapTitle,
+    this.onReply,
   });
 
   final WindowTab tab;
@@ -32,6 +35,9 @@ class ChatScreen extends StatelessWidget {
 
   /// Covers the feed (the one-tab rule's Work here).
   final Widget? overlay;
+
+  /// Reply in a message's menu: puts [quote] into the draft; null drops the entry's effect.
+  final void Function(String quote)? onReply;
 
   /// Overrides the default look of an item (Task 10 answers permissions in the feed); null falls back.
   final Widget? Function(BuildContext, FeedItem)? itemBuilder;
@@ -92,9 +98,14 @@ class ChatScreen extends StatelessWidget {
                               // keyed by the item, not the index: a new item shifts every index of a reversed list
                               return KeyedSubtree(
                                 key: ValueKey(feedKey(it)),
-                                child:
-                                    itemBuilder?.call(context, it) ??
-                                    FeedItemView(it),
+                                child: _Commentable(
+                                  tab: tab,
+                                  item: it,
+                                  onReply: onReply ?? (_) {},
+                                  child:
+                                      itemBuilder?.call(context, it) ??
+                                      FeedItemView(it),
+                                ),
                               );
                             },
                             findChildIndexCallback: (key) {
@@ -158,6 +169,41 @@ class ChatScreen extends StatelessWidget {
   }
 }
 
+/// A long press on a commentable item (a user message, a final reply) opens its menu; others pass through.
+class _Commentable extends StatelessWidget {
+  const _Commentable({
+    required this.tab,
+    required this.item,
+    required this.onReply,
+    required this.child,
+  });
+  final WindowTab tab;
+  final FeedItem item;
+  final void Function(String quote) onReply;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (chatSource(item) == null) return child;
+    return GestureDetector(
+      onLongPress: () {
+        final box = context.findRenderObject() as RenderBox;
+        final rect = box.localToGlobal(Offset.zero) & box.size;
+        showMessageMenu(
+          context,
+          tab: tab,
+          item: item,
+          itemRect: rect,
+          // selecting inside a message arrives with the next step
+          onSelectText: () {},
+          onReply: onReply,
+        );
+      },
+      child: child,
+    );
+  }
+}
+
 /// The default look of one feed item.
 class FeedItemView extends StatelessWidget {
   const FeedItemView(this.item, {super.key});
@@ -204,9 +250,12 @@ class FeedItemView extends StatelessWidget {
                         color: c.primary.withValues(alpha: .45),
                       ),
                     ),
-                    child: SelectableText(
-                      text,
-                      style: TextStyle(color: c.foreground),
+                    // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
+                    child: NbMarkdown(
+                      userMarkdownSource(text),
+                      blockSyntaxes: userBlockSyntaxes,
+                      inlineSyntaxes: userInlineSyntaxes,
+                      softLineBreak: true,
                     ),
                   ),
                 ),

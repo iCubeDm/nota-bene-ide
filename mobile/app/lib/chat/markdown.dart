@@ -181,15 +181,29 @@ void openLink(String? href) {
 }
 
 class NbMarkdown extends StatelessWidget {
-  const NbMarkdown(this.text, {super.key});
+  const NbMarkdown(
+    this.text, {
+    super.key,
+    this.blockSyntaxes,
+    this.inlineSyntaxes,
+    this.softLineBreak = false,
+  });
   final String text;
+
+  /// Instead of the chat's own (a user message: its HTML is text); null keeps them.
+  final List<md.BlockSyntax>? blockSyntaxes;
+  final List<md.InlineSyntax>? inlineSyntaxes;
+
+  /// A line break of the text stays one (a user message).
+  final bool softLineBreak;
 
   @override
   Widget build(BuildContext context) => MarkdownBody(
     data: text,
     extensionSet: md.ExtensionSet.gitHubFlavored,
-    blockSyntaxes: nbBlockSyntaxes,
-    inlineSyntaxes: nbInlineSyntaxes,
+    blockSyntaxes: blockSyntaxes ?? nbBlockSyntaxes,
+    inlineSyntaxes: inlineSyntaxes ?? nbInlineSyntaxes,
+    softLineBreak: softLineBreak,
     builders: markdownBuilders(),
     styleSheet: markdownStyle(context),
     onTapLink: (text, href, title) => openLink(href),

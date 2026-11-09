@@ -45,6 +45,8 @@ class _ChatRouteState extends State<ChatRoute> {
     retry: widget.retry,
   );
   PermissionWatcher? _asks;
+  final _draft = TextEditingController();
+  final _focus = FocusNode();
 
   @override
   void initState() {
@@ -62,7 +64,21 @@ class _ChatRouteState extends State<ChatRoute> {
   void dispose() {
     _asks?.dispose();
     _tab.dispose();
+    _draft.dispose();
+    _focus.dispose();
     super.dispose();
+  }
+
+  /// Reply: the quote goes after what is already typed, and the field is focused with the caret behind it.
+  void _reply(String quote) {
+    final had = _draft.text;
+    final sep = had.isEmpty || had.endsWith('\n') ? '' : '\n';
+    final text = '$had$sep$quote';
+    _draft.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    _focus.requestFocus();
   }
 
   Widget? _item(BuildContext context, FeedItem it) {
@@ -95,11 +111,12 @@ class _ChatRouteState extends State<ChatRoute> {
         mainAxisSize: MainAxisSize.min,
         children: [
           CommentStrip(tab: _tab),
-          Composer(tab: _tab),
+          Composer(tab: _tab, controller: _draft, focus: _focus),
         ],
       ),
       overlay: OneTabOverlay(tab: _tab),
       itemBuilder: _item,
+      onReply: _reply,
     ),
   );
 }
