@@ -138,5 +138,14 @@
   "dictationHostFailed": "El ordenador no pudo transcribirlo",
   "dictationHostOff": "Whisper está desactivado en el ordenador; ahora se usa el reconocimiento del teléfono",
   "expandCode": "Abrir en pantalla completa",
-  "codeLines": "{count, plural, one{{count} línea} other{{count} líneas}}"
+  "codeLines": "{count, plural, one{{count} línea} other{{count} líneas}}",
+  "windowSheetMode": "Modo",
+  "limitsTitle": "Límites del plan",
+  "limit5h": "5 horas",
+  "limitWeek": "Semana",
+  "limitResets": "{pct}% · se restablece {when}",
+  "tileCompact": "Compactar",
+  "tileClear": "Borrar",
+  "tileRestart": "Reiniciar",
+  "tileStats": "Estadísticas"
 }

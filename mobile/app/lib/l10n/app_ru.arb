@@ -138,5 +138,14 @@
   "dictationHostFailed": "Компьютер не смог расшифровать речь",
   "dictationHostOff": "На компьютере Whisper выключен; теперь используется распознавание телефона",
   "expandCode": "Открыть на весь экран",
-  "codeLines": "{count, plural, one{{count} строка} few{{count} строки} many{{count} строк} other{{count} строки}}"
+  "codeLines": "{count, plural, one{{count} строка} few{{count} строки} many{{count} строк} other{{count} строки}}",
+  "windowSheetMode": "Режим",
+  "limitsTitle": "Лимиты тарифа",
+  "limit5h": "5 часов",
+  "limitWeek": "Неделя",
+  "limitResets": "{pct}% · сброс {when}",
+  "tileCompact": "Сжать",
+  "tileClear": "Очистить",
+  "tileRestart": "Перезапуск",
+  "tileStats": "Статистика"
 }

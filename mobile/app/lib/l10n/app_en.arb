@@ -274,5 +274,24 @@
         "type": "int"
       }
     }
+  },
+  "windowSheetMode": "Mode",
+  "limitsTitle": "Plan limits",
+  "limit5h": "5 hours",
+  "limitWeek": "Week",
+  "limitResets": "{pct}% · resets {when}",
+  "tileCompact": "Compact",
+  "tileClear": "Clear",
+  "tileRestart": "Restart",
+  "tileStats": "Stats",
+  "@limitResets": {
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      },
+      "when": {
+        "type": "String"
+      }
+    }
   }
 }

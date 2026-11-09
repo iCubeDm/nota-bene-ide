@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/feed.dart';
+import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_app/chat/window_tab.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/store/hosts.dart';
@@ -193,5 +194,99 @@ void main() {
     ch.push([window(4791, '/p')]);
     await settle();
     expect(ch.wsOpens, hasLength(2));
+  });
+
+  group('permission mode', () {
+    Map<String, Object?> caps({String? provider, bool descriptors = false}) => {
+      'provider': ?provider,
+      'compact': true,
+      'clear': true,
+      'modes': ['default', 'plan'],
+      'usage': true,
+      'fileSuggestions': true,
+      'fork': false,
+      'idleCompact': true,
+      'models': true,
+      if (descriptors)
+        'modeDescriptors': [
+          {
+            'id': 'plan',
+            'name': 'Plan (host)',
+            'description': 'Host plan text',
+          },
+        ],
+    };
+
+    Future<void> open(Map<String, Object?> c) async {
+      ch.event(ch.lastWsId, {
+        'kind': 'hello',
+        'protocol': 13,
+        'capabilities': c,
+      });
+      ch.event(ch.lastWsId, replay([]));
+      await settle();
+    }
+
+    test(
+      'a mode event sets the mode and notifies, also before the replay',
+      () async {
+        var n = 0;
+        tab.addListener(() => n++);
+        expect(tab.mode, isNull);
+        ch.event(ch.lastWsId, {'kind': 'mode', 'mode': 'plan'});
+        await settle();
+        expect(tab.mode, AgentMode.plan);
+        expect(n, greaterThan(0));
+        ch.event(ch.lastWsId, replay([]));
+        await settle();
+        expect(tab.mode, AgentMode.plan);
+        ch.event(ch.lastWsId, {'kind': 'mode', 'mode': 'default', 'ack': 'x'});
+        await settle();
+        expect(tab.mode, AgentMode.default_);
+      },
+    );
+
+    test('setMode sends the id and leaves the mode until the event', () async {
+      await open(caps());
+      ch.event(ch.lastWsId, {'kind': 'mode', 'mode': 'default'});
+      await settle();
+      expect(tab.setMode(AgentMode.plan), isTrue);
+      await settle();
+      final m = ch.sentOn(ch.lastWsId).single;
+      expect(m['type'], 'mode');
+      expect(m['mode'], 'plan');
+      expect(m['id'], matches(RegExp(r'^[0-9a-f-]{36}$')));
+      expect(tab.mode, AgentMode.default_);
+      ch.event(ch.lastWsId, {'kind': 'mode', 'mode': 'plan', 'ack': m['id']});
+      await settle();
+      expect(tab.mode, AgentMode.plan);
+    });
+
+    test('setMode on a window the tab does not own sends nothing', () async {
+      expect(tab.setMode(AgentMode.plan), isFalse);
+    });
+
+    test(
+      'labels: the host names for claude, the web strings for codex',
+      () async {
+        await open(caps(descriptors: true));
+        expect(modeLabel(tab, AgentMode.plan, 'ru'), 'Plan (host)');
+        expect(modeDescription(tab, AgentMode.plan, 'ru'), 'Host plan text');
+        // no descriptor for default: the web's string
+        expect(
+          modeLabel(tab, AgentMode.default_, 'ru'),
+          webString('mode_default', 'ru'),
+        );
+        await open(caps(provider: 'codex', descriptors: true));
+        expect(
+          modeLabel(tab, AgentMode.plan, 'ru'),
+          webString('mode_plan', 'ru'),
+        );
+        expect(
+          modeDescription(tab, AgentMode.plan, 'de'),
+          webString('mode_plan_desc', 'de'),
+        );
+      },
+    );
   });
 }

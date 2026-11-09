@@ -1,5 +1,6 @@
 // The app's quick labels and comment-batch strings, from the web's own sources (web/src/comments/labels.ts and
 // web/src/i18n), so the phone sends the batch the desktop would. Written by `npm run gen:protocol`.
+import { ALL_MODES } from '../../shared/src/protocol.ts';
 import { QUICK_LABELS } from '../../web/src/comments/labels.ts';
 import { de } from '../../web/src/i18n/de.ts';
 import { en } from '../../web/src/i18n/en.ts';
@@ -14,8 +15,16 @@ export const STRINGS_PATH = 'mobile/app/lib/comments/strings.g.dart';
 const DICTS: [string, Record<string, unknown>][] = [['en', en], ['ru', ru], ['zh', zhCN], ['es', es], ['pt', ptBR], ['de', de]];
 /** the batch strings the phone's composeBatch uses */
 const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale'] as const;
-/** Web strings the phone shows as they are (a later issue extends the list); `webString` reads them. */
-export const WEB_KEYS = ['h5', 'week'] as const;
+/**
+ * Web strings the phone shows as they are; `webString` reads them: the usage meters' words, the window sheet's
+ * mode names and descriptions (every provider's modes, as ModePill.tsx shows them) and its clear/compact texts.
+ * A key that is not a plain string in a dictionary fails the generator.
+ */
+export const WEB_KEYS: readonly string[] = [
+  'h5', 'week',
+  ...ALL_MODES.flatMap((m) => [`mode_${m}`, `mode_${m}_desc`]),
+  'modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip', 'clearFail', 'working', 'offline',
+];
 /**
  * The batch's functions, as templates: each is called with the placeholders `{0}`, `{1}` for its arguments (a list
  * argument as a one-item list: every one of them joins its list with ', ', which the phone does before filling it in).

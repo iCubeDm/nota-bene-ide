@@ -11,6 +11,7 @@ import 'composer.dart';
 import 'controls.dart';
 import 'feed.dart';
 import 'one_tab.dart';
+import 'window_sheet.dart';
 import 'permission_sheet.dart';
 import 'window_tab.dart';
 
@@ -88,6 +89,7 @@ class _ChatRouteState extends State<ChatRoute> {
     listenable: _tab,
     builder: (context, _) => ChatScreen(
       tab: _tab,
+      onTapTitle: () => showWindowSheet(context, _tab),
       actions: [AgentMenu(tab: _tab)],
       bottom: Column(
         mainAxisSize: MainAxisSize.min,

@@ -138,5 +138,14 @@
   "dictationHostFailed": "Der Computer konnte es nicht transkribieren",
   "dictationHostOff": "Whisper ist auf dem Computer aus; jetzt wird die Erkennung des Telefons verwendet",
   "expandCode": "Im Vollbild öffnen",
-  "codeLines": "{count, plural, one{{count} Zeile} other{{count} Zeilen}}"
+  "codeLines": "{count, plural, one{{count} Zeile} other{{count} Zeilen}}",
+  "windowSheetMode": "Modus",
+  "limitsTitle": "Tarif-Limits",
+  "limit5h": "5 Stunden",
+  "limitWeek": "Woche",
+  "limitResets": "{pct} % · Reset {when}",
+  "tileCompact": "Verdichten",
+  "tileClear": "Leeren",
+  "tileRestart": "Neustart",
+  "tileStats": "Statistik"
 }
