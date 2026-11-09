@@ -188,6 +188,14 @@ const _json = r'''
    "es": "Comentarios sobre fragmentos:",
    "pt": "Comentários sobre trechos:",
    "de": "Kommentare zu Ausschnitten:"
+  },
+  "srcChat": {
+   "en": "chat",
+   "ru": "чат",
+   "zh": "对话",
+   "es": "chat",
+   "pt": "chat",
+   "de": "Chat"
   }
  }
 }

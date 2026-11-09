@@ -13,7 +13,7 @@ export const STRINGS_PATH = 'mobile/app/lib/comments/strings.g.dart';
 /** the app's language codes (its ARB files) to the web's dictionaries */
 const DICTS: [string, Record<string, unknown>][] = [['en', en], ['ru', ru], ['zh', zhCN], ['es', es], ['pt', ptBR], ['de', de]];
 /** the batch strings the phone's composeBatch uses (text anchors) */
-const BATCH_KEYS = ['batchHead'] as const;
+const BATCH_KEYS = ['batchHead', 'srcChat'] as const;
 
 const text = (d: Record<string, unknown>, key: string): string => {
   const v = d[key];
