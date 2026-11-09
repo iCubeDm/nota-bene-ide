@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:nb_protocol/nb_protocol.dart' show CapabilitiesProvider;
 
+import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
@@ -17,6 +18,13 @@ String providerLetter(String? provider) => switch (provider) {
   null || '' => '?',
   final p => p.substring(0, 1).toUpperCase(),
 };
+
+/// The web's level of a limit meter (web/src/stats/Meters.tsx): 0 below 60%, 1 (warn) from 60%, 2 (hot) from 85%.
+int meterLevel(num pct) => pct >= 85
+    ? 2
+    : pct >= 60
+    ? 1
+    : 0;
 
 class ChatHeader extends StatelessWidget {
   const ChatHeader({
@@ -38,84 +46,105 @@ class ChatHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
+    final lang = Localizations.localeOf(context).languageCode;
     final f = tab.feed;
     final model = tab.model ?? f.model;
     final limits = tab.stats?.stats.limits;
     final shape = StadiumBorder(side: BorderSide(color: c.border));
     final fill = c.popover.withValues(alpha: 0.92);
-    final content = Row(
-      children: [
-        const SizedBox(width: 6),
-        Container(
-          width: 28,
-          height: 28,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: c.muted, shape: BoxShape.circle),
-          child: Text(
-            providerLetter(switch (tab.capabilities?.provider) {
-              CapabilitiesProvider.$unknown || null => null,
-              final p => p.name,
-            }),
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: c.foreground,
+    final content = MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.3,
+      child: Row(
+        children: [
+          const SizedBox(width: 6),
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: c.muted, shape: BoxShape.circle),
+            child: Text(
+              providerLetter(switch (tab.capabilities?.provider) {
+                CapabilitiesProvider.$unknown || null => null,
+                final p => p.name,
+              }),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: c.foreground,
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                f.title ?? t.untitled,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  height: 1.15,
-                  color: c.foreground,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  f.title ?? t.untitled,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    height: 1.15,
+                    color: c.foreground,
+                  ),
                 ),
-              ),
-              Row(
-                children: [
-                  if (model != null)
-                    Flexible(
-                      child: Text(
-                        model,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          height: 1.15,
-                          color: c.mutedFg,
+                LayoutBuilder(
+                  builder: (context, box) => Row(
+                    children: [
+                      if (model != null)
+                        Flexible(
+                          child: Text(
+                            model,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              height: 1.15,
+                              color: c.mutedFg,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  if (limits?.fiveHour != null)
-                    _Meter(
-                      '5h',
-                      limits!.fiveHour!.utilization,
-                      c.success,
-                      lead: model != null,
-                    ),
-                  if (limits?.sevenDay != null)
-                    _Meter(
-                      '7d',
-                      limits!.sevenDay!.utilization,
-                      c.accent,
-                      lead: model != null || limits.fiveHour != null,
-                    ),
-                ],
-              ),
-            ],
+                      // the meters keep their room, the model ellipsizes; too narrow even then, they scale down
+                      if (limits?.fiveHour != null || limits?.sevenDay != null)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: box.maxWidth),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (limits?.fiveHour != null)
+                                  _Meter(
+                                    'h5',
+                                    webString('h5', lang),
+                                    limits!.fiveHour!.utilization,
+                                    lead: model != null,
+                                  ),
+                                if (limits?.sevenDay != null)
+                                  _Meter(
+                                    'week',
+                                    webString('week', lang),
+                                    limits!.sevenDay!.utilization,
+                                    lead:
+                                        model != null ||
+                                        limits.fiveHour != null,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-      ],
+          const SizedBox(width: 12),
+        ],
+      ),
     );
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
@@ -178,17 +207,23 @@ class ChatHeader extends StatelessWidget {
 
 /// One limit: a label, a 22x4 bar and the percent, as the web's meters (utilization is already 0 to 100).
 class _Meter extends StatelessWidget {
-  const _Meter(this.label, this.utilization, this.color, {required this.lead});
+  const _Meter(this.id, this.label, this.utilization, {required this.lead});
+  final String id;
   final String label;
   final num utilization;
-  final Color color;
   final bool lead;
 
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<NbColors>()!;
     final pct = utilization.clamp(0, 100).round();
-    final style = TextStyle(fontSize: 11, height: 1.15, color: c.mutedFg);
+    final level = meterLevel(utilization);
+    final fill = [c.primary, c.accent, c.destructive][level];
+    final style = TextStyle(
+      fontSize: 11,
+      height: 1.15,
+      color: level == 2 ? c.destructive : c.mutedFg,
+    );
     return Semantics(
       container: true,
       label: '$label $pct%',
@@ -211,8 +246,9 @@ class _Meter extends StatelessWidget {
                 child: FractionallySizedBox(
                   widthFactor: pct / 100,
                   child: DecoratedBox(
+                    key: ValueKey('fill-$id'),
                     decoration: BoxDecoration(
-                      color: color,
+                      color: fill,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),

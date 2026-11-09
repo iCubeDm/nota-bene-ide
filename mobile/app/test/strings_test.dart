@@ -93,4 +93,26 @@ void main() {
       'This billing period: \$1 of \$5.',
     );
   });
+
+  test('the web keys: h5 and week in every app language', () {
+    final files = {
+      'en': 'en',
+      'ru': 'ru',
+      'zh': 'zh-CN',
+      'es': 'es',
+      'pt': 'pt-BR',
+      'de': 'de',
+    };
+    for (final MapEntry(key: lang, value: file) in files.entries) {
+      final src = File('../../web/src/i18n/$file.ts').readAsStringSync();
+      for (final k in ['h5', 'week']) {
+        final v = RegExp(
+          '^  $k: \'(.*)\',\$',
+          multiLine: true,
+        ).firstMatch(src)![1];
+        expect(webString(k, lang), v, reason: '$k $lang');
+      }
+    }
+    expect(webString('week', 'xx'), 'week');
+  });
 }

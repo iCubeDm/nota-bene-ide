@@ -77,4 +77,29 @@ void main() {
     await t.pumpAndSettle();
     expect(find.byType(CodeScreen), findsNothing);
   });
+
+  testWidgets('the block and the full screen copy the same text', (t) async {
+    final copied = <String>[];
+    t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await show(t, const CodeBlock('a\nb\n', lang: 'js'));
+    await t.tap(find.byTooltip('Copy'));
+    await t.tap(find.byTooltip('Open full screen'));
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Copy'));
+    expect(copied, ['a\nb', 'a\nb']);
+  });
 }

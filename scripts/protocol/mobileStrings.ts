@@ -14,6 +14,8 @@ export const STRINGS_PATH = 'mobile/app/lib/comments/strings.g.dart';
 const DICTS: [string, Record<string, unknown>][] = [['en', en], ['ru', ru], ['zh', zhCN], ['es', es], ['pt', ptBR], ['de', de]];
 /** the batch strings the phone's composeBatch uses */
 const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale'] as const;
+/** Web strings the phone shows as they are (a later issue extends the list); `webString` reads them. */
+export const WEB_KEYS = ['h5', 'week'] as const;
 /**
  * The batch's functions, as templates: each is called with the placeholders `{0}`, `{1}` for its arguments (a list
  * argument as a one-item list: every one of them joins its list with ', ', which the phone does before filling it in).
@@ -51,6 +53,7 @@ export function mobileStrings(): string {
       const arity = (en as Record<string, unknown>)[k] instanceof Function ? ((en as Record<string, unknown>)[k] as { length: number }).length : 0;
       return [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, arity ? template(d, k, Array(arity).fill('n')) : text(d, k)]))];
     })),
+    web: Object.fromEntries(WEB_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))])),
     batch: Object.fromEntries([
       ...BATCH_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))]),
       ...Object.entries(TEMPLATE_KEYS).map(([k, kinds]) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, template(d, k, kinds)]))]),
@@ -93,6 +96,12 @@ final quickLabels = [
 /// A string of the comment batch in [lang] (an app language code), English for any other.
 String batchString(String key, String lang) {
   final m = ((_data['batch'] as Map)[key] as Map).cast<String, String>();
+  return m[lang] ?? m['en']!;
+}
+
+/// A string of the web's own dictionary in [lang], English for any other.
+String webString(String key, String lang) {
+  final m = ((_data['web'] as Map)[key] as Map).cast<String, String>();
   return m[lang] ?? m['en']!;
 }
 
