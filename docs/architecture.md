@@ -165,7 +165,8 @@ The phone side is in `mobile/`: `mobile/channel` (`nb_channel`, pure Dart) is th
 | `agent/claude/transcript.ts` | Transcript to `ServerEvent[]` for replay; images go to the `AttachmentStore`. |
 | `tmpImage.ts` | The route `GET /tmpimage?path=` on the key tier (never the cookie): an image the agent left in a system temp folder (`/tmp`, `/private/tmp`, `os.tmpdir()`). Images only (png, jpg, jpeg, gif, webp, avif, bmp, svg), by the extension of the path and of its realpath; the realpath must be inside a temp folder and outside the state folders; regular files only, up to 50 MB. Anything else is one 404 body, so the route is no oracle for existence. No listing, no search. The folders reach the page in `hello.tmpDirs`. |
 | `comments.ts` | `CommentStore`: `comments/<sessionId>.json`. A session without an id lives in memory and `adopt()` moves it under the real id. |
-| `attachments.ts` | Content-addressed images (`sha256.ext`) up to 3.75 MiB. `POST /attach`, `GET /attach/<id>`, restoring from the trash. |
+| `attachments.ts` | Content-addressed images (`sha256.ext`) up to 3.75 MiB, and voice recordings (`sha256.wav`, protocol 14). `POST /attach`, `GET /attach/<id>`, restoring from the trash. |
+| `voice/` | Voice messages and clips (protocol 14; [design](superpowers/specs/2026-11-09-voice-messages-design.md)): `POST /voice` stores a 16 kHz mono WAV and answers `{id, ms, wave}`, `GET /voice/<id>` serves it with Range, `POST /voice/<id>/text?lang=` transcribes it in parts through the one Whisper queue. A `send` with `voice` is transcribed in the send queue before the agent gets the text; the stored `voice-text` event carries the result. |
 | `marks.ts` | The only write into the project folder: `<root>/.nota-bene/marks/<commentId>/{frame.jpg,layer.png}`, with a self-ignoring `.nota-bene/.gitignore`. Magic-byte check, symlinks refused. |
 | `fileRoutes.ts`, `files.ts`, `git.ts` | `/tree`, `/file` (Range, sandbox headers), `/complete`, `/sources`, `/git-status`. Sources: the current checkout, other worktrees (from disk) and branches (through git blobs). |
 | `vcs.ts` | The read-only git views: `/vcs-diff`, `/vcs-file`, `/vcs-branches`, `/vcs-log`, `/vcs-commit`, `/vcs-commit-file`. Every call runs with `--no-optional-locks`, so polling never takes `index.lock` from an agent. A failed git is a 503, never an empty answer. |
@@ -377,6 +378,7 @@ App
 | `comments/send.ts` → `sendMessage` | WS `send{commentIds, images}` | The batch: the draft plus all pending comments as one message. |
 | `composer/shellMode.ts` | WS `shell-run{id, cmd}`, `shell-stop{id}` | A `! cmd` run; the block in the feed is driven by `shell-start` / `shell-out` / `shell-end`. |
 | `attachments/image.ts` | `POST /attach`, `GET /attach/<id>` | Image upload; only ids travel over the socket. |
+| `voice/` | `POST /voice`, `GET /voice/<id>`, `POST /voice/<id>/text` | The recorder (`recorder.ts`: microphone to 16 kHz mono 16-bit WAV, a 10-minute cap), the upload, the player (one `<audio>` at a time), the bubble, the composer's record bar and the comment clips. A server below protocol 14 or without Whisper gets no recording. |
 | `media/markup/createMediaComment.ts` | `POST/DELETE /marks/<id>/<name>` | The frame and layer of media markup. |
 | `files/FileTree.tsx` | `/tree?path&src` | Lazy loading of the tree, up to 8 requests in parallel. |
 | `files/view/useTmpImage.ts` | `GET /tmpimage?path` | A temp image through `apiFetch` into a blob URL, revoked when the tab closes; a missing file shows "no longer exists". |
