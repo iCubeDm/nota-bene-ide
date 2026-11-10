@@ -268,5 +268,29 @@
   "idleCompactBlocked": "Desativado nas configurações do agente",
   "windowGoneTitle": "A janela foi fechada ou reiniciada",
   "windowGoneBody": "Aguardando a volta",
-  "stateOtherTab": "aberta em outra aba"
+  "stateOtherTab": "aberta em outra aba",
+  "toolActions": "{count, plural, =1{1 ação} other{{count} ações}}",
+  "@toolActions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolErrors": "{count, plural, =1{1 erro} other{{count} erros}}",
+  "@toolErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolComments": "{count, plural, =1{1 comentário} other{{count} comentários}}",
+  "@toolComments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -268,5 +268,29 @@
   "idleCompactBlocked": "Desactivado en los ajustes del agente",
   "windowGoneTitle": "La ventana se cerró o se reinició",
   "windowGoneBody": "Esperando a que vuelva",
-  "stateOtherTab": "abierta en otra pestaña"
+  "stateOtherTab": "abierta en otra pestaña",
+  "toolActions": "{count, plural, =1{1 acción} other{{count} acciones}}",
+  "@toolActions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolErrors": "{count, plural, =1{1 error} other{{count} errores}}",
+  "@toolErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolComments": "{count, plural, =1{1 comentario} other{{count} comentarios}}",
+  "@toolComments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -43,8 +43,24 @@ class AssistantItem extends FeedItem {
 }
 
 class ToolItem extends FeedItem {
-  ToolItem(this.id, this.name, this.arg, this.input, {required this.sub});
+  ToolItem(
+    this.id,
+    this.name,
+    this.arg,
+    this.input, {
+    required this.sub,
+    this.kind,
+  });
   final String id, name;
+
+  /// the backend's own classification, when it gave one
+  final WireAgentEventToolCallToolKind? kind;
+
+  /// A subagent's call (web/src/subagent/slice.ts, isAgentTool): a card of its own, never folded into a group.
+  bool get isAgentCall =>
+      kind == WireAgentEventToolCallToolKind.agent ||
+      name == 'Agent' ||
+      name == 'Task';
 
   /// the one-line summary of [input]
   final String arg;
@@ -113,6 +129,64 @@ String feedKey(FeedItem i) => switch (i) {
   MarkerItem(:final key) ||
   NoticeItem(:final key) => key,
 };
+
+/// One row of the chat: a single item, or a run of two or more consecutive actions drawn as one folded group
+/// (web/src/feed/Feed.tsx). Anything but an action ends a run, and a subagent's call is a row of its own.
+class FeedRow {
+  FeedRow(this.start, this.items);
+
+  /// where the row starts in the feed
+  final int start;
+  final List<FeedItem> items;
+
+  bool get isGroup => items.length > 1;
+  int get end => start + items.length;
+
+  /// The row's widget key: a group by its first action (which stays while later actions join the run).
+  String get key =>
+      isGroup ? 'group:${(items.first as ToolItem).id}' : feedKey(items.first);
+}
+
+List<FeedRow> feedRows(List<FeedItem> items) {
+  bool grouped(FeedItem i) => i is ToolItem && !i.isAgentCall;
+  final rows = <FeedRow>[];
+  for (var i = 0; i < items.length;) {
+    var end = i + 1;
+    if (grouped(items[i])) {
+      while (end < items.length && grouped(items[end])) {
+        end++;
+      }
+    }
+    rows.add(FeedRow(i, items.sublist(i, end)));
+    i = end;
+  }
+  return rows;
+}
+
+/// Which action groups and action lines are open (web/src/feed/uiSlice.ts, feedUi). It belongs to the window's tab, not
+/// to the widgets: the feed is a lazy list that drops what scrolls away, and the chat may be left and opened again. A
+/// group is keyed by its FIRST action's id, which stays the same while later actions join the run.
+class FeedUi {
+  final _groups = <String>{};
+  final _tools = <String, bool>{};
+
+  bool groupOpen(String firstId) => _groups.contains(firstId);
+
+  void toggleGroup(String firstId) {
+    if (!_groups.remove(firstId)) _groups.add(firstId);
+  }
+
+  /// Opens a group and, when given, one action of it (a jump from a comment); never closes either.
+  void reveal(String firstId, [String? toolId]) {
+    _groups.add(firstId);
+    if (toolId != null) _tools[toolId] = true;
+  }
+
+  /// Whether the user opened (true) or folded (false) this action's output by hand; null when they did neither.
+  bool? toolOpen(String id) => _tools[id];
+
+  void setTool(String id, bool open) => _tools[id] = open;
+}
 
 const argKeys = [
   'command',
@@ -396,8 +470,11 @@ class Feed {
         :final name,
         :final input,
         :final sub,
+        :final toolKind,
       ):
-        items.add(ToolItem(id, name, toolArg(input), input, sub: sub));
+        items.add(
+          ToolItem(id, name, toolArg(input), input, sub: sub, kind: toolKind),
+        );
       case WireAgentEventToolUpdate(:final id, :final text, :final isError):
         final t = items
             .whereType<ToolItem>()

@@ -268,5 +268,29 @@
   "idleCompactBlocked": "已在代理设置中关闭",
   "windowGoneTitle": "窗口已关闭或正在重启",
   "windowGoneBody": "正在等待其恢复",
-  "stateOtherTab": "已在另一个标签页打开"
+  "stateOtherTab": "已在另一个标签页打开",
+  "toolActions": "{count, plural, other{{count} 个操作}}",
+  "@toolActions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolErrors": "{count, plural, other{{count} 个错误}}",
+  "@toolErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolComments": "{count, plural, other{{count} 条评论}}",
+  "@toolComments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

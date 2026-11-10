@@ -268,5 +268,29 @@
   "idleCompactBlocked": "Выключено в настройках агента",
   "windowGoneTitle": "Окно закрылось или перезапускается",
   "windowGoneBody": "Ждём, пока оно вернётся",
-  "stateOtherTab": "открыто в другой вкладке"
+  "stateOtherTab": "открыто в другой вкладке",
+  "toolActions": "{count, plural, one{{count} действие} few{{count} действия} many{{count} действий} other{{count} действия}}",
+  "@toolActions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolErrors": "{count, plural, one{{count} ошибка} few{{count} ошибки} many{{count} ошибок} other{{count} ошибки}}",
+  "@toolErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolComments": "{count, plural, one{{count} комментарий} few{{count} комментария} many{{count} комментариев} other{{count} комментария}}",
+  "@toolComments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

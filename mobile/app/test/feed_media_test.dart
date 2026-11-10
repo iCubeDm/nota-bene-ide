@@ -174,6 +174,9 @@ void main() {
         ...tool('Read', input, 't1'),
         ...tool('Read', input, 't2'),
       ], (p, m, path) async => answer(200, png));
+      // two actions fold into a group: its media shows once the group is open
+      await t.tap(find.text('▸ 2 actions'));
+      await settleReal(t);
       expect(find.byType(MediaCard), findsNWidgets(2));
       expect(r.ch.requests.where((q) => q == req), hasLength(2));
       r.dispose();
@@ -186,6 +189,8 @@ void main() {
       ...tool('Read', {'file_path': '/tmp/shot.png'}, 't1'),
       ...tool('Read', {'file_path': '/tmp/shot.png'}, 't2'),
     ], (p, m, path) async => ++n == 1 ? answer(200, png) : answer(404));
+    await t.tap(find.text('▸ 2 actions'));
+    await settleReal(t);
     expect(find.byType(Image), findsOneWidget);
     expect(find.textContaining('not there'), findsOneWidget);
     r.dispose();

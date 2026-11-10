@@ -67,6 +67,8 @@ void main() {
       );
       r.ch.onHttp = (port, method, path) async =>
           answer(200, '# Plan\n\nBody.');
+      await t.tap(find.text('▸ 2 actions'));
+      await t.pumpAndSettle();
       expect(find.byTooltip('Open the file'), findsOneWidget);
       await t.tap(find.byTooltip('Open the file'));
       await t.pumpAndSettle();
@@ -97,6 +99,8 @@ void main() {
         ],
       );
       r.ch.onHttp = (port, method, path) async => answer(200, 'const a = 1;\n');
+      await t.tap(find.text('▸ 2 actions'));
+      await t.pumpAndSettle();
       expect(find.byTooltip('Open the file'), findsOneWidget);
       await t.tap(find.byTooltip('Open the file'));
       await t.pumpAndSettle();
