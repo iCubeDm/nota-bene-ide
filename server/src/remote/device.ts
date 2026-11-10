@@ -21,9 +21,10 @@ const INFO_FIELDS = ['title', 'session', 'model', 'busy', 'supervised', 'pending
 const goodPath = (p: unknown): p is string =>
   typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !p.startsWith('//') && !/[\\#]/.test(p) && !/^\/control(\/|\?|$)/.test(p);
 
-/** What this computer calls itself, for the phone's host label: `os.hostname()` without a trailing `.local`. */
+/** What this computer calls itself, for the phone's host label: `os.hostname()` without a trailing `.local`, control and bidi-override characters dropped, at most 64 characters. */
 export function computerName(raw: string = os.hostname()): string | undefined {
-  const n = raw.trim().replace(/\.local$/i, '').trim();
+  const clean = raw.replace(/[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, '').trim();
+  const n = [...clean.replace(/\.local$/i, '').trim()].slice(0, 64).join('').trim();
   return n || undefined;
 }
 

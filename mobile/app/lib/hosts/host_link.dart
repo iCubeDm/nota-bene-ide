@@ -46,6 +46,9 @@ class HostLink extends ChangeNotifier {
   bool _running = false;
   bool _disposed = false;
 
+  /// Completed by [refresh] and [stop] to end the backoff sleep at once.
+  Completer<void>? _wake;
+
   LinkState get state => _state;
 
   /// When the channel last went down (null while it never was up).
@@ -105,10 +108,10 @@ class HostLink extends ChangeNotifier {
         _attempt = 0;
         start();
       } else if (_state == LinkState.offline) {
+        // the one loop is in its backoff sleep: end the sleep, never start a second loop (one key, one connection)
         _attempt = 0;
-        _gen++; // the sleeping loop ends when it wakes
         _set(LinkState.connecting);
-        unawaited(_loop(_gen));
+        _wakeUp();
       }
       await settled.future.timeout(timeout, onTimeout: () {});
     } finally {
@@ -124,6 +127,7 @@ class HostLink extends ChangeNotifier {
     final ch = _channel;
     _channel = null;
     unawaited(ch?.close());
+    _wakeUp();
     if (was && _state != LinkState.unpaired) {
       if (_state == LinkState.online) _lastSeen = _clock();
       _set(LinkState.offline);
@@ -140,6 +144,9 @@ class HostLink extends ChangeNotifier {
   Future<void> _loop(int gen) async {
     bool live() => _running && gen == _gen;
     while (live()) {
+      _set(
+        LinkState.connecting,
+      ); // also while a retry connects, so a refresh never starts a second loop
       final Channel ch;
       try {
         ch = await _connect(
@@ -196,13 +203,21 @@ class HostLink extends ChangeNotifier {
     }
   }
 
-  Future<void> _backoff() {
+  void _wakeUp() {
+    final w = _wake;
+    _wake = null;
+    if (w != null && !w.isCompleted) w.complete();
+  }
+
+  Future<void> _backoff() async {
     final base = minBackoff.inMilliseconds * pow(2, _attempt);
     _attempt++;
     final ms =
         min(base, maxBackoff.inMilliseconds.toDouble()) *
         (0.8 + _jitter() * 0.4);
-    return _sleep(Duration(milliseconds: ms.round()));
+    final wake = _wake = Completer<void>();
+    await Future.any([_sleep(Duration(milliseconds: ms.round())), wake.future]);
+    if (identical(_wake, wake)) _wake = null;
   }
 }
 

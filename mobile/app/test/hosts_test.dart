@@ -103,6 +103,44 @@ void main() {
       expect((await Hosts.load(v)).byId('A')!.label, 'studio-mini');
     });
 
+    test('a computer name is cleaned and capped before it is kept', () async {
+      final h = await Hosts.load(MemoryVault());
+      await h.add(host('A', label: 'notes'));
+      await h.learnComputerName('A', 'stu\u202Edio\u0000-mac');
+      expect(h.byId('A')!.computerName, 'studio-mac');
+      await h.learnComputerName('A', 'x' * 100);
+      expect(h.byId('A')!.computerName, 'x' * 64);
+      await h.learnComputerName('A', '\u202E');
+      expect(
+        h.byId('A')!.computerName,
+        'x' * 64,
+        reason: 'nothing left: no change',
+      );
+    });
+
+    test(
+      'a name equal to the computer\'s (or the fallback) is no rename',
+      () async {
+        final h = await Hosts.load(MemoryVault());
+        await h.add(host('A', label: 'notes'));
+        await h.rename('A', 'notes');
+        expect(
+          h.byId('A')!.customName,
+          isNull,
+          reason: 'the fallback shows anyway',
+        );
+        await h.learnComputerName('A', 'studio-mac');
+        await h.rename('A', ' studio-mac ');
+        expect(h.byId('A')!.customName, isNull);
+        await h.rename('A', 'notes');
+        expect(
+          h.byId('A')!.customName,
+          'notes',
+          reason: 'not the label any more: a real rename',
+        );
+      },
+    );
+
     test('a host that never sent a name keeps the fallback', () async {
       final h = await Hosts.load(MemoryVault());
       await h.add(host('A', label: 'notes'));

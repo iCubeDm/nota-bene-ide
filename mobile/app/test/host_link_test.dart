@@ -293,6 +293,75 @@ void main() {
     });
 
     test(
+      'a refresh during the backoff wakes that one loop: one connect, ends online',
+      () async {
+        f.results.add(ChannelError('no answer'));
+        final l = link()..start();
+        await settle();
+        expect(l.state, LinkState.offline);
+        final gate = Completer<Channel>();
+        f.results.add(gate.future); // the connect stays in flight
+        var done = false;
+        unawaited(l.refresh().then((_) => done = true));
+        await settle();
+        expect(l.state, LinkState.connecting);
+        expect(f.calls, hasLength(2));
+        // a second pull while the connect is in flight starts nothing
+        unawaited(l.refresh());
+        await settle();
+        expect(
+          f.calls,
+          hasLength(2),
+          reason: 'never two connects with one key',
+        );
+        expect(done, isFalse);
+        gate.complete(FakeChannel([window(4791, '/p')]));
+        await settle();
+        expect(done, isTrue);
+        expect(l.state, LinkState.online);
+        expect(f.calls, hasLength(2));
+        l.stop();
+      },
+    );
+
+    test(
+      'a refresh while a retry connect is in flight starts no second connect',
+      () async {
+        f.results.add(ChannelError('no answer'));
+        final l = link()..start();
+        await settle();
+        final gate = Completer<Channel>();
+        f.results.add(gate.future);
+        await retry(); // the backoff ended on its own; the connect is under way
+        var done = false;
+        unawaited(l.refresh().then((_) => done = true));
+        await settle();
+        expect(
+          f.calls,
+          hasLength(2),
+          reason: 'never two connects with one key',
+        );
+        gate.complete(FakeChannel([window(4791, '/p')]));
+        await settle();
+        expect(done, isTrue);
+        expect(l.state, LinkState.online);
+        expect(f.calls, hasLength(2));
+        l.stop();
+      },
+    );
+
+    test('a retry after the backoff shows connecting, not offline', () async {
+      f.results.add(ChannelError('no answer'));
+      final l = link()..start();
+      await settle();
+      expect(l.state, LinkState.offline);
+      f.results.add(Completer<Channel>().future);
+      await retry(); // the backoff ends, the next connect is under way
+      expect(l.state, LinkState.connecting);
+      l.stop();
+    });
+
+    test(
       'an offline host that is still down stays offline and the refresh ends',
       () async {
         f.results.add(ChannelError('no answer'));
@@ -324,6 +393,42 @@ void main() {
       await settle();
       await l.refresh();
       expect(f.calls, hasLength(1));
+    });
+  });
+
+  group('refresh timeout', () {
+    testWidgets('a host that never answers ends the refresh at 20 s (online)', (
+      t,
+    ) async {
+      final ch = FakeChannel([window(4791, '/p')])
+        ..refreshGate = Completer(); // never completes
+      f.results.add(ch);
+      final l = link()..start();
+      await t.pump();
+      expect(l.state, LinkState.online);
+      var done = false;
+      unawaited(l.refresh().then((_) => done = true));
+      await t.pump(const Duration(seconds: 19));
+      expect(done, isFalse);
+      await t.pump(const Duration(seconds: 2));
+      expect(done, isTrue);
+      l.stop();
+    });
+
+    testWidgets('a link that stays connecting ends the refresh at 20 s', (
+      t,
+    ) async {
+      f.results.add(Completer<Channel>().future);
+      final l = link()..start();
+      await t.pump();
+      expect(l.state, LinkState.connecting);
+      var done = false;
+      unawaited(l.refresh().then((_) => done = true));
+      await t.pump(const Duration(seconds: 19));
+      expect(done, isFalse);
+      await t.pump(const Duration(seconds: 2));
+      expect(done, isTrue);
+      l.stop();
     });
   });
 }

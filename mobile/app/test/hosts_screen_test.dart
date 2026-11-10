@@ -382,6 +382,24 @@ void main() {
     );
 
     testWidgets(
+      'Save without editing pins nothing: a new computer name still shows',
+      (t) async {
+        await hosts.add(paired(a, 'laptop'));
+        f.results.add(
+          FakeChannel([window(4791, '/home/u/notes')], 'studio-mac'),
+        );
+        final links = await pump(t);
+        await t.longPress(find.text('studio-mac'));
+        await t.pumpAndSettle();
+        expect(t.widget<TextField>(find.byType(TextField)).maxLength, 64);
+        await t.tap(find.text('Save'));
+        await t.pumpAndSettle();
+        expect(hosts.byId(a)!.customName, isNull);
+        links.dispose();
+      },
+    );
+
+    testWidgets(
       'Cancel leaves the name; a host without a computer name gets the short note',
       (t) async {
         await hosts.add(paired(a, 'laptop'));

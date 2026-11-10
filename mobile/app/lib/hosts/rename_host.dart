@@ -47,6 +47,7 @@ class _RenameDialogState extends State<_RenameDialog> {
         children: [
           TextField(
             controller: _ctl,
+            maxLength: 64,
             autofocus: true,
             decoration: InputDecoration(labelText: t.hostNameLabel),
           ),

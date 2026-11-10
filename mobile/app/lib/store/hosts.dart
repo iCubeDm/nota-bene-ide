@@ -135,8 +135,8 @@ class Hosts extends ChangeNotifier {
   /// What the host's computer calls itself, learned on a connection. Changes nothing (and stays silent) when known.
   Future<void> learnComputerName(String id, String? name) async {
     final h = byId(id);
-    final n = name?.trim();
-    if (h == null || n == null || n.isEmpty || h.computerName == n) return;
+    final n = cleanHostName(name);
+    if (h == null || n == null || h.computerName == n) return;
     h.computerName = n;
     await _save();
   }
@@ -146,7 +146,11 @@ class Hosts extends ChangeNotifier {
     final h = byId(id);
     if (h == null) return;
     final n = name?.trim();
-    h.customName = n == null || n.isEmpty ? null : n;
+    // the name the list would show anyway is no rename: a later computer name must still come through
+    h.customName =
+        n == null || n.isEmpty || n == (h.computerName ?? h.fallbackLabel)
+        ? null
+        : n;
     await _save();
   }
 

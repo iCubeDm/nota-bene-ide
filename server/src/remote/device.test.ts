@@ -116,6 +116,13 @@ describe('device channel', () => {
     expect(computerName('  ')).toBeUndefined();
   });
 
+  it('the computer name loses control and bidi-override characters and is capped at 64', () => {
+    expect(computerName('stu\u0000dio\u202E-mac\n')).toBe('studio-mac');
+    expect(computerName('\u202E\u0007')).toBeUndefined();
+    expect(computerName('a'.repeat(100))).toBe('a'.repeat(64));
+    expect(computerName('😀'.repeat(100))).toBe('😀'.repeat(64));
+  });
+
   it('an unlisted phone without a proof is dropped without an answer', async () => {
     const l = link({ windows: await windows(), host: hostKey() });
     l.phone.hello();
