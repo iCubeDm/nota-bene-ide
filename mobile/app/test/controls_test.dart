@@ -86,18 +86,6 @@ void main() {
     expect(r.sent.single, {'type': 'restart'});
   });
 
-  testWidgets('the agent menu keeps Files only', (t) async {
-    await r.open(t);
-    await t.tap(find.byTooltip('Agent'));
-    await t.pumpAndSettle();
-    expect(
-      find.widgetWithText(PopupMenuItem<Object?>, 'Files'),
-      findsOneWidget,
-    );
-    expect(find.text('Compact'), findsNothing);
-    expect(find.text('Restart agent'), findsNothing);
-  });
-
   testWidgets('Work here calls takeover', (t) async {
     await r.open(t);
     r.event({'kind': 'occupied'});

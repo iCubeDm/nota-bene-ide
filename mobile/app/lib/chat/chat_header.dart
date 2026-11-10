@@ -220,8 +220,7 @@ class _Meter extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(label, style: style),
-              const SizedBox(width: 3),
+              // no word before the bar: the meter says what it is to a screen reader only
               Container(
                 width: 22,
                 height: 4,

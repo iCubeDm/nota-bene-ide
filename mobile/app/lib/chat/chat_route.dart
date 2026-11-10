@@ -15,7 +15,6 @@ import 'chat_header.dart';
 import 'chat_screen.dart';
 import 'panes.dart';
 import 'composer.dart';
-import 'controls.dart';
 import 'feed.dart';
 import 'one_tab.dart';
 import 'window_sheet.dart';
@@ -152,9 +151,6 @@ class _ChatRouteState extends State<ChatRoute> {
         header: ChatHeader(
           tab: _tab,
           onTapTitle: () => showWindowSheet(context, _tab),
-          actions: [
-            AgentMenu(tab: _tab, onFiles: () => _panes.show(Pane.files)),
-          ],
         ),
         chat: (wide, top) => ChatScreen(
           tab: _tab,
@@ -162,9 +158,6 @@ class _ChatRouteState extends State<ChatRoute> {
           extraTop: top,
           focus: _focus_,
           onTapTitle: () => showWindowSheet(context, _tab),
-          actions: [
-            AgentMenu(tab: _tab, onFiles: () => _panes.show(Pane.files)),
-          ],
           bottom: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

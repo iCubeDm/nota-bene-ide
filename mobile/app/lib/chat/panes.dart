@@ -1,6 +1,6 @@
 // The chat as three panes in a row, like the desktop's file tree and comments beside the chat: Files <- Chat ->
 // Comments, Chat in the middle and shown first. A narrow screen shows one at a time under the floating header, with a
-// strip of tabs like Telegram's chat folders (a sliding underline that follows the swipe) and a horizontal swipe across
+// pill of tabs like Telegram's chat folders (the current one slides with the swipe) and a horizontal swipe across
 // the screen to change; a wide one (landscape, a tablet) stands the three side by side. Back on Files goes up a folder
 // first, then, like back on Comments, returns to the chat.
 import 'package:flutter/foundation.dart' show ValueListenable;
@@ -8,14 +8,13 @@ import 'package:flutter/material.dart';
 
 import '../comments/comments.dart' show Comments;
 import '../l10n/app_localizations.dart';
-import '../theme.dart';
 import '../ui/folder_tabs.dart';
 import '../voice/recorder.dart' show Microphone;
 import 'window_tab.dart';
 
 enum Pane { files, chat, comments }
 
-/// Switches the panes from outside the shell (the agent menu's Files, a comment that points into the chat).
+/// Switches the panes from outside the shell (a comment that points into the chat).
 class PanesController {
   void Function(Pane)? _show;
   void show(Pane p) => _show?.call(p);
@@ -218,7 +217,6 @@ class _ChatPanesState extends State<ChatPanes> {
         child: row,
       );
     }
-    final c = Theme.of(context).extension<NbColors>()!;
     final top = MediaQuery.paddingOf(context).top;
     // the header floats (8 + 40 + 8), the strip under it
     final cover = top + headerBox + stripHeight;
@@ -261,8 +259,9 @@ class _ChatPanesState extends State<ChatPanes> {
             left: 0,
             right: 0,
             height: stripHeight,
-            child: Material(
-              color: c.background.withValues(alpha: 0.92),
+            // a floating pill like the header's, the panes showing beside it
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
               child: PaneStrip(
                 page: _page,
                 pending: widget.tab.comments,
@@ -276,7 +275,7 @@ class _ChatPanesState extends State<ChatPanes> {
   }
 }
 
-/// The tabs: three labels, an underline that slides with the page, a count badge on Comments.
+/// The tabs: three labels in a pill, the current one sliding with the page, a count badge on Comments.
 class PaneStrip extends StatelessWidget {
   const PaneStrip({
     super.key,
@@ -300,6 +299,7 @@ class PaneStrip extends StatelessWidget {
             : 1.0,
         badges: {2: pending.pending.length},
         onTap: (i) => onTap(Pane.values[i]),
+        pill: true,
       ),
     );
   }

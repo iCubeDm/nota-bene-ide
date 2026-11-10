@@ -240,21 +240,24 @@ void main() {
     },
   );
 
-  testWidgets('the context label is the web\'s word in the app language', (
-    t,
-  ) async {
-    t.platformDispatcher.localesTestValue = const [Locale('ru')];
-    addTearDown(t.platformDispatcher.clearLocalesTestValue);
-    final h = t.ensureSemantics();
-    await rig.open(t, events: [session(title: 'x')]);
-    rig.event(context(42));
-    await t.pumpAndSettle();
-    final word = webString('ctx', 'ru');
-    expect(word, isNot('context'));
-    expect(find.text(word), findsOneWidget);
-    expect(find.bySemanticsLabel('$word 42%'), findsOneWidget);
-    h.dispose();
-  });
+  testWidgets(
+    'the meter shows no word; a screen reader hears the web\'s, in the app language',
+    (t) async {
+      t.platformDispatcher.localesTestValue = const [Locale('ru')];
+      addTearDown(t.platformDispatcher.clearLocalesTestValue);
+      final h = t.ensureSemantics();
+      await rig.open(t, events: [session(title: 'x')]);
+      rig.event(context(42));
+      await t.pumpAndSettle();
+      final word = webString('ctx', 'ru');
+      expect(word, isNot('context'));
+      // the word is not shown, only said
+      expect(find.text(word), findsNothing);
+      expect(find.text('42%'), findsOneWidget);
+      expect(find.bySemanticsLabel('$word 42%'), findsOneWidget);
+      h.dispose();
+    },
+  );
 
   testWidgets('a large text scale does not overflow the pill', (t) async {
     t.platformDispatcher.textScaleFactorTestValue = 2.0;
@@ -274,13 +277,5 @@ void main() {
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
     expect(find.text('100%'), findsOneWidget);
-  });
-
-  testWidgets('the actions button is a round 40 x 40', (t) async {
-    await rig.open(t, events: [session(title: 'x')]);
-    expect(
-      t.getSize(find.byType(PopupMenuButton<Object?>)),
-      const Size(40, 40),
-    );
   });
 }

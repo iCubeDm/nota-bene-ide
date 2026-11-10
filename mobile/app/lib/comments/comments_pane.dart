@@ -1,6 +1,6 @@
 // The window's comments as a pane, like the desktop's Comments tab: the pending ones on top with Send (the pending
-// batch alone, as the composer's Send does with an empty field), the sent ones below grouped by the message they went
-// with. A tap goes to the comment's place (a file opens, a chat comment scrolls the chat to its message); a long press
+// batch alone, as the composer's Send does with an empty field), the sent ones below, folded until their heading is
+// tapped, grouped by the message they went with. A tap goes to the comment's place (a file opens, a chat comment scrolls the chat to its message); a long press
 // on a pending one edits or deletes it.
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -38,6 +38,9 @@ class _CommentsPaneState extends State<CommentsPane>
   bool get wantKeepAlive => true;
 
   WindowTab get tab => widget.tab;
+
+  // the sent ones are history: folded until asked for
+  bool _sentOpen = false;
 
   void _go(Comment x) {
     switch (x.anchor) {
@@ -185,27 +188,46 @@ class _CommentsPaneState extends State<CommentsPane>
                 for (final x in pending) _row(x, lang, c, pending: true),
                 if (sent.isNotEmpty) ...[
                   if (pending.isNotEmpty) const Divider(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Text(t.sentComments, style: head),
-                  ),
-                  for (final key in order) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                      child: Text(
-                        _groupName(key, t, lang),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: c.foreground,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
+                  InkWell(
+                    key: const ValueKey('sent-fold'),
+                    onTap: () => setState(() => _sentOpen = !_sentOpen),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${t.sentComments} · ${sent.length}',
+                              style: head,
+                            ),
+                          ),
+                          Icon(
+                            _sentOpen ? Icons.expand_less : Icons.expand_more,
+                            size: 18,
+                            color: c.mutedFg,
+                          ),
+                        ],
                       ),
                     ),
-                    for (final x in groups[key]!.reversed)
-                      _row(x, lang, c, pending: false),
-                  ],
+                  ),
+                  if (_sentOpen)
+                    for (final key in order) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        child: Text(
+                          _groupName(key, t, lang),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: c.foreground,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      for (final x in groups[key]!.reversed)
+                        _row(x, lang, c, pending: false),
+                    ],
                 ],
               ],
             );

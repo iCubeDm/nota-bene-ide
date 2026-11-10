@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart' show PopupMenuItem;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/files/files_pane.dart';
 import 'package:nb_app/chat/code_screen.dart';
@@ -136,9 +135,7 @@ void main() {
         'README.md',
         'docs/plan.md',
       ]);
-      await t.tap(find.byTooltip('Agent'));
-      await t.pumpAndSettle();
-      await t.tap(find.widgetWithText(PopupMenuItem<Object?>, 'Files'));
+      await t.tap(find.text('Files'));
       await t.pumpAndSettle();
       // the host answers no tree here: the session's files are shown all the same
       expect(find.text('This session'), findsOneWidget);
@@ -152,9 +149,7 @@ void main() {
   testWidgets('no files yet: the list says so', (t) async {
     final r = Rig();
     await r.open(t);
-    await t.tap(find.byTooltip('Agent'));
-    await t.pumpAndSettle();
-    await t.tap(find.widgetWithText(PopupMenuItem<Object?>, 'Files'));
+    await t.tap(find.text('Files'));
     await t.pumpAndSettle();
     expect(find.text('This session'), findsNothing);
     expect(find.byType(FolderPage), findsOneWidget);
