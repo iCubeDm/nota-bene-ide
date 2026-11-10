@@ -30,14 +30,14 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
   }
 }
 
-function setup(o: { speech: (id: string, lang: string) => Promise<string>; history?: ServerEvent[] }) {
-  const got: { uuid: string; text: string }[] = [];
+function setup(o: { speech: (id: string, lang: string) => Promise<string>; history?: ServerEvent[]; onInterrupt?: () => void; onSend?: () => void }) {
+  const got: { uuid: string; text: string; priority?: string }[] = [];
   const backend: AgentBackend = {
     ...noSessions,
     history: async () => (o.history ?? []) as never,
     start: () => ({
       messages: mapFrames((async function* () { await new Promise(() => {}); })()),
-      send: (m) => { got.push(m); }, interrupt: async () => {}, setPermissionMode: async () => {}, supportedModels: async () => [], supportedCommands: async () => [], setModel: async () => {}, setEffort: async () => {}, fileSuggestions: async () => [], contextUsage: async () => ({ used: 0, max: 1, pct: 0 }), usage: async () => ({ cost: null, limits: null }), ...noTasks, close() {},
+      send: (m) => { o.onSend?.(); got.push(m); }, interrupt: async () => { o.onInterrupt?.(); }, setPermissionMode: async () => {}, supportedModels: async () => [], supportedCommands: async () => [], setModel: async () => {}, setEffort: async () => {}, fileSuggestions: async () => [], contextUsage: async () => ({ used: 0, max: 1, pct: 0 }), usage: async () => ({ cost: null, limits: null }), ...noTasks, close() {},
     }),
   };
   const hub = new EventHub();
@@ -78,6 +78,21 @@ describe('voice messages', () => {
     say('first');
     await until(() => got.length === 2);
     expect(got.map((m) => m.uuid)).toEqual(['v1', 't1']);
+  });
+
+  it('a forced voice message interrupts the running turn once it is transcribed, and its user event says force', async () => {
+    let say!: (t: string) => void;
+    const order: string[] = [];
+    const { got, events, make } = setup({ speech: () => new Promise((r) => { say = r; }), onInterrupt: () => order.push('interrupt'), onSend: () => order.push('send') });
+    const s = await make();
+    s.send({ id: 'v1', text: '', voice, force: true, lang: 'en' });
+    expect(events.find((e) => e.kind === 'user')).toMatchObject({ id: 'v1', force: true, voice });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(order).toEqual([]); // nothing is interrupted while it transcribes
+    say('stop that');
+    await until(() => got.length === 1);
+    expect(order).toEqual(['interrupt', 'send']);
+    expect(got[0]).toMatchObject({ uuid: 'v1', text: 'stop that', priority: 'now' });
   });
 
   it('a failed transcription tells why, settles the send as cancelled, and the agent gets nothing', async () => {
