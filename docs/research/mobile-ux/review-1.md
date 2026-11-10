@@ -43,6 +43,16 @@ edge). The proposed screens are sections 14-17 of `flows.html`, ids 14.1-17.2.
 | 14 | 15.1 | 🔥 on tapping a paragraph. | Kept as drawn. |
 | 15 | 15.4 | Pins go to the top of the chat, and the web needs them too. | Pin is a new cross-client feature: pinned passages sit in a bar under the tabs, as Telegram's pinned messages; tap jumps and steps to the next, ☰ lists them with Unpin. Pins are stored with the session on the host, so web and phones share them. Pin no longer puts a passage above the composer. |
 
+## Round 3
+
+| # | Screens | Comment | Change |
+|---|---|---|---|
+| 16 | 15.4 | Pins: open a feature request and skip for now. | Pins moved out of this round into their own issue (web and phone, stored with the session on the host). |
+| 17 | 14.x | The mic belongs inside the message field. | Attach and mic sit inside the field. |
+| 18 | 14.2, 14.3 | Typing hides attach and turns the mic into Send, also inside the field; Stop is a grey button above Send. | Drawn as said: Stop 44 dp, grey, 12 dp above the field's Send. Supersedes the A/B variants of item 7. |
+| 19 | 15.5 | No selection of a fragment inside a paragraph; the agent understands from context; to quote words, Copy. | Paragraph is the only target; the action bar is Comment, Pin, Copy. 15.5 is removed. |
+| 20 | 14.x | Put the mode under “Chat” in the tab pill and change it in the menu opened from the header pill. | The mode shows under “Chat”; the window sheet (14.4) lists modes first, then context, limits and tiles. The button right of the header pill is gone, superseding items 11 and 12. |
+
 ## Order of work this suggests
 
 1. Header presence line and context ring (items 4, 8), with the status bar removed and window-gone centred (item 9).
