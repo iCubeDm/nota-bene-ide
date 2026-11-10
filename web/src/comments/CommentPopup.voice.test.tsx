@@ -67,11 +67,33 @@ it('a protocol 13 server gets no mic in the popup', () => {
   expect(screen.queryByTestId('popup-mic')).toBeNull();
 });
 
-it('without Whisper the popup mic opens Settings', () => {
-  const { store } = setup({ whisper: false });
+it('without Whisper the popup mic opens the Whisper prompt anchored to it, and Install starts the install', async () => {
+  const posts: string[] = [];
+  vi.mocked(fetch).mockImplementation(async (url, init) => {
+    if (init?.method === 'POST') { posts.push(String(url)); return Response.json({ ok: true }); }
+    return Response.json({ on: false, phase: 'none', downloadMb: 430, diskMb: 770, dir: '/x', model: 'm' });
+  });
+  const { store, onClose } = setup({ whisper: false });
   fireEvent.click(micBtn());
-  expect(store.getState().tabs.active).toBe('settings');
+  const box = await screen.findByRole('dialog', { name: 'Voice messages need Whisper' });
+  expect(box).toHaveTextContent('≈ 430 MB');
+  expect(store.getState().tabs.active).not.toBe('settings');
   expect(mic.start).not.toHaveBeenCalled();
+  fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
+  await waitFor(() => expect(posts).toEqual(['/dictation/install']));
+  // working in the prompt does not close the comment popup behind it
+  expect(onClose).not.toHaveBeenCalled();
+  expect(screen.getByTestId('popup-mic')).toBeInTheDocument();
+});
+
+it('Esc closes the Whisper prompt first, not the comment popup', async () => {
+  vi.mocked(fetch).mockImplementation(async () => Response.json({ on: false, phase: 'none', downloadMb: 430, diskMb: 770, dir: '/x', model: 'm' }));
+  const { onClose } = setup({ whisper: false });
+  fireEvent.click(micBtn());
+  await screen.findByRole('dialog', { name: 'Voice messages need Whisper' });
+  fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Voice messages need Whisper' })).toBeNull());
+  expect(onClose).not.toHaveBeenCalled();
 });
 
 it('click records, click on Stop adds a clip row that is transcribed; Add waits for the transcript', async () => {

@@ -7,7 +7,7 @@ import { pageQuote } from '@/page/quote.ts';
 import { selectCapabilities, selectSwitching } from '@/controls/slice.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { whisperLang } from '@/voice/lang.ts';
-import { openDictationSettings } from '@/voice/settings.ts';
+import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { transcribeVoice } from '@/voice/upload.ts';
 import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
@@ -123,6 +123,12 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
       transcribe(v.id);
     },
   });
+  // the mic without Whisper asks to set it up, in a prompt anchored to the mic
+  const [setup, setSetup] = useState(false);
+  const setupRef = useRef(setup);
+  setupRef.current = setup;
+  const micAnchor = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (whisper) setSetup(false); }, [whisper]);
   const recording = rec.st.phase !== 'idle';
   const recRef = useRef(rec);
   recRef.current = rec;
@@ -187,13 +193,14 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (recRef.current.st.phase !== 'idle') return; // the recording bar takes this Esc: it drops the recording, not the comment
+      if (setupRef.current) return; // the Whisper prompt takes it: it closes, the comment stays
       e.preventDefault();
       if (!busyNow.current) onClose();
     };
     const onDown = (e: MouseEvent) => {
       if (busyNow.current) return;
       // the lightbox is portalled out of the popup: a click there is not an outside click
-      if (!root.current?.contains(e.target as Node) && !(e.target as Element).closest?.('[data-lightbox]')) onClose();
+      if (!root.current?.contains(e.target as Node) && !(e.target as Element).closest?.('[data-lightbox], [data-whisper-prompt]')) onClose();
     };
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('mousedown', onDown);
@@ -336,16 +343,18 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           {protocol >= 14 && (
             <button
               type="button"
+              ref={micAnchor}
               data-testid="popup-mic"
               title={!whisper ? t('voiceMicSetup') : clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
               aria-label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}
               disabled={switching || recording || (whisper && clips.length >= VOICE_MAX_CLIPS)}
-              onClick={() => (whisper ? rec.start(false) : openDictationSettings(dispatch))}
+              onClick={() => (whisper ? rec.start(false) : setSetup((o) => !o))}
               className="rounded px-1 text-sm hover:bg-muted disabled:opacity-40"
             >
               🎤
             </button>
           )}
+          {protocol >= 14 && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micAnchor} />}
           <span data-slot="emoji"><EmojiMenu target={area} /></span>
           <Button size="xs" disabled={off} aria-busy={busy || waiting || undefined} title={switching ? t('switching') : waiting ? t('voiceClipsWait') : undefined} onClick={() => void add()}>
             {(busy || waiting) && <span aria-hidden className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}

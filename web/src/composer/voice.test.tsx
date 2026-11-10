@@ -62,13 +62,6 @@ it('a protocol 13 server gets no mic', () => {
   expect(screen.queryByTestId('mic')).toBeNull();
 });
 
-it('without Whisper the mic opens Settings and records nothing', () => {
-  const { store } = setup({ whisper: false });
-  fireEvent.click(micBtn());
-  expect(store.getState().tabs.active).toBe('settings');
-  expect(mic.start).not.toHaveBeenCalled();
-});
-
 it('the mic names Alt+R in its tooltip', async () => {
   setup();
   await userEvent.hover(micBtn());

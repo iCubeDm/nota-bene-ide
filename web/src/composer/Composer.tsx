@@ -19,7 +19,7 @@ import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { addImage, removeImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { BINDINGS, keysLabel, VOICE_KEY, withKey } from '@/shell/keymap.ts';
-import { openDictationSettings } from '@/voice/settings.ts';
+import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { onVoiceRefused, sendVoice } from '@/voice/send.ts';
 import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
@@ -62,6 +62,10 @@ export function Composer() {
   const voiceOk = useAppSelector((s) => s.controls.protocol >= 14);
   const whisper = caps.dictation === 'whisper';
   const fileIn = useRef<HTMLInputElement>(null);
+  // the mic without Whisper asks to set it up in a prompt anchored to the mic
+  const [setup, setSetup] = useState(false);
+  const micBox = useRef<HTMLSpanElement>(null);
+  useEffect(() => { if (whisper) setSetup(false); }, [whisper]);
   const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // the same status spot as "offline": a short-lived note (onlyImages / imgFail)
   const flash = (msg: string) => {
@@ -115,13 +119,13 @@ export function Composer() {
   useEffect(() => {
     const onKey = (e: Event) => {
       if (!voiceOk) return;
-      if (!whisper) return openDictationSettings(dispatch);
+      if (!whisper) return setSetup(true);
       const r = recRef.current;
       if (r.st.phase === 'idle') { if (!switching) r.start(false); } else voiceSubmitRef.current(!!(e as CustomEvent<{ force?: boolean }>).detail?.force);
     };
     document.addEventListener(VOICE_KEY, onKey);
     return () => document.removeEventListener(VOICE_KEY, onKey);
-  }, [voiceOk, whisper, switching, dispatch]);
+  }, [voiceOk, whisper, switching]);
   // back to typing after a recording: the caret returns to the field
   const wasRecording = useRef(false);
   useEffect(() => {
@@ -294,7 +298,7 @@ export function Composer() {
         {voiceOk && !recording && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex">
+              <span ref={micBox} className="inline-flex">
                 <Button
                   type="button"
                   variant="ghost"
@@ -302,7 +306,7 @@ export function Composer() {
                   disabled={switching}
                   aria-label={whisper ? t('voiceMic') : t('voiceMicSetup')}
                   onPointerDown={micDown}
-                  onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : openDictationSettings(dispatch))}
+                  onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : setSetup((o) => !o))}
                   className="h-10 bg-muted px-2.5 text-muted-foreground hover:text-foreground"
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -315,6 +319,7 @@ export function Composer() {
             <TooltipContent className="whitespace-pre-line">{withKey(whisper ? t('voiceMic') : t('voiceMicSetup'), 'hk_voice')}</TooltipContent>
           </Tooltip>
         )}
+        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micBox} />}
         {!recording && (
           <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
             <Button type="button" className="h-10" disabled={uploading || switching} onClick={() => submit(false)}>
