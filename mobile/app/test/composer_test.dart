@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:nb_app/theme.dart';
+import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/store/voice_lang.dart';
 import 'package:nb_app/voice/record_button.dart';
 import 'package:nb_app/voice/record_row.dart';
 import 'package:nb_app/voice/player.dart';
@@ -376,6 +378,21 @@ void main() {
     );
 
     testWidgets(
+      'the voice language chosen in Settings goes with a voice message',
+      (t) async {
+        final v = await VoiceLang.load(MemoryVault());
+        await v.choose('ru');
+        r.voiceLang = v;
+        await openVoice(t);
+        r.ch.onHttp = (port, method, path) async => ok();
+        await record(t);
+        await t.pump();
+        // the app is in English; the speech is not
+        expect(r.sent.single['lang'], 'ru');
+      },
+    );
+
+    testWidgets(
       'while the agent works a voice message asks; After sends it without force',
       (t) async {
         await openVoice(t, events: working);
@@ -520,6 +537,24 @@ void main() {
         expect(r.ch.requests, ['POST /voice']);
       },
     );
+
+    testWidgets('a queued voice keeps the language it was recorded in', (
+      t,
+    ) async {
+      final v = await VoiceLang.load(MemoryVault());
+      await v.choose('ru');
+      r.voiceLang = v;
+      await openVoice(t);
+      r.ch.onHttp = (port, method, path) async => refuse(500);
+      await record(t);
+      expect(find.text('Could not send the recording'), findsOneWidget);
+      await v.choose('en');
+      r.ch.onHttp = (port, method, path) async => ok();
+      await t.tap(find.text('Retry'));
+      await t.pump();
+      await t.pump();
+      expect(r.sent.single['lang'], 'ru');
+    });
 
     testWidgets(
       'leaving the chat keeps a failed voice message: it is there, with Retry, when the chat opens again',

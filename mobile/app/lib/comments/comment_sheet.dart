@@ -10,6 +10,7 @@ import '../dictation/whisper_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
+import '../store/voice_lang.dart';
 import '../voice/player.dart';
 import '../voice/record_button.dart';
 import '../voice/record_row.dart';
@@ -95,7 +96,7 @@ class _SheetState extends State<_Sheet> {
   bool get _failed => _clips.any((c) => c.error != null);
 
   void _recorded(Uint8List wav, Duration length) {
-    final c = _Clip.fresh(uuidV4(), wav);
+    final c = _Clip.fresh(uuidV4(), wav, voiceLangOf(context));
     setState(() => _clips.add(c));
     _run(c);
   }
@@ -114,7 +115,7 @@ class _SheetState extends State<_Sheet> {
   /// Uploads the clip when the host has not got it, then asks for its text; a failure stays on the clip with Retry.
   Future<void> _run(_Clip c) async {
     final tab = widget.tab;
-    final lang = Localizations.localeOf(context).languageCode;
+    final lang = c.lang ??= voiceLangOf(context);
     setState(() {
       c.busy = true;
       c.error = null;
@@ -385,7 +386,7 @@ class _SheetState extends State<_Sheet> {
 
 /// One clip of the sheet: a fresh recording on its way to the host and its text, or one the comment already has.
 class _Clip {
-  _Clip.fresh(this.key, Uint8List this.wav)
+  _Clip.fresh(this.key, Uint8List this.wav, this.lang)
     : ms = wavMs(wav),
       wave = waveOf(wav),
       busy = true;
@@ -398,6 +399,9 @@ class _Clip {
       busy = false;
 
   final String key;
+
+  /// The language it was recorded in; a Retry asks for the text in it, whatever Settings say by then.
+  String? lang;
   Uint8List? wav;
   String? id;
   int ms;

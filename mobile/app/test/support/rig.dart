@@ -10,6 +10,7 @@ import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/store/voice_lang.dart';
 import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -22,6 +23,9 @@ class Rig {
   late FakeChannel ch;
   late HostLink link;
   WindowTab? tab;
+
+  /// The Settings choice of the voice language; none follows the app's.
+  VoiceLang? voiceLang;
 
   Future<void> open(
     WidgetTester t, {
@@ -55,6 +59,7 @@ class Rig {
     await t.pump();
     await t.pumpWidget(
       NbApp(
+        voiceLang: voiceLang,
         home: MermaidScope(
           renderer: FakeMermaid(),
           child: ChatRoute(

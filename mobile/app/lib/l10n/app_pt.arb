@@ -26,6 +26,8 @@
   "settings": "Configurações",
   "language": "Idioma",
   "languageSystem": "Como no celular",
+  "voiceLanguage": "Idioma da voz",
+  "voiceLanguageApp": "Idioma do app",
   "theme": "Temas",
   "connecting": "Conectando…",
   "offline": "Offline",

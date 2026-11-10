@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart' show ScaffoldMessenger, SnackBar, Text;
-import 'package:flutter/widgets.dart' show BuildContext, Localizations;
+import 'package:flutter/widgets.dart' show BuildContext;
 import 'package:nb_channel/nb_channel.dart' show HttpAnswer;
 import 'package:nb_protocol/nb_protocol.dart' show Voice, VoiceError;
 
@@ -12,6 +12,7 @@ import '../chat/files.dart' show FileOpener;
 import '../chat/window_tab.dart';
 import '../files/image_screen.dart' show windowHttp;
 import '../l10n/app_localizations.dart';
+import '../store/voice_lang.dart';
 import '../media/media_comment.dart';
 import 'player.dart';
 
@@ -91,7 +92,7 @@ LoadVoice voiceLoader(WindowTab? tab, String id) => () async {
 void retryVoice(BuildContext context, Voice voice) {
   final tab = FileOpener.of(context);
   if (tab == null) return;
-  final lang = Localizations.localeOf(context).languageCode;
+  final lang = voiceLangOf(context);
   if (!tab.retryVoice(voice, lang)) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppLocalizations.of(context).cannotSend)),
