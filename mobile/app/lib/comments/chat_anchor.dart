@@ -105,6 +105,14 @@ String _general(String text) {
   return m == null ? text : text.substring(0, m.start);
 }
 
+/// The batch of comments a message carries, as the text after its heading (the desktop's `raw`), or null without one.
+String? batchRaw(String text) {
+  final m = _batchHead.firstMatch(text);
+  if (m == null) return null;
+  final raw = text.substring(m.end);
+  return raw.isEmpty ? null : raw;
+}
+
 /// `@path` stays as typed when the message goes through Markdown (refs.ts escapeMentions): the mention's characters
 /// that Markdown would eat get a backslash, outside code spans and fences.
 String _escapeMentions(String text) {

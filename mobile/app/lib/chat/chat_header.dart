@@ -1,4 +1,4 @@
-// The floating header of a phone chat: a back button, a pill with the session (avatar, title, model, limit meters)
+// The floating header of a phone chat: a back button, a pill with the session (avatar, name; under it the context in use and the mode)
 // and a round button for the actions. It floats over the feed, which scrolls under it.
 import 'package:flutter/material.dart';
 
@@ -52,8 +52,7 @@ class ChatHeader extends StatelessWidget {
     final c = Theme.of(context).extension<NbColors>()!;
     final lang = Localizations.localeOf(context).languageCode;
     final f = tab.feed;
-    final model = tab.model ?? f.model;
-    final limits = tab.stats?.stats.limits;
+    final used = tab.stats?.stats.context;
     final mode = shownMode(tab);
     final shape = StadiumBorder(side: BorderSide(color: c.border));
     final fill = c.popover.withValues(alpha: 0.92);
@@ -96,27 +95,22 @@ class ChatHeader extends StatelessWidget {
                     color: c.foreground,
                   ),
                 ),
-                LayoutBuilder(
-                  builder: (context, box) => Row(
+                // the context in use and the agent's mode; the model and the plan limits are in the window sheet
+                if (used != null || mode != null)
+                  Row(
                     children: [
-                      if (model != null)
-                        Flexible(
-                          child: Text(
-                            model,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              height: 1.15,
-                              color: c.mutedFg,
-                            ),
-                          ),
+                      if (used != null)
+                        _Meter(
+                          'ctx',
+                          webString('ctx', lang),
+                          used.pct,
+                          lead: false,
                         ),
                       if (mode != null)
                         Flexible(
                           child: Padding(
                             padding: EdgeInsets.only(
-                              left: model != null ? 6 : 0,
+                              left: used != null ? 8 : 0,
                             ),
                             child: Text(
                               modeLabel(tab, mode, lang),
@@ -130,39 +124,8 @@ class ChatHeader extends StatelessWidget {
                             ),
                           ),
                         ),
-                      // the meters keep their room, the model ellipsizes; too narrow even then, they scale down
-                      if (limits?.fiveHour != null || limits?.sevenDay != null)
-                        ConstrainedBox(
-                          constraints: BoxConstraints(maxWidth: box.maxWidth),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (limits?.fiveHour != null)
-                                  _Meter(
-                                    'h5',
-                                    webString('h5', lang),
-                                    limits!.fiveHour!.utilization,
-                                    lead: model != null || mode != null,
-                                  ),
-                                if (limits?.sevenDay != null)
-                                  _Meter(
-                                    'week',
-                                    webString('week', lang),
-                                    limits!.sevenDay!.utilization,
-                                    lead:
-                                        model != null ||
-                                        mode != null ||
-                                        limits.fiveHour != null,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
                     ],
                   ),
-                ),
               ],
             ),
           ),

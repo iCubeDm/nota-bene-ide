@@ -283,6 +283,7 @@
     }
   },
   "windowSheetMode": "Mode",
+  "windowSheetModel": "Model",
   "limitsTitle": "Plan limits",
   "limit5h": "5 hours",
   "limitWeek": "Week",

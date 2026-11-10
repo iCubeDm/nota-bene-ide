@@ -22,6 +22,13 @@ Map<String, Object?> stats(Map<String, Object?> limits) => {
   'stats': {'limits': limits},
 };
 
+Map<String, Object?> context(num pct, {num used = 1000, num max = 200000}) => {
+  'kind': 'stats',
+  'stats': {
+    'context': {'used': used, 'max': max, 'pct': pct},
+  },
+};
+
 void main() {
   test('the provider letter', () {
     expect(providerLetter('claude'), 'C');
@@ -38,7 +45,7 @@ void main() {
     if (rig.tab != null) rig.dispose();
   });
 
-  testWidgets('the pill shows the title and the model', (t) async {
+  testWidgets('the pill shows the title, not the model', (t) async {
     await rig.open(
       t,
       hello: {
@@ -49,7 +56,7 @@ void main() {
       events: [session(title: 'Spec work')],
     );
     expect(find.text('Spec work'), findsOneWidget);
-    expect(find.text('opus'), findsOneWidget);
+    expect(find.text('opus'), findsNothing);
     expect(find.text('X'), findsOneWidget);
   });
 
@@ -96,28 +103,40 @@ void main() {
     expect(find.text('untitled'), findsOneWidget);
   });
 
-  testWidgets('two limits make two meters, one makes one', (t) async {
+  testWidgets('the context makes one meter; the limits are not in the header', (
+    t,
+  ) async {
     final h = t.ensureSemantics();
     await rig.open(t, events: [session(title: 'x')]);
+    expect(find.bySemanticsLabel(RegExp(r'^context ')), findsNothing);
+    rig.event({
+      'kind': 'stats',
+      'stats': {
+        'context': {'used': 1, 'max': 2, 'pct': 42.4},
+        'limits': {
+          'five_hour': {'utilization': 42},
+          'seven_day': {'utilization': 7.4},
+        },
+      },
+    });
+    await t.pumpAndSettle();
+    expect(find.bySemanticsLabel('context 42%'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp(r'^(5h|week) ')), findsNothing);
-    rig.event(
-      stats({
-        'five_hour': {'utilization': 42},
-        'seven_day': {'utilization': 7.4},
-      }),
-    );
+    rig.event(context(130));
     await t.pumpAndSettle();
-    expect(find.bySemanticsLabel('5h 42%'), findsOneWidget);
-    expect(find.bySemanticsLabel('week 7%'), findsOneWidget);
-    rig.event(
-      stats({
-        'five_hour': {'utilization': 130},
-      }),
-    );
-    await t.pumpAndSettle();
-    expect(find.bySemanticsLabel('5h 100%'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'^week')), findsNothing);
+    expect(find.bySemanticsLabel('context 100%'), findsOneWidget);
     h.dispose();
+  });
+
+  testWidgets('no context yet: just the mode', (t) async {
+    await modeHeader(t, ['default', 'plan'], 'plan');
+    expect(find.text(webString('mode_plan', 'en')), findsOneWidget);
+    expect(find.byKey(const ValueKey('fill-ctx')), findsNothing);
+    rig.event(context(10));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('fill-ctx')), findsOneWidget);
+    expect(find.text('10%'), findsOneWidget);
+    expect(find.text(webString('mode_plan', 'en')), findsOneWidget);
   });
 
   testWidgets('a long title and model ellipsize, the buttons keep size', (
@@ -196,55 +215,44 @@ void main() {
   Color? pctColor(WidgetTester t, String s) =>
       t.widget<Text>(find.text(s)).style!.color;
 
-  testWidgets('the meters take the web\'s levels: 60 warns, 85 is hot', (
-    t,
-  ) async {
-    await rig.open(t, events: [session(title: 'x')]);
-    final c = colors(t);
-    Future<void> set(num five, num seven) async {
-      rig.event(
-        stats({
-          'five_hour': {'utilization': five},
-          'seven_day': {'utilization': seven},
-        }),
-      );
-      await t.pumpAndSettle();
-    }
+  testWidgets(
+    'the context meter takes the web\'s levels: 60 warns, 85 is hot',
+    (t) async {
+      await rig.open(t, events: [session(title: 'x')]);
+      final c = colors(t);
+      Future<void> set(num pct) async {
+        rig.event(context(pct));
+        await t.pumpAndSettle();
+      }
 
-    await set(59, 60);
-    expect(fill(t, 'h5'), c.primary);
-    expect(fill(t, 'week'), c.accent);
-    expect(pctColor(t, '59%'), c.mutedFg);
-    expect(pctColor(t, '60%'), c.mutedFg);
-    await set(84, 85);
-    expect(fill(t, 'h5'), c.accent);
-    expect(fill(t, 'week'), c.destructive);
-    expect(pctColor(t, '84%'), c.mutedFg);
-    expect(pctColor(t, '85%'), c.destructive);
-    await set(100, 0);
-    expect(fill(t, 'h5'), c.destructive);
-    expect(fill(t, 'week'), c.primary);
-  });
+      await set(59);
+      expect(fill(t, 'ctx'), c.primary);
+      expect(pctColor(t, '59%'), c.mutedFg);
+      await set(60);
+      expect(fill(t, 'ctx'), c.accent);
+      await set(84);
+      expect(fill(t, 'ctx'), c.accent);
+      await set(85);
+      expect(fill(t, 'ctx'), c.destructive);
+      expect(pctColor(t, '85%'), c.destructive);
+      await set(0);
+      expect(fill(t, 'ctx'), c.primary);
+    },
+  );
 
-  testWidgets('the meter labels are the web\'s words in the app language', (
+  testWidgets('the context label is the web\'s word in the app language', (
     t,
   ) async {
     t.platformDispatcher.localesTestValue = const [Locale('ru')];
     addTearDown(t.platformDispatcher.clearLocalesTestValue);
     final h = t.ensureSemantics();
     await rig.open(t, events: [session(title: 'x')]);
-    rig.event(
-      stats({
-        'five_hour': {'utilization': 42},
-        'seven_day': {'utilization': 7},
-      }),
-    );
+    rig.event(context(42));
     await t.pumpAndSettle();
-    final week = webString('week', 'ru');
-    expect(week, isNot('week'));
-    expect(find.text(week), findsOneWidget);
-    expect(find.bySemanticsLabel('$week 7%'), findsOneWidget);
-    expect(find.text('7d'), findsNothing);
+    final word = webString('ctx', 'ru');
+    expect(word, isNot('context'));
+    expect(find.text(word), findsOneWidget);
+    expect(find.bySemanticsLabel('$word 42%'), findsOneWidget);
     h.dispose();
   });
 
@@ -252,31 +260,20 @@ void main() {
     t.platformDispatcher.textScaleFactorTestValue = 2.0;
     addTearDown(t.platformDispatcher.clearTextScaleFactorTestValue);
     await rig.open(t, events: [session(title: 'Spec work')]);
-    rig.event(
-      stats({
-        'five_hour': {'utilization': 42},
-        'seven_day': {'utilization': 7},
-      }),
-    );
+    rig.event(context(42));
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('both meters and a long model fit 320 dp', (t) async {
+  testWidgets('the context meter and a long mode fit 320 dp', (t) async {
     t.view.physicalSize = const Size(320, 640);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
-    await rig.open(t, events: [session(title: 'Spec work')]);
-    rig.event({'kind': 'model', 'model': 'claude-opus-4-7-extra-long-name'});
-    rig.event(
-      stats({
-        'five_hour': {'utilization': 100},
-        'seven_day': {'utilization': 100},
-      }),
-    );
+    await modeHeader(t, ['default', 'plan'], 'plan');
+    rig.event(context(100));
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
-    expect(find.text('100%'), findsNWidgets(2));
+    expect(find.text('100%'), findsOneWidget);
   });
 
   testWidgets('the actions button is a round 40 x 40', (t) async {

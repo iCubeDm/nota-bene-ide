@@ -113,7 +113,18 @@ class WindowSheet extends StatelessWidget {
                 tab.feed.root ?? tab.root,
                 style: TextStyle(fontSize: 12, color: c.mutedFg),
               ),
-              if (modelSwitchable(tab)) ...[gap, _ModelRow(tab: tab)],
+              if (modelSwitchable(tab)) ...[
+                gap,
+                _ModelRow(tab: tab),
+              ] else if (tab.model ?? tab.feed.model case final model?) ...[
+                gap,
+                Text(t.windowSheetModel, style: label),
+                const SizedBox(height: 4),
+                Text(
+                  model,
+                  style: TextStyle(fontSize: 14, color: c.foreground),
+                ),
+              ],
               if (modes.length >= 2) ...[
                 gap,
                 Text(t.windowSheetMode, style: label),

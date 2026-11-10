@@ -143,6 +143,15 @@ void main() {
     expect(find.text('Mode'), findsNothing);
   });
 
+  testWidgets('the model is in the sheet also where it cannot be switched', (
+    t,
+  ) async {
+    await sheet(t);
+    expect(inSheet(find.text('Model')), findsOneWidget);
+    expect(inSheet(find.text('sonnet')), findsOneWidget);
+    expect(inSheet(find.text('Model and effort')), findsNothing);
+  });
+
   testWidgets('limits show as two bars, none without stats', (t) async {
     await sheet(t);
     expect(find.text('Plan limits'), findsNothing);
