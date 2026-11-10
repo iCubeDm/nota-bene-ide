@@ -10,7 +10,7 @@ const input = {
 
 it('questionPrompt: one required field per question, with its header, options, descriptions and multi-select', () => {
   expect(questionPrompt(input)).toEqual({
-    title: 'Claude',
+    title: 'Claude', tool: 'AskUserQuestion',
     choices: [{ id: 'submit', label: 'Send answers' }, { id: 'cancel', label: 'Cancel' }],
     fields: [
       { id: 'q0', label: 'Which library?', header: 'Library', options: ['dayjs', 'luxon'], notes: ['small', 'zones'], required: true },

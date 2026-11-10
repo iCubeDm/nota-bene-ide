@@ -19,11 +19,9 @@ function questionsOf(input: Record<string, unknown>): Question[] | null {
 }
 
 /** AskUserQuestion's input as a structured prompt (the shape Codex and omp questions use); null = not a question we can show */
-export function questionPrompt(input: Record<string, unknown>): Interaction | null {
-  const qs = questionsOf(input);
-  if (!qs) return null;
+function promptOf(qs: Question[]): Interaction {
   return {
-    title: 'Claude',
+    title: 'Claude', tool: 'AskUserQuestion',
     choices: [{ id: 'submit', label: 'Send answers' }, { id: 'cancel', label: 'Cancel' }],
     fields: qs.map((q, i) => ({
       id: `q${i}`, label: q.question, ...(q.header ? { header: q.header } : {}),
@@ -32,6 +30,11 @@ export function questionPrompt(input: Record<string, unknown>): Interaction | nu
       ...(q.multiSelect ? { multi: true } : {}), required: true,
     })),
   };
+}
+
+export function questionPrompt(input: Record<string, unknown>): Interaction | null {
+  const qs = questionsOf(input);
+  return qs && promptOf(qs);
 }
 
 /**
@@ -43,10 +46,9 @@ export async function askUserQuestion(
   input: Record<string, unknown>,
   interact: (prompt: Interaction) => Promise<InteractionAnswer | null>,
 ): Promise<Result | null> {
-  const prompt = questionPrompt(input);
   const qs = questionsOf(input);
-  if (!prompt || !qs) return null;
-  const a = await interact(prompt);
+  if (!qs) return null;
+  const a = await interact(promptOf(qs));
   if (a?.choice !== 'submit') return { behavior: 'deny', message: 'User declined to answer the questions in the UI.' };
   const answers: Record<string, string> = {};
   qs.forEach((q, i) => { answers[q.question] = (a.values?.[`q${i}`] ?? '').trim(); });

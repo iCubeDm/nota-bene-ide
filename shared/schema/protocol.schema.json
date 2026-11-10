@@ -692,6 +692,10 @@
         "title": {
           "type": "string"
         },
+        "tool": {
+          "description": "the tool the ask is for, when the title is not its name; the audit log and the permission event's toolName use it",
+          "type": "string"
+        },
         "url": {
           "type": "string"
         }

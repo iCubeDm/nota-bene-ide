@@ -103,3 +103,10 @@ it('a native numeric decline choice is announced as denied', async () => {
   const id = (events[0] as { id: string }).id; b.answer(id, true, { choice: '1' }); await p;
   expect(events.at(-1)).toMatchObject({ kind: 'permission-done', allow: false });
 });
+
+it('an ask names its tool for the permission event (the audit log) when the title is not it', () => {
+  const { b, events, gen } = make();
+  void b.interact(gen, 0)({ title: 'Claude', tool: 'AskUserQuestion', choices: [{ id: 'c', label: 'Cancel' }] }, {}, new AbortController().signal);
+  expect(events[0]).toMatchObject({ kind: 'permission', toolName: 'AskUserQuestion' });
+  b.denyAll();
+});

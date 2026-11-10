@@ -860,6 +860,7 @@ enum ImageType implements _Json {
 final class Interaction implements _Json {
   const Interaction({
     required this.title,
+    this.tool,
     required this.choices,
     this.fields,
     this.url,
@@ -868,6 +869,7 @@ final class Interaction implements _Json {
   factory Interaction.fromJson(Map<String, Object?> json) {
     return Interaction(
       title: json['title'] as String,
+      tool: json['tool'] as String?,
       choices: _list(json['choices'], _obj(InteractionChoicesItem.fromJson)),
       fields: _listOrNull(json['fields'], _obj(InteractionFieldsItem.fromJson)),
       url: json['url'] as String?,
@@ -875,6 +877,7 @@ final class Interaction implements _Json {
   }
 
   final String title;
+  final String? tool;
   final List<InteractionChoicesItem> choices;
   final List<InteractionFieldsItem>? fields;
   final String? url;
@@ -883,6 +886,7 @@ final class Interaction implements _Json {
   Map<String, Object?> toJson() {
     return {
       'title': title,
+      if (tool != null) 'tool': tool,
       'choices': _jsonList(choices),
       if (fields != null) 'fields': _jsonList(fields),
       if (url != null) 'url': url,

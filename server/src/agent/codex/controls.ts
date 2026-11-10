@@ -76,7 +76,7 @@ export async function answerNative(request: RpcRequest, signal: AbortSignal, o: 
   }
   if (request.method === 'item/tool/requestUserInput') {
     const qs = array(p.questions).map(record);
-    const a = await interact({ title: 'Codex', choices: [{ id: 'submit', label: 'Send answers' }, { id: 'cancel', label: 'Cancel' }], fields: qs.map((q) => ({ id: string(q.id), label: string(q.question), secret: q.isSecret === true, options: array(q.options).map((v) => string(record(v).label)), required: true })) });
+    const a = await interact({ title: 'Codex', choices: [{ id: 'submit', label: 'Send answers' }, { id: 'cancel', label: 'Cancel' }], fields: qs.map((q) => { const opts = array(q.options).map(record); return { id: string(q.id), label: string(q.question), secret: q.isSecret === true, options: opts.map((v) => string(v.label)), ...(string(q.header) ? { header: string(q.header) } : {}), ...(opts.some((v) => string(v.description)) ? { notes: opts.map((v) => string(v.description)) } : {}), required: true }; }) });
     if (a?.choice !== 'submit') return { answers: {} };
     const answers: Record<string, { answers: string[] }> = {};
     for (const q of qs) { const id = string(q.id), value = a.values?.[id]; if (!value) throw new Error('Missing question answer'); answers[id] = { answers: [value] }; }

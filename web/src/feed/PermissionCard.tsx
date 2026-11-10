@@ -8,7 +8,12 @@ export function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'perm
   const dispatch = useAppDispatch();
   const [values, setValues] = useState<Record<string, string>>({});
   const prompt = item.prompt;
-  useEffect(() => { if (item.answer !== undefined) setValues({}); }, [item.answer]);
+  // the picked options (indices) are state of their own, so an option label may hold a comma; `values` is the typed text
+  const [picks, setPicks] = useState<Record<string, number[]>>({});
+  useEffect(() => { if (item.answer !== undefined) { setValues({}); setPicks({}); } }, [item.answer]);
+  type Field = NonNullable<NonNullable<typeof prompt>['fields']>[number];
+  const valueOf = (f: Field) => [...(picks[f.id] ?? []).map((i) => f.options?.[i] ?? ''), ...(values[f.id]?.trim() ? [values[f.id].trim()] : [])].join(', ');
+  const answers = () => Object.fromEntries((prompt?.fields ?? []).map((f) => [f.id, f.options?.length ? valueOf(f) : values[f.id] ?? '']));
   const choiceLabel = (label: string) => /^Approve .+ for this session$/.test(label) ? t('allowSession') : ({ accept: t('allow'), decline: t('deny'), cancel: t('cancel'), acceptForSession: t('allowSession'), 'Allow for this turn': t('allowTurn'), 'Allow for this session': t('allowSession'), 'Deny': t('deny'), 'Cancel': t('cancel'), 'Accept': t('allow'), 'Decline': t('deny'), 'Send answers': t('sendAnswers'), 'Approve': t('allow'), 'Allow once': t('allow'), 'Always allow': t('allowAlways'), 'Reject': t('deny'), 'Always reject': t('denyAlways') })[label] ?? label;
   const title = prompt?.title === 'Additional Codex permissions' ? t('codexPermissions') : prompt?.title === 'MCP request' ? t('nativeMcpRequest') : prompt?.title;
   const resolved = item.answer !== undefined;
@@ -32,20 +37,24 @@ export function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'perm
         <form onSubmit={(e) => e.preventDefault()} className="space-y-2">
           {prompt.url && <a href={prompt.url} target="_blank" rel="noreferrer" className="underline">{prompt.url}</a>}
           {(prompt.fields ?? []).map((f) => {
-            const picked = (values[f.id] ?? '').split(',').map((v) => v.trim()).filter(Boolean);
-            const pick = (o: string) => setValues({ ...values, [f.id]: f.multi ? (picked.includes(o) ? picked.filter((v) => v !== o) : [...picked, o]).join(', ') : picked.length === 1 && picked[0] === o ? '' : o });
+            const chosen = picks[f.id] ?? [];
+            const qid = `q-${item.id}-${f.id}`;
+            const pick = (i: number) => {
+              setPicks({ ...picks, [f.id]: f.multi ? (chosen.includes(i) ? chosen.filter((v) => v !== i) : [...chosen, i]) : chosen.length === 1 && chosen[0] === i ? [] : [i] });
+              if (!f.multi) setValues({ ...values, [f.id]: '' });
+            };
             return <div key={f.id} className="space-y-1">
               {f.header && <span className="inline-block rounded bg-muted px-1.5 text-xs font-medium">{f.header}</span>}
               <label className="block whitespace-pre-wrap">
-                {f.label}
-                <input aria-label={f.label} type={f.secret ? 'password' : 'text'} autoComplete="off" value={values[f.id] ?? ''} onChange={(e) => setValues({ ...values, [f.id]: e.target.value })} className="mt-1 block w-full rounded border border-border-soft bg-transparent p-2" />
+                <span id={qid}>{f.label}</span>
+                <input aria-label={f.label} type={f.secret ? 'password' : 'text'} autoComplete="off" value={values[f.id] ?? ''} onChange={(e) => { setValues({ ...values, [f.id]: e.target.value }); if (!f.multi && chosen.length) setPicks({ ...picks, [f.id]: [] }); }} className="mt-1 block w-full rounded border border-border-soft bg-transparent p-2" />
               </label>
-              {f.options?.length ? <div className="flex flex-col gap-1">{f.options.map((o, i) => <button key={o} type="button" aria-pressed={picked.includes(o)} onClick={() => pick(o)} className={`rounded border px-2 py-1 text-left ${picked.includes(o) ? 'border-primary bg-muted' : 'border-border-soft'}`}>
+              {f.options?.length ? <div role={f.multi ? 'group' : 'radiogroup'} aria-labelledby={qid} className="flex max-h-60 flex-col gap-1 overflow-auto">{f.options.map((o, i) => <button key={i} type="button" role={f.multi ? 'checkbox' : 'radio'} aria-checked={chosen.includes(i)} onClick={() => pick(i)} className={`rounded border px-2 py-1 text-left ${chosen.includes(i) ? 'border-primary bg-muted' : 'border-border-soft'}`}>
                 <span className="font-medium">{o}</span>{f.notes?.[i] ? <span className="block text-xs text-muted-foreground">{f.notes[i]}</span> : null}
               </button>)}</div> : null}
             </div>;
           })}
-          <div className="flex flex-wrap gap-2">{prompt.choices.map((c) => <button key={c.id} type="button" className={`${btn} bg-muted`} disabled={!['cancel', 'decline', 'deny'].includes(c.id) && prompt.fields?.some((f) => f.required && !values[f.id]?.trim())} onClick={() => dispatch(answerPermission(item.id, true, { choice: c.id, ...(prompt.fields ? { values } : {}) }))}>{choiceLabel(c.label)}</button>)}</div>
+          <div className="flex flex-wrap gap-2">{prompt.choices.map((c) => <button key={c.id} type="button" className={`${btn} bg-muted`} disabled={!['cancel', 'decline', 'deny'].includes(c.id) && prompt.fields?.some((f) => f.required && !(f.options?.length ? valueOf(f) : values[f.id] ?? '').trim())} onClick={() => dispatch(answerPermission(item.id, true, { choice: c.id, ...(prompt.fields ? { values: answers() } : {}) }))}>{choiceLabel(c.label)}</button>)}</div>
         </form>
       ) : (
         <>

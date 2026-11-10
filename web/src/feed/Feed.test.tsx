@@ -264,11 +264,11 @@ it('prepending an earlier segment keeps the live lines (an open group, done, mar
 it('structured questions send actual typed answers and stop accepting input after resolution', () => {
   const { store, sent } = setup();
   act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'native', toolName: 'Codex', input: {}, prompt: { title: 'Pick a colour', choices: [{ id: 'submit', label: 'Send answers' }], fields: [{ id: 'q', label: 'Colour', required: true, options: ['Blue', 'Red'] }] }, ts: 1 })); });
-  fireEvent.change(screen.getByLabelText('Colour'), { target: { value: 'Green' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Colour' }), { target: { value: 'Green' } });
   fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
   expect(sent).toContainEqual({ type: 'permission', id: 'native', allow: true, response: { choice: 'submit', values: { q: 'Green' } } });
   act(() => { store.dispatch(serverEvent({ kind: 'permission-done', id: 'native', allow: true, ts: 2 })); });
-  expect(screen.queryByLabelText('Colour')).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Colour' })).toBeNull();
 });
 
 it('AskUserQuestion: options show their descriptions; a single choice replaces, several are comma-separated, free text still works', () => {
@@ -282,18 +282,34 @@ it('AskUserQuestion: options show their descriptions; a single choice replaces, 
   expect(screen.getByText('zones')).toBeTruthy();
   const send = screen.getByRole('button', { name: 'Send answers' }) as HTMLButtonElement;
   expect(send.disabled).toBe(true);
-  fireEvent.click(screen.getByRole('button', { name: /dayjs/ }));
-  fireEvent.click(screen.getByRole('button', { name: /luxon/ }));
-  fireEvent.click(screen.getByRole('button', { name: /^Aa$/ }));
-  fireEvent.click(screen.getByRole('button', { name: /^Cc$/ }));
-  expect(screen.getByRole('button', { name: /luxon/ }).getAttribute('aria-pressed')).toBe('true');
-  expect(screen.getByRole('button', { name: /dayjs/ }).getAttribute('aria-pressed')).toBe('false');
+  fireEvent.click(screen.getByRole('radio', { name: /dayjs/ }));
+  fireEvent.click(screen.getByRole('radio', { name: /luxon/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Aa$/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Cc$/ }));
+  expect(screen.getByRole('radio', { name: /luxon/ }).getAttribute('aria-checked')).toBe('true');
+  expect(screen.getByRole('radio', { name: /dayjs/ }).getAttribute('aria-checked')).toBe('false');
   fireEvent.click(send);
   expect(sent).toContainEqual({ type: 'permission', id: 'ask', allow: true, response: { choice: 'submit', values: { q0: 'luxon', q1: 'A, C' } } });
-  fireEvent.click(screen.getByRole('button', { name: /^Aa$/ }));
-  fireEvent.change(screen.getByLabelText('Which library?'), { target: { value: 'my own' } });
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Aa$/ }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Which library?' }), { target: { value: 'my own' } });
   fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
   expect(sent.at(-1)).toEqual({ type: 'permission', id: 'ask', allow: true, response: { choice: 'submit', values: { q0: 'my own', q1: 'C' } } });
+});
+
+it('AskUserQuestion: an option label with a comma is one option, alone or among several, with free text beside it', () => {
+  const { store, sent } = setup();
+  const fields = [
+    { id: 'q0', label: 'Go on?', required: true, options: ['Yes, proceed', 'No'] },
+    { id: 'q1', label: 'Which?', required: true, multi: true, options: ['Red, dark', 'Blue', 'Green'] },
+  ];
+  act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'c', toolName: 'AskUserQuestion', input: {}, prompt: { title: 'Claude', choices: [{ id: 'submit', label: 'Send answers' }], fields }, ts: 1 })); });
+  fireEvent.click(screen.getByRole('radio', { name: /Yes, proceed/ }));
+  expect(screen.getByRole('radio', { name: /Yes, proceed/ }).getAttribute('aria-checked')).toBe('true');
+  fireEvent.click(screen.getByRole('checkbox', { name: /Red, dark/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Green/ }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Which?' }), { target: { value: 'teal' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
+  expect(sent.at(-1)).toEqual({ type: 'permission', id: 'c', allow: true, response: { choice: 'submit', values: { q0: 'Yes, proceed', q1: 'Red, dark, Green, teal' } } });
 });
 
 it('ACP permission options and omp approval answers read as the UI\'s own words', () => {
