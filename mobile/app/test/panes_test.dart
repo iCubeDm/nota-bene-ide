@@ -254,10 +254,10 @@ void main() {
       tearDown(() => rec.uninstall());
 
       testWidgets('a tab does not switch away silently', (t) async {
-        // (the locked recording's row does not fit 400 dp: a separate matter)
+        // a common phone's width: the locked recording's row fits it
         await open(
           t,
-          size: const Size(480, 800),
+          size: const Size(360, 800),
           hello: {
             'kind': 'hello',
             'protocol': 14,
@@ -272,7 +272,7 @@ void main() {
         await t.pump();
         await t.tap(find.text('Files'));
         await t.pumpAndSettle();
-        expect(t.getCenter(line).dx, closeTo(240, 2));
+        expect(t.getCenter(line).dx, closeTo(180, 2));
         expect(
           find.text('Finish or delete the voice message first.'),
           findsOneWidget,
