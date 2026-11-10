@@ -296,7 +296,10 @@
     }
   },
   "paragraphLabelAdded": "Добавлено: {label}",
+  "paragraphLabelRemoved": "Убрано: {label}",
   "paragraphPin": "Закрепить",
   "paragraphLess": "Меньше",
-  "paragraphCopied": "Скопировано"
+  "paragraphCopied": "Скопировано",
+  "micNeedsUpdate": "Для голосовых сообщений нужно обновить Nota Bene на компьютере.",
+  "micUnavailable": "Голосовые сообщения недоступны"
 }

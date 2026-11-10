@@ -45,7 +45,12 @@ int _offsetIn(md.Element e, md.Node target) {
 /// draws from the whole text, so the marks inside it go to the `pre` element as its [codeMarksAttr] (the builder
 /// paints them and shows the badge in its bar). Math is not split either, so a mark there is not painted (the comment
 /// itself is unaffected).
-void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
+void wrapMarks(
+  List<md.Node> nodes,
+  RenderedText r,
+  List<Mark> marks, {
+  Set<String> inert = const {},
+}) {
   if (marks.isEmpty) return;
   final parents = <md.Node, md.Element>{};
   void index(md.Element e) {
@@ -108,16 +113,23 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
     for (final c in cuts) {
       if (c.from < pos) continue; // overlapping marks: the first one paints
       if (c.from > pos) parts.add(md.Text(raw.substring(pos, c.from)));
-      parts.add(
-        md.Element('a', [
-          md.Element(c.m.sent ? 'nbsent' : 'nbmark', [
-            md.Text(raw.substring(c.from, c.to)),
-          ]),
-          if (c.m.n > 0 && badged.add(c.m.id))
-            md.Element.empty('nbbadge')
-              ..attributes['id'] = c.m.id
-              ..attributes['n'] = '${c.m.n}',
-        ])..attributes['href'] = '$_markScheme${c.m.id}',
+      final shown = [
+        md.Element(c.m.sent ? 'nbsent' : 'nbmark', [
+          md.Text(raw.substring(c.from, c.to)),
+        ]),
+        if (c.m.n > 0 && badged.add(c.m.id))
+          md.Element.empty('nbbadge')
+            ..attributes['id'] = c.m.id
+            ..attributes['n'] = '${c.m.n}',
+      ];
+      // an inert mark is painted, not a link: a real link in its text keeps its own tap, and the paragraph the others
+      parts.addAll(
+        inert.contains(c.m.id)
+            ? shown
+            : [
+                md.Element('a', shown)
+                  ..attributes['href'] = '$_markScheme${c.m.id}',
+              ],
       );
       pos = c.to;
     }
@@ -190,6 +202,23 @@ class _BadgeBuilder extends MarkdownElementBuilder {
   }
 }
 
+/// Draws a list item's content itself, so that it can be wrapped (null: the package's own).
+class _ItemBuilder extends MarkdownElementBuilder {
+  _ItemBuilder(this.draw);
+  final Widget? Function(md.Element item) draw;
+
+  @override
+  bool isBlockElement() => true;
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element e,
+    TextStyle? preferred,
+    TextStyle? parent,
+  ) => draw(e);
+}
+
 class FileMarkdown extends StatefulWidget {
   const FileMarkdown({
     super.key,
@@ -200,6 +229,9 @@ class FileMarkdown extends StatefulWidget {
     this.parse = parseMarkdown,
     this.softLineBreak = false,
     this.wrapBlock,
+    this.wrapItem,
+    this.tapItem,
+    this.inertMarks = const {},
   });
 
   static void _noMark(String id) {}
@@ -216,6 +248,19 @@ class FileMarkdown extends StatefulWidget {
 
   /// Dresses top-level block [i] (node [n], drawn as the given widget): the chat makes a reply's paragraphs targets.
   final Widget Function(int i, md.Node n, Widget block)? wrapBlock;
+
+  /// Dresses list item [item] (its ordinal in document order, a parent before its nested items) of top-level block
+  /// [block], a list: the item's own text and nested items, without its bullet. A list is then no block for [wrapBlock]
+  /// to dress (the caller leaves it out there): its items are the targets.
+  final Widget Function(int block, int item, Widget content, double bullet)?
+  wrapItem;
+
+  /// A tap on the bullet of such an item, which [wrapItem]'s widget does not hold.
+  final void Function(int block, int item)? tapItem;
+
+  /// Ids of marks that are painted but not links (a quick label shows on its paragraph, which a tap targets; a link in
+  /// its text keeps its own tap): the badge opens the comment.
+  final Set<String> inertMarks;
 
   /// The selection of top-level block [i] is reported to this notifier: an offset Flutter gives inside one block
   /// stays near the rendered one, where across the file code and bullets push it away. Null: nothing is reported.
@@ -272,11 +317,28 @@ class _FileMarkdownState extends State<FileMarkdown>
       color: c.foreground,
       backgroundColor: c.border,
     );
+    // an item's content is drawn under a `section` (a block with no builder of its own, which would take the item's
+    // text), in the item's text style
+    sheet.styles['section'] = sheet.styles['li'];
     final nodes = widget.parse(widget.text);
-    wrapMarks(nodes, renderedText(nodes), widget.marks);
+    wrapMarks(
+      nodes,
+      renderedText(nodes),
+      widget.marks,
+      inert: widget.inertMarks,
+    );
     final builders = markdownBuilders(onMark: widget.onMark)
       ..['nbbadge'] = _BadgeBuilder(widget.onMark);
-    List<Widget> build(md.Node n) => MarkdownBuilder(
+    // an item's content is drawn again by its own builder, where the chat wraps it: the Markdown package draws a list
+    // item's bullet and content as one row, with no way to wrap the content alone
+    final wrapItem = widget.wrapItem, tapItem = widget.tapItem;
+    final bulletWidth = sheet.listIndent! + sheet.listBulletPadding!.horizontal;
+    final itemOf =
+        <md.Element, int>{}; // the items of the list being drawn, by element
+    final drawn = <md.Element, Widget>{};
+    var block = -1, bulletOf = -1;
+    late final Map<String, MarkdownElementBuilder> withItems;
+    List<Widget> build(md.Node n, {bool items = false}) => MarkdownBuilder(
       delegate: this,
       selectable: false,
       softLineBreak: widget.softLineBreak,
@@ -285,31 +347,74 @@ class _FileMarkdownState extends State<FileMarkdown>
       imageBuilder: null,
       checkboxBuilder: null,
       // a bullet is not text of the file: a selection across list items must match the rendered text
-      bulletBuilder: (p) => SelectionContainer.disabled(
-        child: Text(
-          p.style == BulletStyle.unorderedList ? '•' : '${p.index + 1}.',
-          textAlign: p.style == BulletStyle.unorderedList
-              ? TextAlign.center
-              : TextAlign.right,
-          style: sheet.listBullet,
-        ),
-      ),
-      builders: builders,
+      bulletBuilder: (p) {
+        final bullet = SelectionContainer.disabled(
+          child: Text(
+            p.style == BulletStyle.unorderedList ? '•' : '${p.index + 1}.',
+            textAlign: p.style == BulletStyle.unorderedList
+                ? TextAlign.center
+                : TextAlign.right,
+            style: sheet.listBullet,
+          ),
+        );
+        final item = bulletOf;
+        bulletOf = -1;
+        final at = block;
+        return item < 0 || tapItem == null
+            ? bullet
+            : GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                excludeFromSemantics: true,
+                onTap: () => tapItem(at, item),
+                child: bullet,
+              );
+      },
+      builders: items ? withItems : builders,
       paddingBuilders: const {},
       listItemCrossAxisAlignment: MarkdownListItemCrossAxisAlignment.baseline,
     ).build([n]);
+    withItems = {
+      ...builders,
+      'li': _ItemBuilder((e) {
+        final at = itemOf[e];
+        if (at == null || wrapItem == null) return null;
+        final content = drawn[e] ??= wrapItem(
+          block,
+          at,
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: build(md.Element('section', e.children), items: true),
+          ),
+          bulletWidth,
+        );
+        // after the content: a nested list's bullets, drawn with it, take theirs
+        bulletOf = at;
+        return content;
+      }),
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final (i, n) in nodes.indexed) ...[
           if (i > 0) SizedBox(height: sheet.blockSpacing),
           () {
-            final block = Column(
+            block = i;
+            bulletOf = -1;
+            final inList = wrapItem != null && isListNode(n);
+            if (inList) {
+              itemOf.clear();
+              drawn.clear();
+              for (final (k, li) in listItems(n).indexed) {
+                itemOf[li] = k;
+              }
+            }
+            final drawnBlock = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: build(n),
+              children: build(n, items: inList),
             );
             final wrap = widget.wrapBlock;
-            final dressed = wrap == null ? block : wrap(i, n, block);
+            final dressed = wrap == null ? drawnBlock : wrap(i, n, drawnBlock);
             final at = widget.listenerAt;
             return at == null
                 ? dressed

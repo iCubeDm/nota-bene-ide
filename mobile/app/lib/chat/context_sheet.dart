@@ -1,6 +1,8 @@
 // The context sheet of a phone chat (opened from the header ring): what the window uses. The context in tokens, the plan
-// limits with their resets, the session's cost, idle compaction, and two tiles (compact, stats). A row the window does
-// not report is left out. The pieces are the window sheet's (its tiles, its limit rows, its commands).
+// limits with their resets, the session's cost, idle compaction, and three tiles (compact, clear, stats). A row the window
+// does not report is left out. The pieces are the window sheet's (its tiles, its limit rows, its commands). Compact and
+// clear send what the desktop's do, under the same conditions (web/src/controls/CompactClear.tsx): off while the agent
+// works, absent when the agent cannot.
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -194,6 +196,18 @@ class ContextSheet extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                   ],
+                  if (caps?.clear ?? true) ...[
+                    Expanded(
+                      child: SheetTile(
+                        NbGlyph.clear,
+                        t.tileClear,
+                        tooltip: webString('clearTip', lang),
+                        enabled: open && !tab.busy,
+                        onTap: () => _clear(context),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   Expanded(
                     child: SheetTile(
                       NbGlyph.usage,
@@ -218,6 +232,38 @@ class ContextSheet extends StatelessWidget {
       );
     },
   );
+
+  Future<void> _clear(BuildContext context) async {
+    final t = AppLocalizations.of(context);
+    final lang = Localizations.localeOf(context).languageCode;
+    final messenger = ScaffoldMessenger.maybeOf(outer);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(webString('clearTitle', lang)),
+        content: Text(webString('clearQ', lang)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: Text(t.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: Text(webString('clearBtn', lang)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (context.mounted) Navigator.pop(context);
+    // the agent can turn busy while the dialog is open (another window sent): say so, as the desktop does
+    final why = runWindowCommand(tab, ClientMessageCommandName.clear, lang);
+    if (why != null) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text(webString('clearFail', lang) + why)),
+      );
+    }
+  }
 }
 
 class _Bar extends StatelessWidget {

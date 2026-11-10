@@ -7,7 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/chat_header.dart';
 import 'package:nb_app/chat/markdown.dart' show launchLink;
+import 'package:nb_app/chat/feed.dart' show AssistantItem;
 import 'package:nb_app/chat/message_menu.dart' show barLabels;
+import 'package:nb_app/chat/paragraph.dart';
+import 'package:nb_app/l10n/app_localizations.dart';
 import 'package:nb_app/comments/chat_anchor.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -35,7 +38,8 @@ void main() {
   );
 
   Future<void> tapPara(WidgetTester t, String start) async {
-    await t.tap(find.textContaining(start));
+    // a paragraph that carries a comment is also a line of the Comments pane
+    await t.tap(find.textContaining(start).first);
     await t.pumpAndSettle();
   }
 
@@ -107,9 +111,31 @@ void main() {
     expect(bubble, findsOneWidget);
   });
 
-  testWidgets('a label comments the paragraph; the snackbar can undo it', (
-    t,
-  ) async {
+  /// What was announced to the accessibility channel, as the messages it carries.
+  List<String> announcements(WidgetTester t) {
+    final said = <String>[];
+    t.binding.defaultBinaryMessenger.setMockDecodedMessageHandler<dynamic>(
+      SystemChannels.accessibility,
+      (m) async {
+        if (m is Map && m['type'] == 'announce') {
+          said.add((m['data'] as Map)['message'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => t.binding.defaultBinaryMessenger
+          .setMockDecodedMessageHandler<dynamic>(
+            SystemChannels.accessibility,
+            null,
+          ),
+    );
+    return said;
+  }
+
+  testWidgets('a label comments the paragraph, with no snackbar, and TalkBack '
+      'hears it', (t) async {
+    final said = announcements(t);
     await open(t);
     await tapPara(t, 'The hold');
     await t.tap(
@@ -125,13 +151,68 @@ void main() {
     expect(a.end, text.indexOf(second) + second.length);
     expect((a.source as AnchorSourceMessage).id, 'a1');
     expect(bubble, findsNothing);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(said, [
+      '${quickLabels[2].emoji} ${quickLabels[2].text['en']} added',
+    ]);
+  });
+
+  testWidgets('the same label again on the same paragraph removes it, and '
+      'TalkBack hears that', (t) async {
+    final said = announcements(t);
+    await open(t);
+    final emoji = quickLabels[2].emoji;
+    Future<void> choose(String para, String e) async {
+      await tapPara(t, para);
+      await t.tap(find.descendant(of: bubble, matching: find.text(e)));
+      await t.pumpAndSettle();
+    }
+
+    await choose('The hold', emoji);
+    expect(r.tab!.comments.pending, hasLength(1));
+    // another label, or another paragraph, adds its own
+    await choose('The hold', quickLabels[1].emoji);
+    await choose('Tests are', emoji);
+    expect(r.tab!.comments.pending, hasLength(3));
+    await choose('The hold', emoji);
+    final left = r.tab!.comments.pending;
+    expect(left, hasLength(2));
     expect(
-      find.text('${quickLabels[2].emoji} ${quickLabels[2].text['en']} added'),
-      findsOneWidget,
+      left.where((c) => (c.anchor as TextAnchor).quote == second).single.label,
+      quickLabels[1].id,
     );
-    await t.tap(find.text('Undo'));
+    expect(said.last, '$emoji ${quickLabels[2].text['en']} removed');
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('a label on a list item toggles per item', (t) async {
+    await open(t, text: '- alpha one\n- beta two');
+    final e = barLabels[0].emoji;
+    for (final para in ['alpha one', 'beta two', 'alpha one']) {
+      await tapPara(t, para);
+      await t.tap(find.descendant(of: bubble, matching: find.text(e)));
+      await t.pumpAndSettle();
+    }
+    expect(r.tab!.comments.pending.map((c) => (c.anchor as TextAnchor).quote), [
+      'beta two',
+    ]);
+  });
+
+  testWidgets('a typed comment with the same label is not taken away by the '
+      'label', (t) async {
+    await open(t);
+    await tapPara(t, 'The hold');
+    await t.tap(barButton('Comment'));
     await t.pumpAndSettle();
-    expect(r.tab!.comments.all, isEmpty);
+    await t.enterText(find.byType(TextField).last, 'why?');
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    await tapPara(t, 'The hold');
+    await t.tap(
+      find.descendant(of: bubble, matching: find.text(barLabels[0].emoji)),
+    );
+    await t.pumpAndSettle();
+    expect(r.tab!.comments.pending, hasLength(2));
   });
 
   testWidgets('the chevron grows the bubble into all eleven, named, and Less '
@@ -384,13 +465,11 @@ void main() {
     expect(t.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('the Undo snackbar goes by itself and floats clear of the '
+  testWidgets('the Copy snackbar goes by itself and floats clear of the '
       'message field', (t) async {
     await open(t);
     await tapPara(t, 'The hold');
-    await t.tap(
-      find.descendant(of: bubble, matching: find.text(quickLabels[1].emoji)),
-    );
+    await t.tap(barButton('Copy'));
     await t.pumpAndSettle(const Duration(milliseconds: 100));
     final snack = find.byType(SnackBar);
     expect(snack, findsOneWidget);
@@ -413,5 +492,278 @@ void main() {
     expect(bubble, findsNothing);
     expect(find.byType(TextField), findsOneWidget);
     expect(find.byKey(const ValueKey('para-target:a1:1')), findsNothing);
+  });
+
+  testWidgets('a link in a labelled paragraph still opens', (t) async {
+    final opened = <Uri>[];
+    launchLink = (u) async {
+      opened.add(u);
+      return true;
+    };
+    addTearDown(() => launchLink = (u) async => false);
+    await open(t, text: 'See [the docs](https://example.com/d) now\n\nOther');
+    // the first word: the middle of the line is the link
+    await t.tapAt(
+      t.getTopLeft(find.textContaining('See').first) + const Offset(4, 8),
+    );
+    await t.pumpAndSettle();
+    await t.tap(
+      find.descendant(of: bubble, matching: find.text(barLabels[0].emoji)),
+    );
+    await t.pumpAndSettle();
+    expect(r.tab!.comments.pending, hasLength(1));
+    await t.tap(find.textContaining('the docs').first);
+    await t.pumpAndSettle();
+    expect(opened.single.host, 'example.com');
+    expect(find.byType(BottomSheet), findsNothing);
+  });
+
+  testWidgets('two chats with the same reply ids hold no duplicate keys', (
+    t,
+  ) async {
+    await open(t, text: '- alpha one\n- beta two');
+    // the second chat, in the same tree, with the same ids
+    final item = r.tab!.feed.items.last;
+    final a = ParagraphTargets(r.tab!), b = ParagraphTargets(r.tab!);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    final assistant = item as AssistantItem;
+    Widget block(ParagraphTargets x) => ParagraphHost(
+      targets: x,
+      child: Column(
+        children: [
+          ParagraphBlock(
+            key: x.itemKey('a1', 1, 0),
+            targets: x,
+            item: assistant,
+            block: 1,
+            li: 0,
+            child: const Text('item'),
+          ),
+        ],
+      ),
+    );
+    final theme = Theme.of(t.element(find.byType(Scaffold).first));
+    await t.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(body: Column(children: [block(a), block(b)])),
+      ),
+    );
+    expect(t.takeException(), isNull);
+  });
+
+  group('list items are targets of their own', () {
+    const list =
+        'Intro line.\n\n- alpha one\n- beta two\n  - nested gamma\n- delta four';
+    // pre-order: alpha 0, beta 1, nested gamma 2, delta 3 (the list is block 1)
+    ValueKey<String> target(int li) => ValueKey('para-target:a1:1.$li');
+
+    String? copied;
+    void mockClipboard(WidgetTester t) {
+      t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+    }
+
+    testWidgets('a tap on an item targets that item, not the whole list', (
+      t,
+    ) async {
+      await open(t, text: list);
+      await tapPara(t, 'alpha one');
+      expect(bubble, findsOneWidget);
+      expect(find.byKey(target(0)), findsOneWidget);
+      expect(find.byKey(const ValueKey('para-target:a1:1')), findsNothing);
+      final tint = t.getRect(find.byKey(target(0)));
+      final item = t.getRect(find.textContaining('alpha one'));
+      expect(tint.height, lessThan(item.height + 12));
+      expect(t.getRect(bubble).bottom, lessThanOrEqualTo(item.top));
+      expect(t.getRect(bar).top, greaterThanOrEqualTo(item.bottom));
+      // another item moves the target
+      await tapPara(t, 'delta four');
+      expect(find.byKey(target(0)), findsNothing);
+      expect(find.byKey(target(3)), findsOneWidget);
+    });
+
+    testWidgets('the highlight reaches left over the bullet', (t) async {
+      await open(t, text: list);
+      await tapPara(t, 'alpha one');
+      expect(
+        t.getRect(find.byKey(target(0))).left,
+        lessThan(t.getRect(find.textContaining('alpha one')).left - 12),
+      );
+    });
+
+    testWidgets('a tap on the bullet targets its item', (t) async {
+      await open(t, text: list);
+      final text = t.getRect(find.textContaining('delta four'));
+      await t.tapAt(Offset(text.left - 14, text.center.dy));
+      await t.pumpAndSettle();
+      expect(find.byKey(target(3)), findsOneWidget);
+    });
+
+    testWidgets('a tap on a nested item\'s bullet targets the nested item', (
+      t,
+    ) async {
+      await open(t, text: list);
+      final text = t.getRect(find.textContaining('nested gamma'));
+      await t.tapAt(Offset(text.left - 14, text.center.dy));
+      await t.pumpAndSettle();
+      expect(find.byKey(target(2)), findsOneWidget);
+    });
+
+    testWidgets('a bullet tap names its own item among nested ones', (t) async {
+      await open(
+        t,
+        text: '- one\n  - one a\n  - one b\n- two\n  - two a\n- three',
+      );
+      // pre-order: one 0, one a 1, one b 2, two 3, two a 4, three 5
+      for (final (text, li) in [
+        ('one b', 2),
+        ('two a', 4),
+        ('three', 5),
+        ('two', 3),
+      ]) {
+        final rect = t.getRect(find.text(text));
+        await t.tapAt(Offset(rect.left - 14, rect.center.dy));
+        await t.pumpAndSettle();
+        expect(
+          find.byKey(ValueKey('para-target:a1:0.$li')),
+          findsOneWidget,
+          reason: text,
+        );
+      }
+    });
+
+    testWidgets('a nested item is its own target, the parent covers its '
+        'nested items', (t) async {
+      mockClipboard(t);
+      await open(t, text: list);
+      await tapPara(t, 'nested gamma');
+      expect(find.byKey(target(2)), findsOneWidget);
+      expect(find.byKey(target(1)), findsNothing);
+      await t.tap(barButton('Copy'));
+      await t.pumpAndSettle();
+      expect(copied, 'nested gamma');
+      await tapPara(t, 'beta two');
+      expect(find.byKey(target(1)), findsOneWidget);
+      final parent = t.getRect(find.byKey(target(1)));
+      expect(
+        parent.bottom,
+        greaterThanOrEqualTo(t.getRect(find.textContaining('nested')).bottom),
+      );
+      await t.tap(barButton('Copy'));
+      await t.pumpAndSettle();
+      expect(copied, 'beta two nested gamma');
+    });
+
+    testWidgets('a label and Comment anchor the item\'s own range', (t) async {
+      await open(t, text: list);
+      await tapPara(t, 'delta four');
+      await t.tap(
+        find.descendant(of: bubble, matching: find.text(quickLabels[2].emoji)),
+      );
+      await t.pumpAndSettle();
+      final text = chatText(r.tab!.feed.items.last).text;
+      var a = r.tab!.comments.all.single.anchor as TextAnchor;
+      expect(a.quote, 'delta four');
+      expect((a.start, a.end), (text.indexOf('delta four'), text.length));
+      await tapPara(t, 'beta two');
+      await t.tap(barButton('Comment'));
+      await t.pumpAndSettle();
+      await t.enterText(find.byType(TextField).last, 'why?');
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      a = r.tab!.comments.all.last.anchor as TextAnchor;
+      expect(a.quote, 'beta two nested gamma');
+      expect(a.start, text.indexOf('beta two'));
+      expect(a.end, text.indexOf('delta four') - 1);
+    });
+
+    testWidgets('an ordered list works the same', (t) async {
+      mockClipboard(t);
+      await open(t, text: 'Steps:\n\n1. first step\n2. second step');
+      await tapPara(t, 'second step');
+      expect(find.byKey(target(1)), findsOneWidget);
+      await t.tap(barButton('Copy'));
+      await t.pumpAndSettle();
+      expect(copied, 'second step');
+    });
+
+    testWidgets('the comment on an item is painted at it with its number', (
+      t,
+    ) async {
+      await open(t, text: list);
+      await tapPara(t, 'alpha one');
+      await t.tap(
+        find.descendant(of: bubble, matching: find.text(quickLabels[1].emoji)),
+      );
+      await t.pumpAndSettle();
+      final c = r.tab!.comments.all.single;
+      expect(find.byKey(ValueKey('badge:${c.id}')), findsOneWidget);
+    });
+
+    testWidgets('a link in an item keeps its own tap', (t) async {
+      final opened = <Uri>[];
+      launchLink = (u) async {
+        opened.add(u);
+        return true;
+      };
+      addTearDown(() => launchLink = (u) async => false);
+      await open(t, text: '- see [the docs](https://example.com/d)\n- other');
+      await t.tap(find.textContaining('the docs').first);
+      await t.pumpAndSettle();
+      expect(opened.single.host, 'example.com');
+      expect(bubble, findsNothing);
+    });
+
+    testWidgets('every item is a button with Comment for TalkBack', (t) async {
+      final h = t.ensureSemantics();
+      await open(t, text: list);
+      final root =
+          t.binding.renderViews.first.owner!.semanticsOwner!.rootSemanticsNode!;
+      final buttons = walk(root)
+          .where(
+            (n) =>
+                n.getSemanticsData().flagsCollection.isButton &&
+                (n.getSemanticsData().customSemanticsActionIds ?? [])
+                    .isNotEmpty,
+          )
+          .map((n) => n.getSemanticsData())
+          .toList();
+      // the intro, and four items (the nested one inside the second)
+      expect(buttons, hasLength(5));
+      for (final d in buttons) {
+        expect(d.hasAction(SemanticsAction.tap), isTrue);
+      }
+      expect(
+        buttons.where((d) => d.label.contains('nested gamma')),
+        hasLength(1), // its own node: the parent's does not hold it
+      );
+      h.dispose();
+    });
+
+    testWidgets('a tap inside a list in a quote is not an item target', (
+      t,
+    ) async {
+      await open(t, text: '> quoted text\n> - inner one');
+      await tapPara(t, 'quoted text');
+      expect(bubble, findsOneWidget);
+      expect(find.byKey(const ValueKey('para-target:a1:0')), findsOneWidget);
+    });
   });
 }

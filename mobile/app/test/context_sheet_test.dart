@@ -209,6 +209,94 @@ void main() {
     expect(find.text('Stats'), findsOneWidget);
   });
 
+  Future<void> confirmClear(WidgetTester t) async {
+    await t.tap(find.text('Clear'));
+    await t.pumpAndSettle();
+  }
+
+  testWidgets('Clear asks first and sends only on its button', (t) async {
+    await r.open(t);
+    await r.openContextSheet(t);
+    await t.tap(find.text('Clear'));
+    await t.pumpAndSettle();
+    expect(find.text(webString('clearTitle', 'en')), findsOneWidget);
+    expect(r.sent, isEmpty);
+    await t.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await t.pumpAndSettle();
+    expect(r.sent, isEmpty);
+    await t.tap(find.text('Clear'));
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
+    await t.pumpAndSettle();
+    expect(r.sent.single, {'type': 'command', 'name': 'clear'});
+    expect(find.byType(ContextSheet), findsNothing);
+  });
+
+  testWidgets('Clear sits between Compact and Stats', (t) async {
+    await r.open(t);
+    await r.openContextSheet(t);
+    double x(String s) => t.getCenter(find.text(s)).dx;
+    expect(x('Compact'), lessThan(x('Clear')));
+    expect(x('Clear'), lessThan(x('Stats')));
+  });
+
+  testWidgets('Clear refused while the agent works: the web\'s note', (
+    t,
+  ) async {
+    await r.open(t);
+    await r.openContextSheet(t);
+    await confirmClear(t);
+    r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
+    await t.pump();
+    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
+    await t.pumpAndSettle();
+    expect(r.sent, isEmpty);
+    expect(
+      find.text(webString('clearFail', 'en') + webString('working', 'en')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Clear refused offline: the web\'s note', (t) async {
+    await r.open(t);
+    await r.openContextSheet(t);
+    await confirmClear(t);
+    r.ch.drop();
+    await t.pump();
+    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
+    await t.pumpAndSettle();
+    expect(
+      find.text(webString('clearFail', 'en') + webString('offline', 'en')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Clear is off while the agent works', (t) async {
+    await r.open(t);
+    await r.openContextSheet(t);
+    r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
+    await t.pumpAndSettle();
+    await t.tap(find.text('Clear'));
+    await t.pumpAndSettle();
+    expect(find.text(webString('clearTitle', 'en')), findsNothing);
+    expect(r.sent, isEmpty);
+  });
+
+  testWidgets('no Clear when the agent cannot', (t) async {
+    await r.open(
+      t,
+      hello: {
+        'kind': 'hello',
+        'protocol': 13,
+        'capabilities': Rig.caps(clear: false),
+      },
+    );
+    await r.openContextSheet(t);
+    expect(find.text('Clear'), findsNothing);
+    expect(find.text('Compact'), findsOneWidget);
+    expect(find.text('Stats'), findsOneWidget);
+  });
+
   testWidgets('Stats opens the usage screen', (t) async {
     await r.open(t);
     await r.openContextSheet(t);

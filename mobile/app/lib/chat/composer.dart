@@ -3,6 +3,7 @@
 // desktop does; a send the window refuses gives its text back. A draft is written whenever; the send waits for a tab
 // that owns a live window.
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException, Uint8List;
@@ -40,6 +41,9 @@ class _Draft {
 
 /// The mic, Send and the paperclip inside the field.
 const _button = 40.0;
+
+/// The space around the action button (and between it and the paperclip: 8 beside it, the paperclip's own).
+const _inset = 3.0;
 
 class Composer extends StatefulWidget {
   const Composer({super.key, required this.tab, this.controller, this.focus});
@@ -313,8 +317,9 @@ class _ComposerState extends State<Composer> {
           _drafts.isNotEmpty;
       final canSend = open && !uploading && !_failed && hasContent;
       final recording = _session.active;
-      // the mic while there is nothing to send, Send otherwise; a window older than protocol 14 has no voice
-      final mic = widget.tab.voiceProtocol && (!hasContent || recording);
+      // the mic while there is nothing to send, Send otherwise; a window older than protocol 14 has no voice: its mic
+      // is greyed and says why on a tap, not missing
+      final mic = !hasContent || recording;
       return PopScope(
         // a recording is never dropped by a back press: it is asked about
         canPop: !recording,
@@ -346,6 +351,27 @@ class _ComposerState extends State<Composer> {
     },
   );
 
+  /// The old host's mic says why it does nothing: a snackbar floating above the message field, not over it.
+  void _micOldSnack(BuildContext ctx, String text) {
+    final messenger = ScaffoldMessenger.maybeOf(ctx);
+    final scaffold = Scaffold.maybeOf(ctx)?.context.findRenderObject();
+    final box = context.findRenderObject();
+    var bottom = 8.0;
+    if (messenger == null) return;
+    if (scaffold is RenderBox && box is RenderBox && box.hasSize) {
+      final end = scaffold.localToGlobal(Offset.zero).dy + scaffold.size.height;
+      bottom = math.max(8, end - box.localToGlobal(Offset.zero).dy + 8);
+    }
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(8, 0, 8, bottom),
+      ),
+    );
+  }
+
   /// The rounded field with everything inside it: the text, then the paperclip (only while there is no text) and at the
   /// right the mic, which becomes Send once there is something to send. A recording takes the text's place. While the
   /// agent works a grey Stop floats 12 above the right button.
@@ -374,7 +400,7 @@ class _ComposerState extends State<Composer> {
         disabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
         isDense: true,
-        contentPadding: const EdgeInsets.fromLTRB(16, 14, 4, 14),
+        contentPadding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
       ),
     );
     final trailing = AnimatedSwitcher(
@@ -383,7 +409,20 @@ class _ComposerState extends State<Composer> {
         scale: anim,
         child: FadeTransition(opacity: anim, child: child),
       ),
-      child: mic
+      child: mic && !widget.tab.voiceProtocol
+          ? IconButton(
+              key: const ValueKey('mic-old'),
+              tooltip: t.micUnavailable,
+              icon: const NbIcon(NbGlyph.mic),
+              style: IconButton.styleFrom(
+                fixedSize: const Size.square(_button),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: Colors.transparent,
+                foregroundColor: c.mutedFg.withValues(alpha: .6),
+              ),
+              onPressed: () => _micOldSnack(context, t.micNeedsUpdate),
+            )
+          : mic
           ? RecordButton(
               key: const ValueKey('mic'),
               session: _session,
@@ -430,7 +469,14 @@ class _ComposerState extends State<Composer> {
                   maintainState: true,
                   maintainSize: true,
                   maintainAnimation: true,
-                  child: field,
+                  // one line is as tall as the action button and its insets, centred in it, so that the controls beside
+                  // it are centred too; more lines grow it
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: _button + 2 * _inset,
+                    ),
+                    child: Align(alignment: Alignment.centerLeft, child: field),
+                  ),
                 ),
                 if (recording)
                   Positioned.fill(
@@ -445,7 +491,7 @@ class _ComposerState extends State<Composer> {
           if (!typed && !recording)
             Padding(
               key: const ValueKey('attach-slot'),
-              padding: const EdgeInsets.only(bottom: 3),
+              padding: const EdgeInsets.fromLTRB(0, _inset, 8 - _inset, _inset),
               child: IconButton(
                 key: const ValueKey('attach'),
                 tooltip: t.attach,
@@ -460,7 +506,7 @@ class _ComposerState extends State<Composer> {
           // keyed: the button (and a recording in it) survives the paperclip leaving the row
           Padding(
             key: const ValueKey('trailing-slot'),
-            padding: const EdgeInsets.fromLTRB(0, 3, 4, 3),
+            padding: const EdgeInsets.all(_inset),
             child: CompositedTransformTarget(link: _trailing, child: trailing),
           ),
           // the layout of the row does not change: the portal floats over the feed. Only the hold hides it (the big
