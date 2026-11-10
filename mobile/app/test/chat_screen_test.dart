@@ -99,7 +99,8 @@ void main() {
     expect(find.text('Run the tests'), findsOneWidget);
     expect(find.textContaining('npm test'), findsOneWidget);
     expect(find.textContaining('green'), findsOneWidget);
-    expect(find.textContaining('12 s'), findsOneWidget);
+    // a turn that ended well leaves no line: the header says when it was done
+    expect(find.textContaining('12 s'), findsNothing);
     expect(find.text('42 passed'), findsNothing);
     await t.tap(find.textContaining('npm test'));
     await t.pumpAndSettle();

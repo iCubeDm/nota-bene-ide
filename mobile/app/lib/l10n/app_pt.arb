@@ -45,10 +45,7 @@
   "cancel": "Cancelar",
   "copy": "Copiar",
   "showEarlier": "Mostrar anteriores",
-  "working": "Trabalhando…",
-  "windowGone": "A janela fechou ou reiniciou; aguardando ela voltar",
   "idleCompact": "Compactado após um período ocioso",
-  "turnDone": "Concluído em {time}",
   "turnInterrupted": "Parado após {time}",
   "turnFailed": "Falhou após {time} {error}",
   "markerCompacted": "Contexto compactado",
@@ -210,5 +207,65 @@
   "renameNoteOnly": "O nome fica guardado só neste telefone.",
   "reset": "Redefinir",
   "darkThemes": "Temas escuros",
-  "lightThemes": "Temas claros"
+  "lightThemes": "Temas claros",
+  "stateOnline": "online",
+  "stateOnlineDone": "online · concluído às {time}",
+  "@stateOnlineDone": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWorking": "trabalhando",
+  "stateWorkingPhase": "trabalhando · {phase} · {elapsed}",
+  "@stateWorkingPhase": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      },
+      "elapsed": {
+        "type": "String"
+      }
+    }
+  },
+  "phaseReading": "lendo arquivos",
+  "phaseSearching": "pesquisando",
+  "phaseEditing": "editando",
+  "phaseRunning": "executando comandos",
+  "phaseDelegating": "delegando",
+  "stateWaitingAnswer": "aguardando sua resposta",
+  "stateCompacting": "compactando contexto…",
+  "stateConnecting": "conectando…",
+  "stateOffline": "offline",
+  "stateOfflineSeen": "offline · visto {ago}",
+  "@stateOfflineSeen": {
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWaitingWindow": "aguardando a janela…",
+  "contextTitle": "Contexto",
+  "contextTokens": "{pct}% · {used} de {max} tokens",
+  "@contextTokens": {
+    "placeholders": {
+      "pct": {
+        "type": "String"
+      },
+      "used": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "costTitle": "Esta sessão",
+  "idleCompactTitle": "Compactar em repouso",
+  "idleCompactBody": "Após o turno, com o cache ainda quente",
+  "idleCompactBlocked": "Desativado nas configurações do agente",
+  "windowGoneTitle": "A janela foi fechada ou reiniciada",
+  "windowGoneBody": "Aguardando a volta"
 }

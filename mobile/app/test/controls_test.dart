@@ -27,14 +27,14 @@ void main() {
     await t.pumpAndSettle();
   }
 
-  testWidgets('the window sheet: compact is disabled while busy', (t) async {
+  testWidgets('the context sheet: compact is disabled while busy', (t) async {
     await r.open(
       t,
       events: [
         {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
       ],
     );
-    await menu(t);
+    await r.openContextSheet(t);
     await t.tap(find.text('Compact'));
     await t.pumpAndSettle();
     expect(r.sent, isEmpty);
@@ -42,7 +42,7 @@ void main() {
 
   testWidgets('compact sends the command', (t) async {
     await r.open(t);
-    await menu(t);
+    await r.openContextSheet(t);
     await t.tapText('Compact');
     expect(r.sent.single, {'type': 'command', 'name': 'compact'});
   });

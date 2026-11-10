@@ -103,39 +103,48 @@ void main() {
     expect(find.text('untitled'), findsOneWidget);
   });
 
-  testWidgets('the context makes one meter; the limits are not in the header', (
-    t,
-  ) async {
-    final h = t.ensureSemantics();
-    await rig.open(t, events: [session(title: 'x')]);
-    expect(find.bySemanticsLabel(RegExp(r'^context ')), findsNothing);
-    rig.event({
-      'kind': 'stats',
-      'stats': {
-        'context': {'used': 1, 'max': 2, 'pct': 42.4},
-        'limits': {
-          'five_hour': {'utilization': 42},
-          'seven_day': {'utilization': 7.4},
+  testWidgets(
+    'the context is a ring with its percent; the limits are not in the header',
+    (t) async {
+      final h = t.ensureSemantics();
+      await rig.open(t, events: [session(title: 'x')]);
+      // no context reported: no ring
+      expect(find.byKey(const ValueKey('context-ring')), findsNothing);
+      rig.event({
+        'kind': 'stats',
+        'stats': {
+          'context': {'used': 1, 'max': 2, 'pct': 42.4},
+          'limits': {
+            'five_hour': {'utilization': 42},
+            'seven_day': {'utilization': 7.4},
+          },
         },
-      },
-    });
-    await t.pumpAndSettle();
-    expect(find.bySemanticsLabel('context 42%'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'^(5h|week) ')), findsNothing);
-    rig.event(context(130));
-    await t.pumpAndSettle();
-    expect(find.bySemanticsLabel('context 100%'), findsOneWidget);
-    h.dispose();
-  });
+      });
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('context-ring')), findsOneWidget);
+      expect(
+        t.getSize(find.byKey(const ValueKey('context-ring'))),
+        const Size(40, 40),
+      );
+      expect(find.text('42'), findsOneWidget);
+      expect(find.bySemanticsLabel('Context 42%'), findsOneWidget);
+      expect(find.text('5 hours'), findsNothing);
+      rig.event(context(130));
+      await t.pumpAndSettle();
+      expect(find.bySemanticsLabel('Context 100%'), findsOneWidget);
+      h.dispose();
+    },
+  );
 
-  testWidgets('no context yet: just the mode', (t) async {
+  testWidgets('the mode is not in the pill: it is under Chat', (t) async {
     await modeHeader(t, ['default', 'plan'], 'plan');
-    expect(find.text(webString('mode_plan', 'en')), findsOneWidget);
-    expect(find.byKey(const ValueKey('fill-ctx')), findsNothing);
-    rig.event(context(10));
-    await t.pumpAndSettle();
-    expect(find.byKey(const ValueKey('fill-ctx')), findsOneWidget);
-    expect(find.text('10%'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ChatHeader),
+        matching: find.text(webString('mode_plan', 'en')),
+      ),
+      findsNothing,
+    );
     expect(find.text(webString('mode_plan', 'en')), findsOneWidget);
   });
 
@@ -206,58 +215,71 @@ void main() {
     expect(find.text('go'), findsOneWidget);
   });
 
-  Color fill(WidgetTester t, String key) =>
-      (t.widget<DecoratedBox>(find.byKey(ValueKey('fill-$key'))).decoration
-              as BoxDecoration)
-          .color!;
   NbColors colors(WidgetTester t) =>
       Theme.of(t.element(find.byType(ChatHeader))).extension<NbColors>()!;
-  Color? pctColor(WidgetTester t, String s) =>
-      t.widget<Text>(find.text(s)).style!.color;
+  Color ringColor(WidgetTester t) =>
+      (t
+                      .widget<CustomPaint>(
+                        find.byKey(const ValueKey('context-ring')),
+                      )
+                      .painter!
+                  as dynamic)
+              .color
+          as Color;
 
-  testWidgets(
-    'the context meter takes the web\'s levels: 60 warns, 85 is hot',
-    (t) async {
-      await rig.open(t, events: [session(title: 'x')]);
-      final c = colors(t);
-      Future<void> set(num pct) async {
-        rig.event(context(pct));
-        await t.pumpAndSettle();
-      }
-
-      await set(59);
-      expect(fill(t, 'ctx'), c.primary);
-      expect(pctColor(t, '59%'), c.mutedFg);
-      await set(60);
-      expect(fill(t, 'ctx'), c.accent);
-      await set(84);
-      expect(fill(t, 'ctx'), c.accent);
-      await set(85);
-      expect(fill(t, 'ctx'), c.destructive);
-      expect(pctColor(t, '85%'), c.destructive);
-      await set(0);
-      expect(fill(t, 'ctx'), c.primary);
-    },
-  );
-
-  testWidgets(
-    'the meter shows no word; a screen reader hears the web\'s, in the app language',
-    (t) async {
-      t.platformDispatcher.localesTestValue = const [Locale('ru')];
-      addTearDown(t.platformDispatcher.clearLocalesTestValue);
-      final h = t.ensureSemantics();
-      await rig.open(t, events: [session(title: 'x')]);
-      rig.event(context(42));
+  testWidgets('the ring is primary below 70, accent from 70, danger from 90', (
+    t,
+  ) async {
+    await rig.open(t, events: [session(title: 'x')]);
+    final c = colors(t);
+    Future<void> set(num pct) async {
+      rig.event(context(pct));
       await t.pumpAndSettle();
-      final word = webString('ctx', 'ru');
-      expect(word, isNot('context'));
-      // the word is not shown, only said
-      expect(find.text(word), findsNothing);
-      expect(find.text('42%'), findsOneWidget);
-      expect(find.bySemanticsLabel('$word 42%'), findsOneWidget);
-      h.dispose();
-    },
-  );
+    }
+
+    await set(0);
+    expect(ringColor(t), c.primary);
+    await set(69);
+    expect(ringColor(t), c.primary);
+    await set(70);
+    expect(ringColor(t), c.accent);
+    await set(89);
+    expect(ringColor(t), c.accent);
+    await set(90);
+    expect(ringColor(t), c.destructive);
+  });
+
+  testWidgets('without a live link the ring dims and keeps its value', (
+    t,
+  ) async {
+    await rig.open(t, events: [session(title: 'x')]);
+    rig.event(context(72));
+    await t.pumpAndSettle();
+    double opacity() => t
+        .widget<Opacity>(
+          find.ancestor(
+            of: find.byKey(const ValueKey('context-ring')),
+            matching: find.byType(Opacity),
+          ),
+        )
+        .opacity;
+    expect(opacity(), 1);
+    rig.ch.drop();
+    await t.pumpAndSettle();
+    expect(opacity(), lessThan(1));
+    expect(find.text('72'), findsOneWidget);
+  });
+
+  testWidgets('the ring says its name in the app language', (t) async {
+    t.platformDispatcher.localesTestValue = const [Locale('ru')];
+    addTearDown(t.platformDispatcher.clearLocalesTestValue);
+    final h = t.ensureSemantics();
+    await rig.open(t, events: [session(title: 'x')]);
+    rig.event(context(42));
+    await t.pumpAndSettle();
+    expect(find.bySemanticsLabel('Контекст 42%'), findsOneWidget);
+    h.dispose();
+  });
 
   testWidgets('a large text scale does not overflow the pill', (t) async {
     t.platformDispatcher.textScaleFactorTestValue = 2.0;
@@ -268,7 +290,7 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('the context meter and a long mode fit 320 dp', (t) async {
+  testWidgets('the ring and a long mode fit 320 dp', (t) async {
     t.view.physicalSize = const Size(320, 640);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
@@ -276,6 +298,6 @@ void main() {
     rig.event(context(100));
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
-    expect(find.text('100%'), findsOneWidget);
+    expect(find.text('100'), findsOneWidget);
   });
 }

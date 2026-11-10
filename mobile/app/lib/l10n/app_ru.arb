@@ -45,10 +45,7 @@
   "cancel": "Отмена",
   "copy": "Копировать",
   "showEarlier": "Показать раньше",
-  "working": "Работает…",
-  "windowGone": "Окно закрылось или перезапускается; ждём его возвращения",
   "idleCompact": "Сжато после паузы",
-  "turnDone": "Готово за {time}",
   "turnInterrupted": "Остановлено через {time}",
   "turnFailed": "Ошибка через {time} {error}",
   "markerCompacted": "Контекст сжат",
@@ -210,5 +207,65 @@
   "renameNoteOnly": "Имя хранится только на этом телефоне.",
   "reset": "Сбросить",
   "darkThemes": "Тёмные темы",
-  "lightThemes": "Светлые темы"
+  "lightThemes": "Светлые темы",
+  "stateOnline": "в сети",
+  "stateOnlineDone": "в сети · готово в {time}",
+  "@stateOnlineDone": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWorking": "работает",
+  "stateWorkingPhase": "работает · {phase} · {elapsed}",
+  "@stateWorkingPhase": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      },
+      "elapsed": {
+        "type": "String"
+      }
+    }
+  },
+  "phaseReading": "читает файлы",
+  "phaseSearching": "ищет",
+  "phaseEditing": "правит",
+  "phaseRunning": "запускает команды",
+  "phaseDelegating": "делегирует",
+  "stateWaitingAnswer": "ждёт вашего ответа",
+  "stateCompacting": "сжимает контекст…",
+  "stateConnecting": "подключение…",
+  "stateOffline": "не в сети",
+  "stateOfflineSeen": "не в сети · был {ago}",
+  "@stateOfflineSeen": {
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWaitingWindow": "ждём окно…",
+  "contextTitle": "Контекст",
+  "contextTokens": "{pct}% · {used} из {max} токенов",
+  "@contextTokens": {
+    "placeholders": {
+      "pct": {
+        "type": "String"
+      },
+      "used": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "costTitle": "Эта сессия",
+  "idleCompactTitle": "Сжимать в простое",
+  "idleCompactBody": "После хода, пока кэш тёплый",
+  "idleCompactBlocked": "Выключено в настройках агента",
+  "windowGoneTitle": "Окно закрылось или перезапускается",
+  "windowGoneBody": "Ждём, пока оно вернётся"
 }

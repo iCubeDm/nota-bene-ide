@@ -1,7 +1,8 @@
-// The window settings sheet of a phone chat (opened from the header pill): the session and its folder, the model and
-// effort, the permission mode, the plan limits and four tiles (compact, clear, restart, stats). Each control sends what
-// the desktop's sends, under the same conditions (web/src/controls/CompactClear.tsx, ModePill.tsx): compact and clear
-// are off while the agent works and absent when the agent cannot; restart is always there.
+// The window sheet of a phone chat (opened from the header pill): what the window does: the session and its folder, the
+// model and effort, one row per permission mode, and two tiles (clear, restart). What it uses (context, limits, cost,
+// compact, stats) is the context sheet's. Each control sends what
+// the desktop's sends, under the same conditions (web/src/controls/CompactClear.tsx, ModePill.tsx): clear is off while
+// the agent works and absent when the agent cannot; restart is always there.
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -10,7 +11,6 @@ import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
-import '../usage/usage_screen.dart';
 import 'chat_header.dart';
 import 'controls.dart';
 import 'window_tab.dart';
@@ -73,9 +73,6 @@ class WindowSheet extends StatelessWidget {
       final busy = tab.busy;
       final modes = offeredModes(tab);
       final mode = shownMode(tab);
-      final limits = tab.stats?.stats.limits;
-      final five = limits?.fiveHour;
-      final week = limits?.sevenDay;
       final label = TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
@@ -129,78 +126,21 @@ class WindowSheet extends StatelessWidget {
                 gap,
                 Text(t.windowSheetMode, style: label),
                 const SizedBox(height: 6),
-                SegmentedButton<AgentMode>(
-                  showSelectedIcon: false,
-                  emptySelectionAllowed: true,
-                  segments: [
-                    for (final m in modes)
-                      ButtonSegment(
-                        value: m,
-                        label: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            twoLines(modeLabel(tab, m, lang)),
-                            maxLines: 2,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                  ],
-                  selected: {?mode},
-                  onSelectionChanged: open
-                      ? (s) {
-                          if (s.isNotEmpty) tab.setMode(s.first);
-                        }
-                      : null,
-                ),
-                if (mode != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    modeDescription(tab, mode, lang),
-                    style: TextStyle(fontSize: 12, color: c.mutedFg),
+                for (final m in modes)
+                  _ModeRow(
+                    name: modeLabel(tab, m, lang),
+                    description: modeDescription(tab, m, lang),
+                    selected: m == mode,
+                    danger: modeWithoutPrompts(m),
+                    onTap: open ? () => tab.setMode(m) : null,
                   ),
-                ],
-              ],
-              if (five != null || week != null) ...[
-                gap,
-                Text(t.limitsTitle, style: label),
-                const SizedBox(height: 8),
-                if (five != null) _LimitRow(t.limit5h, five, lang),
-                if (five != null && week != null) const SizedBox(height: 10),
-                if (week != null) _LimitRow(t.limitWeek, week, lang),
               ],
               gap,
               Row(
                 children: [
-                  if (caps?.compact ?? true) ...[
-                    Expanded(
-                      child: _Tile(
-                        NbGlyph.compact,
-                        t.tileCompact,
-                        tooltip: webString('compactTip', lang),
-                        enabled: open && !busy,
-                        onTap: () {
-                          // the web shows no note for a refused Compact; the phone says why, as it does for Clear
-                          final messenger = ScaffoldMessenger.maybeOf(outer);
-                          Navigator.pop(context);
-                          final why = runWindowCommand(
-                            tab,
-                            ClientMessageCommandName.compact,
-                            lang,
-                          );
-                          if (why != null) {
-                            messenger?.showSnackBar(
-                              SnackBar(content: Text(why)),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
                   if (caps?.clear ?? true) ...[
                     Expanded(
-                      child: _Tile(
+                      child: SheetTile(
                         NbGlyph.clear,
                         t.tileClear,
                         tooltip: webString('clearTip', lang),
@@ -211,7 +151,7 @@ class WindowSheet extends StatelessWidget {
                     const SizedBox(width: 8),
                   ],
                   Expanded(
-                    child: _Tile(
+                    child: SheetTile(
                       NbGlyph.restart,
                       t.tileRestart,
                       enabled: open,
@@ -219,23 +159,6 @@ class WindowSheet extends StatelessWidget {
                         if (await askRestart(context, tab) && context.mounted) {
                           Navigator.pop(context);
                         }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _Tile(
-                      NbGlyph.usage,
-                      t.tileStats,
-                      enabled: open && (caps?.usage ?? true),
-                      onTap: () {
-                        final nav = Navigator.of(outer);
-                        Navigator.pop(context);
-                        nav.push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => UsageScreen(tab: tab),
-                          ),
-                        );
                       },
                     ),
                   ),
@@ -278,6 +201,68 @@ class WindowSheet extends StatelessWidget {
         SnackBar(content: Text(webString('clearFail', lang) + why)),
       );
     }
+  }
+}
+
+/// One permission mode: its name over its description in a row at least 48 tall, a check on the current one. A mode
+/// that never asks (it is in the danger colour) says so by its colour before it is chosen.
+class _ModeRow extends StatelessWidget {
+  const _ModeRow({
+    required this.name,
+    required this.description,
+    required this.selected,
+    required this.danger,
+    required this.onTap,
+  });
+  final String name, description;
+  final bool selected, danger;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    return Semantics(
+      selected: selected,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: danger ? c.destructive : c.foreground,
+                        ),
+                      ),
+                      Text(
+                        description,
+                        style: TextStyle(fontSize: 12, color: c.mutedFg),
+                      ),
+                    ],
+                  ),
+                ),
+                if (selected)
+                  Icon(
+                    Icons.check,
+                    size: 20,
+                    color: danger ? c.destructive : c.primary,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -335,8 +320,8 @@ class _ModelRow extends StatelessWidget {
 }
 
 /// One plan limit: its label and the percent (with the reset time when it has one), over a bar in the header's colours.
-class _LimitRow extends StatelessWidget {
-  const _LimitRow(this.label, this.limit, this.lang);
+class LimitRow extends StatelessWidget {
+  const LimitRow(this.label, this.limit, this.lang, {super.key});
   final String label;
   final Limit limit;
   final String lang;
@@ -391,13 +376,14 @@ class _LimitRow extends StatelessWidget {
   }
 }
 
-class _Tile extends StatelessWidget {
-  const _Tile(
+class SheetTile extends StatelessWidget {
+  const SheetTile(
     this.glyph,
     this.label, {
     required this.enabled,
     required this.onTap,
     this.tooltip,
+    super.key,
   });
   final NbGlyph glyph;
   final String label;
@@ -437,17 +423,4 @@ class _Tile extends StatelessWidget {
     );
     return tooltip == null ? tile : Tooltip(message: tooltip!, child: tile);
   }
-}
-
-/// A name of several words on two lines, split at the space nearest its middle ("Accept edits" over two lines), so a
-/// segment stands taller rather than shrinking the words.
-String twoLines(String s) {
-  final mid = s.length / 2;
-  int? at;
-  for (var i = 0; i < s.length; i++) {
-    if (s[i] == ' ' && (at == null || (i - mid).abs() < (at - mid).abs())) {
-      at = i;
-    }
-  }
-  return at == null ? s : '${s.substring(0, at)}\n${s.substring(at + 1)}';
 }

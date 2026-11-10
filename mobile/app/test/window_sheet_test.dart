@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/window_sheet.dart';
-import 'package:nb_protocol/nb_protocol.dart';
 import 'package:nb_app/comments/strings.g.dart';
-import 'package:nb_app/usage/usage_screen.dart';
+import 'package:nb_app/theme.dart';
 
 import 'controls_test.dart' show models;
 import 'support/rig.dart';
@@ -60,40 +59,58 @@ void main() {
     expect(find.text('/home/u/notes'), findsOneWidget);
   });
 
-  testWidgets('one segment per mode, the current selected, its description', (
+  Finder rowOf(String text) => find.ancestor(
+    of: inSheet(find.text(text)),
+    matching: find.byType(InkWell),
+  );
+
+  testWidgets('one row per mode with its description; a tap asks for it', (
     t,
   ) async {
     await sheet(t);
     r.event({'kind': 'mode', 'mode': 'plan'});
     await t.pumpAndSettle();
-    final seg = t.widget<SegmentedButton<dynamic>>(
-      find.byWidgetPredicate((w) => w is SegmentedButton),
-    );
-    expect(seg.segments, hasLength(2));
-    expect(seg.selected.single.toString(), contains('plan'));
+    expect(find.byWidgetPredicate((w) => w is SegmentedButton), findsNothing);
+    expect(find.text(webString('mode_default_desc', 'en')), findsOneWidget);
     expect(find.text(webString('mode_plan_desc', 'en')), findsOneWidget);
+    final plan = rowOf(webString('mode_plan', 'en'));
+    final dflt = rowOf(webString('mode_default', 'en'));
+    expect(t.getSize(plan.first).height, greaterThanOrEqualTo(48));
+    // the current one carries the check
+    expect(
+      find.descendant(of: plan.first, matching: find.byIcon(Icons.check)),
+      findsOneWidget,
+    );
     await t.tap(find.text(webString('mode_default', 'en')));
     await t.pumpAndSettle();
     final m = r.sent.single;
     expect((m['type'], m['mode']), ('mode', 'default'));
     // the shown mode follows the server's event, not the tap
-    expect(find.text(webString('mode_plan_desc', 'en')), findsOneWidget);
+    expect(
+      find.descendant(of: plan.first, matching: find.byIcon(Icons.check)),
+      findsOneWidget,
+    );
     r.event({'kind': 'mode', 'mode': 'default', 'ack': m['id']});
     await t.pumpAndSettle();
-    expect(find.text(webString('mode_default_desc', 'en')), findsOneWidget);
+    expect(
+      find.descendant(of: dflt.first, matching: find.byIcon(Icons.check)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: plan.first, matching: find.byIcon(Icons.check)),
+      findsNothing,
+    );
   });
 
-  testWidgets('a mode of two words stands on two lines in its segment', (
-    t,
-  ) async {
-    t.view.physicalSize = const Size(360, 800);
-    t.view.devicePixelRatio = 1;
-    addTearDown(t.view.reset);
-    await sheet(t, hi: hello(modes: ['default', 'acceptEdits', 'plan']));
-    final label = webString('mode_acceptEdits', 'en');
-    expect(label, contains(' '));
-    expect(find.text(twoLines(label)), findsOneWidget);
-    expect(t.takeException(), isNull);
+  testWidgets('modes without prompts are in the danger colour', (t) async {
+    await sheet(t, hi: hello(modes: ['default', 'auto']));
+    final danger = Theme.of(
+      t.element(find.byType(WindowSheet)),
+    ).extension<NbColors>()!.destructive;
+    Color? colorOf(String key) =>
+        t.widget<Text>(inSheet(find.text(webString(key, 'en')))).style?.color;
+    expect(colorOf('mode_auto'), danger);
+    expect(colorOf('mode_default'), isNot(danger));
   });
 
   testWidgets('the host\'s mode descriptors name the modes (not Codex)', (
@@ -111,7 +128,7 @@ void main() {
     );
     r.event({'kind': 'mode', 'mode': 'default'});
     await t.pumpAndSettle();
-    expect(inSheet(find.text(twoLines('Ask first'))), findsOneWidget);
+    expect(inSheet(find.text('Ask first')), findsOneWidget);
     expect(find.text('Asks a lot'), findsOneWidget);
   });
 
@@ -135,7 +152,7 @@ void main() {
     expect(find.text('Host name'), findsNothing);
     expect(find.text('Host description'), findsNothing);
     expect(
-      inSheet(find.text(twoLines(webString('mode_codex-read-only', 'en')))),
+      inSheet(find.text(webString('mode_codex-read-only', 'en'))),
       findsOneWidget,
     );
     expect(
@@ -163,48 +180,6 @@ void main() {
     expect(inSheet(find.text('Model')), findsOneWidget);
     expect(inSheet(find.text('sonnet')), findsOneWidget);
     expect(inSheet(find.text('Model and effort')), findsNothing);
-  });
-
-  testWidgets('limits show as two bars, none without stats', (t) async {
-    await sheet(t);
-    expect(find.text('Plan limits'), findsNothing);
-    r.event({
-      'kind': 'stats',
-      'stats': {
-        'limits': {
-          'five_hour': {'utilization': 34},
-          'seven_day': {'utilization': 62, 'resets_at': 'garbage'},
-        },
-      },
-    });
-    await t.pumpAndSettle();
-    expect(find.text('Plan limits'), findsOneWidget);
-    expect(find.text('5 hours'), findsOneWidget);
-    expect(find.text('Week'), findsOneWidget);
-    expect(inSheet(find.text('34%')), findsOneWidget);
-    expect(inSheet(find.text('62%')), findsOneWidget);
-  });
-
-  testWidgets('a reset another day shows the weekday and the time', (t) async {
-    await sheet(t);
-    r.event({
-      'kind': 'stats',
-      'stats': {
-        'limits': {
-          'seven_day': {'utilization': 62, 'resets_at': '2030-01-02T17:30:00'},
-        },
-      },
-    });
-    await t.pumpAndSettle();
-    expect(inSheet(find.text('62% · resets Wed 17:30')), findsOneWidget);
-  });
-
-  testWidgets('Compact sends the command and closes the sheet', (t) async {
-    await sheet(t);
-    await t.tap(find.text('Compact'));
-    await t.pumpAndSettle();
-    expect(r.sent.single, {'type': 'command', 'name': 'compact'});
-    expect(find.byType(WindowSheet), findsNothing);
   });
 
   testWidgets('Clear asks first and sends only on its button', (t) async {
@@ -258,26 +233,6 @@ void main() {
     );
   });
 
-  testWidgets('Compact refused offline says why', (t) async {
-    await sheet(t);
-    r.ch.drop();
-    await t.tap(find.text('Compact'));
-    await t.pumpAndSettle();
-    expect(find.text(webString('offline', 'en')), findsOneWidget);
-  });
-
-  testWidgets('Compact refused while the agent works says why', (t) async {
-    await sheet(t);
-    r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
-    await t.pump();
-    final tab = r.tab!;
-    expect(
-      runWindowCommand(tab, ClientMessageCommandName.compact, 'en'),
-      webString('working', 'en'),
-    );
-    expect(r.sent, isEmpty);
-  });
-
   testWidgets('Restart asks, then sends', (t) async {
     await sheet(t);
     await t.tap(find.text('Restart'));
@@ -288,22 +243,13 @@ void main() {
     expect(r.sent.single, {'type': 'restart'});
   });
 
-  testWidgets('Stats opens the usage screen', (t) async {
-    await sheet(t);
-    await t.tap(find.text('Stats'));
-    await t.pump();
-    await t.pump(const Duration(seconds: 1));
-    expect(find.byType(UsageScreen), findsOneWidget);
-  });
-
-  testWidgets('busy: Compact and Clear are off, Restart is not', (t) async {
+  testWidgets('busy: Clear is off, Restart is not', (t) async {
     await sheet(
       t,
       events: [
         {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
       ],
     );
-    await t.tap(find.text('Compact'));
     await t.tap(find.text('Clear'));
     await t.pumpAndSettle();
     expect(find.text(webString('clearTitle', 'en')), findsNothing);
@@ -313,12 +259,16 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
   });
 
-  testWidgets('no Compact or Clear when the agent cannot', (t) async {
-    await sheet(t, hi: hello(compact: false, clear: false));
-    expect(find.text('Compact'), findsNothing);
-    expect(find.text('Clear'), findsNothing);
-    expect(find.text('Restart'), findsOneWidget);
-  });
+  testWidgets(
+    'no Clear when the agent cannot; Compact and Stats are not here',
+    (t) async {
+      await sheet(t, hi: hello(compact: false, clear: false));
+      expect(find.text('Compact'), findsNothing);
+      expect(find.text('Stats'), findsNothing);
+      expect(find.text('Clear'), findsNothing);
+      expect(find.text('Restart'), findsOneWidget);
+    },
+  );
 
   testWidgets('the model row shows the model and opens the model sheet', (
     t,

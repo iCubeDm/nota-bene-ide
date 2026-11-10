@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:nb_app/theme.dart';
 import 'package:nb_app/voice/record_button.dart';
 import 'package:nb_app/voice/record_row.dart';
 import 'package:nb_app/voice/player.dart';
@@ -106,20 +107,23 @@ void main() {
     expect(r.sent.single, {'type': 'interrupt'});
   });
 
-  testWidgets('offline disables sending and shows the last-seen time', (
-    t,
-  ) async {
-    await r.open(t);
-    r.ch.drop();
-    await t.pumpAndSettle();
-    expect(textIn('Offline'), findsWidgets);
-    final field = t.widget<TextField>(find.byType(TextField));
-    expect(field.enabled, isFalse);
-    expect(
-      t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
-      isNull,
-    );
-  });
+  testWidgets(
+    'offline keeps the draft and greys Send; the hint stays Message',
+    (t) async {
+      await r.open(t);
+      r.ch.drop();
+      await t.pumpAndSettle();
+      final field = t.widget<TextField>(find.byType(TextField));
+      expect(field.enabled, isNot(false));
+      expect(field.decoration!.hintText, 'Message');
+      await t.enter('still writing');
+      expect(find.text('still writing'), findsOneWidget);
+      expect(
+        t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
+        isNull,
+      );
+    },
+  );
 
   testWidgets('send is always there, disabled while there is nothing to send', (
     t,
@@ -222,13 +226,13 @@ void main() {
         await openVoice(t);
         expect(find.byType(RecordButton), findsOneWidget);
         expect(find.byKey(const ValueKey('send')), findsNothing);
-        expect(t.getSize(find.byType(RecordButton)), const Size(48, 48));
+        expect(t.getSize(find.byType(RecordButton)), const Size(40, 40));
         await t.enter('x');
         await t.pumpAndSettle();
         expect(find.byType(RecordButton), findsNothing);
         expect(
           t.getSize(find.byKey(const ValueKey('send'))),
-          const Size(48, 48),
+          const Size(40, 40),
         );
         await t.enter('');
         await t.pumpAndSettle();
@@ -270,28 +274,53 @@ void main() {
     );
 
     testWidgets(
-      'the paperclip is in the field, and moves to its top once the text wraps',
+      'attach and mic are inside the field; typing hides attach and the mic becomes Send inside it',
       (t) async {
         await openVoice(t);
-        final clip = find.byKey(const ValueKey('attach'));
         final field = find.byType(TextField);
-        expect(t.getCenter(clip).dy, greaterThan(t.getTopLeft(field).dy));
-        expect(
-          t.getCenter(clip).dx,
-          greaterThan(t.getBottomRight(field).dx - 60),
-        );
+        final box = find.ancestor(of: field, matching: find.byType(Container));
+        final inside = t.getRect(box.first);
+        final clip = find.byKey(const ValueKey('attach'));
+        final mic = find.byType(RecordButton);
+        expect(inside.contains(t.getCenter(clip)), isTrue);
+        expect(inside.contains(t.getCenter(mic)), isTrue);
         await t.enter('word ' * 80);
         await t.pumpAndSettle();
-        expect(
-          t.getBottomLeft(clip).dy,
-          lessThanOrEqualTo(t.getTopLeft(field).dy + 1),
-        );
-        // the text has the field's full width below it
-        await t.enter('short');
+        expect(clip, findsNothing);
+        expect(mic, findsNothing);
+        final send = find.byKey(const ValueKey('send'));
+        expect(t.getRect(box.first).contains(t.getCenter(send)), isTrue);
+        await t.enter('');
         await t.pumpAndSettle();
-        expect(t.getCenter(clip).dy, greaterThan(t.getTopLeft(field).dy));
+        expect(clip, findsOneWidget);
+        expect(mic, findsOneWidget);
       },
     );
+
+    testWidgets('Stop floats 12 above Send and takes no room from the feed', (
+      t,
+    ) async {
+      await openVoice(t);
+      final before = t.getSize(find.byKey(const ValueKey('composer')));
+      expect(find.byKey(const ValueKey('stop')), findsNothing);
+      r.event({'kind': 'user', 'id': 'u9', 'text': 'go', 'ts': 1});
+      await t.pump();
+      await t.pump();
+      await t.pump();
+      final stop = find.byKey(const ValueKey('stop'));
+      expect(stop, findsOneWidget);
+      expect(t.getSize(stop), const Size(44, 44));
+      expect(t.getSize(find.byKey(const ValueKey('composer'))), before);
+      final mic = find.byType(RecordButton);
+      expect(t.getTopLeft(mic).dy - t.getBottomLeft(stop).dy, 12);
+      expect(t.getCenter(stop).dx, t.getCenter(mic).dx);
+      final c = Theme.of(t.element(stop)).extension<NbColors>()!;
+      final style = t.widget<IconButton>(stop).style!;
+      expect(style.backgroundColor!.resolve({}), c.muted);
+      await t.tap(stop);
+      await t.pump();
+      expect(r.sent.last, {'type': 'interrupt'});
+    });
 
     testWidgets(
       'a recording is uploaded, then sent as a voice message, with the pending bubble between',
@@ -340,7 +369,7 @@ void main() {
         expect(find.byTooltip('Stop'), findsOneWidget);
         expect(
           t.getSize(find.byKey(const ValueKey('stop'))),
-          const Size(40, 40),
+          const Size(44, 44),
         );
         expect(find.byType(RecordButton), findsOneWidget);
         await record(t);

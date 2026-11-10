@@ -37,7 +37,7 @@ enum _Press { none, pending, holding }
 
 class _RecordButtonState extends State<RecordButton> {
   static const _holdFor = Duration(milliseconds: 150);
-  static const _size = 48.0, _big = 96.0;
+  static const _size = 40.0, _big = 96.0;
 
   final _link = LayerLink();
   Timer? _holdTimer;

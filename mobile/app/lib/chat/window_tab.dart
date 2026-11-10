@@ -51,6 +51,12 @@ AgentMode? shownMode(WindowTab tab) {
   return m != null && modes.length >= 2 && modes.contains(m) ? m : null;
 }
 
+/// The modes that act without asking (the user is not prompted): shown in the danger colour.
+bool modeWithoutPrompts(AgentMode m) =>
+    m == AgentMode.auto ||
+    m == AgentMode.codexFullAccess ||
+    m == AgentMode.ompYolo;
+
 /// A mode's name as the web's mode pill shows it (ModePill.tsx): the host's own for any provider but Codex, else the
 /// web's string.
 String modeLabel(WindowTab tab, AgentMode m, String lang) =>
@@ -151,6 +157,18 @@ class WindowTab extends ChangeNotifier {
       state == TabState.open &&
       (whisperOn ?? capabilities?.dictation == 'whisper');
   ServerEventStats? stats;
+
+  /// The server's idle-compaction state of this project (`idle-compact` event); null until it says.
+  IdleCompact? idleCompact;
+
+  /// When the last turn ended in this tab's sight (null after a fresh replay: the feed carries no times).
+  DateTime? lastDoneAt;
+
+  /// When the agent was first seen working in this run of work; null while it is not.
+  DateTime? busySince;
+
+  /// The clock of [lastDoneAt], [busySince] and the header's elapsed time; replaced in tests.
+  DateTime Function() clock = DateTime.now;
 
   final _refusals = StreamController<ServerEventSendRefused>.broadcast();
   final _errors = StreamController<ServerEventServerError>.broadcast();
@@ -264,6 +282,20 @@ class WindowTab extends ChangeNotifier {
   }
 
   void _event(ServerEvent e) {
+    final wasBusy = feed.busy;
+    _apply(e);
+    if (feed.busy && !wasBusy) busySince = clock();
+    if (!feed.busy) busySince = null;
+    if (wasBusy &&
+        !feed.busy &&
+        e is ServerEventAgent &&
+        e.e is WireAgentEventTurnEnd) {
+      lastDoneAt = clock();
+    }
+    _notify();
+  }
+
+  void _apply(ServerEvent e) {
     switch (e) {
       case ServerEventReplay():
         _retrying.clear();
@@ -306,6 +338,8 @@ class WindowTab extends ChangeNotifier {
         this.effort = effort;
       case ServerEventStats():
         stats = e;
+      case ServerEventIdleCompact(:final state):
+        idleCompact = state;
       case ServerEventComments(:final items):
         comments.apply(items);
       case ServerEventSendRefused(:final id):
@@ -325,7 +359,6 @@ class WindowTab extends ChangeNotifier {
       default:
         feed.apply(e);
     }
-    _notify();
   }
 
   bool _raw(ClientMessage m) {
@@ -340,6 +373,24 @@ class WindowTab extends ChangeNotifier {
 
   /// Asks for permission mode [m]; the shown [mode] changes when the server's `mode` event arrives. False when it did not go.
   bool setMode(AgentMode m) => send(ClientMessageMode(mode: m, id: uuidV4()));
+
+  /// Turns idle compaction on or off; the shown state follows at once, as the desktop's does. False when it did not go.
+  bool toggleIdleCompact() {
+    final st = idleCompact;
+    if (st == null) return false;
+    final sent = send(ClientMessageIdleCompact(on: !st.on));
+    if (sent) {
+      idleCompact = IdleCompact(
+        on: !st.on,
+        blocked: st.blocked,
+        minutes: st.minutes,
+        awayMinutes: st.awayMinutes,
+        minTokens: st.minTokens,
+      );
+      _notify();
+    }
+    return sent;
+  }
 
   bool _loadingEarlier = false;
 
@@ -374,6 +425,18 @@ class WindowTab extends ChangeNotifier {
     } finally {
       _loadingEarlier = false;
     }
+  }
+
+  /// Opens the window's socket again by hand, for a window that went and has not come back on its own. The phone cannot
+  /// start a window (the protocol has no such request), so this is only another try at reaching it.
+  void reopen() {
+    final ch = link.channel;
+    if (_state != TabState.gone ||
+        ch == null ||
+        link.state != LinkState.online) {
+      return;
+    }
+    _open(ch);
   }
 
   /// Work here: from occupied, at once; from taken, on a new socket whose occupied is answered with takeover.

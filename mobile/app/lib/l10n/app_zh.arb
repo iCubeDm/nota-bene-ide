@@ -45,10 +45,7 @@
   "cancel": "取消",
   "copy": "复制",
   "showEarlier": "显示更早的内容",
-  "working": "正在工作…",
-  "windowGone": "窗口已关闭或正在重启，等待其恢复",
   "idleCompact": "空闲一段时间后已压缩",
-  "turnDone": "用时 {time} 完成",
   "turnInterrupted": "{time} 后停止",
   "turnFailed": "{time} 后失败 {error}",
   "markerCompacted": "上下文已压缩",
@@ -210,5 +207,65 @@
   "renameNoteOnly": "该名称仅保存在这部手机上。",
   "reset": "重置",
   "darkThemes": "深色主题",
-  "lightThemes": "浅色主题"
+  "lightThemes": "浅色主题",
+  "stateOnline": "在线",
+  "stateOnlineDone": "在线 · {time} 完成",
+  "@stateOnlineDone": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWorking": "工作中",
+  "stateWorkingPhase": "工作中 · {phase} · {elapsed}",
+  "@stateWorkingPhase": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      },
+      "elapsed": {
+        "type": "String"
+      }
+    }
+  },
+  "phaseReading": "读取文件",
+  "phaseSearching": "搜索",
+  "phaseEditing": "编辑",
+  "phaseRunning": "运行命令",
+  "phaseDelegating": "委派任务",
+  "stateWaitingAnswer": "等待你的回答",
+  "stateCompacting": "正在压缩上下文…",
+  "stateConnecting": "正在连接…",
+  "stateOffline": "离线",
+  "stateOfflineSeen": "离线 · 最后在线 {ago}",
+  "@stateOfflineSeen": {
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWaitingWindow": "等待窗口…",
+  "contextTitle": "上下文",
+  "contextTokens": "{pct}% · {used} / {max} 个令牌",
+  "@contextTokens": {
+    "placeholders": {
+      "pct": {
+        "type": "String"
+      },
+      "used": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "costTitle": "本次会话",
+  "idleCompactTitle": "空闲时压缩",
+  "idleCompactBody": "在回合结束后、缓存仍有效时",
+  "idleCompactBlocked": "已在代理设置中关闭",
+  "windowGoneTitle": "窗口已关闭或正在重启",
+  "windowGoneBody": "正在等待其恢复"
 }

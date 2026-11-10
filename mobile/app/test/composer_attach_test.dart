@@ -136,8 +136,8 @@ void main() {
 
   testWidgets('a refused send gives both images back', (t) async {
     await open(t);
-    await t.enter('look');
     await attach(t, 'Gallery');
+    await t.enter('look');
     await t.tap(find.byKey(const ValueKey('send')));
     await t.pumpAndSettle();
     expect(thumbs, findsNothing);
