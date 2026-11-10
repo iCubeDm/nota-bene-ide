@@ -217,6 +217,98 @@ class _PromptCardState extends State<PromptCard> {
     () => TextEditingController()..addListener(() => setState(() {})),
   );
 
+  /// The chosen options (indices) are state of their own, so an option label may hold a comma; the field's text is
+  /// only what the user typed.
+  final _picks = <String, List<int>>{};
+
+  String _valueOf(InteractionFieldsItem f) {
+    final options = f.options ?? const <String>[];
+    if (options.isEmpty) return _field(f.id).text;
+    final typed = _field(f.id).text.trim();
+    return [
+      for (final i in _picks[f.id] ?? const <int>[]) options[i],
+      if (typed.isNotEmpty) typed,
+    ].join(', ');
+  }
+
+  void _pick(InteractionFieldsItem f, int i) {
+    final picked = _picks[f.id] ?? const <int>[];
+    setState(() {
+      if (f.multi == true) {
+        _picks[f.id] = picked.contains(i)
+            ? picked.where((v) => v != i).toList()
+            : [...picked, i];
+      } else {
+        _picks[f.id] = picked.length == 1 && picked.first == i ? [] : [i];
+        _field(f.id).clear();
+      }
+    });
+  }
+
+  Widget _fieldView(InteractionFieldsItem f, NbColors c) {
+    final options = f.options ?? const <String>[];
+    final picked = _picks[f.id] ?? const <int>[];
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (f.header != null && f.header!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                f.header!,
+                style: TextStyle(fontSize: 12, color: c.mutedFg),
+              ),
+            ),
+          TextField(
+            controller: _field(f.id),
+            obscureText: f.secret == true,
+            autocorrect: false,
+            onChanged: (_) {
+              if (f.multi != true && picked.isNotEmpty) _picks[f.id] = [];
+            },
+            decoration: InputDecoration(
+              labelText: f.label,
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+          for (var i = 0; i < options.length; i++)
+            Semantics(
+              checked: picked.contains(i),
+              inMutuallyExclusiveGroup: f.multi != true,
+              child: Material(
+                type: MaterialType.transparency,
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    picked.contains(i)
+                        ? (f.multi == true
+                              ? Icons.check_box
+                              : Icons.radio_button_checked)
+                        : (f.multi == true
+                              ? Icons.check_box_outline_blank
+                              : Icons.radio_button_unchecked),
+                    color: picked.contains(i) ? c.accent : c.mutedFg,
+                  ),
+                  title: Text(options[i]),
+                  subtitle:
+                      (f.notes != null &&
+                          i < f.notes!.length &&
+                          f.notes![i].isNotEmpty)
+                      ? Text(f.notes![i])
+                      : null,
+                  onTap: () => _pick(f, i),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -225,7 +317,7 @@ class _PromptCardState extends State<PromptCard> {
     final settled = p.answer != null || p.archived;
     final fields = prompt.fields ?? const [];
     final missing = fields.any(
-      (f) => f.required == true && _field(f.id).text.trim().isEmpty,
+      (f) => f.required == true && _valueOf(f).trim().isEmpty,
     );
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -262,23 +354,7 @@ class _PromptCardState extends State<PromptCard> {
               ),
             )
           else ...[
-            for (final f in fields)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: TextField(
-                  controller: _field(f.id),
-                  obscureText: f.secret == true,
-                  autocorrect: false,
-                  decoration: InputDecoration(
-                    labelText: f.label,
-                    helperText: (f.options ?? const []).isEmpty
-                        ? null
-                        : f.options!.join(' · '),
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                ),
-              ),
+            for (final f in fields) _fieldView(f, c),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
@@ -300,7 +376,7 @@ class _PromptCardState extends State<PromptCard> {
                                     ? null
                                     : {
                                         for (final f in fields)
-                                          f.id: _field(f.id).text,
+                                          f.id: _valueOf(f),
                                       },
                               ),
                             ),

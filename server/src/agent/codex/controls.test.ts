@@ -9,6 +9,11 @@ it('Codex profiles never reinterpret Claude modes', () => {
 it('preserves variable limit windows rather than assuming five hours', () => {
   expect(limits({ rateLimits: { primary: { usedPercent: 23, windowDurationMins: 120, resetsAt: 10 } } })).toMatchObject([{ utilization: 23, minutes: 120 }]);
 });
+it('a Codex question passes its header and option descriptions to the prompt', async () => {
+  let seen: unknown;
+  await answerNative({ id: 1, method: 'item/tool/requestUserInput', params: { questions: [{ id: 'q', header: 'Pick', question: 'Which?', options: [{ label: 'A', description: 'first' }, { label: 'B', description: '' }] }] } }, new AbortController().signal, { ...opts, interact: async (p) => (seen = p, { choice: 'cancel' }) });
+  expect(seen).toMatchObject({ fields: [{ id: 'q', header: 'Pick', options: ['A', 'B'], notes: ['first', ''] }] });
+});
 it('returns actual user answers and exact original approval amendments', async () => {
   const signal = new AbortController().signal;
   expect(await answerNative({ id: 1, method: 'item/tool/requestUserInput', params: { questions: [{ id: 'q', question: 'Which?' }] } }, signal, { ...opts, interact: async () => ({ choice: 'submit', values: { q: 'blue' } }) })).toEqual({ answers: { q: { answers: ['blue'] } } });

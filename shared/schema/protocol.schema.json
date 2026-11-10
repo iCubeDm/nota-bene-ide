@@ -647,13 +647,26 @@
           "type": "array"
         },
         "fields": {
+          "description": "`header`: a short tag over the label; `notes[i]`: the description of `options[i]`; `multi`: several options may be picked (the value is their labels, comma-separated)",
           "items": {
             "properties": {
+              "header": {
+                "type": "string"
+              },
               "id": {
                 "type": "string"
               },
               "label": {
                 "type": "string"
+              },
+              "multi": {
+                "type": "boolean"
+              },
+              "notes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
               },
               "options": {
                 "items": {
@@ -677,6 +690,10 @@
           "type": "array"
         },
         "title": {
+          "type": "string"
+        },
+        "tool": {
+          "description": "the tool the ask is for, when the title is not its name; the audit log and the permission event's toolName use it",
           "type": "string"
         },
         "url": {

@@ -61,7 +61,7 @@ export class PermissionBroker {
         (['deny', 'decline', 'cancel'].includes(a.choice) || (prompt.fields ?? []).every((f) => !f.required || !!a.values?.[f.id]?.trim())) &&
         Object.keys(a.values ?? {}).every((k) => prompt.fields?.some((f) => f.id === k) === true) });
       signal.addEventListener('abort', abort, { once: true });
-      this.o.emit({ kind: 'permission', id, toolName: prompt.title, input, prompt });
+      this.o.emit({ kind: 'permission', id, toolName: prompt.tool ?? prompt.title, input, prompt });
     });
   }
 
