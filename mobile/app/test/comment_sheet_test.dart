@@ -191,6 +191,28 @@ void main() {
     expect(find.byType(BottomSheet), findsOneWidget);
   });
 
+  testWidgets(
+    'the handle follows the finger and springs back when released short',
+    (t) async {
+      await open(t);
+      final top = t.getTopLeft(find.text('a quote')).dy;
+      final g = await t.startGesture(t.getCenter(handle));
+      await g.moveBy(const Offset(0, 40));
+      await t.pump();
+      expect(t.getTopLeft(find.text('a quote')).dy, greaterThan(top + 20));
+      await g.up();
+      await t.pumpAndSettle();
+      expect(t.getTopLeft(find.text('a quote')).dy, top);
+      expect(find.byType(BottomSheet), findsOneWidget);
+    },
+  );
+
+  testWidgets('the handle is a dismiss button for TalkBack', (t) async {
+    await open(t);
+    final h = t.getSemantics(handle);
+    expect(h.label, 'Dismiss');
+  });
+
   testWidgets('tapping the selected emoji clears the label', (t) async {
     await open(t);
     final l = quickLabels[1];
@@ -511,19 +533,104 @@ void main() {
       expect(find.byType(RecordRow), findsNothing);
     });
 
-    testWidgets('a finger held on the mic does not drag the sheet away', (
+    testWidgets(
+      'a locked recording, back, Delete closes without a second question',
+      (t) async {
+        await openSheet(t);
+        final g = await t.startGesture(t.getCenter(mic()));
+        await t.pump(const Duration(milliseconds: 300));
+        await g.moveBy(const Offset(0, -120));
+        await t.pump();
+        await g.up();
+        await t.pump();
+        await t.binding.handlePopRoute();
+        await t.pumpAndSettle();
+        expect(find.text('Send the voice message?'), findsOneWidget);
+        await t.tap(find.text('Delete'));
+        await t.pumpAndSettle();
+        expect(find.text('Discard the comment?'), findsNothing);
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(got, isNull);
+      },
+    );
+
+    testWidgets(
+      'the mic does not move when a recording starts with a label chosen',
+      (t) async {
+        await openSheet(t);
+        await t.tap(find.byKey(ValueKey('label:${quickLabels[0].id.name}')));
+        await t.pumpAndSettle();
+        final before = t.getCenter(mic());
+        final g = await t.startGesture(before);
+        await t.pump(const Duration(milliseconds: 300));
+        await t.pump(const Duration(milliseconds: 300));
+        expect(find.byType(RecordRow), findsOneWidget);
+        expect(t.getCenter(mic()), before);
+        await g.moveBy(const Offset(-120, 0));
+        await g.up();
+        await t.pump();
+      },
+    );
+
+    testWidgets('the greyed mic says why above the field, not over it', (
       t,
     ) async {
-      await openSheet(t);
-      final g = await t.startGesture(t.getCenter(mic()));
-      await t.pump(const Duration(milliseconds: 300));
-      await g.moveBy(const Offset(0, 300));
+      await openSheet(t, protocol: 13);
+      await t.tap(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.byKey(const ValueKey('mic-old')),
+        ),
+      );
       await t.pump();
-      await g.up();
+      await t.pump(const Duration(milliseconds: 1000));
+      expect(
+        t
+            .getRect(
+              find.text(
+                'Voice messages need a newer Nota Bene on the computer.',
+              ),
+            )
+            .bottom,
+        lessThanOrEqualTo(t.getRect(field).top),
+      );
+    });
+
+    testWidgets(
+      'after a failed transcript the mic is off: one voice per comment',
+      (t) async {
+        textStatus = 503;
+        await openSheet(t);
+        await record(t);
+        expect(find.text('Retry'), findsOneWidget);
+        await t.pumpAndSettle();
+        rec.calls.clear();
+        final g = await t.startGesture(t.getCenter(mic()));
+        await t.pump(const Duration(milliseconds: 300));
+        await g.up();
+        expect(rec.calls, isEmpty);
+      },
+    );
+
+    testWidgets('changing the label of an edit is a change to ask about', (
+      t,
+    ) async {
+      await openSheet(t, editing: commentWith(0));
+      await t.tap(circle(quickLabels[0]));
       await t.pump();
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      expect(find.text('Discard the comment?'), findsOneWidget);
+    });
+
+    testWidgets('several existing clips keep their order when one is removed', (
+      t,
+    ) async {
+      await openSheet(t, editing: commentWith(3));
+      await t.tap(find.byTooltip('Delete').at(1));
       await t.pump();
-      // the recording was released: it is saved once its text is in
-      expect(got, isA<SheetSave>());
+      await send(t);
+      expect((got as SheetSave).voice.map((v) => v.text), ['said0', 'said2']);
     });
   });
 }

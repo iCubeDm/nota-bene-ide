@@ -41,6 +41,7 @@ class MessageField extends StatefulWidget {
     this.onAttach,
     this.floating,
     this.snackAnchor,
+    this.snackScaffold,
   });
 
   final TextEditingController controller;
@@ -78,6 +79,9 @@ class MessageField extends StatefulWidget {
   /// The box a snackbar of the greyed mic floats above (the page's own by default).
   final BuildContext Function()? snackAnchor;
 
+  /// The context of the Scaffold the snackbar shows on, when it is not an ancestor (the comment sheet's own, under it).
+  final BuildContext? Function()? snackScaffold;
+
   @override
   State<MessageField> createState() => _MessageFieldState();
 }
@@ -89,7 +93,9 @@ class _MessageFieldState extends State<MessageField> {
   void _micOldSnack(String text) {
     final ctx = context;
     final messenger = ScaffoldMessenger.maybeOf(ctx);
-    final scaffold = Scaffold.maybeOf(ctx)?.context.findRenderObject();
+    final scaffold =
+        (widget.snackScaffold?.call() ?? Scaffold.maybeOf(ctx)?.context)
+            ?.findRenderObject();
     final box = (widget.snackAnchor?.call() ?? ctx).findRenderObject();
     var bottom = 8.0;
     if (messenger == null) return;

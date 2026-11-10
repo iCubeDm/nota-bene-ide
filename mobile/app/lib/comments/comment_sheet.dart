@@ -1,6 +1,7 @@
 // The comment sheet: the quoted selection, the quick labels in a row, the clips the comment has, and the chat's message
 // field. Send saves; a recording released in the field saves the comment with that voice as soon as its text is in.
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show listEquals;
@@ -48,6 +49,8 @@ Future<SheetResult?> showCommentSheet(
   isScrollControlled: true,
   // the sheet draws its own handle and closes by a swipe on it, so that a draft is asked about first
   enableDrag: false,
+  backgroundColor: Colors.transparent,
+  elevation: 0,
   builder: (_) => _Sheet(quote: quote, editing: editing, tab: tab),
 );
 
@@ -72,6 +75,9 @@ class _SheetState extends State<_Sheet> {
     onError: _recordFailed,
   );
   final _messenger = GlobalKey<ScaffoldMessengerState>();
+  final _overlay = GlobalKey();
+  double _drag = 0;
+  bool _dragging = false;
   late final _focus = FocusNode();
   late final _initialText = (widget.editing?.text ?? '').trim();
   late final _initialClips = [for (final c in _clips) c.key];
@@ -132,6 +138,7 @@ class _SheetState extends State<_Sheet> {
   /// There is something here that closing would lose: typed text, a clip removed or a new one on its way.
   bool get _dirty =>
       _text.text.trim() != _initialText ||
+      (widget.editing != null && _label != widget.editing!.label) ||
       !listEquals([for (final c in _clips) c.key], _initialClips);
 
   /// Back and a swipe down: a recording stops into the preview and the user chooses; a draft is asked about.
@@ -170,7 +177,9 @@ class _SheetState extends State<_Sheet> {
         return;
       }
       _session.cancel();
-      unawaited(nav.maybePop());
+    }
+    if (!_dirty) {
+      nav.pop();
       return;
     }
     final drop = await showDialog<bool>(
@@ -290,7 +299,7 @@ class _SheetState extends State<_Sheet> {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final lang = Localizations.localeOf(context).languageCode;
-    final sheet = Padding(
+    final inner = Padding(
       padding: EdgeInsets.fromLTRB(
         16,
         0,
@@ -303,23 +312,39 @@ class _SheetState extends State<_Sheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // a swipe down closes (after asking about a draft)
-            GestureDetector(
-              key: const ValueKey('sheet-handle'),
-              behavior: HitTestBehavior.opaque,
-              onVerticalDragEnd: (d) {
-                if ((d.primaryVelocity ?? 0) > 300) {
-                  unawaited(Navigator.of(context).maybePop());
-                }
-              },
-              child: Center(
-                child: Container(
-                  width: 32,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: c.mutedFg.withValues(alpha: .4),
-                    borderRadius: BorderRadius.circular(2),
+            // a swipe down closes (after asking about a draft); the sheet follows the finger and springs back
+            Semantics(
+              button: true,
+              label: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+              onTap: () => unawaited(Navigator.of(context).maybePop()),
+              child: GestureDetector(
+                key: const ValueKey('sheet-handle'),
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragStart: (_) => setState(() => _dragging = true),
+                onVerticalDragUpdate: (d) =>
+                    setState(() => _drag = math.max(0, _drag + d.delta.dy)),
+                onVerticalDragEnd: (d) async {
+                  final close = _drag > 96 || (d.primaryVelocity ?? 0) > 700;
+                  setState(() => _dragging = false);
+                  if (close) {
+                    final popped = await Navigator.of(context).maybePop();
+                    if (popped) return;
+                  }
+                  if (mounted) setState(() => _drag = 0);
+                },
+                onVerticalDragCancel: () => setState(() {
+                  _dragging = false;
+                  _drag = 0;
+                }),
+                child: Center(
+                  child: Container(
+                    width: 32,
+                    height: 4,
+                    margin: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: c.mutedFg.withValues(alpha: .4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
               ),
@@ -395,6 +420,23 @@ class _SheetState extends State<_Sheet> {
         ),
       ),
     );
+    final theme = Theme.of(context);
+    final sheet = TweenAnimationBuilder<double>(
+      tween: Tween(end: _drag),
+      duration: _dragging ? Duration.zero : const Duration(milliseconds: 150),
+      builder: (_, dy, child) =>
+          Transform.translate(offset: Offset(0, dy), child: child),
+      child: Material(
+        color:
+            theme.bottomSheetTheme.backgroundColor ??
+            theme.colorScheme.surfaceContainerLow,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: inner,
+      ),
+    );
     // The sheet covers the page's Scaffold, so a SnackBar shown there would be hidden under it: the sheet has
     // its own messenger, and an invisible Scaffold of the sheet's size to show it on.
     return PopScope(
@@ -411,6 +453,7 @@ class _SheetState extends State<_Sheet> {
             Positioned.fill(
               child: IgnorePointer(
                 child: Scaffold(
+                  key: _overlay,
                   backgroundColor: Colors.transparent,
                   resizeToAvoidBottomInset: false,
                 ),
@@ -442,12 +485,14 @@ class _SheetState extends State<_Sheet> {
         voiceProtocol: tab?.voiceProtocol ?? false,
         whisperAvailable: tab?.whisper ?? false,
         onWhisperMissing: () => showWhisperSheet(inner, tab!),
-        micEnabled: _clips.length < maxClips && !_busy,
+        micEnabled: _clips.length < maxClips && !_busy && !_failed,
         showMic: voice && !typed,
-        showSend: sendable && !_session.active,
+        // kept while recording, so that the mic does not move under the finger
+        showSend: sendable,
         canSend: sendable && !_busy && !_failed && !_session.active,
         sending: _busy,
         onSend: _save,
+        snackScaffold: () => _overlay.currentContext,
       ),
     );
   }
