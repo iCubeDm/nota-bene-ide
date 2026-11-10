@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:nb_app/files/image_screen.dart';
 import 'package:nb_app/media/picker.dart';
+import 'package:nb_app/media/shapes.dart';
 import 'package:nb_channel/nb_channel.dart';
 
 import 'support/rig.dart';
@@ -346,6 +347,250 @@ void main() {
     await t.fling(find.byType(RawImage), const Offset(0, 400), 1500);
     await settleReal(t, 4);
     expect(find.byType(ImageScreen), findsOneWidget);
+    r.dispose();
+  });
+
+  double scaleOf(WidgetTester t) => t
+      .widget<InteractiveViewer>(find.byType(InteractiveViewer).first)
+      .transformationController!
+      .value
+      .getMaxScaleOnAxis();
+
+  /// Two fingers on the picture, apart by [from] and then spread by [by] (one finger stays, as a thumb does), moved
+  /// over several frames; they stay down.
+  Future<List<TestGesture>> pinch(
+    WidgetTester t,
+    Offset by, {
+    double from = 60,
+  }) async {
+    final c = t.getCenter(find.byType(PageView));
+    final a = await t.startGesture(c - Offset(from / 2, 0), pointer: 1);
+    final b = await t.startGesture(c + Offset(from / 2, 0), pointer: 2);
+    await t.pump(const Duration(milliseconds: 16));
+    for (var i = 1; i <= 10; i++) {
+      await b.moveTo(c + Offset(from / 2, 0) + by * (i / 10));
+      await t.pump(const Duration(milliseconds: 16));
+    }
+    return [a, b];
+  }
+
+  testWidgets('a two-finger pinch from scale 1 zooms and keeps the page', (
+    t,
+  ) async {
+    final r = await openImage(t, items: three, index: 1);
+    expect(scaleOf(t), 1);
+    final fingers = await pinch(t, const Offset(200, 120));
+    expect(scaleOf(t), greaterThan(2));
+    for (final g in fingers) {
+      await g.up();
+    }
+    await settleReal(t, 2);
+    expect(scaleOf(t), greaterThan(2));
+    expect(find.text('2 / 3'), findsOneWidget);
+    expect(find.byType(ImageScreen), findsOneWidget);
+    r.dispose();
+  });
+
+  testWidgets('a mostly vertical pinch does not close the viewer', (t) async {
+    final r = await openImage(t);
+    final fingers = await pinch(t, const Offset(30, 200));
+    for (final g in fingers) {
+      await g.up();
+    }
+    await settleReal(t, 2);
+    expect(find.byType(ImageScreen), findsOneWidget);
+    expect(scaleOf(t), greaterThan(2));
+    r.dispose();
+  });
+
+  testWidgets('a double tap zooms in at the tap and a second one zooms out', (
+    t,
+  ) async {
+    final r = await openImage(t);
+    final at = t.getCenter(find.byType(PageView)) + const Offset(40, 10);
+    Future<void> doubleTap() async {
+      await t.tapAt(at);
+      await t.pump(const Duration(milliseconds: 60));
+      await t.tapAt(at);
+      await settleReal(t, 2);
+    }
+
+    await doubleTap();
+    expect(scaleOf(t), closeTo(2.5, 0.01));
+    await doubleTap();
+    expect(scaleOf(t), closeTo(1, 0.01));
+    r.dispose();
+  });
+
+  testWidgets('zoomed, one finger pans and the page stays; at 1 it swipes', (
+    t,
+  ) async {
+    final r = await openImage(t, items: three, index: 1);
+    final at = t.getCenter(find.byType(PageView));
+    await t.tapAt(at);
+    await t.pump(const Duration(milliseconds: 60));
+    await t.tapAt(at);
+    await settleReal(t, 2);
+    expect(scaleOf(t), greaterThan(2));
+    await t.fling(find.byType(PageView), const Offset(-100, 0), 1500);
+    await settleReal(t, 4);
+    expect(find.text('2 / 3'), findsOneWidget);
+    await t.tapAt(at);
+    await t.pump(const Duration(milliseconds: 60));
+    await t.tapAt(at);
+    await settleReal(t, 2);
+    expect(scaleOf(t), closeTo(1, 0.01));
+    await t.fling(find.byType(PageView), const Offset(-400, 0), 1500);
+    await settleReal(t, 4);
+    expect(find.text('3 / 3'), findsOneWidget);
+    r.dispose();
+  });
+
+  Offset shiftOf(WidgetTester t) {
+    final m = t
+        .widget<InteractiveViewer>(find.byType(InteractiveViewer).first)
+        .transformationController!
+        .value
+        .getTranslation();
+    return Offset(m.x, m.y);
+  }
+
+  /// Moves [g] by [by] in [steps] frames of [ms] each.
+  Future<void> glide(
+    WidgetTester t,
+    TestGesture g,
+    Offset by, {
+    int steps = 10,
+    int ms = 16,
+  }) async {
+    for (var i = 0; i < steps; i++) {
+      await g.moveBy(by / steps.toDouble());
+      await t.pump(Duration(milliseconds: ms));
+    }
+  }
+
+  testWidgets('the last finger of a pinch back to 1 does not drag to close', (
+    t,
+  ) async {
+    final r = await openImage(t);
+    final c = t.getCenter(find.byType(PageView));
+    final zoom = t
+        .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+        .transformationController!;
+    zoom.value = Matrix4.diagonal3Values(3, 3, 1);
+    await t.pump();
+    final a = await t.startGesture(c - const Offset(150, 0), pointer: 1);
+    final b = await t.startGesture(c + const Offset(150, 0), pointer: 2);
+    await t.pump(const Duration(milliseconds: 16));
+    await glide(t, b, const Offset(-240, 0));
+    expect(scaleOf(t), lessThan(1.05));
+    await a.up();
+    await t.pump(const Duration(milliseconds: 16));
+    await glide(t, b, const Offset(0, 300), steps: 5);
+    await b.up();
+    await settleReal(t, 4);
+    expect(find.byType(ImageScreen), findsOneWidget);
+    expect(scaleOf(t), greaterThanOrEqualTo(1));
+    r.dispose();
+  });
+
+  testWidgets('a second finger during a long drag down does not close', (
+    t,
+  ) async {
+    final r = await openImage(t);
+    final c = t.getCenter(find.byType(RawImage));
+    final a = await t.startGesture(c, pointer: 1);
+    await glide(t, a, const Offset(0, 240), steps: 12, ms: 50);
+    expect(t.getCenter(find.byType(RawImage)).dy, greaterThan(c.dy + 125));
+    final b = await t.startGesture(c + const Offset(80, 0), pointer: 2);
+    await t.pump(const Duration(milliseconds: 16));
+    await a.up();
+    await b.up();
+    await settleReal(t, 4);
+    expect(find.byType(ImageScreen), findsOneWidget);
+    expect(t.getCenter(find.byType(RawImage)).dy, closeTo(c.dy, 1));
+    r.dispose();
+  });
+
+  testWidgets('a slow drag down past the threshold closes', (t) async {
+    final r = await openImage(t);
+    final g = await t.startGesture(t.getCenter(find.byType(RawImage)));
+    await glide(t, g, const Offset(0, 160), steps: 8, ms: 100);
+    await t.pump(const Duration(milliseconds: 400));
+    await g.up();
+    await settleReal(t, 4);
+    expect(find.byType(ImageScreen), findsNothing);
+    r.dispose();
+  });
+
+  testWidgets('a short slow drag down snaps back', (t) async {
+    final r = await openImage(t);
+    final c = t.getCenter(find.byType(RawImage));
+    final g = await t.startGesture(c);
+    await glide(t, g, const Offset(0, 90), steps: 6, ms: 100);
+    await t.pump(const Duration(milliseconds: 400));
+    await g.up();
+    await settleReal(t, 4);
+    expect(find.byType(ImageScreen), findsOneWidget);
+    expect(t.getCenter(find.byType(RawImage)).dy, closeTo(c.dy, 1));
+    r.dispose();
+  });
+
+  testWidgets('a double tap outside the picture zooms on its edge, animated', (
+    t,
+  ) async {
+    final r = await openImage(t);
+    final box = t.getRect(find.byType(PageView));
+    final tap = box.topLeft + const Offset(4, 4);
+    await t.tapAt(tap);
+    await t.pump(const Duration(milliseconds: 60));
+    await t.tapAt(tap);
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 100));
+    expect(scaleOf(t), inExclusiveRange(1.0, 2.5));
+    await settleReal(t, 2);
+    expect(scaleOf(t), closeTo(2.5, 0.01));
+    final content = containBox(box.size, const Size(200, 100));
+    final f = Offset(
+      (tap.dx - box.left).clamp(content.left, content.right),
+      (tap.dy - box.top).clamp(content.top, content.bottom),
+    );
+    final want = Offset(
+      (f.dx * -1.5).clamp(box.width * -1.5, 0.0),
+      (f.dy * -1.5).clamp(box.height * -1.5, 0.0),
+    );
+    expect(shiftOf(t).dx, closeTo(want.dx, 0.5));
+    expect(shiftOf(t).dy, closeTo(want.dy, 0.5));
+    expect(
+      want.dy,
+      lessThan(-1),
+    ); // it is the picture's edge, not the corner of the page
+    await t.tapAt(tap);
+    await t.pump(const Duration(milliseconds: 60));
+    await t.tapAt(tap);
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 100));
+    expect(scaleOf(t), inExclusiveRange(1.0, 2.5));
+    await settleReal(t, 2);
+    expect(scaleOf(t), closeTo(1, 0.01));
+    expect(shiftOf(t).distance, lessThan(0.5));
+    r.dispose();
+  });
+
+  testWidgets('zoomed, one finger pans the picture', (t) async {
+    final r = await openImage(t, items: three, index: 1);
+    final at = t.getCenter(find.byType(PageView));
+    await t.tapAt(at);
+    await t.pump(const Duration(milliseconds: 60));
+    await t.tapAt(at);
+    await settleReal(t, 2);
+    final before = shiftOf(t);
+    final g = await t.startGesture(at);
+    await glide(t, g, const Offset(-60, 0), steps: 6, ms: 100);
+    await g.up();
+    await settleReal(t, 2);
+    expect((shiftOf(t) - before).dx, lessThan(-20));
+    expect(find.text('2 / 3'), findsOneWidget);
     r.dispose();
   });
 
