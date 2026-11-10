@@ -482,8 +482,8 @@ void main() {
       final r = Rig()..sizes = await sizesOf(1, 0.9);
       addTearDown(r.dispose);
       await r.open(t);
-      await t.enterText(find.byType(TextField), 'hi');
-      await t.pump();
+      // pumps the mic -> Send swap out, as the composer tests do
+      await t.enter('hi');
       await t.tap(find.byTooltip('Send'));
       await t.pump();
       expect(r.sent.where((m) => m['type'] == 'send'), isNotEmpty);
