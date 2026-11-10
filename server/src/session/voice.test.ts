@@ -167,6 +167,26 @@ describe('voice messages', () => {
     expect(user).toMatchObject({ id: 'v1', text: 'fix the test', voice });
   });
 
+  it('a replay whose ids are not ours still gets the voices, by what they said, each once', async () => {
+    const first = setup({ speech: async () => 'fix the test' });
+    const s = await first.make();
+    s.send({ id: 'v1', text: '', voice, lang: 'en' });
+    await until(() => first.got.length === 1);
+    const other: Voice = { ...voice, id: 'c'.repeat(64), ms: 900 };
+    s.send({ id: 'v2', text: '', voice: other, lang: 'en' });
+    await until(() => first.got.length === 2);
+    const history = [
+      { kind: 'user', id: 'omp-1', text: 'fix the test', ts: 0, historic: true },
+      { kind: 'user', id: 'omp-2', text: 'typed by hand', ts: 0, historic: true },
+      { kind: 'user', id: 'omp-3', text: 'fix the test', ts: 0, historic: true },
+      { kind: 'user', id: 'omp-4', text: 'fix the test', ts: 0, historic: true },
+    ] as ServerEvent[];
+    const resumed = setup({ speech: async () => '', history });
+    await resumed.make('11111111-1111-1111-1111-111111111111');
+    const users = (resumed.hub as unknown as { history: ServerEvent[] }).history.filter((e) => e.kind === 'user');
+    expect(users.map((u) => (u as { voice?: Voice }).voice?.id)).toEqual([voice.id, undefined, other.id, undefined]);
+  });
+
   it('a reused id is refused before anything happens', async () => {
     const { events, make } = setup({ speech: async () => 'x' });
     const s = await make();

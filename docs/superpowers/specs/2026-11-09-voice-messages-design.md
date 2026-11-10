@@ -90,6 +90,10 @@ export type VoiceClip = Voice & { text: string };
   Nothing reaches the agent. `empty` means Whisper heard nothing. `off` means Whisper was switched off meanwhile.
 - A switch or a close while a transcription runs drops it, as a queued send is dropped now. Its generation moved.
 - `user` events from the agent's history (`backend.history`) get their `voice` from the index by message id.
+  When the id is unknown (omp names its messages anew on a resume), the transcript saved in the index when it succeeded
+  is matched instead: a user event gets the voice of the first not-yet-used entry whose transcript equals its text
+  (trimmed, without the leading zero-width space the server adds before a slash). An entry serves one event per replay,
+  and entries matched by id are used up first.
 
 ### The voice bubble (web and phone)
 
