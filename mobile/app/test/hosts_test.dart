@@ -76,4 +76,66 @@ void main() {
     await h.forget('A');
     expect(n, 2);
   });
+
+  group('the label', () {
+    test('is the computer\'s name, a rename wins, reset goes back', () async {
+      final v = MemoryVault();
+      final h = await Hosts.load(v);
+      await h.add(host('A', label: 'notes'));
+      expect(h.byId('A')!.label, 'notes');
+      await h.learnComputerName('A', 'studio-mac');
+      expect(h.byId('A')!.label, 'studio-mac');
+      await h.rename('A', '  Desk  ');
+      expect(h.byId('A')!.label, 'Desk');
+      await h.learnComputerName('A', 'studio-mini');
+      expect(
+        h.byId('A')!.label,
+        'Desk',
+        reason: 'a new computer name does not undo a rename',
+      );
+      final again = await Hosts.load(v);
+      expect(again.byId('A')!.label, 'Desk');
+      expect(again.byId('A')!.computerName, 'studio-mini');
+      await again.rename('A', null);
+      expect(again.byId('A')!.label, 'studio-mini');
+      await again.rename('A', '   ');
+      expect(again.byId('A')!.customName, isNull);
+      expect((await Hosts.load(v)).byId('A')!.label, 'studio-mini');
+    });
+
+    test('a host that never sent a name keeps the fallback', () async {
+      final h = await Hosts.load(MemoryVault());
+      await h.add(host('A', label: 'notes'));
+      await h.learnComputerName('A', null);
+      expect(h.byId('A')!.label, 'notes');
+    });
+
+    test(
+      'learning the same name again changes nothing and is silent',
+      () async {
+        final h = await Hosts.load(MemoryVault());
+        await h.add(host('A'));
+        await h.learnComputerName('A', 'studio-mac');
+        var n = 0;
+        h.addListener(() => n++);
+        await h.learnComputerName('A', 'studio-mac');
+        expect(n, 0);
+      },
+    );
+
+    test('pairing the host again keeps the rename', () async {
+      final h = await Hosts.load(MemoryVault());
+      await h.add(host('A'));
+      await h.rename('A', 'Desk');
+      await h.add(host('A', label: 'x'));
+      expect(h.byId('A')!.label, 'Desk');
+    });
+
+    test('an old stored host without the new fields loads', () async {
+      final v = MemoryVault()
+        ..values['nb.hosts'] =
+            '[{"id":"A","relay":"wss://relay.example.com","label":"notes","pairedAt":"2026-11-08T00:00:00.000Z"}]';
+      expect((await Hosts.load(v)).byId('A')!.label, 'notes');
+    });
+  });
 }

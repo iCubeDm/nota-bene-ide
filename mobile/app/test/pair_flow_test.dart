@@ -68,6 +68,22 @@ void main() {
     },
   );
 
+  test('a host that sends its computer name is labelled by it', () async {
+    f.results.add(FakeChannel([window(4791, '/home/u/notes')], 'studio-mac'));
+    await flow.pair(qr(), deviceName: 'Pixel 9');
+    final h = hosts.all.single;
+    expect((h.label, h.computerName), ('studio-mac', 'studio-mac'));
+  });
+
+  test('a computer name is enough: no wait for a window', () async {
+    f.results.add(FakeChannel(null, 'studio-mac'));
+    await flow.pair(
+      qr(),
+      deviceName: 'Pixel 9',
+    ); // default 3 s wait would time the test out otherwise
+    expect(hosts.all.single.label, 'studio-mac');
+  });
+
   test('a scanner seeing the same failed code again does not retry it', () {
     final g = ScanGate();
     expect(g.accept('nbremote://a'), isTrue);

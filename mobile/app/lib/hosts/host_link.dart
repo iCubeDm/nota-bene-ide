@@ -16,6 +16,7 @@ class HostLink extends ChangeNotifier {
     this.host,
     this._connect,
     this._identity, {
+    this.onName,
     this.minBackoff = const Duration(seconds: 1),
     this.maxBackoff = const Duration(seconds: 30),
     DateTime Function()? clock,
@@ -26,6 +27,9 @@ class HostLink extends ChangeNotifier {
        _sleep = sleep ?? ((d) => Future<void>.delayed(d));
 
   final PairedHost host;
+
+  /// Called with the computer name the host sent on a connection.
+  final void Function(String name)? onName;
   final ChannelFactory _connect;
   final Identity _identity;
   final Duration minBackoff, maxBackoff;
@@ -69,6 +73,47 @@ class HostLink extends ChangeNotifier {
     _running = true;
     if (_state != LinkState.online) _set(LinkState.connecting);
     unawaited(_loop(++_gen));
+  }
+
+  /// Pull to refresh: an online host is asked for its windows again (the channel stays); any other link reconnects at
+  /// once, without waiting out its backoff. Completes when the host answered, the attempt ended or [timeout] passed.
+  Future<void> refresh({Duration timeout = const Duration(seconds: 20)}) async {
+    if (_state == LinkState.unpaired) return;
+    final ch = _channel;
+    if (_running && _state == LinkState.online && ch != null) {
+      try {
+        final list = await ch.refreshWindows(wait: timeout).timeout(timeout);
+        if (identical(_channel, ch)) {
+          _windows = list;
+          _notify();
+        }
+      } on Object {
+        // no answer: the stream of changes keeps the list, and a dead channel reconnects by itself
+      }
+      return;
+    }
+    final settled = Completer<void>();
+    void watch() {
+      if (_state != LinkState.connecting && !settled.isCompleted) {
+        settled.complete();
+      }
+    }
+
+    addListener(watch);
+    try {
+      if (!_running) {
+        _attempt = 0;
+        start();
+      } else if (_state == LinkState.offline) {
+        _attempt = 0;
+        _gen++; // the sleeping loop ends when it wakes
+        _set(LinkState.connecting);
+        unawaited(_loop(_gen));
+      }
+      await settled.future.timeout(timeout, onTimeout: () {});
+    } finally {
+      removeListener(watch);
+    }
   }
 
   /// Drops the channel; the link shows offline until [start].
@@ -123,6 +168,7 @@ class HostLink extends ChangeNotifier {
         return;
       }
       _channel = ch;
+      if (ch.hostName case final n?) onName?.call(n);
       final onlineAt = _clock();
       final sub = ch.windows.listen((l) {
         _windows = l;
@@ -192,8 +238,13 @@ class Links extends ChangeNotifier {
     }
     for (final h in _hosts.all) {
       _links.putIfAbsent(h.id, () {
-        final l = HostLink(h, _connect, _identity, sleep: _sleep)
-          ..addListener(notifyListeners);
+        final l = HostLink(
+          h,
+          _connect,
+          _identity,
+          sleep: _sleep,
+          onName: (n) => unawaited(_hosts.learnComputerName(h.id, n)),
+        )..addListener(notifyListeners);
         l.start();
         return l;
       });
@@ -208,6 +259,10 @@ class Links extends ChangeNotifier {
     final l = _links[id];
     if (l != null && l.state != LinkState.unpaired) l.start();
   }
+
+  /// Pull to refresh: every link reconnects or asks its host for the windows again, all at once.
+  Future<void> refresh() =>
+      Future.wait([for (final l in _links.values) l.refresh()]);
 
   /// The app spent long in the background: drop the connections until it is back.
   void pause() {

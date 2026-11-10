@@ -36,10 +36,11 @@ void main() {
     wake = Completer<void>();
   });
 
-  HostLink link() => HostLink(
+  HostLink link({void Function(String)? onName}) => HostLink(
     paired(b64u(List.filled(32, 1))),
     f.factory,
     id,
+    onName: onName,
     clock: () => now,
     jitter: () => 0.5, // a factor of exactly 1
     sleep: (d) {
@@ -225,5 +226,104 @@ void main() {
     await settle();
     expect(links.of(a.id)!.state, LinkState.online);
     links.dispose();
+  });
+
+  test('a connection that names the computer reports the name', () async {
+    f.results.add(FakeChannel(null, 'studio-mac'));
+    final names = <String>[];
+    final l = link(onName: names.add)..start();
+    await settle();
+    expect(names, ['studio-mac']);
+    l.stop();
+  });
+
+  group('refresh', () {
+    test(
+      'an online host is asked for its windows again, no reconnect',
+      () async {
+        final ch = FakeChannel([window(4791, '/p')]);
+        f.results.add(ch);
+        final l = link()..start();
+        await settle();
+        await l.refresh();
+        expect(ch.refreshes, 1);
+        expect(f.calls, hasLength(1));
+        expect(l.state, LinkState.online);
+        l.stop();
+      },
+    );
+
+    test('it waits for the answer of an online host', () async {
+      final ch = FakeChannel([window(4791, '/p')])..refreshGate = Completer();
+      f.results.add(ch);
+      final l = link()..start();
+      await settle();
+      var done = false;
+      unawaited(l.refresh().then((_) => done = true));
+      await settle();
+      expect(done, isFalse);
+      ch.refreshGate!.complete();
+      await settle();
+      expect(done, isTrue);
+      l.stop();
+    });
+
+    test('a host that does not answer is given up on at the timeout', () async {
+      final ch = FakeChannel([window(4791, '/p')])..refreshFails = true;
+      f.results.add(ch);
+      final l = link()..start();
+      await settle();
+      await l.refresh(); // completes, does not throw
+      expect(l.state, LinkState.online);
+      l.stop();
+    });
+
+    test('an offline host reconnects at once, skipping the backoff', () async {
+      f.results.add(ChannelError('no answer'));
+      final l = link()..start();
+      await settle();
+      expect(l.state, LinkState.offline);
+      expect(sleeps, hasLength(1));
+      f.results.add(FakeChannel([window(4791, '/p')]));
+      await l.refresh();
+      expect(l.state, LinkState.online);
+      expect(f.calls, hasLength(2));
+      expect(l.windows.single.port, 4791);
+      l.stop();
+    });
+
+    test(
+      'an offline host that is still down stays offline and the refresh ends',
+      () async {
+        f.results.add(ChannelError('no answer'));
+        f.results.add(ChannelError('no answer'));
+        final l = link()..start();
+        await settle();
+        await l.refresh();
+        expect(l.state, LinkState.offline);
+        expect(f.calls, hasLength(2));
+        l.stop();
+      },
+    );
+
+    test('a stopped link starts again', () async {
+      f.results.add(FakeChannel([window(4791, '/p')]));
+      final l = link()..start();
+      await settle();
+      l.stop();
+      f.results.add(FakeChannel([window(4792, '/q')]));
+      await l.refresh();
+      expect(l.state, LinkState.online);
+      expect(l.windows.single.port, 4792);
+      l.stop();
+    });
+
+    test('an unpaired link is left alone', () async {
+      f.results.add(ChannelError('closed', relayCode: 4403));
+      final l = link()..start();
+      await settle();
+      await l.refresh();
+      expect(f.calls, hasLength(1));
+    });
   });
 }
