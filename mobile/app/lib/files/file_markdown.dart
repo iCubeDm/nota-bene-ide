@@ -45,7 +45,12 @@ int _offsetIn(md.Element e, md.Node target) {
 /// draws from the whole text, so the marks inside it go to the `pre` element as its [codeMarksAttr] (the builder
 /// paints them and shows the badge in its bar). Math is not split either, so a mark there is not painted (the comment
 /// itself is unaffected).
-void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
+void wrapMarks(
+  List<md.Node> nodes,
+  RenderedText r,
+  List<Mark> marks, {
+  Set<String> inert = const {},
+}) {
   if (marks.isEmpty) return;
   final parents = <md.Node, md.Element>{};
   void index(md.Element e) {
@@ -108,16 +113,23 @@ void wrapMarks(List<md.Node> nodes, RenderedText r, List<Mark> marks) {
     for (final c in cuts) {
       if (c.from < pos) continue; // overlapping marks: the first one paints
       if (c.from > pos) parts.add(md.Text(raw.substring(pos, c.from)));
-      parts.add(
-        md.Element('a', [
-          md.Element(c.m.sent ? 'nbsent' : 'nbmark', [
-            md.Text(raw.substring(c.from, c.to)),
-          ]),
-          if (c.m.n > 0 && badged.add(c.m.id))
-            md.Element.empty('nbbadge')
-              ..attributes['id'] = c.m.id
-              ..attributes['n'] = '${c.m.n}',
-        ])..attributes['href'] = '$_markScheme${c.m.id}',
+      final shown = [
+        md.Element(c.m.sent ? 'nbsent' : 'nbmark', [
+          md.Text(raw.substring(c.from, c.to)),
+        ]),
+        if (c.m.n > 0 && badged.add(c.m.id))
+          md.Element.empty('nbbadge')
+            ..attributes['id'] = c.m.id
+            ..attributes['n'] = '${c.m.n}',
+      ];
+      // an inert mark is painted, not a link: a real link in its text keeps its own tap, and the paragraph the others
+      parts.addAll(
+        inert.contains(c.m.id)
+            ? shown
+            : [
+                md.Element('a', shown)
+                  ..attributes['href'] = '$_markScheme${c.m.id}',
+              ],
       );
       pos = c.to;
     }
@@ -190,12 +202,6 @@ class _BadgeBuilder extends MarkdownElementBuilder {
   }
 }
 
-/// A link's recognizer that never takes a press: the paragraph under the text gets it.
-class _Inert extends TapGestureRecognizer {
-  @override
-  bool isPointerAllowed(PointerDownEvent event) => false;
-}
-
 /// Draws a list item's content itself, so that it can be wrapped (null: the package's own).
 class _ItemBuilder extends MarkdownElementBuilder {
   _ItemBuilder(this.draw);
@@ -252,8 +258,8 @@ class FileMarkdown extends StatefulWidget {
   /// A tap on the bullet of such an item, which [wrapItem]'s widget does not hold.
   final void Function(int block, int item)? tapItem;
 
-  /// Ids of marks whose text takes no tap (a quick label shows on its paragraph, which a tap targets): the badge opens
-  /// the comment.
+  /// Ids of marks that are painted but not links (a quick label shows on its paragraph, which a tap targets; a link in
+  /// its text keeps its own tap): the badge opens the comment.
   final Set<String> inertMarks;
 
   /// The selection of top-level block [i] is reported to this notifier: an offset Flutter gives inside one block
@@ -270,20 +276,14 @@ class _FileMarkdownState extends State<FileMarkdown>
 
   @override
   GestureRecognizer createLink(String text, String? href, String title) {
-    final id = href != null && href.startsWith(_markScheme)
-        ? href.substring(_markScheme.length)
-        : null;
-    final r =
-        id != null && widget.inertMarks.contains(id)
-              ? _Inert()
-              : TapGestureRecognizer()
-          ..onTap = () {
-            if (href != null && href.startsWith(_markScheme)) {
-              widget.onMark(href.substring(_markScheme.length));
-            } else {
-              openLink(href);
-            }
-          };
+    final r = TapGestureRecognizer()
+      ..onTap = () {
+        if (href != null && href.startsWith(_markScheme)) {
+          widget.onMark(href.substring(_markScheme.length));
+        } else {
+          openLink(href);
+        }
+      };
     _recognizers.add(r);
     return r;
   }
@@ -321,7 +321,12 @@ class _FileMarkdownState extends State<FileMarkdown>
     // text), in the item's text style
     sheet.styles['section'] = sheet.styles['li'];
     final nodes = widget.parse(widget.text);
-    wrapMarks(nodes, renderedText(nodes), widget.marks);
+    wrapMarks(
+      nodes,
+      renderedText(nodes),
+      widget.marks,
+      inert: widget.inertMarks,
+    );
     final builders = markdownBuilders(onMark: widget.onMark)
       ..['nbbadge'] = _BadgeBuilder(widget.onMark);
     // an item's content is drawn again by its own builder, where the chat wraps it: the Markdown package draws a list
@@ -395,6 +400,7 @@ class _FileMarkdownState extends State<FileMarkdown>
           if (i > 0) SizedBox(height: sheet.blockSpacing),
           () {
             block = i;
+            bulletOf = -1;
             final inList = wrapItem != null && isListNode(n);
             if (inList) {
               itemOf.clear();

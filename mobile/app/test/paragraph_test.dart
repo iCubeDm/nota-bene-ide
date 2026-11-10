@@ -7,7 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/chat_header.dart';
 import 'package:nb_app/chat/markdown.dart' show launchLink;
+import 'package:nb_app/chat/feed.dart' show AssistantItem;
 import 'package:nb_app/chat/message_menu.dart' show barLabels;
+import 'package:nb_app/chat/paragraph.dart';
+import 'package:nb_app/l10n/app_localizations.dart';
 import 'package:nb_app/comments/chat_anchor.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -491,6 +494,67 @@ void main() {
     expect(find.byKey(const ValueKey('para-target:a1:1')), findsNothing);
   });
 
+  testWidgets('a link in a labelled paragraph still opens', (t) async {
+    final opened = <Uri>[];
+    launchLink = (u) async {
+      opened.add(u);
+      return true;
+    };
+    addTearDown(() => launchLink = (u) async => false);
+    await open(t, text: 'See [the docs](https://example.com/d) now\n\nOther');
+    // the first word: the middle of the line is the link
+    await t.tapAt(
+      t.getTopLeft(find.textContaining('See').first) + const Offset(4, 8),
+    );
+    await t.pumpAndSettle();
+    await t.tap(
+      find.descendant(of: bubble, matching: find.text(barLabels[0].emoji)),
+    );
+    await t.pumpAndSettle();
+    expect(r.tab!.comments.pending, hasLength(1));
+    await t.tap(find.textContaining('the docs').first);
+    await t.pumpAndSettle();
+    expect(opened.single.host, 'example.com');
+    expect(find.byType(BottomSheet), findsNothing);
+  });
+
+  testWidgets('two chats with the same reply ids hold no duplicate keys', (
+    t,
+  ) async {
+    await open(t, text: '- alpha one\n- beta two');
+    // the second chat, in the same tree, with the same ids
+    final item = r.tab!.feed.items.last;
+    final a = ParagraphTargets(r.tab!), b = ParagraphTargets(r.tab!);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    final assistant = item as AssistantItem;
+    Widget block(ParagraphTargets x) => ParagraphHost(
+      targets: x,
+      child: Column(
+        children: [
+          ParagraphBlock(
+            key: x.itemKey('a1', 1, 0),
+            targets: x,
+            item: assistant,
+            block: 1,
+            li: 0,
+            child: const Text('item'),
+          ),
+        ],
+      ),
+    );
+    final theme = Theme.of(t.element(find.byType(Scaffold).first));
+    await t.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(body: Column(children: [block(a), block(b)])),
+      ),
+    );
+    expect(t.takeException(), isNull);
+  });
+
   group('list items are targets of their own', () {
     const list =
         'Intro line.\n\n- alpha one\n- beta two\n  - nested gamma\n- delta four';
@@ -560,6 +624,29 @@ void main() {
       await t.tapAt(Offset(text.left - 14, text.center.dy));
       await t.pumpAndSettle();
       expect(find.byKey(target(2)), findsOneWidget);
+    });
+
+    testWidgets('a bullet tap names its own item among nested ones', (t) async {
+      await open(
+        t,
+        text: '- one\n  - one a\n  - one b\n- two\n  - two a\n- three',
+      );
+      // pre-order: one 0, one a 1, one b 2, two 3, two a 4, three 5
+      for (final (text, li) in [
+        ('one b', 2),
+        ('two a', 4),
+        ('three', 5),
+        ('two', 3),
+      ]) {
+        final rect = t.getRect(find.text(text));
+        await t.tapAt(Offset(rect.left - 14, rect.center.dy));
+        await t.pumpAndSettle();
+        expect(
+          find.byKey(ValueKey('para-target:a1:0.$li')),
+          findsOneWidget,
+          reason: text,
+        );
+      }
     });
 
     testWidgets('a nested item is its own target, the parent covers its '

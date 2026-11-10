@@ -77,6 +77,19 @@ class ParagraphTargets extends ChangeNotifier {
       _sel!.block == block &&
       _sel!.li == li;
 
+  /// The keys list items' blocks are found by: a tap on a bullet, outside its block, goes through them. Per chat, so
+  /// that two chats showing the same reply never share a key.
+  final _itemKeys = <String, GlobalKey>{};
+
+  GlobalKey itemKey(String id, int block, int li) =>
+      _itemKeys.putIfAbsent('$id:$block:$li', GlobalKey.new);
+
+  /// A tap on the bullet of item [li]: the item as a target, as a tap on its text makes it.
+  void tapBullet(AssistantItem item, int block, int li) {
+    final ctx = itemKey(item.id, block, li).currentContext;
+    if (ctx != null) toggle(ctx, item, block, li);
+  }
+
   /// The paragraph [block] of [item] (its list item [li], when it is one) as a target, or none when it was one already.
   void toggle(BuildContext ctx, AssistantItem item, int block, [int li = -1]) {
     if (isTarget(item.id, block, li)) return clear();
@@ -128,6 +141,7 @@ class ParagraphTargets extends ChangeNotifier {
   @override
   void dispose() {
     _drop();
+    _itemKeys.clear();
     super.dispose();
   }
 
@@ -276,22 +290,6 @@ class ParagraphBlock extends StatelessWidget {
   final int block, li;
   final double bleed;
   final Widget child;
-
-  /// The key an item's block is found by: a tap on its bullet, outside the block, goes through it.
-  static GlobalKey keyOf(String id, int block, int li) =>
-      _itemKeys.putIfAbsent('$id:$block:$li', GlobalKey.new);
-  static final _itemKeys = <String, GlobalKey>{};
-
-  /// A tap on the bullet of item [li]: the item as a target, as a tap on its text makes it.
-  static void tapBullet(
-    ParagraphTargets targets,
-    AssistantItem item,
-    int block,
-    int li,
-  ) {
-    final ctx = keyOf(item.id, block, li).currentContext;
-    if (ctx != null) targets.toggle(ctx, item, block, li);
-  }
 
   @override
   Widget build(BuildContext context) {

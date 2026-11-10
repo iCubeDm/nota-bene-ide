@@ -501,7 +501,7 @@ class _MarkedState extends State<_Marked> {
       wrapItem: targets == null || item is! AssistantItem
           ? null
           : (i, li, child, bullet) => ParagraphBlock(
-              key: ParagraphBlock.keyOf(item.id, i, li),
+              key: targets.itemKey(item.id, i, li),
               targets: targets,
               item: item,
               block: i,
@@ -511,7 +511,7 @@ class _MarkedState extends State<_Marked> {
             ),
       tapItem: targets == null || item is! AssistantItem
           ? null
-          : (i, li) => ParagraphBlock.tapBullet(targets, item, i, li),
+          : (i, li) => targets.tapBullet(item, i, li),
     );
     if (_whole.isEmpty) return view;
     return Stack(

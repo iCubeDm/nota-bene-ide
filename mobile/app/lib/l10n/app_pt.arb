@@ -300,5 +300,6 @@
   "paragraphPin": "Fixar",
   "paragraphLess": "Menos",
   "paragraphCopied": "Copiado",
-  "micNeedsUpdate": "As mensagens de voz exigem atualizar o Nota Bene no computador."
+  "micNeedsUpdate": "As mensagens de voz exigem atualizar o Nota Bene no computador.",
+  "micUnavailable": "Mensagens de voz indisponíveis"
 }

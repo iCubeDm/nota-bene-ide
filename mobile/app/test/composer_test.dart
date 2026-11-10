@@ -246,6 +246,8 @@ void main() {
       await openVoice(t, protocol: 13);
       final old = find.byKey(const ValueKey('mic-old'));
       expect(old, findsOneWidget);
+      // its name is short; the long text is the snackbar's
+      expect(t.widget<IconButton>(old).tooltip, 'Voice messages unavailable');
       expect(find.byType(RecordButton), findsNothing);
       expect(find.byKey(const ValueKey('send')), findsNothing);
       expect(t.getSize(old), const Size(40, 40));
@@ -261,10 +263,19 @@ void main() {
       await t.tap(find.byKey(const ValueKey('mic-old')));
       await t.pumpAndSettle();
       expect(
-        find.text(
-          'Voice messages need a newer Nota Bene on the computer. Update it.',
-        ),
+        find.text('Voice messages need a newer Nota Bene on the computer.'),
         findsOneWidget,
+      );
+      // the snackbar floats above the message field, as the others do
+      final card = find
+          .descendant(
+            of: find.byType(SnackBar),
+            matching: find.byType(Material),
+          )
+          .first;
+      expect(
+        t.getRect(card).bottom,
+        lessThanOrEqualTo(t.getRect(find.byType(TextField).first).top),
       );
       expect(r.sent, isEmpty);
       expect(r.ch.requests, isEmpty);
@@ -721,5 +732,54 @@ void main() {
         expect(r.sent.single['voice'], voice);
       },
     );
+  });
+
+  group('the trailing controls of the field', () {
+    Rect field(WidgetTester t) => t.getRect(
+      find.descendant(
+        of: find.byKey(const ValueKey('composer')),
+        matching: find.byWidgetPredicate(
+          (w) => w is Container && w.constraints?.minHeight == 48,
+        ),
+      ),
+    );
+
+    testWidgets('on one line they are centred and inset evenly', (t) async {
+      await r.open(t);
+      final box = field(t);
+      // the hint sits on the middle line of the field too
+      expect(
+        t.getRect(find.text('Message')).center.dy,
+        closeTo(box.center.dy, 1),
+      );
+      final action = t.getRect(find.byKey(const ValueKey('mic-old')));
+      final clip = t.getRect(find.byKey(const ValueKey('attach')));
+      expect(action.center.dy, closeTo(box.center.dy, 0.5));
+      expect(clip.center.dy, closeTo(action.center.dy, 0.5));
+      final top = action.top - box.top;
+      expect(box.right - action.right, closeTo(top, 0.5));
+      expect(box.bottom - action.bottom, closeTo(top, 0.5));
+      expect(action.left - clip.right, closeTo(8, 0.5));
+    });
+
+    testWidgets('typed, Send has the same insets', (t) async {
+      await r.open(t);
+      await t.enter('x');
+      final box = field(t);
+      final action = t.getRect(find.byKey(const ValueKey('send')));
+      final top = action.top - box.top;
+      expect(box.right - action.right, closeTo(top, 0.5));
+      expect(box.bottom - action.bottom, closeTo(top, 0.5));
+    });
+
+    testWidgets('as the field grows they stay at the bottom line', (t) async {
+      await r.open(t);
+      await t.enter('x\ny\nz');
+      final box = field(t);
+      final action = t.getRect(find.byKey(const ValueKey('send')));
+      expect(box.bottom - action.bottom, closeTo(action.top - box.top, 100));
+      expect(box.bottom - action.bottom, lessThan(8));
+      expect(box.height, greaterThan(70));
+    });
   });
 }

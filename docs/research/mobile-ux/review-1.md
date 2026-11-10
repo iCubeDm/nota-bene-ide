@@ -69,6 +69,7 @@ edge). The proposed screens are sections 14-17 of `flows.html`, ids 14.1-17.2.
 | 25 | 4.1 | A list is one target; a person wants to comment on one item. | A tap on a list item targets that item (a nested item is its own target, a parent covers its nested items). Highlight, quote, Copy, comment badges and TalkBack actions work per item. |
 | 26 | 1.2, 1.3 | The mic vanishes on an older computer and reads as a bug. | With nothing to send the mic stays, greyed; a tap says the computer's Nota Bene must be updated for voice messages. Send still appears once there is content. |
 | 27 | 4.3 | A quick label shows on the paragraph already; the snackbar is noise. | No snackbar. The same label again on the same paragraph takes it back, as a reaction in a messenger does; a screen reader hears “label added” or “label removed”. The text of a label-only comment takes no tap of its own (a tap targets the paragraph); its badge opens it. Copy keeps its snackbar. |
+| 28 | 1.2, 1.3 | The paperclip and the mic sit crooked in the tall field; the mic hugs the border. | On one line the field is exactly as tall as the action button plus an even inset (top, right, bottom); the paperclip is centred on the same axis, 8 dp from the button. As the field grows they stay at the bottom line. |
 
 The agreed design, without the history, is drawn in one board: `design.html`.
 

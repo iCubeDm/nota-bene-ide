@@ -300,5 +300,6 @@
   "paragraphPin": "Anheften",
   "paragraphLess": "Weniger",
   "paragraphCopied": "Kopiert",
-  "micNeedsUpdate": "Für Sprachnachrichten muss Nota Bene auf dem Computer aktualisiert werden."
+  "micNeedsUpdate": "Für Sprachnachrichten muss Nota Bene auf dem Computer aktualisiert werden.",
+  "micUnavailable": "Sprachnachrichten nicht verfügbar"
 }
