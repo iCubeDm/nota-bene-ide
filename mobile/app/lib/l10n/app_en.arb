@@ -466,5 +466,17 @@
         "type": "int"
       }
     }
-  }
+  },
+  "paragraphLabelAdded": "{label} added",
+  "@paragraphLabelAdded": {
+    "description": "Snackbar after a quick label on a paragraph",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "paragraphPin": "Pin",
+  "paragraphLess": "Less",
+  "paragraphCopied": "Copied"
 }

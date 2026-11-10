@@ -199,6 +199,7 @@ class FileMarkdown extends StatefulWidget {
     this.onMark = _noMark,
     this.parse = parseMarkdown,
     this.softLineBreak = false,
+    this.wrapBlock,
   });
 
   static void _noMark(String id) {}
@@ -212,6 +213,9 @@ class FileMarkdown extends StatefulWidget {
 
   /// A line break of the text stays one (a user message).
   final bool softLineBreak;
+
+  /// Dresses top-level block [i] (node [n], drawn as the given widget): the chat makes a reply's paragraphs targets.
+  final Widget Function(int i, md.Node n, Widget block)? wrapBlock;
 
   /// The selection of top-level block [i] is reported to this notifier: an offset Flutter gives inside one block
   /// stays near the rendered one, where across the file code and bullets push it away. Null: nothing is reported.
@@ -304,10 +308,12 @@ class _FileMarkdownState extends State<FileMarkdown>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: build(n),
             );
+            final wrap = widget.wrapBlock;
+            final dressed = wrap == null ? block : wrap(i, n, block);
             final at = widget.listenerAt;
             return at == null
-                ? block
-                : SelectionListener(selectionNotifier: at(i), child: block);
+                ? dressed
+                : SelectionListener(selectionNotifier: at(i), child: dressed);
           }(),
         ],
       ],

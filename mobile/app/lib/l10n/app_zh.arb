@@ -292,5 +292,9 @@
         "type": "int"
       }
     }
-  }
+  },
+  "paragraphLabelAdded": "已添加：{label}",
+  "paragraphPin": "固定",
+  "paragraphLess": "收起",
+  "paragraphCopied": "已复制"
 }

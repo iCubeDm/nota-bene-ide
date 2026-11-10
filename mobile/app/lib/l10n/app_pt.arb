@@ -292,5 +292,9 @@
         "type": "int"
       }
     }
-  }
+  },
+  "paragraphLabelAdded": "{label} adicionado",
+  "paragraphPin": "Fixar",
+  "paragraphLess": "Menos",
+  "paragraphCopied": "Copiado"
 }

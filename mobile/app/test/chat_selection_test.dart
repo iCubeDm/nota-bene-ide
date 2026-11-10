@@ -46,11 +46,46 @@ void main() {
     ],
   );
 
-  /// Long-press at [at], then "Select text" in the menu.
-  Future<void> selectTextAt(WidgetTester t, Offset at) async {
-    await t.longPressAt(at);
+  var done = 0;
+
+  /// The user's own message holds [reply]: a reply is commented by paragraph, only a user message is selected in
+  /// (the long-press menu's "Select text"). The message goes straight into selection mode, pressed at [word] (the
+  /// first pump finds where that is; null: nothing pressed, all selected).
+  Future<void> selectIn(
+    WidgetTester t, {
+    String text = reply,
+    String? word,
+    int nth = 0,
+  }) async {
+    await r.open(
+      t,
+      events: [
+        {'kind': 'user', 'id': 'u1', 'text': text, 'ts': 1},
+        agent({'t': 'message', 'id': 'a1', 'text': 'Agent answer'}),
+      ],
+    );
+    final item = r.tab!.feed.items.first;
+    done = 0;
+    Widget message(Offset? from) => NbApp(
+      home: Scaffold(
+        body: SelectableMessage(
+          key: UniqueKey(),
+          tab: r.tab!,
+          item: item,
+          from: from,
+          onDone: () => done++,
+        ),
+      ),
+    );
+    await t.pumpWidget(message(null));
     await t.pumpAndSettle();
-    await t.tap(find.text('Select text'));
+    Offset? from;
+    if (word != null) {
+      from =
+          wordAt(t, word, nth: nth) -
+          t.getTopLeft(find.byType(SelectableMessage));
+    }
+    await t.pumpWidget(message(from));
     await t.pumpAndSettle();
     // the area replays the long press: it takes a moment to be held
     await t.pump(const Duration(seconds: 1));
@@ -59,8 +94,7 @@ void main() {
 
   testWidgets('Select text: the word under the press is selected, with a '
       'vertical Comment / Copy / Select all toolbar', (t) async {
-    await open(t);
-    await selectTextAt(t, wordAt(t, 'bold'));
+    await selectIn(t, word: 'bold');
     expect(find.byType(SelectionArea), findsOneWidget);
     final a = t.getTopLeft(find.text('Comment'));
     final b = t.getTopLeft(find.text('Copy'));
@@ -77,28 +111,31 @@ void main() {
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
     expect(an.quote, 'bold');
-    expect((an.source as AnchorSourceMessage).id, 'a1');
+    expect((an.source as AnchorSourceMessage).id, 'u1');
   });
 
   testWidgets('the second of two equal words is the one the anchor takes', (
     t,
   ) async {
-    await open(t, text: 'cache is read, then the cache is written');
-    await selectTextAt(t, wordAt(t, 'cache', nth: 1));
+    await selectIn(
+      t,
+      text: 'cache is read, then the cache is written',
+      word: 'cache',
+      nth: 1,
+    );
     await t.tap(find.text('Comment'));
     await t.pumpAndSettle();
     await t.tap(find.text('Save'));
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
-    final text = chatText(r.tab!.feed.items.last).text;
+    final text = chatText(r.tab!.feed.items.first).text;
     expect(an.quote, 'cache');
     expect(an.start, text.lastIndexOf('cache'));
     expect(an.start, isNot(text.indexOf('cache')));
   });
 
   testWidgets('Select all takes the whole message', (t) async {
-    await open(t);
-    await selectTextAt(t, wordAt(t, 'bold'));
+    await selectIn(t, word: 'bold');
     await t.tap(find.text('Select all'));
     await t.pumpAndSettle();
     await t.tap(find.text('Comment'));
@@ -106,17 +143,15 @@ void main() {
     await t.tap(find.text('Save'));
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
-    expect(an.quote, chatText(r.tab!.feed.items.last).text);
+    expect(an.quote, chatText(r.tab!.feed.items.first).text);
   });
 
   testWidgets('a tap outside the message leaves selection mode', (t) async {
-    await open(t);
-    await selectTextAt(t, wordAt(t, 'bold'));
+    await selectIn(t, word: 'bold');
     expect(find.byType(SelectionArea), findsOneWidget);
-    await t.tap(find.text('Hello there'));
+    await t.tapAt(const Offset(780, 580));
     await t.pumpAndSettle();
-    expect(find.byType(SelectionArea), findsNothing);
-    expect(find.text('Select all'), findsNothing);
+    expect(done, 1);
   });
 
   testWidgets('full-screen code of a reply: select, Comment, an anchor in the '
@@ -206,11 +241,43 @@ void main() {
     expect(an.start, text.lastIndexOf('beta'));
   });
 
+  testWidgets('a press position outside the message selects all of it', (
+    t,
+  ) async {
+    await open(t);
+    final item = r.tab!.feed.items.last;
+    await t.pumpWidget(
+      NbApp(
+        home: Scaffold(
+          body: SelectableMessage(
+            tab: r.tab!,
+            item: item,
+            from: const Offset(9000, 9000),
+            onDone: () {},
+          ),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Comment'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    final an = r.tab!.comments.all.single.anchor as TextAnchor;
+    expect(an.quote, chatText(item).text);
+  });
+
   testWidgets('the message moved between the menu and Select text: the word '
       'under the press is still the one selected, no other menu opens', (
     t,
   ) async {
-    await open(t);
+    await r.open(
+      t,
+      events: [
+        {'kind': 'user', 'id': 'u1', 'text': 'alpha bold beta', 'ts': 1},
+        agent({'t': 'message', 'id': 'a1', 'text': 'Agent answer'}),
+      ],
+    );
     await t.longPressAt(wordAt(t, 'bold'));
     await t.pumpAndSettle();
     // a reply arrives below while the menu is open: this one moves up
@@ -237,32 +304,6 @@ void main() {
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
     expect(an.quote, 'bold');
-    expect((an.source as AnchorSourceMessage).id, 'a1');
-  });
-
-  testWidgets('a press position outside the message selects all of it', (
-    t,
-  ) async {
-    await open(t);
-    final item = r.tab!.feed.items.last;
-    await t.pumpWidget(
-      NbApp(
-        home: Scaffold(
-          body: SelectableMessage(
-            tab: r.tab!,
-            item: item,
-            from: const Offset(9000, 9000),
-            onDone: () {},
-          ),
-        ),
-      ),
-    );
-    await t.pumpAndSettle();
-    await t.tap(find.text('Comment'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
-    await t.pumpAndSettle();
-    final an = r.tab!.comments.all.single.anchor as TextAnchor;
-    expect(an.quote, chatText(item).text);
+    expect((an.source as AnchorSourceMessage).id, 'u1');
   });
 }

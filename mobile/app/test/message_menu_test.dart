@@ -66,9 +66,11 @@ void main() {
         ),
         findsNothing,
       );
-      for (final s in ['Comment', 'Select text', 'Copy', 'Reply']) {
+      for (final s in ['Comment', 'Copy', 'Reply']) {
         expect(menuEntry(s), findsOneWidget);
       }
+      // a reply is commented by paragraph: no selecting inside it
+      expect(menuEntry('Select text'), findsNothing);
       await t.tap(find.byKey(const ValueKey('labels-more')));
       await t.pumpAndSettle();
       for (final l in quickLabels) {
@@ -255,7 +257,7 @@ void main() {
       await open(t);
       await t.longPressAt(t.getCenter(find.textContaining('answer').first));
       await t.pumpAndSettle();
-      expect(menuEntry('Select text'), findsOneWidget);
+      expect(menuEntry('Reply'), findsOneWidget);
       expect(menuEntry('Comment'), findsOneWidget);
     });
 
@@ -270,15 +272,15 @@ void main() {
       await open(t);
       await t.longPressAt(t.getCenter(find.textContaining('the docs').first));
       await t.pumpAndSettle();
-      expect(menuEntry('Select text'), findsOneWidget);
+      expect(menuEntry('Reply'), findsOneWidget);
       expect(opened, isEmpty);
       await t.tapAt(const Offset(2, 2)); // the scrim
       await t.pumpAndSettle();
-      expect(menuEntry('Select text'), findsNothing);
+      expect(menuEntry('Reply'), findsNothing);
       await t.tapOnText(find.textRange.ofSubstring('the docs').first);
       await t.pumpAndSettle();
       expect(opened, [Uri.parse('https://example.com/d')]);
-      expect(menuEntry('Select text'), findsNothing);
+      expect(menuEntry('Reply'), findsNothing);
     });
   });
 
@@ -286,12 +288,12 @@ void main() {
     testWidgets('a route pushed over the chat closes it', (t) async {
       await openChat(t);
       await hold(t, find.textContaining('First'));
-      expect(menuEntry('Select text'), findsOneWidget);
+      expect(menuEntry('Reply'), findsOneWidget);
       final nav = Navigator.of(t.element(find.byType(Scaffold).first));
       nav.push(MaterialPageRoute<void>(builder: (_) => const Text('covering')));
       await t.pumpAndSettle();
       expect(find.text('covering'), findsOneWidget);
-      expect(menuEntry('Select text'), findsNothing);
+      expect(menuEntry('Reply'), findsNothing);
       expect(find.byKey(const ValueKey('menu-scrim')), findsNothing);
       nav.pop();
       await t.pumpAndSettle();
