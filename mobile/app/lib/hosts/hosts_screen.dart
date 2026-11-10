@@ -278,6 +278,14 @@ class _SessionRow extends StatelessWidget {
                       port: w.port,
                       icon: w.icon,
                       size: 54,
+                      semanticLabel: providerName(w.provider),
+                      badge: ProviderBadge(
+                        letter: providerLetter(w.provider),
+                        size: 20,
+                        fill: c.muted,
+                        fg: c.foreground,
+                        ring: Theme.of(context).scaffoldBackgroundColor,
+                      ),
                       fallback: Container(
                         alignment: Alignment.center,
                         decoration: BoxDecoration(

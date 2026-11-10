@@ -322,7 +322,7 @@ export async function startServer(o: {
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), pending: manager.pending(), ...hub.summary(), clients: hub.clients(), blender: blend?.available() ?? false, icon: projectIcons.version(root) };
+        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), pending: manager.pending(), ...hub.summary(), clients: hub.clients(), blender: blend?.available() ?? false, icon: projectIcons.versionOrNull(root) };
       },
     }));
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);

@@ -72,7 +72,7 @@ void main() {
     rig.ch.push([win]);
     await t.pumpAndSettle();
     expect(find.byKey(const ValueKey('project-icon')), findsOneWidget);
-    expect(find.text('C'), findsNothing);
+    expect(find.byKey(const ValueKey('provider-badge')), findsOneWidget);
   });
 
   testWidgets('the pill shows the title, not the model', (t) async {

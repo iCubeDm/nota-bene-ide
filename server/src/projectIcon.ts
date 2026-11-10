@@ -35,24 +35,64 @@ export class ProjectIconStore {
     this.dir = o.dir;
   }
 
+  /** The hash of the root's real path (so a symlinked path is the same folder), else of the path as given. */
   private key(root: string): string {
-    return createHash('sha256').update(root).digest('hex');
+    let real = root;
+    try {
+      real = fs.realpathSync(root);
+    } catch { /* a root that is gone: its own path */ }
+    return createHash('sha256').update(real).digest('hex');
   }
 
   private files(root: string): string[] {
     const prefix = `${this.key(root)}.`;
+    let names: string[];
     try {
-      return fs.readdirSync(this.dir).filter((f) => f.startsWith(prefix) && /^[0-9a-f]{64}\.[0-9a-f]{16}\.(png|jpg|webp)$/.test(f));
+      names = fs.readdirSync(this.dir).filter((f) => f.startsWith(prefix) && /^[0-9a-f]{64}\.[0-9a-f]{16}\.(png|jpg|webp)$/.test(f));
     } catch (e) {
       if (missing(e)) return [];
       throw e;
     }
+    // newest first: if two processes wrote at once, the later picture is the one served
+    return names
+      .map((f) => ({ f, t: this.mtime(f) }))
+      .sort((x, y) => y.t - x.t || (x.f < y.f ? -1 : 1))
+      .map((x) => x.f);
+  }
+
+  private mtime(f: string): number {
+    try {
+      return fs.statSync(path.join(this.dir, f)).mtimeMs;
+    } catch {
+      return 0; // removed meanwhile
+    }
+  }
+
+  /** Temp files of a write that never finished (a crash between write and rename), an hour old or more. */
+  private sweep(): void {
+    const old = Date.now() - 60 * 60 * 1000;
+    let names: string[];
+    try {
+      names = fs.readdirSync(this.dir);
+    } catch {
+      return;
+    }
+    for (const f of names) if (f.includes('.tmp') && this.mtime(f) < old) fs.rmSync(path.join(this.dir, f), { force: true });
   }
 
   /** The picture's version, or null when the folder has none. */
   version(root: string): string | null {
     const f = this.files(root)[0];
     return f ? f.split('.')[1]! : null;
+  }
+
+  /** For `/info`, which must not fail because the folder cannot be read. */
+  versionOrNull(root: string): string | null {
+    try {
+      return this.version(root);
+    } catch {
+      return null;
+    }
   }
 
   get(root: string): { bytes: Buffer; mediaType: IconType; version: string } | null {
@@ -82,7 +122,10 @@ export class ProjectIconStore {
       fs.rmSync(tmp, { force: true });
       throw e;
     }
-    for (const f of this.files(root)) if (f !== name) fs.rmSync(path.join(this.dir, f), { force: true });
+    this.sweep();
+    // only pictures not newer than ours: a later one of another process stays
+    const ours = this.mtime(name);
+    for (const f of this.files(root)) if (f !== name && this.mtime(f) <= ours) fs.rmSync(path.join(this.dir, f), { force: true });
     return version;
   }
 

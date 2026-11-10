@@ -37,11 +37,11 @@ Uint8List wide() {
 Uint8List png1() =>
     Uint8List.fromList(img.encodePng(img.Image(width: 2, height: 2)));
 
-HttpAnswer answer(int status, [List<int> body = const []]) => (
-  status: status,
-  headers: const <String, String>{},
-  body: Uint8List.fromList(body),
-);
+HttpAnswer answer(
+  int status, [
+  List<int> body = const [],
+  Map<String, String> headers = const {},
+]) => (status: status, headers: headers, body: Uint8List.fromList(body));
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -146,6 +146,7 @@ void main() {
         final icons = ProjectIcons();
         var n = 0;
         var status = 404;
+        var etag = '';
         Future<HttpAnswer> http(
           String m,
           String path, {
@@ -153,11 +154,12 @@ void main() {
           List<int>? body,
         }) async {
           n++;
-          return answer(status, [9, 9]);
+          return answer(status, [9, 9], {'etag': etag});
         }
 
         expect(await icons.load('v1', http), isNull);
         status = 200;
+        etag = '"v1"';
         expect(await icons.load('v1', http), [9, 9]);
         expect(await icons.load('v1', http), [9, 9]);
         expect(n, 2);
@@ -167,13 +169,15 @@ void main() {
 
     test('keeps the newest versions within its capacity', () async {
       final icons = ProjectIcons(capacity: 2);
+      var asked = '';
       Future<HttpAnswer> http(
         String m,
         String path, {
         Map<String, String>? headers,
         List<int>? body,
-      }) async => answer(200, [1]);
+      }) async => answer(200, [1], {'etag': '"$asked"'});
       for (final v in ['a', 'b', 'c']) {
+        asked = v;
         await icons.load(v, http);
       }
       expect(icons.cached('a'), isNull);
@@ -235,11 +239,69 @@ void main() {
         f.results.add(ch);
         final links = await pump(t);
         expect(find.byKey(const ValueKey('project-icon')), findsOneWidget);
-        expect(find.text('C'), findsNothing);
+        expect(find.text('C'), findsOneWidget); // only the small badge
         expect(ch.requests, contains('GET /project-icon'));
         links.dispose();
       },
     );
+
+    testWidgets(
+      'over a picture the provider letter stays as a small badge, and a screen reader hears the provider',
+      (t) async {
+        final handle = t.ensureSemantics();
+        final ch = FakeChannel([
+          window(4791, '/home/u/notes', title: 'Plan', icon: 'v-badge'),
+        ]);
+        ch.onHttp = (port, m, path) async => answer(200, png1());
+        f.results.add(ch);
+        final links = await pump(t);
+        expect(find.byKey(const ValueKey('project-icon')), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('provider-badge')),
+            matching: find.text('C'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.bySemanticsLabel(RegExp('Claude')), findsOneWidget);
+        handle.dispose();
+        links.dispose();
+      },
+    );
+
+    testWidgets('the badge is not there without a picture', (t) async {
+      final ch = FakeChannel([window(4791, '/home/u/notes', title: 'Plan')]);
+      f.results.add(ch);
+      final links = await pump(t);
+      expect(find.byKey(const ValueKey('provider-badge')), findsNothing);
+      links.dispose();
+    });
+
+    testWidgets('a poll that leaves the icon out keeps the last known one', (
+      t,
+    ) async {
+      final ch = FakeChannel([
+        window(4791, '/home/u/notes', title: 'Plan', icon: 'v-keep'),
+      ]);
+      f.results.add(ch);
+      final links = await pump(t);
+      final link = links.of(a)!;
+      ch.push([window(4791, '/home/u/notes', title: 'Plan')]); // no field
+      await t.pumpAndSettle();
+      expect(link.windows.single.icon, 'v-keep');
+      expect(link.windows.single.iconSupported, isTrue);
+      ch.push([
+        window(4791, '/home/u/notes', title: 'Plan', iconSupported: true),
+      ]);
+      await t.pumpAndSettle();
+      expect(link.windows.single.icon, isNull); // a removal is said outright
+      ch.push([
+        window(4791, '/other', title: 'Plan'),
+      ]); // another folder on the port
+      await t.pumpAndSettle();
+      expect(link.windows.single.iconSupported, isFalse);
+      links.dispose();
+    });
 
     testWidgets('no icon, or a fetch that fails: the letter stays', (t) async {
       final ch = FakeChannel([

@@ -87,6 +87,24 @@ class ChatHeader extends StatelessWidget {
                           .firstOrNull
                           ?.icon,
                       size: 28,
+                      semanticLabel: providerName(
+                        switch (tab.capabilities?.provider) {
+                          CapabilitiesProvider.$unknown || null => null,
+                          final p => p.name,
+                        },
+                      ),
+                      badge: ProviderBadge(
+                        letter: providerLetter(
+                          switch (tab.capabilities?.provider) {
+                            CapabilitiesProvider.$unknown || null => null,
+                            final p => p.name,
+                          },
+                        ),
+                        size: 13,
+                        fill: c.muted,
+                        fg: c.foreground,
+                        ring: c.popover,
+                      ),
                       fallback: Container(
                         width: 28,
                         height: 28,

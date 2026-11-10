@@ -101,6 +101,23 @@ class HostWindow {
   /// The version (a hash) of the picture of the window's project folder, null when it has none.
   final String? icon;
 
+  /// This window with another picture state (the phone keeps the last known one when a poll leaves the field out).
+  HostWindow withIcon(String? icon, bool iconSupported) => HostWindow(
+    port: port,
+    provider: provider,
+    root: root,
+    title: title,
+    session: session,
+    model: model,
+    busy: busy,
+    supervised: supervised,
+    pending: pending,
+    last: last,
+    replies: replies,
+    icon: icon,
+    iconSupported: iconSupported,
+  );
+
   /// The host knows project pictures (protocol 15 lists `icon`, null or not); an older host does not, and the phone
   /// offers no Set icon there.
   final bool iconSupported;

@@ -60,6 +60,62 @@ describe('ProjectIconStore', () => {
   });
 });
 
+describe('ProjectIconStore robustness', () => {
+  it('versionOrNull: a folder that cannot be read is no icon, not an error', () => {
+    const s = new ProjectIconStore({ dir });
+    s.put('/p', PNG, 'image/png');
+    fs.chmodSync(dir, 0o000);
+    try {
+      expect(() => s.version('/p')).toThrow();
+      expect(s.versionOrNull('/p')).toBeNull();
+    } finally {
+      fs.chmodSync(dir, 0o700);
+    }
+  });
+
+  it('put sweeps stale temp files of a crashed write and keeps a fresh one', () => {
+    const s = new ProjectIconStore({ dir });
+    s.put('/p', PNG, 'image/png');
+    const stale = path.join(dir, `${'a'.repeat(64)}.0123456789abcdef.png.tmp1-x`);
+    const fresh = path.join(dir, `${'b'.repeat(64)}.0123456789abcdef.png.tmp2-y`);
+    fs.writeFileSync(stale, 'x');
+    fs.writeFileSync(fresh, 'x');
+    const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    fs.utimesSync(stale, old, old);
+    s.put('/p', JPG, 'image/jpeg');
+    expect(fs.existsSync(stale)).toBe(false);
+    expect(fs.existsSync(fresh)).toBe(true);
+  });
+
+  it('a put removes only versions that are not newer than its own (another process may have written a later one)', () => {
+    const s = new ProjectIconStore({ dir });
+    const a = s.put('/p', PNG, 'image/png');
+    const file = fs.readdirSync(dir)[0]!;
+    // a later picture of another process appears, newer than what the next put will write
+    const later = file.replace(a, 'f'.repeat(16)).replace(/\.png$/, '.jpg');
+    fs.writeFileSync(path.join(dir, later), JPG);
+    const future = new Date(Date.now() + 60_000);
+    fs.utimesSync(path.join(dir, later), future, future);
+    s.put('/p', WEBP, 'image/webp');
+    expect(fs.existsSync(path.join(dir, later))).toBe(true);
+    expect(fs.existsSync(path.join(dir, file))).toBe(false);
+    // and the newest one is what is served
+    expect(s.version('/p')).toBe('f'.repeat(16));
+  });
+
+  it('the key is the realpath of the root: a symlinked path finds the same picture', () => {
+    const real = path.join(dir, 'real');
+    fs.mkdirSync(real);
+    const link = path.join(dir, 'link');
+    fs.symlinkSync(real, link);
+    const s = new ProjectIconStore({ dir: path.join(dir, 'icons') });
+    const v = s.put(real, PNG, 'image/png');
+    expect(s.version(link)).toBe(v);
+    // a root that does not exist keeps its own path as the key
+    expect(s.put('/no/such/root', JPG, 'image/jpeg')).toBe(s.version('/no/such/root'));
+  });
+});
+
 describe('project icon route', () => {
   let server: http.Server;
   let base: string;

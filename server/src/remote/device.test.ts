@@ -171,6 +171,36 @@ describe('device channel', () => {
     expect(h.lists[0]![0]).toMatchObject({ port: a.port, pending: false, last: null, replies: 0 });
   });
 
+  it('the host stream forwards the icon of a window: null, then its version', async () => {
+    const a = await window();
+    const l = await paired(await windows());
+    const h = l.phone.host();
+    await until(() => h.lists.length > 0);
+    expect(h.lists[0]![0]).toMatchObject({ port: a.port, icon: null });
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('pic')]);
+    const put = await l.phone.http(a.port, 'PUT', '/project-icon', { headers: { 'content-type': 'image/png' }, body: png });
+    const { icon } = JSON.parse(put.body.toString()) as { icon: string };
+    expect(icon).toMatch(/^[0-9a-f]{16}$/);
+    // a host stream lists the windows when it opens: a phone that asks again sees the version
+    const again = l.phone.host();
+    await until(() => again.lists.some((x) => x[0]?.icon === icon));
+  });
+
+  it('the project icon through the connector: PUT arrives with its Origin (200), GET and DELETE too', async () => {
+    const a = await window();
+    const l = await paired(await windows());
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('pic')]);
+    // the window refuses a non-GET without an allowed Origin, so a 200 shows the connector added it
+    const put = await l.phone.http(a.port, 'PUT', '/project-icon', { headers: { 'content-type': 'image/png' }, body: png });
+    expect(put.status).toBe(200);
+    const got = await l.phone.http(a.port, 'GET', '/project-icon');
+    expect(got.status).toBe(200);
+    expect(got.body).toEqual(png);
+    expect(got.headers.etag).toBe(`"${(JSON.parse(put.body.toString()) as { icon: string }).icon}"`);
+    expect((await l.phone.http(a.port, 'DELETE', '/project-icon')).status).toBe(204);
+    expect((await l.phone.http(a.port, 'GET', '/project-icon')).status).toBe(404);
+  });
+
   it('a ws stream is a tab of the window, one-tab rule included', async () => {
     const a = await window();
     const l = await paired(await windows());

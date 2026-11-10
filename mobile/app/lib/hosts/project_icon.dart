@@ -119,9 +119,17 @@ class ProjectIcons {
     try {
       final res = await http('GET', '/project-icon');
       if (res.status != 200 || res.body.isEmpty) return null;
-      _bytes[version] = res.body;
-      while (_bytes.length > capacity) {
-        _bytes.remove(_bytes.keys.first);
+      // kept only when the host says these are the bytes of the version asked for: the picture may have changed
+      // between the list and the fetch, and the next list names the new version
+      final etag = res.headers.entries
+          .where((e) => e.key.toLowerCase() == 'etag')
+          .map((e) => e.value.replaceAll('"', ''))
+          .firstOrNull;
+      if (etag == version) {
+        _bytes[version] = res.body;
+        while (_bytes.length > capacity) {
+          _bytes.remove(_bytes.keys.first);
+        }
       }
       return res.body;
     } on Object {
@@ -139,6 +147,8 @@ class ProjectIconAvatar extends StatefulWidget {
     required this.icon,
     required this.size,
     required this.fallback,
+    this.badge,
+    this.semanticLabel,
     this.icons,
   });
 
@@ -149,6 +159,12 @@ class ProjectIconAvatar extends StatefulWidget {
   final String? icon;
   final double size;
   final Widget fallback;
+
+  /// Drawn over the picture (not over [fallback], which is the letter itself): the provider's letter.
+  final Widget? badge;
+
+  /// What a screen reader says of the avatar, picture or letter: the provider's name.
+  final String? semanticLabel;
   final ProjectIcons? icons;
 
   @override
@@ -219,19 +235,85 @@ class _ProjectIconAvatarState extends State<ProjectIconAvatar> {
   @override
   Widget build(BuildContext context) {
     final b = widget.icon == null ? null : _bytes;
-    if (b == null) return widget.fallback;
-    final px = (widget.size * MediaQuery.devicePixelRatioOf(context)).round();
-    return ClipOval(
-      child: Image.memory(
-        b,
-        key: const ValueKey('project-icon'),
-        width: widget.size,
-        height: widget.size,
-        fit: BoxFit.cover,
-        cacheWidth: px,
-        gaplessPlayback: true,
-        errorBuilder: (_, _, _) => widget.fallback,
-      ),
-    );
+    final Widget inner;
+    if (b == null) {
+      inner = widget.fallback;
+    } else {
+      final px = (widget.size * MediaQuery.devicePixelRatioOf(context)).round();
+      final badge = widget.badge;
+      inner = SizedBox.square(
+        dimension: widget.size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipOval(
+              child: Image.memory(
+                b,
+                key: const ValueKey('project-icon'),
+                width: widget.size,
+                height: widget.size,
+                fit: BoxFit.cover,
+                cacheWidth: px,
+                gaplessPlayback: true,
+                excludeFromSemantics: true,
+                errorBuilder: (_, _, _) => widget.fallback,
+              ),
+            ),
+            if (badge != null) Positioned(left: -2, bottom: -2, child: badge),
+          ],
+        ),
+      );
+    }
+    final label = widget.semanticLabel;
+    return label == null
+        ? inner
+        : Semantics(label: label, excludeSemantics: true, child: inner);
   }
+}
+
+/// The provider's name for a screen reader (product names, not translated).
+String providerName(String? provider) => switch (provider) {
+  'claude' => 'Claude',
+  'codex' => 'Codex',
+  'omp' => 'omp',
+  null || '' => '',
+  final p => p,
+};
+
+/// A small round badge with the provider's letter, over a picture.
+class ProviderBadge extends StatelessWidget {
+  const ProviderBadge({
+    super.key,
+    required this.letter,
+    required this.size,
+    required this.fill,
+    required this.fg,
+    required this.ring,
+  });
+
+  final String letter;
+  final double size;
+  final Color fill, fg, ring;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('provider-badge'),
+    width: size,
+    height: size,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: fill,
+      shape: BoxShape.circle,
+      border: Border.all(color: ring, width: 1.5),
+    ),
+    child: Text(
+      letter,
+      style: TextStyle(
+        fontSize: size * 0.58,
+        height: 1,
+        fontWeight: FontWeight.w700,
+        color: fg,
+      ),
+    ),
+  );
 }
