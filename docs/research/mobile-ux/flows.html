@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nota Bene for Android: every flow as implemented</title>
+<style>
+:root{
+  --bg:#2b2b2b; --fg:#c9ced6; --card:#313131; --pop:#3c3f41; --muted:#434547; --mfg:#adb3ba;
+  --border:#4c4f52; --primary:#4876c0; --accent:#ffc66d; --danger:#ff8980; --ok:#66bf31; --link:#66acff;
+  --ub:#334055; --ab:#414243; --page:#18191b; --ink:#e8e8e8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{padding:24px 32px 80px;max-width:2400px}
+h1{font-size:26px;margin:0 0 6px}
+h2{font-size:20px;margin:48px 0 4px;padding-top:12px;border-top:1px solid #333}
+h2 small{color:#888;font-weight:400;font-size:14px}
+.lead{color:#aaa;max-width:980px}
+.lead code,figcaption code{background:#262729;padding:0 4px;border-radius:4px;font-size:12px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0 0;color:#aaa;font-size:13px}
+.toc{columns:3;max-width:1000px;font-size:13px;color:#bbb;margin:12px 0}
+.toc a{color:#9cc3ff;text-decoration:none}
+.row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 0;margin-top:16px}
+figure{margin:0 0 16px;width:360px}
+figcaption{margin-top:8px;font-size:12.5px;color:#bbb}
+figcaption b{color:#eee;font-size:13.5px}
+figcaption .id{display:inline-block;font:600 11px ui-monospace,Menlo,monospace;background:#2f3b52;color:#cfe0ff;border-radius:4px;padding:1px 5px;margin-right:6px}
+figcaption ul{margin:4px 0 0;padding-left:16px}
+.go{width:64px;align-self:center;text-align:center;color:#888;font-size:11px;padding:0 4px;margin-top:-60px}
+.go::before{content:"→";display:block;font-size:26px;color:#6aa0ff;line-height:1}
+.tag{display:inline-block;font:600 10px ui-monospace,Menlo,monospace;border-radius:3px;padding:0 4px;margin-right:4px;vertical-align:1px}
+.p0{background:#5c2626;color:#ffb0a8}.p1{background:#4d3f1e;color:#ffd98a}.p2{background:#2c3a2c;color:#a9d79b}.ok{background:#253a46;color:#9fd4ef}
+
+/* phone */
+.ph{position:relative;width:360px;height:740px;background:var(--bg);color:var(--fg);border:6px solid #0c0c0d;border-radius:30px;overflow:hidden;font-size:14px;line-height:1.4}
+.sb{height:24px;padding:3px 18px;font-size:11px;color:var(--mfg);display:flex;justify-content:space-between}
+.sb::after{content:"▾ ▴ ■ 87%"}
+.nav{position:absolute;bottom:0;left:0;right:0;height:16px;display:flex;justify-content:center;align-items:center}
+.nav::after{content:"";width:110px;height:4px;border-radius:2px;background:#777}
+.appbar{height:56px;display:flex;align-items:center;gap:14px;padding:0 8px 0 16px;font-size:20px;color:var(--fg)}
+.appbar .sp{flex:1}
+.ib{width:40px;height:40px;border-radius:20px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;color:var(--fg)}
+.body{padding:0 16px}
+.center{position:absolute;inset:80px 24px 40px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px}
+.btn{display:inline-block;border-radius:20px;padding:9px 22px;background:var(--primary);color:#fff;font-weight:500}
+.btn.out{background:none;border:1px solid var(--border);color:var(--fg)}
+.btn.txt{background:none;color:var(--primary);padding:9px 10px}
+.btn.wide{display:block;text-align:center}
+.btn.red{background:var(--danger);color:#2b2b2b}
+.muted{color:var(--mfg)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.small{font-size:12px}.tiny{font-size:11px}
+.hr{height:1px;background:var(--border);margin:8px 0}
+.sect{font-size:13px;color:var(--primary);padding:16px 16px 6px;font-weight:500}
+.li{display:flex;align-items:center;gap:14px;padding:10px 16px;min-height:52px}
+.li .tx{flex:1;min-width:0}
+.li .t1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .t2{font-size:12.5px;color:var(--mfg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:10px;height:10px;border-radius:5px;background:var(--ok);flex:none}
+.av{width:54px;height:54px;border-radius:27px;background:#55606e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;flex:none;position:relative}
+.av.sm{width:28px;height:28px;font-size:13px}
+.av .busy{position:absolute;right:1px;bottom:1px;width:13px;height:13px;border-radius:7px;background:var(--accent);border:2px solid var(--bg)}
+.badge{min-width:22px;height:22px;border-radius:11px;background:var(--primary);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.badge.acc{background:var(--accent);color:#2b2b2b;font-weight:700}
+.check{color:var(--primary)}
+/* chat */
+.hdr{position:absolute;top:30px;left:8px;right:8px;height:40px;display:flex;gap:6px;z-index:3}
+.hdr .back{width:40px;height:40px;border-radius:20px;background:rgba(60,63,65,.92);border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+.pill{flex:1;height:40px;border-radius:20px;background:rgba(60,63,65,.92);border:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 10px 0 5px;min-width:0}
+.pill .tt{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill .meta{font-size:11px;color:var(--mfg);display:flex;gap:6px;align-items:center}
+.meter{display:inline-block;width:22px;height:4px;border-radius:2px;background:var(--muted);position:relative;overflow:hidden}
+.meter i{position:absolute;left:0;top:0;bottom:0;background:var(--primary)}
+.mode{color:var(--accent)}
+.tabs{position:absolute;top:76px;left:8px;right:8px;height:40px;border-radius:20px;background:rgba(60,63,65,.92);border:1px solid var(--border);display:flex;z-index:3;padding:3px}
+.tabs span{flex:1;display:flex;align-items:center;justify-content:center;border-radius:17px;font-size:14px;color:var(--mfg);gap:5px}
+.tabs .on{background:var(--muted);color:var(--fg)}
+.tabs .cnt{background:var(--accent);color:#2b2b2b;font-size:10px;border-radius:8px;padding:0 5px;font-weight:700}
+.status{position:absolute;top:122px;left:0;right:0;background:var(--muted);color:var(--mfg);font-size:13px;padding:4px 16px;z-index:2}
+.feed{position:absolute;top:124px;left:0;right:0;bottom:80px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;padding-bottom:6px}
+.feed.below{top:150px}
+.ubub{align-self:flex-end;margin:0 8px 0 28px;background:var(--ub);border:1px solid rgba(72,118,192,.45);border-radius:14px 14px 3px 14px;padding:7px 10px;max-width:320px}
+.abub{align-self:flex-start;margin:0 28px 0 8px;background:var(--ab);border-radius:14px 14px 14px 4px;padding:8px 10px;max-width:324px}
+.abub p{margin:0 0 6px}.abub p:last-child{margin:0}
+.code{background:var(--bg);border:1px solid var(--border);border-radius:8px;margin:6px 0;font:12px/1.5 ui-monospace,Menlo,monospace;overflow:hidden}
+.code .bar{display:flex;justify-content:space-between;color:var(--mfg);font-size:11px;padding:2px 8px;border-bottom:1px solid var(--border)}
+.code pre{margin:0;padding:6px 8px;white-space:pre;overflow:hidden;color:#a9b7c6}
+.k{color:#d17d38}.s{color:#66bf31}.f{color:#ffc66d}.n{color:#6897bb}.cm{color:#929292}
+.tool{display:flex;gap:6px;align-items:center;font-size:13px;padding:2px 0;white-space:nowrap;overflow:hidden}
+.tool .nm{color:var(--accent)}.tool .ar{font:12px ui-monospace,Menlo,monospace;color:var(--mfg);overflow:hidden;text-overflow:ellipsis}
+.line{align-self:center;color:var(--mfg);font-size:13px}
+.composer{position:absolute;left:0;right:0;bottom:16px;padding:4px 8px 8px;display:flex;gap:8px;align-items:flex-end;background:var(--bg)}
+.field{flex:1;min-height:48px;border-radius:22px;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;padding:0 14px;color:var(--mfg);gap:8px}
+.field .sp{flex:1}
+.fab{width:48px;height:48px;border-radius:24px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex:none}
+.fab.mute{background:var(--muted);color:var(--mfg)}
+.stopb{width:40px;height:40px;border-radius:20px;background:var(--danger);color:#2b2b2b;display:flex;align-items:center;justify-content:center;flex:none;margin-bottom:4px;font-size:14px}
+.strip{position:absolute;left:8px;right:8px;bottom:84px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px 10px;font-size:12.5px}
+.strip .h{color:var(--accent);font-size:12px;margin-bottom:2px}
+.strip .r{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hl{background:rgba(255,198,109,.25);border-bottom:1px solid var(--accent)}
+.sel{background:rgba(72,118,192,.55)}
+.nb{display:inline-flex;width:18px;height:18px;border-radius:9px;background:var(--accent);color:#2b2b2b;font-size:10px;font-weight:700;align-items:center;justify-content:center;vertical-align:2px;margin-left:2px}
+/* overlays */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:5}
+.scrim.dark{background:rgba(0,0,0,.62)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--pop);border-radius:20px 20px 0 0;z-index:6;padding:8px 0 24px}
+.sheet .grab{width:32px;height:4px;border-radius:2px;background:var(--mfg);margin:4px auto 12px;opacity:.6}
+.sheet h3{margin:0;padding:4px 20px 2px;font-size:18px;font-weight:500;color:var(--fg)}
+.sheet .pad{padding:0 20px}
+.dialog{position:absolute;left:28px;right:28px;top:240px;background:var(--pop);border-radius:24px;padding:22px 22px 14px;z-index:6}
+.dialog h3{margin:0 0 12px;font-size:20px;font-weight:400;color:var(--fg)}
+.dialog .acts{display:flex;justify-content:flex-end;gap:4px;margin-top:16px;flex-wrap:wrap}
+.snack{position:absolute;left:12px;right:12px;bottom:90px;background:#e4e4e4;color:#222;border-radius:4px;padding:12px 14px;font-size:13.5px;z-index:7}
+.seg{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;margin:6px 0}
+.seg span{flex:1;text-align:center;font-size:11.5px;line-height:1.15;padding:6px 2px;border-left:1px solid var(--border)}
+.seg span:first-child{border:0}
+.seg .on{background:rgba(72,118,192,.35);color:var(--fg)}
+.tiles{display:flex;gap:8px;padding:12px 20px 0}
+.tiles div{flex:1;background:var(--card);border-radius:12px;padding:10px 0;text-align:center;font-size:10.5px;color:var(--fg)}
+.tiles div b{display:block;font-size:18px;font-weight:400;margin-bottom:2px}
+.tiles .off{opacity:.4}
+.bar6{height:6px;border-radius:3px;background:var(--muted);overflow:hidden;margin:4px 0 10px}
+.bar6 i{display:block;height:100%;background:var(--primary)}
+.chip{display:inline-block;border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12.5px;margin:0 6px 6px 0}
+.chip.on{background:rgba(72,118,192,.35);border-color:var(--primary)}
+.emo{display:inline-flex;width:44px;height:44px;border-radius:22px;background:var(--pop);align-items:center;justify-content:center;font-size:20px}
+.emo.s{width:32px;height:32px;font-size:16px;background:var(--card)}
+.emo.pick{outline:2px solid var(--accent)}
+.menu{background:var(--pop);border-radius:12px;width:220px;overflow:hidden}
+.menu div{height:48px;display:flex;align-items:center;gap:14px;padding:0 16px;font-size:15px}
+.tf{border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--mfg);min-height:60px;margin:8px 0}
+.quote{border-left:3px solid var(--accent);padding:2px 0 2px 10px;color:var(--mfg);font-size:13px;margin:4px 0}
+.fp{font:20px/1.35 ui-monospace,Menlo,monospace;letter-spacing:.5px;color:var(--fg);margin:4px 0 14px}
+.cam{position:absolute;top:80px;left:0;right:0;bottom:170px;background:repeating-linear-gradient(45deg,#1d1f22 0 14px,#232528 14px 28px);display:flex;align-items:center;justify-content:center}
+.qr{width:180px;height:180px;border:3px solid #fff;border-radius:12px;opacity:.85}
+.lock{font-size:48px}
+.wave{display:inline-flex;gap:1px;align-items:center;height:24px;width:143px}
+.wave i{display:block;width:2px;background:var(--mfg);border-radius:1px}
+.play{width:40px;height:40px;border-radius:20px;background:var(--primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.rec{position:absolute;left:0;right:0;bottom:16px;height:64px;display:flex;align-items:center;padding:0 70px 0 14px;gap:10px;background:var(--bg)}
+.reddot{width:10px;height:10px;border-radius:5px;background:#e5534b}
+.bigmic{position:absolute;right:-18px;bottom:-4px;width:96px;height:96px;border-radius:48px;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;box-shadow:0 0 0 14px rgba(72,118,192,.25);z-index:4}
+.lockcap{position:absolute;right:16px;bottom:120px;width:40px;height:70px;border-radius:20px;background:var(--pop);display:flex;flex-direction:column;align-items:center;justify-content:space-around;font-size:13px;z-index:4}
+.tree .li{min-height:40px;padding:6px 16px}
+.ico{width:22px;text-align:center;color:var(--mfg)}
+.search{margin:6px 12px;height:40px;border-radius:20px;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;padding:0 14px;color:var(--mfg);gap:8px}
+.utabs{display:flex;height:40px;border-bottom:1px solid var(--border);margin-top:124px}
+.utabs span{flex:1;text-align:center;line-height:38px;color:var(--mfg)}
+.utabs .on{color:var(--fg);border-bottom:2px solid var(--primary)}
+.st{font:600 12px ui-monospace,Menlo,monospace;width:16px}
+.add{color:#b5e3a0}.del{color:#ffb4ae}
+.dl{font:11.5px/1.6 ui-monospace,Menlo,monospace;white-space:pre;display:flex}
+.dl .g{width:58px;color:#6b6f73;text-align:right;padding-right:6px;flex:none}
+.dl.a{background:#294436;color:#b5e3a0}.dl.d{background:#5c2e2e;color:#ffb4ae}.dl.h{color:var(--link);background:#2f3540}
+.black{background:#000}
+.gl{display:flex;gap:4px;align-items:center}
+.ins{position:absolute;inset:0}
+.note{position:absolute;left:8px;right:8px;z-index:9;border:2px dashed #ff6b6b;border-radius:10px;pointer-events:none}
+.note b{position:absolute;right:-2px;top:-2px;transform:translateY(-100%);background:#ff6b6b;color:#111;font:600 10px ui-monospace,Menlo,monospace;padding:1px 4px;border-radius:3px}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Nota Bene for Android: every flow as implemented</h1>
+<p class="lead">A review board of the phone app, in the spirit of a Figma page: each screen is drawn from the code at
+<code>main</code> 5a27066 (after #176 and #178), Darcula theme, Russian interface as it appears on a Russian phone, 360&nbsp;dp
+wide. Captions are in English. Arrows name the gesture that leads to the next screen. Tags under a screen point to the
+gap analysis in <code>report.md</code> (numbers in brackets are the weak points of <code>notes/our-app-inventory.md</code>).
+Dashed red frames mark the spot a tag is about. Drawings approximate spacing; texts, order of controls and states are exact.</p>
+<div class="legend">
+  <span><span class="tag p0">P0</span>blocks the phone as a remote</span>
+  <span><span class="tag p1">P1</span>friction on a common path</span>
+  <span><span class="tag p2">P2</span>polish</span>
+  <span><span class="tag ok">OK</span>works as intended, worth keeping</span>
+</div>
+<div class="toc">
+  <a href="#f1">1. First launch, lock and pairing</a><br>
+  <a href="#f2">2. Session list</a><br>
+  <a href="#f3">3. Settings</a><br>
+  <a href="#f4">4. Chat: reading the feed</a><br>
+  <a href="#f5">5. Window sheet, model, stats</a><br>
+  <a href="#f6">6. Agent at work: Stop, queue, permissions</a><br>
+  <a href="#f7">7. Comments on a message</a><br>
+  <a href="#f8">8. Comments pane and sending</a><br>
+  <a href="#f9">9. Voice messages</a><br>
+  <a href="#f10">10. Images: attach, view, mark up</a><br>
+  <a href="#f11">11. Files pane and viewers</a><br>
+  <a href="#f12">12. Git: changes, log, diff</a><br>
+  <a href="#f13">13. Connection and window states</a>
+</div>
+
+<!-- ============ 1 ============ -->
+<h2 id="f1">1. First launch, lock and pairing <small>main.dart, lock.dart, home.dart, pairing/</small></h2>
+<p class="lead">The app opens behind the system screen lock, then shows the empty start screen. Pairing scans the QR code that
+<code>nota-bene remote pair</code> prints, then shows both fingerprints.</p>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="center"><div class="lock">🔒</div>
+        <div style="font-size:20px">Nota Bene заблокирована</div>
+        <div class="muted">Разблокируйте, чтобы открыть сессии</div>
+        <span class="btn">Разблокировать</span></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">1.1</span><b>Lock</b>. System BiometricPrompt opens at once; this screen stays under it
+      and after a failure (“Не удалось разблокировать…”). Locks again after 5 min in background.
+      <ul><li>Without a screen lock on the phone: only a message, no way in.</li></ul></figcaption>
+  </figure>
+  <div class="go">unlock</div>
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar">Nota Bene<span class="sp"></span><span class="ib">⚙</span></div>
+      <div class="center"><div class="muted">Хостов пока нет. Запустите <span class="mono">nota-bene remote</span> на компьютере и сопрягите с ним этот телефон.</div>
+        <span class="btn">Сопрячь хост</span></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">1.2</span><b>Home, no hosts</b>. One call to action. The QR icon in the app bar appears only once a host exists.</figcaption>
+  </figure>
+  <div class="go">Сопрячь хост</div>
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar"><span>←</span><span style="font-size:19px">Сопряжение с хостом</span></div>
+      <div class="cam"><div class="qr"></div></div>
+      <div style="position:absolute;left:20px;right:20px;bottom:40px;text-align:center">
+        <div class="small" style="color:var(--danger);margin-bottom:8px">Код истёк или уже использован. Запустите <span class="mono">nota-bene remote pair</span> ещё раз.</div>
+        <div class="muted small">На компьютере запустите <span class="mono">nota-bene remote pair</span> и наведите камеру на QR-код.</div>
+        <span class="btn txt">Вставить код из буфера</span></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">1.3</span><b>Scan</b>. Live camera; errors are an inline line above the hint (shown: code used).
+      The camera permission is asked here, at the moment it is needed. While pairing: spinner and “Сопряжение…”.
+      <br><span class="tag p2">P2</span>a denied camera has no button to open Android settings.</figcaption>
+  </figure>
+  <div class="go">code read</div>
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar"><span style="font-size:19px">Сопряжено: studio-mac</span></div>
+      <div class="body">
+        <div class="muted small" style="margin:8px 0 18px">Проверьте, что они совпадают с тем, что вывел компьютер.</div>
+        <div class="small muted">Отпечаток хоста</div><div class="fp">7F2A 91C0 4B3E<br>D815 66AF 0C29</div>
+        <div class="small muted">Отпечаток этого телефона</div><div class="fp">3C9E 18D2 A07B<br>5F41 E6C3 92D8</div>
+      </div>
+      <div class="note" style="bottom:30px;height:56px"><b>P0</b></div>
+      <div style="position:absolute;left:16px;right:16px;bottom:36px"><span class="btn wide">Готово</span></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">1.4</span><b>Fingerprints</b>.
+      <br><span class="tag p0">P0</span>only “Готово”: the host is already saved, so a mismatch cannot be rejected [46].</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 2 ============ -->
+<h2 id="f2">2. Session list <small>home.dart, hosts/hosts_screen.dart</small></h2>
+<p class="lead">One group per paired host, windows under it in a Telegram-like list. At start the last opened chat reopens by itself
+if its host is online.</p>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar">Nota Bene<span class="sp"></span><span class="ib">⌗</span><span class="ib">⚙</span></div>
+      <div class="li" style="min-height:44px"><span class="dot"></span><div class="tx"><b>studio-mac</b></div></div>
+      <div class="li"><div class="av">C<span class="busy"></span></div><div class="tx">
+        <div style="display:flex"><span class="t1" style="flex:1;font-size:17px">Голосовые как в Telegram</span><span class="tiny muted">12:04</span></div>
+        <div style="display:flex;gap:6px"><span class="t2" style="flex:1"><span style="color:var(--primary)">nota-bene</span> · Готово, тесты зелёные…</span><span class="badge acc">!</span></div></div></div>
+      <div class="li"><div class="av" style="background:#4b6b58">X</div><div class="tx">
+        <div style="display:flex"><span class="t1" style="flex:1;font-size:17px">Отчёт по токенам</span><span class="tiny muted">пн</span></div>
+        <div style="display:flex;gap:6px"><span class="t2" style="flex:1"><span style="color:var(--primary)">reports</span> · Вы: давай без графиков</span><span class="badge">3</span></div></div></div>
+      <div class="li"><div class="av" style="background:#6b5a7a">O</div><div class="tx">
+        <div style="display:flex"><span class="t1" style="flex:1;font-size:17px">без названия</span><span class="tiny muted">2.11</span></div>
+        <div class="t2"><span style="color:var(--primary)">sandbox</span> · Привет! Чем помочь?</div></div></div>
+      <div class="li" style="min-height:44px;margin-top:6px"><span class="dot" style="background:var(--muted)"></span><div class="tx"><b>home-linux</b><div class="t2">Не в сети · был 3 часа назад</div></div></div>
+      <div class="li" style="opacity:.5"><div class="av">C</div><div class="tx">
+        <div class="t1" style="font-size:17px">Релей на дроплете</div>
+        <div class="t2"><span style="color:var(--primary)">relay</span> · Вы: проверь ufw</div></div></div>
+      <div class="li" style="min-height:44px;margin-top:6px;position:relative"><div class="note" style="inset:-2px 4px"><b>P2</b></div><span class="dot" style="background:var(--danger)"></span><div class="tx"><b>old-laptop</b><div class="t2">Этот телефон больше не сопряжён с хостом.</div></div><span class="btn txt">Забыть</span></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">2.1</span><b>Home with hosts</b>. Avatar letter = provider (C, X, O), accent dot = working,
+      “!” = waiting for an answer, number = unread. Offline windows dim and do not open.
+      <ul><li><span class="tag p0">P0</span>“!” is visible only with the app open: no notifications [45]; links pause 10 min after the app hides.</li>
+      <li><span class="tag p2">P2</span>“Забыть” on an unpaired host acts at once, no confirm or undo [44].</li>
+      <li><span class="tag p2">P2</span>unread is per phone, not synced with the desktop.</li>
+      <li>No search, pinning, swipe actions or pull-to-refresh.</li></ul></figcaption>
+  </figure>
+  <div class="go">long-press a row</div>
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar">Nota Bene<span class="sp"></span><span class="ib">⌗</span><span class="ib">⚙</span></div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="li"><span class="ico">↗</span><div class="tx">Открыть</div></div>
+        <div class="li"><span class="ico">✓</span><div class="tx">Отметить прочитанным</div></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">2.2</span><b>Row actions</b>. “Открыть” only when online. Tap on a row opens the chat (section 4).</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 3 ============ -->
+<h2 id="f3">3. Settings <small>settings_screen.dart</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar"><span>←</span><span style="font-size:20px">Настройки</span></div>
+      <div class="sect">Сопряжённые хосты</div>
+      <div class="li"><div class="tx"><div class="t1">studio-mac</div><div class="t2">relay.example</div></div><span class="btn txt">Забыть</span></div>
+      <div class="li"><div class="tx"><div class="t1">home-linux</div><div class="t2">relay.example</div></div><span class="btn txt">Забыть</span></div>
+      <div class="li"><span class="ico">＋</span><div class="tx">Сопрячь хост</div></div>
+      <div class="li"><div class="tx"><div class="t2">Отпечаток этого телефона</div><div class="mono small">3C9E 18D2 A07B 5F41 E6C3 92D8</div></div></div>
+      <div class="li"><span class="ico">文</span><div class="tx"><div class="t1">Язык</div><div class="t2">Как на телефоне</div></div></div>
+      <div class="sect">Темы</div>
+      <div class="li"><div class="av sm" style="background:#2b2b2b;border:1px solid #555"><i style="width:8px;height:8px;border-radius:4px;background:#4876c0"></i></div><div class="tx">Darcula</div><span class="check">✓</span></div>
+      <div class="li"><div class="av sm" style="background:#1d2230;border:1px solid #555"><i style="width:8px;height:8px;border-radius:4px;background:#8f7cf0"></i></div><div class="tx">Plannotator</div></div>
+      <div class="li"><div class="av sm" style="background:#f7f8fa"><i style="width:8px;height:8px;border-radius:4px;background:#3574f0"></i></div><div class="tx">IntelliJ Light</div></div>
+      <div class="li"><div class="av sm" style="background:#fff"><i style="width:8px;height:8px;border-radius:4px;background:#0969da"></i></div><div class="tx">GitHub Light</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">3.1</span><b>Settings</b>, one list: hosts (Forget asks to confirm), pair, phone fingerprint,
+      language, six themes (list continues: Solarized Light, Solarized Dark).
+      <br><span class="tag p2">P2</span>no “follow system light/dark”; no text size, lock timeout or notification settings.</figcaption>
+  </figure>
+  <div class="go">Язык</div>
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar"><span>←</span><span style="font-size:20px">Настройки</span></div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="li"><div class="tx">Как на телефоне</div><span class="check">✓</span></div>
+        <div class="li"><div class="tx">English</div></div>
+        <div class="li"><div class="tx">Русский</div></div>
+        <div class="li"><div class="tx">简体中文</div></div>
+        <div class="li"><div class="tx">Español</div></div>
+        <div class="li"><div class="tx">Português (Brasil)</div></div>
+        <div class="li"><div class="tx">Deutsch</div></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">3.2</span><b>Language</b>. Each language under its own name; the app switches at once.
+      Android 13+ also lists the app in the system per-app language settings. <span class="tag ok">OK</span></figcaption>
+  </figure>
+</div>
+
+<!-- ============ 4 ============ -->
+<h2 id="f4">4. Chat: reading the feed <small>chat/chat_route.dart, panes.dart, chat_header.dart, chat_screen.dart</small></h2>
+<p class="lead">Three panes, Files · Chat · Comments, opened on Chat. A floating header and the tab pill sit over the feed.
+Swiping anywhere moves between panes. The feed is reversed: the newest item is at the bottom.</p>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Голосовые как в Telegram</div><div class="meta"><span class="meter"><i style="width:34%"></i></span>34% <span class="mode">Принимать правки</span></div></div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="feed">
+        <div class="line" style="align-self:center"><span class="btn txt" style="padding:2px">Показать раньше</span></div>
+        <div class="ubub">Сделай кнопку записи как в Telegram: зажал — пишет, отпустил — ушло.</div>
+        <div class="abub"><p>Сделал. Запись стартует через 150 мс удержания, влево — отмена, вверх — замок.</p>
+          <div class="code"><div class="bar"><span>dart</span><span>⤢ ⧉</span></div><pre><span class="k">const</span> holdDelay = <span class="f">Duration</span>(milliseconds: <span class="n">150</span>);
+<span class="k">const</span> cancelDx = <span class="n">96.0</span>;   <span class="cm">// dp влево</span></pre></div>
+          <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Edit</span><span class="ar">mobile/app/lib/voice/record_button.dart</span></div>
+          <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Bash</span><span class="ar">flutter test test/voice</span></div>
+          <p style="margin-top:6px">Тесты зелёные: 31 из 31.</p></div>
+        <div class="line">Готово за 2 мин 14 с</div>
+      </div>
+      <div class="composer"><div class="field"><span>Сообщение</span><span class="sp"></span>📎</div><div class="fab">🎤</div></div>
+      <div class="note" style="top:76px;height:44px"><b>P0</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">4.1</span><b>Chat pane</b>. Header pill: provider, title, context meter, mode. Tab pill slides with the swipe.
+      User bubble right, the agent's whole turn one grouped bubble with code card, tool lines and the done line.
+      <ul><li><span class="tag p0">P0</span>pane swipe fights code-block scroll, selection handles and edge back [1, 2].</li>
+      <li><span class="tag p1">P1</span>no jump-to-latest button or “new below” marker when scrolled up [7].</li>
+      <li><span class="tag p1">P1</span>connection state is not in the header [42].</li>
+      <li><span class="tag p2">P2</span>“Показать раньше” is a manual button with no loading state [8].</li>
+      <li>Code copy (⧉) gives no feedback. No timestamps on bubbles.</li></ul></figcaption>
+  </figure>
+  <div class="go">tap a tool line</div>
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Голосовые как в Telegram</div><div class="meta"><span class="meter"><i style="width:34%"></i></span>34% <span class="mode">Принимать правки</span></div></div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="feed">
+        <div class="abub" style="width:324px">
+          <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Bash</span><span class="ar">flutter test test/voice</span></div>
+          <div class="code" style="max-height:320px"><pre class="muted">00:04 +12: record_button holds 150 ms
+00:05 +24: slide left cancels
+00:06 +31: All tests passed!</pre></div>
+          <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Read</span><span class="ar">docs/guide.md</span><span style="margin-left:auto">📄</span></div>
+          <div class="tool" style="padding-left:16px"><span style="color:var(--accent)">⋯</span><span class="nm">Task</span><span class="ar">Explore: voice outbox</span></div>
+          <div class="tool"><span style="color:var(--danger)">✕</span><span class="nm">Bash</span><span class="ar">npm run e2e</span></div>
+          <div style="margin:8px 0 0 20px;width:240px;height:135px;border-radius:8px;background:linear-gradient(135deg,#3a4a5e,#5a4a3a);display:flex;align-items:flex-end;padding:6px;font-size:11px">screenshot.png</div>
+        </div>
+        <div class="line">Остановлено через 48 с</div>
+        <div class="line">Контекст сжат</div>
+      </div>
+      <div class="composer"><div class="field"><span>Сообщение</span><span class="sp"></span>📎</div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">4.2</span><b>Tool lines</b>. Tap toggles the result (selectable, max 320 dp). 📄 opens a project file.
+      Sub-agent calls indent. Media cards (up to 3) under a finished tool line open the viewer. Centered lines: done, stopped, compacted.
+      <br><span class="tag p1">P1</span>tool lines and plans cannot be commented or long-pressed [10].</figcaption>
+  </figure>
+  <div class="go">tap a diagram</div>
+  <figure>
+    <div class="ph black"><div class="sb">12:05</div>
+      <div class="appbar" style="color:#ddd"><span>✕</span></div>
+      <div class="center" style="inset:120px 10px 80px">
+        <div style="border:1px solid #666;border-radius:6px;padding:10px 18px;color:#ddd">Phone</div><div style="color:#888">│ WebSocket</div>
+        <div style="border:1px solid #666;border-radius:6px;padding:10px 18px;color:#ddd">Relay</div><div style="color:#888">│ E2E</div>
+        <div style="border:1px solid #666;border-radius:6px;padding:10px 18px;color:#ddd">Host</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">4.3</span><b>Mermaid full screen</b>. In the feed a diagram is a rendered picture (spinner while drawing, error text on failure); full screen pinches to 8x.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 5 ============ -->
+<h2 id="f5">5. Window sheet, model, stats <small>chat/window_sheet.dart, controls.dart, usage/usage_screen.dart</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="scrim"></div>
+      <div class="sheet" style="padding-bottom:28px"><div class="grab"></div>
+        <h3>Голосовые как в Telegram</h3><div class="pad muted small mono">~/Projects/nota-bene</div>
+        <div class="li" style="padding:8px 20px"><div class="tx"><div class="t2">Модель</div><div>Opus 5.5 · высокое</div></div><span>›</span></div>
+        <div class="pad"><div class="small muted">Режим</div>
+          <div class="seg"><span>Обычный</span><span class="on">Принимать<br>правки</span><span>План</span><span>Авто</span></div>
+          <div class="small muted">Правит файлы без вопросов, команды — с разрешения</div>
+          <div class="small muted" style="margin-top:12px">Лимиты тарифа</div>
+          <div class="small" style="display:flex;justify-content:space-between;margin-top:4px"><span>5 часов</span><span class="muted">41% · сброс 14:00</span></div><div class="bar6"><i style="width:41%"></i></div>
+          <div class="small" style="display:flex;justify-content:space-between"><span>Неделя</span><span class="muted">63% · сброс пт</span></div><div class="bar6"><i style="width:63%"></i></div></div>
+        <div class="tiles"><div><b>⇲</b>Сжать</div><div><b>⌫</b>Очистить</div><div><b>↻</b>Перезапуск</div><div><b>▤</b>Статистика</div></div>
+        <div class="note" style="bottom:22px;height:66px"><b>P1</b></div>
+      </div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">5.1</span><b>Window sheet</b> (tap the header pill). Model, permission mode with its description, plan limits, four tiles.
+      Сжать/Очистить are disabled while the agent works; Очистить and Перезапуск ask to confirm.
+      <br><span class="tag p1">P1</span>tile labels are 10.5 px; header meta 11 px [50].</figcaption>
+  </figure>
+  <div class="go">Модель</div>
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="grab"></div><h3>Модель и усилие</h3>
+        <div class="li"><div class="tx">Opus 5.5</div><span class="check">✓</span></div>
+        <div class="li"><div class="tx">Sonnet 5.5</div></div>
+        <div class="li"><div class="tx">Haiku 5.5</div></div>
+        <div class="pad" style="margin-top:6px"><span class="chip">низкое</span><span class="chip">среднее</span><span class="chip on">высокое</span><span class="chip">очень высокое</span><span class="chip">максимум</span></div>
+        <div class="pad" style="text-align:right;margin-top:8px"><span class="btn">Применить</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">5.2</span><b>Model and effort</b>, a second sheet. Providers without a model list show the model read-only in 5.1.</figcaption>
+  </figure>
+  <div class="go">Статистика</div>
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="appbar"><span>←</span><span style="font-size:20px">Статистика</span></div>
+      <div class="body"><span class="chip on">Claude</span><span class="chip">Codex</span><span class="chip">omp</span><br>
+        <span class="chip">День</span><span class="chip on">Неделя</span><span class="chip">Месяц</span>
+        <div style="display:flex;align-items:flex-end;gap:10px;height:150px;margin:14px 0;border-bottom:1px solid var(--border)">
+          <i style="flex:1;height:40%;background:var(--primary);border-radius:3px 3px 0 0"></i><i style="flex:1;height:70%;background:var(--primary);border-radius:3px 3px 0 0"></i>
+          <i style="flex:1;height:55%;background:var(--primary);border-radius:3px 3px 0 0"></i><i style="flex:1;height:90%;background:var(--primary);border-radius:3px 3px 0 0"></i>
+          <i style="flex:1;height:30%;background:var(--primary);border-radius:3px 3px 0 0"></i><i style="flex:1;height:15%;background:var(--muted)"></i><i style="flex:1;height:8%;background:var(--muted)"></i></div>
+        <div class="small muted">Модели</div><div class="bar6" style="display:flex"><i style="width:70%"></i><i style="width:20%;background:var(--accent)"></i></div>
+        <div class="small muted">Задачи</div>
+        <div class="li" style="padding:6px 0"><div class="tx"><div class="t1">Голосовые как в Telegram</div><div class="t2">1,2 M токенов · $4,10</div></div></div>
+        <div class="li" style="padding:6px 0"><div class="tx"><div class="t1">Отчёт по токенам</div><div class="t2">640 k токенов · $1,90</div></div></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">5.3</span><b>Usage</b>: provider and period chips, bars, model mix, limits, per-task detail. Simplified drawing.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 6 ============ -->
+<h2 id="f6">6. Agent at work: Stop, queue, permissions <small>composer.dart, send_now.dart, permission_sheet.dart</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:07</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0"><div class="tt">Голосовые как в Telegram</div><div class="meta"><span class="meter"><i style="width:36%"></i></span>36% <span class="mode">Принимать правки</span></div></div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="status">Работает…</div>
+      <div class="feed below">
+        <div class="ubub">Теперь добавь замок при свайпе вверх</div>
+        <div class="abub"><p>Смотрю, как устроен RecordSession…</p>
+          <div class="tool"><span style="color:var(--accent)">⋯</span><span class="nm">Read</span><span class="ar">lib/voice/record_session.dart</span></div></div>
+      </div>
+      <div class="composer"><div class="field" style="color:var(--fg)"><span>и не забудь тесты</span><span class="sp"></span>📎</div><div class="stopb">■</div><div class="fab">➤</div></div>
+      <div class="note" style="top:120px;height:30px"><b>P1</b></div>
+      <div class="note" style="bottom:20px;height:56px;left:226px"><b>P1</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">6.1</span><b>Working</b>. Status line “Работает…”, red Stop left of Send; Stop interrupts at once.
+      A streaming reply grows in place and has no menu until final.
+      <ul><li><span class="tag p1">P1</span>no phase, elapsed time or Stop next to “Работает…”; Stop sits right next to Send, no undo [26].</li></ul></figcaption>
+  </figure>
+  <div class="go">Send while working</div>
+  <figure>
+    <div class="ph"><div class="sb">12:07</div>
+      <div class="status" style="top:122px">Работает…</div>
+      <div class="scrim"></div>
+      <div class="dialog"><h3>Отправить сейчас?</h3>
+        <div class="muted">Агент работает. Отправьте сообщение после текущего хода или сейчас, прервав его.</div>
+        <div class="acts"><span class="btn txt">Отмена</span><span class="btn txt">Отправить после хода</span><span class="btn txt">Отправить сейчас</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">6.2</span><b>Now or after</b>. Asked on every busy send, from the composer, the Comments pane and voice.
+      <br><span class="tag p1">P1</span>a queued message is invisible until it goes, and cannot be edited or cancelled [12, 25].</figcaption>
+  </figure>
+  <div class="go">agent asks</div>
+  <figure>
+    <div class="ph"><div class="sb">12:08</div>
+      <div class="status" style="top:122px">Работает…</div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="grab"></div><h3>Разрешить Bash?</h3>
+        <div class="pad"><div class="code"><pre style="white-space:pre-wrap">flutter test test/voice/record_button_test.dart --plain-name "lock"</pre></div></div>
+        <div class="pad" style="display:flex;gap:10px;margin-top:10px"><span class="btn out" style="flex:1;text-align:center">Запретить</span><span class="btn" style="flex:1;text-align:center">Разрешить</span></div>
+        <div class="note" style="bottom:16px;height:52px"><b>P1</b></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">6.3</span><b>Permission sheet</b> opens by itself when a plain permission is asked; closes when answered elsewhere.
+      Swiping it away leaves a feed line “Bash просит разрешения” that reopens it.
+      <br><span class="tag p1">P1</span>interrupts whatever you were doing and offers only Deny/Allow [31].</figcaption>
+  </figure>
+  <div class="go">structured ask</div>
+  <figure>
+    <div class="ph"><div class="sb">12:08</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">X</div><div class="tt">Отчёт по токенам</div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="feed">
+        <div class="abub" style="width:324px"><b>Дополнительные разрешения Codex</b>
+          <div class="code"><pre style="white-space:pre-wrap">write ~/.cache/reports</pre></div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="btn" style="padding:6px 12px">Разрешить</span><span class="btn out" style="padding:6px 12px">Разрешить на сессию</span><span class="btn out" style="padding:6px 12px">Запретить</span></div></div>
+        <div class="abub" style="width:324px"><b>Вопрос</b><div class="muted small">Какой период взять?</div>
+          <div class="tf" style="min-height:40px">неделя</div><span class="btn" style="padding:6px 12px">Отправить ответы</span></div>
+      </div>
+      <div class="composer"><div class="field"><span>Сообщение</span><span class="sp"></span>📎</div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">6.4</span><b>Inline prompt card</b> for structured asks (Codex extra permissions, MCP, questions with fields).
+      After an answer the card shows “Ответ отправлен”. <span class="tag ok">OK</span></figcaption>
+  </figure>
+</div>
+
+<!-- ============ 7 ============ -->
+<h2 id="f7">7. Comments on a message <small>message_menu.dart, message_selection.dart, comment_sheet.dart</small></h2>
+<p class="lead">Today a comment on part of a reply takes four steps: long-press, “Выделить текст”, drag handles, “Комментарий”.
+This is the path the next design work replaces (decided in review: a button per paragraph first, text selection inside the paragraph when needed; “Quote” becomes Pin).</p>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:10</div>
+      <div class="scrim dark" style="z-index:4"></div>
+      <div style="position:absolute;top:150px;left:8px;z-index:6;display:flex;gap:6px;align-items:center">
+        <span class="emo">👍</span><span class="emo">🔥</span><span class="emo">❓</span><span class="emo">🔍</span><span class="emo">🔬</span><span class="emo" style="font-size:14px">⌄</span></div>
+      <div class="abub" style="position:absolute;top:206px;z-index:6;width:324px"><p>Сделал. Запись стартует через 150 мс удержания, влево — отмена, вверх — замок.</p><p>Тесты зелёные: 31 из 31.</p></div>
+      <div class="menu" style="position:absolute;top:320px;left:8px;z-index:6">
+        <div>💬 Комментировать</div><div>⌶ Выделить текст</div><div>⧉ Копировать</div><div>↩ Ответить</div></div>
+      <div class="note" style="top:144px;height:56px;right:44px;z-index:9"><b>P1</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">7.1</span><b>Long-press menu</b>. The message lifts over a scrim; five quick labels above, four actions below.
+      <ul><li><span class="tag p0">P0</span>selection is hidden behind this menu [16].</li>
+      <li><span class="tag p1">P1</span>an emoji applies a whole-message label at once, no text, no undo [18].</li>
+      <li>“Ответить” pastes the whole message as a <code>&gt;</code> quote into the draft [17]. Copy gives no feedback.</li></ul></figcaption>
+  </figure>
+  <div class="go">Выделить текст</div>
+  <figure>
+    <div class="ph"><div class="sb">12:10</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="feed">
+        <div class="abub"><p>Сделал. Запись стартует через <span class="sel">150 мс удержания</span>, влево — отмена, вверх — замок.</p><p>Тесты зелёные: 31 из 31.</p></div>
+        <div class="menu" style="width:168px;align-self:flex-start;margin-left:60px"><div style="height:44px">Комментарий</div><div style="height:44px">Копировать</div><div style="height:44px">Выделить всё</div></div>
+        <div class="line">Готово за 2 мин 14 с</div>
+      </div>
+      <div class="composer"><div class="field"><span>Сообщение</span><span class="sp"></span>📎</div><div class="fab">🎤</div></div>
+      <div class="note" style="top:70px;height:50px"><b>P0</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">7.2</span><b>Selection mode</b> on that one message: the word under the press is selected, custom toolbar with Комментарий, Копировать, Выделить всё. Ends on a tap outside.
+      <ul><li><span class="tag p0">P0</span>handle drags compete with the pane swipe [1, 2].</li>
+      <li><span class="tag p0">P0</span>no fragment quote: nothing here puts the passage above the composer [17].</li>
+      <li><span class="tag p0">P0</span>no route for TalkBack users [48].</li>
+      <li>If the selection cannot be placed: snackbar “Не удалось привязать комментарий к этому выделению”.</li></ul></figcaption>
+  </figure>
+  <div class="go">Комментарий</div>
+  <figure>
+    <div class="ph"><div class="sb">12:11</div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="pad"><div class="quote">150 мс удержания</div>
+          <div style="display:flex;gap:6px;overflow:hidden;margin:10px 0"><span class="emo s">👍</span><span class="emo s">🔥</span><span class="emo s pick">❓</span><span class="emo s">🔍</span><span class="emo s">🔬</span><span class="emo s">🗺️</span><span class="emo s">🧬</span><span class="emo s">🔄</span><span class="emo s">📉</span></div>
+          <div class="tf" style="color:var(--fg)">а почему не 200? в Telegram вроде дольше</div>
+          <div style="display:flex;align-items:center;gap:4px"><span class="ib">🎤</span><span style="flex:1"></span><span class="btn txt">Отмена</span><span class="btn">Сохранить</span></div></div>
+        <div class="note" style="top:52px;height:42px"><b>P2</b></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">7.3</span><b>Comment sheet</b>: quote, 11 quick labels, text, voice clips (mic), Save.
+      <ul><li><span class="tag p2">P2</span>labels are 32 dp icons with the name only as a tooltip; an empty comment saves [21, 22].</li></ul></figcaption>
+  </figure>
+  <div class="go">Сохранить</div>
+  <figure>
+    <div class="ph"><div class="sb">12:11</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии <span class="cnt">2</span></span></div>
+      <div class="feed" style="bottom:170px">
+        <div class="abub" style="position:relative"><span class="nb" style="position:absolute;right:-6px;top:-6px">2</span><p>Сделал. Запись стартует через <span class="hl">150 мс удержания</span><span class="nb">1</span>, влево — отмена, вверх — замок.</p><p>Тесты зелёные: 31 из 31.</p></div>
+        <div class="line">Готово за 2 мин 14 с</div>
+      </div>
+      <div class="strip" style="bottom:84px"><div class="h">2 комментария к отправке</div>
+        <div class="r"><span class="muted">150 мс удержания</span> ❓ а почему не 200? в Telegram…</div>
+        <div class="r"><span class="muted">Сделал. Запись стартует…</span> 👍 Выглядит хорошо</div></div>
+      <div class="composer"><div class="field"><span>Сообщение</span><span class="sp"></span>📎</div><div class="fab">➤</div></div>
+      <div class="note" style="bottom:84px;height:72px"><b>P2</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">7.4</span><b>Pending comments</b>: highlighted passage with number badge, whole-message badge at the corner,
+      strip above the composer, count on the Comments tab. Send is live with comments alone.
+      <ul><li><span class="tag p2">P2</span>tapping a chat comment in the strip does nothing [19]; long-press edits.</li>
+      <li><span class="tag p1">P1</span>18 dp badges are below the 48 dp target [49].</li></ul></figcaption>
+  </figure>
+</div>
+
+<!-- ============ 8 ============ -->
+<h2 id="f8">8. Comments pane and sending <small>comments/comments_pane.dart, sent_comments.dart</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:12</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span>Чат</span><span class="on">Комментарии <span class="cnt">2</span></span></div>
+      <div style="position:absolute;top:126px;left:0;right:0;padding:0 16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:6px 0"><b style="font-size:15px">2 комментария к отправке</b><span class="btn" style="padding:6px 16px">Отправить</span></div>
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)"><div class="tiny muted">Чат · ответ агента</div><div class="quote">150 мс удержания</div><div>→ ❓ а почему не 200? в Telegram вроде дольше</div></div>
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)"><div class="tiny muted">Чат · ответ агента</div><div class="quote">Сделал. Запись стартует через 150 мс…</div><div>→ 👍 Выглядит хорошо</div></div>
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)"><div class="tiny muted">docs/guide.md</div><div class="quote">The Android app (prototype)</div><div>→ устарело, убрать «prototype»</div></div>
+        <div style="margin-top:16px;color:var(--mfg)">Отправленные · 7 ⌄</div></div>
+      <div class="composer"><div class="field"><span>Сообщение</span><span class="sp"></span>📎</div><div class="fab">➤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">8.1</span><b>Comments pane</b> (swipe left from Chat). Pending list with Send; tap a row jumps to its place
+      (chat message, file, video time); long-press edits. Sent comments folded by default.
+      <br><span class="tag p1">P1</span>the jump to a chat message is fragile and has no arrival highlight [9].</figcaption>
+  </figure>
+  <div class="go">tap “Отправленные”</div>
+  <figure>
+    <div class="ph"><div class="sb">12:12</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span>Чат</span><span class="on">Комментарии</span></div>
+      <div style="position:absolute;top:126px;left:0;right:0;padding:0 16px">
+        <div class="muted" style="margin:10px 0">Комментариев пока нет. Выделите текст в чате или в файле и нажмите «Комментарий».</div>
+        <div style="margin-top:10px;color:var(--fg)">Отправленные · 7 ⌃</div>
+        <div class="small muted" style="margin:10px 0 4px">Сделай кнопку записи как в Telegram…</div>
+        <div style="padding:6px 0;opacity:.8"><div class="quote">150 мс удержания</div><div>→ ❓ а почему не 200?</div></div>
+        <div style="padding:6px 0;opacity:.8"><div class="quote">Сделал. Запись стартует…</div><div>→ 👍 Выглядит хорошо</div></div>
+        <div class="small muted" style="margin:10px 0 4px">Поправь отступы в шапке</div>
+        <div style="padding:6px 0;opacity:.8"><div class="quote">padding: 8</div><div>→ 🔍 Проверь</div></div></div>
+      <div class="composer"><div class="field"><span>Сообщение</span><span class="sp"></span>📎</div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">8.2</span><b>After sending</b>: empty-state hint; sent comments grouped by the message they went with, newest first, read-only.</figcaption>
+  </figure>
+  <div class="go">in Chat</div>
+  <figure>
+    <div class="ph"><div class="sb">12:12</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="feed">
+        <div class="ubub">Посмотри комментарии
+          <div class="small" style="margin-top:6px;color:#b8c7e6">💬 3 комментария ›</div></div>
+        <div class="ubub" style="width:290px">Посмотри комментарии
+          <div class="small" style="margin-top:6px;color:#b8c7e6">💬 3 комментария ⌄</div>
+          <div class="quote" style="color:#c8d3ea">150 мс удержания</div><div class="small">→ ❓ а почему не 200?</div>
+          <div class="quote" style="color:#c8d3ea">The Android app (prototype)</div><div class="small">→ устарело, убрать «prototype»</div></div>
+      </div>
+      <div class="composer"><div class="field"><span>Сообщение</span><span class="sp"></span>📎</div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">8.3</span><b>Sent batch in the feed</b>: the user bubble carries “N комментариев”, folded; tap expands (drawn twice: folded and open).</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 9 ============ -->
+<h2 id="f9">9. Voice messages <small>voice/record_button.dart, record_row.dart, voice_bubble.dart, dictation/whisper_sheet.dart</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:15</div>
+      <div class="tabs" style="top:30px"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="lockcap">🔓<span>⌃</span></div>
+      <div class="rec"><span class="reddot"></span><span class="mono">0:07,4</span><span class="muted" style="margin-left:40px">‹ Влево — отмена</span></div>
+      <div class="bigmic">🎤</div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">9.1</span><b>Hold to record</b>. 150 ms hold starts; the big mic follows the finger, halo swells with level.
+      Slide left 96 dp cancels, up 80 dp locks, release sends. A short tap shows “Удерживайте для записи, отпустите для отправки”.
+      Pane swipe is off while recording. Max 10 min.</figcaption>
+  </figure>
+  <div class="go">slide up</div>
+  <figure>
+    <div class="ph"><div class="sb">12:15</div>
+      <div class="tabs" style="top:30px"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="stopb" style="position:absolute;right:20px;bottom:84px">■</div>
+      <div class="rec"><span class="reddot"></span><span class="mono">0:21,9</span><span class="btn txt" style="margin-left:auto;margin-right:56px">ОТМЕНА</span></div>
+      <div class="fab" style="position:absolute;right:8px;bottom:24px">➤</div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">9.2</span><b>Locked</b>: hands free; Send sends, Stop (40 dp) goes to the preview, ОТМЕНА drops it.
+      Leaving the chat asks “Отправить голосовое сообщение?”.</figcaption>
+  </figure>
+  <div class="go">Stop</div>
+  <figure>
+    <div class="ph"><div class="sb">12:15</div>
+      <div class="tabs" style="top:30px"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="rec"><span class="ib">🗑</span><span class="play">▶</span><span class="wave"><i style="height:6px"></i><i style="height:12px"></i><i style="height:18px"></i><i style="height:9px"></i><i style="height:20px"></i><i style="height:14px"></i><i style="height:7px"></i><i style="height:16px"></i><i style="height:22px"></i><i style="height:11px"></i><i style="height:5px"></i><i style="height:13px"></i><i style="height:19px"></i><i style="height:8px"></i><i style="height:15px"></i><i style="height:10px"></i><i style="height:6px"></i><i style="height:17px"></i><i style="height:12px"></i><i style="height:7px"></i></span><span class="small muted">0:24</span></div>
+      <div class="fab" style="position:absolute;right:8px;bottom:24px">➤</div>
+      <div class="note" style="bottom:14px;height:70px"><b>P1</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">9.3</span><b>Preview</b>: listen, delete or send.
+      <br><span class="tag p1">P1</span>the transcript is not shown before sending; the agent gets text you have not seen.</figcaption>
+  </figure>
+  <div class="go">sent</div>
+  <figure>
+    <div class="ph"><div class="sb">12:16</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="feed">
+        <div class="ubub" style="width:300px"><div class="gl"><span class="play">▶</span><span class="wave"><i style="height:6px"></i><i style="height:12px"></i><i style="height:18px"></i><i style="height:9px"></i><i style="height:20px"></i><i style="height:14px"></i><i style="height:7px"></i><i style="height:16px"></i><i style="height:22px"></i><i style="height:11px"></i><i style="height:5px"></i><i style="height:13px"></i><i style="height:19px"></i><i style="height:8px"></i><i style="height:15px"></i><i style="height:10px"></i></span><span class="tiny">0:24</span><span class="small" style="margin-left:auto">Aa</span></div>
+          <div class="small" style="margin-top:6px">Добавь, пожалуйста, замок при свайпе вверх, и чтобы запись не терялась при выходе из чата.</div></div>
+        <div class="ubub" style="width:300px"><div class="gl"><span class="play">▶</span><span class="wave"><i style="height:9px"></i><i style="height:15px"></i><i style="height:6px"></i><i style="height:18px"></i><i style="height:12px"></i><i style="height:20px"></i><i style="height:8px"></i><i style="height:14px"></i></span><span class="tiny">0:08</span></div>
+          <div class="small muted" style="margin-top:6px"><span style="color:var(--accent)">●</span> Расшифровываю…</div></div>
+        <div class="ubub" style="width:300px"><div class="gl"><span class="play">▶</span><span class="wave"><i style="height:9px"></i><i style="height:15px"></i><i style="height:6px"></i><i style="height:18px"></i></span><span class="tiny">0:03</span></div>
+          <div class="small" style="margin-top:6px;color:var(--danger)">Не удалось отправить запись <span class="btn txt" style="padding:0 6px">Повторить</span><span class="btn txt" style="padding:0 6px">Удалить</span></div></div>
+      </div>
+      <div class="composer"><div class="field"><span>Сообщение</span><span class="sp"></span>📎</div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">9.4</span><b>Voice bubbles</b>: transcript open by default (Aa folds it), transcribing, send failed with Retry/Delete.
+      Sends survive leaving the chat (outbox).
+      <br><span class="tag p2">P2</span>no playback speed; waveform fixed at 143 px [28].</figcaption>
+  </figure>
+  <div class="go">mic, no Whisper</div>
+  <figure>
+    <div class="ph"><div class="sb">12:16</div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="grab"></div><h3>Диктовка через Whisper</h3>
+        <div class="pad muted" style="margin:10px 0 16px">Whisper установлен на компьютере, но выключен. Микрофон телефона записывает, а Whisper распознаёт на компьютере.</div>
+        <div class="pad" style="text-align:right"><span class="btn txt">Отмена</span><span class="btn">Включить Whisper</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">9.5</span><b>Whisper sheet</b>. Variants: not installed (download and disk size, install on the host with progress), off (shown), failed, no answer. On success a snackbar “Whisper включён: зажми микрофон и говори”.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 10 ============ -->
+<h2 id="f10">10. Images: attach, view, mark up <small>attach_sheet.dart, composer.dart, files/image_screen.dart, media/markup.dart</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:20</div>
+      <div class="scrim"></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="li"><span class="ico">📷</span><div class="tx">Камера</div></div>
+        <div class="li"><span class="ico">🖼</span><div class="tx">Галерея</div></div>
+        <div class="li"><span class="ico">📁</span><div class="tx">Файл</div></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">10.1</span><b>Attach</b> (📎). Images only (png, jpeg, gif, webp).
+      <br><span class="tag p2">P2</span>no other file types.</figcaption>
+  </figure>
+  <div class="go">pick 3</div>
+  <figure>
+    <div class="ph"><div class="sb">12:20</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div style="position:absolute;bottom:84px;left:8px;display:flex;gap:8px">
+        <div style="width:60px;height:60px;border-radius:8px;background:linear-gradient(135deg,#3a4a5e,#5a4a3a);position:relative"><span style="position:absolute;right:-6px;top:-6px;width:24px;height:24px;border-radius:12px;background:var(--pop);font-size:12px;display:flex;align-items:center;justify-content:center">✕</span></div>
+        <div style="width:60px;height:60px;border-radius:8px;background:#444;display:flex;align-items:center;justify-content:center">◌</div>
+        <div style="width:60px;height:60px;border-radius:8px;background:#444;border:2px solid var(--danger);display:flex;align-items:center;justify-content:center;color:var(--danger)">!</div></div>
+      <div class="composer"><div class="field" style="color:var(--fg)"><span>вот так выглядит на телефоне</span><span class="sp"></span>📎</div><div class="fab mute">◌</div></div>
+      <div class="note" style="bottom:80px;height:72px;width:96px"><b>P1</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">10.2</span><b>Drafts</b>: uploaded, uploading (spinner), failed (red frame). Send waits for uploads and is blocked by a failure.
+      <br><span class="tag p1">P1</span>the 24 dp remove cross is under the target size [49]; the failed one has no Retry.</figcaption>
+  </figure>
+  <div class="go">tap an image</div>
+  <figure>
+    <div class="ph black"><div class="sb">12:21</div>
+      <div class="appbar" style="color:#ddd"><span>←</span><span style="font-size:16px">IMG_2041.jpg</span><span class="sp"></span><span class="small">2 / 3</span></div>
+      <div style="position:absolute;top:150px;left:0;right:0;height:380px;background:linear-gradient(135deg,#3a4a5e,#5a4a3a)"></div>
+      <div style="position:absolute;bottom:40px;left:0;right:0;display:flex;justify-content:space-around;color:#ddd;font-size:13px;text-align:center">
+        <span>✎<br>Разметить</span><span>💬<br>Комментарий</span><span>⇪<br>Поделиться</span></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">10.3</span><b>Image viewer</b>: swipe between the message's images, pinch to 8x, drag down to close.
+      <br><span class="tag p2">P2</span>no double-tap zoom; a load failure is text without Retry [34].</figcaption>
+  </figure>
+  <div class="go">Разметить</div>
+  <figure>
+    <div class="ph black"><div class="sb">12:21</div>
+      <div style="position:absolute;top:150px;left:0;right:0;height:380px;background:linear-gradient(135deg,#3a4a5e,#5a4a3a)">
+        <div style="position:absolute;left:80px;top:120px;width:150px;height:90px;border:3px solid #ff5252;border-radius:4px"></div>
+        <div style="position:absolute;left:230px;top:80px;color:#ffd740;font-size:36px">↙</div></div>
+      <div style="position:absolute;bottom:40px;left:8px;right:8px;background:#222;border-radius:14px;padding:8px;display:flex;gap:10px;align-items:center;color:#ddd;font-size:18px;justify-content:space-around">
+        <span>▭</span><span>◯</span><span>✎</span><span style="color:#ffd740">↗</span><span style="display:flex;gap:4px"><i style="width:14px;height:14px;border-radius:7px;background:#ff5252;outline:2px solid #fff"></i><i style="width:14px;height:14px;border-radius:7px;background:#ffd740"></i><i style="width:14px;height:14px;border-radius:7px;background:#69f0ae"></i><i style="width:14px;height:14px;border-radius:7px;background:#40c4ff"></i><i style="width:14px;height:14px;border-radius:7px;background:#fff"></i></span><span>↶</span><span>💬</span><span>■</span></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">10.4</span><b>Mark-up</b>: rectangle, ellipse, pen, arrow, five colours, undo, comment, stop. A media comment uploads the marked frame. <span class="tag ok">OK</span></figcaption>
+  </figure>
+</div>
+
+<!-- ============ 11 ============ -->
+<h2 id="f11">11. Files pane and viewers <small>files/files_pane.dart, file_screen.dart, chat/code_screen.dart, files/video_screen.dart</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:25</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span class="on">Файлы</span><span>Чат</span><span>Комментарии</span></div>
+      <div class="utabs"><span class="on">Файлы</span><span>Изменения</span><span>Лог</span></div>
+      <div class="tree">
+        <div class="li" style="min-height:36px"><b>Проект</b></div>
+        <div class="search">⌕ <span>Поиск файлов</span></div>
+        <div class="sect" style="padding-top:8px">Эта сессия</div>
+        <div class="li"><span class="ico">{}</span><div class="tx"><div class="t1">record_button.dart</div><div class="t2">mobile/app/lib/voice</div></div></div>
+        <div class="li"><span class="ico">{}</span><div class="tx"><div class="t1">record_session.dart</div><div class="t2">mobile/app/lib/voice</div></div></div>
+        <div class="li"><span class="ico">M↓</span><div class="tx"><div class="t1">guide.md</div><div class="t2">docs</div></div></div>
+        <div class="li" style="min-height:32px"><span class="btn txt" style="padding:0">Показать все (7)</span></div>
+        <div class="hr"></div>
+        <div class="li"><span class="ico">▸</span><div class="tx">bin</div></div>
+        <div class="li"><span class="ico">▸</span><div class="tx">docs</div></div>
+        <div class="li"><span class="ico">▸</span><div class="tx">mobile</div></div>
+        <div class="li"><span class="ico">▸</span><div class="tx">server</div></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">11.1</span><b>Files pane</b> (swipe right from Chat). Inner tabs Файлы / Изменения / Лог only in a git repo (tap only).
+      Search asks the host's fuzzy search. “Эта сессия” lists files the agent touched. Back goes up a folder first.
+      <br><span class="tag p2">P2</span>read-only; open files do not refresh when the agent changes them.</figcaption>
+  </figure>
+  <div class="go">tap guide.md</div>
+  <figure>
+    <div class="ph"><div class="sb">12:25</div>
+      <div class="appbar"><span>←</span><span style="font-size:18px">guide.md</span></div>
+      <div class="body">
+        <div style="font-size:20px;font-weight:600;margin:6px 0">Remote access</div>
+        <p>Run <span class="mono">nota-bene remote</span> on the computer, then pair the phone from <span class="sel">the QR code it prints</span>.</p>
+        <div class="menu" style="width:auto;display:flex;border-radius:8px;margin:-4px 0 8px"><div style="height:40px;padding:0 10px;font-size:13px">Комментарий</div><div style="height:40px;padding:0 10px;font-size:13px">Копировать</div><div style="height:40px;padding:0 10px;font-size:13px">Выделить всё</div></div>
+        <div style="font-size:17px;font-weight:600;margin:6px 0">The Android app <span class="hl">(prototype)</span><span class="nb">3</span></div>
+        <p>The phone opens the same windows as the browser.</p></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">11.2</span><b>Markdown file</b>: text is selectable right away, “Комментарий” first in the system toolbar, commented passages highlighted. Max 2 MB.
+      <span class="tag ok">OK</span> this is the model the chat should follow.
+      <br><span class="tag p2">P2</span>failures are plain text without Retry [34].</figcaption>
+  </figure>
+  <div class="go">tap a .dart file</div>
+  <figure>
+    <div class="ph" style="background:#2b2b2b"><div class="sb">12:26</div>
+      <div class="appbar" style="font-size:15px;gap:10px"><span>✕</span><span style="flex:1">record_button.dart <span class="muted small">399 строк</span></span><span style="opacity:.4">💬</span><span>⧉</span></div>
+      <div style="font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre;color:#a9b7c6">
+<span style="color:#606366">  1 </span><span class="cm">// Telegram-style record button.</span>
+<span style="color:#606366">  2 </span><span class="k">import</span> <span class="s">'package:flutter/material.dart'</span>;
+<span style="color:#606366">  3 </span>
+<span style="color:#606366">  4 </span><span class="k">const</span> holdDelay = <span class="f">Duration</span>(millisecon
+<span style="color:#606366">  5 </span><span class="k">const</span> cancelDx = <span class="n">96.0</span>;
+<span style="color:#606366">  6 </span><span class="k">const</span> lockDy = <span class="n">80.0</span>;
+<span style="color:#606366">  7 </span>
+<span style="color:#606366">  8 </span><span class="k">class</span> <span class="f">RecordButton</span> <span class="k">extends</span> Statef
+<span style="color:#606366">  9 </span>  <span class="k">const</span> <span class="f">RecordButton</span>({<span class="k">super</span>.key, req
+<span style="color:#606366"> 10 </span>  ...</div>
+      <div class="note" style="top:34px;height:46px;left:276px;right:44px"><b>P1</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">11.3</span><b>Code viewer</b> (also the ⤢ of a chat code block): gutter, highlighting, pinch for text size, horizontal scroll, no wrap.
+      <ul><li><span class="tag p1">P1</span>Comment is a bar icon (disabled until a selection), not in the selection toolbar as in 11.2 [20].</li>
+      <li><span class="tag p1">P1</span>no wrap toggle; rows ignore the system text scale [36, 37].</li></ul></figcaption>
+  </figure>
+  <div class="go">tap a .mp4</div>
+  <figure>
+    <div class="ph black"><div class="sb">12:27</div>
+      <div class="appbar" style="color:#ddd"><span>←</span><span style="font-size:16px">demo.mp4</span></div>
+      <div style="position:absolute;top:200px;left:0;right:0;height:203px;background:linear-gradient(135deg,#2a3a4e,#4a3a2a);display:flex;align-items:center;justify-content:center;font-size:40px;color:#fff">▶</div>
+      <div style="position:absolute;bottom:90px;left:16px;right:16px;height:4px;background:#555;border-radius:2px"><i style="display:block;width:40%;height:4px;background:var(--primary)"></i>
+        <b style="position:absolute;left:25%;top:-8px;width:3px;height:20px;background:var(--accent)"></b><b style="position:absolute;left:62%;top:-8px;width:3px;height:20px;background:var(--accent)"></b></div>
+      <div style="position:absolute;bottom:40px;left:0;right:0;display:flex;justify-content:space-around;color:#ddd;font-size:13px;text-align:center"><span>⏸<br>Пауза</span><span>✎<br>Разметить</span><span>💬<br>Комментарий</span></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">11.4</span><b>Video</b>: plays through the channel; ticks on the slider are existing comments (tap seeks); mark-up and comment on the current frame.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 12 ============ -->
+<h2 id="f12">12. Git: changes, log, diff <small>files/git_pages.dart, diff_screen.dart</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:30</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span class="on">Файлы</span><span>Чат</span><span>Комментарии</span></div>
+      <div class="utabs"><span>Файлы</span><span class="on">Изменения</span><span>Лог</span></div>
+      <div class="tree">
+        <div class="li"><span class="st" style="color:var(--accent)">M</span><div class="tx"><div class="t1">record_button.dart</div><div class="t2">mobile/app/lib/voice</div></div><span class="small"><span class="add">+42</span> <span class="del">−9</span></span></div>
+        <div class="li"><span class="st" style="color:var(--accent)">M</span><div class="tx"><div class="t1">record_session.dart</div><div class="t2">mobile/app/lib/voice</div></div><span class="small"><span class="add">+18</span> <span class="del">−3</span></span></div>
+        <div class="li"><span class="st" style="color:var(--ok)">A</span><div class="tx"><div class="t1">record_lock_test.dart</div><div class="t2">mobile/app/test/voice</div></div><span class="small"><span class="add">+77</span></span></div>
+        <div class="li"><span class="st" style="color:var(--danger)">D</span><div class="tx"><div class="t1">old_mic.dart</div><div class="t2">mobile/app/lib/voice</div></div><span class="small"><span class="del">−120</span></span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">12.1</span><b>Changes</b>: working-tree files with status, +/−; pull to refresh; reloads at turn ends.
+      <br><span class="tag p2">P2</span>no summary or “viewed” state.</figcaption>
+  </figure>
+  <div class="go">Лог → commit</div>
+  <figure>
+    <div class="ph"><div class="sb">12:30</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span class="on">Файлы</span><span>Чат</span><span>Комментарии</span></div>
+      <div class="utabs"><span>Файлы</span><span>Изменения</span><span class="on">Лог</span></div>
+      <div class="tree">
+        <div class="li"><div class="tx"><div style="font-size:14px">gh-177: the phone picks its language in settings</div><div class="t2 mono">5a27066 · 2 ч назад</div></div></div>
+        <div class="li"><div class="tx"><div style="font-size:14px">gh-175: phone polish: pill tabs, folded sent comments</div><div class="t2 mono">886c6ec · 4 ч назад</div></div></div>
+        <div class="li"><div class="tx"><div style="font-size:14px">gh-161: a roomier session list</div><div class="t2 mono">d4b0b86 · вчера</div></div></div>
+        <div class="li muted small" style="min-height:36px">…</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">12.2</span><b>Log</b>: subject in 2 lines, hash and age; a commit opens its file list, a file opens the diff. The list is cut at N with no load-more.</figcaption>
+  </figure>
+  <div class="go">tap a file</div>
+  <figure>
+    <div class="ph"><div class="sb">12:31</div>
+      <div class="appbar" style="font-size:15px;gap:10px"><span>✕</span><span style="flex:1">record_button.dart</span><span style="opacity:.4">💬</span><span>⧉</span></div>
+      <div class="dl h"><span class="g"></span>@@ -60,7 +60,12 @@ class _RecordButtonState</div>
+      <div class="dl"><span class="g">60 60</span>  void _down(PointerDownEvent e) {</div>
+      <div class="dl d"><span class="g">61   </span>-   _timer = Timer(200.ms, _start);</div>
+      <div class="dl a"><span class="g">   61</span>+   _timer = Timer(holdDelay, _start);</div>
+      <div class="dl a"><span class="g">   62</span>+   _origin = e.position;</div>
+      <div class="dl"><span class="g">62 63</span>  }</div>
+      <div class="dl"><span class="g">63 64</span></div>
+      <div class="dl a"><span class="g">   65</span>+  bool get _locked => _dy &lt; -lockDy;</div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">12.3</span><b>Diff</b>, unified: two gutters, tinted rows, pinch, pan both ways, selection, Comment in the bar. Over 3000 rows waits for “show anyway”.
+      <br><span class="tag p2">P2</span>no jump between files in a commit.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 13 ============ -->
+<h2 id="f13">13. Connection and window states <small>chat_screen.dart, one_tab.dart, window_tab.dart</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:40</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="status">Не в сети · был 4 мин назад</div>
+      <div class="feed below"><div class="ubub">Сделай кнопку записи как в Telegram</div><div class="abub">Сделал…</div></div>
+      <div class="composer"><div class="field"><span>Пока окно недоступно, отправка выключена</span></div><div class="fab mute">➤</div></div>
+      <div class="note" style="top:120px;height:30px"><b>P1</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">13.1</span><b>Offline</b> (also “Подключение…”): status line, feed stays readable, composer disabled. Reconnects with backoff 1–30 s.
+      <br><span class="tag p1">P1</span>the line names no cause (phone, relay or computer) and offers no action [42].</figcaption>
+  </figure>
+  <figure style="margin-left:64px">
+    <div class="ph"><div class="sb">12:40</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div style="position:absolute;top:122px;left:0;right:0;bottom:80px;background:rgba(43,43,43,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:2">
+        <div>Это окно открыто в другой вкладке.</div><span class="btn">Работать здесь</span></div>
+      <div class="composer"><div class="field"><span>Пока окно недоступно, отправка выключена</span></div><div class="fab mute">➤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">13.2</span><b>Occupied / taken</b>: the window is open in another tab (desktop or another phone). “Работать здесь” takes it over. Variant: “Другая вкладка забрала это окно.”</figcaption>
+  </figure>
+  <figure style="margin-left:64px">
+    <div class="ph"><div class="sb">12:40</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div class="tt">Голосовые как в Telegram</div></div></div>
+      <div class="tabs"><span>Файлы</span><span class="on">Чат</span><span>Комментарии</span></div>
+      <div class="status">Окно закрылось или перезапускается; ждём его возвращения</div>
+      <div class="feed below" style="top:170px"><div class="abub">Сделал…</div></div>
+      <div class="snack">Окно занято; сообщение не отправлено.</div>
+      <div class="composer"><div class="field" style="color:var(--fg)"><span>и не забудь тесты</span></div><div class="fab">➤</div></div>
+      <div class="note" style="bottom:86px;height:50px"><b>P1</b></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">13.3</span><b>Gone, refused</b>: the window restarts or closed; a refused send returns text, comments and images to their places with a snackbar.
+      <ul><li><span class="tag p1">P1</span>snackbars carry no Retry or Undo [41].</li>
+      <li><span class="tag p0">P0</span>other server errors are not shown at all: nothing listens to the tab's error stream [32].</li>
+      <li>A brand-new session with no messages shows an empty feed with no hint.</li></ul></figcaption>
+  </figure>
+</div>
+
+<h2>Not drawn</h2>
+<p class="lead">Wide layout (840 dp and wider: the three panes side by side at 3 : 5 : 3, no tab pill, no swipe); the session-list
+spinner and unreadable-store line at start; Whisper install progress; the clear and restart confirmations; the leave-while-recording dialog;
+the code-block full screen when opened from a chat block (same as 11.3, comments go to the message).</p>
+
+</main>
+</body>
+</html>
