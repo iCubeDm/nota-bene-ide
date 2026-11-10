@@ -334,7 +334,6 @@ class _SheetState extends State<_Sheet> {
                   child: Wrap(
                     alignment: WrapAlignment.end,
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),

@@ -517,18 +517,25 @@ class _PopupState extends State<_Popup> {
       );
     } else {
       final cell = (gridWidth - 16) / 4;
+      // the cell grows with the text scale: the emoji and two lines of the name
+      final sc = MediaQuery.textScalerOf(context);
+      final iconH = math.max(30.0, sc.scale(24) * 1.25);
+      final cellH = math.max(66.0, 7 + iconH + 2 * sc.scale(11) * 1.15);
       Widget one(Widget top, String name, VoidCallback onTap, {Color? color}) =>
           InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
               width: cell,
-              height: 66,
+              height: cellH,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(2, 4, 2, 2),
                 child: Column(
                   children: [
-                    SizedBox(height: 30, child: Center(child: top)),
+                    SizedBox(
+                      height: iconH,
+                      child: Center(child: top),
+                    ),
                     Text(
                       name,
                       textAlign: TextAlign.center,

@@ -1,5 +1,7 @@
 // Text size and interface size (Settings), kept in the vault like the theme. Text size multiplies the phone's own font
 // size; interface size scales the whole UI (text, icons, paddings), so touch targets grow with it.
+import 'dart:ui' show DisplayFeature;
+
 import 'package:flutter/widgets.dart';
 
 import 'vault.dart';
@@ -52,12 +54,17 @@ class Sizes extends ChangeNotifier {
   /// Scales the whole interface; 1 is the layout as designed.
   double get interface => _ui;
 
-  Future<void> chooseText(double s) async {
-    if (s == _text) return;
-    _text = s;
-    notifyListeners();
-    await _vault.write(_textKey, s.toString());
+  /// Applies a text size at once; [keep] false leaves it unwritten (a slider being dragged: [keepText] writes it).
+  Future<void> chooseText(double s, {bool keep = true}) async {
+    if (s != _text) {
+      _text = s;
+      notifyListeners();
+    }
+    if (keep) await keepText();
   }
+
+  /// Writes the text size in use.
+  Future<void> keepText() => _vault.write(_textKey, _text.toString());
 
   Future<void> chooseInterface(double s) async {
     if (s == _ui) return;
@@ -108,12 +115,6 @@ class SizesScope extends StatelessWidget {
         final text = z.text == 1
             ? mq.textScaler
             : MultipliedScaler(mq.textScaler, z.text);
-        if (s == 1) {
-          return MediaQuery(
-            data: mq.copyWith(textScaler: text),
-            child: child,
-          );
-        }
         EdgeInsets inset(EdgeInsets e) => e / s;
         final inner = mq.copyWith(
           size: mq.size / s,
@@ -123,19 +124,31 @@ class SizesScope extends StatelessWidget {
           viewPadding: inset(mq.viewPadding),
           viewInsets: inset(mq.viewInsets),
           systemGestureInsets: inset(mq.systemGestureInsets),
+          displayFeatures: [
+            for (final f in mq.displayFeatures)
+              DisplayFeature(
+                bounds: Rect.fromLTRB(
+                  f.bounds.left / s,
+                  f.bounds.top / s,
+                  f.bounds.right / s,
+                  f.bounds.bottom / s,
+                ),
+                type: f.type,
+                state: f.state,
+              ),
+          ],
         );
+        // The same widgets at every size (also 100 %), so that changing the size keeps the state below: a layout at
+        // screen / s that FittedBox paints s times larger. Hit testing goes through its transform, and the box is as
+        // large as the screen, so a touch anywhere on it reaches the child.
         return ClipRect(
-          child: Transform.scale(
-            scale: s,
+          child: FittedBox(
+            fit: BoxFit.fill,
             alignment: Alignment.topLeft,
-            child: OverflowBox(
-              alignment: Alignment.topLeft,
-              minWidth: inner.size.width,
-              maxWidth: inner.size.width,
-              minHeight: inner.size.height,
-              maxHeight: inner.size.height,
-              child: _UiScale(
-                s,
+            child: _UiScale(
+              s,
+              child: SizedBox.fromSize(
+                size: inner.size,
                 child: MediaQuery(data: inner, child: child),
               ),
             ),

@@ -260,9 +260,12 @@ class _SizeControls extends StatelessWidget {
           max: textSizes.last,
           divisions: textSizes.length - 1,
           label: percent(sizes.text),
+          // applied while dragging, written when the finger lifts
           onChanged: (v) => sizes.chooseText(
             textSizes.reduce((a, b) => (a - v).abs() < (b - v).abs() ? a : b),
+            keep: false,
           ),
+          onChangeEnd: (_) => sizes.keepText(),
         ),
         ListTile(title: Text(t.interfaceSize)),
         Padding(
