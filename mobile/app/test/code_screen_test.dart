@@ -22,18 +22,44 @@ void main() {
     expect(find.text('3 lines'), findsOneWidget);
   });
 
-  testWidgets('line numbers are 1..n in a non-selectable column', (t) async {
+  testWidgets('line numbers are 1..n, each in a non-selectable gutter', (
+    t,
+  ) async {
     await show(t, const CodeScreen(code: 'a\nb\nc\nd', lang: null));
-    expect(find.text('1\n2\n3\n4'), findsOneWidget);
-    final col = find.ancestor(
-      of: find.text('1\n2\n3\n4'),
-      matching: find.byType(SelectionContainer),
-    );
-    expect(col, findsWidgets);
-    final disabled = t
-        .widgetList<SelectionContainer>(col)
-        .any((s) => s.registrar == null);
-    expect(disabled, isTrue);
+    for (final n in ['1', '2', '3', '4']) {
+      final gutter = find.ancestor(
+        of: find.text(n),
+        matching: find.byType(SelectionContainer),
+      );
+      expect(gutter, findsWidgets);
+      expect(
+        t
+            .widgetList<SelectionContainer>(gutter)
+            .any((s) => s.registrar == null),
+        isTrue,
+        reason: n,
+      );
+    }
+  });
+
+  testWidgets('a pinch scales the text', (t) async {
+    await show(t, const CodeScreen(code: 'a\nb\nc', lang: null));
+    double size() => t
+        .widget<Text>(
+          find.byWidgetPredicate((w) => w is Text && w.textSpan != null).first,
+        )
+        .textSpan!
+        .style!
+        .fontSize!;
+    expect(size(), 13);
+    final a = await t.startGesture(const Offset(300, 300), pointer: 1);
+    final b = await t.startGesture(const Offset(340, 300), pointer: 2);
+    await a.moveBy(const Offset(-40, 0));
+    await b.moveBy(const Offset(40, 0));
+    await t.pump();
+    expect(size(), greaterThan(13));
+    await a.up();
+    await b.up();
   });
 
   testWidgets('a long line does not wrap', (t) async {

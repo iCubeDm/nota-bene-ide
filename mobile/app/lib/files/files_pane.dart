@@ -30,11 +30,15 @@ class FilesPane extends StatefulWidget {
     required this.tab,
     this.navigatorKey,
     this.topInset = 0,
+    this.observers = const [],
   });
   final WindowTab tab;
 
   /// The pane's own navigator, for a host that wants Android's back to go up a folder first.
   final GlobalKey<NavigatorState>? navigatorKey;
+
+  /// Watching the pane's navigator (how deep it is).
+  final List<NavigatorObserver> observers;
 
   /// Room kept clear at the top (a floating header over the pane).
   final double topInset;
@@ -51,11 +55,23 @@ class _FilesPaneState extends State<FilesPane>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Navigator(
+    // the room under a floating header is the pane's, not its pages': every page of the navigator, a folder or a
+    // commit, starts below it, and it follows a rotation
+    final navigator = Navigator(
       key: widget.navigatorKey,
-      onGenerateRoute: (_) => MaterialPageRoute<void>(
-        builder: (_) => _PaneHome(tab: widget.tab, topInset: widget.topInset),
-      ),
+      observers: widget.observers,
+      onGenerateRoute: (_) =>
+          MaterialPageRoute<void>(builder: (_) => _PaneHome(tab: widget.tab)),
+    );
+    return Padding(
+      padding: EdgeInsets.only(top: widget.topInset),
+      child: widget.topInset > 0
+          ? MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: navigator,
+            )
+          : navigator,
     );
   }
 }
@@ -63,9 +79,8 @@ class _FilesPaneState extends State<FilesPane>
 /// The pane's first page: tabs like Telegram's folders (Files, Changes, Log; the last two only in a git repository)
 /// over the project tree, the working tree's changes and the log. A folder or a commit opens as a page over it.
 class _PaneHome extends StatefulWidget {
-  const _PaneHome({required this.tab, required this.topInset});
+  const _PaneHome({required this.tab});
   final WindowTab tab;
-  final double topInset;
 
   @override
   State<_PaneHome> createState() => _PaneHomeState();
@@ -107,31 +122,28 @@ class _PaneHomeState extends State<_PaneHome> {
     final at = repo ? _at : 0;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Padding(
-        padding: EdgeInsets.only(top: widget.topInset),
-        child: Column(
-          children: [
-            if (repo)
-              SizedBox(
-                height: 40,
-                child: FolderTabs(
-                  labels: [t.tabFiles, webString('vcsChanges', lang), t.tabLog],
-                  at: at.toDouble(),
-                  onTap: (i) => setState(() => _at = i),
-                ),
-              ),
-            Expanded(
-              child: IndexedStack(
-                index: at,
-                children: [
-                  FolderPage(tab: widget.tab, dir: ''),
-                  if (repo) ChangesPage(tab: widget.tab),
-                  if (repo) LogPage(tab: widget.tab),
-                ],
+      body: Column(
+        children: [
+          if (repo)
+            SizedBox(
+              height: 40,
+              child: FolderTabs(
+                labels: [t.tabFiles, webString('vcsChanges', lang), t.tabLog],
+                at: at.toDouble(),
+                onTap: (i) => setState(() => _at = i),
               ),
             ),
-          ],
-        ),
+          Expanded(
+            child: IndexedStack(
+              index: at,
+              children: [
+                FolderPage(tab: widget.tab, dir: ''),
+                if (repo) ChangesPage(tab: widget.tab),
+                if (repo) LogPage(tab: widget.tab),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -142,17 +154,11 @@ String pathTail(String path, [int max = 34]) =>
     path.length <= max ? path : '…${path.substring(path.length - max + 1)}';
 
 class FolderPage extends StatefulWidget {
-  const FolderPage({
-    super.key,
-    required this.tab,
-    required this.dir,
-    this.topInset = 0,
-  });
+  const FolderPage({super.key, required this.tab, required this.dir});
   final WindowTab tab;
 
   /// relative to the project root; '' is the root
   final String dir;
-  final double topInset;
 
   @override
   State<FolderPage> createState() => _FolderPageState();
@@ -242,8 +248,7 @@ class _FolderPageState extends State<FolderPage> {
 
   void _openFolder(String path) => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) =>
-          FolderPage(tab: widget.tab, dir: path, topInset: widget.topInset),
+      builder: (_) => FolderPage(tab: widget.tab, dir: path),
     ),
   );
 
@@ -284,107 +289,124 @@ class _FolderPageState extends State<FolderPage> {
     onTap: onTap,
   );
 
-  List<Widget> _listing(AppLocalizations t, NbColors c) {
-    final error = _error, entries = _entries;
-    final session = _root ? sessionFiles(widget.tab) : const <String>[];
-    final shown = _allSession
-        ? session
-        : session.take(sessionFilesShown).toList();
-    final label = TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
-      color: c.mutedFg,
-    );
-    return [
-      if (session.isNotEmpty) ...[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
-          child: Text(t.thisSession, style: label),
-        ),
-        for (final f in shown)
-          _row(
-            c,
-            icon: fileIcon(f),
-            title: f.split('/').last,
-            subtitle: f.contains('/')
-                ? f.substring(0, f.lastIndexOf('/'))
-                : null,
-            onTap: () => openFile(context, widget.tab, f),
-          ),
-        if (session.length > shown.length)
-          TextButton(
-            onPressed: () => setState(() => _allSession = true),
-            child: Text(t.showAll('${session.length}')),
-          ),
-        const Divider(height: 16),
-      ],
-      if (error != null)
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: ErrorRetry(message: _failText(t, error), onRetry: _load),
-        )
-      else if (entries == null)
-        const Padding(
-          padding: EdgeInsets.all(24),
-          child: Center(child: CircularProgressIndicator()),
-        )
-      else ...[
-        if (entries.isEmpty)
+  /// The files the agent touched; it follows the feed while the page is open.
+  Widget _session(AppLocalizations t, NbColors c) => ListenableBuilder(
+    listenable: widget.tab,
+    builder: (context, _) {
+      final session = sessionFiles(widget.tab);
+      if (session.isEmpty) return const SizedBox.shrink();
+      final shown = _allSession
+          ? session
+          : session.take(sessionFilesShown).toList();
+      final label = TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: c.mutedFg,
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
+            child: Text(t.thisSession, style: label),
+          ),
+          for (final f in shown)
+            _row(
+              c,
+              icon: fileIcon(f),
+              title: f.split('/').last,
+              subtitle: f.contains('/')
+                  ? f.substring(0, f.lastIndexOf('/'))
+                  : null,
+              onTap: () => openFile(context, widget.tab, f),
+            ),
+          if (session.length > shown.length)
+            TextButton(
+              onPressed: () => setState(() => _allSession = true),
+              child: Text(t.showAll('${session.length}')),
+            ),
+          const Divider(height: 16),
+        ],
+      );
+    },
+  );
+
+  /// The listing, built as it scrolls: the session on top (at the root), a note while there are no entries, then
+  /// the entries.
+  Widget _listing(AppLocalizations t, NbColors c) {
+    final error = _error, entries = _entries;
+    final head = _root ? 1 : 0;
+    final Widget? note = error != null
+        ? Padding(
+            padding: const EdgeInsets.all(24),
+            child: ErrorRetry(message: _failText(t, error), onRetry: _load),
+          )
+        : entries == null
+        ? const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        : entries.isEmpty
+        ? Padding(
             padding: const EdgeInsets.all(24),
             child: Center(child: Text(t.emptyFolder)),
-          ),
-        for (final e in entries)
-          _row(
-            c,
-            icon: e.dir ? Icons.folder_outlined : fileIcon(e.name),
-            title: e.name,
-            folder: e.dir,
-            onTap: () => e.dir
-                ? _openFolder(_join(e.name))
-                : openFile(context, widget.tab, _join(e.name)),
-          ),
-      ],
-    ];
+          )
+        : null;
+    final rows = error != null ? const <TreeEntry>[] : entries ?? const [];
+    final lead = head + (note == null ? 0 : 1);
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: lead + rows.length,
+      itemBuilder: (context, i) {
+        if (i < head) return _session(t, c);
+        if (note != null && i == head) return note;
+        final e = rows[i - lead];
+        return _row(
+          c,
+          icon: e.dir ? Icons.folder_outlined : fileIcon(e.name),
+          title: e.name,
+          folder: e.dir,
+          onTap: () => e.dir
+              ? _openFolder(_join(e.name))
+              : openFile(context, widget.tab, _join(e.name)),
+        );
+      },
+    );
   }
 
-  List<Widget> _results(AppLocalizations t, NbColors c) {
+  Widget _results(AppLocalizations t, NbColors c) {
     final hits = _hits!;
-    if (_searchError != null) {
-      return [
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: ErrorRetry(
-            message: t.fileUnreadable,
-            onRetry: () => _search(_query.text.trim()),
-          ),
-        ),
-      ];
-    }
-    if (hits.isEmpty) {
-      return [
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: Center(child: Text(t.noMatches)),
-        ),
-      ];
-    }
-    return [
-      for (final h in hits)
-        _row(
+    final Widget? note = _searchError != null
+        ? Padding(
+            padding: const EdgeInsets.all(24),
+            child: ErrorRetry(
+              message: t.fileUnreadable,
+              onRetry: () => _search(_query.text.trim()),
+            ),
+          )
+        : hits.isEmpty
+        ? Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(child: Text(t.noMatches)),
+          )
+        : null;
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: note == null ? hits.length : 1,
+      itemBuilder: (context, i) {
+        if (note != null) return note;
+        final h = hits[i];
+        final p = h.endsWith('/') ? h.substring(0, h.length - 1) : h;
+        return _row(
           c,
           icon: h.endsWith('/') ? Icons.folder_outlined : fileIcon(h),
-          title: (h.endsWith('/') ? h.substring(0, h.length - 1) : h)
-              .split('/')
-              .last,
-          subtitle: () {
-            final p = h.endsWith('/') ? h.substring(0, h.length - 1) : h;
-            return p.contains('/') ? p.substring(0, p.lastIndexOf('/')) : null;
-          }(),
+          title: p.split('/').last,
+          subtitle: p.contains('/') ? p.substring(0, p.lastIndexOf('/')) : null,
           folder: h.endsWith('/'),
           onTap: () => _openHit(h),
-        ),
-    ];
+        );
+      },
+    );
   }
 
   @override
@@ -397,70 +419,62 @@ class _FolderPageState extends State<FolderPage> {
         : widget.dir;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Padding(
-        padding: EdgeInsets.only(top: widget.topInset),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                if (!_root)
-                  IconButton(
-                    tooltip: t.folderUp,
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  )
-                else
-                  const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    pathTail(title),
-                    key: const ValueKey('folder-path'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: c.foreground,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-              child: TextField(
-                controller: _query,
-                onChanged: _typed,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: t.searchFiles,
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  suffixIcon: _query.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () {
-                            _query.clear();
-                            _typed('');
-                          },
-                        ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(22),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              if (!_root)
+                IconButton(
+                  tooltip: t.folderUp,
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                )
+              else
+                const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  pathTail(title),
+                  key: const ValueKey('folder-path'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: c.foreground,
                   ),
                 ),
               ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: 16),
-                children: _hits != null ? _results(t, c) : _listing(t, c),
+              const SizedBox(width: 12),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+            child: TextField(
+              controller: _query,
+              onChanged: _typed,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: t.searchFiles,
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _query.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          _query.clear();
+                          _typed('');
+                        },
+                      ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+          Expanded(child: _hits != null ? _results(t, c) : _listing(t, c)),
+        ],
       ),
     );
   }

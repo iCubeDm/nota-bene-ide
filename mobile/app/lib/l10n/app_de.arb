@@ -203,5 +203,6 @@
   "folderUp": "Einen Ordner hoch",
   "noCommentsYet": "Noch keine Kommentare. Markiere Text im Chat oder in einer Datei und tippe auf Kommentieren.",
   "sentComments": "Gesendet",
-  "tabLog": "Verlauf"
+  "tabLog": "Verlauf",
+  "voiceFinishFirst": "Beende oder lösche zuerst die Sprachnachricht."
 }

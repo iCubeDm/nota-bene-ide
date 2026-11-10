@@ -6,11 +6,14 @@ import 'package:nb_app/chat/chat_route.dart';
 import 'package:nb_app/chat/composer.dart';
 import 'package:nb_app/comments/comments_pane.dart';
 import 'package:nb_app/files/files_pane.dart';
+import 'package:nb_app/voice/player.dart';
+import 'package:nb_app/voice/record_button.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'comments_test.dart' show c, json;
 import 'support/fakes.dart';
 import 'support/rig.dart';
+import 'support/voice_fakes.dart';
 
 void main() {
   late Rig r;
@@ -21,11 +24,12 @@ void main() {
     WidgetTester t, {
     List<Map<String, Object?>> events = const [],
     Size size = const Size(400, 800),
+    Map<String, Object?>? hello,
   }) async {
     t.view.physicalSize = size;
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
-    await r.open(t, events: events);
+    await r.open(t, events: events, hello: hello);
     r.ch.onHttp = (port, method, path) async {
       final u = Uri.parse(path);
       if (u.path == '/tree') {
@@ -161,6 +165,120 @@ void main() {
     );
     await t.pumpAndSettle();
     expect(find.byType(Composer).hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('a folder opened in Files starts below the header and strip', (
+    t,
+  ) async {
+    await open(t);
+    await t.tap(find.text('Files'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('src'));
+    await t.pumpAndSettle();
+    // the header (8 + 40 + 8) and the strip (40) float over the page
+    expect(
+      t.getTopLeft(find.byKey(const ValueKey('folder-path'))).dy,
+      greaterThanOrEqualTo(96),
+    );
+  });
+
+  testWidgets(
+    'wide: back goes up a folder in Files before it leaves the chat',
+    (t) async {
+      await open(t);
+      await t.tap(find.text('Files'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('src'));
+      await t.pumpAndSettle();
+      t.view.physicalSize = const Size(1000, 700);
+      await t.pumpAndSettle();
+      expect(find.text('main.dart'), findsOneWidget);
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      expect(find.text('main.dart'), findsNothing);
+      expect(find.text('a.txt'), findsOneWidget);
+      expect(find.byType(ChatRoute), findsOneWidget);
+    },
+  );
+
+  testWidgets('narrow again after a rotation starts at the chat', (t) async {
+    await open(t);
+    await t.tap(find.text('Files'));
+    await t.pumpAndSettle();
+    t.view.physicalSize = const Size(1000, 700);
+    await t.pumpAndSettle();
+    t.view.physicalSize = const Size(400, 800);
+    await t.pumpAndSettle();
+    // narrow again starts at the chat, and the underline says so
+    expect(find.byType(Composer).hitTestable(), findsOneWidget);
+    expect(
+      t.getCenter(find.byKey(const ValueKey('strip-underline'))).dx,
+      closeTo(200, 2),
+    );
+  });
+
+  group('the chat pane outlives the others', () {
+    testWidgets('a swipe to Files and back keeps the same composer', (t) async {
+      await open(t);
+      final before = t.state(find.byType(Composer));
+      await t.tap(find.text('Files'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Chat'));
+      await t.pumpAndSettle();
+      expect(t.state(find.byType(Composer)), same(before));
+    });
+
+    testWidgets('rotating across the wide width keeps the panes', (t) async {
+      await open(t);
+      await t.tap(find.text('Comments'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Chat'));
+      await t.pumpAndSettle();
+      final composer = t.state(find.byType(Composer));
+      final comments = t.state(find.byType(CommentsPane, skipOffstage: false));
+      t.view.physicalSize = const Size(1000, 700);
+      await t.pumpAndSettle();
+      expect(t.state(find.byType(Composer)), same(composer));
+      expect(t.state(find.byType(CommentsPane)), same(comments));
+      t.view.physicalSize = const Size(400, 800);
+      await t.pumpAndSettle();
+      expect(t.state(find.byType(Composer)), same(composer));
+    });
+
+    group('with a recording', () {
+      late RecorderMock rec;
+      setUp(() {
+        rec = RecorderMock()..install();
+        VoicePlayer.shared = VoicePlayer(files: MemoryVoiceFiles());
+      });
+      tearDown(() => rec.uninstall());
+
+      testWidgets('a tab does not switch away silently', (t) async {
+        // (the locked recording's row does not fit 400 dp: a separate matter)
+        await open(
+          t,
+          size: const Size(480, 800),
+          hello: {
+            'kind': 'hello',
+            'protocol': 14,
+            'capabilities': Rig.caps(dictation: 'whisper'),
+          },
+        );
+        final line = find.byKey(const ValueKey('strip-underline'));
+        final g = await t.startGesture(t.getCenter(find.byType(RecordButton)));
+        await t.pump(const Duration(milliseconds: 300));
+        await g.moveBy(const Offset(0, -90));
+        await g.up();
+        await t.pump();
+        await t.tap(find.text('Files'));
+        await t.pumpAndSettle();
+        expect(t.getCenter(line).dx, closeTo(240, 2));
+        expect(
+          find.text('Finish or delete the voice message first.'),
+          findsOneWidget,
+        );
+      });
+    });
   });
 
   group('the comments pane', () {

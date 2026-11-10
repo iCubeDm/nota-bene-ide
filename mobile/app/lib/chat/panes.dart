@@ -3,6 +3,7 @@
 // strip of tabs like Telegram's chat folders (a sliding underline that follows the swipe) and a horizontal swipe across
 // the screen to change; a wide one (landscape, a tablet) stands the three side by side. Back on Files goes up a folder
 // first, then, like back on Comments, returns to the chat.
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../comments/comments.dart' show Comments;
@@ -20,6 +21,57 @@ class PanesController {
   void show(Pane p) => _show?.call(p);
 }
 
+/// How many pages the Files pane has pushed over its first; its navigator's observer keeps it.
+class PaneDepth extends NavigatorObserver implements ValueListenable<int> {
+  final _depth = ValueNotifier<int>(0);
+  @override
+  int get value => _depth.value;
+  @override
+  void addListener(VoidCallback listener) => _depth.addListener(listener);
+  @override
+  void removeListener(VoidCallback listener) => _depth.removeListener(listener);
+
+  void _set(int n) {
+    // never while the framework is building or laying out
+    if (_depth.value != n) _depth.value = n;
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (previousRoute != null) _set(_depth.value + 1);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _set((_depth.value - 1).clamp(0, 1 << 30));
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _set((_depth.value - 1).clamp(0, 1 << 30));
+
+  void dispose() => _depth.dispose();
+}
+
+/// Keeps a pane's state when the PageView scrolls it away.
+class _Kept extends StatefulWidget {
+  const _Kept({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<_Kept> createState() => _KeptState();
+}
+
+class _KeptState extends State<_Kept> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 /// From this width the three panes stand side by side.
 const widePanes = 840.0;
 
@@ -33,6 +85,7 @@ class ChatPanes extends StatefulWidget {
     required this.files,
     required this.comments,
     required this.filesNavigator,
+    this.depth,
   });
   final WindowTab tab;
   final PanesController controller;
@@ -48,13 +101,23 @@ class ChatPanes extends StatefulWidget {
   /// The Files pane's own navigator: back goes up a folder before it leaves the pane.
   final GlobalKey<NavigatorState> filesNavigator;
 
+  /// Told how deep the Files navigator is, so wide mode knows whether back goes up a folder.
+  final PaneDepth? depth;
+
   @override
   State<ChatPanes> createState() => _ChatPanesState();
 }
 
 class _ChatPanesState extends State<ChatPanes> {
-  final _page = PageController(initialPage: 1);
+  // the page is never restored from storage: a layout change starts at the chat, as `_current` says
+  final _page = PageController(initialPage: 1, keepPage: false);
   Pane _current = Pane.chat;
+
+  // one key per pane, so each keeps its state when the screen turns across the wide width and the panes move between
+  // the row and the pages
+  final _filesKey = GlobalKey(debugLabel: 'files pane');
+  final _chatKey = GlobalKey(debugLabel: 'chat pane');
+  final _commentsKey = GlobalKey(debugLabel: 'comments pane');
 
   /// The height of the strip of tabs.
   static const stripHeight = 40.0;
@@ -82,13 +145,24 @@ class _ChatPanesState extends State<ChatPanes> {
   }
 
   void _show(Pane p) {
-    if (_page.hasClients) {
-      _page.animateToPage(
-        p.index,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-      );
+    // side by side there is nothing to switch to
+    if (!_page.hasClients) return;
+    // a recording is never left behind unasked: it is finished or deleted in the chat first
+    if (p != Pane.chat && Microphone.owner.value != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).voiceFinishFirst),
+          ),
+        );
+      return;
     }
+    _page.animateToPage(
+      p.index,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
     setState(() => _current = p);
   }
 
@@ -108,20 +182,40 @@ class _ChatPanesState extends State<ChatPanes> {
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= widePanes;
     if (wide) {
-      return Row(
+      // the narrow layout starts at the chat again
+      _current = Pane.chat;
+      final top = MediaQuery.paddingOf(context).top;
+      final row = Row(
         children: [
           Expanded(
             flex: 3,
-            child: widget.files(MediaQuery.paddingOf(context).top),
+            child: _Kept(key: _filesKey, child: widget.files(top)),
           ),
           const VerticalDivider(width: 1),
-          Expanded(flex: 5, child: widget.chat(true, 0)),
+          Expanded(
+            flex: 5,
+            child: _Kept(key: _chatKey, child: widget.chat(true, 0)),
+          ),
           const VerticalDivider(width: 1),
           Expanded(
             flex: 3,
-            child: widget.comments(MediaQuery.paddingOf(context).top),
+            child: _Kept(key: _commentsKey, child: widget.comments(top)),
           ),
         ],
+      );
+      final depth = widget.depth;
+      if (depth == null) return row;
+      // back goes up a folder in Files before it leaves the chat
+      return ValueListenableBuilder<int>(
+        valueListenable: depth,
+        builder: (context, deep, child) => PopScope(
+          canPop: deep == 0,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) widget.filesNavigator.currentState?.maybePop();
+          },
+          child: child!,
+        ),
+        child: row,
       );
     }
     final c = Theme.of(context).extension<NbColors>()!;
@@ -136,19 +230,22 @@ class _ChatPanesState extends State<ChatPanes> {
       child: Stack(
         children: [
           Positioned.fill(
-            child: ValueListenableBuilder<bool>(
-              valueListenable: Microphone.hot,
-              builder: (context, recording, _) => PageView(
+            child: ValueListenableBuilder<Object?>(
+              valueListenable: Microphone.owner,
+              builder: (context, owner, _) => PageView(
                 controller: _page,
-                // a finger sliding on the microphone is the recording's, not a swipe
-                physics: recording
+                // a finger sliding on the microphone is the recording's, not a swipe; a locked one is not left by a swipe either
+                physics: owner != null
                     ? const NeverScrollableScrollPhysics()
                     : const PageScrollPhysics(),
                 onPageChanged: (i) => setState(() => _current = Pane.values[i]),
                 children: [
-                  widget.files(cover),
-                  widget.chat(false, headerBox + stripHeight),
-                  widget.comments(cover),
+                  _Kept(key: _filesKey, child: widget.files(cover)),
+                  _Kept(
+                    key: _chatKey,
+                    child: widget.chat(false, headerBox + stripHeight),
+                  ),
+                  _Kept(key: _commentsKey, child: widget.comments(cover)),
                 ],
               ),
             ),
