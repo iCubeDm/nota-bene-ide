@@ -1,3 +1,4 @@
+import { askUserQuestion } from './ask-question.ts';
 import { getSessionInfo, getSessionMessages, getSubagentMessages, listSessions, listSubagents, query, renameSession } from '@anthropic-ai/claude-agent-sdk';
 import type { ModelInfo, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { CLAUDE_CAPABILITIES, type AgentEvent, type EffortLevel, type Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
@@ -91,10 +92,15 @@ class SdkSession implements AgentSession {
         // the SDK doesn't enable Claude in Chrome on its own — without the flag the session has no browser tools
         extraArgs: { chrome: null },
         systemPrompt: { type: 'preset', preset: 'claude_code', append: APPEND },
-        canUseTool: async (toolName, input, { signal }) =>
-          (await o.ask(toolName, input, signal))
+        canUseTool: async (toolName, input, { signal }) => {
+          const { interact } = o;
+          // the questions go through the structured prompt, with no JSON body (the prompt carries them)
+          const asked = toolName === 'AskUserQuestion' && interact ? await askUserQuestion(input, (p) => interact(p, {}, signal)) : null;
+          if (asked) return asked;
+          return (await o.ask(toolName, input, signal))
             ? { behavior: 'allow', updatedInput: input }
-            : { behavior: 'deny', message: 'User denied this action in the UI.' },
+            : { behavior: 'deny', message: 'User denied this action in the UI.' };
+        },
       },
     });
     this.messages = offered(mapFrames(this.noted(this.q)), () => this.tap.terminal);

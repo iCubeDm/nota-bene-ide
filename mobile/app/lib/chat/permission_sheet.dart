@@ -217,6 +217,77 @@ class _PromptCardState extends State<PromptCard> {
     () => TextEditingController()..addListener(() => setState(() {})),
   );
 
+  List<String> _picked(String id) => _field(
+    id,
+  ).text.split(',').map((v) => v.trim()).where((v) => v.isNotEmpty).toList();
+
+  void _pick(InteractionFieldsItem f, String o) {
+    final picked = _picked(f.id);
+    final next = f.multi == true
+        ? (picked.contains(o)
+              ? picked.where((v) => v != o).toList()
+              : [...picked, o])
+        : (picked.length == 1 && picked.first == o ? <String>[] : [o]);
+    _field(f.id).text = next.join(', ');
+  }
+
+  Widget _fieldView(InteractionFieldsItem f, NbColors c) {
+    final options = f.options ?? const <String>[];
+    final picked = _picked(f.id);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (f.header != null && f.header!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                f.header!,
+                style: TextStyle(fontSize: 12, color: c.mutedFg),
+              ),
+            ),
+          TextField(
+            controller: _field(f.id),
+            obscureText: f.secret == true,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: f.label,
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+          for (var i = 0; i < options.length; i++)
+            Material(
+              type: MaterialType.transparency,
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  picked.contains(options[i])
+                      ? (f.multi == true
+                            ? Icons.check_box
+                            : Icons.radio_button_checked)
+                      : (f.multi == true
+                            ? Icons.check_box_outline_blank
+                            : Icons.radio_button_unchecked),
+                  color: picked.contains(options[i]) ? c.accent : c.mutedFg,
+                ),
+                title: Text(options[i]),
+                subtitle:
+                    (f.notes != null &&
+                        i < f.notes!.length &&
+                        f.notes![i].isNotEmpty)
+                    ? Text(f.notes![i])
+                    : null,
+                onTap: () => _pick(f, options[i]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -262,23 +333,7 @@ class _PromptCardState extends State<PromptCard> {
               ),
             )
           else ...[
-            for (final f in fields)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: TextField(
-                  controller: _field(f.id),
-                  obscureText: f.secret == true,
-                  autocorrect: false,
-                  decoration: InputDecoration(
-                    labelText: f.label,
-                    helperText: (f.options ?? const []).isEmpty
-                        ? null
-                        : f.options!.join(' · '),
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                ),
-              ),
+            for (final f in fields) _fieldView(f, c),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,

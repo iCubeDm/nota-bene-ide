@@ -941,6 +941,9 @@ final class InteractionFieldsItem implements _Json {
     this.secret,
     this.options,
     this.required,
+    this.header,
+    this.notes,
+    this.multi,
   });
 
   factory InteractionFieldsItem.fromJson(Map<String, Object?> json) {
@@ -950,6 +953,9 @@ final class InteractionFieldsItem implements _Json {
       secret: json['secret'] as bool?,
       options: _listOrNull(json['options'], _as<String>),
       required: json['required'] as bool?,
+      header: json['header'] as String?,
+      notes: _listOrNull(json['notes'], _as<String>),
+      multi: json['multi'] as bool?,
     );
   }
 
@@ -958,6 +964,9 @@ final class InteractionFieldsItem implements _Json {
   final bool? secret;
   final List<String>? options;
   final bool? required;
+  final String? header;
+  final List<String>? notes;
+  final bool? multi;
 
   @override
   Map<String, Object?> toJson() {
@@ -967,6 +976,9 @@ final class InteractionFieldsItem implements _Json {
       if (secret != null) 'secret': secret,
       if (options != null) 'options': options,
       if (required != null) 'required': required,
+      if (header != null) 'header': header,
+      if (notes != null) 'notes': notes,
+      if (multi != null) 'multi': multi,
     };
   }
 }

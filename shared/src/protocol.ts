@@ -192,7 +192,8 @@ export type Stats = {
 export type Interaction = {
   title: string;
   choices: { id: string; label: string; allow?: boolean }[];
-  fields?: { id: string; label: string; secret?: boolean; options?: string[]; required?: boolean }[];
+  /** `header`: a short tag over the label; `notes[i]`: the description of `options[i]`; `multi`: several options may be picked (the value is their labels, comma-separated) */
+  fields?: { id: string; label: string; secret?: boolean; options?: string[]; required?: boolean; header?: string; notes?: string[]; multi?: boolean }[];
   url?: string;
 };
 export type InteractionAnswer = { choice: string; values?: Record<string, string> };

@@ -271,6 +271,31 @@ it('structured questions send actual typed answers and stop accepting input afte
   expect(screen.queryByLabelText('Colour')).toBeNull();
 });
 
+it('AskUserQuestion: options show their descriptions; a single choice replaces, several are comma-separated, free text still works', () => {
+  const { store, sent } = setup();
+  const fields = [
+    { id: 'q0', label: 'Which library?', header: 'Library', required: true, options: ['dayjs', 'luxon'], notes: ['small', 'zones'] },
+    { id: 'q1', label: 'Which features?', header: 'Features', required: true, multi: true, options: ['A', 'B', 'C'], notes: ['a', 'b', 'c'] },
+  ];
+  act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'ask', toolName: 'Claude', input: {}, prompt: { title: 'Claude', choices: [{ id: 'submit', label: 'Send answers' }, { id: 'cancel', label: 'Cancel' }], fields }, ts: 1 })); });
+  expect(screen.getByText('Library')).toBeTruthy();
+  expect(screen.getByText('zones')).toBeTruthy();
+  const send = screen.getByRole('button', { name: 'Send answers' }) as HTMLButtonElement;
+  expect(send.disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: /dayjs/ }));
+  fireEvent.click(screen.getByRole('button', { name: /luxon/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Aa$/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Cc$/ }));
+  expect(screen.getByRole('button', { name: /luxon/ }).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('button', { name: /dayjs/ }).getAttribute('aria-pressed')).toBe('false');
+  fireEvent.click(send);
+  expect(sent).toContainEqual({ type: 'permission', id: 'ask', allow: true, response: { choice: 'submit', values: { q0: 'luxon', q1: 'A, C' } } });
+  fireEvent.click(screen.getByRole('button', { name: /^Aa$/ }));
+  fireEvent.change(screen.getByLabelText('Which library?'), { target: { value: 'my own' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
+  expect(sent.at(-1)).toEqual({ type: 'permission', id: 'ask', allow: true, response: { choice: 'submit', values: { q0: 'my own', q1: 'C' } } });
+});
+
 it('ACP permission options and omp approval answers read as the UI\'s own words', () => {
   const { store } = setup();
   act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'acp', toolName: 'omp', input: { command: 'echo hi' }, prompt: { title: 'echo hi', choices: [{ id: 'allow_once', label: 'Allow once', allow: true }, { id: 'allow_always', label: 'Always allow', allow: true }, { id: 'reject_once', label: 'Reject' }, { id: 'reject_always', label: 'Always reject' }] }, ts: 1 })); });

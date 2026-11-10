@@ -114,6 +114,59 @@ void main() {
   );
 
   testWidgets(
+    'AskUserQuestion options show descriptions; single replaces, several are comma-separated',
+    (t) async {
+      await r.open(t);
+      r.event({
+        'kind': 'permission',
+        'id': 'ask',
+        'toolName': 'Claude',
+        'input': {},
+        'prompt': {
+          'title': 'Claude',
+          'choices': [
+            {'id': 'submit', 'label': 'Send answers'},
+            {'id': 'cancel', 'label': 'Cancel'},
+          ],
+          'fields': [
+            {
+              'id': 'q0',
+              'label': 'Which library?',
+              'header': 'Library',
+              'required': true,
+              'options': ['dayjs', 'luxon'],
+              'notes': ['small', 'zones'],
+            },
+            {
+              'id': 'q1',
+              'label': 'Which features?',
+              'required': true,
+              'multi': true,
+              'options': ['A', 'B', 'C'],
+              'notes': ['a', 'b', 'c'],
+            },
+          ],
+        },
+        'ts': 1,
+      });
+      await t.pumpAndSettle();
+      expect(find.text('Library'), findsOneWidget);
+      expect(find.text('zones'), findsOneWidget);
+      await t.tap(find.text('dayjs'));
+      await t.tap(find.text('luxon'));
+      await t.tap(find.text('A'));
+      await t.tap(find.text('C'));
+      await t.pump();
+      await t.tap(find.widgetWithText(FilledButton, 'Send answers'));
+      await t.pumpAndSettle();
+      expect(r.sent.single['response'], {
+        'choice': 'submit',
+        'values': {'q0': 'luxon', 'q1': 'A, C'},
+      });
+    },
+  );
+
+  testWidgets(
     'the sheet closes without sending when the tab loses the window',
     (t) async {
       await r.open(t);
