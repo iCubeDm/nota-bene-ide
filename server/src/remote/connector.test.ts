@@ -115,7 +115,8 @@ describe('connector', () => {
     await connector({ pairTtlMs: 300 });
     const { cl, code } = await pairCode();
     await cl.next((m) => m.t === 'expired');
-    expect(code.expiresAt).toBeLessThanOrEqual(Date.now());
+    // a timer may fire a millisecond or two before Date.now() reaches its deadline
+    expect(code.expiresAt).toBeLessThanOrEqual(Date.now() + 5);
     const p = present(code.uri);
     expect(await p.closed).toBe(4403);
   });
