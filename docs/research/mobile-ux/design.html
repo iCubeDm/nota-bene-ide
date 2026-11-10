@@ -210,7 +210,7 @@ Darcula theme, English interface, 360&nbsp;dp wide. Drawings approximate spacing
 <h2 id="rules">The rules every screen follows</h2>
 <ul class="lead">
   <li><b>Header pill</b>: avatar, title, and a second line that says what the session is doing, as a messenger says “typing…”
-    or “last seen”. A tap opens the window sheet (mode, model, Clear, Restart). There is no status bar under the tabs in any state.</li>
+    or “last seen”. A tap opens the window sheet (mode, model, Restart). There is no status bar under the tabs in any state.</li>
   <li><b>Context ring</b>: a 40&nbsp;dp circle right of the pill with the context percent inside; primary below 70&nbsp;%, accent from 70&nbsp;%,
     red from 90&nbsp;%. A tap opens the context sheet: context, plan limits, cost, Compact, Stats.</li>
   <li><b>Mode</b>: written under “Chat” in the tab pill, red for modes without prompts; changed only in the window sheet.</li>
@@ -279,7 +279,7 @@ Darcula theme, English interface, 360&nbsp;dp wide. Drawings approximate spacing
       <div class="composer"><div class="field fx"><span>Message</span><span class="sp"></span><span class="in">📎</span><span class="in">🎤</span></div></div>
       <div class="stopx">■</div>
       <div class="nav"></div></div>
-    <figcaption><span class="id">1.3</span><b>Working, nothing typed</b> was 14.3. Attach and mic inside the field; mic is hold-to-record as today (9.1).
+    <figcaption><span class="id">1.3</span><b>Working, nothing typed</b> was 14.3. Attach and mic inside the field; mic is hold-to-record as today (9.1). With a computer whose Nota Bene is older (no voice messages) the mic stays, greyed; a tap says the computer needs an update.
       Stop stays above, never under the thumb that records or sends.</figcaption>
   </figure>
   <figure style="margin-left:64px">
@@ -302,8 +302,8 @@ Darcula theme, English interface, 360&nbsp;dp wide. Drawings approximate spacing
 
 <!-- ============ 2 ============ -->
 <h2 id="d2">2. Sheets from the header</h2>
-<p class="lead">Two taps, two sheets, no duplication: the pill opens what the window <i>does</i> (mode, model, Clear, Restart),
-the ring opens what the window <i>uses</i> (context, plan limits, cost, Compact, Stats). Today all of it is one sheet (5.1).</p>
+<p class="lead">Two taps, two sheets, no duplication: the pill opens what the window <i>does</i> (mode, model, Restart),
+the ring opens what the window <i>uses</i> (context, plan limits, cost, Compact, Clear, Stats). Today all of it is one sheet (5.1).</p>
 <div class="row">
   <figure>
     <div class="ph"><div class="sb">12:05</div>
@@ -319,12 +319,12 @@ the ring opens what the window <i>uses</i> (context, plan limits, cost, Compact,
         <div class="li" style="padding:6px 20px;min-height:48px;background:rgba(72,118,192,.25)"><div class="tx"><div>Accept edits</div><div class="t2">Edits files without asking, asks before commands</div></div><span class="check">✓</span></div>
         <div class="li" style="padding:6px 20px;min-height:48px"><div class="tx"><div>Plan</div><div class="t2">Only reads and thinks, changes nothing</div></div></div>
         <div class="li" style="padding:6px 20px;min-height:48px"><div class="tx"><div style="color:var(--danger)">Auto</div><div class="t2">A classifier approves safe actions itself</div></div></div>
-        <div class="tiles" style="padding-top:10px"><div><b>⌫</b>Clear</div><div><b>↻</b>Restart</div></div>
+        <div class="tiles" style="padding-top:10px"><div><b>↻</b>Restart</div></div>
       </div>
       <div class="nav"></div></div>
     <figcaption><span class="id">2.1</span><b>Window sheet</b> (tap the pill) was 5.1 and 14.4. Model, then one 48 dp row per mode with its description
       (instead of the four-way segment); modes without prompts (Auto, Full access, Yolo) are red. Codex and omp list their own modes.
-      Clear and Restart keep today's confirmations.</figcaption>
+      Restart keeps today's confirmation; Clear moved to the context sheet (2.2), next to Compact.</figcaption>
   </figure>
   <div class="go">tap the ring</div>
   <figure>
@@ -343,12 +343,12 @@ the ring opens what the window <i>uses</i> (context, plan limits, cost, Compact,
           <div class="small" style="display:flex;justify-content:space-between;margin-top:2px"><span>This session</span><span class="muted">$1.24</span></div>
           <div class="small" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><div><div>Compact when idle</div><div class="tiny muted">After the turn, while the cache is warm</div></div><span class="sw on"><i></i></span></div>
         </div>
-        <div class="tiles" style="padding-top:14px"><div><b>⇲</b>Compact</div><div><b>▤</b>Stats</div></div>
+        <div class="tiles" style="padding-top:14px"><div><b>⇲</b>Compact</div><div><b>⌫</b>Clear</div><div><b>▤</b>Stats</div></div>
       </div>
       <div class="nav"></div></div>
     <figcaption><span class="id">2.2</span><b>Context sheet</b> (tap the ring), new. Everything about what the window uses, in one place:
       the context in tokens, the 5-hour and weekly limits with their reset times, the session cost (as on the web since #126),
-      idle compaction and Compact. Stats opens today's usage screen (5.3). Rows the backend does not report are left out.</figcaption>
+      idle compaction, Compact and Clear (with today's confirmation; both are off while the agent works). Stats opens today's usage screen (5.3). Rows the backend does not report are left out.</figcaption>
   </figure>
 </div>
 
@@ -388,7 +388,8 @@ the ring opens what the window <i>uses</i> (context, plan limits, cost, Compact,
 <!-- ============ 4 ============ -->
 <h2 id="d4">4. Comment by paragraph</h2>
 <p class="lead">A tap on a paragraph of a final reply makes the whole paragraph the target; the agent gets it as the quote. To point at a few
-words, Copy the paragraph and paste what is needed into the message. Links, code blocks and diagrams keep their own taps; a long-press keeps
+words, Copy the paragraph and paste what is needed into the message. In a list the target is the list item under the finger: a nested item is a target of its own, and a parent item covers its own text and its
+nested items. Links, code blocks and diagrams keep their own taps; a long-press keeps
 the whole-message menu (7.1).</p>
 <div class="row">
   <figure>
@@ -407,7 +408,7 @@ the whole-message menu (7.1).</p>
       <div class="nav"></div></div>
     <figcaption><span class="id">4.1</span><b>Tap a paragraph</b> was 7.1–7.2 and 15.1. Accent bar and tint on the paragraph; the label bubble above,
       the action bar below, both 48 dp. No scrim. A tap on the same paragraph or outside clears it.
-      Pin is greyed out until pins ship (#181). TalkBack: each paragraph is a button with Comment and Pin actions.</figcaption>
+      Pin is greyed out until pins ship (#181). TalkBack: each paragraph, and each list item, is a button with Comment and Pin actions.</figcaption>
   </figure>
   <div class="go">⌄</div>
   <figure>

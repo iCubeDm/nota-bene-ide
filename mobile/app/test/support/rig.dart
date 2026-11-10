@@ -146,6 +146,8 @@ extension Pumps on WidgetTester {
   Future<void> enter(String text) async {
     await enterText(find.byType(TextField), text);
     await pump();
+    // the mic and Send swap with a short animation: the old one must be gone before a tap
+    await pump(const Duration(milliseconds: 200));
   }
 
   Future<void> tapText(String s) async {

@@ -298,5 +298,6 @@
   "paragraphLabelAdded": "{label} añadido",
   "paragraphPin": "Fijar",
   "paragraphLess": "Menos",
-  "paragraphCopied": "Copiado"
+  "paragraphCopied": "Copiado",
+  "micNeedsUpdate": "Los mensajes de voz requieren actualizar Nota Bene en el ordenador."
 }

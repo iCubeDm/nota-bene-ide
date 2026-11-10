@@ -127,19 +127,18 @@ void main() {
     },
   );
 
-  testWidgets('send is always there, disabled while there is nothing to send', (
-    t,
-  ) async {
+  testWidgets('Send is there once there is something to send, the mic '
+      'before', (t) async {
     await r.open(t);
-    final send = find.byKey(const ValueKey('send'));
-    expect(send, findsOneWidget);
-    expect(t.widget<IconButton>(send).onPressed, isNull);
+    expect(find.byKey(const ValueKey('send')), findsNothing);
+    expect(find.byKey(const ValueKey('mic-old')), findsOneWidget);
     await t.enter('x');
+    final send = find.byKey(const ValueKey('send'));
     expect(t.widget<IconButton>(send).onPressed, isNotNull);
   });
 
   testWidgets(
-    'busy: Stop sits beside Send, which is off until there is something to send',
+    'busy: Stop sits beside the mic, which is Send once there is something to send',
     (t) async {
       await r.open(
         t,
@@ -149,7 +148,7 @@ void main() {
       );
       expect(find.byTooltip('Stop'), findsOneWidget);
       final send = find.byKey(const ValueKey('send'));
-      expect(t.widget<IconButton>(send).onPressed, isNull);
+      expect(send, findsNothing);
       await t.enter('more');
       expect(find.byTooltip('Stop'), findsOneWidget);
       expect(t.widget<IconButton>(send).onPressed, isNotNull);
@@ -242,10 +241,44 @@ void main() {
       },
     );
 
-    testWidgets('no mic below protocol 14', (t) async {
+    testWidgets('below protocol 14 the mic stays, greyed, not the action '
+        'button', (t) async {
       await openVoice(t, protocol: 13);
+      final old = find.byKey(const ValueKey('mic-old'));
+      expect(old, findsOneWidget);
       expect(find.byType(RecordButton), findsNothing);
+      expect(find.byKey(const ValueKey('send')), findsNothing);
+      expect(t.getSize(old), const Size(40, 40));
+      final c = Theme.of(t.element(old)).extension<NbColors>()!;
+      final style = t.widget<IconButton>(old).style!;
+      expect(style.backgroundColor?.resolve({}), isNot(c.primary));
+      expect(style.foregroundColor?.resolve({}), isNot(c.primaryFg));
+    });
+
+    testWidgets('a tap on the old host\'s mic says the computer needs an '
+        'update, and records nothing', (t) async {
+      await openVoice(t, protocol: 13);
+      await t.tap(find.byKey(const ValueKey('mic-old')));
+      await t.pumpAndSettle();
+      expect(
+        find.text(
+          'Voice messages need a newer Nota Bene on the computer. Update it.',
+        ),
+        findsOneWidget,
+      );
+      expect(r.sent, isEmpty);
+      expect(r.ch.requests, isEmpty);
+    });
+
+    testWidgets('below protocol 14 typing still makes it Send', (t) async {
+      await openVoice(t, protocol: 13);
+      await t.enter('x');
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('mic-old')), findsNothing);
       expect(find.byKey(const ValueKey('send')), findsOneWidget);
+      await t.enter('');
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('mic-old')), findsOneWidget);
     });
 
     testWidgets('without Whisper the mic opens its sheet', (t) async {

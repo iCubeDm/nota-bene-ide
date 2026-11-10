@@ -313,8 +313,9 @@ class _ComposerState extends State<Composer> {
           _drafts.isNotEmpty;
       final canSend = open && !uploading && !_failed && hasContent;
       final recording = _session.active;
-      // the mic while there is nothing to send, Send otherwise; a window older than protocol 14 has no voice
-      final mic = widget.tab.voiceProtocol && (!hasContent || recording);
+      // the mic while there is nothing to send, Send otherwise; a window older than protocol 14 has no voice: its mic
+      // is greyed and says why on a tap, not missing
+      final mic = !hasContent || recording;
       return PopScope(
         // a recording is never dropped by a back press: it is asked about
         canPop: !recording,
@@ -383,7 +384,26 @@ class _ComposerState extends State<Composer> {
         scale: anim,
         child: FadeTransition(opacity: anim, child: child),
       ),
-      child: mic
+      child: mic && !widget.tab.voiceProtocol
+          ? IconButton(
+              key: const ValueKey('mic-old'),
+              tooltip: t.micNeedsUpdate,
+              icon: const NbIcon(NbGlyph.mic),
+              style: IconButton.styleFrom(
+                fixedSize: const Size.square(_button),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: Colors.transparent,
+                foregroundColor: c.mutedFg.withValues(alpha: .6),
+              ),
+              onPressed: () {
+                final messenger = ScaffoldMessenger.maybeOf(context);
+                messenger?.hideCurrentSnackBar();
+                messenger?.showSnackBar(
+                  SnackBar(content: Text(t.micNeedsUpdate)),
+                );
+              },
+            )
+          : mic
           ? RecordButton(
               key: const ValueKey('mic'),
               session: _session,

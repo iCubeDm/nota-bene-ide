@@ -298,5 +298,6 @@
   "paragraphLabelAdded": "{label} hinzugefügt",
   "paragraphPin": "Anheften",
   "paragraphLess": "Weniger",
-  "paragraphCopied": "Kopiert"
+  "paragraphCopied": "Kopiert",
+  "micNeedsUpdate": "Für Sprachnachrichten muss Nota Bene auf dem Computer aktualisiert werden."
 }

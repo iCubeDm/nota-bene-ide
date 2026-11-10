@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart' show ValueKey;
 import 'dart:convert';
 import 'dart:io';
 
@@ -544,7 +545,9 @@ void main() {
       final r = await withComments(t, [c('a', 'x', 'only this')]);
       await t.tap(find.byTooltip('Send'));
       await t.pumpAndSettle();
-      await t.tap(find.byTooltip('Send'));
+      // nothing is left to send: Send gives way to the mic, which sends nothing
+      expect(find.byTooltip('Send'), findsNothing);
+      await t.tap(find.byKey(const ValueKey('mic-old')));
       await t.pumpAndSettle();
       expect(sends(r), hasLength(1));
       expect(find.text('1 comment to send'), findsNothing);

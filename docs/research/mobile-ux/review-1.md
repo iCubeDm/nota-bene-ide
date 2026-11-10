@@ -61,6 +61,14 @@ edge). The proposed screens are sections 14-17 of `flows.html`, ids 14.1-17.2.
 | 22 | design 1.1 | “Done in 2 min 14 s” under a reply repeats the pill. | The line goes; the pill's “online · done 12:04” says it. |
 | 23 | design 1.1 | The ring needs no first-run hint; people learn it in use. | No onboarding for the ring. |
 
+## Round 5
+
+| # | Screens | Comment | Change |
+|---|---|---|---|
+| 24 | 2.1, 2.2 | Clear belongs with Compact and usage, not with the window's own controls. | Clear moves from the window sheet to the context sheet: Compact, Clear, Stats. Same confirmation, same conditions (off while the agent works, absent when the agent cannot). The window sheet keeps model, modes and Restart. |
+| 25 | 4.1 | A list is one target; a person wants to comment on one item. | A tap on a list item targets that item (a nested item is its own target, a parent covers its nested items). Highlight, quote, Copy, comment badges and TalkBack actions work per item. |
+| 26 | 1.2, 1.3 | The mic vanishes on an older computer and reads as a bug. | With nothing to send the mic stays, greyed; a tap says the computer's Nota Bene must be updated for voice messages. Send still appears once there is content. |
+
 The agreed design, without the history, is drawn in one board: `design.html`.
 
 ## Order of work this suggests

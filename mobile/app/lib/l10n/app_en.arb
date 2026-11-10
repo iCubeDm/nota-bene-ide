@@ -480,5 +480,6 @@
   },
   "paragraphPin": "Pin",
   "paragraphLess": "Less",
-  "paragraphCopied": "Copied"
+  "paragraphCopied": "Copied",
+  "micNeedsUpdate": "Voice messages need a newer Nota Bene on the computer. Update it."
 }
