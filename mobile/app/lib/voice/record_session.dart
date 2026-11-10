@@ -18,7 +18,8 @@ class RecordSession extends ChangeNotifier {
   RecordSession({required this.onRecorded, this.onError});
 
   /// The recording to send: the WAV and its length.
-  final void Function(Uint8List wav, Duration length) onRecorded;
+  /// It may ask the user first (the busy dialog); when it does not take the recording it hands it back by [restore].
+  final FutureOr<void> Function(Uint8List wav, Duration length) onRecorded;
   final void Function(RecordFailure why)? onError;
 
   /// Bumped when the hint of "Hold to record" is due: after a short tap, and after a recording too short to be a
@@ -219,12 +220,22 @@ class RecordSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _deliver(Uint8List bytes) {
+  Future<void> _deliver(Uint8List bytes) async {
     final length = Duration(milliseconds: wavMs(bytes));
     final id = previewId;
     _reset();
     if (id.isNotEmpty) unawaited(VoicePlayer.shared.drop(id));
-    onRecorded(bytes, length);
+    await onRecorded(bytes, length);
+  }
+
+  /// A recording nobody took (the question was dismissed): it waits in the preview to be sent or deleted.
+  void restore(Uint8List bytes) {
+    if (active) return;
+    wav = bytes;
+    wave = waveOf(bytes);
+    previewId = uuidV4();
+    phase = RecordPhase.preview;
+    notifyListeners();
   }
 
   void _reset() {

@@ -47,6 +47,9 @@ class PendingVoice {
 
   /// The id of the current attempt's `send`.
   String id;
+
+  /// "Send now": the first attempt interrupts the agent. Not kept on disk and cleared by a retry, which goes after.
+  bool force = false;
   OutStage stage = OutStage.uploading;
   bool _running = false;
   Timer? _timer;
@@ -227,8 +230,9 @@ class VoiceOutbox extends ChangeNotifier {
   }
 
   /// Uploads and sends [wav]; the bubble shows meanwhile.
-  void submit(Uint8List wav, String lang) {
-    final e = PendingVoice(uuidV4(), lang, wavMs(wav), waveOf(wav), wav: wav);
+  void submit(Uint8List wav, String lang, {bool force = false}) {
+    final e = PendingVoice(uuidV4(), lang, wavMs(wav), waveOf(wav), wav: wav)
+      ..force = force;
     entries.add(e);
     _changed();
     unawaited(_start(e));
@@ -280,7 +284,13 @@ class VoiceOutbox extends ChangeNotifier {
       final send = _send;
       if (send == null) return;
       final sent = send(
-        ClientMessageSend(id: e.id, text: '', voice: e.voice, lang: e.lang),
+        ClientMessageSend(
+          id: e.id,
+          text: '',
+          voice: e.voice,
+          lang: e.lang,
+          force: e.force ? true : null,
+        ),
       );
       if (sent) {
         e.stage = OutStage.sent;
@@ -306,6 +316,7 @@ class VoiceOutbox extends ChangeNotifier {
     if (e.stage != OutStage.failed) return;
     // a new id: the window may have seen the old one
     e.id = uuidV4();
+    e.force = false;
     e.stage = OutStage.uploading;
     _changed();
     unawaited(_run(e));

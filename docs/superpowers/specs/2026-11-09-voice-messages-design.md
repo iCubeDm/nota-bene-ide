@@ -116,7 +116,8 @@ Telegram's Android layout, in our theme:
 - Right of the field is one round 48 px button. It shows the mic when there is nothing to send: no text, no images, no
   pending comments. Otherwise it shows Send. The switch is animated with a scale-and-fade, as in Telegram.
 - While the agent works, a 40 px round Stop sits left of that button. Typed sends while busy keep today's "send now or
-  after" dialog. A voice message never asks: it goes after.
+  after" dialog. A voice message asks the same (release, locked Send, the preview's Send); After queues it, Now sends it
+  with `force`. A dismissed dialog leaves the recording in the preview. A retry never asks and goes after.
 - Recording, as in Telegram:
   - Hold the mic. After 150 ms the recording starts with a light haptic.
   - The mic grows into a 96 px circle in the primary colour under the finger. It has a halo that swells with the input

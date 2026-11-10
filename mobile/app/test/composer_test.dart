@@ -180,6 +180,10 @@ void main() {
     });
     tearDown(() => rec.uninstall());
 
+    final working = [
+      {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
+    ];
+
     final voice = {'id': 'e' * 64, 'ms': 2000, 'wave': List.filled(48, 5)};
     HttpAnswer ok() => (
       status: 200,
@@ -246,6 +250,26 @@ void main() {
     });
 
     testWidgets(
+      'without Whisper the mic opens the sheet also while the agent works and for TalkBack',
+      (t) async {
+        final h = t.ensureSemantics();
+        await openVoice(t, dictation: null, events: working);
+        await t.tap(find.byType(RecordButton));
+        await t.pumpAndSettle();
+        expect(find.text('Dictation by Whisper'), findsOneWidget);
+        expect(find.byType(SnackBar), findsNothing);
+        await t.tapAt(const Offset(5, 5));
+        await t.pumpAndSettle();
+        expect(find.text('Dictation by Whisper'), findsNothing);
+        t.semantics.tap(find.semantics.byLabel('Hold to record'));
+        await t.pumpAndSettle();
+        expect(find.text('Dictation by Whisper'), findsOneWidget);
+        expect(rec.calls, isEmpty);
+        h.dispose();
+      },
+    );
+
+    testWidgets(
       'the paperclip is in the field, and moves to its top once the text wraps',
       (t) async {
         await openVoice(t);
@@ -308,14 +332,9 @@ void main() {
     );
 
     testWidgets(
-      'while the agent works a voice message goes without the dialog, after the turn',
+      'while the agent works a voice message asks; After sends it without force',
       (t) async {
-        await openVoice(
-          t,
-          events: [
-            {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
-          ],
-        );
+        await openVoice(t, events: working);
         r.ch.onHttp = (port, method, path) async => ok();
         // Stop sits beside the mic
         expect(find.byTooltip('Stop'), findsOneWidget);
@@ -325,11 +344,102 @@ void main() {
         );
         expect(find.byType(RecordButton), findsOneWidget);
         await record(t);
-        expect(find.byType(AlertDialog), findsNothing);
+        await t.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(r.sent, isEmpty);
+        expect(r.ch.requests, isEmpty);
+        await t.tapText('Send after this turn');
+        await t.pump();
+        await t.pump();
         expect(r.sent.single.containsKey('force'), isFalse);
         expect(r.sent.single['voice'], voice);
       },
     );
+
+    testWidgets('while the agent works Send now puts force on the voice send', (
+      t,
+    ) async {
+      await openVoice(t, events: working);
+      r.ch.onHttp = (port, method, path) async => ok();
+      await record(t);
+      await t.pumpAndSettle();
+      await t.tapText('Send now');
+      await t.pump();
+      await t.pump();
+      expect(r.sent.single['force'], isTrue);
+      expect(r.sent.single['voice'], voice);
+      expect(r.sent.single['text'], '');
+    });
+
+    testWidgets(
+      'a dismissed dialog keeps the recording as a preview; its Send asks again',
+      (t) async {
+        await openVoice(t, events: working);
+        r.ch.onHttp = (port, method, path) async => ok();
+        await record(t);
+        await t.pumpAndSettle();
+        await t.tap(find.text('Cancel'));
+        await t.pumpAndSettle();
+        expect(r.sent, isEmpty);
+        expect(r.ch.requests, isEmpty);
+        expect(find.byTooltip('Delete'), findsOneWidget);
+        await t.tap(find.byTooltip('Send'));
+        await t.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsOneWidget);
+        await t.tapText('Send now');
+        await t.pump();
+        await t.pump();
+        expect(r.sent.single['force'], isTrue);
+      },
+    );
+
+    testWidgets('a locked recording asks on Send too', (t) async {
+      await openVoice(t, events: working);
+      r.ch.onHttp = (port, method, path) async => ok();
+      final g = await t.startGesture(t.getCenter(find.byType(RecordButton)));
+      await t.pump(const Duration(milliseconds: 300));
+      await g.moveBy(const Offset(0, -90));
+      await g.up();
+      await t.pump();
+      await t.tap(find.byTooltip('Send'));
+      await t.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      await t.tapText('Send now');
+      await t.pump();
+      await t.pump();
+      expect(r.sent.single['force'], isTrue);
+    });
+
+    testWidgets('a retry never asks and goes after the turn', (t) async {
+      await openVoice(t, events: working);
+      r.ch.onHttp = (port, method, path) async => ok();
+      await record(t);
+      await t.pumpAndSettle();
+      await t.tapText('Send now');
+      await t.pump();
+      await t.pump();
+      expect(r.sent.single['force'], isTrue);
+      r.event({
+        'kind': 'send-refused',
+        'id': r.sent.single['id'],
+        'reason': 'busy',
+      });
+      await t.pump();
+      await t.tap(find.text('Retry'));
+      await t.pump();
+      await t.pump();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(r.sent, hasLength(2));
+      expect(r.sent.last.containsKey('force'), isFalse);
+    });
+
+    testWidgets('an idle agent: no dialog, as before', (t) async {
+      await openVoice(t);
+      r.ch.onHttp = (port, method, path) async => ok();
+      await record(t);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(r.sent.single.containsKey('force'), isFalse);
+    });
 
     testWidgets(
       'a failed upload stays as a bubble with Retry and is sent after it',

@@ -54,7 +54,7 @@ The round button at the right of the message field is the microphone while there
 otherwise (`app/lib/voice/`, `app/lib/chat/composer.dart`). Hold it: the phone records 16 kHz WAV (`nb/record` in
 `MainActivity.kt`); let go to send, slide left to cancel, slide up to lock (then Stop leads to a preview with Delete
 and Send). The recording is uploaded to the window (`POST /voice`, encrypted through the relay) and sent as a message
-of its own (`send` with `voice`, never with text, images or comments, and after the agent's turn when it is busy).
+of its own (`send` with `voice`, never with text, images or comments, and, when the agent is busy, after the same "send now or after" question a typed send asks: Now sends it with `force`, a dismissed question leaves the recording in the preview, a retry always goes after).
 The window stores the audio beside the attachments, transcribes it with its Whisper and gives the agent the text; the
 bubble shows the wave, a play button (`nb/play` in `MainActivity.kt`, files cached by id) and the transcript, or why
 there is none with Retry. A recording that cannot be uploaded stays as a bubble with Retry. A recording runs up to 10

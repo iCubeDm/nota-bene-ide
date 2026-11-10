@@ -171,13 +171,22 @@ class _ComposerState extends State<Composer> {
   bool get _uploading => _drafts.any((d) => d.pending);
   bool get _failed => _drafts.any((d) => d.failed);
 
-  /// A recording was released: it goes to the window as a voice message of its own, never with the typed text, the
-  /// images or the pending comments, and never through the busy dialog (it waits for its turn).
-  void _recorded(Uint8List wav, Duration length) {
+  /// A recording was released (or sent from the lock or the preview): it goes to the window as a voice message of its
+  /// own, never with the typed text, the images or the pending comments. While the agent works it asks, as a typed
+  /// send does; dismissed, the recording waits in the preview.
+  Future<void> _recorded(Uint8List wav, Duration length) async {
     if (!mounted) return;
+    var force = false;
+    if (widget.tab.busy) {
+      final choice = await _askNow();
+      if (!mounted) return;
+      if (choice == null) return _session.restore(wav);
+      force = choice == 'force';
+    }
     widget.tab.voiceOutbox.submit(
       wav,
       Localizations.localeOf(context).languageCode,
+      force: force,
     );
   }
 
@@ -215,11 +224,36 @@ class _ComposerState extends State<Composer> {
     if (choice == null || !mounted) return;
     if (choice == 'send') {
       await _session.send();
+      // the busy question was dismissed: the recording is back in the preview, and the chat stays
+      if (_session.phase == RecordPhase.preview) return;
     } else {
       _session.cancel();
     }
     // the outbox has the message now (it outlives this chat)
     unawaited(nav.maybePop());
+  }
+
+  /// "Send now or after this turn": 'force', 'queue', or null when it was dismissed.
+  Future<String?> _askNow() {
+    final t = AppLocalizations.of(context);
+    return showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t.sendNowTitle),
+        content: Text(t.sendNowBody),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(t.cancel)),
+          TextButton(
+            onPressed: () => Navigator.pop(c, 'queue'),
+            child: Text(t.sendAfter),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, 'force'),
+            child: Text(t.sendNow),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _send() async {
@@ -233,28 +267,7 @@ class _ComposerState extends State<Composer> {
     var force = false;
     if (widget.tab.busy) {
       // as on the desktop: a message while the agent works waits for its turn, unless it is sent now and interrupts
-      final t = AppLocalizations.of(context);
-      final choice = await showDialog<String>(
-        context: context,
-        builder: (c) => AlertDialog(
-          title: Text(t.sendNowTitle),
-          content: Text(t.sendNowBody),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(c),
-              child: Text(t.cancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(c, 'queue'),
-              child: Text(t.sendAfter),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(c, 'force'),
-              child: Text(t.sendNow),
-            ),
-          ],
-        ),
-      );
+      final choice = await _askNow();
       if (choice == null || !mounted) return;
       force = choice == 'force';
     }

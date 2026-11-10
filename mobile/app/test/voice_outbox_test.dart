@@ -74,6 +74,19 @@ void main() {
     box.detach(owner);
   });
 
+  test('submit with force puts it on the send; a retry goes after', () async {
+    final box = attach();
+    box.submit(wavOf(2000), 'en', force: true);
+    await settle();
+    expect((sent.single as ClientMessageSend).force, isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(box.entries.single.stage, OutStage.failed);
+    box.retry(box.entries.single);
+    await settle();
+    expect((sent.last as ClientMessageSend).force, isNull);
+    box.detach(owner);
+  });
+
   test(
     'leaving the chat during the upload loses nothing: the next open sends it',
     () async {
