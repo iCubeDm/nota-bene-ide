@@ -21,22 +21,26 @@ class AttachItems extends AttachChoice {
   final List<GalleryItem> items;
 }
 
-/// The latest photos with Gallery, File and Camera above them, as in Telegram; null when dismissed.
-Future<AttachChoice?> showAttachSheet(BuildContext context) =>
-    showModalBottomSheet<AttachChoice>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (c) => const _AttachSheet(),
-    );
+/// The latest photos with Gallery, File and Camera above them, as in Telegram; null when dismissed. Up to [max] photos
+/// are chosen (numbered, then Send); with one a tap on a photo is the choice and closes the sheet.
+Future<AttachChoice?> showAttachSheet(
+  BuildContext context, {
+  int max = maxAttachCount,
+}) => showModalBottomSheet<AttachChoice>(
+  context: context,
+  showDragHandle: true,
+  isScrollControlled: true,
+  useSafeArea: true,
+  builder: (c) => _AttachSheet(max: max),
+);
 
 const _pageSize =
     60; // a few screens of cells: the next page is loaded before the end is reached
 const _columns = 3;
 
 class _AttachSheet extends StatefulWidget {
-  const _AttachSheet();
+  const _AttachSheet({required this.max});
+  final int max;
 
   @override
   State<_AttachSheet> createState() => _AttachSheetState();
@@ -146,7 +150,11 @@ class _AttachSheetState extends State<_AttachSheet>
   }
 
   void _toggle(GalleryItem i) {
-    if (!_chosen.contains(i) && _chosen.length >= maxAttachCount) {
+    if (widget.max == 1) {
+      Navigator.pop(context, AttachItems([i]));
+      return;
+    }
+    if (!_chosen.contains(i) && _chosen.length >= widget.max) {
       setState(() => _capped = true);
       return;
     }
@@ -281,7 +289,7 @@ class _AttachSheetState extends State<_AttachSheet>
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                 child: Text(
-                  t.attachMax(maxAttachCount),
+                  t.attachMax(widget.max),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),

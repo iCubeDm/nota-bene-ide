@@ -30,7 +30,7 @@ Future<void> setProjectIconFlow(
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   final failed = AppLocalizations.of(context).iconFailed;
-  final choice = await showAttachSheet(context);
+  final choice = await showAttachSheet(context, max: 1);
   if (choice == null) return;
   void fail() => messenger.showSnackBar(SnackBar(content: Text(failed)));
   try {
@@ -45,7 +45,7 @@ Future<void> setProjectIconFlow(
       }
       return;
     }
-    // one picture: any further ones the system returned are dropped
+    // one picture: any further ones a system picker returned are dropped
     for (final extra in picked.images.skip(1)) {
       await extra.delete();
     }

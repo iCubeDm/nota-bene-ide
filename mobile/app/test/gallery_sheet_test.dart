@@ -87,6 +87,7 @@ void main() {
     WidgetTester t,
     FakeGallery fake, {
     bool settle = true,
+    int? max,
   }) async {
     g = fake;
     gallerySource = fake;
@@ -97,7 +98,9 @@ void main() {
         home: Builder(
           builder: (c) => TextButton(
             onPressed: () async {
-              got = await showAttachSheet(c);
+              got = max == null
+                  ? await showAttachSheet(c)
+                  : await showAttachSheet(c, max: max);
               closed = true;
             },
             child: const Text('go'),
@@ -380,5 +383,23 @@ void main() {
     await open(t, FakeGallery(items(3))..failPage = true);
     expect(find.text('The photos could not be loaded.'), findsOneWidget);
     expect(find.text('No photos yet.'), findsNothing);
+  });
+
+  testWidgets(
+    'with a single choice a tap picks the photo and closes the sheet',
+    (t) async {
+      await open(t, FakeGallery(items(6)), max: 1);
+      await t.tap(cell(4));
+      await t.pumpAndSettle();
+      expect([for (final i in (got as AttachItems).items) i.id], [4]);
+      expect(closed, isTrue);
+    },
+  );
+
+  testWidgets('a single choice has no badges and no Send', (t) async {
+    await open(t, FakeGallery(items(6)), max: 1);
+    expect(find.text('Send'), findsNothing);
+    expect(find.text('1'), findsNothing);
+    expect(find.text('Gallery'), findsOneWidget);
   });
 }

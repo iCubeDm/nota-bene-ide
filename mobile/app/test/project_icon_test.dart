@@ -12,6 +12,7 @@ import 'package:nb_app/hosts/icon_flow.dart';
 import 'package:nb_app/hosts/project_icon.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/media/attach.dart' show Prepared, UnsupportedImage;
+import 'package:nb_app/media/gallery.dart';
 import 'package:nb_app/media/picker.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/seen.dart';
@@ -456,6 +457,42 @@ void main() {
         },
       );
 
+      testWidgets(
+        'a tap on a photo of the grid is the choice, no Send, no badge',
+        (t) async {
+          final ch = await rig(t);
+          ch.onHttp = (port, m, path) async =>
+              answer(200, utf8.encode('{"icon":"0123456789abcdef"}'));
+          final grid = _OnePhoto();
+          gallerySource = grid;
+          final oldRead = readPickedFile, oldDelete = deletePickedFile;
+          readPickedFile = (p) async => Uint8List.fromList([7, 7, 7]);
+          deletePickedFile = (p) async {};
+          addTearDown(() {
+            gallerySource = ChannelGallery();
+            readPickedFile = oldRead;
+            deletePickedFile = oldDelete;
+          });
+          final links = await pump(t);
+          final link = links.of(a)!;
+          final ctx = t.element(find.byType(Scaffold).first);
+          unawaited(
+            setProjectIconFlow(
+              ctx,
+              link,
+              link.windows.first,
+              square: (b) async => Prepared(b, 'image/png'),
+            ),
+          );
+          await t.pumpAndSettle();
+          await t.tap(find.byKey(const ValueKey('media-2')));
+          await t.pumpAndSettle();
+          expect([for (final i in grid.taken.single) i.id], [2]);
+          expect(ch.calls.where((c) => c.method == 'PUT'), hasLength(1));
+          links.dispose();
+        },
+      );
+
       testWidgets('cancelling the picker changes nothing and says nothing', (
         t,
       ) async {
@@ -518,4 +555,35 @@ void main() {
       });
     });
   });
+}
+
+/// A gallery of two photos; what is taken is answered as one picked file.
+class _OnePhoto implements GallerySource {
+  final taken = <List<GalleryItem>>[];
+
+  @override
+  Future<GalleryAccess> access({
+    bool ask = false,
+    bool settings = false,
+  }) async => GalleryAccess.full;
+
+  @override
+  Future<List<GalleryItem>> page(GalleryItem? after, int limit) async =>
+      after != null
+      ? const []
+      : const [GalleryItem(id: 2, added: 2), GalleryItem(id: 1, added: 1)];
+
+  @override
+  Future<Uint8List?> thumbnail(GalleryItem item, int px) async => null;
+
+  @override
+  void cancel(GalleryItem item, int px) {}
+
+  @override
+  Future<Picked> take(List<GalleryItem> items) async {
+    taken.add(items);
+    return parsePicked([
+      {'path': '/cache/g.jpg', 'mime': 'image/jpeg', 'name': 'g.jpg'},
+    ]);
+  }
 }
