@@ -90,6 +90,10 @@ export type VoiceClip = Voice & { text: string };
   Nothing reaches the agent. `empty` means Whisper heard nothing. `off` means Whisper was switched off meanwhile.
 - A switch or a close while a transcription runs drops it, as a queued send is dropped now. Its generation moved.
 - `user` events from the agent's history (`backend.history`) get their `voice` from the index by message id.
+  When the id is unknown (omp names its messages anew on a resume), the transcript saved in the index when it succeeded
+  is matched instead: a user event gets the voice of the first not-yet-used entry whose transcript equals its text
+  (trimmed, without the leading zero-width space the server adds before a slash). An entry serves one event per replay,
+  and entries matched by id are used up first.
 
 ### The voice bubble (web and phone)
 
@@ -115,9 +119,10 @@ Telegram's Android layout, in our theme:
   wraps, the paperclip moves to the field's top-right corner, and the text uses the full width below it.
 - Right of the field is one round 48 px button. It shows the mic when there is nothing to send: no text, no images, no
   pending comments. Otherwise it shows Send. The switch is animated with a scale-and-fade, as in Telegram.
-- While the agent works, a 40 px round Stop sits left of that button. Typed sends while busy keep today's "send now or
-  after" dialog. A voice message asks the same (release, locked Send, the preview's Send); After queues it, Now sends it
-  with `force`. A dismissed dialog leaves the recording in the preview. A retry never asks and goes after.
+- While the agent works, a 40 px round Stop sits left of that button. A voice message is exactly like a text
+  message: while the agent works, the "send now or after" dialog asks for it too (release, locked Send, the preview's
+  Send). After queues it; Now sends `force`, and the server transcribes first, then interrupts the running turn and
+  hands the text over. A dismissed dialog leaves the recording in the preview. A retry never asks and goes after.
 - Recording, as in Telegram:
   - Hold the mic. After 150 ms the recording starts with a light haptic.
   - The mic grows into a 96 px circle in the primary colour under the finger. It has a halo that swells with the input

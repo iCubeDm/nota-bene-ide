@@ -20,13 +20,13 @@ export type RecState =
   | { phase: 'sending'; recording: Recording; url: string; voice?: Voice };
 
 /**
- * One voice recording at a time, as the composer and the comment popup use it. `onDone` gets the uploaded voice and
+ * One voice recording at a time, as the composer and the comment popup use it. `onDone` gets the uploaded voice (and whether Send was a forcing one) and
  * answers false when it could not use it (offline, mid-switch): the recording then stays in the preview, uploaded, and Send
  * hands the same voice over again. A failed upload keeps the recording in the preview too (Send tries again): a recording
  * is never dropped silently. After an unmount nothing is handed over.
  * `preview`: Stop goes to a preview; without it Stop uploads at once (the comment popup).
  */
-export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voice) => boolean | void; notify: (msg: string) => void; preview: boolean }) {
+export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voice, force: boolean) => boolean | void; notify: (msg: string) => void; preview: boolean }) {
   const t = useT();
   const [st, setSt] = useState<RecState>({ phase: 'idle' });
   const stRef = useRef(st);
@@ -36,6 +36,7 @@ export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voic
   const t0 = useRef(0);
   const down = useRef(0);
   const afterOpen = useRef<null | 'send' | 'stop'>(null); // a release that came before the microphone had opened
+  const afterForce = useRef(false); // ...and whether that send was a forcing one
   const alive = useRef(true);
   const cbs = useRef({ onDone, notify, preview, t });
   cbs.current = { onDone, notify, preview, t };
@@ -47,7 +48,7 @@ export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voic
   const dropUrl = (s: RecState) => { if ((s.phase === 'preview' || s.phase === 'sending') && s.url) URL.revokeObjectURL?.(s.url); };
 
   /** uploads (unless it is up already) and hands the voice over; a refusal keeps the recording in the preview */
-  const send = useCallback(async (r: Recording, url: string, uploaded?: Voice) => {
+  const send = useCallback(async (r: Recording, url: string, uploaded?: Voice, force = false) => {
     put({ phase: 'sending', recording: r, url, ...(uploaded && { voice: uploaded }) });
     let v = uploaded;
     if (!v) {
@@ -61,7 +62,7 @@ export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voic
     }
     // cancelled or unmounted meanwhile: the host keeps the file, nobody wants it
     if (!alive.current || stRef.current.phase !== 'sending') return;
-    if (cbs.current.onDone(v) === false) {
+    if (cbs.current.onDone(v, force) === false) {
       put({ phase: 'preview', recording: r, url, voice: v });
       return;
     }
@@ -76,10 +77,11 @@ export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voic
   }, []);
 
   /** ends the capture: `send` uploads it, otherwise it goes to the preview */
-  const finish = useCallback(async (toSend: boolean) => {
+  const finish = useCallback(async (toSend: boolean, force = false) => {
     const r = rec.current;
     if (!r) {
       afterOpen.current = toSend ? 'send' : 'stop';
+      afterForce.current = force;
       return;
     }
     rec.current = null;
@@ -90,7 +92,7 @@ export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voic
       return;
     }
     const url = URL.createObjectURL?.(done.wav) ?? '';
-    if (toSend || !cbs.current.preview) await send(done, url);
+    if (toSend || !cbs.current.preview) await send(done, url, undefined, force);
     else put({ phase: 'preview', recording: done, url });
   }, [send]);
 
@@ -127,7 +129,7 @@ export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voic
       t0.current = Date.now();
       const later = afterOpen.current;
       afterOpen.current = null;
-      if (later) void finish(later === 'send');
+      if (later) void finish(later === 'send', afterForce.current);
     }, () => {
       if (g !== gen.current) return;
       put({ phase: 'idle' });
@@ -169,10 +171,10 @@ export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voic
     dropUrl(stRef.current);
   }, []);
 
-  return { st, start, restore, release, cancel, stop: () => finish(false), send: () => {
+  return { st, start, restore, release, cancel, stop: () => finish(false), send: (force = false) => {
     const cur = stRef.current;
-    if (cur.phase === 'recording') return finish(true);
-    if (cur.phase === 'preview') return send(cur.recording, cur.url, cur.voice);
+    if (cur.phase === 'recording') return finish(true, force);
+    if (cur.phase === 'preview') return send(cur.recording, cur.url, cur.voice, force);
     return Promise.resolve();
   } };
 }

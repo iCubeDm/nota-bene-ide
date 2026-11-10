@@ -1,5 +1,5 @@
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { dictationSet } from '@/controls/slice.ts';
+import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { MODES, THEMES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
@@ -20,8 +20,6 @@ type WindowRow = {
   session: string | null; title: string | null; supervised: boolean; busy: boolean; clients: number;
 };
 type About = { version: string; stateDir: string; logs: string[]; node: string; pid: number };
-/** `GET /dictation`: the optional Whisper install that transcribes the phone's microphone */
-type Dictation = { on: boolean; phase: 'none' | 'installing' | 'ready' | 'failed'; downloadMb: number; diskMb: number; dir: string; model: string };
 type Action = 'restart-agent' | 'restart-server' | 'stop';
 
 // macOS and Linux home folders
@@ -150,9 +148,7 @@ export function SettingsView({ active }: { active: boolean }) {
     try {
       const r = await postJson(url, body);
       if (!r.ok) throw new Error(`${r.status}`);
-      // the composer's and the comment popup's mic read the capabilities, which only `hello` sets: tell them now
-      if (url === '/dictation/remove') dispatch(dictationSet(false));
-      else if (url === '/dictation/on') dispatch(dictationSet((body as { on: boolean }).on));
+      dictationChanged(dispatch, url, body);
     } catch (e) {
       setNote(t('setLoadFail', e instanceof Error ? e.message : String(e)));
     }

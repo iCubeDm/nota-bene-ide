@@ -30,14 +30,14 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
   }
 }
 
-function setup(o: { speech: (id: string, lang: string) => Promise<string>; history?: ServerEvent[] }) {
-  const got: { uuid: string; text: string }[] = [];
+function setup(o: { speech: (id: string, lang: string) => Promise<string>; history?: ServerEvent[]; onInterrupt?: () => void; onSend?: () => void }) {
+  const got: { uuid: string; text: string; priority?: string }[] = [];
   const backend: AgentBackend = {
     ...noSessions,
     history: async () => (o.history ?? []) as never,
     start: () => ({
       messages: mapFrames((async function* () { await new Promise(() => {}); })()),
-      send: (m) => { got.push(m); }, interrupt: async () => {}, setPermissionMode: async () => {}, supportedModels: async () => [], supportedCommands: async () => [], setModel: async () => {}, setEffort: async () => {}, fileSuggestions: async () => [], contextUsage: async () => ({ used: 0, max: 1, pct: 0 }), usage: async () => ({ cost: null, limits: null }), ...noTasks, close() {},
+      send: (m) => { o.onSend?.(); got.push(m); }, interrupt: async () => { o.onInterrupt?.(); }, setPermissionMode: async () => {}, supportedModels: async () => [], supportedCommands: async () => [], setModel: async () => {}, setEffort: async () => {}, fileSuggestions: async () => [], contextUsage: async () => ({ used: 0, max: 1, pct: 0 }), usage: async () => ({ cost: null, limits: null }), ...noTasks, close() {},
     }),
   };
   const hub = new EventHub();
@@ -78,6 +78,21 @@ describe('voice messages', () => {
     say('first');
     await until(() => got.length === 2);
     expect(got.map((m) => m.uuid)).toEqual(['v1', 't1']);
+  });
+
+  it('a forced voice message interrupts the running turn once it is transcribed, and its user event says force', async () => {
+    let say!: (t: string) => void;
+    const order: string[] = [];
+    const { got, events, make } = setup({ speech: () => new Promise((r) => { say = r; }), onInterrupt: () => order.push('interrupt'), onSend: () => order.push('send') });
+    const s = await make();
+    s.send({ id: 'v1', text: '', voice, force: true, lang: 'en' });
+    expect(events.find((e) => e.kind === 'user')).toMatchObject({ id: 'v1', force: true, voice });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(order).toEqual([]); // nothing is interrupted while it transcribes
+    say('stop that');
+    await until(() => got.length === 1);
+    expect(order).toEqual(['interrupt', 'send']);
+    expect(got[0]).toMatchObject({ uuid: 'v1', text: 'stop that', priority: 'now' });
   });
 
   it('a failed transcription tells why, settles the send as cancelled, and the agent gets nothing', async () => {
@@ -150,6 +165,26 @@ describe('voice messages', () => {
     await again.make('11111111-1111-1111-1111-111111111111');
     const user = (again.hub as unknown as { history: ServerEvent[] }).history.find((e) => e.kind === 'user');
     expect(user).toMatchObject({ id: 'v1', text: 'fix the test', voice });
+  });
+
+  it('a replay whose ids are not ours still gets the voices, by what they said, each once', async () => {
+    const first = setup({ speech: async () => 'fix the test' });
+    const s = await first.make();
+    s.send({ id: 'v1', text: '', voice, lang: 'en' });
+    await until(() => first.got.length === 1);
+    const other: Voice = { ...voice, id: 'c'.repeat(64), ms: 900 };
+    s.send({ id: 'v2', text: '', voice: other, lang: 'en' });
+    await until(() => first.got.length === 2);
+    const history = [
+      { kind: 'user', id: 'omp-1', text: 'fix the test', ts: 0, historic: true },
+      { kind: 'user', id: 'omp-2', text: 'typed by hand', ts: 0, historic: true },
+      { kind: 'user', id: 'omp-3', text: 'fix the test', ts: 0, historic: true },
+      { kind: 'user', id: 'omp-4', text: 'fix the test', ts: 0, historic: true },
+    ] as ServerEvent[];
+    const resumed = setup({ speech: async () => '', history });
+    await resumed.make('11111111-1111-1111-1111-111111111111');
+    const users = (resumed.hub as unknown as { history: ServerEvent[] }).history.filter((e) => e.kind === 'user');
+    expect(users.map((u) => (u as { voice?: Voice }).voice?.id)).toEqual([voice.id, undefined, other.id, undefined]);
   });
 
   it('a reused id is refused before anything happens', async () => {

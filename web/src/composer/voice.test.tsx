@@ -62,13 +62,6 @@ it('a protocol 13 server gets no mic', () => {
   expect(screen.queryByTestId('mic')).toBeNull();
 });
 
-it('without Whisper the mic opens Settings and records nothing', () => {
-  const { store } = setup({ whisper: false });
-  fireEvent.click(micBtn());
-  expect(store.getState().tabs.active).toBe('settings');
-  expect(mic.start).not.toHaveBeenCalled();
-});
-
 it('the mic names Alt+R in its tooltip', async () => {
   setup();
   await userEvent.hover(micBtn());
@@ -275,4 +268,115 @@ it('the live wave follows the input level', async () => {
   await screen.findByTestId('record-bar');
   act(() => { fakes[0]!.opts.onLevel(0.2); fakes[0]!.opts.onLevel(0.9); });
   expect(screen.getByTestId('live-wave').querySelectorAll('[data-bar]')).toHaveLength(2);
+});
+
+// ---- a voice message while the agent works behaves like a typed one: Send queues, the forced send asks first
+const busyNow = (store: ReturnType<typeof setup>['store']) => act(() => void store.dispatch({ type: 'server/event', payload: { kind: 'user', id: 'u1', text: 'x', ts: 0 } }));
+const lock = async () => { fireEvent.click(micBtn()); await screen.findByTestId('record-bar'); };
+const FORCED = { type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en', force: true };
+
+it('busy: Send queues the voice message (no force on the wire)', async () => {
+  const { sent, store } = setup();
+  busyNow(store);
+  await lock();
+  fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+  expect(sent[0]).toEqual({ type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en' });
+});
+
+it('busy: Enter queues it, Ctrl+Enter only asks and the second one forces', async () => {
+  const { sent, store } = setup();
+  busyNow(store);
+  await lock();
+  fireEvent.keyDown(document.body, { key: 'Enter', ctrlKey: true });
+  expect(await screen.findByRole('alert')).toHaveTextContent('The agent will be interrupted');
+  expect(uploads).toHaveLength(0);
+  expect(sent).toHaveLength(0);
+  expect(screen.getByTestId('record-bar')).toBeInTheDocument();
+  fireEvent.keyDown(document.body, { key: 'Enter', ctrlKey: true });
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+  expect(sent[0]).toEqual(FORCED);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('busy: Cmd+Enter forces too, and the confirmation button sends it', async () => {
+  const { sent, store } = setup();
+  busyNow(store);
+  await lock();
+  fireEvent.keyDown(document.body, { key: 'Enter', metaKey: true });
+  fireEvent.click(await screen.findByRole('button', { name: 'Interrupt and send' }));
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+  expect(sent[0]).toEqual(FORCED);
+});
+
+it('busy: a Ctrl-click on Send asks, then forces; Cancel in the question keeps the recording', async () => {
+  const { sent, store } = setup();
+  busyNow(store);
+  await lock();
+  const sendBtn = () => screen.getByRole('button', { name: /Send the voice message/ });
+  fireEvent.click(sendBtn(), { ctrlKey: true });
+  fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByTestId('record-bar')).toBeInTheDocument();
+  fireEvent.click(sendBtn(), { ctrlKey: true });
+  await screen.findByRole('alert');
+  fireEvent.click(sendBtn(), { ctrlKey: true });
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+  expect(sent[0]).toEqual(FORCED);
+});
+
+it('busy: Ctrl+Alt+R asks, the second one forces; plain Alt+R queues', async () => {
+  const { sent, store, off } = setup();
+  busyNow(store);
+  await lock();
+  fireEvent.keyDown(document.body, { code: 'KeyR', key: 'r', altKey: true, ctrlKey: true });
+  await screen.findByRole('alert');
+  expect(sent).toHaveLength(0);
+  fireEvent.keyDown(document.body, { code: 'KeyR', key: 'r', altKey: true, ctrlKey: true });
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+  expect(sent[0]).toEqual(FORCED);
+  off();
+});
+
+it('busy: plain Alt+R sends it queued', async () => {
+  const { sent, store, off } = setup();
+  busyNow(store);
+  await lock();
+  fireEvent.keyDown(document.body, { code: 'KeyR', key: 'r', altKey: true });
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+  expect(sent[0]).not.toHaveProperty('force');
+  off();
+});
+
+it('idle: Ctrl+Enter has nothing to interrupt, it is a plain send', async () => {
+  const { sent } = setup();
+  await lock();
+  fireEvent.keyDown(document.body, { key: 'Enter', ctrlKey: true });
+  await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
+  expect(sent[0]).not.toHaveProperty('force');
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('Esc dismisses the question first, the next Esc cancels the recording', async () => {
+  const { store } = setup();
+  busyNow(store);
+  await lock();
+  fireEvent.keyDown(document.body, { key: 'Enter', ctrlKey: true });
+  await screen.findByRole('alert');
+  fireEvent.keyDown(document.body, { key: 'Escape' });
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByTestId('record-bar')).toBeInTheDocument();
+  fireEvent.keyDown(document.body, { key: 'Escape' });
+  expect(screen.queryByTestId('record-bar')).toBeNull();
+});
+
+it('the Send tooltip names Enter, Alt+R and, while busy, the forcing keys', async () => {
+  const { store } = setup();
+  await lock();
+  const send = screen.getByRole('button', { name: /Send the voice message/ });
+  expect(send.getAttribute('title')).toMatch(/Enter/);
+  expect(send.getAttribute('title')).toMatch(/Alt\+R|⌥R/);
+  expect(send.getAttribute('title')).not.toMatch(/interrupt/i);
+  busyNow(store);
+  expect(screen.getByRole('button', { name: /Send the voice message/ }).getAttribute('title')).toMatch(/queue[\s\S]*(Ctrl\+Enter|⌘Enter)[\s\S]*interrupt/i);
 });
