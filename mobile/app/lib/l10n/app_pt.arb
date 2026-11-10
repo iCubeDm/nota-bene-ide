@@ -301,5 +301,8 @@
   "paragraphLess": "Menos",
   "paragraphCopied": "Copiado",
   "micNeedsUpdate": "As mensagens de voz exigem atualizar o Nota Bene no computador.",
-  "micUnavailable": "Mensagens de voz indisponíveis"
+  "micUnavailable": "Mensagens de voz indisponíveis",
+  "setIcon": "Definir ícone",
+  "removeIcon": "Remover ícone",
+  "iconFailed": "Não foi possível alterar o ícone."
 }

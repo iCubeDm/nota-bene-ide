@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:nb_app/chat/chat_header.dart';
 import 'package:nb_app/chat/chat_screen.dart';
 import 'package:nb_app/chat/window_tab.dart';
@@ -7,6 +10,7 @@ import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_app/theme.dart';
 import 'package:nb_app/main.dart';
 
+import 'support/fakes.dart' show window;
 import 'support/rig.dart';
 
 Map<String, Object?> session({String? title}) => {
@@ -43,6 +47,32 @@ void main() {
   setUp(() => rig = Rig());
   tearDown(() {
     if (rig.tab != null) rig.dispose();
+  });
+
+  testWidgets('the avatar is the folder picture when the window lists one', (
+    t,
+  ) async {
+    final png = Uint8List.fromList(
+      img.encodePng(img.Image(width: 2, height: 2)),
+    );
+    final win = window(4791, '/home/u/notes', icon: 'v-header');
+    rig = Rig();
+    Future<void> serve() async {
+      rig.ch.onHttp = (port, m, path) async =>
+          (status: 200, headers: const <String, String>{}, body: png);
+    }
+
+    await rig.open(
+      t,
+      win: win,
+      events: [session(title: 'Spec work')],
+    );
+    await serve();
+    // the picture is fetched once the link is up and the list is known: the list is pushed again
+    rig.ch.push([win]);
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('project-icon')), findsOneWidget);
+    expect(find.text('C'), findsNothing);
   });
 
   testWidgets('the pill shows the title, not the model', (t) async {

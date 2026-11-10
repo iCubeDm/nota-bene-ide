@@ -215,6 +215,8 @@ HostWindow window(
   bool busy = false,
   String? title,
   String? model,
+  String? icon,
+  bool iconSupported = false,
 }) => HostWindow(
   port: port,
   provider: provider,
@@ -222,4 +224,6 @@ HostWindow window(
   busy: busy,
   title: title,
   model: model,
+  icon: icon,
+  iconSupported: iconSupported || icon != null,
 );

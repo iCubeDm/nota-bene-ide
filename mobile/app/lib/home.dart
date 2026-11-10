@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:nb_channel/nb_channel.dart';
 
 import 'hosts/host_link.dart';
+import 'hosts/icon_flow.dart';
 import 'hosts/hosts_screen.dart';
 import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';
@@ -157,6 +158,8 @@ class _HomeState extends State<Home> {
               onForget: (l) => widget.hosts.forget(l.host.id),
               onRename: (l) => renameHostDialog(context, widget.hosts, l.host),
               onRefresh: widget.links.refresh,
+              onSetIcon: (l, w) => setProjectIconFlow(context, l, w),
+              onRemoveIcon: (l, w) => removeProjectIconFlow(context, l, w),
             ),
     );
   }

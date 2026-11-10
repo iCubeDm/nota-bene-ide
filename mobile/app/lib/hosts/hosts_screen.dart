@@ -7,6 +7,7 @@ import '../chat/chat_header.dart' show providerLetter;
 import '../store/seen.dart';
 import '../theme.dart';
 import 'host_link.dart';
+import 'project_icon.dart';
 
 String folderOf(String root) {
   final parts = root.split(RegExp(r'[\\/]')).where((p) => p.isNotEmpty);
@@ -40,6 +41,8 @@ class HostsList extends StatelessWidget {
     required this.onForget,
     this.onRename,
     this.onRefresh,
+    this.onSetIcon,
+    this.onRemoveIcon,
     this.clock = DateTime.now,
   });
 
@@ -53,6 +56,10 @@ class HostsList extends StatelessWidget {
 
   /// Pull to refresh; the indicator stays until this completes.
   final Future<void> Function()? onRefresh;
+
+  /// Set icon / Remove icon in a row's menu; the first is offered for a host that knows project pictures, the second
+  /// for a window that has one.
+  final void Function(HostLink link, HostWindow w)? onSetIcon, onRemoveIcon;
   final DateTime Function() clock;
 
   @override
@@ -102,11 +109,18 @@ class HostsList extends StatelessWidget {
         for (final w in l.windows) {
           rows.add(
             _SessionRow(
+              link: l,
               window: w,
               online: l.state == LinkState.online,
               unread: seen.unread(l.host.id, w),
               now: clock(),
               onOpen: () => onOpen(l, w),
+              onSetIcon: onSetIcon == null || !w.iconSupported
+                  ? null
+                  : () => onSetIcon!(l, w),
+              onRemoveIcon: onRemoveIcon == null || w.icon == null
+                  ? null
+                  : () => onRemoveIcon!(l, w),
               onMarkRead: () {
                 final session = w.session, replies = w.replies;
                 if (session != null && replies != null) {
@@ -173,19 +187,24 @@ class _SkeletonRow extends StatelessWidget {
 
 class _SessionRow extends StatelessWidget {
   const _SessionRow({
+    required this.link,
     required this.window,
     required this.online,
     required this.unread,
     required this.now,
     required this.onOpen,
     required this.onMarkRead,
+    this.onSetIcon,
+    this.onRemoveIcon,
   });
 
+  final HostLink link;
   final HostWindow window;
   final bool online;
   final int unread;
   final DateTime now;
   final VoidCallback onOpen, onMarkRead;
+  final VoidCallback? onSetIcon, onRemoveIcon;
 
   Future<void> _menu(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -210,6 +229,22 @@ class _SessionRow extends StatelessWidget {
                 onMarkRead();
               },
             ),
+            if (online && onSetIcon != null)
+              ListTile(
+                title: Text(t.setIcon),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  onSetIcon!();
+                },
+              ),
+            if (online && onRemoveIcon != null)
+              ListTile(
+                title: Text(t.removeIcon),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  onRemoveIcon!();
+                },
+              ),
           ],
         ),
       ),
@@ -238,18 +273,24 @@ class _SessionRow extends StatelessWidget {
                 dimension: 54,
                 child: Stack(
                   children: [
-                    Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: c.muted,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        providerLetter(w.provider),
-                        style: TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w600,
-                          color: c.foreground,
+                    ProjectIconAvatar(
+                      link: link,
+                      port: w.port,
+                      icon: w.icon,
+                      size: 54,
+                      fallback: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: c.muted,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          providerLetter(w.provider),
+                          style: TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w600,
+                            color: c.foreground,
+                          ),
                         ),
                       ),
                     ),

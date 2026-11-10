@@ -301,5 +301,8 @@
   "paragraphLess": "Weniger",
   "paragraphCopied": "Kopiert",
   "micNeedsUpdate": "Für Sprachnachrichten muss Nota Bene auf dem Computer aktualisiert werden.",
-  "micUnavailable": "Sprachnachrichten nicht verfügbar"
+  "micUnavailable": "Sprachnachrichten nicht verfügbar",
+  "setIcon": "Symbol festlegen",
+  "removeIcon": "Symbol entfernen",
+  "iconFailed": "Das Symbol konnte nicht geändert werden."
 }

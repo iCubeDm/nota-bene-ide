@@ -301,5 +301,8 @@
   "paragraphLess": "收起",
   "paragraphCopied": "已复制",
   "micNeedsUpdate": "语音消息需要先更新电脑上的 Nota Bene。",
-  "micUnavailable": "语音消息不可用"
+  "micUnavailable": "语音消息不可用",
+  "setIcon": "设置图标",
+  "removeIcon": "移除图标",
+  "iconFailed": "无法更改图标。"
 }

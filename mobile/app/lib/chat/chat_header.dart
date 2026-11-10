@@ -9,6 +9,7 @@ import 'package:nb_protocol/nb_protocol.dart' show CapabilitiesProvider;
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
+import '../hosts/project_icon.dart';
 import 'context_sheet.dart' show contextColor;
 import 'session_state.dart';
 import 'window_tab.dart';
@@ -76,23 +77,35 @@ class ChatHeader extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: c.muted,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      providerLetter(switch (tab.capabilities?.provider) {
-                        CapabilitiesProvider.$unknown || null => null,
-                        final p => p.name,
-                      }),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: c.foreground,
+                  ListenableBuilder(
+                    listenable: tab.link,
+                    builder: (_, _) => ProjectIconAvatar(
+                      link: tab.link,
+                      port: tab.port,
+                      icon: tab.link.windows
+                          .where((w) => w.port == tab.port)
+                          .firstOrNull
+                          ?.icon,
+                      size: 28,
+                      fallback: Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: c.muted,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          providerLetter(switch (tab.capabilities?.provider) {
+                            CapabilitiesProvider.$unknown || null => null,
+                            final p => p.name,
+                          }),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: c.foreground,
+                          ),
+                        ),
                       ),
                     ),
                   ),
