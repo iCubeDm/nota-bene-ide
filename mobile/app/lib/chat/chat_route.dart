@@ -60,6 +60,7 @@ class _ChatRouteState extends State<ChatRoute> {
   final _panes = PanesController();
   final _focus_ = ChatFocus();
   final _filesNav = GlobalKey<NavigatorState>();
+  final _depth = PaneDepth();
   final _focus = FocusNode();
 
   @override
@@ -96,6 +97,7 @@ class _ChatRouteState extends State<ChatRoute> {
     _asks?.dispose();
     _tab.dispose();
     _draft.dispose();
+    _depth.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -146,6 +148,7 @@ class _ChatRouteState extends State<ChatRoute> {
         tab: _tab,
         controller: _panes,
         filesNavigator: _filesNav,
+        depth: _depth,
         header: ChatHeader(
           tab: _tab,
           onTapTitle: () => showWindowSheet(context, _tab),
@@ -173,8 +176,12 @@ class _ChatRouteState extends State<ChatRoute> {
           itemBuilder: _item,
           onReply: _reply,
         ),
-        files: (top) =>
-            FilesPane(tab: _tab, navigatorKey: _filesNav, topInset: top),
+        files: (top) => FilesPane(
+          tab: _tab,
+          navigatorKey: _filesNav,
+          observers: [_depth],
+          topInset: top,
+        ),
         comments: (top) =>
             CommentsPane(tab: _tab, topInset: top, onChat: _toMessage),
       ),

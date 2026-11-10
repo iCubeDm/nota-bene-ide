@@ -376,5 +376,6 @@
   "emptyFolder": "This folder is empty.",
   "folderUp": "Up one folder",
   "noCommentsYet": "No comments yet. Select text in the chat or in a file and press Comment.",
-  "sentComments": "Sent"
+  "sentComments": "Sent",
+  "voiceFinishFirst": "Finish or delete the voice message first."
 }

@@ -177,18 +177,20 @@ class _ComposerState extends State<Composer> {
   /// send does; dismissed, the recording waits in the preview.
   Future<void> _recorded(Uint8List wav, Duration length) async {
     if (!mounted) return;
+    // read now: the chat may be left while the question is up, and the recording still goes out (the outbox outlives it)
+    final lang = Localizations.localeOf(context).languageCode;
+    final outbox = widget.tab.voiceOutbox;
     var force = false;
     if (widget.tab.busy) {
       final choice = await askSendNow(context);
-      if (!mounted) return;
-      if (choice == null) return _session.restore(wav);
+      if (choice == null) {
+        // dismissed: the recording waits in the preview, if there is still one to wait in
+        if (mounted) _session.restore(wav);
+        return;
+      }
       force = choice == 'force';
     }
-    widget.tab.voiceOutbox.submit(
-      wav,
-      Localizations.localeOf(context).languageCode,
-      force: force,
-    );
+    outbox.submit(wav, lang, force: force);
   }
 
   void _recordFailed(RecordFailure why) {

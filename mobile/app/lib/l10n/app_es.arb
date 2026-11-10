@@ -202,5 +202,6 @@
   "emptyFolder": "Esta carpeta está vacía.",
   "folderUp": "Subir una carpeta",
   "noCommentsYet": "Aún no hay comentarios. Selecciona texto en el chat o en un archivo y pulsa Comentar.",
-  "sentComments": "Enviados"
+  "sentComments": "Enviados",
+  "voiceFinishFirst": "Termina o elimina primero el mensaje de voz."
 }

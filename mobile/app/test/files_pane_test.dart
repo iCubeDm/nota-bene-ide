@@ -7,6 +7,7 @@ import 'package:nb_app/files/remote.dart';
 import 'package:nb_app/chat/code_screen.dart';
 import 'package:nb_channel/nb_channel.dart';
 
+import 'files_entry_test.dart' show tool, result;
 import 'support/fakes.dart';
 import 'support/rig.dart';
 
@@ -97,6 +98,51 @@ void main() {
       for (final w in t.widgetList<ListTile>(find.byType(ListTile)))
         ((w.title as Text).data ?? ''),
     ];
+
+    testWidgets(
+      'the room under the header is the pane\'s: every page keeps clear of it, and follows a change',
+      (t) async {
+        await open(t);
+        final inset = ValueNotifier<double>(100);
+        Navigator.of(t.element(find.byType(Scaffold).first)).push(
+          MaterialPageRoute<void>(
+            builder: (_) => Scaffold(
+              body: ValueListenableBuilder<double>(
+                valueListenable: inset,
+                builder: (_, v, _) => FilesPane(tab: r.tab!, topInset: v),
+              ),
+            ),
+          ),
+        );
+        await t.pumpAndSettle();
+        double top() =>
+            t.getTopLeft(find.byKey(const ValueKey('folder-path'))).dy;
+        expect(top(), greaterThanOrEqualTo(100));
+        await t.tap(find.text('src'));
+        await t.pumpAndSettle();
+        expect(top(), greaterThanOrEqualTo(100));
+        inset.value = 180;
+        await t.pump();
+        expect(top(), greaterThanOrEqualTo(180));
+        inset.dispose();
+      },
+    );
+
+    testWidgets('This session follows the feed while the pane is open', (
+      t,
+    ) async {
+      await open(
+        t,
+        events: [
+          tool('a', 'Read', {'file_path': '/home/u/notes/README.md'}),
+          result('a'),
+        ],
+      );
+      expect(find.text('This session'), findsOneWidget);
+      r.event(tool('b', 'Write', {'file_path': '/home/u/notes/docs/plan.md'}));
+      await t.pump(const Duration(milliseconds: 500));
+      expect(find.text('plan.md'), findsOneWidget);
+    });
 
     testWidgets('the root lists folders first, then files, by name', (t) async {
       await open(t);

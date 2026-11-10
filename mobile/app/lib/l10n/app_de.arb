@@ -202,5 +202,6 @@
   "emptyFolder": "Dieser Ordner ist leer.",
   "folderUp": "Einen Ordner hoch",
   "noCommentsYet": "Noch keine Kommentare. Markiere Text im Chat oder in einer Datei und tippe auf Kommentieren.",
-  "sentComments": "Gesendet"
+  "sentComments": "Gesendet",
+  "voiceFinishFirst": "Beende oder lösche zuerst die Sprachnachricht."
 }

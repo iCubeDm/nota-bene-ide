@@ -127,7 +127,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final items = widget.tab.feed.items;
     final at = items.indexWhere((it) => feedKey(it) == key);
     final fromEnd = items.length - 1 - at;
+    // an item that is built already gets its key only on a rebuild
+    final fresh = !_targets.containsKey(key);
     final target = _targets.putIfAbsent(key, GlobalKey.new);
+    if (fresh) setState(() {});
     final pos = _scroll.position;
     final avg = (pos.maxScrollExtent + pos.viewportDimension) / items.length;
     // the reversed list: offset 0 is the newest

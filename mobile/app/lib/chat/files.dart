@@ -51,9 +51,13 @@ String? projectFile(String root, String path) {
 /// when it is none of Markdown, image or video), else null.
 String? projectPath(String root, String path) {
   final r = root.endsWith('/') ? root.substring(0, root.length - 1) : root;
-  final rel = path.startsWith('/')
+  var rel = path.startsWith('/')
       ? (path.startsWith('$r/') ? path.substring(r.length + 1) : null)
       : path;
+  // the desktop's anchor path has no `./`
+  while (rel != null && rel.startsWith('./')) {
+    rel = rel.substring(2);
+  }
   if (rel == null ||
       rel.isEmpty ||
       rel.split('/').contains('..') ||
