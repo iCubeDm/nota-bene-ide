@@ -1,5 +1,7 @@
-// The message field. Sending while the agent works asks first and then interrupts (force), as the desktop does; a send
-// the window refuses gives its text back. Disabled, not queued, while the tab does not own a live window.
+// The message field: the text, with the paperclip and the mic (Send once there is something to send) inside it, and a
+// floating Stop while the agent works. Sending while the agent works asks first and then interrupts (force), as the
+// desktop does; a send the window refuses gives its text back. A draft is written whenever; the send waits for a tab
+// that owns a live window.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -460,8 +462,10 @@ class _ComposerState extends State<Composer> {
             padding: const EdgeInsets.fromLTRB(0, 3, 4, 3),
             child: CompositedTransformTarget(link: _trailing, child: trailing),
           ),
-          // the layout of the row does not change: the portal floats over the feed
-          if (open && widget.tab.busy && !recording)
+          // the layout of the row does not change: the portal floats over the feed. Only the hold hides it (the big
+          // circle and the lock are drawn over that place); a locked recording leaves the finger, and the turn can
+          // still be stopped
+          if (open && widget.tab.busy && !(recording && _session.holding))
             _FloatingStop(
               link: _trailing,
               onStop: () => widget.tab.send(const ClientMessageInterrupt()),
@@ -589,17 +593,24 @@ class _FloatingStopState extends State<_FloatingStop> {
         offset: const Offset(0, -12),
         child: Align(
           alignment: Alignment.bottomCenter,
-          child: IconButton(
-            key: const ValueKey('stop'),
-            tooltip: t.stop,
-            icon: const NbIcon(NbGlyph.stop),
-            style: IconButton.styleFrom(
-              fixedSize: const Size.square(44),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              backgroundColor: c.muted,
-              foregroundColor: c.foreground,
+          // named and tappable for TalkBack (the button's own tooltip is not a label)
+          child: Semantics(
+            label: t.stop,
+            button: true,
+            onTap: widget.onStop,
+            excludeSemantics: true,
+            child: IconButton(
+              key: const ValueKey('stop'),
+              tooltip: t.stop,
+              icon: const NbIcon(NbGlyph.stop),
+              style: IconButton.styleFrom(
+                fixedSize: const Size.square(44),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: c.muted,
+                foregroundColor: c.foreground,
+              ),
+              onPressed: widget.onStop,
             ),
-            onPressed: widget.onStop,
           ),
         ),
       );

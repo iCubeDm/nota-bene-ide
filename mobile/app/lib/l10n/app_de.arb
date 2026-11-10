@@ -267,5 +267,6 @@
   "idleCompactBody": "Nach dem Zug, solange der Cache warm ist",
   "idleCompactBlocked": "In den Einstellungen des Agenten ausgeschaltet",
   "windowGoneTitle": "Das Fenster wurde geschlossen oder neu gestartet",
-  "windowGoneBody": "Warten, bis es zurückkommt"
+  "windowGoneBody": "Warten, bis es zurückkommt",
+  "stateOtherTab": "in einem anderen Tab geöffnet"
 }

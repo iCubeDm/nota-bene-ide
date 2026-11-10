@@ -322,6 +322,21 @@ void main() {
       expect(r.sent.last, {'type': 'interrupt'});
     });
 
+    testWidgets('Stop is hidden during the hold and back once locked', (
+      t,
+    ) async {
+      await openVoice(t, events: working);
+      expect(find.byKey(const ValueKey('stop')), findsOneWidget);
+      final g = await t.startGesture(t.getCenter(find.byType(RecordButton)));
+      await t.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(const ValueKey('stop')), findsNothing);
+      await g.moveBy(const Offset(0, -90));
+      await g.up();
+      await t.pump();
+      await t.pump();
+      expect(find.byKey(const ValueKey('stop')), findsOneWidget);
+    });
+
     testWidgets(
       'a recording is uploaded, then sent as a voice message, with the pending bubble between',
       (t) async {

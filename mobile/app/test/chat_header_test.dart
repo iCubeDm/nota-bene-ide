@@ -88,7 +88,7 @@ void main() {
     expect(find.text(webString('mode_default', 'en')), findsNothing);
   });
 
-  testWidgets('two modes, the current one in the header', (t) async {
+  testWidgets('two modes, the current one under Chat', (t) async {
     await modeHeader(t, ['default', 'plan'], 'plan');
     expect(find.text(webString('mode_plan', 'en')), findsOneWidget);
   });
@@ -108,8 +108,6 @@ void main() {
     (t) async {
       final h = t.ensureSemantics();
       await rig.open(t, events: [session(title: 'x')]);
-      // no context reported: no ring
-      expect(find.byKey(const ValueKey('context-ring')), findsNothing);
       rig.event({
         'kind': 'stats',
         'stats': {
@@ -135,6 +133,28 @@ void main() {
       h.dispose();
     },
   );
+
+  testWidgets('no context reported: an empty ring still opens the sheet', (
+    t,
+  ) async {
+    await rig.open(t, events: [session(title: 'x')]);
+    expect(find.byKey(const ValueKey('context-ring')), findsOneWidget);
+    expect(find.text('–'), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('context-ring')));
+    await t.pumpAndSettle();
+    expect(find.text('Stats'), findsOneWidget);
+  });
+
+  testWidgets('TalkBack can tap the ring', (t) async {
+    final h = t.ensureSemantics();
+    await rig.open(t, events: [session(title: 'x')]);
+    rig.event(context(42));
+    await t.pumpAndSettle();
+    t.semantics.tap(find.semantics.byLabel('Context 42%'));
+    await t.pumpAndSettle();
+    expect(find.text('Stats'), findsOneWidget);
+    h.dispose();
+  });
 
   testWidgets('the mode is not in the pill: it is under Chat', (t) async {
     await modeHeader(t, ['default', 'plan'], 'plan');

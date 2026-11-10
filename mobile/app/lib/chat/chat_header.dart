@@ -177,10 +177,10 @@ class ChatHeader extends StatelessWidget {
                     : InkWell(onTap: onTapTitle, child: content),
               ),
             ),
-            if (ctx != null) ...[
+            if (tab.capabilities != null || ctx != null) ...[
               const SizedBox(width: 8),
               ContextRing(
-                pct: ctx.pct,
+                pct: ctx?.pct,
                 dimmed: !live,
                 onTap: onTapRing,
                 fill: fill,
@@ -219,9 +219,31 @@ class _StateLine extends StatefulWidget {
 
 class _StateLineState extends State<_StateLine> {
   Timer? _tick;
+  Duration? _every;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.tab.link.addListener(_relink);
+  }
+
+  @override
+  void didUpdateWidget(_StateLine old) {
+    super.didUpdateWidget(old);
+    if (old.tab.link != widget.tab.link) {
+      old.tab.link.removeListener(_relink);
+      widget.tab.link.addListener(_relink);
+    }
+  }
+
+  // the link reconnecting or giving up changes the line (connecting…, seen N min ago) without the tab saying anything
+  void _relink() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
+    widget.tab.link.removeListener(_relink);
     _tick?.cancel();
     super.dispose();
   }
@@ -232,14 +254,20 @@ class _StateLineState extends State<_StateLine> {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final locale = Localizations.localeOf(context).languageCode;
-    final working = tab.state == TabState.open && tab.busy;
-    if (working && _tick == null) {
-      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
-    } else if (!working) {
+    // a second for the elapsed time of a turn, half a minute for "seen N min ago"
+    final every = tab.state == TabState.open && tab.busy
+        ? const Duration(seconds: 1)
+        : tab.state == TabState.offline
+        ? const Duration(seconds: 30)
+        : null;
+    if (every != _every) {
       _tick?.cancel();
-      _tick = null;
+      _every = every;
+      _tick = every == null
+          ? null
+          : Timer.periodic(every, (_) {
+              if (mounted) setState(() {});
+            });
     }
     return Text(
       sessionLine(t, tab, tab.clock(), locale),
@@ -265,7 +293,9 @@ class ContextRing extends StatelessWidget {
     required this.onTap,
     required this.fill,
   });
-  final num pct;
+
+  /// The context in use in percent; null when the window reports none (the ring is then empty).
+  final num? pct;
   final bool dimmed;
   final VoidCallback? onTap;
   final Color fill;
@@ -274,11 +304,12 @@ class ContextRing extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
-    final shown = pct.clamp(0, 100).round();
+    final shown = pct?.clamp(0, 100).round();
     return Semantics(
       container: true,
       button: onTap != null,
-      label: '${t.contextTitle} $shown%',
+      onTap: onTap,
+      label: shown == null ? t.contextTitle : '${t.contextTitle} $shown%',
       child: ExcludeSemantics(
         child: Tooltip(
           message: t.contextTitle,
@@ -295,13 +326,13 @@ class ContextRing extends StatelessWidget {
                   child: CustomPaint(
                     key: const ValueKey('context-ring'),
                     painter: _RingPainter(
-                      fraction: shown / 100,
-                      color: contextColor(c, pct),
+                      fraction: (shown ?? 0) / 100,
+                      color: contextColor(c, pct ?? 0),
                       track: c.border,
                     ),
                     child: Center(
                       child: Text(
-                        '$shown',
+                        shown == null ? '–' : '$shown',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,

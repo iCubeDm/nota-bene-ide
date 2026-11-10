@@ -25,6 +25,9 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
   Timer? _timer;
   bool _late = false;
 
+  // Retry was pressed and the window has not answered yet: the spinner stays, the wait starts over
+  bool _trying = false;
+
   @override
   void initState() {
     super.initState();
@@ -39,19 +42,35 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
     super.dispose();
   }
 
+  void _startWait() {
+    _timer?.cancel();
+    _timer = Timer(goneRetryAfter, () {
+      _timer = null;
+      if (mounted) setState(() => _late = true);
+    });
+  }
+
   void _changed() {
     final gone = widget.tab.state == TabState.gone;
+    final waiting =
+        gone || (_trying && widget.tab.state == TabState.connecting);
     if (gone && _timer == null && !_late) {
-      _timer = Timer(goneRetryAfter, () {
-        _timer = null;
-        if (mounted) setState(() => _late = true);
-      });
-    } else if (!gone) {
+      _startWait();
+    } else if (!waiting) {
       _timer?.cancel();
       _timer = null;
       // read by the build that follows this change
       _late = false;
+      _trying = false;
     }
+  }
+
+  void _retry() {
+    _trying = true;
+    _late = false;
+    _startWait();
+    widget.tab.reopen();
+    setState(() {});
   }
 
   @override
@@ -61,7 +80,8 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
       final tab = widget.tab;
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
-      if (tab.state == TabState.gone) {
+      if (tab.state == TabState.gone ||
+          (_trying && tab.state == TabState.connecting)) {
         return Positioned.fill(
           child: ColoredBox(
             color: c.background.withValues(alpha: 0.7),
@@ -92,7 +112,7 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
                     ),
                     if (_late) ...[
                       const SizedBox(height: 16),
-                      FilledButton(onPressed: tab.reopen, child: Text(t.retry)),
+                      FilledButton(onPressed: _retry, child: Text(t.retry)),
                     ],
                   ],
                 ),

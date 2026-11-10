@@ -84,7 +84,9 @@ String sessionLine(
           : t.stateOfflineSeen(ago(t, now.difference(l.lastSeen!)));
     case TabState.gone:
       return t.stateWaitingWindow;
-    case TabState.open || TabState.occupied || TabState.taken:
+    case TabState.occupied || TabState.taken:
+      return t.stateOtherTab;
+    case TabState.open:
       break;
   }
   final f = tab.feed;

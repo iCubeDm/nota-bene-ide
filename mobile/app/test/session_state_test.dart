@@ -215,6 +215,54 @@ void main() {
     expect(find.textContaining('Stopped after'), findsOneWidget);
   });
 
+  testWidgets('offline: seen N min ago, kept fresh by a slow ticker', (
+    t,
+  ) async {
+    await r.open(t);
+    r.link.stop();
+    await t.pumpAndSettle();
+    expect(lineText(t), 'offline · seen just now');
+    final base = DateTime.now();
+    r.tab!.clock = () => base.add(const Duration(minutes: 4));
+    await t.pump(const Duration(seconds: 31));
+    expect(lineText(t), 'offline · seen 4 min ago');
+  });
+
+  testWidgets('a window open elsewhere has its own line', (t) async {
+    await r.open(t, replay: false);
+    r.event({'kind': 'occupied'});
+    await flush(t);
+    expect(lineText(t), 'open in another tab');
+    expect(lineColor(t), colors(t).mutedFg);
+  });
+
+  testWidgets('Stop and the ring have names and actions for TalkBack', (
+    t,
+  ) async {
+    final h = t.ensureSemantics();
+    await r.open(t);
+    r.event(user('u1'));
+    await flush(t);
+    await flush(t);
+    t.semantics.tap(find.semantics.byLabel('Stop'));
+    await flush(t);
+    expect(r.sent.last, {'type': 'interrupt'});
+    h.dispose();
+  });
+
+  testWidgets('the feed keeps room for the floating Stop while working', (
+    t,
+  ) async {
+    await r.open(t);
+    double bottom() =>
+        (t.widget<ListView>(find.byType(ListView).first).padding! as EdgeInsets)
+            .bottom;
+    final idle = bottom();
+    r.event(user('u1'));
+    await flush(t);
+    expect(bottom(), greaterThanOrEqualTo(idle + 56));
+  });
+
   group('window gone', () {
     testWidgets(
       'a spinner and the text over the feed; Retry only after 30 s; the draft stays',
@@ -238,6 +286,17 @@ void main() {
         await t.pump(const Duration(seconds: 2));
         expect(find.text('Retry'), findsOneWidget);
         expect(find.text('my draft'), findsOneWidget);
+        // Retry opens the window again; the spinner stays and the wait starts over
+        final before = r.ch.wsOpens.length;
+        await t.tap(find.text('Retry'));
+        await flush(t);
+        expect(r.ch.wsOpens.length, before + 1);
+        r.ch.host(Close(r.ch.lastWsId, 4904));
+        await flush(t);
+        expect(find.byType(CircularProgressIndicator), findsWidgets);
+        expect(find.text('Retry'), findsNothing);
+        await t.pump(goneRetryAfter + const Duration(seconds: 1));
+        expect(find.text('Retry'), findsOneWidget);
       },
     );
   });

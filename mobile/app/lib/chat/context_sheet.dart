@@ -2,6 +2,7 @@
 // limits with their resets, the session's cost, idle compaction, and two tiles (compact, stats). A row the window does
 // not report is left out. The pieces are the window sheet's (its tiles, its limit rows, its commands).
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
@@ -130,7 +131,10 @@ class ContextSheet extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '\$${cost.toStringAsFixed(2)}',
+                      NumberFormat.simpleCurrency(
+                        locale: lang,
+                        name: 'USD',
+                      ).format(cost),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,

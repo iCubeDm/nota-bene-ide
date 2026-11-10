@@ -213,7 +213,16 @@ class _ChatScreenState extends State<ChatScreen> {
                             controller: _scroll,
                             reverse: true,
                             // full width: the bubbles keep their own margins
-                            padding: EdgeInsets.fromLTRB(0, top, 0, 8),
+                            padding: EdgeInsets.fromLTRB(
+                              0,
+                              top,
+                              0,
+                              // the floating Stop must not cover the end of the last bubble
+                              widget.tab.state == TabState.open &&
+                                      widget.tab.busy
+                                  ? 8 + 56
+                                  : 8,
+                            ),
                             itemCount:
                                 items.length +
                                 pending.length +

@@ -90,7 +90,8 @@ void main() {
     await r.open(t);
     r.event({'kind': 'occupied'});
     await t.pumpAndSettle();
-    expect(textIn('another tab'), findsOneWidget);
+    expect(find.text('open in another tab'), findsOneWidget);
+    expect(textIn('This window is open in another tab'), findsOneWidget);
     await t.tapText('Work here');
     expect(r.sent.last, {'type': 'takeover'});
   });

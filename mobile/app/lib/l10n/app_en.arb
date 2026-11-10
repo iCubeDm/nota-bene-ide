@@ -441,5 +441,6 @@
   "idleCompactBody": "After the turn, while the cache is warm",
   "idleCompactBlocked": "Turned off in the agent's settings",
   "windowGoneTitle": "The window closed or restarted",
-  "windowGoneBody": "Waiting for it to come back"
+  "windowGoneBody": "Waiting for it to come back",
+  "stateOtherTab": "open in another tab"
 }

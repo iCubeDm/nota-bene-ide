@@ -267,5 +267,6 @@
   "idleCompactBody": "Após o turno, com o cache ainda quente",
   "idleCompactBlocked": "Desativado nas configurações do agente",
   "windowGoneTitle": "A janela foi fechada ou reiniciada",
-  "windowGoneBody": "Aguardando a volta"
+  "windowGoneBody": "Aguardando a volta",
+  "stateOtherTab": "aberta em outra aba"
 }

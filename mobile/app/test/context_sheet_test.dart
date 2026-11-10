@@ -96,6 +96,14 @@ void main() {
     expect(find.text('\$1.24'), findsOneWidget);
   });
 
+  testWidgets('the cost follows the language\'s format', (t) async {
+    t.platformDispatcher.localesTestValue = const [Locale('de')];
+    addTearDown(t.platformDispatcher.clearLocalesTestValue);
+    await r.open(t);
+    await r.openContextSheet(t, stats: stats({'context': ctx, 'cost': 1.236}));
+    expect(find.textContaining('1,24'), findsOneWidget);
+  });
+
   testWidgets('the context colours: primary, accent from 70, danger from 90', (
     t,
   ) async {

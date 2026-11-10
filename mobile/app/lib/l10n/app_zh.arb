@@ -267,5 +267,6 @@
   "idleCompactBody": "在回合结束后、缓存仍有效时",
   "idleCompactBlocked": "已在代理设置中关闭",
   "windowGoneTitle": "窗口已关闭或正在重启",
-  "windowGoneBody": "正在等待其恢复"
+  "windowGoneBody": "正在等待其恢复",
+  "stateOtherTab": "已在另一个标签页打开"
 }

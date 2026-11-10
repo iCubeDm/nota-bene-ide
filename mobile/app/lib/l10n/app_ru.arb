@@ -267,5 +267,6 @@
   "idleCompactBody": "После хода, пока кэш тёплый",
   "idleCompactBlocked": "Выключено в настройках агента",
   "windowGoneTitle": "Окно закрылось или перезапускается",
-  "windowGoneBody": "Ждём, пока оно вернётся"
+  "windowGoneBody": "Ждём, пока оно вернётся",
+  "stateOtherTab": "открыто в другой вкладке"
 }
