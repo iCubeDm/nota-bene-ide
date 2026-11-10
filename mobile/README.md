@@ -76,6 +76,15 @@ file says so). A comment on a selection in it is anchored to the file with the d
 Comments pane (`app/lib/comments/comments_pane.dart`) lists the pending comments with Send and the sent ones by the
 message they went with.
 
+### Git in the Files pane
+
+In a git repository (`/git-status` answers) the Files pane has tabs, Files, Changes and Log, like Telegram's chat folders
+(`app/lib/files/git_pages.dart`). Changes is the working tree's changed files (`/vcs-diff`), Log the commits (`/vcs-log`)
+with each commit's files (`/vcs-commit`). A file opens its unified diff full screen (`/vcs-file`, `/vcs-commit-file`;
+`app/lib/files/diff_screen.dart`): both line numbers, added and removed lines tinted with the theme's tokens, no wrap,
+pinch zoom, copy. A comment on a selection is anchored as the desktop's diff anchors it: the file's path (with the
+commit's short hash for a commit's diff) and the text of the code rows, markers and numbers left out.
+
 ## The APK
 
 CI builds it in the `mobile` job and uploads it as the `nota-bene-android` artifact. Builds of this repository are

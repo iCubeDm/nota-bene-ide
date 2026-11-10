@@ -150,10 +150,11 @@ class _CodeScreenState extends State<CodeScreen> {
   List<CodeMark> _marks() {
     final tab = widget.tab, path = widget.filePath;
     if (tab == null || path == null) return const [];
-    return codeMarksFor(
-      _rendered,
-      tab.comments.forFile(path).where((c) => c.anchor is TextAnchor),
-    );
+    return codeMarksFor(_rendered, [
+      for (final c in tab.comments.forFile(path))
+        // a commit's diff has its own comments of the same path
+        if (c.anchor case TextAnchor(source: AnchorSourceFile(ref: null))) c,
+    ]);
   }
 
   /// Where the selection starts in the rendered text; null when no line holds it.

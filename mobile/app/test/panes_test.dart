@@ -329,7 +329,7 @@ void main() {
           ],
         });
         await t.pumpAndSettle();
-        expect(find.byKey(const ValueKey('comments-badge')), findsOneWidget);
+        expect(find.byKey(const ValueKey('badge-2')), findsOneWidget);
         await t.tap(find.text('Comments'));
         await t.pumpAndSettle();
         expect(find.text('1 comment to send'), findsOneWidget);

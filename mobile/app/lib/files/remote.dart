@@ -30,7 +30,8 @@ List<TreeEntry> sortEntries(Iterable<TreeEntry> entries) =>
       return c != 0 ? c : a.name.compareTo(b.name);
     });
 
-Future<dynamic> _json(WindowTab tab, String path) async {
+/// A JSON answer of the window's route [path]; [FilesError] when it did not answer 200.
+Future<dynamic> getJson(WindowTab tab, String path) async {
   final ch = tab.link.channel;
   if (ch == null) throw FilesError(null);
   final r = await ch
@@ -46,7 +47,7 @@ Future<dynamic> _json(WindowTab tab, String path) async {
 
 /// The entries of project folder [dir] (relative; '' is the root).
 Future<List<TreeEntry>> fetchTree(WindowTab tab, String dir) async {
-  final j = await _json(tab, '/tree?path=${Uri.encodeQueryComponent(dir)}');
+  final j = await getJson(tab, '/tree?path=${Uri.encodeQueryComponent(dir)}');
   if (j is! List) throw FilesError(null);
   return sortEntries([
     for (final e in j)
@@ -57,7 +58,7 @@ Future<List<TreeEntry>> fetchTree(WindowTab tab, String dir) async {
 
 /// The host's fuzzy search: paths relative to the project, a folder with a trailing `/`.
 Future<List<String>> completeFiles(WindowTab tab, String q) async {
-  final j = await _json(tab, '/complete?q=${Uri.encodeQueryComponent(q)}');
+  final j = await getJson(tab, '/complete?q=${Uri.encodeQueryComponent(q)}');
   if (j is! List) throw FilesError(null);
   return [
     for (final p in j)
