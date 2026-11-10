@@ -1,9 +1,10 @@
-// The paired hosts (forget one here; the host side drops this phone with `nota-bene remote revoke`), the colour theme
-// and this phone's fingerprint, as the host lists it.
+// The paired hosts (forget one here; the host side drops this phone with `nota-bene remote revoke`), the language,
+// the colour theme and this phone's fingerprint, as the host lists it.
 import 'package:flutter/material.dart';
 
 import 'l10n/app_localizations.dart';
 import 'store/hosts.dart';
+import 'store/lang_choice.dart';
 import 'store/theme_choice.dart';
 import 'theme.dart';
 
@@ -13,13 +14,49 @@ class SettingsScreen extends StatelessWidget {
     required this.identity,
     required this.hosts,
     required this.themes,
+    this.langs,
     required this.onPair,
   });
 
   final Identity identity;
   final Hosts hosts;
   final ThemeChoice themes;
+
+  /// The app's language; no row without it.
+  final LangChoice? langs;
   final VoidCallback onPair;
+
+  Future<void> _pickLang(BuildContext context, LangChoice langs) =>
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        // all seven rows, not cut at half the screen
+        isScrollControlled: true,
+        builder: (c) {
+          final t = AppLocalizations.of(c);
+          final primary = Theme.of(c).extension<NbColors>()!.primary;
+          Widget row(String? code, String name) => ListTile(
+            title: Text(name),
+            trailing: code == langs.code
+                ? Icon(Icons.check, color: primary)
+                : null,
+            selected: code == langs.code,
+            onTap: () {
+              langs.choose(code);
+              Navigator.pop(c);
+            },
+          );
+          return SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                row(null, t.languageSystem),
+                for (final (code, name) in appLangs) row(code, name),
+              ],
+            ),
+          );
+        },
+      );
 
   Future<void> _forget(BuildContext context, PairedHost h) async {
     final t = AppLocalizations.of(context);
@@ -50,7 +87,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(t.settings)),
       body: ListenableBuilder(
-        listenable: Listenable.merge([hosts, themes]),
+        listenable: Listenable.merge([hosts, themes, ?langs]),
         builder: (context, _) => ListView(
           children: [
             ListTile(
@@ -84,6 +121,19 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
+            if (langs case final langs?) ...[
+              const Divider(),
+              ListTile(
+                key: const ValueKey('language'),
+                leading: const Icon(Icons.translate),
+                title: Text(t.language),
+                subtitle: Text(
+                  appLangs.where((l) => l.$1 == langs.code).firstOrNull?.$2 ??
+                      t.languageSystem,
+                ),
+                onTap: () => _pickLang(context, langs),
+              ),
+            ],
             const Divider(),
             ListTile(
               title: Text(

@@ -31,6 +31,8 @@
   "pairHost": "Pair a host",
   "noHosts": "No hosts yet. Run `nota-bene remote` on your computer, then pair this phone with it.",
   "settings": "Settings",
+  "language": "Language",
+  "languageSystem": "Phone's language",
   "theme": "Themes",
   "connecting": "Connecting…",
   "offline": "Offline",
