@@ -357,7 +357,9 @@ class _Rows extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<NbColors>()!;
     final lang = parsed.size > highlightRows ? null : _extOf(path);
-    final size = 13 * zoom, height = size * 1.5;
+    // the rows and the width follow the text scale too, or the lines would overlap and the long ones be cut
+    final scaler = MediaQuery.textScalerOf(context);
+    final size = 13 * zoom, height = scaler.scale(size) * 1.5;
     final style = TextStyle(
       fontFamily: 'monospace',
       fontSize: size,
@@ -375,6 +377,7 @@ class _Rows extends StatelessWidget {
     final probe = TextPainter(
       text: TextSpan(text: 'M' * 100, style: style),
       textDirection: TextDirection.ltr,
+      textScaler: scaler,
     )..layout();
     final charW = probe.width / 100;
     probe.dispose();
