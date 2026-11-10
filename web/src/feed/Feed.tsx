@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { refClick } from '@/refs/refs.ts';
 import { selectFeed, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import type { FeedState } from '@/store/feed.ts';
+import { retriedVoice, type FeedState } from '@/store/feed.ts';
 import { isAgentTool } from '@/subagent/slice.ts';
 import { FeedScope } from './scope.ts';
 import { Markdown } from './Markdown.tsx';
@@ -35,6 +35,7 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
   const main = useAppSelector((s) => (feed ? null : selectFeed(s)));
   const { items, compacting, epoch, earlier } = (feed ?? main)!;
   const busy = agent ? !!running : main!.busy;
+  const hidden = useMemo(() => retriedVoice(items), [items]);
   const scope = useMemo(() => ({ agent, busy: agent ? !!running : undefined }), [agent, running]);
   const t = useT();
   const dispatch = useAppDispatch();
@@ -161,6 +162,7 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
         }
         switch (it.kind) {
           case 'user':
+            if (hidden.has(it.id)) return null; // a failed voice message the user has sent again
             return it.idle ? <IdleCompactLine key={it.id} item={it} /> : <UserMessage key={it.id} item={it} />;
           case 'assistant':
             return (

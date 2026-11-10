@@ -27,7 +27,7 @@ void main() {
   late HostLink link;
   late WindowTab tab;
 
-  Future<void> open(WidgetTester t) async {
+  Future<void> open(WidgetTester t, {ChatFocus? focus}) async {
     final f = FakeFactory();
     ch = FakeChannel([window(4791, '/home/u/notes')]);
     f.results.add(ch);
@@ -48,7 +48,7 @@ void main() {
       NbApp(
         home: MermaidScope(
           renderer: FakeMermaid(),
-          child: ChatScreen(tab: tab),
+          child: ChatScreen(tab: tab, focus: focus),
         ),
       ),
     );
@@ -160,7 +160,7 @@ void main() {
     expect(find.textContaining('Thinking about it'), findsOneWidget);
   });
 
-  testWidgets('the header pill names the session and the model', (t) async {
+  testWidgets('the header pill names the session, not the model', (t) async {
     await open(t);
     ch.event(ch.lastWsId, {'kind': 'replay', 'events': []});
     ch.event(ch.lastWsId, {
@@ -172,7 +172,7 @@ void main() {
     });
     await t.pumpAndSettle();
     expect(find.text('Spec work'), findsOneWidget);
-    expect(find.text('opus'), findsOneWidget);
+    expect(find.text('opus'), findsNothing);
   });
 
   testWidgets(
@@ -229,4 +229,29 @@ void main() {
       expect(find.text('second out'), findsNothing);
     },
   );
+
+  testWidgets('scrolling to an item that is already built finds it', (t) async {
+    final focus = ChatFocus();
+    await open(t, focus: focus);
+    ch.event(ch.lastWsId, {
+      'kind': 'replay',
+      'events': [
+        for (var i = 0; i < 3; i++)
+          {
+            'kind': 'user',
+            'id': 'u$i',
+            'text': 'message $i',
+            'ts': 1,
+            'historic': true,
+          },
+      ],
+    });
+    await t.pumpAndSettle();
+    bool? found;
+    unawaited(focus.scrollTo('u1').then((v) => found = v));
+    for (var i = 0; i < 20; i++) {
+      await t.pump(const Duration(milliseconds: 100));
+    }
+    expect(found, isTrue);
+  });
 }

@@ -111,6 +111,7 @@ class Comments extends ChangeNotifier {
     String? id,
     List<String>? images,
     int? genImages,
+    List<VoiceClip>? voice,
   }) {
     final c = Comment(
       id: id ?? uuidV4(),
@@ -121,6 +122,7 @@ class Comments extends ChangeNotifier {
       createdAt: _now().millisecondsSinceEpoch,
       images: images,
       genImages: genImages,
+      voice: voice == null || voice.isEmpty ? null : voice,
     );
     final next = [...all, c];
     _mine[c.id] = (c: c, at: _now());
@@ -128,7 +130,12 @@ class Comments extends ChangeNotifier {
     return c;
   }
 
-  Comment _with(Comment c, String text, QuickLabelId? label) => Comment(
+  Comment _with(
+    Comment c,
+    String text,
+    QuickLabelId? label,
+    List<VoiceClip>? voice,
+  ) => Comment(
     id: c.id,
     anchor: c.anchor,
     text: text,
@@ -138,14 +145,25 @@ class Comments extends ChangeNotifier {
     sentIn: c.sentIn,
     images: c.images,
     genImages: c.genImages,
+    voice: voice == null || voice.isEmpty ? null : voice,
   );
 
-  void edit(String id, String text, QuickLabelId? label) {
-    final next = [for (final c in all) c.id == id ? _with(c, text, label) : c];
+  /// [voice] replaces the clips of the comment: the sheet gives back all it has.
+  void edit(
+    String id,
+    String text,
+    QuickLabelId? label, {
+    List<VoiceClip>? voice,
+  }) {
+    final next = [
+      for (final c in all) c.id == id ? _with(c, text, label, voice) : c,
+    ];
     if (_mine.containsKey(id)) {
       _mine[id] = (c: next.firstWhere((c) => c.id == id), at: _now());
     }
-    _server = [for (final c in _server) c.id == id ? _with(c, text, label) : c];
+    _server = [
+      for (final c in _server) c.id == id ? _with(c, text, label, voice) : c,
+    ];
     _push(next);
   }
 
@@ -163,7 +181,7 @@ String _file(String path, String? ref) => ref == null ? path : '$path @ $ref';
 
 /// Where a comment's fragment lives, as the desktop's `whereOf` names it: a file as its path (`path @ ref` from another
 /// branch), a media mark with its time and size; a chat fragment as the desktop's plain name for it (my message, reply, or chat for one the feed no longer holds).
-String _whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
+String whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
   MediaAnchor(:final source, :final time, :final width, :final height) =>
     '${_file(source.path, source.ref)}${time != null ? ' @ ${mediaTime(time.toDouble())}' : ''} · ${jsNum(width)}×${jsNum(height)}',
   TextAnchor(source: AnchorSourceFile(:final path, :final ref)) => _file(
@@ -267,15 +285,26 @@ int generatedImages(Comment c) =>
         } else if (refs.isNotEmpty) {
           tail = '\n${batchTemplate('imgRef', lang, [refs.join(', ')])}';
         }
-        final body = [
-          labelLine(c.label, lang),
-          c.text.trim(),
-        ].where((s) => s.isNotEmpty).join(' ');
+        // the recordings' transcripts follow what was typed, each on a line of its own (a transcript's breaks are
+        // spaces); the first of the lot is on the arrow line (compose.ts)
+        final clips = [
+          for (final v in c.voice ?? const <VoiceClip>[])
+            v.text.replaceAll(RegExp(r'\s+'), ' ').trim(),
+        ];
+        final lines = [
+          [
+            labelLine(c.label, lang),
+            c.text.trim(),
+          ].where((s) => s.isNotEmpty).join(' '),
+          ...clips,
+        ].where((s) => s.isNotEmpty).toList();
+        final body = lines.isEmpty ? '' : lines.first;
+        final more = lines.skip(1).map((l) => '\n   $l').join();
         final instr = quickLabels
             .where((l) => l.id == c.label)
             .firstOrNull
             ?.instruction;
-        return '${i + 1}. [${_whereOf(c, feed, lang)}]\n$quote\n→ $body${instr != null ? '\n   $instr' : ''}$tail';
+        return '${i + 1}. [${whereOf(c, feed, lang)}]\n$quote\n→ $body$more${instr != null ? '\n   $instr' : ''}$tail';
       }(),
   ];
   return (

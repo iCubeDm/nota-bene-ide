@@ -12,6 +12,9 @@ import '../comments/chat_anchor.dart';
 import '../comments/comment_strip.dart' show editComment;
 import '../files/file_markdown.dart';
 import '../theme.dart';
+import '../voice/outbox.dart';
+import '../voice/upload.dart';
+import '../voice/voice_bubble.dart';
 import 'chat_header.dart';
 import 'comment_target.dart';
 import 'feed.dart';
@@ -20,9 +23,10 @@ import 'media_card.dart';
 import 'markdown.dart';
 import 'message_menu.dart';
 import 'message_selection.dart';
+import 'sent_comments.dart';
 import 'window_tab.dart';
 
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
     required this.tab,
@@ -32,9 +36,21 @@ class ChatScreen extends StatelessWidget {
     this.itemBuilder,
     this.onTapTitle,
     this.onReply,
+    this.showHeader = true,
+    this.extraTop = 0,
+    this.focus,
   });
 
   final WindowTab tab;
+
+  /// False when a host puts the header above several panes itself.
+  final bool showHeader;
+
+  /// Room kept clear above the feed besides the header (a strip of tabs under it).
+  final double extraTop;
+
+  /// Lets the host scroll the feed to a message.
+  final ChatFocus? focus;
   final Widget? bottom;
   final List<Widget> actions;
 
@@ -51,21 +67,138 @@ class ChatScreen extends StatelessWidget {
   final Widget? Function(BuildContext, FeedItem)? itemBuilder;
 
   @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+/// Scrolls a chat's feed to a message from outside it (the comments pane).
+class ChatFocus {
+  Future<bool> Function(String messageId)? _go;
+
+  /// Scrolls to the feed item of message [id] (a user message, a reply, a tool call); false when it is not in the feed.
+  Future<bool> scrollTo(String id) => _go?.call(id) ?? Future.value(false);
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final _scroll = ScrollController();
+  final _targets = <String, GlobalKey>{};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.focus?._go = _scrollTo;
+  }
+
+  @override
+  void didUpdateWidget(ChatScreen old) {
+    super.didUpdateWidget(old);
+    if (old.focus != widget.focus) {
+      old.focus?._go = null;
+      widget.focus?._go = _scrollTo;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.focus?._go == _scrollTo) widget.focus?._go = null;
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// The feed key of the item message [id] names, or null.
+  String? _keyOf(String id) {
+    for (final it in widget.tab.feed.items) {
+      final k = feedKey(it);
+      if (k == 'user:$id' ||
+          k == 'assistant:$id' ||
+          k == id ||
+          (id.startsWith('tool:') && k == id) ||
+          (id.startsWith('plan:') && k == 'permission:${id.substring(5)}')) {
+        return k;
+      }
+    }
+    return null;
+  }
+
+  /// The feed is a lazy list: the item is built only near the screen. Jump near its place by the average height of an
+  /// item, then step toward it until it is built, and bring it into view.
+  Future<bool> _scrollTo(String id) async {
+    final key = _keyOf(id);
+    if (key == null || !_scroll.hasClients) return false;
+    final items = widget.tab.feed.items;
+    final at = items.indexWhere((it) => feedKey(it) == key);
+    final fromEnd = items.length - 1 - at;
+    // an item that is built already gets its key only on a rebuild
+    final fresh = !_targets.containsKey(key);
+    final target = _targets.putIfAbsent(key, GlobalKey.new);
+    if (fresh) setState(() {});
+    final pos = _scroll.position;
+    final avg = (pos.maxScrollExtent + pos.viewportDimension) / items.length;
+    // the reversed list: offset 0 is the newest
+    _scroll.jumpTo((fromEnd * avg).clamp(0.0, pos.maxScrollExtent));
+    for (var i = 0; i < 40; i++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return false;
+      if (target.currentContext != null) {
+        await Scrollable.ensureVisible(
+          target.currentContext!,
+          alignment: .3,
+          duration: const Duration(milliseconds: 250),
+        );
+        return true;
+      }
+      // not built: find which side it is on by the keyed neighbours the feed builds
+      final here = _scroll.position;
+      final up = _builtBeyond(fromEnd);
+      final step = here.viewportDimension * .8;
+      final next = (here.pixels + (up ? -step : step)).clamp(
+        0.0,
+        here.maxScrollExtent,
+      );
+      if (next == here.pixels) break;
+      _scroll.jumpTo(next);
+    }
+    return false;
+  }
+
+  /// Whether the items built now are all older than item [fromEnd] counted from the newest (so the item is below).
+  bool _builtBeyond(int fromEnd) {
+    final items = widget.tab.feed.items;
+    final built = <int>[];
+    final seen = <String>{};
+    void visit(Element e) {
+      final k = e.widget.key;
+      if (k is ValueKey<String> && seen.add(k.value)) {
+        final i = items.indexWhere((it) => feedKey(it) == k.value);
+        if (i >= 0) built.add(items.length - 1 - i);
+      }
+      e.visitChildren(visit);
+    }
+
+    context.visitChildElements(visit);
+    if (built.isEmpty) return false;
+    return built.reduce((a, b) => a < b ? a : b) > fromEnd;
+  }
+
+  @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: tab,
+    listenable: Listenable.merge([widget.tab, widget.tab.voiceOutbox]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
-      final f = tab.feed;
+      final f = widget.tab.feed;
+      final pending = widget.tab.voiceOutbox.entries;
       final status = _status(t);
       final items = f.items;
       // the feed keeps the floating header clear
-      final top = MediaQuery.paddingOf(context).top + ChatHeader.extent;
+      final top =
+          MediaQuery.paddingOf(context).top +
+          (widget.showHeader ? ChatHeader.extent : 0) +
+          widget.extraTop;
       return Scaffold(
         body: SafeArea(
           top: false,
           child: FileOpener(
-            tab: tab,
+            tab: widget.tab,
             child: Stack(
               children: [
                 Column(
@@ -83,38 +216,69 @@ class ChatScreen extends StatelessWidget {
                     Expanded(
                       child: Stack(
                         children: [
-                          // reversed: the newest item sits at the bottom and stays in view while the user is there
+                          // reversed: the newest item sits at the widget.bottom and stays in view while the user is there
                           ListView.builder(
+                            controller: _scroll,
                             reverse: true,
+                            // full width: the bubbles keep their own margins
                             padding: EdgeInsets.fromLTRB(
-                              12,
+                              0,
                               status == null ? top : 8,
-                              12,
+                              0,
                               8,
                             ),
-                            itemCount: items.length + (f.earlier > 0 ? 1 : 0),
+                            itemCount:
+                                items.length +
+                                pending.length +
+                                (f.earlier > 0 ? 1 : 0),
                             itemBuilder: (context, i) {
+                              // the newest sit at the bottom: the recordings still going out
+                              if (i < pending.length) {
+                                final e = pending[pending.length - 1 - i];
+                                return PendingVoiceBubble(
+                                  e,
+                                  widget.tab.voiceOutbox,
+                                  key: ValueKey(e.key),
+                                );
+                              }
+                              i -= pending.length;
                               if (i == items.length) {
                                 return Center(
                                   child: TextButton(
-                                    onPressed: tab.loadEarlier,
+                                    onPressed: widget.tab.loadEarlier,
                                     child: Text(t.showEarlier),
                                   ),
                                 );
                               }
-                              final it = items[items.length - 1 - i];
+                              final at = items.length - 1 - i;
+                              final it = items[at];
+                              final inner = _Commentable(
+                                tab: widget.tab,
+                                item: it,
+                                onReply: widget.onReply ?? (_) {},
+                                child:
+                                    widget.itemBuilder?.call(context, it) ??
+                                    (chatSource(it) == null
+                                        ? FeedItemView(it)
+                                        : _Marked(tab: widget.tab, item: it)),
+                              );
                               // keyed by the item, not the index: a new item shifts every index of a reversed list
                               return KeyedSubtree(
                                 key: ValueKey(feedKey(it)),
-                                child: _Commentable(
-                                  tab: tab,
-                                  item: it,
-                                  onReply: onReply ?? (_) {},
-                                  child:
-                                      itemBuilder?.call(context, it) ??
-                                      (chatSource(it) == null
-                                          ? FeedItemView(it)
-                                          : _Marked(tab: tab, item: it)),
+                                // the agent's turn is one bubble: its items are the pieces of it
+                                child: KeyedSubtree(
+                                  key: _targets[feedKey(it)],
+                                  child: inAgentTurn(it)
+                                      ? AgentBubble(
+                                          first:
+                                              at == 0 ||
+                                              !inAgentTurn(items[at - 1]),
+                                          last:
+                                              at == items.length - 1 ||
+                                              !inAgentTurn(items[at + 1]),
+                                          child: inner,
+                                        )
+                                      : inner,
                                 ),
                               );
                             },
@@ -123,7 +287,9 @@ class ChatScreen extends StatelessWidget {
                               final at = items.lastIndexWhere(
                                 (it) => feedKey(it) == k,
                               );
-                              return at < 0 ? null : items.length - 1 - at;
+                              return at < 0
+                                  ? null
+                                  : items.length - 1 - at + pending.length;
                             },
                           ),
                           if (f.compacting)
@@ -136,26 +302,27 @@ class ChatScreen extends StatelessWidget {
                                 color: c.accent,
                               ),
                             ),
-                          ?overlay,
+                          ?widget.overlay,
                         ],
                       ),
                     ),
-                    ?bottom,
+                    ?widget.bottom,
                   ],
                 ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    bottom: false,
-                    child: ChatHeader(
-                      tab: tab,
-                      onTapTitle: onTapTitle,
-                      actions: actions,
+                if (widget.showHeader)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SafeArea(
+                      bottom: false,
+                      child: ChatHeader(
+                        tab: widget.tab,
+                        onTapTitle: widget.onTapTitle,
+                        actions: widget.actions,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -165,9 +332,9 @@ class ChatScreen extends StatelessWidget {
   );
 
   String? _status(AppLocalizations t) {
-    final l = tab.link;
-    return switch (tab.state) {
-      TabState.open => tab.busy ? t.working : null,
+    final l = widget.tab.link;
+    return switch (widget.tab.state) {
+      TabState.open => widget.tab.busy ? t.working : null,
       TabState.connecting => t.connecting,
       TabState.offline =>
         l.lastSeen == null
@@ -383,71 +550,72 @@ class FeedItemView extends StatelessWidget {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     Widget line(String text, {Color? color}) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
       child: Text(
         text,
+        textAlign: TextAlign.center,
         style: TextStyle(color: color ?? c.mutedFg, fontSize: 13),
       ),
     );
+    Widget userText(String text) => listenerAt == null && marks.isEmpty
+        ? NbMarkdown(
+            userMarkdownSource(text),
+            blockSyntaxes: userBlockSyntaxes,
+            inlineSyntaxes: userInlineSyntaxes,
+            softLineBreak: true,
+          )
+        : FileMarkdown(
+            text: text,
+            listenerAt: listenerAt,
+            marks: marks,
+            onMark: onMark,
+            parse: parseUserMessage,
+            softLineBreak: true,
+          );
     return switch (item) {
-      UserItem(:final text, :final idle, :final images) =>
+      UserItem(
+        shownText: final text,
+        id: final userId,
+        text: final typed,
+        :final idle,
+        :final images,
+        :final voice,
+        :final voiceError,
+        :final transcribing,
+      ) =>
         idle
             ? line(t.idleCompact)
-            : Align(
-                alignment: Alignment.centerRight,
-                child: LayoutBuilder(
-                  builder: (context, box) => Container(
-                    key: const ValueKey('bubble'),
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
-                    ),
-                    constraints: BoxConstraints(maxWidth: box.maxWidth * .84),
-                    decoration: BoxDecoration(
-                      color: Color.alphaBlend(
-                        c.primary.withValues(alpha: .28),
-                        c.background,
-                      ),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(14),
-                        topRight: Radius.circular(14),
-                        bottomLeft: Radius.circular(14),
-                        bottomRight: Radius.circular(4),
-                      ),
-                      border: Border.all(
-                        color: c.primary.withValues(alpha: .45),
-                      ),
-                    ),
-                    // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (images.isNotEmpty && FileOpener.of(context) != null)
-                          UserImages(
-                            tab: FileOpener.of(context)!,
-                            images: images,
-                          ),
-                        if (text.isNotEmpty || images.isEmpty)
-                          listenerAt == null && marks.isEmpty
-                              ? NbMarkdown(
-                                  userMarkdownSource(text),
-                                  blockSyntaxes: userBlockSyntaxes,
-                                  inlineSyntaxes: userInlineSyntaxes,
-                                  softLineBreak: true,
-                                )
-                              : FileMarkdown(
-                                  text: text,
-                                  listenerAt: listenerAt,
-                                  marks: marks,
-                                  onMark: onMark,
-                                  parse: parseUserMessage,
-                                  softLineBreak: true,
-                                ),
-                      ],
-                    ),
-                  ),
+            : UserBubble(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (images.isNotEmpty && FileOpener.of(context) != null)
+                      UserImages(tab: FileOpener.of(context)!, images: images),
+                    if (voice != null)
+                      VoiceBlock(
+                        id: voice.id,
+                        ms: voice.ms.toInt(),
+                        wave: voice.wave,
+                        load: voiceLoader(FileOpener.of(context), voice.id),
+                        stage: voiceError != null
+                            ? VoiceStage.error
+                            : (transcribing
+                                  ? VoiceStage.transcribing
+                                  : VoiceStage.transcribed),
+                        error: voiceError,
+                        onRetry:
+                            FileOpener.of(context)?.isRetrying(voice.id) ??
+                                false
+                            ? null
+                            : () => retryVoice(context, voice),
+                        transcript: () => userText(text),
+                      )
+                    else if (text.isNotEmpty || images.isEmpty)
+                      userText(text),
+                    if (FileOpener.of(context) case final tab?)
+                      SentComments(tab: tab, id: userId, text: typed),
+                  ],
                 ),
               ),
       AssistantItem(:final text) => Padding(
@@ -498,6 +666,106 @@ class FeedItemView extends StatelessWidget {
   }
 }
 
+/// Whether [it] is a piece of the agent's turn: its texts, tool lines, plans and shell blocks. A user message and the
+/// lines (done, markers, notices) are not; they end the turn.
+bool inAgentTurn(FeedItem it) => switch (it) {
+  AssistantItem(:final text) => text.isNotEmpty,
+  ToolItem() || PermissionItem() || ShellItem() => true,
+  _ => false,
+};
+
+/// One piece of the agent's turn in its bubble: 8 px from the left edge and 28 from the right, in the agent's colour.
+/// The pieces of a turn sit one under the other without a gap, so [first] rounds the top and [last] the bottom (its
+/// left corner stays square, the tail).
+class AgentBubble extends StatelessWidget {
+  const AgentBubble({
+    super.key,
+    required this.first,
+    required this.last,
+    required this.child,
+  });
+  final bool first, last;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(8, first ? 6 : 0, 28, last ? 6 : 0),
+      child: Container(
+        key: const ValueKey('agent-bubble'),
+        padding: EdgeInsets.fromLTRB(12, first ? 6 : 0, 12, last ? 6 : 0),
+        decoration: BoxDecoration(
+          color: c.agentBubble,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(first ? 14 : 0),
+            topRight: Radius.circular(first ? 14 : 0),
+            bottomLeft: Radius.circular(last ? 4 : 0),
+            bottomRight: Radius.circular(last ? 14 : 0),
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// The user's bubble: right-aligned, tinted with the primary colour, its lower right corner square. It shrinks to its
+/// content and takes at most the screen's width less 28 px at the left and 8 at the right.
+class UserBubble extends StatelessWidget {
+  const UserBubble({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 6, 8, 6),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          key: const ValueKey('bubble'),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: c.userBubble,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(14),
+              topRight: Radius.circular(14),
+              bottomLeft: Radius.circular(14),
+              bottomRight: Radius.circular(4),
+            ),
+            border: Border.all(color: c.primary.withValues(alpha: .45)),
+          ),
+          // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// A voice message the phone has recorded and the window has not shown yet: Sending…, or failed with Retry.
+class PendingVoiceBubble extends StatelessWidget {
+  const PendingVoiceBubble(this.entry, this.outbox, {super.key});
+  final PendingVoice entry;
+  final VoiceOutbox outbox;
+
+  @override
+  Widget build(BuildContext context) => UserBubble(
+    child: VoiceBlock(
+      id: entry.key,
+      ms: entry.ms,
+      wave: entry.wave,
+      load: () => outbox.bytes(entry),
+      stage: entry.stage == OutStage.failed
+          ? VoiceStage.sendFailed
+          : VoiceStage.sending,
+      onRetry: () => outbox.retry(entry),
+      onDelete: () => outbox.remove(entry),
+    ),
+  );
+}
+
 String duration(AppLocalizations t, num secs) => secs < 60
     ? t.durationSecs(secs.round())
     : t.durationMins(secs ~/ 60, (secs % 60).round());
@@ -524,7 +792,7 @@ class _ToolLineState extends State<ToolLine> {
     final path = toolPath(it);
     final file = tab == null || path == null
         ? null
-        : projectFile(tab.root, path);
+        : projectPath(tab.root, path);
     return Padding(
       padding: EdgeInsets.only(left: it.sub ? 16 : 0, top: 2, bottom: 2),
       child: Column(

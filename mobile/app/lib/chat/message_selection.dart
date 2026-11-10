@@ -164,6 +164,7 @@ class _SelectableMessageState extends State<SelectableMessage> {
       makeAnchor(source, r.text, at.start, at.end),
       res.text,
       res.label,
+      voice: res.voice,
     );
     widget.onDone();
   }

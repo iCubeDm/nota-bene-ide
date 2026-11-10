@@ -1,5 +1,5 @@
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
@@ -18,7 +18,11 @@ import { Attachments } from '@/attachments/Attachments.tsx';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { addImage, removeImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { BINDINGS, keysLabel } from '@/shell/keymap.ts';
+import { BINDINGS, keysLabel, VOICE_KEY, withKey } from '@/shell/keymap.ts';
+import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
+import { RecordBar } from '@/voice/RecordBar.tsx';
+import { onVoiceRefused, sendVoice } from '@/voice/send.ts';
+import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
 import { PLAYER_HELP } from '@/media/playerKeys.ts';
 import { useSeekStep } from '@/media/seekStep.ts';
 
@@ -48,11 +52,20 @@ export function Composer() {
   const [dropping, setDropping] = useState(false);
   // Cmd/Ctrl+Enter while the agent works would interrupt it: the first press only asks, a second one (or the button) confirms
   const [askForce, setAskForce] = useState(false);
+  const askForceRef = useRef(false);
+  askForceRef.current = askForce;
   useEffect(() => {
     if (!busy) setAskForce(false);
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
+  // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
+  const voiceOk = useAppSelector((s) => s.controls.protocol >= 14);
+  const whisper = caps.dictation === 'whisper';
   const fileIn = useRef<HTMLInputElement>(null);
+  // the mic without Whisper asks to set it up in a prompt anchored to the mic
+  const [setup, setSetup] = useState(false);
+  const micBox = useRef<HTMLSpanElement>(null);
+  useEffect(() => { if (whisper) setSetup(false); }, [whisper]);
   const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // the same status spot as "offline": a short-lived note (onlyImages / imgFail)
   const flash = (msg: string) => {
@@ -61,6 +74,72 @@ export function Composer() {
     noteTimer.current = setTimeout(() => setNote(''), 3000);
   };
   useEffect(() => () => clearTimeout(noteTimer.current), []);
+  const rec = useVoiceRecorder({
+    preview: true,
+    notify: flash,
+    // sent at once, apart from the draft, the images and the pending comments (they stay where they are)
+    // false keeps the uploaded recording in the preview: Send hands it over again
+    onDone: (v, force) => {
+      const ok = dispatch(sendVoice(v, undefined, force));
+      if (!ok) flash(t('voiceRefused', t(switchingRef.current ? 'switching' : 'offline')));
+      return ok;
+    },
+  });
+  const switchingRef = useRef(switching);
+  switchingRef.current = switching;
+  const recPhase = rec.st.phase;
+  const recording = recPhase !== 'idle';
+  const recRef = useRef(rec);
+  recRef.current = rec;
+  // a send the server refused: the recording comes back to the preview (the toast tells why)
+  useEffect(() => onVoiceRefused((v) => recRef.current.restore(v)), []);
+  // as a typed message: while the agent works Send queues, and the forced send (Cmd/Ctrl) asks before it interrupts
+  const voiceSubmit = (force: boolean) => {
+    if (switching) return;
+    if (force && busy && !askForce) {
+      setAskForce(true);
+      return;
+    }
+    setAskForce(false);
+    void recRef.current.send(force);
+  };
+  // Esc closes the question first, then the recording
+  const escQuestion = useCallback(() => {
+    if (!askForceRef.current) return false;
+    setAskForce(false);
+    return true;
+  }, []);
+  const voiceSubmitRef = useRef(voiceSubmit);
+  voiceSubmitRef.current = voiceSubmit;
+  // the question belongs to the recording: it is gone with it
+  useEffect(() => {
+    if (recPhase === 'idle') setAskForce(false);
+  }, [recPhase]);
+  // Alt+R (the keymap): start a voice message, or send the one being made; with Cmd/Ctrl, the forcing send
+  useEffect(() => {
+    const onKey = (e: Event) => {
+      if (!voiceOk) return;
+      if (!whisper) return setSetup(true);
+      const r = recRef.current;
+      if (r.st.phase === 'idle') { if (!switching) r.start(false); } else voiceSubmitRef.current(!!(e as CustomEvent<{ force?: boolean }>).detail?.force);
+    };
+    document.addEventListener(VOICE_KEY, onKey);
+    return () => document.removeEventListener(VOICE_KEY, onKey);
+  }, [voiceOk, whisper, switching]);
+  // back to typing after a recording: the caret returns to the field
+  const wasRecording = useRef(false);
+  useEffect(() => {
+    if (recPhase === 'idle' && wasRecording.current) ref.current?.focus({ preventScroll: true });
+    wasRecording.current = recPhase !== 'idle';
+  }, [recPhase]);
+  const micDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || !whisper || switching || recRef.current.st.phase !== 'idle') return;
+    recRef.current.start(true);
+    // the button is gone from under the finger once the bar replaces it: the release is read on the window
+    const up = () => { window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); recRef.current.release(); };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
   const intake = useImageIntake({
     onUploaded: (im) => void dispatch(addImage(im)),
     notify: flash,
@@ -169,7 +248,7 @@ export function Composer() {
         <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-foreground">
           <span>{t('forceAsk')}</span>
           <span className="grow" />
-          <Button type="button" size="sm" variant="destructive" className="h-7" onClick={() => submit(true)}>
+          <Button type="button" size="sm" variant="destructive" className="h-7" onClick={() => (recording ? voiceSubmit(true) : submit(true))}>
             {t('forceYes')}
           </Button>
           <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => { setAskForce(false); ref.current?.focus(); }}>
@@ -183,7 +262,8 @@ export function Composer() {
         pending={intake.pending}
         onRemove={(id) => void dispatch(removeImage(id))}
       />
-      <div data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
+      <div data-record-scope data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
+        {recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} busy={busy} onCancel={rec.cancel} onEscape={escQuestion} onStop={() => void rec.stop()} onSend={voiceSubmit} /> : (<>
         <div className="relative flex min-w-0 flex-1">
         <textarea
           ref={ref}
@@ -214,11 +294,39 @@ export function Composer() {
         <MentionPicker target={ref} shell={() => shellModeRef.current} />
         <SlashPicker target={ref} />
         <ShortcodePicker target={ref} />
-        <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
-          <Button type="button" className="h-10" disabled={uploading || switching} onClick={() => submit(false)}>
-            {shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send')}
-          </Button>
-        </span>
+        </>)}
+        {voiceOk && !recording && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span ref={micBox} className="inline-flex">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  data-testid="mic"
+                  disabled={switching}
+                  aria-label={whisper ? t('voiceMic') : t('voiceMicSetup')}
+                  onPointerDown={micDown}
+                  onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : setSetup((o) => !o))}
+                  className="h-10 bg-muted px-2.5 text-muted-foreground hover:text-foreground"
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="9" y="3" width="6" height="11" rx="3" />
+                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                  </svg>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="whitespace-pre-line">{withKey(whisper ? t('voiceMic') : t('voiceMicSetup'), 'hk_voice')}</TooltipContent>
+          </Tooltip>
+        )}
+        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micBox} />}
+        {!recording && (
+          <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
+            <Button type="button" className="h-10" disabled={uploading || switching} onClick={() => submit(false)}>
+              {shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send')}
+            </Button>
+          </span>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex">

@@ -414,3 +414,38 @@ test('shell-run refuses a non-string, empty or oversized command and a bad id', 
   expect(parseClientMessage('{"type":"shell-stop","id":5}')).toHaveProperty('error');
   expect(parseClientMessage('{"type":"shell-stop"}')).toHaveProperty('error');
 });
+
+const voice = { id: H, ms: 3200, wave: Array.from({ length: 48 }, (_, i) => i % 32) };
+const vsend = (over: Record<string, unknown> = {}) => JSON.stringify({ type: 'send', id: 'u1', text: '', voice, lang: 'ru', ...over });
+test('a voice send is only the voice, in a language', () => {
+  expect(parseClientMessage(vsend({ voice: { ...voice, junk: 1 } }))).toStrictEqual({ type: 'send', id: 'u1', text: '', voice, lang: 'ru' });
+  expect(parseClientMessage(vsend({ text: 'hi' }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ images: [] }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ commentIds: ['c1'] }))).toHaveProperty('error');
+  // forced like a typed one: the agent's turn is interrupted once the transcript is in
+  expect(parseClientMessage(vsend({ force: true }))).toStrictEqual({ type: 'send', id: 'u1', text: '', force: true, voice, lang: 'ru' });
+  expect(parseClientMessage(vsend({ force: 'yes' }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ lang: undefined }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ lang: 'Russian' }))).toHaveProperty('error');
+  // a lang without a voice means nothing: refused, not dropped
+  expect(parseClientMessage('{"type":"send","id":"u1","text":"hi","lang":"ru"}')).toHaveProperty('error');
+});
+test('a voice has a 64-hex id, a length up to 602 s and 48 bars of 0..31', () => {
+  expect(parseClientMessage(vsend({ voice: { ...voice, id: 'x' } }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ voice: { ...voice, ms: 0 } }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ voice: { ...voice, ms: 602_001 } }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ voice: { ...voice, ms: 1.5 } }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ voice: { ...voice, wave: voice.wave.slice(1) } }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ voice: { ...voice, wave: [...voice.wave.slice(1), 32] } }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ voice: { ...voice, ms: 602_000 } }))).toMatchObject({ voice: { ms: 602_000 } });
+});
+test('a comment carries up to 10 clips with their texts; with clips its own text may be empty', () => {
+  const clip = { ...voice, text: 'said' };
+  const c = comment({ text: '', voice: [clip] });
+  expect(parseClientMessage(comments({ ...c, voice: [{ ...clip, junk: 1 }] }))).toStrictEqual({ type: 'comments', sessionId: null, items: [c] });
+  expect(parseClientMessage(comments(comment({ voice: Array(10).fill(clip) })))).not.toHaveProperty('error');
+  expect(parseClientMessage(comments(comment({ voice: Array(11).fill(clip) })))).toHaveProperty('error');
+  expect(parseClientMessage(comments(comment({ voice: [{ ...voice }] })))).toHaveProperty('error');
+  expect(parseClientMessage(comments(comment({ voice: [{ ...clip, text: 'x'.repeat(20_001) }] })))).toHaveProperty('error');
+  expect(parseClientMessage(comments(comment({ text: '', voice: [] })))).toHaveProperty('error');
+});

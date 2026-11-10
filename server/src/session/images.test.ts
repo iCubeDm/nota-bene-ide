@@ -23,6 +23,15 @@ describe('resolveImages', () => {
     expect(r.payload).toEqual([{ mediaType: 'image/png', data: PNG.toString('base64'), label: 'b' }]);
   });
 
+  it('a recording is never handed to the agent as an image', () => {
+    const store = new AttachmentStore({ dir });
+    const id = store.put(Buffer.from('RIFF'), 'audio/wav');
+    const errors: string[] = [];
+    const r = resolveImages(store, [{ id, mediaType: 'image/png', label: 'a' }], (e) => errors.push((e as Error).message));
+    expect(r).toEqual({ refs: [], payload: [] });
+    expect(errors).toEqual([`unknown attachment ${id}`]);
+  });
+
   it('no images: nothing', () => {
     expect(resolveImages(new AttachmentStore({ dir }), undefined, () => {})).toEqual({ refs: [], payload: [] });
   });

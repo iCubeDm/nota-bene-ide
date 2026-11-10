@@ -13,6 +13,8 @@ type QueueOptions = {
   report: (where: string, e: unknown) => void;
   /** the user event is already out: answer it or the feed waits forever */
   fail: (e: unknown, id: string) => void;
+  /** a later text that did not come (a voice message not transcribed): settle the send without ending a turn, the getter told why */
+  drop: (id: string) => void;
 };
 
 /**
@@ -29,13 +31,25 @@ export class SendQueue {
   }
 
   /**
+   * `text`: a function for a text that comes later (a voice message's transcript), awaited in the chain.
    * `lead`: asked at the hand-over, right before the agent gets the text, for what goes in front of it (the `! cmd` runs since the
    * agent's last message); its `restore` is called when the hand-over throws, so nothing is lost with the failed send.
    */
-  push(m: { id: string; text: string; force?: boolean; images?: SendImage[]; lead?: (text: string) => { text: string; restore(): void } }): void {
+  push(m: { id: string; text: string | (() => Promise<string>); force?: boolean; images?: SendImage[]; lead?: (text: string) => { text: string; restore(): void } }): void {
     const { gen, agent, report } = this.o;
     const g = gen();
     this.chain = this.chain.then(async () => {
+      if (g !== gen()) return;
+      // a voice message's text is its transcript: the sends behind it wait for it, as they wait for a forced send's
+      // interrupt. Its failure is told by the getter (the voice-text event), not reported again, and ends no turn: the agent
+      // may be in one of its own.
+      let text: string;
+      try {
+        text = typeof m.text === 'string' ? m.text : await m.text();
+      } catch {
+        if (g === gen()) this.o.drop(m.id);
+        return;
+      }
       if (g !== gen()) return;
       try {
         // a stale interrupt rejection must neither toast nor start an agent; no-op when idle
@@ -51,9 +65,9 @@ export class SendQueue {
         if (g !== gen()) return;
         const a = agent();
         this.o.running(m.id);
-        const led = m.lead?.(m.text);
+        const led = m.lead?.(text);
         try {
-          a.send({ uuid: m.id, text: led?.text ?? m.text, priority: m.force ? 'now' : 'next', ...(m.images?.length ? { images: m.images } : {}) });
+          a.send({ uuid: m.id, text: led?.text ?? text, priority: m.force ? 'now' : 'next', ...(m.images?.length ? { images: m.images } : {}) });
         } catch (e) {
           led?.restore();
           throw e;

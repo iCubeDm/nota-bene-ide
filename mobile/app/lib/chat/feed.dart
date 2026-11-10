@@ -12,6 +12,7 @@ class UserItem extends FeedItem {
     this.duringWork = false,
     this.idle = false,
     this.images = const [],
+    this.voice,
   });
   final String id, text;
   final bool force, duringWork;
@@ -19,6 +20,18 @@ class UserItem extends FeedItem {
   /// the server's own /compact after a quiet stretch: shown as a line, not as the user's message
   final bool idle;
   final List<ImageRef> images;
+
+  /// A voice message: its recording. [text] is '' until the host has transcribed it (a replay of a resumed session
+  /// has the transcript there), then [voiceText] holds it, or [voiceError] says why there is none.
+  final Voice? voice;
+  String? voiceText;
+  VoiceError? voiceError;
+
+  /// What the message says: the typed text, or a voice message's transcript.
+  String get shownText => voiceText ?? text;
+
+  bool get transcribing =>
+      voice != null && shownText.isEmpty && voiceError == null;
 }
 
 class AssistantItem extends FeedItem {
@@ -172,6 +185,7 @@ class Feed {
         :final historic,
         :final images,
         :final idle,
+        :final voice,
       ):
         items.add(
           UserItem(
@@ -180,14 +194,25 @@ class Feed {
             force: force == true,
             idle: idle == true,
             images: images ?? const [],
+            voice: voice,
             duringWork: historic != true && busy,
           ),
         );
+        if (voice != null) _dropRetried();
         if (historic != true) {
           busy = true;
           waiting = [...waiting, id];
         }
         if (force == true) forcePending = true;
+      case ServerEventVoiceText(:final id, :final text, :final error):
+        final u = items
+            .whereType<UserItem>()
+            .where((i) => i.id == id)
+            .firstOrNull;
+        if (u == null) return;
+        u.voiceText = text;
+        u.voiceError = text == null ? error : null;
+        _dropRetried();
       case ServerEventShellStart(:final id, :final cmd):
         items.removeWhere((i) => i is ShellItem && i.id == id);
         items.add(ShellItem(id, cmd));
@@ -245,6 +270,19 @@ class Feed {
       default:
         break; // not feed items (controls, comments, stats, the one-tab rule, errors)
     }
+  }
+
+  /// A failed voice message goes from the feed once a later message carries the same recording (its Retry).
+  void _dropRetried() {
+    final later = <String>{};
+    final gone = <UserItem>{};
+    for (final i in items.reversed) {
+      final v = i is UserItem ? i.voice?.id : null;
+      if (v == null) continue;
+      if ((i as UserItem).voiceError != null && later.contains(v)) gone.add(i);
+      later.add(v);
+    }
+    if (gone.isNotEmpty) items.removeWhere(gone.contains);
   }
 
   /// Puts one `GET /history` page (archived segment [segment]) before the feed, as the desktop's prependHistory: an

@@ -266,20 +266,13 @@
   "videoPause": "Pause",
   "videoUnplayable": "The video could not be played. Try again when the host is online.",
   "frameFailed": "The frame could not be taken from the video. Try again.",
-  "dictate": "Dictate",
-  "dictateStop": "Stop dictation",
   "dictationDenied": "Microphone access is off for Nota Bene",
-  "dictationNoMatch": "Nothing was heard",
-  "dictationFailed": "Dictation failed",
-  "dictationTranscribing": "Transcribing…",
-  "dictationHostFailed": "The computer could not transcribe it",
   "voiceHold": "Hold to record",
   "voiceSlideCancel": "Slide to cancel",
   "voiceCancel": "Cancel",
   "voiceTranscribing": "Transcribing…",
   "voiceStop": "Stop",
   "dictationHostOff": "Whisper is off on the computer",
-  "dictationCut": "The rest of the recording was not transcribed",
   "expandCode": "Open full screen",
   "codeLines": "{count, plural, one{{count} line} other{{count} lines}}",
   "@codeLines": {
@@ -290,6 +283,7 @@
     }
   },
   "windowSheetMode": "Mode",
+  "windowSheetModel": "Model",
   "limitsTitle": "Plan limits",
   "limit5h": "5 hours",
   "limitWeek": "Week",
@@ -334,5 +328,55 @@
   "whisperOff": "Whisper is installed on the computer but turned off. The phone's microphone records, and Whisper transcribes on the computer.",
   "whisperTurnOn": "Turn on Whisper",
   "whisperReady": "Whisper is on: hold the mic to speak",
-  "whisperNoAnswer": "The computer did not answer"
+  "whisperNoAnswer": "The computer did not answer",
+  "voicePlay": "Play",
+  "voicePause": "Pause",
+  "voiceTranscript": "Transcript",
+  "voiceNothing": "Nothing was recognised",
+  "voiceCouldNot": "Could not transcribe",
+  "voiceSending": "Sending…",
+  "voiceSendFailed": "Could not send the recording",
+  "voiceHint": "Hold to record, release to send",
+  "voiceDelete": "Delete",
+  "voiceRecordFailed": "The recording failed",
+  "voiceLeaveTitle": "Send the voice message?",
+  "voiceLeaveBody": "The recording has not been sent yet.",
+  "fileBinary": "This is a binary file, {size}. The phone shows text files only.",
+  "@fileBinary": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "fileTooLargeSize": "The file is too large for the phone, {size} (the limit is 2 MB). Open it on the computer.",
+  "@fileTooLargeSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "folderNotFound": "This folder is not there (any more).",
+  "tabFiles": "Files",
+  "tabChat": "Chat",
+  "tabComments": "Comments",
+  "thisSession": "This session",
+  "showAll": "Show all ({count})",
+  "@showAll": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "projectFolder": "Project",
+  "searchFiles": "Search files",
+  "noMatches": "Nothing found.",
+  "emptyFolder": "This folder is empty.",
+  "folderUp": "Up one folder",
+  "noCommentsYet": "No comments yet. Select text in the chat or in a file and press Comment.",
+  "sentComments": "Sent",
+  "tabLog": "Log",
+  "voiceFinishFirst": "Finish or delete the voice message first."
 }

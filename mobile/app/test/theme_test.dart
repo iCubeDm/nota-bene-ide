@@ -144,4 +144,33 @@ void main() {
       expect(t.scaffoldBackgroundColor, theme.colors.background);
     }
   });
+
+  test(
+    'the agent bubble stands apart from the page, the user bubble and code in every theme',
+    () {
+      int gap(Color a, Color b) => [
+        ((a.r - b.r).abs() * 255).round(),
+        ((a.g - b.g).abs() * 255).round(),
+        ((a.b - b.b).abs() * 255).round(),
+      ].reduce(math.max);
+      for (final theme in NbTheme.values) {
+        final c = theme.colors;
+        expect(
+          gap(c.agentBubble, c.background),
+          greaterThanOrEqualTo(12),
+          reason: theme.id,
+        );
+        expect(
+          gap(c.agentBubble, c.codeBg),
+          greaterThanOrEqualTo(6),
+          reason: theme.id,
+        );
+        expect(
+          gap(c.agentBubble, c.userBubble),
+          greaterThanOrEqualTo(12),
+          reason: theme.id,
+        );
+      }
+    },
+  );
 }

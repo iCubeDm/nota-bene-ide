@@ -88,3 +88,28 @@ it('a page place is quoted as its trail, the area and what it covers, then its e
   ].join('\n'));
   expect(composeBatch('', [page()], 'ru', none, fileWhere, () => undefined)).toContain('> h2 «Map» › svg#map «Town»\n> элемент: body>:nth-child(6)\n→ add a road');
 });
+
+const clip = (text: string, n = 1) => ({ id: String(n).repeat(64), ms: 1000 * n, wave: new Array<number>(48).fill(n), text });
+
+it('the clips\' texts follow the typed text, each on its own line, in order', () => {
+  const x = { ...c('a', 'q', 'typed'), voice: [clip('first clip', 1), clip('second\nclip', 2)] };
+  const out = composeBatch('', [x], 'en', none, where, () => undefined);
+  expect(out).toContain('→ typed\n   first clip\n   second clip');
+});
+
+it('a comment of clips only composes: the first clip is on the arrow line', () => {
+  const x = { ...c('a', 'q', ''), voice: [clip('one', 1), clip('two', 2)] };
+  expect(composeBatch('', [x], 'en', none, where, () => undefined)).toContain('→ one\n   two');
+});
+
+it('clips follow the label and typed text, and come before the instruction and the image line', () => {
+  const x = { ...c('a', 'q', 'why', 'verify'), voice: [clip('and this', 1)] };
+  const out = composeBatch('', [x], 'en', () => '🔍 verify', where, () => 'Check this.', [[2]]);
+  expect(out).toContain('→ 🔍 verify why\n   and this\n   Check this.\n📎 images: 2');
+});
+
+it('a clip with no text (a failed transcript that was kept) adds nothing', () => {
+  const x = { ...c('a', 'q', 'typed'), voice: [clip('', 1)] };
+  expect(composeBatch('', [x], 'en', none, where, () => undefined)).toContain('→ typed');
+  expect(composeBatch('', [x], 'en', none, where, () => undefined)).not.toContain('typed\n');
+});

@@ -42,6 +42,21 @@ String webString(String key, String lang) {
   return m[lang] ?? m['en']!;
 }
 
+/// A counted string of the web ("3 comments") in [lang] for [n], by the language's plural rule.
+String webCount(String key, String lang, int n) {
+  final byLang = ((_data['counted'] as Map)[key] as Map)
+      .cast<String, Object?>();
+  final m = (byLang[lang] ?? byLang['en']!) as Map;
+  final form = lang == 'ru'
+      ? (n % 10 == 1 && n % 100 != 11
+            ? 'f1'
+            : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)
+                  ? 'f2'
+                  : 'f5'))
+      : (n == 1 ? 'f1' : 'f2');
+  return _fill(m[form] as String, [n]);
+}
+
 /// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').
 String batchTemplate(String key, String lang, List<Object> args) =>
     _fill(batchString(key, lang), args);
@@ -952,6 +967,176 @@ const _json = r'''
    "es": "Reintentar",
    "pt": "Tentar de novo",
    "de": "Erneut versuchen"
+  },
+  "commentsLc": {
+   "en": "comments",
+   "ru": "комментарии",
+   "zh": "评论",
+   "es": "comentarios",
+   "pt": "comentários",
+   "de": "Kommentare"
+  },
+  "ctx": {
+   "en": "context",
+   "ru": "контекст",
+   "zh": "上下文",
+   "es": "contexto",
+   "pt": "contexto",
+   "de": "Kontext"
+  },
+  "vcsChanges": {
+   "en": "Changes",
+   "ru": "Изменения",
+   "zh": "更改",
+   "es": "Cambios",
+   "pt": "Alterações",
+   "de": "Änderungen"
+  },
+  "vcsNoChanges": {
+   "en": "No changes",
+   "ru": "Изменений нет",
+   "zh": "没有更改",
+   "es": "Sin cambios",
+   "pt": "Sem alterações",
+   "de": "Keine Änderungen"
+  },
+  "vcsNoCommits": {
+   "en": "No commits yet",
+   "ru": "Коммитов пока нет",
+   "zh": "还没有提交",
+   "es": "Aún no hay commits",
+   "pt": "Ainda não há commits",
+   "de": "Noch keine Commits"
+  },
+  "vcsEmptyFile": {
+   "en": "Empty file",
+   "ru": "Пустой файл",
+   "zh": "空文件",
+   "es": "Archivo vacío",
+   "pt": "Arquivo vazio",
+   "de": "Leere Datei"
+  },
+  "vcsOnlyMeta": {
+   "en": "Only the mode or the name changed",
+   "ru": "Изменились только права или имя",
+   "zh": "只更改了权限或名称",
+   "es": "Solo cambiaron los permisos o el nombre",
+   "pt": "Só as permissões ou o nome mudaram",
+   "de": "Nur Rechte oder Name wurden geändert"
+  },
+  "vcsTooBig": {
+   "en": "This file is too large: only its start is shown",
+   "ru": "Файл слишком большой: показано только начало",
+   "zh": "文件太大：只显示开头部分",
+   "es": "El archivo es demasiado grande: solo se muestra el principio",
+   "pt": "O arquivo é grande demais: só o início é mostrado",
+   "de": "Die Datei ist zu groß: Nur der Anfang wird angezeigt"
+  },
+  "vcsShowAnyway": {
+   "en": "Show",
+   "ru": "Показать",
+   "zh": "显示",
+   "es": "Mostrar",
+   "pt": "Mostrar",
+   "de": "Anzeigen"
+  },
+  "vcsNoRepo": {
+   "en": "There is no git repository here",
+   "ru": "Здесь нет git-репозитория",
+   "zh": "这里没有 git 仓库",
+   "es": "Aquí no hay repositorio git",
+   "pt": "Não há repositório git aqui",
+   "de": "Hier gibt es kein Git-Repository"
+  },
+  "vcsFailed": {
+   "en": "Git did not answer. The last result stays on screen.",
+   "ru": "Git не ответил. На экране последний результат.",
+   "zh": "Git 没有响应。屏幕上是上一次的结果。",
+   "es": "Git no respondió. Se mantiene el último resultado.",
+   "pt": "O Git não respondeu. O último resultado continua na tela.",
+   "de": "Git hat nicht geantwortet. Das letzte Ergebnis bleibt sichtbar."
+  },
+  "vcsAllBranches": {
+   "en": "All branches",
+   "ru": "Все ветки",
+   "zh": "所有分支",
+   "es": "Todas las ramas",
+   "pt": "Todos os branches",
+   "de": "Alle Branches"
+  },
+  "binary": {
+   "en": "Binary file, not shown",
+   "ru": "Бинарный файл, не показан",
+   "zh": "二进制文件，不显示",
+   "es": "Archivo binario, no se muestra",
+   "pt": "Arquivo binário, não exibido",
+   "de": "Binärdatei, nicht angezeigt"
+  }
+ },
+ "counted": {
+  "nComments": {
+   "en": {
+    "f1": "{0} comment",
+    "f2": "{0} comments",
+    "f5": "{0} comments"
+   },
+   "ru": {
+    "f1": "{0} комментарий",
+    "f2": "{0} комментария",
+    "f5": "{0} комментариев"
+   },
+   "zh": {
+    "f1": "{0} 条评论",
+    "f2": "{0} 条评论",
+    "f5": "{0} 条评论"
+   },
+   "es": {
+    "f1": "{0} comentario",
+    "f2": "{0} comentarios",
+    "f5": "{0} comentarios"
+   },
+   "pt": {
+    "f1": "{0} comentário",
+    "f2": "{0} comentários",
+    "f5": "{0} comentários"
+   },
+   "de": {
+    "f1": "{0} Kommentar",
+    "f2": "{0} Kommentare",
+    "f5": "{0} Kommentare"
+   }
+  },
+  "markShapes": {
+   "en": {
+    "f1": "{0} shape",
+    "f2": "{0} shapes",
+    "f5": "{0} shapes"
+   },
+   "ru": {
+    "f1": "фигур: {0}",
+    "f2": "фигур: {0}",
+    "f5": "фигур: {0}"
+   },
+   "zh": {
+    "f1": "{0} 个形状",
+    "f2": "{0} 个形状",
+    "f5": "{0} 个形状"
+   },
+   "es": {
+    "f1": "{0} forma",
+    "f2": "{0} formas",
+    "f5": "{0} formas"
+   },
+   "pt": {
+    "f1": "{0} forma",
+    "f2": "{0} formas",
+    "f5": "{0} formas"
+   },
+   "de": {
+    "f1": "{0} Form",
+    "f2": "{0} Formen",
+    "f5": "{0} Formen"
+   }
   }
  },
  "batch": {
@@ -1052,12 +1237,44 @@ const _json = r'''
    "de": "{0} · Subagent «{1}»"
   },
   "dictInstallQ": {
-   "en": "Download Whisper (≈ {0} MB, ≈ {1} MB on disk) from npm and Hugging Face into {2}? Speech is then transcribed on this computer; recordings reach it end-to-end encrypted and are not stored.",
-   "ru": "Скачать Whisper (≈ {0} МБ, ≈ {1} МБ на диске) из npm и Hugging Face в {2}? Дальше речь распознаётся на этом компьютере; записи приходят к нему со сквозным шифрованием и не сохраняются.",
-   "zh": "从 npm 和 Hugging Face 将 Whisper（约 {0} MB，磁盘约 {1} MB）下载到 {2}？之后语音将在这台电脑上转写；录音以端到端加密方式传到这台电脑，且不会被保存。",
-   "es": "¿Descargar Whisper (≈ {0} MB, ≈ {1} MB en disco) desde npm y Hugging Face en {2}? Después, el habla se transcribe en este equipo; las grabaciones le llegan cifradas de extremo a extremo y no se guardan.",
-   "pt": "Baixar o Whisper (≈ {0} MB, ≈ {1} MB em disco) do npm e do Hugging Face para {2}? Depois, a fala é transcrita neste computador; as gravações chegam a ele com criptografia de ponta a ponta e não são armazenadas.",
-   "de": "Whisper (≈ {0} MB, ≈ {1} MB auf der Platte) von npm und Hugging Face nach {2} herunterladen? Die Sprache wird danach auf diesem Computer transkribiert; Aufnahmen erreichen ihn Ende-zu-Ende-verschlüsselt und werden nicht gespeichert."
+   "en": "Download Whisper (≈ {0} MB, ≈ {1} MB on disk) from npm and Hugging Face into {2}? Speech is then transcribed on this computer; recordings reach it end-to-end encrypted, and the audio of voice messages is kept beside the attachments.",
+   "ru": "Скачать Whisper (≈ {0} МБ, ≈ {1} МБ на диске) из npm и Hugging Face в {2}? Дальше речь распознаётся на этом компьютере; записи приходят к нему со сквозным шифрованием, а звук голосовых сообщений хранится рядом с вложениями.",
+   "zh": "从 npm 和 Hugging Face 将 Whisper（约 {0} MB，磁盘约 {1} MB）下载到 {2}？之后语音将在这台电脑上转写；录音以端到端加密方式传到这台电脑，语音消息的音频会与附件一起保存。",
+   "es": "¿Descargar Whisper (≈ {0} MB, ≈ {1} MB en disco) desde npm y Hugging Face en {2}? Después, el habla se transcribe en este equipo; las grabaciones le llegan cifradas de extremo a extremo y el audio de los mensajes de voz se guarda junto a los adjuntos.",
+   "pt": "Baixar o Whisper (≈ {0} MB, ≈ {1} MB em disco) do npm e do Hugging Face para {2}? Depois, a fala é transcrita neste computador; as gravações chegam a ele com criptografia de ponta a ponta e o áudio das mensagens de voz fica guardado junto com os anexos.",
+   "de": "Whisper (≈ {0} MB, ≈ {1} MB auf der Platte) von npm und Hugging Face nach {2} herunterladen? Die Sprache wird danach auf diesem Computer transkribiert; Aufnahmen erreichen ihn Ende-zu-Ende-verschlüsselt und der Ton von Sprachnachrichten wird neben den Anhängen aufbewahrt."
+  },
+  "vcsBigDiff": {
+   "en": "Large diff: {0} lines.",
+   "ru": "Большой дифф: {0} строк.",
+   "zh": "差异很大：{0} 行。",
+   "es": "Diff grande: {0} líneas.",
+   "pt": "Diff grande: {0} linhas.",
+   "de": "Großer Diff: {0} Zeilen."
+  },
+  "vcsAgainst": {
+   "en": "against {0}",
+   "ru": "относительно {0}",
+   "zh": "相对于 {0}",
+   "es": "respecto a {0}",
+   "pt": "em relação a {0}",
+   "de": "gegenüber {0}"
+  },
+  "vcsOnlyUncommitted": {
+   "en": "{0} · uncommitted only",
+   "ru": "{0} · только незакоммиченное",
+   "zh": "{0} · 仅未提交",
+   "es": "{0} · solo sin confirmar",
+   "pt": "{0} · só não confirmado",
+   "de": "{0} · nur nicht Committetes"
+  },
+  "vcsLogCut": {
+   "en": "The latest {0} commits are shown",
+   "ru": "Показаны последние {0} коммитов",
+   "zh": "显示最近 {0} 个提交",
+   "es": "Se muestran los últimos {0} commits",
+   "pt": "Os últimos {0} commits são mostrados",
+   "de": "Die letzten {0} Commits werden angezeigt"
   },
   "srcToolBare": {
    "en": "{0} command",

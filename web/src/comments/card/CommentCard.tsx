@@ -8,6 +8,7 @@ import { Markdown } from '@/feed/Markdown.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { ClipRow } from '@/voice/ClipRow.tsx';
 import { CardActions } from './CardActions.tsx';
 import { useCommentSource } from './useCommentSource.ts';
 import { labelText, QUICK_LABELS } from '../labels.ts';
@@ -114,6 +115,7 @@ export function CommentCard({ id, index, popover = false }: { id: string; index:
         {/* editing shows the raw markdown source as plain text; otherwise it is rendered (not final: no refs, no mermaid) */}
         {editing ? c.text : <Markdown text={c.text} final={false} breaks noHtml />}
       </div>
+      {c.voice?.length ? <div className="mt-1.5 flex flex-col gap-1">{c.voice.map((v) => <ClipRow key={v.id} voice={v} text={v.text} />)}</div> : null}
       {strip?.length ? <Attachments ids={strip} /> : null}
       {label && (
         <Tooltip>

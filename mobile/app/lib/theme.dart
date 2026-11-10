@@ -241,6 +241,15 @@ class NbColors extends ThemeExtension<NbColors> {
   @override
   NbColors copyWith() => this;
 
+  /// The user's bubble: the primary colour over the background.
+  Color get userBubble =>
+      Color.alphaBlend(primary.withValues(alpha: .28), background);
+
+  /// The agent's bubble: the text colour faintly over the background, so that it lifts off the page in every theme and
+  /// stays apart from the user's bubble and from a code block ([codeBg]).
+  Color get agentBubble =>
+      Color.alphaBlend(foreground.withValues(alpha: .14), background);
+
   @override
   NbColors lerp(ThemeExtension<NbColors>? other, double t) => this;
 }

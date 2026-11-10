@@ -1,10 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
-import { isMediaAnchor, isPageAnchor, type Anchor, type QuickLabelId } from '@nota-bene/shared';
+import { isMediaAnchor, isPageAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
 import { pageQuote } from '@/page/quote.ts';
-import { selectSwitching } from '@/controls/slice.ts';
+import { selectCapabilities, selectSwitching } from '@/controls/slice.ts';
+import { ClipRow } from '@/voice/ClipRow.tsx';
+import { whisperLang } from '@/voice/lang.ts';
+import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
+import { RecordBar } from '@/voice/RecordBar.tsx';
+import { transcribeVoice } from '@/voice/upload.ts';
+import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
 import { useAppDispatch, useAppSelector, type RootState } from '@/store/store.ts';
 import { toast } from '@/shell/toast.ts';
 import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip.tsx';
@@ -13,6 +19,7 @@ import { LabelTip } from './LabelTip.tsx';
 import { EmojiMenu } from './EmojiMenu.tsx';
 import { MentionPicker } from '@/composer/MentionPicker.tsx';
 import { ShortcodePicker } from './ShortcodePicker.tsx';
+import { release } from '@/voice/player.ts';
 import { Attachments } from '@/attachments/Attachments.tsx';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import type { ImageEntry } from '@/composer/slice.ts';
@@ -31,6 +38,9 @@ export type PendingComment = {
   anchor: Anchor; rect: DOMRect; text?: string;
   id?: string; prepare?: () => Promise<{ images: string[]; anchor?: MediaAnchorPatch }>;
 };
+
+/** A recording in the editor: its text once transcribed, or why there is none */
+type Clip = { voice: Voice; text?: string; error?: VoiceError };
 
 const baseName = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 
@@ -95,15 +105,43 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     onUploaded: (im) => setImages((l) => (l.some((x) => x.id === im.id) ? l : [...l, im])),
     notify,
   });
+  // voice clips: each is uploaded when recording stops, then transcribed; Add waits for every transcript
+  const [clips, setClips] = useState<Clip[]>([]);
+  const caps = useAppSelector(selectCapabilities);
+  const whisper = caps.dictation === 'whisper';
+  const patchClip = (id: string, p: Partial<Clip>) => setClips((l) => l.map((c) => (c.voice.id === id ? { ...c, ...p } : c)));
+  const transcribe = (id: string) => {
+    patchClip(id, { text: undefined, error: undefined });
+    void transcribeVoice(id, whisperLang()).then((r) => patchClip(id, 'text' in r ? { text: r.text } : { error: r.error }));
+  };
+  const rec = useVoiceRecorder({
+    preview: false,
+    notify,
+    onDone: (v) => {
+      if (clips.some((c) => c.voice.id === v.id)) return; // the same recording twice is one clip (the host keys it by content)
+      setClips((l) => [...l, { voice: v }]);
+      transcribe(v.id);
+    },
+  });
+  // the mic without Whisper asks to set it up, in a prompt anchored to the mic
+  const [setup, setSetup] = useState(false);
+  const setupRef = useRef(setup);
+  setupRef.current = setup;
+  const micAnchor = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (whisper) setSetup(false); }, [whisper]);
+  const recording = rec.st.phase !== 'idle';
+  const recRef = useRef(rec);
+  recRef.current = rec;
+  const waiting = clips.some((c) => c.text === undefined); // transcribing, or failed and neither retried nor deleted
   useEffect(() => () => clearTimeout(noteTimer.current), []);
   const uploading = intake.pending.length > 0;
 
   const add = async (label?: QuickLabelId) => {
-    if (uploading || switching || busyNow.current) return;
+    if (uploading || switching || busyNow.current || waiting || recording) return;
     const body = text.trim();
     const { prepare, id } = pending;
     // a drawing is content of its own: no text and no label is still a comment
-    const has = !!(prepare || body || label || images.length);
+    const has = !!(prepare || body || label || images.length || clips.length);
     let prepared: string[] = [];
     let anchor = pending.anchor;
     if (prepare) {
@@ -129,7 +167,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     }
     if (prepare) setBusy(false); // the save is over (the parent stops holding the popup)
     const all = [...prepared, ...images.map((i) => i.id)];
-    if (has) dispatch(addComment({ ...(id && { id }), anchor, text: body, ...(label && { label }), ...(all.length && { images: all }), ...(prepared.length && { genImages: prepared.length }) }));
+    if (has) dispatch(addComment({ ...(id && { id }), anchor, text: body, ...(label && { label }), ...(all.length && { images: all }), ...(clips.length && { voice: clips.map((c) => ({ ...c.voice, text: c.text! })) }), ...(prepared.length && { genImages: prepared.length }) }));
     // the user has moved on (the tab closed or in the background): their selection and the panel are not ours to touch
     const seen = alive.current && !hiddenNow.current;
     if (seen) { window.getSelection()?.removeAllRanges(); clearPageSelections(); }
@@ -137,7 +175,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     onClose();
     if (has && seen) dispatch(setPanelOpen(true));
   };
-  const off = uploading || switching || busy;
+  const off = uploading || switching || busy || waiting || recording;
 
   // focus once positioned: a `visibility:hidden` textarea (before the layout effect sets pos) cannot take focus
   const placed = pos !== null;
@@ -154,13 +192,15 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     // while a drawing is being saved, neither cancels: the save finishes and adds the comment
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (recRef.current.st.phase !== 'idle') return; // the recording bar takes this Esc: it drops the recording, not the comment
+      if (setupRef.current) return; // the Whisper prompt takes it: it closes, the comment stays
       e.preventDefault();
       if (!busyNow.current) onClose();
     };
     const onDown = (e: MouseEvent) => {
       if (busyNow.current) return;
       // the lightbox is portalled out of the popup: a click there is not an outside click
-      if (!root.current?.contains(e.target as Node) && !(e.target as Element).closest?.('[data-lightbox]')) onClose();
+      if (!root.current?.contains(e.target as Node) && !(e.target as Element).closest?.('[data-lightbox], [data-whisper-prompt]')) onClose();
     };
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('mousedown', onDown);
@@ -203,6 +243,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   return (
     <div
       ref={root}
+      data-record-scope
       role="dialog"
       className="fixed z-10 w-[340px] rounded-[10px] border border-border bg-popover p-2 data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary shadow-[0_10px_32px_color-mix(in_oklch,var(--shade)_50%,transparent)]"
       data-dropping={dropping || undefined}
@@ -240,6 +281,18 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         pending={intake.pending}
         onRemove={(id) => setImages((l) => l.filter((x) => x.id !== id))}
       />
+      {clips.length > 0 && (
+        <div data-testid="popup-clips" className="mt-1.5 flex flex-col gap-1">
+          {clips.map((c) => (
+            <ClipRow key={c.voice.id} voice={c.voice} text={c.text} error={c.error} onRetry={() => transcribe(c.voice.id)} onDelete={() => { release(c.voice.id); setClips((l) => l.filter((x) => x !== c)); }} />
+          ))}
+        </div>
+      )}
+      {recording && (
+        <div className="mt-1.5 flex">
+          <RecordBar clip state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} onCancel={rec.cancel} onSend={() => void rec.send()} />
+        </div>
+      )}
       {note && <div className="mt-1 text-[0.6875rem] text-warn">{note}</div>}
       <ShortcodePicker target={area} />
       <MentionPicker target={area} />
@@ -287,9 +340,24 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           >
             📎
           </button>
+          {protocol >= 14 && (
+            <button
+              type="button"
+              ref={micAnchor}
+              data-testid="popup-mic"
+              title={!whisper ? t('voiceMicSetup') : clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
+              aria-label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}
+              disabled={switching || recording || (whisper && clips.length >= VOICE_MAX_CLIPS)}
+              onClick={() => (whisper ? rec.start(false) : setSetup((o) => !o))}
+              className="rounded px-1 text-sm hover:bg-muted disabled:opacity-40"
+            >
+              🎤
+            </button>
+          )}
+          {protocol >= 14 && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micAnchor} />}
           <span data-slot="emoji"><EmojiMenu target={area} /></span>
-          <Button size="xs" disabled={off} aria-busy={busy || undefined} title={switching ? t('switching') : undefined} onClick={() => void add()}>
-            {busy && <span aria-hidden className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+          <Button size="xs" disabled={off} aria-busy={busy || waiting || undefined} title={switching ? t('switching') : waiting ? t('voiceClipsWait') : undefined} onClick={() => void add()}>
+            {(busy || waiting) && <span aria-hidden className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
             {t('add')}
           </Button>
         </span>

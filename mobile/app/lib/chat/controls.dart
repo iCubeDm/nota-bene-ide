@@ -14,8 +14,11 @@ bool modelSwitchable(WindowTab tab) =>
     tab.models.isNotEmpty;
 
 class AgentMenu extends StatelessWidget {
-  const AgentMenu({super.key, required this.tab});
+  const AgentMenu({super.key, required this.tab, this.onFiles});
   final WindowTab tab;
+
+  /// Files: switches to the Files pane; without it the menu opens the session's files in a sheet.
+  final VoidCallback? onFiles;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +35,11 @@ class AgentMenu extends StatelessWidget {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       enabled: tab.state == TabState.open,
-      onSelected: (v) => v == 'files' ? showFiles(context, tab) : null,
+      onSelected: (v) {
+        if (v != 'files') return;
+        final go = onFiles;
+        go != null ? go() : showFiles(context, tab);
+      },
       itemBuilder: (_) => [
         PopupMenuItem<Object?>(value: 'files', child: Text(t.files)),
       ],

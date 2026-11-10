@@ -10,10 +10,12 @@ import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_channel/nb_channel.dart';
 
 import 'fakes.dart';
 import 'mermaid_fake.dart';
+import 'voice_fakes.dart';
 
 /// A chat on a fake host: [ch] plays the window, [tab] is the phone's tab of it.
 class Rig {
@@ -27,7 +29,13 @@ class Rig {
     Map<String, Object?>? hello,
     Seen? seen,
     HostWindow? win,
+    // false when something on screen animates for good (a pulsing dot)
+    bool settle = true,
+    // the same app run: the voice outboxes keep what they have
+    bool keepStore = false,
   }) async {
+    // the voice outboxes are the app's: each test starts with an empty disk
+    if (!keepStore) VoiceStore.instance = VoiceStore(MemoryOutFiles());
     final f = FakeFactory();
     ch = FakeChannel([win ?? window(4791, '/home/u/notes')]);
     f.results.add(ch);
@@ -61,7 +69,11 @@ class Rig {
     await t.pump();
     event(hello ?? {'kind': 'hello', 'protocol': 13, 'capabilities': caps()});
     event({'kind': 'replay', 'events': events});
-    await t.pumpAndSettle();
+    if (settle) {
+      await t.pumpAndSettle();
+    } else {
+      await t.pump(const Duration(milliseconds: 100));
+    }
   }
 
   static Map<String, Object?> caps({

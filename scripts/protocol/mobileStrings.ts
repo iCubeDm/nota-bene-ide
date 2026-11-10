@@ -27,7 +27,27 @@ export const WEB_KEYS: readonly string[] = [
   'modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip', 'clearFail', 'working', 'offline',
   'srcMine', 'replyPlain',
   'dictInstallGo', 'dictInstalling', 'dictFailed', 'dictRetry',
+  // the sent comments under a message, and the header's context
+  'commentsLc', 'ctx',
+  // the git views' words
+  'vcsChanges', 'vcsNoChanges', 'vcsNoCommits', 'vcsEmptyFile', 'vcsOnlyMeta', 'vcsTooBig', 'vcsShowAnyway', 'vcsNoRepo',
+  'vcsFailed', 'vcsAllBranches', 'binary',
 ];
+/**
+ * Web strings that count (`nComments(n)`): kept as the forms of 1, 2 and 5 with the number as `{0}`, which
+ * `webCount` picks from by the language's plural rule (Russian has three forms, the others two).
+ */
+const COUNT_KEYS = ['nComments', 'markShapes'] as const;
+const counted = (d: Record<string, unknown>, key: string): Record<string, string> => {
+  const f = d[key];
+  if (typeof f !== 'function') throw new Error(`web i18n: ${key} is not a function`);
+  const form = (n: number): string => {
+    const out = (f as (n: number) => unknown)(n);
+    if (typeof out !== 'string' || !out.includes(String(n))) throw new Error(`web i18n: ${key} does not count`);
+    return out.replace(String(n), '{0}');
+  };
+  return { f1: form(1), f2: form(2), f5: form(5) };
+};
 /**
  * The batch's functions, as templates: each is called with the placeholders `{0}`, `{1}` for its arguments (a list
  * argument as a one-item list: every one of them joins its list with ', ', which the phone does before filling it in).
@@ -38,6 +58,8 @@ const TEMPLATE_KEYS: Record<string, ('n' | 'list')[]> = {
   srcTool: ['n', 'n'], srcAgentReply: ['n'], srcAgentTool: ['n', 'n'],
   // the mic's Whisper sheet (Settings → Dictation's question): sizes and the folder
   dictInstallQ: ['n', 'n', 'n'],
+  // the git views: a large diff, the base line of the changes
+  vcsBigDiff: ['n'], vcsAgainst: ['n'], vcsOnlyUncommitted: ['n'], vcsLogCut: ['n'],
 };
 /**
  * The forms of the source names that drop a part when it is empty (a tool with no argument, a subagent with no name),
@@ -85,6 +107,7 @@ export function mobileStrings(): string {
       return [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, arity ? template(d, k, Array(arity).fill('n')) : text(d, k)]))];
     })),
     web: Object.fromEntries(WEB_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))])),
+    counted: Object.fromEntries(COUNT_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, counted(d, k)]))])),
     batch: Object.fromEntries([
       ...BATCH_KEYS.map((k) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, text(d, k)]))]),
       ...Object.entries(TEMPLATE_KEYS).map(([k, kinds]) => [k, Object.fromEntries(DICTS.map(([lang, d]) => [lang, template(d, k, kinds)]))]),
@@ -135,6 +158,21 @@ String batchString(String key, String lang) {
 String webString(String key, String lang) {
   final m = ((_data['web'] as Map)[key] as Map).cast<String, String>();
   return m[lang] ?? m['en']!;
+}
+
+/// A counted string of the web ("3 comments") in [lang] for [n], by the language's plural rule.
+String webCount(String key, String lang, int n) {
+  final byLang = ((_data['counted'] as Map)[key] as Map)
+      .cast<String, Object?>();
+  final m = (byLang[lang] ?? byLang['en']!) as Map;
+  final form = lang == 'ru'
+      ? (n % 10 == 1 && n % 100 != 11
+            ? 'f1'
+            : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)
+                  ? 'f2'
+                  : 'f5'))
+      : (n == 1 ? 'f1' : 'f2');
+  return _fill(m[form] as String, [n]);
 }
 
 /// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').

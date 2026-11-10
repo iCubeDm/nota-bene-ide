@@ -147,6 +147,7 @@ class _FileScreenState extends State<FileScreen> {
       makeAnchor(AnchorSourceFile(path: widget.path), r.text, at.start, at.end),
       res.text,
       res.label,
+      voice: res.voice,
     );
   }
 
@@ -161,8 +162,8 @@ class _FileScreenState extends State<FileScreen> {
       tab: widget.tab,
     );
     switch (res) {
-      case SheetSave(:final text, :final label):
-        widget.tab.comments.edit(id, text, label);
+      case SheetSave(:final text, :final label, :final voice):
+        widget.tab.comments.edit(id, text, label, voice: voice);
       case SheetDelete():
         widget.tab.comments.remove(id);
       case null:

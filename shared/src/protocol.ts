@@ -75,6 +75,17 @@ export const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'
 export type ImageType = (typeof IMAGE_TYPES)[number];
 /** id = sha256 hex (64 chars) of the stored bytes */
 export type ImageRef = { id: string; mediaType: ImageType; label: string };
+/** A stored recording (POST /voice): id = sha256 hex of the WAV, ms = its length, wave = VOICE_BARS bars of 0..31 (loudest = 31). */
+export type Voice = { id: string; ms: number; wave: number[] };
+/** A recording of a comment with its transcript. */
+export type VoiceClip = Voice & { text: string };
+export const VOICE_BARS = 48;
+/** The recorders stop at 10 minutes; a little slack for the header and the stop's last buffer. */
+export const VOICE_MAX_MS = 602_000;
+export const VOICE_MAX_CLIPS = 10;
+export const VOICE_CLIP_TEXT_MAX = 20_000;
+/** Why a voice message has no transcript: Whisper went off, it heard nothing, or it failed. */
+export type VoiceError = 'off' | 'empty' | 'failed';
 export type TreeEntry = { name: string; dir: boolean };
 /**
  * Where files are read from (M3-16, read-only). Stable ids (persisted in tabs and tree state): 'here' (this window's
@@ -93,6 +104,8 @@ export type Comment = {
   images?: string[];
   /** media comments: how many leading `images` the app generated (the frame, plus the transparent layer in old comments); the rest were pasted. Absent = 2 (old comments). */
   genImages?: number;
+  /** protocol 14: recordings with their transcripts, at most VOICE_MAX_CLIPS; the batch carries their texts after `text` */
+  voice?: VoiceClip[];
 };
 
 /** The number of leading generated images of a comment (0 for a non-media one); the pasted ones follow. */
@@ -115,7 +128,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
  */
 // 12: provider modes/descriptors, structured interaction answers and variable-duration usage windows.
 // 13: page anchors (a comment on an element or an SVG area of an HTML page); an older server would refuse the comment.
-export const PROTOCOL = 13;
+// 14: voice messages (`send.voice` and `send.lang`, `user.voice`, the `voice-text` event, `/voice`) and voice clips of comments (`Comment.voice`).
+export const PROTOCOL = 14;
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
 export const TAKEN_OVER_CODE = 4001;
@@ -184,7 +198,8 @@ export type Interaction = {
 export type InteractionAnswer = { choice: string; values?: Record<string, string> };
 
 export type ClientMessage =
-  | { type: 'send'; id: string; text: string; force?: boolean; commentIds?: string[]; images?: ImageRef[] }
+  /** protocol 14: with `voice`, `text` is '' and there are no `images` or `commentIds`; `force` works as for text (the turn is interrupted once the transcript is in); the server transcribes it in `lang` (ISO 639) and the agent gets the text */
+  | { type: 'send'; id: string; text: string; force?: boolean; commentIds?: string[]; images?: ImageRef[]; voice?: Voice; lang?: string }
   /** full replacement of this session's comment set */
   | { type: 'comments'; sessionId: string | null; items: Comment[] }
   | { type: 'interrupt' }
@@ -232,7 +247,10 @@ export type ServerEvent =
   /** what the agent said (R-M7-14); `init` and `rate-limit` are server-internal and never sent */
   | { kind: 'agent'; e: WireAgentEvent; ts: number }
   /** `idle`: a `/compact` the server sent itself after the session sat idle */
-  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; historic?: boolean; images?: ImageRef[]; idle?: boolean }
+  /** `voice`: a voice message; its `text` is '' until the `voice-text` event (a replayed history has the transcript in it) */
+  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; historic?: boolean; images?: ImageRef[]; idle?: boolean; voice?: Voice }
+  /** protocol 14, stored: the transcript of the voice message `id`, or why there is none (then the agent got nothing) */
+  | { kind: 'voice-text'; id: string; text?: string; error?: VoiceError; ts: number }
   | { kind: 'permission'; id: string; toolName: string; input: Record<string, unknown>; prompt?: Interaction; ts: number }
   | { kind: 'permission-done'; id: string; allow: boolean; ts: number }
   /** full comment set; never stored in history, so no ts */
@@ -278,11 +296,30 @@ export type ShellStop = 'user' | 'timeout';
 type Obj = Record<string, unknown>;
 
 function isSend(o: Obj): o is Obj & ClientMessage {
-  return typeof o.id === 'string' && typeof o.text === 'string'
+  const plain = typeof o.id === 'string' && typeof o.text === 'string'
     && (o.force === undefined || typeof o.force === 'boolean')
     && (o.commentIds === undefined || isStringArray(o.commentIds))
     && (o.images === undefined || (Array.isArray(o.images) && o.images.every(isImageRef)));
+  if (!plain) return false;
+  if (o.voice === undefined) return o.lang === undefined;
+  // a voice message is only the voice
+  return isVoice(o.voice) && o.text === '' && o.images === undefined && o.commentIds === undefined
+    && typeof o.lang === 'string' && LANG.test(o.lang);
 }
+
+/** An ISO 639 language code, as Whisper takes it (en, ru, yue). */
+const LANG = /^[a-z]{2,3}$/;
+
+export function isVoice(v: unknown): v is Voice {
+  return isObj(v) && isImageId(v.id) && Number.isInteger(v.ms) && (v.ms as number) > 0 && (v.ms as number) <= VOICE_MAX_MS
+    && Array.isArray(v.wave) && v.wave.length === VOICE_BARS && v.wave.every((b) => Number.isInteger(b) && b >= 0 && b <= 31);
+}
+
+function isClip(v: unknown): v is VoiceClip {
+  return isVoice(v) && typeof (v as Obj).text === 'string' && ((v as Obj).text as string).length <= VOICE_CLIP_TEXT_MAX;
+}
+
+const toVoice = (v: Voice): Voice => ({ id: v.id, ms: v.ms, wave: [...v.wave] });
 
 const IMAGE_ID = /^[0-9a-f]{64}$/;
 
@@ -375,8 +412,10 @@ function isAnchor(v: unknown): v is Anchor {
 function isComment(v: unknown): v is Comment {
   if (!isObj(v) || typeof v.id !== 'string' || !isAnchor(v.anchor) || typeof v.text !== 'string') return false;
   const labelOk = v.label === undefined || (QUICK_LABEL_IDS as readonly unknown[]).includes(v.label);
-  // empty text is allowed only for a one-click quick label
-  const textOk = v.text !== '' || v.label !== undefined;
+  const voiceOk = v.voice === undefined || (Array.isArray(v.voice) && v.voice.length <= VOICE_MAX_CLIPS && v.voice.every(isClip));
+  // empty text is allowed only for a one-click quick label, or with recordings
+  const textOk = v.text !== '' || v.label !== undefined || (Array.isArray(v.voice) && v.voice.length > 0);
+  if (!voiceOk) return false;
   return labelOk && textOk && (v.status === 'pending' || v.status === 'sent') && isOffset(v.createdAt)
     && (v.sentIn === undefined || typeof v.sentIn === 'string')
     && (v.images === undefined || (Array.isArray(v.images) && v.images.every(isImageId)))
@@ -439,6 +478,7 @@ function toComment(c: Comment): Comment {
     ...(c.sentIn === undefined ? {} : { sentIn: c.sentIn }),
     ...(c.images === undefined ? {} : { images: [...c.images] }),
     ...(c.genImages === undefined ? {} : { genImages: c.genImages }),
+    ...(c.voice === undefined ? {} : { voice: c.voice.map((v) => ({ ...toVoice(v), text: v.text })) }),
   };
 }
 
@@ -457,12 +497,13 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
   const m = o as Obj;
   switch (m.type) {
     case 'send':
-      if (!isSend(m)) return { error: 'send needs string id, string text, optional boolean force and optional string[] commentIds and optional images: ImageRef[]' };
+      if (!isSend(m)) return { error: 'send needs string id, string text, optional boolean force and optional string[] commentIds and optional images: ImageRef[]; or a voice with lang, empty text and nothing else' };
       return {
         type: 'send', id: m.id as string, text: m.text as string,
         ...(m.force === undefined ? {} : { force: m.force as boolean }),
         ...(m.commentIds === undefined ? {} : { commentIds: m.commentIds as string[] }),
         ...(m.images === undefined ? {} : { images: (m.images as ImageRef[]).map(toImageRef) }),
+        ...(m.voice === undefined ? {} : { voice: toVoice(m.voice as Voice), lang: m.lang as string }),
       };
     case 'comments':
       if (m.sessionId !== null && typeof m.sessionId !== 'string') return { error: 'comments needs sessionId: string | null' };
