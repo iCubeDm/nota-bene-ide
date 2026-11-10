@@ -2,6 +2,7 @@
 // a tint, no scrim). Above it floats one bubble of the quick labels (the first five and a chevron that grows the same
 // bubble into all of them, named); below it a bar with Comment, Pin and Copy. A label makes a pending comment on the
 // paragraph (the comment model of a selection, so the Comments pane and sending are unchanged) with an Undo.
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -18,7 +19,7 @@ import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'feed.dart';
-import 'message_menu.dart' show cutQuote;
+import 'message_menu.dart' show barLabels, cutQuote;
 import 'window_tab.dart';
 
 const _bar = 48.0;
@@ -34,9 +35,6 @@ const _targetTags = {
 /// Whether top-level node [n] of a reply can be the target of a comment.
 bool isParagraphNode(md.Node n) =>
     n is md.Element && _targetTags.contains(n.tag);
-
-/// The labels the bubble shows before its chevron: the first five, as the web's bar.
-const _shown = 5;
 
 class _Para {
   _Para(this.ctx, this.item, this.block, this.text, this.start, this.end);
@@ -58,6 +56,8 @@ class ParagraphTargets extends ChangeNotifier {
 
   _Para? _sel;
   OverlayEntry? _entry;
+  late final _Back _back = _Back(clear);
+  ModalRoute<Object?>? _route;
 
   bool isTarget(String id, int block) =>
       _sel != null && _sel!.item.id == id && _sel!.block == block;
@@ -69,6 +69,8 @@ class ParagraphTargets extends ChangeNotifier {
     if (p == null) return;
     _drop();
     _sel = p;
+    // Android's Back clears the target before it leaves the chat, as it closes the message menu
+    _route = ModalRoute.of(ctx)?..registerPopEntry(_back);
     final overlay = Overlay.maybeOf(ctx);
     if (overlay != null) {
       _entry = OverlayEntry(builder: (_) => _Popup(targets: this));
@@ -92,6 +94,8 @@ class ParagraphTargets extends ChangeNotifier {
   }
 
   void _drop() {
+    _route?.unregisterPopEntry(_back);
+    _route = null;
     _entry?.remove();
     _entry?.dispose();
     _entry = null;
@@ -122,51 +126,78 @@ class ParagraphTargets extends ChangeNotifier {
     voice: voice,
   );
 
+  /// The target as the reply is now, not as it was when tapped (null: the reply is gone from the feed).
+  _Para? _fresh(_Para p) {
+    for (final it in tab.feed.items) {
+      if (it is AssistantItem && it.id == p.item.id) {
+        return p.ctx.mounted ? _para(p.ctx, it, p.block) : null;
+      }
+    }
+    return null;
+  }
+
+  /// A snackbar that goes after [seconds] and floats above the message field, not over it.
+  void _snack(BuildContext ctx, Widget content, {SnackBarAction? action}) {
+    final messenger = ScaffoldMessenger.maybeOf(ctx);
+    if (messenger == null) return;
+    var bottom = 8.0;
+    final scaffold = Scaffold.maybeOf(ctx)?.context.findRenderObject();
+    final view = Scrollable.maybeOf(ctx)?.context.findRenderObject();
+    if (scaffold is RenderBox && view is RenderBox && view.hasSize) {
+      final end = scaffold.localToGlobal(Offset.zero).dy + scaffold.size.height;
+      bottom = math.max(
+        8,
+        end - (view.localToGlobal(Offset.zero).dy + view.size.height) + 8,
+      );
+    }
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: content,
+        action: action,
+        persist: false,
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(8, 0, 8, bottom),
+      ),
+    );
+  }
+
   void _label(QuickLabel l) {
-    final p = _sel;
-    if (p == null || !p.ctx.mounted) return;
-    final messenger = ScaffoldMessenger.maybeOf(p.ctx);
+    final sel = _sel;
+    final p = sel == null ? null : _fresh(sel);
+    if (sel == null || p == null) return clear();
     final t = AppLocalizations.of(p.ctx);
     final lang = Localizations.localeOf(p.ctx).languageCode;
     final c = _add(p, l.id, '');
     clear();
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(t.paragraphLabelAdded('${l.emoji} ${l.textIn(lang)}')),
-        action: SnackBarAction(
-          label: t.markUndo,
-          onPressed: () => tab.comments.remove(c.id),
-        ),
+    _snack(
+      p.ctx,
+      Text(t.paragraphLabelAdded('${l.emoji} ${l.textIn(lang)}')),
+      action: SnackBarAction(
+        label: t.markUndo,
+        onPressed: () => tab.comments.remove(c.id),
       ),
     );
   }
 
   /// Comment opens the sheet with the paragraph as its quote. Also TalkBack's custom action.
   Future<void> comment(BuildContext ctx, AssistantItem item, int block) async {
-    final p = _para(ctx, item, block);
     clear();
-    if (p == null || !ctx.mounted) return;
+    if (!ctx.mounted) return;
+    final p = _fresh(_Para(ctx, item, block, '', 0, 0));
+    if (p == null) return;
     final res = await showCommentSheet(ctx, quote: cutQuote(p.quote), tab: tab);
     if (res is SheetSave) _add(p, res.label, res.text, voice: res.voice);
   }
 
   void _copy() {
-    final p = _sel;
-    if (p == null) return;
-    final messenger = p.ctx.mounted ? ScaffoldMessenger.maybeOf(p.ctx) : null;
-    final t = p.ctx.mounted ? AppLocalizations.of(p.ctx) : null;
-    Clipboard.setData(ClipboardData(text: p.quote));
+    final sel = _sel;
+    final p = sel == null ? null : _fresh(sel);
     clear();
-    if (t != null) {
-      messenger?.hideCurrentSnackBar();
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text(t.paragraphCopied),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
+    if (p == null) return;
+    Clipboard.setData(ClipboardData(text: p.quote));
+    _snack(p.ctx, Text(AppLocalizations.of(p.ctx).paragraphCopied));
   }
 }
 
@@ -182,7 +213,7 @@ class ParagraphHost extends InheritedWidget {
   bool updateShouldNotify(ParagraphHost old) => targets != old.targets;
 }
 
-/// A paragraph of a reply: a button for a tap and for TalkBack (Comment, Pin), painted as the target while it is one.
+/// A paragraph of a reply: a button for a tap and for TalkBack (Comment), painted as the target while it is one.
 class ParagraphBlock extends StatelessWidget {
   const ParagraphBlock({
     super.key,
@@ -205,46 +236,42 @@ class ParagraphBlock extends StatelessWidget {
       child: child,
       builder: (context, child) {
         final on = targets.isTarget(item.id, block);
-        // one node: the paragraph's text, a button, its tap and its custom actions
-        return MergeSemantics(
-          child: Semantics(
-            button: true,
-            selected: on,
-            customSemanticsActions: {
-              CustomSemanticsAction(label: t.comment): () =>
-                  targets.comment(context, item, block),
-              // pins come with their own feature; the action is there so the set does not change when they do
-              CustomSemanticsAction(label: t.paragraphPin): () {},
-            },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => targets.toggle(context, item, block),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  if (on) ...[
-                    // the bubble pads 12 each side: the tint reaches into it, the bar sits at its edge
-                    Positioned(
-                      key: ValueKey('para-target:${item.id}:$block'),
-                      left: -9,
-                      right: -9,
-                      top: -2,
-                      bottom: -2,
-                      child: ColoredBox(
-                        color: c.accent.withValues(alpha: 0.14),
-                      ),
-                    ),
-                    Positioned(
-                      left: -9,
-                      top: -2,
-                      bottom: -2,
-                      width: 3,
-                      child: ColoredBox(color: c.accent),
-                    ),
-                  ],
-                  child!,
+        // a button holding the paragraph's own nodes: links and comment badges stay reachable inside it. Pin joins
+        // the custom actions with pins (#181).
+        return Semantics(
+          container: true,
+          button: true,
+          selected: on,
+          customSemanticsActions: {
+            CustomSemanticsAction(label: t.comment): () =>
+                targets.comment(context, item, block),
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => targets.toggle(context, item, block),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                if (on) ...[
+                  // the bubble pads 12 each side: the tint reaches into it, the bar sits at its edge
+                  Positioned(
+                    key: ValueKey('para-target:${item.id}:$block'),
+                    left: -9,
+                    right: -9,
+                    top: -2,
+                    bottom: -2,
+                    child: ColoredBox(color: c.accent.withValues(alpha: 0.14)),
+                  ),
+                  Positioned(
+                    left: -9,
+                    top: -2,
+                    bottom: -2,
+                    width: 3,
+                    child: ColoredBox(color: c.accent),
+                  ),
                 ],
-              ),
+                child!,
+              ],
             ),
           ),
         );
@@ -265,6 +292,13 @@ class _PopupState extends State<_Popup> {
   bool _all = false;
   Rect? _para;
   Rect? _bounds;
+  double? _viewLeft;
+
+  static bool _finite(Rect r) =>
+      r.left.isFinite &&
+      r.top.isFinite &&
+      r.right.isFinite &&
+      r.bottom.isFinite;
 
   _Para get _p => widget.targets._sel!;
 
@@ -286,10 +320,14 @@ class _PopupState extends State<_Popup> {
     final box = ctx.mounted ? ctx.findRenderObject() : null;
     if (box is! RenderBox || !box.attached || !box.hasSize) return false;
     final para = box.localToGlobal(Offset.zero) & box.size;
+    final screen = Offset.zero & MediaQuery.sizeOf(context);
     final view = Scrollable.maybeOf(ctx)?.context.findRenderObject();
-    var bounds = Offset.zero & MediaQuery.sizeOf(context);
+    var bounds = screen;
     if (view is RenderBox && view.hasSize) {
       bounds = view.localToGlobal(Offset.zero) & view.size;
+      // the pane moves sideways under a swipe, and away when the page changes: the target does not go with it
+      final left = _viewLeft ??= bounds.left;
+      if ((bounds.left - left).abs() > 1) return false;
     }
     bounds = Rect.fromLTRB(
       bounds.left,
@@ -297,7 +335,11 @@ class _PopupState extends State<_Popup> {
       bounds.right,
       bounds.bottom,
     );
+    if (!_finite(para) || !_finite(bounds) || !bounds.overlaps(screen)) {
+      return false;
+    }
     if (para.bottom <= bounds.top || para.top >= bounds.bottom) return false;
+    if (para.right <= bounds.left || para.left >= bounds.right) return false;
     _para = para;
     _bounds = bounds;
     return true;
@@ -385,7 +427,7 @@ class _PopupState extends State<_Popup> {
         key: const ValueKey('para-labels'),
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final l in quickLabels.take(_shown))
+          for (final l in barLabels)
             Tooltip(
               message: l.textIn(lang),
               child: InkResponse(
@@ -560,4 +602,16 @@ class _Panel extends StatelessWidget {
     ),
     child: ClipRRect(borderRadius: BorderRadius.circular(24), child: child),
   );
+}
+
+class _Back extends PopEntry<Object?> {
+  _Back(this.clear);
+  final VoidCallback clear;
+  @override
+  final ValueNotifier<bool> canPopNotifier = ValueNotifier(false);
+  @override
+  void onPopInvokedWithResult(bool didPop, Object? result) {
+    // clearing unregisters this entry, which the route is iterating over
+    if (!didPop) scheduleMicrotask(clear);
+  }
 }

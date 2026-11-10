@@ -612,13 +612,16 @@ class FeedItemView extends StatelessWidget {
             inlineSyntaxes: userInlineSyntaxes,
             softLineBreak: true,
           )
-        : FileMarkdown(
-            text: text,
-            listenerAt: listenerAt,
-            marks: marks,
-            onMark: onMark,
-            parse: parseUserMessage,
-            softLineBreak: true,
+        // the bubble shrinks to its text here as it does with NbMarkdown: a press found in one is in the other
+        : IntrinsicWidth(
+            child: FileMarkdown(
+              text: text,
+              listenerAt: listenerAt,
+              marks: marks,
+              onMark: onMark,
+              parse: parseUserMessage,
+              softLineBreak: true,
+            ),
           );
     return switch (item) {
       UserItem(

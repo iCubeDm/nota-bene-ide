@@ -1,10 +1,13 @@
 import 'dart:ui' show SemanticsAction;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart' show CustomSemanticsAction;
+import 'package:flutter/semantics.dart'
+    show CustomSemanticsAction, SemanticsNode;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/chat/chat_header.dart';
 import 'package:nb_app/chat/markdown.dart' show launchLink;
+import 'package:nb_app/chat/message_menu.dart' show barLabels;
 import 'package:nb_app/comments/chat_anchor.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -55,14 +58,19 @@ void main() {
     expect(t.getRect(bar).top, greaterThanOrEqualTo(para.bottom));
     expect(t.getRect(bar).height, 48);
     // five quick labels and the chevron
-    for (final l in quickLabels.take(5)) {
+    for (final l in barLabels) {
       expect(
         find.descendant(of: bubble, matching: find.text(l.emoji)),
         findsOneWidget,
       );
     }
     expect(
-      find.descendant(of: bubble, matching: find.text(quickLabels[5].emoji)),
+      find.descendant(
+        of: bubble,
+        matching: find.text(
+          quickLabels.firstWhere((l) => !barLabels.contains(l)).emoji,
+        ),
+      ),
       findsNothing,
     );
     expect(more, findsOneWidget);
@@ -274,32 +282,61 @@ void main() {
     expect(find.text('Select text'), findsOneWidget);
   });
 
-  testWidgets('a paragraph is a button with Comment and Pin actions for '
-      'TalkBack', (t) async {
+  /// The semantics nodes under [n], [n] first.
+  Iterable<SemanticsNode> walk(SemanticsNode n) sync* {
+    yield n;
+    final kids = <SemanticsNode>[];
+    n.visitChildren((k) {
+      kids.add(k);
+      return true;
+    });
+    for (final k in kids) {
+      yield* walk(k);
+    }
+  }
+
+  testWidgets('a paragraph is a button with a Comment action for TalkBack; '
+      'its link stays a node of its own', (t) async {
     final h = t.ensureSemantics();
-    await open(t);
-    final node = t.getSemantics(find.textContaining('The hold').first);
-    final data = node.getSemanticsData();
-    expect(data.flagsCollection.isButton, isTrue);
+    await open(t, text: 'See [the docs](https://example.com/d) now\n\nSecond');
+    final root =
+        t.binding.renderViews.first.owner!.semanticsOwner!.rootSemanticsNode!;
+    final nodes = walk(root).toList();
+    final button = nodes.firstWhere(
+      (n) =>
+          n.getSemanticsData().flagsCollection.isButton &&
+          (n.getSemanticsData().customSemanticsActionIds ?? []).isNotEmpty,
+    );
+    final data = button.getSemanticsData();
     expect(data.hasAction(SemanticsAction.tap), isTrue);
-    final actions = data.customSemanticsActionIds
-        ?.map((i) => CustomSemanticsAction.getAction(i)?.label)
+    final actions = data.customSemanticsActionIds!
+        .map((i) => CustomSemanticsAction.getAction(i)?.label)
         .toSet();
-    expect(actions, {'Comment', 'Pin'});
+    // Pin has no action until pins exist
+    expect(actions, {'Comment'});
+    final link = nodes.firstWhere(
+      (n) => n.getSemanticsData().flagsCollection.isLink,
+    );
+    expect(link.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    expect(identical(link, button), isFalse);
     h.dispose();
   });
 
-  testWidgets('the popup stays on screen for a paragraph at the very top', (
-    t,
-  ) async {
-    await open(t, text: 'One short line');
-    await t.tap(find.textContaining('One short'));
+  testWidgets('a paragraph right under the header: the popup stays below '
+      'the header and on screen', (t) async {
+    final many = List.generate(30, (i) => 'Paragraph number $i of many.');
+    await open(t, text: many.join('\n\n'));
+    // scroll to the oldest end: the first paragraph sits just under the header
+    await t.dragFrom(const Offset(200, 300), const Offset(0, 5000));
+    await t.pumpAndSettle();
+    await t.tap(find.textContaining('Paragraph number 0 '));
     await t.pumpAndSettle();
     await t.tap(more);
     await t.pumpAndSettle();
     final screen = t.view.physicalSize / t.view.devicePixelRatio;
+    final header = t.getRect(find.byType(ChatHeader));
     final b = t.getRect(bubble);
-    expect(b.top, greaterThanOrEqualTo(0));
+    expect(b.top, greaterThanOrEqualTo(header.bottom));
     expect(b.left, greaterThanOrEqualTo(0));
     expect(b.right, lessThanOrEqualTo(screen.width));
     expect(t.getRect(bar).bottom, lessThanOrEqualTo(screen.height));
@@ -330,5 +367,51 @@ void main() {
     await t.pumpAndSettle();
     final c = r.tab!.comments.all.single;
     expect(find.byKey(ValueKey('badge:${c.id}')), findsOneWidget);
+  });
+
+  testWidgets('a swipe to Files that starts on the target clears it and '
+      'leaves no frames running', (t) async {
+    await open(t);
+    await tapPara(t, 'The hold');
+    expect(bubble, findsOneWidget);
+    await t.dragFrom(
+      t.getCenter(find.textContaining('The hold')) + const Offset(100, 0),
+      const Offset(300, 0),
+    );
+    await t.pumpAndSettle();
+    expect(bubble, findsNothing);
+    expect(bar, findsNothing);
+    expect(t.binding.hasScheduledFrame, isFalse);
+  });
+
+  testWidgets('the Undo snackbar goes by itself and floats clear of the '
+      'message field', (t) async {
+    await open(t);
+    await tapPara(t, 'The hold');
+    await t.tap(
+      find.descendant(of: bubble, matching: find.text(quickLabels[1].emoji)),
+    );
+    await t.pumpAndSettle(const Duration(milliseconds: 100));
+    final snack = find.byType(SnackBar);
+    expect(snack, findsOneWidget);
+    final field = t.getRect(find.byType(TextField).first);
+    final card = find
+        .descendant(of: snack, matching: find.byType(Material))
+        .first;
+    expect(t.getRect(card).overlaps(field), isFalse);
+    expect(t.getRect(card).bottom, lessThanOrEqualTo(field.top));
+    await t.pump(const Duration(seconds: 5));
+    await t.pumpAndSettle();
+    expect(snack, findsNothing);
+  });
+
+  testWidgets('Android back clears the target and keeps the chat', (t) async {
+    await open(t);
+    await tapPara(t, 'The hold');
+    await t.binding.handlePopRoute();
+    await t.pumpAndSettle();
+    expect(bubble, findsNothing);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byKey(const ValueKey('para-target:a1:1')), findsNothing);
   });
 }

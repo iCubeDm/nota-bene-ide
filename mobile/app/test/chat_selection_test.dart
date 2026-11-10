@@ -266,4 +266,44 @@ void main() {
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
     expect(an.quote, chatText(item).text);
   });
+
+  testWidgets('the message moved between the menu and Select text: the word '
+      'under the press is still the one selected, no other menu opens', (
+    t,
+  ) async {
+    await r.open(
+      t,
+      events: [
+        {'kind': 'user', 'id': 'u1', 'text': 'alpha bold beta', 'ts': 1},
+        agent({'t': 'message', 'id': 'a1', 'text': 'Agent answer'}),
+      ],
+    );
+    await t.longPressAt(wordAt(t, 'bold'));
+    await t.pumpAndSettle();
+    // a reply arrives below while the menu is open: this one moves up
+    final before = wordAt(t, 'bold', within: find.byType(ListView));
+    r.event(
+      agent({
+        't': 'message',
+        'id': 'a2',
+        'text': 'Another reply\n\nwith two paragraphs\n\nand a third',
+      }),
+    );
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 100));
+    expect(wordAt(t, 'bold', within: find.byType(ListView)), isNot(before));
+    await t.tap(find.text('Select text'));
+    await t.pumpAndSettle();
+    await t.pump(const Duration(seconds: 1));
+    await t.pumpAndSettle();
+    expect(find.byType(SelectionArea), findsOneWidget);
+    expect(find.text('Select text'), findsNothing);
+    await t.tap(find.text('Comment'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    final an = r.tab!.comments.all.single.anchor as TextAnchor;
+    expect(an.quote, 'bold');
+    expect((an.source as AnchorSourceMessage).id, 'u1');
+  });
 }

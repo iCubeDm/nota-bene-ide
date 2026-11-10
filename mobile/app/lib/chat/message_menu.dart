@@ -20,7 +20,8 @@ import 'chat_screen.dart' show FeedItemView;
 import 'feed.dart';
 import 'window_tab.dart';
 
-/// The labels the bar shows before "⌄" (SelectionButton.tsx BAR), in the order of all of them.
+/// The labels the bar shows before "⌄" (SelectionButton.tsx BAR), in the order of all of them. The paragraph bubble
+/// shows the same.
 const _bar = {
   QuickLabelId.looksGood,
   QuickLabelId.fire,
@@ -28,6 +29,10 @@ const _bar = {
   QuickLabelId.verify,
   QuickLabelId.outOfScope,
 };
+List<QuickLabel> get barLabels => [
+  for (final l in quickLabels)
+    if (_bar.contains(l.id)) l,
+];
 const _chip = 44.0;
 const _row = 48.0;
 const _gap = 8.0;
