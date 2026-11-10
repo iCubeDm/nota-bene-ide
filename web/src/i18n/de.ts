@@ -8,6 +8,8 @@ export const de: Dict = {
   langTip: 'Oberflächensprache',
   theme: 'Design',
   setThemes: 'Designs',
+  themesDark: 'Dunkle Designs',
+  themesLight: 'Helle Designs',
   themeTip: 'Farbschema der Oberfläche',
   openRawTip: 'Die Datei selbst in einem neuen Browser-Tab öffnen',
   toLatest: 'Zum Neuesten springen',

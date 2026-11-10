@@ -8,6 +8,8 @@ export const es: Dict = {
   langTip: 'Idioma de la interfaz',
   theme: 'Tema',
   setThemes: 'Temas',
+  themesDark: 'Temas oscuros',
+  themesLight: 'Temas claros',
   themeTip: 'Tema de color de la interfaz',
   openRawTip: 'Abrir el archivo en sí en una pestaña nueva del navegador',
   toLatest: 'Ir al último',

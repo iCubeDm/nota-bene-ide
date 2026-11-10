@@ -1,11 +1,17 @@
 import { useSyncExternalStore } from 'react';
-import { DEFAULT_THEME, isThemeId, THEME_KIND, type ThemeId } from '@nota-bene/shared';
+import { DEFAULT_THEME, isThemeId, THEME_KIND, THEMES, type ThemeId } from '@nota-bene/shared';
 import { apiFetch } from '@/net/auth.ts';
 
 const KEY = 'nb.theme';
 
 /** The names are not translated (a theme is a proper name, like a language's own name). */
 export const THEME_NAMES: Record<ThemeId, string> = { darcula: 'Darcula', plannotator: 'Plannotator', 'intellij-light': 'IntelliJ Light', 'github-light': 'GitHub Light', 'solarized-light': 'Solarized Light', 'solarized-dark': 'Solarized Dark' };
+
+/** The pickers list dark themes first, then light ones, each under its heading (THEMES is already in that order). */
+export const THEME_GROUPS: { kind: 'dark' | 'light'; head: 'themesDark' | 'themesLight'; ids: ThemeId[] }[] = [
+  { kind: 'dark', head: 'themesDark', ids: THEMES.filter((id) => THEME_KIND[id] === 'dark') },
+  { kind: 'light', head: 'themesLight', ids: THEMES.filter((id) => THEME_KIND[id] === 'light') },
+];
 
 // The colour theme (Settings → Themes): <html data-theme> selects one token block in theme.css. One for every window,
 // like the interface scale: the server keeps it (prefs.json, hello.theme), this origin's localStorage caches it, and this

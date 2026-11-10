@@ -59,6 +59,10 @@ it('the Theme row lists the themes and picks one', async () => {
   fireEvent.keyDown(row, { key: 'ArrowRight' });
   const dark = await screen.findByRole('menuitemradio', { name: 'Darcula' });
   expect(dark).toHaveAttribute('aria-checked', 'true');
+  // dark first, then light, each under its heading
+  const menu = dark.closest('[role="group"], [role="menu"]')!.parentElement!;
+  const order = [...menu.querySelectorAll('[data-theme-heading], [role="menuitemradio"]')].map((n) => n.textContent);
+  expect(order).toEqual(['Dark themes', 'Darcula', 'Plannotator', 'Solarized Dark', 'Light themes', 'IntelliJ Light', 'GitHub Light', 'Solarized Light']);
   expect(screen.getByRole('menuitemradio', { name: 'Plannotator' })).toHaveAttribute('aria-checked', 'false');
   fireEvent.click(screen.getByRole('menuitemradio', { name: 'Plannotator' }));
   expect(theme.get()).toBe('plannotator');
