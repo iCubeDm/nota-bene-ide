@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/ui/folder_tabs.dart';
 import 'package:nb_app/chat/chat_route.dart';
 import 'package:nb_app/chat/composer.dart';
 import 'package:nb_app/comments/comments_pane.dart';
@@ -65,14 +66,20 @@ void main() {
     for (final label in ['Files', 'Chat', 'Comments']) {
       expect(find.text(label), findsOneWidget);
     }
-    final line = find.byKey(const ValueKey('strip-underline'));
+    final line = find.byKey(const ValueKey('strip-current'));
     final tabs = t.getSize(find.text('Chat'));
     expect(tabs.width, greaterThan(0));
-    // the underline sits under the middle tab
+    // the current tab's stadium sits on the middle tab
     expect(t.getCenter(line).dx, closeTo(200, 2));
+    // the tabs float as a pill 8 dp in from the screen's edges
+    final pill = t.getRect(find.byType(FolderTabs));
+    expect(pill.left, 8);
+    expect(pill.right, 392);
   });
 
-  testWidgets('a swipe changes the pane and the underline follows', (t) async {
+  testWidgets('a swipe changes the pane and the current tab follows', (
+    t,
+  ) async {
     await open(t);
     await swipe(t, -300);
     expect(find.byType(CommentsPane), findsOneWidget);
@@ -82,12 +89,12 @@ void main() {
       ),
       findsOneWidget,
     );
-    final line = find.byKey(const ValueKey('strip-underline'));
-    expect(t.getCenter(line).dx, closeTo(400 / 3 * 2.5, 2));
+    final line = find.byKey(const ValueKey('strip-current'));
+    expect(t.getCenter(line).dx, closeTo(8 + 384 / 3 * 2.5, 2));
     await swipe(t, 300);
     await swipe(t, 300);
     expect(find.byType(FilesPane), findsOneWidget);
-    expect(t.getCenter(line).dx, closeTo(400 / 6, 2));
+    expect(t.getCenter(line).dx, closeTo(8 + 384 / 6, 2));
   });
 
   testWidgets('a tap on a tab switches too; back returns to the chat first', (
@@ -126,13 +133,10 @@ void main() {
     expect(find.byType(Composer).hitTestable(), findsOneWidget);
   });
 
-  testWidgets('the menu\'s Files switches to the Files pane', (t) async {
+  testWidgets('the header has no agent menu: Files is a tab', (t) async {
     await open(t);
-    await t.tap(find.byTooltip('Agent'));
-    await t.pumpAndSettle();
-    await t.tap(find.widgetWithText(PopupMenuItem<Object?>, 'Files'));
-    await t.pumpAndSettle();
-    expect(find.text('a.txt').hitTestable(), findsOneWidget);
+    expect(find.byTooltip('Agent'), findsNothing);
+    expect(find.byType(PopupMenuButton<Object?>), findsNothing);
   });
 
   testWidgets(
@@ -142,7 +146,7 @@ void main() {
       expect(find.byType(FilesPane), findsOneWidget);
       expect(find.byType(CommentsPane), findsOneWidget);
       expect(find.byType(Composer), findsOneWidget);
-      expect(find.byKey(const ValueKey('strip-underline')), findsNothing);
+      expect(find.byKey(const ValueKey('strip-current')), findsNothing);
       final files = t.getRect(find.byType(FilesPane));
       final chat = t.getRect(find.byType(Composer));
       final comments = t.getRect(find.byType(CommentsPane));
@@ -209,10 +213,10 @@ void main() {
     await t.pumpAndSettle();
     t.view.physicalSize = const Size(400, 800);
     await t.pumpAndSettle();
-    // narrow again starts at the chat, and the underline says so
+    // narrow again starts at the chat, and the strip says so
     expect(find.byType(Composer).hitTestable(), findsOneWidget);
     expect(
-      t.getCenter(find.byKey(const ValueKey('strip-underline'))).dx,
+      t.getCenter(find.byKey(const ValueKey('strip-current'))).dx,
       closeTo(200, 2),
     );
   });
@@ -264,7 +268,7 @@ void main() {
             'capabilities': Rig.caps(dictation: 'whisper'),
           },
         );
-        final line = find.byKey(const ValueKey('strip-underline'));
+        final line = find.byKey(const ValueKey('strip-current'));
         final g = await t.startGesture(t.getCenter(find.byType(RecordButton)));
         await t.pump(const Duration(milliseconds: 300));
         await g.moveBy(const Offset(0, -90));
@@ -309,7 +313,7 @@ void main() {
     ];
 
     testWidgets(
-      'pending on top with a count badge and Send; sent below, by message',
+      'pending on top with a count badge and Send; sent below, folded, by message',
       (t) async {
         await open(t, events: msgs);
         r.event({
@@ -334,7 +338,12 @@ void main() {
         await t.pumpAndSettle();
         expect(find.text('1 comment to send'), findsOneWidget);
         expect(find.textContaining('fix this'), findsOneWidget);
-        expect(find.text('Sent'), findsOneWidget);
+        // the sent ones are folded under their count until the heading is tapped
+        expect(find.text('Sent · 3'), findsOneWidget);
+        expect(find.textContaining('old note'), findsNothing);
+        expect(find.text('message number 1'), findsNothing);
+        await t.tap(find.byKey(const ValueKey('sent-fold')));
+        await t.pumpAndSettle();
         // grouped under the message they went with
         expect(find.text('message number 1'), findsOneWidget);
         expect(find.text('message number 2'), findsOneWidget);
@@ -360,6 +369,8 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('message number 0'), findsNothing);
       await t.tap(find.text('Comments'));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('sent-fold')));
       await t.pumpAndSettle();
       await t.tap(find.textContaining('about the first one'));
       await t.pumpAndSettle(const Duration(milliseconds: 100));

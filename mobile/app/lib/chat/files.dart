@@ -7,7 +7,6 @@ import '../files/file_screen.dart';
 import '../files/image_screen.dart';
 import '../files/text_file_screen.dart';
 import '../files/video_screen.dart';
-import '../l10n/app_localizations.dart';
 import 'feed.dart';
 import 'window_tab.dart';
 
@@ -110,33 +109,3 @@ class FileOpener extends InheritedWidget {
   @override
   bool updateShouldNotify(FileOpener old) => old.tab != tab;
 }
-
-Future<void> showFiles(BuildContext context, WindowTab tab) =>
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (c) {
-        final t = AppLocalizations.of(c);
-        final files = sessionFiles(tab);
-        if (files.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(t.noFiles),
-          );
-        }
-        return ListView(
-          shrinkWrap: true,
-          children: [
-            for (final f in files)
-              ListTile(
-                leading: Icon(fileIcon(f)),
-                title: Text(f),
-                onTap: () {
-                  Navigator.pop(c);
-                  openFile(context, tab, f);
-                },
-              ),
-          ],
-        );
-      },
-    );

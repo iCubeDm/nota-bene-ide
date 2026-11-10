@@ -83,6 +83,19 @@ void main() {
     expect(find.text(webString('mode_default_desc', 'en')), findsOneWidget);
   });
 
+  testWidgets('a mode of two words stands on two lines in its segment', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(360, 800);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await sheet(t, hi: hello(modes: ['default', 'acceptEdits', 'plan']));
+    final label = webString('mode_acceptEdits', 'en');
+    expect(label, contains(' '));
+    expect(find.text(twoLines(label)), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
+
   testWidgets('the host\'s mode descriptors name the modes (not Codex)', (
     t,
   ) async {
@@ -98,7 +111,7 @@ void main() {
     );
     r.event({'kind': 'mode', 'mode': 'default'});
     await t.pumpAndSettle();
-    expect(inSheet(find.text('Ask first')), findsOneWidget);
+    expect(inSheet(find.text(twoLines('Ask first'))), findsOneWidget);
     expect(find.text('Asks a lot'), findsOneWidget);
   });
 
@@ -122,7 +135,7 @@ void main() {
     expect(find.text('Host name'), findsNothing);
     expect(find.text('Host description'), findsNothing);
     expect(
-      inSheet(find.text(webString('mode_codex-read-only', 'en'))),
+      inSheet(find.text(twoLines(webString('mode_codex-read-only', 'en')))),
       findsOneWidget,
     );
     expect(

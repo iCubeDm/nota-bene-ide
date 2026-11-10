@@ -1,51 +1,15 @@
-// The agent menu of the chat (Files; the rest lives in the window sheet) and the pieces the sheet reuses: the restart
-// question and the model sheet (model: protocol 6+ with the models capability).
+// The pieces the window sheet uses for the agent: the restart question and the model sheet (model: protocol 6+ with
+// the models capability).
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
-import '../ui/nb_icon.dart';
-import 'files.dart';
 import 'window_tab.dart';
 
 bool modelSwitchable(WindowTab tab) =>
     (tab.protocol ?? 0) >= 6 &&
     (tab.capabilities?.models ?? false) &&
     tab.models.isNotEmpty;
-
-class AgentMenu extends StatelessWidget {
-  const AgentMenu({super.key, required this.tab, this.onFiles});
-  final WindowTab tab;
-
-  /// Files: switches to the Files pane; without it the menu opens the session's files in a sheet.
-  final VoidCallback? onFiles;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context);
-    return PopupMenuButton<Object?>(
-      tooltip: t.agentMenu,
-      icon: const NbIcon(NbGlyph.more),
-      // a round 40 x 40 button in the header's circle, not the 48 x 40 of the default icon button
-      padding: EdgeInsets.zero,
-      style: IconButton.styleFrom(
-        fixedSize: const Size(40, 40),
-        minimumSize: const Size(40, 40),
-        padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      enabled: tab.state == TabState.open,
-      onSelected: (v) {
-        if (v != 'files') return;
-        final go = onFiles;
-        go != null ? go() : showFiles(context, tab);
-      },
-      itemBuilder: (_) => [
-        PopupMenuItem<Object?>(value: 'files', child: Text(t.files)),
-      ],
-    );
-  }
-}
 
 /// Asks to restart the agent; sends `restart` on a yes. True when it was sent.
 Future<bool> askRestart(BuildContext context, WindowTab tab) async {

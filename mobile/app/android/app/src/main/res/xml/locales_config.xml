@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's languages, so Android 13+ offers them in Settings → Apps → Nota Bene → Language. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en"/>
+    <locale android:name="ru"/>
+    <locale android:name="zh"/>
+    <locale android:name="es"/>
+    <locale android:name="pt"/>
+    <locale android:name="de"/>
+</locale-config>

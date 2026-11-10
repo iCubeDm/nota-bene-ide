@@ -138,7 +138,11 @@ class WindowSheet extends StatelessWidget {
                         value: m,
                         label: FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text(modeLabel(tab, m, lang), maxLines: 1),
+                          child: Text(
+                            twoLines(modeLabel(tab, m, lang)),
+                            maxLines: 2,
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ),
                   ],
@@ -433,4 +437,17 @@ class _Tile extends StatelessWidget {
     );
     return tooltip == null ? tile : Tooltip(message: tooltip!, child: tile);
   }
+}
+
+/// A name of several words on two lines, split at the space nearest its middle ("Accept edits" over two lines), so a
+/// segment stands taller rather than shrinking the words.
+String twoLines(String s) {
+  final mid = s.length / 2;
+  int? at;
+  for (var i = 0; i < s.length; i++) {
+    if (s[i] == ' ' && (at == null || (i - mid).abs() < (at - mid).abs())) {
+      at = i;
+    }
+  }
+  return at == null ? s : '${s.substring(0, at)}\n${s.substring(at + 1)}';
 }

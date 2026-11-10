@@ -176,7 +176,6 @@
   "allowTool": "Allow {tool}?",
   "answerSent": "Answer sent",
   "askArchived": "From an earlier part of the session: no longer waiting for an answer",
-  "agentMenu": "Agent",
   "compact": "Compact",
   "modelAndEffort": "Model and effort",
   "restartAgent": "Restart agent",
@@ -229,8 +228,6 @@
   "fileNotMarkdown": "Only Markdown files, images and videos open on the phone.",
   "fileUnreadable": "The file could not be read. Try again when the host is online.",
   "openFile": "Open the file",
-  "files": "Files",
-  "noFiles": "No Markdown files in this session yet.",
   "pendingComments": "{count, plural, =1{1 comment to send} other{{count} comments to send}}",
   "@pendingComments": {
     "placeholders": {
