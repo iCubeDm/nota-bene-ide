@@ -292,5 +292,9 @@
         "type": "int"
       }
     }
-  }
+  },
+  "paragraphLabelAdded": "Добавлено: {label}",
+  "paragraphPin": "Закрепить",
+  "paragraphLess": "Меньше",
+  "paragraphCopied": "Скопировано"
 }

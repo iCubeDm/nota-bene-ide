@@ -184,7 +184,7 @@ void main() {
     await t.pumpAndSettle();
     await t.longPressAt(t.getCenter(find.textContaining('First').first));
     await t.pumpAndSettle();
-    expect(find.text('Select text'), findsOneWidget);
+    expect(find.text('Reply'), findsOneWidget);
   });
 
   testWidgets('a comment on one message rebuilds no other item', (t) async {

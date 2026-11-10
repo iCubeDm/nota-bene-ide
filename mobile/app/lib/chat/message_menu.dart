@@ -34,7 +34,7 @@ const _gap = 8.0;
 const _quoteCut = 200;
 
 /// The comment quote of a whole message: cut in the sheet only, the anchor keeps the whole text.
-String _cut(String s) =>
+String cutQuote(String s) =>
     s.length <= _quoteCut ? s : '${s.substring(0, _quoteCut)}…';
 
 /// The draft's quote of a message: `> line` for each line, then an empty line.
@@ -97,7 +97,7 @@ Future<void> showMessageMenu(
         final text = chatText(item).text;
         final res = await showCommentSheet(
           context,
-          quote: _cut(text),
+          quote: cutQuote(text),
           tab: tab,
         );
         if (res is SheetSave) {
@@ -257,11 +257,13 @@ class _MenuState extends State<_Menu> {
         mainAxisSize: MainAxisSize.min,
         children: [
           entry(const NbIcon(NbGlyph.comments), t.menuComment, widget.comment),
-          entry(
-            const Icon(Icons.text_fields),
-            t.menuSelectText,
-            widget.onSelectText,
-          ),
+          // a reply is commented by paragraph: no selecting inside it
+          if (widget.item is! AssistantItem)
+            entry(
+              const Icon(Icons.text_fields),
+              t.menuSelectText,
+              widget.onSelectText,
+            ),
           entry(const NbIcon(NbGlyph.copy), t.menuCopy, () {
             Clipboard.setData(ClipboardData(text: chatRaw(widget.item)));
             widget.close();
@@ -290,7 +292,7 @@ class _MenuState extends State<_Menu> {
     );
     final rows = _all ? (quickLabels.length / perRow).ceil() : 1;
     final barH = rows * _chip + 16;
-    final menuH = 4 * _row;
+    final menuH = (user ? 4 : 3) * _row;
     final room = bottom - top - barH - menuH - 2 * _gap;
     final msgH = math.min(widget.rect.height, math.max(room, _row));
     final barAbove = widget.rect.top - barH - _gap >= top;
