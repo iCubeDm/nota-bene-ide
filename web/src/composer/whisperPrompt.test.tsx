@@ -95,9 +95,17 @@ it('Open settings goes to Settings → Dictation and closes the prompt', async (
   const { store } = setup();
   fireEvent.click(screen.getByTestId('mic'));
   await prompt();
+  // the Settings tab is not rendered here: its section stands in, so the scroll lookup ends inside the test
+  const section = document.createElement('div');
+  section.id = 'settings-dictation';
+  const scrolled = vi.fn();
+  section.scrollIntoView = scrolled;
+  document.body.append(section);
   fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
   expect(store.getState().tabs.active).toBe('settings');
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(scrolled).toHaveBeenCalled());
+  section.remove();
 });
 
 it('Esc closes the prompt', async () => {
