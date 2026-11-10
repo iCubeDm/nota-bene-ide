@@ -67,9 +67,7 @@ class WindowSheet extends StatelessWidget {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
       final lang = Localizations.localeOf(context).languageCode;
-      final caps = tab.capabilities;
       final open = tab.state == TabState.open;
-      final busy = tab.busy;
       final modes = offeredModes(tab);
       final mode = shownMode(tab);
       final label = TextStyle(

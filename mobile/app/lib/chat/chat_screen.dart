@@ -476,7 +476,7 @@ class _MarkedState extends State<_Marked> {
       onMark: _open,
       wrapBlock: targets == null || item is! AssistantItem
           ? null
-          : (i, n, child) => isParagraphNode(n)
+          : (i, n, child) => isParagraphNode(n) && !isListNode(n)
                 ? ParagraphBlock(
                     targets: targets,
                     item: item,
@@ -484,6 +484,21 @@ class _MarkedState extends State<_Marked> {
                     child: child,
                   )
                 : child,
+      // a list's items are the targets, not the list
+      wrapItem: targets == null || item is! AssistantItem
+          ? null
+          : (i, li, child, bullet) => ParagraphBlock(
+              key: ParagraphBlock.keyOf(item.id, i, li),
+              targets: targets,
+              item: item,
+              block: i,
+              li: li,
+              bleed: bullet,
+              child: child,
+            ),
+      tapItem: targets == null || item is! AssistantItem
+          ? null
+          : (i, li) => ParagraphBlock.tapBullet(targets, item, i, li),
     );
     if (_whole.isEmpty) return view;
     return Stack(
@@ -579,8 +594,15 @@ class FeedItemView extends StatelessWidget {
     this.marks = const [],
     this.onMark = _noMark,
     this.wrapBlock,
+    this.wrapItem,
+    this.tapItem,
   });
   final FeedItem item;
+
+  /// A final reply's list items dressed as targets, and a tap on their bullets (see [FileMarkdown]).
+  final Widget Function(int block, int item, Widget content, double bullet)?
+  wrapItem;
+  final void Function(int block, int item)? tapItem;
 
   /// A final reply's paragraphs dressed as targets of a comment (the chat's own list only).
   final Widget Function(int block, md.Node node, Widget child)? wrapBlock;
@@ -671,7 +693,11 @@ class FeedItemView extends StatelessWidget {
               ),
       AssistantItem(:final text) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: listenerAt == null && marks.isEmpty && wrapBlock == null
+        child:
+            listenerAt == null &&
+                marks.isEmpty &&
+                wrapBlock == null &&
+                wrapItem == null
             ? NbMarkdown(text)
             : FileMarkdown(
                 text: text,
@@ -679,6 +705,8 @@ class FeedItemView extends StatelessWidget {
                 marks: marks,
                 onMark: onMark,
                 wrapBlock: wrapBlock,
+                wrapItem: wrapItem,
+                tapItem: tapItem,
               ),
       ),
       ToolItem() => ToolLine(item as ToolItem),

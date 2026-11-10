@@ -1,5 +1,6 @@
 // Comment by paragraph: a tap on a paragraph of a final reply makes the whole paragraph the target (an accent bar and
-// a tint, no scrim). Above it floats one bubble of the quick labels (the first five and a chevron that grows the same
+// a tint, no scrim). In a list the target is the list item under the finger, not the list: a nested item is a target
+// of its own, and a parent item covers its own text and its nested items. Above it floats one bubble of the quick labels (the first five and a chevron that grows the same
 // bubble into all of them, named); below it a bar with Comment, Pin and Copy. A label makes a pending comment on the
 // paragraph (the comment model of a selection, so the Comments pane and sending are unchanged) with an Undo.
 import 'dart:async';
@@ -36,11 +37,20 @@ const _targetTags = {
 bool isParagraphNode(md.Node n) =>
     n is md.Element && _targetTags.contains(n.tag);
 
+/// The paragraph of a reply as a target: [block] is its top-level node, and [li] the list item in it (-1: the node).
 class _Para {
-  _Para(this.ctx, this.item, this.block, this.text, this.start, this.end);
+  _Para(
+    this.ctx,
+    this.item,
+    this.block,
+    this.li,
+    this.text,
+    this.start,
+    this.end,
+  );
   final BuildContext ctx;
   final AssistantItem item;
-  final int block;
+  final int block, li;
   final String text; // the reply's rendered text
   final int start, end; // the paragraph in it, trimmed
   String get quote => text.substring(start, end);
@@ -59,13 +69,16 @@ class ParagraphTargets extends ChangeNotifier {
   late final _Back _back = _Back(clear);
   ModalRoute<Object?>? _route;
 
-  bool isTarget(String id, int block) =>
-      _sel != null && _sel!.item.id == id && _sel!.block == block;
+  bool isTarget(String id, int block, [int li = -1]) =>
+      _sel != null &&
+      _sel!.item.id == id &&
+      _sel!.block == block &&
+      _sel!.li == li;
 
-  /// The paragraph [block] of [item] as a target, or none when it was one already.
-  void toggle(BuildContext ctx, AssistantItem item, int block) {
-    if (isTarget(item.id, block)) return clear();
-    final p = _para(ctx, item, block);
+  /// The paragraph [block] of [item] (its list item [li], when it is one) as a target, or none when it was one already.
+  void toggle(BuildContext ctx, AssistantItem item, int block, [int li = -1]) {
+    if (isTarget(item.id, block, li)) return clear();
+    final p = _para(ctx, item, block, li);
     if (p == null) return;
     _drop();
     _sel = p;
@@ -79,18 +92,20 @@ class ParagraphTargets extends ChangeNotifier {
     notifyListeners();
   }
 
-  _Para? _para(BuildContext ctx, AssistantItem item, int block) {
+  _Para? _para(BuildContext ctx, AssistantItem item, int block, int li) {
     if (!item.final_) return null;
     final r = chatText(item);
     if (block >= r.blocks.length) return null;
-    var (:start, :end) = r.block(block);
+    final part = li < 0 ? r.block(block) : r.item(block, li);
+    if (part == null) return null;
+    var (:start, :end) = part;
     while (start < end && r.text[start] == ' ') {
       start++;
     }
     while (end > start && r.text[end - 1] == ' ') {
       end--;
     }
-    return start < end ? _Para(ctx, item, block, r.text, start, end) : null;
+    return start < end ? _Para(ctx, item, block, li, r.text, start, end) : null;
   }
 
   void _drop() {
@@ -130,7 +145,7 @@ class ParagraphTargets extends ChangeNotifier {
   _Para? _fresh(_Para p) {
     for (final it in tab.feed.items) {
       if (it is AssistantItem && it.id == p.item.id) {
-        return p.ctx.mounted ? _para(p.ctx, it, p.block) : null;
+        return p.ctx.mounted ? _para(p.ctx, it, p.block, p.li) : null;
       }
     }
     return null;
@@ -182,10 +197,15 @@ class ParagraphTargets extends ChangeNotifier {
   }
 
   /// Comment opens the sheet with the paragraph as its quote. Also TalkBack's custom action.
-  Future<void> comment(BuildContext ctx, AssistantItem item, int block) async {
+  Future<void> comment(
+    BuildContext ctx,
+    AssistantItem item,
+    int block, [
+    int li = -1,
+  ]) async {
     clear();
     if (!ctx.mounted) return;
-    final p = _fresh(_Para(ctx, item, block, '', 0, 0));
+    final p = _fresh(_Para(ctx, item, block, li, '', 0, 0));
     if (p == null) return;
     final res = await showCommentSheet(ctx, quote: cutQuote(p.quote), tab: tab);
     if (res is SheetSave) _add(p, res.label, res.text, voice: res.voice);
@@ -213,7 +233,8 @@ class ParagraphHost extends InheritedWidget {
   bool updateShouldNotify(ParagraphHost old) => targets != old.targets;
 }
 
-/// A paragraph of a reply: a button for a tap and for TalkBack (Comment), painted as the target while it is one.
+/// A paragraph of a reply (or one item [li] of its list): a button for a tap and for TalkBack (Comment), painted as
+/// the target while it is one. An item's tint reaches left by [bleed] to hold its bullet.
 class ParagraphBlock extends StatelessWidget {
   const ParagraphBlock({
     super.key,
@@ -221,11 +242,30 @@ class ParagraphBlock extends StatelessWidget {
     required this.item,
     required this.block,
     required this.child,
+    this.li = -1,
+    this.bleed = 9,
   });
   final ParagraphTargets targets;
   final AssistantItem item;
-  final int block;
+  final int block, li;
+  final double bleed;
   final Widget child;
+
+  /// The key an item's block is found by: a tap on its bullet, outside the block, goes through it.
+  static GlobalKey keyOf(String id, int block, int li) =>
+      _itemKeys.putIfAbsent('$id:$block:$li', GlobalKey.new);
+  static final _itemKeys = <String, GlobalKey>{};
+
+  /// A tap on the bullet of item [li]: the item as a target, as a tap on its text makes it.
+  static void tapBullet(
+    ParagraphTargets targets,
+    AssistantItem item,
+    int block,
+    int li,
+  ) {
+    final ctx = keyOf(item.id, block, li).currentContext;
+    if (ctx != null) targets.toggle(ctx, item, block, li);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +275,7 @@ class ParagraphBlock extends StatelessWidget {
       listenable: targets,
       child: child,
       builder: (context, child) {
-        final on = targets.isTarget(item.id, block);
+        final on = targets.isTarget(item.id, block, li);
         // a button holding the paragraph's own nodes: links and comment badges stay reachable inside it. Pin joins
         // the custom actions with pins (#181).
         return Semantics(
@@ -244,26 +284,30 @@ class ParagraphBlock extends StatelessWidget {
           selected: on,
           customSemanticsActions: {
             CustomSemanticsAction(label: t.comment): () =>
-                targets.comment(context, item, block),
+                targets.comment(context, item, block, li),
           },
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => targets.toggle(context, item, block),
+            onTap: () => targets.toggle(context, item, block, li),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
                 if (on) ...[
                   // the bubble pads 12 each side: the tint reaches into it, the bar sits at its edge
                   Positioned(
-                    key: ValueKey('para-target:${item.id}:$block'),
-                    left: -9,
+                    key: ValueKey(
+                      li < 0
+                          ? 'para-target:${item.id}:$block'
+                          : 'para-target:${item.id}:$block.$li',
+                    ),
+                    left: -bleed,
                     right: -9,
                     top: -2,
                     bottom: -2,
                     child: ColoredBox(color: c.accent.withValues(alpha: 0.14)),
                   ),
                   Positioned(
-                    left: -9,
+                    left: -bleed,
                     top: -2,
                     bottom: -2,
                     width: 3,
@@ -543,7 +587,7 @@ class _PopupState extends State<_Popup> {
         button(
           const NbIcon(NbGlyph.comments),
           t.comment,
-          () => targets.comment(p.ctx, p.item, p.block),
+          () => targets.comment(p.ctx, p.item, p.block, p.li),
         ),
         // pins come with their own feature
         button(const Icon(Icons.push_pin_outlined), t.paragraphPin, null),

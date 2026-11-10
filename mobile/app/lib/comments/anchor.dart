@@ -109,7 +109,7 @@ class TextRun {
 }
 
 class RenderedText {
-  RenderedText(this.text, this.runs, this.blocks);
+  RenderedText(this.text, this.runs, this.blocks, [this.items = const []]);
 
   /// the desktop's anchor text model (web/src/anchors/text.ts): whitespace runs as one space, block boundaries as a
   /// space, the ends trimmed
@@ -119,11 +119,39 @@ class RenderedText {
   /// where each top-level node starts in [text], in the order of the nodes
   final List<int> blocks;
 
+  /// Per top-level node, the part of [text] each of its list items covers, in document order (a parent before its
+  /// nested items; a parent's part holds them). Empty for a node with no list.
+  final List<List<({int start, int end})>> items;
+
+  /// The part of [text] list item [ordinal] of top-level node [i] covers, or null when there is none.
+  ({int start, int end})? item(int i, int ordinal) =>
+      i < items.length && ordinal >= 0 && ordinal < items[i].length
+      ? items[i][ordinal]
+      : null;
+
   /// The part of [text] the top-level node [i] covers.
   ({int start, int end}) block(int i) => (
     start: blocks[i],
     end: i + 1 < blocks.length ? blocks[i + 1] : text.length,
   );
+}
+
+/// Whether top-level node [n] is a list, whose items (not the list) are the targets of a comment by paragraph.
+bool isListNode(md.Node n) =>
+    n is md.Element && (n.tag == 'ul' || n.tag == 'ol');
+
+/// The `li` elements under [n], in document order: a parent before its nested items. The same order
+/// [RenderedText.items] keeps, so an item's ordinal names both its widget and its part of the text.
+List<md.Element> listItems(md.Node n) {
+  final out = <md.Element>[];
+  void walk(md.Node x) {
+    if (x is! md.Element) return;
+    if (x.tag == 'li') out.add(x);
+    x.children?.forEach(walk);
+  }
+
+  walk(n);
+  return out;
 }
 
 // text.ts's BLOCKS; `mathblock` is a paragraph on the desktop, which shows `$$…$$` as text
@@ -179,6 +207,7 @@ RenderedText renderedText(List<md.Node> nodes) {
     runs.add(run);
   }
 
+  var found = <({int start, int end})>[];
   void visit(md.Node n) {
     if (n is md.Text) return visitText(n, n.text);
     if (n is! md.Element) return;
@@ -189,6 +218,10 @@ RenderedText renderedText(List<md.Node> nodes) {
     }
     final block = _blocks.contains(tag);
     if (block) pending = true;
+    // an item's part is registered at its start, so that a parent comes before its nested items
+    final slot = tag == 'li' ? found.length : -1;
+    final from = len;
+    if (slot >= 0) found.add((start: from, end: from));
     if (tag == 'math') {
       visitText(n, '\$${_unescape(n.textContent)}\$');
     } else if (tag == 'mathblock') {
@@ -198,13 +231,17 @@ RenderedText renderedText(List<md.Node> nodes) {
         visit(c);
       }
     }
+    if (slot >= 0) found[slot] = (start: from, end: len);
     if (block) pending = true;
   }
 
   final blocks = <int>[];
+  final items = <List<({int start, int end})>>[];
   for (final n in nodes) {
     blocks.add(len);
+    found = [];
     visit(n);
+    items.add(found);
   }
   var text = b.toString();
   if (text.endsWith(' ')) text = text.substring(0, text.length - 1);
@@ -215,9 +252,16 @@ RenderedText renderedText(List<md.Node> nodes) {
       if (r.map[i] > total) r.map[i] = total;
     }
   }
-  return RenderedText(text, runs, [
-    for (final at in blocks) at.clamp(0, total),
-  ]);
+  int cut(int at) => at.clamp(0, total);
+  return RenderedText(
+    text,
+    runs,
+    [for (final at in blocks) cut(at)],
+    [
+      for (final list in items)
+        [for (final r in list) (start: cut(r.start), end: cut(r.end))],
+    ],
+  );
 }
 
 /// Where a selection the phone made lies in [r]: its text (Flutter joins paragraphs its own way, so whitespace is

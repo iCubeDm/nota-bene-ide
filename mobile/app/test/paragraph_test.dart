@@ -414,4 +414,193 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
     expect(find.byKey(const ValueKey('para-target:a1:1')), findsNothing);
   });
+
+  group('list items are targets of their own', () {
+    const list =
+        'Intro line.\n\n- alpha one\n- beta two\n  - nested gamma\n- delta four';
+    // pre-order: alpha 0, beta 1, nested gamma 2, delta 3 (the list is block 1)
+    ValueKey<String> target(int li) => ValueKey('para-target:a1:1.$li');
+
+    String? copied;
+    void mockClipboard(WidgetTester t) {
+      t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+    }
+
+    testWidgets('a tap on an item targets that item, not the whole list', (
+      t,
+    ) async {
+      await open(t, text: list);
+      await tapPara(t, 'alpha one');
+      expect(bubble, findsOneWidget);
+      expect(find.byKey(target(0)), findsOneWidget);
+      expect(find.byKey(const ValueKey('para-target:a1:1')), findsNothing);
+      final tint = t.getRect(find.byKey(target(0)));
+      final item = t.getRect(find.textContaining('alpha one'));
+      expect(tint.height, lessThan(item.height + 12));
+      expect(t.getRect(bubble).bottom, lessThanOrEqualTo(item.top));
+      expect(t.getRect(bar).top, greaterThanOrEqualTo(item.bottom));
+      // another item moves the target
+      await tapPara(t, 'delta four');
+      expect(find.byKey(target(0)), findsNothing);
+      expect(find.byKey(target(3)), findsOneWidget);
+    });
+
+    testWidgets('the highlight reaches left over the bullet', (t) async {
+      await open(t, text: list);
+      await tapPara(t, 'alpha one');
+      expect(
+        t.getRect(find.byKey(target(0))).left,
+        lessThan(t.getRect(find.textContaining('alpha one')).left - 12),
+      );
+    });
+
+    testWidgets('a tap on the bullet targets its item', (t) async {
+      await open(t, text: list);
+      final text = t.getRect(find.textContaining('delta four'));
+      await t.tapAt(Offset(text.left - 14, text.center.dy));
+      await t.pumpAndSettle();
+      expect(find.byKey(target(3)), findsOneWidget);
+    });
+
+    testWidgets('a tap on a nested item\'s bullet targets the nested item', (
+      t,
+    ) async {
+      await open(t, text: list);
+      final text = t.getRect(find.textContaining('nested gamma'));
+      await t.tapAt(Offset(text.left - 14, text.center.dy));
+      await t.pumpAndSettle();
+      expect(find.byKey(target(2)), findsOneWidget);
+    });
+
+    testWidgets('a nested item is its own target, the parent covers its '
+        'nested items', (t) async {
+      mockClipboard(t);
+      await open(t, text: list);
+      await tapPara(t, 'nested gamma');
+      expect(find.byKey(target(2)), findsOneWidget);
+      expect(find.byKey(target(1)), findsNothing);
+      await t.tap(barButton('Copy'));
+      await t.pumpAndSettle();
+      expect(copied, 'nested gamma');
+      await tapPara(t, 'beta two');
+      expect(find.byKey(target(1)), findsOneWidget);
+      final parent = t.getRect(find.byKey(target(1)));
+      expect(
+        parent.bottom,
+        greaterThanOrEqualTo(t.getRect(find.textContaining('nested')).bottom),
+      );
+      await t.tap(barButton('Copy'));
+      await t.pumpAndSettle();
+      expect(copied, 'beta two nested gamma');
+    });
+
+    testWidgets('a label and Comment anchor the item\'s own range', (t) async {
+      await open(t, text: list);
+      await tapPara(t, 'delta four');
+      await t.tap(
+        find.descendant(of: bubble, matching: find.text(quickLabels[2].emoji)),
+      );
+      await t.pumpAndSettle();
+      final text = chatText(r.tab!.feed.items.last).text;
+      var a = r.tab!.comments.all.single.anchor as TextAnchor;
+      expect(a.quote, 'delta four');
+      expect((a.start, a.end), (text.indexOf('delta four'), text.length));
+      await tapPara(t, 'beta two');
+      await t.tap(barButton('Comment'));
+      await t.pumpAndSettle();
+      await t.enterText(find.byType(TextField).last, 'why?');
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      a = r.tab!.comments.all.last.anchor as TextAnchor;
+      expect(a.quote, 'beta two nested gamma');
+      expect(a.start, text.indexOf('beta two'));
+      expect(a.end, text.indexOf('delta four') - 1);
+    });
+
+    testWidgets('an ordered list works the same', (t) async {
+      mockClipboard(t);
+      await open(t, text: 'Steps:\n\n1. first step\n2. second step');
+      await tapPara(t, 'second step');
+      expect(find.byKey(target(1)), findsOneWidget);
+      await t.tap(barButton('Copy'));
+      await t.pumpAndSettle();
+      expect(copied, 'second step');
+    });
+
+    testWidgets('the comment on an item is painted at it with its number', (
+      t,
+    ) async {
+      await open(t, text: list);
+      await tapPara(t, 'alpha one');
+      await t.tap(
+        find.descendant(of: bubble, matching: find.text(quickLabels[1].emoji)),
+      );
+      await t.pumpAndSettle();
+      final c = r.tab!.comments.all.single;
+      expect(find.byKey(ValueKey('badge:${c.id}')), findsOneWidget);
+    });
+
+    testWidgets('a link in an item keeps its own tap', (t) async {
+      final opened = <Uri>[];
+      launchLink = (u) async {
+        opened.add(u);
+        return true;
+      };
+      addTearDown(() => launchLink = (u) async => false);
+      await open(t, text: '- see [the docs](https://example.com/d)\n- other');
+      await t.tap(find.textContaining('the docs').first);
+      await t.pumpAndSettle();
+      expect(opened.single.host, 'example.com');
+      expect(bubble, findsNothing);
+    });
+
+    testWidgets('every item is a button with Comment for TalkBack', (t) async {
+      final h = t.ensureSemantics();
+      await open(t, text: list);
+      final root =
+          t.binding.renderViews.first.owner!.semanticsOwner!.rootSemanticsNode!;
+      final buttons = walk(root)
+          .where(
+            (n) =>
+                n.getSemanticsData().flagsCollection.isButton &&
+                (n.getSemanticsData().customSemanticsActionIds ?? [])
+                    .isNotEmpty,
+          )
+          .map((n) => n.getSemanticsData())
+          .toList();
+      // the intro, and four items (the nested one inside the second)
+      expect(buttons, hasLength(5));
+      for (final d in buttons) {
+        expect(d.hasAction(SemanticsAction.tap), isTrue);
+      }
+      expect(
+        buttons.where((d) => d.label.contains('nested gamma')),
+        hasLength(1), // its own node: the parent's does not hold it
+      );
+      h.dispose();
+    });
+
+    testWidgets('a tap inside a list in a quote is not an item target', (
+      t,
+    ) async {
+      await open(t, text: '> quoted text\n> - inner one');
+      await tapPara(t, 'quoted text');
+      expect(bubble, findsOneWidget);
+      expect(find.byKey(const ValueKey('para-target:a1:0')), findsOneWidget);
+    });
+  });
 }
