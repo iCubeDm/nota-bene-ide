@@ -377,5 +377,19 @@
   "noCommentsYet": "No comments yet. Select text in the chat or in a file and press Comment.",
   "sentComments": "Sent",
   "tabLog": "Log",
-  "voiceFinishFirst": "Finish or delete the voice message first."
+  "voiceFinishFirst": "Finish or delete the voice message first.",
+  "renameHost": "Rename host",
+  "hostNameLabel": "Host name",
+  "renameNote": "The computer calls itself {name}. The name is kept on this phone only.",
+  "renameNoteOnly": "The name is kept on this phone only.",
+  "reset": "Reset",
+  "darkThemes": "Dark themes",
+  "lightThemes": "Light themes",
+  "@renameNote": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

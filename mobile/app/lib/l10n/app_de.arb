@@ -203,5 +203,12 @@
   "noCommentsYet": "Noch keine Kommentare. Markiere Text im Chat oder in einer Datei und tippe auf Kommentieren.",
   "sentComments": "Gesendet",
   "tabLog": "Verlauf",
-  "voiceFinishFirst": "Beende oder lösche zuerst die Sprachnachricht."
+  "voiceFinishFirst": "Beende oder lösche zuerst die Sprachnachricht.",
+  "renameHost": "Host umbenennen",
+  "hostNameLabel": "Hostname",
+  "renameNote": "Der Computer nennt sich selbst {name}. Der Name wird nur auf diesem Telefon gespeichert.",
+  "renameNoteOnly": "Der Name wird nur auf diesem Telefon gespeichert.",
+  "reset": "Zurücksetzen",
+  "darkThemes": "Dunkle Designs",
+  "lightThemes": "Helle Designs"
 }

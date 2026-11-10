@@ -256,8 +256,15 @@ class NbColors extends ThemeExtension<NbColors> {
 
 /// The web's themes (shared THEMES, THEME_KIND), with the same ids. The phone keeps its own choice (Settings).
 enum NbTheme {
+  // dark first, then light: the order of the pickers (Settings groups them under their headings)
   darcula('darcula', 'Darcula', true, NbColors.darcula),
   plannotator('plannotator', 'Plannotator', true, NbColors.plannotator),
+  solarizedDark(
+    'solarized-dark',
+    'Solarized Dark',
+    true,
+    NbColors.solarizedDark,
+  ),
   intellijLight(
     'intellij-light',
     'IntelliJ Light',
@@ -270,12 +277,6 @@ enum NbTheme {
     'Solarized Light',
     false,
     NbColors.solarizedLight,
-  ),
-  solarizedDark(
-    'solarized-dark',
-    'Solarized Dark',
-    true,
-    NbColors.solarizedDark,
   );
 
   const NbTheme(this.id, this.label, this.dark, this.colors);

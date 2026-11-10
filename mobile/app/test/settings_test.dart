@@ -93,4 +93,73 @@ void main() {
     );
     expect((await ThemeChoice.load(v)).theme, NbTheme.solarizedDark);
   });
+
+  testWidgets('a host row in Settings opens Rename host (tap or long-press)', (
+    t,
+  ) async {
+    final v = MemoryVault();
+    final id = await Identity.load(v);
+    final hosts = await Hosts.load(v);
+    await hosts.add(
+      PairedHost(
+        id: b64u(List.filled(32, 1)),
+        relay: Uri.parse('wss://r.example'),
+        label: 'laptop',
+        pairedAt: DateTime(2026),
+        computerName: 'studio-mac',
+      ),
+    );
+    await t.pumpWidget(
+      NbApp(
+        home: SettingsScreen(
+          identity: id,
+          hosts: hosts,
+          themes: await ThemeChoice.load(v),
+          onPair: () {},
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.longPress(find.text('studio-mac'));
+    await t.pumpAndSettle();
+    expect(find.text('Rename host'), findsOneWidget);
+    await t.enterText(find.byType(TextField), 'Desk');
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(find.text('Desk'), findsOneWidget);
+    expect((await Hosts.load(v)).byId(hosts.all.single.id)!.label, 'Desk');
+  });
+
+  testWidgets('themes are grouped: dark first, then light, under headings', (
+    t,
+  ) async {
+    final v = MemoryVault();
+    t.view.physicalSize = const Size(800, 4000); // every row built at once
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      NbApp(
+        home: SettingsScreen(
+          identity: await Identity.load(v),
+          hosts: await Hosts.load(v),
+          themes: await ThemeChoice.load(v),
+          onPair: () {},
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    final order = [
+      'Dark themes',
+      'Darcula',
+      'Plannotator',
+      'Solarized Dark',
+      'Light themes',
+      'IntelliJ Light',
+      'GitHub Light',
+      'Solarized Light',
+    ];
+    final ys = [for (final s in order) t.getTopLeft(find.text(s)).dy];
+    expect([...ys]..sort(), ys, reason: 'dark first, then light, as designed');
+    expect(ys.toSet(), hasLength(order.length));
+  });
 }

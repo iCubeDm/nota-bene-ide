@@ -38,6 +38,8 @@ class HostsList extends StatelessWidget {
     required this.seen,
     required this.onOpen,
     required this.onForget,
+    this.onRename,
+    this.onRefresh,
     this.clock = DateTime.now,
   });
 
@@ -45,6 +47,12 @@ class HostsList extends StatelessWidget {
   final Seen seen;
   final void Function(HostLink link, HostWindow w) onOpen;
   final void Function(HostLink link) onForget;
+
+  /// Long-press on a host row.
+  final void Function(HostLink link)? onRename;
+
+  /// Pull to refresh; the indicator stays until this completes.
+  final Future<void> Function()? onRefresh;
   final DateTime Function() clock;
 
   @override
@@ -66,6 +74,7 @@ class HostsList extends StatelessWidget {
       };
       rows.add(
         ListTile(
+          onLongPress: onRename == null ? null : () => onRename!(l),
           leading: Icon(Icons.circle, size: 10, color: dot),
           title: Text(
             l.host.label,
@@ -78,6 +87,10 @@ class HostsList extends StatelessWidget {
         ),
       );
       if (l.state != LinkState.unpaired) {
+        if (l.windows.isEmpty && l.state == LinkState.connecting) {
+          rows.add(const _SkeletonRow());
+          rows.add(const _SkeletonRow());
+        }
         if (l.windows.isEmpty && l.state == LinkState.online) {
           rows.add(
             Padding(
@@ -106,7 +119,55 @@ class HostsList extends StatelessWidget {
       }
       rows.add(Divider(color: c.borderSoft, height: 1));
     }
-    return ListView(children: rows);
+    final list = ListView(
+      // an empty or short list can still be pulled
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: rows,
+    );
+    final refresh = onRefresh;
+    return refresh == null
+        ? list
+        : RefreshIndicator(onRefresh: refresh, child: list);
+  }
+}
+
+/// A grey placeholder for a window of a host that is still connecting.
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    Widget bar(double factor) => FractionallySizedBox(
+      widthFactor: factor,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        height: 12,
+        decoration: BoxDecoration(
+          color: c.muted,
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+    );
+    return Padding(
+      key: const ValueKey('skeleton-row'),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(color: c.muted, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              children: [bar(0.7), const SizedBox(height: 10), bar(0.45)],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

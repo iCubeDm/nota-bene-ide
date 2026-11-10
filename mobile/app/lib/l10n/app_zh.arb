@@ -203,5 +203,12 @@
   "noCommentsYet": "还没有评论。在聊天或文件中选中文字，然后点“评论”。",
   "sentComments": "已发送",
   "tabLog": "日志",
-  "voiceFinishFirst": "请先完成或删除语音消息。"
+  "voiceFinishFirst": "请先完成或删除语音消息。",
+  "renameHost": "重命名主机",
+  "hostNameLabel": "主机名称",
+  "renameNote": "这台电脑自称 {name}。该名称仅保存在这部手机上。",
+  "renameNoteOnly": "该名称仅保存在这部手机上。",
+  "reset": "重置",
+  "darkThemes": "深色主题",
+  "lightThemes": "浅色主题"
 }

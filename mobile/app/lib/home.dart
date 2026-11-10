@@ -7,6 +7,7 @@ import 'package:nb_channel/nb_channel.dart';
 
 import 'hosts/host_link.dart';
 import 'hosts/hosts_screen.dart';
+import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';
 import 'store/hosts.dart';
 import 'store/seen.dart';
@@ -154,6 +155,8 @@ class _HomeState extends State<Home> {
               clock: widget.clock,
               onOpen: _open,
               onForget: (l) => widget.hosts.forget(l.host.id),
+              onRename: (l) => renameHostDialog(context, widget.hosts, l.host),
+              onRefresh: widget.links.refresh,
             ),
     );
   }
