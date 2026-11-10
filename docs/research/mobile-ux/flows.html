@@ -159,11 +159,18 @@ figcaption ul{margin:4px 0 0;padding-left:16px}
 .note{position:absolute;left:8px;right:8px;z-index:9;border:2px dashed #ff6b6b;border-radius:10px;pointer-events:none}
 .note b{position:absolute;right:-2px;top:-2px;transform:translateY(-100%);background:#ff6b6b;color:#111;font:600 10px ui-monospace,Menlo,monospace;padding:1px 4px;border-radius:3px}
 /* proposed */
+.mchip{width:40px;height:40px;border-radius:20px;flex:none;background:rgba(60,63,65,.92);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:var(--accent)}
+.mchip.risk{color:var(--danger);border-color:var(--danger)}
+.mshort{display:inline-flex;width:34px;height:22px;border-radius:11px;border:1px solid var(--border);font-size:10.5px;font-weight:600;align-items:center;justify-content:center;color:var(--accent);margin-right:10px;flex:none}
+.pinned{position:absolute;top:122px;left:8px;right:8px;height:44px;z-index:3;background:rgba(60,63,65,.95);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:8px;padding:0 10px 0 0;overflow:hidden}
+.pinned .bar{width:3px;align-self:stretch;display:flex;flex-direction:column;gap:2px;padding:6px 0 6px 6px}
+.pinned .bar i{flex:1;width:3px;border-radius:2px;background:var(--muted)}
+.pinned .bar i.on{background:var(--accent)}
+.pinned .tx{flex:1;min-width:0;font-size:12.5px;line-height:1.3}
+.pinned .tx div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mm{background:var(--pop);border-radius:12px;overflow:hidden;font-size:14.5px}
 .nw{background:#3d2f55;color:#d9c6ff}
 h2.prop{border-top:2px solid #6b4fa0}
-.ring{width:40px;height:40px;border-radius:20px;flex:none;position:relative;background:conic-gradient(var(--primary) 0 34%,var(--muted) 0);border:1px solid var(--border)}
-.ring span{position:absolute;inset:4px;border-radius:50%;background:#3a3d3f;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--fg)}
 .pres{font-size:12px;color:var(--mfg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pres.work{color:var(--accent)}
 .ghost{width:48px;height:48px;border-radius:24px;border:1px solid var(--border);background:var(--card);color:var(--mfg);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
@@ -220,10 +227,10 @@ Dashed red frames mark the spot a tag is about. Drawings approximate spacing; te
   <a href="#f11">11. Files pane and viewers</a><br>
   <a href="#f12">12. Git: changes, log, diff</a><br>
   <a href="#f13">13. Connection and window states</a><br>
-  <a href="#p1">14. Proposed: header presence and context ring</a><br>
+  <a href="#p1">14. Proposed: header presence and mode indicator</a><br>
   <a href="#p2">15. Proposed: comment by paragraph, Pin, labels</a><br>
   <a href="#p3">16. Proposed: tool groups</a><br>
-  <a href="#p4">17. Proposed: host names and refresh</a>
+  <a href="#p4">17. Proposed: host names, refresh, themes</a>
 </div>
 
 <!-- ============ 1 ============ -->
@@ -977,15 +984,16 @@ This is the path the next design work replaces (decided in review: a button per 
 </div>
 
 <!-- ============ P1 ============ -->
-<h2 id="p1" class="prop">14. Proposed: header presence and context ring <small>review-1 items 4, 7, 8, 9</small></h2>
+<h2 id="p1" class="prop">14. Proposed: header presence and mode indicator <small>review-1 items 4, 7, 8, 9</small></h2>
 <p class="lead">The messenger principle: the second line of the header pill says what the other side is doing, as “typing…” and
-“last seen” do. The status bar under the tabs goes away in every state. The free space right of the pill holds a context ring;
-a tap on it opens the mode menu (a menu, not a cycle, so a stray tap cannot switch to Auto or full access).</p>
+“last seen” do. The status bar under the tabs goes away in every state. The free space right of the pill holds a short mode
+indicator; a tap on it opens the mode menu (a menu, not a cycle, so a stray tap cannot switch to Auto or full access). Context and
+plan limits stay in the window sheet (5.1), so nothing is shown twice.</p>
 <div class="row">
   <figure>
     <div class="ph"><div class="sb">12:05</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres"><span class="meter"><i style="width:34%"></i></span> 34 % context</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed">
         <div class="ubub">Make the record button like Telegram: hold to record, release to send.</div>
@@ -996,15 +1004,16 @@ a tap on it opens the mode menu (a menu, not a cycle, so a stray tap cannot swit
       </div>
       <div class="composer"><div class="field"><span>Message</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">🎤</div></div>
       <div class="nav"></div></div>
-    <figcaption><span class="id">14.1</span><b>Idle</b> <span class="tag nw">NEW</span> was 4.1. Second line of the pill: the mode alone, no meter.
-      Right of the pill: a 40 dp ring, the percent of context used inside; the ring turns accent at 70 %, red at 90 %.
+    <figcaption><span class="id">14.1</span><b>Idle</b> <span class="tag nw">NEW</span> was 4.1. Second line of the pill: the context meter and percent (accent at 70 %, red at 90 %).
+      Right of the pill: a 40 dp mode indicator, a short name: Ask, Edit, Plan, Auto; Codex: RO, WS, Full; omp: Ask, Write, Plan, Yolo.
+      Modes without prompts (Auto, Full, Yolo) are red.
       <ul><li>The pill itself still opens the window sheet (5.1).</li></ul></figcaption>
   </figure>
   <div class="go">agent starts</div>
   <figure>
     <div class="ph"><div class="sb">12:07</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · reading files · 0:42</div></div></div><div class="ring"><span>36</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · reading files · 0:42</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed">
         <div class="ubub">Now add a lock on swipe up</div>
@@ -1021,7 +1030,7 @@ a tap on it opens the mode menu (a menu, not a cycle, so a stray tap cannot swit
   <figure style="margin-left:64px">
     <div class="ph"><div class="sb">12:07</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · running tests · 1:15</div></div></div><div class="ring"><span>37</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · running tests · 1:15</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed">
         <div class="ubub">Now add a lock on swipe up</div>
@@ -1034,38 +1043,36 @@ a tap on it opens the mode menu (a menu, not a cycle, so a stray tap cannot swit
     <figcaption><span class="id">14.3</span><b>Working, composer variant B</b> <span class="tag nw">NEW</span>. Stop moves to the left edge, the whole field away from Send.
       Same sizes and colours as A. Pick A or B on the final layout.</figcaption>
   </figure>
-  <div class="go">tap the ring</div>
+  <div class="go">tap the indicator</div>
   <figure>
     <div class="ph"><div class="sb">12:05</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring" style="outline:2px solid var(--primary)"><span>34</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres"><span class="meter"><i style="width:34%"></i></span> 34 % context</div></div></div><div class="mchip" style="outline:2px solid var(--primary)">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="scrim" style="background:rgba(0,0,0,.35)"></div>
       <div class="mm" style="position:absolute;top:76px;right:8px;width:290px;z-index:6;border:1px solid var(--border)">
-        <div style="height:auto;display:block;padding:10px 16px 8px"><div style="display:flex;justify-content:space-between;align-items:center"><span>Context 34 %</span><span class="btn txt" style="padding:4px 0">Compact</span></div>
-          <div class="bar6" style="margin:4px 0 2px"><i style="width:34%"></i></div><div class="tiny muted">68 k of 200 k tokens</div></div>
-        <div class="hr" style="margin:0"></div>
-        <div style="height:auto;display:block;padding:9px 16px"><div>Default</div><div class="tiny muted">Asks before edits and commands</div></div>
-        <div style="height:auto;display:block;padding:9px 16px;background:rgba(72,118,192,.25)"><div style="display:flex;justify-content:space-between">Accept edits<span class="check">✓</span></div><div class="tiny muted">Edits files without asking, asks before commands</div></div>
-        <div style="height:auto;display:block;padding:9px 16px"><div>Plan</div><div class="tiny muted">Only reads and thinks, changes nothing; ends with a plan to approve</div></div>
-        <div style="height:auto;display:block;padding:9px 16px"><div>Auto</div><div class="tiny muted">A classifier approves safe actions itself, asks about the rest</div></div>
+        <div style="height:auto;display:block;padding:9px 16px"><div style="display:flex"><span class="mshort">Ask</span>Default</div><div class="tiny muted" style="padding-left:44px">Asks before edits and commands</div></div>
+        <div style="height:auto;display:block;padding:9px 16px;background:rgba(72,118,192,.25)"><div style="display:flex"><span class="mshort">Edit</span><span style="flex:1">Accept edits</span><span class="check">✓</span></div><div class="tiny muted" style="padding-left:44px">Edits files without asking, asks before commands</div></div>
+        <div style="height:auto;display:block;padding:9px 16px"><div style="display:flex"><span class="mshort">Plan</span>Plan</div><div class="tiny muted" style="padding-left:44px">Only reads and thinks, changes nothing; ends with a plan to approve</div></div>
+        <div style="height:auto;display:block;padding:9px 16px"><div style="display:flex"><span class="mshort" style="color:var(--danger);border-color:var(--danger)">Auto</span>Auto</div><div class="tiny muted" style="padding-left:44px">A classifier approves safe actions itself, asks about the rest</div></div>
       </div>
       <div class="nav"></div></div>
-    <figcaption><span class="id">14.4</span><b>Mode menu</b> <span class="tag nw">NEW</span>. Anchored to the ring: context at the top with Compact, then the provider's modes with their descriptions.
+    <figcaption><span class="id">14.4</span><b>Mode menu</b> <span class="tag nw">NEW</span>. Anchored to the indicator: the provider's modes, each with its short name and description.
       One tap picks and closes; a tap outside closes. Codex and omp list their own modes.
-      <ul><li>Compact is disabled while the agent works, as in 5.1.</li></ul></figcaption>
+      <ul><li>No context here: context, limits, Compact live in the window sheet (5.1, a tap on the pill).</li></ul></figcaption>
   </figure>
 </div>
 <div class="row">
   <figure>
     <div class="ph"><div class="sb">12:40</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">offline · seen 4 min ago</div></div></div><div class="ring" style="opacity:.45"><span>34</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres">offline · seen 4 min ago</div></div></div><div class="mchip" style="opacity:.45">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed"><div class="ubub">Make the record button like Telegram</div><div class="abub">Done…</div></div>
-      <div class="composer"><div class="field"><span>Sending is off while the window is not reachable</span></div><div class="fab mute">➤</div></div>
+      <div class="composer"><div class="field"><span>Message</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab mute">➤</div></div>
       <div class="nav"></div></div>
-    <figcaption><span class="id">14.5</span><b>Offline</b> <span class="tag nw">NEW</span> was 13.1. The pill says “offline · seen 4 min ago”; avatar and ring dim.
+    <figcaption><span class="id">14.5</span><b>Offline</b> <span class="tag nw">NEW</span> was 13.1. The pill says “offline · seen 4 min ago”; avatar and indicator dim.
+      The composer keeps its normal “Message” hint and accepts a draft; only Send is grey (the header already says why).
       Other states on the same line: “connecting…”, “computer asleep” (host answers, window does not), “relay unreachable”.
       <ul><li>A tap on the pill in these states opens a small sheet with the cause and “Reconnect now”.</li></ul></figcaption>
   </figure>
@@ -1073,7 +1080,7 @@ a tap on it opens the mode menu (a menu, not a cycle, so a stray tap cannot swit
   <figure>
     <div class="ph"><div class="sb">12:40</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">waiting for the window…</div></div></div><div class="ring" style="opacity:.45"><span>34</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres">waiting for the window…</div></div></div><div class="mchip" style="opacity:.45">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed" style="opacity:.35"><div class="ubub">Make the record button like Telegram</div><div class="abub">Done…</div></div>
       <div style="position:absolute;top:122px;left:0;right:0;bottom:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:2;text-align:center;padding:0 40px">
@@ -1097,7 +1104,7 @@ diagrams keep their own taps; a long-press keeps the whole-message menu (7.1) fo
   <figure>
     <div class="ph"><div class="sb">12:10</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres"><span class="meter"><i style="width:34%"></i></span> 34 % context</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed">
         <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
@@ -1118,7 +1125,7 @@ diagrams keep their own taps; a long-press keeps the whole-message menu (7.1) fo
   <figure>
     <div class="ph"><div class="sb">12:10</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres"><span class="meter"><i style="width:34%"></i></span> 34 % context</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed">
         <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
@@ -1139,7 +1146,7 @@ diagrams keep their own taps; a long-press keeps the whole-message menu (7.1) fo
   <figure>
     <div class="ph"><div class="sb">12:10</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres"><span class="meter"><i style="width:34%"></i></span> 34 % context</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments <span class="cnt">1</span></span></div>
       <div class="feed" style="bottom:150px">
         <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
@@ -1159,23 +1166,25 @@ diagrams keep their own taps; a long-press keeps the whole-message menu (7.1) fo
   <figure>
     <div class="ph"><div class="sb">12:11</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres"><span class="meter"><i style="width:34%"></i></span> 34 % context</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
-      <div class="feed" style="bottom:140px">
-        <div class="ubub" style="width:300px"><div class="quote" style="color:#c8d3ea;margin-top:0">📌 Recording starts after a 150 ms hold; slide left cancels, up locks.</div>Will the lock survive a rotation?</div>
+      <div class="pinned"><div class="bar"><i class="on"></i><i></i></div><div class="tx"><div style="color:var(--accent)">Pinned 1 of 2</div><div>The hold delay is a constant, so changing it later is one line.</div></div><span class="muted">☰</span></div>
+      <div class="feed" style="top:172px">
+        <div class="ubub">Will the lock survive a rotation?</div>
         <div class="abub"><p>Yes: the lock lives in RecordSession, not in the widget.</p></div>
+        <div class="line">Done in 18 s</div>
       </div>
-      <div class="pinbar"><span>📌</span><div class="r"><span style="color:var(--accent)">Pinned</span> · The hold delay is a constant, so changing it…</div><span class="muted">✕</span></div>
+      
       <div class="composer"><div class="field" style="color:var(--fg)"><span>why not make it a setting?</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">➤</div></div>
       <div class="nav"></div></div>
-    <figcaption><span class="id">15.4</span><b>Pin</b> <span class="tag nw">NEW</span> (was “Quote”). The paragraph, or the selected part of it, sits pinned above the composer until sent or ✕.
-      The sent bubble starts with the pinned passage; the agent gets it as a quote before the text. Tap the pin in a sent bubble jumps to the source.</figcaption>
+    <figcaption><span class="id">15.4</span><b>Pinned</b> <span class="tag nw">NEW</span>, a new feature for the phone and the web. Pin keeps the paragraph (or the selected part of it) at the top of the chat, as Telegram's pinned messages.
+      Tap jumps to the source and steps to the next pin (the bars on the left); ☰ lists all pins, with Unpin. Pins belong to the session on the host, so the web and every phone see the same ones.</figcaption>
   </figure>
   <div class="go">Select</div>
   <figure>
     <div class="ph"><div class="sb">12:11</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres"><span class="meter"><i style="width:34%"></i></span> 34 % context</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed">
         <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
@@ -1198,7 +1207,7 @@ diagrams keep their own taps; a long-press keeps the whole-message menu (7.1) fo
   <figure>
     <div class="ph"><div class="sb">12:07</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · running tests · 1:15</div></div></div><div class="ring"><span>37</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · running tests · 1:15</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed">
         <div class="ubub">Make the record button like Telegram</div>
@@ -1219,7 +1228,7 @@ diagrams keep their own taps; a long-press keeps the whole-message menu (7.1) fo
   <figure>
     <div class="ph"><div class="sb">12:08</div>
       <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
-        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>38</span></div></div>
+        <div class="tt">Voice notes like Telegram</div><div class="pres"><span class="meter"><i style="width:34%"></i></span> 34 % context</div></div></div><div class="mchip">Edit</div></div>
       <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
       <div class="feed">
         <div class="abub" style="width:324px"><p>Lock added. Running the voice tests.</p>
@@ -1243,7 +1252,7 @@ Expected: true  Actual: false</pre></div>
 </div>
 
 <!-- ============ P4 ============ -->
-<h2 id="p4" class="prop">17. Proposed: host names and refresh <small>review-1 items 1, 2</small></h2>
+<h2 id="p4" class="prop">17. Proposed: host names, refresh, themes <small>review-1 items 1, 2; round 2</small></h2>
 <p class="lead">Today a host is named after the folder of its first window at pairing (<code>pair_flow.dart</code>). Proposed: the host sends
 its computer name when it pairs, and the phone lets you rename it.</p>
 <div class="row">
@@ -1275,6 +1284,25 @@ its computer name when it pairs, and the phone lets you rename it.</p>
       <div class="nav"></div></div>
     <figcaption><span class="id">17.2</span><b>Rename</b> <span class="tag nw">NEW</span>. From a long-press on the host row and from its row in Settings (3.1).
       Reset goes back to the computer's name. A host that sends no name keeps today's fingerprint prefix.</figcaption>
+  </figure>
+</div>
+
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar"><span>←</span><span style="font-size:20px">Settings</span></div>
+      <div class="li"><span class="ico">文</span><div class="tx"><div class="t1">Language</div><div class="t2">Phone's language</div></div></div>
+      <div class="sect">Dark themes</div>
+      <div class="li"><div class="av sm" style="background:#2b2b2b;border:1px solid #555"><i style="width:8px;height:8px;border-radius:4px;background:#4876c0"></i></div><div class="tx">Darcula</div><span class="check">✓</span></div>
+      <div class="li"><div class="av sm" style="background:#1d2230;border:1px solid #555"><i style="width:8px;height:8px;border-radius:4px;background:#8f7cf0"></i></div><div class="tx">Plannotator</div></div>
+      <div class="li"><div class="av sm" style="background:#002b36;border:1px solid #555"><i style="width:8px;height:8px;border-radius:4px;background:#268bd2"></i></div><div class="tx">Solarized Dark</div></div>
+      <div class="sect">Light themes</div>
+      <div class="li"><div class="av sm" style="background:#f7f8fa"><i style="width:8px;height:8px;border-radius:4px;background:#3574f0"></i></div><div class="tx">IntelliJ Light</div></div>
+      <div class="li"><div class="av sm" style="background:#fff"><i style="width:8px;height:8px;border-radius:4px;background:#0969da"></i></div><div class="tx">GitHub Light</div></div>
+      <div class="li"><div class="av sm" style="background:#fdf6e3"><i style="width:8px;height:8px;border-radius:4px;background:#268bd2"></i></div><div class="tx">Solarized Light</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">17.3</span><b>Themes grouped</b> <span class="tag nw">NEW</span> was 3.1. Dark themes first, then light, each under its own heading.
+      The web theme picker gets the same order.</figcaption>
   </figure>
 </div>
 

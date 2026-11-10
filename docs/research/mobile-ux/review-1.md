@@ -32,6 +32,17 @@ Items 1, 2, 4 (mode menu on the ring instead of a cycle), 5, 6, 8 and 9 are agre
 principle, to be checked on the drawn layout (variant A: Stop next to Send with a 16 dp gap; variant B: Stop at the left
 edge). The proposed screens are sections 14-17 of `flows.html`, ids 14.1-17.2.
 
+## Comments on the drawn proposals
+
+| # | Screens | Comment | Change |
+|---|---|---|---|
+| 10 | 3.1 | Group the themes: dark first, then light. | Two headings, Dark themes and Light themes (17.3); the web picker gets the same order. |
+| 11 | 14.x | Right of the pill, a short mode indicator instead of the context number. | The 40 dp button shows the mode's short name (Ask, Edit, Plan, Auto; Codex RO, WS, Full; omp Ask, Write, Plan, Yolo), red for modes without prompts. The context meter moves to the pill's second line when idle. |
+| 12 | 14.4 | All context indicators would belong in the menu, but that duplicates the window sheet. | The menu holds modes only. Context, plan limits and Compact stay in the window sheet (5.1), opened by a tap on the pill. |
+| 13 | 14.5 | The long composer placeholders are unwelcome. | The composer keeps “Message” in every state and accepts a draft; only Send greys out, since the header already says why. |
+| 14 | 15.1 | 🔥 on tapping a paragraph. | Kept as drawn. |
+| 15 | 15.4 | Pins go to the top of the chat, and the web needs them too. | Pin is a new cross-client feature: pinned passages sit in a bar under the tabs, as Telegram's pinned messages; tap jumps and steps to the next, ☰ lists them with Unpin. Pins are stored with the session on the host, so web and phones share them. Pin no longer puts a passage above the composer. |
+
 ## Order of work this suggests
 
 1. Header presence line and context ring (items 4, 8), with the status bar removed and window-gone centred (item 9).
