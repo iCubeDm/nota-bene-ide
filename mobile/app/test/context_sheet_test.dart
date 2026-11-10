@@ -46,6 +46,19 @@ void main() {
     expect(inSheet(find.byKey(const ValueKey('context-bar'))), findsOneWidget);
   });
 
+  testWidgets('the context bar is filled to its percent, full height', (
+    t,
+  ) async {
+    await r.open(t);
+    await r.openContextSheet(t, stats: stats({'context': ctx}));
+    final bar = inSheet(find.byKey(const ValueKey('context-bar')));
+    final fill = find.descendant(of: bar, matching: find.byType(DecoratedBox));
+    final whole = t.getSize(bar);
+    final part = t.getSize(fill.last);
+    expect(part.height, whole.height);
+    expect(part.width, closeTo(whole.width * .34, .5));
+  });
+
   testWidgets('rows the window does not report are left out', (t) async {
     await r.open(t);
     await r.openContextSheet(t, stats: stats({'context': ctx}));
@@ -73,6 +86,20 @@ void main() {
     expect(find.text('Week'), findsOneWidget);
     expect(inSheet(find.text('34%')), findsOneWidget);
     expect(inSheet(find.text('62%')), findsOneWidget);
+    // each bar is filled to its percent, full height
+    final rows = find.byType(LimitRow);
+    for (final (i, pct) in [(0, .34), (1, .62)]) {
+      final row = rows.at(i);
+      final track = find.descendant(of: row, matching: find.byType(Container));
+      final fill = find.descendant(
+        of: track.last,
+        matching: find.byType(DecoratedBox),
+      );
+      final whole = t.getSize(track.last);
+      final part = t.getSize(fill.last);
+      expect(part.height, whole.height);
+      expect(part.width, closeTo(whole.width * pct, .5));
+    }
   });
 
   testWidgets('a reset another day shows the weekday and the time', (t) async {

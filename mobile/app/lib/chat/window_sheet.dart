@@ -314,8 +314,10 @@ class LimitRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(3),
           ),
           alignment: Alignment.centerLeft,
+          // heightFactor: a childless DecoratedBox under the aligned (loose) height would be 0 px tall
           child: FractionallySizedBox(
             widthFactor: pct / 100,
+            heightFactor: 1,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: meterFill(c, limit.utilization),
