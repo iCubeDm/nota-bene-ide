@@ -147,6 +147,7 @@
   "expandCode": "全屏打开",
   "codeLines": "{count, plural, other{{count} 行}}",
   "windowSheetMode": "模式",
+  "windowSheetModel": "模型",
   "limitsTitle": "套餐额度",
   "limit5h": "5 小时",
   "limitWeek": "每周",

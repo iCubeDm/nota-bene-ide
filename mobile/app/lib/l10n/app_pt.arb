@@ -147,6 +147,7 @@
   "expandCode": "Abrir em tela cheia",
   "codeLines": "{count, plural, one{{count} linha} other{{count} linhas}}",
   "windowSheetMode": "Modo",
+  "windowSheetModel": "Modelo",
   "limitsTitle": "Limites do plano",
   "limit5h": "5 horas",
   "limitWeek": "Semana",

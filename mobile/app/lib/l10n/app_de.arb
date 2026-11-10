@@ -147,6 +147,7 @@
   "expandCode": "Im Vollbild öffnen",
   "codeLines": "{count, plural, one{{count} Zeile} other{{count} Zeilen}}",
   "windowSheetMode": "Modus",
+  "windowSheetModel": "Modell",
   "limitsTitle": "Tarif-Limits",
   "limit5h": "5 Stunden",
   "limitWeek": "Woche",

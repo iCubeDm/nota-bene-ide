@@ -147,6 +147,7 @@
   "expandCode": "Открыть на весь экран",
   "codeLines": "{count, plural, one{{count} строка} few{{count} строки} many{{count} строк} other{{count} строки}}",
   "windowSheetMode": "Режим",
+  "windowSheetModel": "Модель",
   "limitsTitle": "Лимиты тарифа",
   "limit5h": "5 часов",
   "limitWeek": "Неделя",
