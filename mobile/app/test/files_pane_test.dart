@@ -187,7 +187,8 @@ void main() {
       await t.pumpAndSettle();
       expect(find.byType(CodeScreen), findsOneWidget);
       expect(find.textContaining('void main'), findsOneWidget);
-      expect(find.text('1\n2'), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
       // back returns to the same folder
       await t.binding.handlePopRoute();
       await t.pumpAndSettle();
