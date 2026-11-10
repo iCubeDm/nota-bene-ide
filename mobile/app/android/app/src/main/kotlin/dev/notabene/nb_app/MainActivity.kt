@@ -460,7 +460,7 @@ class MainActivity : FlutterFragmentActivity() {
     // image types in `mimes` (what the attach flow takes, so no heic or video is offered). `thumbnail {id, px, key}` answers
     // the jpeg bytes of one thumbnail (null when there is none); the newest request is served first and `cancel {key}`
     // drops one that has not started. `take {items: [{id}]}` copies the items like a pick does; one that cannot be read
-    // is answered as {skipped: name} and the others are still copied.
+    // is answered as {unreadable: name} and the others are still copied.
     private var pendingGallery: MethodChannel.Result? = null
     // the thumbnail work waits in a stack: what the user scrolled to last is drawn first
     private val thumbQueue = object : LinkedBlockingDeque<Runnable>() {
@@ -518,7 +518,7 @@ class MainActivity : FlutterFragmentActivity() {
                                     out.add(readPicked(uri, null))
                                 } catch (e: Throwable) {
                                     // one that cannot be read is told by its name; the others still go
-                                    out.add(mapOf("skipped" to galleryName(uri)))
+                                    out.add(mapOf("unreadable" to galleryName(uri)))
                                 }
                             }
                             mainHandler.post { result.success(out) }

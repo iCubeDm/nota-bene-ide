@@ -42,29 +42,35 @@ class PickedImage {
 
 enum PickSource { camera, gallery, file }
 
-/// The images the user picked from [s] (none when cancelled) and the names of those the phone skipped as too large.
-Future<({List<PickedImage> images, List<String> skipped})> pickImages(
-  PickSource s,
-) async {
+/// What a pick answered: the images, the names of those the phone skipped as too large and of those it could not read.
+typedef Picked = ({
+  List<PickedImage> images,
+  List<String> skipped,
+  List<String> unreadable,
+});
+
+/// The images the user picked from [s] (none when cancelled).
+Future<Picked> pickImages(PickSource s) async {
   return parsePicked(await pickChannel.invokeListMethod<Object?>(s.name));
 }
 
-/// A channel's answer to a pick: {path, mime, name} per image, {skipped: name} per image that was too large.
-({List<PickedImage> images, List<String> skipped}) parsePicked(
-  List<Object?>? reply,
-) {
+/// A channel's answer to a pick: {path, mime, name} per image, {skipped: name} per image that was too large and
+/// {unreadable: name} per one the phone could not read.
+Picked parsePicked(List<Object?>? reply) {
   final images = <PickedImage>[];
-  final skipped = <String>[];
+  final skipped = <String>[], unreadable = <String>[];
   for (final item in reply ?? const <Object?>[]) {
     if (item is! Map) continue;
     final path = item['path'], mime = item['mime'], name = item['name'];
     if (item['skipped'] case final String n) {
       skipped.add(n);
+    } else if (item['unreadable'] case final String n) {
+      unreadable.add(n);
     } else if (path is String && mime is String && name is String) {
       images.add(PickedImage(path: path, mime: mime, name: name));
     }
   }
-  return (images: images, skipped: skipped);
+  return (images: images, skipped: skipped, unreadable: unreadable);
 }
 
 /// Hands [bytes] to the system's share sheet (an `ACTION_SEND` of a file in our cache, through the same provider as the

@@ -165,6 +165,7 @@
   "attachFailed": "Не удалось загрузить изображение.",
   "attachUnsupported": "Можно прикрепить только png, jpeg, gif и webp.",
   "attachTooLarge": "Слишком большой файл: {names}",
+  "attachUnreadable": "Не удалось прочитать: {names}",
   "attachUploading": "Дождитесь загрузки изображения",
   "attachDenied": "Nota Bene не может использовать камеру или фото. Разрешите это в настройках Android.",
   "attachBusy": "Другое окно выбора ещё открыто. Сначала закройте его.",

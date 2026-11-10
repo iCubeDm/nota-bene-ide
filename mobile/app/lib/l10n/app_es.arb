@@ -165,6 +165,7 @@
   "attachFailed": "No se pudo subir la imagen.",
   "attachUnsupported": "Solo se pueden adjuntar imágenes png, jpeg, gif y webp.",
   "attachTooLarge": "Demasiado grande para adjuntar: {names}",
+  "attachUnreadable": "No se pudo leer: {names}",
   "attachUploading": "Espera a que termine de subirse la imagen",
   "attachDenied": "Nota Bene no puede usar la cámara ni las fotos. Permítelo en los ajustes de Android.",
   "attachBusy": "Otro selector sigue abierto. Termínalo primero.",

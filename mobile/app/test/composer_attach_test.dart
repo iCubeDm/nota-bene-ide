@@ -141,7 +141,7 @@ void main() {
   ) async {
     gallerySource = _Grid([
       item('g1.png'),
-      {'skipped': 'broken.png'},
+      {'unreadable': 'broken.png'},
     ]);
     await open(t);
     await t.tap(find.byTooltip('Attach an image'));
@@ -152,7 +152,7 @@ void main() {
     await t.tap(find.text('Send'));
     await t.pumpAndSettle();
     expect(thumbs, findsOneWidget);
-    expect(find.text('Too large to attach: broken.png'), findsOneWidget);
+    expect(find.text('Could not read: broken.png'), findsOneWidget);
   });
 
   testWidgets('remove drops one', (t) async {
@@ -373,9 +373,7 @@ class _Grid implements GallerySource {
   Future<Uint8List?> thumbnail(GalleryItem item, int px) async => null;
 
   @override
-  Future<({List<PickedImage> images, List<String> skipped})> take(
-    List<GalleryItem> items,
-  ) async {
+  Future<Picked> take(List<GalleryItem> items) async {
     taken.add(items);
     return parsePicked(files);
   }

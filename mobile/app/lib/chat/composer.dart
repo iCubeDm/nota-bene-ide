@@ -103,7 +103,7 @@ class _ComposerState extends State<Composer> {
     final choice = await showAttachSheet(context);
     if (choice == null || !mounted) return;
     final t = AppLocalizations.of(context);
-    final ({List<PickedImage> images, List<String> skipped}) got;
+    final Picked got;
     try {
       got = switch (choice) {
         AttachFrom(:final source) => await pickImages(source),
@@ -121,6 +121,9 @@ class _ComposerState extends State<Composer> {
     }
     if (!mounted) return;
     if (got.skipped.isNotEmpty) _say(t.attachTooLarge(got.skipped.join(', ')));
+    if (got.unreadable.isNotEmpty) {
+      _say(t.attachUnreadable(got.unreadable.join(', ')));
+    }
     for (final p in got.images) {
       final d = _Draft();
       setState(() => _drafts.add(d));

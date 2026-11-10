@@ -34,6 +34,7 @@ void main() {
       (call) async => <Object?>[
         {'path': '/c/pick/1', 'mime': 'image/png', 'name': 'a.png'},
         {'skipped': 'huge.jpg'},
+        {'unreadable': 'broken.jpg'},
         {'path': '/c/pick/2', 'mime': 'image/jpeg', 'name': 'b.jpg'},
         {'bytes': Uint8List(1), 'mime': 'image/png', 'name': 'old.png'},
       ],
@@ -43,6 +44,7 @@ void main() {
     expect(r.images[0].path, '/c/pick/1');
     expect(r.images[0].mime, 'image/png');
     expect(r.skipped, ['huge.jpg']);
+    expect(r.unreadable, ['broken.jpg']); // not told as too large
   });
 
   test('a picked file is read lazily and deleted after its use', () async {

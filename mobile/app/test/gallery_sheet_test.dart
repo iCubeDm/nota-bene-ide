@@ -62,11 +62,13 @@ class FakeGallery implements GallerySource {
   void cancel(GalleryItem item, int px) => cancelled.add(item.id);
 
   @override
-  Future<({List<PickedImage> images, List<String> skipped})> take(
-    List<GalleryItem> items,
-  ) async {
+  Future<Picked> take(List<GalleryItem> items) async {
     taken.add(items);
-    return (images: const <PickedImage>[], skipped: const <String>[]);
+    return (
+      images: const <PickedImage>[],
+      skipped: const <String>[],
+      unreadable: const <String>[],
+    );
   }
 }
 

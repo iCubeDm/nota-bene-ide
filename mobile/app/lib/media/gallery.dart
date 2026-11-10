@@ -43,9 +43,7 @@ abstract interface class GallerySource {
   void cancel(GalleryItem item, int px);
 
   /// The chosen items as files of ours, as the pickers answer them.
-  Future<({List<PickedImage> images, List<String> skipped})> take(
-    List<GalleryItem> items,
-  );
+  Future<Picked> take(List<GalleryItem> items);
 }
 
 class ChannelGallery implements GallerySource {
@@ -127,9 +125,7 @@ class ChannelGallery implements GallerySource {
   }
 
   @override
-  Future<({List<PickedImage> images, List<String> skipped})> take(
-    List<GalleryItem> items,
-  ) async => parsePicked(
+  Future<Picked> take(List<GalleryItem> items) async => parsePicked(
     await galleryChannel.invokeListMethod<Object?>('take', {
       'items': [
         for (final i in items) {'id': i.id},
