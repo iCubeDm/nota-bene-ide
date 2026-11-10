@@ -58,6 +58,7 @@ edge). The proposed screens are sections 14-17 of `flows.html`, ids 14.1-17.2.
 | # | Screens | Comment | Change |
 |---|---|---|---|
 | 21 | 14.x | Move the context into a circle right of the header pill; the pill's second line is the session state; a tap on the circle shows everything about the context. | A 40 dp context ring right of the pill (percent inside; accent from 70 %, red from 90 %). The second line says only what the session is doing (online, working, waiting for your answer, compacting, connecting, offline, computer asleep, waiting for the window). A tap on the ring opens a context sheet: context in tokens, 5-hour and weekly limits, session cost, idle compaction, Compact, Stats. The window sheet (tap on the pill) keeps model, modes, Clear and Restart. |
+| 22 | design 1.1 | “Done in 2 min 14 s” under a reply repeats the pill. | The line goes; the pill's “online · done 12:04” says it. |
 
 The agreed design, without the history, is drawn in one board: `design.html`.
 
