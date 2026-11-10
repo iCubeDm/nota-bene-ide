@@ -202,5 +202,6 @@
   "emptyFolder": "这个文件夹是空的。",
   "folderUp": "上一级文件夹",
   "noCommentsYet": "还没有评论。在聊天或文件中选中文字，然后点“评论”。",
-  "sentComments": "已发送"
+  "sentComments": "已发送",
+  "tabLog": "日志"
 }

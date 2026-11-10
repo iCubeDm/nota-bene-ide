@@ -29,6 +29,9 @@ export const WEB_KEYS: readonly string[] = [
   'dictInstallGo', 'dictInstalling', 'dictFailed', 'dictRetry',
   // the sent comments under a message, and the header's context
   'commentsLc', 'ctx',
+  // the git views' words
+  'vcsChanges', 'vcsNoChanges', 'vcsNoCommits', 'vcsEmptyFile', 'vcsOnlyMeta', 'vcsTooBig', 'vcsShowAnyway', 'vcsNoRepo',
+  'vcsFailed', 'vcsAllBranches', 'binary',
 ];
 /**
  * Web strings that count (`nComments(n)`): kept as the forms of 1, 2 and 5 with the number as `{0}`, which
@@ -55,6 +58,8 @@ const TEMPLATE_KEYS: Record<string, ('n' | 'list')[]> = {
   srcTool: ['n', 'n'], srcAgentReply: ['n'], srcAgentTool: ['n', 'n'],
   // the mic's Whisper sheet (Settings → Dictation's question): sizes and the folder
   dictInstallQ: ['n', 'n', 'n'],
+  // the git views: a large diff, the base line of the changes
+  vcsBigDiff: ['n'], vcsAgainst: ['n'], vcsOnlyUncommitted: ['n'], vcsLogCut: ['n'],
 };
 /**
  * The forms of the source names that drop a part when it is empty (a tool with no argument, a subagent with no name),

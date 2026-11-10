@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../comments/comments.dart' show Comments;
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import '../ui/folder_tabs.dart';
 import '../voice/recorder.dart' show Microphone;
 import 'window_tab.dart';
 
@@ -193,92 +194,16 @@ class PaneStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final c = Theme.of(context).extension<NbColors>()!;
-    final labels = [t.tabFiles, t.tabChat, t.tabComments];
     return ListenableBuilder(
       listenable: Listenable.merge([page, pending]),
-      builder: (context, _) {
-        final at = page.hasClients && page.position.haveDimensions
+      builder: (context, _) => FolderTabs(
+        labels: [t.tabFiles, t.tabChat, t.tabComments],
+        at: page.hasClients && page.position.haveDimensions
             ? (page.page ?? 1.0)
-            : 1.0;
-        final count = pending.pending.length;
-        return LayoutBuilder(
-          builder: (context, box) {
-            final w = box.maxWidth / 3;
-            return Stack(
-              children: [
-                Row(
-                  children: [
-                    for (final (i, label) in labels.indexed)
-                      Expanded(
-                        child: InkWell(
-                          onTap: () => onTap(Pane.values[i]),
-                          child: Center(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Flexible(
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      label,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: (at - i).abs() < .5
-                                            ? c.foreground
-                                            : c.mutedFg,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                if (i == 2 && count > 0) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    key: const ValueKey('comments-badge'),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: c.accent,
-                                      borderRadius: BorderRadius.circular(9),
-                                    ),
-                                    child: Text(
-                                      '$count',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: c.background,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                Positioned(
-                  left: at * w + w * .2,
-                  width: w * .6,
-                  bottom: 0,
-                  height: 3,
-                  child: DecoratedBox(
-                    key: const ValueKey('strip-underline'),
-                    decoration: BoxDecoration(
-                      color: c.primary,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+            : 1.0,
+        badges: {2: pending.pending.length},
+        onTap: (i) => onTap(Pane.values[i]),
+      ),
     );
   }
 }

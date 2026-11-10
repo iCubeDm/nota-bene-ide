@@ -11,6 +11,10 @@ import '../chat/files.dart';
 import '../chat/window_tab.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import '../comments/strings.g.dart';
+import '../ui/folder_tabs.dart';
+import 'git.dart';
+import 'git_pages.dart';
 import 'remote.dart';
 import 'text_file_screen.dart' show ErrorRetry;
 
@@ -50,8 +54,84 @@ class _FilesPaneState extends State<FilesPane>
     return Navigator(
       key: widget.navigatorKey,
       onGenerateRoute: (_) => MaterialPageRoute<void>(
-        builder: (_) =>
-            FolderPage(tab: widget.tab, dir: '', topInset: widget.topInset),
+        builder: (_) => _PaneHome(tab: widget.tab, topInset: widget.topInset),
+      ),
+    );
+  }
+}
+
+/// The pane's first page: tabs like Telegram's folders (Files, Changes, Log; the last two only in a git repository)
+/// over the project tree, the working tree's changes and the log. A folder or a commit opens as a page over it.
+class _PaneHome extends StatefulWidget {
+  const _PaneHome({required this.tab, required this.topInset});
+  final WindowTab tab;
+  final double topInset;
+
+  @override
+  State<_PaneHome> createState() => _PaneHomeState();
+}
+
+class _PaneHomeState extends State<_PaneHome> {
+  int _at = 0;
+  bool? _repo;
+  bool _asking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.tab.addListener(_maybeAsk);
+    _maybeAsk();
+  }
+
+  @override
+  void dispose() {
+    widget.tab.removeListener(_maybeAsk);
+    super.dispose();
+  }
+
+  /// Asked once the window is open, and again later when the host could not say.
+  Future<void> _maybeAsk() async {
+    if (_repo != null || _asking || widget.tab.state != TabState.open) return;
+    _asking = true;
+    final repo = await isGitRepo(widget.tab);
+    _asking = false;
+    if (!mounted) return;
+    if (repo != null) setState(() => _repo = repo);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final lang = Localizations.localeOf(context).languageCode;
+    final repo = _repo == true;
+    final at = repo ? _at : 0;
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Padding(
+        padding: EdgeInsets.only(top: widget.topInset),
+        child: Column(
+          children: [
+            if (repo)
+              SizedBox(
+                height: 40,
+                child: FolderTabs(
+                  labels: [t.tabFiles, webString('vcsChanges', lang), t.tabLog],
+                  at: at.toDouble(),
+                  onTap: (i) => setState(() => _at = i),
+                ),
+              ),
+            Expanded(
+              child: IndexedStack(
+                index: at,
+                children: [
+                  FolderPage(tab: widget.tab, dir: ''),
+                  if (repo) ChangesPage(tab: widget.tab),
+                  if (repo) LogPage(tab: widget.tab),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

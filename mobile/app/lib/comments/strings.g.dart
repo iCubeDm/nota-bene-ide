@@ -983,6 +983,94 @@ const _json = r'''
    "es": "contexto",
    "pt": "contexto",
    "de": "Kontext"
+  },
+  "vcsChanges": {
+   "en": "Changes",
+   "ru": "Изменения",
+   "zh": "更改",
+   "es": "Cambios",
+   "pt": "Alterações",
+   "de": "Änderungen"
+  },
+  "vcsNoChanges": {
+   "en": "No changes",
+   "ru": "Изменений нет",
+   "zh": "没有更改",
+   "es": "Sin cambios",
+   "pt": "Sem alterações",
+   "de": "Keine Änderungen"
+  },
+  "vcsNoCommits": {
+   "en": "No commits yet",
+   "ru": "Коммитов пока нет",
+   "zh": "还没有提交",
+   "es": "Aún no hay commits",
+   "pt": "Ainda não há commits",
+   "de": "Noch keine Commits"
+  },
+  "vcsEmptyFile": {
+   "en": "Empty file",
+   "ru": "Пустой файл",
+   "zh": "空文件",
+   "es": "Archivo vacío",
+   "pt": "Arquivo vazio",
+   "de": "Leere Datei"
+  },
+  "vcsOnlyMeta": {
+   "en": "Only the mode or the name changed",
+   "ru": "Изменились только права или имя",
+   "zh": "只更改了权限或名称",
+   "es": "Solo cambiaron los permisos o el nombre",
+   "pt": "Só as permissões ou o nome mudaram",
+   "de": "Nur Rechte oder Name wurden geändert"
+  },
+  "vcsTooBig": {
+   "en": "This file is too large: only its start is shown",
+   "ru": "Файл слишком большой: показано только начало",
+   "zh": "文件太大：只显示开头部分",
+   "es": "El archivo es demasiado grande: solo se muestra el principio",
+   "pt": "O arquivo é grande demais: só o início é mostrado",
+   "de": "Die Datei ist zu groß: Nur der Anfang wird angezeigt"
+  },
+  "vcsShowAnyway": {
+   "en": "Show",
+   "ru": "Показать",
+   "zh": "显示",
+   "es": "Mostrar",
+   "pt": "Mostrar",
+   "de": "Anzeigen"
+  },
+  "vcsNoRepo": {
+   "en": "There is no git repository here",
+   "ru": "Здесь нет git-репозитория",
+   "zh": "这里没有 git 仓库",
+   "es": "Aquí no hay repositorio git",
+   "pt": "Não há repositório git aqui",
+   "de": "Hier gibt es kein Git-Repository"
+  },
+  "vcsFailed": {
+   "en": "Git did not answer. The last result stays on screen.",
+   "ru": "Git не ответил. На экране последний результат.",
+   "zh": "Git 没有响应。屏幕上是上一次的结果。",
+   "es": "Git no respondió. Se mantiene el último resultado.",
+   "pt": "O Git não respondeu. O último resultado continua na tela.",
+   "de": "Git hat nicht geantwortet. Das letzte Ergebnis bleibt sichtbar."
+  },
+  "vcsAllBranches": {
+   "en": "All branches",
+   "ru": "Все ветки",
+   "zh": "所有分支",
+   "es": "Todas las ramas",
+   "pt": "Todos os branches",
+   "de": "Alle Branches"
+  },
+  "binary": {
+   "en": "Binary file, not shown",
+   "ru": "Бинарный файл, не показан",
+   "zh": "二进制文件，不显示",
+   "es": "Archivo binario, no se muestra",
+   "pt": "Arquivo binário, não exibido",
+   "de": "Binärdatei, nicht angezeigt"
   }
  },
  "counted": {
@@ -1155,6 +1243,38 @@ const _json = r'''
    "es": "¿Descargar Whisper (≈ {0} MB, ≈ {1} MB en disco) desde npm y Hugging Face en {2}? Después, el habla se transcribe en este equipo; las grabaciones le llegan cifradas de extremo a extremo y el audio de los mensajes de voz se guarda junto a los adjuntos.",
    "pt": "Baixar o Whisper (≈ {0} MB, ≈ {1} MB em disco) do npm e do Hugging Face para {2}? Depois, a fala é transcrita neste computador; as gravações chegam a ele com criptografia de ponta a ponta e o áudio das mensagens de voz fica guardado junto com os anexos.",
    "de": "Whisper (≈ {0} MB, ≈ {1} MB auf der Platte) von npm und Hugging Face nach {2} herunterladen? Die Sprache wird danach auf diesem Computer transkribiert; Aufnahmen erreichen ihn Ende-zu-Ende-verschlüsselt und der Ton von Sprachnachrichten wird neben den Anhängen aufbewahrt."
+  },
+  "vcsBigDiff": {
+   "en": "Large diff: {0} lines.",
+   "ru": "Большой дифф: {0} строк.",
+   "zh": "差异很大：{0} 行。",
+   "es": "Diff grande: {0} líneas.",
+   "pt": "Diff grande: {0} linhas.",
+   "de": "Großer Diff: {0} Zeilen."
+  },
+  "vcsAgainst": {
+   "en": "against {0}",
+   "ru": "относительно {0}",
+   "zh": "相对于 {0}",
+   "es": "respecto a {0}",
+   "pt": "em relação a {0}",
+   "de": "gegenüber {0}"
+  },
+  "vcsOnlyUncommitted": {
+   "en": "{0} · uncommitted only",
+   "ru": "{0} · только незакоммиченное",
+   "zh": "{0} · 仅未提交",
+   "es": "{0} · solo sin confirmar",
+   "pt": "{0} · só não confirmado",
+   "de": "{0} · nur nicht Committetes"
+  },
+  "vcsLogCut": {
+   "en": "The latest {0} commits are shown",
+   "ru": "Показаны последние {0} коммитов",
+   "zh": "显示最近 {0} 个提交",
+   "es": "Se muestran los últimos {0} commits",
+   "pt": "Os últimos {0} commits são mostrados",
+   "de": "Die letzten {0} Commits werden angezeigt"
   },
   "srcToolBare": {
    "en": "{0} command",
