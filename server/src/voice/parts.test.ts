@@ -18,8 +18,10 @@ const secs = (p: Float32Array) => p.length / RATE;
 describe('splitPcm', () => {
   it('a recording up to a minute is one part, as it is', () => {
     const pcm = recording(60);
-    expect(splitPcm(pcm)).toEqual([pcm]);
-    expect(splitPcm(pcm)[0]).toBe(pcm);
+    // identity, not toEqual: a deep compare of 960 000 samples outlasts the timeout on a slow runner
+    const parts = splitPcm(pcm);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toBe(pcm);
   });
   it('a long recording is cut at its quiet moments, 30 to 60 s apart', () => {
     const parts = splitPcm(recording(150, [[44.9, 45.1], [94.9, 95.1]]));
