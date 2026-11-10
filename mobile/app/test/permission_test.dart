@@ -153,10 +153,21 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('Library'), findsOneWidget);
       expect(find.text('zones'), findsOneWidget);
+      // the feed runs under the floating field: scroll the target clear of it
+      Future<void> reveal(Finder f) async {
+        await t.ensureVisible(f);
+        await t.pumpAndSettle();
+        final field = t.getTopLeft(find.byKey(const ValueKey('composer'))).dy;
+        final over = t.getBottomLeft(f).dy - (field - 8);
+        if (over > 0) {
+          await t.dragFrom(const Offset(200, 300), Offset(0, -over));
+          await t.pumpAndSettle();
+        }
+      }
+
       Future<void> tapOption(String label) async {
         final tile = find.widgetWithText(ListTile, label);
-        await t.ensureVisible(tile);
-        await t.pumpAndSettle();
+        await reveal(tile);
         await t.tap(tile, warnIfMissed: true);
         await t.pump();
       }
@@ -180,8 +191,7 @@ void main() {
       expect(checked('A'), isTrue);
       expect(checked('C'), isTrue);
       final send = find.widgetWithText(FilledButton, 'Send answers');
-      await t.ensureVisible(send);
-      await t.pumpAndSettle();
+      await reveal(send);
       await t.tap(send);
       await t.pumpAndSettle();
       expect(r.sent.single['response'], {

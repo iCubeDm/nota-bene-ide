@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../comments/comments.dart' show Comments;
 import '../l10n/app_localizations.dart';
+import '../ui/blur_band.dart';
 import '../ui/folder_tabs.dart';
 import '../voice/recorder.dart' show Microphone;
 import 'window_tab.dart';
@@ -225,52 +226,63 @@ class _ChatPanesState extends State<ChatPanes> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _back();
       },
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ValueListenableBuilder<Object?>(
-              valueListenable: Microphone.owner,
-              builder: (context, owner, _) => PageView(
-                controller: _page,
-                // a finger sliding on the microphone is the recording's, not a swipe; a locked one is not left by a swipe either
-                physics: owner != null
-                    ? const NeverScrollableScrollPhysics()
-                    : const PageScrollPhysics(),
-                onPageChanged: (i) => setState(() => _current = Pane.values[i]),
-                children: [
-                  _Kept(key: _filesKey, child: widget.files(cover)),
-                  _Kept(
-                    key: _chatKey,
-                    child: widget.chat(false, headerBox + stripHeight),
-                  ),
-                  _Kept(key: _commentsKey, child: widget.comments(cover)),
-                ],
+      child: BackdropGroup(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ValueListenableBuilder<Object?>(
+                valueListenable: Microphone.owner,
+                builder: (context, owner, _) => PageView(
+                  controller: _page,
+                  // a finger sliding on the microphone is the recording's, not a swipe; a locked one is not left by a swipe either
+                  physics: owner != null
+                      ? const NeverScrollableScrollPhysics()
+                      : const PageScrollPhysics(),
+                  onPageChanged: (i) =>
+                      setState(() => _current = Pane.values[i]),
+                  children: [
+                    _Kept(key: _filesKey, child: widget.files(cover)),
+                    _Kept(
+                      key: _chatKey,
+                      child: widget.chat(false, headerBox + stripHeight),
+                    ),
+                    _Kept(key: _commentsKey, child: widget.comments(cover)),
+                  ],
+                ),
               ),
             ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(bottom: false, child: widget.header),
-          ),
-          Positioned(
-            top: top + headerBox,
-            left: 0,
-            right: 0,
-            height: stripHeight,
-            // a floating pill like the header's, the panes showing beside it
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
-              child: PaneStrip(
-                page: _page,
-                pending: widget.tab.comments,
-                tab: widget.tab,
-                onTap: _show,
+            // the status bar, header and tabs sit on a blur that is clear at the pill's lower edge
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: cover,
+              child: const BlurBand(key: ValueKey('blur-top'), top: true),
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(bottom: false, child: widget.header),
+            ),
+            Positioned(
+              top: top + headerBox,
+              left: 0,
+              right: 0,
+              height: stripHeight,
+              // a floating pill like the header's, the panes showing beside it
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+                child: PaneStrip(
+                  page: _page,
+                  pending: widget.tab.comments,
+                  tab: widget.tab,
+                  onTap: _show,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

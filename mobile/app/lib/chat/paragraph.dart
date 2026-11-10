@@ -67,6 +67,9 @@ class ParagraphTargets extends ChangeNotifier {
   /// Below the floating header: the popup keeps clear of it.
   double topInset = 0;
 
+  /// Above the floating message field and its blur: the popup and the snackbar keep clear of it.
+  double bottomInset = 0;
+
   _Para? _sel;
   OverlayEntry? _entry;
   late final _Back _back = _Back(clear);
@@ -179,7 +182,10 @@ class ParagraphTargets extends ChangeNotifier {
       final top = uiOffset(ctx, scaffold.localToGlobal(Offset.zero)).dy;
       final end = top + scaffold.size.height;
       final viewTop = uiOffset(ctx, view.localToGlobal(Offset.zero)).dy;
-      bottom = math.max(8, end - (viewTop + view.size.height) + 8);
+      bottom = math.max(
+        8,
+        end - (viewTop + view.size.height) + bottomInset + 8,
+      );
     }
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
@@ -401,7 +407,7 @@ class _PopupState extends State<_Popup> {
       bounds.left,
       bounds.top + widget.targets.topInset,
       bounds.right,
-      bounds.bottom,
+      bounds.bottom - widget.targets.bottomInset,
     );
     if (!_finite(para) || !_finite(bounds) || !bounds.overlaps(screen)) {
       return false;

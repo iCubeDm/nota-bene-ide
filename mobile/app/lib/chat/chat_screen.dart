@@ -22,6 +22,7 @@ import 'feed.dart';
 import 'files.dart';
 import 'media_card.dart';
 import 'markdown.dart';
+import '../ui/blur_band.dart';
 import 'message_menu.dart';
 import 'message_selection.dart';
 import 'paragraph.dart';
@@ -87,6 +88,9 @@ class ChatFocus {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _scroll = ScrollController();
+
+  /// The height of the floating bottom band (the field with its strip and the nav bar), which the feed keeps clear.
+  double _band = 0;
   final _targets = <String, GlobalKey>{};
   late ParagraphTargets _paragraphs = ParagraphTargets(widget.tab);
 
@@ -222,134 +226,169 @@ class _ChatScreenState extends State<ChatScreen> {
           MediaQuery.paddingOf(context).top +
           (widget.showHeader ? ChatHeader.extent : 0) +
           widget.extraTop;
+      // the feed runs to the screen's bottom: the nav bar's room is the band's, the feed keeps the band clear
+      final safe = MediaQuery.paddingOf(context).bottom;
+      final band = widget.bottom == null ? safe : _band;
       return Scaffold(
-        body: SafeArea(
-          top: false,
-          child: FileOpener(
-            tab: widget.tab,
-            child: ParagraphHost(
-              targets: _paragraphs..topInset = top,
+        body: FileOpener(
+          tab: widget.tab,
+          child: ParagraphHost(
+            targets: _paragraphs
+              ..topInset = top
+              ..bottomInset = band,
+            child: BackdropGroup(
               child: Stack(
                 children: [
-                  Column(
-                    children: [
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            // reversed: the newest item sits at the widget.bottom and stays in view while the user is there
-                            ListView.builder(
-                              controller: _scroll,
-                              reverse: true,
-                              // full width: the bubbles keep their own margins
-                              padding: EdgeInsets.fromLTRB(
-                                0,
-                                top,
-                                0,
+                  Positioned.fill(
+                    child: Stack(
+                      children: [
+                        // reversed: the newest item sits at the widget.bottom and stays in view while the user is there
+                        ListView.builder(
+                          controller: _scroll,
+                          reverse: true,
+                          // full width: the bubbles keep their own margins
+                          padding: EdgeInsets.fromLTRB(
+                            0,
+                            top,
+                            0,
+                            band +
                                 // the floating Stop must not cover the end of the last bubble
-                                widget.tab.state == TabState.open &&
+                                (widget.tab.state == TabState.open &&
                                         widget.tab.busy
                                     ? 8 + 56
-                                    : 8,
-                              ),
-                              itemCount:
-                                  rows.length +
-                                  pending.length +
-                                  (f.earlier > 0 ? 1 : 0),
-                              itemBuilder: (context, i) {
-                                // the newest sit at the bottom: the recordings still going out
-                                if (i < pending.length) {
-                                  final e = pending[pending.length - 1 - i];
-                                  return PendingVoiceBubble(
-                                    e,
-                                    widget.tab.voiceOutbox,
-                                    key: ValueKey(e.key),
-                                  );
-                                }
-                                i -= pending.length;
-                                if (i == rows.length) {
-                                  return Center(
-                                    child: TextButton(
-                                      onPressed: widget.tab.loadEarlier,
-                                      child: Text(t.showEarlier),
-                                    ),
-                                  );
-                                }
-                                final at = rows.length - 1 - i;
-                                final row = rows[at];
-                                final it = row.items.first;
-                                final inner = row.isGroup
-                                    ? ToolGroup(
-                                        items: row.items.cast<ToolItem>(),
-                                        live: f.busy && row.end == items.length,
-                                        targetOf: (t) => _targets[feedKey(t)],
-                                      )
-                                    : _Commentable(
-                                        tab: widget.tab,
-                                        item: it,
-                                        onReply: widget.onReply ?? (_) {},
-                                        child:
-                                            widget.itemBuilder?.call(
-                                              context,
-                                              it,
-                                            ) ??
-                                            (chatSource(it) == null
-                                                ? FeedItemView(it)
-                                                : _Marked(
-                                                    tab: widget.tab,
-                                                    item: it,
-                                                  )),
-                                      );
-                                // keyed by the row, not the index: a new item shifts every index of a reversed list
-                                return KeyedSubtree(
-                                  key: ValueKey(row.key),
-                                  // the agent's turn is one bubble: its items are the pieces of it
-                                  child: KeyedSubtree(
-                                    key: _targets[row.key],
-                                    child: inAgentTurn(it)
-                                        ? AgentBubble(
-                                            first:
-                                                at == 0 ||
-                                                !inAgentTurn(
-                                                  rows[at - 1].items.last,
-                                                ),
-                                            last:
-                                                at == rows.length - 1 ||
-                                                !inAgentTurn(
-                                                  rows[at + 1].items.first,
-                                                ),
-                                            child: inner,
-                                          )
-                                        : inner,
-                                  ),
-                                );
-                              },
-                              findChildIndexCallback: (key) {
-                                final k = (key as ValueKey<String>).value;
-                                final at = rows.lastIndexWhere(
-                                  (r) => r.key == k,
-                                );
-                                return at < 0
-                                    ? null
-                                    : rows.length - 1 - at + pending.length;
-                              },
-                            ),
-                            if (f.compacting)
-                              Positioned(
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                child: LinearProgressIndicator(
-                                  minHeight: 2,
-                                  color: c.accent,
+                                    : 8),
+                          ),
+                          itemCount:
+                              rows.length +
+                              pending.length +
+                              (f.earlier > 0 ? 1 : 0),
+                          itemBuilder: (context, i) {
+                            // the newest sit at the bottom: the recordings still going out
+                            if (i < pending.length) {
+                              final e = pending[pending.length - 1 - i];
+                              return PendingVoiceBubble(
+                                e,
+                                widget.tab.voiceOutbox,
+                                key: ValueKey(e.key),
+                              );
+                            }
+                            i -= pending.length;
+                            if (i == rows.length) {
+                              return Center(
+                                child: TextButton(
+                                  onPressed: widget.tab.loadEarlier,
+                                  child: Text(t.showEarlier),
                                 ),
+                              );
+                            }
+                            final at = rows.length - 1 - i;
+                            final row = rows[at];
+                            final it = row.items.first;
+                            final inner = row.isGroup
+                                ? ToolGroup(
+                                    items: row.items.cast<ToolItem>(),
+                                    live: f.busy && row.end == items.length,
+                                    targetOf: (t) => _targets[feedKey(t)],
+                                  )
+                                : _Commentable(
+                                    tab: widget.tab,
+                                    item: it,
+                                    onReply: widget.onReply ?? (_) {},
+                                    child:
+                                        widget.itemBuilder?.call(context, it) ??
+                                        (chatSource(it) == null
+                                            ? FeedItemView(it)
+                                            : _Marked(
+                                                tab: widget.tab,
+                                                item: it,
+                                              )),
+                                  );
+                            // keyed by the row, not the index: a new item shifts every index of a reversed list
+                            return KeyedSubtree(
+                              key: ValueKey(row.key),
+                              // the agent's turn is one bubble: its items are the pieces of it
+                              child: KeyedSubtree(
+                                key: _targets[row.key],
+                                child: inAgentTurn(it)
+                                    ? AgentBubble(
+                                        first:
+                                            at == 0 ||
+                                            !inAgentTurn(
+                                              rows[at - 1].items.last,
+                                            ),
+                                        last:
+                                            at == rows.length - 1 ||
+                                            !inAgentTurn(
+                                              rows[at + 1].items.first,
+                                            ),
+                                        child: inner,
+                                      )
+                                    : inner,
                               ),
-                            ?widget.overlay,
-                          ],
+                            );
+                          },
+                          findChildIndexCallback: (key) {
+                            final k = (key as ValueKey<String>).value;
+                            final at = rows.lastIndexWhere((r) => r.key == k);
+                            return at < 0
+                                ? null
+                                : rows.length - 1 - at + pending.length;
+                          },
                         ),
-                      ),
-                      ?widget.bottom,
-                    ],
+                        if (f.compacting)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: LinearProgressIndicator(
+                              minHeight: 2,
+                              color: c.accent,
+                            ),
+                          ),
+                        ?widget.overlay,
+                      ],
+                    ),
                   ),
+                  if (widget.bottom case final bottom?)
+                    // the field floats over the feed: the blur starts a little above it and runs to the nav bar
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Positioned(
+                            key: ValueKey('blur-bottom'),
+                            top: -blurFade,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: BlurBand(top: false, fade: blurFade),
+                          ),
+                          SizeReporter(
+                            onSize: (s) {
+                              if (mounted) setState(() => _band = s.height);
+                            },
+                            child: Padding(
+                              padding: EdgeInsets.only(bottom: safe),
+                              child: bottom,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (widget.showHeader)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: top,
+                      child: const BlurBand(
+                        key: ValueKey('blur-top'),
+                        top: true,
+                      ),
+                    ),
                   if (widget.showHeader)
                     Positioned(
                       top: 0,
