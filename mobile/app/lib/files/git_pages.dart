@@ -172,38 +172,43 @@ class _ChangesPageState extends State<ChangesPage> {
           : ch.base == null
           ? name
           : '$name ${batchTemplate('vcsAgainst', lang, [ch.base!])}';
-      body = ListView(
+      final lead = <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Text(head, style: TextStyle(color: c.mutedFg, fontSize: 12)),
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              webString('vcsFailed', lang),
+              style: TextStyle(color: c.accent, fontSize: 12),
+            ),
+          ),
+        if (ch.files.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(child: Text(webString('vcsNoChanges', lang))),
+          ),
+      ];
+      // the files are built as they scroll
+      body = ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 16),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text(head, style: TextStyle(color: c.mutedFg, fontSize: 12)),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                webString('vcsFailed', lang),
-                style: TextStyle(color: c.accent, fontSize: 12),
-              ),
+        itemCount: lead.length + ch.files.length,
+        itemBuilder: (context, i) {
+          if (i < lead.length) return lead[i];
+          final f = ch.files[i - lead.length];
+          return GitFileRow(
+            file: f,
+            onTap: () => openDiff(
+              context,
+              widget.tab,
+              f,
+              () => fetchChangePatch(widget.tab, f),
             ),
-          if (ch.files.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Center(child: Text(webString('vcsNoChanges', lang))),
-            ),
-          for (final f in ch.files)
-            GitFileRow(
-              file: f,
-              onTap: () => openDiff(
-                context,
-                widget.tab,
-                f,
-                () => fetchChangePatch(widget.tab, f),
-              ),
-            ),
-        ],
+          );
+        },
       );
     }
     return RefreshIndicator(onRefresh: () => _load(quiet: true), child: body);
@@ -290,47 +295,24 @@ class _LogPageState extends State<LogPage> {
     } else if (commits.isEmpty) {
       body = Center(child: Text(webString('vcsNoCommits', lang)));
     } else {
-      body = ListView(
+      final lead = _error == null ? 0 : 1;
+      // the commits are built as they scroll
+      body = ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 16),
-        children: [
-          if (_error != null)
-            Padding(
+        itemCount: lead + commits.length + (_more ? 1 : 0),
+        itemBuilder: (context, i) {
+          if (i < lead) {
+            return Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Text(
                 webString('vcsFailed', lang),
                 style: TextStyle(color: c.accent, fontSize: 12),
               ),
-            ),
-          for (final k in commits)
-            ListTile(
-              dense: true,
-              title: Text(
-                k.subject,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                [
-                  k.short,
-                  k.author,
-                  when(context, k.at),
-                  for (final r in k.refs)
-                    if (!r.endsWith('/HEAD'))
-                      r.replaceFirst('HEAD -> ', '').replaceFirst('tag: ', ''),
-                ].join(' · '),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: c.mutedFg, fontSize: 12),
-              ),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => CommitPage(tab: widget.tab, commit: k),
-                ),
-              ),
-            ),
-          if (_more)
-            Padding(
+            );
+          }
+          if (i - lead >= commits.length) {
+            return Padding(
               padding: const EdgeInsets.all(12),
               child: Center(
                 child: Text(
@@ -338,8 +320,36 @@ class _LogPageState extends State<LogPage> {
                   style: TextStyle(color: c.mutedFg, fontSize: 12),
                 ),
               ),
+            );
+          }
+          final k = commits[i - lead];
+          return ListTile(
+            dense: true,
+            title: Text(
+              k.subject,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-        ],
+            subtitle: Text(
+              [
+                k.short,
+                k.author,
+                when(context, k.at),
+                for (final r in k.refs)
+                  if (!r.endsWith('/HEAD'))
+                    r.replaceFirst('HEAD -> ', '').replaceFirst('tag: ', ''),
+              ].join(' · '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: c.mutedFg, fontSize: 12),
+            ),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => CommitPage(tab: widget.tab, commit: k),
+              ),
+            ),
+          );
+        },
       );
     }
     return RefreshIndicator(onRefresh: _load, child: body);
@@ -402,33 +412,41 @@ class _CommitPageState extends State<CommitPage> {
             )
           : d == null
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
+          : ListView.builder(
               padding: const EdgeInsets.only(bottom: 16),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                  child: Text(d.message, style: const TextStyle(fontSize: 14)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text(
-                    '${d.sha.substring(0, 7)} · ${d.author} · ${when(context, d.at)}',
-                    style: TextStyle(color: c.mutedFg, fontSize: 12),
-                  ),
-                ),
-                const Divider(height: 1),
-                for (final f in d.files)
-                  GitFileRow(
-                    file: f,
-                    onTap: () => openDiff(
-                      context,
-                      widget.tab,
-                      f,
-                      () => fetchCommitPatch(widget.tab, d.sha, f),
-                      ref: d.sha.substring(0, 7),
+              itemCount: 3 + d.files.length,
+              itemBuilder: (context, i) {
+                if (i == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: Text(
+                      d.message,
+                      style: const TextStyle(fontSize: 14),
                     ),
+                  );
+                }
+                if (i == 1) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text(
+                      '${d.sha.substring(0, 7)} · ${d.author} · ${when(context, d.at)}',
+                      style: TextStyle(color: c.mutedFg, fontSize: 12),
+                    ),
+                  );
+                }
+                if (i == 2) return const Divider(height: 1);
+                final f = d.files[i - 3];
+                return GitFileRow(
+                  file: f,
+                  onTap: () => openDiff(
+                    context,
+                    widget.tab,
+                    f,
+                    () => fetchCommitPatch(widget.tab, d.sha, f),
+                    ref: d.sha.substring(0, 7),
                   ),
-              ],
+                );
+              },
             ),
     );
   }
