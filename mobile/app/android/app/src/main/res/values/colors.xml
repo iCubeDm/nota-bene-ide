@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The logo's dark tile colour, shown while the app starts. -->
+    <color name="launch_background">#13141d</color>
+</resources>
