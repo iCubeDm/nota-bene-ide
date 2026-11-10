@@ -314,6 +314,24 @@
   "attachPartialLine": "Only the photos you allowed are shown.",
   "attachManage": "Manage",
   "attachNoMedia": "No photos yet.",
+  "attachMax": "You can attach up to {count} photos at a time.",
+  "attachPhoto": "Photo",
+  "attachPhotoSelected": "Selected, {n}",
+  "attachLoadFailed": "The photos could not be loaded.",
+  "@attachMax": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@attachPhotoSelected": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "@attachTooLarge": {
     "placeholders": {
       "names": {

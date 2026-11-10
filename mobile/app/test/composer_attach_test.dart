@@ -136,6 +136,25 @@ void main() {
     expect(deleted, ['/cache/pick/g1.png', '/cache/pick/g2.png']);
   });
 
+  testWidgets('an item the phone could not read is named, the others attach', (
+    t,
+  ) async {
+    gallerySource = _Grid([
+      item('g1.png'),
+      {'skipped': 'broken.png'},
+    ]);
+    await open(t);
+    await t.tap(find.byTooltip('Attach an image'));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('media-9')));
+    await t.tap(find.byKey(const ValueKey('media-8')));
+    await t.pump();
+    await t.tap(find.text('Send'));
+    await t.pumpAndSettle();
+    expect(thumbs, findsOneWidget);
+    expect(find.text('Too large to attach: broken.png'), findsOneWidget);
+  });
+
   testWidgets('remove drops one', (t) async {
     await open(t);
     await attach(t, 'Gallery');
@@ -342,8 +361,13 @@ class _Grid implements GallerySource {
   }) async => GalleryAccess.full;
 
   @override
-  Future<List<GalleryItem>> page(int offset, int limit) async =>
-      offset > 0 ? const [] : const [GalleryItem(id: 9), GalleryItem(id: 8)];
+  Future<List<GalleryItem>> page(GalleryItem? after, int limit) async =>
+      after != null
+      ? const []
+      : const [GalleryItem(id: 9, added: 9), GalleryItem(id: 8, added: 8)];
+
+  @override
+  void cancel(GalleryItem item, int px) {}
 
   @override
   Future<Uint8List?> thumbnail(GalleryItem item, int px) async => null;

@@ -9,6 +9,8 @@ import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.media.AudioFormat
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -38,7 +40,11 @@ import android.net.Uri
 import android.util.Size
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingDeque
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 // local_auth's BiometricPrompt needs a FragmentActivity.
 class MainActivity : FlutterFragmentActivity() {
@@ -449,24 +455,35 @@ class MainActivity : FlutterFragmentActivity() {
     // The latest photos (`nb/gallery`), from MediaStore: `access {ask, settings}` answers "full", "partial" (Android 14's
     // selected photos: MediaStore then lists only what the user allowed) or "denied", after the permission dialog when
     // [ask] is set; with [settings] a permission the system no longer asks for opens the app's settings page instead.
-    // `page {offset, limit, mimes}` answers [{id}] newest first, only of the image types in `mimes` (what the attach flow
-    // takes, so no heic or video is offered), `thumbnail {id, px}` the jpeg bytes of one thumbnail (null when there is
-    // none), `take {items: [{id}]}` copies the items like a pick does. Thumbnails have threads of their own, so a page is
-    // not held up behind them.
+    // `page {afterId, afterAdded, limit, mimes}` answers [{id, added}] newest first, the ones after that item (the first
+    // ones when it is null: the list is continued from an item, so a photo taken meanwhile moves nothing), only of the
+    // image types in `mimes` (what the attach flow takes, so no heic or video is offered). `thumbnail {id, px, key}` answers
+    // the jpeg bytes of one thumbnail (null when there is none); the newest request is served first and `cancel {key}`
+    // drops one that has not started. `take {items: [{id}]}` copies the items like a pick does; one that cannot be read
+    // is answered as {skipped: name} and the others are still copied.
     private var pendingGallery: MethodChannel.Result? = null
-    private val thumbExecutor = Executors.newFixedThreadPool(3)
+    // the thumbnail work waits in a stack: what the user scrolled to last is drawn first
+    private val thumbQueue = object : LinkedBlockingDeque<Runnable>() {
+        override fun offer(e: Runnable): Boolean = offerFirst(e)
+    }
+    private val thumbExecutor = ThreadPoolExecutor(3, 3, 0L, TimeUnit.MILLISECONDS, thumbQueue)
+    private val thumbPending = ConcurrentHashMap.newKeySet<Int>()
+    // what the permission request was asked with, for the answer
+    private var gallerySettings = false
+    private var galleryRationale = false
 
     private fun configureGallery(flutterEngine: FlutterEngine) {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "nb/gallery").setMethodCallHandler { call, result ->
             when (call.method) {
                 "access" -> galleryAccess(call.argument<Boolean>("ask") == true, call.argument<Boolean>("settings") == true, result)
                 "page" -> {
-                    val offset = call.argument<Int>("offset") ?: 0
+                    val afterId = call.argument<Number>("afterId")?.toLong()
+                    val afterAdded = call.argument<Number>("afterAdded")?.toLong() ?: 0L
                     val limit = call.argument<Int>("limit") ?: 60
                     val mimes = call.argument<List<String>>("mimes") ?: emptyList()
                     pickExecutor.execute {
                         try {
-                            val page = galleryPage(offset, limit, mimes)
+                            val page = galleryPage(afterId, afterAdded, limit, mimes)
                             mainHandler.post { result.success(page) }
                         } catch (e: Throwable) {
                             mainHandler.post { result.error("read", e.message ?: e.javaClass.simpleName, null) }
@@ -476,10 +493,19 @@ class MainActivity : FlutterFragmentActivity() {
                 "thumbnail" -> {
                     val id = (call.argument<Number>("id") ?: 0).toLong()
                     val px = call.argument<Int>("px") ?: 256
+                    val key = call.argument<Int>("key") ?: 0
+                    thumbPending.add(key)
                     thumbExecutor.execute {
-                        val bytes = try { galleryThumbnail(id, px) } catch (e: Throwable) { null }
+                        // a cancelled request is answered without the work
+                        val bytes = if (thumbPending.remove(key)) {
+                            try { galleryThumbnail(id, px) } catch (e: Throwable) { null }
+                        } else null
                         mainHandler.post { result.success(bytes) }
                     }
+                }
+                "cancel" -> {
+                    thumbPending.remove(call.argument<Int>("key") ?: 0)
+                    result.success(null)
                 }
                 "take" -> {
                     val items = call.argument<List<Map<String, Any>>>("items") ?: emptyList()
@@ -487,7 +513,13 @@ class MainActivity : FlutterFragmentActivity() {
                         val out = ArrayList<Map<String, Any>>()
                         try {
                             for (m in items.take(MAX_PICK_COUNT)) {
-                                out.add(readPicked(galleryUri((m["id"] as Number).toLong()), null))
+                                val uri = galleryUri((m["id"] as Number).toLong())
+                                try {
+                                    out.add(readPicked(uri, null))
+                                } catch (e: Throwable) {
+                                    // one that cannot be read is told by its name; the others still go
+                                    out.add(mapOf("skipped" to galleryName(uri)))
+                                }
                             }
                             mainHandler.post { result.success(out) }
                         } catch (e: Throwable) {
@@ -528,11 +560,21 @@ class MainActivity : FlutterFragmentActivity() {
             result.success(state)
             return
         }
-        val prefs = getSharedPreferences("nb_gallery", MODE_PRIVATE)
-        val asked = prefs.getBoolean("asked", false)
-        val perms = galleryPermissions()
-        // asked before and no rationale: the system will not show the dialog again
-        if (settings && asked && perms.none { ActivityCompat.shouldShowRequestPermissionRationale(this, it) }) {
+        pendingGallery = result
+        gallerySettings = settings
+        galleryRationale = galleryPermissions().any { ActivityCompat.shouldShowRequestPermissionRationale(this, it) }
+        ActivityCompat.requestPermissions(this, galleryPermissions(), GALLERY_PERMISSION)
+    }
+
+    // The answer of the request. Denied with no rationale before and none after means the system did not show a dialog
+    // (the user said no for good): a tap on Grant access then opens the app's settings page instead.
+    private fun galleryAnswered() {
+        val result = pendingGallery ?: return
+        pendingGallery = null
+        val state = galleryState()
+        if (state == "denied" && gallerySettings && !galleryRationale &&
+            galleryPermissions().none { ActivityCompat.shouldShowRequestPermissionRationale(this, it) }
+        ) {
             try {
                 startActivity(
                     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
@@ -540,46 +582,71 @@ class MainActivity : FlutterFragmentActivity() {
             } catch (e: ActivityNotFoundException) {
                 // nowhere to send the user: the answer is the state it is
             }
-            result.success(state)
-            return
         }
-        prefs.edit().putBoolean("asked", true).apply()
-        pendingGallery = result
-        ActivityCompat.requestPermissions(this, perms, GALLERY_PERMISSION)
+        result.success(state)
     }
 
     private fun galleryUri(id: Long): Uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
 
-    private fun galleryPage(offset: Int, limit: Int, mimes: List<String>): List<Map<String, Any>> {
+    private fun galleryName(uri: Uri): String {
+        var name = "image"
+        try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0)?.let { name = it }
+            }
+        } catch (e: Exception) {
+            // the name is only for the message
+        }
+        return name
+    }
+
+    // [limit] photos after the one at ([afterAdded], [afterId]) of the list newest first: by date added, then id.
+    private fun galleryPage(afterId: Long?, afterAdded: Long, limit: Int, mimes: List<String>): List<Map<String, Any>> {
         val images = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        val columns = arrayOf(MediaStore.Images.Media._ID)
-        val select = "${MediaStore.Images.Media.MIME_TYPE} IN (${mimes.joinToString(",") { "?" }})"
+        val columns = arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATE_ADDED)
+        var select = "${MediaStore.Images.Media.MIME_TYPE} IN (${mimes.joinToString(",") { "?" }})"
+        val args = ArrayList(mimes)
+        if (afterId != null) {
+            select += " AND (${MediaStore.Images.Media.DATE_ADDED} < ? OR " +
+                "(${MediaStore.Images.Media.DATE_ADDED} = ? AND ${MediaStore.Images.Media._ID} < ?))"
+            args.addAll(listOf(afterAdded.toString(), afterAdded.toString(), afterId.toString()))
+        }
         val order = "${MediaStore.Images.Media.DATE_ADDED} DESC, ${MediaStore.Images.Media._ID} DESC"
-        val cursor = if (Build.VERSION.SDK_INT >= 26) {
+        val cursor = if (Build.VERSION.SDK_INT >= 30) {
             val q = Bundle().apply {
                 putString(ContentResolver.QUERY_ARG_SQL_SELECTION, select)
-                putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, mimes.toTypedArray())
+                putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args.toTypedArray())
                 putString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER, order)
                 putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
-                putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
             }
             contentResolver.query(images, columns, q, null)
         } else {
-            contentResolver.query(images, columns, select, mimes.toTypedArray(), "$order LIMIT $limit OFFSET $offset")
+            // before Android 11 the limit is part of the sort order (the bundle's limit is ignored before 11)
+            contentResolver.query(images, columns, select, args.toTypedArray(), "$order LIMIT $limit")
         }
         val out = ArrayList<Map<String, Any>>()
-        cursor?.use { c -> while (c.moveToNext()) out.add(hashMapOf("id" to c.getLong(0))) }
+        // at most [limit] rows whatever the provider did with the limit
+        cursor?.use { c ->
+            while (out.size < limit && c.moveToNext()) out.add(hashMapOf("id" to c.getLong(0), "added" to c.getLong(1)))
+        }
         return out
     }
 
     @Suppress("DEPRECATION")
     private fun galleryThumbnail(id: Long, px: Int): ByteArray? {
-        val bitmap: Bitmap? = if (Build.VERSION.SDK_INT >= 29) {
+        val loaded: Bitmap? = if (Build.VERSION.SDK_INT >= 29) {
             contentResolver.loadThumbnail(galleryUri(id), Size(px, px), null)
         } else {
             MediaStore.Images.Thumbnails.getThumbnail(contentResolver, id, MediaStore.Images.Thumbnails.MINI_KIND, null)
         }
-        if (bitmap == null) return null
+        if (loaded == null) return null
+        // jpeg has no alpha: a transparent png would come out black, so it is drawn on white first
+        val bitmap = if (loaded.hasAlpha()) {
+            Bitmap.createBitmap(loaded.width, loaded.height, Bitmap.Config.ARGB_8888).also {
+                Canvas(it).apply { drawColor(Color.WHITE); drawBitmap(loaded, 0f, 0f, null) }
+                loaded.recycle()
+            }
+        } else loaded
         val out = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
         bitmap.recycle()
@@ -596,8 +663,7 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == GALLERY_PERMISSION) {
-            pendingGallery?.let { it.success(galleryState()) }
-            pendingGallery = null
+            galleryAnswered()
             return
         }
         if (requestCode == CAMERA_PERMISSION) {
