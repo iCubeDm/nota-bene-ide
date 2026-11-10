@@ -23,6 +23,7 @@ import 'markdown.dart';
 import 'message_menu.dart';
 import 'message_selection.dart';
 import 'sent_comments.dart';
+import 'tool_group.dart';
 import 'window_tab.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -127,15 +128,31 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<bool> _scrollTo(String id) async {
     final key = _keyOf(id);
     if (key == null || !_scroll.hasClients) return false;
-    final items = widget.tab.feed.items;
-    final at = items.indexWhere((it) => feedKey(it) == key);
-    final fromEnd = items.length - 1 - at;
+    final rows = feedRows(widget.tab.feed.items);
+    final at = rows.indexWhere((r) => r.items.any((it) => feedKey(it) == key));
+    if (at < 0) return false;
+    final row = rows[at];
+    final fromEnd = rows.length - 1 - at;
+    // the action's output opens with it, and its group when it has one
+    final isTool = key.startsWith('tool:');
+    final inner = isTool && row.isGroup ? key : null;
+    if (isTool) {
+      widget.tab.feedUi.reveal(
+        key.substring(5),
+        group: row.isGroup ? (row.items.first as ToolItem).id : null,
+      );
+    }
     // an item that is built already gets its key only on a rebuild
-    final fresh = !_targets.containsKey(key);
-    final target = _targets.putIfAbsent(key, GlobalKey.new);
-    if (fresh) setState(() {});
+    final fresh =
+        !_targets.containsKey(row.key) ||
+        (inner != null && !_targets.containsKey(inner));
+    final target = _targets.putIfAbsent(row.key, GlobalKey.new);
+    final innerTarget = inner == null
+        ? null
+        : _targets.putIfAbsent(inner, GlobalKey.new);
+    if (fresh || isTool) setState(() {});
     final pos = _scroll.position;
-    final avg = (pos.maxScrollExtent + pos.viewportDimension) / items.length;
+    final avg = (pos.maxScrollExtent + pos.viewportDimension) / rows.length;
     // the reversed list: offset 0 is the newest
     _scroll.jumpTo((fromEnd * avg).clamp(0.0, pos.maxScrollExtent));
     for (var i = 0; i < 40; i++) {
@@ -143,7 +160,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!mounted) return false;
       if (target.currentContext != null) {
         await Scrollable.ensureVisible(
-          target.currentContext!,
+          innerTarget?.currentContext ?? target.currentContext!,
           alignment: .3,
           duration: const Duration(milliseconds: 250),
         );
@@ -151,7 +168,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       // not built: find which side it is on by the keyed neighbours the feed builds
       final here = _scroll.position;
-      final up = _builtBeyond(fromEnd);
+      final up = _builtBeyond(fromEnd, rows);
       final step = here.viewportDimension * .8;
       final next = (here.pixels + (up ? -step : step)).clamp(
         0.0,
@@ -164,15 +181,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Whether the items built now are all older than item [fromEnd] counted from the newest (so the item is below).
-  bool _builtBeyond(int fromEnd) {
-    final items = widget.tab.feed.items;
+  bool _builtBeyond(int fromEnd, List<FeedRow> rows) {
     final built = <int>[];
     final seen = <String>{};
     void visit(Element e) {
       final k = e.widget.key;
       if (k is ValueKey<String> && seen.add(k.value)) {
-        final i = items.indexWhere((it) => feedKey(it) == k.value);
-        if (i >= 0) built.add(items.length - 1 - i);
+        final i = rows.indexWhere((r) => r.key == k.value);
+        if (i >= 0) built.add(rows.length - 1 - i);
       }
       e.visitChildren(visit);
     }
@@ -191,6 +207,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final f = widget.tab.feed;
       final pending = widget.tab.voiceOutbox.entries;
       final items = f.items;
+      final rows = feedRows(items);
       // the feed keeps the floating header clear
       final top =
           MediaQuery.paddingOf(context).top +
@@ -224,7 +241,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                   : 8,
                             ),
                             itemCount:
-                                items.length +
+                                rows.length +
                                 pending.length +
                                 (f.earlier > 0 ? 1 : 0),
                             itemBuilder: (context, i) {
@@ -238,7 +255,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 );
                               }
                               i -= pending.length;
-                              if (i == items.length) {
+                              if (i == rows.length) {
                                 return Center(
                                   child: TextButton(
                                     onPressed: widget.tab.loadEarlier,
@@ -246,32 +263,49 @@ class _ChatScreenState extends State<ChatScreen> {
                                   ),
                                 );
                               }
-                              final at = items.length - 1 - i;
-                              final it = items[at];
-                              final inner = _Commentable(
-                                tab: widget.tab,
-                                item: it,
-                                onReply: widget.onReply ?? (_) {},
-                                child:
-                                    widget.itemBuilder?.call(context, it) ??
-                                    (chatSource(it) == null
-                                        ? FeedItemView(it)
-                                        : _Marked(tab: widget.tab, item: it)),
-                              );
-                              // keyed by the item, not the index: a new item shifts every index of a reversed list
+                              final at = rows.length - 1 - i;
+                              final row = rows[at];
+                              final it = row.items.first;
+                              final inner = row.isGroup
+                                  ? ToolGroup(
+                                      items: row.items.cast<ToolItem>(),
+                                      live: f.busy && row.end == items.length,
+                                      targetOf: (t) => _targets[feedKey(t)],
+                                    )
+                                  : _Commentable(
+                                      tab: widget.tab,
+                                      item: it,
+                                      onReply: widget.onReply ?? (_) {},
+                                      child:
+                                          widget.itemBuilder?.call(
+                                            context,
+                                            it,
+                                          ) ??
+                                          (chatSource(it) == null
+                                              ? FeedItemView(it)
+                                              : _Marked(
+                                                  tab: widget.tab,
+                                                  item: it,
+                                                )),
+                                    );
+                              // keyed by the row, not the index: a new item shifts every index of a reversed list
                               return KeyedSubtree(
-                                key: ValueKey(feedKey(it)),
+                                key: ValueKey(row.key),
                                 // the agent's turn is one bubble: its items are the pieces of it
                                 child: KeyedSubtree(
-                                  key: _targets[feedKey(it)],
+                                  key: _targets[row.key],
                                   child: inAgentTurn(it)
                                       ? AgentBubble(
                                           first:
                                               at == 0 ||
-                                              !inAgentTurn(items[at - 1]),
+                                              !inAgentTurn(
+                                                rows[at - 1].items.last,
+                                              ),
                                           last:
-                                              at == items.length - 1 ||
-                                              !inAgentTurn(items[at + 1]),
+                                              at == rows.length - 1 ||
+                                              !inAgentTurn(
+                                                rows[at + 1].items.first,
+                                              ),
                                           child: inner,
                                         )
                                       : inner,
@@ -280,12 +314,10 @@ class _ChatScreenState extends State<ChatScreen> {
                             },
                             findChildIndexCallback: (key) {
                               final k = (key as ValueKey<String>).value;
-                              final at = items.lastIndexWhere(
-                                (it) => feedKey(it) == k,
-                              );
+                              final at = rows.lastIndexWhere((r) => r.key == k);
                               return at < 0
                                   ? null
-                                  : items.length - 1 - at + pending.length;
+                                  : rows.length - 1 - at + pending.length;
                             },
                           ),
                           if (f.compacting)
@@ -757,21 +789,37 @@ String duration(AppLocalizations t, num secs) => secs < 60
 
 /// A tool call as one line (name and its main argument); its result opens on tap.
 class ToolLine extends StatefulWidget {
-  const ToolLine(this.item, {super.key});
+  const ToolLine(
+    this.item, {
+    super.key,
+    this.inGroup = false,
+    this.media = true,
+  });
   final ToolItem item;
+
+  /// false when a group's head shows the pictures of its actions
+  final bool media;
+
+  /// Inside an open group a failed line shows its output unasked.
+  final bool inGroup;
 
   @override
   State<ToolLine> createState() => _ToolLineState();
 }
 
 class _ToolLineState extends State<ToolLine> {
-  bool _open = false;
+  // without a tab (no FileOpener) the state is the line's own
+  bool? _local;
 
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<NbColors>()!;
     final it = widget.item;
     final running = it.result == null;
+    final ui = FileOpener.of(context)?.feedUi;
+    final open =
+        (ui == null ? _local : ui.toolOpen(it.id)) ??
+        (widget.inGroup && it.isError);
     // a file of the project the phone opens (Markdown, an image, a video) opens over the chat
     final tab = FileOpener.of(context);
     final path = toolPath(it);
@@ -784,7 +832,11 @@ class _ToolLineState extends State<ToolLine> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            onTap: running ? null : () => setState(() => _open = !_open),
+            onTap: running
+                ? null
+                : () => setState(() {
+                    ui == null ? _local = !open : ui.setTool(it.id, !open);
+                  }),
             child: Row(
               children: [
                 Icon(
@@ -796,6 +848,19 @@ class _ToolLineState extends State<ToolLine> {
                 ),
                 const SizedBox(width: 6),
                 Text(it.name, style: TextStyle(color: c.accent, fontSize: 13)),
+                if (!open && tab != null)
+                  ListenableBuilder(
+                    listenable: tab.comments,
+                    builder: (context, _) {
+                      final n = toolComments(tab.comments, it.id);
+                      return n == 0
+                          ? const SizedBox.shrink()
+                          : Text(
+                              ' · ${AppLocalizations.of(context).toolComments(n)}',
+                              style: TextStyle(color: c.accent, fontSize: 13),
+                            );
+                    },
+                  ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -820,9 +885,9 @@ class _ToolLineState extends State<ToolLine> {
               ],
             ),
           ),
-          if (tab != null)
+          if (tab != null && widget.media)
             for (final m in mediaOf(tab, it)) MediaCard(tab: tab, spec: m),
-          if (_open && it.result != null)
+          if (open && it.result != null)
             Container(
               margin: const EdgeInsets.only(top: 4),
               padding: const EdgeInsets.all(8),

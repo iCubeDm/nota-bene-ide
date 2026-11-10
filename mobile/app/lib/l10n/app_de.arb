@@ -268,5 +268,29 @@
   "idleCompactBlocked": "In den Einstellungen des Agenten ausgeschaltet",
   "windowGoneTitle": "Das Fenster wurde geschlossen oder neu gestartet",
   "windowGoneBody": "Warten, bis es zurückkommt",
-  "stateOtherTab": "in einem anderen Tab geöffnet"
+  "stateOtherTab": "in einem anderen Tab geöffnet",
+  "toolActions": "{count, plural, =1{1 Aktion} other{{count} Aktionen}}",
+  "@toolActions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolErrors": "{count, plural, =1{1 Fehler} other{{count} Fehler}}",
+  "@toolErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolComments": "{count, plural, =1{1 Kommentar} other{{count} Kommentare}}",
+  "@toolComments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

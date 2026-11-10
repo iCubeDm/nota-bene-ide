@@ -89,6 +89,9 @@ class WindowTab extends ChangeNotifier {
 
   TabState _state = TabState.connecting;
   Feed feed = Feed();
+
+  /// What of the feed is unfolded; it outlives the chat's widgets, as the desktop's `feedUi` does the feed's.
+  final feedUi = FeedUi();
   List<ModelOption> models = const [];
   String? model;
   AgentEffort? effort;

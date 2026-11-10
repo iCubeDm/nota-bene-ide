@@ -442,5 +442,29 @@
   "idleCompactBlocked": "Turned off in the agent's settings",
   "windowGoneTitle": "The window closed or restarted",
   "windowGoneBody": "Waiting for it to come back",
-  "stateOtherTab": "open in another tab"
+  "stateOtherTab": "open in another tab",
+  "toolActions": "{count, plural, =1{1 action} other{{count} actions}}",
+  "@toolActions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolErrors": "{count, plural, =1{1 error} other{{count} errors}}",
+  "@toolErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "toolComments": "{count, plural, =1{1 comment} other{{count} comments}}",
+  "@toolComments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
