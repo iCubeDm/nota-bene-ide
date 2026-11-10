@@ -777,13 +777,16 @@ setInterval(() => { if (fs.existsSync(${JSON.stringify(go)})) process.exit(1); }
     fs.mkdirSync(v, { recursive: true });
     fs.symlinkSync(BIN, path.join(v, 'nota-bene.mjs'));
     setCurrent('1.99.0');
-    launch(['--port', '4795'], { NOTA_BENE_TEST_PUBLISHED: '1', NOTA_BENE_TEST_CRASH: '77', ...serverPreload() });
-    await waitFor(async () => (await info(4795))?.root === project, 20000);
+    // the launcher's own wait for the inner server's /info is not what this test measures: out of the way on a slow runner
+    launch(['--port', '4795'], { NOTA_BENE_TEST_PUBLISHED: '1', NOTA_BENE_TEST_CRASH: '77', NOTA_BENE_TEST_HANDOVER_INFO_MS: '120000', ...serverPreload() });
+    // step by step, each from the previous event: the first server ran (and exited 77), the second ran, the second answers
+    await waitFor(() => serverRuns().length >= 2, 30000);
+    await waitFor(async () => (await info(4795))?.root === project, 30000);
     const [first, second] = serverRuns();
     expect(serverRuns()).toHaveLength(2);
     expect(second!.env.NOTA_BENE_NONCE).toBe(first!.env.NOTA_BENE_NONCE);
     expect(second!.env.NOTA_BENE_UPDATED_FROM).toBe('1.99.0');
-  }, 30000);
+  }, 90000);
 
   it('a checkout never hands over', async () => {
     installStub('1.99.0', 0);
