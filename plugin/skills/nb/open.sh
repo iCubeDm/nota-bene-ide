@@ -95,7 +95,7 @@ lock_stale() {
   { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null && [ "$age" -gt 3 ]; } || [ "$age" -gt "$STALE_SECS" ]
 }
 install_pkg() {
-  local lock="$PREFIX/.nb-install.lock" failed="$PREFIX/.nb-install-failed" waited=0 log="$PREFIX/.nb-install.log" rc
+  local aside lock="$PREFIX/.nb-install.lock" failed="$PREFIX/.nb-install-failed" waited=0 log="$PREFIX/.nb-install.log" rc
   mkdir -p "$PREFIX" 2>/dev/null || { echo "NB: cannot create the plugin data dir $PREFIX."; return 1; }
   ifail() { { echo "$1"; [ -n "${2:-}" ] && tail -n 5 "$2" 2>/dev/null; } | tee "$failed"; rm -rf "$lock" 2>/dev/null; return 1; }
   command -v npm >/dev/null || { echo "$NPM_MISSING" | tee "$failed"; return 1; }
@@ -107,10 +107,17 @@ install_pkg() {
       sleep 0.2; continue
     fi
     # reclaim a lock whose holder is gone (dead pid) or that is simply old (a recycled pid, or no timestamp at all). One waiter
-    # at a time, and it looks again once it is the only one: a waiter acting on what it read earlier could remove a fresh lock
+    # at a time. Looking and then removing by path is not atomic: the lock we looked at can be gone and a fresh one in its place
+    # by the time we remove. So the lock is first renamed to a name only this process uses (atomic: of several, one gets it, and
+    # nobody else can take it again), and it is judged there, where it cannot change under us. A fresh lock we moved by mistake
+    # goes back; the owner never notices.
     if lock_stale "$lock"; then
       if mkdir "$lock.reclaim" 2>/dev/null; then
-        if lock_stale "$lock"; then rm -rf "$lock"; fi
+        aside="$lock.stale.$$"
+        rm -rf "$aside" 2>/dev/null
+        if mv "$lock" "$aside" 2>/dev/null; then
+          if lock_stale "$aside"; then rm -rf "$aside"; else mv "$aside" "$lock" 2>/dev/null || rm -rf "$aside"; fi
+        fi
         rmdir "$lock.reclaim" 2>/dev/null
       else
         # a reclaimer killed in that short step must not block everyone for good
