@@ -9,6 +9,7 @@ import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/seen.dart';
+import 'package:nb_app/store/sizes.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/store/voice_lang.dart';
 import 'package:nb_app/voice/outbox.dart';
@@ -26,6 +27,9 @@ class Rig {
 
   /// The Settings choice of the voice language; none follows the app's.
   VoiceLang? voiceLang;
+
+  /// Text and interface size; the phone's own without them.
+  Sizes? sizes;
 
   Future<void> open(
     WidgetTester t, {
@@ -60,6 +64,7 @@ class Rig {
     await t.pumpWidget(
       NbApp(
         voiceLang: voiceLang,
+        sizes: sizes,
         home: MermaidScope(
           renderer: FakeMermaid(),
           child: ChatRoute(

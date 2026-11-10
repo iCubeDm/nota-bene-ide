@@ -6,6 +6,7 @@ import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';
 import 'store/hosts.dart';
 import 'store/lang_choice.dart';
+import 'store/sizes.dart';
 import 'store/theme_choice.dart';
 import 'store/voice_lang.dart';
 import 'theme.dart';
@@ -18,6 +19,7 @@ class SettingsScreen extends StatelessWidget {
     required this.themes,
     this.langs,
     this.voiceLang,
+    this.sizes,
     required this.onPair,
   });
 
@@ -30,6 +32,9 @@ class SettingsScreen extends StatelessWidget {
 
   /// The language voice is transcribed in; no row without it.
   final VoiceLang? voiceLang;
+
+  /// Text and interface size; no rows without it.
+  final Sizes? sizes;
   final VoidCallback onPair;
 
   Future<void> _pickLang(BuildContext context, LangChoice langs) =>
@@ -124,7 +129,13 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(t.settings)),
       body: ListenableBuilder(
-        listenable: Listenable.merge([hosts, themes, ?langs, ?voiceLang]),
+        listenable: Listenable.merge([
+          hosts,
+          themes,
+          ?langs,
+          ?voiceLang,
+          ?sizes,
+        ]),
         builder: (context, _) => ListView(
           children: [
             ListTile(
@@ -186,6 +197,10 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => _pickVoiceLang(context, voice),
               ),
             ],
+            if (sizes case final z?) ...[
+              const Divider(),
+              _SizeControls(sizes: z),
+            ],
             const Divider(),
             for (final dark in [true, false]) ...[
               ListTile(
@@ -215,6 +230,72 @@ class SettingsScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The text size slider, the interface size choice and a line showing both.
+class _SizeControls extends StatelessWidget {
+  const _SizeControls({required this.sizes});
+  final Sizes sizes;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final c = Theme.of(context).extension<NbColors>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          title: Text(t.textSize),
+          trailing: Text(
+            percent(sizes.text),
+            key: const ValueKey('text-size-value'),
+          ),
+        ),
+        Slider(
+          key: const ValueKey('text-size'),
+          value: sizes.text,
+          min: textSizes.first,
+          max: textSizes.last,
+          divisions: textSizes.length - 1,
+          label: percent(sizes.text),
+          // applied while dragging, written when the finger lifts
+          onChanged: (v) => sizes.chooseText(
+            textSizes.reduce((a, b) => (a - v).abs() < (b - v).abs() ? a : b),
+            keep: false,
+          ),
+          onChangeEnd: (_) => sizes.keepText(),
+        ),
+        ListTile(title: Text(t.interfaceSize)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: SegmentedButton<double>(
+            key: const ValueKey('interface-size'),
+            showSelectedIcon: false,
+            segments: [
+              for (final s in interfaceSizes)
+                ButtonSegment(
+                  value: s,
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(percent(s)),
+                  ),
+                ),
+            ],
+            selected: {sizes.interface},
+            onSelectionChanged: (v) => sizes.chooseInterface(v.first),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            t.sizePreview,
+            key: const ValueKey('size-preview'),
+            style: TextStyle(color: c.mutedFg),
+          ),
+        ),
+      ],
     );
   }
 }
