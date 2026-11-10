@@ -91,10 +91,11 @@ class ChatScreen extends StatelessWidget {
                           // reversed: the newest item sits at the bottom and stays in view while the user is there
                           ListView.builder(
                             reverse: true,
+                            // full width: the bubbles keep their own margins
                             padding: EdgeInsets.fromLTRB(
-                              12,
+                              0,
                               status == null ? top : 8,
-                              12,
+                              0,
                               8,
                             ),
                             itemCount:
@@ -120,20 +121,33 @@ class ChatScreen extends StatelessWidget {
                                   ),
                                 );
                               }
-                              final it = items[items.length - 1 - i];
+                              final at = items.length - 1 - i;
+                              final it = items[at];
+                              final inner = _Commentable(
+                                tab: tab,
+                                item: it,
+                                onReply: onReply ?? (_) {},
+                                child:
+                                    itemBuilder?.call(context, it) ??
+                                    (chatSource(it) == null
+                                        ? FeedItemView(it)
+                                        : _Marked(tab: tab, item: it)),
+                              );
                               // keyed by the item, not the index: a new item shifts every index of a reversed list
                               return KeyedSubtree(
                                 key: ValueKey(feedKey(it)),
-                                child: _Commentable(
-                                  tab: tab,
-                                  item: it,
-                                  onReply: onReply ?? (_) {},
-                                  child:
-                                      itemBuilder?.call(context, it) ??
-                                      (chatSource(it) == null
-                                          ? FeedItemView(it)
-                                          : _Marked(tab: tab, item: it)),
-                                ),
+                                // the agent's turn is one bubble: its items are the pieces of it
+                                child: inAgentTurn(it)
+                                    ? AgentBubble(
+                                        first:
+                                            at == 0 ||
+                                            !inAgentTurn(items[at - 1]),
+                                        last:
+                                            at == items.length - 1 ||
+                                            !inAgentTurn(items[at + 1]),
+                                        child: inner,
+                                      )
+                                    : inner,
                               );
                             },
                             findChildIndexCallback: (key) {
@@ -403,9 +417,10 @@ class FeedItemView extends StatelessWidget {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     Widget line(String text, {Color? color}) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
       child: Text(
         text,
+        textAlign: TextAlign.center,
         style: TextStyle(color: color ?? c.mutedFg, fontSize: 13),
       ),
     );
@@ -439,7 +454,7 @@ class FeedItemView extends StatelessWidget {
             ? line(t.idleCompact)
             : UserBubble(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (images.isNotEmpty && FileOpener.of(context) != null)
@@ -518,7 +533,52 @@ class FeedItemView extends StatelessWidget {
   }
 }
 
-/// The user's bubble: right-aligned, tinted with the primary colour, its lower right corner square.
+/// Whether [it] is a piece of the agent's turn: its texts, tool lines, plans and shell blocks. A user message and the
+/// lines (done, markers, notices) are not; they end the turn.
+bool inAgentTurn(FeedItem it) => switch (it) {
+  AssistantItem(:final text) => text.isNotEmpty,
+  ToolItem() || PermissionItem() || ShellItem() => true,
+  _ => false,
+};
+
+/// One piece of the agent's turn in its bubble: 8 px from the left edge and 28 from the right, in the agent's colour.
+/// The pieces of a turn sit one under the other without a gap, so [first] rounds the top and [last] the bottom (its
+/// left corner stays square, the tail).
+class AgentBubble extends StatelessWidget {
+  const AgentBubble({
+    super.key,
+    required this.first,
+    required this.last,
+    required this.child,
+  });
+  final bool first, last;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(8, first ? 6 : 0, 28, last ? 6 : 0),
+      child: Container(
+        key: const ValueKey('agent-bubble'),
+        padding: EdgeInsets.fromLTRB(12, first ? 6 : 0, 12, last ? 6 : 0),
+        decoration: BoxDecoration(
+          color: c.agentBubble,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(first ? 14 : 0),
+            topRight: Radius.circular(first ? 14 : 0),
+            bottomLeft: Radius.circular(last ? 4 : 0),
+            bottomRight: Radius.circular(last ? 14 : 0),
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// The user's bubble: right-aligned, tinted with the primary colour, its lower right corner square. It shrinks to its
+/// content and takes at most the screen's width less 28 px at the left and 8 at the right.
 class UserBubble extends StatelessWidget {
   const UserBubble({super.key, required this.child});
   final Widget child;
@@ -526,19 +586,15 @@ class UserBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<NbColors>()!;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: LayoutBuilder(
-        builder: (context, box) => Container(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 6, 8, 6),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Container(
           key: const ValueKey('bubble'),
-          margin: const EdgeInsets.symmetric(vertical: 6),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          constraints: BoxConstraints(maxWidth: box.maxWidth * .84),
           decoration: BoxDecoration(
-            color: Color.alphaBlend(
-              c.primary.withValues(alpha: .28),
-              c.background,
-            ),
+            color: c.userBubble,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(14),
               topRight: Radius.circular(14),
