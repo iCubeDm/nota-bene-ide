@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../store/sizes.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'record_session.dart';
@@ -149,7 +150,8 @@ class _RecordButtonState extends State<RecordButton> {
 
   void _move(PointerMoveEvent e) {
     if (e.pointer != _pointer || _press != _Press.holding) return;
-    _s.moveBy(e.position - _origin);
+    // the finger's travel on the screen, in the interface's units (the follower is laid out in them)
+    _s.moveBy(uiOffset(context, e.position - _origin));
   }
 
   void _up(PointerEvent e) {

@@ -19,6 +19,7 @@ import '../comments/chat_anchor.dart';
 import '../comments/comment_sheet.dart';
 import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
+import '../store/sizes.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'feed.dart';
@@ -175,11 +176,10 @@ class ParagraphTargets extends ChangeNotifier {
     final scaffold = Scaffold.maybeOf(ctx)?.context.findRenderObject();
     final view = Scrollable.maybeOf(ctx)?.context.findRenderObject();
     if (scaffold is RenderBox && view is RenderBox && view.hasSize) {
-      final end = scaffold.localToGlobal(Offset.zero).dy + scaffold.size.height;
-      bottom = math.max(
-        8,
-        end - (view.localToGlobal(Offset.zero).dy + view.size.height) + 8,
-      );
+      final top = uiOffset(ctx, scaffold.localToGlobal(Offset.zero)).dy;
+      final end = top + scaffold.size.height;
+      final viewTop = uiOffset(ctx, view.localToGlobal(Offset.zero)).dy;
+      bottom = math.max(8, end - (viewTop + view.size.height) + 8);
     }
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
@@ -387,12 +387,12 @@ class _PopupState extends State<_Popup> {
     final ctx = _p.ctx;
     final box = ctx.mounted ? ctx.findRenderObject() : null;
     if (box is! RenderBox || !box.attached || !box.hasSize) return false;
-    final para = box.localToGlobal(Offset.zero) & box.size;
+    final para = uiOffset(ctx, box.localToGlobal(Offset.zero)) & box.size;
     final screen = Offset.zero & MediaQuery.sizeOf(context);
     final view = Scrollable.maybeOf(ctx)?.context.findRenderObject();
     var bounds = screen;
     if (view is RenderBox && view.hasSize) {
-      bounds = view.localToGlobal(Offset.zero) & view.size;
+      bounds = uiOffset(context, view.localToGlobal(Offset.zero)) & view.size;
       // the pane moves sideways under a swipe, and away when the page changes: the target does not go with it
       final left = _viewLeft ??= bounds.left;
       if ((bounds.left - left).abs() > 1) return false;
@@ -446,7 +446,9 @@ class _PopupState extends State<_Popup> {
             child: Listener(
               behavior: HitTestBehavior.translucent,
               onPointerDown: (e) {
-                if (!(_para?.contains(e.position) ?? false)) targets.clear();
+                if (!(_para?.contains(e.localPosition) ?? false)) {
+                  targets.clear();
+                }
               },
             ),
           ),
@@ -491,9 +493,10 @@ class _PopupState extends State<_Popup> {
     );
     Widget content;
     if (!_all) {
-      content = Row(
+      // wraps when the screen is narrower than the six, as at a large interface size
+      content = Wrap(
         key: const ValueKey('para-labels'),
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           for (final l in barLabels)
             Tooltip(
@@ -604,9 +607,9 @@ class _PopupState extends State<_Popup> {
     }
 
     final p = targets._sel!;
-    return Row(
+    return Wrap(
       key: const ValueKey('para-bar'),
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         button(
           const NbIcon(NbGlyph.comments),

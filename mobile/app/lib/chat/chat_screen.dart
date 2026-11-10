@@ -11,6 +11,7 @@ import '../comments/anchor.dart';
 import '../comments/chat_anchor.dart';
 import '../comments/comment_strip.dart' show editComment;
 import '../files/file_markdown.dart';
+import '../store/sizes.dart';
 import '../theme.dart';
 import '../voice/outbox.dart';
 import '../voice/upload.dart';
@@ -579,7 +580,8 @@ class _CommentableState extends State<_Commentable> {
           final box = context.findRenderObject() as RenderBox;
           // kept in the item's own coordinates: the item may move before "Select text" is chosen
           final at = box.globalToLocal(d.globalPosition);
-          final rect = box.localToGlobal(Offset.zero) & box.size;
+          final rect =
+              uiOffset(context, box.localToGlobal(Offset.zero)) & box.size;
           showMessageMenu(
             context,
             tab: widget.tab,
