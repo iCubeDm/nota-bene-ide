@@ -16,6 +16,7 @@ class HostLink extends ChangeNotifier {
     this.host,
     this._connect,
     this._identity, {
+    this.onName,
     this.minBackoff = const Duration(seconds: 1),
     this.maxBackoff = const Duration(seconds: 30),
     DateTime Function()? clock,
@@ -26,6 +27,9 @@ class HostLink extends ChangeNotifier {
        _sleep = sleep ?? ((d) => Future<void>.delayed(d));
 
   final PairedHost host;
+
+  /// Called with the computer name the host sent on a connection.
+  final void Function(String name)? onName;
   final ChannelFactory _connect;
   final Identity _identity;
   final Duration minBackoff, maxBackoff;
@@ -41,6 +45,9 @@ class HostLink extends ChangeNotifier {
   int _gen = 0;
   bool _running = false;
   bool _disposed = false;
+
+  /// Completed by [refresh] and [stop] to end the backoff sleep at once.
+  Completer<void>? _wake;
 
   LinkState get state => _state;
 
@@ -71,6 +78,47 @@ class HostLink extends ChangeNotifier {
     unawaited(_loop(++_gen));
   }
 
+  /// Pull to refresh: an online host is asked for its windows again (the channel stays); any other link reconnects at
+  /// once, without waiting out its backoff. Completes when the host answered, the attempt ended or [timeout] passed.
+  Future<void> refresh({Duration timeout = const Duration(seconds: 20)}) async {
+    if (_state == LinkState.unpaired) return;
+    final ch = _channel;
+    if (_running && _state == LinkState.online && ch != null) {
+      try {
+        final list = await ch.refreshWindows(wait: timeout).timeout(timeout);
+        if (identical(_channel, ch)) {
+          _windows = list;
+          _notify();
+        }
+      } on Object {
+        // no answer: the stream of changes keeps the list, and a dead channel reconnects by itself
+      }
+      return;
+    }
+    final settled = Completer<void>();
+    void watch() {
+      if (_state != LinkState.connecting && !settled.isCompleted) {
+        settled.complete();
+      }
+    }
+
+    addListener(watch);
+    try {
+      if (!_running) {
+        _attempt = 0;
+        start();
+      } else if (_state == LinkState.offline) {
+        // the one loop is in its backoff sleep: end the sleep, never start a second loop (one key, one connection)
+        _attempt = 0;
+        _set(LinkState.connecting);
+        _wakeUp();
+      }
+      await settled.future.timeout(timeout, onTimeout: () {});
+    } finally {
+      removeListener(watch);
+    }
+  }
+
   /// Drops the channel; the link shows offline until [start].
   void stop() {
     final was = _running;
@@ -79,6 +127,7 @@ class HostLink extends ChangeNotifier {
     final ch = _channel;
     _channel = null;
     unawaited(ch?.close());
+    _wakeUp();
     if (was && _state != LinkState.unpaired) {
       if (_state == LinkState.online) _lastSeen = _clock();
       _set(LinkState.offline);
@@ -95,6 +144,9 @@ class HostLink extends ChangeNotifier {
   Future<void> _loop(int gen) async {
     bool live() => _running && gen == _gen;
     while (live()) {
+      _set(
+        LinkState.connecting,
+      ); // also while a retry connects, so a refresh never starts a second loop
       final Channel ch;
       try {
         ch = await _connect(
@@ -123,6 +175,7 @@ class HostLink extends ChangeNotifier {
         return;
       }
       _channel = ch;
+      if (ch.hostName case final n?) onName?.call(n);
       final onlineAt = _clock();
       final sub = ch.windows.listen((l) {
         _windows = l;
@@ -150,13 +203,21 @@ class HostLink extends ChangeNotifier {
     }
   }
 
-  Future<void> _backoff() {
+  void _wakeUp() {
+    final w = _wake;
+    _wake = null;
+    if (w != null && !w.isCompleted) w.complete();
+  }
+
+  Future<void> _backoff() async {
     final base = minBackoff.inMilliseconds * pow(2, _attempt);
     _attempt++;
     final ms =
         min(base, maxBackoff.inMilliseconds.toDouble()) *
         (0.8 + _jitter() * 0.4);
-    return _sleep(Duration(milliseconds: ms.round()));
+    final wake = _wake = Completer<void>();
+    await Future.any([_sleep(Duration(milliseconds: ms.round())), wake.future]);
+    if (identical(_wake, wake)) _wake = null;
   }
 }
 
@@ -192,8 +253,13 @@ class Links extends ChangeNotifier {
     }
     for (final h in _hosts.all) {
       _links.putIfAbsent(h.id, () {
-        final l = HostLink(h, _connect, _identity, sleep: _sleep)
-          ..addListener(notifyListeners);
+        final l = HostLink(
+          h,
+          _connect,
+          _identity,
+          sleep: _sleep,
+          onName: (n) => unawaited(_hosts.learnComputerName(h.id, n)),
+        )..addListener(notifyListeners);
         l.start();
         return l;
       });
@@ -208,6 +274,10 @@ class Links extends ChangeNotifier {
     final l = _links[id];
     if (l != null && l.state != LinkState.unpaired) l.start();
   }
+
+  /// Pull to refresh: every link reconnects or asks its host for the windows again, all at once.
+  Future<void> refresh() =>
+      Future.wait([for (final l in _links.values) l.refresh()]);
 
   /// The app spent long in the background: drop the connections until it is back.
   void pause() {

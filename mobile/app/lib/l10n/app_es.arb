@@ -203,5 +203,12 @@
   "noCommentsYet": "Aún no hay comentarios. Selecciona texto en el chat o en un archivo y pulsa Comentar.",
   "sentComments": "Enviados",
   "tabLog": "Historial",
-  "voiceFinishFirst": "Termina o elimina primero el mensaje de voz."
+  "voiceFinishFirst": "Termina o elimina primero el mensaje de voz.",
+  "renameHost": "Renombrar host",
+  "hostNameLabel": "Nombre del host",
+  "renameNote": "El ordenador se llama a sí mismo {name}. El nombre se guarda solo en este teléfono.",
+  "renameNoteOnly": "El nombre se guarda solo en este teléfono.",
+  "reset": "Restablecer",
+  "darkThemes": "Temas oscuros",
+  "lightThemes": "Temas claros"
 }

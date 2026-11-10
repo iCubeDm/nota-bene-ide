@@ -132,19 +132,24 @@ class PairFlow {
     }
     final hostFp = await fingerprint(code.hostPub);
     String label = hostFp.substring(0, 9);
-    try {
-      final list = await ch.windows
-          .firstWhere((l) => l.isNotEmpty)
-          .timeout(windowsWait);
-      label = _folder(list.first.root);
-    } on Object {
-      // no window yet: the fingerprint names the host until one opens
+    final computer = ch.hostName;
+    if (computer == null) {
+      // an older host sends no name: the folder of its first window labels it
+      try {
+        final list = await ch.windows
+            .firstWhere((l) => l.isNotEmpty)
+            .timeout(windowsWait);
+        label = _folder(list.first.root);
+      } on Object {
+        // no window yet: the fingerprint names the host until one opens
+      }
     }
     await ch.close();
     final host = PairedHost(
       id: b64u(code.hostPub),
       relay: code.relay,
       label: label,
+      computerName: computer,
       pairedAt: DateTime.now(),
     );
     await _hosts.add(host);

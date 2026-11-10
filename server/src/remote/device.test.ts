@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
 import { startServer } from '../server.ts';
 import { registerWindow } from '../windows.ts';
-import { DeviceChannel } from './device.ts';
+import { computerName, DeviceChannel } from './device.ts';
 import { Windows } from './discover.ts';
 import { CONN_WINDOW } from './mux.ts';
 import { generateKeyPair, type KeyPair } from './noise.ts';
@@ -65,7 +65,7 @@ async function windows() {
 }
 
 type Link = { phone: Phone; channel: DeviceChannel; dropped: () => boolean };
-function link(o: { windows: Windows; host: KeyPair; listed?: Set<string>; secret?: Buffer; onPaired?: (pub: Buffer, name?: string) => boolean; key?: KeyPair; expectHash?: string }): Link {
+function link(o: { windows: Windows; host: KeyPair; listed?: Set<string>; secret?: Buffer; onPaired?: (pub: Buffer, name?: string) => boolean; key?: KeyPair; expectHash?: string; hostName?: string }): Link {
   let dropped = false;
   let phone!: Phone;
   const channel = new DeviceChannel({
@@ -77,6 +77,7 @@ function link(o: { windows: Windows; host: KeyPair; listed?: Set<string>; secret
     onPaired: o.onPaired ?? (() => true),
     isListed: (pub) => o.listed?.has(b64u(pub)) ?? false,
     ...(o.expectHash ? { deviceHash: o.expectHash } : {}),
+    ...(o.hostName ? { hostName: o.hostName } : {}),
   });
   phone = new Phone({ hostPub: o.host.pub, ...(o.key ? { key: o.key } : {}), send: (b) => queueMicrotask(() => channel.receive(b)) });
   closers.push(() => channel.close());
@@ -95,8 +96,31 @@ async function paired(w: Windows) {
 describe('device channel', () => {
   it('a listed phone completes the handshake', async () => {
     const l = await paired(await windows());
-    expect(l.phone.welcome).toEqual({ v: 1, ok: true });
+    expect(l.phone.welcome).toMatchObject({ v: 1, ok: true });
     expect(l.channel.devicePub?.equals(l.phone.key.pub)).toBe(true);
+  });
+
+  it('the welcome names the computer when the host has a name', async () => {
+    const key = generateKeyPair();
+    const l = link({ windows: await windows(), host: hostKey(), listed: new Set([b64u(key.pub)]), key, hostName: 'studio-mac' });
+    l.phone.hello();
+    await l.phone.ready;
+    expect(l.phone.welcome).toEqual({ v: 1, ok: true, host: 'studio-mac' });
+  });
+
+  it('the computer name loses a trailing .local and an empty one is left out', () => {
+    expect(computerName('studio-mac.local')).toBe('studio-mac');
+    expect(computerName('Studio.Local')).toBe('Studio');
+    expect(computerName('build.example.net')).toBe('build.example.net');
+    expect(computerName('.local')).toBeUndefined();
+    expect(computerName('  ')).toBeUndefined();
+  });
+
+  it('the computer name loses control and bidi-override characters and is capped at 64', () => {
+    expect(computerName('stu\u0000dio\u202E-mac\n')).toBe('studio-mac');
+    expect(computerName('\u202E\u0007')).toBeUndefined();
+    expect(computerName('a'.repeat(100))).toBe('a'.repeat(64));
+    expect(computerName('😀'.repeat(100))).toBe('😀'.repeat(64));
   });
 
   it('an unlisted phone without a proof is dropped without an answer', async () => {

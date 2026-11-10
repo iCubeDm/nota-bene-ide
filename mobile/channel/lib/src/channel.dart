@@ -164,17 +164,40 @@ const passedHeaders = {
   'if-modified-since',
 };
 
+/// A computer name as shown: control and bidi-override characters dropped, trimmed, at most 64 characters; null when
+/// nothing is left. The host's word is untrusted text.
+String? cleanHostName(String? raw) {
+  if (raw == null) return null;
+  final kept = String.fromCharCodes(
+    raw.runes.where(
+      (c) =>
+          !(c < 0x20 ||
+              (c >= 0x7f && c <= 0x9f) ||
+              c == 0x061c ||
+              c == 0x200e ||
+              c == 0x200f ||
+              (c >= 0x202a && c <= 0x202e) ||
+              (c >= 0x2066 && c <= 0x2069)),
+    ),
+  );
+  final n = String.fromCharCodes(kept.trim().runes.take(64)).trim();
+  return n.isEmpty ? null : n;
+}
+
 class Channel {
-  Channel._(this._ws, this._tx);
+  Channel._(this._ws, this._tx, [this.hostName]);
 
   final WebSocketChannel _ws;
   final CipherState _tx;
   late final Mux _mux;
-  late final MuxStream _host;
+  late MuxStream _host;
   Future<void> _sending = Future.value();
   final _closed = Completer<int>();
   final _windows = StreamController<List<HostWindow>>.broadcast();
   List<HostWindow>? _last;
+
+  /// What the host's computer calls itself (the welcome's `host`); null when the host sent none (an older host).
+  final String? hostName;
 
   /// Admission, handshake and the host stream. Throws [ChannelError] when any of them fails.
   static Future<Channel> connect({
@@ -252,7 +275,12 @@ class Channel {
           return fail('the host refused the handshake');
         }
         final keys = hs.split();
-        final made = ch = Channel._(ws, keys.send);
+        final name = welcome['host'];
+        final made = ch = Channel._(
+          ws,
+          keys.send,
+          cleanHostName(name is String ? name : null),
+        );
         made._start(keys.recv);
         ready.complete(made);
         return;
@@ -288,8 +316,12 @@ class Channel {
   void _start(CipherState recv) {
     _rx = recv;
     _mux = Mux(_sendFrame);
-    _host = _mux.open({'kind': 'host'});
-    _host.messages.listen((m) {
+    _listenHost();
+  }
+
+  void _listenHost() {
+    final stream = _host = _mux.open({'kind': 'host'});
+    stream.messages.listen((m) {
       final Object? j;
       try {
         j = jsonDecode(utf8.decode(m.data));
@@ -305,6 +337,19 @@ class Channel {
         _windows.add(list);
       }
     });
+  }
+
+  /// Asks the host for its windows again: the host stream is opened anew, and the host lists its windows when a host
+  /// stream opens (CHANNEL.md). Completes with that list; fails with a [TimeoutException] when none arrives in [wait].
+  Future<List<HostWindow>> refreshWindows({
+    Duration wait = const Duration(seconds: 10),
+  }) async {
+    if (isClosed) throw ChannelError('the channel is closed');
+    final next = _windows.stream.first;
+    final old = _host;
+    _listenHost();
+    old.close(normalClose);
+    return next.timeout(wait);
   }
 
   void _sendFrame(Uint8List frame) {

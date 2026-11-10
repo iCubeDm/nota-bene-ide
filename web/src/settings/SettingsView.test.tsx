@@ -225,6 +225,9 @@ it('a Themes section after Defaults: radios with a swatch of the theme\'s own to
   const radios = within(group).getAllByRole('radio');
   expect(radios.map((r) => r.textContent)).toEqual(['Darcula', 'Plannotator', 'Solarized Dark', 'IntelliJ Light', 'GitHub Light', 'Solarized Light']);
   expect(radios[0]).toBeChecked();
+  // dark first, then light, each under its heading
+  const order = [...group.querySelectorAll('[data-theme-heading], [role="radio"]')].map((n) => n.textContent);
+  expect(order).toEqual(['Dark themes', 'Darcula', 'Plannotator', 'Solarized Dark', 'Light themes', 'IntelliJ Light', 'GitHub Light', 'Solarized Light']);
   const swatch = radios[1].querySelector('[data-theme="plannotator"]')!;
   expect([...swatch.querySelectorAll('span')].map((s) => (s as HTMLElement).style.backgroundColor))
     .toEqual(['var(--background)', 'var(--card)', 'var(--primary)']);

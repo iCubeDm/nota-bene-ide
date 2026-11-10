@@ -8,6 +8,8 @@ export const ptBR: Dict = {
   langTip: 'Idioma da interface',
   theme: 'Tema',
   setThemes: 'Temas',
+  themesDark: 'Temas escuros',
+  themesLight: 'Temas claros',
   themeTip: 'Tema de cores da interface',
   openRawTip: 'Abrir o próprio arquivo em uma nova aba do navegador',
   toLatest: 'Ir para o mais recente',

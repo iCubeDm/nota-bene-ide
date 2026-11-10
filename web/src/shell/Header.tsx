@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { Fragment, useEffect } from 'react';
 import { getLang, chooseLang, LANGS, useT } from '@/i18n/index.ts';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { selectConn, selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openSettings, openUsage } from '@/tabs/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
@@ -13,9 +13,9 @@ import { StopButton } from './StopButton.tsx';
 import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
 import { UI_SCALES } from '@nota-bene/shared';
-import { THEMES, type ThemeId } from '@nota-bene/shared';
+import { type ThemeId } from '@nota-bene/shared';
 import { Logo } from './Logo.tsx';
-import { theme, THEME_NAMES, useTheme } from './theme.ts';
+import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from './theme.ts';
 import { scaleLabel, uiScale, useUiScale } from './uiScale.ts';
 
 const row = 'gap-2.5 px-2 py-1.5 text-[0.8125rem] text-foreground [&>svg]:text-muted-foreground';
@@ -97,10 +97,16 @@ export function Header() {
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup value={themeId} onValueChange={(id) => theme.choose(id as ThemeId)}>
-                {THEMES.map((id) => (
-                  <DropdownMenuRadioItem key={id} value={id} data-theme-id={id}>
-                    {THEME_NAMES[id]}
-                  </DropdownMenuRadioItem>
+                {THEME_GROUPS.map((g, i) => (
+                  <Fragment key={g.kind}>
+                    {i > 0 && <DropdownMenuSeparator />}
+                    <DropdownMenuLabel data-theme-heading>{t(g.head)}</DropdownMenuLabel>
+                    {g.ids.map((id) => (
+                      <DropdownMenuRadioItem key={id} value={id} data-theme-id={id}>
+                        {THEME_NAMES[id]}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </Fragment>
                 ))}
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>

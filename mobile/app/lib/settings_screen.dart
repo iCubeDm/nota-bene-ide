@@ -2,6 +2,7 @@
 // the colour theme and this phone's fingerprint, as the host lists it.
 import 'package:flutter/material.dart';
 
+import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';
 import 'store/hosts.dart';
 import 'store/lang_choice.dart';
@@ -98,6 +99,8 @@ class SettingsScreen extends StatelessWidget {
             ),
             for (final h in hosts.all)
               ListTile(
+                onTap: () => renameHostDialog(context, hosts, h),
+                onLongPress: () => renameHostDialog(context, hosts, h),
                 title: Text(h.label),
                 subtitle: Text(h.relay.host),
                 trailing: TextButton(
@@ -135,29 +138,31 @@ class SettingsScreen extends StatelessWidget {
               ),
             ],
             const Divider(),
-            ListTile(
-              title: Text(
-                t.theme,
-                style: TextStyle(color: c.mutedFg, fontSize: 13),
-              ),
-            ),
-            for (final th in NbTheme.values)
+            for (final dark in [true, false]) ...[
               ListTile(
-                leading: CircleAvatar(
-                  radius: 10,
-                  backgroundColor: th.colors.background,
-                  child: CircleAvatar(
-                    radius: 4,
-                    backgroundColor: th.colors.primary,
-                  ),
+                title: Text(
+                  dark ? t.darkThemes : t.lightThemes,
+                  style: TextStyle(color: c.mutedFg, fontSize: 13),
                 ),
-                title: Text(th.label),
-                trailing: th == themes.theme
-                    ? Icon(Icons.check, color: c.primary)
-                    : null,
-                selected: th == themes.theme,
-                onTap: () => themes.choose(th),
               ),
+              for (final th in NbTheme.values.where((x) => x.dark == dark))
+                ListTile(
+                  leading: CircleAvatar(
+                    radius: 10,
+                    backgroundColor: th.colors.background,
+                    child: CircleAvatar(
+                      radius: 4,
+                      backgroundColor: th.colors.primary,
+                    ),
+                  ),
+                  title: Text(th.label),
+                  trailing: th == themes.theme
+                      ? Icon(Icons.check, color: c.primary)
+                      : null,
+                  selected: th == themes.theme,
+                  onTap: () => themes.choose(th),
+                ),
+            ],
           ],
         ),
       ),

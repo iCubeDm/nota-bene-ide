@@ -3,6 +3,7 @@
 // phone never holds one. Window → phone reads only as fast as the stream's credit allows (pause/resume upstream).
 import { timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
+import os from 'node:os';
 import WebSocket from 'ws';
 import { windowInfo, type HostWindow, type Windows } from './discover.ts';
 import { BAD_FRAME, Mux, TOO_LARGE, UNKNOWN_WINDOW, UNREACHABLE, type Stream } from './mux.ts';
@@ -20,6 +21,13 @@ const INFO_FIELDS = ['title', 'session', 'model', 'busy', 'supervised', 'pending
 const goodPath = (p: unknown): p is string =>
   typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !p.startsWith('//') && !/[\\#]/.test(p) && !/^\/control(\/|\?|$)/.test(p);
 
+/** What this computer calls itself, for the phone's host label: `os.hostname()` without a trailing `.local`, control and bidi-override characters dropped, at most 64 characters. */
+export function computerName(raw: string = os.hostname()): string | undefined {
+  const clean = raw.replace(/[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, '').trim();
+  const n = [...clean.replace(/\.local$/i, '').trim()].slice(0, 64).join('').trim();
+  return n || undefined;
+}
+
 export type DeviceOptions = {
   hostKey: KeyPair;
   /** one Noise message to the phone */
@@ -34,6 +42,8 @@ export type DeviceOptions = {
   isListed: (pub: Buffer) => boolean;
   /** the device hash the relay announced for this conn: the phone's Noise key must be the one it names */
   deviceHash?: string;
+  /** the computer's name, sent in the welcome so the phone can label this host (default: `computerName()`) */
+  hostName?: string;
 };
 
 export class DeviceChannel {
@@ -104,7 +114,8 @@ export class DeviceChannel {
       if (!this.#o.onPaired(pub, name)) return this.#fail();
     }
     this.#pub = pub;
-    const reply = hs.writeMessage(Buffer.from(JSON.stringify({ v: 1, ok: true })));
+    const host = this.#o.hostName ?? computerName();
+    const reply = hs.writeMessage(Buffer.from(JSON.stringify({ v: 1, ok: true, ...(host ? { host } : {}) })));
     const { send, recv } = hs.split();
     this.#hs = undefined;
     this.#tx = send;

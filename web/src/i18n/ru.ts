@@ -6,6 +6,8 @@ export const ru = {
   langTip: 'Язык интерфейса',
   theme: 'Тема',
   setThemes: 'Темы',
+  themesDark: 'Тёмные темы',
+  themesLight: 'Светлые темы',
   themeTip: 'Цветовая тема интерфейса',
   openRawTip: 'Открыть сам файл в новой вкладке браузера',
   toLatest: 'В конец разговора',

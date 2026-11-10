@@ -36,32 +36,48 @@ class PairedHost {
   PairedHost({
     required this.id,
     required this.relay,
-    required this.label,
+    required String label,
     required this.pairedAt,
-  });
+    this.computerName,
+    this.customName,
+  }) : fallbackLabel = label;
 
   factory PairedHost.fromJson(Map<String, Object?> j) => PairedHost(
     id: j['id'] as String,
     relay: Uri.parse(j['relay'] as String),
     label: j['label'] as String,
     pairedAt: DateTime.parse(j['pairedAt'] as String),
+    computerName: j['computerName'] as String?,
+    customName: j['customName'] as String?,
   );
 
   /// The host's static public key, base64url (also the relay's host id).
   final String id;
   final Uri relay;
 
-  /// What the list calls this host: the folder of its first window, until renamed.
-  final String label;
+  /// What the list called this host before it sent a computer name: the folder of its first window, or the
+  /// fingerprint prefix.
+  final String fallbackLabel;
   final DateTime pairedAt;
+
+  /// What the host's computer calls itself, as the host last sent it.
+  String? computerName;
+
+  /// The name chosen on this phone (kept here only); null: the computer's name shows.
+  String? customName;
+
+  /// What the list calls this host: the name chosen here, else the computer's, else the fallback.
+  String get label => customName ?? computerName ?? fallbackLabel;
 
   Uint8List get pub => fromB64u(id, 32);
 
   Map<String, Object?> toJson() => {
     'id': id,
     'relay': '$relay',
-    'label': label,
+    'label': fallbackLabel,
     'pairedAt': pairedAt.toUtc().toIso8601String(),
+    'computerName': ?computerName,
+    'customName': ?customName,
   };
 }
 
@@ -109,8 +125,32 @@ class Hosts extends ChangeNotifier {
     if (i < 0) {
       _all.add(h);
     } else {
+      h.customName ??= _all[i]
+          .customName; // pairing again keeps the name chosen on this phone
       _all[i] = h;
     }
+    await _save();
+  }
+
+  /// What the host's computer calls itself, learned on a connection. Changes nothing (and stays silent) when known.
+  Future<void> learnComputerName(String id, String? name) async {
+    final h = byId(id);
+    final n = cleanHostName(name);
+    if (h == null || n == null || h.computerName == n) return;
+    h.computerName = n;
+    await _save();
+  }
+
+  /// Renames a host on this phone only; an empty [name] or null goes back to the computer's name.
+  Future<void> rename(String id, String? name) async {
+    final h = byId(id);
+    if (h == null) return;
+    final n = name?.trim();
+    // the name the list would show anyway is no rename: a later computer name must still come through
+    h.customName =
+        n == null || n.isEmpty || n == (h.computerName ?? h.fallbackLabel)
+        ? null
+        : n;
     await _save();
   }
 

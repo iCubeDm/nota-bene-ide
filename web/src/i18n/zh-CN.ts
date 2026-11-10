@@ -8,6 +8,8 @@ export const zhCN: Dict = {
   langTip: '界面语言',
   theme: '主题',
   setThemes: '主题',
+  themesDark: '深色主题',
+  themesLight: '浅色主题',
   themeTip: '界面配色主题',
   openRawTip: '在新的浏览器标签页中打开文件本身',
   toLatest: '跳到最新',

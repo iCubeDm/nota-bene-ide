@@ -107,7 +107,10 @@ Handshake payloads are UTF-8 JSON.
 
 - Message 1 (phone → host): `{"v":1, "name"?: <device name>, "pair"?: <pairing proof, base64url>}`.
   `pair` is sent only while pairing (see Pairing).
-- Message 2 (host → phone): `{"v":1, "ok":true}`.
+- Message 2 (host → phone): `{"v":1, "ok":true, "host"?: <computer name>}`. `host` is what the
+  computer calls itself (`os.hostname()` without a trailing `.local`), sent on every connection so the phone can
+  label the host and a pairing made before it existed learns it; a host that sends none keeps the phone's fallback
+  label, and a phone ignores fields it does not know.
 
 The host answers message 1 only when the phone's static key is in its device
 list, or when `pair` matches the pairing in flight and the code has not been

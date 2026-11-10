@@ -111,6 +111,22 @@ void main() {
     await ch.close();
   });
 
+  test(
+    'the welcome names the computer and the windows can be asked again',
+    () async {
+      final ch = await Channel.connect(
+        relay: relay,
+        hostPub: hostPub,
+        key: key,
+      );
+      expect(ch.hostName, isNotNull);
+      expect(ch.hostName, isNot(endsWith('.local')));
+      final again = await ch.refreshWindows();
+      expect(again.single.port, port);
+      await ch.close();
+    },
+  );
+
   test('reconnects with the saved pairing and talks HTTP', () async {
     final ch = await Channel.connect(relay: relay, hostPub: hostPub, key: key);
     final info = await ch.http(port, 'GET', '/info');

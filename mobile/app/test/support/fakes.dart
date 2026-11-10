@@ -7,8 +7,27 @@ import 'package:nb_channel/nb_channel.dart';
 
 /// A channel that never touches the network: windows come from [push], [close] ends it.
 class FakeChannel implements Channel {
-  FakeChannel([List<HostWindow>? initial]) {
+  FakeChannel([List<HostWindow>? initial, this.hostName]) {
     if (initial != null) push(initial);
+  }
+
+  @override
+  final String? hostName;
+
+  /// How many times the phone asked for the windows again; each answers with the current list, or fails when
+  /// [refreshFails] is set.
+  var refreshes = 0;
+  bool refreshFails = false;
+  Completer<void>? refreshGate;
+
+  @override
+  Future<List<HostWindow>> refreshWindows({
+    Duration wait = const Duration(seconds: 10),
+  }) async {
+    refreshes++;
+    await refreshGate?.future;
+    if (refreshFails) throw TimeoutException('no answer');
+    return _last ?? const [];
   }
 
   final _ctl = StreamController<List<HostWindow>>.broadcast();
@@ -178,6 +197,7 @@ class FakeFactory {
         ));
         final r = results.isEmpty ? FakeChannel() : results.removeAt(0);
         if (r is Channel) return r;
+        if (r is Future<Channel>) return r; // a connect that is still under way
         throw r;
       };
 }

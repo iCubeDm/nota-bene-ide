@@ -332,4 +332,158 @@ void main() {
   test('LinkState has the four states', () {
     expect(LinkState.values, hasLength(4));
   });
+
+  group('host names', () {
+    testWidgets('a host that sent its computer name shows it', (t) async {
+      await hosts.add(paired(a, 'notes'));
+      f.results.add(FakeChannel([window(4791, '/home/u/notes')], 'studio-mac'));
+      final links = await pump(t);
+      expect(
+        find.text('studio-mac'),
+        findsOneWidget,
+        reason: 'learned on connect',
+      );
+      expect(hosts.byId(a)!.computerName, 'studio-mac');
+      links.dispose();
+    });
+
+    testWidgets(
+      'long-press opens Rename host; Save keeps the name on this phone',
+      (t) async {
+        await hosts.add(paired(a, 'laptop'));
+        f.results.add(
+          FakeChannel([window(4791, '/home/u/notes')], 'studio-mac'),
+        );
+        final links = await pump(t);
+        await t.longPress(find.text('studio-mac'));
+        await t.pumpAndSettle();
+        expect(find.text('Rename host'), findsOneWidget);
+        expect(
+          find.text(
+            'The computer calls itself studio-mac. The name is kept on this phone only.',
+          ),
+          findsOneWidget,
+        );
+        await t.enterText(find.byType(TextField), 'Desk');
+        await t.tap(find.text('Save'));
+        await t.pumpAndSettle();
+        expect(find.text('Desk'), findsOneWidget);
+        expect(hosts.byId(a)!.customName, 'Desk');
+        expect(f.calls, hasLength(1), reason: 'the link was not restarted');
+        await t.longPress(find.text('Desk'));
+        await t.pumpAndSettle();
+        expect(find.widgetWithText(TextField, 'Desk'), findsOneWidget);
+        await t.tap(find.text('Reset'));
+        await t.pumpAndSettle();
+        expect(find.text('studio-mac'), findsOneWidget);
+        expect(hosts.byId(a)!.customName, isNull);
+        links.dispose();
+      },
+    );
+
+    testWidgets(
+      'Save without editing pins nothing: a new computer name still shows',
+      (t) async {
+        await hosts.add(paired(a, 'laptop'));
+        f.results.add(
+          FakeChannel([window(4791, '/home/u/notes')], 'studio-mac'),
+        );
+        final links = await pump(t);
+        await t.longPress(find.text('studio-mac'));
+        await t.pumpAndSettle();
+        expect(t.widget<TextField>(find.byType(TextField)).maxLength, 64);
+        await t.tap(find.text('Save'));
+        await t.pumpAndSettle();
+        expect(hosts.byId(a)!.customName, isNull);
+        links.dispose();
+      },
+    );
+
+    testWidgets(
+      'Cancel leaves the name; a host without a computer name gets the short note',
+      (t) async {
+        await hosts.add(paired(a, 'laptop'));
+        f.results.add(FakeChannel([window(4791, '/home/u/notes')]));
+        final links = await pump(t);
+        await t.longPress(find.text('laptop'));
+        await t.pumpAndSettle();
+        expect(
+          find.text('The name is kept on this phone only.'),
+          findsOneWidget,
+        );
+        await t.enterText(find.byType(TextField), 'Other');
+        await t.tap(find.text('Cancel'));
+        await t.pumpAndSettle();
+        expect(find.text('laptop'), findsOneWidget);
+        expect(hosts.byId(a)!.customName, isNull);
+        links.dispose();
+      },
+    );
+  });
+
+  group('pull to refresh', () {
+    testWidgets(
+      'a host still connecting shows two skeleton rows, not an empty group',
+      (t) async {
+        await hosts.add(paired(a, 'laptop'));
+        f.results.add(Completer<Channel>().future);
+        final links = await pump(t);
+        expect(find.text('Connecting…'), findsOneWidget);
+        expect(find.byKey(const ValueKey('skeleton-row')), findsNWidgets(2));
+        expect(find.text('No open windows'), findsNothing);
+        links.dispose();
+      },
+    );
+
+    testWidgets(
+      'pulling down asks the online hosts again and reconnects the offline ones',
+      (t) async {
+        await hosts.add(paired(a, 'laptop'));
+        await hosts.add(paired(b, 'desktop'));
+        final ch = FakeChannel([window(4791, '/home/u/notes')]);
+        f.results
+          ..add(ch)
+          ..add(ChannelError('no answer'));
+        final links = await pump(t);
+        f.results.add(FakeChannel([window(4792, '/home/u/site')]));
+        await t.fling(find.text('laptop'), const Offset(0, 400), 1000);
+        await t.pumpAndSettle();
+        expect(ch.refreshes, 1);
+        expect(
+          f.calls,
+          hasLength(3),
+          reason: 'the offline host connected at once',
+        );
+        expect(find.text('site'), findsOneWidget);
+        expect(find.byType(RefreshProgressIndicator), findsNothing);
+        links.dispose();
+      },
+    );
+
+    testWidgets('the indicator stays until every host answered', (t) async {
+      await hosts.add(paired(a, 'laptop'));
+      final ch = FakeChannel([window(4791, '/home/u/notes')])
+        ..refreshGate = Completer();
+      f.results.add(ch);
+      final links = await pump(t);
+      await t.fling(find.text('laptop'), const Offset(0, 400), 1000);
+      await t.pump(const Duration(seconds: 1));
+      expect(find.byType(RefreshProgressIndicator), findsOneWidget);
+      ch.refreshGate!.complete();
+      await t.pumpAndSettle();
+      expect(find.byType(RefreshProgressIndicator), findsNothing);
+      links.dispose();
+    });
+
+    testWidgets('an empty list can be pulled too', (t) async {
+      await hosts.add(paired(a, 'laptop'));
+      final ch = FakeChannel();
+      f.results.add(ch);
+      final links = await pump(t);
+      await t.fling(find.text('laptop'), const Offset(0, 400), 1000);
+      await t.pumpAndSettle();
+      expect(ch.refreshes, 1);
+      links.dispose();
+    });
+  });
 }

@@ -76,4 +76,104 @@ void main() {
     await h.forget('A');
     expect(n, 2);
   });
+
+  group('the label', () {
+    test('is the computer\'s name, a rename wins, reset goes back', () async {
+      final v = MemoryVault();
+      final h = await Hosts.load(v);
+      await h.add(host('A', label: 'notes'));
+      expect(h.byId('A')!.label, 'notes');
+      await h.learnComputerName('A', 'studio-mac');
+      expect(h.byId('A')!.label, 'studio-mac');
+      await h.rename('A', '  Desk  ');
+      expect(h.byId('A')!.label, 'Desk');
+      await h.learnComputerName('A', 'studio-mini');
+      expect(
+        h.byId('A')!.label,
+        'Desk',
+        reason: 'a new computer name does not undo a rename',
+      );
+      final again = await Hosts.load(v);
+      expect(again.byId('A')!.label, 'Desk');
+      expect(again.byId('A')!.computerName, 'studio-mini');
+      await again.rename('A', null);
+      expect(again.byId('A')!.label, 'studio-mini');
+      await again.rename('A', '   ');
+      expect(again.byId('A')!.customName, isNull);
+      expect((await Hosts.load(v)).byId('A')!.label, 'studio-mini');
+    });
+
+    test('a computer name is cleaned and capped before it is kept', () async {
+      final h = await Hosts.load(MemoryVault());
+      await h.add(host('A', label: 'notes'));
+      await h.learnComputerName('A', 'stu\u202Edio\u0000-mac');
+      expect(h.byId('A')!.computerName, 'studio-mac');
+      await h.learnComputerName('A', 'x' * 100);
+      expect(h.byId('A')!.computerName, 'x' * 64);
+      await h.learnComputerName('A', '\u202E');
+      expect(
+        h.byId('A')!.computerName,
+        'x' * 64,
+        reason: 'nothing left: no change',
+      );
+    });
+
+    test(
+      'a name equal to the computer\'s (or the fallback) is no rename',
+      () async {
+        final h = await Hosts.load(MemoryVault());
+        await h.add(host('A', label: 'notes'));
+        await h.rename('A', 'notes');
+        expect(
+          h.byId('A')!.customName,
+          isNull,
+          reason: 'the fallback shows anyway',
+        );
+        await h.learnComputerName('A', 'studio-mac');
+        await h.rename('A', ' studio-mac ');
+        expect(h.byId('A')!.customName, isNull);
+        await h.rename('A', 'notes');
+        expect(
+          h.byId('A')!.customName,
+          'notes',
+          reason: 'not the label any more: a real rename',
+        );
+      },
+    );
+
+    test('a host that never sent a name keeps the fallback', () async {
+      final h = await Hosts.load(MemoryVault());
+      await h.add(host('A', label: 'notes'));
+      await h.learnComputerName('A', null);
+      expect(h.byId('A')!.label, 'notes');
+    });
+
+    test(
+      'learning the same name again changes nothing and is silent',
+      () async {
+        final h = await Hosts.load(MemoryVault());
+        await h.add(host('A'));
+        await h.learnComputerName('A', 'studio-mac');
+        var n = 0;
+        h.addListener(() => n++);
+        await h.learnComputerName('A', 'studio-mac');
+        expect(n, 0);
+      },
+    );
+
+    test('pairing the host again keeps the rename', () async {
+      final h = await Hosts.load(MemoryVault());
+      await h.add(host('A'));
+      await h.rename('A', 'Desk');
+      await h.add(host('A', label: 'x'));
+      expect(h.byId('A')!.label, 'Desk');
+    });
+
+    test('an old stored host without the new fields loads', () async {
+      final v = MemoryVault()
+        ..values['nb.hosts'] =
+            '[{"id":"A","relay":"wss://relay.example.com","label":"notes","pairedAt":"2026-11-08T00:00:00.000Z"}]';
+      expect((await Hosts.load(v)).byId('A')!.label, 'notes');
+    });
+  });
 }
