@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nota Bene for Android: the agreed design</title>
+<style>
+:root{
+  --bg:#2b2b2b; --fg:#c9ced6; --card:#313131; --pop:#3c3f41; --muted:#434547; --mfg:#adb3ba;
+  --border:#4c4f52; --primary:#4876c0; --accent:#ffc66d; --danger:#ff8980; --ok:#66bf31; --link:#66acff;
+  --ub:#334055; --ab:#414243; --page:#18191b; --ink:#e8e8e8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{padding:24px 32px 80px;max-width:2400px}
+h1{font-size:26px;margin:0 0 6px}
+h2{font-size:20px;margin:48px 0 4px;padding-top:12px;border-top:1px solid #333}
+h2 small{color:#888;font-weight:400;font-size:14px}
+.lead{color:#aaa;max-width:980px}
+.lead code,figcaption code{background:#262729;padding:0 4px;border-radius:4px;font-size:12px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0 0;color:#aaa;font-size:13px}
+.toc{columns:3;max-width:1000px;font-size:13px;color:#bbb;margin:12px 0}
+.toc a{color:#9cc3ff;text-decoration:none}
+.row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 0;margin-top:16px}
+figure{margin:0 0 16px;width:360px}
+figcaption{margin-top:8px;font-size:12.5px;color:#bbb}
+figcaption b{color:#eee;font-size:13.5px}
+figcaption .id{display:inline-block;font:600 11px ui-monospace,Menlo,monospace;background:#2f3b52;color:#cfe0ff;border-radius:4px;padding:1px 5px;margin-right:6px}
+figcaption ul{margin:4px 0 0;padding-left:16px}
+.go{width:64px;align-self:center;text-align:center;color:#888;font-size:11px;padding:0 4px;margin-top:-60px}
+.go::before{content:"→";display:block;font-size:26px;color:#6aa0ff;line-height:1}
+.tag{display:inline-block;font:600 10px ui-monospace,Menlo,monospace;border-radius:3px;padding:0 4px;margin-right:4px;vertical-align:1px}
+.p0{background:#5c2626;color:#ffb0a8}.p1{background:#4d3f1e;color:#ffd98a}.p2{background:#2c3a2c;color:#a9d79b}.ok{background:#253a46;color:#9fd4ef}
+
+/* phone */
+.ph{position:relative;width:360px;height:740px;background:var(--bg);color:var(--fg);border:6px solid #0c0c0d;border-radius:30px;overflow:hidden;font-size:14px;line-height:1.4}
+.sb{height:24px;padding:3px 18px;font-size:11px;color:var(--mfg);display:flex;justify-content:space-between}
+.sb::after{content:"▾ ▴ ■ 87%"}
+.nav{position:absolute;bottom:0;left:0;right:0;height:16px;display:flex;justify-content:center;align-items:center}
+.nav::after{content:"";width:110px;height:4px;border-radius:2px;background:#777}
+.appbar{height:56px;display:flex;align-items:center;gap:14px;padding:0 8px 0 16px;font-size:20px;color:var(--fg)}
+.appbar .sp{flex:1}
+.ib{width:40px;height:40px;border-radius:20px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;color:var(--fg)}
+.body{padding:0 16px}
+.center{position:absolute;inset:80px 24px 40px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px}
+.btn{display:inline-block;border-radius:20px;padding:9px 22px;background:var(--primary);color:#fff;font-weight:500}
+.btn.out{background:none;border:1px solid var(--border);color:var(--fg)}
+.btn.txt{background:none;color:var(--primary);padding:9px 10px}
+.btn.wide{display:block;text-align:center}
+.btn.red{background:var(--danger);color:#2b2b2b}
+.muted{color:var(--mfg)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.small{font-size:12px}.tiny{font-size:11px}
+.hr{height:1px;background:var(--border);margin:8px 0}
+.sect{font-size:13px;color:var(--primary);padding:16px 16px 6px;font-weight:500}
+.li{display:flex;align-items:center;gap:14px;padding:10px 16px;min-height:52px}
+.li .tx{flex:1;min-width:0}
+.li .t1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .t2{font-size:12.5px;color:var(--mfg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:10px;height:10px;border-radius:5px;background:var(--ok);flex:none}
+.av{width:54px;height:54px;border-radius:27px;background:#55606e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;flex:none;position:relative}
+.av.sm{width:28px;height:28px;font-size:13px}
+.av .busy{position:absolute;right:1px;bottom:1px;width:13px;height:13px;border-radius:7px;background:var(--accent);border:2px solid var(--bg)}
+.badge{min-width:22px;height:22px;border-radius:11px;background:var(--primary);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.badge.acc{background:var(--accent);color:#2b2b2b;font-weight:700}
+.check{color:var(--primary)}
+/* chat */
+.hdr{position:absolute;top:30px;left:8px;right:8px;height:40px;display:flex;gap:6px;z-index:3}
+.hdr .back{width:40px;height:40px;border-radius:20px;background:rgba(60,63,65,.92);border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+.pill{flex:1;height:40px;border-radius:20px;background:rgba(60,63,65,.92);border:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 10px 0 5px;min-width:0}
+.pill .tt{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill .meta{font-size:11px;color:var(--mfg);display:flex;gap:6px;align-items:center}
+.meter{display:inline-block;width:22px;height:4px;border-radius:2px;background:var(--muted);position:relative;overflow:hidden}
+.meter i{position:absolute;left:0;top:0;bottom:0;background:var(--primary)}
+.mode{color:var(--accent)}
+.tabs{position:absolute;top:76px;left:8px;right:8px;height:40px;border-radius:20px;background:rgba(60,63,65,.92);border:1px solid var(--border);display:flex;z-index:3;padding:3px}
+.tabs span{flex:1;display:flex;align-items:center;justify-content:center;border-radius:17px;font-size:14px;color:var(--mfg);gap:5px}
+.tabs .on{background:var(--muted);color:var(--fg)}
+.tabs .cnt{background:var(--accent);color:#2b2b2b;font-size:10px;border-radius:8px;padding:0 5px;font-weight:700}
+.feed{position:absolute;top:124px;left:0;right:0;bottom:80px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;padding-bottom:6px}
+.ubub{align-self:flex-end;margin:0 8px 0 28px;background:var(--ub);border:1px solid rgba(72,118,192,.45);border-radius:14px 14px 3px 14px;padding:7px 10px;max-width:320px}
+.abub{align-self:flex-start;margin:0 28px 0 8px;background:var(--ab);border-radius:14px 14px 14px 4px;padding:8px 10px;max-width:324px}
+.abub p{margin:0 0 6px}.abub p:last-child{margin:0}
+.code{background:var(--bg);border:1px solid var(--border);border-radius:8px;margin:6px 0;font:12px/1.5 ui-monospace,Menlo,monospace;overflow:hidden}
+.code .bar{display:flex;justify-content:space-between;color:var(--mfg);font-size:11px;padding:2px 8px;border-bottom:1px solid var(--border)}
+.code pre{margin:0;padding:6px 8px;white-space:pre;overflow:hidden;color:#a9b7c6}
+.k{color:#d17d38}.s{color:#66bf31}.f{color:#ffc66d}.n{color:#6897bb}.cm{color:#929292}
+.tool{display:flex;gap:6px;align-items:center;font-size:13px;padding:2px 0;white-space:nowrap;overflow:hidden}
+.tool .nm{color:var(--accent)}.tool .ar{font:12px ui-monospace,Menlo,monospace;color:var(--mfg);overflow:hidden;text-overflow:ellipsis}
+.line{align-self:center;color:var(--mfg);font-size:13px}
+.composer{position:absolute;left:0;right:0;bottom:16px;padding:4px 8px 8px;display:flex;gap:8px;align-items:flex-end;background:var(--bg)}
+.field{flex:1;min-height:48px;border-radius:22px;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;padding:0 14px;color:var(--mfg);gap:8px}
+.field .sp{flex:1}
+.fab{width:48px;height:48px;border-radius:24px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex:none}
+.fab.mute{background:var(--muted);color:var(--mfg)}
+.strip{position:absolute;left:8px;right:8px;bottom:84px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px 10px;font-size:12.5px}
+.strip .h{color:var(--accent);font-size:12px;margin-bottom:2px}
+.strip .r{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hl{background:rgba(255,198,109,.25);border-bottom:1px solid var(--accent)}
+.sel{background:rgba(72,118,192,.55)}
+.nb{display:inline-flex;width:18px;height:18px;border-radius:9px;background:var(--accent);color:#2b2b2b;font-size:10px;font-weight:700;align-items:center;justify-content:center;vertical-align:2px;margin-left:2px}
+/* overlays */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:5}
+.scrim.dark{background:rgba(0,0,0,.62)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--pop);border-radius:20px 20px 0 0;z-index:6;padding:8px 0 24px}
+.sheet .grab{width:32px;height:4px;border-radius:2px;background:var(--mfg);margin:4px auto 12px;opacity:.6}
+.sheet h3{margin:0;padding:4px 20px 2px;font-size:18px;font-weight:500;color:var(--fg)}
+.sheet .pad{padding:0 20px}
+.dialog{position:absolute;left:28px;right:28px;top:240px;background:var(--pop);border-radius:24px;padding:22px 22px 14px;z-index:6}
+.dialog h3{margin:0 0 12px;font-size:20px;font-weight:400;color:var(--fg)}
+.dialog .acts{display:flex;justify-content:flex-end;gap:4px;margin-top:16px;flex-wrap:wrap}
+.snack{position:absolute;left:12px;right:12px;bottom:90px;background:#e4e4e4;color:#222;border-radius:4px;padding:12px 14px;font-size:13.5px;z-index:7}
+.seg{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;margin:6px 0}
+.seg span{flex:1;text-align:center;font-size:11.5px;line-height:1.15;padding:6px 2px;border-left:1px solid var(--border)}
+.seg span:first-child{border:0}
+.seg .on{background:rgba(72,118,192,.35);color:var(--fg)}
+.tiles{display:flex;gap:8px;padding:12px 20px 0}
+.tiles div{flex:1;background:var(--card);border-radius:12px;padding:10px 0;text-align:center;font-size:10.5px;color:var(--fg)}
+.tiles div b{display:block;font-size:18px;font-weight:400;margin-bottom:2px}
+.tiles .off{opacity:.4}
+.bar6{height:6px;border-radius:3px;background:var(--muted);overflow:hidden;margin:4px 0 10px}
+.bar6 i{display:block;height:100%;background:var(--primary)}
+.chip{display:inline-block;border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12.5px;margin:0 6px 6px 0}
+.chip.on{background:rgba(72,118,192,.35);border-color:var(--primary)}
+.emo{display:inline-flex;width:44px;height:44px;border-radius:22px;background:var(--pop);align-items:center;justify-content:center;font-size:20px}
+.emo.s{width:32px;height:32px;font-size:16px;background:var(--card)}
+.emo.pick{outline:2px solid var(--accent)}
+.menu{background:var(--pop);border-radius:12px;width:220px;overflow:hidden}
+.menu div{height:48px;display:flex;align-items:center;gap:14px;padding:0 16px;font-size:15px}
+.tf{border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--mfg);min-height:60px;margin:8px 0}
+.quote{border-left:3px solid var(--accent);padding:2px 0 2px 10px;color:var(--mfg);font-size:13px;margin:4px 0}
+.fp{font:20px/1.35 ui-monospace,Menlo,monospace;letter-spacing:.5px;color:var(--fg);margin:4px 0 14px}
+.cam{position:absolute;top:80px;left:0;right:0;bottom:170px;background:repeating-linear-gradient(45deg,#1d1f22 0 14px,#232528 14px 28px);display:flex;align-items:center;justify-content:center}
+.qr{width:180px;height:180px;border:3px solid #fff;border-radius:12px;opacity:.85}
+.lock{font-size:48px}
+.wave{display:inline-flex;gap:1px;align-items:center;height:24px;width:143px}
+.wave i{display:block;width:2px;background:var(--mfg);border-radius:1px}
+.play{width:40px;height:40px;border-radius:20px;background:var(--primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.rec{position:absolute;left:0;right:0;bottom:16px;height:64px;display:flex;align-items:center;padding:0 70px 0 14px;gap:10px;background:var(--bg)}
+.reddot{width:10px;height:10px;border-radius:5px;background:#e5534b}
+.bigmic{position:absolute;right:-18px;bottom:-4px;width:96px;height:96px;border-radius:48px;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;box-shadow:0 0 0 14px rgba(72,118,192,.25);z-index:4}
+.lockcap{position:absolute;right:16px;bottom:120px;width:40px;height:70px;border-radius:20px;background:var(--pop);display:flex;flex-direction:column;align-items:center;justify-content:space-around;font-size:13px;z-index:4}
+.tree .li{min-height:40px;padding:6px 16px}
+.ico{width:22px;text-align:center;color:var(--mfg)}
+.search{margin:6px 12px;height:40px;border-radius:20px;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;padding:0 14px;color:var(--mfg);gap:8px}
+.utabs{display:flex;height:40px;border-bottom:1px solid var(--border);margin-top:124px}
+.utabs span{flex:1;text-align:center;line-height:38px;color:var(--mfg)}
+.utabs .on{color:var(--fg);border-bottom:2px solid var(--primary)}
+.st{font:600 12px ui-monospace,Menlo,monospace;width:16px}
+.add{color:#b5e3a0}.del{color:#ffb4ae}
+.dl{font:11.5px/1.6 ui-monospace,Menlo,monospace;white-space:pre;display:flex}
+.dl .g{width:58px;color:#6b6f73;text-align:right;padding-right:6px;flex:none}
+.dl.a{background:#294436;color:#b5e3a0}.dl.d{background:#5c2e2e;color:#ffb4ae}.dl.h{color:var(--link);background:#2f3540}
+.black{background:#000}
+.gl{display:flex;gap:4px;align-items:center}
+.ins{position:absolute;inset:0}
+.note{position:absolute;left:8px;right:8px;z-index:9;border:2px dashed #ff6b6b;border-radius:10px;pointer-events:none}
+.note b{position:absolute;right:-2px;top:-2px;transform:translateY(-100%);background:#ff6b6b;color:#111;font:600 10px ui-monospace,Menlo,monospace;padding:1px 4px;border-radius:3px}
+/* proposed */
+.field.fx{padding:0 4px 0 14px}
+.in{width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;flex:none;font-size:17px;color:var(--mfg)}
+.in.send{background:var(--primary);color:#fff}
+.in.send.mute{background:var(--muted);color:var(--mfg)}
+.stopx{position:absolute;right:12px;bottom:78px;width:44px;height:44px;border-radius:22px;background:var(--pop);border:1px solid var(--border);color:var(--mfg);display:flex;align-items:center;justify-content:center;font-size:15px;z-index:3}
+.tabs .chatm{flex-direction:column;gap:0;line-height:1.1}
+.tabs .chatm i{font-style:normal;font-size:10.5px;color:var(--accent)}
+.nw{background:#3d2f55;color:#d9c6ff}
+h2.prop{border-top:2px solid #6b4fa0}
+.pres{font-size:12px;color:var(--mfg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pres.work{color:var(--accent)}
+.para{border-radius:8px;padding:3px 6px;margin:0 -6px 6px}
+.para.on{background:rgba(255,198,109,.13);box-shadow:inset 3px 0 0 var(--accent)}
+.rx{position:absolute;z-index:6;background:var(--pop);border:1px solid var(--border);border-radius:24px;padding:4px 6px;display:flex;gap:2px;align-items:center;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.rx span{width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:21px;border-radius:20px}
+.rx .chev{font-size:14px;color:var(--mfg)}
+.grid{position:absolute;z-index:6;background:var(--pop);border:1px solid var(--border);border-radius:20px;padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:2px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.grid div{display:flex;flex-direction:column;align-items:center;text-align:center;font-size:11.5px;line-height:1.2;padding:6px 2px;min-height:64px;color:var(--fg)}
+.grid div b{font-size:22px;font-weight:400;margin-bottom:3px}
+.abar{position:absolute;z-index:6;background:var(--pop);border:1px solid var(--border);border-radius:14px;display:flex;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.abar span{height:48px;padding:0 12px;display:flex;align-items:center;gap:6px;font-size:13.5px;border-left:1px solid var(--border)}
+.abar span:first-child{border:0}
+.grp{font-size:13px;color:var(--mfg);padding:4px 0;display:flex;gap:6px;align-items:center}
+.grp b{color:var(--fg);font-weight:500}
+.grp .er{color:var(--danger)}.grp .cm2{color:var(--accent)}
+.latest{font-size:12.5px;padding:0 0 2px 16px;display:flex;gap:6px;white-space:nowrap;overflow:hidden}
+.spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--muted);border-top-color:var(--primary);flex:none}
+.sk{height:11px;border-radius:6px;background:#3a3c3e}
+/* agreed design */
+.hdr .ring{width:40px;height:40px;border-radius:20px;flex:none;border:1px solid var(--border);background:conic-gradient(var(--c,var(--primary)) calc(var(--p)*1%),var(--muted) 0);display:flex;align-items:center;justify-content:center}
+.ring b{width:32px;height:32px;border-radius:16px;background:#3c3f41;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:var(--fg)}
+.ring.off{opacity:.45}
+.hrow .ring{width:40px;height:40px;border-radius:20px;flex:none;border:1px solid var(--border);background:conic-gradient(var(--c,var(--primary)) calc(var(--p)*1%),var(--muted) 0);display:flex;align-items:center;justify-content:center}
+.board{width:360px;background:var(--bg);color:var(--fg);border-radius:18px;padding:12px 10px 6px;font-size:14px;line-height:1.4}
+.st-h{font-size:12px;color:var(--mfg);margin:0 4px 8px}
+.hrow{display:flex;gap:6px;height:40px;margin-bottom:10px}
+.sw{width:36px;height:20px;border-radius:10px;background:var(--muted);position:relative;flex:none}
+.sw.on{background:var(--primary)}
+.sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:8px;background:#fff}
+.sw.on i{left:18px}
+.abar .off{opacity:.4}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Nota Bene for Android: the agreed design</h1>
+<p class="lead">One consistent board of what review 1 settled (<code>review-1.md</code>, rounds 1–4). Every screen here follows the
+same rules; the current app and the history of the proposals stay in <code>flows.html</code>, whose screen numbers appear as “was …”.
+Darcula theme, English interface, 360&nbsp;dp wide. Drawings approximate spacing; texts, order of controls and states are exact.</p>
+
+<h2 id="rules">The rules every screen follows</h2>
+<ul class="lead">
+  <li><b>Header pill</b>: avatar, title, and a second line that says what the session is doing, as a messenger says “typing…”
+    or “last seen”. A tap opens the window sheet (mode, model, Clear, Restart). There is no status bar under the tabs in any state.</li>
+  <li><b>Context ring</b>: a 40&nbsp;dp circle right of the pill with the context percent inside; primary below 70&nbsp;%, accent from 70&nbsp;%,
+    red from 90&nbsp;%. A tap opens the context sheet: context, plan limits, cost, Compact, Stats.</li>
+  <li><b>Mode</b>: written under “Chat” in the tab pill, red for modes without prompts; changed only in the window sheet.</li>
+  <li><b>Message field</b>: attach and mic inside it. Typing hides attach and turns the mic into Send, also inside. Stop is a grey
+    44&nbsp;dp button 12&nbsp;dp above Send, only while a turn runs. The hint is always “Message”.</li>
+  <li><b>Comments by paragraph</b>: a tap on a paragraph is the only target; no selection inside it. Labels bubble above, Comment / Pin / Copy below.</li>
+</ul>
+<div class="toc">
+  <a href="#d1">1. Chat: header, ring, message field</a><br>
+  <a href="#d2">2. Sheets from the header</a><br>
+  <a href="#d3">3. Connection and window states</a><br>
+  <a href="#d4">4. Comment by paragraph</a><br>
+  <a href="#d5">5. Tool groups</a><br>
+  <a href="#d6">6. Session list and settings</a><br>
+  <a href="#later">Deferred</a>
+</div>
+
+<!-- ============ 1 ============ -->
+<h2 id="d1">1. Chat: header, ring, message field</h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">online · done 12:04</div></div></div><div class="ring" style="--p:34"><b>34</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="feed">
+        <div class="ubub">Make the record button like Telegram: hold to record, release to send.</div>
+        <div class="abub"><p>Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
+          <div class="grp">▸ <b>4 actions</b></div>
+          <p>Tests are green: 31 of 31.</p></div>
+        <div class="line">Done in 2 min 14 s</div>
+      </div>
+      <div class="composer"><div class="field fx"><span>Message</span><span class="sp"></span><span class="in">📎</span><span class="in">🎤</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">1.1</span><b>Idle</b> was 4.1 and 14.1. The pill's second line is the session state (“online · done 12:04”);
+      the context sits in the ring. The mode is under “Chat”. Attach and mic are inside the field; nothing outside it.</figcaption>
+  </figure>
+  <div class="go">agent starts</div>
+  <figure>
+    <div class="ph"><div class="sb">12:07</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · reading files · 0:42</div></div></div><div class="ring" style="--p:38"><b>38</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="feed" style="bottom:128px">
+        <div class="ubub">Now add a lock on swipe up</div>
+        <div class="abub"><p>Looking at how RecordSession works…</p>
+          <div class="grp">▸ <b>3 actions</b></div>
+          <div class="latest"><span style="color:var(--accent)">⋯</span><span style="color:var(--accent)">Read</span><span class="mono muted" style="font-size:12px">lib/voice/record_session.dart</span></div></div>
+      </div>
+      <div class="composer"><div class="field fx" style="color:var(--fg)"><span>and don't forget the tests</span><span class="sp"></span><span class="in send">➤</span></div></div>
+      <div class="stopx">■</div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">1.2</span><b>Working, typing</b> was 6.1 and 14.2. “working”, the phase from the current tool, the elapsed time; the avatar gets the accent dot.
+      Typing hid attach and turned the mic into Send. Stop floats above Send; a message sent now is queued as today.</figcaption>
+  </figure>
+  <figure style="margin-left:64px">
+    <div class="ph"><div class="sb">12:07</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · running tests · 1:15</div></div></div><div class="ring" style="--p:41"><b>41</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="feed" style="bottom:128px">
+        <div class="ubub">Now add a lock on swipe up</div>
+        <div class="abub"><p>Lock added. Running the voice tests.</p>
+          <div class="grp">▸ <b>6 actions</b> <span class="er">· 1 error</span></div>
+          <div class="latest"><span style="color:var(--accent)">⋯</span><span style="color:var(--accent)">Bash</span><span class="mono muted" style="font-size:12px">flutter test test/voice</span></div></div>
+      </div>
+      <div class="composer"><div class="field fx"><span>Message</span><span class="sp"></span><span class="in">📎</span><span class="in">🎤</span></div></div>
+      <div class="stopx">■</div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">1.3</span><b>Working, nothing typed</b> was 14.3. Attach and mic inside the field; mic is hold-to-record as today (9.1).
+      Stop stays above, never under the thumb that records or sends.</figcaption>
+  </figure>
+  <figure style="margin-left:64px">
+    <div class="board">
+      <div class="st-h">Second line of the pill</div>
+      <div class="hrow"><div class="pill"><div class="av sm">C</div><div style="min-width:0"><div class="tt">Voice notes like Telegram</div><div class="pres">online · done 12:04</div></div></div><div class="ring" style="--p:34"><b>34</b></div></div>
+      <div class="hrow"><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0"><div class="tt">Voice notes like Telegram</div><div class="pres work">working · editing · 2:03</div></div></div><div class="ring" style="--p:72;--c:var(--accent)"><b>72</b></div></div>
+      <div class="hrow"><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0"><div class="tt">Voice notes like Telegram</div><div class="pres work"><b>waiting for your answer</b></div></div></div><div class="ring" style="--p:72;--c:var(--accent)"><b>72</b></div></div>
+      <div class="hrow"><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0"><div class="tt">Voice notes like Telegram</div><div class="pres work">compacting context…</div></div></div><div class="ring" style="--p:93;--c:var(--danger)"><b>93</b></div></div>
+      <div class="hrow"><div class="pill"><div class="av sm">C</div><div style="min-width:0"><div class="tt">Voice notes like Telegram</div><div class="pres">connecting…</div></div></div><div class="ring" style="--p:34"><b>34</b></div></div>
+      <div class="hrow"><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0"><div class="tt">Voice notes like Telegram</div><div class="pres">offline · seen 4 min ago</div></div></div><div class="ring off" style="--p:34"><b>34</b></div></div>
+      <div class="hrow"><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0"><div class="tt">Voice notes like Telegram</div><div class="pres">computer asleep</div></div></div><div class="ring off" style="--p:34"><b>34</b></div></div>
+      <div class="hrow"><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0"><div class="tt">Voice notes like Telegram</div><div class="pres">waiting for the window…</div></div></div><div class="ring off" style="--p:34"><b>34</b></div></div>
+      <div class="hrow"><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0"><div class="tt">Voice notes like Telegram</div><div class="pres">relay unreachable</div></div></div><div class="ring off" style="--p:34"><b>34</b></div></div>
+    </div>
+    <figcaption><span class="id">1.4</span><b>All session states</b> was 13.1–13.3 and the status bar. Accent while the agent acts or waits for you;
+      muted otherwise. The ring turns accent at 70 % and red at 90 %; without a link it dims and keeps the last known value.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 2 ============ -->
+<h2 id="d2">2. Sheets from the header</h2>
+<p class="lead">Two taps, two sheets, no duplication: the pill opens what the window <i>does</i> (mode, model, Clear, Restart),
+the ring opens what the window <i>uses</i> (context, plan limits, cost, Compact, Stats). Today all of it is one sheet (5.1).</p>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">online · done 12:04</div></div></div><div class="ring" style="--p:34"><b>34</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="scrim"></div>
+      <div class="sheet" style="padding-bottom:22px"><div class="grab"></div>
+        <h3>Voice notes like Telegram</h3><div class="pad muted small mono" style="margin-bottom:2px">~/Projects/nota-bene</div>
+        <div class="li" style="padding:6px 20px;min-height:48px"><div class="tx"><div>Model</div><div class="t2">Opus 5.5 · effort high</div></div><span class="muted">›</span></div>
+        <div class="sect" style="padding:6px 20px 2px">Mode</div>
+        <div class="li" style="padding:6px 20px;min-height:48px"><div class="tx"><div>Default</div><div class="t2">Asks before edits and commands</div></div></div>
+        <div class="li" style="padding:6px 20px;min-height:48px;background:rgba(72,118,192,.25)"><div class="tx"><div>Accept edits</div><div class="t2">Edits files without asking, asks before commands</div></div><span class="check">✓</span></div>
+        <div class="li" style="padding:6px 20px;min-height:48px"><div class="tx"><div>Plan</div><div class="t2">Only reads and thinks, changes nothing</div></div></div>
+        <div class="li" style="padding:6px 20px;min-height:48px"><div class="tx"><div style="color:var(--danger)">Auto</div><div class="t2">A classifier approves safe actions itself</div></div></div>
+        <div class="tiles" style="padding-top:10px"><div><b>⌫</b>Clear</div><div><b>↻</b>Restart</div></div>
+      </div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">2.1</span><b>Window sheet</b> (tap the pill) was 5.1 and 14.4. Model, then one 48 dp row per mode with its description
+      (instead of the four-way segment); modes without prompts (Auto, Full access, Yolo) are red. Codex and omp list their own modes.
+      Clear and Restart keep today's confirmations.</figcaption>
+  </figure>
+  <div class="go">tap the ring</div>
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">online · done 12:04</div></div></div><div class="ring" style="--p:34"><b>34</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="scrim"></div>
+      <div class="sheet" style="padding-bottom:22px"><div class="grab"></div>
+        <h3>Context</h3>
+        <div class="pad" style="margin-top:8px">
+          <div class="small" style="display:flex;justify-content:space-between"><span>Context</span><span class="muted">34 % · 68 k of 200 k tokens</span></div><div class="bar6"><i style="width:34%"></i></div>
+          <div class="sect" style="padding:4px 0 6px">Plan limits</div>
+          <div class="small" style="display:flex;justify-content:space-between"><span>5 hours</span><span class="muted">41 % · resets 14:00</span></div><div class="bar6"><i style="width:41%"></i></div>
+          <div class="small" style="display:flex;justify-content:space-between"><span>Week</span><span class="muted">18 % · resets Fri 09:00</span></div><div class="bar6"><i style="width:18%"></i></div>
+          <div class="small" style="display:flex;justify-content:space-between;margin-top:2px"><span>This session</span><span class="muted">$1.24</span></div>
+          <div class="small" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><div><div>Compact when idle</div><div class="tiny muted">After the turn, while the cache is warm</div></div><span class="sw on"><i></i></span></div>
+        </div>
+        <div class="tiles" style="padding-top:14px"><div><b>⇲</b>Compact</div><div><b>▤</b>Stats</div></div>
+      </div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">2.2</span><b>Context sheet</b> (tap the ring), new. Everything about what the window uses, in one place:
+      the context in tokens, the 5-hour and weekly limits with their reset times, the session cost (as on the web since #126),
+      idle compaction and Compact. Stats opens today's usage screen (5.3). Rows the backend does not report are left out.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 3 ============ -->
+<h2 id="d3">3. Connection and window states</h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:40</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">offline · seen 4 min ago</div></div></div><div class="ring off" style="--p:34"><b>34</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="feed"><div class="ubub">Make the record button like Telegram</div><div class="abub">Done…</div></div>
+      <div class="composer"><div class="field fx"><span>Message</span><span class="sp"></span><span class="in">📎</span><span class="in" style="opacity:.45">🎤</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">3.1</span><b>Offline</b> was 13.1 and 14.5. The pill says why; the avatar and the ring dim.
+      The field keeps “Message” and accepts a draft; mic and Send grey out. A tap on the pill in this state opens a short sheet with the cause and “Reconnect now”.</figcaption>
+  </figure>
+  <div class="go">window restarts</div>
+  <figure>
+    <div class="ph"><div class="sb">12:40</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">waiting for the window…</div></div></div><div class="ring off" style="--p:34"><b>34</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="feed" style="opacity:.35"><div class="ubub">Make the record button like Telegram</div><div class="abub">Done…</div></div>
+      <div style="position:absolute;top:122px;left:0;right:0;bottom:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:2;text-align:center;padding:0 40px">
+        <div class="spin"></div>
+        <div style="font-size:16px">The window closed or restarted</div>
+        <div class="muted small">Waiting for it to come back</div>
+        <span class="btn out">Restart</span><div class="tiny muted">shown after 30 s</div></div>
+      <div class="composer"><div class="field fx" style="color:var(--fg)"><span>and don't forget the tests</span><span class="sp"></span><span class="in send mute">➤</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">3.2</span><b>Window gone</b> was 13.3 and 14.6. Centred over the dimmed feed, like the occupied overlay (13.2).
+      After 30 s Restart asks the host to start the window again. The draft stays.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 4 ============ -->
+<h2 id="d4">4. Comment by paragraph</h2>
+<p class="lead">A tap on a paragraph of a final reply makes the whole paragraph the target; the agent gets it as the quote. To point at a few
+words, Copy the paragraph and paste what is needed into the message. Links, code blocks and diagrams keep their own taps; a long-press keeps
+the whole-message menu (7.1).</p>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:10</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">online · done 12:04</div></div></div><div class="ring" style="--p:34"><b>34</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="feed">
+        <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
+          <p class="para on">The hold delay is a constant, so changing it later is one line. Telegram uses a slightly longer delay, but 150 ms felt better in tests.</p>
+          <p class="para">Tests are green: 31 of 31.</p></div>
+        <div class="line">Done in 2 min 14 s</div>
+      </div>
+      <div class="rx" style="top:456px;left:14px"><span>👍</span><span>🔥</span><span>❓</span><span>🔍</span><span>🔬</span><span class="chev">⌄</span></div>
+      <div class="abar" style="top:598px;left:14px"><span>💬 Comment</span><span class="off">📌 Pin</span><span>⧉ Copy</span></div>
+      <div class="composer"><div class="field fx"><span>Message</span><span class="sp"></span><span class="in">📎</span><span class="in">🎤</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">4.1</span><b>Tap a paragraph</b> was 7.1–7.2 and 15.1. Accent bar and tint on the paragraph; the label bubble above,
+      the action bar below, both 48 dp. No scrim. A tap on the same paragraph or outside clears it.
+      Pin is greyed out until pins ship (#181). TalkBack: each paragraph is a button with Comment and Pin actions.</figcaption>
+  </figure>
+  <div class="go">⌄</div>
+  <figure>
+    <div class="ph"><div class="sb">12:10</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">online · done 12:04</div></div></div><div class="ring" style="--p:34"><b>34</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="feed">
+        <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
+          <p class="para on">The hold delay is a constant, so changing it later is one line. Telegram uses a slightly longer delay, but 150 ms felt better in tests.</p>
+          <p class="para">Tests are green: 31 of 31.</p></div>
+        <div class="line">Done in 2 min 14 s</div>
+      </div>
+      <div class="grid" style="top:236px;left:14px;width:332px">
+        <div><b>👍</b>Looks good</div><div><b>🔥</b>Love it!</div><div><b>❓</b>Clarify this</div><div><b>🔍</b>Verify this</div>
+        <div><b>🔬</b>Give me an example</div><div><b>🗺️</b>Missing overview</div><div><b>🧬</b>Match existing patterns</div><div><b>🔄</b>Consider alternatives</div>
+        <div><b>📉</b>Ensure no regression</div><div><b>🚫</b>Out of scope</div><div><b>🧪</b>Needs tests</div><div style="color:var(--mfg)"><b style="font-size:16px;margin:4px 0 6px">⌃</b>Less</div></div>
+      <div class="composer"><div class="field fx"><span>Message</span><span class="sp"></span><span class="in">📎</span><span class="in">🎤</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">4.2</span><b>All labels</b> was 15.2. The chevron grows the same bubble into the grid of eleven, each named
+      (today the name is a tooltip). It grows upward when the paragraph is low on the screen.</figcaption>
+  </figure>
+  <div class="go">tap a label</div>
+  <figure>
+    <div class="ph"><div class="sb">12:10</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">online · done 12:04</div></div></div><div class="ring" style="--p:34"><b>34</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments <span class="cnt">1</span></span></div>
+      <div class="feed" style="bottom:150px">
+        <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
+          <p class="para"><span class="hl">The hold delay is a constant, so changing it later is one line. Telegram uses a slightly longer delay, but 150 ms felt better in tests.</span><span class="nb">1</span></p>
+          <p class="para">Tests are green: 31 of 31.</p></div>
+      </div>
+      <div class="strip" style="bottom:84px"><div class="h">1 comment to send</div>
+        <div class="r"><span class="muted">The hold delay is a constant…</span> ❓ Clarify this</div></div>
+      <div class="snack" style="bottom:150px;display:flex;justify-content:space-between">❓ Clarify this added<b style="color:#2f5fae">UNDO</b></div>
+      <div class="composer"><div class="field fx"><span>Message</span><span class="sp"></span><span class="in">📎</span><span class="in send">➤</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">4.3</span><b>Label added</b> was 15.3. One tap makes a pending comment on the whole paragraph, with Undo.
+      Send is live with an empty field because there is a comment to send. A tap on the strip row adds text (7.3 with the paragraph as the quote).</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 5 ============ -->
+<h2 id="d5">5. Tool groups <small>port of web/src/feed/ToolGroup.tsx</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:07</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · running tests · 1:15</div></div></div><div class="ring" style="--p:41"><b>41</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="feed" style="bottom:128px">
+        <div class="ubub">Make the record button like Telegram</div>
+        <div class="abub" style="width:324px"><p>Done. Recording starts after a 150 ms hold.</p>
+          <div class="grp">▸ <b>7 actions</b> <span class="cm2">· 2 comments</span></div><p>Tests are green: 31 of 31.</p></div>
+        <div class="line">Done in 2 min 14 s</div>
+        <div class="ubub">Now add a lock on swipe up</div>
+        <div class="abub" style="width:324px"><p>Lock added. Running the voice tests.</p>
+          <div class="grp">▸ <b>6 actions</b> <span class="er">· 1 error</span></div>
+          <div class="latest"><span style="color:var(--accent)">⋯</span><span style="color:var(--accent)">Bash</span><span class="mono muted" style="font-size:12px">flutter test test/voice</span></div></div>
+      </div>
+      <div class="composer"><div class="field fx"><span>Message</span><span class="sp"></span><span class="in">📎</span><span class="in">🎤</span></div></div>
+      <div class="stopx">■</div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">5.1</span><b>Folded groups</b> was 4.1–4.2 and 16.1. Consecutive actions of the agent and its subagents fold into one line,
+      with “· N errors” and “· N comments” when present. While the turn runs, the last group shows the current action under its head.</figcaption>
+  </figure>
+  <div class="go">tap the group</div>
+  <figure>
+    <div class="ph"><div class="sb">12:08</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">online · done 12:08</div></div></div><div class="ring" style="--p:44"><b>44</b></div></div>
+      <div class="tabs"><span>Files</span><span class="on chatm">Chat<i>Accept edits</i></span><span>Comments</span></div>
+      <div class="feed">
+        <div class="abub" style="width:324px"><p>Lock added. Running the voice tests.</p>
+          <div class="grp">▾ <b>6 actions</b> <span class="er">· 1 error</span></div>
+          <div style="padding-left:12px;border-left:1px solid var(--border);margin-left:4px">
+            <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Read</span><span class="ar">lib/voice/record_session.dart</span></div>
+            <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Edit</span><span class="ar">lib/voice/record_button.dart</span></div>
+            <div class="tool" style="padding-left:16px"><span style="color:var(--ok)">✓</span><span class="nm">Task</span><span class="ar">Explore: lock gesture</span></div>
+            <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Write</span><span class="ar">test/voice/record_lock_test.dart</span></div>
+            <div class="tool"><span style="color:var(--danger)">✕</span><span class="nm">Bash</span><span class="ar">flutter test test/voice</span></div>
+            <div class="code"><pre class="muted">00:06 +30 -1: lock survives a rebuild
+Expected: true  Actual: false</pre></div>
+            <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Bash</span><span class="ar">flutter test test/voice</span></div></div>
+          <p style="margin-top:6px">Fixed the rebuild case. Tests are green: 32 of 32.</p></div>
+      </div>
+      <div class="composer"><div class="field fx"><span>Message</span><span class="sp"></span><span class="in">📎</span><span class="in">🎤</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">5.2</span><b>Open group</b> was 16.2. Every line as today (4.2), each still opens its output; a failed line opens by itself.
+      The open state survives scrolling and reopening the chat, as feedUi does on the web.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ 6 ============ -->
+<h2 id="d6">6. Session list and settings</h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar">Nota Bene<span class="sp"></span><span class="ib">⌗</span><span class="ib">⚙</span></div>
+      <div style="display:flex;justify-content:center;margin:-4px 0 4px"><div style="width:40px;height:40px;border-radius:20px;background:var(--pop);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4)"><div class="spin" style="width:22px;height:22px"></div></div></div>
+      <div class="li" style="min-height:44px"><span class="dot"></span><div class="tx"><b>MacBook-Pro</b></div></div>
+      <div class="li"><div class="av">C<span class="busy"></span></div><div class="tx">
+        <div style="display:flex"><span class="t1" style="flex:1;font-size:17px">Voice notes like Telegram</span><span class="tiny muted">12:04</span></div>
+        <div style="display:flex;gap:6px"><span class="t2" style="flex:1"><span style="color:var(--primary)">nota-bene</span> · Done, tests are green…</span><span class="badge acc">!</span></div></div></div>
+      <div class="li" style="min-height:44px;margin-top:6px"><span class="dot" style="background:var(--accent)"></span><div class="tx"><b>home-server</b><div class="t2">Connecting…</div></div></div>
+      <div class="li"><div class="av" style="background:#3a3c3e"></div><div class="tx"><div class="sk" style="width:70%;margin-bottom:8px"></div><div class="sk" style="width:45%"></div></div></div>
+      <div class="li"><div class="av" style="background:#3a3c3e"></div><div class="tx"><div class="sk" style="width:60%;margin-bottom:8px"></div><div class="sk" style="width:35%"></div></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">6.1</span><b>Pull to refresh</b> was 2.1 and 17.1. Reconnects every host at once (no backoff wait) and asks each
+      online host for its windows again; the spinner stays until all answered or timed out. A host still connecting shows skeleton rows.
+      Hosts are named after their computer.</figcaption>
+  </figure>
+  <div class="go">long-press a host</div>
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar">Nota Bene<span class="sp"></span><span class="ib">⌗</span><span class="ib">⚙</span></div>
+      <div class="scrim"></div>
+      <div class="dialog" style="top:220px"><h3>Rename host</h3>
+        <div class="tf" style="min-height:0;color:var(--fg);border-color:var(--primary)">Studio</div>
+        <div class="small muted">The computer calls itself MacBook-Pro. The name is kept on this phone only.</div>
+        <div class="acts"><span class="btn txt">Reset</span><span style="flex:1"></span><span class="btn txt">Cancel</span><span class="btn txt">Save</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">6.2</span><b>Rename host</b> was 17.2. From a long-press on the host row and from its row in Settings.
+      Reset goes back to the computer's name; a host that sends none keeps today's fingerprint prefix.</figcaption>
+  </figure>
+  <figure style="margin-left:64px">
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar"><span>←</span><span style="font-size:20px">Settings</span></div>
+      <div class="li"><span class="ico">文</span><div class="tx"><div class="t1">Language</div><div class="t2">Phone's language</div></div></div>
+      <div class="sect">Dark themes</div>
+      <div class="li"><div class="av sm" style="background:#2b2b2b;border:1px solid #555"><i style="width:8px;height:8px;border-radius:4px;background:#4876c0"></i></div><div class="tx">Darcula</div><span class="check">✓</span></div>
+      <div class="li"><div class="av sm" style="background:#1d2230;border:1px solid #555"><i style="width:8px;height:8px;border-radius:4px;background:#8f7cf0"></i></div><div class="tx">Plannotator</div></div>
+      <div class="li"><div class="av sm" style="background:#002b36;border:1px solid #555"><i style="width:8px;height:8px;border-radius:4px;background:#268bd2"></i></div><div class="tx">Solarized Dark</div></div>
+      <div class="sect">Light themes</div>
+      <div class="li"><div class="av sm" style="background:#f7f8fa"><i style="width:8px;height:8px;border-radius:4px;background:#3574f0"></i></div><div class="tx">IntelliJ Light</div></div>
+      <div class="li"><div class="av sm" style="background:#fff"><i style="width:8px;height:8px;border-radius:4px;background:#0969da"></i></div><div class="tx">GitHub Light</div></div>
+      <div class="li"><div class="av sm" style="background:#fdf6e3"><i style="width:8px;height:8px;border-radius:4px;background:#268bd2"></i></div><div class="tx">Solarized Light</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">6.3</span><b>Themes grouped</b> was 3.1 and 17.3. Dark first, then light, each under its heading.
+      The web theme picker gets the same order.</figcaption>
+  </figure>
+</div>
+
+<h2 id="later">Deferred</h2>
+<ul class="lead">
+  <li><b>Pinned passages</b> (#181): a bar under the tabs, as Telegram's pinned messages, shared by the web and the phone. Drawn in <code>flows.html</code> 15.4.</li>
+  <li><b>Push notifications</b>: after the chat work.</li>
+  <li><b>Not drawn</b>: wide layout (840 dp and wider), the Clear and Restart confirmations, the permission sheet (unchanged, 6.3), the offline cause sheet of 3.1.</li>
+</ul>
+
+</main>
+</body>
+</html>
