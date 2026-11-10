@@ -1,4 +1,5 @@
-import { useAppSelector } from '@/store/store.ts';
+import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { MODES, THEMES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
@@ -19,8 +20,6 @@ type WindowRow = {
   session: string | null; title: string | null; supervised: boolean; busy: boolean; clients: number;
 };
 type About = { version: string; stateDir: string; logs: string[]; node: string; pid: number };
-/** `GET /dictation`: the optional Whisper install that transcribes the phone's microphone */
-type Dictation = { on: boolean; phase: 'none' | 'installing' | 'ready' | 'failed'; downloadMb: number; diskMb: number; dir: string; model: string };
 type Action = 'restart-agent' | 'restart-server' | 'stop';
 
 // macOS and Linux home folders
@@ -52,9 +51,9 @@ function useLoad<T>(url: string, active: boolean): { data: T | null; error: stri
   return { data, error, reload: useCallback(() => setN((x) => x + 1), []) };
 }
 
-function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
+function Section({ title, children, aside, id }: { title: string; children: ReactNode; aside?: ReactNode; id?: string }) {
   return (
-    <section className="nb-card nb-prose px-6 py-5">
+    <section id={id} className="nb-card nb-prose px-6 py-5">
       <div className="mb-3 flex items-center gap-2">
         <h2 className="flex-1 text-[0.9375rem] font-semibold text-foreground">{title}</h2>
         {aside}
@@ -77,6 +76,7 @@ const Row = ({ label, children }: { label: ReactNode; children: ReactNode }) => 
  */
 export function SettingsView({ active }: { active: boolean }) {
   const capabilities = useAppSelector((s) => s.controls.capabilities);
+  const dispatch = useAppDispatch();
   const t = useT();
   const scale = useUiScale();
   const themeId = useTheme();
@@ -148,6 +148,7 @@ export function SettingsView({ active }: { active: boolean }) {
     try {
       const r = await postJson(url, body);
       if (!r.ok) throw new Error(`${r.status}`);
+      dictationChanged(dispatch, url, body);
     } catch (e) {
       setNote(t('setLoadFail', e instanceof Error ? e.message : String(e)));
     }
@@ -211,7 +212,7 @@ export function SettingsView({ active }: { active: boolean }) {
         )}
       </Section>
 
-      <Section title={t('setDictation')}>
+      <Section id="settings-dictation" title={t('setDictation')}>
         {fail(dict.error)}
         {dict.data?.phase === 'none' && (
           <Button type="button" variant="outline" size="sm"

@@ -1052,12 +1052,12 @@ const _json = r'''
    "de": "{0} · Subagent «{1}»"
   },
   "dictInstallQ": {
-   "en": "Download Whisper (≈ {0} MB, ≈ {1} MB on disk) from npm and Hugging Face into {2}? Speech is then transcribed on this computer; recordings reach it end-to-end encrypted and are not stored.",
-   "ru": "Скачать Whisper (≈ {0} МБ, ≈ {1} МБ на диске) из npm и Hugging Face в {2}? Дальше речь распознаётся на этом компьютере; записи приходят к нему со сквозным шифрованием и не сохраняются.",
-   "zh": "从 npm 和 Hugging Face 将 Whisper（约 {0} MB，磁盘约 {1} MB）下载到 {2}？之后语音将在这台电脑上转写；录音以端到端加密方式传到这台电脑，且不会被保存。",
-   "es": "¿Descargar Whisper (≈ {0} MB, ≈ {1} MB en disco) desde npm y Hugging Face en {2}? Después, el habla se transcribe en este equipo; las grabaciones le llegan cifradas de extremo a extremo y no se guardan.",
-   "pt": "Baixar o Whisper (≈ {0} MB, ≈ {1} MB em disco) do npm e do Hugging Face para {2}? Depois, a fala é transcrita neste computador; as gravações chegam a ele com criptografia de ponta a ponta e não são armazenadas.",
-   "de": "Whisper (≈ {0} MB, ≈ {1} MB auf der Platte) von npm und Hugging Face nach {2} herunterladen? Die Sprache wird danach auf diesem Computer transkribiert; Aufnahmen erreichen ihn Ende-zu-Ende-verschlüsselt und werden nicht gespeichert."
+   "en": "Download Whisper (≈ {0} MB, ≈ {1} MB on disk) from npm and Hugging Face into {2}? Speech is then transcribed on this computer; recordings reach it end-to-end encrypted, and the audio of voice messages is kept beside the attachments.",
+   "ru": "Скачать Whisper (≈ {0} МБ, ≈ {1} МБ на диске) из npm и Hugging Face в {2}? Дальше речь распознаётся на этом компьютере; записи приходят к нему со сквозным шифрованием, а звук голосовых сообщений хранится рядом с вложениями.",
+   "zh": "从 npm 和 Hugging Face 将 Whisper（约 {0} MB，磁盘约 {1} MB）下载到 {2}？之后语音将在这台电脑上转写；录音以端到端加密方式传到这台电脑，语音消息的音频会与附件一起保存。",
+   "es": "¿Descargar Whisper (≈ {0} MB, ≈ {1} MB en disco) desde npm y Hugging Face en {2}? Después, el habla se transcribe en este equipo; las grabaciones le llegan cifradas de extremo a extremo y el audio de los mensajes de voz se guarda junto a los adjuntos.",
+   "pt": "Baixar o Whisper (≈ {0} MB, ≈ {1} MB em disco) do npm e do Hugging Face para {2}? Depois, a fala é transcrita neste computador; as gravações chegam a ele com criptografia de ponta a ponta e o áudio das mensagens de voz fica guardado junto com os anexos.",
+   "de": "Whisper (≈ {0} MB, ≈ {1} MB auf der Platte) von npm und Hugging Face nach {2} herunterladen? Die Sprache wird danach auf diesem Computer transkribiert; Aufnahmen erreichen ihn Ende-zu-Ende-verschlüsselt und der Ton von Sprachnachrichten wird neben den Anhängen aufbewahrt."
   },
   "srcToolBare": {
    "en": "{0} command",

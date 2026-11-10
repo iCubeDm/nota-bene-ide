@@ -33,6 +33,7 @@ beforeEach(() => {
       if (url === '/system/storage/clean') return Response.json({ moved: 3, bytes: 3_000_000, trash: '/Users/me/.nota-bene/trash/attachments/x' });
       if (url === '/system/prefs') return prefsReply();
       if (url === '/dictation/install') { dict = { ...dict, phase: 'installing' }; return Response.json({ ok: true }, { status: 202 }); }
+      if (url === '/dictation/on') dict = { ...dict, on: JSON.parse(String(init.body)).on };
       return actionReply();
     }
     if (url === '/dictation') return Response.json(dict);
@@ -233,7 +234,7 @@ it('a Themes section after Defaults: radios with a swatch of the theme\'s own to
   theme.choose('darcula');
 });
 
-it('Dictation on the phone, not installed: Install asks first, naming the size and the folder; the POST follows the confirm only', async () => {
+it('Dictation, not installed: Install asks first, naming the size and the folder; the POST follows the confirm only', async () => {
   setup();
   fireEvent.click(await screen.findByRole('button', { name: 'Install Whisper (≈ 430 MB download, 770 MB on disk)' }));
   expect(posts.filter((p) => p.url === '/dictation/install')).toHaveLength(0);
@@ -241,7 +242,7 @@ it('Dictation on the phone, not installed: Install asks first, naming the size a
   expect(dialog).toHaveTextContent('≈ 430 MB');
   expect(dialog).toHaveTextContent('≈ 770 MB on disk');
   expect(dialog).toHaveTextContent('/srv/nb/whisper');
-  expect(dialog).toHaveTextContent('end-to-end encrypted and are not stored');
+  expect(dialog).toHaveTextContent('end-to-end encrypted, and the audio of voice messages is kept beside the attachments');
   expect(dialog).not.toHaveTextContent('~/.nota-bene');
   expect(dialog).not.toHaveTextContent('nothing leaves');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -257,7 +258,7 @@ it('Dictation installing: a spinner line, polled every 2 s until it is ready', a
   setup();
   expect(await screen.findByText('Installing Whisper…')).toBeInTheDocument();
   dict = { ...dict, phase: 'ready' };
-  expect(await screen.findByRole('checkbox', { name: "Use Whisper for the phone's microphone" }, { timeout: 4000 })).toBeInTheDocument();
+  expect(await screen.findByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" }, { timeout: 4000 })).toBeInTheDocument();
 }, 8000);
 
 it('Dictation failed: the error line and Retry, which installs again without asking', async () => {
@@ -271,7 +272,7 @@ it('Dictation failed: the error line and Retry, which installs again without ask
 it('Dictation ready: the checkbox posts on; Remove asks first, then posts remove', async () => {
   dict = { ...dict, phase: 'ready' };
   setup();
-  const box = await screen.findByRole('checkbox', { name: "Use Whisper for the phone's microphone" });
+  const box = await screen.findByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" });
   expect(box).not.toBeChecked();
   fireEvent.click(box);
   await waitFor(() => expect(posts.find((p) => p.url === '/dictation/on')?.body).toEqual({ on: true }));
@@ -282,4 +283,19 @@ it('Dictation ready: the checkbox posts on; Remove asks first, then posts remove
   expect(dialog).not.toHaveTextContent('~/.nota-bene');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
   await waitFor(() => expect(posts.some((p) => p.url === '/dictation/remove')).toBe(true));
+});
+
+it('Dictation: switching Whisper on or off, or removing it, tells the capabilities the mic reads', async () => {
+  dict = { ...dict, phase: 'ready' };
+  const store = setup();
+  store.dispatch(serverEvent({ kind: 'hello', protocol: 14, capabilities: CLAUDE_CAPABILITIES }));
+  fireEvent.click(await screen.findByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" }));
+  await waitFor(() => expect(store.getState().controls.capabilities?.dictation).toBe('whisper'));
+  fireEvent.click(screen.getByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" }));
+  await waitFor(() => expect(store.getState().controls.capabilities?.dictation).toBeUndefined());
+  fireEvent.click(screen.getByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" }));
+  await waitFor(() => expect(store.getState().controls.capabilities?.dictation).toBe('whisper'));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Whisper' }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove' }));
+  await waitFor(() => expect(store.getState().controls.capabilities?.dictation).toBeUndefined());
 });

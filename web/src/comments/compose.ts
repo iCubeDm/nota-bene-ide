@@ -43,9 +43,11 @@ export function composeBatch(
       tail += '\n' + tIn(lang, 'filesLine', [`${dir}/frame.jpg${sfx}`, `${dir}/layer.png${sfx}`]);
       if (staleOf(c)) tail += '\n' + tIn(lang, 'markStale');
     } else if (refs[i]?.length) tail = '\n' + tIn(lang, 'imgRef', refs[i]);
-    const body = [labelOf(c), c.text.trim()].filter(Boolean).join(' ');
+    // the recordings' transcripts follow what was typed, each on a line of its own (one line each: a transcript's breaks are spaces)
+    const clips = (c.voice ?? []).map((v) => v.text.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const [head = '', ...more] = [[labelOf(c), c.text.trim()].filter(Boolean).join(' '), ...clips].filter(Boolean);
     const instr = instructionOf(c);
-    return `${i + 1}. [${whereOf(c)}]\n${quote}\n→ ${body}${instr ? `\n   ${instr}` : ''}${tail}`;
+    return `${i + 1}. [${whereOf(c)}]\n${quote}\n→ ${head}${more.map((l) => `\n   ${l}`).join('')}${instr ? `\n   ${instr}` : ''}${tail}`;
   });
   return `${general ? general + '\n\n' : ''}${tIn(lang, 'batchHead')}\n\n${blocks.join('\n\n')}`;
 }

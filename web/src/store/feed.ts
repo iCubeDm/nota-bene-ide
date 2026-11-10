@@ -1,9 +1,11 @@
 import { createAction } from '@reduxjs/toolkit';
-import { SHELL_OUTPUT_CAP, cutTail, type Interaction, type ImageRef, type ServerEvent, type ShellStop, type WireAgentEvent } from '@nota-bene/shared';
+import { SHELL_OUTPUT_CAP, cutTail, type Interaction, type ImageRef, type ServerEvent, type ShellStop, type Voice, type VoiceError, type WireAgentEvent } from '@nota-bene/shared';
 
 export type FeedItem =
   /** idle: the server's own /compact after a quiet stretch, shown as a line, not as the user's message */
-  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; duringWork?: boolean; images?: ImageRef[]; idle?: boolean }
+  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; duringWork?: boolean; images?: ImageRef[]; idle?: boolean;
+      /** a voice message (protocol 14): `text` is '' until the `voice-text` event puts the transcript in `voiceText`, or says why there is none in `voiceError` */
+      voice?: Voice; voiceText?: string; voiceError?: VoiceError }
   | { kind: 'assistant'; id: string; text: string; final: boolean } // `${uuid}:${blockIndex}`; while streaming `stream:${n}`
   | {
       kind: 'tool'; id: string; name: string; arg: string; sub: boolean; toolKind?: Extract<WireAgentEvent, { t: 'tool-call' }>['toolKind']; childSessionId?: string;
@@ -107,6 +109,22 @@ function toolArg(input: Record<string, unknown> | undefined): string {
     if (v) return String(v).split('\n')[0]!.slice(0, 160);
   }
   return '';
+}
+
+/**
+ * The failed voice messages that a later message of the same recording replaced (Retry sends the same voice as a new
+ * message): their bubbles are not drawn, so a retry does not leave the dead one beside it. Order-free: a replay gives the same answer.
+ */
+export function retriedVoice(items: FeedItem[]): Set<string> {
+  const hidden = new Set<string>();
+  const later = new Set<string>(); // voice ids of the user items after the one being looked at
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i]!;
+    if (it.kind !== 'user' || !it.voice) continue;
+    if (it.voiceError && later.has(it.voice.id)) hidden.add(it.id);
+    later.add(it.voice.id);
+  }
+  return hidden;
 }
 
 function firstOpenIndex(items: FeedItem[]): number {
@@ -242,6 +260,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
         ...(ev.force ? { force: true } : {}),
         ...(ev.images?.length ? { images: ev.images } : {}),
         ...(ev.idle ? { idle: true } : {}),
+        ...(ev.voice ? { voice: ev.voice } : {}),
         ...(!ev.historic && s.busy ? { duringWork: true } : {}),
       };
       return {
@@ -251,6 +270,12 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
         forcePending: ev.force ? true : s.forcePending,
         waiting: ev.historic ? s.waiting : [...s.waiting, ev.id],
       };
+    }
+    case 'voice-text': {
+      const i = s.items.findIndex((it) => it.kind === 'user' && it.id === ev.id);
+      const cur = s.items[i];
+      if (!cur || cur.kind !== 'user') return s; // the message is in an archived segment (or never came): nothing to patch
+      return { ...s, items: replaceAt(s.items, i, { ...cur, ...(ev.text !== undefined ? { voiceText: ev.text } : {}), ...(ev.error ? { voiceError: ev.error } : {}) }) };
     }
     case 'shell-start':
       return { ...s, items: [...s.items.filter((it) => !(it.kind === 'shell' && it.id === ev.id)), { kind: 'shell', id: ev.id, cmd: ev.cmd, output: '', truncated: false, running: true, code: null, ts: ev.ts }] };
@@ -299,7 +324,6 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'send-refused': // composer/refused.ts: restores the draft, never the feed
     case 'shell-refused': // the same, for a `! cmd`
     case 'server-error': // a toast (store.ts), live only, never swallowed (M0 error policy)
-    case 'voice-text': // protocol 14: no voice bubbles in this feed yet
       return s;
     default: {
       // as above: a protocol-4 server still sends `{kind:'sdk'}`

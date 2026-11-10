@@ -6,7 +6,7 @@ import { connState, makeStore, serverEvent } from '@/store/store.ts';
 import { App } from '@/App.tsx';
 import { recentModal } from '@/files/recent.ts';
 import { openFile, selectTabs } from '@/tabs/slice.ts';
-import { BINDINGS, keysLabel, withKey } from './keymap.ts';
+import { BINDINGS, keysLabel, VOICE_KEY, withKey } from './keymap.ts';
 
 beforeEach(() => {
   localStorage.clear();
@@ -115,7 +115,7 @@ it('/ and Esc on empty space focus the composer; not inside a field, and not whe
 
 it('the ? help lists every hotkey with its keys', () => {
   expect(BINDINGS.map(keysLabel)).toEqual([
-    'Alt+W', 'Alt+Shift+T', 'Alt+←', 'Alt+→', 'Alt+1…9', 'Alt+E', 'Ctrl+Shift+F', 'Ctrl+Shift+C', 'Alt+T', 'Alt+Z', 'Alt+=', 'Alt+−', 'Alt+0', 'Alt+F1', '/, Esc',
+    'Alt+W', 'Alt+Shift+T', 'Alt+←', 'Alt+→', 'Alt+1…9', 'Alt+E', 'Ctrl+Shift+F', 'Ctrl+Shift+C', 'Alt+T', 'Alt+R', 'Alt+Z', 'Alt+=', 'Alt+−', 'Alt+0', 'Alt+F1', '/, Esc',
   ]);
 });
 

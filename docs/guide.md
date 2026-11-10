@@ -105,6 +105,18 @@ The chat is the first tab and cannot be closed. Type a message and press Enter t
 - The bar under the message box shows the context size, the 5-hour and weekly plan limits, and the session's API cost (on a plan, what the session would cost at API prices). An answer that comes without plan limits keeps the last known ones until their reset time. The compact and clear buttons by the message box run `/compact` and `/clear`.
 - An idle conversation is compacted for you 50 minutes after the last turn, if the window saw no activity for 15 minutes and the context is at least 200,000 tokens, so the prompt cache is not wasted. Click the idle-compaction indicator to turn it off for the project, or set `"idleCompaction": false` in `~/.claude/settings.json`.
 
+### Voice messages
+
+With Whisper installed and on (Settings, Voice messages), a microphone button sits left of **Send** in the message field. Without Whisper it opens that settings section. A server older than this feature shows no microphone.
+
+- **Click** the microphone (or press Alt+R): a recording starts and takes the place of the field: a blinking dot, the time, the live level and the buttons **Cancel** (Esc), **Stop** and **Send** (Enter, or Alt+R again). **Stop** keeps the recording for you to listen to; then **Send**, or the trash button to delete it.
+- **Press and hold** the microphone for more than 0.3 s: it records while you hold and sends when you let go.
+- A voice message is a message of its own: the draft in the field, its images and your pending comments stay where they are and do not go with it. While the agent works it waits for its turn, like a message sent "after". The recording stops by itself after 10 minutes and is sent.
+- The recording is made in the browser as 16 kHz mono 16-bit audio (about 1.9 MB a minute) and handed to this computer, which stores it beside the pasted images (`attachments/<sha256>.wav`), transcribes it with Whisper and gives the agent only the text. The agent never hears the audio.
+- In the chat a voice message shows a play button, the wave (click or drag it to seek), the length, and the transcript under it. **Aa** folds the transcript. While the text is not in, the bubble says "Transcribing…". If it fails, it says why (Whisper off, nothing recognised, failed) and **Retry** sends the same recording again as a new message. Only one voice plays at a time.
+- A denied microphone is reported in the status line under the message field: allow it for the page in the browser.
+- Settings, Storage, **Clean unreferenced files** covers recordings as it covers images: a recording that no message or comment uses and that is over a day old goes to the trash, and is restored when something asks for it.
+
 ## Margin comments and the batch send
 
 This is the core of the tool: review first, then send everything at once.
@@ -127,6 +139,7 @@ Details:
 - Click a highlighted fragment to open its card in a popup; edit or delete it there or in the panel. The panel's cards jump to the source. Tabs and tree rows show a count badge.
 - Comments are stored per session and survive reloads and resumes. If the text a comment was made on has changed, the card is marked "fragment changed" and kept; for a file that changed since, "the file has changed since".
 - The Comments panel opens with Cmd/Ctrl+Shift+C.
+- **Voice clips.** With Whisper on, the comment popup has a microphone: click to record, click **Stop** to add the clip under the text (Esc while recording drops the recording, not the comment). Each clip shows a play button, its wave and its transcript; delete one with the cross, record again for more (up to 10). **Add** waits until every clip is transcribed; a clip that failed needs **Retry** or deletion. A comment can be clips only. The agent gets the clips' transcripts, each on its own line, after what you typed. Cards and the sent comments under a message show the clips with play and transcript.
 - `/clear` would drop pending comments, so the window refuses it until they are sent or removed.
 
 ## The @ picker and the / menu
@@ -339,8 +352,8 @@ The mode is saved per project folder. The model and effort pill in the header se
 The gear in the header opens a menu: the interface language, the colour theme, the interface scale (− and + step it and keep the menu open; Alt+= and Alt+− do the same anywhere, Alt+0 goes back to 100 %), and **All settings…**, the Settings tab:
 
 - **Windows**: every running window with its folder, port, state (working or idle), number of open tabs and uptime. Open, Restart agent, Restart server and Stop work on any of them.
-- **Storage**: what is on disk for pasted images, comments, chat history from before compaction and media marks, with **Clean unreferenced files**, which moves pasted images that no comment references and that are over a day old, and the history of sessions that no longer exist, to the state folder's `trash/`. Nothing is deleted.
-- **Dictation on the phone**: off by default. **Install Whisper** downloads the `whisper-small` speech model with the transformers runtime from npm and Hugging Face (about 430 MB to download, 770 MB on disk) into the `whisper` folder of the state folder, after a confirmation that names the exact path. The model runs in a separate thread, so the window stays responsive while it transcribes; recordings reach this computer end-to-end encrypted and are not stored. Once it is installed, a checkbox turns Whisper on or off: with it on, the phone's microphone (in the message field and the comment sheet) records (up to 10 minutes) and this computer transcribes the recording, a long one in parts of up to a minute, with the text landing at the cursor. The phone has no dictation of its own: without Whisper its microphone offers to install it, or to turn it on, from the phone. **Remove Whisper** deletes those files.
+- **Storage**: what is on disk for pasted images, voice recordings, comments, chat history from before compaction and media marks, with **Clean unreferenced files**, which moves pasted images and voice recordings that no message or comment references and that are over a day old, and the history of sessions that no longer exist, to the state folder's `trash/`. Nothing is deleted.
+- **Voice messages (Whisper)**: off by default. **Install Whisper** downloads the `whisper-small` speech model with the transformers runtime from npm and Hugging Face (about 430 MB to download, 770 MB on disk) into the `whisper` folder of the state folder, after a confirmation that names the exact path. The model runs in a separate thread, so the window stays responsive while it transcribes. Once it is installed, a checkbox turns Whisper on or off: with it on, the microphone buttons of this window and of the phone (in the message field and in comments) record up to 10 minutes and this computer transcribes the recording, a long one in parts of up to a minute. Without Whisper the microphone button offers to install it, or to turn it on. The audio of voice messages is not thrown away after it is transcribed: see Voice messages in the chat section. **Remove Whisper** deletes the model files, not the recordings.
 - **Defaults**: interface language, interface scale (90–150 %: text and spacing grow, for every window at once), and the agent mode for projects that have none of their own.
 - **Themes**: the six colour themes, each with a swatch of its own colours; pick one. It is the same choice as the Theme row of the gear menu.
 - **About**: version, state folder, where the logs are, Node version.
@@ -369,6 +382,7 @@ The full list is in the window's Hotkeys help. Tab keys use Alt because Chrome k
 | Cmd/Ctrl+Shift+F | Files panel |
 | Cmd/Ctrl+Shift+C | Comments panel |
 | Alt+T | Tasks drawer |
+| Alt+R | record a voice message; again, send it |
 | Alt+Z | wrap lines in a text file |
 | Alt+= / Alt+− / Alt+0 | a larger interface / a smaller one / back to 100 % |
 | N (an HTML page) | mark an element or an area; Esc leaves |
@@ -497,7 +511,7 @@ All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME`
 | `sessions.json` | the last session of each project folder |
 | `prefs.json` | agent mode per project, the interface language |
 | `comments/<sessionId>.json` | pending and sent comments of a session |
-| `attachments/<sha256>.<ext>` | pasted images, by content hash |
+| `attachments/<sha256>.<ext>` | pasted images and voice recordings (`.wav`), by content hash |
 | `windows/<port>.json` | the registry of running windows |
 | `locks/` | per-folder launch locks |
 | `history/<sessionId>.jsonl` | the conversation before each compaction |
