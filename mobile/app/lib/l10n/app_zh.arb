@@ -296,6 +296,7 @@
     }
   },
   "paragraphLabelAdded": "已添加：{label}",
+  "paragraphLabelRemoved": "已移除：{label}",
   "paragraphPin": "固定",
   "paragraphLess": "收起",
   "paragraphCopied": "已复制",

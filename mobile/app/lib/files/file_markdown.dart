@@ -190,6 +190,12 @@ class _BadgeBuilder extends MarkdownElementBuilder {
   }
 }
 
+/// A link's recognizer that never takes a press: the paragraph under the text gets it.
+class _Inert extends TapGestureRecognizer {
+  @override
+  bool isPointerAllowed(PointerDownEvent event) => false;
+}
+
 /// Draws a list item's content itself, so that it can be wrapped (null: the package's own).
 class _ItemBuilder extends MarkdownElementBuilder {
   _ItemBuilder(this.draw);
@@ -219,6 +225,7 @@ class FileMarkdown extends StatefulWidget {
     this.wrapBlock,
     this.wrapItem,
     this.tapItem,
+    this.inertMarks = const {},
   });
 
   static void _noMark(String id) {}
@@ -245,6 +252,10 @@ class FileMarkdown extends StatefulWidget {
   /// A tap on the bullet of such an item, which [wrapItem]'s widget does not hold.
   final void Function(int block, int item)? tapItem;
 
+  /// Ids of marks whose text takes no tap (a quick label shows on its paragraph, which a tap targets): the badge opens
+  /// the comment.
+  final Set<String> inertMarks;
+
   /// The selection of top-level block [i] is reported to this notifier: an offset Flutter gives inside one block
   /// stays near the rendered one, where across the file code and bullets push it away. Null: nothing is reported.
   final SelectionListenerNotifier Function(int i)? listenerAt;
@@ -259,14 +270,20 @@ class _FileMarkdownState extends State<FileMarkdown>
 
   @override
   GestureRecognizer createLink(String text, String? href, String title) {
-    final r = TapGestureRecognizer()
-      ..onTap = () {
-        if (href != null && href.startsWith(_markScheme)) {
-          widget.onMark(href.substring(_markScheme.length));
-        } else {
-          openLink(href);
-        }
-      };
+    final id = href != null && href.startsWith(_markScheme)
+        ? href.substring(_markScheme.length)
+        : null;
+    final r =
+        id != null && widget.inertMarks.contains(id)
+              ? _Inert()
+              : TapGestureRecognizer()
+          ..onTap = () {
+            if (href != null && href.startsWith(_markScheme)) {
+              widget.onMark(href.substring(_markScheme.length));
+            } else {
+              openLink(href);
+            }
+          };
     _recognizers.add(r);
     return r;
   }

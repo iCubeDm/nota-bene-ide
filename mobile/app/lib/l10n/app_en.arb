@@ -471,7 +471,16 @@
   },
   "paragraphLabelAdded": "{label} added",
   "@paragraphLabelAdded": {
-    "description": "Snackbar after a quick label on a paragraph",
+    "description": "Announced to a screen reader after a quick label on a paragraph",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "paragraphLabelRemoved": "{label} removed",
+  "@paragraphLabelRemoved": {
+    "description": "Announced to a screen reader after the same quick label on a paragraph took its label back",
     "placeholders": {
       "label": {
         "type": "String"

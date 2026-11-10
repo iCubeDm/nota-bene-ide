@@ -1,8 +1,10 @@
 // Comment by paragraph: a tap on a paragraph of a final reply makes the whole paragraph the target (an accent bar and
 // a tint, no scrim). In a list the target is the list item under the finger, not the list: a nested item is a target
-// of its own, and a parent item covers its own text and its nested items. Above it floats one bubble of the quick labels (the first five and a chevron that grows the same
-// bubble into all of them, named); below it a bar with Comment, Pin and Copy. A label makes a pending comment on the
-// paragraph (the comment model of a selection, so the Comments pane and sending are unchanged) with an Undo.
+// of its own, and a parent item covers its own text and its nested items. Above it floats one bubble of the quick
+// labels (the first five and a chevron that grows the same bubble into all of them, named); below it a bar with Comment,
+// Pin and Copy. A label makes a pending comment on the paragraph (the comment model of a selection, so the Comments pane
+// and sending are unchanged), with no snackbar: the label shows on the paragraph. The same label again on the same
+// paragraph takes it back, as a reaction in a messenger does; a screen reader hears a short announcement of either.
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -184,15 +186,39 @@ class ParagraphTargets extends ChangeNotifier {
     if (sel == null || p == null) return clear();
     final t = AppLocalizations.of(p.ctx);
     final lang = Localizations.localeOf(p.ctx).languageCode;
-    final c = _add(p, l.id, '');
+    final name = '${l.emoji} ${l.textIn(lang)}';
+    // the same label again on the same paragraph takes it back, as a reaction in a messenger does
+    final again = tab.comments.pending
+        .where(
+          (c) =>
+              c.label == l.id &&
+              c.text.isEmpty &&
+              (c.voice ?? const []).isEmpty &&
+              switch (c.anchor) {
+                TextAnchor(
+                  source: AnchorSourceMessage(:final id, agent: null),
+                  :final start,
+                  :final end,
+                ) =>
+                  id == p.item.id && start == p.start && end == p.end,
+                _ => false,
+              },
+        )
+        .firstOrNull;
+    final said = again == null
+        ? t.paragraphLabelAdded(name)
+        : t.paragraphLabelRemoved(name);
+    if (again == null) {
+      _add(p, l.id, '');
+    } else {
+      tab.comments.remove(again.id);
+    }
     clear();
-    _snack(
-      p.ctx,
-      Text(t.paragraphLabelAdded('${l.emoji} ${l.textIn(lang)}')),
-      action: SnackBarAction(
-        label: t.markUndo,
-        onPressed: () => tab.comments.remove(c.id),
-      ),
+    // the label shows on the paragraph as a comment: no snackbar, only a word for a screen reader
+    SemanticsService.sendAnnouncement(
+      View.of(p.ctx),
+      said,
+      Directionality.of(p.ctx),
     );
   }
 

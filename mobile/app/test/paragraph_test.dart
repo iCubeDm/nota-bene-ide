@@ -35,7 +35,8 @@ void main() {
   );
 
   Future<void> tapPara(WidgetTester t, String start) async {
-    await t.tap(find.textContaining(start));
+    // a paragraph that carries a comment is also a line of the Comments pane
+    await t.tap(find.textContaining(start).first);
     await t.pumpAndSettle();
   }
 
@@ -107,9 +108,31 @@ void main() {
     expect(bubble, findsOneWidget);
   });
 
-  testWidgets('a label comments the paragraph; the snackbar can undo it', (
-    t,
-  ) async {
+  /// What was announced to the accessibility channel, as the messages it carries.
+  List<String> announcements(WidgetTester t) {
+    final said = <String>[];
+    t.binding.defaultBinaryMessenger.setMockDecodedMessageHandler<dynamic>(
+      SystemChannels.accessibility,
+      (m) async {
+        if (m is Map && m['type'] == 'announce') {
+          said.add((m['data'] as Map)['message'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => t.binding.defaultBinaryMessenger
+          .setMockDecodedMessageHandler<dynamic>(
+            SystemChannels.accessibility,
+            null,
+          ),
+    );
+    return said;
+  }
+
+  testWidgets('a label comments the paragraph, with no snackbar, and TalkBack '
+      'hears it', (t) async {
+    final said = announcements(t);
     await open(t);
     await tapPara(t, 'The hold');
     await t.tap(
@@ -125,13 +148,68 @@ void main() {
     expect(a.end, text.indexOf(second) + second.length);
     expect((a.source as AnchorSourceMessage).id, 'a1');
     expect(bubble, findsNothing);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(said, [
+      '${quickLabels[2].emoji} ${quickLabels[2].text['en']} added',
+    ]);
+  });
+
+  testWidgets('the same label again on the same paragraph removes it, and '
+      'TalkBack hears that', (t) async {
+    final said = announcements(t);
+    await open(t);
+    final emoji = quickLabels[2].emoji;
+    Future<void> choose(String para, String e) async {
+      await tapPara(t, para);
+      await t.tap(find.descendant(of: bubble, matching: find.text(e)));
+      await t.pumpAndSettle();
+    }
+
+    await choose('The hold', emoji);
+    expect(r.tab!.comments.pending, hasLength(1));
+    // another label, or another paragraph, adds its own
+    await choose('The hold', quickLabels[1].emoji);
+    await choose('Tests are', emoji);
+    expect(r.tab!.comments.pending, hasLength(3));
+    await choose('The hold', emoji);
+    final left = r.tab!.comments.pending;
+    expect(left, hasLength(2));
     expect(
-      find.text('${quickLabels[2].emoji} ${quickLabels[2].text['en']} added'),
-      findsOneWidget,
+      left.where((c) => (c.anchor as TextAnchor).quote == second).single.label,
+      quickLabels[1].id,
     );
-    await t.tap(find.text('Undo'));
+    expect(said.last, '$emoji ${quickLabels[2].text['en']} removed');
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('a label on a list item toggles per item', (t) async {
+    await open(t, text: '- alpha one\n- beta two');
+    final e = barLabels[0].emoji;
+    for (final para in ['alpha one', 'beta two', 'alpha one']) {
+      await tapPara(t, para);
+      await t.tap(find.descendant(of: bubble, matching: find.text(e)));
+      await t.pumpAndSettle();
+    }
+    expect(r.tab!.comments.pending.map((c) => (c.anchor as TextAnchor).quote), [
+      'beta two',
+    ]);
+  });
+
+  testWidgets('a typed comment with the same label is not taken away by the '
+      'label', (t) async {
+    await open(t);
+    await tapPara(t, 'The hold');
+    await t.tap(barButton('Comment'));
     await t.pumpAndSettle();
-    expect(r.tab!.comments.all, isEmpty);
+    await t.enterText(find.byType(TextField).last, 'why?');
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    await tapPara(t, 'The hold');
+    await t.tap(
+      find.descendant(of: bubble, matching: find.text(barLabels[0].emoji)),
+    );
+    await t.pumpAndSettle();
+    expect(r.tab!.comments.pending, hasLength(2));
   });
 
   testWidgets('the chevron grows the bubble into all eleven, named, and Less '
@@ -384,13 +462,11 @@ void main() {
     expect(t.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('the Undo snackbar goes by itself and floats clear of the '
+  testWidgets('the Copy snackbar goes by itself and floats clear of the '
       'message field', (t) async {
     await open(t);
     await tapPara(t, 'The hold');
-    await t.tap(
-      find.descendant(of: bubble, matching: find.text(quickLabels[1].emoji)),
-    );
+    await t.tap(barButton('Copy'));
     await t.pumpAndSettle(const Duration(milliseconds: 100));
     final snack = find.byType(SnackBar);
     expect(snack, findsOneWidget);

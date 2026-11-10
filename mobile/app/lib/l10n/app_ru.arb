@@ -296,6 +296,7 @@
     }
   },
   "paragraphLabelAdded": "Добавлено: {label}",
+  "paragraphLabelRemoved": "Убрано: {label}",
   "paragraphPin": "Закрепить",
   "paragraphLess": "Меньше",
   "paragraphCopied": "Скопировано",

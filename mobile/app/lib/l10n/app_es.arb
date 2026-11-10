@@ -296,6 +296,7 @@
     }
   },
   "paragraphLabelAdded": "{label} añadido",
+  "paragraphLabelRemoved": "{label} quitado",
   "paragraphPin": "Fijar",
   "paragraphLess": "Menos",
   "paragraphCopied": "Copiado",
