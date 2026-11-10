@@ -14,6 +14,7 @@ import 'settings_screen.dart';
 import 'store/hosts.dart';
 import 'store/seen.dart';
 import 'store/lang_choice.dart';
+import 'store/voice_lang.dart';
 import 'store/theme_choice.dart';
 import 'store/vault.dart';
 import 'theme.dart';
@@ -26,13 +27,16 @@ Future<void> main() async {
   final themes = await ThemeChoice.load(SecureVault());
   // and in the chosen language
   final langs = await LangChoice.load(SecureVault());
+  // the language speech is transcribed in
+  final voiceLang = await VoiceLang.load(SecureVault());
   // one hidden WebView for every diagram of the app, kept above the Navigator with the lock
   final mermaid = CachedMermaid(WebViewMermaid());
   runApp(
     NbApp(
       themes: themes,
       langs: langs,
-      home: AppRoot(themes: themes, langs: langs),
+      voiceLang: voiceLang,
+      home: AppRoot(themes: themes, langs: langs, voiceLang: voiceLang),
       lock: (nav) => LockGate(
         authenticator: DeviceAuthenticator(),
         child: MermaidScope(renderer: mermaid, child: nav),
@@ -43,10 +47,16 @@ Future<void> main() async {
 
 /// Loads the phone key and the pairings, then the start screen.
 class AppRoot extends StatefulWidget {
-  const AppRoot({super.key, required this.themes, required this.langs});
+  const AppRoot({
+    super.key,
+    required this.themes,
+    required this.langs,
+    required this.voiceLang,
+  });
 
   final ThemeChoice themes;
   final LangChoice langs;
+  final VoiceLang voiceLang;
 
   @override
   State<AppRoot> createState() => _AppRootState();
@@ -116,6 +126,7 @@ class _AppRootState extends State<AppRoot> {
               hosts: d.hosts,
               themes: widget.themes,
               langs: widget.langs,
+              voiceLang: widget.voiceLang,
               onPair: pair,
             ),
           ),
@@ -143,7 +154,14 @@ Locale resolveLocale(List<Locale>? preferred) {
 }
 
 class NbApp extends StatelessWidget {
-  const NbApp({super.key, this.home, this.lock, this.themes, this.langs});
+  const NbApp({
+    super.key,
+    this.home,
+    this.lock,
+    this.themes,
+    this.langs,
+    this.voiceLang,
+  });
 
   final Widget? home;
 
@@ -152,6 +170,9 @@ class NbApp extends StatelessWidget {
 
   /// The language picked in Settings; the phone's without one.
   final LangChoice? langs;
+
+  /// The language voice is transcribed in; the app's without one.
+  final VoiceLang? voiceLang;
 
   /// Wraps the whole Navigator (every route), when given.
   final Widget Function(Widget navigator)? lock;
@@ -170,8 +191,12 @@ class NbApp extends StatelessWidget {
     locale: langs?.locale,
     localeListResolutionCallback: (preferred, _) => resolveLocale(preferred),
     home: home ?? const Scaffold(),
-    builder: lock == null
-        ? null
-        : (context, nav) => lock!(nav ?? const SizedBox.shrink()),
+    builder: (context, nav) {
+      final child = nav ?? const SizedBox.shrink();
+      return VoiceLangScope(
+        choice: voiceLang,
+        child: lock == null ? child : lock!(child),
+      );
+    },
   );
 }

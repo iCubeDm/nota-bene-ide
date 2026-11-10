@@ -26,6 +26,8 @@
   "settings": "Настройки",
   "language": "Язык",
   "languageSystem": "Как на телефоне",
+  "voiceLanguage": "Язык голоса",
+  "voiceLanguageApp": "Как в приложении",
   "theme": "Темы",
   "connecting": "Подключение…",
   "offline": "Не в сети",

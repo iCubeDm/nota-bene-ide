@@ -10,6 +10,7 @@ import '../dictation/whisper_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
+import '../store/voice_lang.dart';
 import '../voice/player.dart';
 import '../voice/record_button.dart';
 import '../voice/record_row.dart';
@@ -114,7 +115,7 @@ class _SheetState extends State<_Sheet> {
   /// Uploads the clip when the host has not got it, then asks for its text; a failure stays on the clip with Retry.
   Future<void> _run(_Clip c) async {
     final tab = widget.tab;
-    final lang = Localizations.localeOf(context).languageCode;
+    final lang = voiceLangOf(context);
     setState(() {
       c.busy = true;
       c.error = null;

@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:nb_app/theme.dart';
+import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/store/voice_lang.dart';
 import 'package:nb_app/voice/record_button.dart';
 import 'package:nb_app/voice/record_row.dart';
 import 'package:nb_app/voice/player.dart';
@@ -372,6 +374,21 @@ void main() {
         await t.pump();
         expect(find.text('Sending…'), findsNothing);
         expect(find.text('Transcribing…'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'the voice language chosen in Settings goes with a voice message',
+      (t) async {
+        final v = await VoiceLang.load(MemoryVault());
+        await v.choose('ru');
+        r.voiceLang = v;
+        await openVoice(t);
+        r.ch.onHttp = (port, method, path) async => ok();
+        await record(t);
+        await t.pump();
+        // the app is in English; the speech is not
+        expect(r.sent.single['lang'], 'ru');
       },
     );
 

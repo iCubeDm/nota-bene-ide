@@ -463,34 +463,31 @@ void main() {
     await t.pump();
   });
 
-  testWidgets(
-    'the lock pill is 40 wide, just above the circle; Stop is 40x40',
-    (t) async {
-      await pump(t);
-      final g = await hold(t);
-      // read while held: the recording row lays the button out a little differently
-      final mic = t.getCenter(find.byType(RecordButton));
-      final pill = find.byWidgetPredicate(
-        (w) => w is NbIcon && w.glyph == NbGlyph.lock,
-      );
-      final box = find
-          .ancestor(of: pill, matching: find.byType(Container))
-          .first;
-      expect(t.getSize(box).width, 40);
-      expect(t.getSize(box).height, 76);
-      // above the 96 px circle, centred on the mic
-      expect(t.getBottomLeft(box).dy, closeTo(mic.dy - 48 - 12, 1));
-      expect(t.getCenter(box).dx, closeTo(mic.dx, 1));
-      await g.moveBy(const Offset(0, -90));
-      await g.up();
-      await t.pump();
-      final stop = find.byKey(const ValueKey('voice-stop'));
-      expect(t.getSize(stop), const Size(40, 40));
-      // 8 px above the 48 px button
-      expect(t.getBottomLeft(stop).dy, closeTo(mic.dy - 24 - 8, 1));
-      expect(t.getCenter(stop).dx, closeTo(mic.dx, 1));
-      session.cancel();
-      await t.pump();
-    },
-  );
+  testWidgets('the lock pill is 40 wide, just above the circle; Stop is 40x40', (
+    t,
+  ) async {
+    await pump(t);
+    final g = await hold(t);
+    // read while held: the recording row lays the button out a little differently
+    final mic = t.getCenter(find.byType(RecordButton));
+    final pill = find.byWidgetPredicate(
+      (w) => w is NbIcon && w.glyph == NbGlyph.lock,
+    );
+    final box = find.ancestor(of: pill, matching: find.byType(Container)).first;
+    expect(t.getSize(box).width, 40);
+    expect(t.getSize(box).height, 76);
+    // above the 96 px circle, centred on the mic
+    expect(t.getBottomLeft(box).dy, closeTo(mic.dy - 48 - 12, 1));
+    expect(t.getCenter(box).dx, closeTo(mic.dx, 1));
+    await g.moveBy(const Offset(0, -90));
+    await g.up();
+    await t.pump();
+    final stop = find.byKey(const ValueKey('voice-stop'));
+    expect(t.getSize(stop), const Size(40, 40));
+    // 8 px above the 48 px button
+    expect(t.getBottomLeft(stop).dy, closeTo(mic.dy - 24 - 8, 1));
+    expect(t.getCenter(stop).dx, closeTo(mic.dx, 1));
+    session.cancel();
+    await t.pump();
+  });
 }

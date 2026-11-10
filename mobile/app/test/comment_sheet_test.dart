@@ -13,6 +13,8 @@ import 'package:nb_app/voice/record_button.dart';
 import 'package:nb_app/voice/record_row.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 import 'package:nb_app/main.dart';
+import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/store/voice_lang.dart';
 import 'package:nb_app/theme.dart';
 
 import 'support/rig.dart';
@@ -180,6 +182,18 @@ void main() {
       await t.tap(find.widgetWithText(FilledButton, 'Save'));
       await t.pumpAndSettle();
     }
+
+    testWidgets('a clip is transcribed in the voice language of Settings', (
+      t,
+    ) async {
+      final v = await VoiceLang.load(MemoryVault());
+      await v.choose('ru');
+      r.voiceLang = v;
+      await openSheet(t);
+      await record(t);
+      await t.pumpAndSettle();
+      expect(r.ch.requests.last, endsWith('/text?lang=ru'));
+    });
 
     testWidgets(
       'a released recording becomes a clip under the text; the sheet stays',

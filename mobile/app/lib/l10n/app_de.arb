@@ -26,6 +26,8 @@
   "settings": "Einstellungen",
   "language": "Sprache",
   "languageSystem": "Wie auf dem Telefon",
+  "voiceLanguage": "Sprache der Sprachaufnahme",
+  "voiceLanguageApp": "Wie in der App",
   "theme": "Designs",
   "connecting": "Verbinde…",
   "offline": "Offline",
