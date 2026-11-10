@@ -3,12 +3,10 @@
 // they scroll (a file can be thousands of them), each of a fixed height under a horizontal scroll as wide as the
 // longest.
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show SelectionStatus;
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'package:markdown/markdown.dart' as md;
-import 'package:nb_protocol/nb_protocol.dart'
-    show AnchorSourceFile, CommentStatus, TextAnchor;
+import 'package:nb_protocol/nb_protocol.dart' show AnchorSourceFile, TextAnchor;
 
 import '../comments/anchor.dart';
 import '../comments/chat_anchor.dart';
@@ -18,6 +16,7 @@ import '../theme.dart';
 import '../ui/nb_icon.dart';
 import '../ui/pinch_scale.dart';
 import 'code.dart';
+import 'code_marks.dart';
 import 'feed.dart';
 import 'window_tab.dart';
 
@@ -147,64 +146,19 @@ class _CodeScreenState extends State<CodeScreen> {
     return _spanLines;
   }
 
-  /// The existing comments of a project file, resolved over the same rendered text, as ranges of the code's characters.
+  /// The existing comments of a project file, over the same rendered text, as ranges of the code's characters.
   List<CodeMark> _marks() {
     final tab = widget.tab, path = widget.filePath;
-    if (tab == null || path == null || _rendered.runs.isEmpty) return const [];
-    final r = _rendered, run = r.runs.first;
-    final out = <CodeMark>[];
-    var end = 0;
-    final found = <({int from, int to, String id, bool sent})>[];
-    for (final c in tab.comments.forFile(path)) {
-      final a = c.anchor;
-      if (a is! TextAnchor) continue;
-      final at = resolveAnchor(a, r.text);
-      if (at == null) continue;
-      int? from, to;
-      for (var i = 0; i < run.raw.length; i++) {
-        final here = run.map[i];
-        // a collapsed space emits nothing
-        if (run.map[i + 1] <= here) continue;
-        if (here >= at.start && here < at.end) {
-          from ??= i;
-          to = i + 1;
-        }
-      }
-      if (from != null) {
-        found.add((
-          from: from,
-          to: to!,
-          id: c.id,
-          sent: c.status == CommentStatus.sent,
-        ));
-      }
-    }
-    found.sort((a, b) => a.from.compareTo(b.from));
-    for (final f in found) {
-      if (f.from < end) continue; // overlapping: the first one paints
-      out.add((start: f.from, end: f.to, id: f.id, sent: f.sent, n: 0));
-      end = f.to;
-    }
-    return out;
+    if (tab == null || path == null) return const [];
+    return codeMarksFor(
+      _rendered,
+      tab.comments.forFile(path).where((c) => c.anchor is TextAnchor),
+    );
   }
 
-  /// Where the selection starts in the rendered text, as the code's characters map to it: the nearest place to look
-  /// first when the same words occur again and again. Null when no line holds the selection.
-  int? _hint() {
-    final run = _rendered.runs.firstOrNull;
-    if (run == null) return null;
-    for (final i in _listeners.keys.toList()..sort()) {
-      final l = _listeners[i]!;
-      if (!l.registered || i >= _starts.length) continue;
-      final range = l.selection.range;
-      if (range == null || l.selection.status == SelectionStatus.none) {
-        continue;
-      }
-      final raw = (_starts[i] + range.startOffset).clamp(0, run.map.length - 1);
-      return run.map[raw];
-    }
-    return null;
-  }
+  /// Where the selection starts in the rendered text; null when no line holds it.
+  int? _hint() =>
+      selectionHint(_rendered, _listeners, (i) => _starts[i], _starts.length);
 
   Future<void> _commentFile(WindowTab tab, String path) async {
     final r = _rendered;
@@ -304,18 +258,7 @@ class _CodeScreenState extends State<CodeScreen> {
           itemBuilder: (context, i) {
             final line = _lines[i];
             final from = _starts[i];
-            // the marks' parts that fall in this line, as its own offsets
-            final local = [
-              for (final m in marks)
-                if (m.start < from + line.length && m.end > from)
-                  (
-                    start: math.max(m.start - from, 0),
-                    end: math.min(m.end - from, line.length),
-                    id: m.id,
-                    sent: m.sent,
-                    n: 0,
-                  ),
-            ];
+            final local = marksInRow(marks, from, line.length);
             return SelectionListener(
               selectionNotifier: _listenerAt(i),
               // the row may come out a little wider than the estimate of the scroll's width: it is not an error
