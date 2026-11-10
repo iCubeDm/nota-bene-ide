@@ -182,57 +182,6 @@ void main() {
     expect(inSheet(find.text('Model and effort')), findsNothing);
   });
 
-  testWidgets('Clear asks first and sends only on its button', (t) async {
-    await sheet(t);
-    await t.tap(find.text('Clear'));
-    await t.pumpAndSettle();
-    expect(find.text(webString('clearTitle', 'en')), findsOneWidget);
-    expect(r.sent, isEmpty);
-    await t.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await t.pumpAndSettle();
-    expect(r.sent, isEmpty);
-    await t.tap(find.text('Clear'));
-    await t.pumpAndSettle();
-    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
-    await t.pumpAndSettle();
-    expect(r.sent.single, {'type': 'command', 'name': 'clear'});
-    expect(find.byType(WindowSheet), findsNothing);
-  });
-
-  Future<void> confirmClear(WidgetTester t) async {
-    await t.tap(find.text('Clear'));
-    await t.pumpAndSettle();
-  }
-
-  testWidgets('Clear refused while the agent works: the web\'s note', (
-    t,
-  ) async {
-    await sheet(t);
-    await confirmClear(t);
-    r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
-    await t.pump();
-    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
-    await t.pumpAndSettle();
-    expect(r.sent, isEmpty);
-    expect(
-      find.text(webString('clearFail', 'en') + webString('working', 'en')),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Clear refused offline: the web\'s note', (t) async {
-    await sheet(t);
-    await confirmClear(t);
-    r.ch.drop();
-    await t.pump();
-    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
-    await t.pumpAndSettle();
-    expect(
-      find.text(webString('clearFail', 'en') + webString('offline', 'en')),
-      findsOneWidget,
-    );
-  });
-
   testWidgets('Restart asks, then sends', (t) async {
     await sheet(t);
     await t.tap(find.text('Restart'));
@@ -243,32 +192,26 @@ void main() {
     expect(r.sent.single, {'type': 'restart'});
   });
 
-  testWidgets('busy: Clear is off, Restart is not', (t) async {
+  testWidgets('busy: Restart is not off', (t) async {
     await sheet(
       t,
       events: [
         {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
       ],
     );
-    await t.tap(find.text('Clear'));
-    await t.pumpAndSettle();
-    expect(find.text(webString('clearTitle', 'en')), findsNothing);
-    expect(r.sent, isEmpty);
     await t.tap(find.text('Restart'));
     await t.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
   });
 
-  testWidgets(
-    'no Clear when the agent cannot; Compact and Stats are not here',
-    (t) async {
-      await sheet(t, hi: hello(compact: false, clear: false));
-      expect(find.text('Compact'), findsNothing);
-      expect(find.text('Stats'), findsNothing);
-      expect(find.text('Clear'), findsNothing);
-      expect(find.text('Restart'), findsOneWidget);
-    },
-  );
+  testWidgets('Clear, Compact and Stats are not here: they are the context '
+      'sheet\'s', (t) async {
+    await sheet(t);
+    expect(find.text('Clear'), findsNothing);
+    expect(find.text('Compact'), findsNothing);
+    expect(find.text('Stats'), findsNothing);
+    expect(find.text('Restart'), findsOneWidget);
+  });
 
   testWidgets('the model row shows the model and opens the model sheet', (
     t,

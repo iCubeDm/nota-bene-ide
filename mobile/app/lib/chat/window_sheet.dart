@@ -1,8 +1,7 @@
 // The window sheet of a phone chat (opened from the header pill): what the window does: the session and its folder, the
-// model and effort, one row per permission mode, and two tiles (clear, restart). What it uses (context, limits, cost,
-// compact, stats) is the context sheet's. Each control sends what
-// the desktop's sends, under the same conditions (web/src/controls/CompactClear.tsx, ModePill.tsx): clear is off while
-// the agent works and absent when the agent cannot; restart is always there.
+// model and effort, one row per permission mode, and a restart tile. What it uses (context, limits, cost, compact, clear,
+// stats) is the context sheet's. Each control sends what the desktop's sends, under the same conditions
+// (web/src/controls/ModePill.tsx); restart is always there.
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -138,18 +137,6 @@ class WindowSheet extends StatelessWidget {
               gap,
               Row(
                 children: [
-                  if (caps?.clear ?? true) ...[
-                    Expanded(
-                      child: SheetTile(
-                        NbGlyph.clear,
-                        t.tileClear,
-                        tooltip: webString('clearTip', lang),
-                        enabled: open && !busy,
-                        onTap: () => _clear(context),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
                   Expanded(
                     child: SheetTile(
                       NbGlyph.restart,
@@ -170,38 +157,6 @@ class WindowSheet extends StatelessWidget {
       );
     },
   );
-
-  Future<void> _clear(BuildContext context) async {
-    final t = AppLocalizations.of(context);
-    final lang = Localizations.localeOf(context).languageCode;
-    final messenger = ScaffoldMessenger.maybeOf(outer);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(webString('clearTitle', lang)),
-        content: Text(webString('clearQ', lang)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: Text(t.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: Text(webString('clearBtn', lang)),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    if (context.mounted) Navigator.pop(context);
-    // the agent can turn busy while the dialog is open (another window sent): say so, as the desktop does
-    final why = runWindowCommand(tab, ClientMessageCommandName.clear, lang);
-    if (why != null) {
-      messenger?.showSnackBar(
-        SnackBar(content: Text(webString('clearFail', lang) + why)),
-      );
-    }
-  }
 }
 
 /// One permission mode: its name over its description in a row at least 48 tall, a check on the current one. A mode
