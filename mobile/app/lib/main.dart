@@ -14,6 +14,7 @@ import 'settings_screen.dart';
 import 'store/hosts.dart';
 import 'store/seen.dart';
 import 'store/lang_choice.dart';
+import 'store/sizes.dart';
 import 'store/voice_lang.dart';
 import 'store/theme_choice.dart';
 import 'store/vault.dart';
@@ -29,6 +30,8 @@ Future<void> main() async {
   final langs = await LangChoice.load(SecureVault());
   // the language speech is transcribed in
   final voiceLang = await VoiceLang.load(SecureVault());
+  // the text and interface sizes
+  final sizes = await Sizes.load(SecureVault());
   // one hidden WebView for every diagram of the app, kept above the Navigator with the lock
   final mermaid = CachedMermaid(WebViewMermaid());
   runApp(
@@ -36,7 +39,13 @@ Future<void> main() async {
       themes: themes,
       langs: langs,
       voiceLang: voiceLang,
-      home: AppRoot(themes: themes, langs: langs, voiceLang: voiceLang),
+      sizes: sizes,
+      home: AppRoot(
+        themes: themes,
+        langs: langs,
+        voiceLang: voiceLang,
+        sizes: sizes,
+      ),
       lock: (nav) => LockGate(
         authenticator: DeviceAuthenticator(),
         child: MermaidScope(renderer: mermaid, child: nav),
@@ -52,11 +61,13 @@ class AppRoot extends StatefulWidget {
     required this.themes,
     required this.langs,
     required this.voiceLang,
+    required this.sizes,
   });
 
   final ThemeChoice themes;
   final LangChoice langs;
   final VoiceLang voiceLang;
+  final Sizes sizes;
 
   @override
   State<AppRoot> createState() => _AppRootState();
@@ -127,6 +138,7 @@ class _AppRootState extends State<AppRoot> {
               themes: widget.themes,
               langs: widget.langs,
               voiceLang: widget.voiceLang,
+              sizes: widget.sizes,
               onPair: pair,
             ),
           ),
@@ -161,9 +173,13 @@ class NbApp extends StatelessWidget {
     this.themes,
     this.langs,
     this.voiceLang,
+    this.sizes,
   });
 
   final Widget? home;
+
+  /// Text and interface size; the phone's own without one.
+  final Sizes? sizes;
 
   /// The phone's theme choice; Darcula without one (tests).
   final ThemeChoice? themes;
@@ -195,7 +211,10 @@ class NbApp extends StatelessWidget {
       final child = nav ?? const SizedBox.shrink();
       return VoiceLangScope(
         choice: voiceLang,
-        child: lock == null ? child : lock!(child),
+        child: SizesScope(
+          sizes: sizes,
+          child: lock == null ? child : lock!(child),
+        ),
       );
     },
   );

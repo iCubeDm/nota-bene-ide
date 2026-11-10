@@ -329,33 +329,43 @@ class _SheetState extends State<_Sheet> {
                       style: TextStyle(color: c.destructive),
                     ),
                   ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(t.cancel),
-                ),
-                FilledButton(
-                  // the text of every clip is part of the comment: Save waits for them
-                  onPressed: _busy || _failed || _session.active
-                      ? null
-                      : () => Navigator.pop(
-                          context,
-                          SheetSave(_text.text.trim(), _label, [
-                            for (final c in _clips)
-                              VoiceClip(
-                                text: c.text ?? '',
-                                id: c.id!,
-                                ms: c.ms,
-                                wave: c.wave,
+                // wraps, not overflows, when the text is large
+                Expanded(
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(t.cancel),
+                      ),
+                      FilledButton(
+                        // the text of every clip is part of the comment: Save waits for them
+                        onPressed: _busy || _failed || _session.active
+                            ? null
+                            : () => Navigator.pop(
+                                context,
+                                SheetSave(_text.text.trim(), _label, [
+                                  for (final c in _clips)
+                                    VoiceClip(
+                                      text: c.text ?? '',
+                                      id: c.id!,
+                                      ms: c.ms,
+                                      wave: c.wave,
+                                    ),
+                                ]),
                               ),
-                          ]),
-                        ),
-                  child: _busy
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(t.save),
+                        child: _busy
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(t.save),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
