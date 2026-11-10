@@ -281,8 +281,10 @@ class _Bar extends StatelessWidget {
         borderRadius: BorderRadius.circular(3),
       ),
       alignment: Alignment.centerLeft,
+      // heightFactor: a childless DecoratedBox under the aligned (loose) height would be 0 px tall
       child: FractionallySizedBox(
         widthFactor: pct.clamp(0, 100) / 100,
+        heightFactor: 1,
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: color,
