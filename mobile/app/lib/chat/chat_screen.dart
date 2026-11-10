@@ -26,7 +26,7 @@ import 'message_selection.dart';
 import 'sent_comments.dart';
 import 'window_tab.dart';
 
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
     required this.tab,
@@ -36,9 +36,21 @@ class ChatScreen extends StatelessWidget {
     this.itemBuilder,
     this.onTapTitle,
     this.onReply,
+    this.showHeader = true,
+    this.extraTop = 0,
+    this.focus,
   });
 
   final WindowTab tab;
+
+  /// False when a host puts the header above several panes itself.
+  final bool showHeader;
+
+  /// Room kept clear above the feed besides the header (a strip of tabs under it).
+  final double extraTop;
+
+  /// Lets the host scroll the feed to a message.
+  final ChatFocus? focus;
   final Widget? bottom;
   final List<Widget> actions;
 
@@ -55,22 +67,138 @@ class ChatScreen extends StatelessWidget {
   final Widget? Function(BuildContext, FeedItem)? itemBuilder;
 
   @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+/// Scrolls a chat's feed to a message from outside it (the comments pane).
+class ChatFocus {
+  Future<bool> Function(String messageId)? _go;
+
+  /// Scrolls to the feed item of message [id] (a user message, a reply, a tool call); false when it is not in the feed.
+  Future<bool> scrollTo(String id) => _go?.call(id) ?? Future.value(false);
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final _scroll = ScrollController();
+  final _targets = <String, GlobalKey>{};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.focus?._go = _scrollTo;
+  }
+
+  @override
+  void didUpdateWidget(ChatScreen old) {
+    super.didUpdateWidget(old);
+    if (old.focus != widget.focus) {
+      old.focus?._go = null;
+      widget.focus?._go = _scrollTo;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.focus?._go == _scrollTo) widget.focus?._go = null;
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// The feed key of the item message [id] names, or null.
+  String? _keyOf(String id) {
+    for (final it in widget.tab.feed.items) {
+      final k = feedKey(it);
+      if (k == 'user:$id' ||
+          k == 'assistant:$id' ||
+          k == id ||
+          (id.startsWith('tool:') && k == id) ||
+          (id.startsWith('plan:') && k == 'permission:${id.substring(5)}')) {
+        return k;
+      }
+    }
+    return null;
+  }
+
+  /// The feed is a lazy list: the item is built only near the screen. Jump near its place by the average height of an
+  /// item, then step toward it until it is built, and bring it into view.
+  Future<bool> _scrollTo(String id) async {
+    final key = _keyOf(id);
+    if (key == null || !_scroll.hasClients) return false;
+    final items = widget.tab.feed.items;
+    final at = items.indexWhere((it) => feedKey(it) == key);
+    final fromEnd = items.length - 1 - at;
+    // an item that is built already gets its key only on a rebuild
+    final fresh = !_targets.containsKey(key);
+    final target = _targets.putIfAbsent(key, GlobalKey.new);
+    if (fresh) setState(() {});
+    final pos = _scroll.position;
+    final avg = (pos.maxScrollExtent + pos.viewportDimension) / items.length;
+    // the reversed list: offset 0 is the newest
+    _scroll.jumpTo((fromEnd * avg).clamp(0.0, pos.maxScrollExtent));
+    for (var i = 0; i < 40; i++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return false;
+      if (target.currentContext != null) {
+        await Scrollable.ensureVisible(
+          target.currentContext!,
+          alignment: .3,
+          duration: const Duration(milliseconds: 250),
+        );
+        return true;
+      }
+      // not built: find which side it is on by the keyed neighbours the feed builds
+      final here = _scroll.position;
+      final up = _builtBeyond(fromEnd);
+      final step = here.viewportDimension * .8;
+      final next = (here.pixels + (up ? -step : step)).clamp(
+        0.0,
+        here.maxScrollExtent,
+      );
+      if (next == here.pixels) break;
+      _scroll.jumpTo(next);
+    }
+    return false;
+  }
+
+  /// Whether the items built now are all older than item [fromEnd] counted from the newest (so the item is below).
+  bool _builtBeyond(int fromEnd) {
+    final items = widget.tab.feed.items;
+    final built = <int>[];
+    final seen = <String>{};
+    void visit(Element e) {
+      final k = e.widget.key;
+      if (k is ValueKey<String> && seen.add(k.value)) {
+        final i = items.indexWhere((it) => feedKey(it) == k.value);
+        if (i >= 0) built.add(items.length - 1 - i);
+      }
+      e.visitChildren(visit);
+    }
+
+    context.visitChildElements(visit);
+    if (built.isEmpty) return false;
+    return built.reduce((a, b) => a < b ? a : b) > fromEnd;
+  }
+
+  @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([tab, tab.voiceOutbox]),
+    listenable: Listenable.merge([widget.tab, widget.tab.voiceOutbox]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
-      final f = tab.feed;
-      final pending = tab.voiceOutbox.entries;
+      final f = widget.tab.feed;
+      final pending = widget.tab.voiceOutbox.entries;
       final status = _status(t);
       final items = f.items;
       // the feed keeps the floating header clear
-      final top = MediaQuery.paddingOf(context).top + ChatHeader.extent;
+      final top =
+          MediaQuery.paddingOf(context).top +
+          (widget.showHeader ? ChatHeader.extent : 0) +
+          widget.extraTop;
       return Scaffold(
         body: SafeArea(
           top: false,
           child: FileOpener(
-            tab: tab,
+            tab: widget.tab,
             child: Stack(
               children: [
                 Column(
@@ -88,8 +216,9 @@ class ChatScreen extends StatelessWidget {
                     Expanded(
                       child: Stack(
                         children: [
-                          // reversed: the newest item sits at the bottom and stays in view while the user is there
+                          // reversed: the newest item sits at the widget.bottom and stays in view while the user is there
                           ListView.builder(
+                            controller: _scroll,
                             reverse: true,
                             // full width: the bubbles keep their own margins
                             padding: EdgeInsets.fromLTRB(
@@ -108,7 +237,7 @@ class ChatScreen extends StatelessWidget {
                                 final e = pending[pending.length - 1 - i];
                                 return PendingVoiceBubble(
                                   e,
-                                  tab.voiceOutbox,
+                                  widget.tab.voiceOutbox,
                                   key: ValueKey(e.key),
                                 );
                               }
@@ -116,7 +245,7 @@ class ChatScreen extends StatelessWidget {
                               if (i == items.length) {
                                 return Center(
                                   child: TextButton(
-                                    onPressed: tab.loadEarlier,
+                                    onPressed: widget.tab.loadEarlier,
                                     child: Text(t.showEarlier),
                                   ),
                                 );
@@ -124,30 +253,33 @@ class ChatScreen extends StatelessWidget {
                               final at = items.length - 1 - i;
                               final it = items[at];
                               final inner = _Commentable(
-                                tab: tab,
+                                tab: widget.tab,
                                 item: it,
-                                onReply: onReply ?? (_) {},
+                                onReply: widget.onReply ?? (_) {},
                                 child:
-                                    itemBuilder?.call(context, it) ??
+                                    widget.itemBuilder?.call(context, it) ??
                                     (chatSource(it) == null
                                         ? FeedItemView(it)
-                                        : _Marked(tab: tab, item: it)),
+                                        : _Marked(tab: widget.tab, item: it)),
                               );
                               // keyed by the item, not the index: a new item shifts every index of a reversed list
                               return KeyedSubtree(
                                 key: ValueKey(feedKey(it)),
                                 // the agent's turn is one bubble: its items are the pieces of it
-                                child: inAgentTurn(it)
-                                    ? AgentBubble(
-                                        first:
-                                            at == 0 ||
-                                            !inAgentTurn(items[at - 1]),
-                                        last:
-                                            at == items.length - 1 ||
-                                            !inAgentTurn(items[at + 1]),
-                                        child: inner,
-                                      )
-                                    : inner,
+                                child: KeyedSubtree(
+                                  key: _targets[feedKey(it)],
+                                  child: inAgentTurn(it)
+                                      ? AgentBubble(
+                                          first:
+                                              at == 0 ||
+                                              !inAgentTurn(items[at - 1]),
+                                          last:
+                                              at == items.length - 1 ||
+                                              !inAgentTurn(items[at + 1]),
+                                          child: inner,
+                                        )
+                                      : inner,
+                                ),
                               );
                             },
                             findChildIndexCallback: (key) {
@@ -170,26 +302,27 @@ class ChatScreen extends StatelessWidget {
                                 color: c.accent,
                               ),
                             ),
-                          ?overlay,
+                          ?widget.overlay,
                         ],
                       ),
                     ),
-                    ?bottom,
+                    ?widget.bottom,
                   ],
                 ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    bottom: false,
-                    child: ChatHeader(
-                      tab: tab,
-                      onTapTitle: onTapTitle,
-                      actions: actions,
+                if (widget.showHeader)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SafeArea(
+                      bottom: false,
+                      child: ChatHeader(
+                        tab: widget.tab,
+                        onTapTitle: widget.onTapTitle,
+                        actions: widget.actions,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -199,9 +332,9 @@ class ChatScreen extends StatelessWidget {
   );
 
   String? _status(AppLocalizations t) {
-    final l = tab.link;
-    return switch (tab.state) {
-      TabState.open => tab.busy ? t.working : null,
+    final l = widget.tab.link;
+    return switch (widget.tab.state) {
+      TabState.open => widget.tab.busy ? t.working : null,
       TabState.connecting => t.connecting,
       TabState.offline =>
         l.lastSeen == null
@@ -659,7 +792,7 @@ class _ToolLineState extends State<ToolLine> {
     final path = toolPath(it);
     final file = tab == null || path == null
         ? null
-        : projectFile(tab.root, path);
+        : projectPath(tab.root, path);
     return Padding(
       padding: EdgeInsets.only(left: it.sub ? 16 : 0, top: 2, bottom: 2),
       child: Column(

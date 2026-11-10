@@ -65,6 +65,17 @@ comment's text for the agent carries the transcripts after what was typed. Voice
 or later; without Whisper the microphone opens a sheet that installs it or turns it on (`/dictation/install`,
 `/dictation/on`) and follows the install to the end. The phone has no recognizer of its own.
 
+## Panes and files
+
+A chat is three panes, Files <- Chat -> Comments (`app/lib/chat/panes.dart`): on a narrow screen one at a time under the
+header, with a strip of tabs and a swipe across the screen; from 840 dp side by side. Back on Files goes up a folder,
+then, like back on Comments, to the chat. The Files pane (`app/lib/files/files_pane.dart`) reads the window's `/tree`,
+`/complete` and `/file`: "This session" on top, then the project's folders and files; a file opens full screen, Markdown,
+images and video as before and anything else as read-only text in the code view (the first 2 MiB; a binary or larger
+file says so). A comment on a selection in it is anchored to the file with the desktop's text model of a code file. The
+Comments pane (`app/lib/comments/comments_pane.dart`) lists the pending comments with Send and the sent ones by the
+message they went with.
+
 ## The APK
 
 CI builds it in the `mobile` job and uploads it as the `nota-bene-android` artifact. Builds of this repository are

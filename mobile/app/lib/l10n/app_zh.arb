@@ -187,5 +187,21 @@
   "voiceDelete": "删除",
   "voiceRecordFailed": "录音失败",
   "voiceLeaveTitle": "发送语音消息？",
-  "voiceLeaveBody": "录音尚未发送。"
+  "voiceLeaveBody": "录音尚未发送。",
+  "fileBinary": "这是二进制文件，{size}。手机只显示文本文件。",
+  "fileTooLargeSize": "文件对手机来说太大了：{size}（上限 2 MB）。请在电脑上打开。",
+  "folderNotFound": "这个文件夹不存在（或已被删除）。",
+  "tabFiles": "文件",
+  "tabChat": "聊天",
+  "tabComments": "评论",
+  "thisSession": "本次会话",
+  "showAll": "显示全部（{count}）",
+  "projectFolder": "项目",
+  "searchFiles": "搜索文件",
+  "noMatches": "没有找到。",
+  "emptyFolder": "这个文件夹是空的。",
+  "folderUp": "上一级文件夹",
+  "noCommentsYet": "还没有评论。在聊天或文件中选中文字，然后点“评论”。",
+  "sentComments": "已发送",
+  "voiceFinishFirst": "请先完成或删除语音消息。"
 }

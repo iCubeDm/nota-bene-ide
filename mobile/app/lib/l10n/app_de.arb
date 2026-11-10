@@ -187,5 +187,21 @@
   "voiceDelete": "Löschen",
   "voiceRecordFailed": "Die Aufnahme ist fehlgeschlagen",
   "voiceLeaveTitle": "Sprachnachricht senden?",
-  "voiceLeaveBody": "Die Aufnahme wurde noch nicht gesendet."
+  "voiceLeaveBody": "Die Aufnahme wurde noch nicht gesendet.",
+  "fileBinary": "Das ist eine Binärdatei, {size}. Das Telefon zeigt nur Textdateien.",
+  "fileTooLargeSize": "Die Datei ist für das Telefon zu groß: {size} (Grenze 2 MB). Öffne sie am Computer.",
+  "folderNotFound": "Diesen Ordner gibt es nicht (mehr).",
+  "tabFiles": "Dateien",
+  "tabChat": "Chat",
+  "tabComments": "Kommentare",
+  "thisSession": "Diese Sitzung",
+  "showAll": "Alle anzeigen ({count})",
+  "projectFolder": "Projekt",
+  "searchFiles": "Dateien suchen",
+  "noMatches": "Nichts gefunden.",
+  "emptyFolder": "Dieser Ordner ist leer.",
+  "folderUp": "Einen Ordner hoch",
+  "noCommentsYet": "Noch keine Kommentare. Markiere Text im Chat oder in einer Datei und tippe auf Kommentieren.",
+  "sentComments": "Gesendet",
+  "voiceFinishFirst": "Beende oder lösche zuerst die Sprachnachricht."
 }

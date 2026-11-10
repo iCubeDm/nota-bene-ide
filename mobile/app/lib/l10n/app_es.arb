@@ -187,5 +187,21 @@
   "voiceDelete": "Eliminar",
   "voiceRecordFailed": "La grabación falló",
   "voiceLeaveTitle": "¿Enviar el mensaje de voz?",
-  "voiceLeaveBody": "La grabación aún no se ha enviado."
+  "voiceLeaveBody": "La grabación aún no se ha enviado.",
+  "fileBinary": "Es un archivo binario, {size}. El teléfono solo muestra archivos de texto.",
+  "fileTooLargeSize": "El archivo es demasiado grande para el teléfono: {size} (el límite es 2 MB). Ábrelo en el ordenador.",
+  "folderNotFound": "Esta carpeta ya no está.",
+  "tabFiles": "Archivos",
+  "tabChat": "Chat",
+  "tabComments": "Comentarios",
+  "thisSession": "Esta sesión",
+  "showAll": "Mostrar todo ({count})",
+  "projectFolder": "Proyecto",
+  "searchFiles": "Buscar archivos",
+  "noMatches": "No se encontró nada.",
+  "emptyFolder": "Esta carpeta está vacía.",
+  "folderUp": "Subir una carpeta",
+  "noCommentsYet": "Aún no hay comentarios. Selecciona texto en el chat o en un archivo y pulsa Comentar.",
+  "sentComments": "Enviados",
+  "voiceFinishFirst": "Termina o elimina primero el mensaje de voz."
 }

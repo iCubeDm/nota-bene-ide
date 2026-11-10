@@ -1,7 +1,12 @@
-// A code block full screen: black on the code background, line numbers beside the code, pinch-zoom and panning both
-// ways (lines are never wrapped), selectable text, copy and close in the bar.
+// A code block full screen: black on the code background, line numbers beside the code, a pinch that scales the text
+// and panning both ways (lines are never wrapped), selectable text, copy and close in the bar. The lines are built as
+// they scroll (a file can be thousands of them), each of a fixed height under a horizontal scroll as wide as the
+// longest.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:math' as math;
+import 'package:markdown/markdown.dart' as md;
+import 'package:nb_protocol/nb_protocol.dart' show AnchorSourceFile, TextAnchor;
 
 import '../comments/anchor.dart';
 import '../comments/chat_anchor.dart';
@@ -9,7 +14,9 @@ import '../comments/comment_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
+import '../ui/pinch_scale.dart';
 import 'code.dart';
+import 'code_marks.dart';
 import 'feed.dart';
 import 'window_tab.dart';
 
@@ -43,9 +50,17 @@ class CodeScreen extends StatefulWidget {
     this.tab,
     this.item,
     this.ordinal,
+    this.filePath,
+    this.title,
   });
 
   final String code;
+
+  /// A project file's text: a selection becomes a comment on the file (the desktop's file anchors), not on a message.
+  final String? filePath;
+
+  /// Shown in the bar instead of the language (a file's name).
+  final String? title;
   final String? lang;
 
   /// The window and the message the code is from: a selection becomes a comment on the message.
@@ -59,17 +74,120 @@ class CodeScreen extends StatefulWidget {
   State<CodeScreen> createState() => _CodeScreenState();
 }
 
+/// A line longer than this is not highlighted (the desktop's limit): one minified line would stall the screen.
+const highlightLineMax = 2000;
+
+/// [spans] (leaves covering a text) cut into the lines of that text.
+List<List<TextSpan>> splitSpanLines(List<TextSpan> spans) {
+  final lines = <List<TextSpan>>[[]];
+  for (final s in spans) {
+    final parts = (s.text ?? '').split('\n');
+    for (var i = 0; i < parts.length; i++) {
+      if (i > 0) lines.add([]);
+      if (parts[i].isNotEmpty) {
+        lines.last.add(TextSpan(text: parts[i], style: s.style));
+      }
+    }
+  }
+  return lines;
+}
+
 class _CodeScreenState extends State<CodeScreen> {
   String _selected = '';
+  final _listeners = <int, SelectionListenerNotifier>{};
 
-  String get _text => widget.code.endsWith('\n')
+  late final String _text = widget.code.endsWith('\n')
       ? widget.code.substring(0, widget.code.length - 1)
       : widget.code;
+  late final List<String> _lines = _text.split('\n');
+  late final List<int> _starts = () {
+    var at = 0;
+    return [
+      for (final l in _lines)
+        () {
+          final s = at;
+          at += l.length + 1;
+          return s;
+        }(),
+    ];
+  }();
+  late final int _longest = _lines.fold(0, (m, l) => math.max(m, l.length));
 
-  /// The selection in the message's text: found inside this code block's own place there, so the same words in the
-  /// prose around it are not taken for it.
+  // the highlighted lines, kept while the colours stay the same
+  NbColors? _spansFor;
+  List<List<TextSpan>> _spanLines = const [];
+
+  /// The desktop's text of a code file: its whitespace runs as one space (a `pre` of the text).
+  late final RenderedText _rendered = renderedText([
+    md.Element('pre', [
+      md.Element('code', [md.Text(widget.code)]),
+    ]),
+  ]);
+
+  SelectionListenerNotifier _listenerAt(int i) =>
+      _listeners.putIfAbsent(i, SelectionListenerNotifier.new);
+
+  List<List<TextSpan>> _highlighted(NbColors c) {
+    if (identical(_spansFor, c)) return _spanLines;
+    // a long line is blanked for the highlighter (same length) and shown plain
+    final source = _lines
+        .map((l) => l.length > highlightLineMax ? ' ' * l.length : l)
+        .join('\n');
+    final lines = splitSpanLines(highlightSpans(source, widget.lang, c));
+    _spanLines = [
+      for (var i = 0; i < _lines.length; i++)
+        _lines[i].length > highlightLineMax
+            ? [TextSpan(text: _lines[i])]
+            : i < lines.length
+            ? lines[i]
+            : [TextSpan(text: _lines[i])],
+    ];
+    _spansFor = c;
+    return _spanLines;
+  }
+
+  /// The existing comments of a project file, over the same rendered text, as ranges of the code's characters.
+  List<CodeMark> _marks() {
+    final tab = widget.tab, path = widget.filePath;
+    if (tab == null || path == null) return const [];
+    return codeMarksFor(
+      _rendered,
+      tab.comments.forFile(path).where((c) => c.anchor is TextAnchor),
+    );
+  }
+
+  /// Where the selection starts in the rendered text; null when no line holds it.
+  int? _hint() =>
+      selectionHint(_rendered, _listeners, (i) => _starts[i], _starts.length);
+
+  Future<void> _commentFile(WindowTab tab, String path) async {
+    final r = _rendered;
+    final at = locateSelection(r, _selected, _hint());
+    if (at == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).commentNotPlaced)),
+      );
+      return;
+    }
+    final res = await showCommentSheet(
+      context,
+      quote: r.text.substring(at.start, at.end),
+      tab: tab,
+    );
+    if (res is! SheetSave) return;
+    tab.comments.add(
+      makeAnchor(AnchorSourceFile(path: path), r.text, at.start, at.end),
+      res.text,
+      res.label,
+      voice: res.voice,
+    );
+  }
+
   Future<void> _comment() async {
     final tab = widget.tab, item = widget.item;
+    if (tab != null && widget.filePath != null) {
+      return _commentFile(tab, widget.filePath!);
+    }
     final source = item == null ? null : chatSource(item);
     final r = item == null ? null : chatText(item);
     if (tab == null || r == null || source == null) return;
@@ -77,7 +195,13 @@ class _CodeScreenState extends State<CodeScreen> {
     final block = ord == null
         ? locateSelection(r, _text, null)
         : chatCodeRange(item!, ord);
-    final at = locateSelection(r, _selected, block?.start, within: block);
+    // the selection's place in the block, near where its first line says it starts
+    final at = locateSelection(
+      r,
+      _selected,
+      block == null ? null : block.start + (_hint() ?? 0),
+      within: block,
+    );
     if (at == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocalizations.of(context).commentNotPlaced)),
@@ -98,21 +222,89 @@ class _CodeScreenState extends State<CodeScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final code = widget.code, lang = widget.lang;
-    final c = Theme.of(context).extension<NbColors>()!;
-    final t = AppLocalizations.of(context);
-    final text = code.endsWith('\n')
-        ? code.substring(0, code.length - 1)
-        : code;
-    final count = text.split('\n').length;
+  /// The lines, built as they scroll.
+  Widget _code(BuildContext context, NbColors c, double zoom) {
+    final size = 13 * zoom, height = size * 1.5;
     final style = TextStyle(
       fontFamily: 'monospace',
-      fontSize: 13,
+      fontSize: size,
       color: c.synText,
       height: 1.5,
     );
+    final tp = TextPainter(
+      text: TextSpan(text: 'M' * 100, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final charW = tp.width / 100;
+    tp.dispose();
+    final gutter = '${_lines.length}'.length * charW;
+    final width = 12 + gutter + 12 + _longest * charW + 24;
+    final spans = _highlighted(c);
+    final marks = _marks();
+    final strut = StrutStyle(
+      fontFamily: 'monospace',
+      fontSize: size,
+      height: 1.5,
+      forceStrutHeight: true,
+    );
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: width,
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          itemExtent: height,
+          itemCount: _lines.length,
+          itemBuilder: (context, i) {
+            final line = _lines[i];
+            final from = _starts[i];
+            final local = marksInRow(marks, from, line.length);
+            return SelectionListener(
+              selectionNotifier: _listenerAt(i),
+              // the row may come out a little wider than the estimate of the scroll's width: it is not an error
+              child: OverflowBox(
+                alignment: Alignment.centerLeft,
+                maxWidth: double.infinity,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(width: 12),
+                    SelectionContainer.disabled(
+                      child: SizedBox(
+                        width: gutter,
+                        child: Text(
+                          '${i + 1}',
+                          textAlign: TextAlign.end,
+                          strutStyle: strut,
+                          style: style.copyWith(color: c.mutedFg),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text.rich(
+                      TextSpan(
+                        style: style,
+                        children: paintMarks(spans[i], local, c),
+                      ),
+                      softWrap: false,
+                      strutStyle: strut,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lang = widget.lang;
+    final c = Theme.of(context).extension<NbColors>()!;
+    final t = AppLocalizations.of(context);
+    final count = _lines.length;
     return Scaffold(
       backgroundColor: c.codeBg,
       body: SafeArea(
@@ -126,7 +318,15 @@ class _CodeScreenState extends State<CodeScreen> {
                   icon: NbIcon(NbGlyph.close, color: c.foreground),
                   onPressed: () => Navigator.of(context).maybePop(),
                 ),
-                if (lang != null && lang.isNotEmpty)
+                if (widget.title != null)
+                  Flexible(
+                    child: Text(
+                      widget.title!,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: c.foreground, fontSize: 14),
+                    ),
+                  )
+                else if (lang != null && lang.isNotEmpty)
                   Text(
                     lang,
                     style: TextStyle(color: c.foreground, fontSize: 14),
@@ -139,7 +339,8 @@ class _CodeScreenState extends State<CodeScreen> {
                     style: TextStyle(color: c.mutedFg, fontSize: 12),
                   ),
                 ),
-                if (widget.tab != null && widget.item != null)
+                if (widget.tab != null &&
+                    (widget.item != null || widget.filePath != null))
                   IconButton(
                     tooltip: t.comment,
                     icon: NbIcon(NbGlyph.comments, color: c.foreground),
@@ -148,45 +349,21 @@ class _CodeScreenState extends State<CodeScreen> {
                 IconButton(
                   tooltip: t.copy,
                   icon: NbIcon(NbGlyph.copy, color: c.foreground),
-                  onPressed: () => Clipboard.setData(ClipboardData(text: text)),
+                  onPressed: () =>
+                      Clipboard.setData(ClipboardData(text: _text)),
                 ),
               ],
             ),
             Expanded(
-              child: SelectionArea(
-                onSelectionChanged: (s) =>
-                    setState(() => _selected = s?.plainText ?? ''),
-                child: InteractiveViewer(
-                  constrained: false,
-                  minScale: 0.5,
-                  maxScale: 3,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SelectionContainer.disabled(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              for (var i = 1; i <= count; i++)
-                                Text(
-                                  '$i',
-                                  style: style.copyWith(color: c.mutedFg),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text.rich(
-                          TextSpan(
-                            style: style,
-                            children: highlightSpans(text, lang, c),
-                          ),
-                          softWrap: false,
-                        ),
-                      ],
-                    ),
+              child: PinchScale(
+                builder: (context, zoom) => SelectionArea(
+                  onSelectionChanged: (s) =>
+                      setState(() => _selected = s?.plainText ?? ''),
+                  child: ListenableBuilder(
+                    listenable: Listenable.merge([
+                      if (widget.tab != null) widget.tab!.comments,
+                    ]),
+                    builder: (context, _) => _code(context, c, zoom),
                   ),
                 ),
               ),

@@ -90,7 +90,10 @@ void main() {
     await r.open(t);
     await t.tap(find.byTooltip('Agent'));
     await t.pumpAndSettle();
-    expect(find.text('Files'), findsOneWidget);
+    expect(
+      find.widgetWithText(PopupMenuItem<Object?>, 'Files'),
+      findsOneWidget,
+    );
     expect(find.text('Compact'), findsNothing);
     expect(find.text('Restart agent'), findsNothing);
   });

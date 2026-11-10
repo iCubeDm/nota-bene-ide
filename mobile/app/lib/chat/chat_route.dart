@@ -9,7 +9,11 @@ import '../l10n/app_localizations.dart';
 import '../store/seen.dart';
 import '../theme.dart';
 import '../comments/comment_strip.dart';
+import '../comments/comments_pane.dart';
+import '../files/files_pane.dart';
+import 'chat_header.dart';
 import 'chat_screen.dart';
+import 'panes.dart';
 import 'composer.dart';
 import 'controls.dart';
 import 'feed.dart';
@@ -53,6 +57,10 @@ class _ChatRouteState extends State<ChatRoute> {
   );
   PermissionWatcher? _asks;
   final _draft = TextEditingController();
+  final _panes = PanesController();
+  final _focus_ = ChatFocus();
+  final _filesNav = GlobalKey<NavigatorState>();
+  final _depth = PaneDepth();
   final _focus = FocusNode();
 
   @override
@@ -89,6 +97,7 @@ class _ChatRouteState extends State<ChatRoute> {
     _asks?.dispose();
     _tab.dispose();
     _draft.dispose();
+    _depth.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -124,23 +133,58 @@ class _ChatRouteState extends State<ChatRoute> {
     );
   }
 
+  /// A comment on a message was tapped in the comments pane: the chat comes back and scrolls to it.
+  Future<void> _toMessage(String id) async {
+    _panes.show(Pane.chat);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (mounted) await _focus_.scrollTo(id);
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: _tab,
-    builder: (context, _) => ChatScreen(
-      tab: _tab,
-      onTapTitle: () => showWindowSheet(context, _tab),
-      actions: [AgentMenu(tab: _tab)],
-      bottom: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CommentStrip(tab: _tab),
-          Composer(tab: _tab, controller: _draft, focus: _focus),
-        ],
+    builder: (context, _) => Scaffold(
+      body: ChatPanes(
+        tab: _tab,
+        controller: _panes,
+        filesNavigator: _filesNav,
+        depth: _depth,
+        header: ChatHeader(
+          tab: _tab,
+          onTapTitle: () => showWindowSheet(context, _tab),
+          actions: [
+            AgentMenu(tab: _tab, onFiles: () => _panes.show(Pane.files)),
+          ],
+        ),
+        chat: (wide, top) => ChatScreen(
+          tab: _tab,
+          showHeader: wide,
+          extraTop: top,
+          focus: _focus_,
+          onTapTitle: () => showWindowSheet(context, _tab),
+          actions: [
+            AgentMenu(tab: _tab, onFiles: () => _panes.show(Pane.files)),
+          ],
+          bottom: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CommentStrip(tab: _tab),
+              Composer(tab: _tab, controller: _draft, focus: _focus),
+            ],
+          ),
+          overlay: OneTabOverlay(tab: _tab),
+          itemBuilder: _item,
+          onReply: _reply,
+        ),
+        files: (top) => FilesPane(
+          tab: _tab,
+          navigatorKey: _filesNav,
+          observers: [_depth],
+          topInset: top,
+        ),
+        comments: (top) =>
+            CommentsPane(tab: _tab, topInset: top, onChat: _toMessage),
       ),
-      overlay: OneTabOverlay(tab: _tab),
-      itemBuilder: _item,
-      onReply: _reply,
     ),
   );
 }

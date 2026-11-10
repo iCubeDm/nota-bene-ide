@@ -181,7 +181,7 @@ String _file(String path, String? ref) => ref == null ? path : '$path @ $ref';
 
 /// Where a comment's fragment lives, as the desktop's `whereOf` names it: a file as its path (`path @ ref` from another
 /// branch), a media mark with its time and size; a chat fragment as the desktop's plain name for it (my message, reply, or chat for one the feed no longer holds).
-String _whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
+String whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
   MediaAnchor(:final source, :final time, :final width, :final height) =>
     '${_file(source.path, source.ref)}${time != null ? ' @ ${mediaTime(time.toDouble())}' : ''} · ${jsNum(width)}×${jsNum(height)}',
   TextAnchor(source: AnchorSourceFile(:final path, :final ref)) => _file(
@@ -304,7 +304,7 @@ int generatedImages(Comment c) =>
             .where((l) => l.id == c.label)
             .firstOrNull
             ?.instruction;
-        return '${i + 1}. [${_whereOf(c, feed, lang)}]\n$quote\n→ $body$more${instr != null ? '\n   $instr' : ''}$tail';
+        return '${i + 1}. [${whereOf(c, feed, lang)}]\n$quote\n→ $body$more${instr != null ? '\n   $instr' : ''}$tail';
       }(),
   ];
   return (
