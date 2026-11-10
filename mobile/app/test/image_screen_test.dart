@@ -349,6 +349,102 @@ void main() {
     r.dispose();
   });
 
+  double scaleOf(WidgetTester t) => t
+      .widget<InteractiveViewer>(find.byType(InteractiveViewer).first)
+      .transformationController!
+      .value
+      .getMaxScaleOnAxis();
+
+  /// Two fingers on the picture, apart by [from] and then spread by [by] (one finger stays, as a thumb does), moved
+  /// over several frames; they stay down.
+  Future<List<TestGesture>> pinch(
+    WidgetTester t,
+    Offset by, {
+    double from = 60,
+  }) async {
+    final c = t.getCenter(find.byType(PageView));
+    final a = await t.startGesture(c - Offset(from / 2, 0), pointer: 1);
+    final b = await t.startGesture(c + Offset(from / 2, 0), pointer: 2);
+    await t.pump(const Duration(milliseconds: 16));
+    for (var i = 1; i <= 10; i++) {
+      await b.moveTo(c + Offset(from / 2, 0) + by * (i / 10));
+      await t.pump(const Duration(milliseconds: 16));
+    }
+    return [a, b];
+  }
+
+  testWidgets('a two-finger pinch from scale 1 zooms and keeps the page', (
+    t,
+  ) async {
+    final r = await openImage(t, items: three, index: 1);
+    expect(scaleOf(t), 1);
+    final fingers = await pinch(t, const Offset(200, 120));
+    expect(scaleOf(t), greaterThan(2));
+    for (final g in fingers) {
+      await g.up();
+    }
+    await settleReal(t, 2);
+    expect(scaleOf(t), greaterThan(2));
+    expect(find.text('2 / 3'), findsOneWidget);
+    expect(find.byType(ImageScreen), findsOneWidget);
+    r.dispose();
+  });
+
+  testWidgets('a mostly vertical pinch does not close the viewer', (t) async {
+    final r = await openImage(t);
+    final fingers = await pinch(t, const Offset(30, 200));
+    for (final g in fingers) {
+      await g.up();
+    }
+    await settleReal(t, 2);
+    expect(find.byType(ImageScreen), findsOneWidget);
+    expect(scaleOf(t), greaterThan(2));
+    r.dispose();
+  });
+
+  testWidgets('a double tap zooms in at the tap and a second one zooms out', (
+    t,
+  ) async {
+    final r = await openImage(t);
+    final at = t.getCenter(find.byType(PageView)) + const Offset(40, 10);
+    Future<void> doubleTap() async {
+      await t.tapAt(at);
+      await t.pump(const Duration(milliseconds: 60));
+      await t.tapAt(at);
+      await settleReal(t, 2);
+    }
+
+    await doubleTap();
+    expect(scaleOf(t), closeTo(2.5, 0.01));
+    await doubleTap();
+    expect(scaleOf(t), closeTo(1, 0.01));
+    r.dispose();
+  });
+
+  testWidgets('zoomed, one finger pans and the page stays; at 1 it swipes', (
+    t,
+  ) async {
+    final r = await openImage(t, items: three, index: 1);
+    final at = t.getCenter(find.byType(PageView));
+    await t.tapAt(at);
+    await t.pump(const Duration(milliseconds: 60));
+    await t.tapAt(at);
+    await settleReal(t, 2);
+    expect(scaleOf(t), greaterThan(2));
+    await t.fling(find.byType(PageView), const Offset(-100, 0), 1500);
+    await settleReal(t, 4);
+    expect(find.text('2 / 3'), findsOneWidget);
+    await t.tapAt(at);
+    await t.pump(const Duration(milliseconds: 60));
+    await t.tapAt(at);
+    await settleReal(t, 2);
+    expect(scaleOf(t), closeTo(1, 0.01));
+    await t.fling(find.byType(PageView), const Offset(-400, 0), 1500);
+    await settleReal(t, 4);
+    expect(find.text('3 / 3'), findsOneWidget);
+    r.dispose();
+  });
+
   testWidgets('the bottom actions are Mark up, Comment and Share', (t) async {
     final r = await openImage(t);
     expect(find.byKey(const ValueKey('act-markup')), findsOneWidget);
