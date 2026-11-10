@@ -313,7 +313,7 @@
   "attachGrant": "Grant access",
   "attachPartialLine": "Only the photos you allowed are shown.",
   "attachManage": "Manage",
-  "attachNoMedia": "No photos or videos yet.",
+  "attachNoMedia": "No photos yet.",
   "@attachTooLarge": {
     "placeholders": {
       "names": {

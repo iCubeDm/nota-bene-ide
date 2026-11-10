@@ -446,12 +446,13 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    // The latest photos and videos (`nb/gallery`), from MediaStore: `access {ask, settings}` answers "full", "partial"
-    // (Android 14's selected photos: MediaStore then lists only what the user allowed) or "denied", after the permission
-    // dialog when [ask] is set; with [settings] a permission the system no longer asks for opens the app's settings page
-    // instead. `page {offset, limit}` answers [{id, video, duration}] newest first, `thumbnail {id, video, px}` the jpeg
-    // bytes of one thumbnail (null when there is none), `take {items: [{id, video}]}` copies the items like a pick does.
-    // Thumbnails have threads of their own, so a page is not held up behind them.
+    // The latest photos (`nb/gallery`), from MediaStore: `access {ask, settings}` answers "full", "partial" (Android 14's
+    // selected photos: MediaStore then lists only what the user allowed) or "denied", after the permission dialog when
+    // [ask] is set; with [settings] a permission the system no longer asks for opens the app's settings page instead.
+    // `page {offset, limit, mimes}` answers [{id}] newest first, only of the image types in `mimes` (what the attach flow
+    // takes, so no heic or video is offered), `thumbnail {id, px}` the jpeg bytes of one thumbnail (null when there is
+    // none), `take {items: [{id}]}` copies the items like a pick does. Thumbnails have threads of their own, so a page is
+    // not held up behind them.
     private var pendingGallery: MethodChannel.Result? = null
     private val thumbExecutor = Executors.newFixedThreadPool(3)
 
@@ -462,9 +463,10 @@ class MainActivity : FlutterFragmentActivity() {
                 "page" -> {
                     val offset = call.argument<Int>("offset") ?: 0
                     val limit = call.argument<Int>("limit") ?: 60
+                    val mimes = call.argument<List<String>>("mimes") ?: emptyList()
                     pickExecutor.execute {
                         try {
-                            val page = galleryPage(offset, limit)
+                            val page = galleryPage(offset, limit, mimes)
                             mainHandler.post { result.success(page) }
                         } catch (e: Throwable) {
                             mainHandler.post { result.error("read", e.message ?: e.javaClass.simpleName, null) }
@@ -473,10 +475,9 @@ class MainActivity : FlutterFragmentActivity() {
                 }
                 "thumbnail" -> {
                     val id = (call.argument<Number>("id") ?: 0).toLong()
-                    val video = call.argument<Boolean>("video") == true
                     val px = call.argument<Int>("px") ?: 256
                     thumbExecutor.execute {
-                        val bytes = try { galleryThumbnail(id, video, px) } catch (e: Throwable) { null }
+                        val bytes = try { galleryThumbnail(id, px) } catch (e: Throwable) { null }
                         mainHandler.post { result.success(bytes) }
                     }
                 }
@@ -486,7 +487,7 @@ class MainActivity : FlutterFragmentActivity() {
                         val out = ArrayList<Map<String, Any>>()
                         try {
                             for (m in items.take(MAX_PICK_COUNT)) {
-                                out.add(readPicked(galleryUri((m["id"] as Number).toLong(), m["video"] == true), null))
+                                out.add(readPicked(galleryUri((m["id"] as Number).toLong()), null))
                             }
                             mainHandler.post { result.success(out) }
                         } catch (e: Throwable) {
@@ -503,10 +504,9 @@ class MainActivity : FlutterFragmentActivity() {
     private fun galleryPermissions(): Array<String> = when {
         Build.VERSION.SDK_INT >= 34 -> arrayOf(
             Manifest.permission.READ_MEDIA_IMAGES,
-            Manifest.permission.READ_MEDIA_VIDEO,
             Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
         )
-        Build.VERSION.SDK_INT >= 33 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+        Build.VERSION.SDK_INT >= 33 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
         else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
 
@@ -514,9 +514,8 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun galleryState(): String = when {
         Build.VERSION.SDK_INT >= 33 ->
-            if (granted(Manifest.permission.READ_MEDIA_IMAGES) && granted(Manifest.permission.READ_MEDIA_VIDEO)) "full"
+            if (granted(Manifest.permission.READ_MEDIA_IMAGES)) "full"
             else if (Build.VERSION.SDK_INT >= 34 && granted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)) "partial"
-            else if (granted(Manifest.permission.READ_MEDIA_IMAGES) || granted(Manifest.permission.READ_MEDIA_VIDEO)) "partial"
             else "denied"
         granted(Manifest.permission.READ_EXTERNAL_STORAGE) -> "full"
         else -> "denied"
@@ -549,54 +548,34 @@ class MainActivity : FlutterFragmentActivity() {
         ActivityCompat.requestPermissions(this, perms, GALLERY_PERMISSION)
     }
 
-    private fun galleryUri(id: Long, video: Boolean): Uri = ContentUris.withAppendedId(
-        if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-        id,
-    )
+    private fun galleryUri(id: Long): Uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
 
-    private fun galleryPage(offset: Int, limit: Int): List<Map<String, Any>> {
-        val files = MediaStore.Files.getContentUri("external")
-        val columns = ArrayList(
-            listOf(MediaStore.Files.FileColumns._ID, MediaStore.Files.FileColumns.MEDIA_TYPE)
-        )
-        // the length of a video is a column of the files table from Android 10 on
-        if (Build.VERSION.SDK_INT >= 29) columns.add(MediaStore.MediaColumns.DURATION)
-        val select = "${MediaStore.Files.FileColumns.MEDIA_TYPE} IN (?, ?)"
-        val args = arrayOf(
-            MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
-            MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(),
-        )
-        val order = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC, ${MediaStore.Files.FileColumns._ID} DESC"
+    private fun galleryPage(offset: Int, limit: Int, mimes: List<String>): List<Map<String, Any>> {
+        val images = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val columns = arrayOf(MediaStore.Images.Media._ID)
+        val select = "${MediaStore.Images.Media.MIME_TYPE} IN (${mimes.joinToString(",") { "?" }})"
+        val order = "${MediaStore.Images.Media.DATE_ADDED} DESC, ${MediaStore.Images.Media._ID} DESC"
         val cursor = if (Build.VERSION.SDK_INT >= 26) {
             val q = Bundle().apply {
                 putString(ContentResolver.QUERY_ARG_SQL_SELECTION, select)
-                putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args)
+                putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, mimes.toTypedArray())
                 putString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER, order)
                 putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
                 putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
             }
-            contentResolver.query(files, columns.toTypedArray(), q, null)
+            contentResolver.query(images, columns, q, null)
         } else {
-            contentResolver.query(files, columns.toTypedArray(), select, args, "$order LIMIT $limit OFFSET $offset")
+            contentResolver.query(images, columns, select, mimes.toTypedArray(), "$order LIMIT $limit OFFSET $offset")
         }
         val out = ArrayList<Map<String, Any>>()
-        cursor?.use { c ->
-            while (c.moveToNext()) {
-                val video = c.getInt(1) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
-                val item = hashMapOf<String, Any>("id" to c.getLong(0), "video" to video)
-                if (video && columns.size > 2 && !c.isNull(2)) item["duration"] = c.getLong(2)
-                out.add(item)
-            }
-        }
+        cursor?.use { c -> while (c.moveToNext()) out.add(hashMapOf("id" to c.getLong(0))) }
         return out
     }
 
     @Suppress("DEPRECATION")
-    private fun galleryThumbnail(id: Long, video: Boolean, px: Int): ByteArray? {
+    private fun galleryThumbnail(id: Long, px: Int): ByteArray? {
         val bitmap: Bitmap? = if (Build.VERSION.SDK_INT >= 29) {
-            contentResolver.loadThumbnail(galleryUri(id, video), Size(px, px), null)
-        } else if (video) {
-            MediaStore.Video.Thumbnails.getThumbnail(contentResolver, id, MediaStore.Video.Thumbnails.MINI_KIND, null)
+            contentResolver.loadThumbnail(galleryUri(id), Size(px, px), null)
         } else {
             MediaStore.Images.Thumbnails.getThumbnail(contentResolver, id, MediaStore.Images.Thumbnails.MINI_KIND, null)
         }

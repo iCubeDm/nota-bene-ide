@@ -1,30 +1,24 @@
 import 'package:flutter/services.dart';
 
+import 'attach.dart' show imageTypes;
 import 'picker.dart';
 
-// The latest photos and videos of the phone, through MainActivity's `nb/gallery` channel (MediaStore). Unlike the
+// The latest photos of the phone, through MainActivity's `nb/gallery` channel (MediaStore). Unlike the
 // pickers this needs the photo permission, which the attach sheet asks for when it opens.
 const galleryChannel = MethodChannel('nb/gallery');
 
 /// How much of the gallery the app may read: everything, only what the user chose (Android 14's "selected photos") or nothing.
 enum GalleryAccess { full, partial, denied }
 
-/// One photo or video of the gallery. The [id] is MediaStore's; [duration] is a video's length.
+/// One photo of the gallery, of a type the attach flow takes. The [id] is MediaStore's.
 class GalleryItem {
-  const GalleryItem({
-    required this.id,
-    this.video = false,
-    this.duration = Duration.zero,
-  });
+  const GalleryItem({required this.id});
   final int id;
-  final bool video;
-  final Duration duration;
 
   @override
-  bool operator ==(Object other) =>
-      other is GalleryItem && other.id == id && other.video == video;
+  bool operator ==(Object other) => other is GalleryItem && other.id == id;
   @override
-  int get hashCode => Object.hash(id, video);
+  int get hashCode => id.hashCode;
 }
 
 /// Where the attach sheet gets the recent items; the channel in the app, a fake in tests.
@@ -73,15 +67,12 @@ class ChannelGallery implements GallerySource {
     final r = await galleryChannel.invokeListMethod<Object?>('page', {
       'offset': offset,
       'limit': limit,
+      // only the types the attach flow takes (no heic, say): the phone filters, so paging stays exact
+      'mimes': imageTypes,
     });
     return [
       for (final m in r ?? const <Object?>[])
-        if (m is Map && m['id'] is int)
-          GalleryItem(
-            id: m['id'] as int,
-            video: m['video'] == true,
-            duration: Duration(milliseconds: (m['duration'] as int?) ?? 0),
-          ),
+        if (m is Map && m['id'] is int) GalleryItem(id: m['id'] as int),
     ];
   }
 
@@ -92,7 +83,6 @@ class ChannelGallery implements GallerySource {
     if (kept != null) return _thumbs[key] = kept;
     final b = await galleryChannel.invokeMethod<Uint8List>('thumbnail', {
       'id': item.id,
-      'video': item.video,
       'px': px,
     });
     if (b == null) return null;
@@ -107,7 +97,7 @@ class ChannelGallery implements GallerySource {
   ) async => parsePicked(
     await galleryChannel.invokeListMethod<Object?>('take', {
       'items': [
-        for (final i in items) {'id': i.id, 'video': i.video},
+        for (final i in items) {'id': i.id},
       ],
     }),
   );

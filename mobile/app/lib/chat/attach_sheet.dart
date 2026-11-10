@@ -21,7 +21,7 @@ class AttachItems extends AttachChoice {
   final List<GalleryItem> items;
 }
 
-/// The latest photos and videos with Gallery, File and Camera above them, as in Telegram; null when dismissed.
+/// The latest photos with Gallery, File and Camera above them, as in Telegram; null when dismissed.
 Future<AttachChoice?> showAttachSheet(BuildContext context) =>
     showModalBottomSheet<AttachChoice>(
       context: context,
@@ -238,8 +238,7 @@ class _AttachSheetState extends State<_AttachSheet>
   }
 }
 
-/// One cell: the thumbnail (asked for only when the cell is built, so only what is on the screen), a video's length
-/// and the selection's badge, [number] being the place in the choice (0 when not chosen).
+/// One cell: the thumbnail (asked for only when the cell is built, so only what is on the screen), the selection's badge, [number] being the place in the choice (0 when not chosen).
 class _Cell extends StatefulWidget {
   const _Cell({
     super.key,
@@ -259,9 +258,6 @@ class _CellState extends State<_Cell> {
   late final Future<Uint8List?> _thumb = gallerySource
       .thumbnail(widget.item, 256)
       .then<Uint8List?>((b) => b, onError: (Object _) => null);
-
-  static String _length(Duration d) =>
-      '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
@@ -285,37 +281,6 @@ class _CellState extends State<_Cell> {
                   ),
           ),
           if (chosen) ColoredBox(color: cs.primary.withValues(alpha: 0.25)),
-          if (widget.item.video)
-            Positioned(
-              left: 4,
-              bottom: 4,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.play_arrow,
-                        size: 12,
-                        color: Colors.white,
-                      ),
-                      Text(
-                        _length(widget.item.duration),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           Positioned(
             top: 6,
             right: 6,

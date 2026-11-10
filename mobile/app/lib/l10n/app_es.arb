@@ -174,7 +174,7 @@
   "attachGrant": "Conceder acceso",
   "attachPartialLine": "Solo se muestran las fotos que permitiste.",
   "attachManage": "Gestionar",
-  "attachNoMedia": "Aún no hay fotos ni vídeos.",
+  "attachNoMedia": "Aún no hay fotos.",
   "share": "Compartir",
   "shareFailed": "No se pudo compartir la imagen.",
   "whisperTitle": "Dictado con Whisper",

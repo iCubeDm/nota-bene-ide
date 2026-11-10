@@ -174,7 +174,7 @@
   "attachGrant": "授予权限",
   "attachPartialLine": "仅显示你允许访问的照片。",
   "attachManage": "管理",
-  "attachNoMedia": "还没有照片或视频。",
+  "attachNoMedia": "还没有照片。",
   "share": "分享",
   "shareFailed": "无法分享图片。",
   "whisperTitle": "用 Whisper 语音输入",

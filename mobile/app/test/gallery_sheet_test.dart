@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/attach_sheet.dart';
 import 'package:nb_app/main.dart';
+import 'package:nb_app/media/attach.dart' show imageTypes;
 import 'package:nb_app/media/gallery.dart';
 import 'package:nb_app/media/picker.dart';
 
@@ -52,7 +53,7 @@ class FakeGallery implements GallerySource {
 }
 
 List<GalleryItem> items(int n) => [
-  for (var i = n; i > 0; i--) GalleryItem(id: i, video: i == 2),
+  for (var i = n; i > 0; i--) GalleryItem(id: i),
 ];
 
 void main() {
@@ -107,15 +108,24 @@ void main() {
     expect(g.pages.first.$1, 0);
   });
 
-  testWidgets('a video shows its length', (t) async {
-    final v = [
-      const GalleryItem(id: 1, video: true, duration: Duration(seconds: 75)),
-    ];
-    await open(t, FakeGallery(v));
-    expect(
-      find.descendant(of: cell(1), matching: find.text('1:15')),
-      findsOneWidget,
+  testWidgets('only the types the attach flow takes are asked for', (t) async {
+    Object? args;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(galleryChannel, (call) async {
+          args = call.arguments;
+          return [
+            {'id': 7},
+          ];
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(galleryChannel, null),
     );
+    final got = await ChannelGallery().page(0, 60);
+    expect([for (final i in got) i.id], [7]);
+    // the phone filters by these: no heic, no video, nothing selectable that fails later
+    expect((args as Map)['mimes'], imageTypes);
+    expect(imageTypes, isNot(contains('image/heic')));
   });
 
   testWidgets('taps number the choice and a deselect renumbers', (t) async {
@@ -146,7 +156,6 @@ void main() {
     await t.pumpAndSettle();
     final c = got as AttachItems;
     expect([for (final i in c.items) i.id], [4, 2]);
-    expect(c.items[1].video, isTrue);
   });
 
   testWidgets('Gallery, File and Camera still answer their source', (t) async {
@@ -229,6 +238,6 @@ void main() {
 
   testWidgets('an empty gallery says so', (t) async {
     await open(t, FakeGallery(const []));
-    expect(find.text('No photos or videos yet.'), findsOneWidget);
+    expect(find.text('No photos yet.'), findsOneWidget);
   });
 }
