@@ -332,12 +332,11 @@ void main() {
     expect(find.text(fmtTokens(900000, 'en')), findsOneWidget);
   });
 
-  testWidgets('the window sheet opens the screen', (t) async {
+  testWidgets('the context sheet opens the screen', (t) async {
     await r.open(t);
     host((p) async => answer(200, jsonEncode(report())));
     install();
-    await t.tap(find.text('untitled'));
-    await t.pumpAndSettle();
+    await r.openContextSheet(t);
     await t.tapText('Stats');
     expect(find.byType(UsageScreen), findsOneWidget);
     expect(usageGets(), hasLength(1));
@@ -354,8 +353,7 @@ void main() {
         'capabilities': Rig.caps(usage: false),
       },
     );
-    await t.tap(find.text('untitled'));
-    await t.pumpAndSettle();
+    await r.openContextSheet(t);
     await t.tap(find.text('Stats'));
     await t.pumpAndSettle();
     expect(find.byType(UsageScreen), findsNothing);

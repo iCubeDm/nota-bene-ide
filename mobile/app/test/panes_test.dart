@@ -7,6 +7,8 @@ import 'package:nb_app/chat/chat_route.dart';
 import 'package:nb_app/chat/composer.dart';
 import 'package:nb_app/comments/comments_pane.dart';
 import 'package:nb_app/files/files_pane.dart';
+import 'package:nb_app/theme.dart';
+import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_app/voice/player.dart';
 import 'package:nb_app/voice/record_button.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -378,6 +380,38 @@ void main() {
       await t.pumpAndSettle();
       expect(find.byType(Composer).hitTestable(), findsOneWidget);
       expect(find.text('message number 0').hitTestable(), findsOneWidget);
+    });
+  });
+
+  group('the mode under Chat', () {
+    Map<String, Object?> hello(List<String> modes) => {
+      'kind': 'hello',
+      'protocol': 13,
+      'capabilities': Rig.caps(modes: modes),
+    };
+
+    testWidgets('written small under the label, danger without prompts', (
+      t,
+    ) async {
+      await open(t, hello: hello(['default', 'auto']));
+      expect(find.byKey(const ValueKey('sub-1')), findsNothing);
+      r.event({'kind': 'mode', 'mode': 'default'});
+      await t.pumpAndSettle();
+      final sub = find.byKey(const ValueKey('sub-1'));
+      expect(t.widget<Text>(sub).data, webString('mode_default', 'en'));
+      final c = Theme.of(t.element(sub)).extension<NbColors>()!;
+      expect(t.widget<Text>(sub).style!.color, c.mutedFg);
+      r.event({'kind': 'mode', 'mode': 'auto'});
+      await t.pumpAndSettle();
+      expect(t.widget<Text>(sub).data, webString('mode_auto', 'en'));
+      expect(t.widget<Text>(sub).style!.color, c.destructive);
+    });
+
+    testWidgets('not written when the agent offers one mode', (t) async {
+      await open(t, hello: hello(['default']));
+      r.event({'kind': 'mode', 'mode': 'default'});
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('sub-1')), findsNothing);
     });
   });
 }

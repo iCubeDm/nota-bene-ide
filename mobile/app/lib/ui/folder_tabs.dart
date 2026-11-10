@@ -12,6 +12,7 @@ class FolderTabs extends StatelessWidget {
     required this.at,
     required this.onTap,
     this.badges = const {},
+    this.subs = const {},
     this.pill = false,
   });
   final List<String> labels;
@@ -22,6 +23,9 @@ class FolderTabs extends StatelessWidget {
 
   /// Index to count: a badge when the count is above 0.
   final Map<int, int> badges;
+
+  /// Index to a second, smaller line under its label (the chat's mode); `danger` paints it in the danger colour.
+  final Map<int, ({String text, bool danger})> subs;
 
   /// A floating stadium with a sliding lighter one for the current tab, instead of an underline.
   final bool pill;
@@ -62,15 +66,33 @@ class FolderTabs extends StatelessWidget {
                             Flexible(
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
-                                child: Text(
-                                  label,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: (at - i).abs() < .5
-                                        ? c.foreground
-                                        : c.mutedFg,
-                                  ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      label,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        height: subs[i] == null ? null : 1.1,
+                                        color: (at - i).abs() < .5
+                                            ? c.foreground
+                                            : c.mutedFg,
+                                      ),
+                                    ),
+                                    if (subs[i] case final sub?)
+                                      Text(
+                                        sub.text,
+                                        key: ValueKey('sub-$i'),
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          height: 1.1,
+                                          color: sub.danger
+                                              ? c.destructive
+                                              : c.mutedFg,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                             ),

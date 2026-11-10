@@ -1,13 +1,16 @@
-// The floating header of a phone chat: a back button, a pill with the session (avatar, name; under it the context in use and the mode)
-// and a round button for the actions. It floats over the feed, which scrolls under it.
+// The floating header of a phone chat: a back button, a pill with the session (avatar, name; under it what the session is
+// doing) and the context ring. It floats over the feed, which scrolls under it.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:nb_protocol/nb_protocol.dart' show CapabilitiesProvider;
 
-import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
+import 'context_sheet.dart' show contextColor;
+import 'session_state.dart';
 import 'window_tab.dart';
 
 /// The avatar letter of a provider: `claude` C, `codex` X, `omp` O, else the first letter or `?`.
@@ -35,11 +38,15 @@ class ChatHeader extends StatelessWidget {
     super.key,
     required this.tab,
     this.onTapTitle,
+    this.onTapRing,
     this.actions = const [],
   });
 
   final WindowTab tab;
   final VoidCallback? onTapTitle;
+
+  /// Tapping the context ring (the context sheet); null leaves the ring inert.
+  final VoidCallback? onTapRing;
   final List<Widget> actions;
 
   /// The height of the header with its margins (the feed keeps this much clear at its top).
@@ -50,10 +57,10 @@ class ChatHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
-    final lang = Localizations.localeOf(context).languageCode;
     final f = tab.feed;
-    final used = tab.stats?.stats.context;
-    final mode = shownMode(tab);
+    final ctx = tab.stats?.stats.context;
+    // without a live link the avatar and the ring dim; the ring keeps the last value
+    final live = tab.state == TabState.open;
     final shape = StadiumBorder(side: BorderSide(color: c.border));
     final fill = c.popover.withValues(alpha: 0.92);
     final content = MediaQuery.withClampedTextScaling(
@@ -61,20 +68,50 @@ class ChatHeader extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: 6),
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: c.muted, shape: BoxShape.circle),
-            child: Text(
-              providerLetter(switch (tab.capabilities?.provider) {
-                CapabilitiesProvider.$unknown || null => null,
-                final p => p.name,
-              }),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: c.foreground,
+          Opacity(
+            opacity: live ? 1 : 0.5,
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: c.muted,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      providerLetter(switch (tab.capabilities?.provider) {
+                        CapabilitiesProvider.$unknown || null => null,
+                        final p => p.name,
+                      }),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.foreground,
+                      ),
+                    ),
+                  ),
+                  if (live && tab.busy)
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        key: const ValueKey('busy-dot'),
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          color: c.accent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: c.popover, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -95,37 +132,7 @@ class ChatHeader extends StatelessWidget {
                     color: c.foreground,
                   ),
                 ),
-                // the context in use and the agent's mode; the model and the plan limits are in the window sheet
-                if (used != null || mode != null)
-                  Row(
-                    children: [
-                      if (used != null)
-                        _Meter(
-                          'ctx',
-                          webString('ctx', lang),
-                          used.pct,
-                          lead: false,
-                        ),
-                      if (mode != null)
-                        Flexible(
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: used != null ? 8 : 0,
-                            ),
-                            child: Text(
-                              modeLabel(tab, mode, lang),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                height: 1.15,
-                                color: c.accent,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                _StateLine(tab: tab),
               ],
             ),
           ),
@@ -170,6 +177,15 @@ class ChatHeader extends StatelessWidget {
                     : InkWell(onTap: onTapTitle, child: content),
               ),
             ),
+            if (tab.capabilities != null || ctx != null) ...[
+              const SizedBox(width: 8),
+              ContextRing(
+                pct: ctx?.pct,
+                dimmed: !live,
+                onTap: onTapRing,
+                fill: fill,
+              ),
+            ],
             if (actions.isNotEmpty) ...[
               const SizedBox(width: 8),
               Material(
@@ -192,60 +208,173 @@ class ChatHeader extends StatelessWidget {
   }
 }
 
-/// One limit: a label, a 22x4 bar and the percent, as the web's meters (utilization is already 0 to 100).
-class _Meter extends StatelessWidget {
-  const _Meter(this.id, this.label, this.utilization, {required this.lead});
-  final String id;
-  final String label;
-  final num utilization;
-  final bool lead;
+/// The pill's second line. It ticks once a second while the agent works, for the elapsed time.
+class _StateLine extends StatefulWidget {
+  const _StateLine({required this.tab});
+  final WindowTab tab;
+
+  @override
+  State<_StateLine> createState() => _StateLineState();
+}
+
+class _StateLineState extends State<_StateLine> {
+  Timer? _tick;
+  Duration? _every;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.tab.link.addListener(_relink);
+  }
+
+  @override
+  void didUpdateWidget(_StateLine old) {
+    super.didUpdateWidget(old);
+    if (old.tab.link != widget.tab.link) {
+      old.tab.link.removeListener(_relink);
+      widget.tab.link.addListener(_relink);
+    }
+  }
+
+  // the link reconnecting or giving up changes the line (connecting…, seen N min ago) without the tab saying anything
+  void _relink() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.tab.link.removeListener(_relink);
+    _tick?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final tab = widget.tab;
+    final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
-    final pct = utilization.clamp(0, 100).round();
-    final level = meterLevel(utilization);
-    final fill = meterFill(c, utilization);
-    final style = TextStyle(
-      fontSize: 11,
-      height: 1.15,
-      color: level == 2 ? c.destructive : c.mutedFg,
+    final locale = Localizations.localeOf(context).languageCode;
+    // a second for the elapsed time of a turn, half a minute for "seen N min ago"
+    final every = tab.state == TabState.open && tab.busy
+        ? const Duration(seconds: 1)
+        : tab.state == TabState.offline
+        ? const Duration(seconds: 30)
+        : null;
+    if (every != _every) {
+      _tick?.cancel();
+      _every = every;
+      _tick = every == null
+          ? null
+          : Timer.periodic(every, (_) {
+              if (mounted) setState(() {});
+            });
+    }
+    return Text(
+      sessionLine(t, tab, tab.clock(), locale),
+      key: const ValueKey('state-line'),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 11,
+        height: 1.15,
+        color: sessionActive(tab) ? c.accent : c.mutedFg,
+      ),
     );
+  }
+}
+
+/// The context in use as a 40 dp ring with its percent inside: primary, accent from 70 %, the danger colour from 90 %.
+/// Dimmed (and still showing the last value) without a live link.
+class ContextRing extends StatelessWidget {
+  const ContextRing({
+    super.key,
+    required this.pct,
+    required this.dimmed,
+    required this.onTap,
+    required this.fill,
+  });
+
+  /// The context in use in percent; null when the window reports none (the ring is then empty).
+  final num? pct;
+  final bool dimmed;
+  final VoidCallback? onTap;
+  final Color fill;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final c = Theme.of(context).extension<NbColors>()!;
+    final shown = pct?.clamp(0, 100).round();
     return Semantics(
       container: true,
-      label: '$label $pct%',
+      button: onTap != null,
+      onTap: onTap,
+      label: shown == null ? t.contextTitle : '${t.contextTitle} $shown%',
       child: ExcludeSemantics(
-        child: Padding(
-          padding: EdgeInsets.only(left: lead ? 8 : 0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // no word before the bar: the meter says what it is to a screen reader only
-              Container(
-                width: 22,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: c.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-                alignment: Alignment.centerLeft,
-                child: FractionallySizedBox(
-                  widthFactor: pct / 100,
-                  child: DecoratedBox(
-                    key: ValueKey('fill-$id'),
-                    decoration: BoxDecoration(
-                      color: fill,
-                      borderRadius: BorderRadius.circular(2),
+        child: Tooltip(
+          message: t.contextTitle,
+          child: Opacity(
+            opacity: dimmed ? 0.5 : 1,
+            child: Material(
+              color: fill,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onTap,
+                child: SizedBox.square(
+                  dimension: ChatHeader._size,
+                  child: CustomPaint(
+                    key: const ValueKey('context-ring'),
+                    painter: _RingPainter(
+                      fraction: (shown ?? 0) / 100,
+                      color: contextColor(c, pct ?? 0),
+                      track: c.border,
+                    ),
+                    child: Center(
+                      child: Text(
+                        shown == null ? '–' : '$shown',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: c.foreground,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 3),
-              Text('$pct%', style: style),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class _RingPainter extends CustomPainter {
+  const _RingPainter({
+    required this.fraction,
+    required this.color,
+    required this.track,
+  });
+  final double fraction;
+  final Color color, track;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const w = 3.0;
+    final rect = (Offset.zero & size).deflate(w / 2 + 1);
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(rect, 0, 6.2832, false, p..color = track);
+    if (fraction > 0) {
+      canvas.drawArc(rect, -1.5708, 6.2832 * fraction, false, p..color = color);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter o) =>
+      o.fraction != fraction || o.color != color || o.track != track;
 }

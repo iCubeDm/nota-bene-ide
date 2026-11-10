@@ -1,5 +1,7 @@
-// The message field. Sending while the agent works asks first and then interrupts (force), as the desktop does; a send
-// the window refuses gives its text back. Disabled, not queued, while the tab does not own a live window.
+// The message field: the text, with the paperclip and the mic (Send once there is something to send) inside it, and a
+// floating Stop while the agent works. Sending while the agent works asks first and then interrupts (force), as the
+// desktop does; a send the window refuses gives its text back. A draft is written whenever; the send waits for a tab
+// that owns a live window.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -35,6 +37,9 @@ class _Draft {
   bool get pending => ref == null && !failed;
 }
 
+/// The mic, Send and the paperclip inside the field.
+const _button = 40.0;
+
 class Composer extends StatefulWidget {
   const Composer({super.key, required this.tab, this.controller, this.focus});
   final WindowTab tab;
@@ -53,6 +58,7 @@ class _ComposerState extends State<Composer> {
   StreamSubscription<ServerEventSendRefused>? _refused;
   ({String id, String text, Set<String> comments, List<_Draft> images})? _last;
   final _drafts = <_Draft>[];
+  final _trailing = LayerLink();
   late final _session = RecordSession(
     onRecorded: _recorded,
     onError: _recordFailed,
@@ -292,25 +298,6 @@ class _ComposerState extends State<Composer> {
     setState(() => _drafts.removeWhere(drafts.contains));
   }
 
-  /// The field's text laid out in the width it has beside the paperclip: more than a line wraps it.
-  bool _wraps(BuildContext context, double width) {
-    final text = _text.text;
-    if (text.isEmpty) return false;
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style:
-            Theme.of(context).textTheme.bodyLarge ??
-            DefaultTextStyle.of(context).style,
-      ),
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-    )..layout(maxWidth: width.clamp(1, double.infinity));
-    final lines = tp.computeLineMetrics().length;
-    tp.dispose();
-    return lines > 1;
-  }
-
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([widget.tab, widget.tab.comments, _session]),
@@ -341,69 +328,15 @@ class _ComposerState extends State<Composer> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_drafts.isNotEmpty) _strip(t, c),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(child: _field(context, t, c, open, recording)),
-                  const SizedBox(width: 6),
-                  // the agent works: Stop, beside the round button
-                  if (open && widget.tab.busy)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6, bottom: 4),
-                      child: IconButton(
-                        key: const ValueKey('stop'),
-                        tooltip: t.stop,
-                        icon: const NbIcon(NbGlyph.stop),
-                        style: IconButton.styleFrom(
-                          fixedSize: const Size.square(40),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          backgroundColor: c.destructive,
-                          foregroundColor: c.background,
-                        ),
-                        onPressed: () =>
-                            widget.tab.send(const ClientMessageInterrupt()),
-                      ),
-                    ),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    transitionBuilder: (child, anim) => ScaleTransition(
-                      scale: anim,
-                      child: FadeTransition(opacity: anim, child: child),
-                    ),
-                    child: mic
-                        ? RecordButton(
-                            key: const ValueKey('mic'),
-                            session: _session,
-                            enabled: open,
-                            available: widget.tab.whisper,
-                            onUnavailable: () =>
-                                showWhisperSheet(context, widget.tab),
-                          )
-                        : IconButton(
-                            key: const ValueKey('send'),
-                            tooltip: uploading ? t.attachUploading : t.send,
-                            icon: uploading
-                                ? const SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const NbIcon(NbGlyph.send),
-                            style: IconButton.styleFrom(
-                              fixedSize: const Size.square(48),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              backgroundColor: canSend ? c.primary : c.muted,
-                              foregroundColor: canSend
-                                  ? c.primaryFg
-                                  : c.mutedFg,
-                              disabledBackgroundColor: c.muted,
-                              disabledForegroundColor: c.mutedFg,
-                            ),
-                            onPressed: canSend ? _send : null,
-                          ),
-                  ),
-                ],
+              _field(
+                context,
+                t,
+                c,
+                open: open,
+                recording: recording,
+                mic: mic,
+                canSend: canSend,
+                uploading: uploading,
               ),
             ],
           ),
@@ -412,90 +345,135 @@ class _ComposerState extends State<Composer> {
     },
   );
 
-  /// The rounded field. The paperclip sits at its right while the text is one line; once the text wraps it moves to
-  /// the top right corner and the text has the full width below it. A recording takes the whole field.
+  /// The rounded field with everything inside it: the text, then the paperclip (only while there is no text) and at the
+  /// right the mic, which becomes Send once there is something to send. A recording takes the text's place. While the
+  /// agent works a grey Stop floats 12 above the right button.
   Widget _field(
     BuildContext context,
     AppLocalizations t,
-    NbColors c,
-    bool open,
-    bool recording,
-  ) => Container(
-    constraints: const BoxConstraints(minHeight: 48),
-    decoration: BoxDecoration(
-      color: c.popover.withValues(alpha: .95),
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: c.border),
-    ),
-    child: LayoutBuilder(
-      builder: (context, box) {
-        // one line beside the paperclip: the border, the text's padding (16 + 4), the button (48) and the caret
-        final wrapped = _wraps(context, box.maxWidth - 2 - 16 - 4 - 48 - 2);
-        final clip = IconButton(
-          key: const ValueKey('attach'),
-          tooltip: t.attach,
-          icon: const NbIcon(NbGlyph.clip),
-          visualDensity: wrapped ? VisualDensity.compact : null,
-          onPressed: open ? _attach : null,
-        );
-        final field = TextField(
-          controller: _text,
-          focusNode: widget.focus,
-          enabled: open,
-          minLines: 1,
-          maxLines: 6,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: InputDecoration(
-            hintText: open ? t.messageHint : t.cannotSend,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            disabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            isDense: true,
-            contentPadding: EdgeInsets.fromLTRB(
-              16,
-              wrapped ? 0 : 14,
-              wrapped ? 16 : 4,
-              14,
+    NbColors c, {
+    required bool open,
+    required bool recording,
+    required bool mic,
+    required bool canSend,
+    required bool uploading,
+  }) {
+    final typed = _text.text.isNotEmpty;
+    final field = TextField(
+      controller: _text,
+      focusNode: widget.focus,
+      // a draft is written also while the window is away; only the send waits for it
+      minLines: 1,
+      maxLines: 6,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(
+        hintText: t.messageHint,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        isDense: true,
+        contentPadding: const EdgeInsets.fromLTRB(16, 14, 4, 14),
+      ),
+    );
+    final trailing = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      transitionBuilder: (child, anim) => ScaleTransition(
+        scale: anim,
+        child: FadeTransition(opacity: anim, child: child),
+      ),
+      child: mic
+          ? RecordButton(
+              key: const ValueKey('mic'),
+              session: _session,
+              enabled: open,
+              available: widget.tab.whisper,
+              onUnavailable: () => showWhisperSheet(context, widget.tab),
+            )
+          : IconButton(
+              key: const ValueKey('send'),
+              tooltip: uploading ? t.attachUploading : t.send,
+              icon: uploading
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const NbIcon(NbGlyph.send),
+              style: IconButton.styleFrom(
+                fixedSize: const Size.square(_button),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: canSend ? c.primary : c.muted,
+                foregroundColor: canSend ? c.primaryFg : c.mutedFg,
+                disabledBackgroundColor: c.muted,
+                disabledForegroundColor: c.mutedFg,
+              ),
+              onPressed: canSend ? _send : null,
+            ),
+    );
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      decoration: BoxDecoration(
+        color: c.popover.withValues(alpha: .95),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: c.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                // kept while recording: the typed text stays for after
+                Visibility(
+                  visible: !recording,
+                  maintainState: true,
+                  maintainSize: true,
+                  maintainAnimation: true,
+                  child: field,
+                ),
+                if (recording)
+                  Positioned.fill(
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: RecordRow(session: _session),
+                    ),
+                  ),
+              ],
             ),
           ),
-        );
-        return Stack(
-          children: [
-            // kept while recording: the typed text stays for after
-            Visibility(
-              visible: !recording,
-              maintainState: true,
-              maintainSize: true,
-              maintainAnimation: true,
-              child: wrapped
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Align(alignment: Alignment.centerRight, child: clip),
-                        field,
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(child: field),
-                        clip,
-                      ],
-                    ),
-            ),
-            if (recording)
-              Positioned.fill(
-                child: Align(
-                  alignment: Alignment.center,
-                  child: RecordRow(session: _session),
+          if (!typed && !recording)
+            Padding(
+              key: const ValueKey('attach-slot'),
+              padding: const EdgeInsets.only(bottom: 3),
+              child: IconButton(
+                key: const ValueKey('attach'),
+                tooltip: t.attach,
+                icon: const NbIcon(NbGlyph.clip),
+                style: IconButton.styleFrom(
+                  fixedSize: const Size.square(_button),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
+                onPressed: open ? _attach : null,
               ),
-          ],
-        );
-      },
-    ),
-  );
+            ),
+          // keyed: the button (and a recording in it) survives the paperclip leaving the row
+          Padding(
+            key: const ValueKey('trailing-slot'),
+            padding: const EdgeInsets.fromLTRB(0, 3, 4, 3),
+            child: CompositedTransformTarget(link: _trailing, child: trailing),
+          ),
+          // the layout of the row does not change: the portal floats over the feed. Only the hold hides it (the big
+          // circle and the lock are drawn over that place); a locked recording leaves the finger, and the turn can
+          // still be stopped
+          if (open && widget.tab.busy && !(recording && _session.holding))
+            _FloatingStop(
+              link: _trailing,
+              onStop: () => widget.tab.send(const ClientMessageInterrupt()),
+            ),
+        ],
+      ),
+    );
+  }
 
   /// The drafts' thumbnails above the pill: each with its remove cross, a failed one with a red frame.
   Widget _strip(AppLocalizations t, NbColors c) => SizedBox(
@@ -576,5 +554,66 @@ class _ComposerState extends State<Composer> {
         ],
       ),
     ),
+  );
+}
+
+/// Stop while the agent works: a grey 44 round button 12 above the right button of the field, on the overlay so it floats
+/// over the feed and takes no room from it.
+class _FloatingStop extends StatefulWidget {
+  const _FloatingStop({required this.link, required this.onStop});
+  final LayerLink link;
+  final VoidCallback onStop;
+
+  @override
+  State<_FloatingStop> createState() => _FloatingStopState();
+}
+
+class _FloatingStopState extends State<_FloatingStop> {
+  final _portal = OverlayPortalController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _portal.show();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => OverlayPortal(
+    controller: _portal,
+    overlayChildBuilder: (context) {
+      final t = AppLocalizations.of(context);
+      final c = Theme.of(context).extension<NbColors>()!;
+      return CompositedTransformFollower(
+        link: widget.link,
+        showWhenUnlinked: false,
+        targetAnchor: Alignment.topCenter,
+        followerAnchor: Alignment.bottomCenter,
+        offset: const Offset(0, -12),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          // named and tappable for TalkBack (the button's own tooltip is not a label)
+          child: Semantics(
+            label: t.stop,
+            button: true,
+            onTap: widget.onStop,
+            excludeSemantics: true,
+            child: IconButton(
+              key: const ValueKey('stop'),
+              tooltip: t.stop,
+              icon: const NbIcon(NbGlyph.stop),
+              style: IconButton.styleFrom(
+                fixedSize: const Size.square(44),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: c.muted,
+                foregroundColor: c.foreground,
+              ),
+              onPressed: widget.onStop,
+            ),
+          ),
+        ),
+      );
+    },
   );
 }

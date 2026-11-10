@@ -265,6 +265,7 @@ class _ChatPanesState extends State<ChatPanes> {
               child: PaneStrip(
                 page: _page,
                 pending: widget.tab.comments,
+                tab: widget.tab,
                 onTap: _show,
               ),
             ),
@@ -282,25 +283,40 @@ class PaneStrip extends StatelessWidget {
     required this.page,
     required this.pending,
     required this.onTap,
+    this.tab,
   });
   final PageController page;
   final Comments pending;
+
+  /// The window whose mode is written under Chat; null writes none.
+  final WindowTab? tab;
   final void Function(Pane) onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
+    final lang = Localizations.localeOf(context).languageCode;
     return ListenableBuilder(
-      listenable: Listenable.merge([page, pending]),
-      builder: (context, _) => FolderTabs(
-        labels: [t.tabFiles, t.tabChat, t.tabComments],
-        at: page.hasClients && page.position.haveDimensions
-            ? (page.page ?? 1.0)
-            : 1.0,
-        badges: {2: pending.pending.length},
-        onTap: (i) => onTap(Pane.values[i]),
-        pill: true,
-      ),
+      listenable: Listenable.merge([page, pending, ?tab]),
+      builder: (context, _) {
+        final mode = tab == null ? null : shownMode(tab!);
+        return FolderTabs(
+          labels: [t.tabFiles, t.tabChat, t.tabComments],
+          at: page.hasClients && page.position.haveDimensions
+              ? (page.page ?? 1.0)
+              : 1.0,
+          badges: {2: pending.pending.length},
+          subs: {
+            if (mode != null)
+              1: (
+                text: modeLabel(tab!, mode, lang),
+                danger: modeWithoutPrompts(mode),
+              ),
+          },
+          onTap: (i) => onTap(Pane.values[i]),
+          pill: true,
+        );
+      },
     );
   }
 }
