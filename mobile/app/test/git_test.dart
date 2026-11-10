@@ -7,6 +7,7 @@ import 'package:nb_app/files/diff_screen.dart';
 import 'package:nb_app/files/files_pane.dart';
 import 'package:nb_app/files/git.dart';
 import 'package:nb_app/theme.dart';
+import 'package:nb_app/ui/folder_tabs.dart';
 import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -14,13 +15,19 @@ import 'support/fakes.dart';
 import 'support/rig.dart';
 
 /// The screen position of [word] in the rendered paragraphs inside [within].
-Offset wordAt(WidgetTester t, String word, {required Finder within}) {
+Offset wordAt(
+  WidgetTester t,
+  String word, {
+  required Finder within,
+  int nth = 0,
+}) {
+  var seen = 0;
   for (final p in t.renderObjectList<RenderParagraph>(
     find.descendant(of: within, matching: find.byType(RichText)),
   )) {
     final text = p.text.toPlainText();
     final i = text.indexOf(word);
-    if (i == -1) continue;
+    if (i == -1 || seen++ < nth) continue;
     final box = p
         .getBoxesForSelection(
           TextSelection(baseOffset: i, extentOffset: i + word.length),
@@ -146,6 +153,7 @@ void main() {
         'dirty': true,
       },
       Map<String, String> patches = const {},
+      double inset = 0,
     }) async {
       await r.open(
         t,
@@ -187,7 +195,9 @@ void main() {
       final nav = Navigator.of(t.element(find.byType(Scaffold).first));
       nav.push(
         MaterialPageRoute<void>(
-          builder: (_) => Scaffold(body: FilesPane(tab: r.tab!)),
+          builder: (_) => Scaffold(
+            body: FilesPane(tab: r.tab!, topInset: inset),
+          ),
         ),
       );
       await t.pumpAndSettle();
@@ -282,6 +292,116 @@ void main() {
       await t.tap(find.text('Retry'));
       await t.pumpAndSettle();
       expect(find.text('new line'), findsOneWidget);
+    });
+
+    const repeated = '''@@ -1,3 +1,3 @@
+ same
+-old
++new
+ same
+''';
+
+    Future<void> openDiffOf(WidgetTester t, {String file = 'a.dart'}) async {
+      await t.tap(find.text('Changes'));
+      await t.pumpAndSettle();
+      await t.tap(find.text(file));
+      await t.pumpAndSettle();
+    }
+
+    testWidgets('a comment on a repeated line anchors where it was selected', (
+      t,
+    ) async {
+      await open(t, patches: {'lib/a.dart': repeated});
+      await openDiffOf(t);
+      await t.longPressAt(
+        wordAt(t, 'same', within: find.byType(DiffScreen), nth: 1),
+      );
+      await t.pumpAndSettle();
+      await t.tap(
+        find.descendant(
+          of: find.byType(DiffScreen),
+          matching: find.byTooltip('Comment'),
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      final a = r.tab!.comments.all.single.anchor as TextAnchor;
+      // `same old new same`: the second one
+      expect(a.start, 13);
+    });
+
+    Map<String, Object?> note(String id, int start, {String? ref}) => {
+      'id': id,
+      'text': 'n $id',
+      'status': 'pending',
+      'createdAt': 1,
+      'anchor': {
+        'source': {'kind': 'file', 'path': 'lib/a.dart', 'ref': ?ref},
+        'start': start,
+        'end': start + 3,
+        'quote': 'new',
+        'prefix': 'same old ',
+        'suffix': ' same',
+      },
+    };
+
+    List<String> painted(WidgetTester t) {
+      final out = <String>[];
+      for (final p in t.renderObjectList<RenderParagraph>(
+        find.descendant(
+          of: find.byType(DiffScreen),
+          matching: find.byType(RichText),
+        ),
+      )) {
+        p.text.visitChildren((s) {
+          if (s is TextSpan &&
+              s.style?.backgroundColor != null &&
+              s.text != null) {
+            out.add(s.text!);
+          }
+          return true;
+        });
+      }
+      return out;
+    }
+
+    testWidgets('the comments of the diff are painted; a commit\'s are not on '
+        'the working diff', (t) async {
+      await open(t, patches: {'lib/a.dart': repeated});
+      r.event({
+        'kind': 'comments',
+        'items': [note('a', 9), note('b', 9, ref: 'main')],
+      });
+      await t.pumpAndSettle();
+      await openDiffOf(t);
+      expect(painted(t), ['new']);
+    });
+
+    testWidgets('a big diff builds only the rows near the screen', (t) async {
+      final big = StringBuffer('@@ -1,2900 +1,2900 @@\n');
+      for (var i = 0; i < 2900; i++) {
+        big.writeln(' line $i');
+      }
+      await open(t, patches: {'lib/a.dart': big.toString()});
+      await openDiffOf(t);
+      expect(find.byType(DiffScreen), findsOneWidget);
+      expect(find.textContaining('line ').evaluate().length, lessThan(100));
+    });
+
+    testWidgets('pages of the pane start below the room the host keeps', (
+      t,
+    ) async {
+      await open(t, inset: 100);
+      expect(
+        t.getTopLeft(find.byType(FolderTabs)).dy,
+        greaterThanOrEqualTo(100),
+      );
+      await t.tap(find.text('Log'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Add the thing'));
+      await t.pumpAndSettle();
+      expect(t.getTopLeft(find.byType(AppBar)).dy, greaterThanOrEqualTo(100));
     });
 
     testWidgets('a diff over 3000 rows waits for Show', (t) async {

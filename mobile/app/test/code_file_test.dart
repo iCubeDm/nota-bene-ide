@@ -99,6 +99,40 @@ void main() {
     r.dispose();
   });
 
+  testWidgets('a comment of a commit\'s diff is not painted on the file', (
+    t,
+  ) async {
+    const text = 'foo(1); foo(1); foo(1);';
+    final r = await open(
+      t,
+      comments: [
+        {
+          'id': 'k1',
+          'text': 'old',
+          'status': 'pending',
+          'createdAt': 1,
+          'anchor': {
+            'source': {'kind': 'file', 'path': 'src/a.ts', 'ref': 'abc1234'},
+            'start': 8,
+            'end': 15,
+            'quote': 'foo(1);',
+            'prefix': text.substring(0, 8),
+            'suffix': text.substring(15),
+          },
+        },
+      ],
+    );
+    for (final p in t.renderObjectList<RenderParagraph>(
+      find.byType(RichText),
+    )) {
+      p.text.visitChildren((s) {
+        expect(s is TextSpan && s.style?.backgroundColor != null, isFalse);
+        return true;
+      });
+    }
+    r.dispose();
+  });
+
   testWidgets('a big file builds only the lines near the screen', (t) async {
     final body = [for (var i = 0; i < 5000; i++) 'line $i'].join('\n');
     final r = await open(t, body: body);
