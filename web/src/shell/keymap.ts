@@ -34,10 +34,12 @@ export type Binding = {
   mods: Mods;
   /** also when focus is in a text field; 'notMac': only off a Mac (Option+key types a character there) */
   inFields: boolean | 'notMac';
+  /** also with Cmd (Mac) / Ctrl held, which `run` reads from the event: Alt+R and Ctrl+Alt+R are one binding */
+  anyMod?: boolean;
   run: (c: Ctx) => void;
 };
 
-/** what Alt+R dispatches on the document; the composer listens (the keymap has the store but not the composer's recorder) */
+/** what Alt+R dispatches on the document; the composer listens (the keymap has the store but not the composer's recorder). `detail.force`: Cmd/Ctrl was held too */
 export const VOICE_KEY = 'nb:voice-key';
 
 export const isMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -78,7 +80,8 @@ export const BINDINGS: Binding[] = [
   // Alt+T, in a field too (also on a Mac, where Option+T is the † key): the drawer of background tasks. Alt+Shift+T is the reopen above
   { id: 'hk_tasks', codes: ['KeyT'], mods: { alt: true }, inFields: true, run: ({ store }) => void store.dispatch(toggleDrawer()) },
   // Alt+R, in a field too (also on a Mac, where Option+R types ®): starts a voice message in the composer, or sends the one being recorded
-  { id: 'hk_voice', codes: ['KeyR'], mods: { alt: true }, inFields: true, run: () => void document.dispatchEvent(new CustomEvent(VOICE_KEY)) },
+  { id: 'hk_voice', codes: ['KeyR'], mods: { alt: true }, inFields: true, anyMod: true,
+    run: ({ e }) => void document.dispatchEvent(new CustomEvent(VOICE_KEY, { detail: { force: isMac() ? e.metaKey : e.ctrlKey } })) },
   { id: 'hk_wrap', codes: ['KeyZ'], mods: { alt: true }, inFields: 'notMac', run: () => wrapLines.toggle() },
   // Alt, not Cmd/Ctrl: the browser's own zoom keeps Cmd/Ctrl +/−/0. Off a Mac in a field too (Option+− types – on a Mac)
   { id: 'hk_scaleUp', codes: ['Equal', 'NumpadAdd'], mods: { alt: true }, inFields: 'notMac', run: () => scaled(uiScale.step(1)) },
@@ -107,7 +110,7 @@ const matches = (b: Binding, e: KeyboardEvent): boolean => {
   // a plain `/` may need Shift on the layout: the plain keys ignore Shift
   const shiftOk = b.mods.mod || b.mods.alt ? e.shiftKey === !!b.mods.shift : true;
   // AltGr reports Ctrl+Alt off a Mac: never one of ours
-  return mod === !!b.mods.mod && e.altKey === !!b.mods.alt && shiftOk && !other;
+  return (b.anyMod || mod === !!b.mods.mod) && e.altKey === !!b.mods.alt && shiftOk && !other;
 };
 const inField = (b: Binding) => b.inFields === true || (b.inFields === 'notMac' && !isMac());
 // Radix sets no aria-modal (and a popover is role=dialog too): our modals carry data-nb-modal

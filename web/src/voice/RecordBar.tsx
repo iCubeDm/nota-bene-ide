@@ -1,9 +1,22 @@
 import { useEffect, useId, useRef } from 'react';
 import { useT } from '@/i18n/index.ts';
+import { BINDINGS, isMac, keysLabel } from '@/shell/keymap.ts';
 import { clock } from './lang.ts';
 import type { RecState } from './useVoiceRecorder.ts';
 import { release as releasePlay } from './player.ts';
 import { VoiceView } from './VoiceView.tsx';
+
+/** Cmd or Ctrl: Send with it forces, as the typed Enter does (the composer takes either on every platform). */
+const forcing = (e: { metaKey: boolean; ctrlKey: boolean }) => e.metaKey || e.ctrlKey;
+
+/** The Send button's tooltip: its keys, and while the agent works what queues and what interrupts. */
+function useSendTip(busy: boolean): string {
+  const t = useT();
+  const alt = keysLabel(BINDINGS.find((b) => b.id === 'hk_voice')!);
+  const mod = isMac() ? '⌘' : 'Ctrl+';
+  const tip = t('voiceSendTip', alt);
+  return busy ? `${tip}\n${t('voiceSendBusyTip', `${mod}Enter`, `${mod}${alt}`)}` : tip;
+}
 
 /** The bars that are mounted, oldest first: a key nobody has focus for (the page body) belongs to the newest only. */
 const mounted: object[] = [];
@@ -27,11 +40,13 @@ function LiveWave({ levels }: { levels: number[] }) {
 
 /**
  * The composer's field while a recording is made: a blinking red dot, the time, the live wave, then Cancel, Stop (to the
- * preview; only with `onStop`) and Send. Stopped: delete, the player and Send. Esc cancels, Enter sends.
+ * preview; only with `onStop`) and Send. Stopped: delete, the player and Send. Esc cancels (`onEscape` may take it first), Enter sends. While `busy`
+ * the agent works and Send queues the message; Cmd/Ctrl with Enter or a click on Send calls `onSend(true)`: the forced one.
  * `clip`: a comment's recording: the one button after Cancel is Stop, which adds the clip (no preview, nothing is sent).
  */
-export function RecordBar({ state, onCancel, onStop, onSend, clip = false }: { state: Exclude<RecState, { phase: 'idle' }>; onCancel: () => void; onStop?: () => void; onSend: () => void; clip?: boolean }) {
+export function RecordBar({ state, onCancel, onStop, onSend, clip = false, busy = false, onEscape }: { state: Exclude<RecState, { phase: 'idle' }>; onCancel: () => void; onStop?: () => void; onSend: (force: boolean) => void; clip?: boolean; busy?: boolean; onEscape?: () => boolean }) {
   const t = useT();
+  const sendTip = useSendTip(busy && !clip);
   const sending = state.phase === 'sending';
   const root = useRef<HTMLDivElement>(null);
   const me = useRef({}).current;
@@ -55,16 +70,16 @@ export function RecordBar({ state, onCancel, onStop, onSend, clip = false }: { s
         if (!(own || (bare && live && mounted[mounted.length - 1] === me))) return;
         if (!live && !isBar) return;
         e.preventDefault();
-        onCancel();
+        if (!onEscape?.()) onCancel();
       } else if (e.key === 'Enter' && !e.shiftKey && !(e.target as HTMLElement | null)?.closest?.('button, textarea, input, [contenteditable]')) {
         if (!(own || (bare && mounted[mounted.length - 1] === me))) return;
         e.preventDefault();
-        onSend();
+        onSend(forcing(e));
       }
     };
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [onCancel, onSend, live, me]);
+  }, [onCancel, onEscape, onSend, live, me]);
   // the stopped recording takes focus (the Stop button it came from is gone), so Esc and Enter keep working on it
   useEffect(() => {
     const a = document.activeElement;
@@ -86,7 +101,7 @@ export function RecordBar({ state, onCancel, onStop, onSend, clip = false }: { s
           <>
             <button type="button" aria-label={t('voiceCancel')} title={t('voiceCancel')} onClick={onCancel} className={`${ICON} text-muted-foreground hover:bg-muted hover:text-destructive`}><Cross /></button>
             {onStop && <button type="button" aria-label={t('voiceStop')} title={t('voiceStop')} onClick={onStop} className={`${ICON} text-destructive hover:bg-destructive/15`}><Square /></button>}
-            <button type="button" aria-label={clip ? t('voiceClipStop') : t('voiceSendTip')} title={clip ? t('voiceClipStop') : t('voiceSendTip')} onClick={onSend} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90`}>{clip ? <Square /> : <Plane />}</button>
+            <button type="button" aria-label={clip ? t('voiceClipStop') : t('voiceSendLabel')} title={clip ? t('voiceClipStop') : sendTip} onClick={(e) => onSend(forcing(e))} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90`}>{clip ? <Square /> : <Plane />}</button>
           </>
         )}
       </div>
@@ -99,7 +114,7 @@ export function RecordBar({ state, onCancel, onStop, onSend, clip = false }: { s
       <div className="min-w-0 flex-1">
         <VoiceView voice={{ id: previewId!, ms: recording.ms, wave: recording.wave }} src={state.url || undefined} />
       </div>
-      <button type="button" aria-label={t('voiceSendTip')} title={t('voiceSendTip')} disabled={sending} onClick={onSend} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50`}>
+      <button type="button" aria-label={t('voiceSendLabel')} title={sendTip} disabled={sending} onClick={(e) => onSend(forcing(e))} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50`}>
         {sending ? <span aria-hidden className="inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Plane />}
       </button>
     </div>
