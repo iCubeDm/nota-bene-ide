@@ -16,6 +16,7 @@ import '../comments/comment_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
+import '../ui/pinch_scale.dart';
 import 'code.dart';
 import 'feed.dart';
 import 'window_tab.dart';
@@ -94,12 +95,6 @@ List<List<TextSpan>> splitSpanLines(List<TextSpan> spans) {
 
 class _CodeScreenState extends State<CodeScreen> {
   String _selected = '';
-  double _zoom = 1;
-
-  // two fingers on the screen scale the text; the pointers are only watched, so scrolling and selecting go on
-  final _fingers = <int, Offset>{};
-  double _span0 = 0, _zoom0 = 1;
-
   final _listeners = <int, SelectionListenerNotifier>{};
 
   late final String _text = widget.code.endsWith('\n')
@@ -273,30 +268,9 @@ class _CodeScreenState extends State<CodeScreen> {
     );
   }
 
-  void _down(PointerDownEvent e) {
-    _fingers[e.pointer] = e.position;
-    if (_fingers.length == 2) {
-      _span0 = (_fingers.values.first - _fingers.values.last).distance;
-      _zoom0 = _zoom;
-    }
-  }
-
-  void _move(PointerMoveEvent e) {
-    if (!_fingers.containsKey(e.pointer)) return;
-    _fingers[e.pointer] = e.position;
-    if (_fingers.length != 2 || _span0 <= 0) return;
-    final span = (_fingers.values.first - _fingers.values.last).distance;
-    setState(() => _zoom = (_zoom0 * span / _span0).clamp(0.5, 3.0));
-  }
-
-  void _up(PointerEvent e) {
-    _fingers.remove(e.pointer);
-    _span0 = 0;
-  }
-
   /// The lines, built as they scroll.
-  Widget _code(BuildContext context, NbColors c) {
-    final size = 13 * _zoom, height = size * 1.5;
+  Widget _code(BuildContext context, NbColors c, double zoom) {
+    final size = 13 * zoom, height = size * 1.5;
     final style = TextStyle(
       fontFamily: 'monospace',
       fontSize: size,
@@ -438,19 +412,15 @@ class _CodeScreenState extends State<CodeScreen> {
               ],
             ),
             Expanded(
-              child: Listener(
-                onPointerDown: _down,
-                onPointerMove: _move,
-                onPointerUp: _up,
-                onPointerCancel: _up,
-                child: SelectionArea(
+              child: PinchScale(
+                builder: (context, zoom) => SelectionArea(
                   onSelectionChanged: (s) =>
                       setState(() => _selected = s?.plainText ?? ''),
                   child: ListenableBuilder(
                     listenable: Listenable.merge([
                       if (widget.tab != null) widget.tab!.comments,
                     ]),
-                    builder: (context, _) => _code(context, c),
+                    builder: (context, _) => _code(context, c, zoom),
                   ),
                 ),
               ),
