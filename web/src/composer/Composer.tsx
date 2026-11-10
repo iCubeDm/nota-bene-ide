@@ -1,5 +1,5 @@
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
@@ -52,6 +52,8 @@ export function Composer() {
   const [dropping, setDropping] = useState(false);
   // Cmd/Ctrl+Enter while the agent works would interrupt it: the first press only asks, a second one (or the button) confirms
   const [askForce, setAskForce] = useState(false);
+  const askForceRef = useRef(false);
+  askForceRef.current = askForce;
   useEffect(() => {
     if (!busy) setAskForce(false);
   }, [busy]);
@@ -73,8 +75,8 @@ export function Composer() {
     notify: flash,
     // sent at once, apart from the draft, the images and the pending comments (they stay where they are)
     // false keeps the uploaded recording in the preview: Send hands it over again
-    onDone: (v) => {
-      const ok = dispatch(sendVoice(v));
+    onDone: (v, force) => {
+      const ok = dispatch(sendVoice(v, undefined, force));
       if (!ok) flash(t('voiceRefused', t(switchingRef.current ? 'switching' : 'offline')));
       return ok;
     },
@@ -87,13 +89,35 @@ export function Composer() {
   recRef.current = rec;
   // a send the server refused: the recording comes back to the preview (the toast tells why)
   useEffect(() => onVoiceRefused((v) => recRef.current.restore(v)), []);
-  // Alt+R (the keymap): start a voice message, or send the one being made
+  // as a typed message: while the agent works Send queues, and the forced send (Cmd/Ctrl) asks before it interrupts
+  const voiceSubmit = (force: boolean) => {
+    if (switching) return;
+    if (force && busy && !askForce) {
+      setAskForce(true);
+      return;
+    }
+    setAskForce(false);
+    void recRef.current.send(force);
+  };
+  // Esc closes the question first, then the recording
+  const escQuestion = useCallback(() => {
+    if (!askForceRef.current) return false;
+    setAskForce(false);
+    return true;
+  }, []);
+  const voiceSubmitRef = useRef(voiceSubmit);
+  voiceSubmitRef.current = voiceSubmit;
+  // the question belongs to the recording: it is gone with it
   useEffect(() => {
-    const onKey = () => {
+    if (recPhase === 'idle') setAskForce(false);
+  }, [recPhase]);
+  // Alt+R (the keymap): start a voice message, or send the one being made; with Cmd/Ctrl, the forcing send
+  useEffect(() => {
+    const onKey = (e: Event) => {
       if (!voiceOk) return;
       if (!whisper) return openDictationSettings(dispatch);
       const r = recRef.current;
-      if (r.st.phase === 'idle') { if (!switching) r.start(false); } else void r.send();
+      if (r.st.phase === 'idle') { if (!switching) r.start(false); } else voiceSubmitRef.current(!!(e as CustomEvent<{ force?: boolean }>).detail?.force);
     };
     document.addEventListener(VOICE_KEY, onKey);
     return () => document.removeEventListener(VOICE_KEY, onKey);
@@ -220,7 +244,7 @@ export function Composer() {
         <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-foreground">
           <span>{t('forceAsk')}</span>
           <span className="grow" />
-          <Button type="button" size="sm" variant="destructive" className="h-7" onClick={() => submit(true)}>
+          <Button type="button" size="sm" variant="destructive" className="h-7" onClick={() => (recording ? voiceSubmit(true) : submit(true))}>
             {t('forceYes')}
           </Button>
           <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => { setAskForce(false); ref.current?.focus(); }}>
@@ -235,7 +259,7 @@ export function Composer() {
         onRemove={(id) => void dispatch(removeImage(id))}
       />
       <div data-record-scope data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
-        {recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} onCancel={rec.cancel} onStop={() => void rec.stop()} onSend={() => void rec.send()} /> : (<>
+        {recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} busy={busy} onCancel={rec.cancel} onEscape={escQuestion} onStop={() => void rec.stop()} onSend={voiceSubmit} /> : (<>
         <div className="relative flex min-w-0 flex-1">
         <textarea
           ref={ref}
