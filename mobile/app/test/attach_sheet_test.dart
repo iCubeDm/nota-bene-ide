@@ -6,10 +6,10 @@ import 'package:nb_app/media/picker.dart';
 import 'package:nb_app/ui/nb_icon.dart';
 
 void main() {
-  testWidgets('the sheet offers camera, gallery and file with the web glyphs', (
+  testWidgets('the sheet offers gallery, file and camera with the web glyphs', (
     t,
   ) async {
-    PickSource? got;
+    Object? got;
     await t.pumpWidget(
       NbApp(
         home: Builder(
@@ -25,9 +25,9 @@ void main() {
     final glyphs = [
       for (final i in t.widgetList<NbIcon>(find.byType(NbIcon))) i.glyph,
     ];
-    expect(glyphs, [NbGlyph.camera, NbGlyph.image, NbGlyph.file]);
+    expect(glyphs, [NbGlyph.image, NbGlyph.file, NbGlyph.camera]);
     await t.tap(find.text('Gallery'));
     await t.pumpAndSettle();
-    expect(got, PickSource.gallery);
+    expect((got as AttachFrom).source, PickSource.gallery);
   });
 }

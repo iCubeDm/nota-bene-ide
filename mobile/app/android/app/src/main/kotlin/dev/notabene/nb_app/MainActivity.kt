@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ClipData
+import android.content.ContentResolver
+import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -16,9 +18,11 @@ import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import android.provider.Settings
 import android.provider.OpenableColumns
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -31,6 +35,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import android.net.Uri
+import android.util.Size
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.Executors
@@ -221,6 +226,7 @@ class MainActivity : FlutterFragmentActivity() {
         configureRecord(flutterEngine)
         configurePlay(flutterEngine)
         configurePick(flutterEngine)
+        configureGallery(flutterEngine)
     }
 
     // Images from the system (`nb/pick`): `camera`, `gallery` and `file` each start one system activity and answer a
@@ -440,6 +446,167 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    // The latest photos and videos (`nb/gallery`), from MediaStore: `access {ask, settings}` answers "full", "partial"
+    // (Android 14's selected photos: MediaStore then lists only what the user allowed) or "denied", after the permission
+    // dialog when [ask] is set; with [settings] a permission the system no longer asks for opens the app's settings page
+    // instead. `page {offset, limit}` answers [{id, video, duration}] newest first, `thumbnail {id, video, px}` the jpeg
+    // bytes of one thumbnail (null when there is none), `take {items: [{id, video}]}` copies the items like a pick does.
+    // Thumbnails have threads of their own, so a page is not held up behind them.
+    private var pendingGallery: MethodChannel.Result? = null
+    private val thumbExecutor = Executors.newFixedThreadPool(3)
+
+    private fun configureGallery(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "nb/gallery").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "access" -> galleryAccess(call.argument<Boolean>("ask") == true, call.argument<Boolean>("settings") == true, result)
+                "page" -> {
+                    val offset = call.argument<Int>("offset") ?: 0
+                    val limit = call.argument<Int>("limit") ?: 60
+                    pickExecutor.execute {
+                        try {
+                            val page = galleryPage(offset, limit)
+                            mainHandler.post { result.success(page) }
+                        } catch (e: Throwable) {
+                            mainHandler.post { result.error("read", e.message ?: e.javaClass.simpleName, null) }
+                        }
+                    }
+                }
+                "thumbnail" -> {
+                    val id = (call.argument<Number>("id") ?: 0).toLong()
+                    val video = call.argument<Boolean>("video") == true
+                    val px = call.argument<Int>("px") ?: 256
+                    thumbExecutor.execute {
+                        val bytes = try { galleryThumbnail(id, video, px) } catch (e: Throwable) { null }
+                        mainHandler.post { result.success(bytes) }
+                    }
+                }
+                "take" -> {
+                    val items = call.argument<List<Map<String, Any>>>("items") ?: emptyList()
+                    pickExecutor.execute {
+                        val out = ArrayList<Map<String, Any>>()
+                        try {
+                            for (m in items.take(MAX_PICK_COUNT)) {
+                                out.add(readPicked(galleryUri((m["id"] as Number).toLong(), m["video"] == true), null))
+                            }
+                            mainHandler.post { result.success(out) }
+                        } catch (e: Throwable) {
+                            out.forEach { (it["path"] as? String)?.let { p -> File(p).delete() } }
+                            mainHandler.post { result.error("read", e.message ?: e.javaClass.simpleName, null) }
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun galleryPermissions(): Array<String> = when {
+        Build.VERSION.SDK_INT >= 34 -> arrayOf(
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO,
+            Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+        )
+        Build.VERSION.SDK_INT >= 33 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+        else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+
+    private fun granted(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
+
+    private fun galleryState(): String = when {
+        Build.VERSION.SDK_INT >= 33 ->
+            if (granted(Manifest.permission.READ_MEDIA_IMAGES) && granted(Manifest.permission.READ_MEDIA_VIDEO)) "full"
+            else if (Build.VERSION.SDK_INT >= 34 && granted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)) "partial"
+            else if (granted(Manifest.permission.READ_MEDIA_IMAGES) || granted(Manifest.permission.READ_MEDIA_VIDEO)) "partial"
+            else "denied"
+        granted(Manifest.permission.READ_EXTERNAL_STORAGE) -> "full"
+        else -> "denied"
+    }
+
+    private fun galleryAccess(ask: Boolean, settings: Boolean, result: MethodChannel.Result) {
+        val state = galleryState()
+        // "partial" is asked for again too: that is how the user changes the selection
+        if (!ask || state == "full" || pendingGallery != null) {
+            result.success(state)
+            return
+        }
+        val prefs = getSharedPreferences("nb_gallery", MODE_PRIVATE)
+        val asked = prefs.getBoolean("asked", false)
+        val perms = galleryPermissions()
+        // asked before and no rationale: the system will not show the dialog again
+        if (settings && asked && perms.none { ActivityCompat.shouldShowRequestPermissionRationale(this, it) }) {
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+                )
+            } catch (e: ActivityNotFoundException) {
+                // nowhere to send the user: the answer is the state it is
+            }
+            result.success(state)
+            return
+        }
+        prefs.edit().putBoolean("asked", true).apply()
+        pendingGallery = result
+        ActivityCompat.requestPermissions(this, perms, GALLERY_PERMISSION)
+    }
+
+    private fun galleryUri(id: Long, video: Boolean): Uri = ContentUris.withAppendedId(
+        if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+        id,
+    )
+
+    private fun galleryPage(offset: Int, limit: Int): List<Map<String, Any>> {
+        val files = MediaStore.Files.getContentUri("external")
+        val columns = ArrayList(
+            listOf(MediaStore.Files.FileColumns._ID, MediaStore.Files.FileColumns.MEDIA_TYPE)
+        )
+        // the length of a video is a column of the files table from Android 10 on
+        if (Build.VERSION.SDK_INT >= 29) columns.add(MediaStore.MediaColumns.DURATION)
+        val select = "${MediaStore.Files.FileColumns.MEDIA_TYPE} IN (?, ?)"
+        val args = arrayOf(
+            MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
+            MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(),
+        )
+        val order = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC, ${MediaStore.Files.FileColumns._ID} DESC"
+        val cursor = if (Build.VERSION.SDK_INT >= 26) {
+            val q = Bundle().apply {
+                putString(ContentResolver.QUERY_ARG_SQL_SELECTION, select)
+                putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args)
+                putString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER, order)
+                putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
+                putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
+            }
+            contentResolver.query(files, columns.toTypedArray(), q, null)
+        } else {
+            contentResolver.query(files, columns.toTypedArray(), select, args, "$order LIMIT $limit OFFSET $offset")
+        }
+        val out = ArrayList<Map<String, Any>>()
+        cursor?.use { c ->
+            while (c.moveToNext()) {
+                val video = c.getInt(1) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
+                val item = hashMapOf<String, Any>("id" to c.getLong(0), "video" to video)
+                if (video && columns.size > 2 && !c.isNull(2)) item["duration"] = c.getLong(2)
+                out.add(item)
+            }
+        }
+        return out
+    }
+
+    @Suppress("DEPRECATION")
+    private fun galleryThumbnail(id: Long, video: Boolean, px: Int): ByteArray? {
+        val bitmap: Bitmap? = if (Build.VERSION.SDK_INT >= 29) {
+            contentResolver.loadThumbnail(galleryUri(id, video), Size(px, px), null)
+        } else if (video) {
+            MediaStore.Video.Thumbnails.getThumbnail(contentResolver, id, MediaStore.Video.Thumbnails.MINI_KIND, null)
+        } else {
+            MediaStore.Images.Thumbnails.getThumbnail(contentResolver, id, MediaStore.Images.Thumbnails.MINI_KIND, null)
+        }
+        if (bitmap == null) return null
+        val out = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
+        bitmap.recycle()
+        return out.toByteArray()
+    }
+
     private fun hasMicrophone() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
@@ -449,6 +616,11 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == GALLERY_PERMISSION) {
+            pendingGallery?.let { it.success(galleryState()) }
+            pendingGallery = null
+            return
+        }
         if (requestCode == CAMERA_PERMISSION) {
             val camera = pendingCamera ?: return
             pendingCamera = null
@@ -654,6 +826,7 @@ class MainActivity : FlutterFragmentActivity() {
         releasePlayer()
         frameExecutor.shutdown()
         pickExecutor.shutdown()
+        thumbExecutor.shutdown()
         super.onDestroy()
     }
 
@@ -661,6 +834,7 @@ class MainActivity : FlutterFragmentActivity() {
         const val MIC_PERMISSION = 4791
         const val CAMERA_PERMISSION = 4792
         const val PICK_REQUEST = 4793
+        const val GALLERY_PERMISSION = 4794
 
         // what a pick answers: at most ten images, none over 40 MB (the phone skips it and says so)
         const val MAX_PICK_COUNT = 10

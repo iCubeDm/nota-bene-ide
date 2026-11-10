@@ -46,7 +46,13 @@ enum PickSource { camera, gallery, file }
 Future<({List<PickedImage> images, List<String> skipped})> pickImages(
   PickSource s,
 ) async {
-  final reply = await pickChannel.invokeListMethod<Object?>(s.name);
+  return parsePicked(await pickChannel.invokeListMethod<Object?>(s.name));
+}
+
+/// A channel's answer to a pick: {path, mime, name} per image, {skipped: name} per image that was too large.
+({List<PickedImage> images, List<String> skipped}) parsePicked(
+  List<Object?>? reply,
+) {
   final images = <PickedImage>[];
   final skipped = <String>[];
   for (final item in reply ?? const <Object?>[]) {

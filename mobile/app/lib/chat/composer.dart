@@ -12,6 +12,7 @@ import '../l10n/app_localizations.dart';
 import '../comments/comments.dart';
 import '../dictation/whisper_sheet.dart';
 import '../media/attach.dart';
+import '../media/gallery.dart';
 import '../media/picker.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
@@ -99,12 +100,15 @@ class _ComposerState extends State<Composer> {
 
   /// Picks from [source], then prepares and uploads each image in the background.
   Future<void> _attach() async {
-    final source = await showAttachSheet(context);
-    if (source == null || !mounted) return;
+    final choice = await showAttachSheet(context);
+    if (choice == null || !mounted) return;
     final t = AppLocalizations.of(context);
     final ({List<PickedImage> images, List<String> skipped}) got;
     try {
-      got = await pickImages(source);
+      got = switch (choice) {
+        AttachFrom(:final source) => await pickImages(source),
+        AttachItems(:final items) => await gallerySource.take(items),
+      };
     } on PlatformException catch (e) {
       if (!mounted) return;
       _say(switch (e.code) {
