@@ -860,6 +860,7 @@ enum ImageType implements _Json {
 final class Interaction implements _Json {
   const Interaction({
     required this.title,
+    this.tool,
     required this.choices,
     this.fields,
     this.url,
@@ -868,6 +869,7 @@ final class Interaction implements _Json {
   factory Interaction.fromJson(Map<String, Object?> json) {
     return Interaction(
       title: json['title'] as String,
+      tool: json['tool'] as String?,
       choices: _list(json['choices'], _obj(InteractionChoicesItem.fromJson)),
       fields: _listOrNull(json['fields'], _obj(InteractionFieldsItem.fromJson)),
       url: json['url'] as String?,
@@ -875,6 +877,7 @@ final class Interaction implements _Json {
   }
 
   final String title;
+  final String? tool;
   final List<InteractionChoicesItem> choices;
   final List<InteractionFieldsItem>? fields;
   final String? url;
@@ -883,6 +886,7 @@ final class Interaction implements _Json {
   Map<String, Object?> toJson() {
     return {
       'title': title,
+      if (tool != null) 'tool': tool,
       'choices': _jsonList(choices),
       if (fields != null) 'fields': _jsonList(fields),
       if (url != null) 'url': url,
@@ -941,6 +945,9 @@ final class InteractionFieldsItem implements _Json {
     this.secret,
     this.options,
     this.required,
+    this.header,
+    this.notes,
+    this.multi,
   });
 
   factory InteractionFieldsItem.fromJson(Map<String, Object?> json) {
@@ -950,6 +957,9 @@ final class InteractionFieldsItem implements _Json {
       secret: json['secret'] as bool?,
       options: _listOrNull(json['options'], _as<String>),
       required: json['required'] as bool?,
+      header: json['header'] as String?,
+      notes: _listOrNull(json['notes'], _as<String>),
+      multi: json['multi'] as bool?,
     );
   }
 
@@ -958,6 +968,9 @@ final class InteractionFieldsItem implements _Json {
   final bool? secret;
   final List<String>? options;
   final bool? required;
+  final String? header;
+  final List<String>? notes;
+  final bool? multi;
 
   @override
   Map<String, Object?> toJson() {
@@ -967,6 +980,9 @@ final class InteractionFieldsItem implements _Json {
       if (secret != null) 'secret': secret,
       if (options != null) 'options': options,
       if (required != null) 'required': required,
+      if (header != null) 'header': header,
+      if (notes != null) 'notes': notes,
+      if (multi != null) 'multi': multi,
     };
   }
 }

@@ -191,8 +191,11 @@ export type Stats = {
 
 export type Interaction = {
   title: string;
+  /** the tool the ask is for, when the title is not its name; the audit log and the permission event's toolName use it */
+  tool?: string;
   choices: { id: string; label: string; allow?: boolean }[];
-  fields?: { id: string; label: string; secret?: boolean; options?: string[]; required?: boolean }[];
+  /** `header`: a short tag over the label; `notes[i]`: the description of `options[i]`; `multi`: several options may be picked (the value is their labels, comma-separated) */
+  fields?: { id: string; label: string; secret?: boolean; options?: string[]; required?: boolean; header?: string; notes?: string[]; multi?: boolean }[];
   url?: string;
 };
 export type InteractionAnswer = { choice: string; values?: Record<string, string> };

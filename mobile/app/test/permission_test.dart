@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -112,6 +113,134 @@ void main() {
       });
     },
   );
+
+  testWidgets(
+    'AskUserQuestion options show descriptions; single replaces, several are comma-separated',
+    (t) async {
+      await r.open(t);
+      r.event({
+        'kind': 'permission',
+        'id': 'ask',
+        'toolName': 'Claude',
+        'input': {},
+        'prompt': {
+          'title': 'Claude',
+          'choices': [
+            {'id': 'submit', 'label': 'Send answers'},
+            {'id': 'cancel', 'label': 'Cancel'},
+          ],
+          'fields': [
+            {
+              'id': 'q0',
+              'label': 'Which library?',
+              'header': 'Library',
+              'required': true,
+              'options': ['dayjs', 'luxon'],
+              'notes': ['small', 'zones'],
+            },
+            {
+              'id': 'q1',
+              'label': 'Which features?',
+              'required': true,
+              'multi': true,
+              'options': ['A', 'B', 'C'],
+              'notes': ['a', 'b', 'c'],
+            },
+          ],
+        },
+        'ts': 1,
+      });
+      await t.pumpAndSettle();
+      expect(find.text('Library'), findsOneWidget);
+      expect(find.text('zones'), findsOneWidget);
+      Future<void> tapOption(String label) async {
+        final tile = find.widgetWithText(ListTile, label);
+        await t.ensureVisible(tile);
+        await t.pumpAndSettle();
+        await t.tap(tile, warnIfMissed: true);
+        await t.pump();
+      }
+
+      bool checked(String label) =>
+          t
+              .getSemantics(find.widgetWithText(ListTile, label))
+              .getSemanticsData()
+              .flagsCollection
+              .isChecked ==
+          ui.CheckedState.isTrue;
+
+      await tapOption('dayjs');
+      expect(checked('dayjs'), isTrue);
+      expect(checked('luxon'), isFalse);
+      await tapOption('luxon');
+      expect(checked('dayjs'), isFalse, reason: 'a single choice replaces');
+      expect(checked('luxon'), isTrue);
+      await tapOption('A');
+      await tapOption('C');
+      expect(checked('A'), isTrue);
+      expect(checked('C'), isTrue);
+      final send = find.widgetWithText(FilledButton, 'Send answers');
+      await t.ensureVisible(send);
+      await t.pumpAndSettle();
+      await t.tap(send);
+      await t.pumpAndSettle();
+      expect(r.sent.single['response'], {
+        'choice': 'submit',
+        'values': {'q0': 'luxon', 'q1': 'A, C'},
+      });
+    },
+  );
+
+  testWidgets('an option label with a comma is one option', (t) async {
+    await r.open(t);
+    r.event({
+      'kind': 'permission',
+      'id': 'c',
+      'toolName': 'AskUserQuestion',
+      'input': {},
+      'prompt': {
+        'title': 'Claude',
+        'choices': [
+          {'id': 'submit', 'label': 'Send answers'},
+        ],
+        'fields': [
+          {
+            'id': 'q0',
+            'label': 'Go on?',
+            'required': true,
+            'options': ['Yes, proceed', 'No'],
+          },
+          {
+            'id': 'q1',
+            'label': 'Which?',
+            'required': true,
+            'multi': true,
+            'options': ['Red, dark', 'Blue', 'Green'],
+          },
+        ],
+      },
+      'ts': 1,
+    });
+    await t.pumpAndSettle();
+    for (final l in ['Yes, proceed', 'Red, dark', 'Green']) {
+      final tile = find.widgetWithText(ListTile, l);
+      await t.ensureVisible(tile);
+      await t.pumpAndSettle();
+      await t.tap(tile);
+      await t.pump();
+    }
+    await t.enterText(find.widgetWithText(TextField, 'Which?'), 'teal');
+    await t.pump();
+    final send = find.widgetWithText(FilledButton, 'Send answers');
+    await t.ensureVisible(send);
+    await t.pumpAndSettle();
+    await t.tap(send);
+    await t.pumpAndSettle();
+    expect(r.sent.single['response'], {
+      'choice': 'submit',
+      'values': {'q0': 'Yes, proceed', 'q1': 'Red, dark, Green, teal'},
+    });
+  });
 
   testWidgets(
     'the sheet closes without sending when the tab loses the window',
