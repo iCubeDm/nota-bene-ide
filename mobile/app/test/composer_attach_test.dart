@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/composer.dart';
 import 'package:nb_app/media/attach.dart';
+import 'package:nb_app/media/gallery.dart';
 import 'package:nb_app/media/picker.dart';
 
 import 'support/rig.dart';
@@ -53,6 +54,7 @@ void main() {
   });
   tearDown(() {
     prepareFor = prepareImage;
+    gallerySource = ChannelGallery();
     readPickedFile = defaultReadPickedFile;
     deletePickedFile = defaultDeletePickedFile;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -110,6 +112,47 @@ void main() {
       'POST /attach',
       'POST /attach',
     ]);
+  });
+
+  testWidgets('items chosen in the grid go through the same attach flow', (
+    t,
+  ) async {
+    final fake = _Grid([item('g1.png'), item('g2.png')]);
+    gallerySource = fake;
+    await open(t);
+    await t.tap(find.byTooltip('Attach an image'));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('media-9')));
+    await t.tap(find.byKey(const ValueKey('media-8')));
+    await t.pump();
+    await t.tap(find.text('Send'));
+    await t.pumpAndSettle();
+    expect([for (final i in fake.taken.single) i.id], [9, 8]);
+    expect(thumbs, findsNWidgets(2));
+    expect(r.ch.calls.map((c) => '${c.method} ${c.path}'), [
+      'POST /attach',
+      'POST /attach',
+    ]);
+    expect(deleted, ['/cache/pick/g1.png', '/cache/pick/g2.png']);
+  });
+
+  testWidgets('an item the phone could not read is named, the others attach', (
+    t,
+  ) async {
+    gallerySource = _Grid([
+      item('g1.png'),
+      {'unreadable': 'broken.png'},
+    ]);
+    await open(t);
+    await t.tap(find.byTooltip('Attach an image'));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('media-9')));
+    await t.tap(find.byKey(const ValueKey('media-8')));
+    await t.pump();
+    await t.tap(find.text('Send'));
+    await t.pumpAndSettle();
+    expect(thumbs, findsOneWidget);
+    expect(find.text('Could not read: broken.png'), findsOneWidget);
   });
 
   testWidgets('remove drops one', (t) async {
@@ -303,4 +346,35 @@ void main() {
     );
     expect(find.byType(Composer), findsOneWidget);
   });
+}
+
+/// A gallery of two photos whose chosen items come back as [files].
+class _Grid implements GallerySource {
+  _Grid(this.files);
+  final List<Map<String, Object?>> files;
+  final taken = <List<GalleryItem>>[];
+
+  @override
+  Future<GalleryAccess> access({
+    bool ask = false,
+    bool settings = false,
+  }) async => GalleryAccess.full;
+
+  @override
+  Future<List<GalleryItem>> page(GalleryItem? after, int limit) async =>
+      after != null
+      ? const []
+      : const [GalleryItem(id: 9, added: 9), GalleryItem(id: 8, added: 8)];
+
+  @override
+  void cancel(GalleryItem item, int px) {}
+
+  @override
+  Future<Uint8List?> thumbnail(GalleryItem item, int px) async => null;
+
+  @override
+  Future<Picked> take(List<GalleryItem> items) async {
+    taken.add(items);
+    return parsePicked(files);
+  }
 }

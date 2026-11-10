@@ -8,6 +8,7 @@ import 'package:nb_channel/nb_channel.dart';
 import '../chat/attach_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../media/attach.dart' show Prepared;
+import '../media/gallery.dart' show gallerySource;
 import '../media/media_comment.dart' show WindowHttp;
 import '../media/picker.dart';
 import 'host_link.dart';
@@ -29,19 +30,22 @@ Future<void> setProjectIconFlow(
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   final failed = AppLocalizations.of(context).iconFailed;
-  final source = await showAttachSheet(context);
-  if (source == null) return;
+  final choice = await showAttachSheet(context, max: 1);
+  if (choice == null) return;
   void fail() => messenger.showSnackBar(SnackBar(content: Text(failed)));
   try {
-    final picked = await pickImages(source);
+    final picked = switch (choice) {
+      AttachFrom(:final source) => await pickImages(source),
+      AttachItems(:final items) => await gallerySource.take(items),
+    };
     if (picked.images.isEmpty) {
-      // over the phone's limit; nothing picked and nothing skipped is a cancel
-      if (picked.skipped.isNotEmpty) {
+      // over the phone's limit; nothing picked and nothing skipped or unread is a cancel
+      if (picked.skipped.isNotEmpty || picked.unreadable.isNotEmpty) {
         fail();
       }
       return;
     }
-    // one picture: any further ones the system returned are dropped
+    // one picture: any further ones a system picker returned are dropped
     for (final extra in picked.images.skip(1)) {
       await extra.delete();
     }
