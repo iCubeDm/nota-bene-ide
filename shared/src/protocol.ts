@@ -198,7 +198,7 @@ export type Interaction = {
 export type InteractionAnswer = { choice: string; values?: Record<string, string> };
 
 export type ClientMessage =
-  /** protocol 14: with `voice`, `text` is '' and there are no `images`, `commentIds` or `force` (it waits its turn); the server transcribes it in `lang` (ISO 639) and the agent gets the text */
+  /** protocol 14: with `voice`, `text` is '' and there are no `images` or `commentIds`; `force` works as for text (the turn is interrupted once the transcript is in); the server transcribes it in `lang` (ISO 639) and the agent gets the text */
   | { type: 'send'; id: string; text: string; force?: boolean; commentIds?: string[]; images?: ImageRef[]; voice?: Voice; lang?: string }
   /** full replacement of this session's comment set */
   | { type: 'comments'; sessionId: string | null; items: Comment[] }
@@ -303,7 +303,7 @@ function isSend(o: Obj): o is Obj & ClientMessage {
   if (!plain) return false;
   if (o.voice === undefined) return o.lang === undefined;
   // a voice message is only the voice
-  return isVoice(o.voice) && o.text === '' && o.images === undefined && o.commentIds === undefined && o.force === undefined
+  return isVoice(o.voice) && o.text === '' && o.images === undefined && o.commentIds === undefined
     && typeof o.lang === 'string' && LANG.test(o.lang);
 }
 

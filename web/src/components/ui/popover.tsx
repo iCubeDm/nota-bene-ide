@@ -10,6 +10,10 @@ function PopoverTrigger(props: React.ComponentProps<typeof PopoverPrimitive.Trig
   return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
 }
 
+function PopoverAnchor(props: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
+  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />
+}
+
 function PopoverContent({ className, sideOffset = 6, align = "end", ...props }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
   return (
     <PopoverPrimitive.Portal>
@@ -27,4 +31,4 @@ function PopoverContent({ className, sideOffset = 6, align = "end", ...props }: 
   )
 }
 
-export { Popover, PopoverTrigger, PopoverContent }
+export { Popover, PopoverAnchor, PopoverTrigger, PopoverContent }
