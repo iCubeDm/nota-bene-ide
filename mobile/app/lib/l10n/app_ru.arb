@@ -307,5 +307,9 @@
   "micUnavailable": "Голосовые сообщения недоступны",
   "setIcon": "Задать значок",
   "removeIcon": "Убрать значок",
-  "iconFailed": "Не удалось изменить значок."
+  "iconFailed": "Не удалось изменить значок.",
+  "commentDiscardTitle": "Отбросить комментарий?",
+  "commentDiscardBody": "Написанное пропадёт.",
+  "commentKeep": "Продолжить",
+  "commentDiscard": "Отбросить"
 }

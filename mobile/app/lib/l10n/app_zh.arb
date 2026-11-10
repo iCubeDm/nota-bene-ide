@@ -307,5 +307,9 @@
   "micUnavailable": "语音消息不可用",
   "setIcon": "设置图标",
   "removeIcon": "移除图标",
-  "iconFailed": "无法更改图标。"
+  "iconFailed": "无法更改图标。",
+  "commentDiscardTitle": "放弃评论？",
+  "commentDiscardBody": "你写的内容将会丢失。",
+  "commentKeep": "继续编辑",
+  "commentDiscard": "放弃"
 }

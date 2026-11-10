@@ -307,5 +307,9 @@
   "micUnavailable": "Sprachnachrichten nicht verfügbar",
   "setIcon": "Symbol festlegen",
   "removeIcon": "Symbol entfernen",
-  "iconFailed": "Das Symbol konnte nicht geändert werden."
+  "iconFailed": "Das Symbol konnte nicht geändert werden.",
+  "commentDiscardTitle": "Kommentar verwerfen?",
+  "commentDiscardBody": "Das Geschriebene geht verloren.",
+  "commentKeep": "Weiterschreiben",
+  "commentDiscard": "Verwerfen"
 }

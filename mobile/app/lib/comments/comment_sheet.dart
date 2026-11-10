@@ -1,10 +1,13 @@
-// The comment sheet, as the spec sketches it: the quoted selection, the quick labels in a row, a multi-line field.
+// The comment sheet: the quoted selection, the quick labels in a row, the clips the comment has, and the chat's message
+// field. Send saves; a recording released in the field saves the comment with that voice as soon as its text is in.
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../chat/message_field.dart';
 import '../chat/window_tab.dart';
 import '../dictation/whisper_sheet.dart';
 import '../l10n/app_localizations.dart';
@@ -12,8 +15,6 @@ import '../theme.dart';
 import '../ui/nb_icon.dart';
 import '../store/voice_lang.dart';
 import '../voice/player.dart';
-import '../voice/record_button.dart';
-import '../voice/record_row.dart';
 import '../voice/record_session.dart';
 import '../voice/recorder.dart';
 import '../voice/upload.dart';
@@ -36,7 +37,7 @@ class SheetSave extends SheetResult {
 class SheetDelete extends SheetResult {}
 
 /// Null when dismissed. With [editing], the fields start from it and Delete is offered. With the [tab], the mic
-/// records voice clips, which the window's Whisper transcribes; without, there is none.
+/// records a voice clip, which the window's Whisper transcribes; without, there is none.
 Future<SheetResult?> showCommentSheet(
   BuildContext context, {
   required String quote,
@@ -45,7 +46,8 @@ Future<SheetResult?> showCommentSheet(
 }) => showModalBottomSheet<SheetResult>(
   context: context,
   isScrollControlled: true,
-  showDragHandle: true,
+  // the sheet draws its own handle and closes by a swipe on it, so that a draft is asked about first
+  enableDrag: false,
   builder: (_) => _Sheet(quote: quote, editing: editing, tab: tab),
 );
 
@@ -70,11 +72,15 @@ class _SheetState extends State<_Sheet> {
     onError: _recordFailed,
   );
   final _messenger = GlobalKey<ScaffoldMessengerState>();
+  late final _focus = FocusNode();
+  late final _initialText = (widget.editing?.text ?? '').trim();
+  late final _initialClips = [for (final c in _clips) c.key];
 
   @override
   void initState() {
     super.initState();
     _session.addListener(_onSession);
+    _text.addListener(_onSession);
   }
 
   void _onSession() {
@@ -86,7 +92,9 @@ class _SheetState extends State<_Sheet> {
 
   @override
   void dispose() {
+    _text.removeListener(_onSession);
     _text.dispose();
+    _focus.dispose();
     _session.removeListener(_onSession);
     _session.dispose();
     super.dispose();
@@ -98,7 +106,91 @@ class _SheetState extends State<_Sheet> {
   void _recorded(Uint8List wav, Duration length) {
     final c = _Clip.fresh(uuidV4(), wav, voiceLangOf(context));
     setState(() => _clips.add(c));
-    _run(c);
+    unawaited(_attempt(c));
+  }
+
+  /// A fresh recording: its text is asked for, and once it is in, the comment is saved with it.
+  Future<void> _attempt(_Clip c) async {
+    await _run(c);
+    if (mounted &&
+        _clips.contains(c) &&
+        !_busy &&
+        !_failed &&
+        c.error == null) {
+      _save();
+    }
+  }
+
+  void _save() => Navigator.pop(
+    context,
+    SheetSave(_text.text.trim(), _label, [
+      for (final c in _clips)
+        VoiceClip(text: c.text ?? '', id: c.id!, ms: c.ms, wave: c.wave),
+    ]),
+  );
+
+  /// There is something here that closing would lose: typed text, a clip removed or a new one on its way.
+  bool get _dirty =>
+      _text.text.trim() != _initialText ||
+      !listEquals([for (final c in _clips) c.key], _initialClips);
+
+  /// Back and a swipe down: a recording stops into the preview and the user chooses; a draft is asked about.
+  Future<void> _leave() async {
+    if (_session.phase == RecordPhase.recording && _session.holding) return;
+    final t = AppLocalizations.of(context);
+    final nav = Navigator.of(context);
+    if (_session.active) {
+      await _session.stopToPreview();
+      if (!mounted || _session.phase != RecordPhase.preview) return;
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(t.voiceLeaveTitle),
+          content: Text(t.voiceLeaveBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: Text(t.cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(c, 'delete'),
+              child: Text(t.voiceDelete),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, 'send'),
+              child: Text(t.send),
+            ),
+          ],
+        ),
+      );
+      if (choice == null || !mounted) return;
+      if (choice == 'send') {
+        // saved by its text, as a released one is (the sheet closes then); the busy question does not exist here
+        await _session.send();
+        return;
+      }
+      _session.cancel();
+      unawaited(nav.maybePop());
+      return;
+    }
+    final drop = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t.commentDiscardTitle),
+        content: Text(t.commentDiscardBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: Text(t.commentKeep),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: Text(t.commentDiscard),
+          ),
+        ],
+      ),
+    );
+    if (drop == true && mounted) nav.pop();
   }
 
   void _recordFailed(RecordFailure why) {
@@ -174,7 +266,7 @@ class _SheetState extends State<_Sheet> {
                 ? VoiceStage.transcribing
                 : (c.error != null ? VoiceStage.error : VoiceStage.transcribed),
             error: c.error,
-            onRetry: () => _run(c),
+            onRetry: () => c.wav != null ? _attempt(c) : _run(c),
             transcript: () => Text(c.text ?? ''),
           ),
         ),
@@ -211,6 +303,27 @@ class _SheetState extends State<_Sheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // a swipe down closes (after asking about a draft)
+            GestureDetector(
+              key: const ValueKey('sheet-handle'),
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragEnd: (d) {
+                if ((d.primaryVelocity ?? 0) > 300) {
+                  unawaited(Navigator.of(context).maybePop());
+                }
+              },
+              child: Center(
+                child: Container(
+                  width: 32,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: c.mutedFg.withValues(alpha: .4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
             Container(
               padding: const EdgeInsets.only(left: 10),
               decoration: BoxDecoration(
@@ -266,129 +379,75 @@ class _SheetState extends State<_Sheet> {
             ),
             for (final clip in _clips) _clipRow(widget.tab, clip, t, c),
             const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      // kept while recording: the typed text stays for after
-                      Visibility(
-                        visible: !_session.active,
-                        maintainState: true,
-                        maintainSize: true,
-                        maintainAnimation: true,
-                        child: TextField(
-                          controller: _text,
-                          autofocus: widget.editing == null,
-                          minLines: 2,
-                          maxLines: 8,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: InputDecoration(
-                            hintText: t.commentHint,
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      if (_session.active)
-                        Positioned.fill(
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: SizedBox(
-                              height: 56,
-                              child: RecordRow(session: _session),
-                            ),
-                          ),
-                        ),
-                    ],
+            _field(t, c),
+            if (widget.editing != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, SheetDelete()),
+                  child: Text(
+                    t.deleteComment,
+                    style: TextStyle(color: c.destructive),
                   ),
                 ),
-                if (widget.tab case final tab? when tab.voiceProtocol)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    // a context under the sheet's own messenger, so "Whisper is on" shows above the sheet
-                    child: Builder(
-                      builder: (inner) => RecordButton(
-                        session: _session,
-                        enabled: _clips.length < maxClips,
-                        available: tab.whisper,
-                        onUnavailable: () => showWhisperSheet(inner, tab),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                if (widget.editing != null)
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, SheetDelete()),
-                    child: Text(
-                      t.deleteComment,
-                      style: TextStyle(color: c.destructive),
-                    ),
-                  ),
-                // wraps, not overflows, when the text is large
-                Expanded(
-                  child: Wrap(
-                    alignment: WrapAlignment.end,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(t.cancel),
-                      ),
-                      FilledButton(
-                        // the text of every clip is part of the comment: Save waits for them
-                        onPressed: _busy || _failed || _session.active
-                            ? null
-                            : () => Navigator.pop(
-                                context,
-                                SheetSave(_text.text.trim(), _label, [
-                                  for (final c in _clips)
-                                    VoiceClip(
-                                      text: c.text ?? '',
-                                      id: c.id!,
-                                      ms: c.ms,
-                                      wave: c.wave,
-                                    ),
-                                ]),
-                              ),
-                        child: _busy
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(t.save),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
           ],
         ),
       ),
     );
     // The sheet covers the page's Scaffold, so a SnackBar shown there would be hidden under it: the sheet has
     // its own messenger, and an invisible Scaffold of the sheet's size to show it on.
-    return ScaffoldMessenger(
-      key: _messenger,
-      child: Stack(
-        children: [
-          sheet,
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Scaffold(
-                backgroundColor: Colors.transparent,
-                resizeToAvoidBottomInset: false,
+    return PopScope(
+      // a recording or a draft is never dropped by a back press: it is asked about
+      canPop: !_session.active && !_dirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_leave());
+      },
+      child: ScaffoldMessenger(
+        key: _messenger,
+        child: Stack(
+          children: [
+            sheet,
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Scaffold(
+                  backgroundColor: Colors.transparent,
+                  resizeToAvoidBottomInset: false,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The chat's message field; the mic stays beside Send while there is no text, so that a label (or the clips an edit
+  /// has) can go with a voice. A recording that is under way, or a clip waiting for its text, holds Send.
+  Widget _field(AppLocalizations t, NbColors c) {
+    final tab = widget.tab;
+    final typed = _text.text.trim().isNotEmpty;
+    final sendable = typed || _label != null || _clips.isNotEmpty;
+    final voice = tab != null;
+    return Builder(
+      // a context under the sheet's own messenger, so "Whisper is on" shows above the sheet
+      builder: (inner) => MessageField(
+        controller: _text,
+        focus: _focus,
+        autofocus: widget.editing == null,
+        hint: t.commentHint,
+        maxLines: 8,
+        session: _session,
+        open: true,
+        voiceProtocol: tab?.voiceProtocol ?? false,
+        whisperAvailable: tab?.whisper ?? false,
+        onWhisperMissing: () => showWhisperSheet(inner, tab!),
+        micEnabled: _clips.length < maxClips && !_busy,
+        showMic: voice && !typed,
+        showSend: sendable && !_session.active,
+        canSend: sendable && !_busy && !_failed && !_session.active,
+        sending: _busy,
+        onSend: _save,
       ),
     );
   }

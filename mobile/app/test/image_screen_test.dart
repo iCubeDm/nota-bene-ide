@@ -9,6 +9,7 @@ import 'package:nb_app/media/picker.dart';
 import 'package:nb_channel/nb_channel.dart';
 
 import 'support/rig.dart';
+import 'support/sheet.dart';
 
 final png = Uint8List.fromList(
   img.encodePng(
@@ -94,7 +95,7 @@ Future<void> drawAndComment(WidgetTester t, String text) async {
   await t.tap(find.text('Comment'));
   await t.pumpAndSettle();
   await t.enterText(find.byType(TextField), text);
-  await t.tap(find.text('Save'));
+  await tapSend(t);
   await settleReal(t, 10);
 }
 
@@ -363,7 +364,7 @@ void main() {
     await t.tap(find.byKey(const ValueKey('act-comment')));
     await t.pumpAndSettle();
     await t.enterText(find.byType(TextField), 'whole');
-    await t.tap(find.text('Save'));
+    await tapSend(t);
     await settleReal(t, 10);
     final added = (commentSets(r).last['items'] as List).single as Map;
     expect(added['text'], 'whole');

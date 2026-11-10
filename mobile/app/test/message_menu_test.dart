@@ -7,6 +7,7 @@ import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/rig.dart';
+import 'support/sheet.dart';
 
 void main() {
   late Rig r;
@@ -104,7 +105,7 @@ void main() {
     expect(find.byKey(const ValueKey('labels')), findsNothing);
     expect(find.textContaining('Hello there'), findsWidgets);
     await t.enterText(find.byType(TextField).last, 'why this?');
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final c = r.tab!.comments.all.single;
     final a = c.anchor as TextAnchor;
@@ -128,7 +129,7 @@ void main() {
     await t.tap(menuEntry('Comment'));
     await t.pumpAndSettle();
     expect(find.text('${long.substring(0, 200)}…'), findsOneWidget);
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     expect((r.tab!.comments.all.single.anchor as TextAnchor).quote, long);
   });

@@ -13,6 +13,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/fakes.dart';
 import 'support/rig.dart';
+import 'support/sheet.dart';
 
 /// The screen position of [word] in the rendered paragraphs inside [within].
 Offset wordAt(
@@ -324,7 +325,7 @@ void main() {
         ),
       );
       await t.pumpAndSettle();
-      await t.tap(find.text('Save'));
+      await sendNote(t);
       await t.pumpAndSettle();
       final a = r.tab!.comments.all.single.anchor as TextAnchor;
       // `same old new same`: the second one
@@ -463,7 +464,7 @@ void main() {
           ),
         );
         await t.pumpAndSettle();
-        await t.tap(find.text('Save'));
+        await sendNote(t);
         await t.pumpAndSettle();
         final a = r.tab!.comments.all.single.anchor as TextAnchor;
         final s = a.source as AnchorSourceFile;
@@ -496,7 +497,7 @@ void main() {
         ),
       );
       await t.pumpAndSettle();
-      await t.tap(find.text('Save'));
+      await sendNote(t);
       await t.pumpAndSettle();
       final s =
           (r.tab!.comments.all.single.anchor as TextAnchor).source

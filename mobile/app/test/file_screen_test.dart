@@ -6,6 +6,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/fakes.dart';
 import 'support/rig.dart';
+import 'support/sheet.dart';
 
 const plan =
     '# Plan\n\nThe cache is read once. Then the cache is written.\n\nA last line.';
@@ -89,7 +90,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(verify);
     await t.enterText(find.byType(TextField), 'really?');
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final items = lastComments(r)['items'] as List;
     final c = Comment.fromJson((items.single as Map).cast());
@@ -109,7 +110,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Comment'));
     await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final c = Comment.fromJson(
       ((lastComments(r)['items'] as List).single as Map).cast(),
@@ -197,7 +198,7 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('Comment'));
       await t.pumpAndSettle();
-      await t.tap(find.text('Save'));
+      await sendNote(t);
       await t.pumpAndSettle();
       final a =
           Comment.fromJson(
@@ -224,7 +225,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Comment'));
     await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final a =
         Comment.fromJson(

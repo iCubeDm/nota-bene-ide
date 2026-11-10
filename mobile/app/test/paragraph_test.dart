@@ -16,6 +16,7 @@ import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/rig.dart';
+import 'support/sheet.dart';
 
 void main() {
   late Rig r;
@@ -205,7 +206,7 @@ void main() {
     await t.tap(barButton('Comment'));
     await t.pumpAndSettle();
     await t.enterText(find.byType(TextField).last, 'why?');
-    await t.tap(find.text('Save'));
+    await tapSend(t);
     await t.pumpAndSettle();
     await tapPara(t, 'The hold');
     await t.tap(
@@ -263,7 +264,7 @@ void main() {
     expect(bubble, findsNothing);
     expect(find.text(second), findsWidgets);
     await t.enterText(find.byType(TextField).last, 'why one?');
-    await t.tap(find.text('Save'));
+    await tapSend(t);
     await t.pumpAndSettle();
     final c = r.tab!.comments.all.single;
     expect(c.text, 'why one?');
@@ -686,7 +687,7 @@ void main() {
       await t.tap(barButton('Comment'));
       await t.pumpAndSettle();
       await t.enterText(find.byType(TextField).last, 'why?');
-      await t.tap(find.text('Save'));
+      await tapSend(t);
       await t.pumpAndSettle();
       a = r.tab!.comments.all.last.anchor as TextAnchor;
       expect(a.quote, 'beta two nested gamma');

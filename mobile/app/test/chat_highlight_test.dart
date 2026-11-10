@@ -6,6 +6,7 @@ import 'package:nb_app/theme.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/rig.dart';
+import 'support/sheet.dart';
 
 void main() {
   late Rig r;
@@ -146,7 +147,7 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('Delete comment'), findsOneWidget);
     await t.enterText(find.byType(TextField).last, 'changed');
-    await t.tap(find.text('Save'));
+    await tapSend(t);
     await t.pumpAndSettle();
     expect(r.tab!.comments.all.single.text, 'changed');
     await t.tapOnText(find.textRange.ofSubstring('bold').first);

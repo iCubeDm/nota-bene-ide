@@ -40,6 +40,16 @@ void main() {
     await t.pumpAndSettle();
   }
 
+  final sendKey = find.descendant(
+    of: find.byType(BottomSheet),
+    matching: find.byKey(const ValueKey('send')),
+  );
+  final field = find.descendant(
+    of: find.byType(BottomSheet),
+    matching: find.byType(TextField),
+  );
+  final handle = find.byKey(const ValueKey('sheet-handle'));
+
   Finder circle(QuickLabel l) => find.byKey(ValueKey('label:${l.id.name}'));
 
   testWidgets('the label row shows emoji only, in 32 px circles', (t) async {
@@ -54,9 +64,7 @@ void main() {
 
   testWidgets('the selected emoji is ringed in the accent', (t) async {
     await open(t);
-    final accent = Theme.of(
-      t.element(find.byType(TextField)),
-    ).extension<NbColors>()!.accent;
+    final accent = Theme.of(t.element(field)).extension<NbColors>()!.accent;
     Color? ring(QuickLabel l) {
       final box = t.widget<Container>(circle(l)).decoration as BoxDecoration?;
       return box?.border?.top.color;
@@ -86,11 +94,101 @@ void main() {
     await open(t);
     final l = quickLabels[1];
     await t.tap(circle(l));
-    await t.enterText(find.byType(TextField), 'because');
-    await t.tap(find.text('Save'));
+    await t.enterText(field, 'because');
+    await t.pumpAndSettle();
+    await t.tap(sendKey);
     await t.pumpAndSettle();
     final r = got as SheetSave;
     expect((r.label, r.text), (l.id, 'because'));
+  });
+
+  testWidgets('there are no Save and Cancel buttons: the field has Send', (
+    t,
+  ) async {
+    await open(t);
+    expect(find.text('Save'), findsNothing);
+    expect(find.text('Cancel'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+    expect(sendKey, findsOneWidget);
+    // nothing to send yet
+    expect(t.widget<IconButton>(sendKey).onPressed, isNull);
+  });
+
+  testWidgets('Send follows the text', (t) async {
+    await open(t);
+    expect(t.widget<IconButton>(sendKey).onPressed, isNull);
+    await t.enterText(field, 'x');
+    await t.pumpAndSettle();
+    expect(t.widget<IconButton>(sendKey).onPressed, isNotNull);
+  });
+
+  testWidgets('the sheet has no paperclip', (t) async {
+    await open(t);
+    expect(find.byKey(const ValueKey('attach')), findsNothing);
+  });
+
+  testWidgets('a label alone can be sent', (t) async {
+    await open(t);
+    final l = quickLabels[0];
+    await t.tap(circle(l));
+    await t.pumpAndSettle();
+    await t.tap(sendKey);
+    await t.pumpAndSettle();
+    final r = got as SheetSave;
+    expect((r.label, r.text, r.voice.length), (l.id, '', 0));
+  });
+
+  testWidgets('back with nothing typed closes without asking', (t) async {
+    await open(t);
+    await t.tap(circle(quickLabels[0]));
+    await t.pump();
+    await t.binding.handlePopRoute();
+    await t.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(got, isNull);
+  });
+
+  testWidgets('back with a typed draft asks; Keep writing keeps it', (t) async {
+    await open(t);
+    await t.enterText(field, 'draft');
+    await t.pumpAndSettle();
+    await t.binding.handlePopRoute();
+    await t.pumpAndSettle();
+    expect(find.text('Discard the comment?'), findsOneWidget);
+    await t.tap(find.text('Keep writing'));
+    await t.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.text('draft'), findsOneWidget);
+  });
+
+  testWidgets('back with a typed draft and Discard closes the sheet', (
+    t,
+  ) async {
+    await open(t);
+    await t.enterText(field, 'draft');
+    await t.pumpAndSettle();
+    await t.binding.handlePopRoute();
+    await t.pumpAndSettle();
+    await t.tap(find.text('Discard'));
+    await t.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(got, isNull);
+  });
+
+  testWidgets('a swipe down on the handle closes; with a draft it asks', (
+    t,
+  ) async {
+    await open(t);
+    await t.fling(handle, const Offset(0, 300), 1500);
+    await t.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    await open(t);
+    await t.enterText(field, 'draft');
+    await t.pumpAndSettle();
+    await t.fling(handle, const Offset(0, 300), 1500);
+    await t.pumpAndSettle();
+    expect(find.text('Discard the comment?'), findsOneWidget);
+    expect(find.byType(BottomSheet), findsOneWidget);
   });
 
   testWidgets('tapping the selected emoji clears the label', (t) async {
@@ -98,7 +196,9 @@ void main() {
     final l = quickLabels[1];
     await t.tap(circle(l));
     await t.tap(circle(l));
-    await t.tap(find.text('Save'));
+    await t.enterText(field, 'x');
+    await t.pumpAndSettle();
+    await t.tap(sendKey);
     await t.pumpAndSettle();
     expect((got as SheetSave).label, isNull);
   });
@@ -178,10 +278,34 @@ void main() {
       await t.pump();
     }
 
-    Future<void> save(WidgetTester t) async {
-      await t.tap(find.widgetWithText(FilledButton, 'Save'));
+    Future<void> send(WidgetTester t) async {
+      await t.tap(sendKey);
       await t.pumpAndSettle();
     }
+
+    Comment commentWith(int clips, {String text = 'typed'}) => Comment(
+      id: 'c1',
+      anchor: const TextAnchor(
+        source: AnchorSourceFile(path: 'a.md'),
+        start: 0,
+        end: 1,
+        quote: 'q',
+        prefix: '',
+        suffix: '',
+      ),
+      text: text,
+      status: CommentStatus.pending,
+      createdAt: 1,
+      voice: [
+        for (var i = 0; i < clips; i++)
+          VoiceClip(
+            text: 'said$i',
+            id: '$i'.padLeft(64, 'b'),
+            ms: 3000,
+            wave: List.filled(48, 2),
+          ),
+      ],
+    );
 
     testWidgets('a clip is transcribed in the voice language of Settings', (
       t,
@@ -196,27 +320,22 @@ void main() {
     });
 
     testWidgets(
-      'a released recording becomes a clip under the text; the sheet stays',
+      'a released recording saves the comment with that clip once its text is in',
       (t) async {
         hold = Completer<void>();
         await openSheet(t);
         await record(t);
-        expect(got, isNull);
-        expect(find.byType(BottomSheet), findsOneWidget);
         expect(r.ch.requests, ['POST /voice', startsWith('POST /voice/')]);
         expect(r.ch.requests.last, endsWith('/text?lang=en'));
+        // the transcript is part of the comment: the sheet waits for it
+        expect(got, isNull);
+        expect(find.byType(BottomSheet), findsOneWidget);
         expect(find.text('Transcribing…'), findsOneWidget);
-        // Save waits for the transcript
-        expect(
-          t.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-          isNull,
-        );
         hold!.complete();
         await t.pump();
         await t.pump();
-        expect(find.text('Transcribing…'), findsNothing);
-        expect(find.textContaining('text'), findsWidgets);
-        await save(t);
+        await t.pumpAndSettle();
+        expect(find.byType(BottomSheet), findsNothing);
         final res = got as SheetSave;
         expect(res.text, '');
         expect(res.voice, hasLength(1));
@@ -226,43 +345,58 @@ void main() {
       },
     );
 
-    testWidgets('several clips; one is deleted; they keep their order', (
-      t,
-    ) async {
+    testWidgets(
+      'a chosen label goes with the voice; Send and the mic are both there',
+      (t) async {
+        await openSheet(t);
+        // nothing chosen: the mic alone
+        expect(mic(), findsOneWidget);
+        expect(sendKey, findsNothing);
+        final l = quickLabels[3];
+        await t.tap(find.byKey(ValueKey('label:${l.id.name}')));
+        await t.pumpAndSettle();
+        expect(mic(), findsOneWidget);
+        expect(sendKey, findsOneWidget);
+        await record(t);
+        await t.pumpAndSettle();
+        final res = got as SheetSave;
+        expect((res.label, res.text, res.voice.length), (l.id, '', 1));
+      },
+    );
+
+    testWidgets('typing turns the mic into Send', (t) async {
       await openSheet(t);
-      await record(t);
-      await record(t);
-      await record(t);
-      expect(find.byTooltip('Play'), findsNWidgets(3));
-      await t.tap(find.byTooltip('Delete').at(1));
-      await t.pump();
-      expect(find.byTooltip('Play'), findsNWidgets(2));
-      await save(t);
-      expect((got as SheetSave).voice.map((v) => v.id), [
-        '0'.padLeft(64, 'a'),
-        '2'.padLeft(64, 'a'),
-      ]);
+      await t.enterText(field, 'words');
+      await t.pumpAndSettle();
+      expect(mic(), findsNothing);
+      expect(sendKey, findsOneWidget);
+      await send(t);
+      expect((got as SheetSave).text, 'words');
+    });
+
+    testWidgets('a label with typed text sends without a mic', (t) async {
+      await openSheet(t);
+      await t.tap(find.byKey(ValueKey('label:${quickLabels[0].id.name}')));
+      await t.enterText(field, 'words');
+      await t.pumpAndSettle();
+      expect(mic(), findsNothing);
     });
 
     testWidgets(
-      'a clip whose transcription failed shows the reason and Retry; Save waits for it',
+      'a clip whose transcription failed stays with the reason and Retry; a retry saves',
       (t) async {
         textStatus = 503;
         await openSheet(t);
         await record(t);
         expect(find.text('Whisper is off on the computer'), findsOneWidget);
-        expect(
-          t.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-          isNull,
-        );
+        expect(got, isNull);
         textStatus = 200;
         await t.tap(find.text('Retry'));
         await t.pump();
         await t.pump();
-        expect(find.text('Whisper is off on the computer'), findsNothing);
+        await t.pumpAndSettle();
         // the recording is already on the host: only the text is asked again
         expect(r.ch.requests.where((q) => q == 'POST /voice'), hasLength(1));
-        await save(t);
         expect((got as SheetSave).voice, hasLength(1));
       },
     );
@@ -284,64 +418,55 @@ void main() {
       expect(r.ch.requests.last, endsWith('/text?lang=ru'));
     });
 
-    testWidgets('a comment with clips opens with them, and gives them back', (
+    testWidgets(
+      'a comment with clips opens with them, and Send gives them back',
+      (t) async {
+        await openSheet(t, editing: commentWith(1));
+        expect(find.text('said0'), findsOneWidget);
+        expect(find.text('0:03'), findsOneWidget);
+        await send(t);
+        expect((got as SheetSave).voice.single.text, 'said0');
+        expect(r.ch.requests, isEmpty);
+      },
+    );
+
+    testWidgets('an existing clip can be removed before Send', (t) async {
+      await openSheet(t, editing: commentWith(2));
+      await t.tap(find.byTooltip('Delete').first);
+      await t.pump();
+      await send(t);
+      expect((got as SheetSave).voice.map((v) => v.text), ['said1']);
+    });
+
+    testWidgets('a recording in an edit joins the clips the comment has', (
       t,
     ) async {
-      final c = Comment(
-        id: 'c1',
-        anchor: const TextAnchor(
-          source: AnchorSourceFile(path: 'a.md'),
-          start: 0,
-          end: 1,
-          quote: 'q',
-          prefix: '',
-          suffix: '',
-        ),
-        text: 'typed',
-        status: CommentStatus.pending,
-        createdAt: 1,
-        voice: [
-          VoiceClip(
-            text: 'said',
-            id: 'b' * 64,
-            ms: 3000,
-            wave: List.filled(48, 2),
-          ),
-        ],
-      );
-      await openSheet(t, editing: c);
-      expect(find.text('said'), findsOneWidget);
-      expect(find.text('0:03'), findsOneWidget);
-      await save(t);
-      expect((got as SheetSave).voice.single.text, 'said');
-      expect(r.ch.requests, isEmpty);
+      await openSheet(t, editing: commentWith(1, text: ''));
+      await record(t);
+      await t.pumpAndSettle();
+      final v = (got as SheetSave).voice;
+      expect(v, hasLength(2));
+      expect(v.first.text, 'said0');
+    });
+
+    testWidgets('closing an edit that changed nothing does not ask', (t) async {
+      await openSheet(t, editing: commentWith(1));
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+    });
+
+    testWidgets('removing a clip is a change to ask about', (t) async {
+      await openSheet(t, editing: commentWith(1));
+      await t.tap(find.byTooltip('Delete').first);
+      await t.pump();
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      expect(find.text('Discard the comment?'), findsOneWidget);
     });
 
     testWidgets('at ten clips the mic is off', (t) async {
-      final c = Comment(
-        id: 'c1',
-        anchor: const TextAnchor(
-          source: AnchorSourceFile(path: 'a.md'),
-          start: 0,
-          end: 1,
-          quote: 'q',
-          prefix: '',
-          suffix: '',
-        ),
-        text: '',
-        status: CommentStatus.pending,
-        createdAt: 1,
-        voice: [
-          for (var i = 0; i < 10; i++)
-            VoiceClip(
-              text: 'c$i',
-              id: '$i'.padLeft(64, 'b'),
-              ms: 1000,
-              wave: List.filled(48, 2),
-            ),
-        ],
-      );
-      await openSheet(t, editing: c);
+      await openSheet(t, editing: commentWith(10, text: ''));
       final g = await t.startGesture(t.getCenter(mic()));
       await t.pump(const Duration(milliseconds: 300));
       await g.up();
@@ -349,13 +474,21 @@ void main() {
       await t.pump(const Duration(seconds: 3));
     });
 
-    testWidgets(
-      'no mic below protocol 14; without Whisper the mic opens its sheet',
-      (t) async {
-        await openSheet(t, protocol: 13);
-        expect(mic(), findsNothing);
-      },
-    );
+    testWidgets('below protocol 14 the mic is greyed and says why', (t) async {
+      await openSheet(t, protocol: 13);
+      expect(mic(), findsNothing);
+      final old = find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byKey(const ValueKey('mic-old')),
+      );
+      expect(old, findsOneWidget);
+      await t.tap(old);
+      await t.pump();
+      expect(
+        find.text('Voice messages need a newer Nota Bene on the computer.'),
+        findsOneWidget,
+      );
+    });
 
     testWidgets('without Whisper the mic opens the install sheet', (t) async {
       await openSheet(t, cap: null);
@@ -375,6 +508,7 @@ void main() {
       await t.pump();
       expect(rec.calls, ['start', 'cancel']);
       expect(find.byTooltip('Play'), findsNothing);
+      expect(find.byType(RecordRow), findsNothing);
     });
 
     testWidgets('a finger held on the mic does not drag the sheet away', (
@@ -386,11 +520,10 @@ void main() {
       await g.moveBy(const Offset(0, 300));
       await t.pump();
       await g.up();
-      await t.pumpAndSettle();
-      expect(find.byType(BottomSheet), findsOneWidget);
-      expect(got, isNull);
-      // the recording was released: it is a clip
-      expect(find.byTooltip('Play'), findsOneWidget);
+      await t.pump();
+      await t.pump();
+      // the recording was released: it is saved once its text is in
+      expect(got, isA<SheetSave>());
     });
   });
 }
