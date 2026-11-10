@@ -144,7 +144,8 @@ function serverFields(ev: ServerEvent): Fields | null {
         default: return null; // message text and its chunks, suggestions
       }
     }
-    case 'user': return { kind: 'user', id: ev.id, chars: ev.text.length, force: ev.force, idle: ev.idle, images: ev.images?.length, historic: ev.historic };
+    case 'user': return { kind: 'user', id: ev.id, chars: ev.text.length, force: ev.force, idle: ev.idle, images: ev.images?.length, historic: ev.historic, voiceMs: ev.voice?.ms };
+    case 'voice-text': return { kind: 'voice-text', id: ev.id, chars: ev.text?.length, error: ev.error };
     case 'permission': return { kind: 'permission', id: ev.id, tool: ev.toolName };
     case 'permission-done': return { kind: 'permission-done', id: ev.id, allow: ev.allow };
     case 'session': return { kind: 'session', session: ev.id, model: ev.model };

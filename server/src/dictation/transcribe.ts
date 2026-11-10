@@ -3,6 +3,17 @@ import { loadPipeline, type Pipe } from './install.ts';
 
 let cached: Promise<Pipe> | undefined;
 
+// one at a time across the routes that transcribe (dictation, voice messages and clips): the model is single-threaded
+// and memory-heavy
+let queue: Promise<unknown> = Promise.resolve();
+
+/** Runs `job` after every job queued before it; its failure does not hold the next one. */
+export function queued<T>(job: () => Promise<T>): Promise<T> {
+  const run = queue.then(job);
+  queue = run.catch(() => {});
+  return run;
+}
+
 /** Forgets the loaded pipeline and ends its worker, which frees the native memory (tests; and after the install is removed). */
 export function resetTranscriber(): void {
   const p = cached;
