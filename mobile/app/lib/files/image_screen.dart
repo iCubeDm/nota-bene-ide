@@ -14,6 +14,7 @@ import '../media/fetch.dart';
 import '../media/markup.dart';
 import '../media/media_comment.dart';
 import '../media/picker.dart';
+import '../media/shapes.dart';
 import '../ui/nb_icon.dart';
 
 export '../media/fetch.dart' show imageMaxBytes;
@@ -140,7 +141,8 @@ class ImageScreen extends StatefulWidget {
   State<ImageScreen> createState() => _ImageScreenState();
 }
 
-class _ImageScreenState extends State<ImageScreen> {
+class _ImageScreenState extends State<ImageScreen>
+    with SingleTickerProviderStateMixin {
   final _pages = <int, _Page>{};
   late int _index = widget.index;
   late final _controller = PageController(initialPage: widget.index);
@@ -152,6 +154,21 @@ class _ImageScreenState extends State<ImageScreen> {
   /// how far a swipe down has carried the picture
   double _drag = 0;
 
+  /// the fingers on the screen: with two, a pinch is under way and the page swipe is locked. The lock lands a frame
+  /// after the second finger, so if the first has already moved 18 px sideways by then, PageView has won that whole
+  /// pinch and it is lost: a swipe, not a zoom.
+  final _fingers = <int>{};
+  bool _closing = false;
+
+  /// set while two or more fingers have been down, until all are up
+  bool _multi = false;
+  late final _glide = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  );
+  Matrix4Tween? _glideTween;
+  Offset _tap = Offset.zero;
+
   ViewerImage get _item => widget.items[_index];
   _Page? get _page => _pages[_index];
 
@@ -161,6 +178,10 @@ class _ImageScreenState extends State<ImageScreen> {
     _zoom.addListener(() {
       final z = _zoom.value.getMaxScaleOnAxis() > 1.01;
       if (z != _zoomed) setState(() => _zoomed = z);
+    });
+    _glide.addListener(() {
+      final tween = _glideTween;
+      if (tween != null) _zoom.value = tween.evaluate(_glide);
     });
     _load(_index);
   }
@@ -172,6 +193,7 @@ class _ImageScreenState extends State<ImageScreen> {
     }
     _controller.dispose();
     _markup.dispose();
+    _glide.dispose();
     _zoom.dispose();
     super.dispose();
   }
@@ -275,13 +297,75 @@ class _ImageScreenState extends State<ImageScreen> {
     }
   }
 
-  void _dragEnd(DragEndDetails d) {
-    final close = _drag > 120 || (d.primaryVelocity ?? 0) > 800;
+  void _touch(PointerEvent e, bool down) {
+    final before = _fingers.length > 1;
+    down ? _fingers.add(e.pointer) : _fingers.remove(e.pointer);
+    if (_fingers.length > 1) _multi = true;
+    if (_fingers.isEmpty) _multi = false;
+    if (before != _fingers.length > 1) setState(() {});
+  }
+
+  /// A one-finger drag at scale 1 carries the picture; a second finger hands the gesture to the pinch, and the finger
+  /// left after a pinch is no drag at all (`_multi` holds until every finger is up).
+  void _interact(ScaleUpdateDetails d) {
+    if (_zoomed || _multi) return;
+    if (d.pointerCount != 1) {
+      if (_closing || _drag != 0) {
+        _closing = false;
+        setState(() => _drag = 0);
+      }
+      return;
+    }
+    _closing = true;
+    setState(() => _drag = (_drag + d.focalPointDelta.dy).clamp(0, 600));
+  }
+
+  void _interactEnd(ScaleEndDetails d) {
+    // the recognizer also ends a gesture when a finger comes or goes and it starts over: that is no release
+    if (d.pointerCount > 0) {
+      _closing = false;
+      if (_drag != 0) setState(() => _drag = 0);
+      return;
+    }
+    if (!_closing) return;
+    _closing = false;
+    final close = _drag > 120 || d.velocity.pixelsPerSecond.dy > 800;
     if (close) {
       Navigator.of(context).maybePop();
     } else {
       setState(() => _drag = 0);
     }
+  }
+
+  /// A double tap zooms to 2.5x around the tap, or back to 1 when already zoomed; both glide.
+  void _doubleTap(Size size) {
+    final image = _page?.image;
+    if (image == null) return;
+    final Matrix4 to;
+    if (_zoomed) {
+      to = Matrix4.identity();
+    } else {
+      const s = 2.5;
+      // a tap on the black beside the picture zooms on the picture's edge, not on empty space
+      final shown = containBox(
+        size,
+        Size(image.width.toDouble(), image.height.toDouble()),
+      );
+      final f = Offset(
+        _tap.dx.clamp(shown.left, shown.right),
+        _tap.dy.clamp(shown.top, shown.bottom),
+      );
+      to = Matrix4.diagonal3Values(s, s, 1)
+        ..setTranslationRaw(
+          (f.dx * (1 - s)).clamp(size.width * (1 - s), 0.0),
+          (f.dy * (1 - s)).clamp(size.height * (1 - s), 0.0),
+          0,
+        );
+    }
+    _glideTween = Matrix4Tween(begin: _zoom.value, end: to);
+    _glide
+      ..reset()
+      ..forward();
   }
 
   Widget _action(String key, NbGlyph glyph, String label, VoidCallback? on) =>
@@ -369,31 +453,36 @@ class _ImageScreenState extends State<ImageScreen> {
             : null,
         body: DefaultTextStyle.merge(
           style: const TextStyle(color: Colors.white),
-          child: PageView.builder(
-            controller: _controller,
-            itemCount: widget.items.length,
-            physics: _markup.marking || _zoomed
-                ? const NeverScrollableScrollPhysics()
-                : null,
-            onPageChanged: _moved,
-            itemBuilder: (context, i) {
-              _load(i);
-              final p = _pages[i];
-              final fail = p?.fail, image = p?.image;
-              return fail != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          _failText(t, fail),
-                          textAlign: TextAlign.center,
+          child: Listener(
+            onPointerDown: (e) => _touch(e, true),
+            onPointerUp: (e) => _touch(e, false),
+            onPointerCancel: (e) => _touch(e, false),
+            child: PageView.builder(
+              controller: _controller,
+              itemCount: widget.items.length,
+              physics: _markup.marking || _zoomed || _fingers.length > 1
+                  ? const NeverScrollableScrollPhysics()
+                  : null,
+              onPageChanged: _moved,
+              itemBuilder: (context, i) {
+                _load(i);
+                final p = _pages[i];
+                final fail = p?.fail, image = p?.image;
+                return fail != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            _failText(t, fail),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                      ),
-                    )
-                  : image == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : _picture(i, image);
-            },
+                      )
+                    : image == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : _picture(i, image);
+              },
+            ),
           ),
         ),
       ),
@@ -416,21 +505,24 @@ class _ImageScreenState extends State<ImageScreen> {
     }
     final viewer = InteractiveViewer(
       transformationController: i == _index ? _zoom : null,
+      minScale: 1,
       maxScale: 8,
       panEnabled: !(i == _index && !_zoomed),
+      onInteractionStart: i == _index ? (_) => _glide.stop() : null,
+      onInteractionUpdate: i == _index ? _interact : null,
+      onInteractionEnd: i == _index ? _interactEnd : null,
       child: layer,
     );
-    // at scale 1 a drag down carries the picture off and closes the viewer; zoomed, it pans
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onVerticalDragUpdate: _zoomed
-          ? null
-          : (d) => setState(() => _drag = (_drag + d.delta.dy).clamp(0, 600)),
-      onVerticalDragEnd: _zoomed ? null : _dragEnd,
-      onVerticalDragCancel: () => setState(() => _drag = 0),
-      child: Transform.translate(
-        offset: Offset(0, i == _index ? _drag : 0),
-        child: viewer,
+    // the close drag rides on the viewer's own gesture, not a competing drag recognizer that would win over a pinch
+    return LayoutBuilder(
+      builder: (context, box) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onDoubleTapDown: (d) => _tap = d.localPosition,
+        onDoubleTap: i == _index ? () => _doubleTap(box.biggest) : null,
+        child: Transform.translate(
+          offset: Offset(0, i == _index ? _drag : 0),
+          child: viewer,
+        ),
       ),
     );
   }
