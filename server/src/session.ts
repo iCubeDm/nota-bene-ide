@@ -234,10 +234,13 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
 
   /** The history's user messages that were voice messages get their voice back: the agent kept only the text. */
   function withVoices(events: Awaited<ReturnType<typeof readHistory>>): typeof events {
+    const users = events.flatMap((ev) => (ev.kind === 'user' ? [ev] : []));
+    let found: ReturnType<typeof voices.resolve> = [];
+    try { found = voices.resolve(users); } catch (e) { report('voice', e); }
+    let n = 0;
     return events.map((ev) => {
       if (ev.kind !== 'user') return ev;
-      let voice;
-      try { voice = voices.get(ev.id); } catch (e) { report('voice', e); }
+      const voice = found[n++];
       return voice ? { ...ev, voice } : ev;
     });
   }
@@ -253,6 +256,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
       try {
         const text = (await speech(voiceId, lang, () => g === slot.gen)).trim();
         if (!text) throw new VoiceFailure('empty');
+        try { voices.putText(id, text); } catch (e) { report('voice', e); } // a replay with new ids shows text only
         if (g === slot.gen) hub.emit({ kind: 'voice-text', id, text });
         // said, not typed: a leading slash must not run a command behind trackedCommand's back (a zero-width space)
         return text.startsWith('/') ? `\u200b${text}` : text;
@@ -372,14 +376,14 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
       if (refusal) return refusal;
       turns.assertNew(id); // first: a reused id is refused with no side effects
       if (voice) {
-        // only the voice (the parser saw to it): never a command, never forced, no images
+        // only the voice (the parser saw to it): never a command, no images; forced like a typed one, once the transcript is in
         turns.userTurn();
         idle.touch();
         slot.ensure();
         turns.sent(id);
         try { voices.put(id, voice); } catch (e) { report('voice', e); } // the bubble still goes; a replay would show text only
-        hub.emit({ kind: 'user', id, text: '', voice });
-        queue.push({ id, text: transcript(id, voice.id, lang ?? 'en'), lead: (t) => shell.takeFor(t) });
+        hub.emit({ kind: 'user', id, text: '', ...(force ? { force: true } : {}), voice });
+        queue.push({ id, text: transcript(id, voice.id, lang ?? 'en'), force, lead: (t) => shell.takeFor(t) });
         return null;
       }
       turns.userTurn(); // a real turn follows: its result is a normal one
