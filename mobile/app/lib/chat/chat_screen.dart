@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart'
     show AnchorSourceMessage, StopReason, TextAnchor;
 
-import '../hosts/hosts_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../comments/anchor.dart';
 import '../comments/chat_anchor.dart';
@@ -35,6 +34,7 @@ class ChatScreen extends StatefulWidget {
     this.overlay,
     this.itemBuilder,
     this.onTapTitle,
+    this.onTapRing,
     this.onReply,
     this.showHeader = true,
     this.extraTop = 0,
@@ -56,6 +56,9 @@ class ChatScreen extends StatefulWidget {
 
   /// Tapping the header pill (the settings sheet, #143); null leaves the pill inert.
   final VoidCallback? onTapTitle;
+
+  /// Tapping the context ring (the context sheet); null leaves it inert.
+  final VoidCallback? onTapRing;
 
   /// Covers the feed (the one-tab rule's Work here).
   final Widget? overlay;
@@ -187,7 +190,6 @@ class _ChatScreenState extends State<ChatScreen> {
       final c = Theme.of(context).extension<NbColors>()!;
       final f = widget.tab.feed;
       final pending = widget.tab.voiceOutbox.entries;
-      final status = _status(t);
       final items = f.items;
       // the feed keeps the floating header clear
       final top =
@@ -203,16 +205,6 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Column(
                   children: [
-                    if (status != null)
-                      Container(
-                        width: double.infinity,
-                        color: c.muted,
-                        padding: EdgeInsets.fromLTRB(12, top + 6, 12, 6),
-                        child: Text(
-                          status,
-                          style: TextStyle(color: c.mutedFg, fontSize: 13),
-                        ),
-                      ),
                     Expanded(
                       child: Stack(
                         children: [
@@ -223,9 +215,13 @@ class _ChatScreenState extends State<ChatScreen> {
                             // full width: the bubbles keep their own margins
                             padding: EdgeInsets.fromLTRB(
                               0,
-                              status == null ? top : 8,
+                              top,
                               0,
-                              8,
+                              // the floating Stop must not cover the end of the last bubble
+                              widget.tab.state == TabState.open &&
+                                      widget.tab.busy
+                                  ? 8 + 56
+                                  : 8,
                             ),
                             itemCount:
                                 items.length +
@@ -319,6 +315,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: ChatHeader(
                         tab: widget.tab,
                         onTapTitle: widget.onTapTitle,
+                        onTapRing: widget.onTapRing,
                         actions: widget.actions,
                       ),
                     ),
@@ -330,20 +327,6 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     },
   );
-
-  String? _status(AppLocalizations t) {
-    final l = widget.tab.link;
-    return switch (widget.tab.state) {
-      TabState.open => widget.tab.busy ? t.working : null,
-      TabState.connecting => t.connecting,
-      TabState.offline =>
-        l.lastSeen == null
-            ? t.offline
-            : t.offlineSeen(ago(t, DateTime.now().difference(l.lastSeen!))),
-      TabState.gone => t.windowGone,
-      TabState.occupied || TabState.taken => null,
-    };
-  }
 }
 
 /// A commentable item with its pending comments painted: each passage highlighted with the comment's number in the
@@ -630,13 +613,15 @@ class FeedItemView extends StatelessWidget {
               ),
       ),
       ToolItem() => ToolLine(item as ToolItem),
-      DoneItem(:final secs, :final status, :final error) => line(
-        switch (status) {
-          StopReason.interrupted => t.turnInterrupted(duration(t, secs)),
-          StopReason.failed => t.turnFailed(duration(t, secs), error ?? ''),
-          _ => t.turnDone(duration(t, secs)),
-        },
-      ),
+      // a turn that ended well leaves no line: the header says when it was done
+      DoneItem(:final secs, :final status, :final error) =>
+        status == StopReason.interrupted || status == StopReason.failed
+            ? line(
+                status == StopReason.interrupted
+                    ? t.turnInterrupted(duration(t, secs))
+                    : t.turnFailed(duration(t, secs), error ?? ''),
+              )
+            : const SizedBox.shrink(),
       MarkerItem(:final what, :final error) => line(switch (what) {
         MarkerKind.compacted => t.markerCompacted,
         MarkerKind.compactFailed => t.markerCompactFailed(error ?? ''),

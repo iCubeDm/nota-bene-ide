@@ -45,10 +45,7 @@
   "cancel": "Abbrechen",
   "copy": "Kopieren",
   "showEarlier": "Früheres anzeigen",
-  "working": "Arbeitet…",
-  "windowGone": "Das Fenster wurde geschlossen oder neu gestartet; warte auf seine Rückkehr",
   "idleCompact": "Nach einer Pause verdichtet",
-  "turnDone": "Fertig in {time}",
   "turnInterrupted": "Nach {time} gestoppt",
   "turnFailed": "Nach {time} fehlgeschlagen {error}",
   "markerCompacted": "Kontext verdichtet",
@@ -210,5 +207,66 @@
   "renameNoteOnly": "Der Name wird nur auf diesem Telefon gespeichert.",
   "reset": "Zurücksetzen",
   "darkThemes": "Dunkle Designs",
-  "lightThemes": "Helle Designs"
+  "lightThemes": "Helle Designs",
+  "stateOnline": "online",
+  "stateOnlineDone": "online · fertig um {time}",
+  "@stateOnlineDone": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWorking": "arbeitet",
+  "stateWorkingPhase": "arbeitet · {phase} · {elapsed}",
+  "@stateWorkingPhase": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      },
+      "elapsed": {
+        "type": "String"
+      }
+    }
+  },
+  "phaseReading": "liest Dateien",
+  "phaseSearching": "sucht",
+  "phaseEditing": "bearbeitet",
+  "phaseRunning": "führt Befehle aus",
+  "phaseDelegating": "delegiert",
+  "stateWaitingAnswer": "wartet auf deine Antwort",
+  "stateCompacting": "komprimiert Kontext…",
+  "stateConnecting": "verbindet…",
+  "stateOffline": "offline",
+  "stateOfflineSeen": "offline · zuletzt {ago}",
+  "@stateOfflineSeen": {
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWaitingWindow": "wartet auf das Fenster…",
+  "contextTitle": "Kontext",
+  "contextTokens": "{pct}% · {used} von {max} Tokens",
+  "@contextTokens": {
+    "placeholders": {
+      "pct": {
+        "type": "String"
+      },
+      "used": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "costTitle": "Diese Sitzung",
+  "idleCompactTitle": "Im Leerlauf komprimieren",
+  "idleCompactBody": "Nach dem Zug, solange der Cache warm ist",
+  "idleCompactBlocked": "In den Einstellungen des Agenten ausgeschaltet",
+  "windowGoneTitle": "Das Fenster wurde geschlossen oder neu gestartet",
+  "windowGoneBody": "Warten, bis es zurückkommt",
+  "stateOtherTab": "in einem anderen Tab geöffnet"
 }

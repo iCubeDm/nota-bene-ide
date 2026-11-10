@@ -80,7 +80,7 @@ void main() {
         agent({'t': 'message', 'id': 'a2', 'text': 'Second'}),
         agent({
           't': 'turn-end',
-          'stop': 'done',
+          'stop': 'interrupted',
           'secs': 3,
           'queued': 0,
           'answers': 'all',
@@ -96,7 +96,7 @@ void main() {
       expect(rs[0].bottom, rs[1].top);
       expect(rs[1].bottom, rs[2].top);
       // the turn's end line is outside, centred; the next turn is apart
-      final done = rectOf(t, find.textContaining('Done in'));
+      final done = rectOf(t, find.textContaining('Stopped after'));
       expect(done.top, greaterThanOrEqualTo(rs[2].bottom));
       expect((done.center.dx - 200).abs(), lessThan(1));
       expect(rs[3].top, greaterThan(rs[2].bottom + 10));

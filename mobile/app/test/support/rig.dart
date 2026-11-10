@@ -33,6 +33,8 @@ class Rig {
     bool settle = true,
     // the same app run: the voice outboxes keep what they have
     bool keepStore = false,
+    // false: the window said hello and has not replayed yet (the tab is still connecting)
+    bool replay = true,
   }) async {
     // the voice outboxes are the app's: each test starts with an empty disk
     if (!keepStore) VoiceStore.instance = VoiceStore(MemoryOutFiles());
@@ -68,7 +70,7 @@ class Rig {
     );
     await t.pump();
     event(hello ?? {'kind': 'hello', 'protocol': 13, 'capabilities': caps()});
-    event({'kind': 'replay', 'events': events});
+    if (replay) event({'kind': 'replay', 'events': events});
     if (settle) {
       await t.pumpAndSettle();
     } else {
@@ -98,6 +100,26 @@ class Rig {
     'idleCompact': true,
     'models': models,
   };
+
+  /// Opens the context sheet through the ring, which shows once the window reported its context ([stats] is the stats
+  /// event to report; a small context by default).
+  Future<void> openContextSheet(
+    WidgetTester t, {
+    Map<String, Object?>? stats,
+  }) async {
+    event(
+      stats ??
+          {
+            'kind': 'stats',
+            'stats': {
+              'context': {'used': 1000, 'max': 200000, 'pct': 0.5},
+            },
+          },
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('context-ring')));
+    await t.pumpAndSettle();
+  }
 
   void event(Map<String, Object?> e) => ch.event(ch.lastWsId, e);
 

@@ -17,6 +17,7 @@ import 'panes.dart';
 import 'composer.dart';
 import 'feed.dart';
 import 'one_tab.dart';
+import 'context_sheet.dart';
 import 'window_sheet.dart';
 import 'permission_sheet.dart';
 import 'window_tab.dart';
@@ -151,6 +152,7 @@ class _ChatRouteState extends State<ChatRoute> {
         header: ChatHeader(
           tab: _tab,
           onTapTitle: () => showWindowSheet(context, _tab),
+          onTapRing: () => showContextSheet(context, _tab),
         ),
         chat: (wide, top) => ChatScreen(
           tab: _tab,
@@ -158,6 +160,7 @@ class _ChatRouteState extends State<ChatRoute> {
           extraTop: top,
           focus: _focus_,
           onTapTitle: () => showWindowSheet(context, _tab),
+          onTapRing: () => showContextSheet(context, _tab),
           bottom: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

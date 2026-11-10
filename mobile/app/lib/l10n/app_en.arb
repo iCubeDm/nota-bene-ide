@@ -80,10 +80,7 @@
   "cancel": "Cancel",
   "copy": "Copy",
   "showEarlier": "Show earlier",
-  "working": "Working…",
-  "windowGone": "The window closed or restarted; waiting for it to come back",
   "idleCompact": "Compacted after a quiet stretch",
-  "turnDone": "Done in {time}",
   "turnInterrupted": "Stopped after {time}",
   "turnFailed": "Failed after {time} {error}",
   "markerCompacted": "Context compacted",
@@ -93,13 +90,6 @@
   "allowed": "Allowed",
   "denied": "Denied",
   "resumed": "Resumed session {id}",
-  "@turnDone": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
   "@turnInterrupted": {
     "placeholders": {
       "time": {
@@ -391,5 +381,66 @@
         "type": "String"
       }
     }
-  }
+  },
+  "stateOnline": "online",
+  "stateOnlineDone": "online · done {time}",
+  "@stateOnlineDone": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWorking": "working",
+  "stateWorkingPhase": "working · {phase} · {elapsed}",
+  "@stateWorkingPhase": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      },
+      "elapsed": {
+        "type": "String"
+      }
+    }
+  },
+  "phaseReading": "reading files",
+  "phaseSearching": "searching",
+  "phaseEditing": "editing",
+  "phaseRunning": "running commands",
+  "phaseDelegating": "delegating",
+  "stateWaitingAnswer": "waiting for your answer",
+  "stateCompacting": "compacting context…",
+  "stateConnecting": "connecting…",
+  "stateOffline": "offline",
+  "stateOfflineSeen": "offline · seen {ago}",
+  "@stateOfflineSeen": {
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "stateWaitingWindow": "waiting for the window…",
+  "contextTitle": "Context",
+  "contextTokens": "{pct}% · {used} of {max} tokens",
+  "@contextTokens": {
+    "placeholders": {
+      "pct": {
+        "type": "String"
+      },
+      "used": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "costTitle": "This session",
+  "idleCompactTitle": "Compact when idle",
+  "idleCompactBody": "After the turn, while the cache is warm",
+  "idleCompactBlocked": "Turned off in the agent's settings",
+  "windowGoneTitle": "The window closed or restarted",
+  "windowGoneBody": "Waiting for it to come back",
+  "stateOtherTab": "open in another tab"
 }
