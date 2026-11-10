@@ -301,7 +301,7 @@ class _LockOverlay extends StatelessWidget {
       final c = Theme.of(context).extension<NbColors>()!;
       final locked = session.phase == RecordPhase.locked;
       final p = (-session.drag.dy / RecordSession.lockAt).clamp(0.0, 1.0);
-      // above the 96 px circle while held, just above the (48 px) button once locked
+      // above the 96 px circle while held, 8 px above the button's top edge once locked
       final gap = locked ? 8.0 : _RecordButtonState._big / 2 + 12;
       return _Loose(
         CompositedTransformFollower(
@@ -309,7 +309,7 @@ class _LockOverlay extends StatelessWidget {
           showWhenUnlinked: false,
           targetAnchor: Alignment.center,
           followerAnchor: Alignment.bottomCenter,
-          offset: Offset(0, -(locked ? 24.0 : 0) - gap),
+          offset: Offset(0, -(locked ? _RecordButtonState._size / 2 : 0) - gap),
           child: locked
               ? Tooltip(
                   message: t.voiceStop,

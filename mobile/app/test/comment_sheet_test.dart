@@ -267,6 +267,23 @@ void main() {
       },
     );
 
+    testWidgets('a Retry asks in the language the clip was recorded in', (
+      t,
+    ) async {
+      final v = await VoiceLang.load(MemoryVault());
+      await v.choose('ru');
+      r.voiceLang = v;
+      textStatus = 503;
+      await openSheet(t);
+      await record(t);
+      await v.choose('en');
+      textStatus = 200;
+      await t.tap(find.text('Retry'));
+      await t.pump();
+      await t.pump();
+      expect(r.ch.requests.last, endsWith('/text?lang=ru'));
+    });
+
     testWidgets('a comment with clips opens with them, and gives them back', (
       t,
     ) async {

@@ -484,8 +484,9 @@ void main() {
     await t.pump();
     final stop = find.byKey(const ValueKey('voice-stop'));
     expect(t.getSize(stop), const Size(40, 40));
-    // 8 px above the 48 px button
-    expect(t.getBottomLeft(stop).dy, closeTo(mic.dy - 24 - 8, 1));
+    // 8 px above the button's top edge
+    final button = t.getRect(find.byType(RecordButton));
+    expect(t.getBottomLeft(stop).dy, closeTo(button.top - 8, 1));
     expect(t.getCenter(stop).dx, closeTo(mic.dx, 1));
     session.cancel();
     await t.pump();

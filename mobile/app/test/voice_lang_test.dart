@@ -53,6 +53,23 @@ void main() {
     expect(await lang(t, v), 'ru');
   });
 
+  testWidgets('the app in Russian and no choice: Russian', (t) async {
+    late String got;
+    await t.pumpWidget(
+      NbApp(
+        langs: await LangChoice.load(MemoryVault()..values['lang'] = 'ru'),
+        voiceLang: await VoiceLang.load(MemoryVault()),
+        home: Builder(
+          builder: (c) {
+            got = voiceLangOf(c);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    expect(got, 'ru');
+  });
+
   testWidgets('picked in Settings, in each language\'s own name, and kept', (
     t,
   ) async {
