@@ -238,41 +238,53 @@ class _HeldOverlay extends StatelessWidget {
       builder: (context, _) {
         final c = Theme.of(context).extension<NbColors>()!;
         final halo = _RecordButtonState._big + 36 * session.level.clamp(0, 1);
-        return CompositedTransformFollower(
-          link: link,
-          showWhenUnlinked: false,
-          targetAnchor: Alignment.center,
-          followerAnchor: Alignment.center,
-          offset: session.drag,
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 100),
-                width: halo,
-                height: halo,
-                decoration: BoxDecoration(
-                  color: c.primary.withValues(alpha: .25),
-                  shape: BoxShape.circle,
+        return _Loose(
+          CompositedTransformFollower(
+            link: link,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.center,
+            followerAnchor: Alignment.center,
+            offset: session.drag,
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  width: halo,
+                  height: halo,
+                  decoration: BoxDecoration(
+                    color: c.primary.withValues(alpha: .25),
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              Container(
-                width: _RecordButtonState._big,
-                height: _RecordButtonState._big,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: c.primary,
-                  shape: BoxShape.circle,
+                Container(
+                  width: _RecordButtonState._big,
+                  height: _RecordButtonState._big,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: c.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: NbIcon(NbGlyph.mic, size: 32, color: c.primaryFg),
                 ),
-                child: NbIcon(NbGlyph.mic, size: 32, color: c.primaryFg),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
     ),
   );
+}
+
+/// An overlay entry's child gets the overlay's tight, screen-sized constraints; a follower must size to its own child.
+class _Loose extends StatelessWidget {
+  const _Loose(this.child);
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      Align(alignment: Alignment.topLeft, child: child);
 }
 
 /// The lock above the button: a lock over a chevron that closes as the finger rises; once locked, Stop.
@@ -291,57 +303,59 @@ class _LockOverlay extends StatelessWidget {
       final p = (-session.drag.dy / RecordSession.lockAt).clamp(0.0, 1.0);
       // above the 96 px circle while held, just above the (48 px) button once locked
       final gap = locked ? 8.0 : _RecordButtonState._big / 2 + 12;
-      return CompositedTransformFollower(
-        link: link,
-        showWhenUnlinked: false,
-        targetAnchor: Alignment.center,
-        followerAnchor: Alignment.bottomCenter,
-        offset: Offset(0, -(locked ? 24.0 : 0) - gap),
-        child: locked
-            ? Tooltip(
-                message: t.voiceStop,
-                child: GestureDetector(
-                  key: const ValueKey('voice-stop'),
-                  onTap: session.stopToPreview,
+      return _Loose(
+        CompositedTransformFollower(
+          link: link,
+          showWhenUnlinked: false,
+          targetAnchor: Alignment.center,
+          followerAnchor: Alignment.bottomCenter,
+          offset: Offset(0, -(locked ? 24.0 : 0) - gap),
+          child: locked
+              ? Tooltip(
+                  message: t.voiceStop,
+                  child: GestureDetector(
+                    key: const ValueKey('voice-stop'),
+                    onTap: session.stopToPreview,
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: c.popover,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: c.border),
+                      ),
+                      child: NbIcon(NbGlyph.stop, color: c.destructive),
+                    ),
+                  ),
+                )
+              : IgnorePointer(
                   child: Container(
                     width: 40,
-                    height: 40,
-                    alignment: Alignment.center,
+                    height: 76 - 36 * p,
                     decoration: BoxDecoration(
                       color: c.popover,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: c.border),
                     ),
-                    child: NbIcon(NbGlyph.stop, color: c.destructive),
-                  ),
-                ),
-              )
-            : IgnorePointer(
-                child: Container(
-                  width: 40,
-                  height: 76 - 36 * p,
-                  decoration: BoxDecoration(
-                    color: c.popover,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: c.border),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      NbIcon(NbGlyph.lock, size: 18, color: c.foreground),
-                      if (p < .6)
-                        Opacity(
-                          opacity: 1 - p / .6,
-                          child: NbIcon(
-                            NbGlyph.chevronUp,
-                            size: 16,
-                            color: c.mutedFg,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        NbIcon(NbGlyph.lock, size: 18, color: c.foreground),
+                        if (p < .6)
+                          Opacity(
+                            opacity: 1 - p / .6,
+                            child: NbIcon(
+                              NbGlyph.chevronUp,
+                              size: 16,
+                              color: c.mutedFg,
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
+        ),
       );
     },
   );
@@ -372,25 +386,27 @@ class _HintState extends State<_Hint> {
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
-    child: CompositedTransformFollower(
-      link: widget.link,
-      showWhenUnlinked: false,
-      targetAnchor: Alignment.topRight,
-      followerAnchor: Alignment.bottomRight,
-      offset: const Offset(0, -8),
-      child: AnimatedOpacity(
-        opacity: _on ? 1 : 0,
-        duration: const Duration(milliseconds: 200),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 240),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xE6212121),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            AppLocalizations.of(context).voiceHint,
-            style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 13),
+    child: _Loose(
+      CompositedTransformFollower(
+        link: widget.link,
+        showWhenUnlinked: false,
+        targetAnchor: Alignment.topRight,
+        followerAnchor: Alignment.bottomRight,
+        offset: const Offset(0, -8),
+        child: AnimatedOpacity(
+          opacity: _on ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 240),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xE6212121),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              AppLocalizations.of(context).voiceHint,
+              style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 13),
+            ),
           ),
         ),
       ),
