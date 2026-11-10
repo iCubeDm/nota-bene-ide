@@ -24,6 +24,8 @@
   "pairHost": "Host koppeln",
   "noHosts": "Noch keine Hosts. Starte `nota-bene remote` auf deinem Computer und kopple dieses Telefon damit.",
   "settings": "Einstellungen",
+  "language": "Sprache",
+  "languageSystem": "Wie auf dem Telefon",
   "theme": "Designs",
   "connecting": "Verbinde…",
   "offline": "Offline",

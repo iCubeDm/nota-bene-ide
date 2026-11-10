@@ -13,6 +13,7 @@ import 'pairing/scan_screen.dart';
 import 'settings_screen.dart';
 import 'store/hosts.dart';
 import 'store/seen.dart';
+import 'store/lang_choice.dart';
 import 'store/theme_choice.dart';
 import 'store/vault.dart';
 import 'theme.dart';
@@ -23,12 +24,15 @@ Future<void> main() async {
   await initializeDateFormatting();
   // read before the first frame, so the app opens in the chosen theme
   final themes = await ThemeChoice.load(SecureVault());
+  // and in the chosen language
+  final langs = await LangChoice.load(SecureVault());
   // one hidden WebView for every diagram of the app, kept above the Navigator with the lock
   final mermaid = CachedMermaid(WebViewMermaid());
   runApp(
     NbApp(
       themes: themes,
-      home: AppRoot(themes: themes),
+      langs: langs,
+      home: AppRoot(themes: themes, langs: langs),
       lock: (nav) => LockGate(
         authenticator: DeviceAuthenticator(),
         child: MermaidScope(renderer: mermaid, child: nav),
@@ -39,9 +43,10 @@ Future<void> main() async {
 
 /// Loads the phone key and the pairings, then the start screen.
 class AppRoot extends StatefulWidget {
-  const AppRoot({super.key, required this.themes});
+  const AppRoot({super.key, required this.themes, required this.langs});
 
   final ThemeChoice themes;
+  final LangChoice langs;
 
   @override
   State<AppRoot> createState() => _AppRootState();
@@ -110,6 +115,7 @@ class _AppRootState extends State<AppRoot> {
               identity: d.id,
               hosts: d.hosts,
               themes: widget.themes,
+              langs: widget.langs,
               onPair: pair,
             ),
           ),
@@ -137,29 +143,31 @@ Locale resolveLocale(List<Locale>? preferred) {
 }
 
 class NbApp extends StatelessWidget {
-  const NbApp({super.key, this.home, this.lock, this.themes});
+  const NbApp({super.key, this.home, this.lock, this.themes, this.langs});
 
   final Widget? home;
 
   /// The phone's theme choice; Darcula without one (tests).
   final ThemeChoice? themes;
 
+  /// The language picked in Settings; the phone's without one.
+  final LangChoice? langs;
+
   /// Wraps the whole Navigator (every route), when given.
   final Widget Function(Widget navigator)? lock;
 
   @override
-  Widget build(BuildContext context) => themes == null
-      ? _app(NbTheme.darcula)
-      : ListenableBuilder(
-          listenable: themes!,
-          builder: (_, _) => _app(themes!.theme),
-        );
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([?themes, ?langs]),
+    builder: (_, _) => _app(themes?.theme ?? NbTheme.darcula),
+  );
 
   Widget _app(NbTheme theme) => MaterialApp(
     onGenerateTitle: (c) => AppLocalizations.of(c).appTitle,
     theme: theme.data,
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
+    locale: langs?.locale,
     localeListResolutionCallback: (preferred, _) => resolveLocale(preferred),
     home: home ?? const Scaffold(),
     builder: lock == null
