@@ -92,7 +92,12 @@ class RecordRow extends StatelessWidget {
                             style: TextButton.styleFrom(
                               foregroundColor: c.accent,
                             ),
-                            child: Text(t.voiceCancel.toUpperCase()),
+                            child: Text(
+                              t.voiceCancel.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.fade,
+                              softWrap: false,
+                            ),
                           )
                         : Transform.translate(
                             offset: Offset(dx, 0),
@@ -108,9 +113,15 @@ class RecordRow extends StatelessWidget {
                                     size: 16,
                                     color: c.mutedFg,
                                   ),
-                                  Text(
-                                    t.voiceSlideCancel,
-                                    style: TextStyle(color: c.mutedFg),
+                                  // a narrow phone or a long translation: the label gives way, the row never overflows
+                                  Flexible(
+                                    child: Text(
+                                      t.voiceSlideCancel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.fade,
+                                      softWrap: false,
+                                      style: TextStyle(color: c.mutedFg),
+                                    ),
                                   ),
                                 ],
                               ),
