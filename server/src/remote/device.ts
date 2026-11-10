@@ -15,7 +15,7 @@ const FORWARDED = ['accept', 'content-type', 'range', 'if-none-match', 'if-range
 const DROPPED = new Set(['set-cookie', 'connection', 'keep-alive', 'transfer-encoding']);
 const MAX_BODY = 32 * 1024 * 1024; // a request body is buffered whole, so a refused bearer can be retried
 const INFO_MS = 5000;
-const INFO_FIELDS = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies'];
+const INFO_FIELDS = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies', 'icon'];
 
 /** A path the proxy sends on: one of the window's own routes, never another host, never the control routes. */
 const goodPath = (p: unknown): p is string =>

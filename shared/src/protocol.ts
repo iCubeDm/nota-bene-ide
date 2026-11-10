@@ -129,7 +129,9 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 12: provider modes/descriptors, structured interaction answers and variable-duration usage windows.
 // 13: page anchors (a comment on an element or an SVG area of an HTML page); an older server would refuse the comment.
 // 14: voice messages (`send.voice` and `send.lang`, `user.voice`, the `voice-text` event, `/voice`) and voice clips of comments (`Comment.voice`).
-export const PROTOCOL = 14;
+// 15: the project icon: the project folder's picture (`/project-icon`, set from the phone; `/info.icon` is its version or null).
+// (Other additions to protocol 15, such as optional Interaction fields, are listed beside this line by their own changes.)
+export const PROTOCOL = 15;
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
 export const TAKEN_OVER_CODE = 4001;

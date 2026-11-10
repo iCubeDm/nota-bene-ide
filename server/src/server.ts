@@ -12,6 +12,7 @@ import { HistoryArchive, historyRoutes } from './archive.ts';
 import { subagentRoutes } from './subagent.ts';
 import { taskOutputRoutes } from './taskOutput.ts';
 import { AttachmentStore, attachmentRoutes } from './attachments.ts';
+import { ProjectIconStore, projectIconRoutes } from './projectIcon.ts';
 import { MarkFiles, markRoutes } from './marks.ts';
 import { CommentStore } from './comments.ts';
 import { EventHub } from './hub.ts';
@@ -24,7 +25,7 @@ import { SwitchError, createSessionManager } from './session.ts';
 import type { IdleConfig } from './idle.ts';
 import { listSessionsView, renameRoute } from './sessions.ts';
 import { codeChecker } from './codeStamp.ts';
-import { stateDir } from './state.ts';
+import { stateBaseDir, stateDir } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { moveWindow } from './windows.ts';
 import { controlToken, describeVersion, systemRoutes } from './system.ts';
@@ -109,6 +110,8 @@ export async function startServer(o: {
     // made at start, never by a request: an unauthenticated /control/* must not be able to create the file
     const control = controlToken();
     const attachments = new AttachmentStore({ dir: path.join(stateDir(), 'attachments') });
+    // a picture per project folder, shared by every provider's windows of it: the base state folder, never the project
+    const projectIcons = new ProjectIconStore({ dir: path.join(stateBaseDir(), 'project-icons') });
     const archive = new HistoryArchive({ dir: path.join(stateDir(), 'history'), report: (e) => reportError(hub, 'archive', e) });
     const manager = await createSessionManager({
       hub,
@@ -248,6 +251,8 @@ export async function startServer(o: {
         ...fileRoutes({ root, hub, complete: (q) => complete({ session: manager, root: root() }, q), blend }),
         ...attachmentRoutes(attachments, hub),
         ...voiceRoutes({ hub, store: attachments }),
+        // the project folder's picture, set from the phone (protocol 15)
+        ...projectIconRoutes({ store: projectIcons, root, hub }),
         // only the current conversation's archive: a page of another one (before a switch or a /clear) gets 409
         ...historyRoutes(archive, () => manager.archiveId(), hub),
         // a subagent's conversation (protocol 7); same rule: only the current conversation's
@@ -317,7 +322,7 @@ export async function startServer(o: {
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), pending: manager.pending(), ...hub.summary(), clients: hub.clients(), blender: blend?.available() ?? false };
+        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), pending: manager.pending(), ...hub.summary(), clients: hub.clients(), blender: blend?.available() ?? false, icon: projectIcons.versionOrNull(root) };
       },
     }));
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);

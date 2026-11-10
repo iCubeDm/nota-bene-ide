@@ -304,5 +304,8 @@
   "paragraphLess": "Меньше",
   "paragraphCopied": "Скопировано",
   "micNeedsUpdate": "Для голосовых сообщений нужно обновить Nota Bene на компьютере.",
-  "micUnavailable": "Голосовые сообщения недоступны"
+  "micUnavailable": "Голосовые сообщения недоступны",
+  "setIcon": "Задать значок",
+  "removeIcon": "Убрать значок",
+  "iconFailed": "Не удалось изменить значок."
 }

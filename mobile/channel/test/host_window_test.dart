@@ -2,6 +2,7 @@ import 'package:nb_channel/nb_channel.dart';
 import 'package:test/test.dart';
 
 void main() {
+  iconTests();
   test('a window reads its pending, last and replies', () {
     final w = HostWindow.fromJson({
       'port': 4781,
@@ -79,4 +80,25 @@ void main() {
       isNull,
     );
   });
+}
+
+void iconTests() {
+  test(
+    'icon: the version, null when none, and whether the host knows icons',
+    () {
+      HostWindow w(Map<String, Object?> extra) => HostWindow.fromJson({
+        'port': 4781,
+        'provider': 'claude',
+        'root': '/proj',
+        ...extra,
+      });
+      expect(w({'icon': 'abcdef0123456789'}).icon, 'abcdef0123456789');
+      expect(w({'icon': 'abcdef0123456789'}).iconSupported, isTrue);
+      expect(w({'icon': null}).icon, isNull);
+      expect(w({'icon': null}).iconSupported, isTrue);
+      // an older host sends no field at all
+      expect(w({}).icon, isNull);
+      expect(w({}).iconSupported, isFalse);
+    },
+  );
 }

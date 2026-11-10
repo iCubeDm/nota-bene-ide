@@ -304,5 +304,8 @@
   "paragraphLess": "Menos",
   "paragraphCopied": "Copiado",
   "micNeedsUpdate": "Los mensajes de voz requieren actualizar Nota Bene en el ordenador.",
-  "micUnavailable": "Mensajes de voz no disponibles"
+  "micUnavailable": "Mensajes de voz no disponibles",
+  "setIcon": "Establecer icono",
+  "removeIcon": "Quitar icono",
+  "iconFailed": "No se pudo cambiar el icono."
 }

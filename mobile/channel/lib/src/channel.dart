@@ -60,6 +60,8 @@ class HostWindow {
     this.pending = false,
     this.last,
     this.replies,
+    this.icon,
+    this.iconSupported = false,
   });
 
   factory HostWindow.fromJson(Map<String, Object?> j) => HostWindow(
@@ -77,6 +79,8 @@ class HostWindow {
       final num n => n.toInt(),
       _ => null,
     },
+    icon: j['icon'] is String ? j['icon'] as String : null,
+    iconSupported: j.containsKey('icon'),
   );
 
   final int port;
@@ -93,6 +97,30 @@ class HostWindow {
 
   /// The final replies of the session; null from an older window.
   final int? replies;
+
+  /// The version (a hash) of the picture of the window's project folder, null when it has none.
+  final String? icon;
+
+  /// This window with another picture state (the phone keeps the last known one when a poll leaves the field out).
+  HostWindow withIcon(String? icon, bool iconSupported) => HostWindow(
+    port: port,
+    provider: provider,
+    root: root,
+    title: title,
+    session: session,
+    model: model,
+    busy: busy,
+    supervised: supervised,
+    pending: pending,
+    last: last,
+    replies: replies,
+    icon: icon,
+    iconSupported: iconSupported,
+  );
+
+  /// The host knows project pictures (protocol 15 lists `icon`, null or not); an older host does not, and the phone
+  /// offers no Set icon there.
+  final bool iconSupported;
 }
 
 typedef HttpAnswer = ({

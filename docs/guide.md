@@ -496,6 +496,11 @@ the turn or, with *Send now*, interrupts it), *Stop*, and in the agent menu *Com
   next message as the desktop sends them, and the desktop shows them too, because they are the window's comments. A
   comment is highlighted in its file; tap it (or long-press it above the composer) to edit or delete it. Comments
   on images, video and pages made on the desktop stay there and are sent from the desktop.
+- **Project icons.** Long-press a session in the list and choose *Set icon* to give its project folder a picture from the
+  camera or the gallery (cut to a centre square of 256 px on the phone); *Remove icon* takes it away. The picture is kept
+  on the computer in Nota Bene's own folder, never in the project, so every window of that folder shows it on every phone
+  (as the session's avatar in the list and in the chat header). The desktop shows nothing new. A computer on an older
+  Nota Bene offers no *Set icon*.
 - **Not yet:** comments on chat messages, images and video, usage statistics and dictation come with the next parts
   of #63.
 
