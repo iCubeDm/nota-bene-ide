@@ -49,6 +49,19 @@ afterEach(async () => {
       }
     }
   }
+  // SIGKILL is asynchronous: wait until each group is really gone, or a process may still write into tmp while it is removed
+  for (const g of groups) {
+    for (const id of [-g, g]) {
+      for (;;) {
+        try {
+          process.kill(id, 0);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === 'ESRCH') break;
+        }
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    }
+  }
   groups.clear();
   for (const sock of sockets) sock.destroy();
   sockets.clear();
@@ -777,16 +790,15 @@ setInterval(() => { if (fs.existsSync(${JSON.stringify(go)})) process.exit(1); }
     fs.mkdirSync(v, { recursive: true });
     fs.symlinkSync(BIN, path.join(v, 'nota-bene.mjs'));
     setCurrent('1.99.0');
-    // the launcher's own wait for the inner server's /info is not what this test measures: out of the way on a slow runner
-    launch(['--port', '4795'], { NOTA_BENE_TEST_PUBLISHED: '1', NOTA_BENE_TEST_CRASH: '77', NOTA_BENE_TEST_HANDOVER_INFO_MS: '120000', ...serverPreload() });
-    // step by step, each from the previous event: the first server ran (and exited 77), the second ran, the second answers
-    await waitFor(() => serverRuns().length >= 2, 30000);
-    await waitFor(async () => (await info(4795))?.root === project, 30000);
+    const r = launch(['--port', '4795'], { NOTA_BENE_TEST_PUBLISHED: '1', NOTA_BENE_TEST_CRASH: '77', ...serverPreload() });
+    await waitFor(async () => (await info(4795))?.root === project, 20000);
     const [first, second] = serverRuns();
     expect(serverRuns()).toHaveLength(2);
     expect(second!.env.NOTA_BENE_NONCE).toBe(first!.env.NOTA_BENE_NONCE);
     expect(second!.env.NOTA_BENE_UPDATED_FROM).toBe('1.99.0');
-  }, 90000);
+    r.p.kill('SIGTERM'); // a clean stop: nothing is still writing into tmp when the hook removes it
+    await r.exited;
+  }, 30000);
 
   it('a checkout never hands over', async () => {
     installStub('1.99.0', 0);

@@ -10,7 +10,7 @@ import { EventHub } from './hub.ts';
 import { httpHandler } from './http.ts';
 import { fileRoutes } from './fileRoutes.ts';
 
-// Skipped: Blender support is off (model3d); re-enable with it.
+// Skipped while experimental 3D (NOTA_BENE_EXPERIMENTAL_3D) is off by default; re-enable with it.
 // A stand-in for Blender: `--version`, else it logs its argv (blend.test.log next to it) and acts on the input's bytes:
 // FAIL = exit 1 with a message, HANG = never ends (ignores SIGTERM when STUBBORN), EMPTY = exit 0 without output.
 const FAKE = `#!/usr/bin/env node

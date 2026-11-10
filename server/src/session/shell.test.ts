@@ -19,6 +19,7 @@ beforeEach(() => {
   reported = [];
 });
 afterEach(() => {
+  vi.useRealTimers(); // a test that timed out mid-run leaves no fake clock behind
   for (const r of runners.splice(0)) r.stopAll();
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -38,15 +39,14 @@ async function until(cond: () => boolean, ms = 5000): Promise<void> {
 }
 const outs = () => events.filter((e): e is Extract<ServerEvent, { kind: 'shell-out' }> => e.kind === 'shell-out');
 const lastOut = () => outs().at(-1)?.text ?? '';
-// A run that hits its deadline: the (fake) clock moves only once the command's first output is in, so the deadline cannot beat a slow shell.
-const runToTimeout = async (r: ShellRunner, cmd: string, id = 'r1') => {
-  vi.useFakeTimers({ toFake: ['setTimeout'] });
-  try {
-    expect(r.run(id, cmd)).toBe(true);
-    // waitFor polls on real timers; the output frame is flushed by a timer too, so nudge the fake clock a few ms per poll (far from the deadline)
-    await vi.waitFor(async () => { await vi.advanceTimersByTimeAsync(50); expect(outs().some((e) => e.id === id)).toBe(true); }, { timeout: 10_000 });
-    await vi.advanceTimersByTimeAsync(SHELL_TIMEOUT_MS);
-  } finally { vi.useRealTimers(); }
+// A run that hits its deadline: the (fake) clock moves only once the command's own output is in, so the deadline cannot beat a slow shell.
+// vi.waitFor polls on real timers and ticks the fake clock a few ms per poll (that also flushes the output frame); only the test timeout limits it.
+const runToTimeout = async (r: ShellRunner, cmd: string, text: string, id = 'r1') => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  expect(r.run(id, cmd)).toBe(true);
+  await vi.waitFor(() => expect(lastOut()).toContain(text), { timeout: 600_000 });
+  await vi.advanceTimersByTimeAsync(SHELL_TIMEOUT_MS);
+  vi.useRealTimers();
   await until(() => !!ended(id));
   return ended(id)!;
 };
@@ -153,7 +153,7 @@ describe('ShellRunner', () => {
 
   it('stops a run that exceeds the timeout, with the reason', async () => {
     const r = make();
-    await runToTimeout(r, 'echo start; sleep 30');
+    await runToTimeout(r, 'echo start; sleep 30', 'start');
     expect(ended()).toMatchObject({ stop: 'timeout', code: null });
     expect(ended()!.output).toBe('start\n');
   });
@@ -268,7 +268,7 @@ describe('what the agent is told', () => {
 
   it('a stopped or timed-out run says so, and a switch leaves nothing', async () => {
     const r = make();
-    await runToTimeout(r, 'echo partial; sleep 30');
+    await runToTimeout(r, 'echo partial; sleep 30', 'partial');
     expect(r.take('x')).toContain('<bash-stdout>partial</bash-stdout><bash-stderr>[stopped: it ran longer than 10 minutes]</bash-stderr>');
     const r2 = make();
     r2.run('r2', 'sleep 30');
