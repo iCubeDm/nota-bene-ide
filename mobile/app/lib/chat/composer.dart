@@ -18,6 +18,7 @@ import '../voice/record_row.dart';
 import '../voice/record_session.dart';
 import '../voice/recorder.dart';
 import 'attach_sheet.dart';
+import 'send_now.dart';
 import 'window_tab.dart';
 
 /// How an image is prepared before its upload; replaced in tests, where an isolate cannot be waited for.
@@ -178,7 +179,7 @@ class _ComposerState extends State<Composer> {
     if (!mounted) return;
     var force = false;
     if (widget.tab.busy) {
-      final choice = await _askNow();
+      final choice = await askSendNow(context);
       if (!mounted) return;
       if (choice == null) return _session.restore(wav);
       force = choice == 'force';
@@ -233,29 +234,6 @@ class _ComposerState extends State<Composer> {
     unawaited(nav.maybePop());
   }
 
-  /// "Send now or after this turn": 'force', 'queue', or null when it was dismissed.
-  Future<String?> _askNow() {
-    final t = AppLocalizations.of(context);
-    return showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(t.sendNowTitle),
-        content: Text(t.sendNowBody),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: Text(t.cancel)),
-          TextButton(
-            onPressed: () => Navigator.pop(c, 'queue'),
-            child: Text(t.sendAfter),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, 'force'),
-            child: Text(t.sendNow),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _send() async {
     final text = _text.text.trim();
     if (_uploading || _failed) return;
@@ -267,7 +245,7 @@ class _ComposerState extends State<Composer> {
     var force = false;
     if (widget.tab.busy) {
       // as on the desktop: a message while the agent works waits for its turn, unless it is sent now and interrupts
-      final choice = await _askNow();
+      final choice = await askSendNow(context);
       if (choice == null || !mounted) return;
       force = choice == 'force';
     }

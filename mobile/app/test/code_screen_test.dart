@@ -24,12 +24,9 @@ void main() {
 
   testWidgets('line numbers are 1..n in a non-selectable column', (t) async {
     await show(t, const CodeScreen(code: 'a\nb\nc\nd', lang: null));
-    for (final n in ['1', '2', '3', '4']) {
-      expect(find.text(n), findsOneWidget);
-    }
-    expect(find.text('5'), findsNothing);
+    expect(find.text('1\n2\n3\n4'), findsOneWidget);
     final col = find.ancestor(
-      of: find.text('1'),
+      of: find.text('1\n2\n3\n4'),
       matching: find.byType(SelectionContainer),
     );
     expect(col, findsWidgets);

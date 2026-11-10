@@ -1,4 +1,7 @@
+import 'package:flutter/material.dart' show PopupMenuItem;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/files/files_pane.dart';
+import 'package:nb_app/chat/code_screen.dart';
 import 'package:nb_app/chat/files.dart';
 import 'package:nb_app/files/file_screen.dart';
 
@@ -75,7 +78,37 @@ void main() {
   );
 
   testWidgets(
-    'the Files item lists the session\'s Markdown files, newest first, once each',
+    'a tool line on any project file opens it as text; a folder does not',
+    (t) async {
+      final r = Rig();
+      await r.open(
+        t,
+        events: [
+          {
+            'kind': 'session',
+            'id': 's1',
+            'root': '/home/u/notes',
+            'title': null,
+            'model': null,
+          },
+          tool('r1', 'Read', {'file_path': '/home/u/notes/src/main.ts'}),
+          result('r1'),
+          tool('g1', 'Grep', {'pattern': 'x', 'path': '/home/u/notes/src'}),
+          result('g1'),
+        ],
+      );
+      r.ch.onHttp = (port, method, path) async => answer(200, 'const a = 1;\n');
+      expect(find.byTooltip('Open the file'), findsOneWidget);
+      await t.tap(find.byTooltip('Open the file'));
+      await t.pumpAndSettle();
+      expect(find.byType(CodeScreen), findsOneWidget);
+      expect(r.ch.requests.last, 'GET /file?path=src%2Fmain.ts');
+      r.dispose();
+    },
+  );
+
+  testWidgets(
+    'the Files item shows the Files pane with the session\'s files, newest first, once each',
     (t) async {
       final r = Rig();
       await r.open(
@@ -98,13 +131,20 @@ void main() {
           result('d'),
         ],
       );
-      expect(sessionFiles(r.tab!), ['README.md', 'docs/plan.md']);
+      expect(sessionFiles(r.tab!), [
+        'src/main.ts',
+        'README.md',
+        'docs/plan.md',
+      ]);
       await t.tap(find.byTooltip('Agent'));
       await t.pumpAndSettle();
-      await t.tap(find.text('Files'));
+      await t.tap(find.widgetWithText(PopupMenuItem<Object?>, 'Files'));
       await t.pumpAndSettle();
+      // the host answers no tree here: the session's files are shown all the same
+      expect(find.text('This session'), findsOneWidget);
+      expect(find.text('main.ts'), findsOneWidget);
       expect(find.text('README.md'), findsOneWidget);
-      expect(find.text('docs/plan.md'), findsOneWidget);
+      expect(find.text('plan.md'), findsOneWidget);
       r.dispose();
     },
   );
@@ -114,9 +154,10 @@ void main() {
     await r.open(t);
     await t.tap(find.byTooltip('Agent'));
     await t.pumpAndSettle();
-    await t.tap(find.text('Files'));
+    await t.tap(find.widgetWithText(PopupMenuItem<Object?>, 'Files'));
     await t.pumpAndSettle();
-    expect(find.textContaining('No Markdown files'), findsOneWidget);
+    expect(find.text('This session'), findsNothing);
+    expect(find.byType(FolderPage), findsOneWidget);
     r.dispose();
   });
 

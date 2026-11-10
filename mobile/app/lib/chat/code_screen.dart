@@ -2,6 +2,8 @@
 // ways (lines are never wrapped), selectable text, copy and close in the bar.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:nb_protocol/nb_protocol.dart' show AnchorSourceFile;
 
 import '../comments/anchor.dart';
 import '../comments/chat_anchor.dart';
@@ -43,9 +45,17 @@ class CodeScreen extends StatefulWidget {
     this.tab,
     this.item,
     this.ordinal,
+    this.filePath,
+    this.title,
   });
 
   final String code;
+
+  /// A project file's text: a selection becomes a comment on the file (the desktop's file anchors), not on a message.
+  final String? filePath;
+
+  /// Shown in the bar instead of the language (a file's name).
+  final String? title;
   final String? lang;
 
   /// The window and the message the code is from: a selection becomes a comment on the message.
@@ -68,8 +78,39 @@ class _CodeScreenState extends State<CodeScreen> {
 
   /// The selection in the message's text: found inside this code block's own place there, so the same words in the
   /// prose around it are not taken for it.
+  Future<void> _commentFile(WindowTab tab, String path) async {
+    // the desktop's text of a code file: its whitespace runs as one space (a `pre` of the text)
+    final r = renderedText([
+      md.Element('pre', [
+        md.Element('code', [md.Text(widget.code)]),
+      ]),
+    ]);
+    final at = locateSelection(r, _selected, null);
+    if (at == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).commentNotPlaced)),
+      );
+      return;
+    }
+    final res = await showCommentSheet(
+      context,
+      quote: r.text.substring(at.start, at.end),
+      tab: tab,
+    );
+    if (res is! SheetSave) return;
+    tab.comments.add(
+      makeAnchor(AnchorSourceFile(path: path), r.text, at.start, at.end),
+      res.text,
+      res.label,
+      voice: res.voice,
+    );
+  }
+
   Future<void> _comment() async {
     final tab = widget.tab, item = widget.item;
+    if (tab != null && widget.filePath != null) {
+      return _commentFile(tab, widget.filePath!);
+    }
     final source = item == null ? null : chatSource(item);
     final r = item == null ? null : chatText(item);
     if (tab == null || r == null || source == null) return;
@@ -126,7 +167,15 @@ class _CodeScreenState extends State<CodeScreen> {
                   icon: NbIcon(NbGlyph.close, color: c.foreground),
                   onPressed: () => Navigator.of(context).maybePop(),
                 ),
-                if (lang != null && lang.isNotEmpty)
+                if (widget.title != null)
+                  Flexible(
+                    child: Text(
+                      widget.title!,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: c.foreground, fontSize: 14),
+                    ),
+                  )
+                else if (lang != null && lang.isNotEmpty)
                   Text(
                     lang,
                     style: TextStyle(color: c.foreground, fontSize: 14),
@@ -139,7 +188,8 @@ class _CodeScreenState extends State<CodeScreen> {
                     style: TextStyle(color: c.mutedFg, fontSize: 12),
                   ),
                 ),
-                if (widget.tab != null && widget.item != null)
+                if (widget.tab != null &&
+                    (widget.item != null || widget.filePath != null))
                   IconButton(
                     tooltip: t.comment,
                     icon: NbIcon(NbGlyph.comments, color: c.foreground),
@@ -166,15 +216,10 @@ class _CodeScreenState extends State<CodeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SelectionContainer.disabled(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              for (var i = 1; i <= count; i++)
-                                Text(
-                                  '$i',
-                                  style: style.copyWith(color: c.mutedFg),
-                                ),
-                            ],
+                          child: Text(
+                            [for (var i = 1; i <= count; i++) '$i'].join('\n'),
+                            textAlign: TextAlign.end,
+                            style: style.copyWith(color: c.mutedFg),
                           ),
                         ),
                         const SizedBox(width: 12),

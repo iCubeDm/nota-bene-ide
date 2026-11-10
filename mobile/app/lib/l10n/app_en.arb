@@ -340,5 +340,41 @@
   "voiceDelete": "Delete",
   "voiceRecordFailed": "The recording failed",
   "voiceLeaveTitle": "Send the voice message?",
-  "voiceLeaveBody": "The recording has not been sent yet."
+  "voiceLeaveBody": "The recording has not been sent yet.",
+  "fileBinary": "This is a binary file, {size}. The phone shows text files only.",
+  "@fileBinary": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "fileTooLargeSize": "The file is too large for the phone, {size} (the limit is 2 MB). Open it on the computer.",
+  "@fileTooLargeSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "folderNotFound": "This folder is not there (any more).",
+  "tabFiles": "Files",
+  "tabChat": "Chat",
+  "tabComments": "Comments",
+  "thisSession": "This session",
+  "showAll": "Show all ({count})",
+  "@showAll": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "projectFolder": "Project",
+  "searchFiles": "Search files",
+  "noMatches": "Nothing found.",
+  "emptyFolder": "This folder is empty.",
+  "folderUp": "Up one folder",
+  "noCommentsYet": "No comments yet. Select text in the chat or in a file and press Comment.",
+  "sentComments": "Sent"
 }
