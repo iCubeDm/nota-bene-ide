@@ -113,10 +113,13 @@ describe('connector', () => {
 
   it('a code expires', async () => {
     await connector({ pairTtlMs: 300 });
+    // the deadline is checked against the clock around the request, never against a timer: timers drift from Date.now()
+    const before = Date.now();
     const { cl, code } = await pairCode();
+    const after = Date.now();
+    expect(code.expiresAt).toBeGreaterThanOrEqual(before + 300);
+    expect(code.expiresAt).toBeLessThanOrEqual(after + 300);
     await cl.next((m) => m.t === 'expired');
-    // a timer may fire a millisecond or two before Date.now() reaches its deadline
-    expect(code.expiresAt).toBeLessThanOrEqual(Date.now() + 5);
     const p = present(code.uri);
     expect(await p.closed).toBe(4403);
   });
