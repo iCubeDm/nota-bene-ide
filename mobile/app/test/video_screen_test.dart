@@ -13,6 +13,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 import 'support/rig.dart';
+import 'support/sheet.dart';
 
 final framePng = Uint8List.fromList(
   img.encodePng(
@@ -230,7 +231,7 @@ void main() {
       await t.tap(find.text('Comment'));
       await t.pumpAndSettle();
       await t.enterText(find.byType(TextField), 'here');
-      await t.tap(find.text('Save'));
+      await tapSend(t);
       await settleReal(t, 10);
       final paths = r.ch.calls.map((c) => '${c.method} ${c.path}').toList();
       final id = r.ch.calls

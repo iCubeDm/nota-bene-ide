@@ -3,7 +3,6 @@
 // desktop does; a send the window refuses gives its text back. A draft is written whenever; the send waits for a tab
 // that owns a live window.
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException, Uint8List;
@@ -17,11 +16,10 @@ import '../media/picker.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import '../store/voice_lang.dart';
-import '../voice/record_button.dart';
-import '../voice/record_row.dart';
 import '../voice/record_session.dart';
 import '../voice/recorder.dart';
 import 'attach_sheet.dart';
+import 'message_field.dart';
 import 'send_now.dart';
 import 'window_tab.dart';
 
@@ -38,12 +36,6 @@ class _Draft {
   bool failed = false;
   bool get pending => ref == null && !failed;
 }
-
-/// The mic, Send and the paperclip inside the field.
-const _button = 40.0;
-
-/// The space around the action button (and between it and the paperclip: 8 beside it, the paperclip's own).
-const _inset = 3.0;
 
 class Composer extends StatefulWidget {
   const Composer({super.key, required this.tab, this.controller, this.focus});
@@ -63,7 +55,6 @@ class _ComposerState extends State<Composer> {
   StreamSubscription<ServerEventSendRefused>? _refused;
   ({String id, String text, Set<String> comments, List<_Draft> images})? _last;
   final _drafts = <_Draft>[];
-  final _trailing = LayerLink();
   late final _session = RecordSession(
     onRecorded: _recorded,
     onError: _recordFailed,
@@ -335,9 +326,7 @@ class _ComposerState extends State<Composer> {
             children: [
               if (_drafts.isNotEmpty) _strip(t, c),
               _field(
-                context,
                 t,
-                c,
                 open: open,
                 recording: recording,
                 mic: mic,
@@ -351,176 +340,42 @@ class _ComposerState extends State<Composer> {
     },
   );
 
-  /// The old host's mic says why it does nothing: a snackbar floating above the message field, not over it.
-  void _micOldSnack(BuildContext ctx, String text) {
-    final messenger = ScaffoldMessenger.maybeOf(ctx);
-    final scaffold = Scaffold.maybeOf(ctx)?.context.findRenderObject();
-    final box = context.findRenderObject();
-    var bottom = 8.0;
-    if (messenger == null) return;
-    if (scaffold is RenderBox && box is RenderBox && box.hasSize) {
-      final end = scaffold.localToGlobal(Offset.zero).dy + scaffold.size.height;
-      bottom = math.max(8, end - box.localToGlobal(Offset.zero).dy + 8);
-    }
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(text),
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.fromLTRB(8, 0, 8, bottom),
-      ),
-    );
-  }
-
-  /// The rounded field with everything inside it: the text, then the paperclip (only while there is no text) and at the
-  /// right the mic, which becomes Send once there is something to send. A recording takes the text's place. While the
-  /// agent works a grey Stop floats 12 above the right button.
+  /// The rounded field with everything inside it (see [MessageField]). While the agent works a grey Stop floats 12 above
+  /// the right button.
   Widget _field(
-    BuildContext context,
-    AppLocalizations t,
-    NbColors c, {
+    AppLocalizations t, {
     required bool open,
     required bool recording,
     required bool mic,
     required bool canSend,
     required bool uploading,
-  }) {
-    final typed = _text.text.isNotEmpty;
-    final field = TextField(
-      controller: _text,
-      focusNode: widget.focus,
-      // a draft is written also while the window is away; only the send waits for it
-      minLines: 1,
-      maxLines: 6,
-      textCapitalization: TextCapitalization.sentences,
-      decoration: InputDecoration(
-        hintText: t.messageHint,
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        disabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        isDense: true,
-        contentPadding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
-      ),
-    );
-    final trailing = AnimatedSwitcher(
-      duration: const Duration(milliseconds: 180),
-      transitionBuilder: (child, anim) => ScaleTransition(
-        scale: anim,
-        child: FadeTransition(opacity: anim, child: child),
-      ),
-      child: mic && !widget.tab.voiceProtocol
-          ? IconButton(
-              key: const ValueKey('mic-old'),
-              tooltip: t.micUnavailable,
-              icon: const NbIcon(NbGlyph.mic),
-              style: IconButton.styleFrom(
-                fixedSize: const Size.square(_button),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                backgroundColor: Colors.transparent,
-                foregroundColor: c.mutedFg.withValues(alpha: .6),
-              ),
-              onPressed: () => _micOldSnack(context, t.micNeedsUpdate),
-            )
-          : mic
-          ? RecordButton(
-              key: const ValueKey('mic'),
-              session: _session,
-              enabled: open,
-              available: widget.tab.whisper,
-              onUnavailable: () => showWhisperSheet(context, widget.tab),
-            )
-          : IconButton(
-              key: const ValueKey('send'),
-              tooltip: uploading ? t.attachUploading : t.send,
-              icon: uploading
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const NbIcon(NbGlyph.send),
-              style: IconButton.styleFrom(
-                fixedSize: const Size.square(_button),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                backgroundColor: canSend ? c.primary : c.muted,
-                foregroundColor: canSend ? c.primaryFg : c.mutedFg,
-                disabledBackgroundColor: c.muted,
-                disabledForegroundColor: c.mutedFg,
-              ),
-              onPressed: canSend ? _send : null,
-            ),
-    );
-    return Container(
-      constraints: const BoxConstraints(minHeight: 48),
-      decoration: BoxDecoration(
-        color: c.popover.withValues(alpha: .95),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: c.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                // kept while recording: the typed text stays for after
-                Visibility(
-                  visible: !recording,
-                  maintainState: true,
-                  maintainSize: true,
-                  maintainAnimation: true,
-                  // one line is as tall as the action button and its insets, centred in it, so that the controls beside
-                  // it are centred too; more lines grow it
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minHeight: _button + 2 * _inset,
-                    ),
-                    child: Align(alignment: Alignment.centerLeft, child: field),
-                  ),
-                ),
-                if (recording)
-                  Positioned.fill(
-                    child: Align(
-                      alignment: Alignment.center,
-                      child: RecordRow(session: _session),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (!typed && !recording)
-            Padding(
-              key: const ValueKey('attach-slot'),
-              padding: const EdgeInsets.fromLTRB(0, _inset, 8 - _inset, _inset),
-              child: IconButton(
-                key: const ValueKey('attach'),
-                tooltip: t.attach,
-                icon: const NbIcon(NbGlyph.clip),
-                style: IconButton.styleFrom(
-                  fixedSize: const Size.square(_button),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: open ? _attach : null,
-              ),
-            ),
-          // keyed: the button (and a recording in it) survives the paperclip leaving the row
-          Padding(
-            key: const ValueKey('trailing-slot'),
-            padding: const EdgeInsets.all(_inset),
-            child: CompositedTransformTarget(link: _trailing, child: trailing),
-          ),
-          // the layout of the row does not change: the portal floats over the feed. Only the hold hides it (the big
-          // circle and the lock are drawn over that place); a locked recording leaves the finger, and the turn can
-          // still be stopped
-          if (open && widget.tab.busy && !(recording && _session.holding))
-            _FloatingStop(
-              link: _trailing,
-              onStop: () => widget.tab.send(const ClientMessageInterrupt()),
-            ),
-        ],
-      ),
-    );
-  }
+  }) => MessageField(
+    controller: _text,
+    focus: widget.focus,
+    hint: t.messageHint,
+    session: _session,
+    open: open,
+    voiceProtocol: widget.tab.voiceProtocol,
+    whisperAvailable: widget.tab.whisper,
+    onWhisperMissing: () => showWhisperSheet(context, widget.tab),
+    showMic: mic,
+    showSend: !mic,
+    canSend: canSend,
+    sending: uploading,
+    onSend: _send,
+    onAttach: _attach,
+    snackAnchor: () => context,
+    // the layout of the row does not change: the portal floats over the feed. Only the hold hides it (the big
+    // circle and the lock are drawn over that place); a locked recording leaves the finger, and the turn can
+    // still be stopped
+    floating: (link) =>
+        open && widget.tab.busy && !(recording && _session.holding)
+        ? _FloatingStop(
+            link: link,
+            onStop: () => widget.tab.send(const ClientMessageInterrupt()),
+          )
+        : const SizedBox.shrink(),
+  );
 
   /// The drafts' thumbnails above the pill: each with its remove cross, a failed one with a red frame.
   Widget _strip(AppLocalizations t, NbColors c) => SizedBox(

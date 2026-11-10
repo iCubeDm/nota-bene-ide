@@ -8,6 +8,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 import 'file_screen_test.dart' show wordAt;
 import 'support/fakes.dart';
 import 'support/rig.dart';
+import 'support/sheet.dart';
 
 const repeated = 'foo(1);\nfoo(1);\nfoo(1);\n';
 
@@ -50,7 +51,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.byTooltip('Comment'));
     await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final items = r.sent.lastWhere((m) => m['type'] == 'comments')['items'];
     final c = Comment.fromJson(((items as List).single as Map).cast());

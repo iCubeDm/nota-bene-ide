@@ -8,6 +8,7 @@ import 'package:nb_app/comments/chat_anchor.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/rig.dart';
+import 'support/sheet.dart';
 
 /// The screen position of the [nth] occurrence of [word] in the rendered paragraphs.
 Offset wordAt(WidgetTester t, String word, {int nth = 0, Finder? within}) {
@@ -107,7 +108,7 @@ void main() {
     await t.tap(find.text('Comment'));
     await t.pumpAndSettle();
     expect(find.text('bold'), findsWidgets);
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
     expect(an.quote, 'bold');
@@ -125,7 +126,7 @@ void main() {
     );
     await t.tap(find.text('Comment'));
     await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
     final text = chatText(r.tab!.feed.items.first).text;
@@ -140,7 +141,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Comment'));
     await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
     expect(an.quote, chatText(r.tab!.feed.items.first).text);
@@ -173,7 +174,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(tip);
     await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
     final text = chatText(r.tab!.feed.items.last).text;
@@ -199,7 +200,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     return r.tab!.comments.all.single.anchor as TextAnchor;
   }
@@ -261,7 +262,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Comment'));
     await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
     expect(an.quote, chatText(item).text);
@@ -300,7 +301,7 @@ void main() {
     expect(find.text('Select text'), findsNothing);
     await t.tap(find.text('Comment'));
     await t.pumpAndSettle();
-    await t.tap(find.text('Save'));
+    await sendNote(t);
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
     expect(an.quote, 'bold');

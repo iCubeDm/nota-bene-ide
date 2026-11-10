@@ -497,5 +497,9 @@
   "micUnavailable": "Voice messages unavailable",
   "setIcon": "Set icon",
   "removeIcon": "Remove icon",
-  "iconFailed": "The icon could not be changed."
+  "iconFailed": "The icon could not be changed.",
+  "commentDiscardTitle": "Discard the comment?",
+  "commentDiscardBody": "What you wrote will be lost.",
+  "commentKeep": "Keep writing",
+  "commentDiscard": "Discard"
 }

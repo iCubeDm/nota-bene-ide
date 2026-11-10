@@ -307,5 +307,9 @@
   "micUnavailable": "Mensajes de voz no disponibles",
   "setIcon": "Establecer icono",
   "removeIcon": "Quitar icono",
-  "iconFailed": "No se pudo cambiar el icono."
+  "iconFailed": "No se pudo cambiar el icono.",
+  "commentDiscardTitle": "¿Descartar el comentario?",
+  "commentDiscardBody": "Lo que escribiste se perderá.",
+  "commentKeep": "Seguir escribiendo",
+  "commentDiscard": "Descartar"
 }
