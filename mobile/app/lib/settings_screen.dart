@@ -7,6 +7,7 @@ import 'l10n/app_localizations.dart';
 import 'store/hosts.dart';
 import 'store/lang_choice.dart';
 import 'store/theme_choice.dart';
+import 'store/voice_lang.dart';
 import 'theme.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -16,6 +17,7 @@ class SettingsScreen extends StatelessWidget {
     required this.hosts,
     required this.themes,
     this.langs,
+    this.voiceLang,
     required this.onPair,
   });
 
@@ -25,6 +27,9 @@ class SettingsScreen extends StatelessWidget {
 
   /// The app's language; no row without it.
   final LangChoice? langs;
+
+  /// The language voice is transcribed in; no row without it.
+  final VoiceLang? voiceLang;
   final VoidCallback onPair;
 
   Future<void> _pickLang(BuildContext context, LangChoice langs) =>
@@ -53,6 +58,37 @@ class SettingsScreen extends StatelessWidget {
               children: [
                 row(null, t.languageSystem),
                 for (final (code, name) in appLangs) row(code, name),
+              ],
+            ),
+          );
+        },
+      );
+
+  Future<void> _pickVoiceLang(BuildContext context, VoiceLang voice) =>
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (c) {
+          final t = AppLocalizations.of(c);
+          final primary = Theme.of(c).extension<NbColors>()!.primary;
+          Widget row(String? code, String name) => ListTile(
+            title: Text(name),
+            trailing: code == voice.code
+                ? Icon(Icons.check, color: primary)
+                : null,
+            selected: code == voice.code,
+            onTap: () {
+              voice.choose(code);
+              Navigator.pop(c);
+            },
+          );
+          return SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                row(null, t.voiceLanguageApp),
+                for (final (code, name) in voiceLangs) row(code, name),
               ],
             ),
           );
@@ -88,7 +124,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(t.settings)),
       body: ListenableBuilder(
-        listenable: Listenable.merge([hosts, themes, ?langs]),
+        listenable: Listenable.merge([hosts, themes, ?langs, ?voiceLang]),
         builder: (context, _) => ListView(
           children: [
             ListTile(
@@ -135,6 +171,19 @@ class SettingsScreen extends StatelessWidget {
                       t.languageSystem,
                 ),
                 onTap: () => _pickLang(context, langs),
+              ),
+            ],
+            if (voiceLang case final voice?) ...[
+              const Divider(),
+              ListTile(
+                key: const ValueKey('voice-language'),
+                leading: const Icon(Icons.record_voice_over_outlined),
+                title: Text(t.voiceLanguage),
+                subtitle: Text(
+                  voiceLangs.where((l) => l.$1 == voice.code).firstOrNull?.$2 ??
+                      t.voiceLanguageApp,
+                ),
+                onTap: () => _pickVoiceLang(context, voice),
               ),
             ],
             const Divider(),

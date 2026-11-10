@@ -15,6 +15,7 @@ import '../media/attach.dart';
 import '../media/picker.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
+import '../store/voice_lang.dart';
 import '../voice/record_button.dart';
 import '../voice/record_row.dart';
 import '../voice/record_session.dart';
@@ -184,7 +185,7 @@ class _ComposerState extends State<Composer> {
   Future<void> _recorded(Uint8List wav, Duration length) async {
     if (!mounted) return;
     // read now: the chat may be left while the question is up, and the recording still goes out (the outbox outlives it)
-    final lang = Localizations.localeOf(context).languageCode;
+    final lang = voiceLangOf(context);
     final outbox = widget.tab.voiceOutbox;
     var force = false;
     if (widget.tab.busy) {

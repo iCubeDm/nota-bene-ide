@@ -13,6 +13,8 @@ import 'package:nb_app/voice/record_button.dart';
 import 'package:nb_app/voice/record_row.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 import 'package:nb_app/main.dart';
+import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/store/voice_lang.dart';
 import 'package:nb_app/theme.dart';
 
 import 'support/rig.dart';
@@ -181,6 +183,18 @@ void main() {
       await t.pumpAndSettle();
     }
 
+    testWidgets('a clip is transcribed in the voice language of Settings', (
+      t,
+    ) async {
+      final v = await VoiceLang.load(MemoryVault());
+      await v.choose('ru');
+      r.voiceLang = v;
+      await openSheet(t);
+      await record(t);
+      await t.pumpAndSettle();
+      expect(r.ch.requests.last, endsWith('/text?lang=ru'));
+    });
+
     testWidgets(
       'a released recording becomes a clip under the text; the sheet stays',
       (t) async {
@@ -252,6 +266,23 @@ void main() {
         expect((got as SheetSave).voice, hasLength(1));
       },
     );
+
+    testWidgets('a Retry asks in the language the clip was recorded in', (
+      t,
+    ) async {
+      final v = await VoiceLang.load(MemoryVault());
+      await v.choose('ru');
+      r.voiceLang = v;
+      textStatus = 503;
+      await openSheet(t);
+      await record(t);
+      await v.choose('en');
+      textStatus = 200;
+      await t.tap(find.text('Retry'));
+      await t.pump();
+      await t.pump();
+      expect(r.ch.requests.last, endsWith('/text?lang=ru'));
+    });
 
     testWidgets('a comment with clips opens with them, and gives them back', (
       t,

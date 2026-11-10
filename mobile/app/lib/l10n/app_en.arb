@@ -33,6 +33,8 @@
   "settings": "Settings",
   "language": "Language",
   "languageSystem": "Phone's language",
+  "voiceLanguage": "Voice language",
+  "voiceLanguageApp": "App language",
   "theme": "Themes",
   "connecting": "Connecting…",
   "offline": "Offline",
