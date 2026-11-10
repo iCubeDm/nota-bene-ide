@@ -9,6 +9,7 @@ import '../theme.dart';
 import 'chat_screen.dart' show ToolLine;
 import 'feed.dart';
 import 'files.dart';
+import 'media_card.dart';
 
 /// The comments on the action [toolId] of the chat itself (pending and sent): the web's `selectToolCommentCounts`.
 int toolComments(Comments comments, String toolId) {
@@ -85,8 +86,15 @@ class _ToolGroupState extends State<ToolGroup> {
     );
     Widget line(ToolItem i, {required bool inGroup}) => KeyedSubtree(
       key: widget.targetOf?.call(i),
-      child: ToolLine(i, inGroup: inGroup),
+      // folded, the head's own cards show the pictures
+      child: ToolLine(i, inGroup: inGroup, media: inGroup),
     );
+    // folded, the pictures of the actions stay in view: the last three, the newest at the bottom
+    final cards = open || tab == null
+        ? const <MediaSpec>[]
+        : [
+            for (final i in items) ...mediaOf(tab, i),
+          ].reversed.take(3).toList().reversed.toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -104,10 +112,9 @@ class _ToolGroupState extends State<ToolGroup> {
                   TextSpan(
                     style: head,
                     children: [
-                      TextSpan(
-                        text:
-                            '${open ? '▾' : '▸'} ${t.toolActions(items.length)}',
-                      ),
+                      // the glyph says nothing a screen reader needs: the button's state is `expanded`
+                      TextSpan(text: open ? '▾ ' : '▸ '),
+                      TextSpan(text: t.toolActions(items.length)),
                       if (errors > 0)
                         TextSpan(
                           text: ' · ${t.toolErrors(errors)}',
@@ -120,6 +127,11 @@ class _ToolGroupState extends State<ToolGroup> {
                         ),
                     ],
                   ),
+                  semanticsLabel: [
+                    t.toolActions(items.length),
+                    if (errors > 0) t.toolErrors(errors),
+                    if (!open && comments > 0) t.toolComments(comments),
+                  ].join(', '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -127,6 +139,8 @@ class _ToolGroupState extends State<ToolGroup> {
             ),
           ),
         ),
+        if (!open)
+          for (final m in cards) MediaCard(tab: tab!, spec: m),
         if (open)
           Container(
             margin: const EdgeInsets.only(left: 4),

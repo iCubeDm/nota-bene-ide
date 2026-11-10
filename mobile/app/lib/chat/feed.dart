@@ -43,24 +43,8 @@ class AssistantItem extends FeedItem {
 }
 
 class ToolItem extends FeedItem {
-  ToolItem(
-    this.id,
-    this.name,
-    this.arg,
-    this.input, {
-    required this.sub,
-    this.kind,
-  });
+  ToolItem(this.id, this.name, this.arg, this.input, {required this.sub});
   final String id, name;
-
-  /// the backend's own classification, when it gave one
-  final WireAgentEventToolCallToolKind? kind;
-
-  /// A subagent's call (web/src/subagent/slice.ts, isAgentTool): a card of its own, never folded into a group.
-  bool get isAgentCall =>
-      kind == WireAgentEventToolCallToolKind.agent ||
-      name == 'Agent' ||
-      name == 'Task';
 
   /// the one-line summary of [input]
   final String arg;
@@ -131,7 +115,8 @@ String feedKey(FeedItem i) => switch (i) {
 };
 
 /// One row of the chat: a single item, or a run of two or more consecutive actions drawn as one folded group
-/// (web/src/feed/Feed.tsx). Anything but an action ends a run, and a subagent's call is a row of its own.
+/// (web/src/feed/Feed.tsx). Anything but an action ends a run. Unlike the web, which draws a subagent's call as a card
+/// of its own, the phone has no such card: the call and the subagent's lines fold into the run (design 5.1).
 class FeedRow {
   FeedRow(this.start, this.items);
 
@@ -148,7 +133,7 @@ class FeedRow {
 }
 
 List<FeedRow> feedRows(List<FeedItem> items) {
-  bool grouped(FeedItem i) => i is ToolItem && !i.isAgentCall;
+  bool grouped(FeedItem i) => i is ToolItem;
   final rows = <FeedRow>[];
   for (var i = 0; i < items.length;) {
     var end = i + 1;
@@ -176,10 +161,10 @@ class FeedUi {
     if (!_groups.remove(firstId)) _groups.add(firstId);
   }
 
-  /// Opens a group and, when given, one action of it (a jump from a comment); never closes either.
-  void reveal(String firstId, [String? toolId]) {
-    _groups.add(firstId);
-    if (toolId != null) _tools[toolId] = true;
+  /// Opens an action's output and, when it sits in a group, the group (a jump from a comment); never closes either.
+  void reveal(String toolId, {String? group}) {
+    if (group != null) _groups.add(group);
+    _tools[toolId] = true;
   }
 
   /// Whether the user opened (true) or folded (false) this action's output by hand; null when they did neither.
@@ -470,11 +455,8 @@ class Feed {
         :final name,
         :final input,
         :final sub,
-        :final toolKind,
       ):
-        items.add(
-          ToolItem(id, name, toolArg(input), input, sub: sub, kind: toolKind),
-        );
+        items.add(ToolItem(id, name, toolArg(input), input, sub: sub));
       case WireAgentEventToolUpdate(:final id, :final text, :final isError):
         final t = items
             .whereType<ToolItem>()

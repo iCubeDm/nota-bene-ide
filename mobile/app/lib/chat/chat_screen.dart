@@ -133,10 +133,14 @@ class _ChatScreenState extends State<ChatScreen> {
     if (at < 0) return false;
     final row = rows[at];
     final fromEnd = rows.length - 1 - at;
-    // an action inside a folded group: the group opens, and the action is what the jump ends on
-    final inner = row.isGroup ? key : null;
-    if (inner != null) {
-      widget.tab.feedUi.reveal((row.items.first as ToolItem).id);
+    // the action's output opens with it, and its group when it has one
+    final isTool = key.startsWith('tool:');
+    final inner = isTool && row.isGroup ? key : null;
+    if (isTool) {
+      widget.tab.feedUi.reveal(
+        key.substring(5),
+        group: row.isGroup ? (row.items.first as ToolItem).id : null,
+      );
     }
     // an item that is built already gets its key only on a rebuild
     final fresh =
@@ -146,7 +150,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final innerTarget = inner == null
         ? null
         : _targets.putIfAbsent(inner, GlobalKey.new);
-    if (fresh || inner != null) setState(() {});
+    if (fresh || isTool) setState(() {});
     final pos = _scroll.position;
     final avg = (pos.maxScrollExtent + pos.viewportDimension) / rows.length;
     // the reversed list: offset 0 is the newest
@@ -785,8 +789,16 @@ String duration(AppLocalizations t, num secs) => secs < 60
 
 /// A tool call as one line (name and its main argument); its result opens on tap.
 class ToolLine extends StatefulWidget {
-  const ToolLine(this.item, {super.key, this.inGroup = false});
+  const ToolLine(
+    this.item, {
+    super.key,
+    this.inGroup = false,
+    this.media = true,
+  });
   final ToolItem item;
+
+  /// false when a group's head shows the pictures of its actions
+  final bool media;
 
   /// Inside an open group a failed line shows its output unasked.
   final bool inGroup;
@@ -836,6 +848,19 @@ class _ToolLineState extends State<ToolLine> {
                 ),
                 const SizedBox(width: 6),
                 Text(it.name, style: TextStyle(color: c.accent, fontSize: 13)),
+                if (!open && tab != null)
+                  ListenableBuilder(
+                    listenable: tab.comments,
+                    builder: (context, _) {
+                      final n = toolComments(tab.comments, it.id);
+                      return n == 0
+                          ? const SizedBox.shrink()
+                          : Text(
+                              ' · ${AppLocalizations.of(context).toolComments(n)}',
+                              style: TextStyle(color: c.accent, fontSize: 13),
+                            );
+                    },
+                  ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -860,7 +885,7 @@ class _ToolLineState extends State<ToolLine> {
               ],
             ),
           ),
-          if (tab != null)
+          if (tab != null && widget.media)
             for (final m in mediaOf(tab, it)) MediaCard(tab: tab, spec: m),
           if (open && it.result != null)
             Container(

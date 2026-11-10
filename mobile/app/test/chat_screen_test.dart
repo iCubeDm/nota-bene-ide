@@ -288,4 +288,48 @@ void main() {
     expect(found, isTrue);
     expect(find.text('cmd t2'), findsOneWidget);
   });
+
+  testWidgets('a jump to an action opens its output too, alone or in a group', (
+    t,
+  ) async {
+    final focus = ChatFocus();
+    await open(t, focus: focus);
+    Map<String, Object?> call(String id) => agent({
+      't': 'tool-call',
+      'id': id,
+      'name': 'Bash',
+      'input': {'command': 'cmd $id'},
+      'sub': false,
+    });
+    Map<String, Object?> out(String id) => agent({
+      't': 'tool-update',
+      'id': id,
+      'text': 'out $id',
+      'isError': false,
+    });
+    ch.event(ch.lastWsId, {
+      'kind': 'replay',
+      'events': [
+        call('t1'),
+        out('t1'),
+        call('t2'),
+        out('t2'),
+        agent({'t': 'message', 'id': 'mid', 'text': 'between'}),
+        call('t3'),
+        out('t3'),
+        for (var i = 0; i < 20; i++)
+          agent({'t': 'message', 'id': 'm$i', 'text': 'reply $i'}),
+      ],
+    });
+    await t.pumpAndSettle();
+    for (final id in ['t2', 't3']) {
+      bool? found;
+      unawaited(focus.scrollTo('tool:$id').then((v) => found = v));
+      for (var i = 0; i < 30; i++) {
+        await t.pump(const Duration(milliseconds: 100));
+      }
+      expect(found, isTrue, reason: id);
+      expect(find.text('out $id'), findsOneWidget, reason: id);
+    }
+  });
 }

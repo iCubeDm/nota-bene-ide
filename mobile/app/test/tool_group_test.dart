@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/feed.dart';
+import 'package:nb_app/chat/media_card.dart';
 import 'package:nb_app/l10n/app_localizations.dart';
 import 'package:nb_app/theme.dart';
-import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/rig.dart';
 
@@ -14,14 +14,13 @@ Map<String, Object?> call(
   String id, {
   String name = 'Bash',
   bool sub = false,
-  String? kind,
+  Map<String, Object?>? input,
 }) => agent({
   't': 'tool-call',
   'id': id,
   'name': name,
-  'input': {'command': 'cmd $id'},
+  'input': input ?? {'command': 'cmd $id'},
   'sub': sub,
-  'toolKind': ?kind,
 });
 
 Map<String, Object?> done(String id, {bool error = false, String? text}) =>
@@ -52,39 +51,15 @@ void main() {
       expect(r.single.isGroup, isFalse);
     });
 
-    test(
-      'a subagent call is a card of its own and ends the runs beside it',
-      () {
-        final items = [
-          tool('a'),
-          tool('b'),
-          tool('t', name: 'Task'),
-          tool('c'),
-          tool('d'),
-          tool('e', name: 'Other'),
-        ];
-        expect(rows(items), [
-          ['tool:a', 'tool:b'],
-          ['tool:t'],
-          ['tool:c', 'tool:d', 'tool:e'],
-        ]);
-        expect(feedRows(items)[1].isGroup, isFalse);
-      },
-    );
-
-    test('toolKind agent counts as a subagent call whatever its name', () {
-      final a = ToolItem(
-        'x',
-        'Delegate',
-        '',
-        const {},
-        sub: false,
-        kind: WireAgentEventToolCallToolKind.agent,
-      );
-      expect(rows([tool('a'), a, tool('b')]), [
-        ['tool:a'],
-        ['tool:x'],
-        ['tool:b'],
+    test('a subagent call and its lines fold into the same group', () {
+      final items = [
+        tool('a', name: 'Read'),
+        tool('t', name: 'Task'),
+        tool('e', name: 'Edit', sub: true),
+        tool('b'),
+      ];
+      expect(rows(items), [
+        ['tool:a', 'tool:t', 'tool:e', 'tool:b'],
       ]);
     });
 
@@ -330,6 +305,84 @@ void main() {
       });
       await t.pumpAndSettle();
       expect(find.text('▾ 2 actions'), findsOneWidget);
+    });
+
+    testWidgets('Read, Task, a subagent Edit and Bash are one group of 4', (
+      t,
+    ) async {
+      await open(t, [
+        call('t1', name: 'Read'),
+        done('t1'),
+        call('t2', name: 'Task'),
+        done('t2'),
+        call('t3', name: 'Edit', sub: true),
+        done('t3'),
+        call('t4'),
+        done('t4'),
+      ]);
+      expect(find.text('▸ 4 actions'), findsOneWidget);
+    });
+
+    testWidgets('the head glyph is out of the semantics', (t) async {
+      final h = t.ensureSemantics();
+      await open(t, [call('t1'), done('t1'), call('t2'), done('t2')]);
+      expect(find.bySemanticsLabel(RegExp('▸')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('2 actions')), findsOneWidget);
+      h.dispose();
+    });
+
+    testWidgets('a closed line names its comments, in an open group too', (
+      t,
+    ) async {
+      await open(t, [call('t1'), done('t1'), call('t2'), done('t2')]);
+      r.event({
+        'kind': 'comments',
+        'items': [
+          {
+            'id': 'c1',
+            'anchor': {
+              'source': {'kind': 'message', 'id': 'tool:t1'},
+              'start': 0,
+              'end': 3,
+              'quote': 'out',
+              'prefix': '',
+              'suffix': '',
+            },
+            'text': 'why',
+            'status': 'pending',
+            'createdAt': 1,
+          },
+        ],
+      });
+      await t.pumpAndSettle();
+      await t.tap(find.text('▸ 2 actions · 1 comment'));
+      await t.pumpAndSettle();
+      expect(find.text('▾ 2 actions'), findsOneWidget);
+      expect(find.text(' · 1 comment'), findsOneWidget);
+      await t.tap(find.text('cmd t1'));
+      await t.pumpAndSettle();
+      expect(find.text(' · 1 comment'), findsNothing);
+    });
+
+    testWidgets('a folded head keeps the pictures of its actions in view', (
+      t,
+    ) async {
+      await open(t, [
+        for (var i = 1; i <= 5; i++) ...[
+          call(
+            't$i',
+            name: 'Read',
+            input: {'file_path': '/home/u/notes/img/s$i.png'},
+          ),
+          done('t$i'),
+        ],
+      ]);
+      expect(find.text('▸ 5 actions'), findsOneWidget);
+      // at most 3, the newest last
+      expect(
+        t.widgetList<MediaCard>(find.byType(MediaCard)).map((m) => m.spec.path),
+        ['img/s3.png', 'img/s4.png', 'img/s5.png'],
+      );
     });
   });
 }
