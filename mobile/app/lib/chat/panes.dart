@@ -199,7 +199,14 @@ class _ChatPanesState extends State<ChatPanes> {
           const VerticalDivider(width: 1),
           Expanded(
             flex: 3,
-            child: _Kept(key: _commentsKey, child: widget.comments(top)),
+            // no floating header here: the status bar's room is the pane's, not a list padding
+            child: _Kept(
+              key: _commentsKey,
+              child: Padding(
+                padding: EdgeInsets.only(top: top),
+                child: widget.comments(0),
+              ),
+            ),
           ),
         ],
       );
@@ -246,7 +253,14 @@ class _ChatPanesState extends State<ChatPanes> {
                       key: _chatKey,
                       child: widget.chat(false, headerBox + stripHeight),
                     ),
-                    _Kept(key: _commentsKey, child: widget.comments(cover)),
+                    _Kept(
+                      key: _commentsKey,
+                      // the same shape as the wide row's, so the pane's state survives a rotation
+                      child: Padding(
+                        padding: EdgeInsets.zero,
+                        child: widget.comments(cover),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -258,6 +272,17 @@ class _ChatPanesState extends State<ChatPanes> {
               right: 0,
               height: cover,
               child: const BlurBand(key: ValueKey('blur-top'), top: true),
+            ),
+            // the status bar, the header and the tabs take taps; only the fade below the pill passes them to the feed
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: cover - 4,
+              child: const Listener(
+                key: ValueKey('band-solid-top'),
+                behavior: HitTestBehavior.opaque,
+              ),
             ),
             Positioned(
               top: 0,

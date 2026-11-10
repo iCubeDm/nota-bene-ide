@@ -67,7 +67,8 @@ class ParagraphTargets extends ChangeNotifier {
   /// Below the floating header: the popup keeps clear of it.
   double topInset = 0;
 
-  /// Above the floating message field and its blur: the popup and the snackbar keep clear of it.
+  /// Above the floating message field with its strip and the nav bar (not the blur's fade): the popup and the snackbar
+  /// keep clear of it.
   double bottomInset = 0;
 
   _Para? _sel;

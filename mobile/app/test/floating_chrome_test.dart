@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show HitTestResult;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nb_app/chat/chat_route.dart';
-import 'package:nb_app/chat/chat_screen.dart';
+import 'package:nb_app/comments/comment_strip.dart';
 import 'package:nb_app/comments/comments_pane.dart';
+import 'package:nb_app/ui/blur_band.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'comments_test.dart' show c;
@@ -21,19 +22,24 @@ void main() {
   Future<void> open(
     WidgetTester t, {
     List<Map<String, Object?>> events = const [],
+    Size size = const Size(400, 800),
+    FakeViewPadding side = FakeViewPadding.zero,
   }) async {
-    t.view.physicalSize = const Size(400, 800);
+    t.view.physicalSize = size;
     t.view.devicePixelRatio = 1;
-    t.view.padding = const FakeViewPadding(top: 24, bottom: 16);
-    t.view.viewPadding = const FakeViewPadding(top: 24, bottom: 16);
+    final pad = FakeViewPadding(
+      top: 24,
+      bottom: 16,
+      left: side.left,
+      right: side.right,
+    );
+    t.view.padding = pad;
+    t.view.viewPadding = pad;
     addTearDown(t.view.reset);
     await r.open(t, events: events);
   }
 
-  Finder feed() => find.descendant(
-    of: find.byType(ChatScreen),
-    matching: find.byType(ListView),
-  );
+  Finder feed() => find.byKey(const ValueKey('feed'));
 
   EdgeInsets padding(WidgetTester t) =>
       t.widget<ListView>(feed()).padding!.resolve(TextDirection.ltr);
@@ -59,11 +65,12 @@ void main() {
     final composer = t.getTopLeft(find.byKey(const ValueKey('composer'))).dy;
     // the band's own height (field, strip, nav bar) and a little air; a turn in progress adds room for Stop
     expect(r.tab!.busy, isTrue);
-    expect(p.bottom, closeTo(800 - composer + 8 + 56, 0.5));
+    expect(p.bottom, closeTo(800 - composer + blurFade + 8 + 56, 0.5));
     // at the end the newest message is above the field
+    // and clear of the blur's fade above the field
     expect(
       t.getBottomLeft(find.text('message 39')).dy,
-      lessThanOrEqualTo(composer),
+      lessThanOrEqualTo(composer - blurFade),
     );
     // at the other end the oldest is under the tabs, not behind them
     await t.fling(feed(), const Offset(0, 3000), 8000);
@@ -103,17 +110,146 @@ void main() {
     );
   });
 
-  testWidgets('one blur layer for the top band, one for the bottom', (t) async {
+  testWidgets('each band is one group of filters, the far end unblurred', (
+    t,
+  ) async {
     await open(t, events: many(3));
-    expect(
-      find.descendant(
-        of: find.byType(ChatRoute),
-        matching: find.byType(BackdropFilter),
-      ),
-      findsNWidgets(2),
+    int filters(String k) => find
+        .descendant(
+          of: find.byKey(ValueKey(k)),
+          matching: find.byType(BackdropFilter),
+        )
+        .evaluate()
+        .length;
+    expect(filters('blur-top'), 2);
+    expect(filters('blur-bottom'), 2);
+  });
+
+  testWidgets('the solid parts of the bands take the taps', (t) async {
+    await open(t, events: many(3));
+    bool absorbed(String k, Offset at) {
+      final hit = HitTestResult();
+      t.binding.hitTestInView(hit, at, t.view.viewId);
+      final target = t.renderObject(find.byKey(ValueKey(k)));
+      return hit.path.any((e) => e.target == target);
+    }
+
+    // the gap between the back button and the pill; the left margin of the field
+    expect(absorbed('band-solid-top', const Offset(52, 24 + 28)), isTrue);
+    final field = t.getTopLeft(find.byKey(const ValueKey('composer'))).dy;
+    expect(absorbed('band-solid-bottom', Offset(2, field + 30)), isTrue);
+    // the fade zone above the field is the feed's
+    expect(absorbed('band-solid-bottom', Offset(200, field - 10)), isFalse);
+  });
+
+  testWidgets(
+    'a tap in the gap between the header pills misses the row under it',
+    (t) async {
+      await open(t, events: many(2));
+      for (var i = 0; i < 20; i++) {
+        r.tab!.comments.add(
+          c(
+                'c$i',
+                'quote $i',
+                '',
+                source: const AnchorSourceMessage(id: 'u0'),
+              ).anchor
+              as TextAnchor,
+          'note $i',
+          null,
+        );
+      }
+      await t.tap(find.text('Comments'));
+      await t.pumpAndSettle();
+      await t.drag(find.byType(CommentsPane), const Offset(0, -300));
+      await t.pumpAndSettle();
+      final strip = find.byKey(const ValueKey('strip-current'));
+      final before = t.getCenter(strip).dx;
+      await t.tapAt(const Offset(52, 24 + 28));
+      await t.pumpAndSettle();
+      // still on Comments: the row under the gap was not hit
+      expect(t.getCenter(strip).dx, before);
+      // a row below the band is hit and goes to the chat
+      await t.tapAt(const Offset(200, cover + 40));
+      await t.pumpAndSettle();
+      expect(t.getCenter(strip).dx, isNot(before));
+    },
+  );
+
+  testWidgets('the compaction bar sits above the field', (t) async {
+    await open(t, events: many(3));
+    r.event({
+      'kind': 'agent',
+      'e': {'t': 'compacting'},
+      'ts': 2,
+    });
+    await t.pump(const Duration(milliseconds: 100));
+    await t.pump(const Duration(milliseconds: 100));
+    final bar = find.byType(LinearProgressIndicator);
+    expect(bar, findsOneWidget);
+    final field = t.getTopLeft(find.byKey(const ValueKey('composer'))).dy;
+    expect(t.getBottomLeft(bar).dy, lessThanOrEqualTo(field));
+  });
+
+  testWidgets('the side insets keep the field and the feed off the cutout', (
+    t,
+  ) async {
+    await open(
+      t,
+      events: many(3),
+      side: const FakeViewPadding(left: 40, right: 20),
     );
-    expect(find.byKey(const ValueKey('blur-top')), findsOneWidget);
-    expect(find.byKey(const ValueKey('blur-bottom')), findsOneWidget);
+    final field = t.getRect(find.byKey(const ValueKey('composer')));
+    expect(field.left, greaterThanOrEqualTo(40));
+    expect(field.right, lessThanOrEqualTo(380));
+    final p = padding(t);
+    expect((p.left, p.right), (40, 20));
+  });
+
+  testWidgets('wide: Comments keeps the status bar clear without a header', (
+    t,
+  ) async {
+    await open(t, size: const Size(1000, 600));
+    r.tab!.comments.add(
+      c('x', 'quoted words', '').anchor as TextAnchor,
+      'note',
+      null,
+    );
+    await t.pumpAndSettle();
+    final list = find.descendant(
+      of: find.byType(CommentsPane),
+      matching: find.byType(ListView),
+    );
+    expect(t.getTopLeft(list).dy, 24);
+  });
+
+  testWidgets('the band grows with a comment strip and the feed follows', (
+    t,
+  ) async {
+    await open(t, events: many(3));
+    final before = padding(t).bottom;
+    r.tab!.comments.add(
+      c('x', 'quoted words', '').anchor as TextAnchor,
+      'note',
+      null,
+    );
+    await t.pumpAndSettle();
+    final strip = t.getTopLeft(find.byType(CommentStrip)).dy;
+    expect(padding(t).bottom, greaterThan(before));
+    expect(
+      t.getBottomLeft(find.text('message 2')).dy,
+      lessThanOrEqualTo(strip - blurFade),
+    );
+  });
+
+  testWidgets('Stop does not cover the last message', (t) async {
+    await open(t, events: many(3));
+    final stop = find.byKey(const ValueKey('stop'));
+    expect(stop, findsOneWidget);
+    expect(
+      t.getBottomLeft(find.text('message 2')).dy,
+      lessThanOrEqualTo(t.getTopLeft(stop).dy),
+    );
   });
 
   testWidgets('the comments pane runs under the header too', (t) async {

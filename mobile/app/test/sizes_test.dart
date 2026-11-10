@@ -373,6 +373,8 @@ void main() {
 
     testWidgets('the paragraph popup sits at its paragraph', (t) async {
       phone(t);
+      // the feed keeps the field's blur clear, so the large text needs a little more screen to leave room above
+      t.view.physicalSize = const Size(360, 700);
       final r = Rig()..sizes = await sizesOf(1.5, 1.3);
       addTearDown(r.dispose);
       await r.open(
