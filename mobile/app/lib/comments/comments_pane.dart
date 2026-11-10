@@ -128,111 +128,109 @@ class _CommentsPaneState extends State<CommentsPane>
     final lang = Localizations.localeOf(context).languageCode;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Padding(
-        padding: EdgeInsets.only(top: widget.topInset),
-        child: ListenableBuilder(
-          listenable: Listenable.merge([tab, tab.comments]),
-          builder: (context, _) {
-            final all = tab.comments.all;
-            final pending = tab.comments.pending;
-            final sent = [
-              for (final x in all)
-                if (x.status == CommentStatus.sent) x,
-            ];
-            if (pending.isEmpty && sent.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(t.noCommentsYet, textAlign: TextAlign.center),
-                ),
-              );
-            }
-            // the sent ones by the message they went with, the newest message first
-            final order = <String>[];
-            final groups = <String, List<Comment>>{};
-            for (final x in sent.reversed) {
-              final key = x.sentIn ?? '';
-              if (!groups.containsKey(key)) order.add(key);
-              (groups[key] ??= []).add(x);
-            }
-            final head = TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: c.mutedFg,
+      body: ListenableBuilder(
+        listenable: Listenable.merge([tab, tab.comments]),
+        builder: (context, _) {
+          final all = tab.comments.all;
+          final pending = tab.comments.pending;
+          final sent = [
+            for (final x in all)
+              if (x.status == CommentStatus.sent) x,
+          ];
+          if (pending.isEmpty && sent.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(24, 24 + widget.topInset, 24, 24),
+                child: Text(t.noCommentsYet, textAlign: TextAlign.center),
+              ),
             );
-            return ListView(
-              padding: const EdgeInsets.only(bottom: 16),
-              children: [
-                if (pending.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 12, 0),
+          }
+          // the sent ones by the message they went with, the newest message first
+          final order = <String>[];
+          final groups = <String, List<Comment>>{};
+          for (final x in sent.reversed) {
+            final key = x.sentIn ?? '';
+            if (!groups.containsKey(key)) order.add(key);
+            (groups[key] ??= []).add(x);
+          }
+          final head = TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: c.mutedFg,
+          );
+          return ListView(
+            // the list runs under the floating header and starts below it
+            padding: EdgeInsets.only(top: widget.topInset, bottom: 16),
+            children: [
+              if (pending.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 12, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          t.pendingComments(pending.length),
+                          style: head.copyWith(color: c.accent),
+                        ),
+                      ),
+                      FilledButton(
+                        onPressed:
+                            tab.state == TabState.open &&
+                                tab.comments.sendable.isNotEmpty
+                            ? () => sendPendingComments(context, tab)
+                            : null,
+                        child: Text(t.send),
+                      ),
+                    ],
+                  ),
+                ),
+              for (final x in pending) _row(x, lang, c, pending: true),
+              if (sent.isNotEmpty) ...[
+                if (pending.isNotEmpty) const Divider(height: 24),
+                InkWell(
+                  key: const ValueKey('sent-fold'),
+                  onTap: () => setState(() => _sentOpen = !_sentOpen),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(
-                            t.pendingComments(pending.length),
-                            style: head.copyWith(color: c.accent),
+                            '${t.sentComments} · ${sent.length}',
+                            style: head,
                           ),
                         ),
-                        FilledButton(
-                          onPressed:
-                              tab.state == TabState.open &&
-                                  tab.comments.sendable.isNotEmpty
-                              ? () => sendPendingComments(context, tab)
-                              : null,
-                          child: Text(t.send),
+                        Icon(
+                          _sentOpen ? Icons.expand_less : Icons.expand_more,
+                          size: 18,
+                          color: c.mutedFg,
                         ),
                       ],
                     ),
                   ),
-                for (final x in pending) _row(x, lang, c, pending: true),
-                if (sent.isNotEmpty) ...[
-                  if (pending.isNotEmpty) const Divider(height: 24),
-                  InkWell(
-                    key: const ValueKey('sent-fold'),
-                    onTap: () => setState(() => _sentOpen = !_sentOpen),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${t.sentComments} · ${sent.length}',
-                              style: head,
-                            ),
-                          ),
-                          Icon(
-                            _sentOpen ? Icons.expand_less : Icons.expand_more,
-                            size: 18,
-                            color: c.mutedFg,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_sentOpen)
-                    for (final key in order) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                        child: Text(
-                          _groupName(key, t, lang),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: c.foreground,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
+                ),
+                if (_sentOpen)
+                  for (final key in order) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                      child: Text(
+                        _groupName(key, t, lang),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: c.foreground,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
                         ),
                       ),
-                      for (final x in groups[key]!.reversed)
-                        _row(x, lang, c, pending: false),
-                    ],
-                ],
+                    ),
+                    for (final x in groups[key]!.reversed)
+                      _row(x, lang, c, pending: false),
+                  ],
               ],
-            );
-          },
-        ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -8,6 +8,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import '../ui/blur_band.dart';
 import 'feed.dart';
 import 'window_tab.dart';
 
@@ -263,6 +264,13 @@ class _PromptCardState extends State<PromptCard> {
             ),
           TextField(
             controller: _field(f.id),
+            // the feed runs under the floating field: a focused field scrolls clear of it
+            scrollPadding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              20 + BandInset.of(context) + blurFade,
+            ),
             obscureText: f.secret == true,
             autocorrect: false,
             onChanged: (_) {
