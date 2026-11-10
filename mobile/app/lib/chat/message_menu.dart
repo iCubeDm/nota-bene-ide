@@ -105,6 +105,7 @@ Future<void> showMessageMenu(
             makeAnchor(source, text, 0, text.length),
             res.text,
             res.label,
+            voice: res.voice,
           );
         }
       },

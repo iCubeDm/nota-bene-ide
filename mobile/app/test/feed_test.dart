@@ -332,4 +332,86 @@ void main() {
       ['q', 'a1', 'a2'],
     );
   });
+
+  group('voice', () {
+    final voice = {'id': 'a' * 64, 'ms': 4000, 'wave': List.filled(48, 3)};
+    Map<String, Object?> user(String id, {Object? v, String text = ''}) => {
+      'kind': 'user',
+      'id': id,
+      'text': text,
+      'voice': ?v,
+      'ts': 1,
+    };
+    Map<String, Object?> said(String id, {String? text, String? error}) => {
+      'kind': 'voice-text',
+      'id': id,
+      'text': ?text,
+      'error': ?error,
+      'ts': 2,
+    };
+
+    test('a voice message is an item with its voice and no text yet', () {
+      final f = run([user('u1', v: voice)]);
+      final u = f.items.single as UserItem;
+      expect((u.voice!.id, u.shownText, u.transcribing), ('a' * 64, '', true));
+      expect(f.busy, isTrue);
+      expect(f.waiting, ['u1']);
+    });
+
+    test('voice-text puts the transcript or the error into its message', () {
+      var f = run([user('u1', v: voice), said('u1', text: 'fix it')]);
+      var u = f.items.single as UserItem;
+      expect(
+        (u.shownText, u.transcribing, u.voiceError),
+        ('fix it', false, null),
+      );
+      f = run([user('u1', v: voice), said('u1', error: 'off')]);
+      u = f.items.single as UserItem;
+      expect((u.voiceError, u.transcribing), (VoiceError.off, false));
+      // a voice-text for a message that is not here changes nothing
+      expect(run([said('zz', text: 'x')]).items, isEmpty);
+    });
+
+    test('in a replay the transcript is the text, or comes as voice-text', () {
+      final f = run([
+        {
+          'kind': 'replay',
+          'events': [
+            {...user('u1', v: voice, text: 'from history'), 'historic': true},
+            {...user('u2', v: voice), 'historic': true},
+            said('u2', text: 'stored'),
+          ],
+        },
+      ]);
+      expect(
+        [for (final u in f.items.cast<UserItem>()) u.shownText],
+        ['from history', 'stored'],
+      );
+    });
+
+    test('a failed voice message is hidden once a later one has its voice', () {
+      final f = run([
+        user('u1', v: voice),
+        said('u1', error: 'failed'),
+        user('u2', v: voice),
+      ]);
+      expect([for (final u in f.items.cast<UserItem>()) u.id], ['u2']);
+      // another voice does not hide it
+      final g = run([
+        user('u1', v: voice),
+        said('u1', error: 'failed'),
+        user('u2', v: {...voice, 'id': 'b' * 64}),
+      ]);
+      expect(g.items, hasLength(2));
+    });
+
+    test('the failure that comes after the retry hides it as well', () {
+      final f = run([
+        user('u1', v: voice),
+        user('u2', v: voice),
+        said('u1', error: 'failed'),
+      ]);
+      expect([for (final u in f.items.cast<UserItem>()) u.id], ['u2']);
+    });
+  });
 }

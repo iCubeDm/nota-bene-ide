@@ -19,12 +19,7 @@ import '../ui/nb_icon.dart';
 export '../media/fetch.dart' show imageMaxBytes;
 
 /// The window's own requests for a tab, through its channel; null while the host is offline.
-WindowHttp? windowHttp(WindowTab tab) {
-  final ch = tab.link.channel;
-  if (ch == null) return null;
-  return (method, path, {headers, body}) =>
-      ch.http(tab.port, method, path, headers: headers, body: body);
-}
+WindowHttp? windowHttp(WindowTab tab) => tab.http;
 
 /// The marks of [path]'s comments, numbered as the strip numbers them.
 List<ShownMark> shownMarks(WindowTab tab, String path, {double? at}) {
@@ -53,6 +48,7 @@ Future<bool> saveMediaComment(
   required List<MediaShape> shapes,
   required String text,
   QuickLabelId? label,
+  List<VoiceClip> voice = const [],
   String? version,
   double? time,
 }) async {
@@ -85,6 +81,7 @@ Future<bool> saveMediaComment(
       id: id,
       images: [r.image],
       genImages: 1,
+      voice: voice,
     );
     return true;
   } catch (_) {
@@ -257,6 +254,7 @@ class _ImageScreenState extends State<ImageScreen> {
       shapes: _markup.shapes,
       text: res.text,
       label: res.label,
+      voice: res.voice,
       version: _page?.etag,
     );
     if (!mounted) return;

@@ -12,6 +12,9 @@ import '../comments/chat_anchor.dart';
 import '../comments/comment_strip.dart' show editComment;
 import '../files/file_markdown.dart';
 import '../theme.dart';
+import '../voice/outbox.dart';
+import '../voice/upload.dart';
+import '../voice/voice_bubble.dart';
 import 'chat_header.dart';
 import 'comment_target.dart';
 import 'feed.dart';
@@ -52,11 +55,12 @@ class ChatScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: tab,
+    listenable: Listenable.merge([tab, tab.voiceOutbox]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
       final f = tab.feed;
+      final pending = tab.voiceOutbox.entries;
       final status = _status(t);
       final items = f.items;
       // the feed keeps the floating header clear
@@ -92,8 +96,21 @@ class ChatScreen extends StatelessWidget {
                               12,
                               8,
                             ),
-                            itemCount: items.length + (f.earlier > 0 ? 1 : 0),
+                            itemCount:
+                                items.length +
+                                pending.length +
+                                (f.earlier > 0 ? 1 : 0),
                             itemBuilder: (context, i) {
+                              // the newest sit at the bottom: the recordings still going out
+                              if (i < pending.length) {
+                                final e = pending[pending.length - 1 - i];
+                                return PendingVoiceBubble(
+                                  e,
+                                  tab.voiceOutbox,
+                                  key: ValueKey(e.key),
+                                );
+                              }
+                              i -= pending.length;
                               if (i == items.length) {
                                 return Center(
                                   child: TextButton(
@@ -123,7 +140,9 @@ class ChatScreen extends StatelessWidget {
                               final at = items.lastIndexWhere(
                                 (it) => feedKey(it) == k,
                               );
-                              return at < 0 ? null : items.length - 1 - at;
+                              return at < 0
+                                  ? null
+                                  : items.length - 1 - at + pending.length;
                             },
                           ),
                           if (f.compacting)
@@ -389,65 +408,61 @@ class FeedItemView extends StatelessWidget {
         style: TextStyle(color: color ?? c.mutedFg, fontSize: 13),
       ),
     );
+    Widget userText(String text) => listenerAt == null && marks.isEmpty
+        ? NbMarkdown(
+            userMarkdownSource(text),
+            blockSyntaxes: userBlockSyntaxes,
+            inlineSyntaxes: userInlineSyntaxes,
+            softLineBreak: true,
+          )
+        : FileMarkdown(
+            text: text,
+            listenerAt: listenerAt,
+            marks: marks,
+            onMark: onMark,
+            parse: parseUserMessage,
+            softLineBreak: true,
+          );
     return switch (item) {
-      UserItem(:final text, :final idle, :final images) =>
+      UserItem(
+        shownText: final text,
+        :final idle,
+        :final images,
+        :final voice,
+        :final voiceError,
+        :final transcribing,
+      ) =>
         idle
             ? line(t.idleCompact)
-            : Align(
-                alignment: Alignment.centerRight,
-                child: LayoutBuilder(
-                  builder: (context, box) => Container(
-                    key: const ValueKey('bubble'),
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
-                    ),
-                    constraints: BoxConstraints(maxWidth: box.maxWidth * .84),
-                    decoration: BoxDecoration(
-                      color: Color.alphaBlend(
-                        c.primary.withValues(alpha: .28),
-                        c.background,
-                      ),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(14),
-                        topRight: Radius.circular(14),
-                        bottomLeft: Radius.circular(14),
-                        bottomRight: Radius.circular(4),
-                      ),
-                      border: Border.all(
-                        color: c.primary.withValues(alpha: .45),
-                      ),
-                    ),
-                    // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (images.isNotEmpty && FileOpener.of(context) != null)
-                          UserImages(
-                            tab: FileOpener.of(context)!,
-                            images: images,
-                          ),
-                        if (text.isNotEmpty || images.isEmpty)
-                          listenerAt == null && marks.isEmpty
-                              ? NbMarkdown(
-                                  userMarkdownSource(text),
-                                  blockSyntaxes: userBlockSyntaxes,
-                                  inlineSyntaxes: userInlineSyntaxes,
-                                  softLineBreak: true,
-                                )
-                              : FileMarkdown(
-                                  text: text,
-                                  listenerAt: listenerAt,
-                                  marks: marks,
-                                  onMark: onMark,
-                                  parse: parseUserMessage,
-                                  softLineBreak: true,
-                                ),
-                      ],
-                    ),
-                  ),
+            : UserBubble(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (images.isNotEmpty && FileOpener.of(context) != null)
+                      UserImages(tab: FileOpener.of(context)!, images: images),
+                    if (voice != null)
+                      VoiceBlock(
+                        id: voice.id,
+                        ms: voice.ms.toInt(),
+                        wave: voice.wave,
+                        load: voiceLoader(FileOpener.of(context), voice.id),
+                        stage: voiceError != null
+                            ? VoiceStage.error
+                            : (transcribing
+                                  ? VoiceStage.transcribing
+                                  : VoiceStage.transcribed),
+                        error: voiceError,
+                        onRetry:
+                            FileOpener.of(context)?.isRetrying(voice.id) ??
+                                false
+                            ? null
+                            : () => retryVoice(context, voice),
+                        transcript: () => userText(text),
+                      )
+                    else if (text.isNotEmpty || images.isEmpty)
+                      userText(text),
+                  ],
                 ),
               ),
       AssistantItem(:final text) => Padding(
@@ -496,6 +511,65 @@ class FeedItemView extends StatelessWidget {
       NoticeItem(:final text) => line(t.resumed(text)),
     };
   }
+}
+
+/// The user's bubble: right-aligned, tinted with the primary colour, its lower right corner square.
+class UserBubble extends StatelessWidget {
+  const UserBubble({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: LayoutBuilder(
+        builder: (context, box) => Container(
+          key: const ValueKey('bubble'),
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          constraints: BoxConstraints(maxWidth: box.maxWidth * .84),
+          decoration: BoxDecoration(
+            color: Color.alphaBlend(
+              c.primary.withValues(alpha: .28),
+              c.background,
+            ),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(14),
+              topRight: Radius.circular(14),
+              bottomLeft: Radius.circular(14),
+              bottomRight: Radius.circular(4),
+            ),
+            border: Border.all(color: c.primary.withValues(alpha: .45)),
+          ),
+          // as the desktop shows it, and as chatText reads it: Markdown with breaks, HTML as text
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// A voice message the phone has recorded and the window has not shown yet: Sending…, or failed with Retry.
+class PendingVoiceBubble extends StatelessWidget {
+  const PendingVoiceBubble(this.entry, this.outbox, {super.key});
+  final PendingVoice entry;
+  final VoiceOutbox outbox;
+
+  @override
+  Widget build(BuildContext context) => UserBubble(
+    child: VoiceBlock(
+      id: entry.key,
+      ms: entry.ms,
+      wave: entry.wave,
+      load: () => outbox.bytes(entry),
+      stage: entry.stage == OutStage.failed
+          ? VoiceStage.sendFailed
+          : VoiceStage.sending,
+      onRetry: () => outbox.retry(entry),
+      onDelete: () => outbox.remove(entry),
+    ),
+  );
 }
 
 String duration(AppLocalizations t, num secs) => secs < 60

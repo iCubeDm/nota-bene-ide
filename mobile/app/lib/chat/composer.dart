@@ -8,14 +8,15 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
 import '../comments/comments.dart';
-import '../dictation/record_bar.dart';
-import '../dictation/voice_button.dart';
-import '../dictation/voice_chooser.dart';
 import '../dictation/whisper_sheet.dart';
 import '../media/attach.dart';
 import '../media/picker.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
+import '../voice/record_button.dart';
+import '../voice/record_row.dart';
+import '../voice/record_session.dart';
+import '../voice/recorder.dart';
 import 'attach_sheet.dart';
 import 'window_tab.dart';
 
@@ -51,8 +52,10 @@ class _ComposerState extends State<Composer> {
   StreamSubscription<ServerEventSendRefused>? _refused;
   ({String id, String text, Set<String> comments, List<_Draft> images})? _last;
   final _drafts = <_Draft>[];
-  final _meter = VoiceMeter();
-  VoiceState _voice = VoiceState.idle;
+  late final _session = RecordSession(
+    onRecorded: _recorded,
+    onError: _recordFailed,
+  );
 
   @override
   void initState() {
@@ -68,7 +71,7 @@ class _ComposerState extends State<Composer> {
     _text.removeListener(_changed);
     _refused?.cancel();
     _own?.dispose();
-    _meter.dispose();
+    _session.dispose();
     super.dispose();
   }
 
@@ -168,10 +171,92 @@ class _ComposerState extends State<Composer> {
   bool get _uploading => _drafts.any((d) => d.pending);
   bool get _failed => _drafts.any((d) => d.failed);
 
-  Future<void> _send() async {
-    // a running dictation is finished first: its words are in the field before it is read (or cleared)
-    await VoiceButton.finishRunning();
+  /// A recording was released (or sent from the lock or the preview): it goes to the window as a voice message of its
+  /// own, never with the typed text, the images or the pending comments. While the agent works it asks, as a typed
+  /// send does; dismissed, the recording waits in the preview.
+  Future<void> _recorded(Uint8List wav, Duration length) async {
     if (!mounted) return;
+    var force = false;
+    if (widget.tab.busy) {
+      final choice = await _askNow();
+      if (!mounted) return;
+      if (choice == null) return _session.restore(wav);
+      force = choice == 'force';
+    }
+    widget.tab.voiceOutbox.submit(
+      wav,
+      Localizations.localeOf(context).languageCode,
+      force: force,
+    );
+  }
+
+  void _recordFailed(RecordFailure why) {
+    if (!mounted) return;
+    final t = AppLocalizations.of(context);
+    _say(why == RecordFailure.denied ? t.dictationDenied : t.voiceRecordFailed);
+  }
+
+  /// Back (or any pop) with a recording: it stops into the preview and the user chooses; nothing is dropped unasked.
+  Future<void> _leave() async {
+    if (_session.phase == RecordPhase.recording && _session.holding) return;
+    await _session.stopToPreview();
+    if (!mounted || _session.phase != RecordPhase.preview) return;
+    final t = AppLocalizations.of(context);
+    final nav = Navigator.of(context);
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t.voiceLeaveTitle),
+        content: Text(t.voiceLeaveBody),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(t.cancel)),
+          TextButton(
+            onPressed: () => Navigator.pop(c, 'delete'),
+            child: Text(t.voiceDelete),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, 'send'),
+            child: Text(t.send),
+          ),
+        ],
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'send') {
+      await _session.send();
+      // the busy question was dismissed: the recording is back in the preview, and the chat stays
+      if (_session.phase == RecordPhase.preview) return;
+    } else {
+      _session.cancel();
+    }
+    // the outbox has the message now (it outlives this chat)
+    unawaited(nav.maybePop());
+  }
+
+  /// "Send now or after this turn": 'force', 'queue', or null when it was dismissed.
+  Future<String?> _askNow() {
+    final t = AppLocalizations.of(context);
+    return showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t.sendNowTitle),
+        content: Text(t.sendNowBody),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(t.cancel)),
+          TextButton(
+            onPressed: () => Navigator.pop(c, 'queue'),
+            child: Text(t.sendAfter),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, 'force'),
+            child: Text(t.sendNow),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _send() async {
     final text = _text.text.trim();
     if (_uploading || _failed) return;
     if (text.isEmpty &&
@@ -182,28 +267,7 @@ class _ComposerState extends State<Composer> {
     var force = false;
     if (widget.tab.busy) {
       // as on the desktop: a message while the agent works waits for its turn, unless it is sent now and interrupts
-      final t = AppLocalizations.of(context);
-      final choice = await showDialog<String>(
-        context: context,
-        builder: (c) => AlertDialog(
-          title: Text(t.sendNowTitle),
-          content: Text(t.sendNowBody),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(c),
-              child: Text(t.cancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(c, 'queue'),
-              child: Text(t.sendAfter),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(c, 'force'),
-              child: Text(t.sendNow),
-            ),
-          ],
-        ),
-      );
+      final choice = await _askNow();
       if (choice == null || !mounted) return;
       force = choice == 'force';
     }
@@ -248,148 +312,209 @@ class _ComposerState extends State<Composer> {
     setState(() => _drafts.removeWhere(drafts.contains));
   }
 
+  /// The field's text laid out in the width it has beside the paperclip: more than a line wraps it.
+  bool _wraps(BuildContext context, double width) {
+    final text = _text.text;
+    if (text.isEmpty) return false;
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style:
+            Theme.of(context).textTheme.bodyLarge ??
+            DefaultTextStyle.of(context).style,
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: width.clamp(1, double.infinity));
+    final lines = tp.computeLineMetrics().length;
+    tp.dispose();
+    return lines > 1;
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([widget.tab, widget.tab.comments]),
+    listenable: Listenable.merge([widget.tab, widget.tab.comments, _session]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final open = widget.tab.state == TabState.open;
       final c = Theme.of(context).extension<NbColors>()!;
       final uploading = _uploading;
-      final canSend =
-          open &&
-          !uploading &&
-          !_failed &&
-          (_text.text.trim().isNotEmpty ||
-              widget.tab.comments.sendable.isNotEmpty ||
-              _drafts.isNotEmpty);
-      // while the agent works and there is nothing to send, the send slot is the stop button
-      final stop = open && widget.tab.busy && !canSend && _drafts.isEmpty;
-      return Padding(
-        key: const ValueKey('composer'),
-        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_drafts.isNotEmpty) _strip(t, c),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 40),
-                    decoration: BoxDecoration(
-                      color: c.popover.withValues(alpha: .95),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: c.border),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Stack(
-                            children: [
-                              // kept while recording: the words still land in it
-                              Visibility(
-                                visible: _voice == VoiceState.idle,
-                                maintainState: true,
-                                maintainSize: true,
-                                maintainAnimation: true,
-                                child: TextField(
-                                  controller: _text,
-                                  focusNode: widget.focus,
-                                  enabled: open,
-                                  minLines: 1,
-                                  maxLines: 6,
-                                  textCapitalization:
-                                      TextCapitalization.sentences,
-                                  decoration: InputDecoration(
-                                    hintText: open
-                                        ? t.messageHint
-                                        : t.cannotSend,
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    disabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.fromLTRB(
-                                      16,
-                                      11,
-                                      4,
-                                      11,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (_voice != VoiceState.idle)
-                                Positioned.fill(
-                                  child: RecordBar(
-                                    state: _voice,
-                                    meter: _meter,
-                                  ),
-                                ),
-                            ],
-                          ),
+      final hasContent =
+          _text.text.trim().isNotEmpty ||
+          widget.tab.comments.sendable.isNotEmpty ||
+          _drafts.isNotEmpty;
+      final canSend = open && !uploading && !_failed && hasContent;
+      final recording = _session.active;
+      // the mic while there is nothing to send, Send otherwise; a window older than protocol 14 has no voice
+      final mic = widget.tab.voiceProtocol && (!hasContent || recording);
+      return PopScope(
+        // a recording is never dropped by a back press: it is asked about
+        canPop: !recording,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _leave();
+        },
+        child: Padding(
+          key: const ValueKey('composer'),
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_drafts.isNotEmpty) _strip(t, c),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(child: _field(context, t, c, open, recording)),
+                  const SizedBox(width: 6),
+                  // the agent works: Stop, beside the round button
+                  if (open && widget.tab.busy)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6, bottom: 4),
+                      child: IconButton(
+                        key: const ValueKey('stop'),
+                        tooltip: t.stop,
+                        icon: const NbIcon(NbGlyph.stop),
+                        style: IconButton.styleFrom(
+                          fixedSize: const Size.square(40),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          backgroundColor: c.destructive,
+                          foregroundColor: c.background,
                         ),
-                        IconButton(
-                          key: const ValueKey('attach'),
-                          tooltip: t.attach,
-                          icon: const NbIcon(NbGlyph.clip),
-                          onPressed: open ? _attach : null,
-                        ),
-                        VoiceButton(
-                          controller: _text,
-                          enabled: open,
-                          meter: _meter,
-                          onState: (v) => setState(() => _voice = v),
-                          chooser: voiceChooser(widget.tab),
-                          onUnavailable: () =>
-                              showWhisperSheet(context, widget.tab),
-                        ),
-                      ],
+                        onPressed: () =>
+                            widget.tab.send(const ClientMessageInterrupt()),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                if (stop)
-                  IconButton(
-                    key: const ValueKey('stop'),
-                    tooltip: t.stop,
-                    icon: const NbIcon(NbGlyph.stop),
-                    style: IconButton.styleFrom(
-                      fixedSize: const Size.square(40),
-                      backgroundColor: c.destructive,
-                      foregroundColor: c.background,
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    transitionBuilder: (child, anim) => ScaleTransition(
+                      scale: anim,
+                      child: FadeTransition(opacity: anim, child: child),
                     ),
-                    onPressed: () =>
-                        widget.tab.send(const ClientMessageInterrupt()),
-                  )
-                else
-                  IconButton(
-                    key: const ValueKey('send'),
-                    tooltip: uploading ? t.attachUploading : t.send,
-                    icon: uploading
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                    child: mic
+                        ? RecordButton(
+                            key: const ValueKey('mic'),
+                            session: _session,
+                            enabled: open,
+                            available: widget.tab.whisper,
+                            onUnavailable: () =>
+                                showWhisperSheet(context, widget.tab),
                           )
-                        : const NbIcon(NbGlyph.send),
-                    style: IconButton.styleFrom(
-                      fixedSize: const Size.square(40),
-                      backgroundColor: canSend ? c.primary : c.muted,
-                      foregroundColor: canSend ? c.primaryFg : c.mutedFg,
-                      disabledBackgroundColor: c.muted,
-                      disabledForegroundColor: c.mutedFg,
-                    ),
-                    onPressed: canSend ? _send : null,
+                        : IconButton(
+                            key: const ValueKey('send'),
+                            tooltip: uploading ? t.attachUploading : t.send,
+                            icon: uploading
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const NbIcon(NbGlyph.send),
+                            style: IconButton.styleFrom(
+                              fixedSize: const Size.square(48),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              backgroundColor: canSend ? c.primary : c.muted,
+                              foregroundColor: canSend
+                                  ? c.primaryFg
+                                  : c.mutedFg,
+                              disabledBackgroundColor: c.muted,
+                              disabledForegroundColor: c.mutedFg,
+                            ),
+                            onPressed: canSend ? _send : null,
+                          ),
                   ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       );
     },
+  );
+
+  /// The rounded field. The paperclip sits at its right while the text is one line; once the text wraps it moves to
+  /// the top right corner and the text has the full width below it. A recording takes the whole field.
+  Widget _field(
+    BuildContext context,
+    AppLocalizations t,
+    NbColors c,
+    bool open,
+    bool recording,
+  ) => Container(
+    constraints: const BoxConstraints(minHeight: 48),
+    decoration: BoxDecoration(
+      color: c.popover.withValues(alpha: .95),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: c.border),
+    ),
+    child: LayoutBuilder(
+      builder: (context, box) {
+        // one line beside the paperclip: the border, the text's padding (16 + 4), the button (48) and the caret
+        final wrapped = _wraps(context, box.maxWidth - 2 - 16 - 4 - 48 - 2);
+        final clip = IconButton(
+          key: const ValueKey('attach'),
+          tooltip: t.attach,
+          icon: const NbIcon(NbGlyph.clip),
+          visualDensity: wrapped ? VisualDensity.compact : null,
+          onPressed: open ? _attach : null,
+        );
+        final field = TextField(
+          controller: _text,
+          focusNode: widget.focus,
+          enabled: open,
+          minLines: 1,
+          maxLines: 6,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: InputDecoration(
+            hintText: open ? t.messageHint : t.cannotSend,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.fromLTRB(
+              16,
+              wrapped ? 0 : 14,
+              wrapped ? 16 : 4,
+              14,
+            ),
+          ),
+        );
+        return Stack(
+          children: [
+            // kept while recording: the typed text stays for after
+            Visibility(
+              visible: !recording,
+              maintainState: true,
+              maintainSize: true,
+              maintainAnimation: true,
+              child: wrapped
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Align(alignment: Alignment.centerRight, child: clip),
+                        field,
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: field),
+                        clip,
+                      ],
+                    ),
+            ),
+            if (recording)
+              Positioned.fill(
+                child: Align(
+                  alignment: Alignment.center,
+                  child: RecordRow(session: _session),
+                ),
+              ),
+          ],
+        );
+      },
+    ),
   );
 
   /// The drafts' thumbnails above the pill: each with its remove cross, a failed one with a red frame.

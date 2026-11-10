@@ -94,6 +94,7 @@ class _CodeScreenState extends State<CodeScreen> {
       makeAnchor(source, r.text, at.start, at.end),
       res.text,
       res.label,
+      voice: res.voice,
     );
   }
 
