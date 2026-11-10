@@ -23,6 +23,7 @@ import 'media_card.dart';
 import 'markdown.dart';
 import 'message_menu.dart';
 import 'message_selection.dart';
+import 'sent_comments.dart';
 import 'window_tab.dart';
 
 class ChatScreen extends StatelessWidget {
@@ -426,6 +427,8 @@ class FeedItemView extends StatelessWidget {
     return switch (item) {
       UserItem(
         shownText: final text,
+        id: final userId,
+        text: final typed,
         :final idle,
         :final images,
         :final voice,
@@ -462,6 +465,8 @@ class FeedItemView extends StatelessWidget {
                       )
                     else if (text.isNotEmpty || images.isEmpty)
                       userText(text),
+                    if (FileOpener.of(context) case final tab?)
+                      SentComments(tab: tab, id: userId, text: typed),
                   ],
                 ),
               ),

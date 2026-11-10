@@ -42,6 +42,21 @@ String webString(String key, String lang) {
   return m[lang] ?? m['en']!;
 }
 
+/// A counted string of the web ("3 comments") in [lang] for [n], by the language's plural rule.
+String webCount(String key, String lang, int n) {
+  final byLang = ((_data['counted'] as Map)[key] as Map)
+      .cast<String, Object?>();
+  final m = (byLang[lang] ?? byLang['en']!) as Map;
+  final form = lang == 'ru'
+      ? (n % 10 == 1 && n % 100 != 11
+            ? 'f1'
+            : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)
+                  ? 'f2'
+                  : 'f5'))
+      : (n == 1 ? 'f1' : 'f2');
+  return _fill(m[form] as String, [n]);
+}
+
 /// A batch function's text in [lang] with [args] in its places (a list argument already joined with ', ').
 String batchTemplate(String key, String lang, List<Object> args) =>
     _fill(batchString(key, lang), args);
@@ -952,6 +967,88 @@ const _json = r'''
    "es": "Reintentar",
    "pt": "Tentar de novo",
    "de": "Erneut versuchen"
+  },
+  "commentsLc": {
+   "en": "comments",
+   "ru": "комментарии",
+   "zh": "评论",
+   "es": "comentarios",
+   "pt": "comentários",
+   "de": "Kommentare"
+  },
+  "ctx": {
+   "en": "context",
+   "ru": "контекст",
+   "zh": "上下文",
+   "es": "contexto",
+   "pt": "contexto",
+   "de": "Kontext"
+  }
+ },
+ "counted": {
+  "nComments": {
+   "en": {
+    "f1": "{0} comment",
+    "f2": "{0} comments",
+    "f5": "{0} comments"
+   },
+   "ru": {
+    "f1": "{0} комментарий",
+    "f2": "{0} комментария",
+    "f5": "{0} комментариев"
+   },
+   "zh": {
+    "f1": "{0} 条评论",
+    "f2": "{0} 条评论",
+    "f5": "{0} 条评论"
+   },
+   "es": {
+    "f1": "{0} comentario",
+    "f2": "{0} comentarios",
+    "f5": "{0} comentarios"
+   },
+   "pt": {
+    "f1": "{0} comentário",
+    "f2": "{0} comentários",
+    "f5": "{0} comentários"
+   },
+   "de": {
+    "f1": "{0} Kommentar",
+    "f2": "{0} Kommentare",
+    "f5": "{0} Kommentare"
+   }
+  },
+  "markShapes": {
+   "en": {
+    "f1": "{0} shape",
+    "f2": "{0} shapes",
+    "f5": "{0} shapes"
+   },
+   "ru": {
+    "f1": "фигур: {0}",
+    "f2": "фигур: {0}",
+    "f5": "фигур: {0}"
+   },
+   "zh": {
+    "f1": "{0} 个形状",
+    "f2": "{0} 个形状",
+    "f5": "{0} 个形状"
+   },
+   "es": {
+    "f1": "{0} forma",
+    "f2": "{0} formas",
+    "f5": "{0} formas"
+   },
+   "pt": {
+    "f1": "{0} forma",
+    "f2": "{0} formas",
+    "f5": "{0} formas"
+   },
+   "de": {
+    "f1": "{0} Form",
+    "f2": "{0} Formen",
+    "f5": "{0} Formen"
+   }
   }
  },
  "batch": {
