@@ -26,6 +26,12 @@ proposals awaiting agreement.
 | 8 | 13.1 | Same messenger principle for the header pill: connection state belongs there. | The presence line of item 4 also carries the connection: "connecting…", "offline · seen 4 min ago", "computer asleep", as a messenger shows "last seen". The status bar is removed in every state. |
 | 9 | 13.3 | "The window closed or restarted; waiting for it to come back" can go to the centre. | Shown centred over the feed like the occupied overlay (13.2), with a spinner and, after 30 s, a Restart action; the feed stays visible but dimmed. |
 
+## Agreed in round 2
+
+Items 1, 2, 4 (mode menu on the ring instead of a cycle), 5, 6, 8 and 9 are agreed as proposed. Item 7 is agreed in
+principle, to be checked on the drawn layout (variant A: Stop next to Send with a 16 dp gap; variant B: Stop at the left
+edge). The proposed screens are sections 14-17 of `flows.html`, ids 14.1-17.2.
+
 ## Order of work this suggests
 
 1. Header presence line and context ring (items 4, 8), with the status bar removed and window-gone centred (item 9).

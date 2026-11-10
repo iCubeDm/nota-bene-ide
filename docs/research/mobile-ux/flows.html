@@ -158,6 +158,36 @@ figcaption ul{margin:4px 0 0;padding-left:16px}
 .ins{position:absolute;inset:0}
 .note{position:absolute;left:8px;right:8px;z-index:9;border:2px dashed #ff6b6b;border-radius:10px;pointer-events:none}
 .note b{position:absolute;right:-2px;top:-2px;transform:translateY(-100%);background:#ff6b6b;color:#111;font:600 10px ui-monospace,Menlo,monospace;padding:1px 4px;border-radius:3px}
+/* proposed */
+.mm{background:var(--pop);border-radius:12px;overflow:hidden;font-size:14.5px}
+.nw{background:#3d2f55;color:#d9c6ff}
+h2.prop{border-top:2px solid #6b4fa0}
+.ring{width:40px;height:40px;border-radius:20px;flex:none;position:relative;background:conic-gradient(var(--primary) 0 34%,var(--muted) 0);border:1px solid var(--border)}
+.ring span{position:absolute;inset:4px;border-radius:50%;background:#3a3d3f;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--fg)}
+.pres{font-size:12px;color:var(--mfg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pres.work{color:var(--accent)}
+.ghost{width:48px;height:48px;border-radius:24px;border:1px solid var(--border);background:var(--card);color:var(--mfg);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+.para{border-radius:8px;padding:3px 6px;margin:0 -6px 6px}
+.para.on{background:rgba(255,198,109,.13);box-shadow:inset 3px 0 0 var(--accent)}
+.rx{position:absolute;z-index:6;background:var(--pop);border:1px solid var(--border);border-radius:24px;padding:4px 6px;display:flex;gap:2px;align-items:center;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.rx span{width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:21px;border-radius:20px}
+.rx .chev{font-size:14px;color:var(--mfg)}
+.grid{position:absolute;z-index:6;background:var(--pop);border:1px solid var(--border);border-radius:20px;padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:2px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.grid div{display:flex;flex-direction:column;align-items:center;text-align:center;font-size:11.5px;line-height:1.2;padding:6px 2px;min-height:64px;color:var(--fg)}
+.grid div b{font-size:22px;font-weight:400;margin-bottom:3px}
+.abar{position:absolute;z-index:6;background:var(--pop);border:1px solid var(--border);border-radius:14px;display:flex;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.abar span{height:48px;padding:0 12px;display:flex;align-items:center;gap:6px;font-size:13.5px;border-left:1px solid var(--border)}
+.abar span:first-child{border:0}
+.pinbar{position:absolute;left:8px;right:8px;bottom:84px;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:6px 10px;font-size:12.5px;display:flex;gap:8px;align-items:center}
+.pinbar .r{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grp{font-size:13px;color:var(--mfg);padding:4px 0;display:flex;gap:6px;align-items:center}
+.grp b{color:var(--fg);font-weight:500}
+.grp .er{color:var(--danger)}.grp .cm2{color:var(--accent)}
+.latest{font-size:12.5px;padding:0 0 2px 16px;display:flex;gap:6px;white-space:nowrap;overflow:hidden}
+.spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--muted);border-top-color:var(--primary);flex:none}
+.sk{height:11px;border-radius:6px;background:#3a3c3e}
+.handle{display:inline-block;width:3px;height:18px;background:var(--primary);vertical-align:-4px;position:relative}
+.handle::after{content:"";position:absolute;left:-5px;bottom:-9px;width:13px;height:13px;border-radius:7px;background:var(--primary)}
 </style>
 </head>
 <body>
@@ -174,6 +204,7 @@ Dashed red frames mark the spot a tag is about. Drawings approximate spacing; te
   <span><span class="tag p1">P1</span>friction on a common path</span>
   <span><span class="tag p2">P2</span>polish</span>
   <span><span class="tag ok">OK</span>works as intended, worth keeping</span>
+  <span><span class="tag nw">NEW</span>proposed after review 1 (sections 14–17)</span>
 </div>
 <div class="toc">
   <a href="#f1">1. First launch, lock and pairing</a><br>
@@ -188,7 +219,11 @@ Dashed red frames mark the spot a tag is about. Drawings approximate spacing; te
   <a href="#f10">10. Images: attach, view, mark up</a><br>
   <a href="#f11">11. Files pane and viewers</a><br>
   <a href="#f12">12. Git: changes, log, diff</a><br>
-  <a href="#f13">13. Connection and window states</a>
+  <a href="#f13">13. Connection and window states</a><br>
+  <a href="#p1">14. Proposed: header presence and context ring</a><br>
+  <a href="#p2">15. Proposed: comment by paragraph, Pin, labels</a><br>
+  <a href="#p3">16. Proposed: tool groups</a><br>
+  <a href="#p4">17. Proposed: host names and refresh</a>
 </div>
 
 <!-- ============ 1 ============ -->
@@ -938,6 +973,308 @@ This is the path the next design work replaces (decided in review: a button per 
       <ul><li><span class="tag p1">P1</span>snackbars carry no Retry or Undo [41].</li>
       <li><span class="tag p0">P0</span>other server errors are not shown at all: nothing listens to the tab's error stream [32].</li>
       <li>A brand-new session with no messages shows an empty feed with no hint.</li></ul></figcaption>
+  </figure>
+</div>
+
+<!-- ============ P1 ============ -->
+<h2 id="p1" class="prop">14. Proposed: header presence and context ring <small>review-1 items 4, 7, 8, 9</small></h2>
+<p class="lead">The messenger principle: the second line of the header pill says what the other side is doing, as “typing…” and
+“last seen” do. The status bar under the tabs goes away in every state. The free space right of the pill holds a context ring;
+a tap on it opens the mode menu (a menu, not a cycle, so a stray tap cannot switch to Auto or full access).</p>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed">
+        <div class="ubub">Make the record button like Telegram: hold to record, release to send.</div>
+        <div class="abub"><p>Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
+          <div class="grp">▸ <b>4 actions</b></div>
+          <p>Tests are green: 31 of 31.</p></div>
+        <div class="line">Done in 2 min 14 s</div>
+      </div>
+      <div class="composer"><div class="field"><span>Message</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">14.1</span><b>Idle</b> <span class="tag nw">NEW</span> was 4.1. Second line of the pill: the mode alone, no meter.
+      Right of the pill: a 40 dp ring, the percent of context used inside; the ring turns accent at 70 %, red at 90 %.
+      <ul><li>The pill itself still opens the window sheet (5.1).</li></ul></figcaption>
+  </figure>
+  <div class="go">agent starts</div>
+  <figure>
+    <div class="ph"><div class="sb">12:07</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · reading files · 0:42</div></div></div><div class="ring"><span>36</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed">
+        <div class="ubub">Now add a lock on swipe up</div>
+        <div class="abub"><p>Looking at how RecordSession works…</p>
+          <div class="grp">▸ <b>3 actions</b></div>
+          <div class="latest"><span style="color:var(--accent)">⋯</span><span style="color:var(--accent)">Read</span><span class="mono muted" style="font-size:12px">lib/voice/record_session.dart</span></div></div>
+      </div>
+      <div class="composer"><div class="field" style="color:var(--fg)"><span>and don't forget the tests</span><span class="sp"></span><span class="muted">📎</span></div><div class="ghost">■</div><div class="fab" style="margin-left:8px">➤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">14.2</span><b>Working</b> <span class="tag nw">NEW</span> was 6.1. The pill says “working”, the phase (from the current tool) and the elapsed time; the dots animate.
+      The avatar gets the same accent dot as in the session list.
+      <ul><li>Composer, variant A: Stop, Send and the field share one 48 dp baseline; Stop is grey, only Send is filled; 16 dp between them.</li></ul></figcaption>
+  </figure>
+  <figure style="margin-left:64px">
+    <div class="ph"><div class="sb">12:07</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · running tests · 1:15</div></div></div><div class="ring"><span>37</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed">
+        <div class="ubub">Now add a lock on swipe up</div>
+        <div class="abub"><p>Lock added. Running the voice tests.</p>
+          <div class="grp">▸ <b>6 actions</b> <span class="er">· 1 error</span></div>
+          <div class="latest"><span style="color:var(--accent)">⋯</span><span style="color:var(--accent)">Bash</span><span class="mono muted" style="font-size:12px">flutter test test/voice</span></div></div>
+      </div>
+      <div class="composer"><div class="ghost">■</div><div class="field" style="color:var(--fg)"><span>and don't forget the tests</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">➤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">14.3</span><b>Working, composer variant B</b> <span class="tag nw">NEW</span>. Stop moves to the left edge, the whole field away from Send.
+      Same sizes and colours as A. Pick A or B on the final layout.</figcaption>
+  </figure>
+  <div class="go">tap the ring</div>
+  <figure>
+    <div class="ph"><div class="sb">12:05</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring" style="outline:2px solid var(--primary)"><span>34</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="scrim" style="background:rgba(0,0,0,.35)"></div>
+      <div class="mm" style="position:absolute;top:76px;right:8px;width:290px;z-index:6;border:1px solid var(--border)">
+        <div style="height:auto;display:block;padding:10px 16px 8px"><div style="display:flex;justify-content:space-between;align-items:center"><span>Context 34 %</span><span class="btn txt" style="padding:4px 0">Compact</span></div>
+          <div class="bar6" style="margin:4px 0 2px"><i style="width:34%"></i></div><div class="tiny muted">68 k of 200 k tokens</div></div>
+        <div class="hr" style="margin:0"></div>
+        <div style="height:auto;display:block;padding:9px 16px"><div>Default</div><div class="tiny muted">Asks before edits and commands</div></div>
+        <div style="height:auto;display:block;padding:9px 16px;background:rgba(72,118,192,.25)"><div style="display:flex;justify-content:space-between">Accept edits<span class="check">✓</span></div><div class="tiny muted">Edits files without asking, asks before commands</div></div>
+        <div style="height:auto;display:block;padding:9px 16px"><div>Plan</div><div class="tiny muted">Only reads and thinks, changes nothing; ends with a plan to approve</div></div>
+        <div style="height:auto;display:block;padding:9px 16px"><div>Auto</div><div class="tiny muted">A classifier approves safe actions itself, asks about the rest</div></div>
+      </div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">14.4</span><b>Mode menu</b> <span class="tag nw">NEW</span>. Anchored to the ring: context at the top with Compact, then the provider's modes with their descriptions.
+      One tap picks and closes; a tap outside closes. Codex and omp list their own modes.
+      <ul><li>Compact is disabled while the agent works, as in 5.1.</li></ul></figcaption>
+  </figure>
+</div>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:40</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">offline · seen 4 min ago</div></div></div><div class="ring" style="opacity:.45"><span>34</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed"><div class="ubub">Make the record button like Telegram</div><div class="abub">Done…</div></div>
+      <div class="composer"><div class="field"><span>Sending is off while the window is not reachable</span></div><div class="fab mute">➤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">14.5</span><b>Offline</b> <span class="tag nw">NEW</span> was 13.1. The pill says “offline · seen 4 min ago”; avatar and ring dim.
+      Other states on the same line: “connecting…”, “computer asleep” (host answers, window does not), “relay unreachable”.
+      <ul><li>A tap on the pill in these states opens a small sheet with the cause and “Reconnect now”.</li></ul></figcaption>
+  </figure>
+  <div class="go">window restarts</div>
+  <figure>
+    <div class="ph"><div class="sb">12:40</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm" style="opacity:.55">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">waiting for the window…</div></div></div><div class="ring" style="opacity:.45"><span>34</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed" style="opacity:.35"><div class="ubub">Make the record button like Telegram</div><div class="abub">Done…</div></div>
+      <div style="position:absolute;top:122px;left:0;right:0;bottom:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:2;text-align:center;padding:0 40px">
+        <div class="spin"></div>
+        <div style="font-size:16px">The window closed or restarted</div>
+        <div class="muted small">Waiting for it to come back</div>
+        <span class="btn out">Restart</span><div class="tiny muted">shown after 30 s</div></div>
+      <div class="composer"><div class="field" style="color:var(--fg)"><span>and don't forget the tests</span></div><div class="fab mute">➤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">14.6</span><b>Window gone</b> <span class="tag nw">NEW</span> was 13.3. Centred over the dimmed feed like 13.2, with a spinner.
+      After 30 s a Restart button asks the host to start the window again. The draft stays in the composer.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ P2 ============ -->
+<h2 id="p2" class="prop">15. Proposed: comment by paragraph, Pin, labels <small>review-1 items 5, 6 and the decisions</small></h2>
+<p class="lead">A tap on a paragraph of a final reply makes it the target. Above it: one bubble of quick labels, as Telegram's
+reactions; below it: an action bar. Selecting part of the text is a step inside the paragraph, not the way in. Links, code blocks and
+diagrams keep their own taps; a long-press keeps the whole-message menu (7.1) for Copy and Reply.</p>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:10</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed">
+        <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
+          <p class="para on">The hold delay is a constant, so changing it later is one line. Telegram uses a slightly longer delay, but 150 ms felt better in tests.</p>
+          <p class="para">Tests are green: 31 of 31.</p></div>
+        <div class="line">Done in 2 min 14 s</div>
+      </div>
+      <div class="rx" style="top:456px;left:14px"><span>👍</span><span>🔥</span><span>❓</span><span>🔍</span><span>🔬</span><span class="chev">⌄</span></div>
+      <div class="abar" style="top:598px;left:14px"><span>💬 Comment</span><span>📌 Pin</span><span>⌶ Select</span></div>
+      <div class="composer"><div class="field"><span>Message</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">15.1</span><b>Tap a paragraph</b> <span class="tag nw">NEW</span> was 7.1–7.2. The paragraph gets an accent bar and tint;
+      the label bubble sits above, the action bar below, both 48 dp tall. No scrim: the rest of the feed stays readable.
+      A tap on the same paragraph or outside clears it; the pane swipe still works.
+      <ul><li>Reaches TalkBack too: each paragraph is a button with “Comment” and “Pin” custom actions.</li></ul></figcaption>
+  </figure>
+  <div class="go">⌄</div>
+  <figure>
+    <div class="ph"><div class="sb">12:10</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed">
+        <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
+          <p class="para on">The hold delay is a constant, so changing it later is one line. Telegram uses a slightly longer delay, but 150 ms felt better in tests.</p>
+          <p class="para">Tests are green: 31 of 31.</p></div>
+        <div class="line">Done in 2 min 14 s</div>
+      </div>
+      <div class="grid" style="top:236px;left:14px;width:332px">
+        <div><b>👍</b>Looks good</div><div><b>🔥</b>Love it!</div><div><b>❓</b>Clarify this</div><div><b>🔍</b>Verify this</div>
+        <div><b>🔬</b>Give me an example</div><div><b>🗺️</b>Missing overview</div><div><b>🧬</b>Match existing patterns</div><div><b>🔄</b>Consider alternatives</div>
+        <div><b>📉</b>Ensure no regression</div><div><b>🚫</b>Out of scope</div><div><b>🧪</b>Needs tests</div><div style="color:var(--mfg)"><b style="font-size:16px;margin:4px 0 6px">⌃</b>Less</div></div>
+      <div class="composer"><div class="field"><span>Message</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">15.2</span><b>All labels</b> <span class="tag nw">NEW</span>. The chevron grows the same bubble into the grid of eleven,
+      each with its name under it (today the name is a tooltip only). It grows upward when the paragraph is low on the screen.</figcaption>
+  </figure>
+  <div class="go">tap a label</div>
+  <figure>
+    <div class="ph"><div class="sb">12:10</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments <span class="cnt">1</span></span></div>
+      <div class="feed" style="bottom:150px">
+        <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
+          <p class="para"><span class="hl">The hold delay is a constant, so changing it later is one line. Telegram uses a slightly longer delay, but 150 ms felt better in tests.</span><span class="nb">1</span></p>
+          <p class="para">Tests are green: 31 of 31.</p></div>
+      </div>
+      <div class="strip" style="bottom:84px"><div class="h">1 comment to send</div>
+        <div class="r"><span class="muted">The hold delay is a constant…</span> ❓ Clarify this</div></div>
+      <div class="snack" style="bottom:150px;display:flex;justify-content:space-between">❓ Clarify this added<b style="color:#2f5fae">UNDO</b></div>
+      <div class="composer"><div class="field"><span>Message</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">➤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">15.3</span><b>Label added</b> <span class="tag nw">NEW</span>. One tap makes a pending comment on the whole paragraph, with Undo
+      in the snackbar. To add text, tap its row in the strip (opens the sheet of 7.3 with the paragraph as the quote).</figcaption>
+  </figure>
+</div>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:11</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed" style="bottom:140px">
+        <div class="ubub" style="width:300px"><div class="quote" style="color:#c8d3ea;margin-top:0">📌 Recording starts after a 150 ms hold; slide left cancels, up locks.</div>Will the lock survive a rotation?</div>
+        <div class="abub"><p>Yes: the lock lives in RecordSession, not in the widget.</p></div>
+      </div>
+      <div class="pinbar"><span>📌</span><div class="r"><span style="color:var(--accent)">Pinned</span> · The hold delay is a constant, so changing it…</div><span class="muted">✕</span></div>
+      <div class="composer"><div class="field" style="color:var(--fg)"><span>why not make it a setting?</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">➤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">15.4</span><b>Pin</b> <span class="tag nw">NEW</span> (was “Quote”). The paragraph, or the selected part of it, sits pinned above the composer until sent or ✕.
+      The sent bubble starts with the pinned passage; the agent gets it as a quote before the text. Tap the pin in a sent bubble jumps to the source.</figcaption>
+  </figure>
+  <div class="go">Select</div>
+  <figure>
+    <div class="ph"><div class="sb">12:11</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>34</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed">
+        <div class="abub" style="width:324px"><p class="para">Done. Recording starts after a 150 ms hold; slide left cancels, up locks.</p>
+          <p class="para on">The hold delay is a constant, so changing it later is one line. <span class="handle"></span><span class="sel">Telegram uses a slightly longer delay</span><span class="handle"></span>, but 150 ms felt better in tests.</p>
+          <p class="para">Tests are green: 31 of 31.</p></div>
+        <div class="line">Done in 2 min 14 s</div>
+      </div>
+      <div class="abar" style="top:598px;left:14px"><span>💬 Comment</span><span>📌 Pin</span><span>⧉ Copy</span><span class="muted">✕</span></div>
+      <div class="composer"><div class="field"><span>Message</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">15.5</span><b>Select inside the paragraph</b> <span class="tag nw">NEW</span>. “Select” starts a selection limited to the target paragraph
+      (a sentence is preselected); the pane swipe is off until ✕. The same bar then acts on the selection.
+      If a selection is lost, the paragraph stays the target, so nothing is lost with it.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ P3 ============ -->
+<h2 id="p3" class="prop">16. Proposed: tool groups <small>review-1 item 3; port of web/src/feed/ToolGroup.tsx</small></h2>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">12:07</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C<span class="busy"></span></div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres work">working · running tests · 1:15</div></div></div><div class="ring"><span>37</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed">
+        <div class="ubub">Make the record button like Telegram</div>
+        <div class="abub" style="width:324px"><p>Done. Recording starts after a 150 ms hold.</p>
+          <div class="grp">▸ <b>7 actions</b> <span class="cm2">· 2 comments</span></div><p>Tests are green: 31 of 31.</p></div>
+        <div class="line">Done in 2 min 14 s</div>
+        <div class="ubub">Now add a lock on swipe up</div>
+        <div class="abub" style="width:324px"><p>Lock added. Running the voice tests.</p>
+          <div class="grp">▸ <b>6 actions</b> <span class="er">· 1 error</span></div>
+          <div class="latest"><span style="color:var(--accent)">⋯</span><span style="color:var(--accent)">Bash</span><span class="mono muted" style="font-size:12px">flutter test test/voice</span></div></div>
+      </div>
+      <div class="composer"><div class="field"><span>Message</span><span class="sp"></span><span class="muted">📎</span></div><div class="ghost">■</div><div class="fab" style="margin-left:8px">➤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">16.1</span><b>Folded groups</b> <span class="tag nw">NEW</span> was 4.1–4.2. Consecutive actions of the agent and its subagents fold into one line,
+      with “· N errors” and “· N comments” when there are any. While the turn runs and the group is last, the current action shows under the head.</figcaption>
+  </figure>
+  <div class="go">tap the group</div>
+  <figure>
+    <div class="ph"><div class="sb">12:08</div>
+      <div class="hdr"><div class="back">←</div><div class="pill"><div class="av sm">C</div><div style="min-width:0">
+        <div class="tt">Voice notes like Telegram</div><div class="pres">Accept edits</div></div></div><div class="ring"><span>38</span></div></div>
+      <div class="tabs"><span>Files</span><span class="on">Chat</span><span>Comments</span></div>
+      <div class="feed">
+        <div class="abub" style="width:324px"><p>Lock added. Running the voice tests.</p>
+          <div class="grp">▾ <b>6 actions</b> <span class="er">· 1 error</span></div>
+          <div style="padding-left:12px;border-left:1px solid var(--border);margin-left:4px">
+            <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Read</span><span class="ar">lib/voice/record_session.dart</span></div>
+            <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Edit</span><span class="ar">lib/voice/record_button.dart</span></div>
+            <div class="tool" style="padding-left:16px"><span style="color:var(--ok)">✓</span><span class="nm">Task</span><span class="ar">Explore: lock gesture</span></div>
+            <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Write</span><span class="ar">test/voice/record_lock_test.dart</span></div>
+            <div class="tool"><span style="color:var(--danger)">✕</span><span class="nm">Bash</span><span class="ar">flutter test test/voice</span></div>
+            <div class="code"><pre class="muted">00:06 +30 -1: lock survives a rebuild
+Expected: true  Actual: false</pre></div>
+            <div class="tool"><span style="color:var(--ok)">✓</span><span class="nm">Bash</span><span class="ar">flutter test test/voice</span></div></div>
+          <p style="margin-top:6px">Fixed the rebuild case. Tests are green: 32 of 32.</p></div>
+      </div>
+      <div class="composer"><div class="field"><span>Message</span><span class="sp"></span><span class="muted">📎</span></div><div class="fab">🎤</div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">16.2</span><b>Open group</b> <span class="tag nw">NEW</span>. Every line as today (4.2), each still opens its output; a failed line opens by itself.
+      The open state survives scrolling and reopening the chat, as feedUi does on the web.</figcaption>
+  </figure>
+</div>
+
+<!-- ============ P4 ============ -->
+<h2 id="p4" class="prop">17. Proposed: host names and refresh <small>review-1 items 1, 2</small></h2>
+<p class="lead">Today a host is named after the folder of its first window at pairing (<code>pair_flow.dart</code>). Proposed: the host sends
+its computer name when it pairs, and the phone lets you rename it.</p>
+<div class="row">
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar">Nota Bene<span class="sp"></span><span class="ib">⌗</span><span class="ib">⚙</span></div>
+      <div style="display:flex;justify-content:center;margin:-4px 0 4px"><div style="width:40px;height:40px;border-radius:20px;background:var(--pop);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4)"><div class="spin" style="width:22px;height:22px"></div></div></div>
+      <div class="li" style="min-height:44px"><span class="dot"></span><div class="tx"><b>MacBook-Pro</b></div></div>
+      <div class="li"><div class="av">C<span class="busy"></span></div><div class="tx">
+        <div style="display:flex"><span class="t1" style="flex:1;font-size:17px">Voice notes like Telegram</span><span class="tiny muted">12:04</span></div>
+        <div style="display:flex;gap:6px"><span class="t2" style="flex:1"><span style="color:var(--primary)">nota-bene</span> · Done, tests are green…</span><span class="badge acc">!</span></div></div></div>
+      <div class="li" style="min-height:44px;margin-top:6px"><span class="dot" style="background:var(--accent)"></span><div class="tx"><b>home-server</b><div class="t2">Connecting…</div></div></div>
+      <div class="li"><div class="av" style="background:#3a3c3e"></div><div class="tx"><div class="sk" style="width:70%;margin-bottom:8px"></div><div class="sk" style="width:45%"></div></div></div>
+      <div class="li"><div class="av" style="background:#3a3c3e"></div><div class="tx"><div class="sk" style="width:60%;margin-bottom:8px"></div><div class="sk" style="width:35%"></div></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">17.1</span><b>Pull to refresh</b> <span class="tag nw">NEW</span> was 2.1. Pulling down reconnects every host at once (no backoff wait)
+      and asks each online host for its windows again; the spinner stays until all answered or timed out.
+      A host still connecting shows skeleton rows instead of an empty group.</figcaption>
+  </figure>
+  <div class="go">long-press a host</div>
+  <figure>
+    <div class="ph"><div class="sb">9:41</div>
+      <div class="appbar">Nota Bene<span class="sp"></span><span class="ib">⌗</span><span class="ib">⚙</span></div>
+      <div class="scrim"></div>
+      <div class="dialog" style="top:220px"><h3>Rename host</h3>
+        <div class="tf" style="min-height:0;color:var(--fg);border-color:var(--primary)">Studio</div>
+        <div class="small muted">The computer calls itself MacBook-Pro. The name is kept on this phone only.</div>
+        <div class="acts"><span class="btn txt">Reset</span><span style="flex:1"></span><span class="btn txt">Cancel</span><span class="btn txt">Save</span></div></div>
+      <div class="nav"></div></div>
+    <figcaption><span class="id">17.2</span><b>Rename</b> <span class="tag nw">NEW</span>. From a long-press on the host row and from its row in Settings (3.1).
+      Reset goes back to the computer's name. A host that sends no name keeps today's fingerprint prefix.</figcaption>
   </figure>
 </div>
 
