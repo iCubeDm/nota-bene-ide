@@ -207,6 +207,20 @@ void main() {
       expect(find.textContaining('binary file, 3 B'), findsOneWidget);
     });
 
+    testWidgets('an empty file is an empty text, not an error', (t) async {
+      await open(
+        t,
+        files: {
+          // the Range request for a 0-byte file is unsatisfiable
+          'zeta.txt': answer(416, '', headers: {'content-range': 'bytes */0'}),
+        },
+      );
+      await t.tap(find.text('zeta.txt'));
+      await t.pumpAndSettle();
+      expect(find.byType(CodeScreen), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+    });
+
     testWidgets('a file over the cap says so with the total size', (t) async {
       await open(
         t,

@@ -100,6 +100,10 @@ Future<FileRead> readTextFile(WindowTab tab, String path) async {
         headers: {'range': 'bytes=0-$fileMaxBytes'},
       )
       .catchError((Object _) => throw FilesError(null));
+  // a Range request for a 0-byte file is unsatisfiable (416, `bytes */0`): the file is empty
+  if (r.status == 416 && (r.headers['content-range'] ?? '').endsWith('/0')) {
+    return FileText('');
+  }
   if (r.status != 200 && r.status != 206) throw FilesError(r.status);
   var size = r.body.length;
   final range = RegExp(r'/(\d+)$').firstMatch(r.headers['content-range'] ?? '');
