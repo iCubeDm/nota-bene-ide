@@ -1,4 +1,4 @@
-import { autosize } from '@/composer/autosize.ts';
+import { useAutosize } from '@/composer/autosize.ts';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
 import { isAttachmentAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
@@ -219,11 +219,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   }, [onClose, hidden]);
 
   // autosize: the textarea grows with the comment up to its CSS max-height (40vh, as the composer), then scrolls
-  useLayoutEffect(() => {
-    const el = area.current;
-    if (!el) return;
-    autosize(el);
-  }, [text]);
+  useAutosize(area, text);
 
   // the side (below or above the selection) is chosen once per selection: a growing comment never makes the popup
   // jump across it; below, it moves up only as far as the viewport needs; above, it grows upwards
