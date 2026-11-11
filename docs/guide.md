@@ -469,8 +469,8 @@ nota-bene remote status
 
 ### The Android app (prototype)
 
-The app is built by CI: open the CI run of the pull request or branch, download the `nota-bene-android` artifact and
-install the APK on the phone (allow installs from that source once). Builds of this repository are signed with one key,
+The app is built by a manual run of the Mobile workflow (Actions → Mobile → Run workflow): download its
+`nota-bene-android` artifact and install the APK on the phone (allow installs from that source once). Builds of this repository are signed with one key,
 so a newer APK installs over the older one and keeps the phone's key and pairings; a debug build (from a fork) does not.
 
 - **Unlock.** The app opens only after the phone's own check (fingerprint, face, or the screen lock's PIN or pattern)
