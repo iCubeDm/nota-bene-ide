@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, it } from 'vitest';
-import { generatedImages, type Comment } from '@nota-bene/shared';
+import { generatedImages, isAttachmentAnchor, type Comment } from '@nota-bene/shared';
 import { tIn, type Lang } from '@/i18n/index.ts';
 import { composeBatch } from './compose.ts';
 import { instructionOf, labelOf } from './labels.ts';
@@ -93,12 +93,19 @@ const attachments: Record<string, Comment> = {
     scale: 0.5, shapes: [{ kind: 'arrow', color: '#0a84ff', x1: 0.9, y1: 0.1, x2: 0.5, y2: 0.55 }, { kind: 'pen', color: '#ffffff', points: [0.1, 0.1, 0.2, 0.3, 0.25, 0.9] }],
   }),
 };
+// its image is not among the composer's: pending, but never part of a send (detached)
+attachments.gone = onImage('66666666-6666-4666-8666-666666666666', 'was on another image', [hex('6')], { image: hex('9') });
 const attCases = [
   ...Object.keys(attachments).map((k) => ({ name: k, general: '', items: [k] })),
   { name: 'all', general: 'Please look', items: ['text', ...Object.keys(attachments)] },
+  { name: 'detachedOnly', general: 'hello', items: ['gone'] },
 ];
+/** What a send takes of the pending items: an attachment comment only when its image is in the composer. */
+const sendable = (c: Comment): boolean => !isAttachmentAnchor(c.anchor) || composerImages.includes(c.anchor.image);
 
-/** sendNow's numbering with the composer's two images first, then each comment's own images in order. */
+/**
+ * COUPLED to sendNow (web/src/comments/send.ts): the same numbering and the same filter (selectSendable); a change there is a
+ * change here, and in the phone's composeSend. The composer's two images first, then each comment's own images in order. */
 function sendWithComposer(general: string, items: Comment[], lang: Lang) {
   const images = composerImages.map((id, k) => ({ id, label: tIn(lang, 'imgLabel', k + 1) }));
   const refs = items.map((c, i) => {
@@ -118,7 +125,9 @@ it('the desktop side of the attachment batch fixtures', () => {
     comments: { text: comments.text, ...attachments },
     cases: attCases.map((c) => ({
       ...c,
-      out: Object.fromEntries(LANGS.map(([app, web]) => [app, sendWithComposer(c.general, c.items.map((k) => all[k]), web)])),
+      // `sent`: the ids the send takes (the others stay pending); `out` is the batch of those only
+      sent: c.items.map((k) => all[k]).filter(sendable).map((x) => x.id),
+      out: Object.fromEntries(LANGS.map(([app, web]) => [app, sendWithComposer(c.general, c.items.map((k) => all[k]).filter(sendable), web)])),
     })),
   };
   const out = path.resolve(__dirname, '../../../mobile/app/test/fixtures/batch/attachment.json');

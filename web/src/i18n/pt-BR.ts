@@ -589,6 +589,8 @@ export const ptBR: Dict = {
   clearFail: 'Não foi possível limpar: ',
   sendRefused: 'Não enviado: uma troca de sessão está em andamento',
   sendRefusedBusy: 'Não enviado: aguarde o agente terminar. /compact e /clear não podem ser enfileirados.',
+  sendOnlyDetached: 'Não enviado: os comentários são de imagens que não estão anexadas. Anexe a imagem de novo ou remova o comentário.',
+  sendRefusedDetached: 'Não enviado: a imagem de um comentário não está anexada a esta mensagem',
   shellRun: 'Executar',
   shellCue: 'Shell · Enter executa',
   shellWithAttachments: 'Não executado: a mensagem tem comentários ou imagens pendentes. Envie-os ou remova-os primeiro.',

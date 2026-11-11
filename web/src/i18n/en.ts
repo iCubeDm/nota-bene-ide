@@ -606,6 +606,8 @@ export const en: Dict = {
   clearFail: 'Could not clear: ',
   sendRefused: 'Not sent: a session switch is in progress',
   sendRefusedBusy: 'Not sent: wait for the agent to finish. /compact and /clear cannot be queued.',
+  sendOnlyDetached: 'Not sent: the comments are on images that are not attached. Attach the image again or remove the comment.',
+  sendRefusedDetached: "Not sent: a comment's image is not attached to this message",
   shellRun: 'Run',
   shellCue: 'Shell · Enter runs',
   shellWithAttachments: 'Not run: the message has pending comments or images. Send or remove them first.',

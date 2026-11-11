@@ -589,6 +589,8 @@ export const zhCN: Dict = {
   clearFail: '无法清空：',
   sendRefused: '未发送：正在切换会话',
   sendRefusedBusy: '未发送：请等待代理完成。/compact 和 /clear 无法排队。',
+  sendOnlyDetached: '未发送：这些评论所属的图片未附加。请重新附加图片，或删除评论。',
+  sendRefusedDetached: '未发送：某条评论的图片未附加到此消息',
   shellRun: '运行',
   shellCue: 'Shell · Enter 运行',
   shellWithAttachments: '未运行：消息中有待处理的评论或图片。请先发送或移除它们。',

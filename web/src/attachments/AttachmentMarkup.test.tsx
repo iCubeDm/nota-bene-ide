@@ -66,7 +66,7 @@ it('leaving the markup mode closes the overlay', async () => {
   expect(onClose).toHaveBeenCalled();
 });
 
-it('Esc with an open drawing asks before discarding; the popup keeps its own Esc', async () => {
+it('Esc with an open drawing asks before discarding it', async () => {
   const { store, onClose } = setup();
   act(() => void store.dispatch(addShape(`attach:${ID}`, rect)));
   await userEvent.keyboard('{Escape}');

@@ -3,8 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Button } from '@/components/ui/button.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
-import { sendBatch } from '@/comments/send.ts';
-import { selectPending } from '@/comments/slice.ts';
+import { selectSendable, sendBatch } from '@/comments/send.ts';
 import { CompactClear } from '@/controls/CompactClear.tsx';
 import { ModePill } from '@/controls/ModePill.tsx';
 import { nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching } from '@/controls/slice.ts';
@@ -36,7 +35,7 @@ export function Composer() {
   const busy = useAppSelector(selectBusy);
   const conn = useAppSelector(selectConn);
   const onAgentTab = useAppSelector((s) => s.tabs.active.startsWith('agent:')); // the message goes to the main agent, not the subagent on screen
-  const nPending = useAppSelector(selectPending).length;
+  const nPending = useAppSelector(selectSendable).length;
   const mode = useAppSelector(selectMode);
   const caps = useAppSelector(selectCapabilities);
   const text = useAppSelector(selectDraft);
@@ -232,7 +231,7 @@ export function Composer() {
     setAskForce(false);
     browse.current = { id: null, stash: '', query: null };
     const r = dispatch(sendBatch(force));
-    if (r === 'empty' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
+    if (r === 'empty' || r === 'detached' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
     if (r === 'sent') ref.current?.focus();
   };

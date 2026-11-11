@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { isAttachmentAnchor, type AttachmentAnchor, type MediaShape } from '@nota-bene/shared';
 import { CommentPopup } from '@/comments/CommentPopup.tsx';
@@ -72,8 +72,21 @@ export function AttachmentMarkup({ id, onClose }: { id: string; onClose: () => v
     setMarkPopup({ anchor, rect: at, prepare: () => prepareAttachmentComment(img, anchor) });
   }, [img, id, t, setMarkPopup]);
 
+  // Tab stays inside the overlay (its popup is a separate portal with its own keys)
+  const root = useRef<HTMLDivElement>(null);
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab' || !root.current?.contains(e.target as Node)) return;
+    const f = [...root.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+    if (!f.length) return void e.preventDefault();
+    const at = f.indexOf(e.target as HTMLElement);
+    const next = e.shiftKey ? (at <= 0 ? f.length - 1 : at - 1) : (at === f.length - 1 ? 0 : at + 1);
+    if (at === -1 || (e.shiftKey && at === 0) || (!e.shiftKey && at === f.length - 1)) {
+      e.preventDefault();
+      f[at === -1 ? 0 : next]!.focus();
+    }
+  };
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={t('markAttachment')} data-anchor-skip className="fixed inset-0 z-50 grid place-items-center bg-scrim/80">
+    <div ref={root} onKeyDown={onKeyDown} role="dialog" aria-modal="true" aria-label={t('markAttachment')} data-anchor-skip className="fixed inset-0 z-50 grid place-items-center bg-scrim/80">
       <div className="relative h-[92vh] w-[92vw]">
         <div data-pane={tabId} className="absolute inset-0 grid place-items-center overflow-auto">
           <img ref={setImg} src={`/attach/${id}`} alt="" draggable={false} className="relative max-h-full max-w-full rounded-lg object-contain" />

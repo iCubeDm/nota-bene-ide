@@ -82,7 +82,7 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
     >
       <div {...handle} className={`mb-1 flex items-center justify-between font-mono text-[0.625rem] text-muted-foreground ${handle?.className ?? ''}`}>
         <span>
-          {index + 1}{where ? ` · ${where}` : ''}{sent ? ` · ${t('sentTag')}` : ''}
+          {[index >= 0 ? String(index + 1) : '', where].filter(Boolean).join(' · ')}{sent ? ` · ${t('sentTag')}` : ''}
         </span>
         {!sent && <CardActions editing={editing} switching={switching} start={start} finish={finish} remove={() => dispatch(removeComment(c.id))} />}
       </div>

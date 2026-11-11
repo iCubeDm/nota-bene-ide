@@ -36,6 +36,14 @@ export function ComposerAttachments({ pending }: { pending: PendingThumb[] }) {
   };
   // the overlay belongs to an image still in the composer
   const open = marking !== null && images.some((i) => i.id === marking) ? marking : null;
+  // closing hands the focus back to the image's pen (the composer's field when the image is gone)
+  const closeMarkup = (id: string) => {
+    dispatch(markAttachment(null));
+    requestAnimationFrame(() => {
+      const pen = [...document.querySelectorAll<HTMLElement>('[data-mark-for]')].find((e) => e.dataset.markFor === id);
+      (pen ?? document.getElementById('composer-input'))?.focus();
+    });
+  };
   return (
     <>
       <Attachments
@@ -46,7 +54,7 @@ export function ComposerAttachments({ pending }: { pending: PendingThumb[] }) {
         onMark={offered ? (id) => void dispatch(markAttachment(id)) : undefined}
         counts={counts}
       />
-      {open && <AttachmentMarkup id={open} onClose={() => void dispatch(markAttachment(null))} />}
+      {open && <AttachmentMarkup key={open} id={open} onClose={() => closeMarkup(open)} />}
       {asking && (
         <ConfirmDialog
           title={t('attachRemoveTitle')}

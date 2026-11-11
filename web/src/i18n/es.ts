@@ -589,6 +589,8 @@ export const es: Dict = {
   clearFail: 'No se pudo limpiar: ',
   sendRefused: 'No enviado: hay un cambio de sesión en curso',
   sendRefusedBusy: 'No enviado: espera a que el agente termine. /compact y /clear no se pueden poner en cola.',
+  sendOnlyDetached: 'No enviado: los comentarios son de imágenes que no están adjuntas. Adjunta la imagen de nuevo o quita el comentario.',
+  sendRefusedDetached: 'No enviado: la imagen de un comentario no está adjunta a este mensaje',
   shellRun: 'Ejecutar',
   shellCue: 'Shell · Enter ejecuta',
   shellWithAttachments: 'No ejecutado: el mensaje tiene comentarios o imágenes pendientes. Envíalos o quítalos primero.',

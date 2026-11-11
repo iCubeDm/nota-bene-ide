@@ -6,6 +6,7 @@ import { selectBuilding, selectUploading } from '@/composer/slice.ts';
 import { selectSwitching } from '@/controls/slice.ts';
 import { CommentCard } from './CommentCard.tsx';
 import { PanelResizer, usePanelWidth } from '@/shell/PanelResizer.tsx';
+import { selectSendable } from './send.ts';
 import { selectCommentsUi, selectPending, setPanelOpen } from './slice.ts';
 
 /** The right tool window, docked next to its strip: open, it narrows the middle column (R-M6-3). */
@@ -15,6 +16,9 @@ export function CommentsPanel({ onSend }: { onSend: () => void }) {
   const open = useAppSelector(selectCommentsUi).panelOpen;
   const pending = useAppSelector(selectPending);
   const n = pending.length;
+  const sendable = useAppSelector(selectSendable); // detached ones are listed but not sent: they carry no number
+  const nSend = sendable.length;
+  const sendIdx = new Map(sendable.map((c, i) => [c.id, i]));
   const building = useAppSelector(selectBuilding);
   const uploading = useAppSelector(selectUploading) > 0 || building;
   const switching = useAppSelector(selectSwitching);
@@ -51,13 +55,13 @@ export function CommentsPanel({ onSend }: { onSend: () => void }) {
         {n === 0 ? (
           <div className="whitespace-pre-line px-3 py-8 text-center text-xs leading-normal text-muted-foreground">{t('emptyComments')}</div>
         ) : (
-          pending.map((c, i) => <CommentCard key={c.id} id={c.id} index={i} />)
+          pending.map((c) => <CommentCard key={c.id} id={c.id} index={sendIdx.get(c.id) ?? -1} />)
         )}
       </div>
       <div className="flex-none border-t border-border-soft p-2">
         <span className="block" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
-          <Button type="button" id="cSend" className="h-[34px] w-full" disabled={n === 0 || uploading || switching} onClick={onSend}>
-            {n ? t('sendN', n) : t('send')}
+          <Button type="button" id="cSend" className="h-[34px] w-full" disabled={nSend === 0 || uploading || switching} onClick={onSend}>
+            {nSend ? t('sendN', nSend) : t('send')}
           </Button>
         </span>
       </div>

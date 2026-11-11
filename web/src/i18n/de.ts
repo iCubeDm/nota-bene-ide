@@ -589,6 +589,8 @@ export const de: Dict = {
   clearFail: 'Leeren fehlgeschlagen: ',
   sendRefused: 'Nicht gesendet: Ein Sitzungswechsel läuft',
   sendRefusedBusy: 'Nicht gesendet: Warte, bis der Agent fertig ist. /compact und /clear lassen sich nicht einreihen.',
+  sendOnlyDetached: 'Nicht gesendet: Die Kommentare gehören zu Bildern, die nicht angehängt sind. Hänge das Bild erneut an oder entferne den Kommentar.',
+  sendRefusedDetached: 'Nicht gesendet: Das Bild eines Kommentars ist dieser Nachricht nicht angehängt',
   shellRun: 'Ausführen',
   shellCue: 'Shell · Enter führt aus',
   shellWithAttachments: 'Nicht ausgeführt: Die Nachricht hat ausstehende Kommentare oder Bilder. Sende oder entferne sie zuerst.',

@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientMessage, Comment } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Composer } from '@/composer/Composer.tsx';
@@ -417,4 +417,57 @@ it('an attachment comment is named by its image number and carries its composite
   expect(m.text).toContain('→ this\n📎 images: 3 (frame with marks)');
   expect(m.images?.map((i) => i.id)).toEqual([A, B, C]);
   expect(m.commentIds).toEqual(['att']);
+});
+
+describe('a detached attachment comment (its image is not in the composer)', () => {
+  const A = 'a'.repeat(64);
+  const att = (id: string): Comment => cm(id, {
+    text: 'on the image', images: ['c'.repeat(64)], genImages: 1,
+    anchor: { kind: 'attachment', image: A, width: 10, height: 10, shapes: [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 0.5, h: 0.5 }] },
+  });
+
+  it('stays pending, out of commentIds and the text; goes once its image is attached again', async () => {
+    const { sent, store, box } = setup([cm('c1'), att('d1')]);
+    await userEvent.type(box, 'see{Enter}');
+    const m = sentOf(sent[0]!);
+    expect(m.commentIds).toEqual(['c1']);
+    expect(m.text).not.toContain('on the image');
+    act(() => void store.dispatch(serverEvent({ kind: 'user', id: m.id!, text: m.text, ts: 1 })));
+    act(() => void store.dispatch(serverEvent({ kind: 'comments', items: [{ ...cm('c1'), status: 'sent', sentIn: m.id }, att('d1')] })));
+    expect(store.getState().comments.items.find((c) => c.id === 'd1')?.status).toBe('pending');
+    act(() => void store.dispatch(addImage({ id: A, mediaType: 'image/png' })));
+    await userEvent.type(box, 'again{Enter}');
+    const m2 = sentOf(sent[1]!);
+    expect(m2.commentIds).toEqual(['d1']);
+    expect(m2.text).toContain('on the image');
+  });
+
+  it('is not counted on Send; a send with only detached comments says why instead of doing nothing', async () => {
+    resetToasts();
+    const { sent, box } = setup([att('d1')]);
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument(); // no "(1)"
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(sent).toHaveLength(0);
+    expect(getToasts().map((x) => x.title)).toContain('Not sent: the comments are on images that are not attached. Attach the image again or remove the comment.');
+    expect(box.value).toBe('');
+  });
+
+  it('still blocks /clear', async () => {
+    resetToasts();
+    const { sent, box } = setup([att('d1')]);
+    await userEvent.type(box, '/clear');
+    await userEvent.keyboard('{Escape}{Enter}');
+    expect(sent).toHaveLength(0);
+    expect(getToasts().map((x) => x.title)).toContain('Not sent: /clear would drop the pending comments. Send or remove them first.');
+  });
+
+  it('a server refusal for detached has its own message', async () => {
+    resetToasts();
+    const { sent, store, box } = setup([]);
+    await userEvent.type(box, 'hi{Enter}');
+    act(() => void store.dispatch(serverEvent({ kind: 'send-refused', id: lastSend(sent).id, reason: 'detached' })));
+    const titles = getToasts().map((x) => x.title);
+    expect(titles).toContain("Not sent: a comment's image is not attached to this message");
+    expect(titles).not.toContain('Not sent: a session switch is in progress');
+  });
 });

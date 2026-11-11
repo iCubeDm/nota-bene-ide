@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -80,5 +80,20 @@ it('the overlay closes when its image leaves the composer', async () => {
   const { removeImage } = await import('@/composer/slice.ts');
   act(() => void store.dispatch(removeImage(A)));
   expect(screen.queryByRole('dialog')).toBeNull();
+  expect(selectMarking(store.getState())).toBeNull();
+});
+
+it('closing the overlay returns the focus to the pen of that image; Tab does not leave the overlay', async () => {
+  const store = setup();
+  const pen = screen.getAllByRole('button', { name: /Mark up and comment/ })[1]!;
+  await userEvent.click(pen);
+  const dialog = screen.getByRole('dialog');
+  for (let i = 0; i < 12; i++) {
+    await userEvent.tab();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  }
+  await userEvent.click(screen.getByRole('button', { name: 'Leave markup (Esc)' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(pen));
   expect(selectMarking(store.getState())).toBeNull();
 });

@@ -75,6 +75,7 @@ export function Attachments({ ids, pending = [], onRemove, onMark, counts, ...re
           {onMark && (
             <button
               type="button"
+              data-mark-for={id}
               title={t('markAttachmentN', counts?.[id] ?? 0)}
               aria-label={t('markAttachmentN', counts?.[id] ?? 0)}
               onMouseDown={(e) => e.preventDefault()}

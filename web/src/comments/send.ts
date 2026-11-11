@@ -7,6 +7,7 @@ import { runShellDraft, selectShellMode } from '../composer/shellMode.ts';
 import { composeBatch } from './compose.ts';
 import { instructionOf, labelOf } from './labels.ts';
 import { draftSent, removeImage, selectBuilding, selectDraft, selectImages, selectUploading, setBuilding, setDraft, type ImageEntry } from '../composer/slice.ts';
+import { createSelector } from '@reduxjs/toolkit';
 import { markSending, selectComments, selectPending, unmarkSending } from './slice.ts';
 import { selectFileVersion } from '../files/slice.ts';
 import { cameraLine } from '../model/pose.ts';
@@ -17,7 +18,7 @@ import { agentName } from '../subagent/slice.ts';
 import { buildComposites, frameGroups, type FrameGroup } from './frameGroups.ts';
 
 /** 'blocked': a /clear with pending comments, or a `! cmd` that cannot run now, held with a note (nothing sent, nothing released). 'building': a combined image is being made and uploaded; the send finishes by itself (the button is disabled meanwhile). 'changed': the comments or the session changed during that wait, nothing was sent. */
-export type SendResult = 'empty' | 'blocked' | 'sent' | 'offline' | 'switching' | 'building' | 'changed';
+export type SendResult = 'detached' | 'empty' | 'blocked' | 'sent' | 'offline' | 'switching' | 'building' | 'changed';
 
 /** A file source as the batch and the card name it: `path`, or `path @ ref` for another branch or worktree (M3-16). */
 export const whereOfFile = (src: Extract<AnchorSource, { kind: 'file' }>): string => (src.ref ? `${src.path} @ ${src.ref}` : src.path);
@@ -56,10 +57,15 @@ const stable = (v: unknown): unknown =>
   : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, stable((v as Record<string, unknown>)[k])]))
   : v;
 const printOf = (c: Comment): string => JSON.stringify(stable([c.text, c.label, c.anchor, c.images, c.genImages, c.voice]));
+/**
+ * The pending comments a send would take: an attachment comment goes only with its image, so one whose image is not in this
+ * composer stays pending ("detached") and is neither counted on Send nor sent.
+ */
+export const selectSendable = createSelector([selectPending, selectImages], (pending, own) =>
+  pending.filter(({ anchor: a }) => !isAttachmentAnchor(a) || own.some((im) => im.id === a.image)));
 const snapshotOf = (st: RootState): Snapshot => {
   const draft = selectDraft(st), own = selectImages(st);
-  // an attachment comment goes only with its image: one whose image is not in this composer stays pending ("detached")
-  const pending = selectPending(st).filter(({ anchor: a }) => !isAttachmentAnchor(a) || own.some((im) => im.id === a.image));
+  const pending = selectSendable(st);
   return { sid: st.feed.session?.id, draft, body: draft.trim(), own, pending, prints: pending.map(printOf) };
 };
 /** Still the same send? Same session, and every snapshot comment is still pending and unchanged. */
@@ -146,9 +152,13 @@ export const sendBatch = (force: boolean): AppThunk<SendResult> => (d, getState)
   // `! cmd` is not a message: the server runs it (comments and images pending: refused, the draft kept)
   if (selectShellMode(st)) return d(runShellDraft());
   const snap = snapshotOf(st);
-  if ((!snap.body && !snap.pending.length && !snap.own.length) || selectUploading(st) || selectBuilding(st)) return 'empty';
+  if ((!snap.body && !snap.pending.length && !snap.own.length) || selectUploading(st) || selectBuilding(st)) {
+    // only detached comments pending: say why nothing goes, never silence
+    if (selectPending(st).length && !selectUploading(st) && !selectBuilding(st)) return (toast(t('sendOnlyDetached'), ''), 'detached');
+    return 'empty';
+  }
   // /clear drops the whole conversation, the comments with it: hold it until they are sent or removed
-  if (snap.pending.length && isClearCommand(snap.body, st.controls.commands)) return (toast(t('clearWithComments'), ''), 'blocked');
+  if (selectPending(st).length && isClearCommand(snap.body, st.controls.commands)) return (toast(t('clearWithComments'), ''), 'blocked');
   d(markSending(snap.pending.map((c) => c.id)));
   const groups = frameGroups(snap.pending);
   if (!groups.length || st.conn.state !== 'open') return d(sendNow(snap, new Map(), force));

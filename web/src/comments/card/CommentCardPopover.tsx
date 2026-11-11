@@ -1,8 +1,10 @@
+import { isAttachmentAnchor } from '@nota-bene/shared';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { CommentCard } from './CommentCard.tsx';
 import { useDrag, type Pos } from '../useDrag.ts';
-import { closeCommentCard, selectComments, selectPending, selectSentFor } from '../slice.ts';
+import { closeCommentCard, selectComments, selectSentFor } from '../slice.ts';
+import { selectSendable } from '../send.ts';
 
 /** Where the popover sits: next to the click, kept in the viewport, re-placed when the items change or the card grows.
  * `items` is only a re-placement trigger, never read. */
@@ -43,8 +45,8 @@ export function CommentCardPopover() {
   const index = useAppSelector((s) => {
     if (!c) return -1;
     if (c.status === 'sent') return c.sentIn === undefined ? -1 : selectSentFor(s, c.sentIn).findIndex((x) => x.id === c.id);
-    const i = selectPending(s).findIndex((x) => x.id === c.id);
-    return i >= 0 ? i : items.filter((x) => x.status === 'pending').findIndex((x) => x.id === c.id); // in flight
+    const i = selectSendable(s).findIndex((x) => x.id === c.id);
+    return i >= 0 ? i : isAttachmentAnchor(c.anchor) ? -1 : items.filter((x) => x.status === 'pending').findIndex((x) => x.id === c.id); // in flight
   });
 
   useEffect(() => {
