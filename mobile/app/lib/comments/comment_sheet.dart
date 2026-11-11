@@ -70,6 +70,8 @@ Future<SheetResult?> showCommentSheet(
 }) => showModalBottomSheet<SheetResult>(
   context: context,
   isScrollControlled: true,
+  // a tall sheet stops under the status bar, not behind it
+  useSafeArea: true,
   // the sheet draws its own handle and closes by a swipe on it, so that a draft is asked about first
   enableDrag: false,
   backgroundColor: Colors.transparent,
