@@ -14,6 +14,7 @@ import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
 import { useAppDispatch, useAppSelector, type RootState } from '@/store/store.ts';
 import { toast } from '@/shell/toast.ts';
 import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip.tsx';
+import { MessageInput, MicButton } from '@/composer/MessageInput.tsx';
 import { labelsFor, labelText } from './labels.ts';
 import { LabelTip } from './LabelTip.tsx';
 import { EmojiMenu } from './EmojiMenu.tsx';
@@ -83,6 +84,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   const [note, setNote] = useState('');
   const [dropping, setDropping] = useState(false);
   const [busy, setBusyState] = useState(false); // a drawing's files are being written
+  const addIn = useRef<'field' | 'footer'>('footer'); // where Add was when it was clicked: it does not jump rows while saving
+  const showAddRef = useRef(false);
   const busyNow = useRef(false); // a second click in the same tick must not start a second prepare
   const setBusy = (v: boolean) => {
     busyNow.current = v;
@@ -130,7 +133,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   const [setup, setSetup] = useState(false);
   const setupRef = useRef(setup);
   setupRef.current = setup;
-  const micAnchor = useRef<HTMLButtonElement>(null);
+  const micAnchor = useRef<HTMLSpanElement>(null);
   useEffect(() => { if (whisper) setSetup(false); }, [whisper]);
   const recording = rec.st.phase !== 'idle';
   const recRef = useRef(rec);
@@ -141,6 +144,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
 
   const add = async (label?: QuickLabelId) => {
     if (uploading || switching || busyNow.current || waiting || recording) return;
+    addIn.current = showAddRef.current ? 'field' : 'footer'; // the button stays where it was clicked while the drawing saves
     const body = text.trim();
     const { prepare, id } = pending;
     // a drawing is content of its own: no text and no label is still a comment
@@ -244,6 +248,18 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     void add();
   };
   const quote = quoteOf(pending.anchor, t);
+  // Add takes the mic's place once the field has something (text, an image); a drawing and the voice clips are content
+  // of their own, so with an empty field their Add stays beside the attach and emoji buttons and the mic keeps the field's
+  // side (one more clip can still be recorded)
+  const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
+  const showAdd = busy ? addIn.current === 'field' : hasContent || protocol < 14;
+  showAddRef.current = hasContent || protocol < 14;
+  const addButton = (
+    <Button className="h-8" disabled={off} aria-busy={busy || waiting || undefined} title={switching ? t('switching') : waiting ? t('voiceClipsWait') : undefined} onClick={() => void add()}>
+      {(busy || waiting) && <span aria-hidden className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+      {t('add')}
+    </Button>
+  );
 
   return (
     <div
@@ -269,17 +285,33 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
       style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? 'visible' : 'hidden' }}
     >
       <div {...drag.handle} className={`mb-1.5 truncate border-l-2 border-nb-accent pl-1.5 text-[0.6875rem] text-muted-foreground ${drag.handle.className}`}>{quote}</div>
-      <textarea
-        ref={area}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={onKeyDown}
-        onPaste={intake.onPaste}
-        readOnly={busy}
-        placeholder={t('commentPh')}
-        aria-label={t('commentPh')}
-        className="max-h-[40vh] min-h-16 w-full resize-none overflow-y-auto rounded-md border border-border-soft bg-background px-2 py-1.5 text-[0.8125rem] leading-[1.45] text-foreground focus:border-input-focus focus:ring-2 focus:ring-input-ring focus:outline-none"
-      />
+      <div className="flex items-end gap-1.5">
+        <MessageInput
+          compact
+          textareaRef={area}
+          value={text}
+          onChange={setText}
+          onKeyDown={onKeyDown}
+          onPaste={intake.onPaste}
+          readOnly={busy}
+          placeholder={t('commentPh')}
+          ariaLabel={t('commentPh')}
+          // as in the composer: the mic while the field is empty, Add once it has something
+          hasContent={showAdd}
+          mic={protocol >= 14 ? (
+            <MicButton
+              compact
+              testId="popup-mic"
+              anchor={micAnchor}
+              label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}
+              tip={!whisper ? t('voiceMicSetup') : clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
+              disabled={switching || recording || busy || (whisper && clips.length >= VOICE_MAX_CLIPS)}
+              onClick={() => (whisper ? rec.start(false) : setSetup((o) => !o))}
+            />
+          ) : undefined}
+          send={addButton}
+        />
+      </div>
       <Attachments
         data-testid="popup-thumbs"
         ids={images.map((i) => i.id)}
@@ -345,26 +377,9 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           >
             📎
           </button>
-          {protocol >= 14 && (
-            <button
-              type="button"
-              ref={micAnchor}
-              data-testid="popup-mic"
-              title={!whisper ? t('voiceMicSetup') : clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
-              aria-label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}
-              disabled={switching || recording || (whisper && clips.length >= VOICE_MAX_CLIPS)}
-              onClick={() => (whisper ? rec.start(false) : setSetup((o) => !o))}
-              className="rounded px-1 text-sm hover:bg-muted disabled:opacity-40"
-            >
-              🎤
-            </button>
-          )}
           {protocol >= 14 && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micAnchor} />}
           <span data-slot="emoji"><EmojiMenu target={area} /></span>
-          <Button size="xs" disabled={off} aria-busy={busy || waiting || undefined} title={switching ? t('switching') : waiting ? t('voiceClipsWait') : undefined} onClick={() => void add()}>
-            {(busy || waiting) && <span aria-hidden className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
-            {t('add')}
-          </Button>
+          {(pending.prepare || clips.length > 0) && !showAdd && addButton}
         </span>
       </div>
     </div>
