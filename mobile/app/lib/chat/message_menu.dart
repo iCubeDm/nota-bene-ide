@@ -111,6 +111,7 @@ Future<void> showMessageMenu(
             res.text,
             res.label,
             voice: res.voice,
+            images: res.imageIds,
           );
         }
       },

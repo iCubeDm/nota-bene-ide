@@ -115,6 +115,7 @@
   "labelsAll": "所有标签",
   "save": "保存",
   "deleteComment": "删除评论",
+  "commentDeleted": "评论已删除",
   "fileNotFound": "这个文件不存在（或已被删除）。",
   "fileOutside": "这个文件在项目之外。",
   "fileTooLarge": "文件太大，无法在手机上打开（超过 2 MB）。请在电脑上打开。",

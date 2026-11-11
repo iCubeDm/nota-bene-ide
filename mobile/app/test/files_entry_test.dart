@@ -210,7 +210,7 @@ void main() {
       expect(find.textContaining('old'), findsNothing);
       await t.longPress(find.textContaining('second quote'));
       await t.pumpAndSettle();
-      await t.tap(find.text('Delete comment'));
+      await t.tap(find.byTooltip('Delete comment'));
       await t.pumpAndSettle();
       final set =
           r.sent.lastWhere((m) => m['type'] == 'comments')['items'] as List;

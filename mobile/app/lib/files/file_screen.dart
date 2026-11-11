@@ -148,6 +148,7 @@ class _FileScreenState extends State<FileScreen> {
       res.text,
       res.label,
       voice: res.voice,
+      images: res.imageIds,
     );
   }
 
@@ -162,8 +163,8 @@ class _FileScreenState extends State<FileScreen> {
       tab: widget.tab,
     );
     switch (res) {
-      case SheetSave(:final text, :final label, :final voice):
-        widget.tab.comments.edit(id, text, label, voice: voice);
+      case SheetSave(:final text, :final label, :final voice, :final images):
+        widget.tab.comments.edit(id, text, label, voice: voice, images: images);
       case SheetDelete():
         widget.tab.comments.remove(id);
       case null:

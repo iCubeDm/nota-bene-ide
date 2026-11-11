@@ -168,6 +168,7 @@ class _VideoScreenState extends State<VideoScreen> {
       text: res.text,
       label: res.label,
       voice: res.voice,
+      images: res.images,
       version: _etag,
       time: _framePosition.inMilliseconds / 1000,
     );

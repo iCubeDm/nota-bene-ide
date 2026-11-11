@@ -115,6 +115,7 @@
   "labelsAll": "Todas las etiquetas",
   "save": "Guardar",
   "deleteComment": "Eliminar comentario",
+  "commentDeleted": "Comentario eliminado",
   "fileNotFound": "Este archivo no está (o ya no está).",
   "fileOutside": "Este archivo está fuera del proyecto.",
   "fileTooLarge": "El archivo es demasiado grande para el teléfono (más de 2 MB). Ábrelo en el ordenador.",

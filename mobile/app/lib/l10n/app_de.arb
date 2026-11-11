@@ -115,6 +115,7 @@
   "labelsAll": "Alle Labels",
   "save": "Speichern",
   "deleteComment": "Kommentar löschen",
+  "commentDeleted": "Kommentar gelöscht",
   "fileNotFound": "Diese Datei gibt es nicht (mehr).",
   "fileOutside": "Diese Datei liegt außerhalb des Projekts.",
   "fileTooLarge": "Die Datei ist zu groß für das Telefon (über 2 MB). Öffne sie am Computer.",
