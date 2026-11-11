@@ -74,7 +74,9 @@ class WindowTab extends ChangeNotifier {
     this.root, {
     Future<void> Function(Duration)? retry,
   }) : _retry = retry ?? ((d) => Future<void>.delayed(d)) {
-    voiceOutbox.attach(this, send: send, http: () => http);
+    voiceOutbox.attach(this, send: send, http: () => http, compose: composeFor);
+    comments.held = () => voiceOutbox.heldIds;
+    voiceOutbox.addListener(comments.refresh);
     link.addListener(_linkChanged);
     _linkChanged();
   }
@@ -139,6 +141,47 @@ class WindowTab extends ChangeNotifier {
 
   /// Whether the window speaks protocol 14, where voice messages begin.
   bool get voiceProtocol => (protocol ?? 0) >= 14;
+
+  /// Whether a voice message may carry the pending comments (protocol 16); an older window gets the recording alone.
+  bool get voiceCommentsProtocol => (protocol ?? 0) >= 16;
+
+  /// The batch the agent gets for [items] (after [general]), as the desktop writes it, with the images that go along:
+  /// one place for the typed send, the comments pane's Send and a recording that carries comments. A media comment is
+  /// "changed" only when the current version of its file is known (it was opened here) and differs from the drawn one.
+  ({String text, List<ImageRef> images}) composeComments(
+    String general,
+    List<Comment> items,
+    String lang, {
+    List<ImageRef> own = const [],
+  }) {
+    final versions = fileVersions;
+    return composeSend(
+      general,
+      items,
+      feed,
+      lang,
+      own: own,
+      staleOf: (c) => switch (c.anchor) {
+        MediaAnchor(:final source, :final version?) when source.ref == null =>
+          versions[source.path] != null && versions[source.path] != version,
+        _ => false,
+      },
+    );
+  }
+
+  /// What a recording carries when it leaves, composed then and not at record time: only the [ids] still pending
+  /// (the desktop may have sent or deleted some meanwhile), their batch and images. None for a window older than 16.
+  ({String text, List<ImageRef> images, List<String> ids}) composeFor(
+    List<String> ids,
+    String lang,
+  ) {
+    final items = voiceCommentsProtocol
+        ? comments.pendingOf(ids)
+        : const <Comment>[];
+    if (items.isEmpty) return (text: '', images: const [], ids: const []);
+    final b = composeComments('', items, lang);
+    return (text: b.text, images: b.images, ids: [for (final c in items) c.id]);
+  }
 
   /// path → the ETag of the file as last read here (`/file`), to tell a media comment drawn on an earlier version
   final fileVersions = <String, String>{};
@@ -460,6 +503,7 @@ class WindowTab extends ChangeNotifier {
     _stream?.close(1000);
     _refusals.close();
     _errors.close();
+    voiceOutbox.removeListener(comments.refresh);
     voiceOutbox.detach(this);
     super.dispose();
   }

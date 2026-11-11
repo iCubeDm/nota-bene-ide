@@ -164,7 +164,7 @@ class _ChatRouteState extends State<ChatRoute> {
           bottom: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CommentStrip(tab: _tab),
+              CommentStrip(tab: _tab, onTap: () => _panes.show(Pane.comments)),
               Composer(tab: _tab, controller: _draft, focus: _focus),
             ],
           ),

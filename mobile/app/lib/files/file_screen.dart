@@ -10,6 +10,7 @@ import '../chat/window_tab.dart';
 import '../comments/anchor.dart';
 import '../comments/comment_sheet.dart';
 import '../l10n/app_localizations.dart';
+import '../ui/insets.dart';
 import 'file_markdown.dart';
 
 /// The largest file the phone opens.
@@ -214,7 +215,12 @@ class _FileScreenState extends State<FileScreen> {
               child: ListenableBuilder(
                 listenable: widget.tab.comments,
                 builder: (context, _) => ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    12,
+                    16,
+                    bottomRoom(context, 32),
+                  ),
                   children: [
                     FileMarkdown(
                       text: text,

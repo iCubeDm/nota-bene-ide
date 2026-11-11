@@ -405,6 +405,140 @@ void main() {
       expect(find.byKey(const ValueKey('stop')), findsOneWidget);
     });
 
+    final pending = {
+      'kind': 'comments',
+      'items': [
+        {
+          'id': 'c1',
+          'anchor': {
+            'source': {'path': 'a.md'},
+            'start': 0,
+            'end': 3,
+            'quote': 'foo',
+            'prefix': '',
+            'suffix': '',
+          },
+          'text': 'rename it',
+          'status': 'pending',
+          'createdAt': 1,
+        },
+      ],
+      'ts': 1,
+    };
+
+    testWidgets(
+      'pending comments with an empty field: the mic stays, no Send',
+      (t) async {
+        await openVoice(t);
+        r.event(pending);
+        await t.pumpAndSettle();
+        expect(find.text('1 comment to send'), findsOneWidget);
+        expect(find.byType(RecordButton), findsOneWidget);
+        expect(find.byKey(const ValueKey('send')), findsNothing);
+        await t.enter('x');
+        await t.pumpAndSettle();
+        expect(find.byType(RecordButton), findsNothing);
+        expect(
+          t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
+          isNotNull,
+        );
+      },
+    );
+
+    testWidgets(
+      'a recording made with comments pending sends their ids and batch',
+      (t) async {
+        await openVoice(t, protocol: 16);
+        r.event(pending);
+        await t.pumpAndSettle();
+        r.ch.onHttp = (port, method, path) async => ok();
+        await record(t);
+        await t.pump();
+        await t.pump();
+        final m = r.sent.single;
+        expect(m['voice'], voice);
+        expect(m['commentIds'], ['c1']);
+        expect(m['text'], contains('rename it'));
+        // held back from the composer meanwhile: not offered twice
+        expect(find.text('1 comment to send'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'a window older than 16 gets the recording alone; the comments stay pending',
+      (t) async {
+        await openVoice(t, protocol: 15);
+        r.event(pending);
+        await t.pumpAndSettle();
+        r.ch.onHttp = (port, method, path) async => ok();
+        await record(t);
+        await t.pump();
+        await t.pump();
+        final m = r.sent.single;
+        expect(m['voice'], voice);
+        expect(m.containsKey('commentIds'), isFalse);
+        expect(m['text'], '');
+        expect(find.text('1 comment to send'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'the batch is written when the recording leaves: a comment the desktop sent meanwhile is left out',
+      (t) async {
+        await openVoice(t, protocol: 16);
+        r.event(pending);
+        await t.pumpAndSettle();
+        final up = Completer<HttpAnswer>();
+        r.ch.onHttp = (port, method, path) => up.future;
+        await record(t);
+        // sent from the desktop while the recording uploads
+        final gone = Map<String, Object?>.of(
+          ((pending['items']! as List).single as Map).cast<String, Object?>(),
+        )..['status'] = 'sent';
+        r.event({
+          'kind': 'comments',
+          'items': [gone],
+        });
+        await t.pump();
+        up.complete(ok());
+        await t.pump();
+        await t.pump();
+        final m = r.sent.single;
+        expect(m.containsKey('commentIds'), isFalse);
+        expect(m['text'], '');
+      },
+    );
+
+    testWidgets(
+      'comments held by a recording in the outbox are not offered to a second send',
+      (t) async {
+        await openVoice(t, protocol: 16);
+        r.event(pending);
+        await t.pumpAndSettle();
+        final up = Completer<HttpAnswer>();
+        r.ch.onHttp = (port, method, path) => up.future;
+        await record(t);
+        expect(r.tab!.comments.sendable, isEmpty);
+        // a comments set from the server (any) does not release them while the recording is in flight
+        r.event(pending);
+        await t.pump();
+        expect(r.tab!.comments.sendable, isEmpty);
+        expect(find.text('1 comment to send'), findsNothing);
+        // the window shows it: the entry is over (its timer with it)
+        up.complete(ok());
+        await t.pump();
+        await t.pump();
+        r.event({
+          'kind': 'user',
+          'id': r.sent.single['id'],
+          'text': '',
+          'voice': voice,
+          'ts': 1,
+        });
+        await t.pump();
+      },
+    );
+
     testWidgets(
       'a recording is uploaded, then sent as a voice message, with the pending bubble between',
       (t) async {

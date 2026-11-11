@@ -127,6 +127,8 @@ export async function startServer(o: {
       ...(o.idle ? { idle: o.idle } : {}),
       ...(o.idleOffInSettings ? { idleOffInSettings: o.idleOffInSettings } : {}),
       ...(o.shell ? { shell: o.shell } : {}),
+      // a voice message whose transcript failed never reaches the agent: the comments it carried are pending again
+      onDropped: (id) => broadcastComments(store.markPending(manager.info().id, id)),
     });
     const store = new CommentStore({ dir: path.join(stateDir(), 'comments') });
     // comments are live state, not history: never stored in the replay, a new socket gets the set directly

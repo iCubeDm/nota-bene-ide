@@ -88,6 +88,17 @@ describe('CommentStore', () => {
     expect(out.find((x) => x.id === 'b')?.sentIn).toBeUndefined();
     expect(new CommentStore({ dir }).get('s')).toEqual(out);
   });
+  it('markPending gives back the comments sent in that message only', () => {
+    const s = new CommentStore({ dir });
+    s.set('s', [c('a'), c('b'), c('d')]);
+    s.markSent('s', ['a', 'b'], 'msg-1');
+    s.markSent('s', ['d'], 'msg-2');
+    const out = s.markPending('s', 'msg-1');
+    expect(out.find((x) => x.id === 'a')).toMatchObject({ status: 'pending' });
+    expect(out.find((x) => x.id === 'a')?.sentIn).toBeUndefined();
+    expect(out.find((x) => x.id === 'd')).toMatchObject({ status: 'sent', sentIn: 'msg-2' });
+    expect(new CommentStore({ dir }).get('s')).toEqual(out);
+  });
   it('a corrupt or non-array file reads as []', () => {
     fs.writeFileSync(path.join(dir, 'bad.json'), '{');
     fs.writeFileSync(path.join(dir, 'obj.json'), '{"a":1}');

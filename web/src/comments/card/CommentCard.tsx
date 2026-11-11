@@ -1,6 +1,6 @@
 import { generatedImages, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
 import { pageQuote } from '@/page/quote.ts';
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } from 'react';
 import { Attachments } from '@/attachments/Attachments.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { selectSwitching } from '@/controls/slice.ts';
@@ -17,9 +17,10 @@ import { editComment, removeComment, selectComments } from '../slice.ts';
 
 /**
  * One comment: number, where, quote (click = jump to source), text with inline edit, label chip.
- * Used in the side panel and in the popover over a mark (`popover`: the quote does not jump).
+ * Used in the side panel and in the popover over a mark (`popover`: the quote does not jump; `handle`: props that make
+ * the number line a drag handle).
  */
-export function CommentCard({ id, index, popover = false }: { id: string; index: number; popover?: boolean }) {
+export function CommentCard({ id, index, popover = false, handle }: { id: string; index: number; popover?: boolean; handle?: HTMLAttributes<HTMLElement> }) {
   const t = useT();
   const dispatch = useAppDispatch();
   // the comment set belongs to the session being left: edit and delete wait for the new one
@@ -76,7 +77,7 @@ export function CommentCard({ id, index, popover = false }: { id: string; index:
       data-editing={editing || undefined}
       className={`rounded-[10px] border px-3 py-2.5 text-[0.8125rem] ${popover ? 'bg-popover' : 'bg-card/50'} ${editing ? 'border-primary' : 'border-border-soft hover:border-border'}`}
     >
-      <div className="mb-1 flex items-center justify-between font-mono text-[0.625rem] text-muted-foreground">
+      <div {...handle} className={`mb-1 flex items-center justify-between font-mono text-[0.625rem] text-muted-foreground ${handle?.className ?? ''}`}>
         <span>
           {index + 1}{where ? ` · ${where}` : ''}{sent ? ` · ${t('sentTag')}` : ''}
         </span>

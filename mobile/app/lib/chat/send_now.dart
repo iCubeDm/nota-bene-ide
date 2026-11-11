@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
-import '../comments/comments.dart';
 import '../l10n/app_localizations.dart';
 import 'window_tab.dart';
 
@@ -45,18 +44,7 @@ Future<void> sendPendingComments(BuildContext context, WindowTab tab) async {
   final comments = tab.comments.sendable;
   if (comments.isEmpty) return;
   final lang = Localizations.localeOf(context).languageCode;
-  final versions = tab.fileVersions;
-  final batch = composeSend(
-    '',
-    comments,
-    tab.feed,
-    lang,
-    staleOf: (c) => switch (c.anchor) {
-      MediaAnchor(:final source, :final version?) when source.ref == null =>
-        versions[source.path] != null && versions[source.path] != version,
-      _ => false,
-    },
-  );
+  final batch = tab.composeComments('', comments, lang);
   final id = uuidV4();
   final ids = {for (final c in comments) c.id};
   final messenger = ScaffoldMessenger.maybeOf(context);

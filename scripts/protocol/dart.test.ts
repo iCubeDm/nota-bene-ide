@@ -105,7 +105,7 @@ it('throws on an unsupported shape, naming the definition and the pointer', () =
 // building the schema compiles protocol.ts: seconds on a loaded CI runner
 it('the real schema converts', () => {
   const dart = schemaToDart(buildSchema());
-  expect(dart).toContain('const int protocolVersion = 15;');
+  expect(dart).toContain('const int protocolVersion = 16;');
   expect(dart).toContain('sealed class ServerEvent');
   expect(dart).toContain('final class ServerEventReplay');
   expect(dart).toContain('List<ServerEvent> events');

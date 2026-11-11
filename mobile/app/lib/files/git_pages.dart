@@ -6,6 +6,7 @@ import '../chat/window_tab.dart';
 import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import '../ui/insets.dart';
 import 'diff_screen.dart';
 import 'git.dart';
 import 'remote.dart';
@@ -194,7 +195,7 @@ class _ChangesPageState extends State<ChangesPage> {
       // the files are built as they scroll
       body = ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: EdgeInsets.only(bottom: bottomRoom(context)),
         itemCount: lead.length + ch.files.length,
         itemBuilder: (context, i) {
           if (i < lead.length) return lead[i];
@@ -299,7 +300,7 @@ class _LogPageState extends State<LogPage> {
       // the commits are built as they scroll
       body = ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: EdgeInsets.only(bottom: bottomRoom(context)),
         itemCount: lead + commits.length + (_more ? 1 : 0),
         itemBuilder: (context, i) {
           if (i < lead) {
@@ -413,7 +414,7 @@ class _CommitPageState extends State<CommitPage> {
           : d == null
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: EdgeInsets.only(bottom: bottomRoom(context)),
               itemCount: 3 + d.files.length,
               itemBuilder: (context, i) {
                 if (i == 0) {
