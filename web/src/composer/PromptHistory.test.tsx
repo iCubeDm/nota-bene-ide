@@ -101,3 +101,10 @@ it('Alt+H toggles the list, also from the composer', async () => {
   expect(screen.queryByRole('combobox')).toBeNull();
   off();
 });
+
+it('a list left open while the button was gone (a recording) does not pop up when it comes back', () => {
+  promptHistoryModal.open();
+  setup([p('a', 'alpha')]);
+  expect(screen.queryByRole('combobox')).toBeNull();
+  expect(promptHistoryModal.get()).toBe(false);
+});

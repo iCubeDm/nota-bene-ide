@@ -80,6 +80,23 @@ describe('PromptStore', () => {
     s.carry('missing', 'other');
     expect(fs.existsSync(path.join(dir, 'other.jsonl'))).toBe(false);
   });
+  it('reads a file once: later lists and appends work from memory', () => {
+    const s = new PromptStore({ dir });
+    s.append('s', p('a'));
+    fs.writeFileSync(path.join(dir, 's.jsonl'), 'garbage\n'); // changed behind its back: not looked at again
+    expect(s.list('s').map((x) => x.id)).toEqual(['a']);
+    s.append('s', p('b'));
+    expect(s.list('s').map((x) => x.id)).toEqual(['a', 'b']);
+    s.append('s', p('a', 'dup'));
+    expect(s.list('s')).toHaveLength(2);
+  });
+  it('carry makes the target\'s cached list stale-free', () => {
+    const s = new PromptStore({ dir });
+    s.append('old', p('a'));
+    expect(s.list('new')).toEqual([]);
+    s.carry('old', 'new');
+    expect(s.list('new').map((x) => x.id)).toEqual(['a']);
+  });
   it('refuses an unsafe session id', () => {
     expect(() => new PromptStore({ dir }).append('../x', p('a'))).toThrow();
   });
@@ -87,13 +104,14 @@ describe('PromptStore', () => {
 
 describe('promptRoutes', () => {
   let current: string | null;
+  let own: string | null; // the conversation's own id: null while a fork or an id-less /clear has none yet
   let srv: http.Server;
   let base: string;
   let store: PromptStore;
   beforeEach(async () => {
-    current = 'cur';
+    current = own = 'cur';
     store = new PromptStore({ dir });
-    const routes = promptRoutes({ store, current: () => current, hub: new EventHub() });
+    const routes = promptRoutes({ store, current: () => current, own: () => own, hub: new EventHub() });
     srv = http.createServer((req, res) => {
       const route = routes[new URL(req.url ?? '/', 'http://x').pathname];
       if (route) route(req, res); else { res.writeHead(404); res.end(); }
@@ -118,7 +136,7 @@ describe('promptRoutes', () => {
     expect((await fetch(`${base}/prompts?session=../x`)).status).toBe(400);
   });
   it('GET without a session answers the current one (and the in-memory ones while it has no id)', async () => {
-    current = null;
+    current = own = null;
     expect((await post({ session: null, id: 'm', text: 'first', src: 'typed' })).status).toBe(204);
     const body = await (await fetch(`${base}/prompts`)).json() as { session: string | null; prompts: PromptEntry[] };
     expect(body.session).toBeNull();
@@ -127,6 +145,18 @@ describe('promptRoutes', () => {
   it('POST with a null session goes to the current id when it has one', async () => {
     expect((await post({ session: null, id: 'a', text: 'x', src: 'shell' })).status).toBe(204);
     expect(store.list('cur').map((x) => x.id)).toEqual(['a']);
+  });
+  it('while the conversation has no id of its own (a fork), a POST for the source id waits in memory, and GET shows the source\'s plus those', async () => {
+    store.append('cur', p('old'));
+    own = null;
+    expect((await post({ session: 'cur', id: 'new', text: 'x', src: 'typed' })).status).toBe(204);
+    expect(store.list('cur').map((x) => x.id)).toEqual(['old']);
+    const body = await (await fetch(`${base}/prompts?session=cur`)).json() as { session: string; prompts: PromptEntry[] };
+    expect(body.prompts.map((x) => x.id)).toEqual(['old', 'new']);
+    expect(store.list(null).map((x) => x.id)).toEqual(['new']);
+    // a null session is the same pending list
+    expect((await post({ session: null, id: 'n2', text: 'y', src: 'typed' })).status).toBe(204);
+    expect(store.list(null).map((x) => x.id)).toEqual(['new', 'n2']);
   });
   it('POST for another valid id is written there (a switch in flight)', async () => {
     expect((await post({ session: 'elsewhere', id: 'a', text: 'x', src: 'voice' })).status).toBe(204);

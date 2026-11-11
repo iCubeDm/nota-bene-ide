@@ -25,8 +25,8 @@ afterEach(async () => {
   fs.rmSync(dist, { recursive: true, force: true });
 });
 
-async function boot() {
-  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }, { text: 'again' }]), webDist: dist, oneTab: false });
+async function boot(extra: { resume?: string; fork?: boolean } = {}) {
+  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }, { text: 'again' }]), webDist: dist, oneTab: false, ...extra });
   closers.push(s.close);
   return s;
 }
@@ -78,5 +78,20 @@ describe('prompt history on the server', () => {
     expect(now.prompts.map((p) => p.id)).toEqual(['p1']);
     // the old file stays; the two histories are separate files from here on
     expect(fs.existsSync(onDisk('fake-session'))).toBe(true);
+  });
+
+  it('a fork: prompts posted under the source id before its first init reach the new id, with the carried ones', async () => {
+    fs.mkdirSync(path.join(home, 'prompts'), { recursive: true });
+    fs.writeFileSync(onDisk('src-sess'), `${JSON.stringify({ v: 1, id: 'p1', ts: 1, text: 'before', src: 'typed' })}\n`);
+    const s = await boot({ resume: 'src-sess', fork: true });
+    const c = await connect(s.url);
+    expect((await post(s, { session: 'src-sess', id: 'p2', text: 'in the fork', src: 'typed' })).status).toBe(204);
+    expect(fs.readFileSync(onDisk('src-sess'), 'utf8')).not.toContain('p2');
+    c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'in the fork' }));
+    await until(() => results(c) === 1);
+    const now = await list(s);
+    expect(now.session).toMatch(/^src-sess-fork-/);
+    expect(now.prompts.map((x) => x.id)).toEqual(['p1', 'p2']);
+    expect(fs.readFileSync(onDisk('src-sess'), 'utf8')).not.toContain('p2');
   });
 });

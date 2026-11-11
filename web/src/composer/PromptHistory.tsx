@@ -24,8 +24,11 @@ export function PromptHistory({ onPick, onClosed }: { onPick: (text: string) => 
   const [at, setAt] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const picked = useRef(false);
-  // a recording hides the button: the list must not wait open behind it
-  useEffect(() => () => promptHistoryModal.close(), []);
+  // a recording hides the button: the list must not wait open behind it, nor pop up when the button returns
+  useEffect(() => {
+    promptHistoryModal.close();
+    return () => promptHistoryModal.close();
+  }, []);
   useEffect(() => {
     if (open) { setQ(''); setAt(0); picked.current = false; }
   }, [open]);

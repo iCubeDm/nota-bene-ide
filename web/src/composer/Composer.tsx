@@ -62,12 +62,23 @@ export function Composer() {
     if (!busy) setAskForce(false);
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
-  // ↑/↓ through the prompts sent before (newest first): `index` is the recalled one (-1 = not browsing), `stash` the draft it replaced
+  // ↑/↓ through the prompts sent before (newest first): `id` is the recalled one (null = not browsing), `stash` the draft it replaced
+  // (only a list choice makes one: a walk starts from an empty field)
   const recall = useMemo(() => recallList(items), [items]);
   const recallRef = useRef(recall);
   recallRef.current = recall;
-  const browse = useRef({ index: -1, stash: '' });
-  useEffect(() => void (browse.current = { index: -1, stash: '' }), [sid]);
+  const browse = useRef<{ id: string | null; stash: string }>({ id: null, stash: '' });
+  useEffect(() => void (browse.current = { id: null, stash: '' }), [sid]);
+  // where the draft is in the list: the recalled entry (by id, so a list that grows under the walk keeps the place), else
+  // the entry with that text (a repeat collapsed away); -1 = not browsing, the draft is no recalled prompt any more
+  const placeOf = (value: string): number => {
+    const list = recallRef.current;
+    const b = browse.current;
+    if (b.id === null) return -1;
+    const at = list.findIndex((x) => x.id === b.id);
+    if (at >= 0 && list[at]!.text === value) return at;
+    return list.findIndex((x) => x.text === value);
+  };
   // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
   const voiceOk = useAppSelector((s) => s.controls.protocol >= 14);
   const whisper = caps.dictation === 'whisper';
@@ -209,55 +220,52 @@ export function Composer() {
       return;
     }
     setAskForce(false);
-    browse.current = { index: -1, stash: '' };
+    browse.current = { id: null, stash: '' };
     const r = dispatch(sendBatch(force));
     if (r === 'empty' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
     if (r === 'sent') ref.current?.focus();
   };
 
-  // true when the key was a history step. Browsing is only while the draft is still exactly the recalled prompt: any edit ends it
+  // true when the key was a history step. A walk starts only from an empty field (a draft is never replaced); it goes on while
+  // the draft is still exactly the recalled prompt: any edit ends it
   const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     const el = e.currentTarget;
     const list = recallRef.current;
     const b = browse.current;
-    const browsing = b.index >= 0 && list[b.index]?.text === el.value;
-    if (!browsing) b.index = -1;
     const { selectionStart: from, selectionEnd: to, value } = el;
+    const at = placeOf(value);
+    if (at < 0) b.id = null;
     if (from !== to) return false;
-    const show = (index: number, draft: string) => {
-      b.index = index;
+    const show = (to: number, draft: string) => {
+      b.id = to >= 0 ? list[to]!.id : null;
       dispatch(setDraft(draft));
       // the controlled value lands on the next render; the caret goes after it
       requestAnimationFrame(() => ref.current?.setSelectionRange(draft.length, draft.length));
     };
     if (e.key === 'ArrowUp') {
       if (!list.length) return false;
-      if (!browsing) {
-        // the first ↑ of a draft on its first line only moves the caret to the start; the next one recalls
-        if (value !== '' && from !== 0) return false;
-        b.stash = value;
+      if (at < 0) {
+        if (value !== '') return false;
+        b.stash = '';
         show(0, list[0]!.text);
         return true;
       }
       if (value.slice(0, from).includes('\n')) return false; // not on the first line: the field's own
-      if (b.index + 1 < list.length) show(b.index + 1, list[b.index + 1]!.text);
+      if (at + 1 < list.length) show(at + 1, list[at + 1]!.text);
       return true;
     }
-    if (!browsing || value.indexOf('\n', from) !== -1) return false; // ↓ is the field's own unless on the last line of a recall
-    if (b.index > 0) show(b.index - 1, list[b.index - 1]!.text);
-    else {
-      const stash = b.stash;
-      show(-1, stash);
-    }
+    if (at < 0 || value.indexOf('\n', from) !== -1) return false; // ↓ is the field's own unless on the last line of a recall
+    if (at > 0) show(at - 1, list[at - 1]!.text);
+    else show(-1, b.stash);
     return true;
   };
 
   // a prompt chosen in the history list becomes the draft; the draft it replaced is the stash, so ↓ brings it back
   const pickHistory = (picked: string) => {
-    const b = browse.current;
-    const browsing = b.index >= 0 && recallRef.current[b.index]?.text === text;
-    browse.current = { index: recallRef.current.findIndex((x) => x.text === picked), stash: browsing ? b.stash : text };
+    const at = placeOf(text);
+    const entry = recallRef.current.find((x) => x.text === picked);
+    browse.current = { id: entry?.id ?? null, stash: at >= 0 ? browse.current.stash : text };
     dispatch(setDraft(picked));
     requestAnimationFrame(() => {
       ref.current?.focus({ preventScroll: true });
@@ -356,7 +364,7 @@ export function Composer() {
         )}
         </div>
         <MentionPicker target={ref} shell={() => shellModeRef.current} />
-        <SlashPicker target={ref} />
+        <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
         <ShortcodePicker target={ref} />
         </>)}
         {!recording && <PromptHistory onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}

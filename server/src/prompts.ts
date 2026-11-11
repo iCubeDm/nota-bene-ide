@@ -39,6 +39,8 @@ export class PromptStore {
   private readonly report: (e: Error) => void;
   private readonly reported = new Set<string>();
   private pending: PromptEntry[] = [];
+  // each file is read once (a long history is parsed on the first use only); our own appends keep it current
+  private readonly cache = new Map<string, { entries: PromptEntry[]; torn: boolean }>();
 
   constructor(o: { dir: string; report?: (e: Error) => void }) {
     this.dir = o.dir;
@@ -79,6 +81,7 @@ export class PromptStore {
     if (from === to || fs.existsSync(dst)) return;
     try {
       fs.copyFileSync(src, dst, fs.constants.COPYFILE_EXCL);
+      this.cache.delete(to);
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code;
       if (code !== 'ENOENT' && code !== 'EEXIST') throw e;
@@ -95,16 +98,24 @@ export class PromptStore {
     fs.mkdirSync(this.dir, { recursive: true });
     // a torn last line (a crash mid-write) must not swallow the next entry
     fs.appendFileSync(file, (torn ? '\n' : '') + items.map((x) => `${JSON.stringify({ v: 1, ...x })}\n`).join(''));
+    const c = this.cache.get(sessionId);
+    if (c) { c.entries.push(...items); c.torn = false; }
   }
 
   private read(sessionId: string): { entries: PromptEntry[]; torn: boolean } {
+    const hit = this.cache.get(sessionId);
+    if (hit) return hit;
     const file = fileFor(this.dir, sessionId);
     let raw: string;
     try {
       raw = fs.readFileSync(file, 'utf8');
     } catch (e) {
       // only a missing file is "no prompts"; EACCES/EIO must not look empty
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { entries: [], torn: false };
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+        const none = { entries: [], torn: false };
+        this.cache.set(sessionId, none);
+        return none;
+      }
       throw e;
     }
     const entries: PromptEntry[] = [];
@@ -119,7 +130,9 @@ export class PromptStore {
       this.reported.add(sessionId);
       this.report(new Error(`prompts/${sessionId}.jsonl: ${bad} corrupt line(s) skipped`));
     }
-    return { entries, torn: raw.length > 0 && !raw.endsWith('\n') };
+    const read = { entries, torn: raw.length > 0 && !raw.endsWith('\n') };
+    this.cache.set(sessionId, read);
+    return read;
   }
 }
 
@@ -130,11 +143,14 @@ function plain(res: ServerResponse, status: number, body: string, headers: Recor
 
 /**
  * `/prompts`, key tier like every route (HTTP only, no protocol bump).
- * GET `?session=<id>`: `{session, prompts}` of the current conversation (the in-memory ones while it has no id yet), 409 when
- * `session` is not the current one (a page from before a switch). POST `{session|null, id, text, src}`: null = the current
- * conversation (in memory when it has no id), another valid id is written there (a switch was in flight). 204 / 400.
+ * `current` is the id the session event shows, `own` the conversation's own id: null while a fork or an id-less /clear has
+ * none yet, though `current` still names the source (the page posts under it). Those prompts wait in memory for `adopt`.
+ * GET `?session=<id>`: `{session, prompts}` of the current conversation (a fork: the source's plus the waiting ones), 409 when
+ * `session` is not the current one (a page from before a switch). POST `{session|null, id, text, src}`: null = the conversation's
+ * own (in memory when it has none), the current id with no own id also waits in memory, another valid id is written there
+ * (a switch was in flight). 204 / 400.
  */
-export function promptRoutes(o: { store: PromptStore; current: () => string | null; hub: EventHub }): Record<string, RequestListener> {
+export function promptRoutes(o: { store: PromptStore; current: () => string | null; own: () => string | null; hub: EventHub }): Record<string, RequestListener> {
   const fail = (res: ServerResponse, e: unknown) => {
     reportError(o.hub, 'prompts', e);
     if (!res.headersSent) plain(res, 500, 'internal error');
@@ -149,7 +165,10 @@ export function promptRoutes(o: { store: PromptStore; current: () => string | nu
         if (session !== null && session !== cur) return plain(res, 409, 'not the current session');
         try {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-          res.end(JSON.stringify({ session: cur, prompts: o.store.list(cur) }));
+          const mine = o.store.list(cur);
+          const waiting = cur !== null && o.own() === null ? o.store.list(null) : [];
+          const have = new Set(mine.map((x) => x.id));
+          res.end(JSON.stringify({ session: cur, prompts: [...mine, ...waiting.filter((x) => !have.has(x.id))] }));
         } catch (e) {
           fail(res, e);
         }
@@ -174,7 +193,9 @@ export function promptRoutes(o: { store: PromptStore; current: () => string | nu
             && typeof text === 'string' && text.length > 0 && text.length <= PROMPT_MAX
             && PROMPT_SRCS.includes(src as PromptSrc);
           if (!ok) return plain(res, 400, 'bad request');
-          o.store.append(session === null ? o.current() : (session as string), { id, ts: Date.now(), text, src: src as PromptSrc });
+          const own = o.own();
+          const target = session === null ? own : session === o.current() && own === null ? null : (session as string);
+          o.store.append(target, { id, ts: Date.now(), text, src: src as PromptSrc });
           res.writeHead(204);
           res.end();
         } catch (e) {

@@ -156,8 +156,8 @@ Alt+E opens a list of recent files with a project-wide file-name search.
 
 The message field remembers what you sent in this conversation: typed messages, `!` commands and voice transcripts (not comment-only sends or the compact and clear buttons). The history survives `/clear`, a fork, a restart and a reload.
 
-- **↑** in an empty field (or with the caret at the very start of a draft) brings back the last prompt, **↑** again an older one, **↓** a newer one; **↓** past the newest restores what you were typing. In a multi-line prompt the arrows first move the caret and step through the history only from the first or last line. Editing the recalled text ends the walk. Images are not recalled. Inside the `/` menu or an `@` mention the arrows keep choosing from that list.
-- The clock button left of the microphone (Alt+H) opens a searchable list, newest first, with the time and a microphone mark on voice messages. Typing shows the prompts that contain it, then looser matches. Enter or a click puts the prompt in the field; it is never sent from there, and the draft it replaced comes back with **↓**.
+- **↑** in an empty field brings back the last prompt, **↑** again an older one, **↓** a newer one; **↓** past the newest empties the field again. A field with text is never replaced: there the arrows stay the field's own. In a multi-line prompt the arrows first move the caret and step through the history only from the first or last line. Editing the recalled text ends the walk. Images are not recalled. A recalled `/command` does not open the `/` menu; in a draft you type, the `/` menu and `@` mentions keep the arrows.
+- The clock button left of the microphone (Alt+H) opens a searchable list, newest first, with the time and a microphone mark on voice messages. Typing shows the prompts that contain it, then looser matches. Enter or a click puts the prompt in the field; it is never sent from there, and the draft it replaced comes back with **↓** (as long as you do not edit the prompt).
 
 ### `/` menu
 

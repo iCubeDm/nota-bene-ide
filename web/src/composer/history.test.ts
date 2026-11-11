@@ -8,17 +8,19 @@ import { selectPromptItems } from './history.ts';
 
 const posts: { url: string; body: PromptEntry & { session: string | null } }[] = [];
 let served: { session: string | null; prompts: PromptEntry[] } = { session: null, prompts: [] };
-const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+const serve = async (url: string, init?: RequestInit) => {
   if (init?.method === 'POST') {
     posts.push({ url, body: JSON.parse(String(init.body)) });
     return new Response(null, { status: 204 });
   }
   return new Response(JSON.stringify(served), { status: 200 });
-});
+};
+const fetchMock = vi.fn(serve);
 beforeEach(() => {
   posts.length = 0;
   served = { session: null, prompts: [] };
-  fetchMock.mockClear();
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(serve);
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -157,4 +159,41 @@ it('a failing POST or GET only logs: nothing throws and the local list keeps the
   expect(items(store)).toEqual([id]);
   expect(log).toHaveBeenCalled();
   log.mockRestore();
+});
+
+it('a prompt in flight survives a non-null to non-null session change (a fork or an id-less /clear) until the reload merges it', async () => {
+  const { store, feed, sent } = setup();
+  served = { session: 's1', prompts: [p('old')] };
+  feed(session('s1'));
+  await flush();
+  act(() => void store.dispatch(setDraft('typed in the fork')));
+  act(() => void store.dispatch(sendBatch(false)));
+  const id = (sent.find((m) => m.type === 'send') as { id: string }).id;
+  feed({ kind: 'user', id, text: 'typed in the fork', ts: 1 });
+  served = { session: 's1-fork', prompts: [p('old'), p(id, 'typed in the fork')] };
+  feed(session('s1-fork'));
+  expect(items(store)).toEqual([id]); // the source's others are gone, this one is kept
+  await flush();
+  expect(items(store)).toEqual(['old', id]);
+});
+
+it('asks for the history when the session id changes and on a replay, not on every session event', async () => {
+  const { feed } = setup();
+  served = { session: 's1', prompts: [] };
+  feed(session('s1'));
+  feed({ kind: 'session', id: 's1', root: '/p', title: 'renamed', model: null });
+  await flush();
+  const asked = () => fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith('/prompts'));
+  expect(asked()).toEqual(['/prompts?session=s1']);
+  feed({ kind: 'replay', events: [session('s1')] });
+  await flush();
+  expect(asked()).toHaveLength(2);
+});
+
+it('an answer naming another session than the one asked for is dropped', async () => {
+  const { store, feed } = setup();
+  served = { session: 'other', prompts: [p('x')] };
+  feed(session('s1'));
+  await flush();
+  expect(items(store)).toEqual([]);
 });

@@ -4,25 +4,38 @@ import { apiFetch } from '../net/auth.ts';
 import { serverEvent, type AppThunk, type RootState } from '../store/store.ts';
 import type { SentDraft, ShellDraft } from './slice.ts';
 
-/** The prompts this session has taken, oldest first (the server keeps them: `/prompts`); `sid` is the session they belong to. */
-type State = { sid: string | null; items: PromptEntry[] };
+/**
+ * The prompts this session has taken, oldest first (the server keeps them: `/prompts`); `sid` is the session they belong to.
+ * `local` are the ids sent from here that the server's list has not shown yet: they outlive a change of the session id
+ * (a fork or an id-less /clear names its new id only after the first prompt went out under the old one).
+ */
+type State = { sid: string | null; items: PromptEntry[]; local: string[] };
 
 export const historySlice = createSlice({
   name: 'promptHistory',
-  initialState: { sid: null, items: [] } as State,
+  initialState: { sid: null, items: [], local: [] } as State,
   reducers: {
     // a new session's history is another one; the first id of a session with none yet keeps what was sent before it
     sessionChanged: (s, a: PayloadAction<string | null>) => {
       if (a.payload === s.sid) return;
-      if (s.sid !== null || a.payload === null) s.items = [];
+      if (s.sid !== null || a.payload === null) {
+        const keep = a.payload === null ? [] : s.local;
+        s.items = s.items.filter((x) => keep.includes(x.id));
+        s.local = keep;
+      }
       s.sid = a.payload;
     },
     // the stored list first, then whatever was sent here that it does not have yet (a POST still in flight)
     loaded: (s, a: PayloadAction<PromptEntry[]>) => {
       const have = new Set(a.payload.map((x) => x.id));
       s.items = [...a.payload, ...s.items.filter((x) => !have.has(x.id))];
+      s.local = s.local.filter((id) => !have.has(id));
     },
-    appended: (s, a: PayloadAction<PromptEntry>) => void (s.items.some((x) => x.id === a.payload.id) || s.items.push(a.payload)),
+    appended: (s, a: PayloadAction<PromptEntry>) => {
+      if (s.items.some((x) => x.id === a.payload.id)) return;
+      s.items.push(a.payload);
+      s.local.push(a.payload.id);
+    },
   },
 });
 
@@ -76,8 +89,9 @@ const warn = (what: string, e: unknown) => console.warn(`prompt history: ${what}
 export const loadHistory = (): AppThunk => (d, getState) => {
   const sid = getState().promptHistory.sid;
   apiFetch(sid === null ? '/prompts' : `/prompts?session=${encodeURIComponent(sid)}`)
-    .then((r) => (r.ok ? (r.json() as Promise<{ prompts: PromptEntry[] }>) : Promise.reject(new Error(`/prompts ${r.status}`))))
-    .then((body) => { if (getState().promptHistory.sid === sid) d(historySlice.actions.loaded(body.prompts)); })
+    .then((r) => (r.ok ? (r.json() as Promise<{ session: string | null; prompts: PromptEntry[] }>) : Promise.reject(new Error(`/prompts ${r.status}`))))
+    // the answer must be for the session asked about and still the current one
+    .then((body) => { if (getState().promptHistory.sid === sid && body.session === sid) d(historySlice.actions.loaded(body.prompts)); })
     .catch((e: unknown) => warn('load failed', e));
 };
 
@@ -97,7 +111,7 @@ type Slice = { composer: { unconfirmed: SentDraft | null; shellUnconfirmed: Shel
 /**
  * Records a prompt once the server has taken it: the typed draft on its `user` echo, a `! cmd` on `shell-start` (both read
  * before the composer's reducer drops them), a voice message on its live `voice-text`. A replayed event is history, not a
- * new prompt. A new session id (or a replay) reloads the stored list.
+ * new prompt. A new session id, and a replay, reload the stored list (not every `session` event: those also carry a new title).
  */
 export const historyMiddleware: Middleware = (api) => (next) => (action) => {
   if (!serverEvent.match(action)) return next(action);
@@ -111,8 +125,9 @@ export const historyMiddleware: Middleware = (api) => (next) => (action) => {
   if (ev.kind === 'session' || ev.kind === 'replay') {
     const st = api.getState() as RootState;
     const id = st.feed.session?.id ?? null;
-    if (id !== st.promptHistory.sid) dispatch(historySlice.actions.sessionChanged(id));
-    if (id !== null) dispatch(loadHistory());
+    const changed = id !== st.promptHistory.sid;
+    if (changed) dispatch(historySlice.actions.sessionChanged(id));
+    if (id !== null && (changed || ev.kind === 'replay')) dispatch(loadHistory());
   }
   return result;
 };

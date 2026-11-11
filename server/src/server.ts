@@ -139,8 +139,8 @@ export async function startServer(o: {
       if (prev === null) store.adopt(id);
       broadcastComments(store.get(id));
       try {
-        if (prev === null) prompts.adopt(id);
-        else prompts.carry(prev, id);
+        if (prev !== null) prompts.carry(prev, id);
+        prompts.adopt(id); // a fork or an id-less /clear too: its first prompts waited in memory
       } catch (e) {
         reportError(hub, 'prompts', e);
       }
@@ -267,7 +267,7 @@ export async function startServer(o: {
         // only the current conversation's archive: a page of another one (before a switch or a /clear) gets 409
         ...historyRoutes(archive, () => manager.archiveId(), hub),
         // the web's prompt history (HTTP only): the current conversation's sent prompts
-        ...promptRoutes({ store: prompts, current: () => manager.info().id, hub }),
+        ...promptRoutes({ store: prompts, current: () => manager.info().id, own: () => manager.archiveId(), hub }),
         // a subagent's conversation (protocol 7); same rule: only the current conversation's
         ...subagentRoutes({ backend: o.backend, attachments, hub, current: () => manager.archiveId(), root }),
         // a shell task's output tail (protocol 8)

@@ -45,16 +45,48 @@ it('↑ in an empty field recalls the newest prompt, ↑ again an older one, ↓
   expect(box.value).toBe('');
 });
 
-it('a draft is kept as the stash: recalled only with the caret at its start, and ↓ past the newest brings it back', async () => {
+it('a non-empty draft is never replaced: ↑ and ↓ stay the field\'s own, caret at the start or not', async () => {
   const { box } = setup([p('a', 'old one')]);
   await userEvent.type(box, 'half typed');
-  await userEvent.keyboard('{ArrowUp}'); // caret at the end: the key is the field's own
+  await userEvent.keyboard('{ArrowUp}');
   expect(box.value).toBe('half typed');
   caret(box, 0);
   await userEvent.keyboard('{ArrowUp}');
-  expect(box.value).toBe('old one');
+  expect(box.value).toBe('half typed');
   await userEvent.keyboard('{ArrowDown}');
   expect(box.value).toBe('half typed');
+});
+
+it('a list change while browsing (a prompt arrives) does not lose the place: ↓ still walks back to the empty draft', async () => {
+  const { store, box } = setup([p('a', 'one'), p('b', 'two'), p('c', 'three')]);
+  box.focus();
+  await userEvent.keyboard('{ArrowUp}{ArrowUp}');
+  expect(box.value).toBe('two');
+  act(() => void store.dispatch(historySlice.actions.appended(p('d', 'four'))));
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('three');
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('four');
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('');
+});
+
+it('a recalled slash command does not open the / menu, which would take the arrows', async () => {
+  const { store, box } = setup([p('a', 'older'), p('b', '/ping')]);
+  act(() => void store.dispatch(serverEvent({ kind: 'commands', commands: [{ name: 'ping', description: 'Reply PONG' }] })));
+  box.focus();
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('/ping');
+  await raf();
+  act(() => void document.dispatchEvent(new Event('selectionchange'))); // what the caret move after the recall fires in a browser
+  expect(screen.queryByRole('listbox')).toBeNull();
+  caret(box, 0);
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('older');
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('/ping');
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('');
 });
 
 it('a multi-line prompt: ↑ moves the caret within it, and goes older only from its first line', async () => {
