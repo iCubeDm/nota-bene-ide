@@ -12,7 +12,7 @@ it('omp skill opens a detached omp window, reuses only it and explicit Stop reti
   fs.writeFileSync(path.join(scoped, 'control-token'), 'c'.repeat(64), { mode: 0o600 });
   const wrapper = path.join(temp, 'launch.mjs');
   fs.writeFileSync(wrapper, `import { spawnSync } from 'node:child_process'; const r = spawnSync(process.execPath, [${JSON.stringify(path.resolve('bin/nota-bene.mjs'))}, ...process.argv.slice(2), '--no-open'], { encoding: 'utf8' }); process.stdout.write(r.stdout ?? ''); process.stderr.write(r.stderr ?? ''); process.exit(r.status ?? 1);`);
-  const env = { ...process.env, NOTA_BENE_BIN: wrapper, NOTA_BENE_HOME: state, NOTA_BENE_PORT_RANGE: '4794-4794', NOTA_BENE_OMP: path.resolve('server/test/fixtures/acp-server.mjs'), NB_ACP_FIXTURE_STATE: path.join(temp, 'sessions.json') };
+  const env = { ...process.env, NOTA_BENE_BIN: wrapper, NOTA_BENE_HOME: state, NOTA_BENE_PORT_RANGE: '4794-4794', NOTA_BENE_BUILD_CMD: 'true', NOTA_BENE_OMP: path.resolve('server/test/fixtures/acp-server.mjs'), NB_ACP_FIXTURE_STATE: path.join(temp, 'sessions.json') };
   delete env.NOTA_BENE_LAUNCHER_PID; delete env.NOTA_BENE_SUPERVISED;
   const run = () => spawnSync(process.execPath, [path.resolve('omp/skills/nb/open.mjs'), '--dir', project], { env, encoding: 'utf8', timeout: 25000 });
   let pid: number | undefined;

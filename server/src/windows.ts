@@ -20,6 +20,8 @@ export type WindowEntry = {
   version?: string;
   /** the launch nonce, written by a launcher that exits 77: the outer part hands the window over with it (bin/nota-bene.mjs) */
   nonce?: string;
+  /** the launcher is rebuilding web/dist before relaunching the server: a launch of the folder keeps waiting for it */
+  building?: boolean;
 };
 
 const dir = (base?: string) => path.join(base ?? stateDir(), 'windows');
@@ -71,6 +73,17 @@ export function moveWindow(port: number, root: string, pid: number, launcherPid?
   registerWindow(port, root, pid, launcherPid, own?.version, own?.nonce);
 }
 
+/** Marks the port's entry (when it is this launcher's) as rebuilding web/dist, or clears the mark. */
+export function setBuilding(port: number, launcherPid: number, on: boolean): void {
+  const w = readEntry(port);
+  if (!w || w.launcherPid !== launcherPid || Boolean(w.building) === on) return;
+  const { building: _, ...rest } = w;
+  const f = fileOf(port);
+  const tmp = `${f}.tmp${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(on ? { ...rest, building: true } : rest, null, 2));
+  fs.renameSync(tmp, f);
+}
+
 /** Removes the port's entry only if it is still this pid's (or unreadable): a newer window on the port keeps its own. */
 export function unregisterWindow(port: number, pid: number): void {
   if (fs.existsSync(fileOf(port)) && (readEntry(port)?.pid ?? pid) === pid) fs.rmSync(fileOf(port), { force: true });
@@ -109,10 +122,10 @@ export async function probeInfo(port: number, timeoutMs = 500): Promise<{ root: 
 const restarting = (w: WindowEntry): boolean => !pidAlive(w.pid) && w.launcherPid !== undefined && pidAlive(w.launcherPid);
 
 /** The entries of windows in a restart gap (see `restarting`). */
-export function restartingWindows(): { port: number; root: string }[] {
+export function restartingWindows(): { port: number; root: string; building: boolean }[] {
   return Object.entries(readWindows())
     .filter(([, w]) => restarting(w))
-    .map(([key, w]) => ({ port: Number(key), root: w.root }))
+    .map(([key, w]) => ({ port: Number(key), root: w.root, building: w.building === true }))
     .sort((a, b) => a.port - b.port);
 }
 
