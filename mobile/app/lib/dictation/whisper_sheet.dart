@@ -10,6 +10,7 @@ import '../comments/strings.g.dart';
 import '../files/image_screen.dart' show windowHttp;
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import '../ui/insets.dart';
 
 // how often an install in progress is asked about
 const _poll = Duration(seconds: 2);
@@ -185,7 +186,7 @@ class _WhisperSheetState extends State<WhisperSheet> {
       ),
     };
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, bottomRoom(context, 20)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
