@@ -70,7 +70,7 @@ nota-bene --url 4800
 # http://127.0.0.1:4800/#t=...
 ```
 
-The launcher supervises the server. When you pick "Restart the server" in the window, it relaunches the server at once and the session resumes; if the web sources changed since the last build, the launcher rebuilds the page first, so a restart picks up new UI (a failed build is logged and the old page is kept). A crash is relaunched after one second; five crashes within a minute and it gives up.
+The launcher supervises the server. When you pick "Restart the server" in the window, it relaunches the server at once and the session resumes. If the web sources changed since the last build, the launcher rebuilds the page first, so the restart takes as long as the build and then shows the new UI (building by hand first is optional). A failed build is logged, the old page is kept and the build is not retried until a source changes. A crash is relaunched after one second without a build; five crashes within a minute and it gives up.
 
 ### Which agent
 
