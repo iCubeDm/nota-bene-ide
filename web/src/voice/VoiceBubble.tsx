@@ -5,6 +5,7 @@ import { useT } from '@/i18n/index.ts';
 import { toast } from '@/shell/toast.ts';
 import { selectSwitching } from '@/controls/slice.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { langName, whisperLang } from './lang.ts';
 import { sendVoice } from './send.ts';
 import { VoiceView } from './VoiceView.tsx';
 
@@ -36,7 +37,7 @@ export function Transcript({ text, error, onRetry }: { text?: string; error?: Vo
  * A voice message in the user's bubble: the player, the transcript open under it (the "Aa" button folds it, per bubble
  * and not stored), or "Transcribing…" until the host has it, or the error with Retry (the same voice as a new message).
  */
-export function VoiceBubble({ voice, text, error }: { voice: Voice; text?: string; error?: VoiceError }) {
+export function VoiceBubble({ voice, text, error, lang }: { voice: Voice; text?: string; error?: VoiceError; lang?: string }) {
   const t = useT();
   const d = useAppDispatch();
   const [open, setOpen] = useState(true);
@@ -47,6 +48,9 @@ export function VoiceBubble({ voice, text, error }: { voice: Voice; text?: strin
     <div data-voice>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1"><VoiceView voice={voice} /></div>
+        {text && !error && lang && lang !== whisperLang() && (
+          <span title={t('voiceLangDetected', langName(lang))} className="flex-none rounded px-1 font-mono text-[0.6875rem] text-muted-foreground">{lang.toUpperCase()}</span>
+        )}
         {text && !error && (
           <button
             type="button"

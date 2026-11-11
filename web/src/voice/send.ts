@@ -1,7 +1,7 @@
 import type { Voice } from '@nota-bene/shared';
 import { selectBusy, selectConn, type AppThunk } from '@/store/store.ts';
 import { voiceComments } from '../comments/send.ts';
-import { whisperLang } from './lang.ts';
+import { dictationAsk } from './lang.ts';
 import { trackVoiceSend } from './inflight.ts';
 
 /**
@@ -21,7 +21,7 @@ export const sendVoice = (voice: Voice, id: string = crypto.randomUUID(), force 
       return r.sent;
     }
   }
-  const ok = send({ type: 'send', id, text: '', voice: { id: voice.id, ms: voice.ms, wave: voice.wave }, lang: whisperLang(), ...(force && selectBusy(st) ? { force: true } : {}) });
+  const ok = send({ type: 'send', id, text: '', voice: { id: voice.id, ms: voice.ms, wave: voice.wave }, ...dictationAsk(st), ...(force && selectBusy(st) ? { force: true } : {}) });
   if (ok) trackVoiceSend(id, voice, []);
   return ok;
 };

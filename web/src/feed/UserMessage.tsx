@@ -39,7 +39,7 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
         {time}
         {mode}
       </div>
-      {item.voice && <VoiceBubble voice={item.voice} text={item.voiceText ?? ((m ? item.text.slice(0, m.index) : item.text) || undefined)} error={item.voiceError} />}
+      {item.voice && <VoiceBubble voice={item.voice} text={item.voiceText ?? ((m ? item.text.slice(0, m.index) : item.text) || undefined)} error={item.voiceError} lang={item.voiceLang} />}
       {general && (
         <div className="md-tight">
           <Markdown text={escapeMentions(general)} final breaks mentions noHtml />

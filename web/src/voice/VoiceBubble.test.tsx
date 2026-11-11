@@ -152,3 +152,19 @@ it('the position shows while playing and a click on the wave seeks', () => {
   fireEvent.pointerDown(wave, { clientX: 150 });
   expect(a.currentTime).toBeCloseTo(6);
 });
+
+it('the bubble names the detected language only when it differs from the interface language', () => {
+  const { ev } = setup();
+  ev(userV('m1'));
+  ev({ kind: 'voice-text', id: 'm1', text: 'bonjour', lang: 'fr', ts: 1 });
+  expect(screen.getByTitle('Recognised as French')).toHaveTextContent('FR');
+  ev(userV('m2', V2));
+  ev({ kind: 'voice-text', id: 'm2', text: 'hello', lang: 'en', ts: 2 });
+  expect(screen.queryByTitle('Recognised as English')).toBeNull();
+});
+
+it('a replayed voice message shows its stored language badge', () => {
+  const { ev } = setup();
+  ev({ kind: 'replay', events: [userV('m1', V1, { text: 'hallo', historic: true, ts: 0, voiceLang: 'de' })] });
+  expect(screen.getByTitle('Recognised as German')).toHaveTextContent('DE');
+});

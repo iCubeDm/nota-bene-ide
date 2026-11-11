@@ -7,7 +7,7 @@ import { getLang, useT } from '@/i18n/index.ts';
 import { pageQuote } from '@/page/quote.ts';
 import { selectCapabilities, selectSwitching } from '@/controls/slice.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
-import { whisperLang } from '@/voice/lang.ts';
+import { dictationAsk } from '@/voice/lang.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { transcribeVoice } from '@/voice/upload.ts';
@@ -117,7 +117,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   const patchClip = (id: string, p: Partial<Clip>) => setClips((l) => l.map((c) => (c.voice.id === id ? { ...c, ...p } : c)));
   const transcribe = (id: string) => {
     patchClip(id, { text: undefined, error: undefined });
-    void transcribeVoice(id, whisperLang()).then((r) => patchClip(id, 'text' in r ? { text: r.text } : { error: r.error }));
+    void transcribeVoice(id, dictationAsk(store.getState())).then((r) => patchClip(id, 'text' in r ? { text: r.text } : { error: r.error }));
   };
   const rec = useVoiceRecorder({
     preview: false,

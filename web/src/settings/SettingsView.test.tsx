@@ -17,7 +17,7 @@ const WINDOWS = [
 let posts: { url: string; body: unknown }[];
 let actionReply: () => Response;
 let prefsReply: () => Response;
-let dict: { on: boolean; phase: string; downloadMb: number; diskMb: number; dir: string; model: string };
+let dict: { on: boolean; phase: string; downloadMb: number; diskMb: number; dir: string; model: string; dictationLang?: string };
 let storage: { unreferenced: { files: number; bytes: number } };
 beforeEach(() => {
   localStorage.clear();
@@ -33,6 +33,7 @@ beforeEach(() => {
       if (url === '/system/storage/clean') return Response.json({ moved: 3, bytes: 3_000_000, trash: '/Users/me/.nota-bene/trash/attachments/x' });
       if (url === '/system/prefs') return prefsReply();
       if (url === '/dictation/install') { dict = { ...dict, phase: 'installing' }; return Response.json({ ok: true }, { status: 202 }); }
+      if (url === '/dictation/lang') dict = { ...dict, dictationLang: JSON.parse(String(init.body)).lang };
       if (url === '/dictation/on') dict = { ...dict, on: JSON.parse(String(init.body)).on };
       return actionReply();
     }
@@ -301,4 +302,27 @@ it('Dictation: switching Whisper on or off, or removing it, tells the capabiliti
   fireEvent.click(screen.getByRole('button', { name: 'Remove Whisper' }));
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove' }));
   await waitFor(() => expect(store.getState().controls.capabilities?.dictation).toBeUndefined());
+});
+
+it('Dictation: the Spoken language select shows the host choice (Auto by default) and posts a change', async () => {
+  dict = { ...dict, phase: 'ready' };
+  const store = setup();
+  store.dispatch(serverEvent({ kind: 'hello', protocol: 18, capabilities: CLAUDE_CAPABILITIES }));
+  const sel = await screen.findByRole('combobox', { name: 'Spoken language' });
+  expect(sel).toHaveValue('auto');
+  expect(within(sel).getByRole('option', { name: 'Detect automatically' })).toBeInTheDocument();
+  expect(screen.getByText('Falls back to the interface language when unsure')).toBeInTheDocument();
+  fireEvent.change(sel, { target: { value: 'de' } });
+  await waitFor(() => expect(posts.find((p) => p.url === '/dictation/lang')?.body).toEqual({ lang: 'de' }));
+  await waitFor(() => expect(store.getState().controls.dictationLang).toBe('de'));
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Spoken language' })).toHaveValue('de'));
+  expect(screen.queryByText('Falls back to the interface language when unsure')).toBeNull();
+});
+
+it('Dictation: a server older than protocol 18 has no Spoken language select', async () => {
+  dict = { ...dict, phase: 'ready' };
+  const store = setup();
+  store.dispatch(serverEvent({ kind: 'hello', protocol: 17, capabilities: CLAUDE_CAPABILITIES }));
+  await screen.findByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" });
+  expect(screen.queryByRole('combobox', { name: 'Spoken language' })).toBeNull();
 });

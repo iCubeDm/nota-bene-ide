@@ -204,7 +204,7 @@ it('a detached attachment comment (its image is not in the composer) stays pendi
   fireEvent.click(mic$()!);
   fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
   await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
-  expect(voiceMsg(sent)).toEqual({ type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en' });
+  expect(voiceMsg(sent)).toEqual({ type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en', detect: true });
   expect(store.getState().comments.items[0]?.status).toBe('pending');
 });
 
