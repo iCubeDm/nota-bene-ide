@@ -87,7 +87,9 @@ commit's short hash for a commit's diff) and the text of the code rows, markers 
 
 ## The APK
 
-CI builds it in the `mobile` job and uploads it as the `nota-bene-android` artifact. Builds of this repository are
+A manual run of the Mobile workflow (`.github/workflows/mobile.yml`, Run workflow) builds it and uploads it as the
+`nota-bene-android` artifact; on pull requests and pushes the workflow only checks the app, and only when `mobile/`,
+`shared/` or the npm lockfile changed. Builds of this repository are
 signed with the keystore in the repository secrets `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASSWORD` (alias
 `nota-bene`); without them (forks) the job builds a debug APK. A local build needs the Android SDK:
 `npm run mobile:assets && (cd mobile/app && flutter build apk --debug)`.
