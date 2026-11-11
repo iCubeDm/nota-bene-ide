@@ -41,7 +41,7 @@ export function packageJson() {
   return {
     name: PACKAGE_NAME,
     version: rootJson.version,
-    description: 'A browser IDE over Claude Code, Codex and omp: agent chat, inline margin comments sent as one batch, a file tree and viewers.',
+    description: 'A browser agentic development environment (ADE) over Claude Code, Codex and omp: agent chat, inline margin comments sent as one batch, a file tree and viewers.',
     license: 'Apache-2.0',
     repository: { type: 'git', url: 'git+https://github.com/iCubeDm/nota-bene-ide.git' },
     type: 'module',

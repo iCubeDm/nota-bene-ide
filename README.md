@@ -3,7 +3,7 @@
 <h1 align="center">Nota Bene</h1>
 
 <p align="center">
-  <strong>A browser window for reviewing and steering your coding agent.</strong><br>
+  <strong>An agentic development environment (ADE) in your browser: review and steer your coding agent.</strong><br>
   Select any fragment of a reply or a file, leave a note in the margin, send all the notes as one batch.<br>
   Works with <strong>Claude Code</strong>, <strong>Codex</strong> and <strong>omp</strong>.
 </p>

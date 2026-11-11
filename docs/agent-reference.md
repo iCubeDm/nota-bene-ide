@@ -1,6 +1,6 @@
 # Nota Bene
 
-A browser IDE over Claude Code, Codex and omp: the chat with the agent, inline margin comments on any reply or file (sent as one batch), file tree, media viewer, sessions. Claude uses the Agent SDK; Codex uses its installed CLI app-server (0.166.0+); omp runs over ACP (`omp acp`, 18.16.0+).
+A browser agentic development environment (ADE) over Claude Code, Codex and omp: the chat with the agent, inline margin comments on any reply or file (sent as one batch), file tree, media viewer, sessions. Claude uses the Agent SDK; Codex uses its installed CLI app-server (0.166.0+); omp runs over ACP (`omp acp`, 18.16.0+).
 
 ## Layout
 
