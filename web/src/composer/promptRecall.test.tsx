@@ -305,9 +305,18 @@ it('Alt+↑ and Alt+↓ also walk from an empty field and a single-line draft, l
   expect(box.value).toBe('');
   await userEvent.type(box, 'build');
   await userEvent.keyboard(altUp);
+  expect(box.value).toBe('other'); // Alt = the whole list, newest first, not the search of plain ↑
+  await userEvent.keyboard(altUp);
   expect(box.value).toBe('build one');
   await userEvent.keyboard(altDown);
+  await userEvent.keyboard(altDown);
   expect(box.value).toBe('build');
+  await userEvent.clear(box);
+  await userEvent.type(box, 'zzz'); // no prompt contains it: plain ↑ would do nothing
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('other');
+  await userEvent.keyboard(altDown);
+  expect(box.value).toBe('zzz');
 });
 
 it('Alt+↑ with Ctrl, Meta or Shift added does not walk', async () => {

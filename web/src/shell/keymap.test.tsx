@@ -120,6 +120,22 @@ it('the ? help lists every hotkey with its keys', () => {
   ]);
 });
 
+it('Alt+↑/↓ are help-only here: the keymap never swallows them (native caret moves and scrolling stay)', () => {
+  setup();
+  const area = document.createElement('textarea');
+  document.body.appendChild(area);
+  area.focus();
+  for (const code of ['ArrowUp', 'ArrowDown']) {
+    const ev = new KeyboardEvent('keydown', { code, key: code, altKey: true, bubbles: true, cancelable: true });
+    area.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(false);
+    const inBox = new KeyboardEvent('keydown', { code, key: code, altKey: true, bubbles: true, cancelable: true });
+    document.getElementById('composer-input')!.dispatchEvent(inBox); // no history: the composer leaves it too
+    expect(inBox.defaultPrevented).toBe(false);
+  }
+  area.remove();
+});
+
 // ---- review regressions (Package B review)
 const keyEv = (target: Element | Document, init: KeyboardEventInit) => fireEvent.keyDown(target, { bubbles: true, ...init });
 

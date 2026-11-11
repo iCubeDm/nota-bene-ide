@@ -280,13 +280,14 @@ export function Composer() {
           show(0, list[0]!.text);
           return true;
         }
-        if (value.includes('\n')) {
-          if (!always) return false;
+        if (always) {
+          // Alt: the whole list, newest first, whatever the draft (no search, a draft with no match too)
           b.query = null;
           b.stash = value;
           show(0, list[0]!.text);
           return true;
         }
+        if (value.includes('\n')) return false;
         // typed text: the prompts that contain it; none = the field's own
         b.query = value;
         list = walkList();

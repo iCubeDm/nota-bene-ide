@@ -37,6 +37,8 @@ export type Binding = {
   inFields: boolean | 'notMac';
   /** also with Cmd (Mac) / Ctrl held, which `run` reads from the event: Alt+R and Ctrl+Alt+R are one binding */
   anyMod?: boolean;
+  /** listed in the help only: the key is handled elsewhere (the composer), the keymap never matches or consumes it */
+  helpOnly?: boolean;
   run: (c: Ctx) => void;
 };
 
@@ -77,10 +79,10 @@ export const BINDINGS: Binding[] = [
   { id: 'hk_recent', codes: ['KeyE'], mods: { alt: true }, inFields: true, run: () => (recentModal.get() ? recentModal.close() : recentModal.open()) },
   // Alt+H, in a field too (also on a Mac, where Option+H types ˙): the prompt history list of the composer. No clash: H was free
   { id: 'hk_promptHistory', codes: ['KeyH'], mods: { alt: true }, inFields: true, run: () => (promptHistoryModal.get() ? promptHistoryModal.close() : promptHistoryModal.open()) },
-  // Alt+↑/↓ (Option on a Mac): older / newer prompt in the composer, whatever the draft. The composer's own key handler walks (it
-  // runs first and stops the event, so `run` is never reached from the field); the bindings are here for the help list
-  { id: 'hk_promptOlder', codes: ['ArrowUp'], mods: { alt: true }, inFields: true, run: () => {} },
-  { id: 'hk_promptNewer', codes: ['ArrowDown'], mods: { alt: true }, inFields: true, run: () => {} },
+  // Alt+↑/↓ (Option on a Mac): older / newer prompt in the composer, whatever the draft. Only the composer's own key handler
+  // walks; the keymap must not take the key elsewhere (native caret and scroll moves), so these are for the help list
+  { id: 'hk_promptOlder', codes: ['ArrowUp'], mods: { alt: true }, inFields: true, helpOnly: true, run: () => {} },
+  { id: 'hk_promptNewer', codes: ['ArrowDown'], mods: { alt: true }, inFields: true, helpOnly: true, run: () => {} },
   { id: 'hk_files', codes: ['KeyF'], mods: { mod: true, shift: true }, inFields: true, run: ({ store }) => void store.dispatch(setTreeOpen(!store.getState().tree.open)) },
   { id: 'hk_comments', codes: ['KeyC'], mods: { mod: true, shift: true }, inFields: true,
     run: ({ store }) => void store.dispatch(setPanelOpen(!store.getState().comments.ui.panelOpen)) },
@@ -109,6 +111,7 @@ export const BINDINGS: Binding[] = [
 ];
 
 const matches = (b: Binding, e: KeyboardEvent): boolean => {
+  if (b.helpOnly) return false;
   // `/` by the character (a Russian PC layout types it with Shift+7; the US Slash key types "." there)
   const hit = b.codes.includes(e.code) && e.code !== 'Slash' || (b.codes.includes('Slash') && e.key === '/');
   if (!hit) return false;
