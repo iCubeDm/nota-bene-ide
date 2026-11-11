@@ -50,6 +50,7 @@ Future<bool> saveMediaComment(
   required String text,
   QuickLabelId? label,
   List<VoiceClip> voice = const [],
+  List<String> images = const [],
   String? version,
   double? time,
 }) async {
@@ -80,7 +81,7 @@ Future<bool> saveMediaComment(
       text,
       label,
       id: id,
-      images: [r.image],
+      images: [r.image, ...images],
       genImages: 1,
       voice: voice,
     );
@@ -277,6 +278,7 @@ class _ImageScreenState extends State<ImageScreen>
       text: res.text,
       label: res.label,
       voice: res.voice,
+      images: res.images,
       version: _page?.etag,
     );
     if (!mounted) return;

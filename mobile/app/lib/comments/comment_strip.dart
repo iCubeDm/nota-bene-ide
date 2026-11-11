@@ -18,8 +18,8 @@ Future<void> editComment(BuildContext context, WindowTab tab, Comment x) async {
     tab: tab,
   );
   switch (res) {
-    case SheetSave(:final text, :final label, :final voice):
-      tab.comments.edit(x.id, text, label, voice: voice);
+    case SheetSave(:final text, :final label, :final voice, :final images):
+      tab.comments.edit(x.id, text, label, voice: voice, images: images);
     case SheetDelete():
       tab.comments.remove(x.id);
     case null:

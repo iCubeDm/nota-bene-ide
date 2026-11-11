@@ -202,11 +202,11 @@ class _MessageFieldState extends State<MessageField> {
             : send,
       );
       return Container(
-        constraints: const BoxConstraints(minHeight: 48),
+        // as tall as the button and its insets: the field has no border line to add to it
+        constraints: const BoxConstraints(minHeight: _button + 2 * _inset),
         decoration: BoxDecoration(
           color: c.popover.withValues(alpha: .95),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: c.border),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,

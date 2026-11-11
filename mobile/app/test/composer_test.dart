@@ -895,7 +895,7 @@ void main() {
       find.descendant(
         of: find.byKey(const ValueKey('composer')),
         matching: find.byWidgetPredicate(
-          (w) => w is Container && w.constraints?.minHeight == 48,
+          (w) => w is Container && w.constraints?.minHeight == 46,
         ),
       ),
     );

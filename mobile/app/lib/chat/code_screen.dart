@@ -181,6 +181,7 @@ class _CodeScreenState extends State<CodeScreen> {
       res.text,
       res.label,
       voice: res.voice,
+      images: res.imageIds,
     );
   }
 
@@ -220,6 +221,7 @@ class _CodeScreenState extends State<CodeScreen> {
       res.text,
       res.label,
       voice: res.voice,
+      images: res.imageIds,
     );
   }
 
