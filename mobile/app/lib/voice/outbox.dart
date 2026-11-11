@@ -19,8 +19,16 @@ import 'wav.dart';
 enum OutStage { uploading, sent, failed }
 
 class PendingVoice {
-  PendingVoice(this.key, this.lang, this.ms, this.wave, {this.wav})
-    : id = uuidV4();
+  PendingVoice(
+    this.key,
+    this.lang,
+    this.ms,
+    this.wave, {
+    this.wav,
+    this.text = '',
+    this.commentIds = const [],
+    this.images = const [],
+  }) : id = uuidV4();
 
   PendingVoice.fromJson(Map<String, Object?> j)
     : key = j['key']! as String,
@@ -28,6 +36,12 @@ class PendingVoice {
       ms = (j['ms']! as num).toInt(),
       wave = (j['wave']! as List).cast<num>(),
       id = j['id']! as String,
+      text = (j['text'] as String?) ?? '',
+      commentIds = ((j['commentIds'] as List?) ?? const []).cast<String>(),
+      images = [
+        for (final i in (j['images'] as List?) ?? const [])
+          ImageRef.fromJson((i as Map).cast<String, Object?>()),
+      ],
       voice = j['voice'] == null
           ? null
           : Voice.fromJson((j['voice']! as Map).cast<String, Object?>()),
@@ -41,6 +55,11 @@ class PendingVoice {
 
   /// In memory until it is on the host; after that the disk has it.
   Uint8List? wav;
+
+  /// The pending comments riding along: their ids, the batch text the agent gets after the transcript, their images.
+  final String text;
+  final List<String> commentIds;
+  final List<ImageRef> images;
 
   /// The host's copy, once uploaded.
   Voice? voice;
@@ -60,6 +79,11 @@ class PendingVoice {
     'ms': ms,
     'wave': wave,
     'id': id,
+    if (commentIds.isNotEmpty) ...{
+      'text': text,
+      'commentIds': commentIds,
+      'images': [for (final i in images) i.toJson()],
+    },
     'voice': ?voice?.toJson(),
     'stage': stage.name,
   };
@@ -194,6 +218,7 @@ class VoiceOutbox extends ChangeNotifier {
   Object? _owner;
   bool Function(ClientMessage)? _send;
   WindowHttp? Function()? _http;
+  void Function(Set<String>)? _giveBack;
   bool _disposed = false;
 
   void _adopt(List<PendingVoice> found) {
@@ -207,15 +232,17 @@ class VoiceOutbox extends ChangeNotifier {
     Object owner, {
     required bool Function(ClientMessage) send,
     required WindowHttp? Function() http,
+    void Function(Set<String>)? giveBack,
   }) {
     _owner = owner;
     _send = send;
     _http = http;
+    _giveBack = giveBack;
   }
 
   void detach(Object owner) {
     if (!identical(_owner, owner)) return;
-    _owner = _send = _http = null;
+    _owner = _send = _http = _giveBack = null;
     for (final e in entries) {
       e._timer?.cancel();
       e._timer = null;
@@ -229,10 +256,26 @@ class VoiceOutbox extends ChangeNotifier {
     }
   }
 
-  /// Uploads and sends [wav]; the bubble shows meanwhile.
-  void submit(Uint8List wav, String lang, {bool force = false}) {
-    final e = PendingVoice(uuidV4(), lang, wavMs(wav), waveOf(wav), wav: wav)
-      ..force = force;
+  /// Uploads and sends [wav]; the bubble shows meanwhile. [commentIds] ride along with their batch [text] and [images]
+  /// (they are held back from the composer until the entry is over; deleting a failed one gives them back).
+  void submit(
+    Uint8List wav,
+    String lang, {
+    bool force = false,
+    String text = '',
+    List<String> commentIds = const [],
+    List<ImageRef> images = const [],
+  }) {
+    final e = PendingVoice(
+      uuidV4(),
+      lang,
+      wavMs(wav),
+      waveOf(wav),
+      wav: wav,
+      text: commentIds.isEmpty ? '' : text,
+      commentIds: commentIds,
+      images: commentIds.isEmpty ? const [] : images,
+    )..force = force;
     entries.add(e);
     _changed();
     unawaited(_start(e));
@@ -286,10 +329,12 @@ class VoiceOutbox extends ChangeNotifier {
       final sent = send(
         ClientMessageSend(
           id: e.id,
-          text: '',
+          text: e.text,
           voice: e.voice,
           lang: e.lang,
           force: e.force ? true : null,
+          commentIds: e.commentIds.isEmpty ? null : e.commentIds,
+          images: e.images.isEmpty ? null : e.images,
         ),
       );
       if (sent) {
@@ -324,6 +369,9 @@ class VoiceOutbox extends ChangeNotifier {
 
   void remove(PendingVoice e) {
     if (!entries.remove(e)) return;
+    if (e.stage == OutStage.failed && e.commentIds.isNotEmpty) {
+      _giveBack?.call(e.commentIds.toSet());
+    }
     _forget(e);
     _changed();
   }

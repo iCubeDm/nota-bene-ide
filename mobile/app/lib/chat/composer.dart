@@ -183,12 +183,14 @@ class _ComposerState extends State<Composer> {
   bool get _failed => _drafts.any((d) => d.failed);
 
   /// A recording was released (or sent from the lock or the preview): it goes to the window as a voice message of its
-  /// own, never with the typed text, the images or the pending comments. While the agent works it asks, as a typed
-  /// send does; dismissed, the recording waits in the preview.
+  /// own, never with the typed text or the images; the pending comments ride along (the mic shows while the field is
+  /// empty, comments or not). While the agent works it asks, as a typed send does; dismissed, the recording waits in the
+  /// preview.
   Future<void> _recorded(Uint8List wav, Duration length) async {
     if (!mounted) return;
     // read now: the chat may be left while the question is up, and the recording still goes out (the outbox outlives it)
     final lang = voiceLangOf(context);
+    final textLang = Localizations.localeOf(context).languageCode;
     final outbox = widget.tab.voiceOutbox;
     var force = false;
     if (widget.tab.busy) {
@@ -200,7 +202,30 @@ class _ComposerState extends State<Composer> {
       }
       force = choice == 'force';
     }
-    outbox.submit(wav, lang, force: force);
+    // read now: the desktop may have sent or changed them while the question was up
+    final comments = widget.tab.comments.sendable;
+    final versions = widget.tab.fileVersions;
+    final batch = composeSend(
+      '',
+      comments,
+      widget.tab.feed,
+      textLang,
+      staleOf: (c) => switch (c.anchor) {
+        MediaAnchor(:final source, :final version?) when source.ref == null =>
+          versions[source.path] != null && versions[source.path] != version,
+        _ => false,
+      },
+    );
+    final ids = [for (final c in comments) c.id];
+    outbox.submit(
+      wav,
+      lang,
+      force: force,
+      text: batch.text,
+      commentIds: ids,
+      images: batch.images,
+    );
+    if (ids.isNotEmpty) widget.tab.comments.sending(ids.toSet());
   }
 
   void _recordFailed(RecordFailure why) {
@@ -310,13 +335,11 @@ class _ComposerState extends State<Composer> {
       final open = widget.tab.state == TabState.open;
       final c = Theme.of(context).extension<NbColors>()!;
       final uploading = _uploading;
-      final hasContent =
-          _text.text.trim().isNotEmpty ||
-          widget.tab.comments.sendable.isNotEmpty ||
-          _drafts.isNotEmpty;
+      // pending comments are not content here: they go from the Comments tab, or ride along with a recording
+      final hasContent = _text.text.trim().isNotEmpty || _drafts.isNotEmpty;
       final canSend = open && !uploading && !_failed && hasContent;
       final recording = _session.active;
-      // the mic while there is nothing to send, Send otherwise; a window older than protocol 14 has no voice: its mic
+      // the mic while the field is empty (and no image waits), Send otherwise; a window older than protocol 14 has no voice: its mic
       // is greyed and says why on a tap, not missing
       final mic = !hasContent || recording;
       return PopScope(

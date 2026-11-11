@@ -67,6 +67,14 @@ describe('voice messages', () => {
     expect(events.indexOf(vt!)).toBeGreaterThan(events.findIndex((e) => e.kind === 'user'));
   });
 
+  it('pending comments ride along: the agent gets the transcript, then their batch', async () => {
+    const { got, make } = setup({ speech: async () => 'look at this' });
+    const s = await make();
+    expect(s.send({ id: 'v1', text: 'BATCH', voice, lang: 'en' })).toBeNull();
+    await until(() => got.length === 1);
+    expect(got[0]).toMatchObject({ uuid: 'v1', text: 'look at this\n\nBATCH' });
+  });
+
   it('a typed message sent after a voice one reaches the agent after it', async () => {
     let say!: (t: string) => void;
     const { got, make } = setup({ speech: () => new Promise((r) => { say = r; }) });

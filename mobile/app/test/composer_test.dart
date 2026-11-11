@@ -405,6 +405,65 @@ void main() {
       expect(find.byKey(const ValueKey('stop')), findsOneWidget);
     });
 
+    final pending = {
+      'kind': 'comments',
+      'items': [
+        {
+          'id': 'c1',
+          'anchor': {
+            'source': {'path': 'a.md'},
+            'start': 0,
+            'end': 3,
+            'quote': 'foo',
+            'prefix': '',
+            'suffix': '',
+          },
+          'text': 'rename it',
+          'status': 'pending',
+          'createdAt': 1,
+        },
+      ],
+      'ts': 1,
+    };
+
+    testWidgets(
+      'pending comments with an empty field: the mic stays, no Send',
+      (t) async {
+        await openVoice(t);
+        r.event(pending);
+        await t.pumpAndSettle();
+        expect(find.text('1 comment to send'), findsOneWidget);
+        expect(find.byType(RecordButton), findsOneWidget);
+        expect(find.byKey(const ValueKey('send')), findsNothing);
+        await t.enter('x');
+        await t.pumpAndSettle();
+        expect(find.byType(RecordButton), findsNothing);
+        expect(
+          t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
+          isNotNull,
+        );
+      },
+    );
+
+    testWidgets(
+      'a recording made with comments pending sends their ids and batch',
+      (t) async {
+        await openVoice(t);
+        r.event(pending);
+        await t.pumpAndSettle();
+        r.ch.onHttp = (port, method, path) async => ok();
+        await record(t);
+        await t.pump();
+        await t.pump();
+        final m = r.sent.single;
+        expect(m['voice'], voice);
+        expect(m['commentIds'], ['c1']);
+        expect(m['text'], contains('rename it'));
+        // held back from the composer meanwhile: not offered twice
+        expect(find.text('1 comment to send'), findsNothing);
+      },
+    );
+
     testWidgets(
       'a recording is uploaded, then sent as a voice message, with the pending bubble between',
       (t) async {

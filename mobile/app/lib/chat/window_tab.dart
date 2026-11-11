@@ -74,7 +74,12 @@ class WindowTab extends ChangeNotifier {
     this.root, {
     Future<void> Function(Duration)? retry,
   }) : _retry = retry ?? ((d) => Future<void>.delayed(d)) {
-    voiceOutbox.attach(this, send: send, http: () => http);
+    voiceOutbox.attach(
+      this,
+      send: send,
+      http: () => http,
+      giveBack: (ids) => comments.unsending(ids),
+    );
     link.addListener(_linkChanged);
     _linkChanged();
   }
