@@ -17,6 +17,8 @@ const TS = 0;
 const COMMAND_NAME = /^\s*(?:<command-message>[^<]*<\/command-message>\s*)?<command-name>\s*(\/?[^<\s]+)\s*<\/command-name>/;
 const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
 const CAVEAT = /^\s*<local-command-caveat>/;
+// the harness's own notes recorded as user turns: a finished background task, a message from another session
+const HARNESS_NOTE = /^\s*(?:<task-notification>|Another Claude session sent a message:)/;
 const COMMAND_OUT = /^\s*<local-command-stdout>([\s\S]*?)<\/local-command-stdout>\s*$/;
 
 function agent(out: ServerEvent[], frame: Record<string, unknown>): void {
@@ -70,7 +72,7 @@ export function transcriptToEvents(msgs: SessionMessage[], attachments: Attachme
         text = bash.rest;
       }
       if (!own && !images.length) {
-        if (CAVEAT.test(text)) continue;
+        if (CAVEAT.test(text) || HARNESS_NOTE.test(text)) continue;
         const printed = COMMAND_OUT.exec(text);
         if (printed) {
           if (printed[1].trim()) out.push({ kind: 'agent', e: { t: 'message', id: `${sm.uuid}:out`, text: printed[1].trim() }, ts: TS });

@@ -165,6 +165,24 @@ describe('transcriptToEvents: slash commands', () => {
   it('the CLI\'s local-command caveat is never a bubble', () => {
     expect(transcriptToEvents([user('v1', '<local-command-caveat>The command below was run directly in Claude Code.</local-command-caveat>')], store())).toEqual([]);
   });
+
+  it('the harness\'s task notifications and peer messages are never bubbles', () => {
+    const note = '<task-notification>\n<task-id>t1</task-id>\n<status>completed</status>\n</task-notification>';
+    const withOrigin = (uuid: string, text: string, origin: unknown) => ({ ...user(uuid, text), origin }) as unknown as SessionMessage;
+    const blocks = { ...user('n3', ''), message: { role: 'user', content: [{ type: 'text', text: `  ${note}` }] } } as unknown as SessionMessage;
+    expect(transcriptToEvents([
+      withOrigin('n1', note, { kind: 'task-notification' }),
+      user('n2', note),
+      blocks,
+      withOrigin('n4', 'Another Claude session sent a message: hello', { kind: 'peer' }),
+      user('n5', 'Another Claude session sent a message: hello'),
+    ], store())).toEqual([]);
+  });
+
+  it('a message that merely mentions the notification tag is the user\'s text', () => {
+    const text = 'what is a <task-notification> record?';
+    expect(transcriptToEvents([user('n6', text)], store())).toEqual([{ kind: 'user', id: 'n6', text, historic: true, ts: 0 }]);
+  });
 });
 
 describe('transcriptToEvents: the `! cmd` runs in front of a message', () => {
