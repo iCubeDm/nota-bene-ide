@@ -67,6 +67,7 @@ export function Composer() {
     if (!busy) setAskForce(false);
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const fieldBox = useRef<HTMLDivElement>(null);
   // ↑/↓ through the prompts sent before (newest first): `id` is the recalled one (null = not browsing), `stash` the draft it replaced
   // (a list choice or a search makes one); `query` is the text a search walk started from (null = the whole list is walked)
   const recall = useMemo(() => recallList(items), [items]);
@@ -378,7 +379,8 @@ export function Composer() {
           onPaste={intake.onPaste}
           placeholder={showSug ? suggestion : onAgentTab ? t('composerPhAgent') : t('composerPh')}
           dataShell={shellMode}
-          fieldClass={showSug ? 'pr-16 placeholder:text-foreground placeholder:opacity-45' : 'placeholder:truncate'}
+          endPad={showSug ? 'pr-28' : undefined}
+          fieldClass={showSug ? 'placeholder:text-foreground placeholder:opacity-45' : 'placeholder:truncate'}
           bar={recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} busy={busy} onCancel={rec.cancel} onEscape={escQuestion} onStop={() => void rec.stop()} onSend={voiceSubmit} /> : undefined}
           overlay={<>
             {shellMode && (
@@ -387,12 +389,13 @@ export function Composer() {
               </span>
             )}
             {showSug && (
-              <span aria-hidden className="pointer-events-none absolute right-2.5 bottom-2.5 rounded bg-muted px-1.5 py-px font-mono text-[0.65625rem] text-muted-foreground">
+              <span aria-hidden className="pointer-events-none absolute right-11 bottom-2.5 rounded bg-muted px-1.5 py-px font-mono text-[0.65625rem] text-muted-foreground">
                 Tab ⇥
               </span>
             )}
           </>}
-          leading={<PromptHistory onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}
+          boxRef={fieldBox}
+          leading={<PromptHistory anchor={fieldBox} onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}
           // the mic only while the field has no text; Send is always there (off with nothing to send), its badge counts the comments it carries
           hasContent={hasText}
           mic={voiceOk ? (

@@ -31,8 +31,8 @@ export function SendIcon({ count, run }: { count: number; run?: boolean }) {
 }
 
 /** The mic button of the message field: `tip` is its tooltip (the caller adds the shortcut with `withKey`), `anchor` the box a Whisper prompt points at. */
-export function MicButton({ testId, label, tip, disabled, onPointerDown, onClick, anchor, compact }: {
-  testId: string; label: string; tip: string; disabled?: boolean; compact?: boolean;
+export function MicButton({ testId, label, tip, disabled, onPointerDown, onClick, anchor }: {
+  testId: string; label: string; tip: string; disabled?: boolean;
   onPointerDown?: PointerEventHandler<HTMLButtonElement>; onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   anchor?: RefObject<HTMLSpanElement | null>;
 }) {
@@ -48,7 +48,7 @@ export function MicButton({ testId, label, tip, disabled, onPointerDown, onClick
             aria-label={label}
             onPointerDown={onPointerDown}
             onClick={onClick}
-            className={`${compact ? 'h-8' : 'h-10'} bg-muted px-2.5 text-muted-foreground hover:text-foreground`}
+            className="h-8 bg-transparent px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <MicIcon />
           </Button>
@@ -66,7 +66,7 @@ export function MicButton({ testId, label, tip, disabled, onPointerDown, onClick
  * With no mic (`mic` undefined: no voice on this server) it is always Send. `bar` (a recording) replaces the
  * field and the action. A fragment: the caller's flex row lays the parts out.
  */
-export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPaste, readOnly, placeholder, ariaLabel, dataShell, fieldClass, compact, overlay, leading, hasContent, swap, mic, send, trailing, bar, children }: {
+export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPaste, readOnly, placeholder, ariaLabel, dataShell, fieldClass, compact, overlay, leading, boxRef, endPad, hasContent, swap, mic, send, trailing, bar, children }: {
   textareaRef: Ref<HTMLTextAreaElement>;
   id?: string;
   value: string;
@@ -83,8 +83,12 @@ export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPa
   compact?: boolean;
   /** cues drawn inside the field (the shell mark, the Tab hint) */
   overlay?: ReactNode;
-  /** left of the field (the prompt history) */
+  /** an icon button at the field's left inside edge (the prompt history) */
   leading?: ReactNode;
+  /** the bordered field box: what pinned attachments and the history list line up with */
+  boxRef?: Ref<HTMLDivElement>;
+  /** replaces the textarea's right padding (room for a cue); the default makes room for the mic */
+  endPad?: string;
   hasContent: boolean;
   swap?: boolean;
   mic?: ReactNode;
@@ -99,8 +103,16 @@ export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPa
     <>
       {bar ?? (
         <>
-          {leading}
-          <div className="relative flex min-w-0 flex-1">
+          <div
+            ref={boxRef}
+            data-testid="field-box"
+            data-shell={dataShell || undefined}
+            // the box carries the border, background and focus ring; the textarea inside is bare
+            className={`${compact
+              ? 'min-h-16 rounded-md border border-border-soft bg-background focus-within:border-input-focus focus-within:ring-2 focus-within:ring-input-ring'
+              : 'min-h-10 rounded-[10px] border border-border-soft bg-background/70 transition-[border-color,box-shadow] focus-within:border-focus-border focus-within:shadow-[var(--composer-halo)] data-[shell]:border-nb-accent/60 data-[shell]:focus-within:border-nb-accent data-[shell]:focus-within:shadow-[0_0_0_3px_color-mix(in_oklch,var(--nb-accent)_15%,transparent)]'} relative flex min-w-0 flex-1`}
+          >
+            {leading && <span onMouseDown={(e) => e.preventDefault()} className={`absolute bottom-0.5 ${compact ? 'left-0.5' : 'left-1'} z-10 inline-flex`}>{leading}</span>}
             <textarea
               ref={textareaRef}
               id={id}
@@ -113,14 +125,16 @@ export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPa
               onKeyDown={onKeyDown}
               onPaste={onPaste}
               data-shell={dataShell || undefined}
+              // the padding is fixed by the icons that may appear, so the text does not reflow when the mic hides
               className={`${compact
-                ? 'max-h-[40vh] min-h-16 overflow-y-hidden rounded-md border border-border-soft bg-background px-2 py-1.5 text-[0.8125rem] leading-[1.45] text-foreground focus:border-input-focus focus:ring-2 focus:ring-input-ring focus:outline-none'
-                : 'max-h-[40vh] min-h-10 rounded-[10px] border border-border-soft bg-background/70 px-3 py-[9px] text-foreground transition-[border-color,box-shadow] outline-none focus:border-focus-border focus:shadow-[var(--composer-halo)] data-[shell]:border-nb-accent/60 data-[shell]:pr-32 data-[shell]:font-mono data-[shell]:focus:border-nb-accent data-[shell]:focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--nb-accent)_15%,transparent)]'} w-full resize-none ${fieldClass ?? ''}`}
+                ? `max-h-[40vh] overflow-y-hidden bg-transparent py-1.5 pl-2 ${endPad ?? (mic ? 'pr-10' : 'pr-2')} text-[0.8125rem] leading-[1.45] text-foreground`
+                : `max-h-[40vh] bg-transparent py-[9px] ${leading ? 'pl-11' : 'pl-3'} ${endPad ?? (mic ? 'pr-11' : 'pr-3')} text-foreground data-[shell]:pr-32 data-[shell]:font-mono`} min-h-[inherit] w-full min-w-0 resize-none rounded-[inherit] border-0 outline-none focus:outline-none ${fieldClass ?? ''}`}
             />
             {overlay}
+            {mic && !hasContent && <span onMouseDown={(e) => e.preventDefault()} className={`absolute bottom-0.5 ${compact ? 'right-0.5' : 'right-1'} z-10 inline-flex`}>{mic}</span>}
           </div>
           {children}
-          {swap ? (hasContent || !mic ? send : mic) : <>{!hasContent && mic}{send}</>}
+          {swap ? (hasContent || !mic ? send : null) : send}
         </>
       )}
       {trailing}

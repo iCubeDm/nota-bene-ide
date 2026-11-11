@@ -297,7 +297,6 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           swap
           mic={protocol >= 14 ? (
             <MicButton
-              compact
               testId="popup-mic"
               anchor={micAnchor}
               label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}

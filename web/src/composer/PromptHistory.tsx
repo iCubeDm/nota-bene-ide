@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { type ReactElement, type RefObject, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Button } from '@/components/ui/button.tsx';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
@@ -16,7 +16,7 @@ const SHOWN_MAX = 200;
  * The prompt history as a searchable list (Alt+H) above the composer, running right from its button left of the field: newest first, a filter box on top
  * (substring hits, then fuzzy ones), ↑↓ Enter Esc. Choosing a prompt puts its text in the draft; it is never sent from here.
  */
-export function PromptHistory({ onPick, onClosed }: { onPick: (text: string) => void; onClosed: () => void }) {
+export function PromptHistory({ onPick, onClosed, anchor }: { onPick: (text: string) => void; onClosed: () => void; anchor?: RefObject<HTMLElement | null> }) {
   const t = useT();
   const open = useSyncExternalStore(promptHistoryModal.subscribe, promptHistoryModal.get);
   const items = useAppSelector(selectPromptItems);
@@ -44,7 +44,8 @@ export function PromptHistory({ onPick, onClosed }: { onPick: (text: string) => 
 
   return (
     <Popover open={open} onOpenChange={(o) => (o ? promptHistoryModal.open() : promptHistoryModal.close())}>
-      <PopoverAnchor asChild>
+      {anchor && <PopoverAnchor virtualRef={anchor as RefObject<HTMLElement>} />}
+      <PopoverAnchorOr own={!anchor}>
         <span className="inline-flex">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -57,7 +58,7 @@ export function PromptHistory({ onPick, onClosed }: { onPick: (text: string) => 
                   aria-label={t('promptHistory')}
                   aria-expanded={open}
                   onClick={() => (open ? promptHistoryModal.close() : promptHistoryModal.open())}
-                  className="h-10 bg-muted px-2.5 text-muted-foreground hover:text-foreground"
+                  className="h-8 bg-transparent px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
@@ -69,7 +70,7 @@ export function PromptHistory({ onPick, onClosed }: { onPick: (text: string) => 
             <TooltipContent className="whitespace-pre-line">{withKey(t('promptHistory'), 'hk_promptHistory')}</TooltipContent>
           </Tooltip>
         </span>
-      </PopoverAnchor>
+      </PopoverAnchorOr>
       <PopoverContent
         side="top"
         align="start"
@@ -129,4 +130,9 @@ export function PromptHistory({ onPick, onClosed }: { onPick: (text: string) => 
       </PopoverContent>
     </Popover>
   );
+}
+
+/** The button is the popover's anchor unless the field box (`own` false) is. */
+function PopoverAnchorOr({ own, children }: { own: boolean; children: ReactElement }) {
+  return own ? <PopoverAnchor asChild>{children}</PopoverAnchor> : children;
 }
