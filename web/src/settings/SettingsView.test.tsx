@@ -326,3 +326,13 @@ it('Dictation: a server older than protocol 18 has no Spoken language select', a
   await screen.findByRole('checkbox', { name: "Use Whisper for voice messages and the phone's microphone" });
   expect(screen.queryByRole('combobox', { name: 'Spoken language' })).toBeNull();
 });
+
+it('Dictation: a language another window chose is picked up by the sends, and one outside the six still has an option', async () => {
+  dict = { ...dict, phase: 'ready', dictationLang: 'uk' };
+  const store = setup();
+  store.dispatch(serverEvent({ kind: 'hello', protocol: 18, capabilities: CLAUDE_CAPABILITIES }));
+  const sel = await screen.findByRole('combobox', { name: 'Spoken language' });
+  await waitFor(() => expect(store.getState().controls.dictationLang).toBe('uk'));
+  expect(sel).toHaveValue('uk');
+  expect(within(sel).getByRole('option', { name: 'Ukrainian' })).toBeInTheDocument();
+});

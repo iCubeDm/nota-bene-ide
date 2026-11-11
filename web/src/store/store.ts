@@ -1,7 +1,7 @@
 import { configureStore, createAction, createListenerMiddleware, createSlice, type Middleware, type ThunkAction, type UnknownAction } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, useStore, type TypedUseSelectorHook } from 'react-redux';
 import type { ClientMessage, ImageRef, ServerEvent, Voice } from '@nota-bene/shared';
-import { whisperLang } from '../voice/lang.ts';
+import { dictationAsk } from '../voice/lang.ts';
 import { refusedForAuth, socketProtocols } from '../net/auth.ts';
 import { connect as realConnect, type Connection, type SocketState } from '../net/socket.ts';
 import { t } from '../i18n/index.ts';
@@ -220,7 +220,7 @@ export const sendMessage =
       type: 'send', id, text, force: force && selectBusy(st),
       ...(commentIds?.length ? { commentIds } : {}),
       ...(images?.length ? { images } : {}),
-      ...(voice ? { voice: { id: voice.id, ms: voice.ms, wave: voice.wave }, lang: whisperLang() } : {}),
+      ...(voice ? { voice: { id: voice.id, ms: voice.ms, wave: voice.wave }, ...dictationAsk(st) } : {}),
     });
   };
 

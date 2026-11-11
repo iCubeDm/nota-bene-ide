@@ -1,6 +1,7 @@
+import { dictationLangSet } from '@/controls/slice.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
-import { DETECT_PROTOCOL } from '@/voice/lang.ts';
+import { DETECT_PROTOCOL, langName } from '@/voice/lang.ts';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
@@ -157,6 +158,8 @@ export function SettingsView({ active }: { active: boolean }) {
   };
   const protocol = useAppSelector((s) => s.controls.protocol);
   const dictLang = dict.data?.dictationLang ?? 'auto';
+  // the sends read the store, which hello and our own POST set: a choice another window made reaches it here
+  useEffect(() => { if (dict.data?.dictationLang) dispatch(dictationLangSet(dict.data.dictationLang)); }, [dict.data?.dictationLang, dispatch]);
   const fail = (e: string | null) => e && <div role="alert" className="text-xs text-warn">{t('setLoadFail', e)}</div>;
 
   return (
@@ -249,6 +252,7 @@ export function SettingsView({ active }: { active: boolean }) {
               className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[0.8125rem] text-foreground">
               <option value="auto">{t('dictLangAuto')}</option>
               {LANGS.map((l) => <option key={l.id} value={l.id.split('-')[0]}>{l.name}</option>)}
+              {dictLang !== 'auto' && !LANGS.some((l) => l.id.split('-')[0] === dictLang) && <option value={dictLang}>{langName(dictLang)}</option>}
             </select>
             {dictLang === 'auto' && <div className="mt-1 text-xs text-muted-foreground">{t('dictLangAutoHint')}</div>}
           </Row>

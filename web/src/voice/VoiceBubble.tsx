@@ -5,7 +5,7 @@ import { useT } from '@/i18n/index.ts';
 import { toast } from '@/shell/toast.ts';
 import { selectSwitching } from '@/controls/slice.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { langName, whisperLang } from './lang.ts';
+import { dictationAsk, langName } from './lang.ts';
 import { sendVoice } from './send.ts';
 import { VoiceView } from './VoiceView.tsx';
 
@@ -42,14 +42,19 @@ export function VoiceBubble({ voice, text, error, lang }: { voice: Voice; text?:
   const d = useAppDispatch();
   const [open, setOpen] = useState(true);
   const switching = useAppSelector(selectSwitching);
+  // the hint in effect, only under Auto: a pinned language is not a detection, so there is nothing to point out
+  const hint = useAppSelector((s) => (dictationAsk(s).detect ? dictationAsk(s).lang : null));
   // not sent: mid-switch the server refuses sends, which is not "offline"
   const retry = () => { if (!d(sendVoice(voice))) toast(t(switching ? 'switching' : 'offline'), ''); };
   return (
     <div data-voice>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1"><VoiceView voice={voice} /></div>
-        {text && !error && lang && lang !== whisperLang() && (
-          <span title={t('voiceLangDetected', langName(lang))} className="flex-none rounded px-1 font-mono text-[0.6875rem] text-muted-foreground">{lang.toUpperCase()}</span>
+        {text && !error && lang && hint !== null && lang !== hint && (
+          <span title={t('voiceLangDetected', langName(lang))} className="flex-none rounded px-1 font-mono text-[0.6875rem] text-muted-foreground">
+            <span aria-hidden>{lang.toUpperCase()}</span>
+            <span className="sr-only">{t('voiceLangDetected', langName(lang))}</span>
+          </span>
         )}
         {text && !error && (
           <button
