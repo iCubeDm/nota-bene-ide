@@ -422,6 +422,23 @@ void main() {
     r.dispose();
   });
 
+  testWidgets('entering markup while zoomed resets to fit', (t) async {
+    final r = await openImage(t);
+    final fit = t.getRect(find.byType(RawImage));
+    final at = t.getCenter(find.byType(PageView)) + const Offset(40, 10);
+    await t.tapAt(at);
+    await t.pump(const Duration(milliseconds: 60));
+    await t.tapAt(at);
+    await settleReal(t, 2);
+    expect(t.getRect(find.byType(RawImage)).width, greaterThan(fit.width * 2));
+    await t.tap(find.byTooltip('Mark up'));
+    await t.pumpAndSettle();
+    expect(t.getSize(find.byType(RawImage)), fit.size);
+    final box = t.getRect(find.byKey(const ValueKey('markup-surface')));
+    expect(box.width, lessThanOrEqualTo(t.view.physicalSize.width));
+    r.dispose();
+  });
+
   testWidgets('zoomed, one finger pans and the page stays; at 1 it swipes', (
     t,
   ) async {
