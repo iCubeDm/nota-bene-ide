@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>An agentic development environment (ADE) in your browser: review and steer your coding agent.</strong><br>
-  Select any fragment of a reply or a file, leave a note in the margin, send all the notes as one batch.<br>
+  Select any fragment of the chat with an agent or of any file, leave a comment in the margin, send all the comments as one batch.<br>
   Works with <strong>Claude Code</strong>, <strong>Codex</strong> and <strong>omp</strong>.
 </p>
 
@@ -24,11 +24,11 @@ Nota Bene brings your agent into a window made for review: margin comments on re
 
 ## Supported agents
 
-| Agent | Models | Runs through | Needs | Open a window from the agent | Status |
-|---|---|---|---|---|---|
-| **Claude Code** (default) | Those of your Claude Code: Opus, Sonnet, Haiku | Claude Agent SDK | Claude Code, logged in | `/nb` ([plugin](#install)) | Stable |
-| **Codex** (CLI and local Desktop) | Those of your Codex account (ChatGPT or API key) | Codex `app-server` | Codex CLI 0.166.0+, `codex login` | `$nb` ([plugin](#install)) | Stable; [a few native gaps](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#codex-support) |
-| **omp** | Any provider set up in omp | Agent Client Protocol (`omp acp`) | omp 18.16.0+, logged in | `/skill:nb` ([skill](#install)) | Preview; [limits](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#omp-support) |
+| Agent | Models | Needs | Open a window from the agent | Status |
+|---|---|---|---|---|
+| **Claude Code** (default) | Those of your Claude Code: Opus, Sonnet, Haiku | Claude Code, logged in | `/nb` ([plugin](#install)) | Stable |
+| **Codex** (CLI and local Desktop) | Those of your Codex account (ChatGPT or API key) | Codex CLI 0.166.0+, `codex login` | `$nb` ([plugin](#install)) | Stable; [a few native gaps](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#codex-support) |
+| **omp** | Any provider set up in omp | omp 18.16.0+, logged in | `/skill:nb` ([skill](#install)) | Preview; [limits](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#omp-support) |
 
 No agent session is needed to start a window: in a plain terminal, `nota-bene` starts the agent itself, with the agent's own login. When more than one agent is installed it asks which (Enter takes the one last used in the folder); `--agent claude|codex|omp` skips the question. Each agent has its own windows and saved settings; two agents can work in the same project.
 
