@@ -1,6 +1,6 @@
 {
   "name": "nota-bene",
-  "description": "Nota Bene: a browser IDE over Claude Code.",
+  "description": "Nota Bene: a browser agentic development environment (ADE) over Claude Code.",
   "owner": {
     "name": "iCubeDm",
     "url": "https://github.com/iCubeDm"
@@ -9,7 +9,7 @@
     {
       "name": "nota-bene",
       "source": "./plugin",
-      "description": "Open Nota Bene, a browser IDE over Claude Code, from /nb."
+      "description": "Open Nota Bene, a browser agentic development environment (ADE) over Claude Code, from /nb."
     }
   ]
 }
