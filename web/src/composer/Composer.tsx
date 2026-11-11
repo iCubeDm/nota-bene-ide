@@ -1,3 +1,4 @@
+import { useAutosize } from './autosize.ts';
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button.tsx';
@@ -228,14 +229,8 @@ export function Composer() {
     };
   }, []);
 
-  // autosize; max-height (40vh) is applied by CSS
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    // empty: stay one line — a long placeholder would otherwise wrap and grow the field (prototype clips it)
-    if (text) el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
+  // autosize; max-height (40vh) is applied by CSS. Empty: stay one line — a long placeholder would otherwise wrap and grow the field
+  useAutosize(ref, text, !text);
 
   // a send that failed while offline is forgotten once the socket is back, so a later drop shows no stale label
   useEffect(() => {

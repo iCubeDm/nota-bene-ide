@@ -94,7 +94,7 @@ export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPa
               onPaste={onPaste}
               data-shell={dataShell || undefined}
               className={`${compact
-                ? 'max-h-[40vh] min-h-16 overflow-y-auto rounded-md border border-border-soft bg-background px-2 py-1.5 text-[0.8125rem] leading-[1.45] text-foreground focus:border-input-focus focus:ring-2 focus:ring-input-ring focus:outline-none'
+                ? 'max-h-[40vh] min-h-16 overflow-y-hidden rounded-md border border-border-soft bg-background px-2 py-1.5 text-[0.8125rem] leading-[1.45] text-foreground focus:border-input-focus focus:ring-2 focus:ring-input-ring focus:outline-none'
                 : 'max-h-[40vh] min-h-10 rounded-[10px] border border-border-soft bg-background/70 px-3 py-[9px] text-foreground transition-[border-color,box-shadow] outline-none focus:border-focus-border focus:shadow-[var(--composer-halo)] data-[shell]:border-nb-accent/60 data-[shell]:pr-32 data-[shell]:font-mono data-[shell]:focus:border-nb-accent data-[shell]:focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--nb-accent)_15%,transparent)]'} w-full resize-none ${fieldClass ?? ''}`}
             />
             {overlay}
