@@ -26,6 +26,7 @@ import type { ImageEntry } from '@/composer/slice.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
 import { deleteMarks, type MediaAnchorPatch } from '@/media/markup/createMediaComment.ts';
 import { addComment, setPanelOpen } from './slice.ts';
+import { useDrag } from './useDrag.ts';
 import { clearPageSelections } from '@/page/frame.ts';
 
 /**
@@ -221,15 +222,17 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   // the side (below or above the selection) is chosen once per selection: a growing comment never makes the popup
   // jump across it; below, it moves up only as far as the viewport needs; above, it grows upwards
   const side = useRef<{ for: PendingComment; below: boolean } | null>(null);
+  const drag = useDrag(root, setPos);
   useLayoutEffect(() => {
     if (!root.current) return;
     const { offsetWidth: w, offsetHeight: h } = root.current;
     const { rect } = pending;
     if (side.current?.for !== pending) side.current = { for: pending, below: rect.bottom + 6 + h <= window.innerHeight };
-    setPos({
+    // a dragged popup stays where it was put (the drag resets with a new selection)
+    setPos(drag.place({
       left: Math.max(8, Math.min(rect.left, window.innerWidth - w - 8)),
       top: Math.max(8, side.current.below ? Math.min(rect.bottom + 6, window.innerHeight - h - 8) : rect.top - h - 6),
-    });
+    }, pending));
   }, [pending, text]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -263,7 +266,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
       }}
       style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? 'visible' : 'hidden' }}
     >
-      <div className="mb-1.5 truncate border-l-2 border-nb-accent pl-1.5 text-[0.6875rem] text-muted-foreground">{quote}</div>
+      <div {...drag.handle} className={`mb-1.5 truncate border-l-2 border-nb-accent pl-1.5 text-[0.6875rem] text-muted-foreground ${drag.handle.className}`}>{quote}</div>
       <textarea
         ref={area}
         value={text}
