@@ -3,8 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Button } from '@/components/ui/button.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
-import { sendBatch } from '@/comments/send.ts';
-import { selectPending } from '@/comments/slice.ts';
+import { selectSendable, sendBatch } from '@/comments/send.ts';
 import { CompactClear } from '@/controls/CompactClear.tsx';
 import { ModePill } from '@/controls/ModePill.tsx';
 import { nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching } from '@/controls/slice.ts';
@@ -17,7 +16,7 @@ import type { PromptEntry } from '@nota-bene/shared';
 import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
 import { CtxNudge } from '@/stats/CtxNudge.tsx';
-import { Attachments } from '@/attachments/Attachments.tsx';
+import { ComposerAttachments } from '@/attachments/ComposerAttachments.tsx';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { addImage, removeImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -36,7 +35,7 @@ export function Composer() {
   const busy = useAppSelector(selectBusy);
   const conn = useAppSelector(selectConn);
   const onAgentTab = useAppSelector((s) => s.tabs.active.startsWith('agent:')); // the message goes to the main agent, not the subagent on screen
-  const nPending = useAppSelector(selectPending).length;
+  const nPending = useAppSelector(selectSendable).length;
   const mode = useAppSelector(selectMode);
   const caps = useAppSelector(selectCapabilities);
   const text = useAppSelector(selectDraft);
@@ -232,7 +231,7 @@ export function Composer() {
     setAskForce(false);
     browse.current = { id: null, stash: '', query: null };
     const r = dispatch(sendBatch(force));
-    if (r === 'empty' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
+    if (r === 'empty' || r === 'detached' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
     if (r === 'sent') ref.current?.focus();
   };
@@ -349,12 +348,7 @@ export function Composer() {
           </Button>
         </div>
       )}
-      <Attachments
-        data-testid="composer-thumbs"
-        ids={images.map((i) => i.id)}
-        pending={intake.pending}
-        onRemove={(id) => void dispatch(removeImage(id))}
-      />
+      <ComposerAttachments pending={intake.pending} />
       <div data-record-scope data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
         {recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} busy={busy} onCancel={rec.cancel} onEscape={escQuestion} onStop={() => void rec.stop()} onSend={voiceSubmit} /> : (<>
         <div className="relative flex min-w-0 flex-1">

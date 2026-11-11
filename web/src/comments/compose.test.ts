@@ -113,3 +113,20 @@ it('a clip with no text (a failed transcript that was kept) adds nothing', () =>
   expect(composeBatch('', [x], 'en', none, where, () => undefined)).toContain('→ typed');
   expect(composeBatch('', [x], 'en', none, where, () => undefined)).not.toContain('typed\n');
 });
+
+it('an attachment comment: shape lines and the image refs, no files line, no stale line', () => {
+  const a: Comment = {
+    id: 'att1', text: 'this button', status: 'pending', createdAt: 1,
+    anchor: { kind: 'attachment', image: 'a'.repeat(64), width: 1200, height: 800, scale: 0.5, shapes: [{ kind: 'rect', color: '#ff3b30', x: 0.1, y: 0.1, w: 0.2, h: 0.2 }] },
+  };
+  const out = composeBatch('', [a], 'en', none, () => 'image 2 · 1200×800', () => undefined, [[4, 5]], () => true);
+  expect(out).toContain('1. [image 2 · 1200×800]\n> ');
+  expect(out).toContain('→ this button\n📎 images: 4 (frame with marks), 5');
+  expect(out).not.toContain('.nota-bene');
+  expect(out).not.toContain('earlier version');
+});
+
+it('an anchor of a kind this client does not know composes without a quote and does not throw', () => {
+  const x = { id: 'f', text: 'hm', status: 'pending', createdAt: 1, anchor: { kind: 'future', thing: 1 } } as unknown as Comment;
+  expect(composeBatch('', [x], 'en', none, () => 'somewhere', () => undefined)).toBe('Comments on fragments:\n\n1. [somewhere]\n\n→ hm');
+});

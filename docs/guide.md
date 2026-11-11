@@ -290,6 +290,8 @@ Off by default. See [troubleshooting](#experimental-3d).
 
 Paste an image from the clipboard, drop it on the window, or use the paperclip button. Images are scaled down to at most 1568 px on the long edge, and a PNG over 3.5 MB becomes a JPEG. They show as thumbnails in the draft and open in a lightbox. They are stored on the server by content hash and travel as ids, so a long history of screenshots does not slow a reload.
 
+**Comments on an attached image.** With a Nota Bene that is new enough (protocol 17), each thumbnail in the draft has a pen with the number of comments on it. It opens the image full-window in markup mode, with the same tools as a media tab; draw, press **Comment** (Enter) and type the note. The agent gets the image with your marks drawn on it and the note in the batch, which names the image ("image 2"). Such a comment goes only with the message that carries its image: if the image is no longer in the draft (a reload, another device, or it was removed), the comment shows "image not attached" and stays pending until **Attach again** puts the image back. Removing an image that has pending comments asks first and removes them with it.
+
 ### Viewing and marking up images and video
 
 Images open with a click to toggle natural size. Video and audio open with a player: play and pause (Space or K), seek, playback speed, volume, picture in picture, fullscreen. The seek step is set on the bar. A playing video goes to picture in picture when you leave its tab, and audio keeps playing; closing the tab stops it.

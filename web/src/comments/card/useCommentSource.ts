@@ -1,9 +1,10 @@
-import { anchorSource, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
+import { anchorSource, isAttachmentAnchor, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { scrollRangeIntoView } from '@/anchors/scroll.ts';
 import { rangeForAnchor } from '@/anchors/text.ts';
 import { jumpToFileComment, selectFileLoad, selectFileVersion } from '@/files/slice.ts';
+import { markAttachment, selectImages } from '@/composer/slice.ts';
 import { activate, openAgent } from '@/tabs/slice.ts';
 import { itemsOf, openSubagentTab, selectSubagent } from '@/subagent/slice.ts';
 import { revealToolOf, TOOL_SRC } from '@/feed/uiSlice.ts';
@@ -73,6 +74,11 @@ export interface CommentSource {
   beforeCompact: boolean;
   /** A media comment: the file's current version, known while its tab is open (undefined = unknown, no claim). */
   version: string | undefined;
+  /**
+   * An attachment comment (protocol 17): whether its image is still in the composer (attached) or not (detached: it stays
+   * pending, is never sent, and the image can be attached again). undefined for any other comment.
+   */
+  attached: boolean | undefined;
   /** Show the source: open its file tab, or scroll the chat to the fragment. */
   jump: () => void;
 }
@@ -89,7 +95,14 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
     const src = anchorSrc;
     return src?.kind === 'message' ? selectReplyLabel(s, src.id, false, src.agent) : src ? whereOfFile(src) : null;
   });
-  const where = beforeCompact ? t('srcBeforeCompact') : label;
+  // an attachment comment: named by its image's place among the composer's images
+  const ownNo = useAppSelector((s) => {
+    const a = c?.anchor;
+    return a && isAttachmentAnchor(a) ? selectImages(s).findIndex((im) => im.id === a.image) + 1 : undefined;
+  });
+  const attached = ownNo === undefined ? undefined : ownNo > 0;
+  const att = c && isAttachmentAnchor(c.anchor) ? c.anchor : undefined;
+  const where = att ? (ownNo ? t('srcAttachment', ownNo, att.width, att.height) : null) : beforeCompact ? t('srcBeforeCompact') : label;
   // a file source: its open view's load state; undefined (tab closed / not loaded yet) means "unknown", not orphaned
   const fileLoad = useAppSelector((s) => (anchorSrc?.kind === 'file' ? selectFileLoad(s, anchorSrc.path, anchorSrc.ref) : undefined));
   // a media comment: the file's current version, known while its tab is open (undefined = unknown, no claim)
@@ -125,6 +138,7 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
   }, [c, srcState, beforeCompact]);
 
   const jump = () => {
+    if (c && isAttachmentAnchor(c.anchor)) return void (attached && dispatch(markAttachment(c.anchor.image))); // the markup of its image, while the image is in the composer
     const src = anchorSrc;
     if (!c || !src) return;
     // a file: open (or activate) its tab; the view scrolls once its text is loaded (files.jump)
@@ -151,5 +165,5 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
     showAt(root, c);
   };
 
-  return { where, orphan, beforeCompact, version, jump };
+  return { where, orphan, beforeCompact, version, attached, jump };
 }

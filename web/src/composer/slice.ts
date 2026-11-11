@@ -16,12 +16,17 @@ export type SentDraft = { id: string; text: string; images: ImageEntry[]; commen
 
 export const composerSlice = createSlice({
   name: 'composer',
-  initialState: { draft: '', images: [] as ImageEntry[], uploading: 0, building: false, unconfirmed: null as SentDraft | null, shellUnconfirmed: null as ShellDraft | null },
+  initialState: { draft: '', images: [] as ImageEntry[], uploading: 0, building: false, marking: null as string | null, unconfirmed: null as SentDraft | null, shellUnconfirmed: null as ShellDraft | null },
   reducers: {
     setDraft: (s, a: PayloadAction<string>) => void (s.draft = a.payload),
     addImage: (s, a: PayloadAction<ImageEntry>) => void (s.images.some((i) => i.id === a.payload.id) || s.images.push(a.payload)),
-    removeImage: (s, a: PayloadAction<string>) => void (s.images = s.images.filter((i) => i.id !== a.payload)),
+    removeImage: (s, a: PayloadAction<string>) => {
+      s.images = s.images.filter((i) => i.id !== a.payload);
+      if (s.marking === a.payload) s.marking = null;
+    },
     clearImages: (s) => void (s.images = []),
+    /** the composer image whose markup overlay is open (comments on an attachment, protocol 17); null = none */
+    markAttachment: (s, a: PayloadAction<string | null>) => void (s.marking = a.payload),
     uploadStarted: (s) => void (s.uploading += 1),
     uploadFinished: (s) => void (s.uploading = Math.max(0, s.uploading - 1)),
     setBuilding: (s, a: PayloadAction<boolean>) => void (s.building = a.payload),
@@ -39,9 +44,11 @@ export const composerSlice = createSlice({
     }),
 });
 
-export const { setDraft, addImage, removeImage, clearImages, uploadStarted, uploadFinished, setBuilding, draftSent, shellDraftSent } = composerSlice.actions;
+export const { setDraft, addImage, removeImage, clearImages, markAttachment, uploadStarted, uploadFinished, setBuilding, draftSent, shellDraftSent } = composerSlice.actions;
 export const selectDraft = (s: RootState): string => s.composer.draft;
 export const selectImages = (s: RootState): ImageEntry[] => s.composer.images;
 export const selectUploading = (s: RootState): number => s.composer.uploading;
 /** A send is building its combined images: the send buttons are off (a snapshot of the draft and comments is already taken). */
 export const selectBuilding = (s: RootState): boolean => s.composer.building;
+/** The composer image whose markup overlay is open. */
+export const selectMarking = (s: RootState): string | null => s.composer.marking;

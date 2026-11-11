@@ -9,6 +9,7 @@ import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
 import { switchSession } from '@/controls/slice.ts';
 import { setFileVersion } from '@/files/slice.ts';
+import { addImage, selectImages, selectMarking } from '@/composer/slice.ts';
 import { CommentCard, CommentCardPopover } from './CommentCard.tsx';
 
 beforeEach(() => setLang('ru'));
@@ -358,4 +359,49 @@ describe('a comment whose source went into the archive (R-M7-4)', () => {
     expect(screen.queryByText(/до сжатия/)).toBeNull();
     expect(screen.getByText(/фрагмент изменился/)).toBeInTheDocument();
   });
+});
+
+describe('a comment on a composer image', () => {
+  const A = 'a'.repeat(64), B = 'b'.repeat(64);
+  const att = (o: Partial<Comment> = {}): Comment => comment({
+    id: 'att', text: 'this part', images: [B], genImages: 1,
+    anchor: { kind: 'attachment', image: A, width: 1200, height: 800, shapes: [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 0.5, h: 0.5 }] },
+    ...o,
+  });
+
+  it('shows the marked image as its thumbnail and names the image in the composer; a click opens the markup', () => {
+    setLang('en');
+    const { store } = setup(att(), false, false);
+    act(() => void store.dispatch(addImage({ id: 'f'.repeat(64), mediaType: 'image/png' })));
+    act(() => void store.dispatch(addImage({ id: A, mediaType: 'image/png' })));
+    expect(document.querySelector(`[data-media-thumb] img[src="/attach/${B}"]`)).not.toBeNull();
+    expect(screen.getByText(/image 2 · 1200×800/)).toBeInTheDocument();
+    expect(screen.queryByText('image not attached')).toBeNull();
+    fireEvent.click(document.querySelector('[data-media-thumb]')!);
+    expect(selectMarking(store.getState())).toBe(A);
+  });
+
+  it('with its image gone from the composer it is detached: a badge, no jump, Attach again puts the image back', () => {
+    setLang('en');
+    const { store } = setup(att(), false, false);
+    expect(screen.getByText('image not attached')).toBeInTheDocument();
+    fireEvent.click(document.querySelector('[data-media-thumb]')!);
+    expect(selectMarking(store.getState())).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Attach again' }));
+    expect(selectImages(store.getState()).map((i) => i.id)).toEqual([A]);
+    expect(screen.queryByText('image not attached')).toBeNull();
+    expect(screen.getByText(/image 1 · 1200×800/)).toBeInTheDocument();
+  });
+
+  it('a sent one has no detached badge', () => {
+    setLang('en');
+    setup(att({ status: 'sent', sentIn: 'a1' }), false, false);
+    expect(screen.queryByText('image not attached')).toBeNull();
+  });
+});
+
+it('a comment of a kind this client does not know renders its text and does not throw', () => {
+  setLang('en');
+  setup({ id: 'u', text: 'future text', status: 'pending', createdAt: 1, anchor: { kind: 'future' } } as unknown as Comment, false, false);
+  expect(screen.getByText('future text')).toBeInTheDocument();
 });

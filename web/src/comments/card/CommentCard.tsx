@@ -1,7 +1,9 @@
-import { generatedImages, isAttachmentAnchor, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
+import { generatedImages, isAttachmentAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
 import { pageQuote } from '@/page/quote.ts';
 import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } from 'react';
 import { Attachments } from '@/attachments/Attachments.tsx';
+import { mediaTypeOf } from '@/attachments/image.ts';
+import { addImage } from '@/composer/slice.ts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { selectSwitching } from '@/controls/slice.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
@@ -26,7 +28,7 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
   // the comment set belongs to the session being left: edit and delete wait for the new one
   const switching = useAppSelector(selectSwitching);
   const c = useAppSelector(selectComments).find((x) => x.id === id);
-  const { where, orphan, beforeCompact, version, jump } = useCommentSource(c);
+  const { where, orphan, beforeCompact, version, attached, jump } = useCommentSource(c);
   const [editing, setEditing] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const live = useRef(false); // true while an edit is open; guards double finish (✓ then blur)
@@ -43,6 +45,7 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
   if (!c) return null;
   const sent = c.status === 'sent';
   const media = isMediaAnchor(c.anchor) ? c.anchor : null;
+  const onImage = isAttachmentAnchor(c.anchor) ? c.anchor : null;
   const changed = !!media?.version && version !== undefined && version !== media.version;
   // a media comment's leading images are generated (the frame with the shapes = the thumbnail, in old comments also the layer);
   // only the pasted ones after them go to the strip
@@ -79,7 +82,7 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
     >
       <div {...handle} className={`mb-1 flex items-center justify-between font-mono text-[0.625rem] text-muted-foreground ${handle?.className ?? ''}`}>
         <span>
-          {index + 1}{where ? ` · ${where}` : ''}{sent ? ` · ${t('sentTag')}` : ''}
+          {[index >= 0 ? String(index + 1) : '', where].filter(Boolean).join(' · ')}{sent ? ` · ${t('sentTag')}` : ''}
         </span>
         {!sent && <CardActions editing={editing} switching={switching} start={start} finish={finish} remove={() => dispatch(removeComment(c.id))} />}
       </div>
@@ -94,12 +97,32 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
             {media.source.path.slice(media.source.path.lastIndexOf('/') + 1)}{media.time !== undefined ? ` @ ${mediaTime(media.time)}` : ''}
           </span>
         </div>
+      ) : onImage ? (
+        <div
+          data-media-thumb
+          onClick={popover || !attached ? undefined : jump}
+          className={`flex items-end gap-2 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover || !attached ? '' : 'cursor-pointer'}`}
+        >
+          {c.images?.[0] && <img src={`/attach/${c.images[0]}`} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
+          {!sent && !attached && (
+            <span className="flex min-w-0 flex-col items-start gap-1">
+              <span data-detached className="rounded bg-warn/15 px-1 text-[0.6875rem] text-warn">{t('attachDetached')}</span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); dispatch(addImage({ id: onImage.image, mediaType: mediaTypeOf(onImage.image) })); }}
+                className="rounded px-1 text-[0.6875rem] text-nb-accent hover:bg-muted"
+              >
+                {t('attachReattach')}
+              </button>
+            </span>
+          )}
+        </div>
       ) : (
         <div
           onClick={popover || beforeCompact ? undefined : jump}
           className={`line-clamp-3 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover || beforeCompact ? '' : 'cursor-pointer'}`}
         >
-          {isMediaAnchor(c.anchor) || isAttachmentAnchor(c.anchor) ? null : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : c.anchor.quote}
+          {isMediaAnchor(c.anchor) || isAttachmentAnchor(c.anchor) ? null : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : isTextAnchor(c.anchor) ? c.anchor.quote : null}
         </div>
       )}
       {orphan && <div className="mt-1 text-[0.6875rem] text-destructive">({t('orphaned')})</div>}

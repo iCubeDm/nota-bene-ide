@@ -1,12 +1,13 @@
 import { anchorSource, generatedImages, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
-import { getLang, t, tIn } from '../i18n/index.ts';
+import { getLang, t, tIn, type Lang } from '../i18n/index.ts';
 import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
 import { isClearCommand } from '../composer/slashRank.ts';
 import { runShellDraft, selectShellMode } from '../composer/shellMode.ts';
 import { composeBatch } from './compose.ts';
 import { instructionOf, labelOf } from './labels.ts';
 import { draftSent, removeImage, selectBuilding, selectDraft, selectImages, selectUploading, setBuilding, setDraft, type ImageEntry } from '../composer/slice.ts';
+import { createSelector } from '@reduxjs/toolkit';
 import { markSending, selectComments, selectPending, unmarkSending } from './slice.ts';
 import { selectFileVersion } from '../files/slice.ts';
 import { cameraLine } from '../model/pose.ts';
@@ -17,7 +18,7 @@ import { agentName } from '../subagent/slice.ts';
 import { buildComposites, frameGroups, type FrameGroup } from './frameGroups.ts';
 
 /** 'blocked': a /clear with pending comments, or a `! cmd` that cannot run now, held with a note (nothing sent, nothing released). 'building': a combined image is being made and uploaded; the send finishes by itself (the button is disabled meanwhile). 'changed': the comments or the session changed during that wait, nothing was sent. */
-export type SendResult = 'empty' | 'blocked' | 'sent' | 'offline' | 'switching' | 'building' | 'changed';
+export type SendResult = 'detached' | 'empty' | 'blocked' | 'sent' | 'offline' | 'switching' | 'building' | 'changed';
 
 /** A file source as the batch and the card name it: `path`, or `path @ ref` for another branch or worktree (M3-16). */
 export const whereOfFile = (src: Extract<AnchorSource, { kind: 'file' }>): string => (src.ref ? `${src.path} @ ${src.ref}` : src.path);
@@ -31,11 +32,16 @@ const ownImages = (c: Comment): string[] => {
 const pastedImages = (c: Comment): string[] => (c.images ?? []).slice(generatedImages(c));
 
 /** Where a comment's fragment lives, for the batch line: the reply label, "my message", or the file. */
-export function whereOf(c: Comment, st?: Parameters<typeof selectReplyLabel>[0]): string {
+export function whereOf(
+  c: Comment, st?: Parameters<typeof selectReplyLabel>[0],
+  /** an attachment comment: the message-wide number of its image among the composer's (undefined = not in this send) */
+  attNo?: (imageId: string) => number | undefined, lang: Lang = getLang(),
+): string {
   const src = anchorSource(c.anchor);
   const a = c.anchor;
   if (isMediaAnchor(a)) return `${whereOfFile(a.source)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${a.width}×${a.height}${a.camera ? ` · ${cameraLine(a.camera, getLang())}` : ''}`;
-  if (!src) return t('srcChat'); // an attachment comment (its own place comes with its UI)
+  if (isAttachmentAnchor(a)) return tIn(lang, 'srcAttachment', attNo?.(a.image) ?? 0, a.width, a.height);
+  if (!src) return t('srcChat');
   if (src.kind === 'file') return whereOfFile(src);
   // the batch text names a reply plainly: its number is the index in the CURRENT feed (restarts after a compaction, shifts when earlier history is shown); the quote is the locator
   // a subagent's reply or action is named with the subagent (no numbers); one the loaded conversation does not hold still is not "chat"
@@ -51,10 +57,15 @@ const stable = (v: unknown): unknown =>
   : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, stable((v as Record<string, unknown>)[k])]))
   : v;
 const printOf = (c: Comment): string => JSON.stringify(stable([c.text, c.label, c.anchor, c.images, c.genImages, c.voice]));
+/**
+ * The pending comments a send would take: an attachment comment goes only with its image, so one whose image is not in this
+ * composer stays pending ("detached") and is neither counted on Send nor sent.
+ */
+export const selectSendable = createSelector([selectPending, selectImages], (pending, own) =>
+  pending.filter(({ anchor: a }) => !isAttachmentAnchor(a) || own.some((im) => im.id === a.image)));
 const snapshotOf = (st: RootState): Snapshot => {
   const draft = selectDraft(st), own = selectImages(st);
-  // an attachment comment goes only with its image: one whose image is not in this composer stays pending ("detached")
-  const pending = selectPending(st).filter(({ anchor: a }) => !isAttachmentAnchor(a) || own.some((im) => im.id === a.image));
+  const pending = selectSendable(st);
   return { sid: st.feed.session?.id, draft, body: draft.trim(), own, pending, prints: pending.map(printOf) };
 };
 /** Still the same send? Same session, and every snapshot comment is still pending and unchanged. */
@@ -97,7 +108,7 @@ const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean
   });
   const text = composeBatch(
     body, pending, lang, (c) => labelOf(c, lang),
-    (c) => whereOf(c, st),
+    (c) => whereOf(c, st, (id) => { const k = own.findIndex((im) => im.id === id); return k < 0 ? undefined : k + 1; }),
     instructionOf, refs,
     // "changed": only when the current version is known (a tab has it loaded) and differs from the one drawn on
     (c) => {
@@ -141,9 +152,13 @@ export const sendBatch = (force: boolean): AppThunk<SendResult> => (d, getState)
   // `! cmd` is not a message: the server runs it (comments and images pending: refused, the draft kept)
   if (selectShellMode(st)) return d(runShellDraft());
   const snap = snapshotOf(st);
-  if ((!snap.body && !snap.pending.length && !snap.own.length) || selectUploading(st) || selectBuilding(st)) return 'empty';
+  if ((!snap.body && !snap.pending.length && !snap.own.length) || selectUploading(st) || selectBuilding(st)) {
+    // only detached comments pending: say why nothing goes, never silence
+    if (selectPending(st).length && !selectUploading(st) && !selectBuilding(st)) return (toast(t('sendOnlyDetached'), ''), 'detached');
+    return 'empty';
+  }
   // /clear drops the whole conversation, the comments with it: hold it until they are sent or removed
-  if (snap.pending.length && isClearCommand(snap.body, st.controls.commands)) return (toast(t('clearWithComments'), ''), 'blocked');
+  if (selectPending(st).length && isClearCommand(snap.body, st.controls.commands)) return (toast(t('clearWithComments'), ''), 'blocked');
   d(markSending(snap.pending.map((c) => c.id)));
   const groups = frameGroups(snap.pending);
   if (!groups.length || st.conn.state !== 'open') return d(sendNow(snap, new Map(), force));
