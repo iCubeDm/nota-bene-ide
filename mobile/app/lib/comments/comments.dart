@@ -28,7 +28,10 @@ class Comments extends ChangeNotifier {
 
   List<Comment> get all {
     final now = _now();
-    _mine.removeWhere((_, v) => now.difference(v.at) > _overlayFor);
+    // one the server has not had stays until it goes out, however long that takes
+    _mine.removeWhere(
+      (id, v) => !_unsent.containsKey(id) && now.difference(v.at) > _overlayFor,
+    );
     final have = {for (final c in _server) c.id};
     return [
       ..._server,
@@ -37,10 +40,26 @@ class Comments extends ChangeNotifier {
     ];
   }
 
+  /// Every pending comment, held ones too: what the pane lists. What there is to send is [sendable].
   List<Comment> get pending => [
     for (final c in all)
       if (c.status == CommentStatus.pending) c,
   ];
+
+  /// The one count of "comments to send" (strip, tab badge, pane header): [sendable]'s.
+  int get toSend => sendable.length;
+
+  /// Pushes the set again when something made here did not reach the server; false still when the tab is not open.
+  void flush() {
+    if (_unsent.isEmpty) return;
+    _push(all);
+  }
+
+  /// comments added or edited here that did not reach the server (the tab was not open), by id: kept in the list and
+  /// pushed again once the window answers, into the session they were made in. [add]: the server never had it; an edit
+  /// of one it had is dropped when the server's set no longer has the comment. Memory only: they survive a reconnect,
+  /// not the app being killed.
+  final _unsent = <String, ({String? session, bool add})>{};
 
   /// sent with a message the server has not answered yet
   final _sending = <String>{};
@@ -112,14 +131,55 @@ class Comments extends ChangeNotifier {
   void apply(List<Comment> items) {
     _server = List.unmodifiable(items);
     _sending.clear();
+    final now = _session();
+    final have = {for (final c in items) c.id};
+    for (final id in [..._unsent.keys]) {
+      final u = _unsent[id]!;
+      final other = u.session != null && now != null && u.session != now;
+      // another session's comment, or an edit of one deleted elsewhere, is not brought back; one the server has now
+      // (an add that got through) is no longer unsent
+      if (other ||
+          (!u.add && !have.contains(id)) ||
+          (u.add && have.contains(id))) {
+        _unsent.remove(id);
+        _mine.remove(id);
+      }
+    }
     for (final c in items) {
-      _mine.remove(c.id);
+      final mine = _mine[c.id];
+      if (_unsent.containsKey(c.id) && mine != null) {
+        // an edit made here that never went out is not replaced by the server's older copy
+        _server = [for (final s in _server) s.id == c.id ? mine.c : s];
+      } else {
+        _mine.remove(c.id);
+      }
     }
     notifyListeners();
+    flush();
   }
 
-  void _push(List<Comment> next) {
-    _send(ClientMessageComments(sessionId: _session(), items: next));
+  /// [add]: the ids newly made here; [edit]: the ids changed. When the push does not go, they are kept as unsent.
+  void _push(
+    List<Comment> next, {
+    Iterable<String> add = const [],
+    Iterable<String> edit = const [],
+  }) {
+    final ok = _send(ClientMessageComments(sessionId: _session(), items: next));
+    if (ok) {
+      _unsent.clear();
+    } else {
+      for (final id in add) {
+        _unsent[id] = (session: _session(), add: true);
+      }
+      for (final id in edit) {
+        final was = _unsent[id];
+        _unsent[id] = (
+          session: was?.session ?? _session(),
+          add: was?.add ?? false,
+        );
+        _mine[id] = (c: next.firstWhere((c) => c.id == id), at: _now());
+      }
+    }
     notifyListeners();
   }
 
@@ -147,7 +207,7 @@ class Comments extends ChangeNotifier {
     );
     final next = [...all, c];
     _mine[c.id] = (c: c, at: _now());
-    _push(next);
+    _push(next, add: [c.id]);
     return c;
   }
 
@@ -192,7 +252,7 @@ class Comments extends ChangeNotifier {
       for (final c in _server)
         c.id == id ? _with(c, text, label, voice, images) : c,
     ];
-    _push(next);
+    _push(next, edit: [id]);
   }
 
   /// [c] back where it was in [all] (index [at]), as the Undo of a deletion: with its text, images and state.
@@ -204,7 +264,7 @@ class Comments extends ChangeNotifier {
     next.insert(at.clamp(0, next.length), c);
     _mine[c.id] = (c: c, at: _now());
     _server = next;
-    _push(next);
+    _push(next, add: [c.id]);
   }
 
   void remove(String id) {

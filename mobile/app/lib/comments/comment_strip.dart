@@ -35,7 +35,7 @@ class CommentStrip extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: tab.comments,
     builder: (context, _) {
-      final n = tab.comments.sendable.length;
+      final n = tab.comments.toSend;
       if (n == 0) return const SizedBox.shrink();
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;

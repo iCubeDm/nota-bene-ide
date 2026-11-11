@@ -342,7 +342,7 @@ class PaneStrip extends StatelessWidget {
           at: page.hasClients && page.position.haveDimensions
               ? (page.page ?? 1.0)
               : 1.0,
-          badges: {2: pending.pending.length},
+          badges: {2: pending.toSend},
           subs: {
             if (mode != null)
               1: (
