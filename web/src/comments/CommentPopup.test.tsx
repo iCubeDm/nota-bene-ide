@@ -435,14 +435,15 @@ it('two clicks on Add in one tick start one prepare', async () => {
 
 it('the textarea grows with a long comment (the cap and the scrolling are CSS) and the popup keeps its side', () => {
   const h = vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get').mockReturnValue(180);
-  const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
+  let popOffset = 100; // the popup's height; the textarea has no border here (offsetHeight 0 = clientHeight 0)
+  const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) { return this instanceof HTMLTextAreaElement ? 0 : popOffset; });
   setup();
   const popup = box().parentElement!.closest<HTMLElement>('[style]')!; // the popup root (the textarea has its own height style)
   expect(popup.style.top).toBe('46px'); // below the selection (bottom 40 + 6)
   fireEvent.change(box(), { target: { value: 'a long comment\n'.repeat(12) } });
   expect(box().style.height).toBe('180px');
   expect(box().className).toMatch(/max-h-\[40vh\]/);
-  popH.mockReturnValue(window.innerHeight); // grown taller than the room below: it moves up, never flips above the selection
+  popOffset = window.innerHeight; // grown taller than the room below: it moves up, never flips above the selection
   fireEvent.change(box(), { target: { value: 'a long comment\n'.repeat(40) } });
   expect(popup.style.top).toBe('8px');
   h.mockRestore();
@@ -456,7 +457,8 @@ const dragBy = (el: Element, from: [number, number], to: [number, number], o: Po
 };
 
 it('the popup drags by its quote line, stays put while it grows, and is clamped to the viewport', () => {
-  const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
+  let popOffset = 100;
+  const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) { return this instanceof HTMLTextAreaElement ? 0 : popOffset; });
   const popW = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(340);
   const { onClose } = setup();
   const popup = screen.getByRole('dialog');
@@ -467,7 +469,7 @@ it('the popup drags by its quote line, stays put while it grows, and is clamped 
   expect([popup.style.left, popup.style.top]).toEqual(['210px', '146px']);
   fireEvent.change(box(), { target: { value: 'more text' } }); // re-layout: not snapped back to the selection
   expect([popup.style.left, popup.style.top]).toEqual(['210px', '146px']);
-  popH.mockReturnValue(window.innerHeight); // too tall for the spot: only clamped
+  popOffset = window.innerHeight; // too tall for the spot: only clamped
   fireEvent.change(box(), { target: { value: 'more text\n' } });
   expect(popup.style.top).toBe('8px');
   dragBy(handle, [0, 0], [5000, 0]); // far to the right: stays inside
