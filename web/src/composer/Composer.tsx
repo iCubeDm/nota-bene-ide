@@ -269,8 +269,11 @@ export function Composer() {
       b.id = to >= 0 ? list[to]!.id : null;
       if (to < 0) b.query = null;
       dispatch(setDraft(draft));
-      // the controlled value lands on the next render; the caret goes after it
-      requestAnimationFrame(() => ref.current?.setSelectionRange(draft.length, draft.length));
+      // the controlled value lands on the next render; the caret goes after it, unless typing changed the value meanwhile
+      requestAnimationFrame(() => {
+        const el = ref.current;
+        if (el?.value === draft) el.setSelectionRange(draft.length, draft.length);
+      });
     };
     if (e.key === 'ArrowUp') {
       if (!list.length) return false;

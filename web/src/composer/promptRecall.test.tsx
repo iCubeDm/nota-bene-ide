@@ -328,3 +328,18 @@ it('Alt+↑ with Ctrl, Meta or Shift added does not walk', async () => {
   await userEvent.keyboard('{Alt>}{Shift>}{ArrowUp}{/Shift}{/Alt}');
   expect(box.value).toBe('');
 });
+
+it('typing right after Alt+↓ restores an empty draft keeps the caret where the typing put it', async () => {
+  const { box } = setup([p('a', 'other')]);
+  box.focus();
+  await userEvent.keyboard('{Alt>}{ArrowUp}{/Alt}');
+  await raf();
+  const frames: FrameRequestCallback[] = [];
+  const spy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => (frames.push(cb), frames.length));
+  await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}');
+  spy.mockRestore();
+  await userEvent.type(box, 'build');
+  box.setSelectionRange(2, 2); // the user moved the caret after typing
+  act(() => frames.forEach((f) => f(0))); // the restore's late frame runs now
+  expect(box.selectionStart).toBe(2);
+});
