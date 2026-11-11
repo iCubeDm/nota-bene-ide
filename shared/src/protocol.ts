@@ -580,3 +580,5 @@ export type SubagentView = { events: ServerEvent[]; running: boolean; type: stri
 
 /** `GET /task-output` (protocol 8): the end of a shell / Monitor task's output (at most 8 KiB, may hold escape sequences), its size, and whether it still runs. */
 export type TaskOutputView = { output: string; totalBytes: number; truncated: boolean; running: boolean };
+export { fuzzyScore } from './fuzzy.ts';
+export { PROMPT_MAX, PROMPT_SRCS, type PromptEntry, type PromptSrc } from './prompts.ts';
