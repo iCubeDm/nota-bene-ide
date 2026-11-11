@@ -116,8 +116,24 @@ it('/ and Esc on empty space focus the composer; not inside a field, and not whe
 
 it('the ? help lists every hotkey with its keys', () => {
   expect(BINDINGS.map(keysLabel)).toEqual([
-    'Alt+W', 'Alt+Shift+T', 'Alt+←', 'Alt+→', 'Alt+1…9', 'Alt+E', 'Alt+H', 'Ctrl+Shift+F', 'Ctrl+Shift+C', 'Alt+T', 'Alt+R', 'Alt+Z', 'Alt+=', 'Alt+−', 'Alt+0', 'Alt+F1', '/, Esc',
+    'Alt+W', 'Alt+Shift+T', 'Alt+←', 'Alt+→', 'Alt+1…9', 'Alt+E', 'Alt+H', 'Alt+↑', 'Alt+↓', 'Ctrl+Shift+F', 'Ctrl+Shift+C', 'Alt+T', 'Alt+R', 'Alt+Z', 'Alt+=', 'Alt+−', 'Alt+0', 'Alt+F1', '/, Esc',
   ]);
+});
+
+it('Alt+↑/↓ are help-only here: the keymap never swallows them (native caret moves and scrolling stay)', () => {
+  setup();
+  const area = document.createElement('textarea');
+  document.body.appendChild(area);
+  area.focus();
+  for (const code of ['ArrowUp', 'ArrowDown']) {
+    const ev = new KeyboardEvent('keydown', { code, key: code, altKey: true, bubbles: true, cancelable: true });
+    area.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(false);
+    const inBox = new KeyboardEvent('keydown', { code, key: code, altKey: true, bubbles: true, cancelable: true });
+    document.getElementById('composer-input')!.dispatchEvent(inBox); // no history: the composer leaves it too
+    expect(inBox.defaultPrevented).toBe(false);
+  }
+  area.remove();
 });
 
 // ---- review regressions (Package B review)

@@ -169,6 +169,8 @@ export const de: Dict = {
   hk_tabN: 'Tab N (1 = Chat, 9 = letzter)',
   hk_recent: 'zuletzt geöffnete Dateien und Suche',
   hk_promptHistory: 'Prompt-Verlauf',
+  hk_promptOlder: 'älterer Prompt im Eingabefeld (jeder Entwurf)',
+  hk_promptNewer: 'neuerer Prompt im Eingabefeld (jeder Entwurf)',
   hk_files: 'Dateien-Panel',
   hk_comments: 'Kommentare-Panel',
   hk_reveal: 'aktuelle Datei im Baum anzeigen',

@@ -255,15 +255,16 @@ export function Composer() {
 
   // true when the key was a history step. A walk starts from an empty field (the whole list) or from a single-line draft (the
   // prompts containing it; ↓ past the newest brings the draft back); it goes on while the draft is still exactly the recalled
-  // prompt: any edit ends it
-  const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+  // prompt: any edit ends it. `always` (Alt+↑/↓) ignores the caret, a selection and a multi-line draft: a multi-line draft
+  // is stashed and the whole list walked
+  const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>, always: boolean): boolean => {
     const el = e.currentTarget;
     const b = browse.current;
     const { selectionStart: from, selectionEnd: to, value } = el;
     let list = walkList();
     const at = placeOf(value);
     if (at < 0) { b.id = null; b.query = null; list = recallRef.current; }
-    if (from !== to) return false;
+    if (from !== to && !always) return false;
     const show = (to: number, draft: string) => {
       b.id = to >= 0 ? list[to]!.id : null;
       if (to < 0) b.query = null;
@@ -279,6 +280,13 @@ export function Composer() {
           show(0, list[0]!.text);
           return true;
         }
+        if (always) {
+          // Alt: the whole list, newest first, whatever the draft (no search, a draft with no match too)
+          b.query = null;
+          b.stash = value;
+          show(0, list[0]!.text);
+          return true;
+        }
         if (value.includes('\n')) return false;
         // typed text: the prompts that contain it; none = the field's own
         b.query = value;
@@ -288,11 +296,11 @@ export function Composer() {
         show(0, list[0]!.text);
         return true;
       }
-      if (value.slice(0, from).includes('\n')) return false; // not on the first line: the field's own
+      if (!always && value.slice(0, from).includes('\n')) return false; // not on the first line: the field's own
       if (at + 1 < list.length) show(at + 1, list[at + 1]!.text);
       return true;
     }
-    if (at < 0 || value.indexOf('\n', from) !== -1) return false; // ↓ is the field's own unless on the last line of a recall
+    if (at < 0 || (!always && value.indexOf('\n', from) !== -1)) return false; // ↓ is the field's own unless on the last line of a recall
     if (at > 0) show(at - 1, list[at - 1]!.text);
     else show(-1, b.stash);
     return true;
@@ -329,7 +337,8 @@ export function Composer() {
       setAskForce(false);
       return;
     }
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.nativeEvent.isComposing && stepHistory(e)) {
+    // Alt+↑/↓ (Option on a Mac) always walk the history; an open / or @ list took the key at window capture before this
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.nativeEvent.isComposing && stepHistory(e, e.altKey)) {
       e.preventDefault();
       return;
     }

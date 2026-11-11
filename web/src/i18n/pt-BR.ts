@@ -169,6 +169,8 @@ export const ptBR: Dict = {
   hk_tabN: 'aba N (1 = chat, 9 = última)',
   hk_recent: 'arquivos recentes e busca',
   hk_promptHistory: 'histórico de prompts',
+  hk_promptOlder: 'prompt anterior no campo de mensagem (qualquer rascunho)',
+  hk_promptNewer: 'prompt seguinte no campo de mensagem (qualquer rascunho)',
   hk_files: 'painel de arquivos',
   hk_comments: 'painel de comentários',
   hk_reveal: 'revelar o arquivo atual na árvore',

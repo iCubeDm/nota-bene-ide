@@ -169,6 +169,8 @@ export const es: Dict = {
   hk_tabN: 'pestaña N (1 = chat, 9 = última)',
   hk_recent: 'archivos recientes y búsqueda',
   hk_promptHistory: 'historial de prompts',
+  hk_promptOlder: 'prompt anterior en el campo de mensaje (cualquier borrador)',
+  hk_promptNewer: 'prompt siguiente en el campo de mensaje (cualquier borrador)',
   hk_files: 'panel de archivos',
   hk_comments: 'panel de comentarios',
   hk_reveal: 'mostrar el archivo actual en el árbol',

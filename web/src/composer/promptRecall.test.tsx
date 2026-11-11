@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -24,7 +24,8 @@ function setup(items: PromptEntry[]) {
   return { store, box: screen.getByRole('textbox') as HTMLTextAreaElement };
 }
 const caret = (box: HTMLTextAreaElement, at: number) => act(() => box.setSelectionRange(at, at));
-const raf = () => act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+// the recall puts the caret at the end in a requestAnimationFrame it queued earlier; a frame asked for now runs after it
+const raf = () => act(async () => { await new Promise((r) => requestAnimationFrame(() => r(null))); });
 
 it('↑ in an empty field recalls the newest prompt, ↑ again an older one, ↓ goes back and past the newest restores the draft', async () => {
   const { box } = setup([p('a', 'first'), p('b', 'second'), p('c', 'third')]);
@@ -94,7 +95,8 @@ it('a multi-line prompt: ↑ moves the caret within it, and goes older only from
   box.focus();
   await userEvent.keyboard('{ArrowUp}');
   expect(box.value).toBe('line one\nline two');
-  await waitFor(() => expect(box.selectionStart).toBe(box.value.length)); // the recall puts the caret at the end on the next frame: wait for it before moving it
+  await raf(); // the caret goes to the end on the next frame (jsdom already reports it there when the value is set, so it cannot be polled): let that frame run before moving it
+  expect(box.selectionStart).toBe(box.value.length);
   await userEvent.keyboard('{ArrowUp}'); // the caret is on the last line: left to the field
   expect(box.value).toBe('line one\nline two');
   caret(box, 3);
@@ -108,6 +110,7 @@ it('↓ inside a multi-line recall leaves the key to the field until the last li
   const { box } = setup([p('a', 'x'), p('b', 'line one\nline two')]);
   box.focus();
   await userEvent.keyboard('{ArrowUp}');
+  await raf();
   caret(box, 2);
   await userEvent.keyboard('{ArrowDown}');
   expect(box.value).toBe('line one\nline two'); // on the first line: not a step newer
@@ -247,4 +250,80 @@ it('a search skips the typed text itself: the first ↑ always changes the field
   expect(only.box.value).toBe('build');
   await userEvent.keyboard('{ArrowDown}');
   expect(only.box.value).toBe('build');
+});
+
+const altUp = '{Alt>}{ArrowUp}{/Alt}';
+const altDown = '{Alt>}{ArrowDown}{/Alt}';
+
+it('Alt+↑ walks older from a multi-line recalled prompt, wherever the caret is; Alt+↓ walks newer and past the newest restores the draft', async () => {
+  const { box } = setup([p('a', 'older'), p('b', 'line one\nline two'), p('c', 'two\nlines')]);
+  box.focus();
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('two\nlines');
+  await raf(); // the caret is on the last line, where plain ↑ would only move it
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('line one\nline two');
+  await raf();
+  caret(box, 12); // inside the last line again
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('older');
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('older'); // the oldest stays
+  await raf();
+  await userEvent.keyboard(altDown);
+  expect(box.value).toBe('line one\nline two');
+  await raf();
+  caret(box, 2); // on the first line, where plain ↓ would only move it
+  await userEvent.keyboard(altDown);
+  expect(box.value).toBe('two\nlines');
+  await userEvent.keyboard(altDown);
+  expect(box.value).toBe('');
+});
+
+it('Alt+↑ starts a walk from a typed multi-line draft; Alt+↓ past the newest brings the draft back', async () => {
+  const { box } = setup([p('a', 'older'), p('b', 'newer')]);
+  box.focus();
+  await userEvent.type(box, 'a{Shift>}{Enter}{/Shift}t');
+  expect(box.value).toBe('a\nt');
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('newer');
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('older');
+  await userEvent.keyboard(altDown);
+  await userEvent.keyboard(altDown);
+  expect(box.value).toBe('a\nt');
+  await userEvent.keyboard(altDown);
+  expect(box.value).toBe('a\nt'); // nothing newer, not browsing
+});
+
+it('Alt+↑ and Alt+↓ also walk from an empty field and a single-line draft, like plain ↑', async () => {
+  const { box } = setup([p('a', 'build one'), p('b', 'other')]);
+  box.focus();
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('other');
+  await userEvent.keyboard(altDown);
+  expect(box.value).toBe('');
+  await userEvent.type(box, 'build');
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('other'); // Alt = the whole list, newest first, not the search of plain ↑
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('build one');
+  await userEvent.keyboard(altDown);
+  await userEvent.keyboard(altDown);
+  expect(box.value).toBe('build');
+  await userEvent.clear(box);
+  await userEvent.type(box, 'zzz'); // no prompt contains it: plain ↑ would do nothing
+  await userEvent.keyboard(altUp);
+  expect(box.value).toBe('other');
+  await userEvent.keyboard(altDown);
+  expect(box.value).toBe('zzz');
+});
+
+it('Alt+↑ with Ctrl, Meta or Shift added does not walk', async () => {
+  const { box } = setup([p('a', 'x')]);
+  box.focus();
+  await userEvent.keyboard('{Alt>}{Control>}{ArrowUp}{/Control}{/Alt}');
+  await userEvent.keyboard('{Alt>}{Meta>}{ArrowUp}{/Meta}{/Alt}');
+  await userEvent.keyboard('{Alt>}{Shift>}{ArrowUp}{/Shift}{/Alt}');
+  expect(box.value).toBe('');
 });
