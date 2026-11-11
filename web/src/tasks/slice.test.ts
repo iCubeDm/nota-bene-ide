@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import type { WireAgentEvent } from '@nota-bene/shared';
+import { shortModel } from '@nota-bene/shared';
 import { makeStore, serverEvent } from '@/store/store.ts';
 import { selectFinishedCount, selectRunningCount, selectTaskIdByCall, selectTaskRows } from './slice.ts';
 
@@ -58,4 +59,33 @@ it('selectTaskIdByCall is a plain id: the same value while nothing changes, what
   const a = selectTaskIdByCall(store.getState(), 'toolu_A');
   task(start('b'));
   expect(selectTaskIdByCall(store.getState(), 'toolu_A')).toBe(a);
+});
+
+it('model: kept from started, replaced by a progress that knows better, kept by a plain progress, a resume and a replay', () => {
+  const { store, task } = setup();
+  task(start('a', { type: 'local_agent', model: 'sonnet' }));
+  expect(store.getState().tasks.a.model).toBe('sonnet');
+  task({ t: 'task', phase: 'progress', id: 'a', tokens: 5 });
+  expect(store.getState().tasks.a.model).toBe('sonnet');
+  task({ t: 'task', phase: 'progress', id: 'a', tokens: 6, model: 'claude-sonnet-5-5' });
+  expect(store.getState().tasks.a.model).toBe('claude-sonnet-5-5');
+  task({ t: 'task', phase: 'updated', id: 'a', model: 'claude-opus-5-5' });
+  expect(store.getState().tasks.a.model).toBe('claude-opus-5-5');
+  task(start('a', { type: 'local_agent' })); // a resume does not say it again
+  expect(store.getState().tasks.a.model).toBe('claude-opus-5-5');
+  const events = [start('b', { model: 'claude-haiku-5-5' }), { t: 'task', phase: 'progress', id: 'b', tokens: 1 } as Task];
+  store.dispatch(serverEvent({ kind: 'replay', events: events.map((e) => ({ kind: 'agent' as const, e, ts: 1 })) }));
+  expect(store.getState().tasks.b.model).toBe('claude-haiku-5-5');
+});
+
+it('shortModel: a Claude id reads as a name and version, an alias as a name, anything else as given', () => {
+  expect(shortModel('claude-sonnet-5-5')).toBe('Sonnet 5.5');
+  expect(shortModel('claude-opus-4-1')).toBe('Opus 4.1');
+  expect(shortModel('claude-haiku-5-5')).toBe('Haiku 5.5');
+  expect(shortModel('claude-opus-4-1-20250805')).toBe('Opus 4.1');
+  expect(shortModel('claude-sonnet-5')).toBe('Sonnet 5');
+  expect(shortModel('claude-sonnet-5-5[1m]')).toBe('Sonnet 5.5');
+  expect(shortModel('sonnet')).toBe('Sonnet');
+  expect(shortModel('opus')).toBe('Opus');
+  expect(shortModel('gpt-5-codex')).toBe('gpt-5-codex');
 });

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { shortModel } from '@nota-bene/shared';
 import { fmtK } from '@/lib/format.ts';
 import { useT } from '@/i18n/index.ts';
 import { AGENT_PROTOCOL } from '@/subagent/slice.ts';
@@ -77,7 +78,7 @@ export function TasksDrawer() {
         <ul className="flex flex-col py-1">
           {rows.map(({ id, task, depth }) => {
             const icon = ICON[task.status];
-            const meta = [task.type, fmtElapsed((task.end ?? now) - task.start), task.tokens ? `${fmtK(task.tokens)} tok` : '', task.tool].filter(Boolean).join(' · ');
+            const meta = [task.type, task.model ? shortModel(task.model) : '', fmtElapsed((task.end ?? now) - task.start), task.tokens ? `${fmtK(task.tokens)} tok` : '', task.tool].filter(Boolean).join(' · ');
             const canOpen = (task.kind === 'agent' && task.type !== 'remote_agent' && !!task.call && protocol >= AGENT_PROTOCOL) || (task.kind === 'shell' && protocol >= TASKS_PROTOCOL && capabilities?.taskOutput !== false);
             return (
               <li
