@@ -140,8 +140,9 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 15: the project icon: the project folder's picture (`/project-icon`, set from the phone; `/info.icon` is its version or null).
 // 16: a voice `send` may carry `commentIds` with their batch `text` and `images` (the pending comments ride along with a recording).
 // 17: attachment anchors (marks on an image attached to the unsent message) and the `detached` send refusal.
+// 18: spoken-language detection: `send.detect` (a voice send asks the server to detect the language; `lang` is then the hint), `voice-text.lang`, `user.voiceLang` (the language a replayed voice message was transcribed in) and `hello.dictationLang` (the host's dictation language, `auto` or a code).
 // (Other additions to protocol 15, such as optional Interaction fields and the `task` event's optional `model`, are listed beside this line by their own changes.)
-export const PROTOCOL = 17;
+export const PROTOCOL = 18;
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
 export const TAKEN_OVER_CODE = 4001;
@@ -214,7 +215,7 @@ export type InteractionAnswer = { choice: string; values?: Record<string, string
 
 export type ClientMessage =
   /** protocol 14 (comments riding along: 16): with `voice`, `text` is '' and there are no `images` or `commentIds`, unless pending comments ride along (protocol 16): then `commentIds` is not empty, `text` is their batch (what a typed send carries after the typed words) and `images` theirs; the agent gets the transcript, then the batch. `force` works as for text (the turn is interrupted once the transcript is in); the server transcribes it in `lang` (ISO 639) and the agent gets the text */
-  | { type: 'send'; id: string; text: string; force?: boolean; commentIds?: string[]; images?: ImageRef[]; voice?: Voice; lang?: string }
+  | { type: 'send'; id: string; text: string; force?: boolean; commentIds?: string[]; images?: ImageRef[]; voice?: Voice; lang?: string; /** protocol 18, voice only: detect the spoken language (`lang` is the fallback when unsure); absent = transcribe in `lang` */ detect?: true }
   /** full replacement of this session's comment set */
   | { type: 'comments'; sessionId: string | null; items: Comment[] }
   | { type: 'interrupt' }
@@ -256,16 +257,16 @@ export type ServerEvent =
   /** to the owner just before it is closed with code 4001: another tab took the window over */
   | { kind: 'taken-over' }
   /** right after the replay on every connection (servers before it send none: protocol 0) */
-  | { kind: 'hello'; protocol: number; capabilities?: Capabilities; /** the UI language chosen on any window (server prefs.json); absent = none chosen yet */ lang?: UiLang; /** the interface scale chosen on any window, the same way; absent = none chosen (1) */ uiScale?: UiScale; /** the colour theme chosen on any window, the same way; absent = none chosen (the default theme) */ theme?: ThemeId; /** the temp folders (real and as named) whose images /tmpimage serves; the page links a path under one of them */ tmpDirs?: string[] }
+  | { kind: 'hello'; protocol: number; capabilities?: Capabilities; /** the UI language chosen on any window (server prefs.json); absent = none chosen yet */ lang?: UiLang; /** the interface scale chosen on any window, the same way; absent = none chosen (1) */ uiScale?: UiScale; /** the colour theme chosen on any window, the same way; absent = none chosen (the default theme) */ theme?: ThemeId; /** the temp folders (real and as named) whose images /tmpimage serves; the page links a path under one of them */ tmpDirs?: string[]; /** protocol 18: where the user chose the spoken language of dictation (server prefs.json): `auto` or an ISO 639 code; absent = none chosen (auto) */ dictationLang?: string }
   /** `earlier`: how many segments of this conversation, from before its compactions, `/history` holds (R-M7-4); absent for none */
   | { kind: 'replay'; events: ServerEvent[]; earlier?: number }
   /** what the agent said (R-M7-14); `init` and `rate-limit` are server-internal and never sent */
   | { kind: 'agent'; e: WireAgentEvent; ts: number }
   /** `idle`: a `/compact` the server sent itself after the session sat idle */
   /** `voice`: a voice message; its `text` is '' until the `voice-text` event (a replayed history has the transcript in it) */
-  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; historic?: boolean; images?: ImageRef[]; idle?: boolean; voice?: Voice }
+  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; historic?: boolean; images?: ImageRef[]; idle?: boolean; voice?: Voice; /** protocol 18: the language a replayed voice message was transcribed in, when known */ voiceLang?: string }
   /** protocol 14, stored: the transcript of the voice message `id`, or why there is none (then the agent got nothing) */
-  | { kind: 'voice-text'; id: string; text?: string; error?: VoiceError; ts: number }
+  | { kind: 'voice-text'; id: string; text?: string; error?: VoiceError; /** protocol 18: the language the transcript was made in (the detected one with `send.detect`) */ lang?: string; ts: number }
   | { kind: 'permission'; id: string; toolName: string; input: Record<string, unknown>; prompt?: Interaction; ts: number }
   | { kind: 'permission-done'; id: string; allow: boolean; ts: number }
   /** full comment set; never stored in history, so no ts */
@@ -316,7 +317,8 @@ function isSend(o: Obj): o is Obj & ClientMessage {
     && (o.commentIds === undefined || isStringArray(o.commentIds))
     && (o.images === undefined || (Array.isArray(o.images) && o.images.every(isImageRef)));
   if (!plain) return false;
-  if (o.voice === undefined) return o.lang === undefined;
+  if (o.detect !== undefined && typeof o.detect !== 'boolean') return false;
+  if (o.voice === undefined) return o.lang === undefined && o.detect === undefined;
   // a voice message is only the voice, plus the pending comments that ride along (their batch text and images)
   const rides = Array.isArray(o.commentIds) && o.commentIds.length > 0;
   return isVoice(o.voice) && (rides || (o.text === '' && o.images === undefined && o.commentIds === undefined))
@@ -527,13 +529,13 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
   const m = o as Obj;
   switch (m.type) {
     case 'send':
-      if (!isSend(m)) return { error: 'send needs string id, string text, optional boolean force and optional string[] commentIds and optional images: ImageRef[]; or a voice with lang, and empty text and nothing else unless commentIds ride along' };
+      if (!isSend(m)) return { error: 'send needs string id, string text, optional boolean force and optional string[] commentIds and optional images: ImageRef[]; or a voice with lang (and optional boolean detect), and empty text and nothing else unless commentIds ride along' };
       return {
         type: 'send', id: m.id as string, text: m.text as string,
         ...(m.force === undefined ? {} : { force: m.force as boolean }),
         ...(m.commentIds === undefined ? {} : { commentIds: m.commentIds as string[] }),
         ...(m.images === undefined ? {} : { images: (m.images as ImageRef[]).map(toImageRef) }),
-        ...(m.voice === undefined ? {} : { voice: toVoice(m.voice as Voice), lang: m.lang as string }),
+        ...(m.voice === undefined ? {} : { voice: toVoice(m.voice as Voice), lang: m.lang as string, ...(m.detect === true ? { detect: true as const } : {}) }),
       };
     case 'comments':
       if (m.sessionId !== null && typeof m.sessionId !== 'string') return { error: 'comments needs sessionId: string | null' };

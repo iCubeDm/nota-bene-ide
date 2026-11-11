@@ -473,6 +473,16 @@ test('a voice send is only the voice, in a language', () => {
   // a lang without a voice means nothing: refused, not dropped
   expect(parseClientMessage('{"type":"send","id":"u1","text":"hi","lang":"ru"}')).toHaveProperty('error');
 });
+test('a voice send may ask for language detection with detect: true', () => {
+  expect(parseClientMessage(vsend({ detect: true }))).toStrictEqual({ type: 'send', id: 'u1', text: '', voice, lang: 'ru', detect: true });
+  expect(parseClientMessage(vsend({ detect: true, commentIds: ['c1'] }))).toMatchObject({ detect: true, commentIds: ['c1'] });
+  // an old client sends none: pinned, and the parsed message has no detect
+  expect(parseClientMessage(vsend())).not.toHaveProperty('detect');
+  expect(parseClientMessage(vsend({ detect: false }))).toStrictEqual({ type: 'send', id: 'u1', text: '', voice, lang: 'ru' });
+  for (const bad of ['yes', 1, 0, null, 'true', {}]) expect(parseClientMessage(vsend({ detect: bad })), String(bad)).toHaveProperty('error');
+  // a detect without a voice means nothing: refused, not dropped
+  expect(parseClientMessage('{"type":"send","id":"u1","text":"hi","detect":true}')).toHaveProperty('error');
+});
 test('a voice has a 64-hex id, a length up to 602 s and 48 bars of 0..31', () => {
   expect(parseClientMessage(vsend({ voice: { ...voice, id: 'x' } }))).toHaveProperty('error');
   expect(parseClientMessage(vsend({ voice: { ...voice, ms: 0 } }))).toHaveProperty('error');

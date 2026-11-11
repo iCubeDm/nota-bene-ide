@@ -31,7 +31,7 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
   }
 }
 
-function setup(o: { speech: (id: string, lang: string) => Promise<string>; history?: ServerEvent[]; onInterrupt?: () => void; onSend?: () => void }) {
+function setup(o: { speech: (id: string, lang: string, alive: () => boolean, detect: boolean) => Promise<string | { text: string; lang: string }>; history?: ServerEvent[]; onInterrupt?: () => void; onSend?: () => void }) {
   const got: { uuid: string; text: string; priority?: string }[] = [];
   const backend: AgentBackend = {
     ...noSessions,
@@ -85,6 +85,27 @@ describe('voice messages', () => {
     await until(() => got.length === 1);
     expect(got[0]).toMatchObject({ text: 'look\n\nBATCH', images: [{ mediaType: 'image/png', data: Buffer.from('png-a').toString('base64'), label: 'Comment 1' }] });
     expect(events.find((e) => e.kind === 'user')).toMatchObject({ images: [ref] });
+  });
+
+  it('voice-text carries the language the transcript was made in, and the voice index keeps it', async () => {
+    const asked: [string, boolean][] = [];
+    const { got, events, make, voices } = setup({ speech: async (_id, lang, _alive, detect) => { asked.push([lang, detect]); return { text: 'bonjour', lang: 'fr' }; } });
+    const s = await make();
+    s.send({ id: 'v1', text: '', voice, lang: 'en', detect: true });
+    await until(() => got.length === 1);
+    expect(asked).toEqual([['en', true]]);
+    expect(events.find((e) => e.kind === 'voice-text')).toMatchObject({ id: 'v1', text: 'bonjour', lang: 'fr' });
+    expect(voices.langOf('v1')).toBe('fr');
+  });
+
+  it('a send without detect asks for none; a speech that names no language leaves the hint', async () => {
+    const asked: boolean[] = [];
+    const { got, events, make } = setup({ speech: async (_id, _lang, _alive, detect) => { asked.push(detect); return 'hello'; } });
+    const s = await make();
+    s.send({ id: 'v1', text: '', voice, lang: 'ru' });
+    await until(() => got.length === 1);
+    expect(asked).toEqual([false]);
+    expect(events.find((e) => e.kind === 'voice-text')).toMatchObject({ id: 'v1', text: 'hello', lang: 'ru' });
   });
 
   it('a transcript that fails drops the send and tells onDropped, so its comments can be given back', async () => {
@@ -194,7 +215,7 @@ describe('voice messages', () => {
     const again = setup({ speech: async () => '', history });
     await again.make('11111111-1111-1111-1111-111111111111');
     const user = (again.hub as unknown as { history: ServerEvent[] }).history.find((e) => e.kind === 'user');
-    expect(user).toMatchObject({ id: 'v1', text: 'fix the test', voice });
+    expect(user).toMatchObject({ id: 'v1', text: 'fix the test', voice, voiceLang: 'en' });
   });
 
   it('a replay whose ids are not ours still gets the voices, by what they said, each once', async () => {
