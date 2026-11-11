@@ -114,7 +114,7 @@ void main() {
       await t.pumpAndSettle();
       expect(painted(t), isEmpty);
       expect(r.tab!.comments.sendable, hasLength(1));
-      expect(find.textContaining('orphan'), findsOneWidget);
+      expect(find.text('1 comment to send'), findsOneWidget);
     },
   );
 
