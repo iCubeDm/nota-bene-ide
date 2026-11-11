@@ -169,6 +169,8 @@ export const zhCN: Dict = {
   hk_tabN: '第 N 个标签页（1 = 对话，9 = 最后一个）',
   hk_recent: '最近的文件和搜索',
   hk_promptHistory: '提示词历史',
+  hk_promptOlder: '在输入框中调出更早的提示词（任意草稿）',
+  hk_promptNewer: '在输入框中调出更新的提示词（任意草稿）',
   hk_files: '文件面板',
   hk_comments: '评论面板',
   hk_reveal: '在树中定位当前文件',

@@ -175,6 +175,8 @@ export const en: Dict = {
   hk_tabN: 'tab N (1 = chat, 9 = last)',
   hk_recent: 'recent files and search',
   hk_promptHistory: 'prompt history',
+  hk_promptOlder: 'older prompt in the composer (any draft)',
+  hk_promptNewer: 'newer prompt in the composer (any draft)',
   hk_files: 'Files panel',
   hk_comments: 'Comments panel',
   hk_reveal: 'reveal the current file in the tree',
