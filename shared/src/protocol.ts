@@ -138,8 +138,9 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 13: page anchors (a comment on an element or an SVG area of an HTML page); an older server would refuse the comment.
 // 14: voice messages (`send.voice` and `send.lang`, `user.voice`, the `voice-text` event, `/voice`) and voice clips of comments (`Comment.voice`).
 // 15: the project icon: the project folder's picture (`/project-icon`, set from the phone; `/info.icon` is its version or null).
+// 16: a voice `send` may carry `commentIds` with their batch `text` and `images` (the pending comments ride along with a recording).
 // 17: attachment anchors (marks on an image attached to the unsent message) and the `detached` send refusal.
-// (Other additions to protocol 15, such as optional Interaction fields, are listed beside this line by their own changes.)
+// (Other additions to protocol 15, such as optional Interaction fields and the `task` event's optional `model`, are listed beside this line by their own changes.)
 export const PROTOCOL = 17;
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
@@ -212,7 +213,7 @@ export type Interaction = {
 export type InteractionAnswer = { choice: string; values?: Record<string, string> };
 
 export type ClientMessage =
-  /** protocol 14: with `voice`, `text` is '' and there are no `images` or `commentIds`; `force` works as for text (the turn is interrupted once the transcript is in); the server transcribes it in `lang` (ISO 639) and the agent gets the text */
+  /** protocol 14 (comments riding along: 16): with `voice`, `text` is '' and there are no `images` or `commentIds`, unless pending comments ride along (protocol 16): then `commentIds` is not empty, `text` is their batch (what a typed send carries after the typed words) and `images` theirs; the agent gets the transcript, then the batch. `force` works as for text (the turn is interrupted once the transcript is in); the server transcribes it in `lang` (ISO 639) and the agent gets the text */
   | { type: 'send'; id: string; text: string; force?: boolean; commentIds?: string[]; images?: ImageRef[]; voice?: Voice; lang?: string }
   /** full replacement of this session's comment set */
   | { type: 'comments'; sessionId: string | null; items: Comment[] }
@@ -316,8 +317,9 @@ function isSend(o: Obj): o is Obj & ClientMessage {
     && (o.images === undefined || (Array.isArray(o.images) && o.images.every(isImageRef)));
   if (!plain) return false;
   if (o.voice === undefined) return o.lang === undefined;
-  // a voice message is only the voice
-  return isVoice(o.voice) && o.text === '' && o.images === undefined && o.commentIds === undefined
+  // a voice message is only the voice, plus the pending comments that ride along (their batch text and images)
+  const rides = Array.isArray(o.commentIds) && o.commentIds.length > 0;
+  return isVoice(o.voice) && (rides || (o.text === '' && o.images === undefined && o.commentIds === undefined))
     && typeof o.lang === 'string' && LANG.test(o.lang);
 }
 
@@ -525,7 +527,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
   const m = o as Obj;
   switch (m.type) {
     case 'send':
-      if (!isSend(m)) return { error: 'send needs string id, string text, optional boolean force and optional string[] commentIds and optional images: ImageRef[]; or a voice with lang, empty text and nothing else' };
+      if (!isSend(m)) return { error: 'send needs string id, string text, optional boolean force and optional string[] commentIds and optional images: ImageRef[]; or a voice with lang, and empty text and nothing else unless commentIds ride along' };
       return {
         type: 'send', id: m.id as string, text: m.text as string,
         ...(m.force === undefined ? {} : { force: m.force as boolean }),
@@ -591,7 +593,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
 }
 
 export type { AgentEvent, StopReason, WireAgentEvent } from './agent.ts';
-export { FINISHED_CAP, orderedTasks, reduceTasks, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
+export { FINISHED_CAP, orderedTasks, reduceTasks, shortModel, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
 export { BATCH_HEAD, BATCH_HEADS, DEFAULT_THEME, isThemeId, isUiLang, isUiScale, THEME_KIND, THEMES, UI_LANGS, UI_SCALES, type ThemeId, type UiLang, type UiScale } from './lang.ts';
 export type { VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsPatch } from './vcs.ts';
 export { USAGE_PERIODS, type TokenCounts, type UsageAgentRow, type UsageCallRow, type UsageExtra, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageRow, type UsageTank, type UsageTaskRow } from './usage.ts';
@@ -601,3 +603,5 @@ export type SubagentView = { events: ServerEvent[]; running: boolean; type: stri
 
 /** `GET /task-output` (protocol 8): the end of a shell / Monitor task's output (at most 8 KiB, may hold escape sequences), its size, and whether it still runs. */
 export type TaskOutputView = { output: string; totalBytes: number; truncated: boolean; running: boolean };
+export { fuzzyScore } from './fuzzy.ts';
+export { PROMPT_MAX, PROMPT_SRCS, type PromptEntry, type PromptSrc } from './prompts.ts';

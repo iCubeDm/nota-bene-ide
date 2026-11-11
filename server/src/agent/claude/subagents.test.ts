@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { hitFresh, hitGet, hitSet, agentOfCall, findSubagentMetaByAgent, agentIdFromResult, findSubagentMeta, isRunning, noMetaAdd, noMetaHas, NO_META_TTL_MS, RECENT_MS, resetSubagentCache } from './subagents.ts';
+import { hitFresh, hitGet, hitSet, agentOfCall, findSubagentMetaByAgent, agentIdFromResult, findSubagentMeta, isRunning, noMetaAdd, noMetaHas, NO_META_TTL_MS, RECENT_MS, resetSubagentCache, subagentModel } from './subagents.ts';
 
 const dirs: string[] = [];
 afterAll(() => { for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true }); });
@@ -171,5 +171,19 @@ describe('the fallback hit cache', () => {
     const early = { agentId: 'a1', type: '', description: '', running: false, viaSend: true };
     expect(hitFresh(early, r, SID, true)).toMatchObject({ type: 'general-purpose', description: 'Re-review' });
     expect(hitFresh({ ...early, type: 'kept' }, projects({}), SID, true)).toMatchObject({ type: 'kept' }); // no meta: what it had stays
+  });
+});
+
+describe('subagentModel', () => {
+  const line = (o: object) => JSON.stringify(o) + '\n';
+  it('the model of the first assistant message of the transcript; none before one is written', () => {
+    const root = projects({ a1: { toolUseId: 'toolu_A' }, b2: { toolUseId: 'toolu_B' }, c3: { toolUseId: 'toolu_C' } });
+    const sub = path.join(root, '-some-project', SID, 'subagents');
+    fs.writeFileSync(path.join(sub, 'agent-a1.jsonl'), line({ type: 'user', message: { role: 'user', content: 'go' } }) + line({ type: 'assistant', message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [] } }) + '{"type":"assistant","mess');
+    fs.writeFileSync(path.join(sub, 'agent-b2.jsonl'), line({ type: 'assistant', message: { model: '<synthetic>' } }) + line({ type: 'user', message: {} }));
+    expect(subagentModel(root, SID, 'toolu_A')).toBe('claude-sonnet-5-5');
+    expect(subagentModel(root, SID, 'toolu_B')).toBeUndefined(); // a synthetic message is not a model
+    expect(subagentModel(root, SID, 'toolu_C')).toBeUndefined(); // no transcript yet
+    expect(subagentModel(root, SID, 'toolu_nope')).toBeUndefined();
   });
 });

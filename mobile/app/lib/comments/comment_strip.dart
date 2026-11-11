@@ -1,9 +1,8 @@
-// Above the composer, as on the desktop: the comments that leave with the next message. Tap opens a file comment's
-// file; long press offers to delete it.
+// Above the composer: one line saying how many comments are waiting; a tap opens the Comments pane, where they are
+// read, edited and sent.
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
-import '../chat/files.dart';
 import '../chat/window_tab.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
@@ -19,8 +18,8 @@ Future<void> editComment(BuildContext context, WindowTab tab, Comment x) async {
     tab: tab,
   );
   switch (res) {
-    case SheetSave(:final text, :final label, :final voice):
-      tab.comments.edit(x.id, text, label, voice: voice);
+    case SheetSave(:final text, :final label, :final voice, :final images):
+      tab.comments.edit(x.id, text, label, voice: voice, images: images);
     case SheetDelete():
       tab.comments.remove(x.id);
     case null:
@@ -28,92 +27,47 @@ Future<void> editComment(BuildContext context, WindowTab tab, Comment x) async {
 }
 
 class CommentStrip extends StatelessWidget {
-  const CommentStrip({super.key, required this.tab});
+  const CommentStrip({super.key, required this.tab, required this.onTap});
   final WindowTab tab;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: tab.comments,
     builder: (context, _) {
-      final items = tab.comments.sendable;
-      if (items.isEmpty) return const SizedBox.shrink();
+      final n = tab.comments.sendable.length;
+      if (n == 0) return const SizedBox.shrink();
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
-      final lang = Localizations.localeOf(context).languageCode;
-      return Container(
-        constraints: const BoxConstraints(maxHeight: 132),
-        margin: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-        decoration: BoxDecoration(
-          color: c.card,
-          border: Border.all(color: c.border),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
-              child: Text(
-                t.pendingComments(items.length),
-                style: TextStyle(color: c.accent, fontSize: 12),
+      final shape = RoundedRectangleBorder(
+        side: BorderSide(color: c.border),
+        borderRadius: BorderRadius.circular(8),
+      );
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+        // Material under the InkWell: the splash shows on the card, not behind it
+        child: Semantics(
+          button: true,
+          child: Material(
+            color: c.card,
+            shape: shape,
+            child: InkWell(
+              customBorder: shape,
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Text(
+                  t.pendingComments(n),
+                  style: TextStyle(color: c.accent, fontSize: 12),
+                ),
               ),
             ),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.only(bottom: 4),
-                children: [for (final x in items) _row(context, x, lang, c)],
-              ),
-            ),
-          ],
+          ),
         ),
       );
     },
   );
-
-  Widget _row(BuildContext context, Comment x, String lang, NbColors c) {
-    final quote = quoteOf(x);
-    final body = [
-      labelLine(x.label, lang),
-      x.text,
-      // the recordings' words, as the agent will get them
-      for (final v in x.voice ?? const <VoiceClip>[]) v.text,
-    ].where((s) => s.isNotEmpty).join(' ');
-    final path = switch (x.anchor) {
-      TextAnchor(source: AnchorSourceFile(:final path)) => path,
-      MediaAnchor(:final source) => source.path,
-      _ => null,
-    };
-    return InkWell(
-      onTap: path == null
-          ? null
-          : () => openFile(
-              context,
-              tab,
-              path,
-              at: switch (x.anchor) {
-                MediaAnchor(:final time) => time?.toDouble(),
-                _ => null,
-              },
-            ),
-      onLongPress: () => editComment(context, tab, x),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-        child: Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(
-                text: '“$quote” ',
-                style: TextStyle(color: c.mutedFg),
-              ),
-              TextSpan(text: body),
-            ],
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 13),
-        ),
-      ),
-    );
-  }
 }

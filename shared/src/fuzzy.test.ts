@@ -13,4 +13,9 @@ describe('fuzzyScore', () => {
     expect(fuzzyScore('src/App.tsx', 'APP')).toBeGreaterThan(0);
     expect(fuzzyScore('src/components/Button.tsx', 'scb')).toBeGreaterThanOrEqual(0);
   });
+  it('a length penalty of 0 keeps a long text from dropping below zero', () => {
+    const long = `z${'x'.repeat(400)}q`;
+    expect(fuzzyScore(long, 'zq')).toBeLessThan(0);
+    expect(fuzzyScore(long, 'zq', { penalty: 0 })).toBeGreaterThan(0);
+  });
 });

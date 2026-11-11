@@ -448,3 +448,54 @@ it('the textarea grows with a long comment (the cap and the scrolling are CSS) a
   h.mockRestore();
   popH.mockRestore();
 });
+
+const dragBy = (el: Element, from: [number, number], to: [number, number], o: PointerEventInit = {}) => {
+  fireEvent.pointerDown(el, { pointerId: 1, isPrimary: true, button: 0, clientX: from[0], clientY: from[1], ...o });
+  fireEvent.pointerMove(el, { pointerId: 1, isPrimary: true, clientX: to[0], clientY: to[1] });
+  fireEvent.pointerUp(el, { pointerId: 1, isPrimary: true, clientX: to[0], clientY: to[1] });
+};
+
+it('the popup drags by its quote line, stays put while it grows, and is clamped to the viewport', () => {
+  const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
+  const popW = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(340);
+  const { onClose } = setup();
+  const popup = box().parentElement!;
+  const handle = screen.getByText(/brave world/);
+  expect(handle.className).toMatch(/cursor-move/);
+  expect([popup.style.left, popup.style.top]).toEqual(['10px', '46px']);
+  dragBy(handle, [20, 50], [220, 150]);
+  expect([popup.style.left, popup.style.top]).toEqual(['210px', '146px']);
+  fireEvent.change(box(), { target: { value: 'more text' } }); // re-layout: not snapped back to the selection
+  expect([popup.style.left, popup.style.top]).toEqual(['210px', '146px']);
+  popH.mockReturnValue(window.innerHeight); // too tall for the spot: only clamped
+  fireEvent.change(box(), { target: { value: 'more text\n' } });
+  expect(popup.style.top).toBe('8px');
+  dragBy(handle, [0, 0], [5000, 0]); // far to the right: stays inside
+  expect(popup.style.left).toBe(`${window.innerWidth - 340 - 8}px`);
+  expect(onClose).not.toHaveBeenCalled();
+  popH.mockRestore();
+  popW.mockRestore();
+});
+
+it('a drag from a secondary button does not start, and a new selection places the popup at its anchor again', () => {
+  const { onClose } = setup();
+  const popup = box().parentElement!;
+  const handle = screen.getByText(/brave world/);
+  dragBy(handle, [20, 50], [220, 150], { button: 2 });
+  expect(popup.style.left).toBe('10px');
+  dragBy(handle, [20, 50], [120, 90]);
+  expect(popup.style.left).toBe('110px');
+  fireEvent.mouseDown(handle); // grabbing the handle is not an outside click
+  expect(onClose).not.toHaveBeenCalled();
+});
+
+it('a new selection places a dragged popup at its anchor again', () => {
+  const store = makeStore({ url: 'ws://x', connect: (() => ({ send: () => true, close() {} })) as never });
+  const ui = (p: PendingComment) => <Provider store={store}><TooltipProvider><CommentPopup pending={p} onClose={() => {}} /></TooltipProvider></Provider>;
+  const r = render(ui(pending));
+  const popup = box().parentElement!;
+  dragBy(screen.getByText(/brave world/), [20, 50], [220, 150]);
+  expect(popup.style.left).toBe('210px');
+  r.rerender(ui({ ...pending, rect: { ...pending.rect, left: 300, bottom: 80 } as DOMRect }));
+  expect([popup.style.left, popup.style.top]).toEqual(['300px', '86px']);
+});

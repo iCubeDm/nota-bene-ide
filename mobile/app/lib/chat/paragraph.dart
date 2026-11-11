@@ -155,11 +155,13 @@ class ParagraphTargets extends ChangeNotifier {
     QuickLabelId? label,
     String text, {
     List<VoiceClip>? voice,
+    List<String>? images,
   }) => tab.comments.add(
     makeAnchor(AnchorSourceMessage(id: p.item.id), p.text, p.start, p.end),
     text,
     label,
     voice: voice,
+    images: images,
   );
 
   /// The target as the reply is now, not as it was when tapped (null: the reply is gone from the feed).
@@ -255,7 +257,9 @@ class ParagraphTargets extends ChangeNotifier {
     final p = _fresh(_Para(ctx, item, block, li, '', 0, 0));
     if (p == null) return;
     final res = await showCommentSheet(ctx, quote: cutQuote(p.quote), tab: tab);
-    if (res is SheetSave) _add(p, res.label, res.text, voice: res.voice);
+    if (res is SheetSave) {
+      _add(p, res.label, res.text, voice: res.voice, images: res.imageIds);
+    }
   }
 
   void _copy() {

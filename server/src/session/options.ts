@@ -18,6 +18,8 @@ export type SessionOptions = {
   closeTimeoutMs?: number;
   /** how long a busy restart waits for its interrupt (tests shorten it) */
   interruptTimeoutMs?: number;
+  /** A send that never reached the agent (a voice message without a transcript): the server gives its comments back. */
+  onDropped?: (id: string) => void;
   /** how long a switch waits for the transcript read (tests shorten it) */
   historyTimeoutMs?: number;
   /** idle compaction timing (tests shorten it); default from the env, see idle.ts */

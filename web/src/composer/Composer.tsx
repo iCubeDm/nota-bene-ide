@@ -1,5 +1,5 @@
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
@@ -12,6 +12,8 @@ import { ShortcodePicker } from '@/comments/ShortcodePicker.tsx';
 import { MentionPicker } from './MentionPicker.tsx';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
+import { PromptHistory } from './PromptHistory.tsx';
+import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
 import { CtxNudge } from '@/stats/CtxNudge.tsx';
 import { Attachments } from '@/attachments/Attachments.tsx';
@@ -37,6 +39,8 @@ export function Composer() {
   const mode = useAppSelector(selectMode);
   const caps = useAppSelector(selectCapabilities);
   const text = useAppSelector(selectDraft);
+  const items = useAppSelector(selectPromptItems);
+  const sid = useAppSelector(selectPromptSid);
   const images = useAppSelector(selectImages);
   const building = useAppSelector(selectBuilding);
   const uploading = useAppSelector(selectUploading) > 0 || building;
@@ -58,6 +62,23 @@ export function Composer() {
     if (!busy) setAskForce(false);
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
+  // ↑/↓ through the prompts sent before (newest first): `id` is the recalled one (null = not browsing), `stash` the draft it replaced
+  // (only a list choice makes one: a walk starts from an empty field)
+  const recall = useMemo(() => recallList(items), [items]);
+  const recallRef = useRef(recall);
+  recallRef.current = recall;
+  const browse = useRef<{ id: string | null; stash: string }>({ id: null, stash: '' });
+  useEffect(() => void (browse.current = { id: null, stash: '' }), [sid]);
+  // where the draft is in the list: the recalled entry (by id, so a list that grows under the walk keeps the place), else
+  // the entry with that text (a repeat collapsed away); -1 = not browsing, the draft is no recalled prompt any more
+  const placeOf = (value: string): number => {
+    const list = recallRef.current;
+    const b = browse.current;
+    if (b.id === null) return -1;
+    const at = list.findIndex((x) => x.id === b.id);
+    if (at >= 0 && list[at]!.text === value) return at;
+    return list.findIndex((x) => x.text === value);
+  };
   // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
   const voiceOk = useAppSelector((s) => s.controls.protocol >= 14);
   const whisper = caps.dictation === 'whisper';
@@ -199,10 +220,57 @@ export function Composer() {
       return;
     }
     setAskForce(false);
+    browse.current = { id: null, stash: '' };
     const r = dispatch(sendBatch(force));
     if (r === 'empty' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
     if (r === 'sent') ref.current?.focus();
+  };
+
+  // true when the key was a history step. A walk starts only from an empty field (a draft is never replaced); it goes on while
+  // the draft is still exactly the recalled prompt: any edit ends it
+  const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    const el = e.currentTarget;
+    const list = recallRef.current;
+    const b = browse.current;
+    const { selectionStart: from, selectionEnd: to, value } = el;
+    const at = placeOf(value);
+    if (at < 0) b.id = null;
+    if (from !== to) return false;
+    const show = (to: number, draft: string) => {
+      b.id = to >= 0 ? list[to]!.id : null;
+      dispatch(setDraft(draft));
+      // the controlled value lands on the next render; the caret goes after it
+      requestAnimationFrame(() => ref.current?.setSelectionRange(draft.length, draft.length));
+    };
+    if (e.key === 'ArrowUp') {
+      if (!list.length) return false;
+      if (at < 0) {
+        if (value !== '') return false;
+        b.stash = '';
+        show(0, list[0]!.text);
+        return true;
+      }
+      if (value.slice(0, from).includes('\n')) return false; // not on the first line: the field's own
+      if (at + 1 < list.length) show(at + 1, list[at + 1]!.text);
+      return true;
+    }
+    if (at < 0 || value.indexOf('\n', from) !== -1) return false; // ↓ is the field's own unless on the last line of a recall
+    if (at > 0) show(at - 1, list[at - 1]!.text);
+    else show(-1, b.stash);
+    return true;
+  };
+
+  // a prompt chosen in the history list becomes the draft; the draft it replaced is the stash, so ↓ brings it back
+  const pickHistory = (picked: string) => {
+    const at = placeOf(text);
+    const entry = recallRef.current.find((x) => x.text === picked);
+    browse.current = { id: entry?.id ?? null, stash: at >= 0 ? browse.current.stash : text };
+    dispatch(setDraft(picked));
+    requestAnimationFrame(() => {
+      ref.current?.focus({ preventScroll: true });
+      ref.current?.setSelectionRange(picked.length, picked.length);
+    });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -222,6 +290,10 @@ export function Composer() {
     if (e.key === 'Escape' && askForce) {
       e.preventDefault(); // the document hotkeys skip it
       setAskForce(false);
+      return;
+    }
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.nativeEvent.isComposing && stepHistory(e)) {
+      e.preventDefault();
       return;
     }
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
@@ -292,9 +364,10 @@ export function Composer() {
         )}
         </div>
         <MentionPicker target={ref} shell={() => shellModeRef.current} />
-        <SlashPicker target={ref} />
+        <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
         <ShortcodePicker target={ref} />
         </>)}
+        {!recording && <PromptHistory onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}
         {voiceOk && !recording && (
           <Tooltip>
             <TooltipTrigger asChild>

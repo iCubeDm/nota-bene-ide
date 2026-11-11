@@ -6,6 +6,7 @@ import { connect as realConnect, type Connection, type SocketState } from '../ne
 import { t } from '../i18n/index.ts';
 import { composerSlice } from '../composer/slice.ts';
 import { refusedMiddleware } from '../composer/refused.ts';
+import { historyMiddleware, historySlice } from '../composer/history.ts';
 import { controlsListener, controlsSlice } from '../controls/slice.ts';
 import { commentsSlice, resyncComments } from '../comments/slice.ts';
 import { activate, tabsSlice, type Tab, type TabsState } from '../tabs/slice.ts';
@@ -162,8 +163,8 @@ export function makeStore(o: {
   const persist = createListenerMiddleware<PersistState>();
   persistListeners(persist);
   const store = configureStore({
-    reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer },
-    middleware: (gdm) => gdm({ thunk: { extraArgument: { send, takeOver, stopSocket } satisfies Extra } }).prepend(controlsListener.middleware, persist.middleware).concat(toastMiddleware, compactTimingMiddleware, refusedMiddleware, mediaMiddleware(media)),
+    reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer, promptHistory: historySlice.reducer },
+    middleware: (gdm) => gdm({ thunk: { extraArgument: { send, takeOver, stopSocket } satisfies Extra } }).prepend(controlsListener.middleware, persist.middleware).concat(toastMiddleware, compactTimingMiddleware, refusedMiddleware, historyMiddleware, mediaMiddleware(media)),
     devTools: devToolsEnabled(),
   });
   mediaByStore.set(store, media);

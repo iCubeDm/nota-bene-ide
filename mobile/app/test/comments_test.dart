@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart' show ValueKey;
+import 'package:flutter/material.dart' show FilledButton;
 import 'dart:convert';
 import 'dart:io';
 
@@ -445,6 +445,14 @@ void main() {
     r.dispose();
   });
 
+  // comments alone leave from the Comments pane's Send (the chat's mic stays while the field is empty)
+  Future<void> sendFromPane(WidgetTester t) async {
+    await t.tap(find.text('Comments'));
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(FilledButton, 'Send'));
+    await t.pumpAndSettle();
+  }
+
   testWidgets(
     'a media comment leaves with its frame, labelled as the desktop does',
     (t) async {
@@ -467,8 +475,7 @@ void main() {
         'items': [media],
       });
       await t.pumpAndSettle();
-      await t.tap(find.byTooltip('Send'));
-      await t.pumpAndSettle();
+      await sendFromPane(t);
       final send = r.sent.lastWhere((m) => m['type'] == 'send');
       final want =
           ((fixture['cases'] as List).firstWhere(
@@ -505,8 +512,9 @@ void main() {
       'items': [json(c('a', 'x', 'only this'))],
     });
     await t.pumpAndSettle();
-    await t.tap(find.byTooltip('Send'));
-    await t.pumpAndSettle();
+    // the mic stays: pending comments alone are not sent from the chat's field
+    expect(find.byTooltip('Send'), findsNothing);
+    await sendFromPane(t);
     final send = r.sent.lastWhere((m) => m['type'] == 'send');
     expect(send['text'], startsWith('Comments on fragments:'));
     r.dispose();
@@ -543,22 +551,22 @@ void main() {
     'a second tap before the server answers does not send them again',
     (t) async {
       final r = await withComments(t, [c('a', 'x', 'only this')]);
-      await t.tap(find.byTooltip('Send'));
-      await t.pumpAndSettle();
-      // nothing is left to send: Send gives way to the mic, which sends nothing
-      expect(find.byTooltip('Send'), findsNothing);
-      await t.tap(find.byKey(const ValueKey('mic-old')));
-      await t.pumpAndSettle();
+      await sendFromPane(t);
+      // nothing is left to send: the pane's Send is off
+      expect(
+        t
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Send'))
+            .onPressed,
+        isNull,
+      );
       expect(sends(r), hasLength(1));
-      expect(find.text('1 comment to send'), findsNothing);
       r.dispose();
     },
   );
 
   testWidgets('a refused send offers its comments again', (t) async {
     final r = await withComments(t, [c('a', 'x', 'only this')]);
-    await t.tap(find.byTooltip('Send'));
-    await t.pumpAndSettle();
+    await sendFromPane(t);
     r.event({
       'kind': 'send-refused',
       'id': sends(r).single['id'],

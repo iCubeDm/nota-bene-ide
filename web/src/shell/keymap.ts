@@ -1,4 +1,5 @@
 import { setPanelOpen } from '@/comments/slice.ts';
+import { promptHistoryModal } from '@/composer/historyModal.ts';
 import { recentModal } from '@/files/recent.ts';
 import { wrapLines } from '@/files/wrap.ts';
 import type { ru } from '@/i18n/ru.ts';
@@ -21,7 +22,7 @@ import { toast } from './toast.ts';
  * - in a text field (input, textarea, any contenteditable) the Cmd/Ctrl bindings and Alt+F1 work. Alt+letter/digit
  *   work there only off a Mac: on a Mac, Option+key types characters (German, French, Nordic layouts type [ ] { } | that
  *   way), so in a field they type. Alt+←/→ (a field's word jump) and the plain keys (`/`, Esc) never fire in a field;
- * - while a modal dialog is open, only Alt+E (it toggles its own dialog) runs: the tabs behind the overlay stay put;
+ * - while a modal dialog is open, only Alt+E (it toggles its own dialog) runs, and Alt+H to close its own list: the tabs behind the overlay stay put;
  * - `/` is matched by the character typed (`key`), so it follows the keyboard layout; the rest by `code`;
  * - nothing runs while an IME composes.
  */
@@ -74,6 +75,8 @@ export const BINDINGS: Binding[] = [
   // Alt+E, not Cmd/Ctrl+E: Claude in Chrome takes ⌘E (the user, 2026-10-27). In a field too, also on a Mac: there
   // Option+E is the ´ dead key, which the binding consumes (recent files from the composer is the common case)
   { id: 'hk_recent', codes: ['KeyE'], mods: { alt: true }, inFields: true, run: () => (recentModal.get() ? recentModal.close() : recentModal.open()) },
+  // Alt+H, in a field too (also on a Mac, where Option+H types ˙): the prompt history list of the composer. No clash: H was free
+  { id: 'hk_promptHistory', codes: ['KeyH'], mods: { alt: true }, inFields: true, run: () => (promptHistoryModal.get() ? promptHistoryModal.close() : promptHistoryModal.open()) },
   { id: 'hk_files', codes: ['KeyF'], mods: { mod: true, shift: true }, inFields: true, run: ({ store }) => void store.dispatch(setTreeOpen(!store.getState().tree.open)) },
   { id: 'hk_comments', codes: ['KeyC'], mods: { mod: true, shift: true }, inFields: true,
     run: ({ store }) => void store.dispatch(setPanelOpen(!store.getState().comments.ui.panelOpen)) },
@@ -126,7 +129,7 @@ export function installKeymap(store: AppStore): () => void {
     if (conn === 'occupied' || conn === 'taken' || conn === 'stopped') return;
     const b = BINDINGS.find((x) => matches(x, e));
     if (!b || (!inField(b) && editable(e.target))) return;
-    if (b.id !== 'hk_recent' && modalOpen()) return;
+    if (b.id !== 'hk_recent' && !(b.id === 'hk_promptHistory' && promptHistoryModal.get()) && modalOpen()) return;
     // Esc is not consumed here: a widget under it may still close on it
     if (e.code !== 'Escape') e.preventDefault();
     b.run({ store, e });

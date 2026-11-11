@@ -15,9 +15,9 @@ interface Open { q: string; sel: number }
  * draft that starts with `/`. Same key contract as MentionPicker: while open, keys are taken at WINDOW capture so
  * Enter/Tab/Esc never reach the composer's own handlers; Cmd/Ctrl+Enter passes through (send). Picking writes `/name `
  * and leaves the caret after it. No list yet (the agent is not up) or nothing matching: closed, and typing goes on as it was
- * (a command typed by hand that is not offered still runs).
+ * (a command typed by hand that is not offered still runs). `suppress` keeps it shut while the draft is a recalled prompt.
  */
-export function SlashPicker({ target }: { target: RefObject<HTMLTextAreaElement | null> }) {
+export function SlashPicker({ target, suppress }: { target: RefObject<HTMLTextAreaElement | null>; suppress?: () => boolean }) {
   const t = useT();
   const commands = useAppSelector(selectCommands);
   const [state, setState] = useState<Open | null>(null);
@@ -35,6 +35,8 @@ export function SlashPicker({ target }: { target: RefObject<HTMLTextAreaElement 
     let dismissed: string | null = null; // Esc: shut for this word (while the first word is exactly it), until it changes or the caret leaves
     const close = () => setState(null);
     const refresh = () => {
+      // a prompt recalled from the history is not being typed: the menu must not take the arrows that walk the history
+      if (suppress?.()) return setState(null);
       const q = slashToken(ta.value, ta.selectionStart);
       const word = q === null ? null : /^\/\S*/.exec(ta.value)![0]; // the whole first word, wherever the caret is in it
       if (word !== dismissed) dismissed = null; // another word, a cleared or sent draft: nothing to carry over

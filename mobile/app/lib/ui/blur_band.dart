@@ -9,7 +9,7 @@ import 'package:flutter/rendering.dart';
 import '../theme.dart';
 
 /// How far above the field's top the bottom blur begins to fade in.
-const blurFade = 24.0;
+const blurFade = 44.0;
 
 /// The blurred band: [top] puts the strong end at its top edge, else at its bottom edge. The blur is stepped, strips of
 /// less and less sigma toward the clear end (a backdrop filter inside a mask would read an empty layer and blur nothing),
@@ -20,9 +20,21 @@ class BlurBand extends StatelessWidget {
   final bool top;
   final double? fade;
 
+  // the bottom band's sigma, from the clear end in
+  static const _steps = [1.0, 2.5, 4.5, 7.0, 9.5];
+
+  /// How many strips the bottom's ramp has (the last, the strongest, comes after them).
+  @visibleForTesting
+  static int get stepCount => _steps.length + 1;
+
   Widget _strip(double sigma) => ClipRect(
     child: BackdropFilter.grouped(
-      filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+      filter: ImageFilter.blur(
+        sigmaX: sigma,
+        sigmaY: sigma,
+        // the edge of a strip repeats what is at it, not the see-through nothing outside
+        tileMode: TileMode.mirror,
+      ),
       child: const SizedBox.expand(),
     ),
   );
@@ -40,7 +52,6 @@ class BlurBand extends StatelessWidget {
                 : (fade! / box.maxHeight).clamp(0.0, 1.0);
             final alphas = top ? [1.0, 1.0, 0.0] : [0.0, 1.0, 1.0];
             final stops = top ? [0.0, 1 - ramp, 1.0] : [0.0, ramp, 1.0];
-            final half = (fade ?? 0) / 2;
             return Stack(
               children: [
                 // the last stretch before the clear end is not blurred at all
@@ -55,8 +66,12 @@ class BlurBand extends StatelessWidget {
                         )
                       : Column(
                           children: [
-                            SizedBox(height: half),
-                            SizedBox(height: half, child: _strip(4)),
+                            // many small steps from nothing to full: one big step would show as the edge of a strip
+                            for (final s in _steps)
+                              SizedBox(
+                                height: (fade ?? 0) / _steps.length,
+                                child: _strip(s),
+                              ),
                             Expanded(child: _strip(12)),
                           ],
                         ),

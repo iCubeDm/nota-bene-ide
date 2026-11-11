@@ -10,6 +10,7 @@ import '../chat/window_tab.dart';
 import '../comments/anchor.dart';
 import '../comments/comment_sheet.dart';
 import '../l10n/app_localizations.dart';
+import '../ui/insets.dart';
 import 'file_markdown.dart';
 
 /// The largest file the phone opens.
@@ -148,6 +149,7 @@ class _FileScreenState extends State<FileScreen> {
       res.text,
       res.label,
       voice: res.voice,
+      images: res.imageIds,
     );
   }
 
@@ -162,8 +164,8 @@ class _FileScreenState extends State<FileScreen> {
       tab: widget.tab,
     );
     switch (res) {
-      case SheetSave(:final text, :final label, :final voice):
-        widget.tab.comments.edit(id, text, label, voice: voice);
+      case SheetSave(:final text, :final label, :final voice, :final images):
+        widget.tab.comments.edit(id, text, label, voice: voice, images: images);
       case SheetDelete():
         widget.tab.comments.remove(id);
       case null:
@@ -213,7 +215,12 @@ class _FileScreenState extends State<FileScreen> {
               child: ListenableBuilder(
                 listenable: widget.tab.comments,
                 builder: (context, _) => ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    12,
+                    16,
+                    bottomRoom(context, 32),
+                  ),
                   children: [
                     FileMarkdown(
                       text: text,

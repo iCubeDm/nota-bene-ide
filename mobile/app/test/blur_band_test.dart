@@ -83,4 +83,36 @@ void main() {
     expect(spread(c, 0, 8), greaterThan(150));
     expect(spread(c, 192, 200), lessThan(40));
   });
+
+  // no frame: the band is blur and a fading tint only, and its blur steps are many and small so none reads as a strip
+  testWidgets(
+    'the bottom band is no frame: no border, a fading mask, blur in several steps',
+    (t) async {
+      await column(t, const BlurBand(top: false, fade: blurFade), false);
+      final band = find.byType(BlurBand);
+      expect(
+        find.descendant(of: band, matching: find.byType(Divider)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: band, matching: find.byType(DecoratedBox)),
+        findsNothing,
+      );
+      final mask = t.widget<ShaderMask>(
+        find.descendant(of: band, matching: find.byType(ShaderMask)),
+      );
+      expect(mask.blendMode, BlendMode.dstIn);
+      final g = mask.shaderCallback(const Rect.fromLTWH(0, 0, 100, 200));
+      expect(g, isNotNull);
+      // the blur itself ramps in over the fade in small steps
+      final strips = find.descendant(
+        of: band,
+        matching: find.byType(BackdropFilter),
+      );
+      expect(
+        strips.evaluate().length,
+        greaterThanOrEqualTo(BlurBand.stepCount),
+      );
+    },
+  );
 }

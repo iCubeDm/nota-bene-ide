@@ -2824,6 +2824,9 @@
             "id": {
               "type": "string"
             },
+            "model": {
+              "type": "string"
+            },
             "parent": {
               "type": "string"
             },

@@ -10,6 +10,7 @@ import '../chat/window_tab.dart';
 import '../comments/strings.g.dart';
 import '../files/image_screen.dart';
 import '../l10n/app_localizations.dart';
+import '../ui/insets.dart';
 import 'format.dart';
 
 const _pollMs = 2000;
@@ -175,7 +176,7 @@ class _UsageScreenState extends State<UsageScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomRoom(context)),
         children: [
           Wrap(
             spacing: 8,

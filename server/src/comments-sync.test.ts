@@ -276,6 +276,22 @@ describe('comment sync', () => {
   });
 });
 
+describe('a voice send with comments', () => {
+  const voice = { id: 'b'.repeat(64), ms: 1500, wave: Array(48).fill(3) };
+  it('marks them sent; a transcript that fails gives them back', async () => {
+    store().set('sess-v', [c('a'), c('b')]);
+    const s = await boot({ resume: 'sess-v' });
+    const a = await connect(s.url);
+    await until(() => lastComments(a) !== undefined);
+    // Whisper is off in the test: the transcript fails
+    a.ws.send(JSON.stringify({ type: 'send', id: 'v1', text: 'BATCH', commentIds: ['a'], voice, lang: 'en' }));
+    await until(() => a.events.some((e) => e.kind === 'comments' && e.items.some((x) => x.id === 'a' && x.status === 'sent' && x.sentIn === 'v1')));
+    await until(() => lastComments(a)?.find((x) => x.id === 'a')?.status === 'pending');
+    expect(lastComments(a)?.find((x) => x.id === 'a')?.sentIn).toBeUndefined();
+    expect(store().get('sess-v').map((x) => x.status)).toEqual(['pending', 'pending']);
+  });
+});
+
 describe('a model comment', () => {
   it('is stored with its camera, replayed with it, and hello announces protocol 9 or later', async () => {
     const s = await boot({ resume: 'sess-cam' });

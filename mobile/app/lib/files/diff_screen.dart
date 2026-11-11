@@ -169,6 +169,7 @@ class _DiffScreenState extends State<DiffScreen> {
       res.text,
       res.label,
       voice: res.voice,
+      images: res.imageIds,
     );
   }
 

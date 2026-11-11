@@ -42,6 +42,7 @@ void main() {
         return open;
       },
       http: () => post,
+      compose: (ids, lang) => (text: 'BATCH $lang', images: const [], ids: ids),
     );
     return box;
   }
@@ -110,6 +111,29 @@ void main() {
       final m = sent.single as ClientMessageSend;
       expect((m.voice!.id, m.lang), ('f' * 64, 'ru'));
       box.detach(owner);
+    },
+  );
+
+  test(
+    'the comments a recording carries survive a restart, stay held, and ride with it',
+    () async {
+      upload = Completer<HttpAnswer>();
+      final box = attach();
+      box.submit(wavOf(1000), 'en', commentIds: ['c1'], commentLang: 'ru');
+      await settle();
+      expect(box.heldIds, {'c1'});
+      box.detach(owner);
+      final next = VoiceStore(disk);
+      upload = null;
+      final again = attach(next);
+      await next.ready;
+      expect(again.heldIds, {'c1'});
+      again.opened();
+      await settle();
+      final m = sent.single as ClientMessageSend;
+      expect(m.commentIds, ['c1']);
+      expect(m.text, 'BATCH ru');
+      again.detach(owner);
     },
   );
 

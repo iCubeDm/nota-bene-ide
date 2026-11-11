@@ -15,6 +15,7 @@ import { AttachmentStore, attachmentRoutes } from './attachments.ts';
 import { ProjectIconStore, projectIconRoutes } from './projectIcon.ts';
 import { MarkFiles, markRoutes } from './marks.ts';
 import { CommentStore } from './comments.ts';
+import { PromptStore, promptRoutes } from './prompts.ts';
 import { EventHub } from './hub.ts';
 import { complete, fileRoutes } from './fileRoutes.ts';
 import { tmpDirNames } from './tmpImage.ts';
@@ -126,16 +127,28 @@ export async function startServer(o: {
       ...(o.idle ? { idle: o.idle } : {}),
       ...(o.idleOffInSettings ? { idleOffInSettings: o.idleOffInSettings } : {}),
       ...(o.shell ? { shell: o.shell } : {}),
+      // a voice message whose transcript failed never reaches the agent: the comments it carried are pending again
+      onDropped: (id) => broadcastComments(store.markPending(manager.info().id, id)),
     });
     const store = new CommentStore({ dir: path.join(stateDir(), 'comments') });
     // comments are live state, not history: never stored in the replay, a new socket gets the set directly
     const currentComments = () => store.get(manager.info().id);
     const broadcastComments = (items: Comment[]) => hub.emit({ kind: 'comments', items }, { store: false });
+    // the web's prompt history: a new session's first prompts wait in memory for its id (as comments do); a /clear or a fork
+    // keeps the history, so the new id gets a copy of the previous one's
+    const prompts = new PromptStore({ dir: path.join(stateDir(), 'prompts'), report: (e) => reportError(hub, 'prompts', e) });
     manager.onSessionId((id, prev) => {
       if (prev === null) store.adopt(id);
       broadcastComments(store.get(id));
+      try {
+        if (prev !== null) prompts.carry(prev, id);
+        prompts.adopt(id); // a fork or an id-less /clear too: its first prompts waited in memory
+      } catch (e) {
+        reportError(hub, 'prompts', e);
+      }
     });
     manager.onSwitch((id, { restart }) => {
+      if (!restart) prompts.dropPending();
       // the unsent set of a new session (in memory, no id yet) stays behind: it must not be adopted by another
       // session. A restart keeps the same session (and root), so it keeps the set too
       if (!restart) store.set(null, []);
@@ -255,6 +268,8 @@ export async function startServer(o: {
         ...projectIconRoutes({ store: projectIcons, root, hub }),
         // only the current conversation's archive: a page of another one (before a switch or a /clear) gets 409
         ...historyRoutes(archive, () => manager.archiveId(), hub),
+        // the web's prompt history (HTTP only): the current conversation's sent prompts
+        ...promptRoutes({ store: prompts, current: () => manager.info().id, own: () => manager.archiveId(), hub }),
         // a subagent's conversation (protocol 7); same rule: only the current conversation's
         ...subagentRoutes({ backend: o.backend, attachments, hub, current: () => manager.archiveId(), root }),
         // a shell task's output tail (protocol 8)

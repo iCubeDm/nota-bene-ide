@@ -196,9 +196,31 @@ export function mapSdk(msg: SDKMessage): AgentEvent[] {
   }
 }
 
-/** A backend's frame stream as AgentEvents: each frame's events in order, nothing for a frame that maps to none. */
-export async function* mapFrames(frames: AsyncIterable<SDKMessage>): AsyncGenerator<AgentEvent> {
-  for await (const m of frames) yield* mapSdk(m);
+/**
+ * A backend's frame stream as AgentEvents: each frame's events in order, nothing for a frame that maps to none. With
+ * `readModel` (the subagent's transcript model for a session and an Agent call, or undefined while unknown) a subagent's
+ * task events carry its `model`: the call's own `model` input at start, the transcript's once it is written (read on
+ * each progress until it is found, then never again).
+ */
+export async function* mapFrames(frames: AsyncIterable<SDKMessage>, readModel?: (sessionId: string, call: string) => string | undefined): AsyncGenerator<AgentEvent> {
+  const asked = new Map<string, string>(); // Agent call id -> the `model` input
+  const calls = new Map<string, string>(); // task id -> its Agent call, while the transcript's model is not known
+  for await (const m of frames) {
+    const evs = mapSdk(m);
+    if (!readModel) { yield* evs; continue; }
+    const session = str((m as unknown as Frame).session_id) ?? '';
+    for (const e of evs) {
+      if (e.t === 'tool-call' && (e.name === 'Agent' || e.name === 'Task') && typeof e.input.model === 'string' && e.input.model) asked.set(e.id, e.input.model);
+      if (e.t !== 'task' || (e.phase !== 'started' && e.phase !== 'progress')) { yield e; continue; }
+      const call = e.phase === 'started' ? e.call : calls.get(e.id);
+      if (e.phase === 'started') calls.delete(e.id);
+      if (!call || (e.phase === 'started' && taskKind(e.type ?? '', call) !== 'agent')) { yield e; continue; }
+      const real = readModel(session, call);
+      if (real) calls.delete(e.id); else calls.set(e.id, call);
+      const model = real ?? (e.phase === 'started' ? asked.get(call) : undefined);
+      yield model ? { ...e, model } : e;
+    }
+  }
 }
 
 /** The events a client may get (R-M7-14): `init`, `rate-limit` and `commands` stay in the server. */

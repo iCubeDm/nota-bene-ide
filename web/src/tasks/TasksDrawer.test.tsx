@@ -158,6 +158,18 @@ describe('rows', () => {
     expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('7s');
   });
 
+  it('an agent row names its model after the type; no model, no gap; an unknown id is shown as given', () => {
+    const { task } = setup();
+    task(start('a', { type: 'local_agent', model: 'claude-sonnet-5-5' }));
+    task({ t: 'task', phase: 'progress', id: 'a', tokens: 101_000, tool: 'Bash' });
+    task(start('b', { type: 'local_agent' }));
+    task(start('c', { type: 'local_agent', model: 'my-model' }));
+    fireEvent.click(indicator()!);
+    expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('local_agent · Sonnet 5.5 · 0s · 101k tok · Bash');
+    expect(row('b').querySelector('[data-task-meta]')).toHaveTextContent('local_agent · 0s');
+    expect(row('c').querySelector('[data-task-meta]')).toHaveTextContent('local_agent · my-model · 0s');
+  });
+
   it('children nest under their parent', () => {
     const { task } = setup();
     task(start('p', { type: 'local_agent', call: 'toolu_P' }));

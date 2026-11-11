@@ -161,7 +161,7 @@ void main() {
   });
 
   testWidgets(
-    'the strip shows the pending comments, not the sent ones; long-press deletes',
+    'the strip counts the pending comments, not the sent ones, and lists none',
     (t) async {
       final r = Rig();
       await r.open(
@@ -206,15 +206,8 @@ void main() {
       });
       await t.pumpAndSettle();
       expect(find.text('2 comments to send'), findsOneWidget);
-      expect(find.textContaining('first quote'), findsOneWidget);
+      expect(find.textContaining('first quote'), findsNothing);
       expect(find.textContaining('old'), findsNothing);
-      await t.longPress(find.textContaining('second quote'));
-      await t.pumpAndSettle();
-      await t.tap(find.text('Delete comment'));
-      await t.pumpAndSettle();
-      final set =
-          r.sent.lastWhere((m) => m['type'] == 'comments')['items'] as List;
-      expect(set.map((x) => (x as Map)['id']), ['a', 's']);
       r.dispose();
     },
   );

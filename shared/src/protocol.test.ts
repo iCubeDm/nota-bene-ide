@@ -461,7 +461,10 @@ test('a voice send is only the voice, in a language', () => {
   expect(parseClientMessage(vsend({ voice: { ...voice, junk: 1 } }))).toStrictEqual({ type: 'send', id: 'u1', text: '', voice, lang: 'ru' });
   expect(parseClientMessage(vsend({ text: 'hi' }))).toHaveProperty('error');
   expect(parseClientMessage(vsend({ images: [] }))).toHaveProperty('error');
-  expect(parseClientMessage(vsend({ commentIds: ['c1'] }))).toHaveProperty('error');
+  expect(parseClientMessage(vsend({ commentIds: ['c1'] }))).toStrictEqual({ type: 'send', id: 'u1', text: '', commentIds: ['c1'], voice, lang: 'ru' });
+  expect(parseClientMessage(vsend({ commentIds: [] }))).toHaveProperty('error');
+  // pending comments ride along with their batch text and images
+  expect(parseClientMessage(vsend({ text: 'batch', commentIds: ['c1'], images: [] }))).toMatchObject({ text: 'batch', commentIds: ['c1'], images: [] });
   // forced like a typed one: the agent's turn is interrupted once the transcript is in
   expect(parseClientMessage(vsend({ force: true }))).toStrictEqual({ type: 'send', id: 'u1', text: '', force: true, voice, lang: 'ru' });
   expect(parseClientMessage(vsend({ force: 'yes' }))).toHaveProperty('error');

@@ -165,6 +165,7 @@ class _SelectableMessageState extends State<SelectableMessage> {
       res.text,
       res.label,
       voice: res.voice,
+      images: res.imageIds,
     );
     widget.onDone();
   }
