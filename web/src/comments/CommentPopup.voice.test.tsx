@@ -52,12 +52,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function setup({ whisper = true, protocol = 14 } = {}) {
+function setup({ whisper = true, protocol = 14, prepare }: { whisper?: boolean; protocol?: number; prepare?: PendingComment['prepare'] } = {}) {
   const sent: ClientMessage[] = [];
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (onState('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
   store.dispatch({ type: 'server/event', payload: { kind: 'hello', protocol, capabilities: { ...CLAUDE_CAPABILITIES, ...(whisper ? { dictation: 'whisper' } : {}) } } });
   const onClose = vi.fn();
-  render(<Provider store={store}><TooltipProvider><CommentPopup pending={pending as PendingComment} onClose={onClose} /></TooltipProvider></Provider>);
+  render(<Provider store={store}><TooltipProvider><CommentPopup pending={{ ...pending, ...(prepare && { prepare }) } as PendingComment} onClose={onClose} /></TooltipProvider></Provider>);
   return { store, onClose, comments: () => store.getState().comments.items };
 }
 const micBtn = () => screen.getByTestId('popup-mic');
@@ -221,4 +221,17 @@ it('an attached image alone swaps the mic for Add', async () => {
   act(() => void screen.getByPlaceholderText('Comment…').dispatchEvent(ev));
   expect(await screen.findByRole('button', { name: 'Add' })).toBeInTheDocument();
   expect(screen.queryByTestId('popup-mic')).toBeNull();
+});
+
+it('a drawing\'s Add keeps its place (the footer) while it is saving: the mic does not take its row', async () => {
+  let done!: (r: { images: string[] }) => void;
+  const prepare = () => new Promise<{ images: string[] }>((res) => { done = res; });
+  const { store } = setup({ prepare });
+  const before = addBtn();
+  fireEvent.click(before);
+  await waitFor(() => expect(addBtn()).toHaveAttribute('aria-busy', 'true'));
+  expect(micBtn()).toBeInTheDocument(); // the field row still has its mic
+  expect(micBtn().compareDocumentPosition(addBtn()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // Add is still after it
+  await act(async () => done({ images: [] }));
+  expect(store.getState().comments.items).toHaveLength(1);
 });

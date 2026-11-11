@@ -9,8 +9,9 @@ import { makeStore, serverEvent } from '@/store/store.ts';
 import { mic } from '@/voice/recorder.ts';
 import { resetPlayer } from '@/voice/player.ts';
 import { selectSendable } from '@/comments/send.ts';
+import { installKeymap } from '@/shell/keymap.ts';
 import { Composer } from './Composer.tsx';
-import { addImage, setDraft } from './slice.ts';
+import { addImage, selectDraft, selectImages, setDraft } from './slice.ts';
 
 const VOICE = { id: 'c'.repeat(64), ms: 3000, wave: Array.from({ length: 48 }, (_, i) => i % 32) };
 const wav = new Blob([new Uint8Array(44)], { type: 'audio/wav' });
@@ -114,8 +115,7 @@ it('the prompt history button is left of the field, the action button right of i
 });
 
 it('a recording made with pending comments takes them along (protocol 16)', async () => {
-  const { sent, store } = setup({ comments: [cm('c1')] });
-  act(() => void store.dispatch(setDraft('')));
+  const { sent } = setup({ comments: [cm('c1')] });
   fireEvent.click(mic$()!);
   fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
   await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
@@ -144,4 +144,104 @@ it('comments that rode along with a recording are not sendable again; a refusal 
   const id = (sent.find((m) => m.type === 'send') as { id: string }).id;
   feed({ kind: 'send-refused', id, reason: 'busy' } as never);
   await waitFor(() => expect(selectSendable(store.getState())).toHaveLength(1));
+});
+
+const voiceMsg = (sent: ClientMessage[]) => sent.find((m) => m.type === 'send') as Extract<ClientMessage, { type: 'send' }>;
+const altR = () => fireEvent.keyDown(document.body, { code: 'KeyR', key: 'r', altKey: true });
+const IMG = 'a'.repeat(64) + '.png';
+const att = (id: string, image = IMG): Comment => ({
+  id, anchor: { kind: 'attachment', image, width: 10, height: 10, shapes: [] }, text: 'on the image', status: 'pending', createdAt: 2,
+});
+const two = () => [{ ...cm('c1'), label: 'clarify' as const }, { ...cm('c2'), text: 'second note', createdAt: 3 }];
+
+it('the text a recording takes along equals the batch of a comments-only send of the same comments', async () => {
+  const alone = setup({ comments: two() });
+  await userEvent.type(alone.box, '{Enter}'); // the empty field sends the comments alone
+  const batch = alone.sent.find((m) => m.type === 'send') as Extract<ClientMessage, { type: 'send' }>;
+  expect(batch.commentIds).toEqual(['c1', 'c2']);
+  expect(batch.text).toContain('second note');
+  cleanup();
+  const { sent } = setup({ comments: two() });
+  fireEvent.click(mic$()!);
+  fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+  await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
+  const m = voiceMsg(sent);
+  expect(m.commentIds).toEqual(batch.commentIds);
+  expect(m.text).toBe(batch.text); // the same composeBatch the mobile fixtures check
+  expect(m.voice).toMatchObject({ id: VOICE.id });
+});
+
+it('attachment comments stay out of a recording and stay pending; the draft and the images stay too', async () => {
+  const { sent, store } = setup({ comments: [cm('c1'), att('att1')] });
+  act(() => void store.dispatch(addImage({ id: IMG, mediaType: 'image/png' } as never)));
+  act(() => void store.dispatch(setDraft('typed words')));
+  const off = installKeymap(store);
+  altR(); // Send is showing (text and an image): the shortcut records
+  fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+  await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
+  off();
+  const m = voiceMsg(sent);
+  expect(m.commentIds).toEqual(['c1']);
+  expect(m.images).toBeUndefined();
+  expect(m.text).not.toContain('typed words');
+  expect(m.text).not.toContain('on the image');
+  expect(store.getState().comments.items.find((c) => c.id === 'att1')?.status).toBe('pending');
+  expect(selectSendable(store.getState()).map((c) => c.id)).toEqual(['att1']);
+  expect(selectDraft(store.getState())).toBe('typed words');
+  expect(selectImages(store.getState())).toEqual([{ id: IMG, mediaType: 'image/png' }]);
+  expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('typed words');
+});
+
+it('a detached attachment comment (its image is not in the composer) stays pending; a recording goes alone', async () => {
+  const { sent, store } = setup({ comments: [att('att1')] });
+  fireEvent.click(mic$()!);
+  fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+  await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
+  expect(voiceMsg(sent)).toEqual({ type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en' });
+  expect(store.getState().comments.items[0]?.status).toBe('pending');
+});
+
+it('a draft typed, then Alt+R: the pending comments ride along and the draft stays', async () => {
+  const { sent, store, box } = setup({ comments: [cm('c1')] });
+  await userEvent.type(box, 'half a thought');
+  const off = installKeymap(store);
+  altR();
+  fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+  await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
+  off();
+  const m = voiceMsg(sent);
+  expect(m.commentIds).toEqual(['c1']);
+  expect(m.text).not.toContain('half a thought');
+  expect(selectDraft(store.getState())).toBe('half a thought');
+});
+
+// a double click on Send must not hit the mic that replaces it under the cursor
+it('a press on the mic right after Send swapped to it starts nothing; after the window it records', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    const { box } = setup();
+    fireEvent.change(box, { target: { value: 'hi' } });
+    fireEvent.click(send$()!);
+    expect(mic$()).toBeInTheDocument();
+    fireEvent.pointerDown(mic$()!, { button: 0 }); // the second press of the double click
+    fireEvent.pointerUp(window);
+    expect(screen.queryByTestId('record-bar')).toBeNull();
+    expect(mic.start).not.toHaveBeenCalled();
+    vi.setSystemTime(Date.now() + 500);
+    fireEvent.pointerDown(mic$()!, { button: 0 });
+    fireEvent.pointerUp(window);
+    await waitFor(() => expect(screen.getByTestId('record-bar')).toBeInTheDocument());
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('when Send unmounts (a send that finished later) the caret stays in the field', async () => {
+  const { store } = setup();
+  act(() => void store.dispatch(setDraft('hi')));
+  const btn = send$()!;
+  btn.focus();
+  expect(btn).toHaveFocus();
+  act(() => void store.dispatch(setDraft('')));
+  expect(screen.getByRole('textbox')).toHaveFocus();
 });

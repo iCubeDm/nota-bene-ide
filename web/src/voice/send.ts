@@ -4,8 +4,6 @@ import { voiceComments } from '../comments/send.ts';
 import { whisperLang } from './lang.ts';
 import { trackVoiceSend } from './inflight.ts';
 
-export { onVoiceRefused, takeVoiceSend, voiceRefused, voiceSendEchoed } from './inflight.ts';
-
 /**
  * Sends an uploaded recording as a message of its own: no text, no images. While the agent works it waits its
  * turn, as a typed message does; `force` (only meant while busy, as `sendMessage`'s) interrupts the agent instead.

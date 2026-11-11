@@ -84,6 +84,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   const [note, setNote] = useState('');
   const [dropping, setDropping] = useState(false);
   const [busy, setBusyState] = useState(false); // a drawing's files are being written
+  const addIn = useRef<'field' | 'footer'>('footer'); // where Add was when it was clicked: it does not jump rows while saving
+  const showAddRef = useRef(false);
   const busyNow = useRef(false); // a second click in the same tick must not start a second prepare
   const setBusy = (v: boolean) => {
     busyNow.current = v;
@@ -142,6 +144,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
 
   const add = async (label?: QuickLabelId) => {
     if (uploading || switching || busyNow.current || waiting || recording) return;
+    addIn.current = showAddRef.current ? 'field' : 'footer'; // the button stays where it was clicked while the drawing saves
     const body = text.trim();
     const { prepare, id } = pending;
     // a drawing is content of its own: no text and no label is still a comment
@@ -248,8 +251,9 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   // Add takes the mic's place once the field has something (text, an image); a drawing and the voice clips are content
   // of their own, so with an empty field their Add stays beside the attach and emoji buttons and the mic keeps the field's
   // side (one more clip can still be recorded)
-  const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0 || busy;
-  const showAdd = hasContent || protocol < 14;
+  const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
+  const showAdd = busy ? addIn.current === 'field' : hasContent || protocol < 14;
+  showAddRef.current = hasContent || protocol < 14;
   const addButton = (
     <Button className="h-8" disabled={off} aria-busy={busy || waiting || undefined} title={switching ? t('switching') : waiting ? t('voiceClipsWait') : undefined} onClick={() => void add()}>
       {(busy || waiting) && <span aria-hidden className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
@@ -293,7 +297,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           placeholder={t('commentPh')}
           ariaLabel={t('commentPh')}
           // as in the composer: the mic while the field is empty, Add once it has something
-          hasContent={hasContent}
+          hasContent={showAdd}
           mic={protocol >= 14 ? (
             <MicButton
               compact
@@ -301,7 +305,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
               anchor={micAnchor}
               label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}
               tip={!whisper ? t('voiceMicSetup') : clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
-              disabled={switching || recording || (whisper && clips.length >= VOICE_MAX_CLIPS)}
+              disabled={switching || recording || busy || (whisper && clips.length >= VOICE_MAX_CLIPS)}
               onClick={() => (whisper ? rec.start(false) : setSetup((o) => !o))}
             />
           ) : undefined}

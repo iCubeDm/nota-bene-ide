@@ -24,7 +24,8 @@ import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } fro
 import { BINDINGS, keysLabel, VOICE_KEY, withKey } from '@/shell/keymap.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
-import { onVoiceRefused, sendVoice } from '@/voice/send.ts';
+import { onVoiceRefused } from '@/voice/inflight.ts';
+import { sendVoice } from '@/voice/send.ts';
 import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
 import { PLAYER_HELP } from '@/media/playerKeys.ts';
 import { useSeekStep } from '@/media/seekStep.ts';
@@ -163,8 +164,12 @@ export function Composer() {
     if (recPhase === 'idle' && wasRecording.current) ref.current?.focus({ preventScroll: true });
     wasRecording.current = recPhase !== 'idle';
   }, [recPhase]);
+  // Send turns into the mic under the cursor: the second press of a double click on Send must not start a recording
+  const SWAP_GUARD_MS = 400;
+  const swappedAt = useRef(0);
   const micDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || !whisper || switching || recRef.current.st.phase !== 'idle') return;
+    if (Date.now() - swappedAt.current < SWAP_GUARD_MS) return;
     recRef.current.start(true);
     // the button is gone from under the finger once the bar replaces it: the release is read on the window
     const up = () => { window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); recRef.current.release(); };
@@ -179,6 +184,17 @@ export function Composer() {
 
   // something to send: text, an image (also one still uploading), as on the phone; pending comments do not count
   const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
+
+  // Send gives way to the mic (a send, or the field emptied): note when, and keep the caret in the field if the button that
+  // had it is gone (a send that finished after its composite images were built)
+  const hadContent = useRef(hasContent);
+  useLayoutEffect(() => {
+    if (hadContent.current && !hasContent) {
+      swappedAt.current = Date.now();
+      if (document.activeElement === document.body && !recording) ref.current?.focus({ preventScroll: true });
+    }
+    hadContent.current = hasContent;
+  }, [hasContent, recording]);
 
   // drop anywhere in the window attaches to the message (a drop inside an open comment popup is taken there first)
   const addRef = useRef(intake.add);
@@ -427,7 +443,7 @@ export function Composer() {
           <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
           <ShortcodePicker target={ref} />
         </MessageInput>
-        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micBox.current ? micBox : ref} />}
+        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasContent ? ref : micBox} />}
       </div>
       <div data-tools-row className="flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-1 pb-2">
         <input
