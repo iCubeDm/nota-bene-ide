@@ -252,6 +252,45 @@ void main() {
     );
   });
 
+  testWidgets('the floating paperclip does not cover the last message', (
+    t,
+  ) async {
+    await open(
+      t,
+      events: [
+        ...many(3),
+        {
+          'kind': 'agent',
+          'e': {
+            't': 'turn-end',
+            'stop': 'done',
+            'secs': 1,
+            'answers': 'all',
+            'queued': 0,
+          },
+          'ts': 9,
+        },
+      ],
+    );
+    expect(r.tab!.busy, isFalse);
+    final composer = t.getTopLeft(find.byKey(const ValueKey('composer'))).dy;
+    final idle = padding(t).bottom;
+    await t.enterText(find.byType(TextField), 'draft');
+    await t.pumpAndSettle();
+    final clip = find.byKey(const ValueKey('attach-floating'));
+    expect(clip, findsOneWidget);
+    // the same room Stop takes
+    expect(padding(t).bottom, idle + 56);
+    expect(t.getTopLeft(clip).dy, lessThan(composer));
+    expect(
+      t.getBottomLeft(find.text('message 2')).dy,
+      lessThanOrEqualTo(t.getTopLeft(clip).dy),
+    );
+    await t.enterText(find.byType(TextField), '');
+    await t.pumpAndSettle();
+    expect(padding(t).bottom, idle);
+  });
+
   testWidgets('the comments pane runs under the header too', (t) async {
     await open(t);
     r.tab!.comments.add(

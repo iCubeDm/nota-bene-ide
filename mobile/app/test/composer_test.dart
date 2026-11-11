@@ -320,7 +320,7 @@ void main() {
     );
 
     testWidgets(
-      'attach and mic are inside the field; typing hides attach and the mic becomes Send inside it',
+      'attach and mic are inside the field; typing floats attach out of the row and the mic becomes Send inside it',
       (t) async {
         await openVoice(t);
         final field = find.byType(TextField);
@@ -333,6 +333,7 @@ void main() {
         await t.enter('word ' * 80);
         await t.pumpAndSettle();
         expect(clip, findsNothing);
+        expect(find.byKey(const ValueKey('attach-floating')), findsOneWidget);
         expect(mic, findsNothing);
         final send = find.byKey(const ValueKey('send'));
         expect(t.getRect(box.first).contains(t.getCenter(send)), isTrue);
@@ -366,6 +367,27 @@ void main() {
       await t.tap(stop);
       await t.pump();
       expect(r.sent.last, {'type': 'interrupt'});
+    });
+
+    testWidgets('a hold hides the floating paperclip with Stop', (t) async {
+      await openVoice(t, events: working);
+      final field = t.widget<TextField>(
+        find.byType(TextField, skipOffstage: false),
+      );
+      final g = await t.startGesture(t.getCenter(find.byType(RecordButton)));
+      await t.pump(const Duration(milliseconds: 300));
+      // text that arrives under a hold (a draft restored, a refused send)
+      field.controller!.text = 'kept';
+      await t.pump();
+      expect(find.byKey(const ValueKey('stop')), findsNothing);
+      expect(find.byKey(const ValueKey('attach-floating')), findsNothing);
+      await g.moveBy(const Offset(0, -90));
+      await g.up();
+      await t.pump();
+      await t.pump();
+      // locked: the turn can still be stopped, the recording keeps the paperclip away
+      expect(find.byKey(const ValueKey('stop')), findsOneWidget);
+      expect(find.byKey(const ValueKey('attach-floating')), findsNothing);
     });
 
     testWidgets('Stop is hidden during the hold and back once locked', (
