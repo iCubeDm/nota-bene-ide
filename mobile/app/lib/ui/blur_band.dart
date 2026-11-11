@@ -20,6 +20,9 @@ class BlurBand extends StatelessWidget {
   final bool top;
   final double? fade;
 
+  // the bottom band's sigma, from the clear end in
+  static const _steps = [0.6, 1.2, 2.0, 3.0, 4.2, 5.6, 7.2, 9.0];
+
   Widget _strip(double sigma) => ClipRect(
     child: BackdropFilter.grouped(
       filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
@@ -40,7 +43,6 @@ class BlurBand extends StatelessWidget {
                 : (fade! / box.maxHeight).clamp(0.0, 1.0);
             final alphas = top ? [1.0, 1.0, 0.0] : [0.0, 1.0, 1.0];
             final stops = top ? [0.0, 1 - ramp, 1.0] : [0.0, ramp, 1.0];
-            final half = (fade ?? 0) / 2;
             return Stack(
               children: [
                 // the last stretch before the clear end is not blurred at all
@@ -55,8 +57,12 @@ class BlurBand extends StatelessWidget {
                         )
                       : Column(
                           children: [
-                            SizedBox(height: half),
-                            SizedBox(height: half, child: _strip(4)),
+                            // many small steps from nothing to full: one big step would show as the edge of a strip
+                            for (final s in _steps)
+                              SizedBox(
+                                height: (fade ?? 0) / _steps.length,
+                                child: _strip(s),
+                              ),
                             Expanded(child: _strip(12)),
                           ],
                         ),

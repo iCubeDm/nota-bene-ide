@@ -122,7 +122,8 @@ void main() {
         .evaluate()
         .length;
     expect(filters('blur-top'), 2);
-    expect(filters('blur-bottom'), 2);
+    // the bottom's blur grows in many small steps, so none shows as a strip
+    expect(filters('blur-bottom'), 9);
   });
 
   testWidgets('the solid parts of the bands take the taps', (t) async {
