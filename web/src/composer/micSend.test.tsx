@@ -10,6 +10,7 @@ import { mic } from '@/voice/recorder.ts';
 import { resetPlayer } from '@/voice/player.ts';
 import { selectSendable } from '@/comments/send.ts';
 import { installKeymap } from '@/shell/keymap.ts';
+import { PLANE_PATH } from './MessageInput.tsx';
 import { Composer } from './Composer.tsx';
 import { addImage, selectDraft, selectImages, setDraft } from './slice.ts';
 
@@ -53,6 +54,11 @@ it('an empty field shows the mic and a disabled Send without a badge', () => {
   expect(send$()).toBeDisabled();
   expect(screen.queryByTestId('send-count')).toBeNull();
   expect(send$()).not.toHaveTextContent(/\S/); // an icon, no word
+});
+
+it('Send draws the paper plane of the voice record bar, as in Telegram', () => {
+  setup();
+  expect(send$()!.querySelector('svg path')?.getAttribute('d')).toBe(PLANE_PATH);
 });
 
 it('typed text hides the mic and enables Send; clearing the field brings the mic back', async () => {

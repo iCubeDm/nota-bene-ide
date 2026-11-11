@@ -12,15 +12,19 @@ export function MicIcon() {
   );
 }
 
-/** The envelope of the composer's Send; `count` is the comments it carries (a badge, none at 0), `run` swaps it for a terminal prompt (a `!` shell line). */
+/** The paper plane of every send (the composer's Send, the voice record bar), as in Telegram. */
+export const PLANE_PATH = 'M3.4 20.4 21 12 3.4 3.6l-.1 6.5L15 12 3.3 13.9z';
+export const PlaneIcon = ({ size = 17 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden><path d={PLANE_PATH} /></svg>
+);
+
+/** The plane of the composer's Send; `count` is the comments it carries (a badge, none at 0), `run` swaps it for a terminal prompt (a `!` shell line). */
 export function SendIcon({ count, run }: { count: number; run?: boolean }) {
   return (
     <span className="relative inline-flex">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        {run
-          ? <path d="M4 17l6-6-6-6M12 19h8" />
-          : <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></>}
-      </svg>
+      {run
+        ? <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 17l6-6-6-6M12 19h8" /></svg>
+        : <PlaneIcon size={18} />}
       {!run && count > 0 && (
         <span aria-hidden data-testid="send-count" className="absolute -top-2 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[0.625rem] leading-none font-semibold text-background">
           {count}
