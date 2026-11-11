@@ -35,11 +35,11 @@ const cm = (id: string): Comment => ({
   id, anchor: { source: { kind: 'message', id: 'u0' }, start: 0, end: 1, quote: 'q', prefix: '', suffix: '' }, text: 'note', status: 'pending', createdAt: 1,
 });
 
-function setup({ protocol = PROTOCOL, whisper = true, comments = [] as Comment[] } = {}) {
+function setup({ protocol = PROTOCOL, whisper = true, comments = [] as Comment[], dictationLang = undefined as string | undefined } = {}) {
   const sent: ClientMessage[] = [];
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (onState('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
   const feed = (ev: Parameters<typeof serverEvent>[0]) => act(() => void store.dispatch(serverEvent(ev)));
-  feed({ kind: 'hello', protocol, capabilities: { ...CLAUDE_CAPABILITIES, ...(whisper ? { dictation: 'whisper' } : {}) } } as never);
+  feed({ kind: 'hello', protocol, ...(dictationLang ? { dictationLang } : {}), capabilities: { ...CLAUDE_CAPABILITIES, ...(whisper ? { dictation: 'whisper' } : {}) } } as never);
   feed({ kind: 'user', id: 'u0', text: 'first', ts: 0, historic: true });
   feed({ kind: 'comments', items: comments });
   render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
@@ -138,6 +138,20 @@ it('a recording made with pending comments takes them along (protocol 16)', asyn
   expect(m.text).toContain('note');
 });
 
+it('a recording that takes comments along asks for detection under Auto, and sends the pinned language otherwise', async () => {
+  for (const [dictationLang, want] of [[undefined, { lang: 'en', detect: true }], ['de', { lang: 'de' }]] as const) {
+    const { sent } = setup({ protocol: 18, comments: [cm('c1')], dictationLang });
+    fireEvent.click(mic$()!);
+    fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+    await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
+    const m = sent.find((x) => x.type === 'send') as Extract<ClientMessage, { type: 'send' }>;
+    expect(m.commentIds).toEqual(['c1']);
+    expect(m).toMatchObject(want);
+    if (!('detect' in want)) expect(m.detect).toBeUndefined();
+    cleanup();
+  }
+});
+
 it('below protocol 16 a recording goes alone and the comments stay pending', async () => {
   const { sent } = setup({ protocol: 15, comments: [cm('c1')] });
   fireEvent.click(mic$()!);
@@ -210,7 +224,7 @@ it('a detached attachment comment (its image is not in the composer) stays pendi
   fireEvent.click(mic$()!);
   fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
   await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
-  expect(voiceMsg(sent)).toEqual({ type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en' });
+  expect(voiceMsg(sent)).toEqual({ type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en', detect: true });
   expect(store.getState().comments.items[0]?.status).toBe('pending');
 });
 

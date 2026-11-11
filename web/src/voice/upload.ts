@@ -11,14 +11,14 @@ export async function uploadVoice(wav: Blob): Promise<Voice> {
 }
 
 /** POST /voice/<id>/text: a clip's transcript. The same three reasons a voice message has for no text. */
-export async function transcribeVoice(id: string, lang: string): Promise<{ text: string } | { error: VoiceError }> {
+export async function transcribeVoice(id: string, ask: { lang: string; detect?: true }): Promise<{ text: string; lang?: string } | { error: VoiceError }> {
   try {
-    const r = await apiFetch(`/voice/${id}/text?lang=${encodeURIComponent(lang)}`, { method: 'POST' });
+    const r = await apiFetch(`/voice/${id}/text?lang=${encodeURIComponent(ask.lang)}${ask.detect ? '&detect=1' : ''}`, { method: 'POST' });
     if (r.status === 503) return { error: 'off' };
     if (!r.ok) return { error: 'failed' };
-    const j = (await r.json()) as { text?: unknown };
+    const j = (await r.json()) as { text?: unknown; lang?: unknown };
     if (typeof j.text !== 'string') return { error: 'failed' };
-    return j.text.trim() ? { text: j.text.trim() } : { error: 'empty' };
+    return j.text.trim() ? { text: j.text.trim(), ...(typeof j.lang === 'string' ? { lang: j.lang } : {}) } : { error: 'empty' };
   } catch {
     return { error: 'failed' };
   }

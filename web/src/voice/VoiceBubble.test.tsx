@@ -35,9 +35,10 @@ afterEach(() => {
 const V1 = 'a'.repeat(64), V2 = 'b'.repeat(64);
 const voice = (id: string, ms = 12_000) => ({ id, ms, wave: Array.from({ length: 48 }, (_, i) => (i * 5) % 32) });
 
-function setup() {
+function setup(hello: object = {}) {
   const sent: ClientMessage[] = [];
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (onState('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
+  store.dispatch(serverEvent({ kind: 'hello', protocol: 18, ...hello } as never));
   render(<Provider store={store}><Feed /></Provider>);
   const ev = (e: ServerEvent) => act(() => void store.dispatch(serverEvent(e)));
   return { sent, store, ev };
@@ -151,4 +152,34 @@ it('the position shows while playing and a click on the wave seeks', () => {
   wave.getBoundingClientRect = () => ({ left: 100, width: 100, right: 200, top: 0, bottom: 0, height: 0, x: 100, y: 0, toJSON() {} });
   fireEvent.pointerDown(wave, { clientX: 150 });
   expect(a.currentTime).toBeCloseTo(6);
+});
+
+it('the bubble names the detected language only when it differs from the interface language', () => {
+  const { ev } = setup();
+  ev(userV('m1'));
+  ev({ kind: 'voice-text', id: 'm1', text: 'bonjour', lang: 'fr', ts: 1 });
+  expect(screen.getByTitle('Recognised as French')).toHaveTextContent('FR');
+  ev(userV('m2', V2));
+  ev({ kind: 'voice-text', id: 'm2', text: 'hello', lang: 'en', ts: 2 });
+  expect(screen.queryByTitle('Recognised as English')).toBeNull();
+});
+
+it('a replayed voice message shows its stored language badge', () => {
+  const { ev } = setup();
+  ev({ kind: 'replay', events: [userV('m1', V1, { text: 'hallo', historic: true, ts: 0, voiceLang: 'de' })] });
+  expect(screen.getByTitle('Recognised as German')).toHaveTextContent('DE');
+});
+
+it('a pinned language is not a detection: no badge, whatever the UI language is', () => {
+  const { ev } = setup({ dictationLang: 'de' });
+  ev(userV('m1'));
+  ev({ kind: 'voice-text', id: 'm1', text: 'hallo', lang: 'de', ts: 1 });
+  expect(screen.queryByTitle('Recognised as German')).toBeNull();
+});
+
+it('the badge names the language for screen readers too', () => {
+  const { ev } = setup();
+  ev(userV('m1'));
+  ev({ kind: 'voice-text', id: 'm1', text: 'bonjour', lang: 'fr', ts: 1 });
+  expect(screen.getByText('Recognised as French')).toHaveClass('sr-only');
 });

@@ -35,6 +35,8 @@ export type ControlsState = { mode: Mode | null; modeBeforePlan: Mode | null; re
    * (mode pill, meters, idle toggle) wait for it, so they do not flash and vanish. Kept over a dropped socket until the next `hello`.
    */
   capabilities: Capabilities | null;
+  /** the host's spoken language for dictation, from `hello` / Settings: `auto` or an ISO 639 code; undefined = none chosen (auto) */
+  dictationLang?: string;
 };
 
 /** The mode as the UI shows it: null until the server has told us (or the user picked one). */
@@ -54,6 +56,8 @@ const modeSent = createAction<string>('controls/modeSent');
 const idleCompactSet = createAction<boolean>('controls/idleCompactSet');
 /** Whisper was switched on or off (or removed) in Settings: the mic reads this, and `hello` only comes on connect. */
 export const dictationSet = createAction<boolean>('controls/dictationSet');
+/** The spoken language of dictation was chosen in Settings (or read there from the host). */
+export const dictationLangSet = createAction<string>('controls/dictationLangSet');
 
 export const controlsSlice = createSlice({
   name: 'controls',
@@ -73,6 +77,7 @@ export const controlsSlice = createSlice({
       const { dictation: _, ...rest } = s.capabilities ?? CLAUDE_CAPABILITIES;
       s.capabilities = a.payload ? { ...rest, dictation: 'whisper' } : rest;
     });
+    b.addCase(dictationLangSet, (s, a) => void (s.dictationLang = a.payload));
     b.addCase(idleCompactSet, (s, a) => void (s.idleCompact && (s.idleCompact.on = a.payload)));
     // a dropped socket may come back to another server (a restart): until its hello, assume an old one
     b.addCase(connState, (s, a) => void (a.payload === 'closed' && (s.protocol = 0)));
@@ -81,6 +86,7 @@ export const controlsSlice = createSlice({
       if (ev.kind === 'hello') {
         s.protocol = ev.protocol;
         s.capabilities = ev.capabilities ?? CLAUDE_CAPABILITIES;
+        s.dictationLang = ev.dictationLang;
       }
       if (ev.kind === 'mode') {
         // Two quick Shift+Tabs: the echo of the first lands after the second was shown, and applying it would put the
