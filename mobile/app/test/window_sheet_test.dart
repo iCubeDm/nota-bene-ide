@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/window_sheet.dart';
 import 'package:nb_app/comments/strings.g.dart';
+import 'package:nb_channel/nb_channel.dart' show HostWindow;
 import 'package:nb_app/theme.dart';
 
 import 'controls_test.dart' show models;
+import 'support/fakes.dart';
 import 'support/rig.dart';
 
 Map<String, Object?> session() => {
@@ -231,5 +233,53 @@ void main() {
   testWidgets('no model row without models', (t) async {
     await sheet(t);
     expect(find.text('Model and effort'), findsNothing);
+  });
+
+  group('the project icon', () {
+    Future<void> openWith(WidgetTester t, HostWindow w) async {
+      await r.open(t, hello: hello(), events: [session()], win: w);
+      await t.tap(find.text('Spec work'));
+      await t.pumpAndSettle();
+    }
+
+    testWidgets(
+      'a host that knows icons offers Set icon, Remove only with one',
+      (t) async {
+        await openWith(t, window(4791, '/home/u/notes', iconSupported: true));
+        expect(inSheet(find.text('Set icon')), findsOneWidget);
+        expect(inSheet(find.text('Remove icon')), findsNothing);
+      },
+    );
+
+    testWidgets('a host without icon support offers neither', (t) async {
+      await openWith(t, window(4791, '/home/u/notes'));
+      expect(inSheet(find.text('Set icon')), findsNothing);
+      expect(inSheet(find.text('Remove icon')), findsNothing);
+    });
+
+    testWidgets(
+      'Set icon asks where the picture comes from, as the list does',
+      (t) async {
+        await openWith(t, window(4791, '/home/u/notes', iconSupported: true));
+        await t.tap(inSheet(find.text('Set icon')));
+        await t.pumpAndSettle();
+        expect(find.text('Gallery'), findsOneWidget);
+      },
+    );
+
+    testWidgets('Remove icon deletes it on the host and asks the list again', (
+      t,
+    ) async {
+      await openWith(
+        t,
+        window(4791, '/home/u/notes', icon: '0123456789abcdef'),
+      );
+      r.ch.onHttp = (port, m, path) async => answer(204, '');
+      await t.tap(inSheet(find.text('Remove icon')));
+      await t.pumpAndSettle();
+      final del = r.ch.calls.singleWhere((c) => c.method == 'DELETE');
+      expect(del.path, '/project-icon');
+      expect(r.ch.refreshes, 1);
+    });
   });
 }

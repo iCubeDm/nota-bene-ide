@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/strings.g.dart';
+import '../hosts/icon_flow.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
@@ -76,6 +77,9 @@ class WindowSheet extends StatelessWidget {
         color: c.mutedFg,
       );
       final gap = const SizedBox(height: 16);
+      final icon = tab.link.windows
+          .where((w) => w.port == tab.port)
+          .firstOrNull;
       return SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -131,6 +135,41 @@ class WindowSheet extends StatelessWidget {
                     danger: modeWithoutPrompts(m),
                     onTap: open ? () => tab.setMode(m) : null,
                   ),
+              ],
+              if (icon != null &&
+                  (icon.iconSupported || icon.icon != null)) ...[
+                gap,
+                // the same picker and calls as a row of the sessions list; its flows keep the chat's context, not the sheet's
+                Row(
+                  children: [
+                    if (icon.iconSupported)
+                      Expanded(
+                        child: SheetTile(
+                          NbGlyph.image,
+                          t.setIcon,
+                          enabled: open,
+                          onTap: () {
+                            Navigator.pop(context);
+                            setProjectIconFlow(outer, tab.link, icon);
+                          },
+                        ),
+                      ),
+                    if (icon.iconSupported && icon.icon != null)
+                      const SizedBox(width: 8),
+                    if (icon.icon != null)
+                      Expanded(
+                        child: SheetTile(
+                          NbGlyph.trash,
+                          t.removeIcon,
+                          enabled: open,
+                          onTap: () {
+                            Navigator.pop(context);
+                            removeProjectIconFlow(outer, tab.link, icon);
+                          },
+                        ),
+                      ),
+                  ],
+                ),
               ],
               gap,
               Row(
