@@ -18,15 +18,15 @@ export const PlaneIcon = ({ size = 17 }: { size?: number }) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden><path d={PLANE_PATH} /></svg>
 );
 
-/** The plane of the composer's Send; `count` is the comments it carries (a badge, none at 0), `run` swaps it for a terminal prompt (a `!` shell line). */
+/** The plane of the composer's Send; `count` is the comments it carries (a badge, none at 0), `run` swaps it for a terminal prompt (a `!` shell line). The badge is placed against the nearest positioned ancestor, so the Send button must be `relative`: its centre sits on the button's top-right corner and a wider count grows to the left. */
 export function SendIcon({ count, run }: { count: number; run?: boolean }) {
   return (
-    <span className="relative inline-flex">
+    <span className="inline-flex">
       {run
         ? <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 17l6-6-6-6M12 19h8" /></svg>
         : <PlaneIcon size={18} />}
       {!run && count > 0 && (
-        <span aria-hidden data-testid="send-count" className="absolute -top-2 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[0.625rem] leading-none font-semibold text-background">
+        <span aria-hidden data-testid="send-count" className="pointer-events-none absolute -top-2 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[0.625rem] leading-none font-semibold text-background">
           {count}
         </span>
       )}
