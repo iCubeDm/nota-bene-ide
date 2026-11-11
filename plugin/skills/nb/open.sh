@@ -95,11 +95,15 @@ lock_stale() {
   { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null && [ "$age" -gt 3 ]; } || [ "$age" -gt "$STALE_SECS" ]
 }
 install_pkg() {
-  local lock="$PREFIX/.nb-install.lock" failed="$PREFIX/.nb-install-failed" waited=0 log="$PREFIX/.nb-install.log" rc
+  local lock="$PREFIX/.nb-install.lock" failed="$PREFIX/.nb-install-failed" started=$SECONDS waited=0 log="$PREFIX/.nb-install.log" rc
   mkdir -p "$PREFIX" 2>/dev/null || { echo "NB: cannot create the plugin data dir $PREFIX."; return 1; }
   ifail() { { echo "$1"; [ -n "${2:-}" ] && tail -n 5 "$2" 2>/dev/null; } | tee "$failed"; rm -rf "$lock" 2>/dev/null; return 1; }
   command -v npm >/dev/null || { echo "$NPM_MISSING" | tee "$failed"; return 1; }
   while true; do
+    # the time limit counts elapsed seconds, not loop turns: a mkdir that keeps failing (unwritable dir) or a stale lock that
+    # cannot be removed must still end in the failure marker that --wait reports
+    waited=$((SECONDS - started))
+    [ "$waited" -ge "${NB_INSTALL_WAIT_SECS:-540}" ] && { echo "NB: another install of $PKG@$VER is still running after ${waited}s." | tee "$failed"; return 1; }
     # Every change of the lock's existence (taking a free lock, removing a stale one) happens inside a short critical section,
     # the mutex dir "$lock.reclaim" (mkdir is atomic: one waiter gets it). Judging a lock stale and removing it are separate
     # steps, so they must not be separated by someone else's take: an unguarded look-then-remove (or move aside, judge, move
@@ -107,10 +111,11 @@ install_pkg() {
     # installs. Under the mutex nobody else can take, remove or move the lock, so a stale judgment is re-made there on the
     # very lock that is then removed, and the lock is complete (ts, pid) before anyone can look at it.
     # The look outside the mutex only decides whether to try; it is never acted on without the second look.
+    # Accepted risk: a live holder whose install runs past NB_LOCK_STALE_SECS (an hour) looks stale and can be reclaimed.
     if [ ! -e "$lock" ] || lock_stale "$lock"; then
       if mkdir "$lock.reclaim" 2>/dev/null; then
         if mkdir "$lock" 2>/dev/null; then
-          date +%s > "$lock/ts"; echo $$ > "$lock/pid"
+          echo $$ > "$lock/pid"; date +%s > "$lock/ts"
           rmdir "$lock.reclaim" 2>/dev/null
           break
         fi
@@ -118,16 +123,23 @@ install_pkg() {
         if lock_stale "$lock"; then rm -rf "$lock" 2>/dev/null; fi
         rmdir "$lock.reclaim" 2>/dev/null
       else
-        # a waiter killed inside the critical section must not block everyone for good
-        if [ -n "$(find "$lock.reclaim" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then rmdir "$lock.reclaim" 2>/dev/null; fi
+        # a waiter killed inside the critical section must not block everyone for good. Clearing is itself a critical section
+        # ($lock.reclaim.break): of several clearers one re-checks the age and removes, so none removes a mutex another has
+        # just cleared and re-taken. A break dir left by a killed clearer is cleared only at a longer age.
+        if [ -n "$(find "$lock.reclaim" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
+          if mkdir "$lock.reclaim.break" 2>/dev/null; then
+            if [ -n "$(find "$lock.reclaim" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then rmdir "$lock.reclaim" 2>/dev/null; fi
+            rmdir "$lock.reclaim.break" 2>/dev/null
+          elif [ -n "$(find "$lock.reclaim.break" -maxdepth 0 -mmin +5 2>/dev/null)" ]; then rmdir "$lock.reclaim.break" 2>/dev/null
+          fi
+        fi
         sleep 0.2
       fi
       continue
     fi
     # another run is installing: wait for it, then use its result
-    sleep 1; waited=$((waited + 1))
+    sleep 1
     if [ -f "$PREFIX/.nb-installed" ] && [ -f "$BIN" ]; then return 0; fi
-    [ "$waited" -ge "${NB_INSTALL_WAIT_SECS:-540}" ] && { echo "NB: another install of $PKG@$VER is still running after ${waited}s." | tee "$failed"; return 1; }
   done
   # taken: another run may have finished between our last look and the lock
   if [ -f "$PREFIX/.nb-installed" ] && [ -f "$BIN" ]; then rm -rf "$lock"; return 0; fi

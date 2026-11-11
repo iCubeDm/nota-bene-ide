@@ -856,16 +856,23 @@ describe('the package lookup (plugin install)', () => {
     const shims = path.join(tmp, 'race-path');
     fs.mkdirSync(shims, { recursive: true });
     const stall = path.join(tmp, 'b-stalled'), go = path.join(tmp, 'b-go'), gap = path.join(tmp, 'gap');
-    for (const f of [stall, go, gap]) fs.rmSync(f, { force: true });
+    const released = path.join(tmp, 'b-released'), tried = path.join(tmp, 'c-tried');
+    for (const f of [stall, go, gap, released, tried]) fs.rmSync(f, { force: true });
     const shim = (cmd: string, body: string) => {
       const f = path.join(shims, cmd);
       fs.writeFileSync(f, `#!/bin/bash\n${body}\nexec ${which(cmd)} "$@"\n`);
       fs.chmodSync(f, 0o755);
     };
-    // the first process to try the reclaim mutex is B: it waits for the go file
-    shim('mkdir', `case "\${@: -1}" in */.nb-install.lock.reclaim) if [ ! -e '${stall}' ]; then : > '${stall}'; while [ ! -e '${go}' ]; do /bin/sleep 0.05; done; fi ;; esac`);
-    // whoever puts a moved-aside lock back leaves a gap first (old code only)
-    shim('mv', `case "\$1" in *.nb-install.lock.stale.*) : > '${gap}'; /bin/sleep 1.5 ;; esac`);
+    // the first process to try the reclaim mutex is B: it waits for the go file. A take of the lock name after the gap opened
+    // (old code) is C's, and is recorded.
+    shim('mkdir', `case "\${@: -1}" in
+  */.nb-install.lock.reclaim) if [ ! -e '${stall}' ]; then : > '${stall}'; while [ ! -e '${go}' ]; do /bin/sleep 0.05; done; fi ;;
+  */.nb-install.lock) [ -e '${gap}' ] && : > '${tried}' ;;
+esac`);
+    // whoever puts a moved-aside lock back opens a gap first and holds it until C has tried to take the name (old code only)
+    shim('mv', `case "\$1" in *.nb-install.lock.stale.*) : > '${gap}'; for i in $(seq 100); do [ -e '${tried}' ] && break; /bin/sleep 0.05; done ;; esac`);
+    // B leaving the critical section after it was released (new code: it re-judged and found A's lock fresh)
+    shim('rmdir', `case "\${@: -1}" in */.nb-install.lock.reclaim) [ -e '${go}' ] && : > '${released}' ;; esac`);
     const env = { PATH: `${shims}:${path.join(tmp, 'path')}:${path.dirname(process.execPath)}:${process.env.PATH}`, STUB_NPM_SLEEP: '4', NB_INSTALL_WAIT_SECS: '30' };
     const until = async (f: () => boolean) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 50)); expect(f()).toBe(true); };
     const b = sh([pkgOpen, '--data', data, '--run', project], { env });
@@ -873,12 +880,39 @@ describe('the package lookup (plugin install)', () => {
     const a = sh([pkgOpen, '--data', data, '--run', project], { env });
     await until(() => npmCalls().length === 1); // A took the lock and is installing
     fs.writeFileSync(go, '');
-    await new Promise((r) => setTimeout(r, 300)); // B acts on its stale judgment (old code: moves A's lock aside)
+    // B acts on its stale judgment: old code moves A's lock aside (the gap), new code re-judges and lets go of the mutex
+    await until(() => fs.existsSync(gap) || fs.existsSync(released));
     const c = sh([pkgOpen, '--data', data, '--run', project], { env });
     const rs = await Promise.all([a, b, c]);
     expect(rs.map((r) => r.code)).toEqual([0, 0, 0]);
     expect(npmCalls()).toHaveLength(1);
   }, 60_000);
+
+  it('a stale lock that cannot be removed (unwritable install dir) ends at the time limit instead of looping for good', async () => {
+    lockAt({ ts: 1 });
+    fs.chmodSync(prefix(), 0o555);
+    try {
+      const t0 = Date.now();
+      const r = await sh([pkgOpen, '--data', data, '--run', project], { env: { NB_INSTALL_WAIT_SECS: '2' } });
+      expect(r.code).toBe(1);
+      expect(r.out).toContain('another install of');
+      expect(npmCalls()).toEqual([]);
+      expect(Date.now() - t0).toBeLessThan(10_000);
+    } finally {
+      fs.chmodSync(prefix(), 0o755);
+    }
+  });
+
+  it('a reclaim mutex left behind by a killed waiter is cleared after a minute and the install goes ahead', async () => {
+    lockAt({ ts: 1 });
+    const mutex = path.join(prefix(), '.nb-install.lock.reclaim');
+    fs.mkdirSync(mutex);
+    const old = new Date(Date.now() - 180_000);
+    fs.utimesSync(mutex, old, old);
+    const r = await sh([pkgOpen, '--data', data, '--run', project], { env: { NB_INSTALL_WAIT_SECS: '20' } });
+    expect(r.code).toBe(0);
+    expect(npmCalls()).toHaveLength(1);
+  });
 
   it('every failure writes the marker: npm missing in --run, and --wait reports it at once', async () => {
     const tools = ['dirname', 'tr', 'sed', 'uname', 'cat', 'mkdir', 'tee', 'rm', 'date', 'find', 'tail', 'kill'].map((x): [string, string] => [x, which(x)]);
