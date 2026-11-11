@@ -8,6 +8,7 @@ import 'package:nb_app/chat/composer.dart';
 import 'package:nb_app/media/attach.dart';
 import 'package:nb_app/media/gallery.dart';
 import 'package:nb_app/media/picker.dart';
+import 'package:nb_app/theme.dart';
 
 import 'support/rig.dart';
 
@@ -345,6 +346,89 @@ void main() {
       isNull,
     );
     expect(find.byType(Composer), findsOneWidget);
+  });
+
+  group('the floating paperclip', () {
+    final floating = find.byKey(const ValueKey('attach-floating'));
+    final inRow = find.byKey(const ValueKey('attach'));
+
+    testWidgets('an empty field has the paperclip in the row only', (t) async {
+      await open(t);
+      expect(inRow, findsOneWidget);
+      expect(floating, findsNothing);
+    });
+
+    testWidgets('typed text floats it, 12 above Send, and it opens the flow', (
+      t,
+    ) async {
+      await open(t);
+      final before = t.getSize(find.byKey(const ValueKey('composer')));
+      await t.enter('hello');
+      await t.pumpAndSettle();
+      expect(inRow, findsNothing);
+      expect(floating, findsOneWidget);
+      expect(t.getSize(floating), const Size(44, 44));
+      expect(t.getSize(find.byKey(const ValueKey('composer'))), before);
+      final send = find.byKey(const ValueKey('send'));
+      expect(t.getTopLeft(send).dy - t.getBottomLeft(floating).dy, 12);
+      expect(t.getCenter(floating).dx, t.getCenter(send).dx);
+      final c = Theme.of(t.element(floating)).extension<NbColors>()!;
+      final style = t.widget<IconButton>(floating).style!;
+      expect(style.backgroundColor!.resolve({}), c.muted);
+      expect(style.foregroundColor!.resolve({}), c.foreground);
+      expect(find.byTooltip('Attach an image'), findsOneWidget);
+      await attach(t, 'Gallery');
+      expect(thumbs, findsNWidgets(2));
+      // the text is kept
+      expect(find.text('hello'), findsOneWidget);
+    });
+
+    testWidgets('it goes back into the row when the text is cleared', (
+      t,
+    ) async {
+      await open(t);
+      await t.enter('hello');
+      await t.pumpAndSettle();
+      await t.enter('');
+      await t.pumpAndSettle();
+      expect(floating, findsNothing);
+      expect(inRow, findsOneWidget);
+    });
+
+    testWidgets('typed text while busy: it floats left of Stop, 8 apart', (
+      t,
+    ) async {
+      await r.open(
+        t,
+        events: [
+          {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
+        ],
+      );
+      await t.enter('hello');
+      await t.pumpAndSettle();
+      final stop = find.byKey(const ValueKey('stop'));
+      expect(stop, findsOneWidget);
+      expect(floating, findsOneWidget);
+      expect(t.getTopLeft(stop).dx - t.getTopRight(floating).dx, 8);
+      expect(t.getTopLeft(stop).dy, t.getTopLeft(floating).dy);
+      expect(t.getSize(stop), const Size(44, 44));
+      expect(
+        t.getCenter(stop).dx,
+        t.getCenter(find.byKey(const ValueKey('send'))).dx,
+      );
+      await t.tap(stop);
+      await t.pump();
+      expect(r.sent.last, {'type': 'interrupt'});
+    });
+
+    testWidgets('it is off while the tab is not open', (t) async {
+      await open(t);
+      await t.enter('hello');
+      r.ch.drop();
+      await t.pumpAndSettle();
+      expect(floating, findsOneWidget);
+      expect(t.widget<IconButton>(floating).onPressed, isNull);
+    });
   });
 }
 

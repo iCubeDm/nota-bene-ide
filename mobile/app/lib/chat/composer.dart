@@ -15,6 +15,7 @@ import '../media/attach.dart';
 import '../media/gallery.dart';
 import '../media/picker.dart';
 import '../theme.dart';
+import '../ui/blur_band.dart';
 import '../ui/nb_icon.dart';
 import '../store/voice_lang.dart';
 import '../voice/record_session.dart';
@@ -347,8 +348,8 @@ class _ComposerState extends State<Composer> {
     },
   );
 
-  /// The rounded field with everything inside it (see [MessageField]). While the agent works a grey Stop floats 12 above
-  /// the right button.
+  /// The rounded field with everything inside it (see [MessageField]). Grey Stop (while the agent works) and paperclip
+  /// (while text is typed) float 12 above the right button.
   Widget _field(
     AppLocalizations t, {
     required bool open,
@@ -372,16 +373,42 @@ class _ComposerState extends State<Composer> {
     onSend: _send,
     onAttach: _attach,
     snackAnchor: () => context,
-    // the layout of the row does not change: the portal floats over the feed. Only the hold hides it (the big
-    // circle and the lock are drawn over that place); a locked recording leaves the finger, and the turn can
-    // still be stopped
-    floating: (link) =>
-        open && widget.tab.busy && !(recording && _session.holding)
-        ? _FloatingStop(
-            link: link,
-            onStop: () => widget.tab.send(const ClientMessageInterrupt()),
-          )
-        : const SizedBox.shrink(),
+    // the layout of the row does not change: the portal floats over the feed. The hold hides it (the big circle and
+    // the lock are drawn over that place); a locked recording leaves the finger, and the turn can still be stopped.
+    // The paperclip floats while text is typed (it left the row to leave the text its width), never while recording.
+    floating: (link) {
+      final holding = recording && _session.holding;
+      final stop = open && widget.tab.busy && !holding;
+      final clip = _text.text.isNotEmpty && !recording && !holding;
+      final room = FloatingRoom.maybeOf(context);
+      if (room != null && room.value != clip) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) room.value = clip;
+        });
+      }
+      return stop || clip
+          ? _FloatingButtons(
+              link: link,
+              buttons: [
+                if (clip)
+                  (
+                    key: const ValueKey('attach-floating'),
+                    label: t.attach,
+                    glyph: NbGlyph.clip,
+                    onTap: open ? _attach : null,
+                  ),
+                if (stop)
+                  (
+                    key: const ValueKey('stop'),
+                    label: t.stop,
+                    glyph: NbGlyph.stop,
+                    onTap: () =>
+                        widget.tab.send(const ClientMessageInterrupt()),
+                  ),
+              ],
+            )
+          : const SizedBox.shrink();
+    },
   );
 
   /// The drafts' thumbnails above the pill: each with its remove cross, a failed one with a red frame.
@@ -466,18 +493,28 @@ class _ComposerState extends State<Composer> {
   );
 }
 
-/// Stop while the agent works: a grey 44 round button 12 above the right button of the field, on the overlay so it floats
-/// over the feed and takes no room from it.
-class _FloatingStop extends StatefulWidget {
-  const _FloatingStop({required this.link, required this.onStop});
+/// One floating round button: a key, the label of its tooltip and Semantics, a glyph and its action (null: off).
+typedef _Floater = ({
+  Key key,
+  String label,
+  NbGlyph glyph,
+  VoidCallback? onTap,
+});
+
+/// Grey 44 round buttons 12 above the right button of the field (Stop while the agent works, the paperclip once text is
+/// typed), on the overlay so they float over the feed and take no room from it. The last one sits over the right button,
+/// the others to its left, 8 apart.
+class _FloatingButtons extends StatefulWidget {
+  const _FloatingButtons({required this.link, required this.buttons});
   final LayerLink link;
-  final VoidCallback onStop;
+  final List<_Floater> buttons;
 
   @override
-  State<_FloatingStop> createState() => _FloatingStopState();
+  State<_FloatingButtons> createState() => _FloatingButtonsState();
 }
 
-class _FloatingStopState extends State<_FloatingStop> {
+class _FloatingButtonsState extends State<_FloatingButtons> {
+  static const _size = 44.0;
   final _portal = OverlayPortalController();
 
   @override
@@ -492,34 +529,42 @@ class _FloatingStopState extends State<_FloatingStop> {
   Widget build(BuildContext context) => OverlayPortal(
     controller: _portal,
     overlayChildBuilder: (context) {
-      final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
       return CompositedTransformFollower(
         link: widget.link,
         showWhenUnlinked: false,
+        // the last button is centred over the right button: the row ends half a button past its centre
         targetAnchor: Alignment.topCenter,
-        followerAnchor: Alignment.bottomCenter,
-        offset: const Offset(0, -12),
+        followerAnchor: Alignment.bottomRight,
+        offset: const Offset(_size / 2, -12),
         child: Align(
-          alignment: Alignment.bottomCenter,
-          // named and tappable for TalkBack (the button's own tooltip is not a label)
-          child: Semantics(
-            label: t.stop,
-            button: true,
-            onTap: widget.onStop,
-            excludeSemantics: true,
-            child: IconButton(
-              key: const ValueKey('stop'),
-              tooltip: t.stop,
-              icon: const NbIcon(NbGlyph.stop),
-              style: IconButton.styleFrom(
-                fixedSize: const Size.square(44),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                backgroundColor: c.muted,
-                foregroundColor: c.foreground,
-              ),
-              onPressed: widget.onStop,
-            ),
+          alignment: Alignment.bottomRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (i, b) in widget.buttons.indexed) ...[
+                if (i > 0) const SizedBox(width: 8),
+                // named and tappable for TalkBack (the button's own tooltip is not a label)
+                Semantics(
+                  label: b.label,
+                  button: true,
+                  onTap: b.onTap,
+                  excludeSemantics: true,
+                  child: IconButton(
+                    key: b.key,
+                    tooltip: b.label,
+                    icon: NbIcon(b.glyph),
+                    style: IconButton.styleFrom(
+                      fixedSize: const Size.square(_size),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      backgroundColor: c.muted,
+                      foregroundColor: c.foreground,
+                    ),
+                    onPressed: b.onTap,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       );
