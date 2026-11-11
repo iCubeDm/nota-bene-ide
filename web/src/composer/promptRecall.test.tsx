@@ -227,3 +227,23 @@ it('a recalled /command found by search keeps the / menu closed', async () => {
   await userEvent.keyboard('{ArrowDown}');
   expect(box.value).toBe('ping');
 });
+
+it('a search skips the typed text itself: the first ↑ always changes the field, and only equal matches means no match', async () => {
+  const { box } = setup([p('a', 'build docs'), p('b', 'build'), p('c', 'x')]);
+  box.focus();
+  await userEvent.type(box, 'build');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('build docs');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('build docs');
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('build');
+  cleanup();
+  const only = setup([p('a', 'build'), p('b', 'x')]);
+  only.box.focus();
+  await userEvent.type(only.box, 'build');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(only.box.value).toBe('build');
+  await userEvent.keyboard('{ArrowDown}');
+  expect(only.box.value).toBe('build');
+});

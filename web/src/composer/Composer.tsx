@@ -75,8 +75,11 @@ export function Composer() {
   // where the draft is in the list: the recalled entry (by id, so a list that grows under the walk keeps the place), else
   // the entry with that text (a repeat collapsed away); -1 = not browsing, the draft is no recalled prompt any more
   const walkList = (): PromptEntry[] => {
-    const q = browse.current.query?.toLowerCase();
-    return q === undefined ? recallRef.current : recallList(itemsRef.current.filter((x) => x.text.toLowerCase().includes(q)));
+    const query = browse.current.query;
+    if (query === null) return recallRef.current;
+    const q = query.toLowerCase();
+    // the typed text itself is no step: the first ↑ always changes the field
+    return recallList(itemsRef.current.filter((x) => x.text !== query && x.text.toLowerCase().includes(q)));
   };
   const placeOf = (value: string): number => {
     const list = walkList();
