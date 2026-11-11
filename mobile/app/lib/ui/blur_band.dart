@@ -9,7 +9,7 @@ import 'package:flutter/rendering.dart';
 import '../theme.dart';
 
 /// How far above the field's top the bottom blur begins to fade in.
-const blurFade = 24.0;
+const blurFade = 44.0;
 
 /// The blurred band: [top] puts the strong end at its top edge, else at its bottom edge. The blur is stepped, strips of
 /// less and less sigma toward the clear end (a backdrop filter inside a mask would read an empty layer and blur nothing),
@@ -21,11 +21,20 @@ class BlurBand extends StatelessWidget {
   final double? fade;
 
   // the bottom band's sigma, from the clear end in
-  static const _steps = [0.6, 1.2, 2.0, 3.0, 4.2, 5.6, 7.2, 9.0];
+  static const _steps = [1.0, 2.5, 4.5, 7.0, 9.5];
+
+  /// How many strips the bottom's ramp has (the last, the strongest, comes after them).
+  @visibleForTesting
+  static int get stepCount => _steps.length + 1;
 
   Widget _strip(double sigma) => ClipRect(
     child: BackdropFilter.grouped(
-      filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+      filter: ImageFilter.blur(
+        sigmaX: sigma,
+        sigmaY: sigma,
+        // the edge of a strip repeats what is at it, not the see-through nothing outside
+        tileMode: TileMode.mirror,
+      ),
       child: const SizedBox.expand(),
     ),
   );

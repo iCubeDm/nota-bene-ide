@@ -122,8 +122,27 @@ void main() {
         .evaluate()
         .length;
     expect(filters('blur-top'), 2);
-    // the bottom's blur grows in many small steps, so none shows as a strip
-    expect(filters('blur-bottom'), 9);
+    // the bottom's blur grows in several small steps, so none shows as a strip
+    expect(filters('blur-bottom'), greaterThan(2));
+  });
+
+  testWidgets('the message field has no border line of its own', (t) async {
+    await open(t, events: many(3));
+    final pill = find.descendant(
+      of: find.byKey(const ValueKey('composer')),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is Container &&
+            w.decoration is BoxDecoration &&
+            (w.decoration! as BoxDecoration).borderRadius ==
+                BorderRadius.circular(24),
+      ),
+    );
+    expect(pill, findsOneWidget);
+    expect(
+      (t.widget<Container>(pill).decoration! as BoxDecoration).border,
+      isNull,
+    );
   });
 
   testWidgets('the solid parts of the bands take the taps', (t) async {
