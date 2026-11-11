@@ -93,6 +93,39 @@ export function findSubagentMeta(projectsDir: string, sessionId: string, toolUse
   return null;
 }
 
+const MODEL_SCAN_BYTES = 256 * 1024;
+
+/**
+ * The model a subagent runs on, from the first assistant message of its transcript (`message.model`), or undefined: no
+ * meta or transcript yet, or no assistant message in the first MODEL_SCAN_BYTES (a torn last line is skipped). A
+ * synthetic message (`<synthetic>`, the CLI's own) names no model.
+ */
+export function subagentModel(projectsDir: string, sessionId: string, toolUseId: string, now = Date.now()): string | undefined {
+  const meta = findSubagentMeta(projectsDir, sessionId, toolUseId, now);
+  const hit = meta && where.get(`${projectsDir}\0${sessionId}\0${toolUseId}`);
+  if (!hit) return undefined;
+  let text: string;
+  try {
+    const fd = fs.openSync(path.join(hit.dir, `agent-${hit.agentId}.jsonl`), 'r');
+    try {
+      const buf = Buffer.alloc(MODEL_SCAN_BYTES);
+      text = buf.toString('utf8', 0, fs.readSync(fd, buf, 0, MODEL_SCAN_BYTES, 0));
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return undefined; // no transcript yet
+  }
+  for (const l of text.split('\n')) {
+    try {
+      const v = JSON.parse(l) as { type?: unknown; message?: { model?: unknown } };
+      const model = v.type === 'assistant' ? v.message?.model : undefined;
+      if (typeof model === 'string' && model && !model.startsWith('<')) return model;
+    } catch { /* a blank or torn line */ }
+  }
+  return undefined;
+}
+
 /** The meta of a subagent by its own id (any call), looked up in every project like findSubagentMeta; null when absent. */
 export function findSubagentMetaByAgent(projectsDir: string, sessionId: string, agentId: string): SubagentMeta | null {
   if (!SAFE_SESSION_ID.test(sessionId) || !AGENT_ID.test(agentId)) return null;

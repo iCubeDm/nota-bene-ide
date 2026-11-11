@@ -130,7 +130,7 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 13: page anchors (a comment on an element or an SVG area of an HTML page); an older server would refuse the comment.
 // 14: voice messages (`send.voice` and `send.lang`, `user.voice`, the `voice-text` event, `/voice`) and voice clips of comments (`Comment.voice`).
 // 15: the project icon: the project folder's picture (`/project-icon`, set from the phone; `/info.icon` is its version or null).
-// (Other additions to protocol 15, such as optional Interaction fields, are listed beside this line by their own changes.)
+// (Other additions to protocol 15, such as optional Interaction fields and the `task` event's optional `model`, are listed beside this line by their own changes.)
 export const PROTOCOL = 15;
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
@@ -568,7 +568,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
 }
 
 export type { AgentEvent, StopReason, WireAgentEvent } from './agent.ts';
-export { FINISHED_CAP, orderedTasks, reduceTasks, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
+export { FINISHED_CAP, orderedTasks, reduceTasks, shortModel, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
 export { BATCH_HEAD, BATCH_HEADS, DEFAULT_THEME, isThemeId, isUiLang, isUiScale, THEME_KIND, THEMES, UI_LANGS, UI_SCALES, type ThemeId, type UiLang, type UiScale } from './lang.ts';
 export type { VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsPatch } from './vcs.ts';
 export { USAGE_PERIODS, type TokenCounts, type UsageAgentRow, type UsageCallRow, type UsageExtra, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageRow, type UsageTank, type UsageTaskRow } from './usage.ts';
