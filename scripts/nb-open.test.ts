@@ -847,6 +847,39 @@ describe('the package lookup (plugin install)', () => {
     expect(fs.existsSync(path.join(prefix(), '.nb-install-failed'))).toBe(true); // --wait learns of it
   });
 
+  it('a stale takeover removes only the lock instance it judged: a fresh lock that appears meanwhile survives', async () => {
+    // an old lock of a pid that is still alive (a recycled pid), so nothing else will clear it. Between the reclaimer's last
+    // look and its removal, the holder "finishes" and another run takes a fresh lock: `rm` / `mv` of the lock path is
+    // intercepted once to put that fresh lock in place, exactly as the interleaving would.
+    const live = String(process.pid);
+    lockAt({ pid: live, ts: now() - 100 });
+    const shims = path.join(tmp, 'race-path');
+    fs.mkdirSync(shims, { recursive: true });
+    for (const cmd of ['rm', 'mv']) {
+      const f = path.join(shims, cmd);
+      fs.writeFileSync(f, `#!/bin/sh
+for a in "$@"; do
+  case "$a" in
+    */.nb-install.lock)
+      if [ ! -e "$RACE_MARK" ]; then
+        : > "$RACE_MARK"; /bin/rm -rf "$a"; /bin/mkdir "$a"; echo "$RACE_PID" > "$a/pid"; date +%s > "$a/ts"
+      fi ;;
+  esac
+done
+exec /bin/${cmd} "$@"
+`);
+      fs.chmodSync(f, 0o755);
+    }
+    const mark = path.join(tmp, 'race-mark');
+    fs.rmSync(mark, { force: true });
+    const PATH = `${shims}:${path.join(tmp, 'path')}:${path.dirname(process.execPath)}:${process.env.PATH}`;
+    const r = await sh([pkgOpen, '--data', data, '--run', project], { env: { PATH, RACE_MARK: mark, RACE_PID: live, NB_LOCK_STALE_SECS: '5', NB_INSTALL_WAIT_SECS: '2' } });
+    expect(fs.existsSync(mark)).toBe(true); // the interleaving happened
+    expect(npmCalls()).toEqual([]); // the fresh lock's owner is still installing: no second install
+    expect(r.code).toBe(1);
+    expect(fs.readFileSync(path.join(prefix(), '.nb-install.lock/pid'), 'utf8').trim()).toBe(live);
+  });
+
   it('every failure writes the marker: npm missing in --run, and --wait reports it at once', async () => {
     const tools = ['dirname', 'tr', 'sed', 'uname', 'cat', 'mkdir', 'tee', 'rm', 'date', 'find', 'tail', 'kill'].map((x): [string, string] => [x, which(x)]);
     const env = { PATH: binDir('nonpm-run', [...tools, ['node', process.execPath]]) };
