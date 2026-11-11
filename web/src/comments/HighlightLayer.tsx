@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { anchorSource, isAttachmentAnchor, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment, type PageAnchor } from '@nota-bene/shared';
+import { anchorSource, isPageAnchor, isTextAnchor, type AnchorSource, type Comment, type PageAnchor } from '@nota-bene/shared';
 import { rangeForAnchor } from '@/anchors/text.ts';
 import { areaRect, resolvePage } from '@/page/anchor.ts';
 import { outOf, pageRoot, pageSelection, rangeRects, textRootOf } from '@/page/frame.ts';
@@ -76,7 +76,7 @@ const keyOf = (src: Source) => (src.kind === 'message' ? `m:${src.id}` : `f:${fi
  * (Markdown sets innerHTML, CodeText sets textContent), so `isConnected` drops the stale range; an unchanged text keeps them.
  */
 function rangeOf(roots: Map<string, HTMLElement>, cache: Map<string, Cached>, c: Comment): Range | null {
-  if (isMediaAnchor(c.anchor) || isPageAnchor(c.anchor) || isAttachmentAnchor(c.anchor)) return null; // media marks are drawn over the media, page places as outlines
+  if (!isTextAnchor(c.anchor)) return null; // media marks are drawn over the media, page places as outlines, an attachment's over its image; a kind this client does not know has no text
   const root = roots.get(keyOf(c.anchor.source));
   if (!root || (root.dataset.kind === 'assistant' && root.dataset.final !== 'true')) return null;
   const hit = cache.get(c.id);

@@ -1,6 +1,6 @@
 import { anchorSource, generatedImages, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
-import { getLang, t, tIn } from '../i18n/index.ts';
+import { getLang, t, tIn, type Lang } from '../i18n/index.ts';
 import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
 import { isClearCommand } from '../composer/slashRank.ts';
 import { runShellDraft, selectShellMode } from '../composer/shellMode.ts';
@@ -31,11 +31,16 @@ const ownImages = (c: Comment): string[] => {
 const pastedImages = (c: Comment): string[] => (c.images ?? []).slice(generatedImages(c));
 
 /** Where a comment's fragment lives, for the batch line: the reply label, "my message", or the file. */
-export function whereOf(c: Comment, st?: Parameters<typeof selectReplyLabel>[0]): string {
+export function whereOf(
+  c: Comment, st?: Parameters<typeof selectReplyLabel>[0],
+  /** an attachment comment: the message-wide number of its image among the composer's (undefined = not in this send) */
+  attNo?: (imageId: string) => number | undefined, lang: Lang = getLang(),
+): string {
   const src = anchorSource(c.anchor);
   const a = c.anchor;
   if (isMediaAnchor(a)) return `${whereOfFile(a.source)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${a.width}×${a.height}${a.camera ? ` · ${cameraLine(a.camera, getLang())}` : ''}`;
-  if (!src) return t('srcChat'); // an attachment comment (its own place comes with its UI)
+  if (isAttachmentAnchor(a)) return tIn(lang, 'srcAttachment', attNo?.(a.image) ?? 0, a.width, a.height);
+  if (!src) return t('srcChat');
   if (src.kind === 'file') return whereOfFile(src);
   // the batch text names a reply plainly: its number is the index in the CURRENT feed (restarts after a compaction, shifts when earlier history is shown); the quote is the locator
   // a subagent's reply or action is named with the subagent (no numbers); one the loaded conversation does not hold still is not "chat"
@@ -97,7 +102,7 @@ const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean
   });
   const text = composeBatch(
     body, pending, lang, (c) => labelOf(c, lang),
-    (c) => whereOf(c, st),
+    (c) => whereOf(c, st, (id) => { const k = own.findIndex((im) => im.id === id); return k < 0 ? undefined : k + 1; }),
     instructionOf, refs,
     // "changed": only when the current version is known (a tab has it loaded) and differs from the one drawn on
     (c) => {

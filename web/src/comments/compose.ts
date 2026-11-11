@@ -1,4 +1,4 @@
-import { isAttachmentAnchor, isMediaAnchor, isPageAnchor, type Comment } from '@nota-bene/shared';
+import { isAttachmentAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, type Comment } from '@nota-bene/shared';
 import { tIn, type Lang } from '../i18n/index.ts';
 import { describeShape } from '../media/markup/geometry.ts';
 import { pageLines } from '../page/quote.ts';
@@ -30,7 +30,8 @@ export function composeBatch(
     const quote = isMediaAnchor(a) || isAttachmentAnchor(a)
       ? a.shapes.map((s) => '> ' + describeShape(s, a.width, a.height)).join('\n')
       : isPageAnchor(a) ? pageLines(a, lang).map((l) => '> ' + l).join('\n')
-      : a.quote.split('\n').map((l) => '> ' + l).join('\n');
+      : isTextAnchor(a) ? a.quote.split('\n').map((l) => '> ' + l).join('\n')
+      : ''; // a kind this client does not know: no quote
     let tail = '';
     if (isMediaAnchor(a)) {
       const sfx = a.scale ? tIn(lang, 'scaledSfx', a.scale) : '';
@@ -42,7 +43,7 @@ export function composeBatch(
       else if (refs[i]?.length) tail += '\n' + tIn(lang, 'imgRefMedia', refs[i]);
       tail += '\n' + tIn(lang, 'filesLine', [`${dir}/frame.jpg${sfx}`, `${dir}/layer.png${sfx}`]);
       if (staleOf(c)) tail += '\n' + tIn(lang, 'markStale');
-    } else if (refs[i]?.length) tail = '\n' + tIn(lang, 'imgRef', refs[i]);
+    } else if (refs[i]?.length) tail = '\n' + tIn(lang, isAttachmentAnchor(a) ? 'imgRefMedia' : 'imgRef', refs[i]); // an attachment's first image is its marked composite (no files on disk)
     // the recordings' transcripts follow what was typed, each on a line of its own (one line each: a transcript's breaks are spaces)
     const clips = (c.voice ?? []).map((v) => v.text.replace(/\s+/g, ' ').trim()).filter(Boolean);
     const [head = '', ...more] = [[labelOf(c), c.text.trim()].filter(Boolean).join(' '), ...clips].filter(Boolean);

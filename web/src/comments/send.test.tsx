@@ -401,3 +401,20 @@ it('an attachment comment whose image is not in this composer stays out of the s
   expect(m.commentIds).toEqual(['c1', 'here']);
   expect(m.images?.map((i) => i.id)).toEqual([A]);
 });
+
+it('an attachment comment is named by its image number and carries its composite, not the original', async () => {
+  const A = 'a'.repeat(64), B = 'b'.repeat(64), C = 'c'.repeat(64);
+  const att = cm('att', {
+    text: 'this', images: [C], genImages: 1,
+    anchor: { kind: 'attachment', image: B, width: 1200, height: 800, shapes: [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 0.5, h: 0.5 }] },
+  });
+  const { sent, store, box } = setup([att]);
+  act(() => void store.dispatch(addImage({ id: A, mediaType: 'image/png' })));
+  act(() => void store.dispatch(addImage({ id: B, mediaType: 'image/png' })));
+  await userEvent.type(box, 'see{Enter}');
+  const m = sentOf(sent[0]!);
+  expect(m.text).toContain('1. [image 2 · 1200×800]\n> ');
+  expect(m.text).toContain('→ this\n📎 images: 3 (frame with marks)');
+  expect(m.images?.map((i) => i.id)).toEqual([A, B, C]);
+  expect(m.commentIds).toEqual(['att']);
+});

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { MediaAnchor } from '@nota-bene/shared';
+import type { AttachmentAnchor, MediaAnchor } from '@nota-bene/shared';
 
 const frame = new Blob([new Uint8Array(30)], { type: 'image/jpeg' });
 const layer = new Blob([new Uint8Array(20)], { type: 'image/png' });
@@ -167,4 +167,22 @@ it('a video frame that never arrives: an error (shown in the popup) after the ti
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('an attachment comment: one composite to /attach, no /marks, the scale in the patch', async () => {
+  const { prepareAttachmentComment } = await import('./createMediaComment.ts');
+  renderMarks.mockResolvedValueOnce({ frame, layer, scale: 0.5 });
+  const a: AttachmentAnchor = { kind: 'attachment', image: 'b'.repeat(64), width: 800, height: 600, shapes: anchor.shapes };
+  const out = await prepareAttachmentComment(src, a);
+  expect(renderMarks).toHaveBeenCalledWith(src, 800, 600, a.shapes);
+  expect(calls.map((c) => `${c.method} ${c.url} ${c.type}`)).toEqual(['POST /attach image/jpeg']);
+  expect(calls[0].body).toBe(small.jpeg);
+  expect(out).toEqual({ images: ['f'.repeat(64)], anchor: { scale: 0.5 } });
+});
+
+it('an attachment comment whose upload fails rejects and touches no /marks', async () => {
+  const { prepareAttachmentComment } = await import('./createMediaComment.ts');
+  fail = (c) => (c.url === '/attach' ? new Response('no', { status: 500 }) : null);
+  await expect(prepareAttachmentComment(src, { kind: 'attachment', image: 'b'.repeat(64), width: 8, height: 6, shapes: anchor.shapes })).rejects.toThrow();
+  expect(calls.every((c) => c.url === '/attach')).toBe(true);
 });

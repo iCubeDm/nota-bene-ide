@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
-import { isAttachmentAnchor, isMediaAnchor, isPageAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
+import { isAttachmentAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
 import { pageQuote } from '@/page/quote.ts';
@@ -51,7 +51,8 @@ function quoteOf(a: Anchor, t: ReturnType<typeof useT>): string {
     ? `${baseName(a.source.path)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${t('markShapes', a.shapes.length)}`
     : isPageAnchor(a) ? pageQuote(a, getLang())
     : isAttachmentAnchor(a) ? t('markShapes', a.shapes.length)
-    : `«${a.quote.trim()}»`;
+    : isTextAnchor(a) ? `«${a.quote.trim()}»`
+    : '';
 }
 
 /**
@@ -151,7 +152,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
       try {
         const r = await prepare();
         prepared = r.images;
-        if (r.anchor && isMediaAnchor(anchor)) anchor = { ...anchor, ...r.anchor };
+        if (r.anchor && (isMediaAnchor(anchor) || isAttachmentAnchor(anchor))) anchor = { ...anchor, ...r.anchor };
       } catch (e) {
         // prepare removed the folder; the popup and the drawing stay, so Add can be tried again
         const msg = t('markSaveFailed', e instanceof Error ? e.message : String(e));

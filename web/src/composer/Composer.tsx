@@ -17,7 +17,7 @@ import type { PromptEntry } from '@nota-bene/shared';
 import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
 import { CtxNudge } from '@/stats/CtxNudge.tsx';
-import { Attachments } from '@/attachments/Attachments.tsx';
+import { ComposerAttachments } from '@/attachments/ComposerAttachments.tsx';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { addImage, removeImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -349,12 +349,7 @@ export function Composer() {
           </Button>
         </div>
       )}
-      <Attachments
-        data-testid="composer-thumbs"
-        ids={images.map((i) => i.id)}
-        pending={intake.pending}
-        onRemove={(id) => void dispatch(removeImage(id))}
-      />
+      <ComposerAttachments pending={intake.pending} />
       <div data-record-scope data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
         {recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} busy={busy} onCancel={rec.cancel} onEscape={escQuestion} onStop={() => void rec.stop()} onSend={voiceSubmit} /> : (<>
         <div className="relative flex min-w-0 flex-1">

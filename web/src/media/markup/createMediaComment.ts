@@ -1,4 +1,4 @@
-import type { MediaAnchor } from '@nota-bene/shared';
+import type { AttachmentAnchor, MediaAnchor } from '@nota-bene/shared';
 import { prepareImage, uploadImage } from '@/attachments/image.ts';
 import { t } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
@@ -88,4 +88,17 @@ export async function prepareMediaComment(
     await deleteMarks(id);
     throw e;
   }
+}
+
+/**
+ * A comment on an image attached to the unsent message (protocol 17): the image with its shapes, as one JPEG, uploaded to
+ * /attach (images[0] of the comment). Nothing goes to /marks: the marks live in the anchor and the batch text. `scale` only
+ * when the render had to shrink to fit MARK_MAX_BYTES.
+ */
+export async function prepareAttachmentComment(
+  source: CanvasImageSource, anchor: AttachmentAnchor,
+): Promise<{ images: string[]; anchor: MediaAnchorPatch }> {
+  const { frame, scale } = await renderMarks(source, anchor.width, anchor.height, anchor.shapes);
+  const f = await uploadImage(await prepareImage(frame));
+  return { images: [f.id], anchor: scale < 1 ? { scale } : {} };
 }
