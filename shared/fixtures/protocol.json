@@ -312,6 +312,85 @@
       "items": []
     },
     {
+      "type": "comments",
+      "sessionId": null,
+      "items": [
+        {
+          "id": "c6",
+          "anchor": {
+            "kind": "attachment",
+            "image": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "width": 1200,
+            "height": 800,
+            "shapes": [
+              {
+                "kind": "rect",
+                "color": "#ff3b30",
+                "x": 0.1,
+                "y": 0.2,
+                "w": 0.3,
+                "h": 0.4
+              },
+              {
+                "kind": "pen",
+                "color": "#ffffff",
+                "points": [
+                  0,
+                  0,
+                  1,
+                  1
+                ]
+              }
+            ]
+          },
+          "text": "too dark",
+          "status": "pending",
+          "createdAt": 1700000003000,
+          "images": [
+            "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          ],
+          "genImages": 1
+        },
+        {
+          "id": "c7",
+          "anchor": {
+            "kind": "attachment",
+            "image": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "width": 1200,
+            "height": 800,
+            "scale": 0.5,
+            "shapes": [
+              {
+                "kind": "rect",
+                "color": "#ff3b30",
+                "x": 0.1,
+                "y": 0.2,
+                "w": 0.3,
+                "h": 0.4
+              },
+              {
+                "kind": "pen",
+                "color": "#ffffff",
+                "points": [
+                  0,
+                  0,
+                  1,
+                  1
+                ]
+              }
+            ]
+          },
+          "text": "too dark",
+          "status": "pending",
+          "createdAt": 1700000003000,
+          "images": [
+            "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          ],
+          "genImages": 1
+        }
+      ]
+    },
+    {
       "type": "interrupt"
     },
     {
@@ -963,6 +1042,11 @@
       "kind": "send-refused",
       "id": "s1",
       "reason": "busy"
+    },
+    {
+      "kind": "send-refused",
+      "id": "s2",
+      "reason": "detached"
     },
     {
       "kind": "shell-start",

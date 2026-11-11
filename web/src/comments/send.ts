@@ -1,4 +1,4 @@
-import { anchorSource, generatedImages, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
+import { anchorSource, generatedImages, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
 import { getLang, t, tIn } from '../i18n/index.ts';
 import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
@@ -52,8 +52,10 @@ const stable = (v: unknown): unknown =>
   : v;
 const printOf = (c: Comment): string => JSON.stringify(stable([c.text, c.label, c.anchor, c.images, c.genImages, c.voice]));
 const snapshotOf = (st: RootState): Snapshot => {
-  const pending = selectPending(st), draft = selectDraft(st);
-  return { sid: st.feed.session?.id, draft, body: draft.trim(), own: selectImages(st), pending, prints: pending.map(printOf) };
+  const draft = selectDraft(st), own = selectImages(st);
+  // an attachment comment goes only with its image: one whose image is not in this composer stays pending ("detached")
+  const pending = selectPending(st).filter(({ anchor: a }) => !isAttachmentAnchor(a) || own.some((im) => im.id === a.image));
+  return { sid: st.feed.session?.id, draft, body: draft.trim(), own, pending, prints: pending.map(printOf) };
 };
 /** Still the same send? Same session, and every snapshot comment is still pending and unchanged. */
 const unchanged = (st: RootState, snap: Snapshot): boolean =>

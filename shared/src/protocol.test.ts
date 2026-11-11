@@ -239,6 +239,8 @@ test.each([
   ['a bad shape', attachmentAnchor({ shapes: [{ kind: 'star', color: '#ff3b30' }] })],
   ['a shape outside the image', attachmentAnchor({ shapes: [{ kind: 'rect', color: '#ff3b30', x: 0.9, y: 0, w: 0.5, h: 0.5 }] })],
   ['width 0', attachmentAnchor({ width: 0 })],
+  ['width null (NaN or Infinity on the wire)', attachmentAnchor({ width: null })],
+  ['height null', attachmentAnchor({ height: null })],
   ['scale 1', attachmentAnchor({ scale: 1 })],
   ['scale 0', attachmentAnchor({ scale: 0 })],
   ['scale as a string', attachmentAnchor({ scale: '0.5' })],

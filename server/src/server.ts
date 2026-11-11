@@ -451,11 +451,16 @@ export async function startServer(o: {
               }
             }
             if (msg.commentIds?.length) {
-              // an attachment comment goes only in the message that carries its image; otherwise it stays pending
-              const have = new Set((msg.images ?? []).map((i) => i.id));
-              if (currentComments().some((c) => msg.commentIds!.includes(c.id) && isAttachmentAnchor(c.anchor) && !have.has(c.anchor.image))) {
-                ws.send(JSON.stringify({ kind: 'send-refused', id: msg.id, reason: 'detached' }));
-                break;
+              // an attachment comment goes only in the message that carries its image; otherwise it stays pending.
+              // A store that cannot be read must not block the send (markSent below reports the same failure)
+              try {
+                const have = new Set((msg.images ?? []).map((i) => i.id));
+                if (currentComments().some((c) => c.status === 'pending' && msg.commentIds!.includes(c.id) && c.anchor && isAttachmentAnchor(c.anchor) && !have.has(c.anchor.image))) {
+                  ws.send(JSON.stringify({ kind: 'send-refused', id: msg.id, reason: 'detached' }));
+                  break;
+                }
+              } catch (e) {
+                reportError(hub, 'comments', e);
               }
               // before the agent call: the UI flips to sent even if the agent later fails
               try {
