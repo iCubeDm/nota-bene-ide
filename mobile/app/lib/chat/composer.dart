@@ -9,7 +9,6 @@ import 'package:flutter/services.dart' show PlatformException, Uint8List;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
-import '../comments/comments.dart';
 import '../dictation/whisper_sheet.dart';
 import '../media/attach.dart';
 import '../media/gallery.dart';
@@ -183,12 +182,14 @@ class _ComposerState extends State<Composer> {
   bool get _failed => _drafts.any((d) => d.failed);
 
   /// A recording was released (or sent from the lock or the preview): it goes to the window as a voice message of its
-  /// own, never with the typed text, the images or the pending comments. While the agent works it asks, as a typed
-  /// send does; dismissed, the recording waits in the preview.
+  /// own, never with the typed text or the images; the pending comments ride along (the mic shows while the field is
+  /// empty, comments or not). While the agent works it asks, as a typed send does; dismissed, the recording waits in the
+  /// preview.
   Future<void> _recorded(Uint8List wav, Duration length) async {
     if (!mounted) return;
     // read now: the chat may be left while the question is up, and the recording still goes out (the outbox outlives it)
     final lang = voiceLangOf(context);
+    final textLang = Localizations.localeOf(context).languageCode;
     final outbox = widget.tab.voiceOutbox;
     var force = false;
     if (widget.tab.busy) {
@@ -200,7 +201,18 @@ class _ComposerState extends State<Composer> {
       }
       force = choice == 'force';
     }
-    outbox.submit(wav, lang, force: force);
+    // only their ids now: the batch is written when the recording leaves (see WindowTab.composeFor), when it is known
+    // which of them are still pending. A window older than 16 gets the recording alone and they stay pending.
+    final ids = widget.tab.voiceCommentsProtocol
+        ? [for (final c in widget.tab.comments.sendable) c.id]
+        : const <String>[];
+    outbox.submit(
+      wav,
+      lang,
+      force: force,
+      commentIds: ids,
+      commentLang: textLang,
+    );
   }
 
   void _recordFailed(RecordFailure why) {
@@ -270,19 +282,11 @@ class _ComposerState extends State<Composer> {
     // the text stays when the window is not there to take it (the tab went offline or was taken meanwhile)
     // the pending comments leave with it, in the desktop's batch; the server marks them sent
     final lang = Localizations.localeOf(context).languageCode;
-    final versions = widget.tab.fileVersions;
-    final batch = composeSend(
+    final batch = widget.tab.composeComments(
       text,
       comments,
-      widget.tab.feed,
       lang,
-      // "changed" only when the current version is known (the file was opened here) and differs from the drawn one
       own: [for (final d in drafts) d.ref!],
-      staleOf: (c) => switch (c.anchor) {
-        MediaAnchor(:final source, :final version?) when source.ref == null =>
-          versions[source.path] != null && versions[source.path] != version,
-        _ => false,
-      },
     );
     final sent = widget.tab.send(
       ClientMessageSend(
@@ -310,13 +314,11 @@ class _ComposerState extends State<Composer> {
       final open = widget.tab.state == TabState.open;
       final c = Theme.of(context).extension<NbColors>()!;
       final uploading = _uploading;
-      final hasContent =
-          _text.text.trim().isNotEmpty ||
-          widget.tab.comments.sendable.isNotEmpty ||
-          _drafts.isNotEmpty;
+      // pending comments are not content here: they go from the Comments tab, or ride along with a recording
+      final hasContent = _text.text.trim().isNotEmpty || _drafts.isNotEmpty;
       final canSend = open && !uploading && !_failed && hasContent;
       final recording = _session.active;
-      // the mic while there is nothing to send, Send otherwise; a window older than protocol 14 has no voice: its mic
+      // the mic while the field is empty (and no image waits), Send otherwise; a window older than protocol 14 has no voice: its mic
       // is greyed and says why on a tap, not missing
       final mic = !hasContent || recording;
       return PopScope(

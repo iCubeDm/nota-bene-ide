@@ -153,6 +153,27 @@ it('popover: Esc in edit mode reverts only; a second Esc closes', () => {
   expect(store.getState().comments.ui.card).toBeNull();
 });
 
+it('popover drags by its number line and stays; another card places it at its anchor again', () => {
+  const { store, view } = popover();
+  const dlg = view.container.querySelector<HTMLElement>('[role="dialog"]')!;
+  const handle = dlg.querySelector<HTMLElement>('.font-mono')!;
+  expect(handle.className).toMatch(/cursor-move/);
+  expect([dlg.style.left, dlg.style.top]).toEqual(['10px', '16px']);
+  fireEvent.pointerDown(handle, { pointerId: 1, isPrimary: true, button: 0, clientX: 15, clientY: 20 });
+  fireEvent.pointerMove(handle, { pointerId: 1, isPrimary: true, clientX: 115, clientY: 70 });
+  fireEvent.pointerUp(handle, { pointerId: 1, isPrimary: true });
+  expect([dlg.style.left, dlg.style.top]).toEqual(['110px', '66px']);
+  fireEvent.mouseDown(handle); // not an outside click
+  expect(store.getState().comments.ui.card).not.toBeNull();
+  // a press on the action buttons is theirs, not a drag
+  const del = screen.getAllByRole('button', { name: 'Удалить' })[1];
+  fireEvent.pointerDown(del, { pointerId: 2, isPrimary: true, button: 0, clientX: 0, clientY: 0 });
+  fireEvent.pointerMove(handle, { pointerId: 2, isPrimary: true, clientX: 500, clientY: 500 });
+  expect(dlg.style.left).toBe('110px');
+  act(() => void store.dispatch({ type: 'comments/openCommentCard', payload: { id: 'c1', x: 30, y: 30 } }));
+  expect([dlg.style.left, dlg.style.top]).toEqual(['30px', '36px']);
+});
+
 it('popover: outside mousedown closes, deleting closes', () => {
   const { store } = popover();
   fireEvent.mouseDown(document.body);

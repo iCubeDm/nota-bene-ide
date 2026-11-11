@@ -89,4 +89,15 @@ export class CommentStore {
     this.set(sessionId, next);
     return [...next];
   }
+
+  /** The send [sentIn] never reached the agent (a voice message without a transcript): its comments are pending again. */
+  markPending(sessionId: string | null, sentIn: string): Comment[] {
+    const next = this.get(sessionId).map((c): Comment => {
+      if (c.sentIn !== sentIn) return c;
+      const { sentIn: _gone, ...rest } = c;
+      return { ...rest, status: 'pending' };
+    });
+    this.set(sessionId, next);
+    return [...next];
+  }
 }

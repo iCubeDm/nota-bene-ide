@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
 import { connState, makeStore, serverEvent } from '@/store/store.ts';
 import { App } from '@/App.tsx';
+import { promptHistoryModal } from '@/composer/historyModal.ts';
 import { recentModal } from '@/files/recent.ts';
 import { openFile, selectTabs } from '@/tabs/slice.ts';
 import { BINDINGS, keysLabel, VOICE_KEY, withKey } from './keymap.ts';
@@ -13,7 +14,7 @@ beforeEach(() => {
   setLang('en');
   vi.stubGlobal('fetch', vi.fn(async () => new Response('[]', { status: 200 })));
 });
-afterEach(() => { cleanup(); act(() => recentModal.close()); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); act(() => { recentModal.close(); promptHistoryModal.close(); }); vi.unstubAllGlobals(); });
 
 function setup(files: string[] = ['a.ts', 'b.ts', 'c.ts']) {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
@@ -115,7 +116,7 @@ it('/ and Esc on empty space focus the composer; not inside a field, and not whe
 
 it('the ? help lists every hotkey with its keys', () => {
   expect(BINDINGS.map(keysLabel)).toEqual([
-    'Alt+W', 'Alt+Shift+T', 'Alt+←', 'Alt+→', 'Alt+1…9', 'Alt+E', 'Ctrl+Shift+F', 'Ctrl+Shift+C', 'Alt+T', 'Alt+R', 'Alt+Z', 'Alt+=', 'Alt+−', 'Alt+0', 'Alt+F1', '/, Esc',
+    'Alt+W', 'Alt+Shift+T', 'Alt+←', 'Alt+→', 'Alt+1…9', 'Alt+E', 'Alt+H', 'Ctrl+Shift+F', 'Ctrl+Shift+C', 'Alt+T', 'Alt+R', 'Alt+Z', 'Alt+=', 'Alt+−', 'Alt+0', 'Alt+F1', '/, Esc',
   ]);
 });
 
@@ -178,6 +179,16 @@ it('AltGr (Ctrl+Alt off a Mac) is never ours; a key someone handled is skipped; 
   expect(document.activeElement).toBe(box);
 });
 
+it('Alt+H toggles the prompt history, also from the composer field, and is not taken by Ctrl+H', () => {
+  setup();
+  const box = document.getElementById('composer-input')!;
+  key('KeyH', { mod: true }, box);
+  expect(promptHistoryModal.get()).toBe(false);
+  key('KeyH', { alt: true }, box);
+  expect(promptHistoryModal.get()).toBe(true);
+  key('KeyH', { alt: true }, box);
+  expect(promptHistoryModal.get()).toBe(false);
+});
 it('behind a modal dialog only Alt+E runs: the tabs behind the overlay stay', async () => {
   const s = setup();
   key('KeyE', { alt: true });

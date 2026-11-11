@@ -8,6 +8,7 @@ import type { ProviderBackend as AgentBackend } from '../agent/types.ts';
 import { EventHub } from '../hub.ts';
 import { createSessionManager } from '../session.ts';
 import { VoiceIndex } from '../voice/index.ts';
+import { AttachmentStore } from '../attachments.ts';
 import { VoiceFailure } from '../voice/transcribe.ts';
 
 let home: string;
@@ -44,7 +45,7 @@ function setup(o: { speech: (id: string, lang: string) => Promise<string>; histo
   const events: ServerEvent[] = [];
   hub.attach({ send: (d) => { const e = JSON.parse(d) as ServerEvent; if (e.kind !== 'replay') events.push(e); } });
   const voices = new VoiceIndex({ file: path.join(home, 'voice.jsonl') });
-  const make = (resume?: string) => createSessionManager({ hub, backend, cwd: home, resume, voices, speech: o.speech, closeTimeoutMs: 50, interruptTimeoutMs: 50 });
+  const make = (resume?: string, extra: Record<string, unknown> = {}) => createSessionManager({ ...extra, hub, backend, cwd: home, resume, voices, speech: o.speech, closeTimeoutMs: 50, interruptTimeoutMs: 50 });
   return { got, events, make, voices, hub };
 }
 
@@ -65,6 +66,35 @@ describe('voice messages', () => {
     const vt = events.find((e) => e.kind === 'voice-text');
     expect(vt).toMatchObject({ kind: 'voice-text', id: 'v1', text: 'fix the test' });
     expect(events.indexOf(vt!)).toBeGreaterThan(events.findIndex((e) => e.kind === 'user'));
+  });
+
+  it('pending comments ride along: the agent gets the transcript, then their batch', async () => {
+    const { got, make } = setup({ speech: async () => 'look at this' });
+    const s = await make();
+    expect(s.send({ id: 'v1', text: 'BATCH', voice, lang: 'en' })).toBeNull();
+    await until(() => got.length === 1);
+    expect(got[0]).toMatchObject({ uuid: 'v1', text: 'look at this\n\nBATCH' });
+  });
+
+  it('the images of the riding comments reach the agent; a failed transcript tells onDropped', async () => {
+    const attachments = new AttachmentStore({ dir: path.join(home, 'att') });
+    const ref = { id: attachments.put(Buffer.from('png-a'), 'image/png'), mediaType: 'image/png' as const, label: 'Comment 1' };
+    const { got, events, make } = setup({ speech: async () => 'look' });
+    const s = await make(undefined, { attachments });
+    s.send({ id: 'v1', text: 'BATCH', images: [ref], voice, lang: 'en' });
+    await until(() => got.length === 1);
+    expect(got[0]).toMatchObject({ text: 'look\n\nBATCH', images: [{ mediaType: 'image/png', data: Buffer.from('png-a').toString('base64'), label: 'Comment 1' }] });
+    expect(events.find((e) => e.kind === 'user')).toMatchObject({ images: [ref] });
+  });
+
+  it('a transcript that fails drops the send and tells onDropped, so its comments can be given back', async () => {
+    const dropped: string[] = [];
+    const { got, make } = setup({ speech: async () => { throw new VoiceFailure('empty'); } });
+    const s = await make(undefined, { onDropped: (id: string) => dropped.push(id) });
+    s.send({ id: 'v1', text: 'BATCH', voice, lang: 'en' });
+    await until(() => dropped.length === 1);
+    expect(dropped).toEqual(['v1']);
+    expect(got).toEqual([]);
   });
 
   it('a typed message sent after a voice one reaches the agent after it', async () => {

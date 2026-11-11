@@ -12,6 +12,7 @@ import '../chat/window_tab.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../comments/strings.g.dart';
+import '../ui/insets.dart';
 import '../ui/folder_tabs.dart';
 import 'git.dart';
 import 'git_pages.dart';
@@ -355,7 +356,7 @@ class _FolderPageState extends State<FolderPage> {
     final rows = error != null ? const <TreeEntry>[] : entries ?? const [];
     final lead = head + (note == null ? 0 : 1);
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.only(bottom: bottomRoom(context)),
       itemCount: lead + rows.length,
       itemBuilder: (context, i) {
         if (i < head) return _session(t, c);
@@ -391,7 +392,7 @@ class _FolderPageState extends State<FolderPage> {
           )
         : null;
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.only(bottom: bottomRoom(context)),
       itemCount: note == null ? hits.length : 1,
       itemBuilder: (context, i) {
         if (note != null) return note;

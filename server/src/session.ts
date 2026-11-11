@@ -230,6 +230,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   function dropSend(id: string): void {
     turns.cancelled(id);
     hub.emit({ kind: 'agent', e: { t: 'cancelled', sendId: id } });
+    try { o.onDropped?.(id); } catch (e) { report('comments', e); }
   }
 
   /** The history's user messages that were voice messages get their voice back: the agent kept only the text. */
@@ -376,14 +377,19 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
       if (refusal) return refusal;
       turns.assertNew(id); // first: a reused id is refused with no side effects
       if (voice) {
-        // only the voice (the parser saw to it): never a command, no images; forced like a typed one, once the transcript is in
+        // the voice (the parser saw to it), with the batch of the pending comments riding along, if any: never a command;
+        // forced like a typed one, once the transcript is in
         turns.userTurn();
         idle.touch();
         slot.ensure();
         turns.sent(id);
         try { voices.put(id, voice); } catch (e) { report('voice', e); } // the bubble still goes; a replay would show text only
-        hub.emit({ kind: 'user', id, text: '', ...(force ? { force: true } : {}), voice });
-        queue.push({ id, text: transcript(id, voice.id, lang ?? 'en'), force, lead: (t) => shell.takeFor(t) });
+        const { refs, payload } = resolveImages(attachments, images, (e) => report('attach', e));
+        hub.emit({ kind: 'user', id, text: '', ...(force ? { force: true } : {}), ...(refs.length ? { images: refs } : {}), voice });
+        const said = transcript(id, voice.id, lang ?? 'en');
+        // the feed shows the voice (the comments are in their own list); the agent hears it, then the comments' batch
+        const heard = text ? async () => `${await said()}\n\n${text}` : said;
+        queue.push({ id, text: heard, force, images: payload, lead: (t) => shell.takeFor(t) });
         return null;
       }
       turns.userTurn(); // a real turn follows: its result is a normal one

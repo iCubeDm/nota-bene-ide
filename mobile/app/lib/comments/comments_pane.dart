@@ -13,6 +13,7 @@ import '../chat/send_now.dart';
 import '../chat/window_tab.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import '../ui/insets.dart';
 import '../ui/nb_icon.dart';
 import 'comment_strip.dart' show editComment;
 import 'comments.dart';
@@ -209,7 +210,10 @@ class _CommentsPaneState extends State<CommentsPane>
           );
           return ListView(
             // the list runs under the floating header and starts below it
-            padding: EdgeInsets.only(top: widget.topInset, bottom: 16),
+            padding: EdgeInsets.only(
+              top: widget.topInset,
+              bottom: bottomRoom(context),
+            ),
             children: [
               if (pending.isNotEmpty)
                 Padding(
