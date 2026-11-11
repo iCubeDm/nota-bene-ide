@@ -281,5 +281,37 @@ void main() {
       expect(del.path, '/project-icon');
       expect(r.ch.refreshes, 1);
     });
+
+    testWidgets('Remove icon is there when the host has an icon but no support '
+        'flag', (t) async {
+      await openWith(
+        t,
+        window(4791, '/home/u/notes', icon: '0123456789abcdef'),
+      );
+      expect(inSheet(find.text('Remove icon')), findsOneWidget);
+    });
+
+    testWidgets('the sheet closes on the tap', (t) async {
+      await openWith(t, window(4791, '/home/u/notes', iconSupported: true));
+      await t.tap(inSheet(find.text('Set icon')));
+      await t.pumpAndSettle();
+      expect(find.byType(WindowSheet), findsNothing);
+    });
+
+    testWidgets('a window of another folder on the port is not this one', (
+      t,
+    ) async {
+      await openWith(t, window(4791, '/home/u/other', iconSupported: true));
+      expect(inSheet(find.text('Set icon')), findsNothing);
+    });
+
+    testWidgets('without a live tab the items do nothing', (t) async {
+      await openWith(t, window(4791, '/home/u/notes', iconSupported: true));
+      r.ch.close();
+      await t.pumpAndSettle();
+      await t.tap(inSheet(find.text('Set icon')), warnIfMissed: false);
+      await t.pumpAndSettle();
+      expect(find.text('Gallery'), findsNothing);
+    });
   });
 }

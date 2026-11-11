@@ -63,7 +63,8 @@ class WindowSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: tab,
+    // the link too: the icon changes while the sheet is open
+    listenable: Listenable.merge([tab, tab.link]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
@@ -77,8 +78,8 @@ class WindowSheet extends StatelessWidget {
         color: c.mutedFg,
       );
       final gap = const SizedBox(height: 16);
-      final icon = tab.link.windows
-          .where((w) => w.port == tab.port)
+      final win = tab.link.windows
+          .where((w) => w.port == tab.port && w.root == tab.root)
           .firstOrNull;
       return SafeArea(
         child: SingleChildScrollView(
@@ -136,13 +137,12 @@ class WindowSheet extends StatelessWidget {
                     onTap: open ? () => tab.setMode(m) : null,
                   ),
               ],
-              if (icon != null &&
-                  (icon.iconSupported || icon.icon != null)) ...[
+              if (win != null && (win.iconSupported || win.icon != null)) ...[
                 gap,
                 // the same picker and calls as a row of the sessions list; its flows keep the chat's context, not the sheet's
                 Row(
                   children: [
-                    if (icon.iconSupported)
+                    if (win.iconSupported)
                       Expanded(
                         child: SheetTile(
                           NbGlyph.image,
@@ -150,13 +150,13 @@ class WindowSheet extends StatelessWidget {
                           enabled: open,
                           onTap: () {
                             Navigator.pop(context);
-                            setProjectIconFlow(outer, tab.link, icon);
+                            setProjectIconFlow(outer, tab.link, win);
                           },
                         ),
                       ),
-                    if (icon.iconSupported && icon.icon != null)
+                    if (win.iconSupported && win.icon != null)
                       const SizedBox(width: 8),
-                    if (icon.icon != null)
+                    if (win.icon != null)
                       Expanded(
                         child: SheetTile(
                           NbGlyph.trash,
@@ -164,7 +164,7 @@ class WindowSheet extends StatelessWidget {
                           enabled: open,
                           onTap: () {
                             Navigator.pop(context);
-                            removeProjectIconFlow(outer, tab.link, icon);
+                            removeProjectIconFlow(outer, tab.link, win);
                           },
                         ),
                       ),
