@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import 'package:nb_app/comments/comments_pane.dart';
+import 'package:nb_app/comments/swipe_delete.dart';
 import 'comments_test.dart' show c, json;
 import 'support/rig.dart';
 
@@ -77,6 +79,10 @@ void main() {
     await t.pumpAndSettle();
     expect(row('old note'), findsOneWidget);
     expect(held(), ['a', 's']);
+    expect(
+      find.ancestor(of: row('old note'), matching: find.byType(SwipeDelete)),
+      findsNothing,
+    );
   });
 
   testWidgets('a tap on a swipeable row still goes to its place', (t) async {
@@ -89,5 +95,52 @@ void main() {
     await t.tapAt(Offset(390, t.getCenter(row('first')).dy));
     await t.pumpAndSettle();
     expect(t.getCenter(strip).dx, isNot(before));
+  });
+
+  testWidgets('a swipe right on a pending row goes back to Chat', (t) async {
+    await open(t, [c('a', 'qa', 'first')]);
+    final strip = find.byKey(const ValueKey('strip-current'));
+    final before = t.getCenter(strip).dx;
+    await t.drag(row('first'), const Offset(300, 0));
+    await t.pumpAndSettle();
+    expect(t.getCenter(strip).dx, lessThan(before));
+    expect(held(), ['a']);
+  });
+
+  testWidgets('a comment on its way with a message is not swipeable', (
+    t,
+  ) async {
+    await open(t, [c('a', 'qa', 'first')]);
+    r.tab!.comments.sending({'a'});
+    await t.pumpAndSettle();
+    expect(find.byType(SwipeDelete), findsNothing);
+    await t.drag(row('first'), const Offset(-400, 0));
+    await t.pumpAndSettle();
+    expect(held(), ['a']);
+  });
+
+  testWidgets('Undo does not bring back a comment that has been sent', (
+    t,
+  ) async {
+    await open(t, [c('a', 'qa', 'first'), c('b', 'qb', 'second')]);
+    await t.drag(row('first'), const Offset(-400, 0));
+    await t.pumpAndSettle();
+    r.tab!.comments.sending({'a'});
+    await t.tap(find.text('Undo'));
+    await t.pumpAndSettle();
+    expect(held(), ['b']);
+  });
+
+  testWidgets('leaving the pane takes the Undo snackbar away', (t) async {
+    await open(t, [c('a', 'qa', 'first')]);
+    await t.drag(row('first'), const Offset(-400, 0));
+    await t.pumpAndSettle();
+    expect(find.text('Comment deleted'), findsOneWidget);
+    final nav = Navigator.of(t.element(find.byType(CommentsPane)));
+    nav.pushReplacement(
+      MaterialPageRoute<void>(builder: (_) => const Scaffold(body: Text('x'))),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Comment deleted'), findsNothing);
   });
 }

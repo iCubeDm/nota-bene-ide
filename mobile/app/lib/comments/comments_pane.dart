@@ -2,6 +2,8 @@
 // batch alone, as the composer's Send does with an empty field), the sent ones below, folded until their heading is
 // tapped, grouped by the message they went with. A tap goes to the comment's place (a file opens, a chat comment scrolls the chat to its message); a long press
 // on a pending one edits or deletes it.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -15,6 +17,7 @@ import '../ui/nb_icon.dart';
 import 'comment_strip.dart' show editComment;
 import 'comments.dart';
 import 'strings.g.dart';
+import 'swipe_delete.dart';
 
 class CommentsPane extends StatefulWidget {
   const CommentsPane({
@@ -104,20 +107,19 @@ class _CommentsPaneState extends State<CommentsPane>
         ),
       ),
     );
-    if (!pending) return row;
+    // one that went out with a message waits for the server's answer: deleting it now could be undone into a second send
+    if (!pending || tab.comments.isSending(x.id)) return row;
     // a swipe left deletes a pending one, and a snackbar brings it back
-    return Dismissible(
+    return SwipeDelete(
       key: ValueKey('swipe:${x.id}'),
-      direction: DismissDirection.endToStart,
       background: Container(
         color: c.destructive,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: const NbIcon(NbGlyph.trash, color: Colors.white),
       ),
-      onDismissed: (_) => _delete(x),
-      // Dismissible stacks its child loosely: the row keeps the whole width
-      child: SizedBox(width: double.infinity, child: row),
+      onDeleted: () => _delete(x),
+      child: row,
     );
   }
 
@@ -126,17 +128,30 @@ class _CommentsPaneState extends State<CommentsPane>
     tab.comments.remove(x.id);
     final t = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    messenger
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(t.commentDeleted),
-          action: SnackBarAction(
-            label: t.markUndo,
-            onPressed: () => tab.comments.restore(x, at < 0 ? 0 : at),
-          ),
+    messenger.clearSnackBars();
+    final shown = _undo = messenger.showSnackBar(
+      SnackBar(
+        content: Text(t.commentDeleted),
+        action: SnackBarAction(
+          label: t.markUndo,
+          onPressed: () => tab.comments.restore(x, at < 0 ? 0 : at),
         ),
-      );
+      ),
+    );
+    // the Undo has no place to go once the pane is: it is taken away with it
+    unawaited(
+      shown.closed.then((_) {
+        if (_undo == shown) _undo = null;
+      }),
+    );
+  }
+
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _undo;
+
+  @override
+  void dispose() {
+    _undo?.close();
+    super.dispose();
   }
 
   /// A sent comment's group: the message it went with, as its first words.

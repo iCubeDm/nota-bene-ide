@@ -128,7 +128,10 @@ class _SheetState extends State<_Sheet> {
     if (tab == null) return;
     final got = await fetchMedia(tab, '/attach/${i.id}');
     if (!mounted || !_images.contains(i)) return;
-    setState(() => i.bytes = got.bytes);
+    setState(() {
+      i.bytes = got.bytes;
+      i.missing = got.bytes == null;
+    });
   }
 
   void _onSession() {
@@ -324,13 +327,11 @@ class _SheetState extends State<_Sheet> {
       if (mounted) setState(() {});
       i.id = (await uploadImage(tab, prepared, '')).id;
     } on UnsupportedImage {
-      if (mounted) {
-        _images.remove(i);
-        _say(t.attachUnsupported);
-      }
+      // an image the user removed meanwhile has nothing to complain about
+      if (mounted && _images.remove(i)) _say(t.attachUnsupported);
     } on Object {
       i.failed = true;
-      if (mounted) _say(t.attachFailed);
+      if (mounted && _images.contains(i)) _say(t.attachFailed);
     }
     if (mounted) setState(() {});
   }
@@ -343,12 +344,13 @@ class _SheetState extends State<_Sheet> {
       children: [
         for (final i in _images)
           Padding(
-            key: ValueKey('comment-image${i.failed ? '-failed' : ''}'),
+            key: ObjectKey(i),
             padding: const EdgeInsets.only(right: 8, top: 4),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
                 Container(
+                  key: ValueKey('comment-image${i.failed ? '-failed' : ''}'),
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
@@ -375,6 +377,16 @@ class _SheetState extends State<_Sheet> {
                       child: SizedBox.square(
                         dimension: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+                if (i.missing)
+                  Positioned.fill(
+                    child: Center(
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: c.mutedFg,
+                        size: 24,
                       ),
                     ),
                   ),
@@ -500,14 +512,17 @@ class _SheetState extends State<_Sheet> {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final lang = Localizations.localeOf(context).languageCode;
-    final media = MediaQuery.of(context);
     final inner = Padding(
       // the keyboard's height already includes the system bar it covers; without the keyboard the bar's own
       padding: EdgeInsets.fromLTRB(
         16,
         0,
         16,
-        16 + math.max(media.viewInsets.bottom, media.viewPadding.bottom),
+        16 +
+            math.max(
+              MediaQuery.viewInsetsOf(context).bottom,
+              MediaQuery.viewPaddingOf(context).bottom,
+            ),
       ),
       // ten clips do not fit a short screen: the sheet scrolls
       child: SingleChildScrollView(
@@ -722,6 +737,9 @@ class _Img {
   String? id;
   Uint8List? bytes;
   bool failed = false;
+
+  /// An image the comment has that the host did not give: shown marked, still part of the comment.
+  bool missing = false;
   bool get pending => id == null && !failed;
 }
 

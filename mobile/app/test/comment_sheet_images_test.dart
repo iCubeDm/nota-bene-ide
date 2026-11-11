@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -80,13 +81,17 @@ void main() {
   }
 
   final thumbs = find.byKey(const ValueKey('comment-image'));
+  final failedThumb = find.byKey(const ValueKey('comment-image-failed'));
   final attachButton = find.byKey(const ValueKey('comment-attach'));
 
-  Future<void> attach(WidgetTester t) async {
+  Future<void> attach(WidgetTester t, {bool settle = true}) async {
     await t.tap(attachButton);
     await t.pumpAndSettle();
     await t.tap(find.text('Gallery'));
-    await t.pumpAndSettle();
+    // a spinner never settles
+    settle
+        ? await t.pumpAndSettle()
+        : await t.pump(const Duration(milliseconds: 100));
   }
 
   Future<void> send(WidgetTester t) async {
@@ -105,6 +110,20 @@ void main() {
       expect(del, findsOneWidget);
       expect(t.getRect(del).bottom, lessThanOrEqualTo(800 - 48));
       expect(t.getRect(attachButton).bottom, lessThanOrEqualTo(800 - 48));
+    });
+  });
+
+  group('insets with the keyboard', () {
+    testWidgets('the row is above the keyboard when it is up', (t) async {
+      t.view.viewInsets = const FakeViewPadding(bottom: 300);
+      t.view.viewPadding = const FakeViewPadding(bottom: 48);
+      addTearDown(t.view.resetViewInsets);
+      addTearDown(t.view.resetViewPadding);
+      await openSheet(t, editing: c('x', 'q', 'text'));
+      expect(
+        t.getRect(find.byTooltip('Delete comment')).bottom,
+        lessThanOrEqualTo(800 - 300),
+      );
     });
   });
 
@@ -232,5 +251,60 @@ void main() {
         expect(x.images, [idOf(0), idOf(1)]);
       },
     );
+
+    testWidgets(
+      'an image removed during its upload says nothing when it fails',
+      (t) async {
+        final hold = Completer<void>();
+        var calls = 0;
+        prepareFor = (bytes, mime) async {
+          if (calls++ == 0) {
+            await hold.future;
+            throw StateError('upload');
+          }
+          return Prepared(bytes, mime);
+        };
+        await openSheet(t);
+        await attach(t, settle: false);
+        await t.tap(find.byTooltip('Remove').first);
+        await t.pump();
+        hold.complete();
+        await t.pumpAndSettle();
+        expect(find.text('The image could not be uploaded.'), findsNothing);
+        expect(thumbs, findsOneWidget);
+        await send(t);
+        expect((got as SheetSave).images, [idOf(0)]);
+      },
+    );
+
+    testWidgets('a failed upload is framed and holds Send', (t) async {
+      prepareFor = (bytes, mime) async => throw StateError('upload');
+      await openSheet(t);
+      await attach(t);
+      expect(failedThumb, findsNWidgets(2));
+      expect(find.text('The image could not be uploaded.'), findsOneWidget);
+      expect(
+        t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('an existing image that cannot be read shows a mark', (
+      t,
+    ) async {
+      final x = Comment(
+        id: 'x',
+        anchor: c('x', 'q', 't').anchor,
+        text: 't',
+        status: CommentStatus.pending,
+        createdAt: 1,
+        images: [idOf(7)],
+      );
+      await openSheet(t, editing: x);
+      expect(find.byIcon(Icons.broken_image_outlined), findsOneWidget);
+      // not a failure: the comment can still be saved
+      await send(t);
+      expect((got as SheetSave).images, [idOf(7)]);
+    });
   });
 }

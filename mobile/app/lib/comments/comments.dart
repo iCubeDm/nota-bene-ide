@@ -58,6 +58,9 @@ class Comments extends ChangeNotifier {
         c,
   ];
 
+  /// [id] went out with a message the server has not answered yet.
+  bool isSending(String id) => _sending.contains(id);
+
   /// [ids] left with a message: not offered again until the server's next set (or a refusal of that message).
   void sending(Set<String> ids) {
     _sending.addAll(ids);
@@ -176,6 +179,8 @@ class Comments extends ChangeNotifier {
 
   /// [c] back where it was in [all] (index [at]), as the Undo of a deletion: with its text, images and state.
   void restore(Comment c, int at) {
+    // one that went out meanwhile would be sent twice
+    if (_sending.contains(c.id)) return;
     final next = [...all];
     if (next.any((x) => x.id == c.id)) return;
     next.insert(at.clamp(0, next.length), c);
