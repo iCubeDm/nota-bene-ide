@@ -81,6 +81,7 @@ const GUARD_WINDOW_MS = 60_000;
 const DETACH_WAIT_MS = Number(process.env.NOTA_BENE_DETACH_WAIT_MS) || 20_000;
 const LOCK_STALE_MS = 60_000;
 const LOCK_WAIT_MS = 30_000;
+const REBUILD_WAIT_MAX_MS = 5 * 60_000; // the most a launch or --find waits in total for a window that is rebuilding web/dist
 const RESTART_WAIT_MS = 10_000; // how long a launch waits for a restarting window of its folder to come back
 
 /** This package's version (the checkout's root package.json says the same). */
@@ -274,6 +275,41 @@ export const buildLock = (repo) =>
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 /**
+ * One try at the build lock (an mkdir holding the owner's pid, as the launch lock does): 'got', 'held', or 'none' when
+ * the lock cannot be made at all. A lock whose owner is dead (a SIGKILLed launcher) is broken at once.
+ */
+function tryBuildLock(lock) {
+  for (let broke = 0; ; broke++) {
+    try {
+      fs.mkdirSync(lock);
+      try {
+        fs.writeFileSync(path.join(lock, 'pid'), String(process.pid));
+      } catch {
+        // an empty lock reads as owner unknown: waited for, then taken as stale
+      }
+      return 'got';
+    } catch (e) {
+      if (e.code !== 'EEXIST') return 'none';
+    }
+    let pid;
+    try {
+      const n = Number(fs.readFileSync(path.join(lock, 'pid'), 'utf8').trim());
+      if (Number.isInteger(n) && n > 0) pid = n;
+    } catch {
+      // between the owner's mkdir and its pid write, or a lock without one: unknown, never "dead"
+    }
+    if (pid === undefined || pidAlive(pid) || broke >= 3) return 'held';
+    const gone = `${lock}.stale-${process.pid}`;
+    try {
+      fs.renameSync(lock, gone); // of two builders breaking the same lock, only one rename succeeds
+      fs.rmSync(gone, { recursive: true, force: true });
+    } catch {
+      // someone else broke it first
+    }
+  }
+}
+
+/**
  * Builds web/dist when stale: `npm run build -w web`, or NOTA_BENE_BUILD_CMD (a shell command; the tests stub it).
  * Two launchers never build at once (an mkdir lock; after lockWaitMs a lock is taken as stale and we build anyway).
  * The stamp gets the build's START time, and only if the build really wrote dist/index.html, so an edit made during
@@ -285,13 +321,9 @@ export function ensureBuild(repo, env = process.env, stdio = 'inherit', lockWait
   let locked = false;
   const end = Date.now() + lockWaitMs;
   for (;;) {
-    try {
-      fs.mkdirSync(lock);
-      locked = true;
-      break;
-    } catch (e) {
-      if (e.code !== 'EEXIST') break; // cannot lock at all: build unguarded
-    }
+    const got = tryBuildLock(lock);
+    if (got === 'got') locked = true;
+    if (got !== 'held') break; // cannot lock at all: build unguarded
     if (Date.now() >= end) break;
     pause(250);
     if (!needsBuild(repo)) return ''; // the other launcher built it
@@ -333,13 +365,22 @@ export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', loc
   let child = null;
   const abort = () => {
     aborted = true;
-    if (child?.pid) {
+    const pid = child?.pid;
+    if (!pid) return;
+    const signal = (sig) => {
       try {
-        process.kill(-child.pid, 'SIGTERM');
+        process.kill(-pid, sig);
       } catch {
-        child.kill('SIGTERM');
+        try {
+          child?.kill(sig);
+        } catch {
+          // already gone
+        }
       }
-    }
+    };
+    signal('SIGTERM');
+    // a build that ignores SIGTERM must not hang the stop: the group gets SIGKILL after a short grace
+    setTimeout(() => signal('SIGKILL'), 3000).unref();
   };
   const run = async () => {
     if (!needsBuild(repo)) return;
@@ -347,13 +388,9 @@ export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', loc
     let locked = false;
     const end = Date.now() + lockWaitMs;
     for (;;) {
-      try {
-        fs.mkdirSync(lock);
-        locked = true;
-        break;
-      } catch (e) {
-        if (e.code !== 'EEXIST') break;
-      }
+      const got = tryBuildLock(lock);
+      if (got === 'got') locked = true;
+      if (got !== 'held') break;
       if (Date.now() >= end) break;
       await sleep(250);
       if (aborted || !needsBuild(repo)) return;
@@ -452,12 +489,21 @@ export async function acquireLaunchLock(root, waitMs = LOCK_WAIT_MS) {
  */
 async function windowFor(root, waitMs = RESTART_WAIT_MS) {
   let end = Date.now() + waitMs;
+  const cap = Date.now() + (Number(process.env.NOTA_BENE_REBUILD_WAIT_MAX_MS) || REBUILD_WAIT_MAX_MS);
+  let told = false;
   for (;;) {
     const hit = (await liveWindows((p) => probeInfo(p))).find((w) => w.root === root);
     if (hit) return hit;
     const gap = restartingWindows().filter((w) => w.root === root);
     // a launcher rebuilding web/dist has no fixed length: the wait starts over from the end of its build
-    if (gap.some((w) => w.building)) end = Date.now() + waitMs;
+    // (but never past the cap: a hung build must not hold a launch or --find for ever)
+    if (gap.some((w) => w.building)) {
+      end = Math.min(Date.now() + waitMs, cap);
+      if (!told) {
+        told = true;
+        say('waiting for a rebuild of web/dist to finish…');
+      }
+    }
     if (!gap.length || Date.now() >= end) return undefined;
     await sleep(250);
   }

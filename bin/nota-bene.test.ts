@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WS from 'ws';
 import { shellEnv } from '../server/src/session/shellText.ts';
 // @ts-expect-error plain ESM, no types
-import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, handoverTarget, needsBuild, portFree, serverEnv } from './nota-bene.mjs';
+import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, ensureBuildAsync, handoverTarget, needsBuild, portFree, serverEnv } from './nota-bene.mjs';
 
 const BIN = fileURLToPath(new URL('./nota-bene.mjs', import.meta.url));
 const FAKE = fileURLToPath(new URL('../server/test/fixtures/hello.json', import.meta.url));
@@ -413,6 +413,19 @@ describe('nota-bene launcher', () => {
     expect(await r.exited, r.err()).toBe(0);
     expect(r.out()).toBe('nota-bene: already open at http://127.0.0.1:4792\n');
     expect(Object.keys(windows())).toEqual(['4792']);
+  }, 20000);
+
+  it('a window stuck "building" is waited for only up to the cap, with one notice on stderr (--find too)', () => {
+    const dead = Number(spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' }).stdout);
+    const launcher = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' }); // a live "launcher" the cleanup may kill
+    groups.add(launcher.pid!);
+    fs.mkdirSync(path.join(home, 'windows'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'windows', '4793.json'), JSON.stringify({ root: project, pid: dead, launcherPid: launcher.pid, startedAt: Date.now(), building: true }));
+    const t0 = Date.now();
+    const r = bin(['--find', project], { NOTA_BENE_REBUILD_WAIT_MAX_MS: '1500' });
+    expect(r.status).toBe(1);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(1400);
+    expect(r.stderr.match(/waiting for a rebuild/g)).toHaveLength(1);
   }, 20000);
 
   it('a relaunch that finds its port taken gives up at once, not after 5 crashes', async () => {
@@ -882,6 +895,69 @@ describe('web/dist freshness', () => {
   });
 });
 
+describe('a build lock of a dead owner (gh-275)', () => {
+  const deadPid = () => {
+    const r = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
+    return Number(r.stdout);
+  };
+  const lockedBy = (lock: string, pid: number) => {
+    fs.mkdirSync(lock, { recursive: true });
+    fs.writeFileSync(path.join(lock, 'pid'), String(pid));
+  };
+  const mk = () => {
+    const r = path.join(tmp, 'deadlock-repo');
+    fs.mkdirSync(path.join(r, 'web/src'), { recursive: true });
+    fs.writeFileSync(path.join(r, 'web/src/a.tsx'), '');
+    return r;
+  };
+
+  it('ensureBuild breaks it at once and builds', () => {
+    const r = mk();
+    const lock = buildLock(r);
+    lockedBy(lock, deadPid());
+    try {
+      const marker = path.join(tmp, 'built-sync');
+      const t0 = Date.now();
+      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: `touch '${marker}'` }, 'ignore', 20_000);
+      expect(Date.now() - t0).toBeLessThan(5000);
+      expect(fs.existsSync(marker)).toBe(true);
+      expect(fs.existsSync(lock)).toBe(false);
+    } finally {
+      fs.rmSync(lock, { recursive: true, force: true });
+    }
+  });
+
+  it('ensureBuildAsync breaks it at once and builds', async () => {
+    const r = mk();
+    const lock = buildLock(r);
+    lockedBy(lock, deadPid());
+    try {
+      const marker = path.join(tmp, 'built-async');
+      const t0 = Date.now();
+      await ensureBuildAsync(r, { ...process.env, NOTA_BENE_BUILD_CMD: `touch '${marker}'` }, 'ignore', 20_000).done;
+      expect(Date.now() - t0).toBeLessThan(5000);
+      expect(fs.existsSync(marker)).toBe(true);
+      expect(fs.existsSync(lock)).toBe(false);
+    } finally {
+      fs.rmSync(lock, { recursive: true, force: true });
+    }
+  });
+
+  it('a live owner keeps the lock: the build waits for it', () => {
+    const r = mk();
+    const lock = buildLock(r);
+    lockedBy(lock, process.pid);
+    try {
+      const t0 = Date.now();
+      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: 'true' }, 'ignore', 600);
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(600);
+      expect(fs.existsSync(lock)).toBe(true); // not ours to remove
+    } finally {
+      fs.rmSync(lock, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('serverEnv', () => {
   it('strips from the server child what the `! cmd` environment strips (server/src/session/shellText.ts shellEnv)', () => {
     for (const base of [
@@ -1262,8 +1338,14 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       const res = await fetch('http://127.0.0.1:4792/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       expect(res.status).toBe(200);
       await waitFor(() => builds() === 2); // the slow build is running
+      const sleeper = await waitFor(() => {
+        const o = spawnSync('pgrep', ['-f', 'sleep 600'], { encoding: 'utf8' }).stdout.trim().split('\n').map(Number).filter(Boolean);
+        return o.length ? o : null;
+      });
+      const buildGroups = new Set(sleeper.map((pid) => Number(spawnSync('ps', ['-o', 'pgid=', '-p', String(pid)], { encoding: 'utf8' }).stdout.trim())));
       process.kill(r.p.pid!, 'SIGTERM');
       expect(await r.exited).toBe(0);
+      await waitFor(() => [...buildGroups].every((g) => { try { process.kill(-g, 0); return false; } catch { return true; } })); // the build's whole group is gone
       expect(r.err()).not.toMatch(/failed/);
       expect(r.out().match(/Nota Bene: /g)).toHaveLength(1); // the first server only
       expect(windows()['4792']).toBeUndefined();
