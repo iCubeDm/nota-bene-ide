@@ -79,7 +79,8 @@
           15
         ]
       },
-      "lang": "ru"
+      "lang": "ru",
+      "detect": true
     },
     {
       "type": "send",
@@ -578,7 +579,8 @@
       "theme": "darcula",
       "tmpDirs": [
         "/tmp"
-      ]
+      ],
+      "dictationLang": "auto"
     },
     {
       "kind": "hello",
@@ -1213,13 +1215,15 @@
           14,
           15
         ]
-      }
+      },
+      "voiceLang": "fr"
     },
     {
       "kind": "voice-text",
       "id": "v1",
       "text": "fix the test",
-      "ts": 1700000000000
+      "ts": 1700000000000,
+      "lang": "fr"
     },
     {
       "kind": "voice-text",

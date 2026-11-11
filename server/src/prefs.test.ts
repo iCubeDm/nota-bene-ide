@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { prefsKey, readPrefs, setIdleCompactPref, setModePref, setModelPref, setThemePref } from './prefs.ts';
+import { prefsKey, readPrefs, setIdleCompactPref, setModePref, setDictationLangPref, setModelPref, setThemePref } from './prefs.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -25,6 +25,15 @@ describe('prefs', () => {
 
   it('defaults when the file is missing', () => {
     expect(readPrefs()).toEqual({ modes: {}, models: {}, idleCompact: {} });
+  });
+  it('dictationLang round-trips, and an invalid stored value reads as absent', () => {
+    expect(readPrefs().dictationLang).toBeUndefined();
+    setDictationLangPref('fr');
+    expect(readPrefs().dictationLang).toBe('fr');
+    setDictationLangPref('auto');
+    expect(readPrefs().dictationLang).toBe('auto');
+    fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ dictationLang: 'Russian' }));
+    expect(readPrefs().dictationLang).toBeUndefined();
   });
   it('stores a mode per project dir and keeps the others', () => {
     setModePref('/a', 'plan');

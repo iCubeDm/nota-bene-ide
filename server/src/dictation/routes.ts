@@ -1,9 +1,9 @@
 // `GET /dictation`, `POST /dictation/{install,on,remove}`: Settings → Dictation's server side for the optional Whisper install.
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import type { EventHub } from '../hub.ts';
-import { readPrefs, setWhisperPref } from '../prefs.ts';
+import { isDictationLang, readPrefs, setDictationLangPref, setWhisperPref } from '../prefs.ts';
 import { installWhisper, removeWhisper, whisperDir, whisperPhase } from './install.ts';
-import { queued, resetTranscriber, transcribe as defaultTranscribe } from './transcribe.ts';
+import { queued, resetTranscriber, spokenOf, transcribeWith as defaultTranscribe, type SpokenOrText } from './transcribe.ts';
 import { pcmFromWav, WavError } from './wav.ts';
 import { WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
 import { reportError } from '../errors.ts';
@@ -41,7 +41,7 @@ async function readAudio(req: IncomingMessage, max: number): Promise<Buffer | nu
   return Buffer.concat(chunks);
 }
 
-export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof installWhisper>[0]; transcribe?: (pcm: Float32Array, lang: string) => Promise<string> }): Record<string, RequestListener> {
+export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof installWhisper>[0]; transcribe?: (pcm: Float32Array, lang: string, detect?: boolean) => Promise<SpokenOrText> }): Record<string, RequestListener> {
   const post = (h: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>): RequestListener => (req, res) => {
     if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
     Promise.resolve(h(req, res)).catch((e: unknown) => {
@@ -55,7 +55,7 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
     '/dictation': (req, res) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'method not allowed' });
       const phase = whisperPhase();
-      json(res, 200, { on: readPrefs().whisper === true && phase === 'ready', phase, downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL });
+      json(res, 200, { on: readPrefs().whisper === true && phase === 'ready', phase, downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL, dictationLang: readPrefs().dictationLang ?? 'auto' });
     },
     '/dictation/install': post((_req, res) => {
       if (whisperPhase() === 'installing') return json(res, 409, { error: 'already installing' });
@@ -70,6 +70,12 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
       setWhisperPref(b.on);
       json(res, 200, { ok: true });
     }),
+    '/dictation/lang': post(async (req, res) => {
+      const b = await readBody(req);
+      if (!isDictationLang(b.lang)) return json(res, 400, { error: 'lang must be auto or a language code' });
+      setDictationLangPref(b.lang);
+      json(res, 200, { ok: true });
+    }),
     '/dictation/remove': post((_req, res) => {
       if (!removeWhisper()) return json(res, 409, { error: 'installing' });
       resetTranscriber();
@@ -79,8 +85,10 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
     '/dictation/transcribe': post(async (req, res) => {
       if (!whisperOn()) return json(res, 503, { error: 'dictation is off' });
       if (!(req.headers['content-type'] ?? '').toLowerCase().startsWith('audio/wav')) return json(res, 415, { error: 'audio/wav only' });
-      const lang = new URL(req.url ?? '', 'http://x').searchParams.get('lang') || 'en';
+      const q = new URL(req.url ?? '', 'http://x').searchParams;
+      const lang = q.get('lang') || 'en';
       if (!LANG.test(lang)) return json(res, 400, { error: 'bad lang' });
+      const detect = q.get('detect') === '1';
       const declared = Number(req.headers['content-length']);
       const body = declared > MAX_AUDIO ? null : await readAudio(req, MAX_AUDIO);
       if (!body) return json(res, 413, { error: 'audio too long' });
@@ -89,7 +97,8 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
         if (e instanceof WavError) return json(res, 400, { error: e.message });
         throw e;
       }
-      json(res, 200, { text: await queued(() => run(pcm, lang)) });
+      const got = spokenOf(await queued(() => run(pcm, lang, detect)));
+      json(res, 200, { text: got.text, lang: got.lang ?? lang });
     }),
   };
 }

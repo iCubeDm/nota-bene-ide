@@ -41,7 +41,28 @@ describe('dictation routes', () => {
     const base = await serve();
     const r = await fetch(`${base}/dictation`);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ on: false, phase: 'none', downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL });
+    expect(await r.json()).toEqual({ on: false, phase: 'none', downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL, dictationLang: 'auto' });
+  });
+
+  it('POST /dictation/lang stores auto or a language code, and GET /dictation and the prefs show it', async () => {
+    const base = await serve();
+    expect((await post(base, '/dictation/lang', { lang: 'ru' })).status).toBe(200);
+    expect(readPrefs().dictationLang).toBe('ru');
+    expect(await (await fetch(`${base}/dictation`)).json()).toMatchObject({ dictationLang: 'ru' });
+    expect((await post(base, '/dictation/lang', { lang: 'auto' })).status).toBe(200);
+    expect(readPrefs().dictationLang).toBe('auto');
+    expect(await (await fetch(`${base}/dictation`)).json()).toMatchObject({ dictationLang: 'auto' });
+  });
+
+  it('POST /dictation/lang refuses anything else and a wrong method', async () => {
+    const base = await serve();
+    await post(base, '/dictation/lang', { lang: 'de' });
+    for (const bad of [{ lang: 'AUTO' }, { lang: 'english' }, { lang: 'e' }, { lang: '' }, { lang: 5 }, { lang: null }, {}]) {
+      expect((await post(base, '/dictation/lang', bad)).status, JSON.stringify(bad)).toBe(400);
+    }
+    expect((await fetch(`${base}/dictation/lang`, { method: 'POST', body: '{' })).status).toBe(400);
+    expect((await fetch(`${base}/dictation/lang`)).status).toBe(405);
+    expect(readPrefs().dictationLang).toBe('de'); // nothing refused was stored
   });
 
   it('answers 405 to the wrong method', async () => {
@@ -120,7 +141,7 @@ describe('dictation routes', () => {
       expect((await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(4 * 1024 * 1024 + 1) })).status).toBe(413);
       const ok = await fetch(`${base}/dictation/transcribe?lang=ru`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) });
       expect(ok.status).toBe(200);
-      expect(await ok.json()).toEqual({ text: 'hi there' });
+      expect(await ok.json()).toEqual({ text: 'hi there', lang: 'ru' });
       expect(langs).toEqual(['ru']);
     });
     it('refuses a bad lang with 400 instead of a 500, and takes two or three lowercase letters', async () => {
@@ -133,6 +154,16 @@ describe('dictation routes', () => {
       expect((await go('?lang=yue')).status).toBe(200);
       expect((await go('')).status).toBe(200);
       expect(langs).toEqual(['yue', 'en']);
+    });
+    it('?detect=1 asks for detection and the answer names the language used', async () => {
+      const asked: (boolean | undefined)[] = [];
+      const base = await serve({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} }, async (_pcm, lang, detect) => { asked.push(detect); return { text: 'hola', lang: detect ? 'es' : lang }; });
+      await ready(base);
+      const go = (q: string) => fetch(`${base}/dictation/transcribe${q}`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) }).then((r) => r.json());
+      expect(await go('?lang=en&detect=1')).toEqual({ text: 'hola', lang: 'es' });
+      expect(await go('?lang=en')).toEqual({ text: 'hola', lang: 'en' }); // an old client: pinned
+      expect(await go('?lang=ru&detect=0')).toEqual({ text: 'hola', lang: 'ru' });
+      expect(asked).toEqual([true, false, false]);
     });
     it('runs requests one at a time', async () => {
       let active = 0; let peak = 0;

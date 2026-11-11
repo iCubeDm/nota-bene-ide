@@ -382,8 +382,8 @@ export async function startServer(o: {
     // the hello every socket gets, owner or not
     const sendHello = (ws: WebSocket) => {
       try {
-        const { lang, uiScale, theme, whisper } = readPrefs(); // the user's UI language, scale and theme, shared by every window; absent until chosen
-        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d, ...(whisper === true && whisperPhase() === 'ready' ? { dictation: 'whisper' as const } : {}) }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), tmpDirs: tmpDirNames() }));
+        const { lang, uiScale, theme, whisper, dictationLang } = readPrefs(); // the user's UI language, scale and theme, shared by every window; absent until chosen
+        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d, ...(whisper === true && whisperPhase() === 'ready' ? { dictation: 'whisper' as const } : {}) }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), ...(dictationLang ? { dictationLang } : {}), tmpDirs: tmpDirNames() }));
       } catch (e) {
         reportError(hub, 'hello', e);
       }
@@ -484,7 +484,7 @@ export async function startServer(o: {
                 reportError(hub, 'comments', e); // the message itself must still go out
               }
             }
-            manager.send({ id: msg.id, text: msg.text, ...(msg.force ? { force: true } : {}), ...(msg.images?.length ? { images: msg.images } : {}), ...(msg.voice ? { voice: msg.voice, lang: msg.lang } : {}) });
+            manager.send({ id: msg.id, text: msg.text, ...(msg.force ? { force: true } : {}), ...(msg.images?.length ? { images: msg.images } : {}), ...(msg.voice ? { voice: msg.voice, lang: msg.lang, ...(msg.detect ? { detect: true as const } : {}) } : {}) });
             break;
           case 'comments':
             // R14: a set in flight across a switch (or a /clear) must not land in the session that replaced it

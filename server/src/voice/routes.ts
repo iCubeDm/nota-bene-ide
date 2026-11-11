@@ -54,12 +54,13 @@ export function voiceRoutes(o: { hub: EventHub; store: AttachmentStore; on?: () 
   };
   const text = async (req: IncomingMessage, res: ServerResponse, id: string) => {
     if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
-    const lang = new URL(req.url ?? '', 'http://x').searchParams.get('lang') || 'en';
+    const q = new URL(req.url ?? '', 'http://x').searchParams;
+    const lang = q.get('lang') || 'en';
     if (!LANG.test(lang)) return json(res, 400, { error: 'bad lang' });
     if (!on()) return json(res, 503, { error: 'dictation is off' });
     req.resume(); // no body is read
     try {
-      json(res, 200, { text: await transcribeVoice(o.store, id, lang, o.transcribe) });
+      json(res, 200, await transcribeVoice(o.store, id, lang, o.transcribe, undefined, q.get('detect') === '1'));
     } catch (e) {
       if (e instanceof VoiceFailure) return json(res, 404, { error: e.message });
       throw e;
