@@ -34,7 +34,15 @@
   "language": "Language",
   "languageSystem": "Phone's language",
   "voiceLanguage": "Voice language",
-  "voiceLanguageApp": "App language",
+  "voiceLanguageAuto": "Automatic",
+  "voiceLangDetected": "Recognised as {name}",
+  "@voiceLangDetected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "textSize": "Text size",
   "interfaceSize": "Interface size",
   "sizePreview": "The quick brown fox jumps over the lazy dog",

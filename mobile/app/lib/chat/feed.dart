@@ -27,6 +27,9 @@ class UserItem extends FeedItem {
   String? voiceText;
   VoiceError? voiceError;
 
+  /// The language the host transcribed it in (protocol 18).
+  String? voiceLang;
+
   /// What the message says: the typed text, or a voice message's transcript.
   String get shownText => voiceText ?? text;
 
@@ -245,6 +248,7 @@ class Feed {
         :final images,
         :final idle,
         :final voice,
+        :final voiceLang,
       ):
         items.add(
           UserItem(
@@ -255,7 +259,7 @@ class Feed {
             images: images ?? const [],
             voice: voice,
             duringWork: historic != true && busy,
-          ),
+          )..voiceLang = voiceLang,
         );
         if (voice != null) _dropRetried();
         if (historic != true) {
@@ -263,7 +267,12 @@ class Feed {
           waiting = [...waiting, id];
         }
         if (force == true) forcePending = true;
-      case ServerEventVoiceText(:final id, :final text, :final error):
+      case ServerEventVoiceText(
+        :final id,
+        :final text,
+        :final error,
+        :final lang,
+      ):
         final u = items
             .whereType<UserItem>()
             .where((i) => i.id == id)
@@ -271,6 +280,7 @@ class Feed {
         if (u == null) return;
         u.voiceText = text;
         u.voiceError = text == null ? error : null;
+        if (lang != null) u.voiceLang = lang;
         _dropRetried();
       case ServerEventShellStart(:final id, :final cmd):
         items.removeWhere((i) => i is ShellItem && i.id == id);

@@ -189,6 +189,7 @@ class _ComposerState extends State<Composer> {
     if (!mounted) return;
     // read now: the chat may be left while the question is up, and the recording still goes out (the outbox outlives it)
     final lang = voiceLangOf(context);
+    final detect = voiceDetectOf(context);
     final textLang = Localizations.localeOf(context).languageCode;
     final outbox = widget.tab.voiceOutbox;
     var force = false;
@@ -209,6 +210,7 @@ class _ComposerState extends State<Composer> {
     outbox.submit(
       wav,
       lang,
+      detect: detect,
       force: force,
       commentIds: ids,
       commentLang: textLang,

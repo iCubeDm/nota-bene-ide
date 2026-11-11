@@ -785,6 +785,7 @@ class FeedItemView extends StatelessWidget {
         :final images,
         :final voice,
         :final voiceError,
+        :final voiceLang,
         :final transcribing,
       ) =>
         idle
@@ -813,7 +814,18 @@ class FeedItemView extends StatelessWidget {
                                 false
                             ? null
                             : () => retryVoice(context, voice),
-                        transcript: () => userText(text),
+                        transcript: () =>
+                            voiceBadgeLang(context, voiceLang) == null
+                            ? userText(text)
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: userText(text)),
+                                  VoiceLangBadge(
+                                    voiceBadgeLang(context, voiceLang)!,
+                                  ),
+                                ],
+                              ),
                       )
                     else if (text.isNotEmpty || images.isEmpty)
                       userText(text),

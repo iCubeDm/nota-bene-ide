@@ -56,12 +56,13 @@ Future<Voice> uploadVoice(WindowHttp http, Uint8List wav) async {
 Future<({String? text, VoiceError? error})> transcribeClip(
   WindowHttp http,
   String id,
-  String lang,
-) async {
+  String lang, {
+  bool detect = false,
+}) async {
   try {
     final r = await http(
       'POST',
-      '/voice/$id/text?lang=${Uri.encodeQueryComponent(lang)}',
+      '/voice/$id/text?lang=${Uri.encodeQueryComponent(lang)}${detect ? '&detect=1' : ''}',
     ).timeout(_textTimeout);
     if (r.status == 503) return (text: null, error: VoiceError.off);
     if (r.status != 200) return (text: null, error: VoiceError.failed);
@@ -93,7 +94,7 @@ void retryVoice(BuildContext context, Voice voice) {
   final tab = FileOpener.of(context);
   if (tab == null) return;
   final lang = voiceLangOf(context);
-  if (!tab.retryVoice(voice, lang)) {
+  if (!tab.retryVoice(voice, lang, detect: voiceDetectOf(context))) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppLocalizations.of(context).cannotSend)),
     );

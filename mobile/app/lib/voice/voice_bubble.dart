@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart' show VoiceError;
 
 import '../l10n/app_localizations.dart';
+import '../store/voice_lang.dart';
 import '../theme.dart';
 import 'player.dart';
 import 'voice_view.dart';
@@ -187,6 +188,41 @@ class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
         const SizedBox(width: 8),
         Text(widget.text, style: TextStyle(color: c.mutedFg, fontSize: 13)),
       ],
+    );
+  }
+}
+
+/// The language to name on a voice bubble: only under Automatic, when the host's detected [lang] differs from the hint
+/// in effect (the app's language). A pin is not a detection, so it never shows one.
+String? voiceBadgeLang(BuildContext context, String? lang) {
+  final hint = voiceHintOf(context);
+  return lang != null && hint != null && lang != hint ? lang : null;
+}
+
+/// A small muted code (`FR`) beside the transcript; screen readers get "Recognised as" and its name.
+class VoiceLangBadge extends StatelessWidget {
+  const VoiceLangBadge(this.lang, {super.key});
+  final String lang;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<NbColors>()!;
+    return Padding(
+      padding: const EdgeInsets.only(left: 6, top: 2),
+      child: Semantics(
+        label: AppLocalizations.of(
+          context,
+        ).voiceLangDetected(voiceLangName(lang)),
+        excludeSemantics: true,
+        child: Text(
+          lang.toUpperCase(),
+          style: TextStyle(
+            color: c.mutedFg,
+            fontSize: 11,
+            fontFamily: 'monospace',
+          ),
+        ),
+      ),
     );
   }
 }
