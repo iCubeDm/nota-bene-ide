@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { stateDir } from './state.ts';
-import { liveWindows, moveWindow, pidAlive, readWindows, registerWindow, restartingWindows, unregisterWindow } from './windows.ts';
+import { liveWindows, moveWindow, pidAlive, readWindows, registerWindow, restartingWindows, setBuilding, unregisterWindow } from './windows.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -116,6 +116,17 @@ describe('restartingWindows', () => {
     registerWindow(4791, '/p', deadPid(), process.pid);
     registerWindow(4792, '/q', process.pid, process.pid);
     registerWindow(4793, '/r', deadPid());
-    expect(restartingWindows()).toEqual([{ port: 4791, root: '/p' }]);
+    expect(restartingWindows()).toEqual([{ port: 4791, root: '/p', building: false }]);
+  });
+
+  it('shows the launcher rebuilding web/dist, and only for its own entry', () => {
+    registerWindow(4791, '/p', deadPid(), process.pid, '1.2.3', 'n');
+    setBuilding(4791, process.pid + 1, true); // not this launcher's entry
+    expect(restartingWindows()[0]!.building).toBe(false);
+    setBuilding(4791, process.pid, true);
+    expect(restartingWindows()[0]!.building).toBe(true);
+    expect(readWindows()['4791']).toMatchObject({ version: '1.2.3', nonce: 'n' });
+    setBuilding(4791, process.pid, false);
+    expect(readWindows()['4791']).not.toHaveProperty('building');
   });
 });
