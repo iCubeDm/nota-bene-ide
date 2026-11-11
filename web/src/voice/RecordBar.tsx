@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from 'react';
+import { PlaneIcon } from '@/composer/MessageInput.tsx';
 import { useT } from '@/i18n/index.ts';
 import { BINDINGS, isMac, keysLabel } from '@/shell/keymap.ts';
 import { clock } from './lang.ts';
@@ -24,7 +25,6 @@ const mounted: object[] = [];
 const ICON = 'size-9 flex-none grid place-items-center rounded-full';
 const Cross = () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6 6 18" /></svg>;
 const Square = () => <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" /></svg>;
-const Plane = () => <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden><path d="M3.4 20.4 21 12 3.4 3.6l-.1 6.5L15 12 3.3 13.9z" /></svg>;
 const Trash = () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>;
 
 /** The live wave: the recent input levels, newest at the right, as bars of 2 px with 1 px gaps. */
@@ -101,7 +101,7 @@ export function RecordBar({ state, onCancel, onStop, onSend, clip = false, busy 
           <>
             <button type="button" aria-label={t('voiceCancel')} title={t('voiceCancel')} onClick={onCancel} className={`${ICON} text-muted-foreground hover:bg-muted hover:text-destructive`}><Cross /></button>
             {onStop && <button type="button" aria-label={t('voiceStop')} title={t('voiceStop')} onClick={onStop} className={`${ICON} text-destructive hover:bg-destructive/15`}><Square /></button>}
-            <button type="button" aria-label={clip ? t('voiceClipStop') : t('voiceSendLabel')} title={clip ? t('voiceClipStop') : sendTip} onClick={(e) => onSend(forcing(e))} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90`}>{clip ? <Square /> : <Plane />}</button>
+            <button type="button" aria-label={clip ? t('voiceClipStop') : t('voiceSendLabel')} title={clip ? t('voiceClipStop') : sendTip} onClick={(e) => onSend(forcing(e))} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90`}>{clip ? <Square /> : <PlaneIcon />}</button>
           </>
         )}
       </div>
@@ -115,7 +115,7 @@ export function RecordBar({ state, onCancel, onStop, onSend, clip = false, busy 
         <VoiceView voice={{ id: previewId!, ms: recording.ms, wave: recording.wave }} src={state.url || undefined} />
       </div>
       <button type="button" aria-label={t('voiceSendLabel')} title={sendTip} disabled={sending} onClick={(e) => onSend(forcing(e))} className={`${ICON} bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50`}>
-        {sending ? <span aria-hidden className="inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Plane />}
+        {sending ? <span aria-hidden className="inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <PlaneIcon />}
       </button>
     </div>
   );
