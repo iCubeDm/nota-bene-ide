@@ -847,38 +847,38 @@ describe('the package lookup (plugin install)', () => {
     expect(fs.existsSync(path.join(prefix(), '.nb-install-failed'))).toBe(true); // --wait learns of it
   });
 
-  it('a stale takeover removes only the lock instance it judged: a fresh lock that appears meanwhile survives', async () => {
-    // an old lock of a pid that is still alive (a recycled pid), so nothing else will clear it. Between the reclaimer's last
-    // look and its removal, the holder "finishes" and another run takes a fresh lock: `rm` / `mv` of the lock path is
-    // intercepted once to put that fresh lock in place, exactly as the interleaving would.
-    const live = String(process.pid);
-    lockAt({ pid: live, ts: now() - 100 });
+  it('a waiter that judged the lock stale and is then overtaken never disturbs the fresh lock that took its place (no second install)', async () => {
+    // Deterministic replay of the CI double install. Waiter B sees the stale lock and is held up (by a `mkdir` shim) just before
+    // it acts on that judgment. Waiter A reclaims the lock, takes it and starts installing. B is released: it must re-judge,
+    // find A's fresh lock and leave it alone. (The earlier "move aside, judge, move back" takeover hid A's lock for a moment;
+    // a third waiter C, started inside that gap, took the free name: two installs.) C is started while B is still working.
+    lockAt({ ts: 1 });
     const shims = path.join(tmp, 'race-path');
     fs.mkdirSync(shims, { recursive: true });
-    for (const cmd of ['rm', 'mv']) {
+    const stall = path.join(tmp, 'b-stalled'), go = path.join(tmp, 'b-go'), gap = path.join(tmp, 'gap');
+    for (const f of [stall, go, gap]) fs.rmSync(f, { force: true });
+    const shim = (cmd: string, body: string) => {
       const f = path.join(shims, cmd);
-      fs.writeFileSync(f, `#!/bin/sh
-for a in "$@"; do
-  case "$a" in
-    */.nb-install.lock)
-      if [ ! -e "$RACE_MARK" ]; then
-        : > "$RACE_MARK"; /bin/rm -rf "$a"; /bin/mkdir "$a"; echo "$RACE_PID" > "$a/pid"; date +%s > "$a/ts"
-      fi ;;
-  esac
-done
-exec /bin/${cmd} "$@"
-`);
+      fs.writeFileSync(f, `#!/bin/bash\n${body}\nexec ${which(cmd)} "$@"\n`);
       fs.chmodSync(f, 0o755);
-    }
-    const mark = path.join(tmp, 'race-mark');
-    fs.rmSync(mark, { force: true });
-    const PATH = `${shims}:${path.join(tmp, 'path')}:${path.dirname(process.execPath)}:${process.env.PATH}`;
-    const r = await sh([pkgOpen, '--data', data, '--run', project], { env: { PATH, RACE_MARK: mark, RACE_PID: live, NB_LOCK_STALE_SECS: '5', NB_INSTALL_WAIT_SECS: '2' } });
-    expect(fs.existsSync(mark)).toBe(true); // the interleaving happened
-    expect(npmCalls()).toEqual([]); // the fresh lock's owner is still installing: no second install
-    expect(r.code).toBe(1);
-    expect(fs.readFileSync(path.join(prefix(), '.nb-install.lock/pid'), 'utf8').trim()).toBe(live);
-  });
+    };
+    // the first process to try the reclaim mutex is B: it waits for the go file
+    shim('mkdir', `case "\${@: -1}" in */.nb-install.lock.reclaim) if [ ! -e '${stall}' ]; then : > '${stall}'; while [ ! -e '${go}' ]; do /bin/sleep 0.05; done; fi ;; esac`);
+    // whoever puts a moved-aside lock back leaves a gap first (old code only)
+    shim('mv', `case "\$1" in *.nb-install.lock.stale.*) : > '${gap}'; /bin/sleep 1.5 ;; esac`);
+    const env = { PATH: `${shims}:${path.join(tmp, 'path')}:${path.dirname(process.execPath)}:${process.env.PATH}`, STUB_NPM_SLEEP: '4', NB_INSTALL_WAIT_SECS: '30' };
+    const until = async (f: () => boolean) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 50)); expect(f()).toBe(true); };
+    const b = sh([pkgOpen, '--data', data, '--run', project], { env });
+    await until(() => fs.existsSync(stall));
+    const a = sh([pkgOpen, '--data', data, '--run', project], { env });
+    await until(() => npmCalls().length === 1); // A took the lock and is installing
+    fs.writeFileSync(go, '');
+    await new Promise((r) => setTimeout(r, 300)); // B acts on its stale judgment (old code: moves A's lock aside)
+    const c = sh([pkgOpen, '--data', data, '--run', project], { env });
+    const rs = await Promise.all([a, b, c]);
+    expect(rs.map((r) => r.code)).toEqual([0, 0, 0]);
+    expect(npmCalls()).toHaveLength(1);
+  }, 60_000);
 
   it('every failure writes the marker: npm missing in --run, and --wait reports it at once', async () => {
     const tools = ['dirname', 'tr', 'sed', 'uname', 'cat', 'mkdir', 'tee', 'rm', 'date', 'find', 'tail', 'kill'].map((x): [string, string] => [x, which(x)]);
