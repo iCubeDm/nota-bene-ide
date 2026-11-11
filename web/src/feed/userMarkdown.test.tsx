@@ -127,3 +127,11 @@ it('text in angle brackets stays visible in a user message, a comment card and t
   expect(root.querySelector('details')!.textContent).toContain('rename <Composer> to <Editor/>');
   expect(textOf(root)).toContain('fix <Composer> and');
 });
+
+it('a replayed voice message that carried comments shows its words as the transcript, not the batch', () => {
+  const store = makeStore({ url: 'ws://x', connect: (() => ({ send: () => true, close() {} })) as never });
+  const voice = { id: 'a'.repeat(64), ms: 1000, wave: Array(48).fill(3) };
+  act(() => void store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'run it\n\nComments on fragments:\n\n1. [a.md]\n> q\n→ note', voice, ts: 0, historic: true })));
+  const view = render(<Provider store={store}><TooltipProvider><Feed /></TooltipProvider></Provider>);
+  expect(view.container.querySelector('[data-testid="transcript"]')).toHaveTextContent(/^run it$/);
+});

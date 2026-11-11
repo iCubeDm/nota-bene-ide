@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/ui/folder_tabs.dart';
 import 'package:nb_app/chat/chat_route.dart';
 import 'package:nb_app/chat/composer.dart';
+import 'package:nb_app/comments/comment_strip.dart';
 import 'package:nb_app/comments/comments_pane.dart';
 import 'package:nb_app/files/files_pane.dart';
 import 'package:nb_app/theme.dart';
@@ -412,6 +413,71 @@ void main() {
       r.event({'kind': 'mode', 'mode': 'default'});
       await t.pumpAndSettle();
       expect(find.byKey(const ValueKey('sub-1')), findsNothing);
+    });
+  });
+
+  group('the comment strip', () {
+    Future<void> pend(WidgetTester t) async {
+      r.event({
+        'kind': 'comments',
+        'items': [
+          json(c('p', 'quoted words', 'fix this')),
+          json(c('q', 'more words', 'and this')),
+        ],
+      });
+      await t.pumpAndSettle();
+    }
+
+    testWidgets('is one line with the count and no comment text', (t) async {
+      await open(t);
+      await pend(t);
+      final strip = find.byType(CommentStrip);
+      expect(
+        find.descendant(of: strip, matching: find.text('2 comments to send')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: strip, matching: find.byType(Text)),
+        findsOneWidget,
+      );
+      expect(find.textContaining('fix this'), findsNothing);
+      expect(t.getSize(strip).height, lessThan(44));
+    });
+
+    testWidgets('the pane shows a comment\'s clips after its typed text', (
+      t,
+    ) async {
+      await open(t);
+      final withClip = json(c('p', 'quoted words', 'typed'))
+        ..['voice'] = [
+          {
+            'text': 'said this',
+            'id': 'a' * 64,
+            'ms': 1000,
+            'wave': List.filled(48, 1),
+          },
+        ];
+      r.event({
+        'kind': 'comments',
+        'items': [withClip],
+      });
+      await t.pumpAndSettle();
+      await t.tap(find.text('Comments'));
+      await t.pumpAndSettle();
+      expect(
+        find.textContaining('typed said this', findRichText: true),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a tap opens the Comments pane', (t) async {
+      await open(t);
+      await pend(t);
+      expect(find.byType(CommentsPane), findsNothing);
+      await t.tap(find.byType(CommentStrip));
+      await t.pumpAndSettle();
+      expect(find.textContaining('fix this').hitTestable(), findsOneWidget);
+      expect(find.byType(Composer).hitTestable(), findsNothing);
     });
   });
 }

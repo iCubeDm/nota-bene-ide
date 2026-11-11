@@ -15,12 +15,26 @@ import 'player.dart';
 import 'upload.dart';
 import 'wav.dart';
 
+/// What a recording carries when it leaves: the ids still pending, their batch text and images.
+typedef ComposeFor =
+    ({String text, List<ImageRef> images, List<String> ids}) Function(
+      List<String> ids,
+      String lang,
+    );
+
 /// [uploading]: not yet on the host, or on it and not yet sent (a send waits for a window that is there).
 enum OutStage { uploading, sent, failed }
 
 class PendingVoice {
-  PendingVoice(this.key, this.lang, this.ms, this.wave, {this.wav})
-    : id = uuidV4();
+  PendingVoice(
+    this.key,
+    this.lang,
+    this.ms,
+    this.wave, {
+    this.wav,
+    this.commentIds = const [],
+    this.commentLang = 'en',
+  }) : id = uuidV4();
 
   PendingVoice.fromJson(Map<String, Object?> j)
     : key = j['key']! as String,
@@ -28,6 +42,8 @@ class PendingVoice {
       ms = (j['ms']! as num).toInt(),
       wave = (j['wave']! as List).cast<num>(),
       id = j['id']! as String,
+      commentIds = ((j['commentIds'] as List?) ?? const []).cast<String>(),
+      commentLang = (j['commentLang'] as String?) ?? 'en',
       voice = j['voice'] == null
           ? null
           : Voice.fromJson((j['voice']! as Map).cast<String, Object?>()),
@@ -41,6 +57,13 @@ class PendingVoice {
 
   /// In memory until it is on the host; after that the disk has it.
   Uint8List? wav;
+
+  /// The pending comments riding along (protocol 16): their ids and the language of their batch, which is written
+  /// when the recording leaves (what is still pending then), with the images that go along.
+  List<String> commentIds;
+  final String commentLang;
+  String text = '';
+  List<ImageRef> images = const [];
 
   /// The host's copy, once uploaded.
   Voice? voice;
@@ -60,6 +83,10 @@ class PendingVoice {
     'ms': ms,
     'wave': wave,
     'id': id,
+    if (commentIds.isNotEmpty) ...{
+      'commentIds': commentIds,
+      'commentLang': commentLang,
+    },
     'voice': ?voice?.toJson(),
     'stage': stage.name,
   };
@@ -194,6 +221,7 @@ class VoiceOutbox extends ChangeNotifier {
   Object? _owner;
   bool Function(ClientMessage)? _send;
   WindowHttp? Function()? _http;
+  ComposeFor? _compose;
   bool _disposed = false;
 
   void _adopt(List<PendingVoice> found) {
@@ -207,15 +235,17 @@ class VoiceOutbox extends ChangeNotifier {
     Object owner, {
     required bool Function(ClientMessage) send,
     required WindowHttp? Function() http,
+    ComposeFor? compose,
   }) {
     _owner = owner;
     _send = send;
     _http = http;
+    _compose = compose;
   }
 
   void detach(Object owner) {
     if (!identical(_owner, owner)) return;
-    _owner = _send = _http = null;
+    _owner = _send = _http = _compose = null;
     for (final e in entries) {
       e._timer?.cancel();
       e._timer = null;
@@ -229,10 +259,28 @@ class VoiceOutbox extends ChangeNotifier {
     }
   }
 
-  /// Uploads and sends [wav]; the bubble shows meanwhile.
-  void submit(Uint8List wav, String lang, {bool force = false}) {
-    final e = PendingVoice(uuidV4(), lang, wavMs(wav), waveOf(wav), wav: wav)
-      ..force = force;
+  /// The ids the entries still hold (their comments are not offered again until the entry is over: arrived, deleted
+  /// or, after a failure, retried). They survive a restart with the entries.
+  Set<String> get heldIds => {for (final e in entries) ...e.commentIds};
+
+  /// Uploads and sends [wav]; the bubble shows meanwhile. [commentIds] ride along: their batch is written when the
+  /// message leaves, in [commentLang].
+  void submit(
+    Uint8List wav,
+    String lang, {
+    bool force = false,
+    List<String> commentIds = const [],
+    String commentLang = 'en',
+  }) {
+    final e = PendingVoice(
+      uuidV4(),
+      lang,
+      wavMs(wav),
+      waveOf(wav),
+      wav: wav,
+      commentIds: commentIds,
+      commentLang: commentLang,
+    )..force = force;
     entries.add(e);
     _changed();
     unawaited(_start(e));
@@ -283,13 +331,23 @@ class VoiceOutbox extends ChangeNotifier {
       if (!entries.contains(e)) return;
       final send = _send;
       if (send == null) return;
+      if (e.commentIds.isNotEmpty) {
+        // now, not at record time: what is still pending (and the window's protocol) decides what rides along
+        final c = _compose?.call(e.commentIds, e.commentLang);
+        if (c == null) return _fail(e);
+        e.commentIds = c.ids;
+        e.text = c.text;
+        e.images = c.images;
+      }
       final sent = send(
         ClientMessageSend(
           id: e.id,
-          text: '',
+          text: e.text,
           voice: e.voice,
           lang: e.lang,
           force: e.force ? true : null,
+          commentIds: e.commentIds.isEmpty ? null : e.commentIds,
+          images: e.images.isEmpty ? null : e.images,
         ),
       );
       if (sent) {
