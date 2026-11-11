@@ -25,6 +25,7 @@
 // A relaunch keeps the port, so the open tab reconnects by itself, reopens the folder the window has now (it may have
 // switched), and drops --resume/--fork/--new for --continue. The registry entry stays through the restart gap (it is
 // removed only when the launcher ends), so no other launch picks the port meanwhile; a 98 on a relaunch gives up.
+// Before each relaunch a stale web/dist is rebuilt (ensureBuild); a failed build is logged and the relaunch goes on.
 //
 // Handover (in-app update): a published launcher whose runtime/current (server/src/runtime.ts) names a newer x.y.z runs that
 // version's launcher as a child instead of its own (the outer part, `outer`), on the same port with the same nonce, and again
@@ -797,6 +798,14 @@ async function supervise(o, autoPort, release, state) {
       wake = null;
       if (stopping) return 0;
     }
+    // a long-lived window must not keep serving a stale web/dist: rebuild before the relaunch (a no-op when the stamp is
+    // fresh). The registry entry still reserves the port meanwhile; a failed build keeps the old dist and never blocks.
+    try {
+      ensureBuild(REPO, process.env, 'inherit');
+    } catch (e) {
+      say(`${e.message} — relaunching with the old web/dist`);
+    }
+    if (stopping) return 0;
     first = false;
   }
 }

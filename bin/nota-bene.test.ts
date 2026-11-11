@@ -1179,6 +1179,74 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     expect((await fetch('http://127.0.0.1:4792/info', { headers: { cookie: login.cookie.replace('4791', '4792'), 'x-nota-bene-key': login.key } })).status).toBe(401);
   }, 40000);
 
+  describe('a restart rebuilds a stale web/dist (gh-275)', () => {
+    // NOTA_BENE_BUILD_CMD stub: logs each run to a marker; `stamp` also writes dist/index.html so the build counts as done
+    const stubEnv = (body: string) => {
+      const marker = path.join(tmp, 'builds');
+      const script = path.join(tmp, 'build.sh');
+      fs.writeFileSync(script, `#!/bin/sh\necho x >> '${marker}'\n${body}\n`);
+      fs.chmodSync(script, 0o755);
+      return { env: { NOTA_BENE_BUILD_CMD: script }, builds: () => (fs.existsSync(marker) ? fs.readFileSync(marker, 'utf8').split('\n').filter(Boolean).length : 0) };
+    };
+    // the launcher builds the real checkout: make its stamp absent (stale) for the test, and put web/dist back afterwards
+    const dist = path.join(path.dirname(BIN), '..', 'web/dist');
+    const stamp = path.join(dist, '.nb-built');
+    let saved: { stamp?: fs.Stats; index?: fs.Stats; dist: boolean };
+    beforeEach(() => {
+      const stat = (f: string) => (fs.existsSync(f) ? fs.statSync(f) : undefined);
+      saved = { stamp: stat(stamp), index: stat(path.join(dist, 'index.html')), dist: fs.existsSync(dist) };
+      fs.rmSync(stamp, { force: true });
+    });
+    afterEach(() => {
+      fs.rmSync(stamp, { force: true });
+      if (saved.stamp) {
+        fs.writeFileSync(stamp, '');
+        fs.utimesSync(stamp, saved.stamp.atime, saved.stamp.mtime);
+      }
+      const index = path.join(dist, 'index.html');
+      if (saved.index) fs.utimesSync(index, saved.index.atime, saved.index.mtime);
+      else if (saved.dist) fs.rmSync(index, { force: true });
+      else fs.rmSync(dist, { recursive: true, force: true });
+    });
+    const restart = async (port: number) => {
+      const first = await waitFor(() => windows()[String(port)]);
+      const login = await loginAt(port);
+      const res = await fetch(`http://127.0.0.1:${port}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      expect(res.status).toBe(200);
+      await waitFor(() => { const w = windows()[String(port)]; return w && w.pid !== first.pid ? w : null; });
+      await waitFor(async () => (await info(port)) !== null);
+    };
+
+    it('exit 75 with a stale source runs the build before the relaunch', async () => {
+      const s = stubEnv('true'); // writes no dist: the source stays stale
+      const r = launch(['--port', '4791'], s.env);
+      await waitFor(() => windows()['4791']);
+      expect(s.builds()).toBe(1); // the launcher's own build
+      await restart(4791);
+      expect(s.builds()).toBe(2);
+      expect(r.err()).not.toMatch(/failed/);
+    }, 40000);
+
+    it('exit 75 with a fresh stamp does not build again', async () => {
+      const s = stubEnv('mkdir -p web/dist && touch web/dist/index.html');
+      launch(['--port', '4792'], s.env);
+      await waitFor(() => windows()['4792']);
+      expect(s.builds()).toBe(1);
+      await restart(4792);
+      expect(s.builds()).toBe(1);
+    }, 40000);
+
+    it('a failing build is logged, keeps the old dist and still relaunches (same port)', async () => {
+      const s = stubEnv(`[ "$(wc -l < '${path.join(tmp, 'builds')}')" -le 1 ] || exit 1`);
+      const r = launch(['--port', '4793'], s.env);
+      await waitFor(() => windows()['4793']);
+      await restart(4793);
+      expect(s.builds()).toBe(2);
+      expect(r.err()).toMatch(/building web\/dist failed .* relaunching with the old web\/dist/);
+      expect(await info(4793)).not.toBeNull();
+    }, 40000);
+  });
+
   it('after a CRASH relaunch the nonce is new and the browser is opened on a fresh login: the old cookie, key and login value are dead', async () => {
     const op = (() => {
       const d = path.join(tmp, 'opener');
