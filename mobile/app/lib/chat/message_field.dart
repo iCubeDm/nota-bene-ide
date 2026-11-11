@@ -40,10 +40,13 @@ class MessageField extends StatefulWidget {
     this.micEnabled,
     this.onAttach,
     this.floating,
+    this.fill,
     this.snackAnchor,
     this.snackScaffold,
   });
 
+  /// What the field sits on, when it is not the chat's background (the comment sheet's own colour).
+  final Color? fill;
   final TextEditingController controller;
   final FocusNode? focus;
   final String hint;
@@ -205,7 +208,7 @@ class _MessageFieldState extends State<MessageField> {
         // as tall as the button and its insets: the field has no border line to add to it
         constraints: const BoxConstraints(minHeight: _button + 2 * _inset),
         decoration: BoxDecoration(
-          color: c.popover.withValues(alpha: .95),
+          color: widget.fill ?? c.fieldOver(c.background),
           borderRadius: BorderRadius.circular(24),
         ),
         child: Row(
