@@ -303,6 +303,7 @@ it('Alt+↑ and Alt+↓ also walk from an empty field and a single-line draft, l
   expect(box.value).toBe('other');
   await userEvent.keyboard(altDown);
   expect(box.value).toBe('');
+  await raf(); // the restore's caret frame must run before typing, or it puts the caret back at 0 mid-word
   await userEvent.type(box, 'build');
   await userEvent.keyboard(altUp);
   expect(box.value).toBe('other'); // Alt = the whole list, newest first, not the search of plain ↑
@@ -326,4 +327,19 @@ it('Alt+↑ with Ctrl, Meta or Shift added does not walk', async () => {
   await userEvent.keyboard('{Alt>}{Meta>}{ArrowUp}{/Meta}{/Alt}');
   await userEvent.keyboard('{Alt>}{Shift>}{ArrowUp}{/Shift}{/Alt}');
   expect(box.value).toBe('');
+});
+
+it('typing right after Alt+↓ restores an empty draft keeps the caret where the typing put it', async () => {
+  const { box } = setup([p('a', 'other')]);
+  box.focus();
+  await userEvent.keyboard('{Alt>}{ArrowUp}{/Alt}');
+  await raf();
+  const frames: FrameRequestCallback[] = [];
+  const spy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => (frames.push(cb), frames.length));
+  await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}');
+  spy.mockRestore();
+  await userEvent.type(box, 'build');
+  box.setSelectionRange(2, 2); // the user moved the caret after typing
+  act(() => frames.forEach((f) => f(0))); // the restore's late frame runs now
+  expect(box.selectionStart).toBe(2);
 });
