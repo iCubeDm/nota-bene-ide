@@ -425,7 +425,7 @@ export function Composer() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
-                  <Button ref={sendBtn} type="button" className="h-10 px-3" disabled={!canSend || uploading || switching} aria-label={sendLabel} onClick={() => submit(false)}>
+                  <Button ref={sendBtn} type="button" className="relative h-10 px-3" disabled={!canSend || uploading || switching} aria-label={sendLabel} onClick={() => submit(false)}>
                     <SendIcon count={shellMode ? 0 : nPending} run={shellMode} />
                   </Button>
                 </span>
