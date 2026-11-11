@@ -26,6 +26,7 @@ class VoiceBlock extends StatefulWidget {
     this.onRetry,
     this.onDelete,
     this.transcript,
+    this.lang,
     this.player,
   });
   final String id;
@@ -43,6 +44,9 @@ class VoiceBlock extends StatefulWidget {
 
   /// The transcript, built when it is shown.
   final Widget Function()? transcript;
+
+  /// The language the host transcribed it in; named by a badge when it is not the one expected (see [voiceBadgeLang]).
+  final String? lang;
   final VoicePlayer? player;
 
   @override
@@ -58,6 +62,7 @@ class _VoiceBlockState extends State<VoiceBlock> {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final done = widget.stage == VoiceStage.transcribed;
+    final badge = done ? voiceBadgeLang(context, widget.lang) : null;
     final Widget status = switch (widget.stage) {
       VoiceStage.transcribed => const SizedBox.shrink(),
       VoiceStage.transcribing => _Pulse(t.voiceTranscribing),
@@ -107,34 +112,41 @@ class _VoiceBlockState extends State<VoiceBlock> {
           wave: widget.wave,
           load: widget.load,
           player: widget.player,
-          trailing: done && widget.transcript != null
-              ? Tooltip(
-                  message: t.voiceTranscript,
-                  child: InkResponse(
-                    key: const ValueKey('fold'),
-                    onTap: () => setState(() => _open = !_open),
-                    radius: 18,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _open
-                            ? c.primary.withValues(alpha: .35)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'Aa',
-                        style: TextStyle(
-                          color: c.mutedFg,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+          trailing: done && (widget.transcript != null || badge != null)
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (badge != null) VoiceLangBadge(badge),
+                    if (widget.transcript != null)
+                      Tooltip(
+                        message: t.voiceTranscript,
+                        child: InkResponse(
+                          key: const ValueKey('fold'),
+                          onTap: () => setState(() => _open = !_open),
+                          radius: 18,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _open
+                                  ? c.primary.withValues(alpha: .35)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Aa',
+                              style: TextStyle(
+                                color: c.mutedFg,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
                 )
               : null,
         ),
@@ -208,7 +220,7 @@ class VoiceLangBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<NbColors>()!;
     return Padding(
-      padding: const EdgeInsets.only(left: 6, top: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Semantics(
         label: AppLocalizations.of(
           context,

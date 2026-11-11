@@ -260,4 +260,55 @@ void main() {
     );
     expect(find.text('DE'), findsOneWidget);
   });
+
+  testWidgets('folding the transcript keeps the badge beside the play row', (
+    t,
+  ) async {
+    await detected(t, 'fr');
+    expect(find.text('FR'), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('fold')));
+    await t.pump();
+    expect(find.text('bonjour'), findsNothing);
+    expect(find.text('FR'), findsOneWidget);
+  });
+
+  testWidgets('changing the voice language in Settings updates shown badges', (
+    t,
+  ) async {
+    await detected(t, 'fr');
+    expect(find.text('FR'), findsOneWidget);
+    await r.voiceLang!.choose('ru');
+    await t.pump();
+    expect(find.text('FR'), findsNothing);
+    await r.voiceLang!.choose(VoiceLang.auto);
+    await t.pump();
+    expect(find.text('FR'), findsOneWidget);
+  });
+
+  testWidgets('Retry of a failed transcription sends detect under Automatic', (
+    t,
+  ) async {
+    r.voiceLang = await VoiceLang.load(MemoryVault());
+    await r.open(t, events: [user('u1')], hello: hello18(), settle: false);
+    r.event({'kind': 'voice-text', 'id': 'u1', 'error': 'failed', 'ts': 2});
+    await t.pump();
+    await t.tap(find.text('Retry'));
+    await t.pump();
+    final m = r.sent.last;
+    expect((m['lang'], m['detect']), ('en', true));
+  });
+
+  testWidgets('Retry under a pin sends lang alone', (t) async {
+    final v = await VoiceLang.load(MemoryVault());
+    await v.choose('de');
+    r.voiceLang = v;
+    await r.open(t, events: [user('u1')], hello: hello18(), settle: false);
+    r.event({'kind': 'voice-text', 'id': 'u1', 'error': 'failed', 'ts': 2});
+    await t.pump();
+    await t.tap(find.text('Retry'));
+    await t.pump();
+    final m = r.sent.last;
+    expect(m['lang'], 'de');
+    expect(m.containsKey('detect'), isFalse);
+  });
 }

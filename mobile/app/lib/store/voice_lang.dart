@@ -50,13 +50,14 @@ class VoiceLang extends ChangeNotifier {
   }
 }
 
-/// Hands the choice to every route below the app.
-class VoiceLangScope extends InheritedWidget {
-  const VoiceLangScope({super.key, required this.choice, required super.child});
-  final VoiceLang? choice;
-
-  @override
-  bool updateShouldNotify(VoiceLangScope old) => choice != old.choice;
+/// Hands the choice to every route below the app; what read it in a build is rebuilt when it changes.
+class VoiceLangScope extends InheritedNotifier<VoiceLang> {
+  const VoiceLangScope({
+    super.key,
+    required VoiceLang? choice,
+    required super.child,
+  }) : super(notifier: choice);
+  VoiceLang? get choice => notifier;
 }
 
 /// The language a recording made now is transcribed in, or hinted with under Automatic: the pin, else the app's
@@ -75,6 +76,12 @@ bool voiceDetectOf(BuildContext context) =>
     true;
 
 /// The hint in effect for a badge, only under Automatic: a pin is not a detection, so there is nothing to point out.
-String? voiceHintOf(BuildContext context) => voiceDetectOf(context)
-    ? Localizations.localeOf(context).languageCode
-    : null;
+/// Called in a build: the bubble is rebuilt when the choice changes.
+String? voiceHintOf(BuildContext context) {
+  final c = context
+      .dependOnInheritedWidgetOfExactType<VoiceLangScope>()
+      ?.choice;
+  return c == null || c.isAuto
+      ? Localizations.localeOf(context).languageCode
+      : null;
+}

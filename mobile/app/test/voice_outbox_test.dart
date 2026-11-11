@@ -17,6 +17,7 @@ void main() {
   late List<ClientMessage> sent;
   late Completer<HttpAnswer>? upload;
   var open = true;
+  var detectOk = true;
   final voiceJson = {'id': 'f' * 64, 'ms': 2000, 'wave': List.filled(48, 6)};
   final owner = Object();
 
@@ -43,6 +44,7 @@ void main() {
       },
       http: () => post,
       compose: (ids, lang) => (text: 'BATCH $lang', images: const [], ids: ids),
+      canDetect: () => detectOk,
     );
     return box;
   }
@@ -54,6 +56,7 @@ void main() {
     sent = [];
     upload = null;
     open = true;
+    detectOk = true;
     VoiceOutbox.sentTimeout = const Duration(milliseconds: 80);
   });
 
@@ -74,6 +77,78 @@ void main() {
     expect(await VoicePlayer.shared.files.find('f' * 64), isNotNull);
     box.detach(owner);
   });
+
+  test(
+    'detect rides on the send of a recording made under Automatic',
+    () async {
+      final box = attach();
+      box.submit(wavOf(2000), 'en', detect: true);
+      box.submit(wavOf(2000), 'en');
+      await settle();
+      expect((sent[0] as ClientMessageSend).detect, isTrue);
+      expect((sent[1] as ClientMessageSend).detect, isNull);
+      box.detach(owner);
+    },
+  );
+
+  test(
+    'a host older than protocol 18 gets no detect, checked at send time',
+    () async {
+      detectOk = false;
+      final box = attach();
+      box.submit(wavOf(2000), 'en', detect: true);
+      await settle();
+      final m = sent.single as ClientMessageSend;
+      expect((m.lang, m.detect), ('en', null));
+      box.detach(owner);
+    },
+  );
+
+  test(
+    'detect survives a restart; an older host at reconnect drops it',
+    () async {
+      upload = Completer<HttpAnswer>();
+      var box = attach();
+      box.submit(wavOf(2000), 'en', detect: true);
+      await settle();
+      expect(jsonDecode(disk.index!)['entries'][0]['detect'], isTrue);
+      box.detach(owner);
+      upload!.complete(ok());
+      await settle();
+      detectOk = false;
+      final next = VoiceStore(disk);
+      box = attach(next);
+      await next.ready;
+      box.opened();
+      await settle();
+      final m = sent.single as ClientMessageSend;
+      expect((m.lang, m.detect), ('en', null));
+      box.detach(owner);
+    },
+  );
+
+  test(
+    'queued for an older host, delivered to protocol 18: it detects',
+    () async {
+      upload = Completer<HttpAnswer>();
+      detectOk = false;
+      var box = attach();
+      box.submit(wavOf(2000), 'ru', detect: true);
+      await settle();
+      box.detach(owner);
+      upload!.complete(ok());
+      await settle();
+      detectOk = true;
+      final next = VoiceStore(disk);
+      box = attach(next);
+      await next.ready;
+      box.opened();
+      await settle();
+      final m = sent.single as ClientMessageSend;
+      expect((m.lang, m.detect), ('ru', true));
+      box.detach(owner);
+    },
+  );
 
   test('submit with force puts it on the send; a retry goes after', () async {
     final box = attach();
