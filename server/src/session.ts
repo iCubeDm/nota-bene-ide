@@ -230,6 +230,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   function dropSend(id: string): void {
     turns.cancelled(id);
     hub.emit({ kind: 'agent', e: { t: 'cancelled', sendId: id } });
+    try { o.onDropped?.(id); } catch (e) { report('comments', e); }
   }
 
   /** The history's user messages that were voice messages get their voice back: the agent kept only the text. */

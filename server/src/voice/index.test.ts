@@ -52,6 +52,10 @@ describe('VoiceIndex', () => {
     it('an entry matched by id is not given to a text match, even earlier in the replay', () => {
       expect(made().resolve([{ id: 'x1', text: 'run the tests' }, { id: 'a', text: 'run the tests' }])).toEqual([v(2), v(1)]);
     });
+    it('compares the words before a comments batch, which rode along with them', () => {
+      const batch = 'run the tests\n\nComments on fragments:\n\n1. [a.md]\n> q\n→ note';
+      expect(made().resolve([{ id: 'x1', text: batch }])).toEqual([v(1)]);
+    });
     it('ignores the zero-width guard before a slash', () => {
       expect(made().resolve([{ id: 'x1', text: '\u200b/clear the cache' }])).toEqual([v(3)]);
     });

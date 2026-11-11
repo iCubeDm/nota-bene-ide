@@ -444,6 +444,32 @@ void main() {
       expect(t.getSize(strip).height, lessThan(44));
     });
 
+    testWidgets('the pane shows a comment\'s clips after its typed text', (
+      t,
+    ) async {
+      await open(t);
+      final withClip = json(c('p', 'quoted words', 'typed'))
+        ..['voice'] = [
+          {
+            'text': 'said this',
+            'id': 'a' * 64,
+            'ms': 1000,
+            'wave': List.filled(48, 1),
+          },
+        ];
+      r.event({
+        'kind': 'comments',
+        'items': [withClip],
+      });
+      await t.pumpAndSettle();
+      await t.tap(find.text('Comments'));
+      await t.pumpAndSettle();
+      expect(
+        find.textContaining('typed said this', findRichText: true),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('a tap opens the Comments pane', (t) async {
       await open(t);
       await pend(t);

@@ -45,18 +45,36 @@ class Comments extends ChangeNotifier {
   /// sent with a message the server has not answered yet
   final _sending = <String>{};
 
+  /// The ids a recording not yet in the window carries (the voice outbox's, kept on disk): not offered again.
+  Set<String> Function() held = () => const {};
+
+  /// Tells the listeners that [held] changed.
+  void refresh() => notifyListeners();
+
   /// What the phone sends with a message: the pending text and media comments, their images with them. A page
   /// comment or a 3D model one, made on the desktop, stays pending for it (the phone cannot write their batch lines).
-  List<Comment> get sendable => [
-    for (final c in pending)
-      if (switch (c.anchor) {
-            TextAnchor() => true,
-            MediaAnchor(:final camera) => camera == null,
-            _ => false,
-          } &&
-          !_sending.contains(c.id))
-        c,
-  ];
+  List<Comment> get sendable {
+    final away = held();
+    return [
+      for (final c in pendingOf(null))
+        if (!_sending.contains(c.id) && !away.contains(c.id)) c,
+    ];
+  }
+
+  /// The pending comments the phone can send, of [ids] (all when null), whoever holds them.
+  List<Comment> pendingOf(Iterable<String>? ids) {
+    final want = ids?.toSet();
+    return [
+      for (final c in pending)
+        if ((want == null || want.contains(c.id)) &&
+            switch (c.anchor) {
+              TextAnchor() => true,
+              MediaAnchor(:final camera) => camera == null,
+              _ => false,
+            })
+          c,
+    ];
+  }
 
   /// [ids] left with a message: not offered again until the server's next set (or a refusal of that message).
   void sending(Set<String> ids) {

@@ -130,8 +130,9 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 13: page anchors (a comment on an element or an SVG area of an HTML page); an older server would refuse the comment.
 // 14: voice messages (`send.voice` and `send.lang`, `user.voice`, the `voice-text` event, `/voice`) and voice clips of comments (`Comment.voice`).
 // 15: the project icon: the project folder's picture (`/project-icon`, set from the phone; `/info.icon` is its version or null).
+// 16: a voice `send` may carry `commentIds` with their batch `text` and `images` (the pending comments ride along with a recording).
 // (Other additions to protocol 15, such as optional Interaction fields, are listed beside this line by their own changes.)
-export const PROTOCOL = 15;
+export const PROTOCOL = 16;
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
 export const TAKEN_OVER_CODE = 4001;
@@ -203,7 +204,7 @@ export type Interaction = {
 export type InteractionAnswer = { choice: string; values?: Record<string, string> };
 
 export type ClientMessage =
-  /** protocol 14: with `voice`, `text` is '' and there are no `images` or `commentIds`, unless pending comments ride along: then `commentIds` is not empty, `text` is their batch (what a typed send carries after the typed words) and `images` theirs; the agent gets the transcript, then the batch. `force` works as for text (the turn is interrupted once the transcript is in); the server transcribes it in `lang` (ISO 639) and the agent gets the text */
+  /** protocol 14 (comments riding along: 16): with `voice`, `text` is '' and there are no `images` or `commentIds`, unless pending comments ride along (protocol 16): then `commentIds` is not empty, `text` is their batch (what a typed send carries after the typed words) and `images` theirs; the agent gets the transcript, then the batch. `force` works as for text (the turn is interrupted once the transcript is in); the server transcribes it in `lang` (ISO 639) and the agent gets the text */
   | { type: 'send'; id: string; text: string; force?: boolean; commentIds?: string[]; images?: ImageRef[]; voice?: Voice; lang?: string }
   /** full replacement of this session's comment set */
   | { type: 'comments'; sessionId: string | null; items: Comment[] }

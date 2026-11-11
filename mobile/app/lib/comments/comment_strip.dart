@@ -39,21 +39,31 @@ class CommentStrip extends StatelessWidget {
       if (n == 0) return const SizedBox.shrink();
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
-      return Container(
-        margin: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-        decoration: BoxDecoration(
-          color: c.card,
-          border: Border.all(color: c.border),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Text(
-              t.pendingComments(n),
-              style: TextStyle(color: c.accent, fontSize: 12),
+      final shape = RoundedRectangleBorder(
+        side: BorderSide(color: c.border),
+        borderRadius: BorderRadius.circular(8),
+      );
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+        // Material under the InkWell: the splash shows on the card, not behind it
+        child: Semantics(
+          button: true,
+          child: Material(
+            color: c.card,
+            shape: shape,
+            child: InkWell(
+              customBorder: shape,
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Text(
+                  t.pendingComments(n),
+                  style: TextStyle(color: c.accent, fontSize: 12),
+                ),
+              ),
             ),
           ),
         ),

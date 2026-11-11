@@ -111,7 +111,7 @@ With Whisper installed and on (Settings, Voice messages), a microphone button si
 
 - **Click** the microphone (or press Alt+R): a recording starts and takes the place of the field: a blinking dot, the time, the live level and the buttons **Cancel** (Esc), **Stop** and **Send** (Enter, or Alt+R again). **Stop** keeps the recording for you to listen to; then **Send**, or the trash button to delete it.
 - **Press and hold** the microphone for more than 0.3 s: it records while you hold and sends when you let go.
-- A voice message is a message of its own: the draft in the field and its images stay where they are and do not go with it. On the phone the mic shows while the field is empty, even with comments pending, and a recording sends them along. While the agent works it waits for its turn, like a message sent "after". The recording stops by itself after 10 minutes and is sent.
+- A voice message is a message of its own: the draft in the field and its images stay where they are and do not go with it. On the phone the mic shows while the field is empty, even with comments pending, and a recording sends them along (with a Nota Bene on the computer that is new enough; an older one gets the recording alone). While the agent works it waits for its turn, like a message sent "after". The recording stops by itself after 10 minutes and is sent.
 - The recording is made in the browser as 16 kHz mono 16-bit audio (about 1.9 MB a minute) and handed to this computer, which stores it beside the pasted images (`attachments/<sha256>.wav`), transcribes it with Whisper and gives the agent only the text. The agent never hears the audio.
 - In the chat a voice message shows a play button, the wave (click or drag it to seek), the length, and the transcript under it. **Aa** folds the transcript. While the text is not in, the bubble says "Transcribing…". If it fails, it says why (Whisper off, nothing recognised, failed) and **Retry** sends the same recording again as a new message. Only one voice plays at a time.
 - A denied microphone is reported in the status line under the message field: allow it for the page in the browser.
@@ -492,9 +492,12 @@ the turn or, with *Send now*, interrupts it), *Stop*, and in the agent menu *Com
   one is picked) for every host; code highlighting and Mermaid diagrams follow it.
 - **Markdown files and comments.** A tool line on a Markdown file of the project has an open button, and the agent
   menu's *Files* lists the session's Markdown files. The file opens over the chat. Select text and choose *Comment*:
-  the sheet shows the quote, the quick labels and a field. The comments gather above the composer and leave with the
-  next message as the desktop sends them, and the desktop shows them too, because they are the window's comments. A
-  comment is highlighted in its file; tap it (or long-press it above the composer) to edit or delete it. Comments
+  the sheet shows the quote, the quick labels and a field. The comments gather in the *Comments* tab, and one line above the
+  composer, "N comments to send", says how many wait; tap it to open the tab, where they are edited (long-press),
+  deleted and sent with its *Send*. Typed text in the field takes them along as the desktop sends them, and so does a
+  voice message: a recording made while comments are pending carries them (with a new enough Nota Bene on the
+  computer; an older one gets the recording alone and the comments stay pending). The desktop shows them too, because
+  they are the window's comments. A comment is highlighted in its file; tap it to open it there. Comments
   on images, video and pages made on the desktop stay there and are sent from the desktop.
 - **Project icons.** Long-press a session in the list and choose *Set icon* to give its project folder a picture from the
   camera or the gallery (cut to a centre square of 256 px on the phone); *Remove icon* takes it away. The picture is kept

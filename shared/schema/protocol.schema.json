@@ -2848,5 +2848,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 15
+  "x-protocol": 16
 }

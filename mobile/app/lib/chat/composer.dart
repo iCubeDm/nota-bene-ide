@@ -9,7 +9,6 @@ import 'package:flutter/services.dart' show PlatformException, Uint8List;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
-import '../comments/comments.dart';
 import '../dictation/whisper_sheet.dart';
 import '../media/attach.dart';
 import '../media/gallery.dart';
@@ -202,30 +201,18 @@ class _ComposerState extends State<Composer> {
       }
       force = choice == 'force';
     }
-    // read now: the desktop may have sent or changed them while the question was up
-    final comments = widget.tab.comments.sendable;
-    final versions = widget.tab.fileVersions;
-    final batch = composeSend(
-      '',
-      comments,
-      widget.tab.feed,
-      textLang,
-      staleOf: (c) => switch (c.anchor) {
-        MediaAnchor(:final source, :final version?) when source.ref == null =>
-          versions[source.path] != null && versions[source.path] != version,
-        _ => false,
-      },
-    );
-    final ids = [for (final c in comments) c.id];
+    // only their ids now: the batch is written when the recording leaves (see WindowTab.composeFor), when it is known
+    // which of them are still pending. A window older than 16 gets the recording alone and they stay pending.
+    final ids = widget.tab.voiceCommentsProtocol
+        ? [for (final c in widget.tab.comments.sendable) c.id]
+        : const <String>[];
     outbox.submit(
       wav,
       lang,
       force: force,
-      text: batch.text,
       commentIds: ids,
-      images: batch.images,
+      commentLang: textLang,
     );
-    if (ids.isNotEmpty) widget.tab.comments.sending(ids.toSet());
   }
 
   void _recordFailed(RecordFailure why) {
@@ -295,19 +282,11 @@ class _ComposerState extends State<Composer> {
     // the text stays when the window is not there to take it (the tab went offline or was taken meanwhile)
     // the pending comments leave with it, in the desktop's batch; the server marks them sent
     final lang = Localizations.localeOf(context).languageCode;
-    final versions = widget.tab.fileVersions;
-    final batch = composeSend(
+    final batch = widget.tab.composeComments(
       text,
       comments,
-      widget.tab.feed,
       lang,
-      // "changed" only when the current version is known (the file was opened here) and differs from the drawn one
       own: [for (final d in drafts) d.ref!],
-      staleOf: (c) => switch (c.anchor) {
-        MediaAnchor(:final source, :final version?) when source.ref == null =>
-          versions[source.path] != null && versions[source.path] != version,
-        _ => false,
-      },
     );
     final sent = widget.tab.send(
       ClientMessageSend(

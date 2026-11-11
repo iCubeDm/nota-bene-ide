@@ -4,7 +4,7 @@
 // Append-only JSONL, read once: a line `{id, voice}` when the message is sent, `{id, text}` when it is transcribed.
 import fs from 'node:fs';
 import path from 'node:path';
-import { isVoice, type Voice } from '@nota-bene/shared';
+import { BATCH_HEAD, isVoice, type Voice } from '@nota-bene/shared';
 
 type Entry = { voice?: Voice; text?: string };
 
@@ -80,7 +80,8 @@ export class VoiceIndex {
           if (q) q.push(id); else queues.set(e.text, [id]);
         }
       }
-      const text = said(u.text);
+      // a message that carried comments is the transcript, then their batch: only the words count
+      const text = said(u.text.slice(0, BATCH_HEAD.exec(u.text)?.index ?? u.text.length));
       if (!text) return undefined;
       const id = queues.get(text)?.shift();
       return id === undefined ? undefined : map.get(id)!.voice;
