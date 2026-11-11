@@ -291,17 +291,27 @@ function tryBuildLock(lock) {
     } catch (e) {
       if (e.code !== 'EEXIST') return 'none';
     }
-    let pid;
+    const owner = () => {
+      try {
+        const n = Number(fs.readFileSync(path.join(lock, 'pid'), 'utf8').trim());
+        return Number.isInteger(n) && n > 0 ? n : undefined;
+      } catch {
+        return undefined; // between the owner's mkdir and its pid write, or no pid file: unknown, never "dead"
+      }
+    };
+    const pid = owner();
+    let age = 0;
     try {
-      const n = Number(fs.readFileSync(path.join(lock, 'pid'), 'utf8').trim());
-      if (Number.isInteger(n) && n > 0) pid = n;
+      age = Date.now() - fs.statSync(lock).mtimeMs;
     } catch {
-      // between the owner's mkdir and its pid write, or a lock without one: unknown, never "dead"
+      continue; // gone meanwhile
     }
-    if (pid === undefined || pidAlive(pid) || broke >= 3) return 'held';
+    // a dead owner, or a lock older than the stale limit (no pid file, a reused pid): broken
+    if (!((pid !== undefined && !pidAlive(pid)) || age > LOCK_STALE_MS) || broke >= 3) return 'held';
     const gone = `${lock}.stale-${process.pid}`;
     try {
-      fs.renameSync(lock, gone); // of two builders breaking the same lock, only one rename succeeds
+      // re-check the owner: of two builders breaking the same lock, the loser must not rename the winner's fresh one
+      if (owner() === pid) fs.renameSync(lock, gone);
       fs.rmSync(gone, { recursive: true, force: true });
     } catch {
       // someone else broke it first
@@ -365,22 +375,22 @@ export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', loc
   let child = null;
   const abort = () => {
     aborted = true;
-    const pid = child?.pid;
-    if (!pid) return;
-    const signal = (sig) => {
-      try {
-        process.kill(-pid, sig);
-      } catch {
-        try {
-          child?.kill(sig);
-        } catch {
-          // already gone
-        }
-      }
-    };
-    signal('SIGTERM');
+    if (!child?.pid) return;
+    killGroup(child, 'SIGTERM');
     // a build that ignores SIGTERM must not hang the stop: the group gets SIGKILL after a short grace
-    setTimeout(() => signal('SIGKILL'), 3000).unref();
+    const c = child;
+    setTimeout(() => killGroup(c, 'SIGKILL'), 3000).unref();
+  };
+  const killGroup = (c, sig) => {
+    try {
+      process.kill(-c.pid, sig);
+    } catch {
+      try {
+        c.kill(sig);
+      } catch {
+        // already gone
+      }
+    }
   };
   const run = async () => {
     if (!needsBuild(repo)) return;
@@ -405,7 +415,10 @@ export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', loc
       if (aborted) abort(); // the signal came between the checks and the spawn
       const r = await new Promise((resolve) => {
         child.on('error', (error) => resolve({ status: null, error }));
-        child.on('exit', (status) => resolve({ status }));
+        child.on('exit', (status) => {
+          if (aborted) killGroup(child, 'SIGKILL'); // the leader is gone: a grandchild that ignored TERM must not outlive us
+          resolve({ status });
+        });
       });
       if (aborted) return;
       if (r.status !== 0) throw new Error(`building web/dist failed (${r.error?.message ?? `exit code ${r.status}`})`);

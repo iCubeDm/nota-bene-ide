@@ -943,6 +943,24 @@ describe('a build lock of a dead owner (gh-275)', () => {
     }
   });
 
+  it('a lock with no pid (or a reused one) is broken once older than the stale limit', () => {
+    const r = mk();
+    const lock = buildLock(r);
+    fs.mkdirSync(lock, { recursive: true });
+    const old = (Date.now() - 120_000) / 1000;
+    fs.utimesSync(lock, old, old);
+    try {
+      const marker = path.join(tmp, 'built-old');
+      const t0 = Date.now();
+      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: `touch '${marker}'` }, 'ignore', 20_000);
+      expect(Date.now() - t0).toBeLessThan(5000);
+      expect(fs.existsSync(marker)).toBe(true);
+      expect(fs.existsSync(lock)).toBe(false);
+    } finally {
+      fs.rmSync(lock, { recursive: true, force: true });
+    }
+  });
+
   it('a live owner keeps the lock: the build waits for it', () => {
     const r = mk();
     const lock = buildLock(r);
@@ -1332,20 +1350,17 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     }, 40000);
 
     it('SIGTERM during the relaunch build stops the launcher at once: no server is started, no "failed" message', async () => {
-      const r = launch(['--port', '4792'], setup(`${lines(1)} || exec sleep 600`));
+      const r = launch(['--port', '4792'], setup(`${lines(1)} || { ps -o pgid= -p $$ | tr -d ' ' > '${tmp}/buildgroup'; sh -c "trap '' TERM; exec sleep 600" & wait; }`));
       await waitFor(() => windows()['4792']);
       const login = await loginAt(4792);
       const res = await fetch('http://127.0.0.1:4792/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       expect(res.status).toBe(200);
       await waitFor(() => builds() === 2); // the slow build is running
-      const sleeper = await waitFor(() => {
-        const o = spawnSync('pgrep', ['-f', 'sleep 600'], { encoding: 'utf8' }).stdout.trim().split('\n').map(Number).filter(Boolean);
-        return o.length ? o : null;
-      });
-      const buildGroups = new Set(sleeper.map((pid) => Number(spawnSync('ps', ['-o', 'pgid=', '-p', String(pid)], { encoding: 'utf8' }).stdout.trim())));
+      const buildGroup = Number(await waitFor(() => (fs.existsSync(`${tmp}/buildgroup`) ? fs.readFileSync(`${tmp}/buildgroup`, 'utf8').trim() : '')));
       process.kill(r.p.pid!, 'SIGTERM');
       expect(await r.exited).toBe(0);
-      await waitFor(() => [...buildGroups].every((g) => { try { process.kill(-g, 0); return false; } catch { return true; } })); // the build's whole group is gone
+      await new Promise((res) => setTimeout(res, 500)); // well inside the 3 s grace: the group must die with the leader, not later
+      expect(() => process.kill(-buildGroup, 0)).toThrow(); // the build's whole group (a TERM-ignoring grandchild too) is gone
       expect(r.err()).not.toMatch(/failed/);
       expect(r.out().match(/Nota Bene: /g)).toHaveLength(1); // the first server only
       expect(windows()['4792']).toBeUndefined();
