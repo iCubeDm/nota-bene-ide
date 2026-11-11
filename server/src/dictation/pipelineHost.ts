@@ -8,7 +8,13 @@ import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION } from './whisper.ts';
 
-export type Pipe = { (audio: Float32Array, opts: object): Promise<{ text?: string }>; dispose?: () => Promise<void>; dead?: boolean };
+export type Pipe = {
+  (audio: Float32Array, opts: object): Promise<{ text?: string }>;
+  /** Language probabilities (code -> 0..1) of the first 30 s of `audio`; absent on a pipeline that cannot tell (a fake). */
+  detect?: (audio: Float32Array) => Promise<Record<string, number>>;
+  dispose?: () => Promise<void>;
+  dead?: boolean;
+};
 
 /** What the host needs from a worker_threads Worker (tests pass a fake). */
 export interface WorkerLike {
@@ -33,7 +39,7 @@ const defaultFactory: WorkerFactory = (data) => new Worker(path.join(dictationAs
 /** Starts the worker, which loads the pipeline from the prefix `dir`. `close` ends it at once (a rejected `ready` if still loading). */
 export function openPipeline(dir: string, o: { worker?: WorkerFactory } = {}): { ready: Promise<Pipe>; close: (why?: Error) => void } {
   const w = (o.worker ?? defaultFactory)({ dir, pkg: WHISPER_PACKAGE, model: WHISPER_MODEL, revision: WHISPER_REVISION, dtype: WHISPER_DTYPE });
-  const pending = new Map<number, { resolve: (v: { text?: string }) => void; reject: (e: Error) => void }>();
+  const pending = new Map<number, { resolve: (v: { text?: string; probs?: Record<string, number> }) => void; reject: (e: Error) => void }>();
   let nextId = 1;
   let ended = false;
   let settle!: { resolve: (p: Pipe) => void; reject: (e: Error) => void };
@@ -52,15 +58,17 @@ export function openPipeline(dir: string, o: { worker?: WorkerFactory } = {}): {
     pending.clear();
     void Promise.resolve(w.terminate()).catch(() => {});
   };
+  const call = (msg: object) => new Promise<{ text?: string; probs?: Record<string, number> }>((resolve, reject) => {
+    if (ended) return reject(new Error('the Whisper worker is gone'));
+    const id = nextId++;
+    pending.set(id, { resolve, reject });
+    w.postMessage({ id, ...msg });
+  });
   const pipe: Pipe = Object.assign(
-    (audio: Float32Array, opts: object) => new Promise<{ text?: string }>((resolve, reject) => {
-      if (ended) return reject(new Error('the Whisper worker is gone'));
-      const id = nextId++;
-      pending.set(id, { resolve, reject });
-      w.postMessage({ id, audio, opts });
-    }),
+    (audio: Float32Array, opts: object) => call({ audio, opts }),
     {
       dead: false,
+      detect: async (audio: Float32Array) => (await call({ audio, detect: true })).probs ?? {},
       // let the worker dispose the ONNX sessions and exit by itself; terminate it if it does not within a few seconds
       dispose: async () => {
         if (ended) return;
@@ -73,13 +81,13 @@ export function openPipeline(dir: string, o: { worker?: WorkerFactory } = {}): {
     },
   );
 
-  w.on('message', (m: { type?: string; id?: number; text?: string; error?: string; message?: string }) => {
+  w.on('message', (m: { type?: string; id?: number; text?: string; probs?: Record<string, number>; error?: string; message?: string }) => {
     if (m.type === 'ready') return settle.resolve(pipe);
     if (m.type === 'error') return end(new Error(m.message ?? 'Whisper worker failed'));
     const p = m.id === undefined ? undefined : pending.get(m.id);
     if (!p) return;
     pending.delete(m.id!);
-    if (m.error !== undefined) p.reject(new Error(m.error)); else p.resolve({ text: m.text });
+    if (m.error !== undefined) p.reject(new Error(m.error)); else p.resolve({ text: m.text, probs: m.probs });
   });
   w.on('error', (e: Error) => end(e));
   w.on('exit', (code: number) => end(new Error(`the Whisper worker exited (${code})`)));

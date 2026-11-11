@@ -108,3 +108,11 @@ it('a list left open while the button was gone (a recording) does not pop up whe
   expect(screen.queryByRole('combobox')).toBeNull();
   expect(promptHistoryModal.get()).toBe(false);
 });
+
+it('the list opens above the field and runs right from the button, which sits left of the field', async () => {
+  setup([p('a', 'x')]);
+  await userEvent.click(screen.getByTestId('prompt-history'));
+  const list = screen.getByRole('listbox').closest('[data-side]')!;
+  expect(list.getAttribute('data-side')).toBe('top');
+  expect(list.getAttribute('data-align')).toBe('start');
+});

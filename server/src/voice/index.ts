@@ -1,12 +1,13 @@
 // Which user message was a voice message: an agent's history keeps only its text, so a resumed session's replay gets
 // the voice back from here, by message id. Some agents (omp) name their messages anew on a resume, so the transcript is
 // kept too, and a message whose id is unknown gets the voice of the first unused entry that said the same words.
-// Append-only JSONL, read once: a line `{id, voice}` when the message is sent, `{id, text}` when it is transcribed.
+// Append-only JSONL, read once: a line `{id, voice}` when the message is sent, `{id, text, lang?}` when it is transcribed (lang: the language it was transcribed in).
 import fs from 'node:fs';
 import path from 'node:path';
 import { BATCH_HEAD, isVoice, type Voice } from '@nota-bene/shared';
 
-type Entry = { voice?: Voice; text?: string };
+const LANG = /^[a-z]{2,3}$/;
+type Entry = { voice?: Voice; text?: string; lang?: string };
 
 /** What was said, as the history would show it: the server's zero-width guard before a slash is not part of it. */
 const said = (text: string): string => (text.startsWith('\u200b') ? text.slice(1) : text).trim();
@@ -30,11 +31,12 @@ export class VoiceIndex {
     }
     for (const line of text.split('\n')) {
       try {
-        const o = JSON.parse(line) as { id?: unknown; voice?: unknown; text?: unknown };
+        const o = JSON.parse(line) as { id?: unknown; voice?: unknown; text?: unknown; lang?: unknown };
         if (typeof o.id !== 'string') continue;
         const e = map.get(o.id) ?? {};
         if (isVoice(o.voice)) e.voice = o.voice;
         if (typeof o.text === 'string') e.text = o.text;
+        if (typeof o.lang === 'string' && LANG.test(o.lang)) e.lang = o.lang;
         if (e.voice || e.text !== undefined) map.set(o.id, e);
       } catch { /* a line cut by a crash */ }
     }
@@ -52,11 +54,16 @@ export class VoiceIndex {
   }
 
   /** The message was transcribed: what it said, for a replay whose ids are not ours. */
-  putText(messageId: string, text: string): void {
+  putText(messageId: string, text: string, lang?: string): void {
     const map = this.load();
     const t = said(text);
-    map.set(messageId, { ...map.get(messageId), text: t });
-    this.append({ id: messageId, text: t });
+    map.set(messageId, { ...map.get(messageId), text: t, ...(lang ? { lang } : {}) });
+    this.append({ id: messageId, text: t, ...(lang ? { lang } : {}) });
+  }
+
+  /** The language message `id` was transcribed in, when it was kept. */
+  langOf(messageId: string): string | undefined {
+    return this.load().get(messageId)?.lang;
   }
 
   /**
@@ -66,12 +73,26 @@ export class VoiceIndex {
    */
   resolve(users: { id: string; text: string }[]): (Voice | undefined)[] {
     const map = this.load();
+    return this.matches(users).map((id) => (id === undefined ? undefined : map.get(id)!.voice));
+  }
+
+  /** `resolve` with the language each voice message was transcribed in (absent when unknown). */
+  resolveWithLang(users: { id: string; text: string }[]): ({ voice: Voice; lang?: string } | undefined)[] {
+    const map = this.load();
+    return this.matches(users).map((id) => {
+      const e = id === undefined ? undefined : map.get(id);
+      return e?.voice ? { voice: e.voice, ...(e.lang ? { lang: e.lang } : {}) } : undefined;
+    });
+  }
+
+  /** The entry id each user message matched, undefined for a typed one. */
+  private matches(users: { id: string; text: string }[]): (string | undefined)[] {
+    const map = this.load();
     const used = new Set<string>();
     for (const u of users) if (map.get(u.id)?.voice) used.add(u.id);
     let queues: Map<string, string[]> | undefined; // text -> ids of unused entries, oldest first
     return users.map((u) => {
-      const own = map.get(u.id)?.voice;
-      if (own) return own;
+      if (map.get(u.id)?.voice) return u.id;
       if (!queues) {
         queues = new Map();
         for (const [id, e] of map) {
@@ -84,7 +105,7 @@ export class VoiceIndex {
       const text = said(u.text.slice(0, BATCH_HEAD.exec(u.text)?.index ?? u.text.length));
       if (!text) return undefined;
       const id = queues.get(text)?.shift();
-      return id === undefined ? undefined : map.get(id)!.voice;
+      return id;
     });
   }
 

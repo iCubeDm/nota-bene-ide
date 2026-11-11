@@ -24,7 +24,7 @@ afterEach(async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-type Run = (pcm: Float32Array, lang: string) => Promise<string>;
+type Run = (pcm: Float32Array, lang: string, detect?: boolean) => Promise<string | { text: string; lang: string }>;
 async function serve(o: { on?: boolean; run?: Run } = {}): Promise<string> {
   const routes = voiceRoutes({ hub: new EventHub(), store, on: () => o.on ?? true, transcribe: o.run ?? (async () => 'hello') });
   server = http.createServer(((req, res) => {
@@ -95,8 +95,17 @@ describe('POST /voice/<id>/text', () => {
     const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
     const r = await fetch(`${base}/voice/${id}/text?lang=ru`, { method: 'POST' });
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ text: 'said' });
+    expect(await r.json()).toEqual({ text: 'said', lang: 'ru' });
     expect(langs).toEqual(['ru']);
+  });
+  it('?detect=1 asks for detection and answers the language used; without it nothing is detected', async () => {
+    const asked: (boolean | undefined)[] = [];
+    const base = await serve({ run: async (_p, _l, detect) => { asked.push(detect); return { text: 'bonjour', lang: detect ? 'fr' : 'en' }; } });
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    expect(await (await fetch(`${base}/voice/${id}/text?lang=en&detect=1`, { method: 'POST' })).json()).toEqual({ text: 'bonjour', lang: 'fr' });
+    expect(await (await fetch(`${base}/voice/${id}/text?lang=en`, { method: 'POST' })).json()).toEqual({ text: 'bonjour', lang: 'en' });
+    expect(await (await fetch(`${base}/voice/${id}/text?lang=en&detect=0`, { method: 'POST' })).json()).toEqual({ text: 'bonjour', lang: 'en' });
+    expect(asked).toEqual([true, false, false]);
   });
   it('503 while Whisper is off, 404 for an unknown id, 400 for a bad lang', async () => {
     const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
@@ -120,13 +129,13 @@ describe('transcribeVoice', () => {
       running--;
       return `p${++n}`;
     });
-    expect(text).toBe('p1 p2 p3');
+    expect(text.text).toBe('p1 p2 p3');
     expect(most).toBe(1);
   });
   it('a failed part is tried once more, then the whole fails', async () => {
     const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
     let calls = 0;
-    expect(await transcribeVoice(store, id, 'en', async () => { if (++calls === 1) throw new Error('flake'); return 'ok'; })).toBe('ok');
+    expect((await transcribeVoice(store, id, 'en', async () => { if (++calls === 1) throw new Error('flake'); return 'ok'; })).text).toBe('ok');
     await expect(transcribeVoice(store, id, 'en', async () => { throw new Error('down'); })).rejects.toThrow('down');
   });
   it('stops between parts once the caller is gone (a switch), without starting the next one', async () => {
@@ -141,6 +150,23 @@ describe('transcribeVoice', () => {
     await transcribeVoice(store, id, 'en', async (pcm) => { peak = Math.max(...pcm); return 'x'; });
     expect(peak).toBeGreaterThan(0.4);
     expect(peak).toBeLessThanOrEqual(1);
+  });
+  it('detects on the first part only and pins what it found for the rest', async () => {
+    const id = store.put(makeWav({ seconds: 150 }), 'audio/wav');
+    const calls: [string, boolean | undefined][] = [];
+    const out = await transcribeVoice(store, id, 'en', async (_pcm, lang, detect) => {
+      calls.push([lang, detect]);
+      return { text: 'x', lang: detect ? 'fr' : lang };
+    }, undefined, true);
+    expect(calls).toEqual([['en', true], ['fr', false], ['fr', false]]);
+    expect(out).toEqual({ text: 'x x x', lang: 'fr' });
+  });
+  it('without detect every part is in the asked language, and the answer says so', async () => {
+    const id = store.put(makeWav({ seconds: 150 }), 'audio/wav');
+    const calls: [string, boolean | undefined][] = [];
+    const out = await transcribeVoice(store, id, 'de', async (_pcm, lang, detect) => { calls.push([lang, detect]); return 'x'; });
+    expect(calls).toEqual([['de', false], ['de', false], ['de', false]]);
+    expect(out.lang).toBe('de');
   });
   it('an unknown recording is a VoiceFailure', async () => {
     await expect(transcribeVoice(store, '0'.repeat(64), 'en', async () => 'x')).rejects.toBeInstanceOf(VoiceFailure);

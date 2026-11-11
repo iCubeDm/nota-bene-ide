@@ -459,7 +459,7 @@ it('the popup drags by its quote line, stays put while it grows, and is clamped 
   const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(100);
   const popW = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(340);
   const { onClose } = setup();
-  const popup = box().parentElement!;
+  const popup = screen.getByRole('dialog');
   const handle = screen.getByText(/brave world/);
   expect(handle.className).toMatch(/cursor-move/);
   expect([popup.style.left, popup.style.top]).toEqual(['10px', '46px']);
@@ -479,7 +479,7 @@ it('the popup drags by its quote line, stays put while it grows, and is clamped 
 
 it('a drag from a secondary button does not start, and a new selection places the popup at its anchor again', () => {
   const { onClose } = setup();
-  const popup = box().parentElement!;
+  const popup = screen.getByRole('dialog');
   const handle = screen.getByText(/brave world/);
   dragBy(handle, [20, 50], [220, 150], { button: 2 });
   expect(popup.style.left).toBe('10px');
@@ -493,7 +493,7 @@ it('a new selection places a dragged popup at its anchor again', () => {
   const store = makeStore({ url: 'ws://x', connect: (() => ({ send: () => true, close() {} })) as never });
   const ui = (p: PendingComment) => <Provider store={store}><TooltipProvider><CommentPopup pending={p} onClose={() => {}} /></TooltipProvider></Provider>;
   const r = render(ui(pending));
-  const popup = box().parentElement!;
+  const popup = screen.getByRole('dialog');
   dragBy(screen.getByText(/brave world/), [20, 50], [220, 150]);
   expect(popup.style.left).toBe('210px');
   r.rerender(ui({ ...pending, rect: { ...pending.rect, left: 300, bottom: 80 } as DOMRect }));

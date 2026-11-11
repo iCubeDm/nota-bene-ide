@@ -1,5 +1,16 @@
 // Speech to text on the host: one cached Whisper pipeline (the installer's loader, in a worker thread), one language per call.
+import { resolveLang } from './detect.ts';
 import { loadPipeline, type Pipe } from './install.ts';
+
+/** A transcript and the language it was made in. */
+export type Spoken = { text: string; lang: string };
+
+/** The transcriber the routes use, in the shape their injectable fakes have. */
+export const transcribeWith = (pcm: Float32Array, lang: string, detect?: boolean): Promise<Spoken> => transcribe(pcm, lang, { detect });
+
+/** What a transcriber may answer: the text alone is a fake's shorthand (no language known). */
+export type SpokenOrText = string | Spoken;
+export const spokenOf = (v: SpokenOrText): { text: string; lang?: string } => (typeof v === 'string' ? { text: v } : v);
 
 let cached: Promise<Pipe> | undefined;
 
@@ -21,7 +32,11 @@ export function resetTranscriber(): void {
   void p?.then((pipe) => pipe.dispose?.()).catch(() => {});
 }
 
-export async function transcribe(pcm: Float32Array, lang: string, o: { load?: () => Promise<Pipe> } = {}): Promise<string> {
+/**
+ * `lang` is the language to transcribe in, or, with `detect`, the hint: the language detected from the first 30 s when the model
+ * is sure enough (detect.ts), else `lang`. The answer names the language used.
+ */
+export async function transcribe(pcm: Float32Array, lang: string, o: { load?: () => Promise<Pipe>; detect?: boolean } = {}): Promise<Spoken> {
   for (let attempt = 0; ; attempt++) {
     const p = cached ??= (o.load ?? (() => loadPipeline()))();
     let pipe: Pipe;
@@ -29,7 +44,8 @@ export async function transcribe(pcm: Float32Array, lang: string, o: { load?: ()
     // the worker died since the last call: load a fresh one (once)
     if (pipe.dead && attempt === 0) { if (cached === p) cached = undefined; continue; }
     // transformers.js slices the input to 30 s unless it chunks: 30 s windows with a 5 s stride, joined by the pipeline
-    const out = await pipe(pcm, { language: lang, task: 'transcribe', chunk_length_s: 30, stride_length_s: 5 });
-    return (out.text ?? '').trim();
+    const language = o.detect ? await resolveLang(pipe, pcm, lang) : lang;
+    const out = await pipe(pcm, { language, task: 'transcribe', chunk_length_s: 30, stride_length_s: 5 });
+    return { text: (out.text ?? '').trim(), lang: language };
   }
 }

@@ -1,4 +1,4 @@
-import { anchorSource, generatedImages, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
+import { anchorSource, generatedImages, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef, type Voice } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
 import { getLang, t, tIn, type Lang } from '../i18n/index.ts';
 import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
@@ -83,7 +83,7 @@ const unchanged = (st: RootState, snap: Snapshot): boolean =>
  * message: the composer's first, then each comment's in order. Media comments on one source frame share one composite image
  * (`composites`: group key → attachment id; a group without one falls back to each comment's own frame). A send switches to the chat tab.
  */
-const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean): AppThunk<SendResult> => (d, getState) => {
+const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean, voice?: { voice: Voice; id: string }): AppThunk<SendResult> => (d, getState) => {
   const st = getState();
   const { pending, body, own } = snap;
   const ids = pending.map((c) => c.id);
@@ -119,8 +119,9 @@ const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean
     },
     shared,
   );
-  const id = crypto.randomUUID();
-  if (!d(sendMessage(text, force, ids, images, id))) return fail('offline');
+  const id = voice?.id ?? crypto.randomUUID();
+  if (!d(sendMessage(text, force, ids, images, id, voice?.voice))) return fail('offline');
+  if (voice) return 'sent'; // a recording has no draft to hand back or clear, and the chat tab is not taken over
   d(draftSent({ id, text: body, images: own, commentIds: ids })); // until the echo: a refusal puts it back
   const cur = selectDraft(getState());
   d(setDraft(snap.draft && cur.startsWith(snap.draft) ? cur.slice(snap.draft.length).trimStart() : cur));
@@ -180,4 +181,19 @@ export const sendBatch = (force: boolean): AppThunk<SendResult> => (d, getState)
       }
     });
   return 'building';
+};
+
+/**
+ * What a recording takes along when it leaves (protocol 16, as the phone does): the pending comments, in their batch
+ * text, without the draft or the composer's images. Composed now, from what is still pending; an attachment comment
+ * stays (it goes only with its image). Each comment's own frame goes, not a shared composite (nothing here waits).
+ * Their ids are marked as sending; `unmarkSending` gives them back when the send is refused. Empty when there is none.
+ */
+export const voiceComments = (id: string, voice: Voice, force: boolean): AppThunk<{ ids: string[]; sent: boolean }> => (d, getState) => {
+  const st = getState();
+  const pending = selectSendable(st).filter((c) => !isAttachmentAnchor(c.anchor));
+  if (st.controls.protocol < 16 || !pending.length) return { ids: [], sent: false };
+  const snap: Snapshot = { sid: st.feed.session?.id, draft: '', body: '', own: [], pending, prints: pending.map(printOf) };
+  d(markSending(pending.map((c) => c.id)));
+  return { ids: pending.map((c) => c.id), sent: d(sendNow(snap, new Map(), force, { voice, id })) === 'sent' };
 };

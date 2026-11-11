@@ -30,6 +30,7 @@ import { stateDir } from './state.ts';
 import { StatsService } from './stats.ts';
 import { whisperOn } from './dictation/routes.ts';
 import { VoiceIndex } from './voice/index.ts';
+import { spokenOf } from './dictation/transcribe.ts';
 import { transcribeVoice, VoiceFailure } from './voice/transcribe.ts';
 
 export { SwitchError };
@@ -66,9 +67,9 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   const report = (where: string, e: unknown) => reportError(hub, where, e);
   const attachments = o.attachments ?? new AttachmentStore({ dir: path.join(stateDir(), 'attachments') });
   const voices = o.voices ?? new VoiceIndex({ file: path.join(stateDir(), 'voice.jsonl') });
-  const speech = o.speech ?? (async (id: string, lang: string, alive: () => boolean) => {
+  const speech = o.speech ?? (async (id: string, lang: string, alive: () => boolean, detect: boolean) => {
     if (!whisperOn()) throw new VoiceFailure('off');
-    return transcribeVoice(attachments, id, lang, undefined, alive);
+    return transcribeVoice(attachments, id, lang, undefined, alive, detect);
   });
   const titles: TitleTracker = new TitleTracker({
     lookup: async (id, dir) => titleOf(await backend.sessionInfo(id, dir)),
@@ -236,13 +237,13 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   /** The history's user messages that were voice messages get their voice back: the agent kept only the text. */
   function withVoices(events: Awaited<ReturnType<typeof readHistory>>): typeof events {
     const users = events.flatMap((ev) => (ev.kind === 'user' ? [ev] : []));
-    let found: ReturnType<typeof voices.resolve> = [];
-    try { found = voices.resolve(users); } catch (e) { report('voice', e); }
+    let found: ReturnType<typeof voices.resolveWithLang> = [];
+    try { found = voices.resolveWithLang(users); } catch (e) { report('voice', e); }
     let n = 0;
     return events.map((ev) => {
       if (ev.kind !== 'user') return ev;
-      const voice = found[n++];
-      return voice ? { ...ev, voice } : ev;
+      const m = found[n++];
+      return m ? { ...ev, voice: m.voice, ...(m.lang ? { voiceLang: m.lang } : {}) } : ev;
     });
   }
 
@@ -251,14 +252,16 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
    * A failure is told too, with why, and the turn ends with no text of its own (the bubble says it). A switch while it
    * runs drops it: the old generation's feed is gone.
    */
-  function transcript(id: string, voiceId: string, lang: string): () => Promise<string> {
+  function transcript(id: string, voiceId: string, lang: string, detect: boolean): () => Promise<string> {
     const g = slot.gen;
     return async () => {
       try {
-        const text = (await speech(voiceId, lang, () => g === slot.gen)).trim();
+        const got = spokenOf(await speech(voiceId, lang, () => g === slot.gen, detect));
+        const text = got.text.trim();
+        const spoken = got.lang ?? lang; // a speech that names no language was asked for `lang`
         if (!text) throw new VoiceFailure('empty');
-        try { voices.putText(id, text); } catch (e) { report('voice', e); } // a replay with new ids shows text only
-        if (g === slot.gen) hub.emit({ kind: 'voice-text', id, text });
+        try { voices.putText(id, text, spoken); } catch (e) { report('voice', e); } // a replay with new ids shows text only
+        if (g === slot.gen) hub.emit({ kind: 'voice-text', id, text, lang: spoken });
         // said, not typed: a leading slash must not run a command behind trackedCommand's back (a zero-width space)
         return text.startsWith('/') ? `\u200b${text}` : text;
       } catch (e) {
@@ -372,7 +375,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   stats.start();
 
   return {
-    send({ id, text, force, images, voice, lang }) {
+    send({ id, text, force, images, voice, lang, detect }) {
       const refusal = refused(text);
       if (refusal) return refusal;
       turns.assertNew(id); // first: a reused id is refused with no side effects
@@ -386,7 +389,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
         try { voices.put(id, voice); } catch (e) { report('voice', e); } // the bubble still goes; a replay would show text only
         const { refs, payload } = resolveImages(attachments, images, (e) => report('attach', e));
         hub.emit({ kind: 'user', id, text: '', ...(force ? { force: true } : {}), ...(refs.length ? { images: refs } : {}), voice });
-        const said = transcript(id, voice.id, lang ?? 'en');
+        const said = transcript(id, voice.id, lang ?? 'en', detect === true);
         // the feed shows the voice (the comments are in their own list); the agent hears it, then the comments' batch
         const heard = text ? async () => `${await said()}\n\n${text}` : said;
         queue.push({ id, text: heard, force, images: payload, lead: (t) => shell.takeFor(t) });

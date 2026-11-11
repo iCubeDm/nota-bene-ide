@@ -12,6 +12,7 @@ import { MentionPicker } from './MentionPicker.tsx';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
 import { PromptHistory } from './PromptHistory.tsx';
+import { MessageInput, MicButton } from './MessageInput.tsx';
 import type { PromptEntry } from '@nota-bene/shared';
 import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
@@ -23,7 +24,8 @@ import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } fro
 import { BINDINGS, keysLabel, VOICE_KEY, withKey } from '@/shell/keymap.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
-import { onVoiceRefused, sendVoice } from '@/voice/send.ts';
+import { onVoiceRefused } from '@/voice/inflight.ts';
+import { sendVoice } from '@/voice/send.ts';
 import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
 import { PLAYER_HELP } from '@/media/playerKeys.ts';
 import { useSeekStep } from '@/media/seekStep.ts';
@@ -107,10 +109,10 @@ export function Composer() {
   const rec = useVoiceRecorder({
     preview: true,
     notify: flash,
-    // sent at once, apart from the draft, the images and the pending comments (they stay where they are)
+    // sent at once, apart from the draft and the images (they stay where they are); the pending comments ride along
     // false keeps the uploaded recording in the preview: Send hands it over again
     onDone: (v, force) => {
-      const ok = dispatch(sendVoice(v, undefined, force));
+      const ok = dispatch(sendVoice(v, undefined, force, true));
       if (!ok) flash(t('voiceRefused', t(switchingRef.current ? 'switching' : 'offline')));
       return ok;
     },
@@ -162,8 +164,12 @@ export function Composer() {
     if (recPhase === 'idle' && wasRecording.current) ref.current?.focus({ preventScroll: true });
     wasRecording.current = recPhase !== 'idle';
   }, [recPhase]);
+  // Send turns into the mic under the cursor: the second press of a double click on Send must not start a recording
+  const SWAP_GUARD_MS = 400;
+  const swappedAt = useRef(0);
   const micDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || !whisper || switching || recRef.current.st.phase !== 'idle') return;
+    if (Date.now() - swappedAt.current < SWAP_GUARD_MS) return;
     recRef.current.start(true);
     // the button is gone from under the finger once the bar replaces it: the release is read on the window
     const up = () => { window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); recRef.current.release(); };
@@ -175,6 +181,20 @@ export function Composer() {
     notify: flash,
     onBusy: (d) => void dispatch(d > 0 ? uploadStarted() : uploadFinished()),
   });
+
+  // something to send: text, an image (also one still uploading), as on the phone; pending comments do not count
+  const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
+
+  // Send gives way to the mic (a send, or the field emptied): note when, and keep the caret in the field if the button that
+  // had it is gone (a send that finished after its composite images were built)
+  const hadContent = useRef(hasContent);
+  useLayoutEffect(() => {
+    if (hadContent.current && !hasContent) {
+      swappedAt.current = Date.now();
+      if (document.activeElement === document.body && !recording) ref.current?.focus({ preventScroll: true });
+    }
+    hadContent.current = hasContent;
+  }, [hasContent, recording]);
 
   // drop anywhere in the window attaches to the message (a drop inside an open comment popup is taken there first)
   const addRef = useRef(intake.add);
@@ -350,90 +370,80 @@ export function Composer() {
       )}
       <ComposerAttachments pending={intake.pending} />
       <div data-record-scope data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
-        {recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} busy={busy} onCancel={rec.cancel} onEscape={escQuestion} onStop={() => void rec.stop()} onSend={voiceSubmit} /> : (<>
-        <div className="relative flex min-w-0 flex-1">
-        <textarea
-          ref={ref}
+        <MessageInput
+          textareaRef={ref}
           id="composer-input"
-          rows={1}
           value={text}
-          placeholder={showSug ? suggestion : onAgentTab ? t('composerPhAgent') : t('composerPh')}
-          onChange={(e) => {
-            dispatch(setDraft(e.target.value));
+          onChange={(v) => {
+            dispatch(setDraft(v));
             setFailed(false);
           }}
           onKeyDown={onKeyDown}
           onPaste={intake.onPaste}
-          data-shell={shellMode || undefined}
-          className={`max-h-[40vh] min-h-10 w-full resize-none rounded-[10px] border border-border-soft bg-background/70 px-3 py-[9px] text-foreground transition-[border-color,box-shadow] outline-none focus:border-focus-border focus:shadow-[var(--composer-halo)] data-[shell]:border-nb-accent/60 data-[shell]:pr-32 data-[shell]:font-mono data-[shell]:focus:border-nb-accent data-[shell]:focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--nb-accent)_15%,transparent)] ${showSug ? 'pr-16 placeholder:text-foreground placeholder:opacity-45' : 'placeholder:truncate'}`}
-        />
-        {shellMode && (
-          <span aria-hidden data-testid="shell-cue" className="pointer-events-none absolute right-2.5 bottom-2.5 rounded bg-muted px-1.5 py-px font-mono text-[0.65625rem] text-nb-accent">
-            {t('shellCue')}
-          </span>
-        )}
-        {showSug && (
-          <span aria-hidden className="pointer-events-none absolute right-2.5 bottom-2.5 rounded bg-muted px-1.5 py-px font-mono text-[0.65625rem] text-muted-foreground">
-            Tab ⇥
-          </span>
-        )}
-        </div>
-        <MentionPicker target={ref} shell={() => shellModeRef.current} />
-        <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
-        <ShortcodePicker target={ref} />
-        </>)}
-        {!recording && <PromptHistory onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}
-        {voiceOk && !recording && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span ref={micBox} className="inline-flex">
+          placeholder={showSug ? suggestion : onAgentTab ? t('composerPhAgent') : t('composerPh')}
+          dataShell={shellMode}
+          fieldClass={showSug ? 'pr-16 placeholder:text-foreground placeholder:opacity-45' : 'placeholder:truncate'}
+          bar={recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} busy={busy} onCancel={rec.cancel} onEscape={escQuestion} onStop={() => void rec.stop()} onSend={voiceSubmit} /> : undefined}
+          overlay={<>
+            {shellMode && (
+              <span aria-hidden data-testid="shell-cue" className="pointer-events-none absolute right-2.5 bottom-2.5 rounded bg-muted px-1.5 py-px font-mono text-[0.65625rem] text-nb-accent">
+                {t('shellCue')}
+              </span>
+            )}
+            {showSug && (
+              <span aria-hidden className="pointer-events-none absolute right-2.5 bottom-2.5 rounded bg-muted px-1.5 py-px font-mono text-[0.65625rem] text-muted-foreground">
+                Tab ⇥
+              </span>
+            )}
+          </>}
+          leading={<PromptHistory onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}
+          // the mic while there is nothing to send, Send once there is; pending comments are not content (they ride along with a recording)
+          hasContent={hasContent}
+          mic={voiceOk ? (
+            <MicButton
+              testId="mic"
+              anchor={micBox}
+              disabled={switching}
+              label={whisper ? t('voiceMic') : t('voiceMicSetup')}
+              tip={withKey(whisper ? t('voiceMic') : t('voiceMicSetup'), 'hk_voice')}
+              onPointerDown={micDown}
+              onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : setSetup((o) => !o))}
+            />
+          ) : undefined}
+          send={
+            <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
+              <Button type="button" className="h-10" disabled={uploading || switching} onClick={() => submit(false)}>
+                {shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send')}
+              </Button>
+            </span>
+          }
+          trailing={
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
                 <Button
                   type="button"
                   variant="ghost"
-                  data-testid="mic"
-                  disabled={switching}
-                  aria-label={whisper ? t('voiceMic') : t('voiceMicSetup')}
-                  onPointerDown={micDown}
-                  onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : setSetup((o) => !o))}
-                  className="h-10 bg-muted px-2.5 text-muted-foreground hover:text-foreground"
+                  disabled={!busy}
+                  aria-label={t('stopTip')}
+                  onClick={() => dispatch(interrupt())}
+                  className="h-10 bg-muted px-2.5 enabled:bg-destructive/15 enabled:text-destructive enabled:hover:bg-destructive/25 disabled:opacity-35"
                 >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <rect x="9" y="3" width="6" height="11" rx="3" />
-                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
+                    <rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" />
                   </svg>
                 </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="whitespace-pre-line">{withKey(whisper ? t('voiceMic') : t('voiceMicSetup'), 'hk_voice')}</TooltipContent>
-          </Tooltip>
-        )}
-        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micBox} />}
-        {!recording && (
-          <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
-            <Button type="button" className="h-10" disabled={uploading || switching} onClick={() => submit(false)}>
-              {shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send')}
-            </Button>
-          </span>
-        )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={!busy}
-              aria-label={t('stopTip')}
-              onClick={() => dispatch(interrupt())}
-              className="h-10 bg-muted px-2.5 enabled:bg-destructive/15 enabled:text-destructive enabled:hover:bg-destructive/25 disabled:opacity-35"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
-                <rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" />
-              </svg>
-            </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="whitespace-pre-line">{t('stopTip')}</TooltipContent>
-        </Tooltip>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="whitespace-pre-line">{t('stopTip')}</TooltipContent>
+            </Tooltip>
+          }
+        >
+          <MentionPicker target={ref} shell={() => shellModeRef.current} />
+          <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
+          <ShortcodePicker target={ref} />
+        </MessageInput>
+        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasContent ? ref : micBox} />}
       </div>
       <div data-tools-row className="flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-1 pb-2">
         <input
