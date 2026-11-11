@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { isMediaAnchor, isPageAnchor, type Comment, type PageAnchor } from '@nota-bene/shared';
+import { anchorSource, isAttachmentAnchor, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment, type PageAnchor } from '@nota-bene/shared';
 import { rangeForAnchor } from '@/anchors/text.ts';
 import { areaRect, resolvePage } from '@/page/anchor.ts';
 import { outOf, pageRoot, pageSelection, rangeRects, textRootOf } from '@/page/frame.ts';
@@ -38,7 +38,7 @@ function lineRects(range: Range): DOMRect[] {
 /** What a paint drew for one comment: a text range (one box per line), or the outline of a page element or area. */
 type Drawn = { id: string; range: Range; place?: undefined } | { id: string; range?: undefined; place: () => DOMRect | null };
 type Cached = { c: Comment; root: HTMLElement; range: Range };
-type Source = Comment['anchor']['source'];
+type Source = AnchorSource;
 
 /** The file a file pane shows: its path and, for another source, the ref (M3-16). undefined = the chat. */
 type PaneFile = { path: string; ref?: string } | undefined;
@@ -76,7 +76,7 @@ const keyOf = (src: Source) => (src.kind === 'message' ? `m:${src.id}` : `f:${fi
  * (Markdown sets innerHTML, CodeText sets textContent), so `isConnected` drops the stale range; an unchanged text keeps them.
  */
 function rangeOf(roots: Map<string, HTMLElement>, cache: Map<string, Cached>, c: Comment): Range | null {
-  if (isMediaAnchor(c.anchor) || isPageAnchor(c.anchor)) return null; // media marks are drawn over the media, page places as outlines
+  if (isMediaAnchor(c.anchor) || isPageAnchor(c.anchor) || isAttachmentAnchor(c.anchor)) return null; // media marks are drawn over the media, page places as outlines
   const root = roots.get(keyOf(c.anchor.source));
   if (!root || (root.dataset.kind === 'assistant' && root.dataset.final !== 'true')) return null;
   const hit = cache.get(c.id);
@@ -172,7 +172,7 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
   const asChat = paneId === 'chat' || agent !== undefined;
   const isDiff = diff !== undefined;
   const file: PaneFile | null = useMemo(() => (isDiff ? diff : asChat ? undefined : path === undefined ? null : { path, ref }), [isDiff, diff, asChat, path, ref]);
-  const comments = useMemo(() => (file === null ? [] : all.filter((c) => inPane(c.anchor.source, file, agent))), [all, file, agent]);
+  const comments = useMemo(() => (file === null ? [] : all.filter((c) => { const src = anchorSource(c.anchor); return !!src && inPane(src, file, agent); })), [all, file, agent]);
   // what moves this pane's text: the feed for the chat (the subagent's entry for its tab); a settled (re)load for a file tab
   const stored = useAppSelector((s) => (agent ? s.subagents.byTool[agent] : paneId === 'chat' ? s.feed : path === undefined ? undefined : s.files.load[fileKey(path, ref)]));
   // the chat's action panels open and close without a feed change (their roots come and go)

@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ClientMessage, TextAnchor } from '@nota-bene/shared';
+import { anchorSource, type ClientMessage, type TextAnchor } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Composer } from '@/composer/Composer.tsx';
 import { setLang } from '@/i18n/index.ts';
@@ -80,7 +80,7 @@ it('a selection spanning two items is clipped to the first', async () => {
   await up(q('u1'));
   fireEvent.click(screen.getByRole('button', { name: '💬 Comment' }));
   const sel = onComment.mock.calls[0][0];
-  expect(sel.anchor.source).toEqual({ kind: 'message', id: 'a1' });
+  expect(anchorSource(sel.anchor)).toEqual({ kind: 'message', id: 'a1' });
   expect((sel.anchor as TextAnchor).quote).toBe('brave world');
   expect(sel.rect.bottom).toBe(40);
 });

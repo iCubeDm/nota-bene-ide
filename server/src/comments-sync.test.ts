@@ -7,7 +7,9 @@ import type { Comment, ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { CommentStore } from './comments.ts';
+import { AttachmentStore } from './attachments.ts';
 import { startServer } from './server.ts';
+import { stateDir } from './state.ts';
 
 let home: string;
 let dist: string;
@@ -115,6 +117,81 @@ describe('comment sync', () => {
       expect(items.find((x) => x.id === 'a')).toMatchObject({ status: 'sent', sentIn: 'u1' });
       expect(items.find((x) => x.id === 'b')).toMatchObject({ status: 'pending' });
     }
+  });
+
+  describe('attachment comments', () => {
+    const png = Buffer.from('89504e470d0a1a0a00', 'hex');
+    const attComment = (image: string): Comment => c('att', {
+      anchor: { kind: 'attachment', image, width: 10, height: 10, shapes: [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 0.5, h: 0.5 }] },
+      images: [image],
+    } as never);
+    const setup = async (backend: AgentBackend) => {
+      const s = await boot({ backend });
+      const a = await connect(s.url);
+      const id = new AttachmentStore({ dir: path.join(stateDir(), 'attachments') }).put(png, 'image/png');
+      // the session starts with a first message, so the comments below are stored (and read back by `send`) under its id
+      a.ws.send(JSON.stringify({ type: 'send', id: 'u0', text: 'start' }));
+      await until(() => a.events.some(isResult));
+      a.events.length = 0;
+      a.ws.send(JSON.stringify({ type: 'comments', sessionId: 'fake-session', items: [attComment(id), c('b')] }));
+      await until(() => lastComments(a)?.length === 2);
+      return { a, id };
+    };
+
+    it('a send without the comment\'s image is refused as detached: nothing marked sent, nothing sent', async () => {
+      const backend = fakeBackend([{ text: 'ok' }]);
+      const { a } = await setup(backend);
+      a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi', commentIds: ['b', 'att'] }));
+      await until(() => a.events.some((e) => e.kind === 'send-refused'));
+      expect(a.events.find((e) => e.kind === 'send-refused')).toEqual({ kind: 'send-refused', id: 'u1', reason: 'detached' });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(lastComments(a)!.every((x) => x.status === 'pending')).toBe(true);
+      expect(a.events.some((e) => e.kind === 'user')).toBe(false);
+    });
+
+    it('a send that carries the image goes out with it and marks the comments sent', async () => {
+      const backend = fakeBackend([{ text: 'ok', echoImages: true }]);
+      const { a, id } = await setup(backend);
+      a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi', commentIds: ['b', 'att'], images: [{ id, mediaType: 'image/png', label: 'Image 1' }] }));
+      await until(() => a.events.some(isResult));
+      expect(a.events.some((e) => e.kind === 'send-refused')).toBe(false);
+      expect(lastComments(a)!.every((x) => x.status === 'sent' && x.sentIn === 'u1')).toBe(true);
+      expect(a.events.find((e) => e.kind === 'user')).toMatchObject({ images: [{ id, mediaType: 'image/png', label: 'Image 1' }] });
+    });
+
+    it('only a pending attachment comment is checked: a sent one, an unknown id and a stored comment without an anchor do not refuse', async () => {
+      const backend = fakeBackend([{ text: 'ok' }]);
+      const { a, id } = await setup(backend);
+      const done = { ...attComment(id), id: 'done', status: 'sent', sentIn: 'u0' } as Comment;
+      store().set('fake-session', [attComment(id), c('b'), done, { id: 'bare', text: 'x', status: 'pending', createdAt: 1 } as unknown as Comment]);
+      a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi', commentIds: ['b', 'done', 'nope', 'bare'] }));
+      await until(() => a.events.some(isResult));
+      expect(a.events.some((e) => e.kind === 'send-refused')).toBe(false);
+    });
+
+    it('a busy refusal comes before the detached one', async () => {
+      const backend = fakeBackend([{ text: 'ok' }, { text: 'x'.repeat(3000), chunk: 1, delayMs: 5 }]);
+      const { a } = await setup(backend);
+      a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'work' }));
+      await until(() => a.events.some((e) => e.kind === 'user'));
+      a.ws.send(JSON.stringify({ type: 'send', id: 'c1', text: '/clear', commentIds: ['att'] }));
+      await until(() => a.events.some((e) => e.kind === 'send-refused'));
+      expect(a.events.find((e) => e.kind === 'send-refused')).toEqual({ kind: 'send-refused', id: 'c1', reason: 'busy' });
+      a.ws.send(JSON.stringify({ type: 'interrupt' }));
+    });
+
+    it('an unreadable comment store does not block the send', async () => {
+      const backend = fakeBackend([{ text: 'ok' }]);
+      const { a } = await setup(backend);
+      const file = path.join(home, 'comments', 'fake-session.json');
+      fs.writeFileSync(file, '[]');
+      fs.chmodSync(file, 0o000);
+      closers.push(async () => { fs.chmodSync(file, 0o644); });
+      a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi', commentIds: ['att'] }));
+      await until(() => a.events.some(isResult));
+      expect(a.events.find((e) => e.kind === 'server-error')).toMatchObject({ where: 'comments' });
+      expect(a.events.some((e) => e.kind === 'send-refused')).toBe(false);
+    });
   });
 
   it('comments made before init are persisted under the session id after it', async () => {

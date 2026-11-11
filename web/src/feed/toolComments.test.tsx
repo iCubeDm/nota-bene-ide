@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import type { Comment, ServerEvent } from '@nota-bene/shared';
+import { anchorSource, type Comment, type ServerEvent } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, selectReplyLabel, serverEvent } from '@/store/store.ts';
@@ -80,7 +80,7 @@ it('a selection inside a tool output becomes a comment anchored to tool:<id>, th
   });
   fireEvent.click(screen.getByRole('button', { name: 'Looks good' }));
   const a = store.getState().comments.items[0]!.anchor;
-  expect(a.source).toEqual({ kind: 'message', id: 'tool:t1' });
+  expect(anchorSource(a)).toEqual({ kind: 'message', id: 'tool:t1' });
   expect(a).toMatchObject({ quote: 'FAIL', prefix: 'npm test ' }); // the command, then the output: no "Input" / "Output" / "Bash ·"
 });
 
