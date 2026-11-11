@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/strings.g.dart';
+import '../hosts/icon_flow.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
@@ -62,7 +63,8 @@ class WindowSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: tab,
+    // the link too: the icon changes while the sheet is open
+    listenable: Listenable.merge([tab, tab.link]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
@@ -76,6 +78,9 @@ class WindowSheet extends StatelessWidget {
         color: c.mutedFg,
       );
       final gap = const SizedBox(height: 16);
+      final win = tab.link.windows
+          .where((w) => w.port == tab.port && w.root == tab.root)
+          .firstOrNull;
       return SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -131,6 +136,40 @@ class WindowSheet extends StatelessWidget {
                     danger: modeWithoutPrompts(m),
                     onTap: open ? () => tab.setMode(m) : null,
                   ),
+              ],
+              if (win != null && (win.iconSupported || win.icon != null)) ...[
+                gap,
+                // the same picker and calls as a row of the sessions list; its flows keep the chat's context, not the sheet's
+                Row(
+                  children: [
+                    if (win.iconSupported)
+                      Expanded(
+                        child: SheetTile(
+                          NbGlyph.image,
+                          t.setIcon,
+                          enabled: open,
+                          onTap: () {
+                            Navigator.pop(context);
+                            setProjectIconFlow(outer, tab.link, win);
+                          },
+                        ),
+                      ),
+                    if (win.iconSupported && win.icon != null)
+                      const SizedBox(width: 8),
+                    if (win.icon != null)
+                      Expanded(
+                        child: SheetTile(
+                          NbGlyph.trash,
+                          t.removeIcon,
+                          enabled: open,
+                          onTap: () {
+                            Navigator.pop(context);
+                            removeProjectIconFlow(outer, tab.link, win);
+                          },
+                        ),
+                      ),
+                  ],
+                ),
               ],
               gap,
               Row(
