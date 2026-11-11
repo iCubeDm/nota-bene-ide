@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { CLAUDE_CAPABILITIES, type ClientMessage } from '@nota-bene/shared';
@@ -9,6 +9,12 @@ import { resetPlayer } from '@/voice/player.ts';
 import { mic } from '@/voice/recorder.ts';
 import { CommentPopup, type PendingComment } from './CommentPopup.tsx';
 import type { PendingSelection } from './SelectionButton.tsx';
+
+vi.mock('@/attachments/image.ts', async (orig) => ({
+  ...(await orig<typeof import('@/attachments/image.ts')>()),
+  prepareImage: async (f: File) => f,
+  uploadImage: async () => ({ id: 'e'.repeat(64), mediaType: 'image/png' }),
+}));
 
 const pending: PendingSelection = {
   anchor: { source: { kind: 'message', id: 'a1' }, start: 6, end: 17, quote: 'brave world', prefix: 'hello ', suffix: '' },
@@ -138,9 +144,9 @@ it('several clips keep their order; delete removes one; Esc while recording drop
 it('typed text and clips go in one comment; a failed transcript blocks Add until Retry or delete', async () => {
   texts['1'] = () => new Response('', { status: 503 });
   const { comments } = setup();
-  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'see this' } });
-  await record();
+  await record(); // the mic is there while the field is empty; typing swaps it for Add
   expect(await screen.findByText('Whisper is off on the computer')).toBeInTheDocument();
+  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'see this' } });
   expect(addBtn()).toBeDisabled();
   delete texts['1'];
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -157,7 +163,8 @@ it('an empty transcript shows "Nothing was recognised" and can be deleted to unb
   expect(await screen.findByText('Nothing was recognised')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Delete the clip' }));
   expect(screen.queryByTestId('popup-clips')).toBeNull();
-  expect(addBtn()).toBeEnabled();
+  expect(screen.queryByRole('button', { name: 'Add' })).toBeNull(); // nothing left to add: the mic is back
+  expect(micBtn()).toBeEnabled();
 });
 
 it('at most 10 clips: the mic goes off at the tenth', async () => {
@@ -167,4 +174,51 @@ it('at most 10 clips: the mic goes off at the tenth', async () => {
     await waitFor(() => expect(screen.getByTestId('popup-clips').querySelectorAll('[data-clip]')).toHaveLength(i + 1)); // the mic is off while a clip uploads
   }
   expect(micBtn()).toBeDisabled();
+});
+
+// the same field as the composer: the mic while it is empty, Add once it has something
+it('an empty field shows the mic (the composer\'s icon) and no Add; typing swaps it for Add; clearing brings the mic back', () => {
+  setup();
+  expect(micBtn().querySelector('path')?.getAttribute('d')).toBe('M5 11a7 7 0 0 0 14 0M12 18v3');
+  expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'note' } });
+  expect(screen.queryByTestId('popup-mic')).toBeNull();
+  expect(addBtn()).toBeInTheDocument();
+  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: '  ' } });
+  expect(micBtn()).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+});
+
+it('Add saves the comment as before', () => {
+  const { comments, onClose } = setup();
+  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'note' } });
+  fireEvent.click(addBtn());
+  expect(comments()[0]).toMatchObject({ text: 'note' });
+  expect(onClose).toHaveBeenCalled();
+});
+
+it('a recorded clip keeps the mic (one more can be recorded) and Add stays reachable beside it', async () => {
+  setup();
+  await record();
+  await screen.findByText('clip 1');
+  expect(micBtn()).toBeInTheDocument();
+  expect(addBtn()).toBeEnabled();
+});
+
+it('without voice (protocol 13) Add is always shown', () => {
+  setup({ protocol: 13 });
+  expect(screen.queryByTestId('popup-mic')).toBeNull();
+  expect(addBtn()).toBeInTheDocument();
+});
+
+it('an attached image alone swaps the mic for Add', async () => {
+  URL.createObjectURL = vi.fn(() => 'blob:x');
+  URL.revokeObjectURL = vi.fn();
+  setup();
+  expect(micBtn()).toBeInTheDocument();
+  const ev = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(ev, 'clipboardData', { value: { files: [new File(['x'], 'a.png', { type: 'image/png' })], items: [] } });
+  act(() => void screen.getByPlaceholderText('Comment…').dispatchEvent(ev));
+  expect(await screen.findByRole('button', { name: 'Add' })).toBeInTheDocument();
+  expect(screen.queryByTestId('popup-mic')).toBeNull();
 });

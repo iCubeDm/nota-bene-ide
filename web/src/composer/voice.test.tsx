@@ -70,11 +70,11 @@ it('the mic names Alt+R in its tooltip', async () => {
 
 it('a click starts a locked recording; Send uploads the WAV and sends only the voice', async () => {
   const { sent, store } = setup();
-  act(() => void store.dispatch(setDraft('half a thought')));
   fireEvent.pointerDown(micBtn(), { button: 0 });
   fireEvent.pointerUp(window);
   await waitFor(() => expect(screen.getByTestId('record-bar')).toBeInTheDocument());
   expect(screen.queryByRole('textbox')).toBeNull();
+  act(() => void store.dispatch(setDraft('half a thought'))); // typed before the recording (the mic is shown only for an empty field)
   fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
   await waitFor(() => expect(voiceSends(sent)).toHaveLength(1));
   expect(uploads[0]).toMatchObject({ url: '/voice', init: { method: 'POST' } });
