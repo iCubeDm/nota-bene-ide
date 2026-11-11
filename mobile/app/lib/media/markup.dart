@@ -215,61 +215,111 @@ class MarkupToolbar extends StatelessWidget {
           icon: Icon(icon),
           onPressed: busy ? null : () => m.tool = k,
         );
+        // undo, close and Comment fill what the tools leave; the label shows only when it fits, else the icon alone
+        Widget actions(BuildContext context, BoxConstraints box) {
+          final label = MediaQuery.textScalerOf(
+            context,
+          ).scale(Theme.of(context).textTheme.labelLarge!.fontSize!);
+          final fits = box.maxWidth >= 2 * 40 + 64 + label * 7;
+          final onTap = m.shapes.isEmpty ? null : onComment;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                tooltip: t.markUndo,
+                icon: const Icon(Icons.undo),
+                onPressed: busy || m.shapes.isEmpty ? null : m.undo,
+              ),
+              IconButton(
+                tooltip: t.markStop,
+                icon: const Icon(Icons.close),
+                onPressed: busy ? null : () => m.marking = false,
+              ),
+              if (busy)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else if (fits)
+                FilledButton.icon(
+                  key: const ValueKey('markup-comment'),
+                  icon: const Icon(Icons.add_comment_outlined),
+                  label: Text(
+                    t.comment,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: onTap,
+                )
+              else
+                IconButton.filled(
+                  key: const ValueKey('markup-comment'),
+                  tooltip: t.comment,
+                  icon: const Icon(Icons.add_comment_outlined),
+                  onPressed: onTap,
+                ),
+            ],
+          );
+        }
+
         return Material(
           elevation: 4,
           child: SafeArea(
             top: false,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  tool(MarkTool.rect, Icons.crop_square, t.toolRect),
-                  tool(MarkTool.ellipse, Icons.circle_outlined, t.toolEllipse),
-                  tool(MarkTool.pen, Icons.gesture, t.toolPen),
-                  tool(MarkTool.arrow, Icons.north_east, t.toolArrow),
-                  const SizedBox(width: 4),
-                  for (final (i, c) in markColors.indexed)
-                    IconButton(
-                      tooltip: t.markColor(i + 1),
-                      onPressed: busy ? null : () => m.color = c,
-                      icon: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: colorOf(c),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: m.color == c
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.black45,
-                            width: m.color == c ? 3 : 1,
-                          ),
-                        ),
-                      ),
+                  Theme(
+                    // 40 dp buttons: seven of them must fit 320 dp; the colours below keep the full 48
+                    data: Theme.of(context).copyWith(
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                  IconButton(
-                    tooltip: t.markUndo,
-                    icon: const Icon(Icons.undo),
-                    onPressed: busy || m.shapes.isEmpty ? null : m.undo,
-                  ),
-                  busy
-                      ? const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : FilledButton.icon(
-                          icon: const Icon(Icons.add_comment_outlined),
-                          label: Text(t.comment),
-                          onPressed: m.shapes.isEmpty ? null : onComment,
+                    child: Row(
+                      children: [
+                        tool(MarkTool.rect, Icons.crop_square, t.toolRect),
+                        tool(
+                          MarkTool.ellipse,
+                          Icons.circle_outlined,
+                          t.toolEllipse,
                         ),
-                  IconButton(
-                    tooltip: t.markStop,
-                    icon: const Icon(Icons.close),
-                    onPressed: busy ? null : () => m.marking = false,
+                        tool(MarkTool.pen, Icons.gesture, t.toolPen),
+                        tool(MarkTool.arrow, Icons.north_east, t.toolArrow),
+                        Expanded(child: LayoutBuilder(builder: actions)),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      for (final (i, c) in markColors.indexed)
+                        IconButton(
+                          tooltip: t.markColor(i + 1),
+                          constraints: const BoxConstraints.tightFor(
+                            width: 48,
+                            height: 48,
+                          ),
+                          onPressed: busy ? null : () => m.color = c,
+                          icon: Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: colorOf(c),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: m.color == c
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.black45,
+                                width: m.color == c ? 3 : 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),

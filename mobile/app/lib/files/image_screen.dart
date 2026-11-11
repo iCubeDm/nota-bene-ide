@@ -400,12 +400,12 @@ class _ImageScreenState extends State<ImageScreen>
       child: Row(
         children: [
           if (_item.markable)
-            _action(
-              'act-markup',
-              NbGlyph.pen,
-              t.markUp,
-              () => _markup.marking = true,
-            ),
+            _action('act-markup', NbGlyph.pen, t.markUp, () {
+              // marks are drawn on the fitted picture: no zoom carries into marking
+              _glide.stop();
+              _zoom.value = Matrix4.identity();
+              _markup.marking = true;
+            }),
           if (_item.markable)
             _action('act-comment', NbGlyph.comments, t.comment, _comment),
           _action('act-share', NbGlyph.share, t.share, _share),
