@@ -1,5 +1,5 @@
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
@@ -12,6 +12,8 @@ import { ShortcodePicker } from '@/comments/ShortcodePicker.tsx';
 import { MentionPicker } from './MentionPicker.tsx';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
+import { PromptHistory } from './PromptHistory.tsx';
+import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
 import { CtxNudge } from '@/stats/CtxNudge.tsx';
 import { Attachments } from '@/attachments/Attachments.tsx';
@@ -37,6 +39,8 @@ export function Composer() {
   const mode = useAppSelector(selectMode);
   const caps = useAppSelector(selectCapabilities);
   const text = useAppSelector(selectDraft);
+  const items = useAppSelector(selectPromptItems);
+  const sid = useAppSelector(selectPromptSid);
   const images = useAppSelector(selectImages);
   const building = useAppSelector(selectBuilding);
   const uploading = useAppSelector(selectUploading) > 0 || building;
@@ -58,6 +62,12 @@ export function Composer() {
     if (!busy) setAskForce(false);
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
+  // ↑/↓ through the prompts sent before (newest first): `index` is the recalled one (-1 = not browsing), `stash` the draft it replaced
+  const recall = useMemo(() => recallList(items), [items]);
+  const recallRef = useRef(recall);
+  recallRef.current = recall;
+  const browse = useRef({ index: -1, stash: '' });
+  useEffect(() => void (browse.current = { index: -1, stash: '' }), [sid]);
   // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
   const voiceOk = useAppSelector((s) => s.controls.protocol >= 14);
   const whisper = caps.dictation === 'whisper';
@@ -199,10 +209,60 @@ export function Composer() {
       return;
     }
     setAskForce(false);
+    browse.current = { index: -1, stash: '' };
     const r = dispatch(sendBatch(force));
     if (r === 'empty' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
     if (r === 'sent') ref.current?.focus();
+  };
+
+  // true when the key was a history step. Browsing is only while the draft is still exactly the recalled prompt: any edit ends it
+  const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    const el = e.currentTarget;
+    const list = recallRef.current;
+    const b = browse.current;
+    const browsing = b.index >= 0 && list[b.index]?.text === el.value;
+    if (!browsing) b.index = -1;
+    const { selectionStart: from, selectionEnd: to, value } = el;
+    if (from !== to) return false;
+    const show = (index: number, draft: string) => {
+      b.index = index;
+      dispatch(setDraft(draft));
+      // the controlled value lands on the next render; the caret goes after it
+      requestAnimationFrame(() => ref.current?.setSelectionRange(draft.length, draft.length));
+    };
+    if (e.key === 'ArrowUp') {
+      if (!list.length) return false;
+      if (!browsing) {
+        // the first ↑ of a draft on its first line only moves the caret to the start; the next one recalls
+        if (value !== '' && from !== 0) return false;
+        b.stash = value;
+        show(0, list[0]!.text);
+        return true;
+      }
+      if (value.slice(0, from).includes('\n')) return false; // not on the first line: the field's own
+      if (b.index + 1 < list.length) show(b.index + 1, list[b.index + 1]!.text);
+      return true;
+    }
+    if (!browsing || value.indexOf('\n', from) !== -1) return false; // ↓ is the field's own unless on the last line of a recall
+    if (b.index > 0) show(b.index - 1, list[b.index - 1]!.text);
+    else {
+      const stash = b.stash;
+      show(-1, stash);
+    }
+    return true;
+  };
+
+  // a prompt chosen in the history list becomes the draft; the draft it replaced is the stash, so ↓ brings it back
+  const pickHistory = (picked: string) => {
+    const b = browse.current;
+    const browsing = b.index >= 0 && recallRef.current[b.index]?.text === text;
+    browse.current = { index: recallRef.current.findIndex((x) => x.text === picked), stash: browsing ? b.stash : text };
+    dispatch(setDraft(picked));
+    requestAnimationFrame(() => {
+      ref.current?.focus({ preventScroll: true });
+      ref.current?.setSelectionRange(picked.length, picked.length);
+    });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -222,6 +282,10 @@ export function Composer() {
     if (e.key === 'Escape' && askForce) {
       e.preventDefault(); // the document hotkeys skip it
       setAskForce(false);
+      return;
+    }
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.nativeEvent.isComposing && stepHistory(e)) {
+      e.preventDefault();
       return;
     }
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
@@ -295,6 +359,7 @@ export function Composer() {
         <SlashPicker target={ref} />
         <ShortcodePicker target={ref} />
         </>)}
+        {!recording && <PromptHistory onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}
         {voiceOk && !recording && (
           <Tooltip>
             <TooltipTrigger asChild>

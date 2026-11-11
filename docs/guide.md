@@ -152,6 +152,13 @@ In a `!` shell command the same picker inserts the plain path, quoted as a shell
 
 Alt+E opens a list of recent files with a project-wide file-name search.
 
+### Prompt history
+
+The message field remembers what you sent in this conversation: typed messages, `!` commands and voice transcripts (not comment-only sends or the compact and clear buttons). The history survives `/clear`, a fork, a restart and a reload.
+
+- **↑** in an empty field (or with the caret at the very start of a draft) brings back the last prompt, **↑** again an older one, **↓** a newer one; **↓** past the newest restores what you were typing. In a multi-line prompt the arrows first move the caret and step through the history only from the first or last line. Editing the recalled text ends the walk. Images are not recalled. Inside the `/` menu or an `@` mention the arrows keep choosing from that list.
+- The clock button left of the microphone (Alt+H) opens a searchable list, newest first, with the time and a microphone mark on voice messages. Typing shows the prompts that contain it, then looser matches. Enter or a click puts the prompt in the field; it is never sent from there, and the draft it replaced comes back with **↓**.
+
 ### `/` menu
 
 Type `/` as the first character of a message. A menu lists the agent's commands and skills, filtered as you type. Enter or Tab picks one; it writes `/name ` and leaves the caret after it. Esc closes the menu for that word.
@@ -379,6 +386,7 @@ The full list is in the window's Hotkeys help. Tab keys use Alt because Chrome k
 | Alt+Left, Alt+Right | previous or next tab |
 | Alt+1 to Alt+9 | tab N (1 is the chat, 9 is the last) |
 | Alt+E | recent files and project search |
+| Alt+H | prompt history (searchable list) |
 | Cmd/Ctrl+Shift+F | Files panel |
 | Cmd/Ctrl+Shift+C | Comments panel |
 | Alt+T | Tasks drawer |
