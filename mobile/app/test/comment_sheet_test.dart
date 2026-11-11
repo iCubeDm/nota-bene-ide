@@ -341,6 +341,36 @@ void main() {
       expect(r.ch.requests.last, endsWith('/text?lang=ru'));
     });
 
+    testWidgets('Automatic asks for detection (protocol 18)', (t) async {
+      r.voiceLang = await VoiceLang.load(MemoryVault());
+      await openSheet(t, protocol: 18);
+      await record(t);
+      await t.pumpAndSettle();
+      expect(r.ch.requests.last, endsWith('/text?lang=en&detect=1'));
+    });
+
+    testWidgets('a pin asks for its language alone', (t) async {
+      final v = await VoiceLang.load(MemoryVault());
+      await v.choose('ru');
+      r.voiceLang = v;
+      await openSheet(t, protocol: 18);
+      await record(t);
+      await t.pumpAndSettle();
+      expect(r.ch.requests.last, endsWith('/text?lang=ru'));
+    });
+
+    testWidgets(
+      'Automatic on a host older than 18 asks for the language only',
+      (t) async {
+        final v = await VoiceLang.load(MemoryVault());
+        r.voiceLang = v;
+        await openSheet(t);
+        await record(t);
+        await t.pumpAndSettle();
+        expect(r.ch.requests.last, endsWith('/text?lang=en'));
+      },
+    );
+
     testWidgets(
       'a released recording saves the comment with that clip once its text is in',
       (t) async {

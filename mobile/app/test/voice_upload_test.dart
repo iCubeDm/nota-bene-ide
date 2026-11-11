@@ -52,6 +52,19 @@ void main() {
     );
   });
 
+  test('transcribeClip asks for detection only when told to', () async {
+    String? path;
+    Future<HttpAnswer> take(m, p, {headers, body}) async {
+      path = p;
+      return reply(200, {'text': 'x', 'lang': 'fr'});
+    }
+
+    await transcribeClip(take, id, 'ru', detect: true);
+    expect(path, '/voice/$id/text?lang=ru&detect=1');
+    await transcribeClip(take, id, 'ru');
+    expect(path, '/voice/$id/text?lang=ru');
+  });
+
   test('transcribeClip: text, off on 503, failed otherwise', () async {
     String? path;
     final ok = await transcribeClip(
