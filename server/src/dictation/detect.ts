@@ -11,15 +11,21 @@ export function pickLang(probs: Record<string, number>, hint: string): string {
   return best !== undefined && p >= DETECT_MIN_P ? best : hint;
 }
 
+let reported = false;
+
 /**
  * The language to transcribe `pcm` in: detected from its first 30 s, `hint` when the clip is too short, the pipeline
- * cannot detect, or detection fails (a failed detection must not lose the transcript).
+ * cannot detect, or detection fails (reported once; a failed detection must not lose the transcript).
  */
 export async function resolveLang(pipe: Pipe, pcm: Float32Array, hint: string): Promise<string> {
   if (!pipe.detect || pcm.length < WHISPER_RATE * DETECT_MIN_MS / 1000) return hint;
   try {
     return pickLang(await pipe.detect(pcm.subarray(0, WHISPER_RATE * DETECT_WINDOW_MS / 1000)), hint);
-  } catch {
+  } catch (e) {
+    if (!reported) {
+      reported = true;
+      console.error('[dictation] language detection failed, using the hint:', e);
+    }
     return hint;
   }
 }

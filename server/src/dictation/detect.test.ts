@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { pickLang, resolveLang } from './detect.ts';
 import { DETECT_MIN_MS, WHISPER_RATE } from './whisper.ts';
 import type { Pipe } from './install.ts';
@@ -37,6 +37,12 @@ describe('resolveLang', () => {
   it('keeps the hint when the pipeline cannot detect or detection fails', async () => {
     expect(await resolveLang(Object.assign(async () => ({ text: '' }), {}), secs(3), 'ru')).toBe('ru');
     const failing = Object.assign(async () => ({ text: '' }), { detect: async () => { throw new Error('boom'); } });
-    expect(await resolveLang(failing, secs(3), 'ru')).toBe('ru');
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(await resolveLang(failing, secs(3), 'ru')).toBe('ru');
+      expect(await resolveLang(failing, secs(3), 'ru')).toBe('ru');
+      expect(err).toHaveBeenCalledTimes(1); // reported once, not on every clip
+      expect(String(err.mock.calls[0])).toContain('boom');
+    } finally { err.mockRestore(); }
   });
 });

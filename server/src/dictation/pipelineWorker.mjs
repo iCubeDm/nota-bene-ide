@@ -50,8 +50,14 @@ async function detectLanguage(audio) {
   const { input_features } = await pipe.processor(audio);
   const start = gc.decoder_start_token_id ?? model.config.decoder_start_token_id;
   const decoder_input_ids = new api.Tensor('int64', BigInt64Array.from([BigInt(start)]), [1, 1]);
-  const { logits } = await model.forward({ input_features, decoder_input_ids });
-  const row = logits.data.subarray(logits.data.length - logits.dims.at(-1));
+  const { logits, ...rest } = await model.forward({ input_features, decoder_input_ids });
+  const row = Float32Array.from(logits.data.subarray(logits.data.length - logits.dims.at(-1)));
+  // Only the logits matter: the rest holds the decoder cache, cross-attention over 1500 frames (~110 MB for whisper-small).
+  for (const t of Object.values(rest)) {
+    if (typeof t?.dispose === 'function') t.dispose();
+    else if (t && typeof t === 'object') for (const u of Object.values(t)) u?.dispose?.();
+  }
+  logits.dispose?.();
   const langs = Object.entries(gc.lang_to_id).map(([token, id]) => [token.replace(/^<\||\|>$/g, ''), row[id]]);
   const top = Math.max(...langs.map(([, v]) => v));
   const exp = langs.map(([code, v]) => [code, Math.exp(v - top)]);
