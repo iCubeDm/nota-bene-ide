@@ -19,6 +19,13 @@ const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
 const CAVEAT = /^\s*<local-command-caveat>/;
 // the harness's own notes recorded as user turns: a finished background task, a message from another session
 const HARNESS_NOTE = /^\s*(?:<task-notification>|Another Claude session sent a message:)/;
+// the harness also stores reminders and task notes inside a user turn, as extra blocks or text joined to the prompt;
+// only a whole section on its own lines goes, so a prompt that mentions the tag in prose stays intact
+const HARNESS_SECTION = /(^|\n)[ \t]*<(system-reminder|task-notification)>[\s\S]*?<\/\2>[ \t]*(?=\n|$)/g;
+const stripHarness = (t: string): string => {
+  const r = t.replace(HARNESS_SECTION, '$1');
+  return r === t ? t : r.trim(); // trim only what a removal left behind
+};
 const COMMAND_OUT = /^\s*<local-command-stdout>([\s\S]*?)<\/local-command-stdout>\s*$/;
 
 function agent(out: ServerEvent[], frame: Record<string, unknown>): void {
@@ -61,7 +68,7 @@ export function transcriptToEvents(msgs: SessionMessage[], attachments: Attachme
           if (!reported) { reported = true; onError?.(e); }
         }
       });
-      let text = blocks.filter((b, i) => b.type === 'text' && !labels.has(i)).map((b) => b.text ?? '').join('\n');
+      let text = stripHarness(blocks.filter((b, i) => b.type === 'text' && !labels.has(i)).map((b) => stripHarness(b.text ?? '')).filter((t) => t.trim()).join('\n'));
       // the `! cmd` runs the server put in front of this message (session/shellText.ts bashBlock), images or not: blocks again, then the message itself
       if (!own) {
         const bash = splitBashBlocks(text);
