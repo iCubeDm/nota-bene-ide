@@ -15,6 +15,7 @@ export type Task = {
   /** a live-update watcher: listed, but not counted as activity */ ambient?: boolean;
   start: number; status: TaskStatus; /** the server time the task ended; only once it is not running */ end?: number;
   tokens: number; tool: string; summary: string;
+  /** a subagent's model: an id or an alias, as the adapter said; show it with `shortModel` */ model?: string;
 };
 /** task_id -> task, the running ones and the last FINISHED_CAP finished. Rebuilt from replayed task events, so a reload mid-task still shows it. */
 export type TasksState = Record<string, Task>;
@@ -27,6 +28,13 @@ export function taskKind(type: string, call?: string): TaskKind {
   if (/agent/.test(type)) return 'agent';
   if (/bash|shell|monitor/.test(type)) return 'shell';
   return !type && call ? 'agent' : 'other';
+}
+
+/** A model for a row: `claude-sonnet-5-5` is "Sonnet 5.5" (a date suffix and a `[1m]` tag are dropped), an alias such as `sonnet` is "Sonnet"; any other id is shown as given. */
+export function shortModel(id: string): string {
+  const m = /^claude-(opus|sonnet|haiku)(?:-(\d+))?(?:-(\d{1,2}))?(?:-\d{8})?(?:\[[^\]]*\])?$/.exec(id);
+  if (m) return `${m[1][0].toUpperCase()}${m[1].slice(1)}${m[2] ? ` ${m[2]}${m[3] ? `.${m[3]}` : ''}` : ''}`;
+  return /^(opus|sonnet|haiku)$/.test(id) ? `${id[0].toUpperCase()}${id.slice(1)}` : id;
 }
 
 const without = (s: TasksState, ids: string[]): TasksState => {
@@ -61,19 +69,20 @@ export function reduceTasks(s: TasksState, ev: ServerEvent): TasksState {
       const call = cur?.call ?? e.call;
       const parent = cur?.parent ?? e.parent;
       const bg = e.bg ?? cur?.bg;
+      const model = e.model ?? cur?.model; // a resume does not say it again
       return {
         ...s,
         [e.id]: {
           desc: e.desc ?? 'task', type, kind: taskKind(type, call), ...(call ? { call } : {}), ...(parent ? { parent } : {}),
-          ...(bg !== undefined ? { bg } : {}), ...(e.ambient ? { ambient: true } : {}),
+          ...(bg !== undefined ? { bg } : {}), ...(model ? { model } : {}), ...(e.ambient ? { ambient: true } : {}),
           start: ev.ts, status: 'running', tokens: 0, tool: '', summary: '',
         },
       };
     }
     case 'progress':
-      return cur?.status === 'running' ? { ...s, [e.id]: { ...cur, tokens: e.tokens || 0, tool: e.tool || '', summary: e.summary || '' } } : s;
+      return cur?.status === 'running' ? { ...s, [e.id]: { ...cur, tokens: e.tokens || 0, tool: e.tool || '', summary: e.summary || '', ...(e.model ? { model: e.model } : {}) } } : s;
     case 'updated':
-      return cur && (e.desc || e.bg !== undefined) ? { ...s, [e.id]: { ...cur, ...(e.desc ? { desc: e.desc } : {}), ...(e.bg !== undefined ? { bg: e.bg } : {}) } } : s;
+      return cur && (e.desc || e.bg !== undefined || e.model) ? { ...s, [e.id]: { ...cur, ...(e.desc ? { desc: e.desc } : {}), ...(e.bg !== undefined ? { bg: e.bg } : {}), ...(e.model ? { model: e.model } : {}) } } : s;
     case 'done': {
       if (cur?.status !== 'running') return s; // unknown, or already over (the CLI reports an end twice: update, then notification)
       const next = { ...s, [e.id]: { ...cur, status: e.status ?? 'done', end: ev.ts } as Task };
