@@ -115,6 +115,7 @@
   "labelsAll": "Todos os rótulos",
   "save": "Salvar",
   "deleteComment": "Excluir comentário",
+  "commentDeleted": "Comentário excluído",
   "fileNotFound": "Este arquivo não existe (ou não existe mais).",
   "fileOutside": "Este arquivo está fora do projeto.",
   "fileTooLarge": "O arquivo é grande demais para o celular (mais de 2 MB). Abra-o no computador.",

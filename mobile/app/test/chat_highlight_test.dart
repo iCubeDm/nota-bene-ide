@@ -145,14 +145,14 @@ void main() {
     await t.pumpAndSettle();
     await t.tapOnText(find.textRange.ofSubstring('bold').first);
     await t.pumpAndSettle();
-    expect(find.text('Delete comment'), findsOneWidget);
+    expect(find.byTooltip('Delete comment'), findsOneWidget);
     await t.enterText(find.byType(TextField).last, 'changed');
     await tapSend(t);
     await t.pumpAndSettle();
     expect(r.tab!.comments.all.single.text, 'changed');
     await t.tapOnText(find.textRange.ofSubstring('bold').first);
     await t.pumpAndSettle();
-    await t.tap(find.text('Delete comment'));
+    await t.tap(find.byTooltip('Delete comment'));
     await t.pumpAndSettle();
     expect(r.tab!.comments.all.where((e) => e.id == x.id), isEmpty);
     expect(painted(t), isEmpty);
@@ -220,7 +220,7 @@ void main() {
       // a tap on the badge opens the comment
       await t.tap(find.byKey(ValueKey('badge:${x.id}')));
       await t.pumpAndSettle();
-      expect(find.text('Delete comment'), findsOneWidget);
+      expect(find.byTooltip('Delete comment'), findsOneWidget);
     },
   );
 
