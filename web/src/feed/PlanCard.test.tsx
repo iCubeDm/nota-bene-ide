@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ClientMessage } from '@nota-bene/shared';
+import { anchorSource, type ClientMessage } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { whereOf } from '@/comments/send.ts';
@@ -83,6 +83,6 @@ it('selecting plan text yields a plan: anchor, labelled as Plan', async () => {
   });
   fireEvent.click(screen.getByRole('button', { name: /Comment/ }));
   const a = onComment.mock.calls[0]![0].anchor;
-  expect(a.source).toEqual({ kind: 'message', id: 'plan:p1' });
+  expect(anchorSource(a)).toEqual({ kind: 'message', id: 'plan:p1' });
   expect(whereOf({ anchor: a } as never, store.getState())).toBe('Plan');
 });

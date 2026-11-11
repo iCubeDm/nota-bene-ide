@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { generatedImages, parseClientMessage, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
+import { generatedImages, isAttachmentAnchor, parseClientMessage, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
 
 test('accepts a send', () => expect(parseClientMessage('{"type":"send","id":"u1","text":"hi"}')).toEqual({ type: 'send', id: 'u1', text: 'hi' }));
 test('rejects bad json', () => expect(parseClientMessage('{nope')).toHaveProperty('error'));
@@ -212,6 +212,44 @@ test.each([
   ['an unknown anchor kind', { ...pageAnchor(), kind: 'shape' }],
 ])('rejects a page anchor: %s', (_name, a) => {
   expect(parseMedia(a)).toHaveProperty('error');
+});
+
+const IMG = 'a'.repeat(64);
+const attachmentAnchor = (over: Record<string, unknown> = {}) => ({
+  kind: 'attachment', image: IMG, width: 1200, height: 800, scale: 0.5,
+  shapes: [{ kind: 'rect', color: '#ff3b30', x: 0.1, y: 0.2, w: 0.3, h: 0.4 }, { kind: 'pen', color: '#ffffff', points: [0, 0, 1, 1] }], ...over,
+});
+
+test('parses a comment with an attachment anchor, round trip, unknown keys dropped', () => {
+  for (const a of [attachmentAnchor(), attachmentAnchor({ scale: undefined })]) {
+    const clean = JSON.parse(JSON.stringify(a));
+    expect(parseMedia(a)).toEqual({ type: 'comments', sessionId: null, items: [comment({ anchor: clean })] });
+  }
+  const out = toAnchor({ ...attachmentAnchor(), junk: 1, shapes: [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 1, h: 1, junk: 2 }] } as never);
+  expect(JSON.stringify(out)).not.toMatch(/junk/);
+  expect(isAttachmentAnchor(out)).toBe(true);
+  expect(isAttachmentAnchor(anchor as never)).toBe(false);
+});
+
+test.each([
+  ['a short image id', attachmentAnchor({ image: 'abc' })],
+  ['an uppercase image id', attachmentAnchor({ image: 'A'.repeat(64) })],
+  ['no image', attachmentAnchor({ image: undefined })],
+  ['no shapes', attachmentAnchor({ shapes: [] })],
+  ['a bad shape', attachmentAnchor({ shapes: [{ kind: 'star', color: '#ff3b30' }] })],
+  ['a shape outside the image', attachmentAnchor({ shapes: [{ kind: 'rect', color: '#ff3b30', x: 0.9, y: 0, w: 0.5, h: 0.5 }] })],
+  ['width 0', attachmentAnchor({ width: 0 })],
+  ['scale 1', attachmentAnchor({ scale: 1 })],
+  ['scale 0', attachmentAnchor({ scale: 0 })],
+  ['scale as a string', attachmentAnchor({ scale: '0.5' })],
+])('rejects an attachment anchor: %s', (_name, a) => {
+  expect(parseMedia(a)).toHaveProperty('error');
+});
+
+test('an attachment comment generates one image (genImages overrides)', () => {
+  const c = (over: Record<string, unknown>) => ({ ...comment({ anchor: attachmentAnchor() }), ...over }) as never;
+  expect(generatedImages(c({}))).toBe(1);
+  expect(generatedImages(c({ genImages: 2 }))).toBe(2);
 });
 
 test('a rect/ellipse may touch the far edge, with 4-decimal rounding slack (1e-4)', () => {

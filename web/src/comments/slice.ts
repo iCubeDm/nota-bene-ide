@@ -1,5 +1,5 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { isMediaAnchor, type Comment, type MediaAnchor } from '@nota-bene/shared';
+import { anchorSource, isMediaAnchor, type Comment, type MediaAnchor } from '@nota-bene/shared';
 import { fileKey } from '../files/sources.ts';
 // store.ts imports this file for the reducer; every use of serverEvent below is lazy (inside callbacks), so the cycle is safe.
 import { connState, serverEvent, type AppThunk, type RootState } from '../store/store.ts';
@@ -103,8 +103,8 @@ export const selectSentFor = (s: RootState, messageId: string): Comment[] => sel
 export const selectPendingCountByPath = createSelector([selectComments], (items) => {
   const m: Record<string, number> = {};
   for (const c of items) {
-    const src = c.anchor.source;
-    if (c.status !== 'pending' || src.kind !== 'file') continue;
+    const src = anchorSource(c.anchor);
+    if (c.status !== 'pending' || src?.kind !== 'file') continue;
     const k = fileKey(src.path, src.ref);
     m[k] = (m[k] ?? 0) + 1;
   }

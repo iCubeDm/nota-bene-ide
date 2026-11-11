@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ClientMessage, Comment, ServerEvent, Source } from '@nota-bene/shared';
+import { anchorSource, type ClientMessage, type Comment, type ServerEvent, type Source } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
 import { Markdown } from '@/feed/Markdown.tsx';
 import { setLang } from '@/i18n/index.ts';
@@ -231,7 +231,7 @@ it('a selection in a branch view anchors with its ref; its mark never paints in 
   fireEvent.change(await screen.findByPlaceholderText('Comment…'), { target: { value: 'on old' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   const c = store.getState().comments.items[0];
-  expect(c.anchor.source).toEqual({ kind: 'file', path: 'a.md', ref: 'old' });
+  expect(anchorSource(c.anchor)).toEqual({ kind: 'file', path: 'a.md', ref: 'old' });
   await waitFor(() => expect(document.querySelectorAll('[data-pane="file:ref:old:a.md"] [data-hl]').length).toBeGreaterThan(0));
   expect(document.querySelector('[data-tab="file:ref:old:a.md"] [data-src-chip]')?.textContent).toBe('old');
   expect(document.querySelector('[data-tab="file:ref:old:a.md"] [data-badge]')?.textContent).toBe('1');

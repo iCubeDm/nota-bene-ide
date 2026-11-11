@@ -1,4 +1,5 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import { anchorSource } from '@nota-bene/shared';
 import type { AppThunk, RootState } from '../store/store.ts';
 import type { FeedItem } from '../store/feed.ts';
 import { isAgentTool, itemsOf } from '../subagent/slice.ts';
@@ -71,8 +72,8 @@ export const revealToolOf = (toolId: string, agent?: string): AppThunk => (d, ge
 export const selectToolCommentCounts = createSelector([(s: RootState) => s.comments.items], (items) => {
   const m: Record<string, number> = {};
   for (const c of items) {
-    const src = c.anchor.source;
-    if (src.kind === 'message' && src.id.startsWith(TOOL_SRC)) {
+    const src = anchorSource(c.anchor);
+    if (src?.kind === 'message' && src.id.startsWith(TOOL_SRC)) {
       const k = scopedId(src.agent, src.id.slice(TOOL_SRC.length));
       m[k] = (m[k] ?? 0) + 1;
     }
@@ -84,8 +85,8 @@ export const selectToolCommentCounts = createSelector([(s: RootState) => s.comme
 export const selectToolAnchorEnds = createSelector([(s: RootState) => s.comments.items], (items) => {
   const m: Record<string, number> = {};
   for (const c of items) {
-    const src = c.anchor.source;
-    if (src.kind !== 'message' || !src.id.startsWith(TOOL_SRC) || !('end' in c.anchor)) continue;
+    const src = anchorSource(c.anchor);
+    if (src?.kind !== 'message' || !src.id.startsWith(TOOL_SRC) || !('end' in c.anchor)) continue;
     const id = scopedId(src.agent, src.id.slice(TOOL_SRC.length));
     m[id] = Math.max(m[id] ?? 0, c.anchor.end);
   }

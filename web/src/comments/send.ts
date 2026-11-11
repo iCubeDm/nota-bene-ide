@@ -1,4 +1,4 @@
-import { generatedImages, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
+import { anchorSource, generatedImages, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
 import { getLang, t, tIn } from '../i18n/index.ts';
 import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
@@ -32,9 +32,10 @@ const pastedImages = (c: Comment): string[] => (c.images ?? []).slice(generatedI
 
 /** Where a comment's fragment lives, for the batch line: the reply label, "my message", or the file. */
 export function whereOf(c: Comment, st?: Parameters<typeof selectReplyLabel>[0]): string {
-  const src = c.anchor.source;
+  const src = anchorSource(c.anchor);
   const a = c.anchor;
   if (isMediaAnchor(a)) return `${whereOfFile(a.source)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${a.width}×${a.height}${a.camera ? ` · ${cameraLine(a.camera, getLang())}` : ''}`;
+  if (!src) return t('srcChat'); // an attachment comment (its own place comes with its UI)
   if (src.kind === 'file') return whereOfFile(src);
   // the batch text names a reply plainly: its number is the index in the CURRENT feed (restarts after a compaction, shifts when earlier history is shown); the quote is the locator
   // a subagent's reply or action is named with the subagent (no numbers); one the loaded conversation does not hold still is not "chat"

@@ -40,6 +40,9 @@
         },
         {
           "$ref": "#/definitions/PageAnchor"
+        },
+        {
+          "$ref": "#/definitions/AttachmentAnchor"
         }
       ]
     },
@@ -85,6 +88,41 @@
         }
       ],
       "description": "`ref`: the branch a file comes from when it is not this window's checkout (a branch, or a worktree's branch)."
+    },
+    "AttachmentAnchor": {
+      "description": "Marks on an image attached to the unsent message (protocol 17): `image` is the composer's ImageRef id. Coordinates as in MediaAnchor. Sent only in the message that carries that image.",
+      "properties": {
+        "height": {
+          "type": "number"
+        },
+        "image": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "attachment",
+          "type": "string"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "shapes": {
+          "items": {
+            "$ref": "#/definitions/MediaShape"
+          },
+          "type": "array"
+        },
+        "width": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "image",
+        "width",
+        "height",
+        "shapes"
+      ],
+      "type": "object"
     },
     "Capabilities": {
       "description": "What the agent behind the server can do (R-M7-15), announced in `hello`; the UI hides a control whose capability is false and the server refuses the matching client message. `modes`: the permission modes it offers (empty: no mode pill). `models`: it lists models and switches model and effort on a running session (the server refuses the `model` message otherwise).",
@@ -500,7 +538,7 @@
           "type": "number"
         },
         "genImages": {
-          "description": "media comments: how many leading `images` the app generated (the frame, plus the transparent layer in old comments); the rest were pasted. Absent = 2 (old comments).",
+          "description": "media comments: how many leading `images` the app generated (the frame, plus the transparent layer in old comments); the rest were pasted. Absent = 2 (old comments). An attachment comment (protocol 17) generates 1 (the marked image).",
           "type": "number"
         },
         "id": {
@@ -1473,7 +1511,8 @@
             "reason": {
               "enum": [
                 "busy",
-                "switching"
+                "switching",
+                "detached"
               ],
               "type": "string"
             }
@@ -2848,5 +2887,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 15
+  "x-protocol": 17
 }

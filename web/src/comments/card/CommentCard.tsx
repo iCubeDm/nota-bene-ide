@@ -1,4 +1,4 @@
-import { generatedImages, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
+import { generatedImages, isAttachmentAnchor, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
 import { pageQuote } from '@/page/quote.ts';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Attachments } from '@/attachments/Attachments.tsx';
@@ -98,7 +98,7 @@ export function CommentCard({ id, index, popover = false }: { id: string; index:
           onClick={popover || beforeCompact ? undefined : jump}
           className={`line-clamp-3 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover || beforeCompact ? '' : 'cursor-pointer'}`}
         >
-          {isMediaAnchor(c.anchor) ? null : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : c.anchor.quote}
+          {isMediaAnchor(c.anchor) || isAttachmentAnchor(c.anchor) ? null : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : c.anchor.quote}
         </div>
       )}
       {orphan && <div className="mt-1 text-[0.6875rem] text-destructive">({t('orphaned')})</div>}
