@@ -11,6 +11,7 @@ import '../chat/send_now.dart';
 import '../chat/window_tab.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
+import '../ui/nb_icon.dart';
 import 'comment_strip.dart' show editComment;
 import 'comments.dart';
 import 'strings.g.dart';
@@ -61,7 +62,7 @@ class _CommentsPaneState extends State<CommentsPane>
       x.text,
       for (final v in x.voice ?? const <VoiceClip>[]) v.text,
     ].where((s) => s.isNotEmpty).join(' ');
-    return InkWell(
+    final row = InkWell(
       onTap: () => _go(x),
       onLongPress: pending ? () => editComment(context, tab, x) : null,
       child: Padding(
@@ -103,6 +104,39 @@ class _CommentsPaneState extends State<CommentsPane>
         ),
       ),
     );
+    if (!pending) return row;
+    // a swipe left deletes a pending one, and a snackbar brings it back
+    return Dismissible(
+      key: ValueKey('swipe:${x.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: c.destructive,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: const NbIcon(NbGlyph.trash, color: Colors.white),
+      ),
+      onDismissed: (_) => _delete(x),
+      // Dismissible stacks its child loosely: the row keeps the whole width
+      child: SizedBox(width: double.infinity, child: row),
+    );
+  }
+
+  void _delete(Comment x) {
+    final at = tab.comments.all.indexWhere((c) => c.id == x.id);
+    tab.comments.remove(x.id);
+    final t = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(t.commentDeleted),
+          action: SnackBarAction(
+            label: t.markUndo,
+            onPressed: () => tab.comments.restore(x, at < 0 ? 0 : at),
+          ),
+        ),
+      );
   }
 
   /// A sent comment's group: the message it went with, as its first words.

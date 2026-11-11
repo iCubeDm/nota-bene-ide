@@ -165,7 +165,7 @@ void main() {
       findsOneWidget,
       reason: 'the sheet edits it',
     );
-    await t.tap(find.text('Delete comment'));
+    await t.tap(find.byTooltip('Delete comment'));
     await t.pumpAndSettle();
     expect(lastComments(r)['items'], isEmpty);
     r.dispose();

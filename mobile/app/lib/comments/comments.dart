@@ -135,6 +135,7 @@ class Comments extends ChangeNotifier {
     String text,
     QuickLabelId? label,
     List<VoiceClip>? voice,
+    List<String>? pasted,
   ) => Comment(
     id: c.id,
     anchor: c.anchor,
@@ -143,27 +144,43 @@ class Comments extends ChangeNotifier {
     status: c.status,
     createdAt: c.createdAt,
     sentIn: c.sentIn,
-    images: c.images,
+    // the generated frame stays first; the pasted images are what the sheet gives back
+    images: pasted == null
+        ? c.images
+        : _orNone([...?c.images?.take(generatedImages(c)), ...pasted]),
     genImages: c.genImages,
     voice: voice == null || voice.isEmpty ? null : voice,
   );
 
-  /// [voice] replaces the clips of the comment: the sheet gives back all it has.
+  /// [voice] replaces the clips of the comment, [images] its pasted images: the sheet gives back all it has.
   void edit(
     String id,
     String text,
     QuickLabelId? label, {
     List<VoiceClip>? voice,
+    List<String>? images,
   }) {
     final next = [
-      for (final c in all) c.id == id ? _with(c, text, label, voice) : c,
+      for (final c in all)
+        c.id == id ? _with(c, text, label, voice, images) : c,
     ];
     if (_mine.containsKey(id)) {
       _mine[id] = (c: next.firstWhere((c) => c.id == id), at: _now());
     }
     _server = [
-      for (final c in _server) c.id == id ? _with(c, text, label, voice) : c,
+      for (final c in _server)
+        c.id == id ? _with(c, text, label, voice, images) : c,
     ];
+    _push(next);
+  }
+
+  /// [c] back where it was in [all] (index [at]), as the Undo of a deletion: with its text, images and state.
+  void restore(Comment c, int at) {
+    final next = [...all];
+    if (next.any((x) => x.id == c.id)) return;
+    next.insert(at.clamp(0, next.length), c);
+    _mine[c.id] = (c: c, at: _now());
+    _server = next;
     _push(next);
   }
 
@@ -176,6 +193,8 @@ class Comments extends ChangeNotifier {
     _push(all);
   }
 }
+
+List<String>? _orNone(List<String> l) => l.isEmpty ? null : l;
 
 String _file(String path, String? ref) => ref == null ? path : '$path @ $ref';
 
