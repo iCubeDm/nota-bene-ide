@@ -163,7 +163,7 @@ it('an empty transcript shows "Nothing was recognised" and can be deleted to unb
   expect(await screen.findByText('Nothing was recognised')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Delete the clip' }));
   expect(screen.queryByTestId('popup-clips')).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Add' })).toBeNull(); // nothing left to add: the mic is back
+  expect(addBtn()).toBeDisabled(); // nothing left to add: the mic is back
   expect(micBtn()).toBeEnabled();
 });
 
@@ -176,17 +176,17 @@ it('at most 10 clips: the mic goes off at the tenth', async () => {
   expect(micBtn()).toBeDisabled();
 });
 
-// the same field as the composer: the mic while it is empty, Add once it has something
-it('an empty field shows the mic (the composer\'s icon) and no Add; typing swaps it for Add; clearing brings the mic back', () => {
+// the same field as the composer: the mic inside while it is empty, Add always outside (so the box never changes width)
+it('Add is there empty and typed (disabled when empty); the mic inside hides on text and returns when cleared', () => {
   setup();
   expect(micBtn().querySelector('path')?.getAttribute('d')).toBe('M5 11a7 7 0 0 0 14 0M12 18v3');
-  expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+  expect(addBtn()).toBeDisabled();
   fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'note' } });
   expect(screen.queryByTestId('popup-mic')).toBeNull();
-  expect(addBtn()).toBeInTheDocument();
+  expect(addBtn()).toBeEnabled();
   fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: '  ' } });
   expect(micBtn()).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+  expect(addBtn()).toBeDisabled();
 });
 
 it('Add saves the comment as before', () => {
@@ -223,7 +223,7 @@ it('an attached image alone swaps the mic for Add', async () => {
   expect(screen.queryByTestId('popup-mic')).toBeNull();
 });
 
-it('a drawing\'s Add keeps its place (the footer) while it is saving: the mic does not take its row', async () => {
+it('a drawing\'s Add saves it; the mic stays inside the field meanwhile', async () => {
   let done!: (r: { images: string[] }) => void;
   const prepare = () => new Promise<{ images: string[] }>((res) => { done = res; });
   const { store } = setup({ prepare });
@@ -231,7 +231,6 @@ it('a drawing\'s Add keeps its place (the footer) while it is saving: the mic do
   fireEvent.click(before);
   await waitFor(() => expect(addBtn()).toHaveAttribute('aria-busy', 'true'));
   expect(micBtn()).toBeInTheDocument(); // the field row still has its mic
-  expect(micBtn().compareDocumentPosition(addBtn()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // Add is still after it
   await act(async () => done({ images: [] }));
   expect(store.getState().comments.items).toHaveLength(1);
 });
