@@ -6,7 +6,7 @@ import type { AgentBackend, AgentSession, PermissionAsk, SendImage } from '../ty
 import { CommandTap, offered, pickCommands, toSlash } from './commands.ts';
 import { mapFrames } from './map.ts';
 import { transcriptToEvents } from './transcript.ts';
-import { agentOfCall, findSubagentMeta, hitFresh, hitGet, hitSet, isRunning, noMetaAdd, noMetaHas } from './subagents.ts';
+import { agentOfCall, findSubagentMeta, hitFresh, hitGet, hitSet, isRunning, noMetaAdd, noMetaHas, subagentModel } from './subagents.ts';
 import { defaultProjectsDir } from '../../sessions.ts';
 import { UsageUnavailableError, mapContextUsage, mapUsage } from '../../stats.ts';
 
@@ -103,7 +103,7 @@ class SdkSession implements AgentSession {
         },
       },
     });
-    this.messages = offered(mapFrames(this.noted(this.q)), () => this.tap.terminal);
+    this.messages = offered(mapFrames(this.noted(this.q), (sid, call) => subagentModel(defaultProjectsDir(), sid, call)), () => this.tap.terminal);
     // warm the CLI's file index (it answers [] for a few seconds after start); the failure does not matter
     this.warmup = setTimeout(() => void this.fileSuggestions('').catch(() => {}), 2000);
     this.warmup.unref();

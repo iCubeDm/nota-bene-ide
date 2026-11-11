@@ -3352,6 +3352,7 @@ final class WireAgentEventTask extends WireAgentEvent {
     this.tokens,
     this.tool,
     this.summary,
+    this.model,
     this.status,
   });
 
@@ -3368,6 +3369,7 @@ final class WireAgentEventTask extends WireAgentEvent {
       tokens: json['tokens'] as num?,
       tool: json['tool'] as String?,
       summary: json['summary'] as String?,
+      model: json['model'] as String?,
       status: _opt(json['status'], WireAgentEventTaskStatus.fromJson),
     );
   }
@@ -3383,6 +3385,7 @@ final class WireAgentEventTask extends WireAgentEvent {
   final num? tokens;
   final String? tool;
   final String? summary;
+  final String? model;
   final WireAgentEventTaskStatus? status;
 
   @override
@@ -3400,6 +3403,7 @@ final class WireAgentEventTask extends WireAgentEvent {
       if (tokens != null) 'tokens': tokens,
       if (tool != null) 'tool': tool,
       if (summary != null) 'summary': summary,
+      if (model != null) 'model': model,
       if (status != null) 'status': status!.toJson(),
     };
   }
