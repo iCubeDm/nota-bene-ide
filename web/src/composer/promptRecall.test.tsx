@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -94,6 +94,7 @@ it('a multi-line prompt: ↑ moves the caret within it, and goes older only from
   box.focus();
   await userEvent.keyboard('{ArrowUp}');
   expect(box.value).toBe('line one\nline two');
+  await waitFor(() => expect(box.selectionStart).toBe(box.value.length)); // the recall puts the caret at the end on the next frame: wait for it before moving it
   await userEvent.keyboard('{ArrowUp}'); // the caret is on the last line: left to the field
   expect(box.value).toBe('line one\nline two');
   caret(box, 3);
