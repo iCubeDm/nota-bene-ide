@@ -46,11 +46,15 @@ it('the field box keeps its classes and the textarea its padding when the mic hi
   expect({ box: f.className, area: ta.className, style: f.getAttribute('style') }).toEqual(before);
 });
 
-it('the history list anchors to the field box', async () => {
+it('the history list is positioned from the field box, not from the button', async () => {
   render(<Provider store={store()}><TooltipProvider><Composer /></TooltipProvider></Provider>);
+  const f = fieldOf(screen.getByRole('textbox'));
+  const box = vi.spyOn(f, 'getBoundingClientRect');
+  const btn = vi.spyOn(screen.getByTestId('prompt-history').parentElement!.parentElement!, 'getBoundingClientRect');
   await userEvent.click(screen.getByTestId('prompt-history'));
   expect(await screen.findByRole('combobox')).toBeVisible();
-  expect(screen.getByTestId('prompt-history').getAttribute('aria-expanded')).toBe('true');
+  await vi.waitFor(() => expect(box).toHaveBeenCalled());
+  expect(btn).not.toHaveBeenCalled();
 });
 
 it('the comment popup mic is inside its field box', () => {
