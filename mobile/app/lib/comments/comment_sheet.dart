@@ -147,6 +147,7 @@ class _SheetState extends State<_Sheet> {
   void dispose() {
     _text.removeListener(_onSession);
     _text.dispose();
+    _saveTimer?.cancel();
     _focus.dispose();
     _session.removeListener(_onSession);
     _session.dispose();
@@ -175,17 +176,30 @@ class _SheetState extends State<_Sheet> {
     }
   }
 
-  void _save() => Navigator.pop(
-    context,
-    SheetSave(
-      _text.text.trim(),
-      _label,
-      [
-        for (final c in _clips)
-          VoiceClip(text: c.text ?? '', id: c.id!, ms: c.ms, wave: c.wave),
-      ],
-      [for (final i in _images) i.id!],
-    ),
+  Timer? _saveTimer;
+
+  /// Closes the sheet with what it holds, once it is the route on top: a save that comes late (a transcription that
+  /// finished) must not pop a dialog or a sheet that was opened over this one, and lose the comment with it.
+  void _save() {
+    _saveTimer?.cancel();
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      _saveTimer = Timer(const Duration(milliseconds: 100), () {
+        if (mounted) _save();
+      });
+      return;
+    }
+    Navigator.pop(context, _result());
+  }
+
+  SheetSave _result() => SheetSave(
+    _text.text.trim(),
+    _label,
+    [
+      for (final c in _clips)
+        VoiceClip(text: c.text ?? '', id: c.id!, ms: c.ms, wave: c.wave),
+    ],
+    [for (final i in _images) i.id!],
   );
 
   /// There is something here that closing would lose: typed text, a clip removed or a new one on its way.
@@ -710,6 +724,7 @@ class _SheetState extends State<_Sheet> {
         controller: _text,
         focus: _focus,
         autofocus: widget.editing == null,
+        fill: c.fieldOver(c.popover),
         hint: t.commentHint,
         maxLines: 8,
         session: _session,

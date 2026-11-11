@@ -215,21 +215,24 @@ class _CommentsPaneState extends State<CommentsPane>
               bottom: bottomRoom(context),
             ),
             children: [
+              // the count is the strip's: what there is to send, not what a voice message holds
               if (pending.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 12, 0),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          t.pendingComments(pending.length),
-                          style: head.copyWith(color: c.accent),
-                        ),
+                        child: tab.comments.toSend == 0
+                            ? const SizedBox.shrink()
+                            : Text(
+                                t.pendingComments(tab.comments.toSend),
+                                style: head.copyWith(color: c.accent),
+                              ),
                       ),
                       FilledButton(
                         onPressed:
                             tab.state == TabState.open &&
-                                tab.comments.sendable.isNotEmpty
+                                tab.comments.toSend > 0
                             ? () => sendPendingComments(context, tab)
                             : null,
                         child: Text(t.send),

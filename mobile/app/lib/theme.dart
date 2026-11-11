@@ -241,6 +241,12 @@ class NbColors extends ThemeExtension<NbColors> {
   @override
   NbColors copyWith() => this;
 
+  /// The message field's fill over [under] (the chat's background, or the comment sheet's popover): the text colour
+  /// faintly over it, so that the field lifts off its surface in every theme, light ones included (where popover and
+  /// background are the same) and needs no border, which showed as a rim over the chat's bottom blur.
+  Color fieldOver(Color under) =>
+      Color.alphaBlend(foreground.withValues(alpha: .12), under);
+
   /// The user's bubble: the primary colour over the background.
   Color get userBubble =>
       Color.alphaBlend(primary.withValues(alpha: .28), background);
