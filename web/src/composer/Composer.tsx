@@ -13,6 +13,7 @@ import { MentionPicker } from './MentionPicker.tsx';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
 import { PromptHistory } from './PromptHistory.tsx';
+import type { PromptEntry } from '@nota-bene/shared';
 import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
 import { CtxNudge } from '@/stats/CtxNudge.tsx';
@@ -63,16 +64,25 @@ export function Composer() {
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
   // ↑/↓ through the prompts sent before (newest first): `id` is the recalled one (null = not browsing), `stash` the draft it replaced
-  // (only a list choice makes one: a walk starts from an empty field)
+  // (a list choice or a search makes one); `query` is the text a search walk started from (null = the whole list is walked)
   const recall = useMemo(() => recallList(items), [items]);
   const recallRef = useRef(recall);
   recallRef.current = recall;
-  const browse = useRef<{ id: string | null; stash: string }>({ id: null, stash: '' });
-  useEffect(() => void (browse.current = { id: null, stash: '' }), [sid]);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const browse = useRef<{ id: string | null; stash: string; query: string | null }>({ id: null, stash: '', query: null });
+  useEffect(() => void (browse.current = { id: null, stash: '', query: null }), [sid]);
   // where the draft is in the list: the recalled entry (by id, so a list that grows under the walk keeps the place), else
   // the entry with that text (a repeat collapsed away); -1 = not browsing, the draft is no recalled prompt any more
+  const walkList = (): PromptEntry[] => {
+    const query = browse.current.query;
+    if (query === null) return recallRef.current;
+    const q = query.toLowerCase();
+    // the typed text itself is no step: the first ↑ always changes the field
+    return recallList(itemsRef.current.filter((x) => x.text !== query && x.text.toLowerCase().includes(q)));
+  };
   const placeOf = (value: string): number => {
-    const list = recallRef.current;
+    const list = walkList();
     const b = browse.current;
     if (b.id === null) return -1;
     const at = list.findIndex((x) => x.id === b.id);
@@ -220,25 +230,27 @@ export function Composer() {
       return;
     }
     setAskForce(false);
-    browse.current = { id: null, stash: '' };
+    browse.current = { id: null, stash: '', query: null };
     const r = dispatch(sendBatch(force));
     if (r === 'empty' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
     if (r === 'sent') ref.current?.focus();
   };
 
-  // true when the key was a history step. A walk starts only from an empty field (a draft is never replaced); it goes on while
-  // the draft is still exactly the recalled prompt: any edit ends it
+  // true when the key was a history step. A walk starts from an empty field (the whole list) or from a single-line draft (the
+  // prompts containing it; ↓ past the newest brings the draft back); it goes on while the draft is still exactly the recalled
+  // prompt: any edit ends it
   const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     const el = e.currentTarget;
-    const list = recallRef.current;
     const b = browse.current;
     const { selectionStart: from, selectionEnd: to, value } = el;
+    let list = walkList();
     const at = placeOf(value);
-    if (at < 0) b.id = null;
+    if (at < 0) { b.id = null; b.query = null; list = recallRef.current; }
     if (from !== to) return false;
     const show = (to: number, draft: string) => {
       b.id = to >= 0 ? list[to]!.id : null;
+      if (to < 0) b.query = null;
       dispatch(setDraft(draft));
       // the controlled value lands on the next render; the caret goes after it
       requestAnimationFrame(() => ref.current?.setSelectionRange(draft.length, draft.length));
@@ -246,8 +258,17 @@ export function Composer() {
     if (e.key === 'ArrowUp') {
       if (!list.length) return false;
       if (at < 0) {
-        if (value !== '') return false;
-        b.stash = '';
+        if (value === '') {
+          b.stash = '';
+          show(0, list[0]!.text);
+          return true;
+        }
+        if (value.includes('\n')) return false;
+        // typed text: the prompts that contain it; none = the field's own
+        b.query = value;
+        list = walkList();
+        if (!list.length) { b.query = null; return false; }
+        b.stash = value;
         show(0, list[0]!.text);
         return true;
       }
@@ -265,7 +286,7 @@ export function Composer() {
   const pickHistory = (picked: string) => {
     const at = placeOf(text);
     const entry = recallRef.current.find((x) => x.text === picked);
-    browse.current = { id: entry?.id ?? null, stash: at >= 0 ? browse.current.stash : text };
+    browse.current = { id: entry?.id ?? null, stash: at >= 0 ? browse.current.stash : text, query: null };
     dispatch(setDraft(picked));
     requestAnimationFrame(() => {
       ref.current?.focus({ preventScroll: true });
