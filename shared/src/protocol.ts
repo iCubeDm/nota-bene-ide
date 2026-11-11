@@ -64,9 +64,17 @@ export type PageAnchor = {
   box?: { x: number; y: number; w: number; h: number };
   near?: string[];
 };
-export type Anchor = TextAnchor | MediaAnchor | PageAnchor;
+/**
+ * Marks on an image attached to the unsent message (protocol 17): `image` is the composer's ImageRef id. Coordinates as in
+ * MediaAnchor. Sent only in the message that carries that image.
+ */
+export type AttachmentAnchor = { kind: 'attachment'; image: string; width: number; height: number; scale?: number; shapes: MediaShape[] };
+export type Anchor = TextAnchor | MediaAnchor | PageAnchor | AttachmentAnchor;
 export const isMediaAnchor = (a: Anchor): a is MediaAnchor => (a as MediaAnchor).kind === 'media';
 export const isPageAnchor = (a: Anchor): a is PageAnchor => (a as PageAnchor).kind === 'page';
+export const isAttachmentAnchor = (a: Anchor): a is AttachmentAnchor => (a as AttachmentAnchor).kind === 'attachment';
+/** Where an anchor points in a file or message; none for an attachment anchor, which belongs to the unsent message. */
+export const anchorSource = (a: Anchor): AnchorSource | undefined => (isAttachmentAnchor(a) ? undefined : a.source);
 export const isTextAnchor = (a: Anchor): a is TextAnchor => !('kind' in a);
 export const QUICK_LABEL_IDS = ['looks-good', 'fire', 'clarify', 'verify', 'example', 'overview', 'patterns',
   'alternatives', 'no-regression', 'out-of-scope', 'needs-tests'] as const;
@@ -102,14 +110,14 @@ export type Comment = {
   sentIn?: string;
   /** attachment ids; labels are assigned at send time */
   images?: string[];
-  /** media comments: how many leading `images` the app generated (the frame, plus the transparent layer in old comments); the rest were pasted. Absent = 2 (old comments). */
+  /** media comments: how many leading `images` the app generated (the frame, plus the transparent layer in old comments); the rest were pasted. Absent = 2 (old comments). An attachment comment (protocol 17) generates 1 (the marked image). */
   genImages?: number;
   /** protocol 14: recordings with their transcripts, at most VOICE_MAX_CLIPS; the batch carries their texts after `text` */
   voice?: VoiceClip[];
 };
 
 /** The number of leading generated images of a comment (0 for a non-media one); the pasted ones follow. */
-export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) ? c.genImages ?? 2 : 0);
+export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) ? c.genImages ?? 2 : isAttachmentAnchor(c.anchor) ? c.genImages ?? 1 : 0);
 
 /**
  * What this server understands beyond the base protocol, announced in `hello` on connect. Every window serves the one
@@ -131,8 +139,9 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 14: voice messages (`send.voice` and `send.lang`, `user.voice`, the `voice-text` event, `/voice`) and voice clips of comments (`Comment.voice`).
 // 15: the project icon: the project folder's picture (`/project-icon`, set from the phone; `/info.icon` is its version or null).
 // 16: a voice `send` may carry `commentIds` with their batch `text` and `images` (the pending comments ride along with a recording).
+// 17: attachment anchors (marks on an image attached to the unsent message) and the `detached` send refusal.
 // (Other additions to protocol 15, such as optional Interaction fields and the `task` event's optional `model`, are listed beside this line by their own changes.)
-export const PROTOCOL = 16;
+export const PROTOCOL = 17;
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
 export const TAKEN_OVER_CODE = 4001;
@@ -279,7 +288,7 @@ export type ServerEvent =
   | { kind: 'resumed'; id: string }
   | { kind: 'server-error'; where: string; message: string }
   /** to the asking socket only, never stored: a `send` the server did not take (the web side clears its pending state) */
-  | { kind: 'send-refused'; id: string; reason: 'busy' | 'switching' }
+  | { kind: 'send-refused'; id: string; reason: 'busy' | 'switching' | 'detached' }
   /** a `! cmd` run began (protocol 11); stored, so a reload shows the block */
   | { kind: 'shell-start'; id: string; cmd: string; ts: number }
   /**
@@ -393,6 +402,12 @@ function isMediaAnchorShape(v: Obj): boolean {
     && Array.isArray(v.shapes) && v.shapes.length > 0 && v.shapes.every(isMediaShape);
 }
 
+function isAttachmentAnchorShape(v: Obj): boolean {
+  return isImageId(v.image) && isPos(v.width) && isPos(v.height)
+    && (v.scale === undefined || (typeof v.scale === 'number' && v.scale > 0 && v.scale < 1))
+    && Array.isArray(v.shapes) && v.shapes.length > 0 && v.shapes.every(isMediaShape);
+}
+
 const isPageText = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= PAGE_TEXT_MAX;
 const isPageList = (v: unknown): v is string[] => Array.isArray(v) && v.length <= PAGE_LIST_MAX && v.every(isPageText);
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -408,6 +423,7 @@ function isAnchor(v: unknown): v is Anchor {
   if (!isObj(v)) return false;
   if (v.kind === 'media') return isMediaAnchorShape(v);
   if (v.kind === 'page') return isPageAnchorShape(v);
+  if (v.kind === 'attachment') return isAttachmentAnchorShape(v);
   if (v.kind !== undefined) return false;
   if (!isObj(v.source)) return false;
   const s = v.source;
@@ -471,6 +487,13 @@ export function toAnchor(a: Anchor): Anchor {
       kind: 'page', source: toSource(a.source) as FileSource, selector: a.selector, trail: [...a.trail],
       ...(a.box === undefined ? {} : { box: { x: a.box.x, y: a.box.y, w: a.box.w, h: a.box.h } }),
       ...(a.near === undefined ? {} : { near: [...a.near] }),
+    };
+  }
+  if (isAttachmentAnchor(a)) {
+    return {
+      kind: 'attachment', image: a.image, width: a.width, height: a.height,
+      ...(a.scale === undefined ? {} : { scale: a.scale }),
+      shapes: a.shapes.map(toShape),
     };
   }
   return { source: toSource(a.source), start: a.start, end: a.end, quote: a.quote, prefix: a.prefix, suffix: a.suffix };

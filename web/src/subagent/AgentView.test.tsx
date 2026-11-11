@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Comment, ServerEvent, SubagentView } from '@nota-bene/shared';
+import { anchorSource, type Comment, type ServerEvent, type SubagentView } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { SelectionButton } from '@/comments/SelectionButton.tsx';
 import { whereOf } from '@/comments/send.ts';
@@ -344,7 +344,7 @@ describe('comments in the subagent tab', () => {
     await select(r, 'a1:0', 6, 11);
     fireEvent.click(screen.getByRole('button', { name: 'Looks good' }));
     const c = store.getState().comments.items[0]!;
-    expect(c.anchor.source).toEqual({ kind: 'message', id: 'a1:0', agent: TOOL });
+    expect(anchorSource(c.anchor)).toEqual({ kind: 'message', id: 'a1:0', agent: TOOL });
     expect(c.anchor).toMatchObject({ quote: 'brave' });
     expect(whereOf(c, store.getState())).toBe('subagent reply «Re-review batch send»');
     setLang('ru');
@@ -368,7 +368,7 @@ describe('comments in the subagent tab', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Looks good' }));
     const c = store.getState().comments.items[0]!;
-    expect(c.anchor.source).toEqual({ kind: 'message', id: 'tool:toolu_in', agent: TOOL });
+    expect(anchorSource(c.anchor)).toEqual({ kind: 'message', id: 'tool:toolu_in', agent: TOOL });
     expect(whereOf(c, store.getState())).toBe('Bash command (npm test) · subagent «Re-review batch send»');
   });
 

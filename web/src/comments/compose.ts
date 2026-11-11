@@ -1,4 +1,4 @@
-import { isMediaAnchor, isPageAnchor, type Comment } from '@nota-bene/shared';
+import { isAttachmentAnchor, isMediaAnchor, isPageAnchor, type Comment } from '@nota-bene/shared';
 import { tIn, type Lang } from '../i18n/index.ts';
 import { describeShape } from '../media/markup/geometry.ts';
 import { pageLines } from '../page/quote.ts';
@@ -27,7 +27,7 @@ export function composeBatch(
   if (!items.length) return general;
   const blocks = items.map((c, i) => {
     const a = c.anchor;
-    const quote = isMediaAnchor(a)
+    const quote = isMediaAnchor(a) || isAttachmentAnchor(a)
       ? a.shapes.map((s) => '> ' + describeShape(s, a.width, a.height)).join('\n')
       : isPageAnchor(a) ? pageLines(a, lang).map((l) => '> ' + l).join('\n')
       : a.quote.split('\n').map((l) => '> ' + l).join('\n');

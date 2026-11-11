@@ -153,3 +153,97 @@ it('another session\'s history is not recalled: the browsing stops with the swit
   await userEvent.keyboard('{ArrowUp}');
   expect(box.value).toBe('');
 });
+
+it('↑ with typed text walks the prompts that contain it (case-insensitive, newest first); ↓ past the newest restores the typed text', async () => {
+  const { box } = setup([p('a', 'fix the Build'), p('b', 'unrelated'), p('c', 'rebuild all'), p('d', 'other'), p('e', 'build docs')]);
+  box.focus();
+  await userEvent.type(box, 'build');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('build docs');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('rebuild all'); // the query stays the typed one, not the recalled text
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('fix the Build');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('fix the Build'); // the oldest match stays
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('rebuild all');
+  await userEvent.keyboard('{ArrowDown}{ArrowDown}');
+  expect(box.value).toBe('build');
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('build');
+});
+
+it('a search collapses repeated texts, also ones made adjacent by the filter', async () => {
+  const { box } = setup([p('a', 'same x'), p('b', 'nope'), p('c', 'same x'), p('d', 'older x')]);
+  box.focus();
+  await userEvent.type(box, 'x');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('older x');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('same x');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('same x'); // the two copies are one step; it is the oldest
+});
+
+it('typed text with no match: ↑ changes nothing; a multi-line draft keeps the native arrows', async () => {
+  const { box } = setup([p('a', 'alpha'), p('b', 'beta')]);
+  box.focus();
+  await userEvent.type(box, 'zzz');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('zzz');
+  await userEvent.clear(box);
+  await userEvent.type(box, 'a{Shift>}{Enter}{/Shift}t');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('a\nt');
+});
+
+it('editing a recalled match ends the walk; the edited text is a new query on the next ↑', async () => {
+  const { box } = setup([p('a', 'foo one'), p('b', 'foo two'), p('c', 'bar')]);
+  box.focus();
+  await userEvent.type(box, 'foo');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('foo two');
+  await userEvent.keyboard('{Backspace}{Backspace}{Backspace}');
+  expect(box.value).toBe('foo ');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('foo two'); // 'foo ' is the new query
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('foo one');
+  await userEvent.keyboard('{ArrowDown}{ArrowDown}');
+  expect(box.value).toBe('foo ');
+});
+
+it('a recalled /command found by search keeps the / menu closed', async () => {
+  const { store, box } = setup([p('a', '/ping now'), p('b', 'x')]);
+  act(() => void store.dispatch(serverEvent({ kind: 'commands', commands: [{ name: 'ping', description: 'Reply PONG' }] })));
+  box.focus();
+  await userEvent.type(box, 'ping');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('/ping now');
+  await raf();
+  act(() => void document.dispatchEvent(new Event('selectionchange')));
+  expect(screen.queryByRole('listbox')).toBeNull();
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('ping');
+});
+
+it('a search skips the typed text itself: the first ↑ always changes the field, and only equal matches means no match', async () => {
+  const { box } = setup([p('a', 'build docs'), p('b', 'build'), p('c', 'x')]);
+  box.focus();
+  await userEvent.type(box, 'build');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('build docs');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(box.value).toBe('build docs');
+  await userEvent.keyboard('{ArrowDown}');
+  expect(box.value).toBe('build');
+  cleanup();
+  const only = setup([p('a', 'build'), p('b', 'x')]);
+  only.box.focus();
+  await userEvent.type(only.box, 'build');
+  await userEvent.keyboard('{ArrowUp}');
+  expect(only.box.value).toBe('build');
+  await userEvent.keyboard('{ArrowDown}');
+  expect(only.box.value).toBe('build');
+});

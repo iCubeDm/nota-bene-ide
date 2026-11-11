@@ -1,4 +1,4 @@
-import { isMediaAnchor, isPageAnchor, type Comment } from '@nota-bene/shared';
+import { anchorSource, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { scrollRangeIntoView } from '@/anchors/scroll.ts';
@@ -40,7 +40,7 @@ const fileRoot = (path: string, ref?: string): HTMLElement | null =>
   [...document.querySelectorAll<HTMLElement>('[data-pane]')].find((e) => e.dataset.filePath === path && (e.dataset.fileRef ?? '') === (ref ?? '')) ?? null;
 
 /** The source item as the card needs it: missing (null), still streaming, or its text. undefined = not a message source. */
-function sourceState(s: RootState, src: Comment['anchor']['source'] | undefined): null | 'streaming' | string | undefined {
+function sourceState(s: RootState, src: AnchorSource | undefined): null | 'streaming' | string | undefined {
   if (src?.kind !== 'message') return undefined;
   // a subagent's conversation: not loaded (never opened in this session, or gone) is missing; its first read is not an orphan yet
   if (src.agent && selectSubagent(s, src.agent)?.status === 'loading') return 'streaming';
@@ -81,16 +81,17 @@ export interface CommentSource {
 export function useCommentSource(c: Comment | undefined): CommentSource {
   const dispatch = useAppDispatch();
   // a string compared by value: the card re-renders when its source item's text changes, not on every feed delta
-  const srcState = useAppSelector((s) => sourceState(s, c?.anchor.source));
+  const anchorSrc = c && anchorSource(c.anchor); // none for an attachment comment
+  const srcState = useAppSelector((s) => sourceState(s, anchorSrc));
   // fully loaded (earlier 0), a source still missing is an orphan again
-  const beforeCompact = useAppSelector((s) => s.feed.earlier > 0) && srcState === null && !(c?.anchor.source.kind === 'message' && c.anchor.source.agent);
+  const beforeCompact = useAppSelector((s) => s.feed.earlier > 0) && srcState === null && !(anchorSrc?.kind === 'message' && anchorSrc.agent);
   const label = useAppSelector((s) => {
-    const src = c?.anchor.source;
+    const src = anchorSrc;
     return src?.kind === 'message' ? selectReplyLabel(s, src.id, false, src.agent) : src ? whereOfFile(src) : null;
   });
   const where = beforeCompact ? t('srcBeforeCompact') : label;
   // a file source: its open view's load state; undefined (tab closed / not loaded yet) means "unknown", not orphaned
-  const fileLoad = useAppSelector((s) => (c?.anchor.source.kind === 'file' ? selectFileLoad(s, c.anchor.source.path, c.anchor.source.ref) : undefined));
+  const fileLoad = useAppSelector((s) => (anchorSrc?.kind === 'file' ? selectFileLoad(s, anchorSrc.path, anchorSrc.ref) : undefined));
   // a media comment: the file's current version, known while its tab is open (undefined = unknown, no claim)
   const version = useAppSelector((s) => (c && isMediaAnchor(c.anchor) ? selectFileVersion(s, c.anchor.source.path, c.anchor.source.ref) : undefined));
   const [orphan, setOrphan] = useState(false);
@@ -101,7 +102,7 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
   // settled item the DOM is the truth: only a rendered item whose text no longer matches counts
   // a file: orphaned only once its view has settled, gone (deleted, binary, too large) or with text the quote is not in
   useEffect(() => {
-    const src = c?.anchor.source;
+    const src = anchorSrc;
     if (!c || src?.kind !== 'file') return;
     if (isMediaAnchor(c.anchor)) return setOrphan(false); // a media mark is drawn from relative coordinates: never orphaned
     if (!fileLoad || fileLoad.s === 'loading') return setOrphan(false);
@@ -115,7 +116,7 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
     setOrphan(!!pane && !rangeForAnchor(textRootOf(pane), c.anchor));
   }, [c, fileLoad, pageGen]);
   useEffect(() => {
-    const src = c?.anchor.source;
+    const src = anchorSrc;
     if (src?.kind === 'file') return;
     if (!c || src?.kind !== 'message' || srcState === undefined || srcState === 'streaming') return setOrphan(false);
     if (srcState === null) return setOrphan(!beforeCompact);
@@ -124,8 +125,8 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
   }, [c, srcState, beforeCompact]);
 
   const jump = () => {
-    if (!c) return;
-    const src = c.anchor.source;
+    const src = anchorSrc;
+    if (!c || !src) return;
     // a file: open (or activate) its tab; the view scrolls once its text is loaded (files.jump)
     if (src.kind === 'file') return void dispatch(jumpToFileComment(src.path, c.id, src.ref));
     // an action's panel exists only while it and its group are open (R-M7-19): open both, and render, before looking

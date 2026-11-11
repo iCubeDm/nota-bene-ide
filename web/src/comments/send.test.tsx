@@ -388,3 +388,16 @@ it('with no pending comments /clear sends', async () => {
   await userEvent.keyboard('{Escape}{Enter}');
   expect(sent).toHaveLength(1);
 });
+
+it('an attachment comment whose image is not in this composer stays out of the send; one whose image is here goes with it', async () => {
+  const A = 'a'.repeat(64), B = 'b'.repeat(64);
+  const att = (id: string, image: string): Comment => cm(id, {
+    anchor: { kind: 'attachment', image, width: 10, height: 10, shapes: [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 0.5, h: 0.5 }] },
+  });
+  const { sent, store, box } = setup([cm('c1'), att('gone', B), att('here', A)]);
+  act(() => void store.dispatch(addImage({ id: A, mediaType: 'image/png' })));
+  await userEvent.type(box, 'see{Enter}');
+  const m = sentOf(sent[0]!);
+  expect(m.commentIds).toEqual(['c1', 'here']);
+  expect(m.images?.map((i) => i.id)).toEqual([A]);
+});

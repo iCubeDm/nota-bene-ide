@@ -1,4 +1,4 @@
-import { generatedImages, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
+import { anchorSource, generatedImages, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
 import { getLang, t, tIn } from '../i18n/index.ts';
 import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
@@ -32,9 +32,10 @@ const pastedImages = (c: Comment): string[] => (c.images ?? []).slice(generatedI
 
 /** Where a comment's fragment lives, for the batch line: the reply label, "my message", or the file. */
 export function whereOf(c: Comment, st?: Parameters<typeof selectReplyLabel>[0]): string {
-  const src = c.anchor.source;
+  const src = anchorSource(c.anchor);
   const a = c.anchor;
   if (isMediaAnchor(a)) return `${whereOfFile(a.source)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${a.width}×${a.height}${a.camera ? ` · ${cameraLine(a.camera, getLang())}` : ''}`;
+  if (!src) return t('srcChat'); // an attachment comment (its own place comes with its UI)
   if (src.kind === 'file') return whereOfFile(src);
   // the batch text names a reply plainly: its number is the index in the CURRENT feed (restarts after a compaction, shifts when earlier history is shown); the quote is the locator
   // a subagent's reply or action is named with the subagent (no numbers); one the loaded conversation does not hold still is not "chat"
@@ -51,8 +52,10 @@ const stable = (v: unknown): unknown =>
   : v;
 const printOf = (c: Comment): string => JSON.stringify(stable([c.text, c.label, c.anchor, c.images, c.genImages, c.voice]));
 const snapshotOf = (st: RootState): Snapshot => {
-  const pending = selectPending(st), draft = selectDraft(st);
-  return { sid: st.feed.session?.id, draft, body: draft.trim(), own: selectImages(st), pending, prints: pending.map(printOf) };
+  const draft = selectDraft(st), own = selectImages(st);
+  // an attachment comment goes only with its image: one whose image is not in this composer stays pending ("detached")
+  const pending = selectPending(st).filter(({ anchor: a }) => !isAttachmentAnchor(a) || own.some((im) => im.id === a.image));
+  return { sid: st.feed.session?.id, draft, body: draft.trim(), own, pending, prints: pending.map(printOf) };
 };
 /** Still the same send? Same session, and every snapshot comment is still pending and unchanged. */
 const unchanged = (st: RootState, snap: Snapshot): boolean =>
