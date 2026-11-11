@@ -45,11 +45,11 @@ void main() {
         // the chat's field over its background, the comment sheet's over the sheet (popover)
         expect(
           _ratio(c.fieldOver(c.background), c.background),
-          greaterThanOrEqualTo(1.1),
+          greaterThanOrEqualTo(1.2),
         );
         expect(
           _ratio(c.fieldOver(c.popover), c.popover),
-          greaterThanOrEqualTo(1.1),
+          greaterThanOrEqualTo(1.2),
         );
       });
     }
@@ -90,6 +90,64 @@ void main() {
       cs.edit('a', 'new', null);
       cs.apply([_c('a')]);
       expect(cs.all.single.text, 'new');
+    });
+  });
+
+  group('unsent comments and the session', () {
+    test('an offline add is not pushed into another session', () {
+      var open = false;
+      var sid = 's1';
+      final sent = <ClientMessageComments>[];
+      final cs = Comments((m) {
+        if (!open) return false;
+        sent.add(m as ClientMessageComments);
+        return true;
+      }, () => sid);
+      cs.add(_c('a').anchor, 'hi', null, id: 'a');
+      sid = 's2';
+      open = true;
+      cs.apply([_c('n')]);
+      expect(
+        sent.expand((m) => m.items).map((x) => x.id),
+        isNot(contains('a')),
+      );
+      expect(cs.all.map((x) => x.id), ['n']);
+    });
+
+    test(
+      'an offline edit of a comment deleted elsewhere does not bring it back',
+      () {
+        var open = false;
+        final sent = <ClientMessageComments>[];
+        final cs = Comments((m) {
+          if (!open) return false;
+          sent.add(m as ClientMessageComments);
+          return true;
+        }, () => 's');
+        cs.apply([_c('a'), _c('b')]);
+        cs.edit('a', 'new', null);
+        open = true;
+        cs.apply([_c('b')]);
+        expect(
+          sent.expand((m) => m.items).map((x) => x.id),
+          isNot(contains('a')),
+        );
+        expect(cs.all.map((x) => x.id), ['b']);
+      },
+    );
+
+    test('an edit that went out is not overlaid or pushed again', () {
+      final sent = <ClientMessageComments>[];
+      final cs = Comments((m) {
+        sent.add(m as ClientMessageComments);
+        return true;
+      }, () => 's');
+      cs.apply([_c('a')]);
+      cs.edit('a', 'new', null);
+      final n = sent.length;
+      cs.apply([]);
+      expect(cs.all, isEmpty);
+      expect(sent.length, n);
     });
   });
 
@@ -138,7 +196,7 @@ void main() {
     );
     await t.pumpAndSettle();
     send();
-    await t.pump(const Duration(milliseconds: 300));
+    await t.pumpAndSettle(const Duration(milliseconds: 100));
     expect(find.text('over'), findsOneWidget);
     expect(got, isNull);
     nav.pop();
