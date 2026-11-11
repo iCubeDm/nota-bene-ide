@@ -13,7 +13,7 @@ import { promptHistoryModal } from './historyModal.ts';
 const SHOWN_MAX = 200;
 
 /**
- * The prompt history as a searchable list (Alt+H) above the composer, next to the mic: newest first, a filter box on top
+ * The prompt history as a searchable list (Alt+H) above the composer, running right from its button left of the field: newest first, a filter box on top
  * (substring hits, then fuzzy ones), ↑↓ Enter Esc. Choosing a prompt puts its text in the draft; it is never sent from here.
  */
 export function PromptHistory({ onPick, onClosed }: { onPick: (text: string) => void; onClosed: () => void }) {
@@ -72,7 +72,7 @@ export function PromptHistory({ onPick, onClosed }: { onPick: (text: string) => 
       </PopoverAnchor>
       <PopoverContent
         side="top"
-        align="end"
+        align="start"
         data-nb-modal=""
         aria-label={t('promptHistory')}
         // the button toggles it: its own pointerdown must not dismiss first (the click would reopen)
