@@ -442,7 +442,7 @@ describe('a detached attachment comment (its image is not in the composer)', () 
     expect(m2.text).toContain('on the image');
   });
 
-  it('is not counted on Send; a send with only detached comments says why instead of doing nothing', async () => {
+  it('is not counted on Send (which stays on); a send with only detached comments says why instead of doing nothing', async () => {
     resetToasts();
     const { sent, box } = setup([att('d1')]);
     expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument(); // no "(1)"

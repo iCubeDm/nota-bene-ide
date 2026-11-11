@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
 import { selectSendable, sendBatch } from '@/comments/send.ts';
+import { selectPending } from '@/comments/slice.ts';
 import { CompactClear } from '@/controls/CompactClear.tsx';
 import { ModePill } from '@/controls/ModePill.tsx';
 import { nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching } from '@/controls/slice.ts';
@@ -13,7 +14,7 @@ import { MentionPicker } from './MentionPicker.tsx';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
 import { PromptHistory } from './PromptHistory.tsx';
-import { MessageInput, MicButton } from './MessageInput.tsx';
+import { MessageInput, MicButton, SendIcon } from './MessageInput.tsx';
 import type { PromptEntry } from '@nota-bene/shared';
 import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
@@ -39,6 +40,7 @@ export function Composer() {
   const conn = useAppSelector(selectConn);
   const onAgentTab = useAppSelector((s) => s.tabs.active.startsWith('agent:')); // the message goes to the main agent, not the subagent on screen
   const nPending = useAppSelector(selectSendable).length;
+  const anyPending = useAppSelector(selectPending).length; // also comments detached from the composer: Send stays on to say why they wait
   const mode = useAppSelector(selectMode);
   const caps = useAppSelector(selectCapabilities);
   const text = useAppSelector(selectDraft);
@@ -165,12 +167,8 @@ export function Composer() {
     if (recPhase === 'idle' && wasRecording.current) ref.current?.focus({ preventScroll: true });
     wasRecording.current = recPhase !== 'idle';
   }, [recPhase]);
-  // Send turns into the mic under the cursor: the second press of a double click on Send must not start a recording
-  const SWAP_GUARD_MS = 400;
-  const swappedAt = useRef(0);
   const micDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || !whisper || switching || recRef.current.st.phase !== 'idle') return;
-    if (Date.now() - swappedAt.current < SWAP_GUARD_MS) return;
     recRef.current.start(true);
     // the button is gone from under the finger once the bar replaces it: the release is read on the window
     const up = () => { window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); recRef.current.release(); };
@@ -183,19 +181,21 @@ export function Composer() {
     onBusy: (d) => void dispatch(d > 0 ? uploadStarted() : uploadFinished()),
   });
 
-  // something to send: text, an image (also one still uploading), as on the phone; pending comments do not count
-  const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
+  // the mic shows while the field has no text; an image (also one still uploading) is something to send, as on the phone
+  const hasText = !!text.trim();
+  const canSend = hasText || images.length > 0 || intake.pending.length > 0 || anyPending > 0;
 
-  // Send gives way to the mic (a send, or the field emptied): note when, and keep the caret in the field if the button that
-  // had it is gone (a send that finished after its composite images were built)
-  const hadContent = useRef(hasContent);
+  // Send goes off once there is nothing left (a send, or the field emptied): keep the caret in the field if the button that
+  // had it lost it (a disabled button, or one that finished after its composite images were built)
+  const hadSend = useRef(canSend);
+  const sendBtn = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
-    if (hadContent.current && !hasContent) {
-      swappedAt.current = Date.now();
-      if (document.activeElement === document.body && !recording) ref.current?.focus({ preventScroll: true });
+    if (hadSend.current && !canSend) {
+      const at = document.activeElement;
+      if ((at === document.body || at === sendBtn.current) && !recording) ref.current?.focus({ preventScroll: true });
     }
-    hadContent.current = hasContent;
-  }, [hasContent, recording]);
+    hadSend.current = canSend;
+  }, [canSend, recording]);
 
   // drop anywhere in the window attaches to the message (a drop inside an open comment popup is taken there first)
   const addRef = useRef(intake.add);
@@ -237,6 +237,7 @@ export function Composer() {
     if (conn === 'open') setFailed(false);
   }, [conn]);
 
+  const sendLabel = shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send');
   const submit = (force: boolean) => {
     if (uploading || switching) return;
     if (force && busy && !askForce) {
@@ -392,8 +393,8 @@ export function Composer() {
             )}
           </>}
           leading={<PromptHistory onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}
-          // the mic while there is nothing to send, Send once there is; pending comments are not content (they ride along with a recording)
-          hasContent={hasContent}
+          // the mic only while the field has no text; Send is always there (off with nothing to send), its badge counts the comments it carries
+          hasContent={hasText}
           mic={voiceOk ? (
             <MicButton
               testId="mic"
@@ -406,11 +407,16 @@ export function Composer() {
             />
           ) : undefined}
           send={
-            <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
-              <Button type="button" className="h-10" disabled={uploading || switching} onClick={() => submit(false)}>
-                {shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send')}
-              </Button>
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
+                  <Button ref={sendBtn} type="button" className="h-10 px-3" disabled={!canSend || uploading || switching} aria-label={sendLabel} onClick={() => submit(false)}>
+                    <SendIcon count={shellMode ? 0 : nPending} run={shellMode} />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{sendLabel}</TooltipContent>
+            </Tooltip>
           }
           trailing={
             <Tooltip>
@@ -438,7 +444,7 @@ export function Composer() {
           <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
           <ShortcodePicker target={ref} />
         </MessageInput>
-        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasContent ? ref : micBox} />}
+        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasText ? ref : micBox} />}
       </div>
       <div data-tools-row className="flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-1 pb-2">
         <input

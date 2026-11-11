@@ -12,6 +12,24 @@ export function MicIcon() {
   );
 }
 
+/** The envelope of the composer's Send; `count` is the comments it carries (a badge, none at 0), `run` swaps it for a terminal prompt (a `!` shell line). */
+export function SendIcon({ count, run }: { count: number; run?: boolean }) {
+  return (
+    <span className="relative inline-flex">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        {run
+          ? <path d="M4 17l6-6-6-6M12 19h8" />
+          : <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></>}
+      </svg>
+      {!run && count > 0 && (
+        <span aria-hidden data-testid="send-count" className="absolute -top-2 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[0.625rem] leading-none font-semibold text-background">
+          {count}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** The mic button of the message field: `tip` is its tooltip (the caller adds the shortcut with `withKey`), `anchor` the box a Whisper prompt points at. */
 export function MicButton({ testId, label, tip, disabled, onPointerDown, onClick, anchor, compact }: {
   testId: string; label: string; tip: string; disabled?: boolean; compact?: boolean;
@@ -42,12 +60,13 @@ export function MicButton({ testId, label, tip, disabled, onPointerDown, onClick
 }
 
 /**
- * The message field of the composer and of the comment popup, one component: [leading] [text field] [one action button]
- * [trailing]. The action is the mic while there is nothing to send and Send once there is (`hasContent`), as in a
- * messenger; with no mic (`mic` undefined: no voice on this server) it is always Send. `bar` (a recording) replaces the
+ * The message field of the composer and of the comment popup, one component: [leading] [text field] [action]
+ * [trailing]. By default the mic shows while the field has no text (`hasContent` false) and Send is always there, beside it;
+ * with `swap` (the comment popup's Add) the one button is the mic while there is nothing to send and Add once there is.
+ * With no mic (`mic` undefined: no voice on this server) it is always Send. `bar` (a recording) replaces the
  * field and the action. A fragment: the caller's flex row lays the parts out.
  */
-export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPaste, readOnly, placeholder, ariaLabel, dataShell, fieldClass, compact, overlay, leading, hasContent, mic, send, trailing, bar, children }: {
+export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPaste, readOnly, placeholder, ariaLabel, dataShell, fieldClass, compact, overlay, leading, hasContent, swap, mic, send, trailing, bar, children }: {
   textareaRef: Ref<HTMLTextAreaElement>;
   id?: string;
   value: string;
@@ -67,6 +86,7 @@ export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPa
   /** left of the field (the prompt history) */
   leading?: ReactNode;
   hasContent: boolean;
+  swap?: boolean;
   mic?: ReactNode;
   send: ReactNode;
   /** after the action (the Stop button) */
@@ -100,7 +120,7 @@ export function MessageInput({ textareaRef, id, value, onChange, onKeyDown, onPa
             {overlay}
           </div>
           {children}
-          {hasContent || !mic ? send : mic}
+          {swap ? (hasContent || !mic ? send : mic) : <>{!hasContent && mic}{send}</>}
         </>
       )}
       {trailing}

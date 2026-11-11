@@ -294,6 +294,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           ariaLabel={t('commentPh')}
           // as in the composer: the mic while the field is empty, Add once it has something
           hasContent={showAdd}
+          swap
           mic={protocol >= 14 ? (
             <MicButton
               compact
