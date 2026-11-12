@@ -729,6 +729,24 @@ describe('idle', () => {
     await c.closed();
     expect(fs.existsSync(socketPath())).toBe(false);
   });
+  it('a connection that comes and goes does not postpone it: a window that leaves, or one that only asks the state, is not work', async () => {
+    fakeClock();
+    const h = await start({ idleMs: 5000 });
+    const keep = await open();
+    vi.advanceTimersByTime(3000);
+    for (let i = 0; i < 3; i++) {
+      const c = await open();
+      expect(await c.status()).toMatchObject({ running: false });
+      c.sock.destroy();
+      await until(() => h.status().clients === 1);
+      vi.advanceTimersByTime(600); // 3000 + 3 x 600: past the 5000 that the first clock gave it, not past a clock restarted by a close
+    }
+    vi.advanceTimersByTime(199);
+    expect(h.status()).toMatchObject({ clients: 1 });
+    vi.advanceTimersByTime(1);
+    expect(await h.done).toBe(0);
+    await keep.closed();
+  });
   it('the clock starts again when a job is done, does not run while one is running, and then unloads the model', async () => {
     fakeClock();
     const h = await start({ idleMs: 5000 });

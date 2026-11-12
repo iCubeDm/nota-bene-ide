@@ -162,10 +162,9 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
   };
 
   const clearIdle = (): void => { clearTimeout(idle); idle = undefined; };
-  /** With nothing queued or running the idle clock starts (or restarts): connections do not count, jobs do. */
+  /** With nothing queued or running the idle clock starts, unless it runs already: connections do not count, jobs do (a window that leaves, or one that only asks `status`, does not postpone the exit). */
   const rest = (): void => {
-    if (ending || running || queued > 0) return;
-    clearIdle();
+    if (ending || running || queued > 0 || idle) return;
     idle = setTimeout(() => void stop('idle', `idle for ${idleMs} ms`), idleMs);
   };
 
