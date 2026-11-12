@@ -102,7 +102,7 @@ The chat is the first tab and cannot be closed. Type a message and press Enter t
 - Shift+Tab in the message field cycles the permission mode (see below).
 - Tool calls appear as lines such as `Read` or `Bash` with their argument. Click one to see the full input and output; errors are red.
 - A permission request shows as a card with **Allow** and **Deny**. In plan mode, the plan appears as a card: **Approve** continues in the previous mode, **Keep planning** stays in plan mode.
-- A question from the agent (Claude's AskUserQuestion, or a Codex or omp question) is a card too: its header, each question with its options and their descriptions (radio buttons, or checkboxes when several may be picked) and a free-text answer. **Send** answers, **Cancel** declines. The phone shows the same card.
+- A question from the agent (Claude's AskUserQuestion, or a Codex or omp question) is a card too: its header, each question with its options and their descriptions (radio buttons, or checkboxes when several may be picked) and a free-text answer. **Send answers** sends them, **Cancel** declines. The phone shows the same card.
 - Mermaid and SVG blocks in replies render as diagrams. The **Open diagram** button opens one full size in its own tab.
 - The bar under the message box shows the context size, the 5-hour and weekly plan limits, and the session's API cost (on a plan, what the session would cost at API prices). An answer that comes without plan limits keeps the last known ones until their reset time. The compact and clear buttons by the message box run `/compact` and `/clear`.
 - An idle conversation is compacted for you 50 minutes after the last turn, if the window saw no activity for 15 minutes and the context is at least 200,000 tokens, so the prompt cache is not wasted. Click the idle-compaction indicator to turn it off for the project, or set `"idleCompaction": false` in `~/.claude/settings.json`.
@@ -364,7 +364,7 @@ The gear in the header opens a menu: the interface language, the colour theme, t
 
 - **Windows**: every running window with its folder, port, state (working or idle), number of open tabs and uptime. Open, Restart agent, Restart server and Stop work on any of them.
 - **Storage**: what is on disk for pasted images, voice recordings, comments, chat history from before compaction and media marks, with **Clean unreferenced files**, which moves pasted images and voice recordings that no message or comment references and that are over a day old, and the history of sessions that no longer exist, to the state folder's `trash/`. Nothing is deleted.
-- **Voice messages (Whisper)**: off by default. **Install Whisper** downloads the `whisper-small` speech model with the transformers runtime from npm and Hugging Face (about 430 MB to download, 770 MB on disk) into the `whisper` folder of the state folder, after a confirmation that names the exact path. The model runs in a separate thread, so the window stays responsive while it transcribes, and in a background process that all windows of this computer share: it loads the model at the first recording and unloads it after 10 minutes without one, so the model's memory is used once, not once per window. Once it is installed, a checkbox turns Whisper on or off: with it on, the microphone buttons of this window and of the phone (in the message field and in comments) record up to 10 minutes and this computer transcribes the recording, a long one in parts of up to a minute. Without Whisper the microphone button offers to install it, or to turn it on. The audio of voice messages is not thrown away after it is transcribed: see Voice messages in the chat section. **Spoken language** (with Whisper installed, on a new enough server) chooses what you speak: **Detect automatically** (the default) lets Whisper recognise the language of each recording from its first 30 seconds and falls back to the interface language when it is not sure or the recording is very short; picking one of the six languages pins it. The choice belongs to this computer and is shared by every window. **Remove Whisper** stops that background process and deletes the model files, not the recordings.
+- **Voice messages (Whisper)**: off by default. **Install Whisper** downloads the `whisper-small` speech model with the transformers runtime from npm and Hugging Face (about 430 MB to download, 770 MB on disk) into the `whisper` folder of the state folder, after a confirmation that names the exact path. After the install it needs no network: every window and the shared process read the model from that folder and fetch nothing. The model runs in a separate thread, so the window stays responsive while it transcribes, and in a background process that all windows of this computer share: it loads the model at the first recording and unloads it after 10 minutes without one, so the model's memory is used once, not once per window. Once it is installed, a checkbox turns Whisper on or off: with it on, the microphone buttons of this window and of the phone (in the message field and in comments) record up to 10 minutes and this computer transcribes the recording, a long one in parts of up to a minute. Without Whisper the microphone button offers to install it, or to turn it on. The audio of voice messages is not thrown away after it is transcribed: see Voice messages in the chat section. **Spoken language** (with Whisper installed, on a new enough server) chooses what you speak: **Detect automatically** (the default) lets Whisper recognise the language of each recording from its first 30 seconds and falls back to the interface language when it is not sure or the recording is very short; picking one of the six languages pins it. The choice belongs to this computer and is shared by every window. **Remove Whisper** stops that background process and deletes the model files, not the recordings.
 - **Defaults**: interface language, interface scale (90–150 %: text and spacing grow, for every window at once), and the agent mode for projects that have none of their own.
 - **Themes**: the six colour themes, each with a swatch of its own colours; pick one. It is the same choice as the Theme row of the gear menu.
 - **About**: version, state folder, where the logs are, Node version.
@@ -498,9 +498,11 @@ so a newer APK installs over the older one and keeps the phone's key and pairing
   app reopens the chat used last, when its host is online and still has that window.
 - **Chat.** The window's conversation as on the desktop (Markdown, highlighted code, formulas, Mermaid diagrams as
   pictures; tap a diagram to zoom). Consecutive tool calls fold into one "N actions" line, with its errors and comments;
-  tap it to open the lines, and a line to see its result. Send (while the agent works, the message waits for the turn
+  tap it to open the lines, and a line to see its result. A tool line on a Markdown file, an image or a video of the
+  project has an open button. Long-press a message for the quick labels, *Comment*, *Copy*, *Reply* (quotes it in the
+  field) and, except on a reply, *Select text*. Send (while the agent works, the message waits for the turn
   or, with *Send now*, interrupts it) and *Stop*. The header pill shows the session and its state (online, working with
-  the current tool and the time, waiting for your answer, compacting, offline); tap it for the window sheet: model,
+  what it does (reading files, running commands, …) and for how long, waiting for your answer, compacting, offline); tap it for the window sheet: model,
   effort, mode and *Restart agent*. The ring beside it is the context meter; tap it for the context sheet: tokens, the
   5-hour and weekly limits, the session's cost, idle compaction, *Compact*, *Clear* and *Stats* (the usage report of the
   computer, as the desktop's Usage tab). A tool asking for permission opens a sheet with the whole command; a question
@@ -508,7 +510,7 @@ so a newer APK installs over the older one and keeps the phone's key and pairing
   stays readable and sending is off.
 - **Panes.** A chat is three panes: Files, Chat and Comments, with a pill of tabs and a swipe across the screen (side
   by side on a wide screen). Files lists the session's files, then the project's folders and files with a search; a
-  Markdown file, an image or a video opens full screen, any other text file read-only (the first 2 MiB), and in a git
+  Markdown file, an image or a video opens full screen, any other text file of up to 2 MiB read-only (a larger or binary file says so, with its size), and in a git
   repository the pane has *Changes* and *Log* tabs whose files open as diffs.
 - **One tab.** The phone is a tab of the window: if the window is open on the computer, *Work here* takes it over,
   and the computer's tab offers to take it back.
@@ -524,7 +526,7 @@ so a newer APK installs over the older one and keeps the phone's key and pairing
   with *Undo*) and sent with its *Send*; the sent ones fold under "Sent". Typed text in the field takes them along as the
   desktop sends them, and so does a voice message: a recording made while comments are pending carries them. The desktop
   shows them too, because they are the window's comments. A comment is highlighted in its file; tap it to open it there.
-  Comments on HTML pages and 3D models stay on the desktop.
+  Comments on HTML pages, 3D models and images attached on the desktop stay there and are sent from there.
 - **Images.** Images open from the file links in the chat and zoom with a pinch (a double tap zooms in); the paperclip
   opens a sheet with *Gallery*, *File*, *Camera* and your latest photos to attach up to ten. Videos play in the app.
 - **Voice messages.** With Whisper on at the computer (Settings, Voice messages there; without it the microphone offers to
@@ -540,8 +542,7 @@ so a newer APK installs over the older one and keeps the phone's key and pairing
   folder shows it on every phone (as the session's avatar in the list and in the chat header). The desktop shows nothing
   new.
 - **Versions.** The app needs Nota Bene 1.8.0 or newer on the computer, the first version with `nota-bene remote`.
-  What a computer on an older version cannot do is off in the app: the microphone is greyed and says the computer needs
-  an update, and *Set icon* is not offered.
+  A newer app leaves out what an older computer cannot do.
 - **Not yet:** push notifications. Open items are tracked in #63.
 
 ## State on disk
