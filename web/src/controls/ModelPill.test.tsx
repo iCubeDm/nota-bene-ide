@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -509,4 +509,71 @@ it('the name slot fits the longest name: every name is in it, one visible', asyn
   const names = Array.from((Array.from(sl.children)[2] as HTMLElement).children) as HTMLElement[];
   expect(names.map((n) => n.textContent)).toEqual(['Auto', 'Low', 'Medium', 'High', 'Extra high', 'Max']);
   expect(names.filter((n) => !n.className.includes('invisible')).map((n) => n.textContent)).toEqual(['High']);
+});
+
+// the detail line: the full description of the row under the pointer or focus, else the current row's
+const LONG = 'The most capable model for the hardest tasks: long agentic work, deep refactors and careful review of large changes';
+const DETAILED: ModelOption[] = [
+  { value: 'sonnet', name: 'Sonnet 5', description: 'Everyday coding, fast and economical for most work, with a description far too long for one row of the menu', resolved: 'claude-sonnet-5', efforts: ['low', 'high'] },
+  { value: 'opus', name: 'Opus 5', description: LONG, resolved: 'claude-opus-5', efforts: ['high', 'max'] },
+  { value: 'haiku', name: 'Haiku 5', description: 'Fast', resolved: 'claude-haiku-5' },
+];
+const detailed = () => {
+  const s = setup();
+  s.emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: DETAILED }, { kind: 'model', model: 'claude-sonnet-5', effort: 'low' });
+  return s;
+};
+const detail = (menu: HTMLElement) => within(menu).getByTestId('model-detail');
+
+it('with nothing under the pointer or focus, the detail line shows the current row\'s full description', async () => {
+  detailed();
+  const menu = await open();
+  expect(detail(menu)).toHaveTextContent(DETAILED[0]!.description);
+});
+
+it('hovering a row shows its full description in the detail line; leaving the menu returns to the current row\'s', async () => {
+  detailed();
+  const menu = await open();
+  await userEvent.hover(within(menu).getByText('Opus 5'));
+  expect(detail(menu)).toHaveTextContent(LONG);
+  await userEvent.hover(within(menu).getByText('Haiku 5'));
+  expect(detail(menu)).toHaveTextContent(/^Fast$/);
+  fireEvent.pointerLeave(menu);
+  expect(detail(menu)).toHaveTextContent(DETAILED[0]!.description);
+});
+
+it('a menu closed over a hovered row opens again on the current row\'s description', async () => {
+  detailed();
+  let menu = await open();
+  await userEvent.hover(within(menu).getByText('Opus 5'));
+  expect(detail(menu)).toHaveTextContent(LONG);
+  await userEvent.keyboard('{Escape}');
+  menu = await open();
+  expect(detail(menu)).toHaveTextContent(DETAILED[0]!.description);
+});
+
+it('keyboard focus on a row does the same', async () => {
+  detailed();
+  const menu = await open();
+  act(() => within(menu).getByText('Opus 5').closest<HTMLElement>('[role="menuitem"]')!.focus());
+  expect(detail(menu)).toHaveTextContent(LONG);
+  act(() => slider(menu).focus()); // the effort row is not a model: back to the current one
+  expect(detail(menu)).toHaveTextContent(DETAILED[0]!.description);
+});
+
+it('the detail line is muted, wraps, keeps two lines of height and clamps at three; it sits between the list and the effort row', async () => {
+  detailed();
+  const menu = await open();
+  const d = detail(menu);
+  for (const c of ['text-muted-foreground', 'break-words', 'min-h-8', 'line-clamp-3', 'text-[0.71875rem]']) expect(d.className).toContain(c);
+  expect(d.closest('div')!.className).toContain('border-t');
+  expect(within(menu).getByTestId('model-list').compareDocumentPosition(d) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(d.compareDocumentPosition(slider(menu)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it('a row stays truncated, yet its accessible name keeps the full description', async () => {
+  detailed();
+  const menu = await open();
+  const row = within(menu).getByRole('menuitem', { name: new RegExp(`Opus 5.*${LONG}`) });
+  expect(row.querySelector('.truncate')).toHaveTextContent(LONG);
 });

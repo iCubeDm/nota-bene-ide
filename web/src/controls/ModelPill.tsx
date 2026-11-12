@@ -150,7 +150,7 @@ export function ModelPill() {
   return (
     <DropdownMenu
       onOpenChange={(o) => {
-        if (!o) setQuery('');
+        if (!o) { setQuery(''); setHover(null); }
         // the menu focuses itself on open; a long list wants the search field instead
         else if (searchable) requestAnimationFrame(() => searchRef.current?.focus());
       }}
@@ -205,6 +205,7 @@ export function ModelPill() {
           <>
             <DropdownMenuItem
               aria-expanded={showMore}
+              onFocus={() => setHover(null)}
               onSelect={(e) => { e.preventDefault(); setMore(!more); }}
               className="px-2.5 py-1.5 text-[0.75rem] text-muted-foreground"
             >
@@ -214,6 +215,15 @@ export function ModelPill() {
           </>
         )}
         </div>
+        {/* the full description of the row under the pointer or focus, else the current row's: the rows cut it short. The
+            block keeps two lines of height so the menu does not jump between rows. Screen readers get the row's own name. */}
+        {models.length > 0 && (
+          <div className="shrink-0 border-t border-border-soft px-2.5 py-1.5">
+            <p data-testid="model-detail" aria-hidden className="m-0 line-clamp-3 min-h-8 break-words text-[0.71875rem] leading-4 text-muted-foreground">
+              {(hover ?? current)?.description}
+            </p>
+          </div>
+        )}
         {efforts && (
           <div className="shrink-0 border-t border-border-soft px-2.5 pb-1 pt-1.5" onFocus={() => setHover(null)}>
             <EffortSlider levels={efforts} value={cur?.effort} echo={cur} onPick={pickEffort} />
