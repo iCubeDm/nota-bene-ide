@@ -513,6 +513,7 @@ export const zhCN: Dict = {
   agentSignIn: '登录 Codex',
   agentRetry: '重试',
   effort_max: '最大',
+  effort_auto: '自动',
   modelCacheWarn: (k) => `下一次回复会重新读取上下文：约 ${k}k 令牌`,
   tasksLabel: '后台任务',
   tasksRunning: (n) => `${n} 个任务`,

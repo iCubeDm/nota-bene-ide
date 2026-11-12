@@ -513,6 +513,7 @@ export const ptBR: Dict = {
   agentSignIn: 'Entrar no Codex',
   agentRetry: 'Tentar novamente',
   effort_max: 'Máximo',
+  effort_auto: 'Automático',
   modelCacheWarn: (k) => `A próxima resposta relê o contexto: ~${k}k tokens`,
   tasksLabel: 'Tarefas em segundo plano',
   tasksRunning: (n) => `${n} ${n === 1 ? 'tarefa' : 'tarefas'}`,

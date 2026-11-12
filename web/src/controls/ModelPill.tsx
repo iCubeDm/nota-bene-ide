@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useT } from '@/i18n/index.ts';
 import { selectStats } from '@/stats/slice.ts';
 import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { EffortSlider } from './EffortSlider.tsx';
 import { pickModel, selectModel, selectModelSwitchable, selectModels, selectSwitching } from './slice.ts';
 
 /**
@@ -88,7 +89,8 @@ export function ModelPill() {
     if (o === current && effort === cur?.effort) return;
     void dispatch(pickModel(modelFor(o), effort));
   };
-  const pickEffort = (e: EffortLevel) => {
+  /** `undefined`: Auto, the model's default: no effort in the message, which the server applies as setEffort(null) */
+  const pickEffort = (e: EffortLevel | undefined) => {
     if (e === cur?.effort) return;
     void dispatch(pickModel(current ? modelFor(current) : (id ?? ''), e));
   };
@@ -185,19 +187,8 @@ export function ModelPill() {
         )}
         </div>
         {efforts && (
-          <div role="group" aria-label={t('effortLabel')} className="flex shrink-0 flex-wrap items-center gap-1 border-t border-border-soft px-2.5 pb-1 pt-1.5">
-            <span className="mr-1 text-[0.6875rem] text-muted-foreground">{t('effortLabel')}</span>
-            {efforts.map((e) => (
-              <DropdownMenuItem
-                key={e}
-                aria-current={cur?.effort === e || undefined}
-                onFocus={() => setHover(null)}
-                onSelect={() => pickEffort(e)}
-                className={`inline-flex h-[22px] w-auto items-center rounded-full border border-border-soft px-2 py-0 text-[0.6875rem] ${cur?.effort === e ? 'bg-muted font-medium' : ''}`}
-              >
-                {t(`effort_${e}`)}
-              </DropdownMenuItem>
-            ))}
+          <div role="group" aria-label={t('effortLabel')} className="shrink-0 border-t border-border-soft px-2.5 pb-1 pt-1.5" onFocus={() => setHover(null)}>
+            <EffortSlider levels={efforts} value={cur?.effort} onPick={pickEffort} />
           </div>
         )}
         {warn && <p data-testid="cache-warn" className="m-0 shrink-0 border-t border-border-soft px-2.5 pb-1.5 pt-1.5 text-[0.71875rem] leading-snug text-warn">{t('modelCacheWarn', kTokens)}</p>}

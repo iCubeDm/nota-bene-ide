@@ -528,6 +528,7 @@ export const en: Dict = {
   agentSignIn: 'Sign in to Codex',
   agentRetry: 'Retry',
   effort_max: 'Max',
+  effort_auto: 'Auto',
   modelCacheWarn: (k) => `The next reply re-reads the context: ~${k}k tokens`,
   // background tasks (M4-14)
   tasksLabel: 'Background tasks',

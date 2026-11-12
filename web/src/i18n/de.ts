@@ -513,6 +513,7 @@ export const de: Dict = {
   agentSignIn: 'Bei Codex anmelden',
   agentRetry: 'Erneut versuchen',
   effort_max: 'Max',
+  effort_auto: 'Auto',
   modelCacheWarn: (k) => `Die nächste Antwort liest den Kontext neu ein: ~${k}k Tokens`,
   tasksLabel: 'Hintergrundaufgaben',
   tasksRunning: (n) => `${n} Aufgabe${n === 1 ? '' : 'n'}`,

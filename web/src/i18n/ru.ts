@@ -526,6 +526,7 @@ export const ru = {
   agentSignIn: 'Войти в Codex',
   agentRetry: 'Повторить',
   effort_max: 'Максимум',
+  effort_auto: 'Авто',
   modelCacheWarn: (k: number) => `Следующий ответ перечитает контекст: ~${k} тыс. токенов`,
   // background tasks (M4-14)
   tasksLabel: 'Фоновые задачи',
