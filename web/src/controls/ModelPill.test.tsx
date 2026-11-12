@@ -317,6 +317,18 @@ it('the effort slider shows the current level and its stops, Auto first', async 
   expect(sl).toHaveTextContent('High');
 });
 
+it('the fill reaches the current stop: High of Auto/Low/Medium/High/Xhigh/Max is 3/5, Auto is empty', async () => {
+  const s = setup();
+  s.emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: WIDE }, { kind: 'model', model: 'claude-sonnet-5', effort: 'high' });
+  const menu = await open();
+  const fill = () => slider(menu).querySelector<HTMLElement>('[data-fill]')!;
+  expect(stopsOf(menu)).toHaveLength(6);
+  expect(fill().style.width).toBe('60%');
+  s.emit({ kind: 'model', model: 'claude-sonnet-5' });
+  expect(slider(menu)).toHaveAttribute('aria-valuetext', 'Auto');
+  expect(fill().style.width).toBe('0%');
+});
+
 it('ArrowRight from High picks Extra high through pickEffort, keeping the session model id', async () => {
   const s = setup();
   s.emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: WIDE }, { kind: 'model', model: 'claude-sonnet-5[1m]', effort: 'high' });
