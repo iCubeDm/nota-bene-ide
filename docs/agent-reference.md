@@ -13,6 +13,28 @@ The local root compat symlinks (`server.mjs`, `public`, `ide.sh`, `skill`, `.ses
 
 Node >= 23.6 (the server runs `.ts` directly). From the repo root:
 
+For a checkout-backed command available from any project directory, install a symlink once
+(run these commands from the checkout root, with dependencies installed):
+
+```sh
+mkdir -p "$HOME/.local/bin"
+ln -s "$PWD/bin/nota-bene-dev.mjs" "$HOME/.local/bin/nota-bene-dev"
+```
+
+Ensure `~/.local/bin` is on `PATH`. `nota-bene-dev [dir] --agent codex` uses the ordinary
+launcher from that checkout: it builds stale web assets, opens a browser and supervises
+the server. All normal arguments work, including `--new`, `--resume`, `--fork`,
+`--detach` and the discovery helpers. With no directory it opens the caller's current
+directory; with no agent it offers the ordinary terminal agent picker. Ctrl-C stops a
+foreground launch; use the window's Stop button after `--detach`.
+
+State defaults to `~/.nota-bene-dev` (shared with `npm run dev`), so the installed app's
+windows and preferences are separate. The command deliberately ignores inherited
+`NOTA_BENE_HOME`; set `NOTA_BENE_DEV_HOME` to use another dev state directory. Native
+agent login and transcript storage remain managed by each provider. The symlink follows
+the checkout's current branch; it does not update code or switch branches. This dev-only
+command is not shipped in the npm package. For Vite hot reload, use `npm run dev` below.
+
 - `/nb`, `/nb new`, `/nb fork` — from Claude Code, via `plugin/skills/nb/` (linked with `ln -sfn "$PWD/plugin/skills/nb" ~/.claude/skills/nb`, or installed as the plugin): open the window for the caller's folder; resume its last session / start fresh / continue this conversation as a branch. The skill runs `open.sh --data '${CLAUDE_PLUGIN_DATA}' --plan` (single-quoted: a live `${...}` makes Claude Code refuse the line) (guards, the "already open" check; it launches nothing and prints `NB-RUN` / `NB-WAIT` / `NB-NAME`), then runs the foreground launcher as a Claude Code background task (it shows in the session's task list, its output is the window's log; stopping the task, or ending the Claude Code session, stops the window), then `open.sh --wait` (polls `--find` up to 40 s) for the URL. `open.sh` finds the launcher in this order: a checkout (`bin/nota-bene.mjs` three levels above the physical skill dir, Node >= 23.6); else the npm package `nota-bene-ide@<plugin version>` under the plugin data dir (`${CLAUDE_PLUGIN_DATA}` is not in the env of Bash commands, so SKILL.md passes it as `--data`; Node >= 22). The first run installs it with `npm install --prefix <data>` inside NB-RUN (`open.sh --run`, in the background task, never in the `--plan` preprocessing; the plan adds an `NB-NOTE:` line and `--wait` waits for the install up to 540 s, `NB_INSTALL_WAIT_SECS` for tests); one install per version in `<data>/<version>/` (about 330 MB each, not pruned yet); `.nb-installed` there (written last) tells it is done, `.nb-install-failed` makes `--wait` report a failure at once, and `--wait` also reports at once an install whose lock holds a dead pid, or that never started. Once installed, NB-RUN is plain `node <data>/<version>/node_modules/nota-bene-ide/bin/nota-bene.mjs ...`. The commands in the plan are built by `q()`: safe words as they are, anything else single-quoted (Claude Code refuses backslash-escaped spaces and `$'\320...'` escapes). The plugin version must equal the root `package.json` version (a test checks it) and `plugin/` must hold no `package.json` or lockfile (Claude Code would run its own npm install there). Test: `scripts/nb-open.test.ts` (kept out of `plugin/`, which ships to users).
 - `node bin/nota-bene.mjs [dir] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]` — the launcher the skill uses. It rebuilds a stale `web/dist` (at launch and before a restart), then opens the browser (`--no-open` skips that). One window per folder (a launch takes the folder's lock and gives way to a window already serving it, waiting up to 10 s for one in its restart gap). It supervises the server: exit 75 relaunches at once with `--continue`; 77 (HANDOVER) hands the window over to a newer version (see In-app update below); 0, 130, 143 exit; anything else is a crash, relaunched after 1 s, giving up at 5 crashes within 60 s. A relaunch keeps the port and the registry entry (no other launch takes the port meanwhile); a 98 on a relaunch gives up at once. `--detach` prints one line (`opened URL` or `already-open URL`, the URL with the `#t=` login fragment) and leaves the window running on its own (terminal use; its log is `$TMPDIR/nota-bene-PORT.log`). Without `--detach` it runs in the foreground: the server's `Nota Bene: URL  project: DIR` line is its first output after any build, Ctrl-C (SIGINT) or SIGTERM stops the server and unregisters the window. The server watches its parent (`NOTA_BENE_LAUNCHER_PID` vs `process.ppid`, every 2 s) and exits when the launcher is gone, so a SIGKILLed launcher leaves no orphan; a foreground launcher likewise stops (as on SIGTERM) when its parent shell is gone (not a `--detach` child, nor one started with ppid 1).
 - `node bin/nota-bene.mjs --find DIR [--scan]` prints the port of the live window serving DIR (exit 1 if none; `--scan` also asks the other ports of the range, for a window whose registry write was lost); `node bin/nota-bene.mjs --last DIR` prints DIR's last session id if its transcript still exists (exit 1 otherwise); `--url PORT` prints the window's login URL, `--front PORT` brings it to front logged in (see Access token). All are the skill's helpers.

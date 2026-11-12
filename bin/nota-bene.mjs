@@ -969,7 +969,7 @@ async function supervise(o, autoPort, release, state) {
   }
 }
 
-async function main(argv) {
+export async function main(argv) {
   // a command of its own, with its own arguments (server/src/remote/cli.ts): before the window options are parsed
   if (argv[0] === 'remote') return (await import(pathToFileURL(REMOTE).href)).remoteMain(argv.slice(1));
   let o;

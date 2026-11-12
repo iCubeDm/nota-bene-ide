@@ -15,6 +15,7 @@ import { shellEnv } from '../server/src/session/shellText.ts';
 import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, ensureBuildAsync, handoverTarget, needsBuild, portFree, serverEnv } from './nota-bene.mjs';
 
 const BIN = fileURLToPath(new URL('./nota-bene.mjs', import.meta.url));
+const DEV_BIN = fileURLToPath(new URL('./nota-bene-dev.mjs', import.meta.url));
 const FAKE = fileURLToPath(new URL('../server/test/fixtures/hello.json', import.meta.url));
 
 let tmp: string;
@@ -158,6 +159,40 @@ async function fakeWindowHandler(root: string, seen: string[] = []) {
 const tokenOf = () => fs.readFileSync(path.join(home, 'token'), 'utf8').trim();
 const authHeaders = () => ({ authorization: `Bearer ${tokenOf()}` });
 const loginRe = '#t=[0-9a-f]{64}';
+
+describe('checkout dev command', () => {
+  it('defaults to dev state even when the production state is inherited, and forwards the provider', () => {
+    const r = spawnSync(process.execPath, [DEV_BIN, '--agent', 'codex', '--find', project], {
+      env: env({ HOME: tmp, NOTA_BENE_DEV_HOME: '' }), encoding: 'utf8',
+    });
+    expect(r.status).toBe(1); // no window yet
+    expect(r.stderr).toBe('');
+    expect(fs.existsSync(path.join(tmp, '.nota-bene-dev', 'providers', 'codex'))).toBe(true);
+    expect(fs.readdirSync(home)).toEqual([]);
+  });
+
+  it('launches from a symlink on the caller folder, detaches, discovers and stops the owned window', async () => {
+    const link = path.join(tmp, 'nota-bene-dev');
+    fs.symlinkSync(DEV_BIN, link);
+    const cwd = path.join(project, 'folder with spaces');
+    fs.mkdirSync(cwd);
+    const prod = path.join(tmp, 'production');
+    const e = env({ NOTA_BENE_HOME: prod, NOTA_BENE_DEV_HOME: path.relative(cwd, home) });
+    const r = spawnSync(link, ['--agent', 'claude', '--port', '4793', '--detach', '--fake', FAKE, '--no-open'], {
+      cwd, env: e, encoding: 'utf8', timeout: 20000,
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(new RegExp(`^opened http://127\\.0\\.0\\.1:4793/${loginRe}\\n$`));
+    expect(await info(4793)).toMatchObject({ root: cwd, supervised: true });
+    const found = spawnSync(process.execPath, [link, '--find', cwd], { cwd, env: e, encoding: 'utf8' });
+    expect(found.status).toBe(0);
+    expect(found.stdout.trim()).toBe('4793');
+    expect(fs.existsSync(prod)).toBe(false);
+    const w = windows()['4793']!;
+    process.kill(w.launcherPid!, 'SIGTERM');
+    await waitFor(async () => !windows()['4793'] && await portFree(4793));
+  }, 25000);
+});
 /** The login value the launcher puts in a window's URL: HMAC of its port and the launch's nonce (asked of the window itself). */
 async function loginOf(port: number): Promise<string> {
   const { loginCredential } = await import('../server/src/auth.ts');
