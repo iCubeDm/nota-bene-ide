@@ -1,8 +1,9 @@
 // The main-thread side of the Whisper pipeline: a worker thread owns the model (see pipelineWorker.mjs), this file talks to it.
 //
 // Where the worker file lives: the checkout runs the server as .ts from server/src/dictation/; the published package is one
-// esbuild bundle at server/src/main.js, so import.meta.url differs and scripts/build-package.mjs copies pipelineWorker.mjs
-// (and npm-shrinkwrap.json) to server/src/dictation/ of the package. `here()` resolves both.
+// esbuild bundle at server/src/main.js (and the Whisper host another, server/src/host.js), so import.meta.url differs and
+// scripts/build-package.mjs copies pipelineWorker.mjs (and npm-shrinkwrap.json) to server/src/dictation/ of the package.
+// `dictationAssetDir()` resolves both, for either bundle: they sit in the same folder.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
@@ -25,7 +26,7 @@ export interface WorkerLike {
 export type WorkerFactory = (data: WorkerData) => WorkerLike;
 export type WorkerData = { dir: string; pkg: string; model: string; revision: string; dtype: string };
 
-/** The folder holding pipelineWorker.mjs and npm-shrinkwrap.json: beside this file in the checkout, server/src/dictation/ in the bundle. */
+/** The folder holding pipelineWorker.mjs and npm-shrinkwrap.json: beside this file in the checkout, server/src/dictation/ beside the bundle (main.js or host.js). */
 export function dictationAssetDir(): string {
   const here = fileURLToPath(import.meta.url);
   return here.endsWith('.ts') ? path.dirname(here) : path.join(path.dirname(here), 'dictation');
