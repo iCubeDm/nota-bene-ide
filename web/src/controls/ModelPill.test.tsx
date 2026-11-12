@@ -68,7 +68,7 @@ it('lists the models compactly: one row each with a check on the current one, an
   expect(rows[0]).toHaveAttribute('aria-current', 'true');
   expect(rows[0]).toHaveTextContent('Sonnet 5Everyday✓');
   expect(rows[1]).not.toHaveAttribute('aria-current');
-  expect(within(menu).getAllByRole('group', { name: 'Effort' })).toHaveLength(1);
+  expect(within(menu).getAllByRole('slider', { name: 'Effort' })).toHaveLength(1);
   expect(within(menu).getByRole('slider', { name: 'Effort' })).toHaveAttribute('aria-valuetext', 'Medium');
   expect(stopsOf(menu)).toHaveLength(4); // Auto + Low, Medium, High
 });
@@ -355,4 +355,57 @@ it('left/right/home/end keep the focus on the slider', async () => {
   act(() => sl.focus());
   await userEvent.keyboard('{ArrowLeft}{ArrowRight}{Home}{End}');
   expect(sl).toHaveFocus();
+});
+
+const wideSetup = (effort?: 'high') => {
+  const s = setup();
+  s.emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: WIDE }, { kind: 'model', model: 'claude-sonnet-5', ...(effort && { effort }) });
+  return s;
+};
+
+it('a quick reversal before the echo sends the way back', async () => {
+  const s = wideSetup('high');
+  const sl = slider(await open());
+  act(() => sl.focus());
+  await userEvent.keyboard('{ArrowRight}{ArrowLeft}');
+  expect(s.sent.at(-1)).toMatchObject({ type: 'model', effort: 'high' });
+});
+
+it('Auto, right, left before the echo ends on Auto', async () => {
+  const s = wideSetup();
+  const sl = slider(await open());
+  act(() => sl.focus());
+  await userEvent.keyboard('{ArrowRight}{ArrowLeft}');
+  expect(s.sent.at(-1)).toMatchObject({ type: 'model', model: 'sonnet' });
+  expect(s.sent.at(-1)).not.toHaveProperty('effort');
+});
+
+it('a press on the label or the name slot sends nothing', async () => {
+  const s = wideSetup('high');
+  const sl = slider(await open());
+  const n = s.sent.length;
+  const [label, track, slot] = Array.from(sl.children) as HTMLElement[];
+  track!.getBoundingClientRect = () => ({ left: 0, width: 100, right: 100, top: 0, bottom: 20, height: 20, x: 0, y: 0, toJSON() {} });
+  for (const target of [label!, slot!]) {
+    await userEvent.pointer([{ keys: '[MouseLeft>]', target, coords: { clientX: 100 } }, { keys: '[/MouseLeft]', coords: { clientX: 100 } }]);
+  }
+  expect(s.sent).toHaveLength(n);
+});
+
+it('a refused change: the echo with the unchanged level returns the slider to the actual level', async () => {
+  const s = wideSetup('high');
+  const sl = slider(await open());
+  act(() => sl.focus());
+  await userEvent.keyboard('{ArrowRight}');
+  expect(sl).toHaveAttribute('aria-valuetext', 'Extra high');
+  s.emit({ kind: 'model', model: 'claude-sonnet-5', effort: 'high' });
+  expect(sl).toHaveAttribute('aria-valuetext', 'High');
+  expect(sl).toHaveAttribute('aria-valuenow', '3');
+});
+
+it('the slider and its group have different accessible names', async () => {
+  const s = wideSetup('high');
+  const menu = await open();
+  expect(within(menu).getAllByLabelText('Effort')).toHaveLength(1);
+  void s;
 });

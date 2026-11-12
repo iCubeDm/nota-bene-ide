@@ -90,8 +90,8 @@ export function ModelPill() {
     void dispatch(pickModel(modelFor(o), effort));
   };
   /** `undefined`: Auto, the model's default: no effort in the message, which the server applies as setEffort(null) */
+  // the slider de-duplicates against its own pending stop: `cur` is stale until the echo, so a quick reversal needs no guard here
   const pickEffort = (e: EffortLevel | undefined) => {
-    if (e === cur?.effort) return;
     void dispatch(pickModel(current ? modelFor(current) : (id ?? ''), e));
   };
   const searchable = models.length >= SEARCH_MIN;
@@ -187,8 +187,8 @@ export function ModelPill() {
         )}
         </div>
         {efforts && (
-          <div role="group" aria-label={t('effortLabel')} className="shrink-0 border-t border-border-soft px-2.5 pb-1 pt-1.5" onFocus={() => setHover(null)}>
-            <EffortSlider levels={efforts} value={cur?.effort} onPick={pickEffort} />
+          <div className="shrink-0 border-t border-border-soft px-2.5 pb-1 pt-1.5" onFocus={() => setHover(null)}>
+            <EffortSlider levels={efforts} value={cur?.effort} echo={cur} onPick={pickEffort} />
           </div>
         )}
         {warn && <p data-testid="cache-warn" className="m-0 shrink-0 border-t border-border-soft px-2.5 pb-1.5 pt-1.5 text-[0.71875rem] leading-snug text-warn">{t('modelCacheWarn', kTokens)}</p>}

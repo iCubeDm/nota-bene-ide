@@ -8,9 +8,11 @@ import { useT } from '@/i18n/index.ts';
  * It is a menu item (so the menu's arrow navigation reaches it) that plays the slider role; ←/→/Home/End stay inside it.
  * A level is sent on a key press or when the pointer is released, never while dragging.
  */
-export function EffortSlider({ levels, value, onPick }: {
+export function EffortSlider({ levels, value, echo, onPick }: {
   levels: readonly EffortLevel[];
   value: EffortLevel | undefined;
+  /** changes identity with every model echo, even an unchanged one (a refused change): the pending stop is dropped */
+  echo?: unknown;
   /** `undefined`: Auto */
   onPick: (e: EffortLevel | undefined) => void;
 }) {
@@ -28,7 +30,7 @@ export function EffortSlider({ levels, value, onPick }: {
   const [drag, setDrag] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const track = useRef<HTMLDivElement>(null);
-  useEffect(() => setPending(null), [cur]);
+  useEffect(() => setPending(null), [cur, echo]);
 
   const shown = drag ?? pending ?? cur;
   const label = hover ?? shown;
@@ -69,7 +71,7 @@ export function EffortSlider({ levels, value, onPick }: {
         commit(to);
       }}
       onPointerDown={(e) => {
-        if (e.button !== 0) return;
+        if (e.button !== 0 || !track.current?.contains(e.target as Node)) return; // the label and the name slot are not the track
         e.currentTarget.setPointerCapture?.(e.pointerId);
         setDrag(stopOf(e.target) ?? stopAt(e.clientX));
       }}
