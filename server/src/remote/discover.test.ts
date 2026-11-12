@@ -102,7 +102,8 @@ describe('window discovery', () => {
     }
   });
 
-  it('a provider without a token is skipped quietly; a loose token is reported', async () => {
+  // no mode bits on Windows (the profile's ACL is trusted): there a token in place of a link is what is reported
+  it.skipIf(process.platform === 'win32')('a provider without a token is skipped quietly; a loose token is reported', async () => {
     await window('claude', 'a');
     const codex = providerStateDir(home, 'codex');
     fs.mkdirSync(codex, { recursive: true });
@@ -115,5 +116,22 @@ describe('window discovery', () => {
     expect(w.list()).toHaveLength(1);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/readable by other users/);
+  });
+
+  it.runIf(process.platform === 'win32')('a provider without a token is skipped quietly; a junction as the token is reported', async () => {
+    await window('claude', 'a');
+    const codex = providerStateDir(home, 'codex');
+    fs.mkdirSync(codex, { recursive: true });
+    const target = path.join(tmp, 'elsewhere');
+    fs.mkdirSync(target);
+    fs.symlinkSync(target, path.join(codex, 'token'), 'junction'); // no Developer Mode or admin needed
+    const w = new Windows({ pollMs: 60_000 });
+    const warnings: string[] = [];
+    w.on('warn', (m: string) => warnings.push(m));
+    await w.start();
+    w.stop();
+    expect(w.list()).toHaveLength(1);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/symbolic link/);
   });
 });

@@ -35,8 +35,10 @@ it('one JSON line per event, in a private day file of a private folder', () => {
   const a = mk();
   a.write('server-start', { root: '/proj', skip: undefined });
   expect(lines()).toEqual([{ ts: '2026-11-03T16:27:10.025Z', port: 4778, pid: process.pid, ev: 'server-start', root: '/proj' }]);
-  expect(fs.statSync(dir).mode & 0o777).toBe(0o700);
-  expect(fs.statSync(path.join(dir, '2026-11-03.jsonl')).mode & 0o777).toBe(0o600);
+  if (process.platform !== 'win32') { // no mode bits on Windows (the profile's ACL is trusted)
+    expect(fs.statSync(dir).mode & 0o777).toBe(0o700);
+    expect(fs.statSync(path.join(dir, '2026-11-03.jsonl')).mode & 0o777).toBe(0o600);
+  }
 });
 
 it('what the page asked for, never what it said', () => {

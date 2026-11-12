@@ -66,17 +66,64 @@ export function hostKey(): KeyPair {
     return { priv, pub: publicOf(priv) };
   }
   const k = generateKeyPair();
-  // 'wx' through a link: two first starts agree on one key, as with the token
+  // two first starts agree on one key, as with the token
+  return createOnce(file, b64u(k.priv)) ? k : settled(file, hostKey);
+}
+
+/** link() codes of a file system without hard links (as in auth.ts). */
+const NO_LINKS = new Set(['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'ENOSYS']);
+
+/**
+ * Creates the private `file` with `content` once; false when another caller got there first. Written whole to a tmp
+ * file ('wx') and linked in: the name appears only with its content, and the link fails if the file is there.
+ * Without hard links (FAT/exFAT, some network shares): created in place with O_EXCL, still once-only (`settled` then
+ * waits out the moment a reader may see it empty).
+ */
+function createOnce(file: string, content: string): boolean {
   const tmp = `${file}.new${process.pid}`;
-  fs.writeFileSync(tmp, b64u(k.priv), { mode: 0o600, flag: 'wx' });
+  fs.writeFileSync(tmp, content, { mode: 0o600, flag: 'wx' });
   try {
-    fs.linkSync(tmp, file);
-    return k;
+    try {
+      fs.linkSync(tmp, file);
+    } catch (e) {
+      if (!NO_LINKS.has((e as NodeJS.ErrnoException).code ?? '')) throw e;
+      writeExclusive(file, content);
+    }
+    return true;
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
-    return hostKey();
+    return false;
   } finally {
     fs.rmSync(tmp, { force: true });
+  }
+}
+
+/** `content` into a new `file` (O_EXCL: EEXIST when it is there, even as a symlink); a failed write removes it again. */
+function writeExclusive(file: string, content: string): void {
+  // Windows: CREATE_NEW follows a dangling symlink and creates its target; an lstat first keeps the symlink refused there
+  if (process.platform === 'win32' && fs.lstatSync(file, { throwIfNoEntry: false })) throw Object.assign(new Error(`EEXIST: file already exists, open '${file}'`), { code: 'EEXIST' });
+  const fd = fs.openSync(file, 'wx', 0o600);
+  try {
+    fs.writeSync(fd, content);
+  } catch (e) {
+    fs.closeSync(fd);
+    fs.rmSync(file, { force: true });
+    throw e;
+  }
+  fs.closeSync(fd);
+}
+
+/** `read` of a file another caller has just created with `createOnce`: an empty one is waited for (~1 s). */
+function settled<T>(file: string, read: () => T): T {
+  for (let i = 0; ; i++) {
+    try {
+      return read();
+    } catch (e) {
+      let empty = false;
+      try { empty = fs.lstatSync(file).size === 0; } catch { /* gone: the read says so */ }
+      if (!empty || i >= 40) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
   }
 }
 
@@ -88,18 +135,8 @@ export function controlSecret(): string {
   const have = readPrivateFile(file, SECRET_RE, 'a secret (64 hex characters)', 'delete it to make a new one (a running `nota-bene remote` then has to be restarted)');
   if (have) return have;
   const t = randomBytes(32).toString('hex');
-  // as the host key: written whole, then linked in, so two first callers agree on one secret
-  const tmp = `${file}.new${process.pid}`;
-  fs.writeFileSync(tmp, t, { mode: 0o600, flag: 'wx' });
-  try {
-    fs.linkSync(tmp, file);
-    return t;
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
-    return controlSecret();
-  } finally {
-    fs.rmSync(tmp, { force: true });
-  }
+  // as the host key: two first callers agree on one secret
+  return createOnce(file, t) ? t : settled(file, controlSecret);
 }
 
 export type Device = { id: string; pub: string; name?: string; addedAt: number };

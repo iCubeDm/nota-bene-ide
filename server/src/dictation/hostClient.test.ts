@@ -82,16 +82,29 @@ afterEach(async () => {
   // first: nothing may go on after the test (a connect, a start, a retry, a wait), and nothing it started may live on
   const all = [...clients, hostClient];
   for (const c of all) c.close();
-  for (const child of [...all.flatMap((c) => [...c.children]), ...strays]) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  const killed = [...all.flatMap((c) => [...c.children]), ...strays].filter((child) => child.exitCode === null && child.signalCode === null);
+  for (const child of killed) child.kill('SIGKILL');
+  // a kill is not an exit: on Windows a host that is still going holds its folder (its cwd) and its log, and the rmSync below fails
+  await Promise.all(killed.map((child) => exitOf(child, 5000)));
   for (const f of fakes) await f.stop();
   for (const s of servers) await new Promise<void>((r) => s.close(() => r()));
   // only then the folder; the env goes back to this file's own folder, never to unset (that is the real home)
   vi.stubEnv('NOTA_BENE_HOME', sandbox);
   vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '60000'); // a test that shortened the idle time (one that timed out too) leaves no short one behind
-  fs.rmSync(home, { recursive: true, force: true });
+  // Windows: a file a process has just closed (a host that exited, a scanner that opened what was written) can keep its folder for a moment
+  fs.rmSync(home, { recursive: true, force: true, ...(WIN ? { maxRetries: 10, retryDelay: 50 } : {}) });
   vi.restoreAllMocks();
   sandboxed();
 });
+
+/** Resolves when `child` has exited, or after `ms` (a teardown never hangs). */
+function exitOf(child: ChildProcess, ms: number): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, ms);
+    child.once('exit', () => { clearTimeout(t); resolve(); });
+  });
+}
 
 function make(o: HostClientOptions = {}): HostClient {
   const c = new HostClient({ report: (where, e) => { reports.push([where, e]); }, ...o });
