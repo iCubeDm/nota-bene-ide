@@ -121,7 +121,8 @@ fs.copyFileSync(process.env.STUB_BIN_SRC, path.join(bin, 'nota-bene.mjs'));
 beforeEach(() => {
   const t = fs.mkdtempSync(path.join(tmp, 't-'));
   home = path.join(t, 'home');
-  nbHome = path.join(t, 'nb');
+  // Windows: USERPROFILE is the temp home, and a state folder outside the profile is refused (state.ts sharedHomeRefusal)
+  nbHome = WIN ? path.join(home, 'nb') : path.join(t, 'nb');
   claudeDir = path.join(t, 'claude');
   project = path.join(t, 'project');
   for (const d of [home, nbHome, claudeDir, project]) fs.mkdirSync(d);
