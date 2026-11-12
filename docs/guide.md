@@ -19,6 +19,7 @@ Contents
 - [Security](#security)
 - [Remote access (prototype)](#remote-access-prototype)
 - [State on disk](#state-on-disk)
+- [Windows](#windows)
 - [Troubleshooting](#troubleshooting)
 
 ## Starting a window
@@ -44,7 +45,7 @@ nota-bene [dir] [options]
 npx nota-bene-ide [dir] [options]
 ```
 
-`dir` is the project folder and defaults to the current one. The launcher refuses your home folder and `/`: it asks you to `cd` into a project first.
+`dir` is the project folder and defaults to the current one. The launcher refuses your home folder and `/` (on Windows also a drive root such as `C:\` and a share root such as `\\server\share`): it asks you to `cd` into a project first.
 
 | Option | Meaning |
 |---|---|
@@ -58,7 +59,7 @@ npx nota-bene-ide [dir] [options]
 | `--url PORT` | Print the login URL of the window on PORT. Use it to log in a second browser. For a Codex or omp window add `--agent codex` or `--agent omp`. |
 | `--front PORT` | Bring the window on PORT to the front in the browser, logged in. For a Codex or omp window add `--agent codex` or `--agent omp`. |
 
-Without `--detach` the launcher stays in the foreground; Ctrl-C stops the server and closes the window. The first line it prints after any build is `Nota Bene: URL  project: DIR`.
+Without `--detach` the launcher stays in the foreground; Ctrl-C (or, on Windows, closing the terminal) stops the server and closes the window. The first line it prints after any build is `Nota Bene: URL  project: DIR`.
 
 Helpers that the `/nb` skill uses, handy in scripts: `nota-bene --find DIR [--scan]` prints the port of the live window serving DIR (exit 1 if there is none), `nota-bene --last DIR` prints DIR's last session id if its transcript still exists, `nota-bene --version`, `nota-bene --help`.
 
@@ -194,13 +195,22 @@ Press Enter. The command runs on the server in the project folder, and its outpu
 The rules:
 
 - Ordinary commands only. There is no terminal behind it and standard input is closed, so anything that waits for input (an editor such as vim, a pager, `git rebase -i`, `sudo`, a login or a password prompt) gets an empty input and ends by itself, usually with an error. Run those in a real terminal.
-- It runs as `$SHELL -lc` (a login shell) when `$SHELL` is sh, bash, zsh, dash or ksh, and as `/bin/sh` otherwise. Nota Bene's own variables, and the ones Claude Code sets for its sessions, are not passed on.
+- On macOS and Linux it runs as `$SHELL -lc` (a login shell) when `$SHELL` is sh, bash, zsh, dash or ksh, and as `/bin/sh` otherwise. On Windows a setting picks the shell (below). Nota Bene's own variables, and the ones Claude Code sets for its sessions, are not passed on.
 - One at a time. A second one is refused with "Not run: a command is still running. Stop it or wait for it."
 - It works while the agent is busy, because it does not go through the agent.
-- Stop in the block ends it: the whole process group gets TERM, and KILL three seconds later if something is still there. A command that runs longer than 10 minutes is stopped the same way and marked "stopped: it ran longer than 10 minutes". Background jobs started by the command end with it.
+- Stop in the block ends it: on macOS and Linux the whole process group gets TERM, and KILL three seconds later if something is still there. A command that runs longer than 10 minutes is stopped the same way and marked "stopped: it ran longer than 10 minutes". Background jobs started by the command end with it.
 - A command can be at most 32 KB. The block shows the last 64 KB of output with ANSI colour codes removed; the agent is given the last 32 KB of each of stdout and stderr.
 - With pending comments or images in the draft it is not run: "Not run: the message has pending comments or images. Send or remove them first."
 - To send a message that begins with `!` to the agent, put a space before it. A draft of several lines is always a message, never a command, and so is `![` (a Markdown image).
+
+**On Windows** there is no `$SHELL`: Settings → Defaults → **Shell for ! commands** (shown only on Windows) picks the shell.
+
+- **Auto** (the default) takes Git Bash, else PowerShell 7, else Windows PowerShell 5.1. Git Bash is found from `CLAUDE_CODE_GIT_BASH_PATH`, else in the Git for Windows install that `git` on `PATH` belongs to; the WSL `bash` is never used.
+- **Git Bash**, **PowerShell 7** (`pwsh`), **Windows PowerShell** and **cmd** pick one shell. A chosen shell that is not installed is not swapped for another: the run is refused with "Git Bash is not installed (Settings → Defaults → Shell for ! commands)".
+- Git Bash runs `bash -lc`; PowerShell runs without your profile (`-NoProfile`); `cmd` runs one line only, so join commands with `&`.
+- The first line of the block names the shell that ran, for example `[Git Bash]`. When it was not Git Bash, the agent is told which shell ran.
+- Stop, the 10-minute limit and closing the window end the command at once, with no TERM grace. Background jobs of a Git Bash command end with it; a background process started from PowerShell or `cmd` that outlives its shell keeps running.
+- Output of console programs in the OEM code page is decoded, so non-English text reads correctly.
 
 **How the agent hears about it.** Nothing is sent to the agent when the command finishes, and no extra turn is started. The finished run is queued, and in front of your next message the server puts the command and its output in the form Claude Code itself uses for `!` commands (`<bash-input>`, `<bash-stdout>`, `<bash-stderr>`). Up to 10 finished runs wait; together they are capped at 64 KB, newest kept, and a note says how many earlier runs were left out. A message that is itself a `/command` does not take the queued runs, so the command still works as one. A session switch or `/clear` drops the queue.
 
@@ -411,7 +421,7 @@ The full list is in the window's Hotkeys help. Tab keys use Alt because Chrome k
 Nota Bene gives a web page the power to read your project and run an agent, so it is built to let in only you.
 
 - **Local only.** The server binds to `127.0.0.1`. Nothing outside your machine can connect. Hosts and origins are checked on top of that.
-- **Access token.** The first launch creates `<state>/token` (state is `~/.nota-bene`, see below): 32 random bytes as hex, mode 600, in a folder with mode 700. Every route and the WebSocket need a credential derived from it. The token itself is never put on a command line, in an environment variable, in a URL or in a log, and the agent's environment and `!` commands do not get it.
+- **Access token.** The first launch creates `<state>/token` (state is `~/.nota-bene`, see below): 32 random bytes as hex, mode 600, in a folder with mode 700 (on Windows, private through your profile's access rights: see [Windows](#windows)). Every route and the WebSocket need a credential derived from it. The token itself is never put on a command line, in an environment variable, in a URL or in a log, and the agent's environment and `!` commands do not get it.
 - **How login works.** When the launcher opens your browser, it opens a small page in `<state>/open/` (mode 600) that redirects to `http://127.0.0.1:PORT/#t=LOGIN`. LOGIN is a keyed hash of the token, the port and a per-launch random value, not the token. The page removes it from the address bar, sends it to the server once, and the server answers with an HttpOnly, SameSite=Strict cookie `nb_<port>` that lasts a year and a key that the page keeps in its local storage. The cookie alone opens only `GET` of `/file` and `/attach/<id>` (what `<img>` and `<video>` need). Everything else, including the WebSocket, also needs the key.
 - **A login belongs to one launch.** The login value, the cookie and the key all die when the launcher exits. After a crash relaunch they are replaced and the launcher opens a fresh login page. Restarting the server from the window keeps them, so open tabs stay logged in.
 - **A second browser.** `nota-bene --url PORT` prints the login URL of a running window. Open it in the other browser. The URL works until that window's launcher exits. The command first checks that the port really answers as your window, and refuses with an error for a port that cannot prove it.
@@ -567,9 +577,24 @@ All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME`
 | `runtime/` | releases installed by the in-app update, and its state and log (see [Updates](#updates)) |
 | `audit/YYYY-MM-DD.jsonl` | the audit log of system events of every window ([Audit log](#audit-log)) |
 | `usage/` | the Usage tab: token counts of every project and short labels (the first 64 characters of a prompt, a subagent's description) |
-| `remote/` | the remote connector's host key (`host.key`), paired phones (`devices.json`), relay address (`config.json`), all mode 600, and its control socket (`control.sock`); deleting `host.key` unpairs every phone |
+| `remote/` | the remote connector's host key (`host.key`), paired phones (`devices.json`), relay address (`config.json`), all mode 600, and its control socket (`control.sock`; on Windows a named pipe, with the secret its clients prove in `control-secret`); deleting `host.key` unpairs every phone |
+| `whisper-host/` | the shared Whisper process's socket (on Windows a named pipe and `host-secret`), start lock and log |
+
+On Windows `~` is your user profile (`%USERPROFILE%`), and the state folder must stay inside it: see [Windows](#windows).
 
 The one exception is media marks: `<project>/.nota-bene/marks/<comment id>/frame.jpg` and `layer.png`, with a `.nota-bene/.gitignore` containing `*`. They are the only thing Nota Bene writes into a project folder.
+
+## Windows
+
+Nota Bene runs on Windows natively, without WSL or Docker. Everything above applies, with these differences.
+
+- **What it needs.** Node.js 22 or newer (a source checkout: 23.6 or newer) . [Git for Windows](https://git-scm.com/download/win) is recommended: with its Git Bash, Claude Code has its Bash tool; without it Claude Code runs shell commands in PowerShell. Nota Bene looks for it in `CLAUDE_CODE_GIT_BASH_PATH`, then beside `git` on `PATH`, then in `Program Files\Git`; without it the first message shows a "Git Bash recommended" notice and the window works on. Codex and omp are found on `PATH` with their `.exe` or `.cmd` names; for Codex installed through npm its bundled `codex.exe` is started directly. `NOTA_BENE_CODEX` and `CODEX_CLI_PATH` may name a `.exe`, a `.cmd` or a `.js` file.
+- **Starting.** `nota-bene` works in PowerShell and `cmd`, and `/nb` works in Claude Code on Windows. Ctrl+C or closing the terminal stops a foreground window; a launcher killed from the Task Manager takes its server with it at once. The `--detach` log is in `%TEMP%`.
+- **`!` commands** run in the shell of Settings → Defaults → **Shell for ! commands**: Auto (Git Bash, else PowerShell 7, else Windows PowerShell), Git Bash, PowerShell 7, Windows PowerShell or cmd. See [Shell commands with !](#shell-commands-with-).
+- **The state folder.** File modes mean nothing on Windows, so the token and the other private files are not checked for mode or owner: they are kept private by the access rights of your user profile, which other users of the computer cannot read. So the state folder (`%USERPROFILE%\.nota-bene`, or `NOTA_BENE_HOME`) must be inside your profile; a folder elsewhere (`D:\nb`) is readable by every user by default and is refused. If you have restricted such a folder's access rights to yourself by hand, set `NOTA_BENE_ALLOW_SHARED_HOME=1` to use it. A symbolic link or a junction in place of a private file is refused.
+- **Paths.** Paths show as `C:/Users/...` in the window. In an agent's reply, `src\a.ts` opens the same file as `src/a.ts`, and an image under `%TEMP%` opens from either `C:\` or `C:/` form; on macOS and Linux a backslash stays part of a file name. A project at a drive root (`D:\`) serves its files. Shortcut tips name Ctrl.
+- **Voice messages and remote control** work as elsewhere. The shared Whisper process and the `nota-bene remote` connector listen on named pipes of your own instead of socket files, and their clients prove a secret file in the state folder (`whisper-host/host-secret`, `remote/control-secret`, made by themselves). If `remote/control-secret` is deleted or replaced, restart a running connector.
+- **Not yet:** 3D models (the experimental model tab and `.blend` conversion) are not supported on Windows.
 
 ## Troubleshooting
 
@@ -587,7 +612,23 @@ If Claude Code's sandbox mode is on, the first `/nb` can end with "cannot write 
 
 ### A refused token file
 
-If `<state>/token` is readable by group or others, is a symbolic link, belongs to another user, or does not hold 64 hex characters, the launcher stops before starting a server and prints the file and the fix, for example ``fix it with `chmod 600 <file>`, or delete it to make a new token``. Nothing is replaced silently, because a new token logs every open window out. The same goes for `control-token` and for a state folder owned by another user (point `NOTA_BENE_HOME` at a folder of your own).
+If `<state>/token` is readable by group or others, is a symbolic link, belongs to another user, or does not hold 64 hex characters, the launcher stops before starting a server and prints the file and the fix, for example ``fix it with `chmod 600 <file>`, or delete it to make a new token``. Nothing is replaced silently, because a new token logs every open window out. The same goes for `control-token` and for a state folder owned by another user (point `NOTA_BENE_HOME` at a folder of your own). On Windows modes and owners are not checked; a link (a symbolic link or a junction), a folder and bad content are still refused, and the fix is to delete the file.
+
+### A refused state folder (Windows)
+
+"the state folder ... is outside your user profile ..., where other users of this computer can read the access token by default; refusing to use it" means `NOTA_BENE_HOME` points outside `%USERPROFILE%` (the check ignores letter case and follows junctions). Unset `NOTA_BENE_HOME`, or point it at a folder inside your profile. If only you can read that folder (you restricted its access rights by hand), set `NOTA_BENE_ALLOW_SHARED_HOME=1`.
+
+### A shell is not installed (Windows)
+
+A `!` command that ends with "PowerShell 7 is not installed (Settings → Defaults → Shell for ! commands)" asked for a shell this computer does not have. Install it, or pick another shell or Auto in that setting. With Auto, at least Windows PowerShell is always there.
+
+### "Git Bash recommended" (Windows)
+
+Without Git Bash, Claude Code runs shell commands in PowerShell and has no Bash tool. For the Bash tool, install Git for Windows, or set `CLAUDE_CODE_GIT_BASH_PATH` to its `bash.exe`, then restart Nota Bene.
+
+### A file is in use (Windows)
+
+Antivirus and the search indexer briefly hold files they scan. Nota Bene retries replacing its state and project files for about two seconds; a save that still fails with `EPERM` or `EBUSY` was held longer. Try again, or exclude the state folder from real-time scanning.
 
 ### "This window is not logged in"
 
@@ -609,7 +650,7 @@ The model tab for `.glb`, `.gltf` and `.blend` files is off by default. Turn it 
 NOTA_BENE_EXPERIMENTAL_3D=1 nota-bene .
 ```
 
-A `.blend` file needs Blender on the machine: the path in `NOTA_BENE_BLENDER`, else `blender` on `PATH`, else `/Applications/Blender.app/Contents/MacOS/Blender`. Blender converts the file in a locked-down mode (and under `sandbox-exec` on macOS), refuses a file that references files outside the project, takes one conversion at a time and gives up after 120 seconds. Models over 256 MB are not shown.
+A `.blend` file needs Blender on the machine: the path in `NOTA_BENE_BLENDER`, else `blender` on `PATH`, else `/Applications/Blender.app/Contents/MacOS/Blender` on macOS. The model tab is not supported on Windows yet. Blender converts the file in a locked-down mode (and under `sandbox-exec` on macOS), refuses a file that references files outside the project, takes one conversion at a time and gives up after 120 seconds. Models over 256 MB are not shown.
 
 The variable is read when the server starts. If a window for the folder is already open, a new launch only brings that window to the front, and the variable is ignored: the open window keeps the setting it started with. Stop the window first, then launch again.
 
