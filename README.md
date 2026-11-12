@@ -36,9 +36,9 @@ No agent session is needed to start a window: in a plain terminal, `nota-bene` s
 |---|---|
 | macOS | Tested, used daily |
 | Linux | Unit tests pass in CI; not used daily |
-| Windows | Not supported (the launch skills are bash scripts) |
+| Windows | Supported natively (no WSL or Docker) from 1.9.0; unit tests run in CI; 3D models not yet |
 
-Every install needs Node.js 22 or newer. The interface is in English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German.
+Every install needs Node.js 22 or newer. On Windows, [Git for Windows](https://git-scm.com/download/win) is recommended: Claude Code uses its Git Bash for the Bash tool (else PowerShell), and `!` commands use it when it is there (else PowerShell; see [the guide](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#windows)). The interface is in English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German.
 
 ## Install
 
@@ -74,6 +74,8 @@ Without the plugin: `npm i -g nota-bene-ide` (add `--omit=optional` if you only 
 $skill-installer Install the nb skill from https://github.com/iCubeDm/nota-bene-ide/tree/main/codex/skills/nb
 ```
 
+The installer copies the skill, so this works on Windows as well; to link it from the npm package instead, use a junction as for omp below.
+
 </details>
 
 <details>
@@ -84,6 +86,13 @@ Install the launcher and link its skill into omp:
 ```sh
 npm i -g nota-bene-ide
 ln -sfn "$(npm root -g)/nota-bene-ide/omp/skills/nb" ~/.omp/agent/skills/nb
+```
+
+On Windows, link it with a junction instead, in PowerShell:
+
+```powershell
+npm i -g nota-bene-ide
+New-Item -ItemType Junction -Path "$HOME\.omp\agent\skills\nb" -Target "$(npm root -g)\nota-bene-ide\omp\skills\nb"
 ```
 
 Then use `/skill:nb`, `/skill:nb new` or `/skill:nb fork` in omp, or open a window from a terminal with `nota-bene . --agent omp --detach`.
@@ -102,6 +111,8 @@ npx nota-bene-ide . --agent codex   # or omp
 npm i -g nota-bene-ide
 nota-bene
 ```
+
+The same commands work in PowerShell or `cmd` on Windows.
 
 </details>
 
