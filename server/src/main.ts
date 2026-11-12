@@ -13,6 +13,7 @@ import { UsageStore } from './usage/store.ts';
 import { transcriptExists } from './sessions.ts';
 import { lastSession, stateDir } from './state.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
+import { pidAlive, realpathNative, samePath } from './platform.ts';
 
 const USAGE =
   'Usage: node server/src/main.ts [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--continue] [--fake script.json] [--allow-origin URL]';
@@ -88,6 +89,8 @@ export function stateLine(): string {
 export const LISTEN_FAILED = 98;
 export const NO_AGENT_BINARY = 76; // bin/nota-bene.mjs: no relaunch
 export { HANDOVER }; // updater.ts: a newer version is current, the launcher hands the window over (only with NOTA_BENE_HANDOVER=1)
+/** The launcher's "stop as on SIGTERM" over the IPC channel (bin/nota-bene.mjs STOP_MESSAGE): Windows has no signals to send. */
+export const STOP_MESSAGE = 'nota-bene:stop';
 
 /**
  * The launcher's env vars are ours only if that launcher is our parent right now. Anything started from a shell inside
@@ -156,25 +159,39 @@ async function main(): Promise<void> {
   watchLauncher(process.env.NOTA_BENE_LAUNCHER_PID, stop);
 }
 
+type Channel = { channel?: unknown; once(e: 'disconnect', f: () => void): unknown; on(e: 'message', f: (m: unknown) => void): unknown };
+
 /**
- * Under the launcher: once it is gone (SIGKILLed, or its Claude Code background task killed hard), we are reparented
- * and process.ppid changes. Nobody would stop us then, so close and exit, with a hard exit if the close hangs.
+ * Under the launcher: once it is gone (SIGKILLed, or its Claude Code background task killed hard), nobody would stop us,
+ * so close and exit, with a hard exit if the close hangs. The launcher spawns us with an IPC channel, which the OS closes
+ * however the launcher ends ('disconnect'); it also carries the launcher's STOP_MESSAGE (Windows: no signals). Without
+ * the channel (a launcher of an older version) the launcher is polled: gone once we are reparented (POSIX) or its pid is
+ * dead (Windows never reparents).
  */
-export function watchLauncher(launcherPid: string | undefined, stop: () => void, everyMs = 2000): void {
+export function watchLauncher(launcherPid: string | undefined, stop: () => void, everyMs = 2000, proc: Channel = process): void {
   const pid = Number(launcherPid);
   if (!launcherPid || !Number.isInteger(pid) || pid <= 0) return;
-  const timer = setInterval(() => {
-    if (process.ppid === pid) return;
-    clearInterval(timer);
+  const gone = () => {
     console.error(`Nota Bene: the launcher (pid ${pid}) is gone — stopping`);
     setTimeout(() => process.exit(0), 3000).unref();
     stop();
+  };
+  if (proc.channel) {
+    proc.once('disconnect', gone);
+    proc.on('message', (m) => { if (m === STOP_MESSAGE) stop(); });
+    return;
+  }
+  const timer = setInterval(() => {
+    if (process.ppid === pid && pidAlive(pid)) return;
+    clearInterval(timer);
+    gone();
   }, everyMs);
   timer.unref();
 }
 
 const self = fileURLToPath(import.meta.url);
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(self)) {
+if (process.argv[1] && samePath(realpathNative(process.argv[1]), realpathNative(self))) {
+
   // TEST-ONLY: bin/nota-bene.test.ts injects exit loops with it: exit with this code (1 = crash, 75 = restart) before
   // anything starts. Never set it otherwise.
   if (process.env.NOTA_BENE_TEST_CRASH) process.exit(Number(process.env.NOTA_BENE_TEST_CRASH) || 1);

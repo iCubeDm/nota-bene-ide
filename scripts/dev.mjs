@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { realpathNative, samePath } from '../server/src/platform.ts';
 
 /** The env for the dev processes: an existing NOTA_BENE_HOME wins; empty counts as unset. */
 export function devEnv(env, home) {
@@ -36,4 +37,4 @@ async function main() {
   );
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+if (process.argv[1] && samePath(realpathNative(process.argv[1]), realpathNative(fileURLToPath(import.meta.url)))) await main();

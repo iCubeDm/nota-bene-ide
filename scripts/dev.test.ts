@@ -1,10 +1,11 @@
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { devEnv, devNonce } from './dev.mjs';
 
 describe('devEnv', () => {
   it('defaults to ~/.nota-bene-dev', () => {
     const e = devEnv({ PATH: '/bin' }, '/home/u');
-    expect(e.NOTA_BENE_HOME).toBe('/home/u/.nota-bene-dev');
+    expect(e.NOTA_BENE_HOME).toBe(path.join('/home/u', '.nota-bene-dev')); // the host's separator, as the code joins
     expect(e.PATH).toBe('/bin');
   });
 
@@ -13,7 +14,7 @@ describe('devEnv', () => {
   });
 
   it('treats empty values as unset', () => {
-    expect(devEnv({ NOTA_BENE_HOME: '' }, '/h').NOTA_BENE_HOME).toBe('/h/.nota-bene-dev');
+    expect(devEnv({ NOTA_BENE_HOME: '' }, '/h').NOTA_BENE_HOME).toBe(path.join('/h', '.nota-bene-dev'));
   });
 });
 

@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { SecretError, verifiedBearer } from './auth.ts';
+import { pidAlive } from './platform.ts';
 import { stateDir } from './state.ts';
 
 export type WindowEntry = {
@@ -89,15 +90,7 @@ export function unregisterWindow(port: number, pid: number): void {
   if (fs.existsSync(fileOf(port)) && (readEntry(port)?.pid ?? pid) === pid) fs.rmSync(fileOf(port), { force: true });
 }
 
-export function pidAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM'; // exists, owned by someone else
-  }
-}
+export { pidAlive }; // its callers import it from here
 
 /** GET http://127.0.0.1:PORT/info → { root } or null (no answer, not ours, not JSON, not logged in). The credential goes only to a listener that proved it holds the token (GET /hello). */
 export async function probeInfo(port: number, timeoutMs = 500): Promise<{ root: string } | null> {

@@ -37,7 +37,7 @@ fs.writeFileSync(path.join(pkg, 'bin', 'nota-bene.mjs'), 'console.log(process.en
 `, { mode: 0o755 });
   return f;
 }
-const deadPid = () => spawnSync('true').pid!;
+const deadPid = () => spawnSync(process.execPath, ['-e', '']).pid!;
 const install = (v: string, npm = fakeNpm(), extra: { npmTimeoutMs?: number } = {}) => installRelease(v, { npm, node: process.execPath, ...extra });
 const lockFile = () => path.join(runtimeDir(), 'update.lock');
 function fakeInstalled(v: string) {

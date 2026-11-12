@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import type { ServerEvent } from '@nota-bene/shared';
@@ -402,8 +403,9 @@ describe('it adds no way in but the owner’s socket', () => {
 });
 
 describe('signals that end the server', () => {
-  const MAIN = new URL('./main.ts', import.meta.url).pathname;
-  const FAKE = new URL('../test/fixtures/hello.json', import.meta.url).pathname;
+  // fileURLToPath, not .pathname: on Windows that is `/C:/...`, which node resolves to `C:\C:\...`
+  const MAIN = fileURLToPath(new URL('./main.ts', import.meta.url));
+  const FAKE = fileURLToPath(new URL('../test/fixtures/hello.json', import.meta.url));
   it('a straggler that ignored TERM is killed when the server exits inside the 3 s', async () => {
     const child = spawn(process.execPath, [MAIN, proj, '--port', '0', '--fake', FAKE], { env: { ...process.env, NOTA_BENE_HOME: path.join(tmp, 'home') }, stdio: ['ignore', 'pipe', 'inherit'] });
     closers.push(async () => { child.kill('SIGKILL'); });
