@@ -108,7 +108,8 @@ describe('HistoryArchive', () => {
     expect(a.segment('s1', 1)).toEqual([user('u1')]);
   });
 
-  it('the directory is fsync\'d when the file is created, not on later appends', () => {
+  // Windows cannot fsync a folder (EPERM): only the file is synced there
+  it.skipIf(process.platform === 'win32')('the directory is fsync\'d when the file is created, not on later appends', () => {
     const real = fs.fsyncSync.bind(fs);
     const synced: boolean[] = [];
     vi.spyOn(fs, 'fsyncSync').mockImplementation((fd) => { synced.push(fs.fstatSync(fd).isDirectory()); real(fd); });
@@ -119,7 +120,27 @@ describe('HistoryArchive', () => {
     expect(synced).toEqual([false, true, false]);
   });
 
-  it('a read error other than ENOENT throws: an unreadable archive is never taken for an empty one (no renumbering)', () => {
+  it.runIf(process.platform === 'win32')('Windows: only the file is fsync\'d, never the folder, and nothing is reported', () => {
+    const real = fs.fsyncSync.bind(fs);
+    const synced: boolean[] = [];
+    const reports: unknown[] = [];
+    vi.spyOn(fs, 'fsyncSync').mockImplementation((fd) => { synced.push(fs.fstatSync(fd).isDirectory()); real(fd); });
+    const a = new HistoryArchive({ dir: path.join(dir, 'history'), report: (e) => void reports.push(e) });
+    a.append('s1', [user('u1')]);
+    a.append('s1', [user('u2')]);
+    expect(synced).toEqual([false, false]);
+    expect(reports).toEqual([]);
+  });
+
+  it.runIf(process.platform === 'win32')('Windows: a read error other than ENOENT throws (EISDIR: chmod cannot make a file unreadable there)', () => {
+    const a = new HistoryArchive({ dir });
+    fs.mkdirSync(path.join(dir, 's1.jsonl'), { recursive: true });
+    expect(() => a.append('s1', [user('u2')])).toThrow(/EISDIR/);
+    expect(() => a.count('s1')).toThrow(/EISDIR/);
+  });
+
+  // Windows: chmod 000 only sets the read-only flag (variant above)
+  it.skipIf(process.platform === 'win32')('a read error other than ENOENT throws: an unreadable archive is never taken for an empty one (no renumbering)', () => {
     const a = new HistoryArchive({ dir });
     a.append('s1', [user('u1')]);
     const f = path.join(dir, 's1.jsonl');

@@ -6,6 +6,7 @@ import type { Comment } from '@nota-bene/shared';
 import { readCapped, refuseTooLarge } from './attachments.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
+import { renameRetry, samePath } from './platform.ts';
 
 /**
  * The server's only write into the project folder: `<root>/.nota-bene/marks/<comment id>/{frame.jpg,layer.png}`.
@@ -89,6 +90,8 @@ function writeGitignore(nb: string): void {
 }
 
 function writeExclusive(file: string): void {
+  // Windows: CREATE_NEW follows a dangling symlink and creates its target; an lstat first keeps the symlink refused there
+  if (process.platform === 'win32' && fs.lstatSync(file, { throwIfNoEntry: false })) throw Object.assign(new Error(`EEXIST: file already exists, open '${file}'`), { code: 'EEXIST' });
   const fd = fs.openSync(file, 'wx'); // EEXIST (also for a symlink, even a dangling one) → the caller's once-only
   try {
     fs.writeSync(fd, '*\n');
@@ -110,17 +113,18 @@ export class MarkFiles {
     this.stateDir = o.stateDir;
   }
 
-  /** Throws when the (existing, real) `.nota-bene` folder is the server's state folder. */
+  /** Throws when the (existing, real) `.nota-bene` folder is the server's state folder. Native realpaths on both sides:
+   *  the JS one keeps the spelling it was given, so `c:\users\x\.nota-bene` would not equal `C:\Users\x\.nota-bene`. */
   private notStateDir(nb: string): void {
     if (!this.stateDir) return;
     let state: string;
     try {
-      state = fs.realpathSync(this.stateDir());
+      state = fs.realpathSync.native(this.stateDir());
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') return;
       throw e;
     }
-    if (fs.realpathSync(nb) === state) throw new Error(`the project's .nota-bene is the state folder: ${nb}`);
+    if (samePath(fs.realpathSync.native(nb), state)) throw new Error(`the project's .nota-bene is the state folder: ${nb}`);
   }
 
   /** Writes `frame.jpg` | `layer.png` for comment `id` (creates `.nota-bene/.gitignore` = "*\n" if missing). Throws on a bad id/name/type, a symlinked dir, or bytes > MARK_MAX_BYTES. */
@@ -150,7 +154,7 @@ export class MarkFiles {
     const tmp = path.join(dir, `.${name}.tmp${process.pid}-${Math.random().toString(36).slice(2)}`);
     try {
       fs.writeFileSync(tmp, bytes, { flag: 'wx' });
-      fs.renameSync(tmp, file); // replaces `file` itself, even a symlink there, never its target
+      renameRetry(tmp, file); // replaces `file` itself, even a symlink there, never its target
     } catch (e) {
       fs.rmSync(tmp, { force: true });
       throw e;

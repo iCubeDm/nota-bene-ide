@@ -50,7 +50,8 @@ export class HistoryArchive {
     } finally {
       fs.closeSync(fd);
     }
-    if (created) this.sync(() => { const d = fs.openSync(this.dir, 'r'); try { fs.fsyncSync(d); } finally { fs.closeSync(d); } }); // the new name
+    // the new name; Windows cannot fsync a folder (EPERM) and NTFS journals the entry itself
+    if (created && process.platform !== 'win32') this.sync(() => { const d = fs.openSync(this.dir, 'r'); try { fs.fsyncSync(d); } finally { fs.closeSync(d); } });
     return n;
   }
 

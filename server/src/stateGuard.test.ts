@@ -129,8 +129,10 @@ describe('a root that contains the state folder', () => {
 });
 
 describe('the default state folders are denied whatever the current one is', () => {
-  const prevHomeEnv = process.env.HOME;
-  afterEach(() => { if (prevHomeEnv === undefined) delete process.env.HOME; else process.env.HOME = prevHomeEnv; });
+  const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, NOTA_BENE_ALLOW_SHARED_HOME: process.env.NOTA_BENE_ALLOW_SHARED_HOME };
+  afterEach(() => {
+    for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  });
 
   it('~/.nota-bene and ~/.nota-bene-dev stay hidden from a root that contains them, with NOTA_BENE_HOME elsewhere', async () => {
     const home = path.join(tmp, 'userhome');
@@ -141,6 +143,10 @@ describe('the default state folders are denied whatever the current one is', () 
     fs.writeFileSync(path.join(home, 'notes.txt'), 'mine');
     process.env.HOME = home;
     process.env.NOTA_BENE_HOME = path.join(tmp, 'somewhere-else');
+    if (process.platform === 'win32') {
+      process.env.USERPROFILE = home; // os.homedir() there
+      process.env.NOTA_BENE_ALLOW_SHARED_HOME = '1'; // NOTA_BENE_HOME is outside that profile
+    }
     const url = await boot(home);
     expect(await (await get(url, '/file?path=notes.txt')).text()).toBe('mine');
     for (const p of ['.nota-bene/token', '.nota-bene-dev/token']) {

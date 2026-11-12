@@ -19,6 +19,7 @@ import type { EventHub } from './hub.ts';
 import { readPrefs, setAuditPref, setDefaultModePref, setLangPref, setThemePref, setUiScalePref, setUpdateCheckPref } from './prefs.ts';
 import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
+import { renameRetry } from './platform.ts';
 import { stateDir } from './state.ts';
 import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from './update.ts';
 import type { Updater } from './updater.ts';
@@ -174,7 +175,7 @@ function moveToTrash(kind: 'attachments' | 'history', files: string[], now: numb
   for (const n of files) {
     try {
       const size = fs.lstatSync(path.join(src, n)).size;
-      fs.renameSync(path.join(src, n), path.join(trash, n));
+      renameRetry(path.join(src, n), path.join(trash, n));
       moved++;
       bytes += size;
     } catch (e) {

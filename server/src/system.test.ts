@@ -77,7 +77,8 @@ describe('control token', () => {
     const t = controlToken();
     expect(t).toMatch(/^[0-9a-f]{64}$/);
     expect(controlToken()).toBe(t);
-    expect(fs.statSync(path.join(home, 'control-token')).mode & 0o777).toBe(0o600);
+    // no mode bits on Windows: stat says 666 whatever chmod did
+    if (process.platform !== 'win32') expect(fs.statSync(path.join(home, 'control-token')).mode & 0o777).toBe(0o600);
   });
   it('a garbage token file throws instead of being replaced (the ssh rule)', () => {
     fs.writeFileSync(path.join(home, 'control-token'), 'nope', { mode: 0o600 });

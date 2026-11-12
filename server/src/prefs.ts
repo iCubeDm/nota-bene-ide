@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EFFORT_LEVELS, ALL_MODES, isThemeId, isUiLang, isUiScale } from '@nota-bene/shared';
 import type { AgentEffort as EffortLevel, AgentMode as Mode, ModelChoice, ThemeId, UiLang, UiScale } from '@nota-bene/shared';
+import { renameRetry } from './platform.ts';
 import { stateDir } from './state.ts';
 
 /** `idleCompact[root]`: idle compaction per project dir; absent = on (the default) */
@@ -106,7 +107,7 @@ export function setModePref(dir: string, mode: Mode): void {
   const f = file();
   const tmp = `${f}.tmp${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(raw, null, 2));
-  fs.renameSync(tmp, f);
+  renameRetry(tmp, f);
 }
 
 /** the project's model choice; atomic like setModePref */
@@ -133,7 +134,7 @@ export function updateRawPrefs(fn: (raw: Record<string, unknown>) => void): void
   const f = file();
   const tmp = `${f}.tmp${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(raw, null, 2));
-  fs.renameSync(tmp, f);
+  renameRetry(tmp, f);
 }
 
 /** Settings → Defaults: the mode a project without its own entry starts in. */

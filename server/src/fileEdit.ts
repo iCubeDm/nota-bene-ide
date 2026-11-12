@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveInRoot } from './files.ts';
+import { renameRetry } from './platform.ts';
 
 /** What the viewer shows as text. */
 export const EDIT_MAX = 2 * 1024 * 1024;
@@ -71,7 +72,7 @@ export async function writeEditable(root: string, rel: string, text: string, bas
   try {
     await fs.promises.writeFile(tmp, bytes, { flag: 'wx', mode: t.st.mode & 0o777 });
     await fs.promises.chmod(tmp, t.st.mode & 0o777); // the mode above went through the umask
-    await fs.promises.rename(tmp, t.file);
+    renameRetry(tmp, t.file); // sync: Windows retries a rename over a file another process holds open
   } catch (e) {
     await fs.promises.rm(tmp, { force: true }).catch(() => {});
     throw e;

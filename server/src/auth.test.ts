@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import type { ServerEvent } from '@nota-bene/shared';
@@ -44,17 +44,20 @@ afterEach(async () => {
 
 const N1 = '11'.repeat(16);
 const N2 = '22'.repeat(16);
+const WIN = process.platform === 'win32';
 
 describe('the token file', () => {
   it('is created on first need: 64 hex, mode 600, in a 700 state dir, and reused', () => {
     const t = accessToken();
     expect(t).toMatch(/^[0-9a-f]{64}$/);
     expect(accessToken()).toBe(t);
-    expect(fs.statSync(path.join(home, 'token')).mode & 0o777).toBe(0o600);
-    expect(fs.statSync(home).mode & 0o777).toBe(0o700);
+    if (!WIN) { // Windows has no mode bits: stat says 666 whatever chmod did
+      expect(fs.statSync(path.join(home, 'token')).mode & 0o777).toBe(0o600);
+      expect(fs.statSync(home).mode & 0o777).toBe(0o700);
+    }
   });
 
-  it('tightens a state dir that exists with a loose mode', () => {
+  it.skipIf(WIN)('tightens a state dir that exists with a loose mode', () => { // no mode bits on Windows
     fs.mkdirSync(home, { mode: 0o755 });
     fs.chmodSync(home, 0o755);
     accessToken();
@@ -82,7 +85,7 @@ describe('the token file', () => {
       expect(fs.readFileSync(file(), 'utf8')).toBe('nope');
     });
 
-    it('a file readable by group or other (names chmod 600)', () => {
+    it.skipIf(WIN)('a file readable by group or other (names chmod 600)', () => { // no mode bits on Windows
       seed('a'.repeat(64), 0o644);
       refuses(/chmod 600/);
       expect(fs.readFileSync(file(), 'utf8')).toBe('a'.repeat(64)); // not rotated, not rewritten
@@ -90,7 +93,7 @@ describe('the token file', () => {
       refuses(/readable by other users/);
     });
 
-    it('a file of another user', () => {
+    it.skipIf(WIN)('a file of another user', () => { // no uid on Windows (the profile's ACL is trusted)
       const t = accessToken();
       vi.spyOn(process, 'getuid').mockReturnValue((process.getuid!() + 1) as never);
       refuses(/belongs to another user/);
@@ -98,7 +101,8 @@ describe('the token file', () => {
       expect(fs.readFileSync(file(), 'utf8')).toBe(t);
     });
 
-    it.skipIf(process.getuid?.() === 0)('a file that cannot be read', () => {
+    // Windows: chmod 000 only sets the read-only flag, the file stays readable
+    it.skipIf(WIN || process.getuid?.() === 0)('a file that cannot be read', () => {
       const t = accessToken();
       fs.chmodSync(file(), 0o000);
       refuses(/cannot read/);
@@ -106,7 +110,7 @@ describe('the token file', () => {
       expect(accessToken()).toBe(t);
     });
 
-    it('a directory, a symbolic link (even to a good token) and a FIFO (which must not hang the open)', () => {
+    it.skipIf(WIN)('a directory, a symbolic link (even to a good token) and a FIFO (which must not hang the open)', () => { // mkfifo
       fs.mkdirSync(file(), { recursive: true });
       refuses(/./);
       fs.rmSync(file(), { recursive: true });
@@ -119,23 +123,87 @@ describe('the token file', () => {
       refuses(/not a regular file/);
     });
 
+    describe.runIf(WIN)('Windows: no mode or owner check; links refused with lstat; no chmod in the messages', () => {
+      it('a file with any mode is read (the profile ACL is what protects it)', () => {
+        seed('a'.repeat(64), 0o644);
+        expect(accessToken()).toBe('a'.repeat(64));
+      });
+
+      it('a directory is not a regular file', () => {
+        fs.mkdirSync(file(), { recursive: true });
+        refuses(/not a regular file/);
+        expect(fs.statSync(file()).isDirectory()).toBe(true); // changed nothing
+      });
+
+      it('a junction in its place is refused as a link', () => {
+        fs.mkdirSync(home, { recursive: true });
+        const target = path.join(tmp, 'elsewhere');
+        fs.mkdirSync(target);
+        fs.symlinkSync(target, file(), 'junction'); // no Developer Mode or admin needed
+        refuses(/symbolic link/);
+        expect(fs.lstatSync(file()).isSymbolicLink()).toBe(true);
+      });
+
+      it('a file symlink, even to a good token, is refused (skipped where symlinks need Developer Mode)', (ctx) => {
+        fs.mkdirSync(home, { recursive: true });
+        const good = path.join(tmp, 'good-token');
+        fs.writeFileSync(good, 'b'.repeat(64));
+        try {
+          fs.symlinkSync(good, file(), 'file');
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === 'EPERM') return ctx.skip();
+          throw e;
+        }
+        refuses(/symbolic link/);
+      });
+
+      it('no message suggests chmod', () => {
+        fs.mkdirSync(file(), { recursive: true });
+        const err = (() => { try { accessToken(); return null; } catch (e) { return e as Error; } })();
+        expect(err!.message).not.toMatch(/chmod/);
+        fs.rmSync(file(), { recursive: true });
+        seed('nope');
+        refuses(/delete it/);
+      });
+    });
+
     it('the control token follows the same rule', () => {
       fs.mkdirSync(home, { recursive: true });
       fs.writeFileSync(path.join(home, 'control-token'), 'x', { mode: 0o600 });
       expect(() => controlToken()).toThrow(/control-token/);
     });
 
-    it('a state folder of another user is refused', () => {
+    it.skipIf(WIN)('a state folder of another user is refused', () => { // no uid on Windows
       vi.spyOn(process, 'getuid').mockReturnValue((process.getuid!() + 1) as never);
       expect(() => accessToken()).toThrow(/belongs to another user/);
     });
   });
 
+  for (const code of ['EPERM', 'ENOTSUP']) {
+    it(`no hard links (FAT, a share: link() → ${code}): the token is created with O_EXCL instead, once, never through a link`, () => {
+      const spy = vi.spyOn(fs, 'linkSync').mockImplementation(() => { throw Object.assign(new Error(code), { code }); });
+      const t = accessToken();
+      expect(spy).toHaveBeenCalled();
+      expect(t).toMatch(/^[0-9a-f]{64}$/);
+      expect(fs.readFileSync(path.join(home, 'token'), 'utf8')).toBe(t);
+      expect(accessToken()).toBe(t);
+      expect(fs.readdirSync(home).filter((f) => f.includes('.tmp'))).toEqual([]);
+      // a file that appeared in between is never overwritten: the loser reads it
+      fs.rmSync(path.join(home, 'token'));
+      const open = fs.openSync;
+      vi.spyOn(fs, 'openSync').mockImplementation(((p: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
+        if (flags === 'wx' && String(p) === path.join(home, 'token')) fs.writeFileSync(p, 'c'.repeat(64), { mode: 0o600 });
+        return open(p, flags, mode);
+      }) as typeof fs.openSync);
+      expect(accessToken()).toBe('c'.repeat(64));
+    });
+  }
+
   it('several processes starting at once agree on one token', async () => {
     const here = fileURLToPath(new URL('./auth.ts', import.meta.url));
     const run = () => new Promise<string>((resolve, reject) => {
-      execFile(process.execPath, ['--input-type=module', '-e', `import { accessToken } from ${JSON.stringify(here)}; process.stdout.write(accessToken());`],
-        { env: { ...process.env, NOTA_BENE_HOME: home } }, (e, out) => (e ? reject(e) : resolve(out)));
+      execFile(process.execPath, ['--input-type=module', '-e', `import { accessToken } from ${JSON.stringify(pathToFileURL(here).href)}; process.stdout.write(accessToken());`],
+        { env: { ...process.env, NOTA_BENE_HOME: home }, windowsHide: true }, (e, out) => (e ? reject(e) : resolve(out)));
     });
     const seen = await Promise.all(Array.from({ length: 8 }, run));
     expect(new Set(seen).size).toBe(1);
@@ -700,7 +768,8 @@ describe('a refused secret stops the start before the agent exists', () => {
     return { backend: new Proxy(base, { get(t, k, r) { n++; return Reflect.get(t, k, r); } }), count: () => n };
   };
 
-  it('a loose token file: startServer rejects with the message, the backend is never touched', async () => {
+  // no mode bits on Windows; the next test covers a refused secret there too
+  it.skipIf(WIN)('a loose token file: startServer rejects with the message, the backend is never touched', async () => {
     fs.mkdirSync(home, { recursive: true });
     fs.writeFileSync(path.join(home, 'token'), 'a'.repeat(64), { mode: 0o644 });
     fs.chmodSync(path.join(home, 'token'), 0o644);

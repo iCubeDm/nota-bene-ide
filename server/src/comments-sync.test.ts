@@ -36,6 +36,27 @@ const c = (id: string, extra: Partial<Comment> = {}): Comment => ({
   ...extra,
 } as unknown as Comment);
 
+// Windows has no mode bits for these (chmod only flips the read-only flag, which a folder ignores): a folder in the file's
+// place fails its read (EISDIR), a folder in its temp file's place fails the write
+function unreadable(file: string): void {
+  if (process.platform === 'win32') {
+    fs.rmSync(file);
+    fs.mkdirSync(file);
+    return;
+  }
+  fs.chmodSync(file, 0o000);
+  closers.push(async () => { fs.chmodSync(file, 0o644); });
+}
+function unwritable(sessionId: string): void {
+  const dir = path.join(home, 'comments');
+  if (process.platform === 'win32') {
+    fs.mkdirSync(path.join(dir, `${sessionId}.json.tmp${process.pid}`));
+    return;
+  }
+  fs.chmodSync(dir, 0o555);
+  closers.push(async () => { fs.chmodSync(dir, 0o755); });
+}
+
 async function boot(o: { resume?: string; backend?: AgentBackend } = {}) {
   const s = await startServer({ insecureNoAuth: true,
     cwd: '/proj', port: 0, backend: o.backend ?? fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false,
@@ -185,8 +206,7 @@ describe('comment sync', () => {
       const { a } = await setup(backend);
       const file = path.join(home, 'comments', 'fake-session.json');
       fs.writeFileSync(file, '[]');
-      fs.chmodSync(file, 0o000);
-      closers.push(async () => { fs.chmodSync(file, 0o644); });
+      unreadable(file);
       a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi', commentIds: ['att'] }));
       await until(() => a.events.some(isResult));
       expect(a.events.find((e) => e.kind === 'server-error')).toMatchObject({ where: 'comments' });
@@ -250,9 +270,7 @@ describe('comment sync', () => {
     const s = await boot({ resume: 'sess-ro' });
     const a = await connect(s.url);
     await until(() => lastComments(a) !== undefined);
-    const dir = path.join(home, 'comments');
-    fs.chmodSync(dir, 0o555);
-    closers.push(async () => { fs.chmodSync(dir, 0o755); });
+    unwritable('sess-ro');
     a.ws.send(JSON.stringify({ type: 'comments', sessionId: 'sess-ro', items: [c('a'), c('b')] }));
     await until(() => a.events.some((e) => e.kind === 'server-error'));
     expect(a.events.find((e) => e.kind === 'server-error')).toMatchObject({ where: 'comments' });
@@ -267,9 +285,7 @@ describe('comment sync', () => {
     const s = await boot({ resume: 'sess-ro2' });
     const a = await connect(s.url);
     await until(() => lastComments(a) !== undefined);
-    const dir = path.join(home, 'comments');
-    fs.chmodSync(dir, 0o555);
-    closers.push(async () => { fs.chmodSync(dir, 0o755); });
+    unwritable('sess-ro2');
     a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi', commentIds: ['a'] }));
     await until(() => a.events.some(isResult));
     expect(a.events.find((e) => e.kind === 'server-error')).toMatchObject({ where: 'comments' });

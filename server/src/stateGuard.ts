@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathKey } from './platform.ts';
 import { stateBaseDir, stateDir } from './state.ts';
 
 /**
@@ -43,9 +44,10 @@ function realish(abs: string): string {
 export function stateCheck(): (abs: string) => boolean {
   const states = realStates();
   if (!states) return () => true;
+  const keys = states.map((state) => pathKey(state));
   return (abs) => {
-    const real = realish(abs);
-    return states.some((state) => real === state || real.startsWith(state + path.sep));
+    const real = pathKey(realish(abs)); // Windows: a missing tail keeps the case it was given
+    return keys.some((state) => real === state || real.startsWith(state + path.sep));
   };
 }
 

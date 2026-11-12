@@ -42,9 +42,15 @@ describe('AttachmentStore', () => {
     expect(s.get(id)?.mediaType).toBe('audio/wav');
   });
 
-  it('get rethrows disk errors other than ENOENT', () => {
+  // Windows answers ENOENT, not ENOTDIR, for a path through a file (variant below)
+  it.skipIf(process.platform === 'win32')('get rethrows disk errors other than ENOENT', () => {
     fs.writeFileSync(path.join(dir, 'file'), 'x');
     expect(() => new AttachmentStore({ dir: path.join(dir, 'file') }).get('a'.repeat(64))).toThrow();
+  });
+
+  it('get rethrows disk errors other than ENOENT: a folder where the file should be (EISDIR)', () => {
+    fs.mkdirSync(path.join(dir, `${'a'.repeat(64)}.png`));
+    expect(() => new AttachmentStore({ dir }).get('a'.repeat(64))).toThrow(/EISDIR/);
   });
 
   it('rejects ids that are not 64 hex chars, even when the target exists outside the store', () => {
@@ -105,10 +111,17 @@ describe('attachment routes', () => {
     expect(r.status).toBe(413);
   });
 
+  it('a read error gives 500 too: a folder where the file should be (EISDIR, any OS)', async () => {
+    fs.mkdirSync(path.join(dir, 'a', `${'0'.repeat(64)}.png`), { recursive: true });
+    expect((await fetch(`${base}/attach/${'0'.repeat(64)}`)).status).toBe(500);
+    expect((await post(Buffer.from('x'), 'image/heic')).status).toBe(415);
+  });
+
   it('a disk error gives 500 and the server keeps serving', async () => {
     fs.writeFileSync(path.join(dir, 'a'), 'a regular file where the store dir should be');
     expect((await post(Buffer.from('x'), 'image/png')).status).toBe(500);
-    expect((await fetch(`${base}/attach/${'0'.repeat(64)}`)).status).toBe(500); // ENOTDIR, not ENOENT
+    // the GET: Windows answers ENOENT, not ENOTDIR, for a path through a file (the EISDIR test above covers it there)
+    if (process.platform !== 'win32') expect((await fetch(`${base}/attach/${'0'.repeat(64)}`)).status).toBe(500); // ENOTDIR, not ENOENT
     expect((await post(Buffer.from('x'), 'image/heic')).status).toBe(415);
   });
 

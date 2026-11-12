@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import { reportError } from './errors.ts';
+import { renameRetry } from './platform.ts';
 import type { EventHub } from './hub.ts';
 import { IMAGE_TYPES } from '@nota-bene/shared';
 import type { ImageType } from '@nota-bene/shared';
@@ -50,7 +51,7 @@ export class AttachmentStore {
     const tmp = `${file}.tmp${process.pid}-${Math.random().toString(36).slice(2)}`;
     try {
       fs.writeFileSync(tmp, bytes);
-      fs.renameSync(tmp, file);
+      renameRetry(tmp, file);
     } catch (e) {
       fs.rmSync(tmp, { force: true });
       throw e;
@@ -100,7 +101,7 @@ export class AttachmentStore {
         if (!fs.existsSync(from)) continue;
         fs.mkdirSync(this.dir, { recursive: true });
         try {
-          fs.renameSync(from, path.join(this.dir, name));
+          renameRetry(from, path.join(this.dir, name));
           return true;
         } catch (e) {
           if ((e as NodeJS.ErrnoException).code === 'ENOENT') continue; // another reader restored it first
