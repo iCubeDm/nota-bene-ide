@@ -887,7 +887,8 @@ describe('the spawn lock', { timeout: 30_000 }, () => {
   it('the same lock, one millisecond older, is taken over', async () => {
     const at = 1_000_000;
     lock(at);
-    const c = make({ spawnWaitMs: 300, now: () => at + limit(300) + 1 });
+    // the host it then starts must come up within spawnWaitMs, so this one gets a slow runner's start time
+    const c = make({ spawnWaitMs: 5000, now: () => at + limit(5000) + 1 });
     expect(text(await c.transcribe(pcm(1), 'en', false))[0]).toBe('1');
     expect(c.spawned).toBe(1);
   });
