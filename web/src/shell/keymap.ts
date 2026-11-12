@@ -46,6 +46,8 @@ export type Binding = {
 export const VOICE_KEY = 'nb:voice-key';
 
 export const isMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+/** The Cmd/Ctrl modifier as the platform writes it before a key: `⌘` (`⌘Enter`) or `Ctrl+` (`Ctrl+Enter`). */
+export const modKey = (): string => (isMac() ? '⌘' : 'Ctrl+');
 
 
 const tabAt = (store: AppStore, i: number) => {
@@ -155,7 +157,7 @@ export function withKey(label: string, id: Binding['id']): string {
 export function keysLabel(b: Binding): string {
   const mac = isMac();
   const parts: string[] = [];
-  if (b.mods.mod) parts.push(mac ? '⌘' : 'Ctrl+');
+  if (b.mods.mod) parts.push(modKey());
   if (b.mods.alt) parts.push(mac ? '⌥' : 'Alt+');
   if (b.mods.shift) parts.push(mac ? '⇧' : 'Shift+');
   const key = (c: string) => ({ ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Slash: '/', Escape: 'Esc', Equal: '=', Minus: '−' } as Record<string, string>)[c] ?? c.replace(/^(Key|Digit)/, '');

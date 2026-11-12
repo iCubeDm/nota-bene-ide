@@ -20,7 +20,7 @@
 // A picked port avoids 4780 (dev) and 4790-4795 (smoke, tests) unless NOTA_BENE_PORT_RANGE is set.
 //
 // Server exit codes 75 relaunches at once with --continue (more than 10 within 60 s give up);
-// 0, 130, 143 exit; 98 (listen failed) on the first start retries once on another port when the port was picked
+// 0, 130, 143 (and Windows' Ctrl+C status 0xC000013A) exit; 98 (listen failed) on the first start retries once on another port when the port was picked
 // automatically; anything else (a signal too) is a crash: relaunch after 1 s, give up at 5 crashes within 60 s.
 // A relaunch keeps the port, so the open tab reconnects by itself, reopens the folder the window has now (it may have
 // switched), and drops --resume/--fork/--new for --continue. The registry entry stays through the restart gap (it is
@@ -42,6 +42,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { SecretError, accessToken, isNonce, loginCredential, newNonce, proveListener, stateSecret } from '../server/src/auth.ts';
+import { HIDDEN, killTree, npmSpec, realpathNative, samePath } from '../server/src/platform.ts';
 import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } from '../server/src/runtime.ts';
 import { transcriptExists } from '../server/src/sessions.ts';
 import { lastSession, stateBaseDir, stateDir } from '../server/src/state.ts';
@@ -73,7 +74,12 @@ export const HANDOVER = 77; // server/src/main.ts HANDOVER: a newer version is c
 // TEST-ONLY: NOTA_BENE_TEST_HANDOVER_INFO_MS shortens it for bin/nota-bene.test.ts. Never set it otherwise.
 const HANDOVER_INFO_MS = Number(process.env.NOTA_BENE_TEST_HANDOVER_INFO_MS) || 20_000;
 const HANDOVER_EXIT_MS = 60_000; // ... as is one whose launcher exits (not cleanly, not 77) within this
-const CLEAN_EXITS = new Set([0, 130, 143]);
+const WIN = process.platform === 'win32';
+// 0xC000013A (STATUS_CONTROL_C_EXIT): a Windows process ended by Ctrl+C before its own handler ran; never an exit code on POSIX
+const CLEAN_EXITS = new Set([0, 130, 143, 0xC000013A]);
+// Windows: how long a child asked to stop over IPC (`stopChild`) gets before its tree is killed hard
+const STOP_GRACE_MS = 5000;
+const STOP_MESSAGE = 'nota-bene:stop'; // server/src/main.ts STOP_MESSAGE
 const MAX_CRASHES = 5;
 const MAX_RESTARTS = 10;
 const GUARD_WINDOW_MS = 60_000;
@@ -342,9 +348,10 @@ export function ensureBuild(repo, env = process.env, stdio = 'inherit', lockWait
     if (!needsBuild(repo)) return '';
     const started = Date.now();
     const cmd = env.NOTA_BENE_BUILD_CMD;
+    const npm = npmSpec(['run', 'build', '-w', 'web'], { env });
     const r = cmd
-      ? spawnSync(cmd, { cwd: repo, env, stdio, shell: true })
-      : spawnSync('npm', ['run', 'build', '-w', 'web'], { cwd: repo, env, stdio });
+      ? spawnSync(cmd, { cwd: repo, env, stdio, shell: true, ...HIDDEN })
+      : spawnSync(npm.command, npm.args, { cwd: repo, env, stdio, windowsVerbatimArguments: npm.windowsVerbatimArguments, ...HIDDEN });
     const output = stdio === 'pipe' ? `${r.stdout ?? ''}${r.stderr ?? ''}` : '';
     if (r.status !== 0) {
       throw Object.assign(new Error(`building web/dist failed (${r.error?.message ?? `exit code ${r.status}`})`), { output });
@@ -376,21 +383,11 @@ export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', loc
   const abort = () => {
     aborted = true;
     if (!child?.pid) return;
-    killGroup(child, 'SIGTERM');
-    // a build that ignores SIGTERM must not hang the stop: the group gets SIGKILL after a short grace
+    killTree(child.pid, 'SIGTERM'); // Windows: the whole tree, hard, at once
+    // a build that ignores SIGTERM must not hang the stop: the group gets SIGKILL after a short grace (Windows: only while
+    // the leader lives, its pid may be reused once it is gone)
     const c = child;
-    setTimeout(() => killGroup(c, 'SIGKILL'), 3000).unref();
-  };
-  const killGroup = (c, sig) => {
-    try {
-      process.kill(-c.pid, sig);
-    } catch {
-      try {
-        c.kill(sig);
-      } catch {
-        // already gone
-      }
-    }
+    setTimeout(() => { if (!WIN || c.exitCode === null) killTree(c.pid, 'SIGKILL'); }, 3000).unref();
   };
   const run = async () => {
     if (!needsBuild(repo)) return;
@@ -409,14 +406,17 @@ export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', loc
       if (aborted || !needsBuild(repo)) return;
       const started = Date.now();
       const cmd = env.NOTA_BENE_BUILD_CMD;
+      const npm = npmSpec(['run', 'build', '-w', 'web'], { env });
       child = cmd
-        ? spawn(cmd, { cwd: repo, env, stdio, shell: true, detached: true })
-        : spawn('npm', ['run', 'build', '-w', 'web'], { cwd: repo, env, stdio, detached: true });
+        ? spawn(cmd, { cwd: repo, env, stdio, shell: true, detached: true, ...HIDDEN })
+        : spawn(npm.command, npm.args, { cwd: repo, env, stdio, detached: true, windowsVerbatimArguments: npm.windowsVerbatimArguments, ...HIDDEN });
       if (aborted) abort(); // the signal came between the checks and the spawn
       const r = await new Promise((resolve) => {
         child.on('error', (error) => resolve({ status: null, error }));
         child.on('exit', (status) => {
-          if (aborted) killGroup(child, 'SIGKILL'); // the leader is gone: a grandchild that ignored TERM must not outlive us
+          // the leader is gone: a grandchild that ignored TERM must not outlive us. Windows: abort() killed the tree while
+          // the leader lived; its pid may be reused now
+          if (aborted && !WIN) killTree(child.pid, 'SIGKILL');
           resolve({ status });
         });
       });
@@ -580,7 +580,9 @@ function last(dir) {
 
 // --- launch ----------------------------------------------------------------------------------------------------
 
-function refuse(dir) {
+/** `dir` is the real path, `given` the path as typed (resolved): a drive root that resolves to a folder (a `subst` or mapped
+ *  drive on Windows) is still a root. */
+function refuse(dir, given = dir) {
   const home = (() => {
     try {
       return realDir(os.homedir());
@@ -588,7 +590,9 @@ function refuse(dir) {
       return os.homedir();
     }
   })();
-  return dir === home || dir === '/';
+  const isRoot = (p) => samePath(p, path.parse(p).root);
+  return samePath(dir, home) || isRoot(dir) || isRoot(given); // home, or a file system root (`/`, `C:\`, `\\host\share\`)
+
 }
 
 const OPEN_PAGE_KEEP_MS = 30_000;
@@ -638,13 +642,26 @@ async function openBrowser(base) {
     if (e instanceof SecretError) throw e;
     say(`cannot write the page that logs the browser in (${e.message}); opening the window without it`);
   }
-  const p = spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [target], { stdio: 'ignore', detached: true });
+  const p = opener(target);
   // true: the opener took it (exit 0, or it did not answer within the bound); false: it failed to start or exited non-zero
   return new Promise((resolve) => {
     p.on('exit', (code) => resolve(code === 0));
     p.on('error', () => resolve(false));
     setTimeout(() => resolve(true), 3000).unref(); // bounded; the child keeps the loop alive until it hands the page over
   });
+}
+
+/**
+ * The browser opener for a page file or a plain base URL (never the login URL: see `writeOpenPage`). macOS `open`, Linux
+ * `xdg-open`; Windows `start` through cmd.exe, built as one verbatim line: the target in quotes, a `%` in it closed out of
+ * them and caret-escaped (as server/src/platform.ts spawnSpec does for a file path; a path cannot hold a `"`).
+ * TEST-ONLY: NOTA_BENE_TEST_OPENER names a script run with node instead, on Windows, where PATH cannot stub `start`.
+ */
+function opener(target) {
+  const opts = { stdio: 'ignore', detached: true, ...HIDDEN };
+  if (!WIN) return spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [target], opts);
+  if (process.env.NOTA_BENE_TEST_OPENER) return spawn(process.execPath, [process.env.NOTA_BENE_TEST_OPENER, target], opts);
+  return spawn('cmd.exe', ['/d', '/s', '/c', `"start "" "${target.replace(/%/g, '"^%"')}""`], { ...opts, windowsVerbatimArguments: true });
 }
 
 const entryOf = (port) => readWindows()[String(port)];
@@ -657,6 +674,8 @@ const entryOf = (port) => readWindows()[String(port)];
 export function openLog(log) {
   let fd;
   try {
+    // Windows has no O_NOFOLLOW (undefined there, so no flag): a link is refused by lstat first
+    if (WIN && fs.lstatSync(log, { throwIfNoEntry: false })?.isSymbolicLink()) throw Object.assign(new Error('a symbolic link'), { code: 'ELOOP' });
     fd = fs.openSync(log, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK, 0o600);
   } catch (e) {
     say(`no log: cannot open ${log} (${e.code ?? e.message}); the window's output is not kept`);
@@ -692,6 +711,7 @@ async function detach(o, argv, autoPort, buildOutput) {
   if (autoPort) args.push('--port', String(o.port));
   const child = spawn(process.execPath, [SELF, ...args], {
     detached: true,
+    ...HIDDEN,
     stdio: ['ignore', fd ?? 'ignore', fd ?? 'ignore'],
     // the parent holds the folder's launch lock until the URL is printed; the child must not wait for it
     env: { ...process.env, NOTA_BENE_LOCKED: '1', ...(autoPort ? { NOTA_BENE_AUTOPORT: '1' } : {}) },
@@ -719,11 +739,7 @@ async function detach(o, argv, autoPort, buildOutput) {
   }
   if (exitCode === undefined) {
     // timed out: stop the detached launcher and its server before our caller releases the folder's lock
-    try {
-      process.kill(-child.pid, 'SIGKILL');
-    } catch {
-      // already gone
-    }
+    killTree(child.pid, 'SIGKILL');
   }
   say(exitCode !== undefined
     ? `the server did not come up (launcher exited: ${exitCode}). Last log lines:`
@@ -764,22 +780,69 @@ function dropEntry(port, pid) {
 }
 
 /**
- * A foreground launcher (the /nb background task) stops when the shell that started it is gone (it was SIGKILLed
- * without its children): ppid changes, checked every 2 s, and the child is stopped as on SIGTERM. Not for a detached
- * child (NOTA_BENE_LOCKED: its parent exits by design) or a launcher already reparented at start (ppid 1).
+ * A foreground launcher (the /nb background task) stops when the process that started it is gone (it was SIGKILLed
+ * without its children), and the child is stopped as on SIGTERM. An inner launcher learns it from its outer part's IPC
+ * channel, which closes however that ends. Otherwise the parent is polled every 2 s: gone once ppid changes (POSIX
+ * reparents an orphan) or its pid is dead (Windows never reparents; a reused pid only delays this, it never stops a
+ * launcher whose parent lives). Not for a detached child (NOTA_BENE_LOCKED: its parent exits by design) or a launcher
+ * already reparented at start (ppid 1). Returns the function that stops watching.
  */
 function watchParent(onSignal, everyMs = 2000) {
-  const parent = process.ppid;
-  if (process.env.NOTA_BENE_LOCKED === '1' || parent === 1) return;
-  const timer = setInterval(() => {
-    if (process.ppid === parent) return;
-    clearInterval(timer);
+  if (process.env.NOTA_BENE_LOCKED === '1') return () => {};
+  const gone = (what) => {
     // the shell's output pipe may be gone with it: a failed write must not crash the shutdown
     for (const s of [process.stdout, process.stderr]) s.on('error', () => {});
-    say(`the parent process (pid ${parent}) is gone — stopping`);
+    say(`${what} is gone — stopping`);
     onSignal('SIGTERM');
+  };
+  if (process.channel) {
+    const onDisconnect = () => gone('the outer launcher');
+    process.once('disconnect', onDisconnect);
+    return () => process.off('disconnect', onDisconnect);
+  }
+  const parent = process.ppid;
+  if (parent === 1) return () => {};
+  const timer = setInterval(() => {
+    if (process.ppid === parent && pidAlive(parent)) return;
+    clearInterval(timer);
+    gone(`the parent process (pid ${parent})`);
   }, everyMs);
   timer.unref();
+  return () => clearInterval(timer);
+}
+
+/**
+ * What stops a launcher: SIGINT, SIGTERM, SIGHUP, the outer part's stop message over IPC (Windows has no signals to pass
+ * on, see `stopChild`), and its parent going away (`watchParent`). Returns the function that removes them all.
+ */
+function onStopRequest(onSignal) {
+  const sigs = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  for (const sig of sigs) process.on(sig, onSignal);
+  const onMessage = (m) => { if (m === STOP_MESSAGE) onSignal('SIGTERM'); };
+  process.on('message', onMessage);
+  const unwatch = watchParent(onSignal);
+  return () => {
+    for (const sig of sigs) process.off(sig, onSignal);
+    process.off('message', onMessage);
+    unwatch();
+  };
+}
+
+/**
+ * Stops a child spawned with an IPC channel (a server, an inner launcher) as `sig` would. POSIX: that signal. Windows has
+ * none: ChildProcess.kill() is TerminateProcess, which skips the child's close() (its agent and `!` commands would be
+ * left behind) and throws for SIGHUP. So the child gets STOP_MESSAGE and stops itself as on SIGTERM; a child still there
+ * after STOP_GRACE_MS loses its tree hard.
+ */
+function stopChild(c, sig) {
+  if (!WIN) {
+    c.kill(sig);
+    return;
+  }
+  if (c.exitCode !== null || c.signalCode !== null) return;
+  if (c.connected) c.send(STOP_MESSAGE, () => {}); // a callback: a channel that closes meanwhile is no 'error' event
+  const t = setTimeout(() => killTree(c.pid), STOP_GRACE_MS);
+  c.once('exit', () => clearTimeout(t)); // never a taskkill of a pid that may be reused
 }
 
 async function supervise(o, autoPort, release, state) {
@@ -792,14 +855,13 @@ async function supervise(o, autoPort, release, state) {
   const onSignal = (sig) => {
     if (stopping) return;
     stopping = true;
-    if (child) child.kill(sig);
+    if (child) stopChild(child, sig);
     else {
       wake?.();
       build?.abort();
     }
   };
-  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, onSignal);
-  watchParent(onSignal);
+  onStopRequest(onSignal);
 
   const crashes = [];
   const restarts = [];
@@ -866,7 +928,10 @@ async function supervise(o, autoPort, release, state) {
     const c = spawn(process.execPath, [MAIN, ...serverArgs({ ...o, dir }, port, !first)], {
       cwd: REPO,
       env,
-      stdio: ['ignore', 'inherit', 'inherit'],
+      // the IPC channel: the server stops once it closes (this launcher is gone, however it ended; server/src/main.ts
+      // watchLauncher), and takes STOP_MESSAGE on Windows
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+      ...HIDDEN,
     });
     child = c;
     state.pid = c.pid;
@@ -999,6 +1064,7 @@ export async function main(argv) {
     }
   }
   process.env.NOTA_BENE_AGENT = o.agent ?? 'claude';
+  let given;
   try {
     if (o.find !== undefined) return await find(o.find, o.scan);
     if (o.last !== undefined) return last(o.last);
@@ -1021,12 +1087,13 @@ export async function main(argv) {
       }
       return 0;
     }
-    o.dir = realDir(o.dir ?? '.');
+    given = path.resolve(o.dir ?? '.');
+    o.dir = realDir(given);
   } catch (e) {
     say(e.message);
     return e instanceof SecretError ? EXIT_SECRET : 1;
   }
-  if (refuse(o.dir)) {
+  if (refuse(o.dir, given)) {
     say(`refusing to open the whole ${o.dir} as a project — cd into a project first.`);
     return 1;
   }
@@ -1145,11 +1212,9 @@ async function outer(o, autoPort, release) {
   let inner = null;
   const onSignal = (sig) => {
     stopping = true;
-    inner?.kill(sig); // in its own process group, so a terminal's Ctrl-C reaches it only from here; in-process, supervise has its own
+    if (inner) stopChild(inner, sig); // in its own process group, so a terminal's Ctrl-C reaches it only from here; in-process, supervise has its own
   };
-  const sigs = ['SIGINT', 'SIGTERM', 'SIGHUP'];
-  for (const sig of sigs) process.on(sig, onSignal);
-  watchParent(onSignal);
+  const offStop = onStopRequest(onSignal);
   let up = false; // a window answered: later runs continue it, without --resume/--new and without opening the browser
   const registered = () => {
     up = true;
@@ -1188,7 +1253,8 @@ async function outer(o, autoPort, release) {
         if (from) env.NOTA_BENE_UPDATED_FROM = from;
         const started = Date.now();
         // its own process group: a version that hangs is stopped with its server, which may ignore SIGTERM and hold the port
-        const c = spawn(process.execPath, [launcherOf(target), ...args], { env, stdio: 'inherit', detached: true });
+        // the IPC channel: it watches us through it (`watchParent`), and takes STOP_MESSAGE on Windows
+        const c = spawn(process.execPath, [launcherOf(target), ...args], { env, stdio: ['inherit', 'inherit', 'inherit', 'ipc'], detached: true, ...HIDDEN });
         inner = c;
         innerPids.add(c.pid);
         const exited = new Promise((resolve) => {
@@ -1210,8 +1276,8 @@ async function outer(o, autoPort, release) {
         if (answered) registered();
         else if (!done && !stopping) {
           failed = `no answer on /info within ${HANDOVER_INFO_MS / 1000} s`;
-          c.kill('SIGTERM');
-          if (!(await Promise.race([exited, sleep(5000).then(() => null)]))) killGroup(c.pid);
+          stopChild(c, 'SIGTERM');
+          if (!(await Promise.race([exited, sleep(5000).then(() => null)]))) killTree(c.pid, 'SIGKILL');
         }
         const r = await exited;
         inner = null;
@@ -1233,7 +1299,9 @@ async function outer(o, autoPort, release) {
           failed = `its launcher exited ${r.code !== null ? `with code ${r.code}` : `by ${r.signal}`} within ${HANDOVER_EXIT_MS / 1000} s`;
         }
         if (failed) {
-          killGroup(c.pid); // whatever of it is left (a hung server)
+          // whatever of its group is left (a hung server). Windows: the leader is gone and its pid may be reused; the
+          // server stops by itself once the dead launcher's IPC channel closed
+          if (!WIN) killTree(c.pid, 'SIGKILL');
           await portFreed(o.port, () => stopping);
           rollBack(target, previous, failed);
           refused.add(target);
@@ -1275,7 +1343,7 @@ async function outer(o, autoPort, release) {
       previous = ran;
     }
   } finally {
-    for (const sig of sigs) process.off(sig, onSignal);
+    offStop();
     // an entry left by a 77 that no run took over (we stopped in the gap): ours to remove
     try {
       const w = entryOf(o.port);
@@ -1283,15 +1351,6 @@ async function outer(o, autoPort, release) {
     } catch (e) {
       say(`cannot update the window registry: ${e.message}`);
     }
-  }
-}
-
-/** SIGKILLs a process group, if any of it is left. */
-function killGroup(pgid) {
-  try {
-    process.kill(-pgid, 'SIGKILL');
-  } catch {
-    // all gone
   }
 }
 
@@ -1314,7 +1373,8 @@ function rollBack(failedVersion, back, reason) {
   }
 }
 
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(SELF)) {
+if (process.argv[1] && samePath(realpathNative(process.argv[1]), realpathNative(SELF))) {
+
   main(process.argv.slice(2)).then(
     (code) => process.exit(code),
     (e) => {

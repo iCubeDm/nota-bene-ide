@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import { reportError } from './errors.ts';
+import { renameRetry } from './platform.ts';
 import type { EventHub } from './hub.ts';
 import { readCapped, refuseTooLarge } from './attachments.ts';
 
@@ -35,11 +36,12 @@ export class ProjectIconStore {
     this.dir = o.dir;
   }
 
-  /** The hash of the root's real path (so a symlinked path is the same folder), else of the path as given. */
+  /** The hash of the root's real path (so a symlinked path is the same folder; on Windows the native one, so another
+   *  spelling of the case is the same folder too), else of the path as given. */
   private key(root: string): string {
     let real = root;
     try {
-      real = fs.realpathSync(root);
+      real = process.platform === 'win32' ? fs.realpathSync.native(root) : fs.realpathSync(root);
     } catch { /* a root that is gone: its own path */ }
     return createHash('sha256').update(real).digest('hex');
   }
@@ -117,7 +119,7 @@ export class ProjectIconStore {
     const tmp = path.join(this.dir, `${name}.tmp${process.pid}-${Math.random().toString(36).slice(2)}`);
     try {
       fs.writeFileSync(tmp, bytes, { mode: 0o600 });
-      fs.renameSync(tmp, path.join(this.dir, name));
+      renameRetry(tmp, path.join(this.dir, name));
     } catch (e) {
       fs.rmSync(tmp, { force: true });
       throw e;

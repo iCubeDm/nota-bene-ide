@@ -16,12 +16,15 @@ import { isThemeId, isUiLang, isUiScale, MODES, type AgentMode as Mode } from '@
 import { SecretError, stateSecret, verifiedBearer } from './auth.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
-import { readPrefs, setAuditPref, setDefaultModePref, setLangPref, setThemePref, setUiScalePref, setUpdateCheckPref } from './prefs.ts';
+import { isShellChoice, readPrefs, setAuditPref, setDefaultModePref, setLangPref, setShellPref, setThemePref, setUiScalePref, setUpdateCheckPref } from './prefs.ts';
+import { winShells } from './session/shell.ts';
 import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
+import { HIDDEN, renameRetry } from './platform.ts';
 import { stateDir } from './state.ts';
 import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from './update.ts';
 import type { Updater } from './updater.ts';
+import { wirePath } from './wirePath.ts';
 import { pidAlive, readWindows } from './windows.ts';
 
 export const CONTROL_HEADER = 'x-nota-bene-control';
@@ -174,7 +177,7 @@ function moveToTrash(kind: 'attachments' | 'history', files: string[], now: numb
   for (const n of files) {
     try {
       const size = fs.lstatSync(path.join(src, n)).size;
-      fs.renameSync(path.join(src, n), path.join(trash, n));
+      renameRetry(path.join(src, n), path.join(trash, n));
       moved++;
       bytes += size;
     } catch (e) {
@@ -218,7 +221,7 @@ export async function listWindows(own: number, probe = probeWindow): Promise<Win
       : info && info.root === w.root ? 'live' : 'silent';
     const live = state === 'live' && info;
     return {
-      port, root: w.root, pid: w.pid, startedAt: w.startedAt, current: port === own, state,
+      port, root: wirePath(w.root), pid: w.pid, startedAt: w.startedAt, current: port === own, state,
       session: live ? info.session ?? null : null, title: live ? info.title ?? null : null,
       supervised: live ? !!info.supervised : false, busy: live ? !!info.busy : false, clients: live ? info.clients ?? 0 : 0,
     };
@@ -241,7 +244,7 @@ export function describeVersion(dir: string): Promise<string> {
     }
   }
   return new Promise((resolve) => {
-    execFile('git', ['describe', '--tags', '--always', '--dirty'], { cwd: dir, timeout: 3000 }, (e, out) => resolve(e ? 'unknown' : out.trim()));
+    execFile('git', ['describe', '--tags', '--always', '--dirty'], { cwd: dir, timeout: 3000, ...HIDDEN }, (e, out) => resolve(e ? 'unknown' : out.trim()));
   });
 }
 
@@ -371,21 +374,23 @@ export function systemRoutes(o: {
     '/system/prefs': (req, res) => {
       if (req.method === 'POST') {
         void readJson(req).then((b) => {
-          const { defaultMode: mode, lang, uiScale, theme, ifUnset, updateCheck, audit } = b as { defaultMode?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; ifUnset?: unknown; updateCheck?: unknown; audit?: unknown };
-          if (mode === undefined && lang === undefined && uiScale === undefined && theme === undefined && updateCheck === undefined && audit === undefined) return text(res, 400, 'bad defaultMode');
+          const { defaultMode: mode, lang, uiScale, theme, ifUnset, updateCheck, audit, shell } = b as { defaultMode?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; ifUnset?: unknown; updateCheck?: unknown; audit?: unknown; shell?: unknown };
+          if (mode === undefined && lang === undefined && uiScale === undefined && theme === undefined && updateCheck === undefined && audit === undefined && shell === undefined) return text(res, 400, 'bad defaultMode');
           if (mode !== undefined && !((o.modes ?? MODES) as readonly unknown[]).includes(mode)) return text(res, 400, 'bad defaultMode');
           if (lang !== undefined && !isUiLang(lang)) return text(res, 400, 'bad lang');
           if (uiScale !== undefined && !isUiScale(uiScale)) return text(res, 400, 'bad uiScale');
           if (theme !== undefined && !isThemeId(theme)) return text(res, 400, 'bad theme');
           if (updateCheck !== undefined && typeof updateCheck !== 'boolean') return text(res, 400, 'bad updateCheck');
           if (audit !== undefined && typeof audit !== 'boolean') return text(res, 400, 'bad audit');
+          if (shell !== undefined && !isShellChoice(shell)) return text(res, 400, 'bad shell');
           if (mode !== undefined) setDefaultModePref(mode as Mode);
           if (lang !== undefined) setLangPref(lang, ifUnset === true);
           if (uiScale !== undefined) setUiScalePref(uiScale);
           if (theme !== undefined) setThemePref(theme);
           if (updateCheck !== undefined) setUpdateCheckPref(updateCheck);
           if (audit !== undefined) setAuditPref(audit);
-          json(res, 200, { ...(mode !== undefined ? { defaultMode: mode } : {}), ...(lang !== undefined ? { lang: readPrefs().lang ?? lang } : {}), ...(uiScale !== undefined ? { uiScale } : {}), ...(theme !== undefined ? { theme } : {}), ...(updateCheck !== undefined ? { updateCheck } : {}), ...(audit !== undefined ? { audit } : {}) });
+          if (shell !== undefined) setShellPref(shell);
+          json(res, 200, { ...(mode !== undefined ? { defaultMode: mode } : {}), ...(lang !== undefined ? { lang: readPrefs().lang ?? lang } : {}), ...(uiScale !== undefined ? { uiScale } : {}), ...(theme !== undefined ? { theme } : {}), ...(updateCheck !== undefined ? { updateCheck } : {}), ...(audit !== undefined ? { audit } : {}), ...(shell !== undefined ? { shell } : {}) });
         }).catch((e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/system/prefs', e)));
         return;
       }
@@ -397,6 +402,8 @@ export function systemRoutes(o: {
         updateCheckForcedOff: updateCheckForcedOff(),
         audit: prefs.audit !== false,
         auditDir: auditDir(),
+        // Windows only: the shell of `! cmd` (the setting, and where each choice is installed: null = not); elsewhere $SHELL runs it
+        ...(process.platform === 'win32' ? { shell: prefs.shell ?? 'auto', shells: winShells() } : {}),
       });
     },
 
@@ -446,8 +453,8 @@ export function systemRoutes(o: {
         const w = readWindows()[String(port)];
         if (!w || !pidAlive(w.pid)) return text(res, 404, 'no such window');
         // the window the user saw (and confirmed) must still be the one on that port: a port reused by a newer window
-        // after the list was loaded is not touched
-        if (w.root !== root || w.pid !== pid || w.startedAt !== startedAt) return text(res, 409, 'window changed');
+        // after the list was loaded is not touched. The list sent the root in the wire form; the stored form is fine too
+        if ((w.root !== root && wirePath(w.root) !== root) || w.pid !== pid || w.startedAt !== startedAt) return text(res, 409, 'window changed');
         const info = await probe(port as number);
         if (!info || info.root !== w.root) return text(res, 409, 'window not answering');
         const status = await relay(port as number, action as ControlAction, controlToken());

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { PlaneIcon } from '@/composer/MessageInput.tsx';
 import { useT } from '@/i18n/index.ts';
-import { BINDINGS, isMac, keysLabel } from '@/shell/keymap.ts';
+import { BINDINGS, keysLabel, modKey } from '@/shell/keymap.ts';
 import { clock } from './lang.ts';
 import type { RecState } from './useVoiceRecorder.ts';
 import { release as releasePlay } from './player.ts';
@@ -14,7 +14,7 @@ const forcing = (e: { metaKey: boolean; ctrlKey: boolean }) => e.metaKey || e.ct
 function useSendTip(busy: boolean): string {
   const t = useT();
   const alt = keysLabel(BINDINGS.find((b) => b.id === 'hk_voice')!);
-  const mod = isMac() ? '⌘' : 'Ctrl+';
+  const mod = modKey();
   const tip = t('voiceSendTip', alt);
   return busy ? `${tip}\n${t('voiceSendBusyTip', `${mod}Enter`, `${mod}${alt}`)}` : tip;
 }

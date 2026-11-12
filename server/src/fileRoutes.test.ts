@@ -169,6 +169,10 @@ describe('complete()', () => {
     const hits = await complete({ session: sess(async () => [path.join(root, 'sub', 'x.md'), path.join(root, 'sub') + '/']), root }, 'zzzq');
     expect(hits).toEqual(['sub/x.md', 'sub/']);
   });
+  it.runIf(process.platform === 'win32')('Windows: backslash hits, relative or absolute, come back with "/" (a trailing "\\" marks a folder)', async () => {
+    const cli = ['sub\\x.md', `${path.join(root, 'sub', 'y.md')}`, `${path.join(root, 'sub')}\\`, root.replace(/\\/g, '/') + '/sub/z.md'];
+    expect(await complete({ session: sess(async () => cli), root }, 'zzzq')).toEqual(['sub/x.md', 'sub/y.md', 'sub/', 'sub/z.md']);
+  });
   it('a new file the CLI does not know comes first, even when the CLI fills the page', async () => {
     const d = path.join(dir, 'fresh');
     fs.mkdirSync(d);
@@ -243,7 +247,8 @@ describe('/file hardening', () => {
     const cs = vi.spyOn(fs, 'createReadStream').mockImplementationOnce((() =>
       new Readable({ read() { this.destroy(new Error('EIO boom')); } })) as unknown as typeof fs.createReadStream);
     await req('GET', '/file?path=hello.md').catch(() => {});
-    expect(emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'server-error', message: 'EIO boom' }), { store: false });
+    // the client may see the reset before the server's pipeline callback runs (it does on Windows)
+    await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'server-error', message: 'EIO boom' }), { store: false }));
     cs.mockRestore();
     emit.mockRestore();
     spy.mockRestore();

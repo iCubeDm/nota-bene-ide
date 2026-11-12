@@ -40,7 +40,9 @@ it('replays native local image inputs without following a symlink or importing a
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-local-image-'));
   const image = path.join(temp, 'input.png');
   fs.writeFileSync(image, Buffer.from('89504e470d0a1a0a00000000', 'hex'));
-  fs.symlinkSync(image, path.join(temp, 'link.png')); fs.writeFileSync(path.join(temp, 'not-image'), 'secret');
+  // Windows without Developer Mode cannot make a symlink: the link is then a missing file, refused all the same
+  try { fs.symlinkSync(image, path.join(temp, 'link.png')); } catch (e) { if (process.platform !== 'win32') throw e; }
+  fs.writeFileSync(path.join(temp, 'not-image'), 'secret');
   const errors: unknown[] = [];
   const rpc = { async request() { return { data: [{ items: [{ type: 'userMessage', id: 'u', content: [{ type: 'localImage', path: image }, { type: 'localImage', path: path.join(temp, 'link.png') }, { type: 'localImage', path: path.join(temp, 'not-image') }] }] }] }; } };
   try {

@@ -97,6 +97,19 @@ it('Windows: this window has no actions; another one can be restarted or stopped
   await waitFor(() => expect(posts).toContainEqual({ url: '/system/windows/action', body: { ...row, action: 'stop' } }));
 });
 
+it('Windows: a C:/ root (a Windows server) shows its folder name and ~ for C:/Users/<name>; the row is sent back as it came', async () => {
+  const was = WINDOWS[2]!.root;
+  WINDOWS[2]!.root = 'C:/Users/me/win-c';
+  try {
+    setup();
+    const w = await win(4779);
+    expect(within(w).getByText('win-c')).toBeInTheDocument();
+    expect(within(w).getByText('~/win-c')).toBeInTheDocument();
+  } finally {
+    WINDOWS[2]!.root = was;
+  }
+});
+
 it('Windows: a changed window and a window too old for the control route say so', async () => {
   WINDOWS[1]!.busy = false;
   try {
@@ -184,6 +197,27 @@ it('Defaults: the audit log is on by default, names its folder and is switched o
   fireEvent.click(box);
   await waitFor(() => expect(posts).toContainEqual({ url: '/system/prefs', body: { audit: false } }));
   await waitFor(() => expect(box).not.toBeChecked());
+});
+
+it('Defaults: the shell of ! commands is a Windows setting; auto names what it takes, a missing choice is marked', async () => {
+  const found = { 'git-bash': null, pwsh: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', powershell: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', cmd: 'C:\\Windows\\system32\\cmd.exe' };
+  let prefs: unknown = { defaultMode: 'auto', shell: 'auto', shells: found };
+  const real = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, init) => (url === '/system/prefs' && !init?.method ? Response.json(prefs) : real(url, init)));
+  setup();
+  const box = await screen.findByRole('combobox', { name: 'Shell for ! commands' });
+  expect(within(box).getAllByRole('option').map((o) => o.textContent)).toEqual(['Auto (PowerShell 7)', 'Git Bash (not installed)', 'PowerShell 7', 'Windows PowerShell', 'cmd']);
+  expect(screen.getByText(/^Git Bash if it is installed/)).toBeInTheDocument();
+  prefs = { defaultMode: 'auto', shell: 'git-bash', shells: found };
+  fireEvent.change(box, { target: { value: 'git-bash' } });
+  await waitFor(() => expect(posts).toContainEqual({ url: '/system/prefs', body: { shell: 'git-bash' } }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Git Bash is not installed');
+});
+
+it('Defaults: no shell setting where the server does not offer it (macOS, Linux: $SHELL)', async () => {
+  setup();
+  await screen.findByRole('combobox', { name: 'Agent mode for projects without their own' });
+  expect(screen.queryByRole('combobox', { name: 'Shell for ! commands' })).toBeNull();
 });
 
 it('Defaults: the mode is saved on the server; About shows the version', async () => {

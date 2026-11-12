@@ -2,9 +2,8 @@ import type { ReactNode } from 'react';
 import { MARK_COLORS, type MarkColor } from '@nota-bene/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
+import { isMac } from '@/shell/keymap.ts';
 import type { Draft, MarkTool } from './slice.ts';
-
-export const isMac = (): boolean => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 const TOOL_ICONS: Record<MarkTool, ReactNode> = {
   rect: <rect x="4" y="6" width="16" height="12" rx="1" />,

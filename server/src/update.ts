@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { renameRetry } from './platform.ts';
 import { readPrefs } from './prefs.ts';
 import { stateBaseDir } from './state.ts';
 
@@ -57,7 +58,7 @@ export function updateCheck(o: { fetch?: typeof fetch; now?: () => number; off?:
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const tmp = `${file}.${process.pid}.tmp`;
       fs.writeFileSync(tmp, JSON.stringify({ latest, at: now() } satisfies Cached), { mode: 0o600 });
-      fs.renameSync(tmp, file);
+      renameRetry(tmp, file);
     } catch { /* an unwritable folder only means the next ask is not spared */ }
     running = null;
   };

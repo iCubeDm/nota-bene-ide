@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { serverSep } from '@/lib/paths.ts';
 
 // copied from the prototype
 export const VIDEO = /\.(mp4|mov|webm|m4v)$/i;
@@ -74,8 +75,10 @@ export function fileUrl(p: string, baseDir?: string, src?: string): string {
   return `/file?path=${encodeURIComponent(path)}${src && src !== 'here' ? `&src=${encodeURIComponent(src)}` : ''}`;
 }
 
+/** A project-relative path in agent text: never absolute (`/a`; on a Windows server also `C:\a`, `C:/a` or `\\host\share`),
+ *  a URL or `~`. */
 export const isPath = (p: string): boolean =>
-  !/^(https?:|~|\/)/.test(p) && !/[\n`<>|*]/.test(p) && (/\//.test(p) || /\.[a-z0-9]{1,5}$/i.test(p));
+  !(serverSep() === '\\' ? /^(https?:|~|\/|\\\\|[A-Za-z]:[\\/])/ : /^(https?:|~|\/)/).test(p) &&!/[\n`<>|*]/.test(p) && (/\//.test(p) || /\.[a-z0-9]{1,5}$/i.test(p));
 
 /** Where a model's bytes come from: a .blend is converted to GLB by the server's Blender (`/model`), the rest are files. */
 export function modelUrl(p: string, src?: string): string {

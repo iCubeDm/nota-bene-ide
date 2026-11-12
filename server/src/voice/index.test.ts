@@ -91,6 +91,6 @@ describe('VoiceIndex', () => {
       const r = i.resolve(Array.from({ length: 3000 }, (_, n) => ({ id: `n${n}`, text: `said ${n}` })));
       expect(r[2999]).toEqual(v(3000));
       expect(Date.now() - t).toBeLessThan(500);
-    });
+    }, 30_000); // the 6000 appends before it are slow on a Windows runner; the bound that matters is the resolve's
   });
 });

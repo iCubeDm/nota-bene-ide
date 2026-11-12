@@ -5,6 +5,7 @@ import { CODEX_CAPABILITIES, type CodexConnection } from './controls.ts';
 import { CodexRpc } from './rpc.ts';
 import { CodexSession } from './session.ts';
 import { HistoryArchive } from '../../archive.ts';
+import { samePath } from '../../platform.ts';
 import { stateDir } from '../../state.ts';
 import { loadCodexHistory, restoreCodexReplay } from './history.ts';
 import { array, itemId, record, string } from './map.ts';
@@ -39,17 +40,17 @@ export function codexBackend(options: { connect?: (cwd?: string) => CodexConnect
       } while (cursor && out.length < 1000);
       return out;
     },
-    async sessionInfo(id, dir) { const t = await read(id); if (!t.cwd || real(string(t.cwd)) !== real(dir)) return null; return { cwd: string(t.cwd), customTitle: string(t.name) || undefined, firstPrompt: string(t.preview) || undefined }; },
+    async sessionInfo(id, dir) { const t = await read(id); if (!t.cwd || !samePath(real(string(t.cwd)), real(dir))) return null; return { cwd: string(t.cwd), customTitle: string(t.name) || undefined, firstPrompt: string(t.preview) || undefined }; },
     async renameSession(id, title) { await rpc().request('thread/name/set', { threadId: id, name: title }); },
     async history(id, cwd, attachments, onError) {
-      const t = await read(id); if (!t.cwd || real(string(t.cwd)) !== real(cwd)) throw new Error('Codex conversation belongs to another folder');
+      const t = await read(id); if (!t.cwd || !samePath(real(string(t.cwd)), real(cwd))) throw new Error('Codex conversation belongs to another folder');
       const events = remember(id, await loadCodexHistory(rpc(), id, attachments, onError));
       return restoreCodexReplay(new HistoryArchive({ dir: path.join(stateDir(), 'history'), report: onError }), id, events, onError);
     },
     async subagent(sessionId, cwd, call, attachments, onError) {
       const owner = [...sessions].find((s) => s.threadId === sessionId);
       const connection = owner?.rpc ?? rpc();
-      const parent = await read(sessionId, connection); if (!parent.cwd || real(string(parent.cwd)) !== real(cwd)) return null;
+      const parent = await read(sessionId, connection); if (!parent.cwd || !samePath(real(string(parent.cwd)), real(cwd))) return null;
       let child = links.get(sessionId)?.get(call) ?? [...sessions].map((s) => s.childFor(call)).find(Boolean);
       if (!child) {
         const queue = [sessionId], seen = new Set<string>();

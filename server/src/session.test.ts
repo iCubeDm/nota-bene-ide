@@ -808,7 +808,7 @@ describe('switch', () => {
   };
 
   it('a late message from the old agent after the reset is not emitted', async () => {
-    const dirB = fs.realpathSync(mkExtra('nb-switch-b-'));
+    const dirB = fs.realpathSync.native(mkExtra('nb-switch-b-'));
     let release!: () => void;
     const late = new Promise<void>((r) => { release = r; });
     let oldAsk: PermissionAsk | null = null;
@@ -972,7 +972,7 @@ describe('switch', () => {
   });
 
   it('a history read that hangs times out: reported as a switch error, empty replay, switching released', async () => {
-    const dirB = fs.realpathSync(mkExtra('nb-switch-h-'));
+    const dirB = fs.realpathSync.native(mkExtra('nb-switch-h-'));
     const sid = '55555555-5555-4555-8555-555555555555';
     const backend = fakeBackend([{ text: 'x' }], { sessions: [{ id: sid, cwd: dirB, history: [{ role: 'user', text: 'old' }] }] });
     backend.history = () => new Promise(() => {});
@@ -1198,5 +1198,20 @@ describe('a turn the agent starts itself (#102)', () => {
     await until(() => agentOf(events, 'turn-end').length === 2);
     expect(agentOf(events, 'task').at(-1)!.e).toEqual({ t: 'task', id: 'bash1', phase: 'done', status: 'stopped' });
     expect(hub.tasksRunning()).toBe(0);
+  });
+});
+
+describe('backend warning', () => {
+  it('is a server-error with its `where`, once per server, at the first send', async () => {
+    const b = Object.assign(fakeBackend([{ text: 'a' }, { text: 'b' }]), { warning: () => ({ where: 'git-bash', message: 'no bash' }) });
+    const { events, make } = setup(b);
+    const s = await make();
+    expect(events.some((e) => e.kind === 'server-error')).toBe(false); // nobody to read it before the first send
+    s.send({ id: 'u1', text: 'one' });
+    await until(() => agentOf(events, 'turn-end').length === 1);
+    s.send({ id: 'u2', text: 'two' });
+    await until(() => agentOf(events, 'turn-end').length === 2);
+    expect(events.filter((e) => e.kind === 'server-error')).toEqual([{ kind: 'server-error', where: 'git-bash', message: 'no bash' }]);
+    s.close();
   });
 });

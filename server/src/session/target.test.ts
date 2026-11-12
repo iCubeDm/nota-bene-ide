@@ -11,7 +11,7 @@ let tmp: string;
 let A: string;
 let B: string;
 beforeEach(() => {
-  tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-target-')));
+  tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-target-')));
   A = path.join(tmp, 'a');
   B = path.join(tmp, 'b');
   fs.mkdirSync(A);
@@ -63,6 +63,6 @@ describe('checkTarget', () => {
 
   it('realOr: the realpath, or the resolved path when it does not exist', () => {
     expect(realOr(A)).toBe(A);
-    expect(realOr('/nonexistent-nb/x/..')).toBe('/nonexistent-nb');
+    expect(realOr('/nonexistent-nb/x/..')).toBe(path.resolve('/nonexistent-nb')); // on Windows with the current drive
   });
 });

@@ -11,7 +11,7 @@ const script = fileURLToPath(new URL('./crossHost.ts', import.meta.url));
 describe('crossHost', () => {
   it('prints ready and a code', async () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-crosshome-'));
-    const child = spawn(process.execPath, [script], { env: { ...process.env, NOTA_BENE_HOME: home }, stdio: ['pipe', 'pipe', 'inherit'] });
+    const child = spawn(process.execPath, [script], { env: { ...process.env, NOTA_BENE_HOME: home }, stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true });
     const lines = readline.createInterface({ input: child.stdout! })[Symbol.asyncIterator]();
     const next = async () => JSON.parse(String((await lines.next()).value)) as Record<string, unknown>;
     try {

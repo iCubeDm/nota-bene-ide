@@ -10,6 +10,7 @@ import { UpdateNotice } from './UpdateNotice.tsx';
 import { GitBranch } from './GitBranch.tsx';
 import { RestartMenu } from './RestartMenu.tsx';
 import { StopButton } from './StopButton.tsx';
+import { folderName } from '@/lib/paths.ts';
 import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
 import { UI_SCALES } from '@nota-bene/shared';
@@ -33,7 +34,7 @@ export function Header() {
   const switching = useAppSelector(selectSwitching);
   const restarting = useAppSelector(selectRestarting);
   // the project, not the app, names the window: several windows on different projects must be told apart
-  const project = session?.root.split('/').filter(Boolean).pop() ?? 'Nota Bene';
+  const project = (session && folderName(session.root)) || 'Nota Bene';
   const title = session?.title ?? null;
   useEffect(() => { document.title = `${title ? title + ' · ' : ''}${project} · Nota Bene`; }, [title, project]);
   return (

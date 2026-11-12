@@ -63,7 +63,7 @@ function bigPng(w, h) {
 function hasFfmpeg() {
   if (process.env.NB_E2E_FFMPEG !== undefined) return process.env.NB_E2E_FFMPEG === '1';
   try {
-    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore', windowsHide: true });
     return true;
   } catch {
     return false;
@@ -80,7 +80,7 @@ function seedFiles(dir) {
   fs.mkdirSync(path.join(dir, 'media'));
   // the config sets NB_E2E_FFMPEG (1/0); run alone, serve.mjs asks ffmpeg itself. Without it the media tests skip
   if (hasFfmpeg()) {
-    const ff = (...a) => execFileSync('ffmpeg', ['-v', 'error', '-y', ...a], { stdio: 'inherit' });
+    const ff = (...a) => execFileSync('ffmpeg', ['-v', 'error', '-y', ...a], { stdio: 'inherit', windowsHide: true });
     for (const [name, color] of [['a', 'red'], ['b', 'green'], ['c', 'blue']]) {
       ff('-f', 'lavfi', '-i', `color=c=${color}:s=320x240:d=30:r=10,noise=alls=100:allf=t`, '-b:v', '1M', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-movflags', '+faststart', path.join(dir, `media/${name}.mp4`));
     }
@@ -90,10 +90,11 @@ function seedFiles(dir) {
     ff('-f', 'lavfi', '-i', 'color=c=0x556b2f:s=3840x2160', '-frames:v', '1', path.join(dir, 'media/4k.png'));
   } else console.warn('e2e/serve.mjs: no ffmpeg, media fixtures skipped');
   fs.writeFileSync(path.join(dir, 'big.log'), 'x'.repeat(3 * 1024 * 1024));
-  fs.symlinkSync(os.tmpdir(), path.join(dir, 'link-out'));
+  fs.symlinkSync(os.tmpdir(), path.join(dir, 'link-out'), process.platform === 'win32' ? 'junction' : 'dir'); // a junction needs no admin rights
   // M3-16: the project is a git repo with one more worktree, on feature/x, outside the project (removed with tmp)
+  // (GIT_CONFIG_GLOBAL is /dev/null on Windows too: Git for Windows maps it itself, and refuses os.devNull, \\.\nul)
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'e2e', GIT_AUTHOR_EMAIL: 'e2e@x', GIT_COMMITTER_NAME: 'e2e', GIT_COMMITTER_EMAIL: 'e2e@x' };
-  const git = (...a) => execFileSync('git', a, { cwd: dir, env, stdio: 'pipe' });
+  const git = (...a) => execFileSync('git', a, { cwd: dir, env, stdio: 'pipe', windowsHide: true });
   git('init', '-q', '-b', 'main');
   git('commit', '-q', '--allow-empty', '-m', 'init');
   const wt = path.join(tmp, 'wt-x');
@@ -107,7 +108,7 @@ for (const k of ['NOTA_BENE_LAUNCHER_PID', 'NOTA_BENE_SUPERVISED', 'NOTA_BENE_NO
 const child = spawn(
   process.execPath,
   [path.join(root, 'server/src/main.ts'), project, '--port', port, '--fake', path.join(root, 'server/test/fixtures', `${fixture}.json`)],
-  { cwd: root, env: { ...inherited, CLAUDE_CONFIG_DIR: claudeDir, CODEX_HOME: codexDir, NOTA_BENE_HOME: home, NOTA_BENE_NONCE: createHash('sha256').update(`nota-bene e2e nonce ${fixture}`).digest('hex').slice(0, 32), NOTA_BENE_EXPERIMENTAL_3D: fixture === 'files' ? '1' : '0' }, stdio: 'inherit' },
+  { cwd: root, env: { ...inherited, CLAUDE_CONFIG_DIR: claudeDir, CODEX_HOME: codexDir, NOTA_BENE_HOME: home, NOTA_BENE_NONCE: createHash('sha256').update(`nota-bene e2e nonce ${fixture}`).digest('hex').slice(0, 32), NOTA_BENE_EXPERIMENTAL_3D: fixture === 'files' ? '1' : '0' }, stdio: 'inherit', windowsHide: true },
 );
 
 let done = false;

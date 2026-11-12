@@ -1,7 +1,11 @@
 import { afterEach, expect, it } from 'vitest';
+import { setServerSep } from '@/lib/paths.ts';
 import { isTmpImagePath, isTmpTabPath, setTmpDirs, tmpImagePathsIn, tmpImageUrl } from './tmpImages.ts';
 
-afterEach(() => setTmpDirs([]));
+afterEach(() => {
+  setTmpDirs([]);
+  setServerSep('/');
+});
 
 it('nothing is a temp image until the server names its temp folders', () => {
   expect(isTmpImagePath('/tmp/a.png')).toBe(false);
@@ -31,4 +35,25 @@ it('a tab path is a temp image when it is absolute; the url encodes it and may b
   expect(isTmpTabPath('/tmp/a.txt')).toBe(false);
   expect(tmpImageUrl('/tmp/a b.png')).toBe('/tmpimage?path=%2Ftmp%2Fa%20b.png');
   expect(tmpImageUrl('/tmp/a.png', 2)).toBe('/tmpimage?path=%2Ftmp%2Fa.png&r=2');
+});
+
+it('a Windows server: its C:/ folders, paths in either separator and any letter case, kept in the C:/ form', () => {
+  setServerSep('\\');
+  setTmpDirs(['C:/Users/x/AppData/Local/Temp', 'c:\\Temp\\', '\\\\host\\share', 'C:proj']);
+  for (const p of ['C:/Users/x/AppData/Local/Temp/a.png', 'C:\\Users\\x\\AppData\\Local\\Temp\\s\\a.png', 'c:\\users\\X\\appdata\\local\\temp\\a.PNG', 'C:/Temp/b.jpg']) {
+    expect(isTmpImagePath(p), p).toBe(true);
+  }
+  for (const p of ['C:/Users/x/AppData/Local/Temp', 'C:/Users/x/AppData/Local/Tempx/a.png', 'C:\\Users\\x\\AppData\\Local\\Temp\\..\\a.png', 'D:/Temp/a.png', 'C:proj/a.png', '//host/share/a.png', 'C:/Temp/a.txt']) {
+    expect(isTmpImagePath(p), p).toBe(false);
+  }
+  expect(tmpImagePathsIn('copy C:\\Temp\\shot.png "c:/temp/other.webp" then C:/Temp/shot.png /tmp/a.png')).toEqual(['C:/Temp/shot.png', 'C:/temp/other.webp']);
+  expect(isTmpTabPath('C:/Temp/a.png')).toBe(true);
+  expect(isTmpTabPath('src/a.png')).toBe(false);
+});
+
+it('a POSIX server: a one-letter word before a colon is no drive', () => {
+  setTmpDirs(['/tmp']);
+  expect(tmpImagePathsIn('scp h:/tmp/a.png .')).toEqual(['/tmp/a.png']);
+  expect(isTmpImagePath('C:/tmp/a.png')).toBe(false);
+  expect(isTmpTabPath('C:/tmp/a.png')).toBe(false); // a project file in a folder named `C:`
 });

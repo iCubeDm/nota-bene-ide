@@ -3,6 +3,7 @@ import { t } from '@/i18n/index.ts';
 import { fileUrl, isPath } from '@/files/kinds.ts';
 import { isTmpImagePath } from '@/files/tmpImages.ts';
 import { getSources, loadSources, refOf, sourceForAbs } from '@/files/sources.ts';
+import { isServerDrivePath, serverSep, slashRel, wireAbs } from '@/lib/paths.ts';
 import type { AppThunk } from '@/store/store.ts';
 import { openFile } from '@/tabs/slice.ts';
 
@@ -34,10 +35,12 @@ function mark(el: HTMLElement, first: string | null, src?: string, alt?: string 
 
 /**
  * An absolute path is a ref only inside the dir of a known source ('here' or a worktree, from /sources; M3-16).
- * isPath still refuses absolute paths: this is a separate check, with the same forbidden characters.
+ * isPath still refuses absolute paths: this is a separate check, with the same forbidden characters. On a Windows
+ * server a drive path (`C:\a`, `C:/a`) is taken in the wire form `C:/a`; a UNC one (`\\host`) never.
  */
-function markAbs(el: HTMLElement, abs: string): void {
-  if (!abs.startsWith('/') || abs.startsWith('//') || /[\n`<>|*]/.test(abs)) return;
+function markAbs(el: HTMLElement, raw: string): void {
+  if (!(raw.startsWith('/') || isServerDrivePath(raw)) || raw.startsWith('//') || /[\n`<>|*]/.test(raw)) return;
+  const abs = wireAbs(raw);
   const hit = sourceForAbs(abs);
   if (hit) return mark(el, hit.path, hit.src);
   // an image of a temp folder (the agent's screenshot): the path stays absolute, `data-tmp` tells openRef not to look in a source
@@ -58,21 +61,24 @@ function markAbs(el: HTMLElement, abs: string): void {
 export function markRefs(root: HTMLElement, baseDir?: string): void {
   root.querySelectorAll<HTMLElement>('code').forEach((c) => {
     if (c.closest('pre, a')) return;
-    const text = stripLine((c.textContent ?? '').trim()).replace(/^\.\//, '');
-    if (text.startsWith('/')) return markAbs(c, text);
+    const text = slashRel(stripLine((c.textContent ?? '').trim())).replace(/^\.\//, '');
+    if (text.startsWith('/') || isServerDrivePath(text)) return markAbs(c, text);
     if (!text || !isPath(text)) return;
     mark(c, normalize(text), undefined, baseDir ? normalize(text, baseDir) : null);
   });
   root.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((a) => {
     const href = a.getAttribute('href') ?? '';
-    if (!href || href.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return;
+    // on a Windows server `C:/a.md` (or `C:%5Ca.md`) is a drive path, not a URL scheme
+    const drive = serverSep() === '\\' && /^[a-z]:(?:[\\/]|%5c)/i.test(href);
+    if (!href || href.startsWith('#') || (!drive && /^[a-z][a-z0-9+.-]*:/i.test(href))) return;
     let p = href.replace(/[?#].*$/, '');
     try {
       p = decodeURI(p);
     } catch {
       // keep raw
     }
-    if (p.startsWith('/')) return markAbs(a, p);
+    if (p.startsWith('/') || drive) return markAbs(a, p);
+    p = slashRel(p);
     if (p) mark(a, normalize(p, baseDir), undefined, baseDir ? normalize(p) : null);
   });
 }
@@ -126,7 +132,7 @@ export function markMentions(root: HTMLElement): void {
       if ('mention' in p) {
         const span = document.createElement('span');
         span.className = 'ref mention';
-        span.dataset.path = p.mention;
+        span.dataset.path = slashRel(p.mention);
         span.textContent = p.raw;
         frag.append(span);
       } else frag.append(p.text);

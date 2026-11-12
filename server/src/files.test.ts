@@ -29,6 +29,12 @@ describe('resolveInRoot', () => {
     expect(resolveInRoot(root, 'a/../b')).toBe(path.join(root, 'b'));
     expect(resolveInRoot(root, '')).toBe(root);
   });
+  it('a project at a drive or file system root (`D:\\`, `/`) serves its files', () => {
+    const top = path.parse(root).root;
+    const first = path.relative(top, root).split(path.sep)[0];
+    expect(resolveInRoot(top, first)).toBe(path.join(top, first));
+    expect(resolveInRoot(top, '')).toBe(top);
+  });
   it('refuses escapes and absolute paths', () => {
     expect(resolveInRoot(root, '../x')).toBeNull();
     expect(resolveInRoot(root, '/etc/passwd')).toBeNull();

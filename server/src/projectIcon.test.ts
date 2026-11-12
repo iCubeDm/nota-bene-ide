@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventHub } from './hub.ts';
 import { httpHandler } from './http.ts';
 import { MAX_ICON_BYTES, ProjectIconStore, projectIconRoutes, sniffIcon } from './projectIcon.ts';
@@ -61,7 +61,34 @@ describe('ProjectIconStore', () => {
 });
 
 describe('ProjectIconStore robustness', () => {
-  it('versionOrNull: a folder that cannot be read is no icon, not an error', () => {
+  it.runIf(process.platform === 'win32')('versionOrNull: a folder that cannot be read is no icon, not an error (Windows: simulated EACCES)', () => {
+    const s = new ProjectIconStore({ dir });
+    s.put('/p', PNG, 'image/png');
+    vi.spyOn(fs, 'readdirSync').mockImplementation(() => { throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); });
+    try {
+      expect(() => s.version('/p')).toThrow(/EACCES/);
+      expect(s.versionOrNull('/p')).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  // macOS and Linux keep the JS realpath key, as before Windows support
+  it.runIf(process.platform === 'win32')('Windows: the key is the native real path: another spelling of the case of the same folder finds the icon', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-icon-root-'));
+    try {
+      const s = new ProjectIconStore({ dir });
+      const v = s.put(root, PNG, 'image/png');
+      expect(s.version(fs.realpathSync.native(root))).toBe(v);
+      const other = path.join(path.dirname(root), path.basename(root).toUpperCase());
+      if (fs.existsSync(other)) expect(s.version(other)).toBe(v);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // Windows: chmod 000 does not make a folder unreadable (variant above)
+  it.skipIf(process.platform === 'win32')('versionOrNull: a folder that cannot be read is no icon, not an error', () => {
     const s = new ProjectIconStore({ dir });
     s.put('/p', PNG, 'image/png');
     fs.chmodSync(dir, 0o000);

@@ -23,6 +23,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import fs from 'node:fs';
 import type { IncomingHttpHeaders } from 'node:http';
 import path from 'node:path';
+import { renameRetry } from './platform.ts';
 import { SecretError, stateDir } from './state.ts';
 
 export { SecretError };
@@ -36,34 +37,54 @@ export const COOKIE_MAX_AGE_S = 365 * 24 * 3600;
  * non-regular file, a file of another user, a file readable by group or other, and unreadable or garbage content all throw, naming
  * the file and the fix. Nothing is ever replaced silently: a rotation under a live window would log everything out, and a
  * rotation race could hand two processes two tokens.
+ * Windows: `stat` reports 666 for every file and there is no uid, so the owner and mode checks are skipped and the user
+ * profile's ACL is trusted (`stateDir` refuses a state folder outside the profile). A symlink or a junction is still
+ * refused, with `lstat` (O_NOFOLLOW does not exist there).
  */
 function readSecret(file: string): string | null {
   return readPrivateFile(file, TOKEN_RE, 'a token (64 hex characters)', 'delete it to make a new token (every open window then has to be reopened)');
 }
+
+const WIN = process.platform === 'win32';
+// both are undefined on Windows: never OR an undefined into the flags (it becomes 0 and the refusal silently goes)
+const NOFOLLOW_NONBLOCK = WIN ? 0 : fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK;
 
 /**
  * `readSecret`'s checks for any private file: `valid` is what its trimmed content must match, `what` names that content,
  * `remedy` says what deleting it does.
  */
 export function readPrivateFile(file: string, valid: RegExp, what: string, remedy: string): string | null {
-  const fix = `fix it with \`chmod 600 ${file}\`, or ${remedy}`;
+  const fix = WIN ? remedy : `fix it with \`chmod 600 ${file}\`, or ${remedy}`;
+  const isLink = () => new SecretError(`${file} is a symbolic link; refusing to read it. ${cap(remedy)}`);
+  const notFile = () => new SecretError(`${file} is not a regular file; refusing to read it. ${cap(remedy)}`);
   let fd: number;
+  let seen: fs.Stats | undefined;
   try {
+    if (WIN) {
+      // no O_NOFOLLOW: lstat first (a symlink or a junction is a link to it), and the open must land on that same file
+      seen = fs.lstatSync(file);
+      if (seen.isSymbolicLink()) throw isLink();
+      if (!seen.isFile()) throw notFile(); // a folder cannot be opened for reading there (EISDIR)
+    }
     // O_NOFOLLOW: a symlink is refused (ELOOP); O_NONBLOCK: a FIFO cannot hang the open
-    fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+    fd = fs.openSync(file, fs.constants.O_RDONLY | NOFOLLOW_NONBLOCK);
   } catch (e) {
+    if (e instanceof SecretError) throw e;
     const code = (e as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') return null;
-    if (code === 'ELOOP') throw new SecretError(`${file} is a symbolic link; refusing to read it. ${cap(remedy)}`);
+    if (code === 'ELOOP') throw isLink();
     throw new SecretError(`cannot read ${file}: ${(e as Error).message}; ${fix}`);
   }
   try {
     const st = fs.fstatSync(fd);
-    if (!st.isFile()) throw new SecretError(`${file} is not a regular file; refusing to read it. ${cap(remedy)}`);
-    if (process.getuid && st.uid !== process.getuid()) {
-      throw new SecretError(`${file} belongs to another user (uid ${st.uid}); refusing to use it. ${cap(remedy)}`);
+    if (seen && (st.ino !== seen.ino || st.dev !== seen.dev)) throw new SecretError(`${file} was replaced while it was being opened; refusing to read it. ${cap(remedy)}`);
+    if (!st.isFile()) throw notFile();
+    if (!WIN) {
+      if (process.getuid && st.uid !== process.getuid()) {
+        throw new SecretError(`${file} belongs to another user (uid ${st.uid}); refusing to use it. ${cap(remedy)}`);
+      }
+      if (st.mode & 0o077) throw new SecretError(`${file} is readable by other users (mode ${(st.mode & 0o777).toString(8)}); ${fix}`);
     }
-    if (st.mode & 0o077) throw new SecretError(`${file} is readable by other users (mode ${(st.mode & 0o777).toString(8)}); ${fix}`);
     const t = fs.readFileSync(fd, 'utf8').trim();
     if (!valid.test(t)) throw new SecretError(`${file} does not hold ${what}; ${remedy}`);
     return t;
@@ -79,10 +100,42 @@ export function writePrivateFile(file: string, content: string): void {
   const tmp = `${file}.tmp${process.pid}-${randomBytes(4).toString('hex')}`;
   fs.writeFileSync(tmp, content, { mode: 0o600, flag: 'wx' });
   try {
-    fs.renameSync(tmp, file);
+    renameRetry(tmp, file);
   } catch (e) {
     fs.rmSync(tmp, { force: true });
     throw e;
+  }
+}
+
+/** link() codes of a file system without hard links (as in marks.ts). */
+const NO_LINKS = new Set(['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'ENOSYS']);
+
+/** `content` into a new `file` (O_EXCL: EEXIST when it is there, even as a symlink); a failed write removes it again. */
+function writeExclusive(file: string, content: string): void {
+  // Windows: CREATE_NEW follows a dangling symlink and creates its target; an lstat first keeps the symlink refused there
+  if (process.platform === 'win32' && fs.lstatSync(file, { throwIfNoEntry: false })) throw Object.assign(new Error(`EEXIST: file already exists, open '${file}'`), { code: 'EEXIST' });
+  const fd = fs.openSync(file, 'wx', 0o600);
+  try {
+    fs.writeSync(fd, content);
+  } catch (e) {
+    fs.closeSync(fd);
+    fs.rmSync(file, { force: true });
+    throw e;
+  }
+  fs.closeSync(fd);
+}
+
+/** `readSecret` of a file another process has just created with `writeExclusive`: an empty one is waited for (~1 s). */
+function settled(file: string): string | null {
+  for (let i = 0; ; i++) {
+    try {
+      return readSecret(file);
+    } catch (e) {
+      let empty = false;
+      try { empty = fs.lstatSync(file).size === 0; } catch { /* gone: the read says so */ }
+      if (!empty || i >= 40) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
   }
 }
 
@@ -94,15 +147,24 @@ export function stateSecret(name: string): string {
   if (have) return have;
   const t = randomBytes(32).toString('hex');
   // written whole to a tmp file ('wx': never into an existing one), then linked in: the name appears only with its content
-  // (no reader sees it empty), and the link fails if another process got there first
+  // (no reader sees it empty), and the link fails if another process got there first.
+  // Without hard links (FAT/exFAT, some network shares): created in place with O_EXCL, still once-only; a reader may then
+  // see it empty for a moment, so the loser of the race waits for the content (`settled`).
   const tmp = `${file}.tmp${process.pid}-${randomBytes(4).toString('hex')}`;
   fs.writeFileSync(tmp, t, { mode: 0o600, flag: 'wx' });
+  let linked = true;
   try {
-    fs.linkSync(tmp, file);
+    try {
+      fs.linkSync(tmp, file);
+    } catch (e) {
+      if (!NO_LINKS.has((e as NodeJS.ErrnoException).code ?? '')) throw e;
+      linked = false;
+      writeExclusive(file, t);
+    }
     return t;
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
-    const other = readSecret(file); // the other process's (throws if what is there is bad)
+    const other = linked ? readSecret(file) : settled(file); // the other process's (throws if what is there is bad)
     if (other) return other;
     throw new SecretError(`${file} vanished while it was being created; try again`);
   } finally {

@@ -1,13 +1,13 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
+import { setLang, t } from '@/i18n/index.ts';
 import { connState, makeStore, serverEvent } from '@/store/store.ts';
 import { App } from '@/App.tsx';
 import { promptHistoryModal } from '@/composer/historyModal.ts';
 import { recentModal } from '@/files/recent.ts';
 import { openFile, selectTabs } from '@/tabs/slice.ts';
-import { BINDINGS, keysLabel, VOICE_KEY, withKey } from './keymap.ts';
+import { BINDINGS, keysLabel, modKey, VOICE_KEY, withKey } from './keymap.ts';
 
 beforeEach(() => {
   localStorage.clear();
@@ -173,6 +173,20 @@ it('on a Mac: ⌘ is the mod key, Option+letter/digit types in a field but works
     act(() => recentModal.close());
     expect(BINDINGS.map(keysLabel).slice(0, 2)).toEqual(['⌥W', '⌥⇧T']);
     expect(keysLabel(BINDINGS.find((b) => b.id === 'hk_files')!)).toBe('⌘⇧F');
+    expect(t('keysTip', modKey())).toContain('⌘Enter');
+  } finally {
+    plat.mockRestore();
+  }
+});
+
+it('off a Mac the composer tips name Ctrl, not ⌘', () => {
+  const plat = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Win32');
+  try {
+    expect(modKey()).toBe('Ctrl+');
+    expect(t('keysTip', modKey())).toContain('Ctrl+Enter — interrupt');
+    expect(t('forceAsk', modKey())).toContain('Ctrl+Enter again');
+    expect(t('attach', modKey())).toContain('Ctrl+V');
+    expect(t('attach', modKey())).not.toContain('⌘');
   } finally {
     plat.mockRestore();
   }

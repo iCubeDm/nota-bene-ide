@@ -29,6 +29,7 @@ import { codeChecker } from './codeStamp.ts';
 import { stateBaseDir, stateDir } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { moveWindow } from './windows.ts';
+import { pidAlive } from './platform.ts';
 import { controlToken, describeVersion, systemRoutes } from './system.ts';
 import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
@@ -156,9 +157,12 @@ export async function startServer(o: {
       if (!restart) store.set(null, []);
       broadcastComments(store.get(id));
     });
-    // supervised = our launcher is still our parent: an orphan (launcher killed) must not offer a restart nobody catches
+    // supervised = our launcher is still our parent: an orphan (launcher killed) must not offer a restart nobody catches.
+    // Windows never reparents, so the parent must also still be there: its IPC channel open (main.ts watchLauncher), or
+    // without one (an older launcher) its pid alive
     const supervised = () => process.env.NOTA_BENE_SUPERVISED === '1'
-      && process.ppid === Number(process.env.NOTA_BENE_LAUNCHER_PID);
+      && process.ppid === Number(process.env.NOTA_BENE_LAUNCHER_PID)
+      && (process.channel ? process.connected : pidAlive(process.ppid));
     const codeChanged = codeChecker({ repoDir: o.repoDir ?? path.resolve(import.meta.dirname, '..', '..') });
     const nonce = o.nonce !== undefined && isNonce(o.nonce) ? o.nonce : newNonce();
     const authorize = token === null ? undefined : (req: http.IncomingMessage, needKey: boolean) => authenticated(req.headers, token, ownPort, nonce, needKey);

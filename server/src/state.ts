@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { isInside } from '@nota-bene/shared/paths';
 import { parseProvider, providerStateDir } from './agent/provider.ts';
+import { realpathNative, renameRetry } from './platform.ts';
 
 /** A secret or the state folder is unusable (wrong owner, loose mode, ...): the user has to act. Never swallowed as "not ours". */
 export class SecretError extends Error {}
@@ -13,10 +15,26 @@ export function stateBaseDir(): string {
   return process.env.NOTA_BENE_HOME ?? path.join(os.homedir(), '.nota-bene');
 }
 
+/**
+ * Windows: why the state folder `real` (a real path) may not be used, or null. Mode bits mean nothing there; what keeps the
+ * token private is the ACL the folder inherits, and only the user profile's (`profile`) shuts out the other local users by
+ * default (a folder elsewhere, `C:\nb` or `D:\state`, is readable by every user). So a folder outside the profile is refused
+ * unless NOTA_BENE_ALLOW_SHARED_HOME=1 says its ACL was restricted by hand. Case-insensitive, either separator.
+ */
+export function sharedHomeRefusal(real: string, profile: string, env: Record<string, string | undefined> = process.env): string | null {
+  if (env.NOTA_BENE_ALLOW_SHARED_HOME === '1' || isInside(real, profile, { caseInsensitive: true })) return null;
+  return `the state folder ${real} is outside your user profile (${profile}), where other users of this computer can read the access token by default; refusing to use it. `
+    + 'Unset NOTA_BENE_HOME or point it at a folder inside your profile, or, if only you can read that folder, set NOTA_BENE_ALLOW_SHARED_HOME=1';
+}
+
 export function stateDir(): string {
   const dir = providerStateDir(stateBaseDir(), parseProvider(process.env.NOTA_BENE_AGENT));
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (!tightened.has(dir)) {
+    if (process.platform === 'win32') {
+      const why = sharedHomeRefusal(realpathNative(dir), realpathNative(os.homedir()));
+      if (why) throw new SecretError(why);
+    }
     if (process.getuid && fs.statSync(dir).uid !== process.getuid()) {
       throw new SecretError(`the state folder ${dir} belongs to another user; refusing to use it. Point NOTA_BENE_HOME at a folder of your own`);
     }
@@ -48,7 +66,7 @@ export function saveSession(projectDir: string, id: string | null): void {
   else data[projectDir] = id;
   const tmp = `${file}.tmp${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, file);
+  renameRetry(tmp, file);
 }
 
 /** Adds the entries the file does not have yet (never overwrites), in one atomic write; returns how many were added. */
@@ -64,6 +82,6 @@ export function addMissingSessions(entries: Record<string, string>): number {
   if (added === 0) return 0;
   const tmp = `${file}.tmp${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, file);
+  renameRetry(tmp, file);
   return added;
 }

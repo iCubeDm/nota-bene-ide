@@ -1,9 +1,12 @@
-// The wire between a window's server and the Whisper host process (hostMain.ts): length-prefixed frames on a unix socket.
+// The wire between a window's server and the Whisper host process (hostMain.ts): length-prefixed frames on a unix socket (a
+// named pipe on Windows).
 // A frame is [u32 headerLen][JSON header][u32 bodyLen][body], lengths big-endian. The body is raw 16-bit little-endian PCM
 // (16 kHz mono, as wav.ts takes it) in a job and empty otherwise. Bad framing is a WireError and ends the connection.
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { readPrivateFile } from '../auth.ts';
+import { pathKey, realpathNative } from '../platform.ts';
 import { SecretError, stateBaseDir } from '../state.ts';
 import { MAX_AUDIO, WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_RATE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
 
@@ -27,8 +30,20 @@ export const jobDeadlineMs = (samples: number): number => Math.max(JOB_DEADLINE_
 /** The host's folder, outside <stateBase>/whisper/ (Remove deletes that one while a host may still be answering). */
 export const hostDir = (): string => path.join(stateBaseDir(), 'whisper-host');
 
-/** The host's socket; throws when the path does not fit a unix socket (the caller falls back to the in-process model). */
+/** A Windows named pipe, not a path on disk: there is no file to stat, rename or remove. */
+export const isPipePath = (p: string): boolean => p.startsWith('\\\\.\\pipe\\');
+
+/**
+ * The host's socket; throws when the path does not fit a unix socket (the caller falls back to the in-process model). Windows:
+ * the named pipe `\\.\pipe\nota-bene-whisper-<16 hex of SHA-256 of the real state base path>-h<proto>-<pins>`. Pipe names
+ * are machine-wide, so the home is in the name, and a pipe gets the default ACL: the hello handshake (`helloProof`) proves
+ * both ends hold the home's `host-secret` instead of the mode-600 socket.
+ */
 export function hostSocketPath(): string {
+  if (process.platform === 'win32') {
+    const home = createHash('sha256').update(pathKey(realpathNative(stateBaseDir()))).digest('hex').slice(0, 16);
+    return `\\\\.\\pipe\\nota-bene-whisper-${home}-h${HOST_PROTO}-${HOST_PINS}`;
+  }
   const p = path.join(hostDir(), `h${HOST_PROTO}-${HOST_PINS}.sock`);
   // sun_path holds 104 bytes on macOS, 108 on Linux (with the terminator)
   if (Buffer.byteLength(p) > 103) throw new Error(`the Whisper host socket path is too long for the system (${p}); use a shorter NOTA_BENE_HOME`);
@@ -42,6 +57,46 @@ export function privateDir(dir: string): void {
   try { fs.chmodSync(dir, 0o700); } catch { /* not ours to tighten */ }
 }
 
+const HEX32 = /^[0-9a-f]{64}$/;
+
+/**
+ * What proves a window to the host and the host to the window on a Windows pipe: 32 random bytes as hex in
+ * `<whisper-host>/host-secret`, made once (a write, then a link: two first callers agree on one), read with the token's checks.
+ */
+export function hostSecret(): string {
+  const dir = hostDir();
+  privateDir(dir);
+  const file = path.join(dir, 'host-secret');
+  const have = readPrivateFile(file, HEX32, 'a secret (64 hex characters)', 'delete it to make a new one (a running Whisper host is then replaced)');
+  if (have) return have;
+  const t = randomBytes(32).toString('hex');
+  const tmp = `${file}.new${process.pid}-${randomBytes(4).toString('hex')}`;
+  fs.writeFileSync(tmp, t, { mode: 0o600, flag: 'wx' });
+  try {
+    fs.linkSync(tmp, file);
+    return t;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+    return hostSecret();
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+/**
+ * The pipe handshake: the host sends `challenge` with its nonce `ns` as the connection opens, the window's `hello` carries its
+ * own nonce `nc` and its proof, the host's `hello` answer the host's. Each is HMAC-SHA-256 under the secret, so the secret
+ * never crosses the pipe and a proof is good for one connection only.
+ */
+export const helloProof = (secret: string, side: 'window' | 'host', ns: string, nc: string): string =>
+  createHmac('sha256', Buffer.from(secret, 'hex')).update(`nb-whisper-${side}\n${ns}\n${nc}`).digest('hex');
+
+/** Whether `got` is the proof `want`, in constant time. */
+export const proofMatches = (got: unknown, want: string): boolean =>
+  typeof got === 'string' && HEX32.test(got) && timingSafeEqual(Buffer.from(got, 'hex'), Buffer.from(want, 'hex'));
+
+export const newNonce = (): string => randomBytes(32).toString('hex');
+
 export type Header = Record<string, unknown>;
 export type Frame = { header: Header; body: Buffer };
 
@@ -52,9 +107,9 @@ export type JobOpts = { lang: string; detect: boolean };
 /** Why a job has no transcript: the queue is full, Whisper is off (removed), the model or the job failed, the client cancelled it. */
 export type JobError = 'busy' | 'off' | 'failed' | 'cancelled';
 
-/** What a window sends. A `job` carries its PCM as the frame body. */
+/** What a window sends. A `job` carries its PCM as the frame body. On a pipe `hello` carries the window's nonce and proof. */
 export type HostRequest =
-  | { type: 'hello'; proto: number }
+  | { type: 'hello'; proto: number; nonce?: string; proof?: string }
   | { type: 'job'; id: number; opts: JobOpts }
   | { type: 'cancel'; id: number }
   | { type: 'shutdown'; reason: string }
@@ -62,10 +117,12 @@ export type HostRequest =
 
 /**
  * What the host answers; a job's answer is the only one without a `type`. `full`, instead of `hello`, says that the host has all
- * the windows it takes: the connection closes after it. A `failed` answer may carry the model's message.
+ * the windows it takes: the connection closes after it. A `failed` answer may carry the model's message. On a pipe the host
+ * sends `challenge` first, unasked, and its `hello` carries its proof.
  */
 export type HostReply =
-  | { type: 'hello'; proto: number; pid: number; pins: string; loaded: boolean; queued: number }
+  | { type: 'challenge'; nonce: string }
+  | { type: 'hello'; proto: number; pid: number; pins: string; loaded: boolean; queued: number; proof?: string }
   | { type: 'status'; loaded: boolean; queued: number; running: boolean; clients: number }
   | { type: 'full' }
   | { id: number; text: string; lang: string }
@@ -179,7 +236,8 @@ export function parseRequest(h: Header): HostRequest {
   switch (h.type) {
     case 'hello':
       if (typeof h.proto !== 'number' || !Number.isInteger(h.proto)) throw bad('hello');
-      return { type: 'hello', proto: h.proto };
+      if ((h.nonce !== undefined && (typeof h.nonce !== 'string' || !HEX32.test(h.nonce))) || (h.proof !== undefined && typeof h.proof !== 'string')) throw bad('hello');
+      return { type: 'hello', proto: h.proto, ...(h.nonce !== undefined ? { nonce: h.nonce } : {}), ...(h.proof !== undefined ? { proof: h.proof as string } : {}) };
     case 'status':
       return { type: 'status' };
     case 'job': {

@@ -8,7 +8,10 @@ import path from 'node:path';
 import { EventHub } from './hub.ts';
 import { httpHandler } from './http.ts';
 import { fileRoutes } from './fileRoutes.ts';
+import { toSlash } from '@nota-bene/shared/paths';
 import { TMP_IMAGE_MAX, tmpDirNames, tmpDirs } from './tmpImage.ts';
+
+const win = process.platform === 'win32';
 
 let dir: string; // a fresh folder in the temp dir
 let outside: string; // a folder outside every temp dir (under home)
@@ -95,11 +98,25 @@ describe('/tmpimage', () => {
   it('knows the temp folders: the real os.tmpdir(), /tmp and /private/tmp when they exist', () => {
     const dirs = tmpDirs();
     expect(dirs).toContain(fs.realpathSync.native(os.tmpdir()));
-    if (fs.existsSync('/tmp')) expect(dirs).toContain(fs.realpathSync.native('/tmp'));
+    if (!win && fs.existsSync('/tmp')) expect(dirs).toContain(fs.realpathSync.native('/tmp'));
     expect(new Set(dirs).size).toBe(dirs.length);
   });
 
-  it('names the folders for links too: /tmp as written, and the real ones', () => {
+  it.runIf(win)('Windows: no /tmp or /private/tmp (they would be folders of the current drive); names in the wire form C:/...', () => {
+    expect(tmpDirs().some((d) => /^[\\/]/.test(d))).toBe(false);
+    const names = tmpDirNames();
+    expect(names).not.toContain('/tmp');
+    expect(names).toContain(toSlash(fs.realpathSync.native(os.tmpdir())));
+    expect(names.every((d) => /^[A-Z]:\//.test(d) && !d.includes('\\') && !d.endsWith('/'))).toBe(true);
+  });
+
+  it.runIf(win)('Windows: the wire form, a lower-case drive and other letter case of the same file are served; the containment ignores case', async () => {
+    const p = path.join(dir, 'a.png');
+    for (const q of [toSlash(p), p.toLowerCase(), toSlash(p).toUpperCase().replace(/\.PNG$/, '.png')]) expect((await img(q)).status, q).toBe(200);
+    expect((await img(toSlash(path.join(outside, 'secret.png')))).status).toBe(404);
+  });
+
+  it.skipIf(win)('names the folders for links too: /tmp as written, and the real ones', () => {
     const names = tmpDirNames();
     expect(names).toContain('/tmp');
     for (const d of tmpDirs()) expect(names).toContain(d);

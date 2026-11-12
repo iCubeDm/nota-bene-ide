@@ -77,7 +77,8 @@ describe('control token', () => {
     const t = controlToken();
     expect(t).toMatch(/^[0-9a-f]{64}$/);
     expect(controlToken()).toBe(t);
-    expect(fs.statSync(path.join(home, 'control-token')).mode & 0o777).toBe(0o600);
+    // no mode bits on Windows: stat says 666 whatever chmod did
+    if (process.platform !== 'win32') expect(fs.statSync(path.join(home, 'control-token')).mode & 0o777).toBe(0o600);
   });
   it('a garbage token file throws instead of being replaced (the ssh rule)', () => {
     fs.writeFileSync(path.join(home, 'control-token'), 'nope', { mode: 0o600 });
@@ -218,6 +219,23 @@ describe('defaults and about', () => {
     expect((await post(`${s.url}/system/prefs`, { audit: false }, { origin: s.origin })).status).toBe(200);
     expect(await read()).toMatchObject({ audit: false });
     expect(readPrefs().audit).toBe(false);
+  });
+
+  it('the shell of ! commands: stored and validated; only Windows shows it, with where each choice is installed', async () => {
+    const s = await boot();
+    const read = async () => (await fetch(`${s.url}/system/prefs`)).json() as Promise<{ shell?: string; shells?: Record<string, string | null> }>;
+    const got = await read();
+    if (process.platform === 'win32') {
+      expect(got.shell).toBe('auto');
+      expect(Object.keys(got.shells!).sort()).toEqual(['cmd', 'git-bash', 'powershell', 'pwsh']);
+      expect(got.shells!.cmd).toMatch(/cmd\.exe$/i);
+    } else {
+      expect('shell' in got || 'shells' in got).toBe(false); // $SHELL runs it, as always
+    }
+    expect((await post(`${s.url}/system/prefs`, { shell: 'fish' }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { shell: 'cmd' }, { origin: s.origin })).status).toBe(200);
+    expect(readPrefs().shell).toBe('cmd');
+    if (process.platform === 'win32') expect(await read()).toMatchObject({ shell: 'cmd' });
   });
 
   it('the default mode is stored and validated', async () => {

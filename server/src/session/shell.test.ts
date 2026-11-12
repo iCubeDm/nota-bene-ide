@@ -1,10 +1,11 @@
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SHELL_OUTPUT_CAP, type ServerEvent } from '@nota-bene/shared';
 import type { EmitInput } from '../hub.ts';
-import { SHELL_TIMEOUT_MS, ShellRunner } from './shell.ts';
+import { SHELL_TIMEOUT_MS, ShellRunner, gitBashPath, onData, pickWinShell, winShellSpec, winShells } from './shell.ts';
 
 let dir: string;
 let events: EmitInput[];
@@ -12,9 +13,15 @@ let reported: unknown[];
 const runners: ShellRunner[] = [];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+// Windows runs these in Git Bash: the block's output starts with the shell's name, and a pid the tests look at must be the
+// Windows one (an MSYS `$!` is not)
+const win = process.platform === 'win32';
+const HEAD = win ? '[Git Bash]\n' : '';
+const BG_PID = win ? 'cat /proc/$!/winpid' : 'echo $!';
+const SELF_PID = win ? 'cat /proc/$$/winpid' : 'echo $$';
 
 beforeEach(() => {
-  dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-shell-')));
+  dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-shell-')));
   events = [];
   reported = [];
 });
@@ -25,7 +32,7 @@ afterEach(() => {
 });
 
 function make(o: Partial<ConstructorParameters<typeof ShellRunner>[0]> = {}) {
-  const r = new ShellRunner({ emit: (ev) => void events.push(ev), root: () => dir, report: (_w, e) => void reported.push(e), ...o });
+  const r = new ShellRunner({ emit: (ev) => void events.push(ev), root: () => dir, report: (_w, e) => void reported.push(e), shell: () => 'git-bash', ...o });
   runners.push(r);
   return r;
 }
@@ -59,10 +66,12 @@ const runToEnd = async (r: ShellRunner, cmd: string, id = 'r1') => {
 describe('ShellRunner', () => {
   it('runs a command in the root: start, output, end with the exit code', async () => {
     const r = make();
-    const end = await runToEnd(r, 'pwd; echo out; echo err >&2');
-    expect(events[0]).toMatchObject({ kind: 'shell-start', id: 'r1', cmd: 'pwd; echo out; echo err >&2' });
-    expect(end).toMatchObject({ code: 0, truncated: false, cmd: 'pwd; echo out; echo err >&2' });
-    expect(end.output).toContain(`${dir}\n`);
+    const cmd = `${win ? 'pwd -W' : 'pwd'}; echo out; echo err >&2`; // -W: the Windows form of the folder
+    const end = await runToEnd(r, cmd);
+    expect(events[0]).toMatchObject({ kind: 'shell-start', id: 'r1', cmd });
+    expect(end).toMatchObject({ code: 0, truncated: false, cmd });
+    expect(end.output.startsWith(HEAD)).toBe(true);
+    expect(end.output.toLowerCase()).toContain(`${win ? dir.replace(/\\/g, '/') : dir}\n`.toLowerCase());
     expect(end.output).toMatch(/out\n/);
     expect(end.output).toMatch(/err\n/); // stderr is in the same block
     expect(end.stop).toBeUndefined();
@@ -71,14 +80,14 @@ describe('ShellRunner', () => {
 
   it('reports a non-zero exit code and nothing else', async () => {
     const end = await runToEnd(make(), 'echo bad >&2; exit 3');
-    expect(end).toMatchObject({ code: 3, output: 'bad\n' });
+    expect(end).toMatchObject({ code: 3, output: `${HEAD}bad\n` });
     expect('stop' in end).toBe(false);
     expect('error' in end).toBe(false);
   });
 
   it('gives the command no stdin: a reader gets EOF at once', async () => {
     const end = await runToEnd(make(), 'cat; echo after');
-    expect(end).toMatchObject({ code: 0, output: 'after\n' });
+    expect(end).toMatchObject({ code: 0, output: `${HEAD}after\n` });
   });
 
   it('leaves the launcher’s variables out of the environment', async () => {
@@ -86,7 +95,7 @@ describe('ShellRunner', () => {
     process.env.NOTA_BENE_LAUNCHER_PID = '4242';
     try {
       const end = await runToEnd(make(), 'echo "[$NOTA_BENE_SUPERVISED][$NOTA_BENE_LAUNCHER_PID][${HOME:+home}]"');
-      expect(end.output).toBe('[][][home]\n');
+      expect(end.output).toBe(`${HEAD}[][][home]\n`);
     } finally {
       delete process.env.NOTA_BENE_SUPERVISED;
       delete process.env.NOTA_BENE_LAUNCHER_PID;
@@ -95,7 +104,7 @@ describe('ShellRunner', () => {
 
   it('strips ANSI escapes from the output', async () => {
     const end = await runToEnd(make(), String.raw`printf '\033[31mred\033[0m \033]0;t\007ok\n'`);
-    expect(end.output).toBe('red ok\n');
+    expect(end.output).toBe(`${HEAD}red ok\n`);
   });
 
   it('keeps the last 64 K characters and marks the cut', async () => {
@@ -119,9 +128,9 @@ describe('ShellRunner', () => {
 
   it('stop signals the process group: TERM first, and the command’s own children go too', async () => {
     const r = make();
-    r.run('r1', 'sleep 60 & echo $!; wait');
+    r.run('r1', `sleep 60 & ${BG_PID}; wait`);
     await until(() => outs().length > 0);
-    const child = Number(lastOut().trim());
+    const child = Number(lastOut().replace(HEAD, '').trim());
     expect(alive(child)).toBe(true);
     r.stop('r1');
     await until(() => !!ended());
@@ -129,7 +138,7 @@ describe('ShellRunner', () => {
     await until(() => !alive(child));
   });
 
-  it('a command that ignores TERM is killed after the delay', async () => {
+  it.skipIf(win)('a command that ignores TERM is killed after the delay', async () => { // Windows: no TERM, the tree is killed at once
     const r = make({ killMs: 150 });
     r.run('r1', "trap '' TERM; echo ready; while :; do sleep 0.05; done");
     await until(() => outs().length > 0);
@@ -155,12 +164,12 @@ describe('ShellRunner', () => {
     const r = make();
     await runToTimeout(r, 'echo start; sleep 30', 'start');
     expect(ended()).toMatchObject({ stop: 'timeout', code: null });
-    expect(ended()!.output).toBe('start\n');
+    expect(ended()!.output).toBe(`${HEAD}start\n`);
   });
 
   it('stopAll (a switch, a close) kills the group and says nothing more; the next run may start at once', async () => {
     const r = make();
-    r.run('r1', 'echo hi; sleep 60 & echo $!; wait');
+    r.run('r1', `echo hi; sleep 60 & ${BG_PID}; wait`);
     await until(() => /\d+\n/.test(lastOut()));
     const pid = Number(/(\d+)\n/.exec(lastOut())![1]);
     r.stopAll();
@@ -186,15 +195,15 @@ describe('ShellRunner', () => {
   it('a background job ends with the command: the rest of the group is stopped when the shell is gone', async () => {
     const r = make();
     const t0 = Date.now();
-    r.run('r1', 'sleep 20 & echo $!');
+    r.run('r1', `sleep 20 & ${BG_PID}`);
     await until(() => !!ended(), 3000);
     expect(Date.now() - t0).toBeLessThan(2500);
     expect(ended()!.code).toBe(0);
-    const bg = Number(ended()!.output.trim());
+    const bg = Number(ended()!.output.replace(HEAD, '').trim());
     await until(() => !alive(bg));
   });
 
-  it('a background job that ignores TERM is killed after the delay, also once the block has ended', async () => {
+  it.skipIf(win)('a background job that ignores TERM is killed after the delay, also once the block has ended', async () => {
     const r = make({ killMs: 700 }); // the block closes 300 ms after the shell, before this KILL
     r.run('r1', `(trap '' TERM; touch ready; while :; do sleep 0.05; done) & while [ ! -f ready ]; do sleep 0.02; done; echo $!`);
     await until(() => !!ended(), 3000);
@@ -203,7 +212,7 @@ describe('ShellRunner', () => {
     await until(() => !alive(bg), 3000);
   });
 
-  it('does not signal a group again once it is empty: no KILL for an id that may be reused', async () => {
+  it.skipIf(win)('does not signal a group again once it is empty: no KILL for an id that may be reused', async () => {
     const r = make({ killMs: 700 });
     const kill = vi.spyOn(process, 'kill');
     try {
@@ -220,9 +229,9 @@ describe('ShellRunner', () => {
 
   it('a stopped run’s KILL still comes after the run has ended', async () => {
     const r = make({ killMs: 200 });
-    r.run('r1', "trap '' TERM; echo $$; while :; do sleep 0.05; done");
+    r.run('r1', `trap '' TERM; ${SELF_PID}; while :; do sleep 0.05; done`);
     await until(() => /\d/.test(lastOut()));
-    const pid = Number(lastOut().trim());
+    const pid = Number(lastOut().replace(HEAD, '').trim());
     r.stop('r1');
     await until(() => !!ended());
     await until(() => !alive(pid), 3000);
@@ -233,7 +242,7 @@ describe('ShellRunner', () => {
     expect(r.snapshot()).toBeNull();
     r.run('r1', 'echo one; sleep 30');
     await until(() => outs().length > 0);
-    expect(r.snapshot()).toEqual({ id: 'r1', text: 'one\n', truncated: false });
+    expect(r.snapshot()).toEqual({ id: 'r1', text: `${HEAD}one\n`, truncated: false });
     r.stop('r1');
     await until(() => !!ended());
     expect(r.snapshot()).toBeNull();
@@ -328,6 +337,23 @@ describe('a command that prints without end', () => {
     await runToEnd(r, 'yes');
     expect(r.take('x').length).toBeLessThan(70 * 1024);
   });
+
+  // onData yields only on Windows; elsewhere libuv already hands the loop back between reads
+  it.runIf(process.platform === 'win32')('a reader slower than the flood still leaves the event loop its timers', async () => {
+    // a slow machine (a CI runner): each chunk costs more than the command takes to print the next. On Windows libuv kept
+    // reading the full pipe and no timer ran until the flood ended
+    const child = spawn(process.execPath, ['-e', 'const b = Buffer.alloc(1 << 16, 121); for (;;) process.stdout.write(b)'], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+    try {
+      let chunks = 0;
+      onData(child.stdout, () => { chunks++; const end = Date.now() + 2; while (Date.now() < end); });
+      let ticks = 0;
+      const tick = setInterval(() => ticks++, 50);
+      await sleep(1000);
+      clearInterval(tick);
+      expect(chunks).toBeGreaterThan(10);
+      expect(ticks).toBeGreaterThan(5);
+    } finally { child.kill('SIGKILL'); }
+  });
 });
 
 describe('a frame a socket missed', () => {
@@ -335,12 +361,12 @@ describe('a frame a socket missed', () => {
     let skipNext = 2;
     const r = new ShellRunner({
       emit: (ev) => { events.push(ev); return ev.kind === 'shell-out' && skipNext-- > 0; },
-      root: () => dir, report: () => {},
+      root: () => dir, report: () => {}, shell: () => 'git-bash',
     });
     runners.push(r);
     r.run('r1', 'echo once; sleep 30');
     await until(() => outs().length >= 3, 3000); // two skipped, then taken: three frames of one burst of output
-    expect(new Set(outs().map((o) => o.text))).toEqual(new Set(['once\n']));
+    expect(new Set(outs().map((o) => o.text))).toEqual(new Set([`${HEAD}once\n`]));
     await sleep(350);
     expect(outs().length).toBe(3); // taken: it stops
     r.stop('r1');
@@ -355,7 +381,7 @@ describe('small things of the run', () => {
     expect(end.output).not.toMatch(/^(GNU bash|zsh \d)/i);
   });
 
-  it('uses $SHELL only when it is a shell that takes -lc like sh does', async () => {
+  it.skipIf(win)('uses $SHELL only when it is a shell that takes -lc like sh does', async () => { // Windows: the setting picks the shell
     const prev = process.env.SHELL;
     try {
       for (const bad of ['/bin/csh', '/usr/bin/false', '/usr/sbin/nologin', '/usr/local/bin/fish', '/nonexistent/bash', 'bash']) {
@@ -417,5 +443,100 @@ describe('small things of the run', () => {
     await sleep(300);
     expect(ended()).toBeUndefined();
     expect(r.take('x')).toBe('x');
+  });
+});
+
+describe('the shell of a run on Windows', () => {
+  const none = { 'git-bash': null, pwsh: null, powershell: null, cmd: null };
+  it('auto takes Git Bash, else PowerShell 7, else Windows PowerShell; a choice that is not there is refused, not replaced', () => {
+    const all = { 'git-bash': 'G', pwsh: 'P', powershell: 'W', cmd: 'C' };
+    expect(pickWinShell('auto', all)).toEqual({ shell: 'git-bash', file: 'G' });
+    expect(pickWinShell('auto', { ...all, 'git-bash': null })).toEqual({ shell: 'pwsh', file: 'P' });
+    expect(pickWinShell('auto', { ...none, powershell: 'W', cmd: 'C' })).toEqual({ shell: 'powershell', file: 'W' });
+    expect(pickWinShell('cmd', all)).toEqual({ shell: 'cmd', file: 'C' });
+    expect(pickWinShell('pwsh', { ...all, pwsh: null })).toEqual({ missing: 'pwsh' });
+    expect(pickWinShell('git-bash', none)).toEqual({ missing: 'git-bash' });
+  });
+
+  it('runs each shell its own way: bash like sh, PowerShell with -Command, cmd with the line as typed', () => {
+    expect(winShellSpec('git-bash', 'b', '--version')).toEqual({ command: 'b', args: ['-lc', '--', '--version'] });
+    expect(winShellSpec('pwsh', 'p', 'gci')).toEqual({ command: 'p', args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'gci'] });
+    expect(winShellSpec('cmd', 'c', 'echo "a" & ver')).toEqual({ command: 'c', args: ['/d', '/s', '/c', '"echo "a" & ver"'], windowsVerbatimArguments: true });
+  });
+
+  describe.skipIf(!win)('on this machine', () => {
+    const shells = winShells();
+    const runIn = (shell: 'git-bash' | 'pwsh' | 'powershell' | 'cmd', cmd: string, id = 'r1') => runToEnd(make({ shell: () => shell }), cmd, id);
+
+    it('Git Bash comes from the Git install, never the WSL bash, and its variable wins', () => {
+      if (shells['git-bash']) expect(shells['git-bash']).toMatch(/\\bin\\bash\.exe$/i);
+      expect(gitBashPath({ SYSTEMROOT: process.env.SYSTEMROOT, PATH: path.join(process.env.SYSTEMROOT ?? 'C:\\Windows', 'System32') })).toBeNull();
+      const own = path.join(dir, 'bash.exe');
+      fs.writeFileSync(own, '');
+      expect(gitBashPath({ CLAUDE_CODE_GIT_BASH_PATH: own, PATH: '' })).toBe(own);
+      // a Git whose git.exe is in cmd\ (the installer's PATH entry) or in mingw64\bin\
+      for (const sub of ['cmd', path.join('mingw64', 'bin')]) {
+        const git = path.join(dir, `git-${sub.length}`);
+        fs.mkdirSync(path.join(git, sub), { recursive: true });
+        fs.mkdirSync(path.join(git, 'bin'), { recursive: true });
+        fs.writeFileSync(path.join(git, sub, 'git.exe'), '');
+        fs.writeFileSync(path.join(git, 'bin', 'bash.exe'), '');
+        expect(gitBashPath({ SYSTEMROOT: process.env.SYSTEMROOT, PATH: path.join(git, sub) })).toBe(path.join(git, 'bin', 'bash.exe'));
+      }
+    });
+
+    it.skipIf(!shells.pwsh)('PowerShell 7: the block names it, the command keeps its quotes, the agent hears which shell ran it', async () => {
+      const r = make({ shell: () => 'pwsh' });
+      const end = await runToEnd(r, 'Write-Output "a ""q"" & b"; [Console]::Error.WriteLine("err"); exit 3');
+      expect(end).toMatchObject({ code: 3 });
+      expect(end.output.startsWith('[PowerShell 7]\n')).toBe(true);
+      expect(end.output).toContain('a "q" & b\n');
+      expect(end.output).toContain('err\n');
+      expect(end.output).not.toContain('\r');
+      const t = r.take('x');
+      expect(t).toContain('<bash-stdout>a "q" & b</bash-stdout>');
+      expect(t).toContain('<bash-stderr>err\n[run in PowerShell 7]\n[exit code 3]</bash-stderr>');
+    });
+
+    it('Windows PowerShell 5.1 runs in the root', async () => {
+      const end = await runIn('powershell', '(Get-Location).Path');
+      expect(end).toMatchObject({ code: 0 });
+      expect(end.output.toLowerCase()).toBe(`[windows powershell]\n${dir.toLowerCase()}\n`);
+    });
+
+    it('cmd runs the line as typed, and refuses more than one line', async () => {
+      const end = await runIn('cmd', 'echo a "q" ^& b & cd & exit /b 4');
+      expect(end).toMatchObject({ code: 4 });
+      expect(end.output.toLowerCase()).toBe(`[cmd]\na "q" & b \n${dir.toLowerCase()}\n`);
+      const two = await runIn('cmd', 'echo a\necho b', 'r2');
+      expect(two).toMatchObject({ code: null, error: 'shell-cmd-one-line', output: '' });
+    });
+
+    it('a shell chosen in the settings that is not installed refuses the run, naming the setting for the agent', async () => {
+      const r = make({ shell: () => 'git-bash', env: () => ({ ...process.env }) });
+      const prev = { path: process.env.PATH, own: process.env.CLAUDE_CODE_GIT_BASH_PATH };
+      process.env.PATH = path.join(process.env.SYSTEMROOT ?? 'C:\\Windows', 'System32'); // no git.exe there
+      delete process.env.CLAUDE_CODE_GIT_BASH_PATH;
+      try {
+        const end = await runToEnd(r, 'echo hi');
+        expect(end).toMatchObject({ code: null, error: 'shell-missing:git-bash', output: '' });
+        expect(r.take('x')).toContain('[could not run: Git Bash is not installed; see the setting "Shell for ! commands"]');
+      } finally {
+        process.env.PATH = prev.path;
+        if (prev.own !== undefined) process.env.CLAUDE_CODE_GIT_BASH_PATH = prev.own;
+      }
+    });
+
+    it('stop kills the process tree of a PowerShell command', async () => {
+      const r = make({ shell: () => 'powershell' });
+      r.run('r1', "$p = Start-Process -NoNewWindow -PassThru ping -ArgumentList '-n','60','127.0.0.1'; Write-Output \"pid $($p.Id)\"; $p.WaitForExit()");
+      await until(() => /pid \d+/.test(lastOut()), 15000);
+      const child = Number(/pid (\d+)/.exec(lastOut())![1]);
+      expect(alive(child)).toBe(true);
+      r.stop('r1');
+      await until(() => !!ended());
+      expect(ended()).toMatchObject({ stop: 'user', code: null });
+      await until(() => !alive(child));
+    }, 20000);
   });
 });

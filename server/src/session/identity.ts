@@ -1,5 +1,7 @@
 import type { EmitInput } from '../hub.ts';
+import { samePath } from '../platform.ts';
 import { saveSession } from '../state.ts';
+import { wirePath } from '../wirePath.ts';
 import { SESSION_ID, realOr } from './target.ts';
 
 type IdentityOptions = {
@@ -79,7 +81,7 @@ export class SessionIdentity {
 
   /** A switch lands on `id` in `real`; true when it is the same session in the same dir (a restart). */
   enter(id: string | null, real: string): boolean {
-    const same = id === this.sid && real === realOr(this.dir);
+    const same = id === this.sid && samePath(realOr(real), realOr(this.dir));
     this.dir = real;
     // a restart before the fork's first init keeps forking; any other target ends the pending fork
     if (!(this.forkPending && id === this.sid)) this.forkPending = false;
@@ -96,7 +98,7 @@ export class SessionIdentity {
 
   /** Sends `session` when any of its fields changed since the last one. */
   announce(): void {
-    const ev = { kind: 'session' as const, id: this.sid, root: this.dir, title: this.o.title(), model: this.mdl };
+    const ev = { kind: 'session' as const, id: this.sid, root: wirePath(this.dir), title: this.o.title(), model: this.mdl };
     const json = JSON.stringify(ev);
     if (json === this.last) return;
     this.last = json;

@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { SecretError, verifiedBearer } from './auth.ts';
+import { pidAlive, renameRetry } from './platform.ts';
 import { stateDir } from './state.ts';
 
 export type WindowEntry = {
@@ -60,7 +61,7 @@ export function registerWindow(port: number, root: string, pid: number, launcher
   const tmp = `${f}.tmp${process.pid}`;
   const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now(), ...(version !== undefined ? { version } : {}), ...(nonce !== undefined ? { nonce } : {}) };
   fs.writeFileSync(tmp, JSON.stringify(entry, null, 2));
-  fs.renameSync(tmp, f);
+  renameRetry(tmp, f);
 }
 
 /**
@@ -81,7 +82,7 @@ export function setBuilding(port: number, launcherPid: number, on: boolean): voi
   const f = fileOf(port);
   const tmp = `${f}.tmp${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(on ? { ...rest, building: true } : rest, null, 2));
-  fs.renameSync(tmp, f);
+  renameRetry(tmp, f);
 }
 
 /** Removes the port's entry only if it is still this pid's (or unreadable): a newer window on the port keeps its own. */
@@ -89,15 +90,7 @@ export function unregisterWindow(port: number, pid: number): void {
   if (fs.existsSync(fileOf(port)) && (readEntry(port)?.pid ?? pid) === pid) fs.rmSync(fileOf(port), { force: true });
 }
 
-export function pidAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM'; // exists, owned by someone else
-  }
-}
+export { pidAlive }; // its callers import it from here
 
 /** GET http://127.0.0.1:PORT/info → { root } or null (no answer, not ours, not JSON, not logged in). The credential goes only to a listener that proved it holds the token (GET /hello). */
 export async function probeInfo(port: number, timeoutMs = 500): Promise<{ root: string } | null> {

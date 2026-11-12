@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { EventEmitter } from 'node:events';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { dropInheritedLauncherEnv, invocationCwd, launchTarget, parseArgs, stateLine } from './main.ts';
+import { STOP_MESSAGE, dropInheritedLauncherEnv, invocationCwd, launchTarget, parseArgs, stateLine, watchLauncher } from './main.ts';
 import { saveSession } from './state.ts';
 
-const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-main-')));
+const cwd = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-main-')));
 // --continue reads the session registry: keep it in a temp NOTA_BENE_HOME, never the real ~/.nota-bene
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-main-home-'));
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -37,7 +38,7 @@ describe('parseArgs', () => {
 
   it('resolves --fake against the invocation cwd, like the project dir', () => {
     expect(parseArgs(['--fake', 'f/s.json'], cwd).fake).toBe(path.join(cwd, 'f/s.json'));
-    expect(parseArgs(['--fake', '/abs/s.json'], cwd).fake).toBe('/abs/s.json');
+    expect(parseArgs(['--fake', '/abs/s.json'], cwd).fake).toBe(path.resolve(cwd, '/abs/s.json')); // Windows: on the drive of that cwd
   });
 
   it('rejects a non-numeric port', () => {
@@ -120,5 +121,24 @@ describe('dropInheritedLauncherEnv', () => {
     const env: NodeJS.ProcessEnv = { NOTA_BENE_SUPERVISED: '1' };
     expect(dropInheritedLauncherEnv(env, 1)).toBe(false);
     expect(env).toEqual({ NOTA_BENE_SUPERVISED: '1' });
+  });
+});
+
+describe('watchLauncher', () => {
+  // the launcher's IPC channel, as a stand-in: no real process.exit may run in the test process
+  const channel = () => Object.assign(new EventEmitter(), { channel: {} });
+  it('with the IPC channel: stops on the stop message of the launcher, not on another message', () => {
+    const proc = channel();
+    let stops = 0;
+    watchLauncher('100', () => stops++, 2000, proc);
+    proc.emit('message', 'something else');
+    expect(stops).toBe(0);
+    proc.emit('message', STOP_MESSAGE);
+    expect(stops).toBe(1);
+  });
+  it('without a launcher pid: watches nothing', () => {
+    const proc = channel();
+    watchLauncher(undefined, () => { throw new Error('stopped'); }, 2000, proc);
+    expect(proc.listenerCount('disconnect') + proc.listenerCount('message')).toBe(0);
   });
 });

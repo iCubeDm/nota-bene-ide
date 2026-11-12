@@ -7,9 +7,10 @@ import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WS from 'ws';
+import { killTree, pidAlive } from '../server/src/platform.ts';
 import { shellEnv } from '../server/src/session/shellText.ts';
 // @ts-expect-error plain ESM, no types
 import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, ensureBuildAsync, handoverTarget, needsBuild, portFree, serverEnv } from './nota-bene.mjs';
@@ -17,6 +18,9 @@ import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, ensureBuildA
 const BIN = fileURLToPath(new URL('./nota-bene.mjs', import.meta.url));
 const DEV_BIN = fileURLToPath(new URL('./nota-bene-dev.mjs', import.meta.url));
 const FAKE = fileURLToPath(new URL('../server/test/fixtures/hello.json', import.meta.url));
+const WIN = process.platform === 'win32';
+// a build command that does nothing, in the shell `shell: true` runs (cmd.exe has no `true`)
+const NOOP = WIN ? 'exit 0' : 'true';
 
 let tmp: string;
 let home: string;
@@ -26,7 +30,8 @@ const servers: net.Server[] = [];
 const sockets = new Set<net.Socket>();
 
 beforeEach(() => {
-  tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-bin-')));
+  // the native realpath, the spelling the launcher records: on Windows the JS one keeps an 8.3 TEMP (`C:\Users\RUNNER~1\...`)
+  tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-bin-')));
   home = path.join(tmp, 'home');
   project = path.join(tmp, 'project');
   fs.mkdirSync(home);
@@ -39,19 +44,13 @@ afterEach(async () => {
     if (w.launcherPid) groups.add(w.launcherPid);
     groups.add(w.pid);
   }
-  for (const g of groups) {
-    try {
-      process.kill(-g, 'SIGKILL');
-    } catch {
-      try {
-        process.kill(g, 'SIGKILL');
-      } catch {
-        // already gone
-      }
-    }
-  }
+  for (const g of groups) killTree(g, 'SIGKILL'); // the group, or the process alone; Windows: its tree (taskkill /T)
   // SIGKILL is asynchronous: wait until each group is really gone, or a process may still write into tmp while it is removed
   for (const g of groups) {
+    if (WIN) {
+      while (pidAlive(g)) await new Promise((r) => setTimeout(r, 20));
+      continue;
+    }
     for (const id of [-g, g]) {
       for (;;) {
         try {
@@ -94,10 +93,11 @@ function windows(): Record<string, Win> {
 const env = (extra: Record<string, string> = {}) => ({
   ...process.env,
   NOTA_BENE_HOME: home,
-  NOTA_BENE_BUILD_CMD: 'true', // never run the real vite build from a test
+  NOTA_BENE_BUILD_CMD: NOOP, // never run the real vite build from a test
   CLAUDE_CONFIG_DIR: path.join(tmp, 'claude'),
   NOTA_BENE_PORT_RANGE: '4791-4795', // a picked port never lands on a live window's or the dev server's
   TMPDIR: tmp, // the --detach log and the build lock stay out of the real TMPDIR
+  ...(WIN ? { TEMP: tmp, TMP: tmp } : {}), // os.tmpdir() there
   ...extra,
 });
 
@@ -160,10 +160,29 @@ const tokenOf = () => fs.readFileSync(path.join(home, 'token'), 'utf8').trim();
 const authHeaders = () => ({ authorization: `Bearer ${tokenOf()}` });
 const loginRe = '#t=[0-9a-f]{64}';
 
+/**
+ * A stub browser opener in `d` that logs its argument to `log` (or exits 1); returns the env that makes the launcher use it.
+ * POSIX: `open`/`xdg-open` first in PATH. Windows, where PATH cannot stub cmd's `start`: the launcher's TEST-ONLY
+ * NOTA_BENE_TEST_OPENER, a script run with node.
+ */
+function openerStub(d: string, log: string, fail = false): Record<string, string> {
+  fs.mkdirSync(d, { recursive: true });
+  if (WIN) {
+    const f = path.join(d, 'opener.mjs');
+    fs.writeFileSync(f, fail ? 'process.exit(1);\n' : `import fs from 'node:fs';\nfs.appendFileSync(${JSON.stringify(log)}, process.argv[2] + '\\n');\n`);
+    return { NOTA_BENE_TEST_OPENER: f };
+  }
+  for (const n of ['open', 'xdg-open']) {
+    fs.writeFileSync(path.join(d, n), fail ? '#!/bin/sh\nexit 1\n' : `#!/bin/sh\necho "$1" >> "${log}"\n`);
+    fs.chmodSync(path.join(d, n), 0o755);
+  }
+  return { PATH: `${d}:${process.env.PATH}` };
+}
+
 describe('checkout dev command', () => {
   it('defaults to dev state even when the production state is inherited, and forwards the provider', () => {
     const r = spawnSync(process.execPath, [DEV_BIN, '--agent', 'codex', '--find', project], {
-      env: env({ HOME: tmp, NOTA_BENE_DEV_HOME: '' }), encoding: 'utf8',
+      env: env({ HOME: tmp, USERPROFILE: tmp, NOTA_BENE_DEV_HOME: '' }), encoding: 'utf8', // Windows: the home is USERPROFILE
     });
     expect(r.status).toBe(1); // no window yet
     expect(r.stderr).toBe('');
@@ -178,7 +197,8 @@ describe('checkout dev command', () => {
     fs.mkdirSync(cwd);
     const prod = path.join(tmp, 'production');
     const e = env({ NOTA_BENE_HOME: prod, NOTA_BENE_DEV_HOME: path.relative(cwd, home) });
-    const r = spawnSync(link, ['--agent', 'claude', '--port', '4793', '--detach', '--fake', FAKE, '--no-open'], {
+    // Windows runs no script by its shebang: node runs the link
+    const r = spawnSync(WIN ? process.execPath : link, [...(WIN ? [link] : []), '--agent', 'claude', '--port', '4793', '--detach', '--fake', FAKE, '--no-open'], {
       cwd, env: e, encoding: 'utf8', timeout: 20000,
     });
     expect(r.status, r.stderr).toBe(0);
@@ -189,7 +209,8 @@ describe('checkout dev command', () => {
     expect(found.stdout.trim()).toBe('4793');
     expect(fs.existsSync(prod)).toBe(false);
     const w = windows()['4793']!;
-    process.kill(w.launcherPid!, 'SIGTERM');
+    if (WIN) await stopWindow(4793); // no SIGTERM to send there: the window's own Stop
+    else process.kill(w.launcherPid!, 'SIGTERM');
     await waitFor(async () => !windows()['4793'] && await portFree(4793));
   }, 25000);
 });
@@ -201,6 +222,13 @@ async function loginOf(port: number): Promise<string> {
 }
 const loginUrlOf = async (port: number) => `http://127.0.0.1:${port}/#t=${await loginOf(port)}`;
 
+/** The window's own Stop (POST /stop, the header's ⏻): its server exits 0, its launcher unregisters it and exits. */
+async function stopWindow(port: number): Promise<void> {
+  const origin = `http://127.0.0.1:${port}`;
+  const r = await fetch(`${origin}/stop`, { method: 'POST', headers: { origin, ...authHeaders() } });
+  expect(r.status).toBe(200);
+}
+
 async function info(port: number): Promise<{ root: string; supervised: boolean } | null> {
   try {
     const r = await fetch(`http://127.0.0.1:${port}/info`, { headers: authHeaders(), signal: AbortSignal.timeout(500) });
@@ -210,7 +238,19 @@ async function info(port: number): Promise<{ root: string; supervised: boolean }
   }
 }
 
-const argsOf = (pid: number) => execFileSync('ps', ['-o', 'args=', '-p', String(pid)], { encoding: 'utf8' });
+/** Windows has no ps: the process table through CIM (PowerShell), one `pid<TAB>ppid<TAB>command line` row per process. */
+const winProcs = (): { pid: number; ppid: number; cmd: string }[] =>
+  execFileSync('powershell.exe', ['-NoProfile', '-Command',
+    'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId)`t$($_.ParentProcessId)`t$($_.CommandLine)" }'],
+  { encoding: 'utf8', windowsHide: true }).split(/\r?\n/).filter(Boolean).map((l) => {
+    const [pid, ppid, ...cmd] = l.split('\t');
+    return { pid: Number(pid), ppid: Number(ppid), cmd: cmd.join('\t') };
+  });
+const argsOf = (pid: number) => WIN
+  ? winProcs().find((x) => x.pid === pid)?.cmd ?? ''
+  : execFileSync('ps', ['-o', 'args=', '-p', String(pid)], { encoding: 'utf8' });
+/** Every process's command line (ps -axo command=). */
+const allArgs = (): string[] => WIN ? winProcs().map((x) => x.cmd) : execFileSync('ps', ['-axo', 'args='], { encoding: 'utf8' }).split('\n');
 const alive = (pid: number) => {
   try {
     process.kill(pid, 0);
@@ -310,7 +350,9 @@ describe('nota-bene launcher', () => {
 
   // what Claude Code sends when the /nb background task is stopped
   // SIGTERM takes the same handler (the parent-shell test below goes through it)
-  it('SIGINT stops the child, removes the entry and exits 0 without a relaunch', async () => {
+  // Windows: a signal cannot be sent to one process (kill() is TerminateProcess, Ctrl+C reaches a whole console); the stop it
+  // takes is the parent-shell test's
+  it.skipIf(WIN)('SIGINT stops the child, removes the entry and exits 0 without a relaunch', async () => {
     const r = launch(['--port', '4795']);
     const w = await waitFor(() => windows()['4795']);
     r.p.kill('SIGINT');
@@ -321,7 +363,7 @@ describe('nota-bene launcher', () => {
     expect(await info(4795)).toBeNull();
   }, 15000);
 
-  it('a SIGKILLed launcher takes its server with it: gone within 5 s, port free (the server watches its ppid)', async () => {
+  it('a SIGKILLed launcher takes its server with it: gone within 5 s, port free (the IPC channel to the server closes)', async () => {
     const r = launch(['--port', '4794']);
     const w = await waitFor(() => windows()['4794']);
     await waitFor(() => info(4794));
@@ -337,10 +379,15 @@ describe('nota-bene launcher', () => {
   }, 15000);
 
   it('a launcher whose parent shell is SIGKILLed stops with its server: gone within 6 s, port free', async () => {
-    // `; true`: the shell stays the launcher's parent instead of exec-ing it
+    // `; true`: the shell stays the launcher's parent instead of exec-ing it. Windows: a node process stands in for the shell,
+    // its child detached (libuv puts a node's other children in a job that dies with it), and the launcher stops its server
+    // through the IPC stop message, not a signal
     const q = (a: string) => `'${a.replace(/'/g, `'\\''`)}'`;
-    const cmd = [process.execPath, BIN, project, '--port', '4793', '--fake', FAKE, '--no-open'].map(q).join(' ');
-    const wrapper = spawn('/bin/sh', ['-c', `${cmd}; true`], { env: env(), detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const argv = [BIN, project, '--port', '4793', '--fake', FAKE, '--no-open'];
+    const cmd = [process.execPath, ...argv].map(q).join(' ');
+    const wrapper = WIN
+      ? spawn(process.execPath, ['-e', `require('node:child_process').spawn(process.execPath, ${JSON.stringify(argv)}, { stdio: 'inherit', detached: true }); setInterval(() => {}, 60000);`], { env: env(), stdio: ['ignore', 'pipe', 'pipe'] })
+      : spawn('/bin/sh', ['-c', `${cmd}; true`], { env: env(), detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     groups.add(wrapper.pid!);
     let err = '';
     wrapper.stderr!.on('data', (d) => (err += d));
@@ -588,8 +635,7 @@ describe('nota-bene launcher', () => {
     expect(r.err()).toMatch(/the server did not come up in 0\.001s/);
     expect(fs.existsSync(launchLock())).toBe(false);
     await new Promise((res) => setTimeout(res, 500));
-    const ps = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' });
-    expect(ps.split('\n').filter((l) => l.includes(project))).toEqual([]);
+    expect(allArgs().filter((l) => l.includes(project))).toEqual([]);
     for (let p = 4791; p <= 4795; p++) expect((await info(p))?.root).not.toBe(project);
   }, 15000);
 
@@ -604,8 +650,8 @@ describe('nota-bene launcher', () => {
   });
 
   it('refuses $HOME and /', () => {
-    for (const dir of [tmp, '/']) {
-      const r = bin([dir, '--no-open'], { HOME: tmp });
+    for (const dir of [tmp, '/']) { // Windows: `/` is the current drive's root
+      const r = bin([dir, '--no-open'], { HOME: tmp, USERPROFILE: tmp });
       expect(r.status).toBe(1);
       expect(r.stderr).toMatch(/refusing to open the whole .* as a project — cd into a project first/);
     }
@@ -667,7 +713,7 @@ if (process.argv[1] === ${JSON.stringify(main)}) {
   ${thenCurrent ? `if (first) fs.writeFileSync(${JSON.stringify(path.join(runtime(), 'current'))}, ${JSON.stringify(thenCurrent)});` : ''}
 }
 `);
-    return { NODE_OPTIONS: `--import ${f}` };
+    return { NODE_OPTIONS: `--import ${WIN ? pathToFileURL(f).href : f}` }; // Windows: a drive path would read as a URL scheme
   }
   const serverRuns = (): { env: Record<string, string> }[] =>
     fs.existsSync(serverLog()) ? fs.readFileSync(serverLog(), 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : [];
@@ -738,7 +784,9 @@ if (process.argv[1] === ${JSON.stringify(main)}) {
       env: env({ NOTA_BENE_TEST_PUBLISHED: '1' }), encoding: 'utf8', timeout: 25000,
     });
     const w = windows()['4795'];
-    if (w?.launcherPid) groups.add(Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(w.launcherPid)], { encoding: 'utf8' }).trim())); // the outer part
+    if (w?.launcherPid) { // the outer part
+      groups.add(WIN ? winProcs().find((x) => x.pid === w.launcherPid)!.ppid : Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(w.launcherPid)], { encoding: 'utf8' }).trim()));
+    }
     expect(r.status).toBe(0);
     expect(r.stdout).toBe(`opened ${await loginUrlOf(4795)}\n`);
     expect(argsOf(w!.launcherPid!)).toContain(path.join(v, 'nota-bene.mjs'));
@@ -768,7 +816,8 @@ setInterval(() => {}, 1000);
     expect(alive(r.p.pid!)).toBe(true);
   }, 30000);
 
-  it('a signal while a failed new version\'s port is still held stops the launcher: the previous version is not started', async () => {
+  // a signal to one process: none on Windows
+  it.skipIf(WIN)('a signal while a failed new version\'s port is still held stops the launcher: the previous version is not started', async () => {
     const go = path.join(tmp, 'go');
     // the new version: records its run, then exits 1 (a failure within 60 s) once the test holds the port
     const bin = path.join(runtime(), '1.99.0', 'node_modules', 'nota-bene-ide', 'bin', 'nota-bene.mjs');
@@ -922,7 +971,7 @@ describe('web/dist freshness', () => {
       // a lock we did not take is not ours to remove
       expect(fs.existsSync(lock)).toBe(true);
       fs.rmSync(lock, { recursive: true });
-      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: 'true' }, 'ignore', 300);
+      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: NOOP }, 'ignore', 300);
       expect(fs.existsSync(lock)).toBe(false);
     } finally {
       fs.rmSync(lock, { recursive: true, force: true });
@@ -1002,7 +1051,7 @@ describe('a build lock of a dead owner (gh-275)', () => {
     lockedBy(lock, process.pid);
     try {
       const t0 = Date.now();
-      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: 'true' }, 'ignore', 600);
+      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: NOOP }, 'ignore', 600);
       expect(Date.now() - t0).toBeGreaterThanOrEqual(600);
       expect(fs.existsSync(lock)).toBe(true); // not ours to remove
     } finally {
@@ -1070,16 +1119,10 @@ describe('--help, --version and a stray dash', () => {
 });
 
 describe('the access token', () => {
-  /** a PATH dir whose `open` / `xdg-open` record their argument instead of starting a browser */
-  function stubOpener(): { path: string; log: string } {
-    const d = path.join(tmp, 'opener');
-    fs.mkdirSync(d);
+  /** a stub opener that records its argument instead of starting a browser (`openerStub`) */
+  function stubOpener(): { env: Record<string, string>; log: string } {
     const log = path.join(tmp, 'opened.log');
-    for (const n of ['open', 'xdg-open']) {
-      fs.writeFileSync(path.join(d, n), `#!/bin/sh\necho "$1" >> "${log}"\n`);
-      fs.chmodSync(path.join(d, n), 0o755);
-    }
-    return { path: `${d}:${process.env.PATH}`, log };
+    return { env: openerStub(path.join(tmp, 'opener'), log), log };
   }
   const logLines = (log: string) => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : []);
 
@@ -1091,8 +1134,8 @@ describe('the access token', () => {
     await waitFor(() => windows()['4791'] && windows()['4792']);
     expect(await info(4791)).toMatchObject({ root: project });
     expect(await info(4792)).toMatchObject({ root: other });
-    expect(fs.statSync(path.join(home, 'token')).mode & 0o777).toBe(0o600);
-    expect(fs.statSync(home).mode & 0o777).toBe(0o700);
+    if (!WIN) expect(fs.statSync(path.join(home, 'token')).mode & 0o777).toBe(0o600);
+    if (!WIN) expect(fs.statSync(home).mode & 0o777).toBe(0o700);
   }, 20000);
 
   it('the foreground output, the log, and every process\'s argv are free of the token, the login value and the credentials', async () => {
@@ -1109,8 +1152,8 @@ describe('the access token', () => {
     expect(d.stdout).toBe(`opened ${await loginUrlOf(4793)}\n`); // the one place the URL carries the login value (never the token)
     expect(d.stdout).not.toContain(token);
     const log = fs.readFileSync(path.join(tmp, 'nota-bene-4793.log'), 'utf8');
-    expect(fs.statSync(path.join(tmp, 'nota-bene-4793.log')).mode & 0o777).toBe(0o600); // $TMPDIR may be a shared /tmp
-    const ps = execFileSync('ps', ['-axo', 'args='], { encoding: 'utf8' });
+    if (!WIN) expect(fs.statSync(path.join(tmp, 'nota-bene-4793.log')).mode & 0o777).toBe(0o600); // $TMPDIR may be a shared /tmp
+    const ps = allArgs().join('\n');
     for (const secret of secrets) {
       expect(r.out()).not.toContain(secret);
       expect(r.err()).not.toContain(secret);
@@ -1128,12 +1171,12 @@ describe('the access token', () => {
       return spawnSync(process.execPath, [BIN, other, '--port', '4793', '--detach', '--fake', FAKE, '--no-open'], { env: env(), encoding: 'utf8', timeout: 25000 });
     };
 
-    it('an old 644 log becomes 600 and is emptied', async () => {
+    it.skipIf(WIN)('an old 644 log becomes 600 and is emptied', async () => { // POSIX modes
       fs.writeFileSync(logPath(), 'STALE-LOG-LINE\n', { mode: 0o644 });
       fs.chmodSync(logPath(), 0o644);
       const d = detachOther();
       expect(d.status, d.stderr).toBe(0);
-      expect(fs.statSync(logPath()).mode & 0o777).toBe(0o600);
+      if (!WIN) expect(fs.statSync(logPath()).mode & 0o777).toBe(0o600);
       expect(fs.readFileSync(logPath(), 'utf8')).not.toContain('STALE-LOG-LINE');
     }, 40000);
 
@@ -1148,7 +1191,7 @@ describe('the access token', () => {
       expect(fs.readFileSync(victim, 'utf8')).toBe('keep');
     }, 40000);
 
-    it('a FIFO does not hang --detach', async () => {
+    it.skipIf(WIN)('a FIFO does not hang --detach', async () => { // no mkfifo on Windows
       execFileSync('mkfifo', [logPath()]);
       const t0 = Date.now();
       const d = detachOther();
@@ -1170,7 +1213,7 @@ describe('the access token', () => {
     for (const bad of ['http://evil.example:80', 'file:///etc/passwd', 'abc', '99999']) expect(bin(['--url', bad]).status, bad).toBe(2);
 
     const op = stubOpener();
-    const f = bin(['--front', '4791'], { PATH: op.path });
+    const f = bin(['--front', '4791'], op.env);
     expect(f.status, f.stderr).toBe(0);
     await waitFor(() => logLines(op.log).length > 0);
     const [arg] = logLines(op.log);
@@ -1179,8 +1222,8 @@ describe('the access token', () => {
     expect(arg).not.toMatch(/^https?:/);
     expect(path.dirname(arg!)).toBe(path.join(home, 'open'));
     expect(path.basename(arg!)).toMatch(/^open-[0-9a-f]+\.html$/);
-    expect(fs.statSync(arg!).mode & 0o777).toBe(0o600);
-    expect(fs.statSync(path.join(home, 'open')).mode & 0o777).toBe(0o700);
+    if (!WIN) expect(fs.statSync(arg!).mode & 0o777).toBe(0o600);
+    if (!WIN) expect(fs.statSync(path.join(home, 'open')).mode & 0o777).toBe(0o700);
     const page = fs.readFileSync(arg!, 'utf8');
     expect(page).toContain(`http://127.0.0.1:4791/#t=${login}`);
     expect(page).not.toContain(token);
@@ -1193,7 +1236,7 @@ describe('the access token', () => {
     fs.mkdirSync(elsewhere);
     fs.symlinkSync(elsewhere, path.join(home, 'open'));
     const op = stubOpener();
-    const f = bin(['--front', '4791'], { PATH: op.path });
+    const f = bin(['--front', '4791'], op.env);
     expect(f.status).toBe(0); // it still opens the window, without a login page
     expect(fs.readdirSync(elsewhere)).toEqual([]);
     expect(f.stderr).toMatch(/cannot write the page/);
@@ -1206,21 +1249,21 @@ describe('the access token', () => {
       fs.writeFileSync(path.join(home, 'open', n), 'x');
       fs.utimesSync(path.join(home, 'open', n), old, old);
     }
-    expect(bin(['--front', '4791'], { PATH: op.path }).status).toBe(0);
+    expect(bin(['--front', '4791'], op.env).status).toBe(0);
     expect(fs.readdirSync(path.join(home, 'open')).filter((n) => !/^open-[0-9a-f]{12}\.html$/.test(n)).sort()).toEqual(['keep-me.txt', 'open-bbbb.txt']);
   }, 20000);
 
   it('the browser the launcher opens gets that page too (first start, and an already-open window)', async () => {
     const op = stubOpener();
-    const run = spawn(process.execPath, [BIN, project, '--port', '4791', '--fake', FAKE], { env: env({ PATH: op.path }), detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const run = spawn(process.execPath, [BIN, project, '--port', '4791', '--fake', FAKE], { env: env(op.env), detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     groups.add(run.pid!);
     await waitFor(() => windows()['4791'] && logLines(op.log).length > 0);
-    const second = spawnSync(process.execPath, [BIN, project, '--fake', FAKE], { env: env({ PATH: op.path }), encoding: 'utf8', timeout: 15000 });
+    const second = spawnSync(process.execPath, [BIN, project, '--fake', FAKE], { env: env(op.env), encoding: 'utf8', timeout: 15000 });
     expect([second.stdout, second.stderr]).toEqual(['nota-bene: already open at http://127.0.0.1:4791\n', '']); // the foreground line has no token
     await waitFor(() => logLines(op.log).length === 2);
     for (const arg of logLines(op.log)) {
       expect(arg).not.toMatch(/^https?:/);
-      expect(fs.statSync(arg).mode & 0o777).toBe(0o600);
+      if (!WIN) expect(fs.statSync(arg).mode & 0o777).toBe(0o600);
     }
   }, 30000);
 
@@ -1253,7 +1296,7 @@ describe('the access token', () => {
     const op = stubOpener();
     try {
       const run = (args: string[]) => new Promise<{ code: number; out: string }>((resolve) => {
-        execFile(process.execPath, [BIN, ...args], { env: env({ PATH: op.path }) }, (e, out) => resolve({ code: e ? ((e as { code?: number }).code ?? -1) : 0, out }));
+        execFile(process.execPath, [BIN, ...args], { env: env(op.env) }, (e, out) => resolve({ code: e ? ((e as { code?: number }).code ?? -1) : 0, out }));
       });
       expect((await run(['--find', project, '--scan'])).code).toBe(1);
       const u = await run(['--url', '4794']);
@@ -1308,7 +1351,8 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     expect((await fetch('http://127.0.0.1:4792/info', { headers: { cookie: login.cookie.replace('4791', '4792'), 'x-nota-bene-key': login.key } })).status).toBe(401);
   }, 40000);
 
-  describe('a restart rebuilds a stale web/dist (gh-275)', () => {
+  // the build command stubs are /bin/sh scripts (wc, ps -o pgid, trap, a process group)
+  describe.skipIf(WIN)('a restart rebuilds a stale web/dist (gh-275)', () => {
     // The launcher builds NOTA_BENE_BUILD_ROOT (a temp tree with its own web/src), never the checkout, and its build lock
     // is named after that tree. NOTA_BENE_BUILD_CMD stub: logs each run to a marker; `body` runs after the log line.
     const marker = () => path.join(tmp, 'builds');
@@ -1421,13 +1465,10 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
 
   it('after a CRASH relaunch the nonce is new and the browser is opened on a fresh login: the old cookie, key and login value are dead', async () => {
     const op = (() => {
-      const d = path.join(tmp, 'opener');
-      fs.mkdirSync(d);
       const log = path.join(tmp, 'opened.log');
-      for (const n of ['open', 'xdg-open']) { fs.writeFileSync(path.join(d, n), `#!/bin/sh\necho "$1" >> "${log}"\n`); fs.chmodSync(path.join(d, n), 0o755); }
-      return { path: `${d}:${process.env.PATH}`, log };
+      return { env: openerStub(path.join(tmp, 'opener'), log), log };
     })();
-    const run = spawn(process.execPath, [BIN, project, '--port', '4791', '--fake', FAKE], { env: env({ PATH: op.path }), detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const run = spawn(process.execPath, [BIN, project, '--port', '4791', '--fake', FAKE], { env: env(op.env), detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     groups.add(run.pid!);
     const first = await waitFor(() => windows()['4791']);
     const pages = () => (fs.existsSync(op.log) ? fs.readFileSync(op.log, 'utf8').trim().split('\n').filter(Boolean) : []);
@@ -1475,13 +1516,11 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       return srv;
     };
     const imps = [await mk(4793), await mk(4794)];
-    const dir = path.join(tmp, 'opener');
-    fs.mkdirSync(dir);
     const log = path.join(tmp, 'opened.log');
-    for (const n of ['open', 'xdg-open']) { fs.writeFileSync(path.join(dir, n), `#!/bin/sh\necho "$1" >> "${log}"\n`); fs.chmodSync(path.join(dir, n), 0o755); }
+    const opener = openerStub(path.join(tmp, 'opener'), log);
     try {
       const run = (args: string[]) => new Promise<{ code: number; out: string }>((resolve) => {
-        execFile(process.execPath, [BIN, ...args], { env: env({ PATH: `${dir}:${process.env.PATH}` }) }, (e, out) => resolve({ code: e ? ((e as { code?: number }).code ?? -1) : 0, out }));
+        execFile(process.execPath, [BIN, ...args], { env: env(opener) }, (e, out) => resolve({ code: e ? ((e as { code?: number }).code ?? -1) : 0, out }));
       });
       for (const args of [['--url', 'http://localhost:4793'], ['--front', 'http://localhost:4794'], ['--url', 'http://127.0.0.1:4793'], ['--front', '4794']]) {
         const r = await run(args);
@@ -1497,7 +1536,13 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
 });
 
 describe('a refused secret is reported once, at once, and never as a crash loop', () => {
-  const seedLoose = () => { fs.writeFileSync(path.join(home, 'token'), 'a'.repeat(64), { mode: 0o644 }); fs.chmodSync(path.join(home, 'token'), 0o644); };
+  // Windows has no mode bits to loosen: a folder in place of the token file is the refused secret there
+  const seedLoose = () => {
+    if (WIN) return void fs.mkdirSync(path.join(home, 'token'));
+    fs.writeFileSync(path.join(home, 'token'), 'a'.repeat(64), { mode: 0o644 });
+    fs.chmodSync(path.join(home, 'token'), 0o644);
+  };
+  const LOOSE = WIN ? /not a regular file|cannot read/ : /readable by other users/;
 
   it('the launcher exits 1 before spawning anything, with the one message once', async () => {
     seedLoose();
@@ -1505,8 +1550,8 @@ describe('a refused secret is reported once, at once, and never as a crash loop'
     expect(await r.exited).toBe(1);
     const err = r.err();
     expect(err).toContain(path.join(home, 'token'));
-    expect(err).toMatch(/readable by other users/);
-    expect(err).toMatch(/chmod 600/);
+    expect(err).toMatch(LOOSE);
+    if (!WIN) expect(err).toMatch(/chmod 600/);
     expect(err).not.toMatch(/relaunching|crash/);
     expect(windows()).toEqual({});
     expect(err.trim().split('\n')).toHaveLength(1);
@@ -1524,7 +1569,7 @@ describe('a refused secret is reported once, at once, and never as a crash loop'
     for (const args of [['--find', project], ['--find', project, '--scan'], ['--url', '4791'], ['--front', '4791'], ['--url', 'http://localhost:5173']]) {
       const r = bin(args);
       expect([args.join(' '), r.status]).toEqual([args.join(' '), 3]);
-      expect(r.stderr).toMatch(/readable by other users/);
+      expect(r.stderr).toMatch(LOOSE);
       expect(r.stdout).toBe('');
     }
   });
@@ -1535,7 +1580,7 @@ describe('a refused secret is reported once, at once, and never as a crash loop'
     const prev = process.env.NOTA_BENE_HOME;
     process.env.NOTA_BENE_HOME = home;
     try {
-      await expect(probeInfo(4791)).rejects.toThrow(/readable by other users/);
+      await expect(probeInfo(4791)).rejects.toThrow(LOOSE);
     } finally {
       if (prev === undefined) delete process.env.NOTA_BENE_HOME; else process.env.NOTA_BENE_HOME = prev;
     }
@@ -1544,10 +1589,7 @@ describe('a refused secret is reported once, at once, and never as a crash loop'
   it('an opener that exits non-zero makes --front fail', async () => {
     launch(['--port', '4791']);
     await waitFor(() => windows()['4791']);
-    const d = path.join(tmp, 'badopener');
-    fs.mkdirSync(d);
-    for (const n of ['open', 'xdg-open']) { fs.writeFileSync(path.join(d, n), '#!/bin/sh\nexit 1\n'); fs.chmodSync(path.join(d, n), 0o755); }
-    const f = bin(['--front', '4791'], { PATH: `${d}:${process.env.PATH}` });
+    const f = bin(['--front', '4791'], openerStub(path.join(tmp, 'badopener'), '', true));
     expect(f.status).toBe(1);
     expect(f.stderr).toMatch(/nota-bene --url 4791/);
   }, 20000);

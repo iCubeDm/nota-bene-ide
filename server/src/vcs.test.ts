@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ const paths = (d: { repo: boolean; files?: { path: string }[] }) => (d as { file
 const src = async (id: string) => (await listSources(root)).find((s) => s.id === id)!;
 
 beforeAll(async () => {
-  dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-vcs-')));
+  dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-vcs-')));
   root = path.join(dir, 'main');
   one = path.join(dir, 'one');
   stacked = path.join(dir, 'stacked');
@@ -144,6 +144,11 @@ describe('one file', () => {
     expect(await fileOf(root, 'here', null, '/etc/passwd', null)).toBeNull();
     expect(await fileOf(root, 'here', null, 'a.md', '../x')).toBeNull();
   });
+  it.runIf(process.platform === 'win32')('Windows: a backslash climb or a drive path is outside too', async () => {
+    for (const p of ['..\\x', 'src\\..\\..\\x', 'C:/Windows/win.ini', path.join(root, 'a.md')]) {
+      expect(await fileOf(root, 'here', null, p, null), p).toBeNull();
+    }
+  });
 
   it('a symlink in the working tree shows no target', async () => {
     fs.writeFileSync(path.join(dir, 'secret'), 'secret');
@@ -235,7 +240,8 @@ describe('edges', () => {
     expect((await commitFileOf(project, sha, 'src/a.txt', null))!.patch).toContain('+b');
   });
 
-  it('a git killed halfway is an error, not "no common ancestor"', async () => {
+  // a #!/bin/sh wrapper found through a ':'-joined PATH: POSIX only (Windows runs git.exe, never a script named git)
+  it.skipIf(process.platform === 'win32')('a git killed halfway is an error, not "no common ancestor"', async () => {
     const real = execFileSync('which', ['git']).toString().trim();
     const bin = path.join(dir, 'bin');
     write(path.join(bin, 'git'), `#!/bin/sh\ncase "$*" in *merge-base*) kill -9 $$;; esac\nexec ${real} "$@"\n`);
@@ -297,6 +303,18 @@ describe('the log', () => {
     expect(list.find((b) => b.id === 'ref:agent/one')).toMatchObject({ base: 'main', ahead: 1, dirty: true, busy: true });
     expect(list.find((b) => b.id === 'ref:agent/stacked')).toMatchObject({ base: 'feature/parent', ahead: 0, dirty: false });
     expect(list.find((b) => b.id === 'here')).toMatchObject({ base: null, dirty: false, busy: false });
+  });
+  it.runIf(process.platform === 'win32')('Windows: a busy window root in another letter case or the slash form still marks its worktree', async () => {
+    for (const w of [one.toUpperCase(), one.replace(/\\/g, '/')]) {
+      expect((await branchInfo(root, [w])).find((b) => b.id === 'ref:agent/one'), w).toMatchObject({ busy: true });
+    }
+  });
+
+  it.runIf(process.platform === 'win32')('Windows: a busy window root in the 8.3 short form still marks its worktree', async (ctx) => {
+    // `%~sI` gives the short form (C:\Users\RUNNER~1\...: the TEMP of a user with a long name); none when the volume makes no 8.3 names
+    const short = spawnSync('cmd.exe', ['/d', '/s', '/c', `"for %I in ("${one}") do @echo %~sI"`], { windowsHide: true, windowsVerbatimArguments: true }).stdout.toString().trim();
+    if (!short || short.toLowerCase() === one.toLowerCase()) return ctx.skip();
+    expect((await branchInfo(root, [short])).find((b) => b.id === 'ref:agent/one')).toMatchObject({ busy: true });
   });
 
   it('a window in a worktree inside the project marks that worktree alone; a window below a folder marks the folder', async () => {

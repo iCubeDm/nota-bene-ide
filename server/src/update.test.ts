@@ -100,7 +100,7 @@ describe('updateCheck', () => {
     expect(await updateCheck({ ...on, fetch: f, now: () => 0 })('1.6.0')).toBe('1.7.0');
     expect(f).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fs.readFileSync(on.file, 'utf8'))).toEqual({ latest: '1.7.0', at: 0 });
-    expect(fs.statSync(on.file).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') expect(fs.statSync(on.file).mode & 0o777).toBe(0o600); // no mode bits on Windows
   });
 
   it('off asks nothing and reads nothing', async () => {

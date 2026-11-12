@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import http from 'node:http';
 import { EventHub } from './hub.ts';
 import { cwdOf, listSessionsView, renameRoute, titleOf } from './sessions.ts';
+import { wirePath } from './wirePath.ts';
 
 let dir: string;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-sessions-')); });
@@ -17,7 +18,7 @@ const jsonl = (project: string, id: string, body: string) => {
 
 describe('listSessionsView cwd', () => {
   it('normalises every cwd with the native realpath, keeping the raw value when it does not exist', async () => {
-    const real = fs.realpathSync(dir);
+    const real = fs.realpathSync.native(dir);
     const link = path.join(real, 'link');
     fs.symlinkSync(real, link);
     const backend = {
@@ -27,7 +28,9 @@ describe('listSessionsView cwd', () => {
       ],
     } as never;
     const view = await listSessionsView({ backend, current: null, root: real, projectsDir: dir });
-    expect(view.sessions.map((s) => s.cwd)).toEqual([real, '/nb-no-such-dir/x']);
+    // in the wire form: `C:/...` on Windows, the path itself on POSIX
+    expect(view.sessions.map((s) => s.cwd)).toEqual([wirePath(real), '/nb-no-such-dir/x']);
+    expect(view.root).toBe(wirePath(real));
   });
 });
 
@@ -88,22 +91,23 @@ describe('cwdOf', () => {
 describe('listSessionsView', () => {
   it('drops entries without a cwd, falling back to the transcript', async () => {
     jsonl('-p', 'from-file', '{"cwd":"/from/file"}\n');
+    // cwds that exist nowhere, so they come back as given: a real one would be realpathed (`/a` is `D:\a` on a CI runner)
     const backend = {
       listSessions: async () => [
-        { sessionId: 'with-cwd', summary: 'A', lastModified: 10, fileSize: 100, cwd: '/a' },
+        { sessionId: 'with-cwd', summary: 'A', lastModified: 10, fileSize: 100, cwd: '/nb-a' },
         { sessionId: 'from-file', firstPrompt: 'B', lastModified: 20, fileSize: 200 },
         { sessionId: 'no-cwd', summary: 'C', lastModified: 30, fileSize: 300 },
-        { sessionId: 'slash', summary: '/clear', lastModified: 40, fileSize: 400, cwd: '/d' },
+        { sessionId: 'slash', summary: '/clear', lastModified: 40, fileSize: 400, cwd: '/nb-d' },
       ],
     };
-    const view = await listSessionsView({ backend, current: 'with-cwd', root: '/a', projectsDir: dir });
+    const view = await listSessionsView({ backend, current: 'with-cwd', root: '/nb-a', projectsDir: dir });
     expect(view).toEqual({
       current: 'with-cwd',
-      root: '/a',
+      root: '/nb-a',
       sessions: [
-        { id: 'with-cwd', title: 'A', at: 10, size: 100, cwd: '/a' },
+        { id: 'with-cwd', title: 'A', at: 10, size: 100, cwd: '/nb-a' },
         { id: 'from-file', title: 'B', at: 20, size: 200, cwd: '/from/file' },
-        { id: 'slash', title: '', at: 40, size: 400, cwd: '/d' },
+        { id: 'slash', title: '', at: 40, size: 400, cwd: '/nb-d' },
       ],
     });
   });

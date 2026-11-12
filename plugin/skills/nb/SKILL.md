@@ -3,12 +3,12 @@ name: nb
 description: Open Nota Bene — the browser window over Claude Code with inline margin comments, file tree and media viewer — on the current folder. `/nb` resumes the window's last session for this folder (or starts one); `/nb new` starts fresh; `/nb fork` carries this conversation over.
 argument-hint: "[new | fork]"
 disable-model-invocation: true
-allowed-tools: Bash(*/nb/open.sh* *), Bash(node */bin/nota-bene.mjs* *)
+allowed-tools: Bash(node */nb/open.mjs* *), Bash(node */bin/nota-bene.mjs* *)
 ---
 
 # Nota Bene
 
-!`"${CLAUDE_SKILL_DIR}/open.sh" --data '${CLAUDE_PLUGIN_DATA}' --plan "$ARGUMENTS" "${CLAUDE_SESSION_ID}"`
+!`node "${CLAUDE_SKILL_DIR}/open.mjs" --data '${CLAUDE_PLUGIN_DATA}' --plan "$ARGUMENTS" "${CLAUDE_SESSION_ID}"`
 
 ## Your task
 

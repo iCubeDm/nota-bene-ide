@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ProviderBackend as AgentBackend } from '../agent/types.ts';
+import { samePath } from '../platform.ts';
 import { cwdOf } from '../sessions.ts';
 import { SwitchError } from './phase.ts';
 
@@ -32,7 +33,7 @@ export async function checkTarget(o: {
   if (id === null) {
     // a new session may only open where a session already lives (or here): a local client must not be able to
     // re-root /file at / or ~
-    if (real === realOr(o.root)) return real;
+    if (samePath(real, realOr(o.root))) return real;
     let list: Awaited<ReturnType<AgentBackend['listSessions']>>;
     try {
       list = await backend.listSessions();
@@ -44,7 +45,7 @@ export async function checkTarget(o: {
       const cwd = x.cwd || (backend.nativeSessions ? null : cwdOf(x.sessionId));
       if (cwd && !known.has(cwd)) known.add(cwd);
     }
-    for (const cwd of known) if (realOr(cwd) === real) return real;
+    for (const cwd of known) if (samePath(realOr(cwd), real)) return real;
     throw new SwitchError('switch', `no session lives in ${real}`);
   }
   if (!SESSION_ID.test(id)) throw new SwitchError('switch', `invalid session id: ${id}`);
@@ -56,6 +57,6 @@ export async function checkTarget(o: {
     throw new SwitchError('switch', `cannot read session ${id.slice(0, 8)}: ${e instanceof Error ? e.message : String(e)}`);
   }
   const cwd = info ? info.cwd ?? (backend.nativeSessions ? null : cwdOf(id)) : null;
-  if (!info || (cwd !== null && realOr(cwd) !== real)) throw new SwitchError('switch', `session ${id.slice(0, 8)} does not belong to ${real}`);
+  if (!info || (cwd !== null && !samePath(realOr(cwd), real))) throw new SwitchError('switch', `session ${id.slice(0, 8)} does not belong to ${real}`);
   return real;
 }

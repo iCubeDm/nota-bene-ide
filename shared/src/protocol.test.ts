@@ -117,6 +117,11 @@ test('switch needs an id (uuid or null) and an absolute dir', () => {
   expect(P({ type: 'switch', id: 'nope', dir: '/a' })).toHaveProperty('error');
   expect(P({ type: 'switch', id: '../../etc/passwd-xxxxxxxxxxxxxxxxxxxxxxx', dir: '/a' })).toHaveProperty('error');
   expect(P({ type: 'switch', id: SID, dir: 'rel/dir' })).toHaveProperty('error');
+  // Windows: the wire form C:/..., and the native C:\... the server also accepts; C:x is drive-relative, not absolute
+  expect(P({ type: 'switch', id: SID, dir: 'C:/Users/x/proj' })).toEqual({ type: 'switch', id: SID, dir: 'C:/Users/x/proj' });
+  expect(P({ type: 'switch', id: null, dir: 'D:\\work\\proj' })).toEqual({ type: 'switch', id: null, dir: 'D:\\work\\proj' });
+  expect(P({ type: 'switch', id: SID, dir: 'C:proj' })).toHaveProperty('error');
+  expect(P({ type: 'switch', id: SID, dir: 'src\\a' })).toHaveProperty('error');
   expect(P({ type: 'switch', id: SID })).toHaveProperty('error');
   expect(P({ type: 'switch', dir: '/a' })).toHaveProperty('error');
 });

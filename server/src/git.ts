@@ -5,6 +5,8 @@ import path from 'node:path';
 import type { Source, TreeEntry } from '@nota-bene/shared';
 import { stateCheck, stateRelativeTo, underState } from './stateGuard.ts';
 import { gitEnv, HIDDEN, listDir, resolveInRoot, sortEntries, withDirs } from './files.ts';
+import { samePath } from './platform.ts';
+import { wirePath } from './wirePath.ts';
 
 export type { Source };
 
@@ -31,11 +33,12 @@ export class SourceError extends Error {
 
 export function git(cwd: string, args: string[], maxBuffer = 16 << 20, timeout = TIMEOUT): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd, env: gitEnv(), timeout, maxBuffer, encoding: 'buffer' }, (err, out) => (err ? reject(err) : resolve(out)));
+    execFile('git', args, { cwd, env: gitEnv(), timeout, maxBuffer, encoding: 'buffer', windowsHide: true }, (err, out) => (err ? reject(err) : resolve(out)));
   });
 }
 const gitText = async (cwd: string, args: string[]) => (await git(cwd, args)).toString('utf8');
 
+// the promises realpath is the native one (on Windows the on-disk case and long names): git's `C:/...` and our `C:\...` meet
 async function realOr(p: string): Promise<string> {
   try {
     return await fs.promises.realpath(p);
@@ -59,7 +62,8 @@ const detachedRef = (dir: string) => `(detached) ${path.basename(dir)}`;
 async function scan(root: string): Promise<Repo> {
   const dir = path.resolve(root);
   const realDir = await realOr(dir);
-  const here: Source = { id: 'here', kind: 'checkout', label: path.basename(dir), ref: '', dir: realDir, ...(realDir !== dir ? { alias: dir } : {}) };
+  // `dir`/`alias` in the wire form (`C:/Users/x/proj` on Windows), which the routes accept back as a base
+  const here: Source = { id: 'here', kind: 'checkout', label: path.basename(dir), ref: '', dir: wirePath(realDir), ...(realDir !== dir ? { alias: wirePath(dir) } : {}) };
   let top: string;
   let prefix: string;
   try {
@@ -80,13 +84,14 @@ async function scan(root: string): Promise<Repo> {
       if (!wt || lines.includes('bare')) continue;
       const branch = lines.find((l) => l.startsWith('branch refs/heads/'))?.slice('branch refs/heads/'.length);
       const real = await realOr(wt);
-      if (real === realTop) {
+      if (samePath(real, realTop)) {
         if (branch) here.ref = here.label = branch;
         continue;
       }
       if (!fs.existsSync(real)) continue; // prunable: its branch (if any) is served from blobs below
-      const serve = path.join(real, prefix).replace(/\/$/, '');
-      const given = path.join(wt, prefix).replace(/\/$/, '');
+      // path.join keeps the prefix's trailing '/' (as `\` on Windows)
+      const serve = wirePath(path.join(real, prefix).replace(/[\\/]$/, ''));
+      const given = wirePath(path.join(wt, prefix).replace(/[\\/]$/, ''));
       const where = { dir: serve, ...(given !== serve ? { alias: given } : {}) };
       if (branch) live.set(branch, where);
       else {

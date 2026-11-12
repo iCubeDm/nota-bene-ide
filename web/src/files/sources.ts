@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { Source } from '@nota-bene/shared';
 import { apiFetch } from '@/net/auth.ts';
+import { underDir, wireAbs } from '@/lib/paths.ts';
 
 /**
  * Where files are read from (M3-16): this checkout ('here'), other worktrees and branches, all read-only. The list
@@ -96,13 +97,14 @@ export const isFixed = (id: string, from: Source[] = list): boolean => from.find
 /** The source whose dir holds an absolute path (the longest dir wins: worktrees often sit inside the project), with the path relative to it. */
 export function sourceForAbs(abs: string, from: Source[] = list): { src: string; path: string } | null {
   let best: { src: string; path: string; len: number } | null = null;
+  const a = wireAbs(abs); // `C:\proj\a.md` written by an agent, `C:/proj` from the server: one form, the drive's case ignored
   for (const s of from) {
     if (s.kind === 'branch' || !s.dir) continue;
     // the server sends realpaths, plus the form it was given when that differs (macOS /var vs /private/var)
     for (const raw of [s.dir, s.alias]) {
-      const d = raw?.replace(/\/+$/, '');
-      if (!d || !abs.startsWith(d + '/')) continue;
-      const rel = abs.slice(d.length + 1).replace(/\/+$/, '');
+      const d = raw && wireAbs(raw).replace(/\/+$/, '');
+      if (!d || !underDir(a, d) || a.length === d.length) continue;
+      const rel = a.slice(d.length + 1).replace(/\/+$/, '');
       if (rel && (!best || d.length > best.len)) best = { src: s.id, path: rel, len: d.length };
     }
   }
