@@ -3,12 +3,19 @@
 // /tmp folder (sun_path is ~104 bytes); every host a test starts is killed in afterEach.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import http, { type RequestListener } from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
+import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, FALLBACK_MS, HostClient, hostEntryFile, IDLE_CLOSE_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
+import { EventHub } from '../hub.ts';
+import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, FALLBACK_MS, HostClient, hostClient, hostEntryFile, IDLE_CLOSE_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostDir, hostSocketPath, pcmFromInt16, privateDir, type Header } from './hostWire.ts';
-import { WHISPER_PACKAGE } from './whisper.ts';
+import { setWhisperPref } from '../prefs.ts';
+import { dictationRoutes } from './routes.ts';
+import { resetTranscriber, transcribe } from './transcribe.ts';
+import { WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
+import { makeWav } from './wavFixture.ts';
 
 /** `n` samples of a quarter of full scale. */
 const pcm = (n: number): Float32Array => new Float32Array(n).fill(0.25);
@@ -631,5 +638,98 @@ describe('a machine where the host cannot be started', { timeout: 60_000 }, () =
     expect(told()).toHaveLength(1);
     expect(told()[0]).toMatch(/belongs to another user/);
     expect(c.spawned).toBe(0);
+  });
+});
+
+describe('the HTTP route', () => {
+  let web: http.Server | undefined;
+  afterEach(async () => { await new Promise<void>((done) => { if (web) web.close(() => done()); else done(); }); web = undefined; });
+
+  /** The dictation route over a client of this test (the scripted host answers on the socket path). */
+  async function serve(c: HostClient): Promise<string> {
+    const routes = dictationRoutes({ hub: new EventHub(), transcribe: async (p, lang, detect, signal) => (await c.transcribe(p, lang, detect === true, signal)) ?? { text: 'in process', lang } });
+    web = http.createServer(((req, res) => routes[req.url!.split('?')[0]!]!(req, res)) as RequestListener);
+    await new Promise<void>((done) => web!.listen(0, '127.0.0.1', done));
+    return `http://127.0.0.1:${(web.address() as AddressInfo).port}`;
+  }
+  /** Whisper is on and installed, as the route checks. */
+  const on = (): void => {
+    fs.mkdirSync(path.join(home, 'whisper'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'whisper', 'ready.json'), JSON.stringify({ version: WHISPER_VERSION, model: WHISPER_MODEL, revision: WHISPER_REVISION }));
+    setWhisperPref(true);
+  };
+
+  it('a client that hangs up while the host has its job: the host is told to cancel it', async () => {
+    on();
+    const f = await FakeHost.start();
+    const base = await serve(make());
+    const ac = new AbortController();
+    const sent = fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: new Uint8Array(makeWav()), signal: ac.signal });
+    sent.catch(() => {});
+    const job = await f.next('job');
+    ac.abort();
+    expect((await f.next('cancel')).header).toEqual({ type: 'cancel', id: job.header.id });
+  });
+
+  it('a full host queue is a 503 {error: busy}', async () => {
+    on();
+    const f = await FakeHost.start();
+    f.on = (s, sock) => f.answer(sock, { id: s.header.id, error: 'busy' });
+    const base = await serve(make());
+    const r = await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: new Uint8Array(makeWav()) });
+    expect(r.status).toBe(503);
+    expect(await r.json()).toEqual({ error: 'busy' });
+  });
+
+  it('a host that answers answers the route', async () => {
+    on();
+    const f = await FakeHost.start();
+    f.on = (s, sock) => f.answer(sock, { id: s.header.id, text: 'from the host', lang: 'en' });
+    const base = await serve(make());
+    const r = await fetch(`${base}/dictation/transcribe?lang=en`, { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: new Uint8Array(makeWav()) });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ text: 'from the host', lang: 'en' });
+  });
+});
+
+describe('transcribe(), the way the routes call it', { timeout: 30_000 }, () => {
+  beforeEach(() => {
+    resetTranscriber();
+    hostClient.reportTo((where, e) => { reports.push([where, e]); });
+  });
+  afterEach(() => {
+    hostClient.close();
+    resetTranscriber();
+  });
+
+  it('goes through the host: the model is in the host\'s process, not in this one', async () => {
+    fakeInstall();
+    const got = await transcribe(pcm(6), 'ru');
+    expect(text(got).slice(0, 2)).toEqual(['6', 'ru']);
+    expect(Number(text(got)[2])).not.toBe(process.pid);
+    expect(hostClient.connected()).toBe(true);
+  });
+
+  it('runs the model in this process when the host cannot be used, with the same answer', async () => {
+    const long = path.join('/tmp', `nbw-${'x'.repeat(100)}`);
+    fakeInstall({}, long);
+    try {
+      vi.stubEnv('NOTA_BENE_HOME', long);
+      const got = await transcribe(pcm(6), 'ru');
+      expect(text(got).slice(0, 2)).toEqual(['6', 'ru']);
+      expect(Number(text(got)[2])).toBe(process.pid);
+      expect(told()).toHaveLength(1);
+      expect(told()[0]).toMatch(/too long/);
+    } finally {
+      resetTranscriber();
+      fs.rmSync(long, { recursive: true, force: true });
+    }
+  });
+
+  it('a test\'s own loader never goes near the host', async () => {
+    const before = hostClient.spawned;
+    expect(await transcribe(pcm(2), 'en', { load: async () => async () => ({ text: 'mine' }) })).toEqual({ text: 'mine', lang: 'en' });
+    expect(hostClient.spawned).toBe(before);
+    expect(hostClient.connected()).toBe(false);
   });
 });

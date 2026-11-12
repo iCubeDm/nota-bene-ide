@@ -9,7 +9,7 @@ import { EventHub } from '../hub.ts';
 import { createSessionManager } from '../session.ts';
 import { VoiceIndex } from '../voice/index.ts';
 import { AttachmentStore } from '../attachments.ts';
-import { VoiceFailure } from '../voice/transcribe.ts';
+import { VoiceBusy, VoiceFailure } from '../voice/transcribe.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -157,6 +157,16 @@ describe('voice messages', () => {
     expect(events.some((e) => e.kind === 'server-error')).toBe(false);
     expect(got).toEqual([]);
     expect(s.busy()).toBe(false);
+  });
+
+  it('a Whisper host that is busy fails the message as `failed`, without an error toast', async () => {
+    const { got, events, make } = setup({ speech: async () => { throw new VoiceBusy(); } });
+    const s = await make();
+    s.send({ id: 'v1', text: '', voice, lang: 'en' });
+    await until(() => events.some((e) => e.kind === 'voice-text'));
+    expect(events.find((e) => e.kind === 'voice-text')).toMatchObject({ id: 'v1', error: 'failed' });
+    expect(events.some((e) => e.kind === 'server-error')).toBe(false);
+    expect(got).toEqual([]);
   });
 
   it('a failure while the agent works does not end its turn', async () => {

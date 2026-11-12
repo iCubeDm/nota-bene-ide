@@ -33,6 +33,7 @@ import { controlToken, describeVersion, systemRoutes } from './system.ts';
 import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
 import { runtimeDir } from './runtime.ts';
+import { hostClient } from './dictation/hostClient.ts';
 import { dictationRoutes } from './dictation/routes.ts';
 import { voiceRoutes } from './voice/routes.ts';
 import { whisperPhase } from './dictation/install.ts';
@@ -97,6 +98,7 @@ export async function startServer(o: {
   heartbeatMs?: number;
 }): Promise<{ url: string; close(): Promise<void> }> {
   const hub = new EventHub();
+  hostClient.reportTo((where, e) => reportError(hub, where, e)); // the Whisper host's trouble is this window's to show
   installProcessHandlers();
   hubs.add(hub);
   const audit = o.audit ? new AuditLog({ port: o.port, ...o.audit }) : null;
@@ -706,6 +708,7 @@ export async function startServer(o: {
       if (heartbeat) clearInterval(heartbeat);
       win.stop();
       manager.close();
+      hostClient.close(); // the Whisper host drops this window's jobs
       const backendClose = o.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
       blend?.dispose();
       for (const c of wss.clients) c.terminate();

@@ -3,8 +3,9 @@ import http, { type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventHub } from '../hub.ts';
+import { WhisperBusy, WhisperOff } from './hostClient.ts';
 import { whisperDir, whisperPhase } from './install.ts';
 import { dictationRoutes } from './routes.ts';
 import { WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
@@ -164,6 +165,59 @@ describe('dictation routes', () => {
       expect(await go('?lang=en')).toEqual({ text: 'hola', lang: 'en' }); // an old client: pinned
       expect(await go('?lang=ru&detect=0')).toEqual({ text: 'hola', lang: 'ru' });
       expect(asked).toEqual([true, false, false]);
+    });
+    it('a full host queue is a 503 {error: busy}, Whisper removed under the job a 503 off', async () => {
+      let n = 0;
+      const base = await serve({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} }, async () => { throw ++n === 1 ? new WhisperBusy('Whisper is busy') : new WhisperOff('Whisper is off'); });
+      await ready(base);
+      const go = () => fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) });
+      const busy = await go();
+      expect(busy.status).toBe(503);
+      expect(await busy.json()).toEqual({ error: 'busy' });
+      const off = await go();
+      expect(off.status).toBe(503);
+      expect(await off.json()).toEqual({ error: 'dictation is off' });
+    });
+    it('any other failure is still a 500', async () => {
+      const base = await serve({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} }, async () => { throw new Error('the model failed'); });
+      await ready(base);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const r = await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) });
+      expect(r.status).toBe(500);
+      expect(await r.json()).toEqual({ error: 'the model failed' });
+    });
+    it('a client that hangs up before the answer aborts the job, and nothing is reported', async () => {
+      let signal: AbortSignal | undefined;
+      let begun!: () => void;
+      const started = new Promise<void>((resolve) => { begun = resolve; });
+      let calls = 0;
+      const base = await serve({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} }, async (_pcm, _lang, _detect, s) => {
+        if (++calls > 1) return 'next';
+        signal = s;
+        begun();
+        return new Promise((_, reject) => s!.addEventListener('abort', () => reject(s!.reason), { once: true }));
+      });
+      await ready(base);
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const ac = new AbortController();
+      fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()), signal: ac.signal }).catch(() => {});
+      await started;
+      expect(signal!.aborted).toBe(false); // a request being served is not an abandoned one
+      const aborted = new Promise<void>((resolve) => signal!.addEventListener('abort', () => resolve(), { once: true }));
+      ac.abort();
+      await aborted;
+      // the next request is served after the abandoned one left the queue, and the abandoned one was no error
+      expect((await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) })).status).toBe(200);
+      expect(errors).not.toHaveBeenCalled();
+    });
+    it('a client that waits for its answer is not aborted when the answer is sent', async () => {
+      let signal: AbortSignal | undefined;
+      const base = await serve({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} }, async (_pcm, _lang, _detect, s) => { signal = s; return 'done'; });
+      await ready(base);
+      const r = await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: wav, body: new Uint8Array(makeWav()) });
+      expect(r.status).toBe(200);
+      await r.json(); // the response is complete: its `close` event has been emitted before the client could see it
+      expect(signal!.aborted).toBe(false);
     });
     it('runs requests one at a time', async () => {
       let active = 0; let peak = 0;

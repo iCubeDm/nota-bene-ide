@@ -8,7 +8,7 @@ import { samplesOf, WavError } from '../dictation/wav.ts';
 import { reportError } from '../errors.ts';
 import type { EventHub } from '../hub.ts';
 import { parseRange } from '../range.ts';
-import { transcribeVoice, VoiceFailure, type Transcribe } from './transcribe.ts';
+import { transcribeVoice, VoiceBusy, VoiceFailure, type Transcribe } from './transcribe.ts';
 import { msOf, waveOf } from './wave.ts';
 
 /** Ten minutes of 16 kHz 16-bit mono is 19.2 MB. */
@@ -62,6 +62,8 @@ export function voiceRoutes(o: { hub: EventHub; store: AttachmentStore; on?: () 
     try {
       json(res, 200, await transcribeVoice(o.store, id, lang, o.transcribe, undefined, q.get('detect') === '1'));
     } catch (e) {
+      if (e instanceof VoiceBusy) return json(res, 503, { error: 'busy' });
+      if (e instanceof VoiceFailure && e.why === 'off') return json(res, 503, { error: 'dictation is off' });
       if (e instanceof VoiceFailure) return json(res, 404, { error: e.message });
       throw e;
     }
