@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { AgentEffort as EffortLevel, ModelOption } from '@nota-bene/shared';
+import { shortModel, type AgentEffort as EffortLevel, type ModelOption } from '@nota-bene/shared';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
@@ -16,24 +16,34 @@ const rowFor = (models: ModelOption[], id: string | null | undefined): ModelOpti
   if (!id) return undefined;
   const exact = (x: string) => models.find((o) => o.value === x) ?? models.find((o) => o.resolved === x);
   // a session id may carry a context suffix (`claude-opus-5-5[1m]`): then the bare id
-  return exact(id) ?? exact(id.replace(/\[[^\]]*\]$/, ''));
+  return exact(id) ?? exact(id.replace(SUFFIXED_ID, ''));
 };
-
-/** a session id's context suffix for the 1M-token variant */
-const ONE_M = /\[1m\]$/i;
-/**
- * The row's name for the pill. `default` is named after the row that resolves to the same model (an alias first):
- * "Opus 5.5", not "Default (recommended)". With none, its own name minus the trailing parenthetical.
- */
-function pillName(models: ModelOption[], row: ModelOption): string {
-  if (row.value !== 'default') return row.name;
-  const same = row.resolved ? models.filter((o) => o !== row && o.resolved === row.resolved) : [];
-  return (same.find(isAlias) ?? same[0])?.name ?? (row.name.replace(/\s*\([^)]*\)\s*$/, '') || row.name);
-}
 
 /** the aliases (`sonnet`) are the everyday list; explicit ids (`claude-sonnet-5`) go under "Other versions" */
 const isAlias = (o: ModelOption) => !o.value.startsWith('claude-');
 const resolvedOf = (o: ModelOption) => o.resolved ?? o.value;
+/** a context suffix on a model id (`claude-opus-5-5[1m]`, `opus[1m]`) */
+const SUFFIXED_ID = /\[[^\]]*\]$/;
+/** the 1M-token variant's suffix */
+const ONE_M = /\[1m\]$/i;
+/** a name without its trailing parenthetical: `Sonnet (1M context)` is `Sonnet` (the 1M tag carries that) */
+const bare = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, '') || name;
+/**
+ * The row's name for the pill. `default` is named after what it is: the row that resolves to the same model (a row with no
+ * `[..]` suffix, an alias first: "Opus 5.5", not "Default (recommended)"), else the short name of its resolved id, else its
+ * own name. A trailing parenthetical is dropped from a borrowed or own name.
+ */
+function pillName(models: ModelOption[], row: ModelOption): string {
+  if (row.value !== 'default') return row.name;
+  const rank = (o: ModelOption) => (SUFFIXED_ID.test(o.value) ? 0 : 2) + (isAlias(o) ? 1 : 0);
+  const twin = row.resolved
+    ? models.filter((o) => o !== row && resolvedOf(o) === row.resolved).reduce<ModelOption | undefined>((best, o) => (!best || rank(o) > rank(best) ? o : best), undefined)
+    : undefined;
+  if (twin) return bare(twin.name);
+  const short = row.resolved ? shortModel(row.resolved) : '';
+  return short && short !== row.resolved ? short : bare(row.name);
+}
+
 /** a router's ids carry their provider (`anthropic/claude-opus-5`, `google/gemini-3-pro`): the list is grouped by it */
 const providerOf = (o: ModelOption) => (o.value.includes('/') ? o.value.slice(0, o.value.indexOf('/')) : '');
 /** from this many rows on the list has a search field */
@@ -80,15 +90,16 @@ export function ModelPill() {
   const searchRef = useRef<HTMLInputElement>(null);
   const hadTurn = useAppSelector((st) => st.feed.earlier > 0 || st.feed.items.some((it) => it.kind === 'user'));
   if (!id && !switchable) return null; // nothing known yet
-  // the short name; a `[1m]` session id adds a small tag (unless the row's name already says it)
+  // the short name; the 1M tag when the session id or the row's resolved id says so (unless the name already does)
   const name = current ? pillName(models, current) : id ? id.replace(ONE_M, '') : t('modelUnknown');
-  const tag1m = !!id && ONE_M.test(id) && !/\b1m\b/i.test(name);
-  const effortName = cur?.effort ? t(`effort_${cur.effort}`) : '';
-  // the full text for the accessible name and the tooltip: "Opus 5.5 1M · Extra high"
-  const summary = [tag1m ? `${name} ${t('model1m')}` : name, effortName].filter(Boolean).join(' · ');
-  // the effort as a mini bar mirroring the menu slider: the level's place among the model's levels (Auto: no bar)
+  const tag1m = (ONE_M.test(id ?? '') || ONE_M.test(current?.resolved ?? '')) && !/\b1m\b/i.test(name);
+  // the effort as a mini bar mirroring the menu slider: the level's place among the model's levels. An effort the model
+  // has no level for (the slider shows Auto) has no bar, and the name does not claim it either.
   const levelAt = cur?.effort ? (efforts?.indexOf(cur.effort) ?? -1) : -1;
   const barPct = efforts && levelAt >= 0 ? ((levelAt + 1) * 100) / efforts.length : null;
+  const effortName = cur?.effort && barPct !== null ? t(`effort_${cur.effort}`) : '';
+  // the full text for the accessible name and the tooltip: "Opus 5.5 1M · Extra high"
+  const summary = [tag1m ? `${name} ${t('model1m')}` : name, effortName].filter(Boolean).join(' · ');
   const trigger = (
     <button
       type="button"
@@ -129,7 +140,9 @@ export function ModelPill() {
   const showMore = more || !!query.trim() || (!!current && !isAlias(current));
   // a model change drops the cache; the same resolved id keeps it. Nothing to re-read before the first turn.
   const differs = (o: ModelOption) => (current ? resolvedOf(o) !== resolvedOf(current) : true);
-  const warn = hadTurn && used > 0 && (hover ? differs(hover) : models.some(differs));
+  // the row under the pointer or focus; one the search filtered out is forgotten
+  const hovered = hover && shown.includes(hover) ? hover : null;
+  const warn = hadTurn && used > 0 && (hovered ? differs(hovered) : models.some(differs));
   const row = (o: ModelOption) => {
     const here = o === current;
     return (
@@ -179,7 +192,7 @@ export function ModelPill() {
             value={query}
             placeholder={t('modelSearch')}
             aria-label={t('modelSearch')}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setHover(null); }}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -215,12 +228,14 @@ export function ModelPill() {
           </>
         )}
         </div>
-        {/* the full description of the row under the pointer or focus, else the current row's: the rows cut it short. The
-            block keeps two lines of height so the menu does not jump between rows. Screen readers get the row's own name. */}
-        {models.length > 0 && (
+        {/* the full description of the row under the pointer or focus, else the current row's: the rows cut it short. Three
+            lines of fixed height, so the menu does not jump between rows (longer text is clamped). Only when there is text:
+            no empty box for an unknown model, before a model is reported, or a backend with no descriptions. Screen
+            readers get the row's own name, which carries the description. */}
+        {(hovered ?? current)?.description && shown.some((o) => o.description) && (
           <div className="shrink-0 border-t border-border-soft px-2.5 py-1.5">
-            <p data-testid="model-detail" aria-hidden className="m-0 line-clamp-3 min-h-8 break-words text-[0.71875rem] leading-4 text-muted-foreground">
-              {(hover ?? current)?.description}
+            <p data-testid="model-detail" aria-hidden className="m-0 line-clamp-3 h-12 break-words text-[0.71875rem] leading-4 text-muted-foreground">
+              {(hovered ?? current)?.description}
             </p>
           </div>
         )}

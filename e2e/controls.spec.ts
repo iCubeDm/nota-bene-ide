@@ -96,13 +96,22 @@ test.afterEach(async ({ page }) => {
       await expect(cards).toHaveCount(before - 1);
     }
   }
-  // the model back on the first one (and no effort)
+  // the model back on the first one, with no effort. The pill's text is the model's name only (the effort is a bar), so the
+  // check is its accessible name: "Sonnet 5 · <tip>", and "Sonnet 5 · Max · <tip>" while an effort is left.
   const modelPill = page.getByRole('button', { name: en.modelTip });
   await expect(modelPill).toBeEnabled();
-  if ((await modelPill.textContent()) !== 'Sonnet 5') {
+  const clean = `Sonnet 5 · ${en.modelTip}`;
+  if ((await modelPill.getAttribute('aria-label')) !== clean) {
     await modelPill.click();
     await page.getByRole('menuitem', { name: /^Sonnet 5/ }).click();
-    await expect(modelPill).toHaveText('Sonnet 5');
+    await expect(modelPill).toHaveAttribute('aria-label', /^Sonnet 5 · /); // the server's echo
+    if ((await modelPill.getAttribute('aria-label')) !== clean) { // an effort is left: Auto is the slider's first stop
+      await modelPill.click();
+      await page.getByRole('slider', { name: en.effortLabel }).focus();
+      await page.keyboard.press('Home');
+      await page.keyboard.press('Escape');
+    }
+    await expect(modelPill).toHaveAttribute('aria-label', clean);
   }
   await setMode(page, t, 'default');
 });
