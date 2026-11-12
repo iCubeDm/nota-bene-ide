@@ -30,6 +30,7 @@ beforeEach(() => {
   process.env.NOTA_BENE_HOME = home;
 });
 afterEach(() => {
+  vi.useRealTimers(); // a test that times out never reaches its own cleanup: it must not leave fake timers to the next one
   if (prevHome === undefined) delete process.env.NOTA_BENE_HOME; else process.env.NOTA_BENE_HOME = prevHome;
   fs.rmSync(home, { recursive: true, force: true });
 });
@@ -398,32 +399,35 @@ describe('SessionManager characterization', () => {
   });
 
   it('14. a switch cancels a scheduled title lookup of the old session', async () => {
-    vi.useFakeTimers();
-    try {
-      let calls = 0;
-      const inner = fakeBackend([{ text: 'x' }, { text: 'y' }]);
-      const backend: AgentBackend = { ...inner, sessionInfo: async () => { calls++; return { customTitle: 't' }; } };
-      const { hub, events } = hubWithSocket();
-      const s = await createSessionManager({ hub, backend, cwd: home });
-      const turns = () => agentOf(events, 'turn-end').length;
-      s.send({ id: 'u1', text: 'one' });
-      await vi.advanceTimersByTimeAsync(50);
-      expect(turns()).toBe(1);
-      s.send({ id: 'u2', text: 'two' }); // within the throttle: the lookup is scheduled, not run
-      await vi.advanceTimersByTimeAsync(50);
-      expect(turns()).toBe(2);
-      const restarting = s.restart();
-      let done = false;
-      void restarting.then(() => { done = true; });
-      for (let i = 0; i < 200 && !done; i++) await vi.advanceTimersByTimeAsync(5); // file reads need real turns of the loop
-      await restarting;
-      const after = calls; // the new session's own title load
-      await vi.advanceTimersByTimeAsync(30_000);
-      expect(calls).toBe(after);
-      s.close();
-    } finally {
-      vi.useRealTimers();
-    }
+    vi.useFakeTimers(); // restored by the afterEach, also when this test times out
+    let calls = 0;
+    const inner = fakeBackend([{ text: 'x' }, { text: 'y' }]);
+    const backend: AgentBackend = { ...inner, sessionInfo: async () => { calls++; return { customTitle: 't' }; } };
+    const { hub, events } = hubWithSocket();
+    const s = await createSessionManager({ hub, backend, cwd: home });
+    const turns = () => agentOf(events, 'turn-end').length;
+    s.send({ id: 'u1', text: 'one' });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(turns()).toBe(1);
+    s.send({ id: 'u2', text: 'two' }); // within the throttle: the lookup is scheduled, not run
+    await vi.advanceTimersByTimeAsync(50);
+    expect(turns()).toBe(2);
+    const before = calls;
+    const restarting = s.restart();
+    let settled = false;
+    const mark = () => { settled = true; };
+    restarting.then(mark, mark);
+    // The restart reads files (real turns of the loop) and waits on fake timers too (the fake backend's transcript read
+    // sleeps on one): advance fake time, a millisecond and a real turn at a time, for as long as the restart takes,
+    // however slow the machine is. A step count would run out first on a slow runner.
+    while (!settled) await vi.advanceTimersByTimeAsync(1);
+    await restarting; // a failed restart fails the test here
+    const after = calls; // the new session's own title load
+    // the old lookup, about 10 s of fake time away, was cancelled rather than run before the switch got to it
+    expect(after).toBe(before + 1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(calls).toBe(after);
+    s.close();
   });
 
   it('15. a setMode still waiting on the old agent when a switch happens is not applied to the new session', async () => {
