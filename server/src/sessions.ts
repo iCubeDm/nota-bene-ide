@@ -6,6 +6,7 @@ import { isSessionId } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
+import { wirePath } from './wirePath.ts';
 import { readJson } from './system.ts';
 
 type Titled = { customTitle?: string; summary?: string; firstPrompt?: string };
@@ -111,9 +112,9 @@ export async function listSessionsView(o: {
   for (const x of list) {
     const cwd = x.cwd || (o.backend.nativeSessions ? null : cwdOf(x.sessionId, o.projectsDir));
     if (!cwd) continue;
-    sessions.push({ id: x.sessionId, title: titleOf(x) ?? '', at: x.lastModified, size: x.fileSize ?? 0, cwd: realOr(cwd) });
+    sessions.push({ id: x.sessionId, title: titleOf(x) ?? '', at: x.lastModified, size: x.fileSize ?? 0, cwd: wirePath(realOr(cwd)) });
   }
-  return { current: o.current, root: o.root, sessions };
+  return { current: o.current, root: wirePath(o.root), sessions };
 }
 
 const MAX_TITLE = 200;

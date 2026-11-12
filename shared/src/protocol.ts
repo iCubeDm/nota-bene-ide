@@ -1,5 +1,6 @@
 import type { WireAgentEvent } from './agent.ts';
 import type { ThemeId, UiLang, UiScale } from './lang.ts';
+import { isAbsPath } from './paths.ts';
 
 /** A tool-use id as the wire carries it (the Agent call's id, `agent` of a source, `tool` of `/subagent`): ids only, never path pieces. */
 export const TOOL_USE_ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -564,7 +565,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
       return { type: 'command', name: m.name };
     case 'switch':
       if (m.id !== null && !isSessionId(m.id)) return { error: 'switch needs id: session uuid or null' };
-      if (typeof m.dir !== 'string' || !m.dir.startsWith('/')) return { error: 'switch needs an absolute dir' };
+      if (typeof m.dir !== 'string' || !isAbsPath(m.dir)) return { error: 'switch needs an absolute dir' };
       return { type: 'switch', id: m.id, dir: m.dir };
     case 'restart':
       return { type: 'restart' };

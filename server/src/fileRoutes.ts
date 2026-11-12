@@ -77,12 +77,14 @@ const SAFETY = {
 const CLI_TIMEOUT = 1500;
 
 // the CLI answers with project-relative paths, but also absolute ones (skills, added dirs): inside the root
-// they become relative, outside it they are dropped (the UI never gets a path it cannot open)
+// they become relative, outside it they are dropped (the UI never gets a path it cannot open). Windows: either
+// separator in, '/' out (a trailing `\` marks a folder as `/` does); on POSIX a backslash is a name character
 function relativeHit(root: string, p: string): string | null {
-  if (!path.isAbsolute(p)) return p;
+  const slash = (s: string) => (path.sep === '\\' ? s.replace(/\\/g, '/') : s);
+  if (!path.isAbsolute(p)) return slash(p);
   const rel = path.relative(path.resolve(root), p);
   if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
-  return rel.split(path.sep).join('/') + (p.endsWith('/') ? '/' : '');
+  return rel.split(path.sep).join('/') + (slash(p).endsWith('/') ? '/' : '');
 }
 
 const baseOf = (p: string) => p.toLowerCase().replace(/\/$/, '').split('/').pop() ?? '';

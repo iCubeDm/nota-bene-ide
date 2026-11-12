@@ -11,6 +11,9 @@ const SKIP_DIRS = new Set([...HIDDEN, 'dist', 'build', '.next', '__pycache__', '
 const CAP = 20_000;
 const TTL = 10_000;
 
+// `p` is `dir` or under it; a root (`/`, `D:\`) already ends in the separator
+const within = (p: string, dir: string): boolean => p === dir || p.startsWith(dir.endsWith(path.sep) ? dir : dir + path.sep);
+
 /**
  * Resolve a project-relative path (already URL-decoded once by the caller) to an absolute one.
  * null = outside the root: lexically (`..`, absolute) or through a symlink (the realpath of the deepest
@@ -20,7 +23,7 @@ export function resolveInRoot(root: string, rel: string): string | null {
   if (rel.includes('\0') || path.isAbsolute(rel)) return null;
   const rootAbs = path.resolve(root);
   const abs = path.resolve(rootAbs, rel);
-  if (abs !== rootAbs && !abs.startsWith(rootAbs + path.sep)) return null;
+  if (!within(abs, rootAbs)) return null;
   if (underState(abs)) return null; // the state folder (the access token) is never a project file, whatever the root
   // native realpath on both sides: a case difference between the argument and the disk must not refuse valid paths.
   // Accepted gap: a symlink swapped between this check and the open (TOCTOU) — fine for a localhost tool.
@@ -34,7 +37,7 @@ export function resolveInRoot(root: string, rel: string): string | null {
   for (;;) {
     try {
       const real = fs.realpathSync.native(cur);
-      return real === realRoot || real.startsWith(realRoot + path.sep) ? abs : null;
+      return within(real, realRoot) ? abs : null;
     } catch {
       try {
         fs.lstatSync(cur);

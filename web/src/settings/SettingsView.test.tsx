@@ -97,6 +97,19 @@ it('Windows: this window has no actions; another one can be restarted or stopped
   await waitFor(() => expect(posts).toContainEqual({ url: '/system/windows/action', body: { ...row, action: 'stop' } }));
 });
 
+it('Windows: a C:/ root (a Windows server) shows its folder name and ~ for C:/Users/<name>; the row is sent back as it came', async () => {
+  const was = WINDOWS[2]!.root;
+  WINDOWS[2]!.root = 'C:/Users/me/win-c';
+  try {
+    setup();
+    const w = await win(4779);
+    expect(within(w).getByText('win-c')).toBeInTheDocument();
+    expect(within(w).getByText('~/win-c')).toBeInTheDocument();
+  } finally {
+    WINDOWS[2]!.root = was;
+  }
+});
+
 it('Windows: a changed window and a window too old for the control route say so', async () => {
   WINDOWS[1]!.busy = false;
   try {

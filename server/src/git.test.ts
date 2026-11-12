@@ -9,6 +9,7 @@ import { EventHub } from './hub.ts';
 import { httpHandler } from './http.ts';
 import { fileRoutes } from './fileRoutes.ts';
 import { clearSourceCache, limits, listSources, readFile, readTree, type Source } from './git.ts';
+import { wirePath } from './wirePath.ts';
 
 // a main checkout on `main`, a worktree on `feature/x`, a detached worktree, branches `old` and `team/notes` without a
 // worktree, and `gone/wt` whose worktree folder was deleted (prunable)
@@ -24,10 +25,11 @@ const allowedHosts: string[] = [];
 
 const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, env, stdio: 'pipe' }).toString();
+const win = process.platform === 'win32';
 const write = (p: string, s: string) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, s); };
 
 beforeAll(async () => {
-  dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-git-')));
+  dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-git-')));
   root = path.join(dir, 'main');
   wt = path.join(dir, 'wt-x');
   plainDir = path.join(dir, 'plain');
@@ -40,8 +42,13 @@ beforeAll(async () => {
   git(root, 'checkout', '-qb', 'old');
   write(path.join(root, 'old-only.md'), 'from old');
   write(path.join(root, 'olddir/inner.txt'), 'inner');
-  write(path.join(root, ':x.md'), 'colon');
+  if (!win) write(path.join(root, ':x.md'), 'colon');
   git(root, 'add', '.');
+  if (win) {
+    // `:` cannot be in a Windows file name: the blob goes into the index directly (core.protectNTFS off for that)
+    const sha = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: root, env, input: 'colon' }).toString().trim();
+    git(root, '-c', 'core.protectNTFS=false', 'update-index', '--add', '--cacheinfo', `100644,${sha},:x.md`);
+  }
   git(root, 'commit', '-qm', 'old');
   git(root, 'checkout', '-q', 'main');
   git(root, 'checkout', '-qb', 'team/notes');
@@ -100,10 +107,12 @@ describe('listSources', () => {
       ['ref:old', 'branch', 'old'],
       ['ref:team/notes', 'branch', 'team/notes'],
     ]);
-    expect(list.find((s) => s.id === 'ref:feature/x')!.dir).toBe(wt);
+    // dirs in the wire form: `C:/...` on Windows, the path itself on POSIX
+    expect(list.find((s) => s.id === 'ref:feature/x')!.dir).toBe(wirePath(wt));
     expect(list.find((s) => s.id === 'ref:old')!.dir).toBeUndefined();
-    expect(list[0].dir).toBe(root);
-    expect(list[1].dir).toBe(wtd);
+    expect(list[0].dir).toBe(wirePath(root));
+    expect(list[1].dir).toBe(wirePath(wtd));
+    expect(list.every((s) => !s.alias)).toBe(true);
   });
   it('a prunable worktree does not hide its branch', async () => {
     const gone = await byId('ref:gone/wt');
@@ -112,8 +121,20 @@ describe('listSources', () => {
   it('the window checkout is `here` whatever form its path takes (compared by realpath)', async () => {
     clearSourceCache();
     const viaDots = path.join(dir, 'wt-x', '..', 'main');
-    expect((await listSources(viaDots))[0].dir).toBe(root); // realpath
+    expect((await listSources(viaDots))[0].dir).toBe(wirePath(root)); // realpath
     expect((await listSources(viaDots)).filter((s) => s.kind === 'worktree').map((s) => s.ref)).toEqual(['(detached) wt-d', 'feature/x']);
+  });
+  it('a project in a subfolder: each worktree is served from that subfolder, without a trailing separator', async () => {
+    clearSourceCache();
+    for (const d of [root, wt]) fs.mkdirSync(path.join(d, 'sub'), { recursive: true });
+    try {
+      const list = await listSources(path.join(root, 'sub'));
+      expect(list[0].dir).toBe(wirePath(path.join(root, 'sub')));
+      expect(list.find((s) => s.id === 'ref:feature/x')!.dir).toBe(wirePath(path.join(wt, 'sub')));
+    } finally {
+      for (const d of [root, wt]) fs.rmSync(path.join(d, 'sub'), { recursive: true, force: true });
+      clearSourceCache();
+    }
   });
   it('a folder that is not a git repo has only `here`', async () => {
     expect((await listSources(plainDir)).map((s) => s.id)).toEqual(['here']);

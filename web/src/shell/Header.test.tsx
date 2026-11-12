@@ -97,6 +97,12 @@ it('the project name, not the app name, titles the header and the browser tab', 
   ev({ kind: 'session', id: null, root: '/Users/me/my-project', title: null, model: null });
   expect(document.getElementById('proj')).toHaveTextContent(/^my-project$/);
   expect(document.title).toBe('my-project · Nota Bene');
+  // a Windows server sends C:/...; a drive root has no folder name
+  ev({ kind: 'session', id: null, root: 'C:/Users/me/win-project', title: null, model: null });
+  expect(document.getElementById('proj')).toHaveTextContent(/^win-project$/);
+  expect(document.title).toBe('win-project · Nota Bene');
+  ev({ kind: 'session', id: null, root: 'D:/', title: null, model: null });
+  expect(document.getElementById('proj')).toHaveTextContent(/^Nota Bene$/);
 });
 
 it('document title: session title first when there is one; header shows the model pill and id8, or id8 alone', () => {

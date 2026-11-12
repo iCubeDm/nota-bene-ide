@@ -12,6 +12,7 @@ import { getLang, chooseLang, LANGS, t as tNow, useT, type Lang } from '@/i18n/i
 import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
 import { uiScale, useUiScale } from '@/shell/uiScale.ts';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '@/shell/theme.ts';
+import { folderName, shortWinHome } from '@/lib/paths.ts';
 
 type Size = { bytes: number; files: number };
 /** `history`: the archive before compactions (R-M7-1); absent from a server older than M7-12 */
@@ -24,8 +25,8 @@ type WindowRow = {
 type About = { version: string; stateDir: string; logs: string[]; node: string; pid: number };
 type Action = 'restart-agent' | 'restart-server' | 'stop';
 
-// macOS and Linux home folders
-const short = (d: string) => d.replace(/^\/(Users|home)\/[^/]+/, '~');
+// macOS and Linux home folders, and Windows' C:/Users/<name>
+const short = (d: string) => shortWinHome(d).replace(/^\/(Users|home)\/[^/]+/, '~');
 const uptime = (since: number, now = Date.now()) => {
   const m = Math.max(0, Math.round((now - since) / 60000));
   return m < 60 ? tNow('upMin', m) : m < 1440 ? tNow('upHMin', Math.floor(m / 60), m % 60) : tNow('upD', Math.floor(m / 1440));
@@ -173,7 +174,7 @@ export function SettingsView({ active }: { active: boolean }) {
           {windows.data?.map((w) => (
             <div key={w.port} data-window={w.port} className="rounded-lg border border-border-soft px-3 py-2 text-[0.8125rem]">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="font-semibold text-foreground">{w.root.split('/').filter(Boolean).pop() ?? w.root}</span>
+                <span className="font-semibold text-foreground">{folderName(w.root) || w.root}</span>
                 <span className="font-mono text-[0.6875rem] text-muted-foreground">{short(w.root)}</span>
                 <span className="font-mono text-[0.6875rem] text-muted-foreground">:{w.port}</span>
                 {w.current && <span className="rounded bg-primary/15 px-1.5 text-[0.6875rem] text-link">{t('winThis')}</span>}

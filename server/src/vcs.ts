@@ -4,6 +4,7 @@ import type { Source, VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff
 import { git, listSources, repo } from './git.ts';
 import { HIDDEN } from './files.ts';
 import { stateRelativeTo } from './stateGuard.ts';
+import { pathKey } from './platform.ts';
 
 /** Read-only git views. Nothing here switches, stages or writes. */
 
@@ -97,7 +98,8 @@ function rowsOf(names: string, nums: string): VcsFile[] {
   return rows;
 }
 
-const safeRel = (rel: string) => !!rel && !rel.includes('\0') && !rel.startsWith('/') && !rel.split('/').includes('..');
+// on Windows `\` separates too (`a\..\..\x` must not climb out) and `C:/x`, `\x` are absolute; on POSIX it is a name character
+const safeRel = (rel: string) => !!rel && !rel.includes('\0') && !path.isAbsolute(rel) && !rel.split(path.sep === '\\' ? /[\\/]/ : '/').includes('..');
 const SHA = /^[0-9a-f]{7,64}$/;
 
 /** What no view shows, as in the tree and the file search: `.git`, `node_modules`, the marks and the state folders. */
@@ -205,8 +207,10 @@ const real = (p: string) => { try { return fs.realpathSync(p); } catch { return 
 /** The folder holding each working window: the deepest one, since worktrees often sit inside the project. */
 function holders(folders: string[], working: string[]): Set<string> {
   const held = new Set<string>();
+  // compared by pathKey: on Windows a window's root and a source dir may differ in letter case or separator
+  const under = (w: string, f: string) => w === f || w.startsWith(f.endsWith(path.sep) ? f : f + path.sep);
   for (const w of working.map(real)) {
-    const home = folders.filter((f) => w === f || w.startsWith(f + path.sep)).sort((a, b) => b.length - a.length)[0];
+    const home = folders.filter((f) => under(pathKey(w), pathKey(f))).sort((a, b) => b.length - a.length)[0];
     if (home) held.add(home);
   }
   return held;

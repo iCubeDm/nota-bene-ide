@@ -5,6 +5,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream';
+import { isWindows, pathKey } from './platform.ts';
+import { wirePath } from './wirePath.ts';
 import { underState } from './stateGuard.ts';
 
 export const TMP_IMAGE_MAX = 50 * 1024 * 1024;
@@ -15,10 +17,13 @@ export const TMP_IMAGE_TYPES: Record<string, string> = {
 };
 const typeOf = (file: string): string | undefined => TMP_IMAGE_TYPES[path.extname(file).toLowerCase()];
 
-/** The temp folders as real paths: `os.tmpdir()`, `/tmp` and `/private/tmp` (those that exist), without duplicates. */
+// `/tmp` and `/private/tmp` are POSIX folders; on Windows `/tmp` would be `\tmp` of the current drive, not a temp folder
+const extraTmp = (): string[] => (isWindows() ? [] : ['/tmp', '/private/tmp']);
+
+/** The temp folders as real paths: `os.tmpdir()`, `/tmp` and `/private/tmp` (those that exist, not on Windows), without duplicates. */
 export function tmpDirs(): string[] {
   const out = new Set<string>();
-  for (const d of [os.tmpdir(), '/tmp', '/private/tmp']) {
+  for (const d of [os.tmpdir(), ...extraTmp()]) {
     try {
       out.add(fs.realpathSync.native(d));
     } catch { /* not on this machine */ }
@@ -26,10 +31,17 @@ export function tmpDirs(): string[] {
   return [...out];
 }
 
-/** The temp folders as a reply may name them (`/tmp/a.png` on macOS is really `/private/tmp/a.png`): the real ones and their given forms. For links only; reading uses `tmpDirs`. */
+/** The temp folders as a reply may name them (`/tmp/a.png` on macOS is really `/private/tmp/a.png`): the real ones and their given forms,
+ *  in the wire form (`wirePath`: `C:/Users/x/AppData/Local/Temp` on Windows). For links only; reading uses `tmpDirs`. */
 export function tmpDirNames(): string[] {
-  return [...new Set([...tmpDirs(), os.tmpdir().replace(/\/+$/, ''), '/tmp', '/private/tmp'])].filter((d) => d.length > 1);
+  return [...new Set([...tmpDirs(), os.tmpdir(), ...extraTmp()].map((d) => wirePath(d).replace(/\/+$/, '')))].filter((d) => d.length > 1);
 }
+
+// `real` strictly under the folder `dir` (both real paths); ignoring case on Windows
+const under = (real: string, dir: string): boolean => {
+  const d = pathKey(dir);
+  return pathKey(real).startsWith(d.endsWith(path.sep) ? d : d + path.sep);
+};
 
 const SAFETY = {
   'x-content-type-options': 'nosniff',
@@ -55,7 +67,7 @@ export async function openTmpImage(p: string): Promise<TmpImage | 'big' | null> 
     return null;
   }
   const type = typeOf(real);
-  if (!type || !tmpDirs().some((d) => real.startsWith(d + path.sep))) return null;
+  if (!type || !tmpDirs().some((d) => under(real, d))) return null;
   if (underState(p) || underState(real)) return null;
   let handle: fs.promises.FileHandle;
   try {

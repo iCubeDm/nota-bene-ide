@@ -181,7 +181,7 @@ it('relative links never navigate, but a modifier click keeps the browser defaul
 
 it('user @mentions are clickable and keep the message text identical', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
-  const text = 'look at @src/a.ts and @"my doc.md" please';
+  const text = 'look at @src/a.ts and @"my doc.md" or @lib\\b.ts please';
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   const root = render(
     <Provider store={store}>
@@ -193,7 +193,7 @@ it('user @mentions are clickable and keep the message text identical', async () 
   const msg = root.querySelector<HTMLElement>('[data-kind="user"]')!;
   expect(textOf(msg)).toContain(text);
   const ms = msg.querySelectorAll<HTMLElement>('.mention');
-  expect([...ms].map((m) => m.dataset.path)).toEqual(['src/a.ts', 'my doc.md']);
+  expect([...ms].map((m) => m.dataset.path)).toEqual(['src/a.ts', 'my doc.md', 'lib/b.ts']); // a Windows separator becomes '/'
   fireEvent.click(ms[1]);
   await tick();
   expect(selectTabs(store.getState()).open.map((t) => t.id)).toContain('file:my doc.md');
@@ -213,6 +213,28 @@ it('a temp image path in code or a link is a ref once the server named its temp 
     expect(d.querySelector<HTMLElement>('.ref')!.dataset.tmp).toBe('1');
   } finally {
     setTmpDirs([]);
+  }
+});
+
+it('Windows: relative refs with backslashes become "/" paths; C:\\ and C:/ paths are never relative, they map to a source or a temp folder', () => {
+  setSources([{ id: 'here', kind: 'checkout', label: '', ref: '', dir: 'C:/Users/x/proj' }]);
+  setTmpDirs(['C:/Users/x/AppData/Local/Temp']);
+  try {
+    const d = div(
+      '<code>src\\a.ts</code> <code>.\\up\\b.md:3</code> <code>src/a.ts</code> <a href="docs%5Cc.md">l</a>' +
+        '<code>C:\\Users\\x\\proj\\src\\d.ts</code> <code>c:/users/x/proj/e.md</code> <a href="C:/Users/x/proj/f.md">f</a> <a href="C:%5CUsers%5Cx%5Cproj%5Cg.md">g</a>' +
+        '<code>C:\\Users\\x\\AppData\\Local\\Temp\\shot.png</code> <code>C:\\Other\\h.md</code> <code>\\\\host\\share\\i.md</code> <code>\\n</code>',
+    );
+    markRefs(d);
+    const refs = [...d.querySelectorAll<HTMLElement>('.ref')].map((e) => [e.dataset.path, e.dataset.src ?? '', e.dataset.tmp ?? '']);
+    expect(refs).toEqual([
+      ['src/a.ts', '', ''], ['up/b.md', '', ''], ['src/a.ts', '', ''], ['docs/c.md', '', ''],
+      ['src/d.ts', 'here', ''], ['e.md', 'here', ''], ['f.md', 'here', ''], ['g.md', 'here', ''],
+      ['C:/Users/x/AppData/Local/Temp/shot.png', '', '1'],
+    ]);
+  } finally {
+    setTmpDirs([]);
+    resetSources();
   }
 });
 
