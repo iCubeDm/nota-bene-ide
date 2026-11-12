@@ -1,6 +1,6 @@
 // The window's side of the Whisper host: protocol behaviour against a scripted host on the real socket path, and the connect-or-
-// spawn path against real host processes (hostEntry.ts, with a stub in place of transformers.js). Unix sockets only, in a short
-// /tmp folder (sun_path is ~104 bytes); every host a test starts is killed in afterEach, clients closed first.
+// spawn path against real host processes (hostEntry.ts, with a stub in place of transformers.js). Unix sockets in a short /tmp
+// folder (sun_path is ~104 bytes), named pipes on Windows; every host a test starts is killed in afterEach, clients closed first.
 //
 // No test here may reach the real ~/.nota-bene (a host once ran there with the real model, started by a call that a test had
 // left running past its cleanup): NOTA_BENE_HOME is a folder of this file's own from the first line to the last, never unset
@@ -9,13 +9,14 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import http, { type RequestListener } from 'node:http';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { EventHub } from '../hub.ts';
 import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, ClientClosed, clientDeadlineMs, FALLBACK_MS, HELLO_WAIT_MS, HostClient, hostClient, hostEntryFile, HostLost, IDLE_CLOSE_MS, JOB_MARGIN_MS, LOCK_MARGIN_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
-import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostDir, hostSocketPath, jobDeadlineMs, LOAD_DEADLINE_MS, pcmFromInt16, privateDir, type Header } from './hostWire.ts';
+import { encodeFrame, FrameDecoder, helloProof, HOST_PINS, HOST_PROTO, hostDir, hostSecret, hostSocketPath, jobDeadlineMs, LOAD_DEADLINE_MS, newNonce, pcmFromInt16, privateDir, type Header } from './hostWire.ts';
 import { readPrefs, setWhisperPref } from '../prefs.ts';
 import { dictationRoutes } from './routes.ts';
 import { resetTranscriber, transcribe } from './transcribe.ts';
@@ -34,8 +35,11 @@ const until = async (cond: () => boolean | Promise<boolean>, ms = 8000): Promise
 };
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+const WIN = process.platform === 'win32';
+/** Where every home of this file is: short, for sun_path (Windows has pipes, which are in no folder). */
+const PREFIX = WIN ? path.join(os.tmpdir(), 'nbw-') : '/tmp/nbw-';
 /** The folder of this file: the home of any call that runs between two tests or after one. */
-const sandbox = fs.mkdtempSync('/tmp/nbw-');
+const sandbox = fs.mkdtempSync(PREFIX);
 vi.stubEnv('NOTA_BENE_HOME', sandbox);
 vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '60000'); // a host a failed test leaves behind goes by itself
 afterAll(() => {
@@ -45,7 +49,7 @@ afterAll(() => {
 /** Throws unless the state home is one of ours: a test that would reach the real home fails instead. */
 const sandboxed = (): void => {
   const base = process.env.NOTA_BENE_HOME ?? '';
-  if (!base.startsWith('/tmp/nbw-')) throw new Error(`NOTA_BENE_HOME is ${base || 'unset'}: this file must never touch the real home`);
+  if (!base.startsWith(PREFIX)) throw new Error(`NOTA_BENE_HOME is ${base || 'unset'}: this file must never touch the real home`);
 };
 
 let home: string;
@@ -64,7 +68,7 @@ function markReady(base: string): void {
 
 beforeEach(() => {
   sandboxed();
-  home = fs.mkdtempSync('/tmp/nbw-');
+  home = fs.mkdtempSync(PREFIX);
   reports = [];
   clients = [];
   fakes = [];
@@ -102,7 +106,8 @@ const told = (): string[] => reports.map(([, e]) => (e as Error).message);
 
 type Seen = { conn: number; header: Header; body: Buffer };
 
-/** A host on the real socket path that does what the test says. It answers `hello` and `status` itself. */
+/** A host on the real socket path that does what the test says. It answers `hello` and `status` itself (on a Windows pipe with
+ * the challenge first and its proof in hello, as hostMain.ts does). */
 class FakeHost {
   readonly socks: net.Socket[] = [];
   readonly seen: Seen[] = [];
@@ -121,16 +126,20 @@ class FakeHost {
   static async start(): Promise<FakeHost> {
     const f = new FakeHost();
     privateDir(hostDir());
+    const secret = WIN ? hostSecret() : undefined;
     await new Promise<void>((resolve) => f.server.listen(hostSocketPath(), resolve));
     f.server.on('connection', (sock) => {
       const conn = f.socks.push(sock) - 1;
       const decoder = new FrameDecoder();
+      const ns = newNonce();
       sock.on('error', () => {});
+      if (secret !== undefined) sock.write(encodeFrame({ type: 'challenge', nonce: ns }));
       sock.on('data', (d: Buffer) => {
         for (const fr of decoder.push(d)) {
           if (fr.header.type === 'hello') {
+            const proof = secret === undefined ? {} : { proof: helloProof(secret, 'host', ns, fr.header.nonce as string) };
             if (f.dropHello) sock.destroy();
-            else void (f.gate ?? Promise.resolve()).then(() => { if (!sock.destroyed) sock.write(encodeFrame(f.hello)); });
+            else void (f.gate ?? Promise.resolve()).then(() => { if (!sock.destroyed) sock.write(encodeFrame({ ...f.hello, ...proof })); });
           } else if (fr.header.type === 'status') {
             if (f.onStatus === 'drop') sock.destroy();
             else if (f.onStatus === 'answer') sock.write(encodeFrame({ type: 'status', loaded: true, queued: 3, running: false, clients: f.socks.filter((o) => !o.destroyed).length }));
@@ -156,6 +165,8 @@ class FakeHost {
   }
   of(type: string): Seen[] { return this.seen.filter((s) => s.header.type === type); }
   answer(sock: net.Socket, header: Header): void { sock.write(encodeFrame(header)); }
+  /** Its name goes: the socket file, or on Windows the pipe's listening (a pipe has no file; its name lasts while connections do). */
+  unpublish(): void { if (WIN) this.server.close(); else fs.unlinkSync(hostSocketPath()); }
   async stop(): Promise<void> {
     for (const s of this.socks) s.destroy();
     await new Promise<void>((r) => this.server.close(() => r()));
@@ -343,14 +354,14 @@ describe('shutdown() and stopHost() against a scripted host', () => {
 
   /** What a scripted host does with `shutdown` when it does as it is told: its name goes and every connection with it. */
   const stops = (f: FakeHost): void => {
-    f.on = (s) => { if (s.header.type === 'shutdown') { fs.unlinkSync(hostSocketPath()); for (const o of f.socks) o.destroy(); } };
+    f.on = (s) => { if (s.header.type === 'shutdown') { f.unpublish(); for (const o of f.socks) o.destroy(); } };
   };
   /** The next host takes the name from `f` when it stops, and only then does `f` close its connections: a host that is replaced. */
   const handsOver = (f: FakeHost, next: (n: FakeHost) => void, pid: number): void => {
     f.on = (s, sock) => {
       if (s.header.type === 'job') return f.answer(sock, { id: s.header.id, text: 'x', lang: 'en' });
       if (s.header.type !== 'shutdown') return;
-      fs.unlinkSync(hostSocketPath());
+      f.unpublish();
       void FakeHost.start().then((n) => { n.hello = { ...n.hello, pid }; next(n); for (const o of f.socks) o.destroy(); });
     };
   };
@@ -374,7 +385,7 @@ describe('shutdown() and stopHost() against a scripted host', () => {
 
   it('a host that unlinked its name but keeps our connection open is still signalled (the name says nothing of the connection)', async () => {
     const f = await FakeHost.start();
-    f.on = (s) => { if (s.header.type === 'shutdown') fs.unlinkSync(hostSocketPath()); };
+    f.on = (s) => { if (s.header.type === 'shutdown') f.unpublish(); };
     const { c, sent } = makeKiller();
     expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: true, held: true, signalled: true });
     expect(sent).toEqual([[4242, 'SIGTERM']]);
@@ -389,7 +400,8 @@ describe('shutdown() and stopHost() against a scripted host', () => {
     expect(sent).toEqual([]);
   });
 
-  it('when the host our connection was to is gone and another one has its name, that one is asked, on a connection of its own, and by the rule: its own pid, and only for a connection it keeps open', async () => {
+  // POSIX only (this and the next): a Windows pipe name cannot pass to another host while a connection to the old one is open
+  it.skipIf(WIN)('when the host our connection was to is gone and another one has its name, that one is asked, on a connection of its own, and by the rule: its own pid, and only for a connection it keeps open', async () => {
     const a = await FakeHost.start();
     let b!: FakeHost;
     handsOver(a, (n) => { b = n; }, 5151);
@@ -401,7 +413,7 @@ describe('shutdown() and stopHost() against a scripted host', () => {
     expect(sent).toEqual([[5151, 'SIGTERM']]); // not 4242: a's connection had closed
   });
 
-  it('asks one more host at most: a third that takes the name is left alone', async () => {
+  it.skipIf(WIN)('asks one more host at most: a third that takes the name is left alone', async () => {
     const a = await FakeHost.start();
     let b!: FakeHost;
     let c3!: FakeHost;
@@ -738,8 +750,10 @@ describe('starting the host', { timeout: 30_000 }, () => {
     expect(pid).not.toBe(process.pid); // the host's own process
     expect(alive(pid)).toBe(true);
     expect(await c.status()).toMatchObject({ pid, loaded: true, running: false });
-    expect(fs.statSync(hostDir()).mode & 0o777).toBe(0o700);
-    expect(fs.statSync(path.join(hostDir(), 'host.log')).mode & 0o777).toBe(0o600);
+    if (!WIN) { // no modes on Windows
+      expect(fs.statSync(hostDir()).mode & 0o777).toBe(0o700);
+      expect(fs.statSync(path.join(hostDir(), 'host.log')).mode & 0o777).toBe(0o600);
+    }
     expect(fs.existsSync(path.join(hostDir(), 'spawn.lock'))).toBe(false); // released
     expect(Number(text(await c.transcribe(pcm(2), 'en', false))[2])).toBe(pid);
     expect(c.spawned).toBe(1);
@@ -782,7 +796,8 @@ describe('starting the host', { timeout: 30_000 }, () => {
     expect(got.map((g) => text(g)[0])).toEqual(['1', '2', '3']);
   });
 
-  it('recovers a stale socket file: a host that was killed left its socket behind', async () => {
+  // POSIX only (this and the next two): a Windows pipe leaves no file behind, stale or temp
+  it.skipIf(WIN)('recovers a stale socket file: a host that was killed left its socket behind', async () => {
     privateDir(hostDir());
     await staleSocket(hostSocketPath());
     const c = make();
@@ -791,14 +806,16 @@ describe('starting the host', { timeout: 30_000 }, () => {
     expect(fs.lstatSync(hostSocketPath()).isSocket()).toBe(true);
   });
 
-  it('recovers a file that is not a socket at the host\'s name', async () => {
+  // POSIX only (see above)
+  it.skipIf(WIN)('recovers a file that is not a socket at the host\'s name', async () => {
     privateDir(hostDir());
     fs.writeFileSync(hostSocketPath(), 'not a socket');
     const c = make();
     expect(text(await c.transcribe(pcm(3), 'en', false))[0]).toBe('3');
   });
 
-  it('sweeps the temp sockets a killed host left between bind and rename, and spares one that answers', async () => {
+  // POSIX only (see above)
+  it.skipIf(WIN)('sweeps the temp sockets a killed host left between bind and rename, and spares one that answers', async () => {
     privateDir(hostDir());
     const dead = path.join(hostDir(), '.deadbeef.sock');
     const live = path.join(hostDir(), '.cafe0123.sock');
@@ -1115,21 +1132,23 @@ describe('stopHost() against real processes', { timeout: 30_000 }, () => {
     const script = path.join(home, 'stubborn.mjs');
     // a host that greets and never stops: the shutdown message is ignored and the connection stays
     fs.writeFileSync(script, `import net from 'node:net';
-const [, , wire, sock] = process.argv;
-const { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO } = await import(wire);
+const [, , wire, sock, secret] = process.argv;
+const { encodeFrame, FrameDecoder, helloProof, HOST_PINS, HOST_PROTO, newNonce } = await import(wire);
 net.createServer((s) => {
   const d = new FrameDecoder();
+  const ns = newNonce();
   s.on('error', () => {});
-  s.on('data', (b) => { for (const f of d.push(b)) if (f.header.type === 'hello') s.write(encodeFrame({ type: 'hello', proto: HOST_PROTO, pid: process.pid, pins: HOST_PINS, loaded: false, queued: 0 })); });
+  if (secret) s.write(encodeFrame({ type: 'challenge', nonce: ns }));
+  s.on('data', (b) => { for (const f of d.push(b)) if (f.header.type === 'hello') s.write(encodeFrame({ type: 'hello', proto: HOST_PROTO, pid: process.pid, pins: HOST_PINS, loaded: false, queued: 0, ...(secret ? { proof: helloProof(secret, 'host', ns, f.header.nonce) } : {}) })); });
 }).listen(sock, () => console.log('up'));
 `);
-    const child = spawn(process.execPath, [script, pathToFileURL(fileURLToPath(new URL('./hostWire.ts', import.meta.url))).href, hostSocketPath()], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const child = spawn(process.execPath, [script, pathToFileURL(fileURLToPath(new URL('./hostWire.ts', import.meta.url))).href, hostSocketPath(), ...(WIN ? [hostSecret()] : [])], { stdio: ['ignore', 'pipe', 'inherit'], windowsHide: true });
     strays.push(child);
     await new Promise<void>((resolve) => child.stdout.once('data', () => resolve()));
-    const exited = new Promise<string | null>((resolve) => child.once('exit', (_code, signal) => resolve(signal)));
+    const exited = new Promise<string | number | null>((resolve) => child.once('exit', (code, signal) => resolve(signal ?? code)));
     const c = make();
     expect(await c.stopHost('removed', 200)).toEqual({ pid: child.pid, gone: false, held: true, signalled: true });
-    expect(await exited).toBe('SIGTERM');
+    expect(await exited).toBe(WIN ? 1 : 'SIGTERM'); // taskkill /F ends a process with exit code 1
     expect(reports).toEqual([]);
   });
 });
@@ -1196,7 +1215,8 @@ describe('a machine where the host cannot be started', { timeout: 60_000 }, () =
     expect(reports).toEqual([]);
   });
 
-  it('a socket path that does not fit: in process, told once, nothing created', async () => {
+  // POSIX only: a pipe name always fits (its Windows counterpart is the bad secret below)
+  it.skipIf(WIN)('a socket path that does not fit: in process, told once, nothing created', async () => {
     const long = path.join('/tmp', `nbw-${'x'.repeat(100)}`);
     vi.stubEnv('NOTA_BENE_HOME', long);
     const c = make();
@@ -1208,7 +1228,19 @@ describe('a machine where the host cannot be started', { timeout: 60_000 }, () =
     expect(c.spawned).toBe(0);
   });
 
-  it('a host folder that belongs to someone else is not used: in process, told once', async () => {
+  it.skipIf(!WIN)('Windows: a host secret that is not one is not used: in process, told once, no host started', async () => {
+    privateDir(hostDir());
+    fs.writeFileSync(path.join(hostDir(), 'host-secret'), 'not a secret');
+    const c = make();
+    expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+    expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+    expect(told()).toHaveLength(1);
+    expect(told()[0]).toMatch(/does not hold a secret/);
+    expect(c.spawned).toBe(0);
+  });
+
+  // POSIX only: no uids on Windows
+  it.skipIf(WIN)('a host folder that belongs to someone else is not used: in process, told once', async () => {
     privateDir(hostDir());
     const uid = process.getuid!();
     vi.spyOn(process, 'getuid').mockReturnValue(uid + 1);
@@ -1231,22 +1263,6 @@ describe('hosts that are not to be had', { timeout: 60_000 }, () => {
     const f = await FakeHost.start();
     f.on = (s, sock) => f.answer(sock, { id: s.header.id, text: 'there', lang: 'en' });
     expect(await c.transcribe(pcm(1), 'en', false)).toEqual({ text: 'there', lang: 'en' });
-  });
-
-  it('on a platform without unix sockets (win32) the window uses its own model, silently, and makes nothing', async () => {
-    const was = Object.getOwnPropertyDescriptor(process, 'platform')!;
-    Object.defineProperty(process, 'platform', { value: 'win32' });
-    try {
-      const c = make();
-      expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
-      expect(await c.status()).toBeNull();
-      expect(await c.shutdown()).toBeNull();
-      expect(c.spawned).toBe(0);
-      expect(reports).toEqual([]);
-      expect(fs.existsSync(hostDir())).toBe(false);
-    } finally {
-      Object.defineProperty(process, 'platform', was);
-    }
   });
 
   it('a host that has all the windows it takes is no failed host: the job runs here, nothing is counted or told', async () => {
@@ -1284,15 +1300,16 @@ describe('hosts that are not to be had', { timeout: 60_000 }, () => {
     expect(fs.readFileSync(`${log}.1`, 'utf8')).toBe(first);
     expect(fs.readFileSync(log, 'utf8')).toMatch(/the cause \d+/);
     expect(fs.readFileSync(log, 'utf8')).not.toBe(first); // another process, another pid
-    expect(fs.statSync(`${log}.1`).mode & 0o777).toBe(0o600);
+    if (!WIN) expect(fs.statSync(`${log}.1`).mode & 0o777).toBe(0o600);
   });
 });
 
 describe('the home', () => {
   it('is this file\'s own for the default client too: nothing here can reach the real one', () => {
     sandboxed();
-    expect(hostSocketPath().startsWith(home)).toBe(true);
-    expect(hostDir().startsWith('/tmp/nbw-')).toBe(true);
+    if (!WIN) expect(hostSocketPath().startsWith(home)).toBe(true); // a pipe is in no folder: its name is the home's (hostWire.test.ts)
+    expect(hostDir().startsWith(PREFIX)).toBe(true);
+    expect(hostDir().startsWith(home)).toBe(true);
   });
 });
 
@@ -1465,15 +1482,17 @@ describe('transcribe(), the way the routes call it', { timeout: 30_000 }, () => 
   });
 
   it('runs the model in this process when the host cannot be used, with the same answer', async () => {
-    const long = path.join('/tmp', `nbw-${'x'.repeat(100)}`);
+    // a socket path that does not fit, or on Windows (a pipe name always fits) a host secret that is not one
+    const long = WIN ? fs.mkdtempSync(PREFIX) : path.join('/tmp', `nbw-${'x'.repeat(100)}`);
     fakeInstall({}, long);
     try {
       vi.stubEnv('NOTA_BENE_HOME', long);
+      if (WIN) { privateDir(hostDir()); fs.writeFileSync(path.join(hostDir(), 'host-secret'), 'not a secret'); }
       const got = await transcribe(pcm(6), 'ru');
       expect(text(got).slice(0, 2)).toEqual(['6', 'ru']);
       expect(Number(text(got)[2])).toBe(process.pid);
       expect(told()).toHaveLength(1);
-      expect(told()[0]).toMatch(/too long/);
+      expect(told()[0]).toMatch(WIN ? /does not hold a secret/ : /too long/);
     } finally {
       resetTranscriber();
       fs.rmSync(long, { recursive: true, force: true });

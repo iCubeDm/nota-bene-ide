@@ -1,6 +1,14 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_AUDIO } from './whisper.ts';
-import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostSocketPath, MAX_FRAME, MAX_HEADER, parseRequest, pcmFromInt16, pcmToInt16, WireError } from './hostWire.ts';
+import {
+  encodeFrame, FrameDecoder, helloProof, HOST_PINS, HOST_PROTO, hostDir, hostSecret, hostSocketPath, isPipePath, MAX_FRAME, MAX_HEADER, newNonce, parseRequest,
+  pcmFromInt16, pcmToInt16, proofMatches, WireError,
+} from './hostWire.ts';
+
+const WIN = process.platform === 'win32';
 
 const u32 = (n: number): Buffer => { const b = Buffer.alloc(4); b.writeUInt32BE(n); return b; };
 const raw = (header: unknown, body: Buffer = Buffer.alloc(0)): Buffer => {
@@ -138,13 +146,72 @@ describe('PCM', () => {
 
 describe('the socket path', () => {
   afterEach(() => vi.unstubAllEnvs());
-  it('names the protocol and the pins, in a folder of its own under the state base', () => {
+  // POSIX only (this and the next): Windows has the named pipe below
+  it.skipIf(WIN)('names the protocol and the pins, in a folder of its own under the state base', () => {
     vi.stubEnv('NOTA_BENE_HOME', '/tmp/nbw-x');
     expect(hostSocketPath()).toBe(`/tmp/nbw-x/whisper-host/h${HOST_PROTO}-${HOST_PINS}.sock`);
     expect(HOST_PINS).toMatch(/^[0-9a-f]{8}$/);
   });
-  it('throws when it would not fit a unix socket', () => {
+  it.skipIf(WIN)('throws when it would not fit a unix socket', () => {
     vi.stubEnv('NOTA_BENE_HOME', `/tmp/${'a'.repeat(90)}`);
     expect(() => hostSocketPath()).toThrow(/too long/);
+  });
+  it.skipIf(!WIN)('Windows: a named pipe that names the home (whatever its spelling), the protocol and the pins', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'nbw-'));
+    try {
+      vi.stubEnv('NOTA_BENE_HOME', home);
+      const p = hostSocketPath();
+      expect(p.startsWith(String.raw`\\.\pipe\nota-bene-whisper-`)).toBe(true);
+      expect(p).toMatch(new RegExp(`-[0-9a-f]{16}-h${HOST_PROTO}-${HOST_PINS}$`));
+      expect(isPipePath(p)).toBe(true);
+      vi.stubEnv('NOTA_BENE_HOME', `${home.toUpperCase()}\\`);
+      expect(hostSocketPath()).toBe(p);
+      vi.stubEnv('NOTA_BENE_HOME', `${home}-other`);
+      expect(hostSocketPath()).not.toBe(p);
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+  it('a path on disk is not a pipe', () => {
+    expect(isPipePath(path.join(os.tmpdir(), 'h.sock'))).toBe(false);
+  });
+});
+
+describe('the secret handshake of a pipe', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it('the secret is made once in the host folder, 64 hex characters, private', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'nbw-'));
+    try {
+      vi.stubEnv('NOTA_BENE_HOME', home);
+      const s = hostSecret();
+      expect(s).toMatch(/^[0-9a-f]{64}$/);
+      expect(hostSecret()).toBe(s);
+      const file = path.join(hostDir(), 'host-secret');
+      expect(fs.readFileSync(file, 'utf8')).toBe(s);
+      if (!WIN) expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+      expect(fs.readdirSync(hostDir())).toEqual(['host-secret']); // no temp file left
+      fs.writeFileSync(file, 'not a secret');
+      expect(() => hostSecret()).toThrow(/does not hold a secret/);
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+  it('a proof is for one secret, one side and one pair of nonces, and is checked in constant time', () => {
+    const secret = 'ab'.repeat(32);
+    const [ns, nc] = [newNonce(), newNonce()];
+    const p = helloProof(secret, 'window', ns, nc);
+    expect(p).toMatch(/^[0-9a-f]{64}$/);
+    expect(proofMatches(p, helloProof(secret, 'window', ns, nc))).toBe(true);
+    for (const other of [helloProof('cd'.repeat(32), 'window', ns, nc), helloProof(secret, 'host', ns, nc), helloProof(secret, 'window', nc, ns), helloProof(secret, 'window', newNonce(), nc)]) {
+      expect(proofMatches(other, p)).toBe(false);
+    }
+    for (const junk of [undefined, 1, '', 'zz'.repeat(32), p.slice(1), `${p}0`]) expect(proofMatches(junk, p)).toBe(false);
+  });
+  it('hello may carry a nonce and a proof; a nonce that is not 64 hex characters or a proof that is not a string is bad', () => {
+    const nonce = newNonce();
+    expect(parseRequest({ type: 'hello', proto: 1, nonce, proof: 'x' })).toEqual({ type: 'hello', proto: 1, nonce, proof: 'x' });
+    for (const h of [{ type: 'hello', proto: 1, nonce: 'abc' }, { type: 'hello', proto: 1, nonce: 5 }, { type: 'hello', proto: 1, nonce, proof: 5 }]) {
+      expect(() => parseRequest(h), JSON.stringify(h)).toThrow(WireError);
+    }
   });
 });

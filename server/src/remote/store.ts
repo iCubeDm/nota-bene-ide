@@ -1,8 +1,9 @@
 // The connector's state under `<stateBase>/remote/` (700): `host.key` (the host's X25519 private key, base64url),
-// `devices.json` (the paired phones: the source of truth for who may connect) and `config.json` (the relay URL). All
+// `devices.json` (the paired phones: the source of truth for who may connect), `config.json` (the relay URL) and, on
+// Windows, `control-secret` (what a client of the control pipe proves it holds, control.ts). All
 // mode 600, written whole and renamed in, read with the token's checks (auth.ts readPrivateFile). Also the pairing
 // derivations of CHANNEL.md.
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readPrivateFile, writePrivateFile } from '../auth.ts';
@@ -74,6 +75,28 @@ export function hostKey(): KeyPair {
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
     return hostKey();
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+const SECRET_RE = /^[0-9a-f]{64}$/;
+
+/** What proves a client of the Windows control pipe (control.ts): 32 random bytes as hex in `control-secret`, made once. */
+export function controlSecret(): string {
+  const file = path.join(remoteDir(), 'control-secret');
+  const have = readPrivateFile(file, SECRET_RE, 'a secret (64 hex characters)', 'delete it to make a new one (a running `nota-bene remote` then has to be restarted)');
+  if (have) return have;
+  const t = randomBytes(32).toString('hex');
+  // as the host key: written whole, then linked in, so two first callers agree on one secret
+  const tmp = `${file}.new${process.pid}`;
+  fs.writeFileSync(tmp, t, { mode: 0o600, flag: 'wx' });
+  try {
+    fs.linkSync(tmp, file);
+    return t;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+    return controlSecret();
   } finally {
     fs.rmSync(tmp, { force: true });
   }

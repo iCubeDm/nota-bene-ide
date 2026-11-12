@@ -1,13 +1,15 @@
-// The Whisper host, for real sockets (unix, in a short /tmp folder: sun_path is ~104 bytes) and a fake model thread.
+// The Whisper host, for real sockets (unix, in a short /tmp folder: sun_path is ~104 bytes; a named pipe on Windows) and a fake
+// model thread.
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS, main, MAX_CLIENTS, MAX_FAILURE_MESSAGE, MAX_QUEUED_BYTES, MAX_QUEUED_PER_CLIENT, MAX_QUEUED_TOTAL, startHost, WHISPER_IDLE_MS, type Host, type HostOptions } from './hostMain.ts';
-import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostSocketPath, MAX_HEADER, pcmToInt16, type Header } from './hostWire.ts';
+import { encodeFrame, FrameDecoder, helloProof, hostSecret, HOST_PINS, HOST_PROTO, hostSocketPath, MAX_HEADER, newNonce, pcmToInt16, type Header } from './hostWire.ts';
 import type { WorkerData, WorkerFactory, WorkerLike } from './pipelineHost.ts';
 import { MAX_AUDIO, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION } from './whisper.ts';
 
@@ -80,13 +82,22 @@ class Conn {
     sock.on('close', () => { this.ended = true; this.wake(); });
     sock.on('error', () => {});
   }
-  /** Connects and waits until the host has accepted the connection (so the windows are in the order they were opened). */
-  static async open(p: string): Promise<Conn> {
+  /**
+   * Connects and waits until the host has accepted the connection (so the windows are in the order they were opened). With a
+   * `secret` (a host on a Windows pipe), it first answers the host's challenge with a proving hello, as a window does.
+   */
+  static async open(p: string, secret?: string): Promise<Conn> {
     const c = await new Promise<Conn>((resolve, reject) => {
       const s = net.connect(p);
       s.once('connect', () => resolve(new Conn(s)));
       s.once('error', reject);
     });
+    if (secret !== undefined) {
+      const ns = (await c.next((h) => h.type === 'challenge')).nonce as string;
+      const nc = newNonce();
+      c.send({ type: 'hello', proto: HOST_PROTO, nonce: nc, proof: helloProof(secret, 'window', ns, nc) });
+      await c.next((h) => h.type === 'hello');
+    }
     await c.status();
     c.inbox.length = 0;
     c.used.clear();
@@ -131,7 +142,13 @@ let host: Host | null | undefined;
 let extra: Host[];
 let conns: Conn[];
 let logs: string[];
-const socketPath = () => path.join(tmp, 'whisper-host', 'h.sock');
+const WIN = process.platform === 'win32';
+/** Each test's own name: a socket in its folder, or on Windows a pipe named after that folder (pipe names are machine-wide). */
+const socketPath = () => WIN ? `\\\\.\\pipe\\nbw-test-${path.basename(tmp)}` : path.join(tmp, 'whisper-host', 'h.sock');
+/** Nothing is at the name any more: no socket file, or on Windows (a pipe leaves no file) nobody answering on it. */
+const nameGone = async (p = socketPath()): Promise<boolean> => WIN
+  ? new Promise((resolve) => { const s = net.connect(p); s.once('connect', () => { s.destroy(); resolve(false); }); s.once('error', () => resolve(true)); })
+  : !fs.existsSync(p);
 
 async function start(o: Partial<HostOptions> = {}): Promise<Host> {
   host = await startHost({ socketPath: socketPath(), dir: path.join(tmp, 'whisper'), worker: rig.factory, log: (m) => logs.push(m), ...o });
@@ -160,7 +177,7 @@ async function open(): Promise<Conn> {
 }
 
 beforeEach(() => {
-  tmp = fs.mkdtempSync('/tmp/nbw-');
+  tmp = fs.mkdtempSync(WIN ? path.join(os.tmpdir(), 'nbw-') : '/tmp/nbw-');
   rig = new Rig();
   conns = [];
   extra = [];
@@ -178,18 +195,21 @@ afterEach(async () => {
 });
 
 describe('the socket and the handshake', () => {
-  it('listens on a socket only its user can use, in a folder only its user can enter', async () => {
+  // POSIX only: a Windows pipe has no mode and no folder (the hello handshake is its trust, below)
+  it.skipIf(WIN)('listens on a socket only its user can use, in a folder only its user can enter', async () => {
     await start();
     expect(fs.statSync(socketPath()).mode & 0o777).toBe(0o600);
     expect(fs.statSync(path.dirname(socketPath())).mode & 0o777).toBe(0o700);
   });
-  it('tightens a folder that already exists', async () => {
+  // POSIX only: a Windows pipe is in no folder
+  it.skipIf(WIN)('tightens a folder that already exists', async () => {
     fs.mkdirSync(path.dirname(socketPath()), { mode: 0o755 });
     fs.chmodSync(path.dirname(socketPath()), 0o755);
     await start();
     expect(fs.statSync(path.dirname(socketPath())).mode & 0o777).toBe(0o700);
   });
-  it('refuses a folder that belongs to another user', async () => {
+  // POSIX only: no uids on Windows
+  it.skipIf(WIN)('refuses a folder that belongs to another user', async () => {
     fs.mkdirSync(path.dirname(socketPath()));
     vi.spyOn(process, 'getuid').mockReturnValue((process.getuid!() + 1));
     await expect(startHost({ socketPath: socketPath(), dir: path.join(tmp, 'whisper'), worker: rig.factory })).rejects.toThrow(/belongs to another user/);
@@ -252,6 +272,49 @@ describe('the socket and the handshake', () => {
     c.sock.write(Buffer.concat([encodeFrame({ type: 'status' }), encodeFrame({ type: 'status' })]));
     await c.next((h) => h.type === 'status');
     await c.next((h) => h.type === 'status');
+  });
+});
+
+describe('the secret handshake (a Windows pipe; the option works on any socket)', () => {
+  const secret = 'ab'.repeat(32);
+  /** A connection that takes the host's challenge and nothing else yet. */
+  async function challenged(): Promise<{ c: Conn; ns: string }> {
+    const c = await new Promise<Conn>((resolve, reject) => {
+      const s = net.connect(socketPath());
+      s.once('connect', () => resolve(Reflect.construct(Conn, [s]) as Conn));
+      s.once('error', reject);
+    });
+    conns.push(c);
+    const h = await c.next();
+    expect(h).toEqual({ type: 'challenge', nonce: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    return { c, ns: h.nonce as string };
+  }
+
+  it('a window that proves the secret for the challenge is served, and the host proves it back', async () => {
+    await start({ secret });
+    const { c, ns } = await challenged();
+    const nc = newNonce();
+    c.send({ type: 'hello', proto: HOST_PROTO, nonce: nc, proof: helloProof(secret, 'window', ns, nc) });
+    expect(await c.next()).toEqual({ type: 'hello', proto: HOST_PROTO, pid: process.pid, pins: HOST_PINS, loaded: false, queued: 0, proof: helloProof(secret, 'host', ns, nc) });
+    expect(await c.status()).toMatchObject({ clients: 1 });
+  });
+  it('anything before a proving hello, a wrong proof or a proof for another challenge ends the connection, served nothing', async () => {
+    const h = await start({ secret });
+    const first = await challenged();
+    first.c.send({ type: 'status' });
+    await first.c.closed();
+    const nc = newNonce();
+    const wrong = await challenged();
+    wrong.c.send({ type: 'hello', proto: HOST_PROTO, nonce: nc, proof: helloProof('cd'.repeat(32), 'window', wrong.ns, nc) });
+    await wrong.c.closed();
+    const replayed = await challenged();
+    replayed.c.send({ type: 'hello', proto: HOST_PROTO, nonce: nc, proof: helloProof(secret, 'window', first.ns, nc) });
+    await replayed.c.closed();
+    const bare = await challenged();
+    bare.c.send({ type: 'hello', proto: HOST_PROTO });
+    await bare.c.closed();
+    for (const x of [first, wrong, replayed, bare]) expect(x.c.inbox.map((m) => m.type)).toEqual(['challenge']);
+    await until(() => h.status().clients === 0);
   });
 });
 
@@ -545,7 +608,7 @@ describe('shutdown', () => {
     expect(a.inbox.filter((m) => 'error' in m).sort((x, y) => (x.id as number) - (y.id as number))).toEqual([{ id: 1, error: 'off' }, { id: 2, error: 'off' }]);
     expect(b.inbox.filter((m) => 'error' in m)).toEqual([{ id: 11, error: 'off' }]);
     expect(rig.workers[0]!.disposed).toBe(true);
-    expect(fs.existsSync(socketPath())).toBe(false);
+    expect(await nameGone()).toBe(true);
     expect(rig.calls).toHaveLength(1); // the queued jobs never ran
   });
   it('while the model is still loading it ends the model thread', async () => {
@@ -564,7 +627,7 @@ describe('shutdown', () => {
     const c = await open();
     expect(await Promise.all([h.stop('test'), h.stop('again')])).toEqual([0, 0]);
     await c.closed();
-    expect(fs.existsSync(socketPath())).toBe(false);
+    expect(await nameGone()).toBe(true);
   });
 });
 
@@ -583,7 +646,7 @@ describe('the model', () => {
     expect(await a.next((m) => m.id === 1)).toEqual({ id: 1, error: 'failed' });
     expect(await b.next((m) => m.id === 2)).toEqual({ id: 2, error: 'failed' });
     await a.closed();
-    expect(fs.existsSync(socketPath())).toBe(false);
+    expect(await nameGone()).toBe(true);
     expect(logs.some((m) => m.includes('no model'))).toBe(true);
   });
   it('a dead model thread fails the job it was on and is reloaded for the next one; a later death is reloaded again', async () => {
@@ -635,12 +698,13 @@ describe('one host per socket', () => {
     await rig.call(0);
     expect(await startMore()).toBeNull();
     expect(rig.workers).toHaveLength(1); // no second model
-    expect(fs.readdirSync(path.dirname(socketPath()))).toEqual(['h.sock']); // and no name left behind
+    if (!WIN) expect(fs.readdirSync(path.dirname(socketPath()))).toEqual(['h.sock']); // and no name left behind
     const c = await open();
     expect(await c.status()).toMatchObject({ loaded: true });
     await until(() => first.status().clients === 2); // the second host's probe has gone
   });
-  it('a stale socket file, with nobody answering, is replaced', async () => {
+  // POSIX only (these five): a Windows pipe leaves no file to go stale, be replaced or be renamed into place
+  it.skipIf(WIN)('a stale socket file, with nobody answering, is replaced', async () => {
     fs.mkdirSync(path.dirname(socketPath()), { recursive: true });
     fs.writeFileSync(socketPath(), '');
     await start();
@@ -648,7 +712,21 @@ describe('one host per socket', () => {
     expect(await c.status()).toMatchObject({ clients: 1 });
     expect(fs.readdirSync(path.dirname(socketPath()))).toEqual(['h.sock']);
   });
-  it('hosts that race over a stale socket file: one is reachable, and stopping the others leaves its socket in place', async () => {
+  it.skipIf(!WIN)('Windows: a pipe name a stopping host still holds (a connection open, nobody answering) is taken once it lets go', async () => {
+    const held: net.Socket[] = [];
+    const old = net.createServer((s) => { s.on('error', () => {}); held.push(s); });
+    await new Promise<void>((r) => old.listen(socketPath(), r));
+    const peer = net.connect(socketPath());
+    peer.on('error', () => {});
+    await until(() => held.length === 1);
+    old.close(); // it stops: listens no more, but its connection holds the name
+    setTimeout(() => peer.destroy(), 300);
+    expect(await start()).not.toBeNull();
+    expect(peer.destroyed).toBe(true); // it waited for that
+    expect(await (await open()).status()).toMatchObject({ clients: 1 });
+  });
+  // POSIX only
+  it.skipIf(WIN)('hosts that race over a stale socket file: one is reachable, and stopping the others leaves its socket in place', async () => {
     fs.mkdirSync(path.dirname(socketPath()), { recursive: true });
     fs.writeFileSync(socketPath(), '');
     const racing = (await Promise.all([startMore(), startMore(), startMore()])).filter((h): h is Host => h !== null);
@@ -662,7 +740,8 @@ describe('one host per socket', () => {
     expect(await again.status()).toMatchObject({ clients: 2 });
     expect(reached[0]!.status().clients).toBe(2);
   });
-  it('a host whose socket was replaced by another one\'s does not remove that one when it stops', async () => {
+  // POSIX only
+  it.skipIf(WIN)('a host whose socket was replaced by another one\'s does not remove that one when it stops', async () => {
     const first = await start();
     fs.rmSync(socketPath()); // what a racing host recovering a "stale" file does to the host that just bound it
     const second = await startMore();
@@ -672,7 +751,8 @@ describe('one host per socket', () => {
     expect(await c.status()).toMatchObject({ clients: 1 });
     expect(second!.status().clients).toBe(1);
   });
-  it('the socket inode a host removes is the one it renamed into place, not whatever is at the public name a moment later', async () => {
+  // POSIX only
+  it.skipIf(WIN)('the socket inode a host removes is the one it renamed into place, not whatever is at the public name a moment later', async () => {
     const rename = fs.renameSync.bind(fs);
     vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
       rename(from, to);
@@ -695,7 +775,7 @@ describe('one host per socket', () => {
     await rig.call(0);
     rig.stuck = true; // the thread needs the whole grace to be given up on
     const stopping = h.stop();
-    expect(fs.existsSync(socketPath())).toBe(false); // at once: nothing leads to a host that refuses connections
+    expect(await nameGone()).toBe(true); // at once: nothing leads to a host that refuses connections
     const next = await startMore(); // so a new host can take the name while this one is still stopping
     expect(next).not.toBeNull();
     await runDown(stopping);
@@ -703,7 +783,8 @@ describe('one host per socket', () => {
     expect(await c.status()).toMatchObject({ clients: 1 }); // the new host's: the old one did not remove it on its way out
     expect(next!.status().clients).toBe(1);
   });
-  it('a host that cannot publish its socket closes what it opened and leaves nothing behind', async () => {
+  // POSIX only: there is no folder to put in a pipe's way
+  it.skipIf(WIN)('a host that cannot publish its socket closes what it opened and leaves nothing behind', async () => {
     fs.mkdirSync(socketPath(), { recursive: true }); // a folder where the socket should go
     await expect(startHost({ socketPath: socketPath(), dir: path.join(tmp, 'whisper'), worker: rig.factory })).rejects.toThrow();
     expect(fs.readdirSync(path.dirname(socketPath()))).toEqual(['h.sock']);
@@ -727,7 +808,7 @@ describe('idle', () => {
     expect(await h.done).toBe(0);
     expect(rig.workers).toHaveLength(0);
     await c.closed();
-    expect(fs.existsSync(socketPath())).toBe(false);
+    expect(await nameGone()).toBe(true);
   });
   it('a connection that comes and goes does not postpone it: a window that leaves, or one that only asks the state, is not work', async () => {
     fakeClock();
@@ -850,7 +931,7 @@ describe('a model that does not answer', () => {
     expect(await h.done).toBe(1);
     await b.closed();
     expect(b.inbox.some((m) => m.id === 11)).toBe(false); // not failed: retryable on a new host
-    expect(fs.existsSync(socketPath())).toBe(false);
+    expect(await nameGone()).toBe(true);
     expect(h.wedged()).toBe(false);
     expect(logs.some((m) => m.includes('deadline'))).toBe(true);
   });
@@ -1021,7 +1102,7 @@ describe('a stop that goes wrong', () => {
     rig.throwOnDispose = true;
     await expect(h.stop()).resolves.toBe(0);
     expect(rig.workers[0]!.terminated).toBeGreaterThan(0);
-    expect(fs.existsSync(socketPath())).toBe(false);
+    expect(await nameGone()).toBe(true);
     expect(logs.some((m) => m.includes('disposing the model failed'))).toBe(true);
   });
 });
@@ -1048,10 +1129,12 @@ export const env = {};
 export const pipeline = async (task, model) => ${body};`);
   };
   const entry = fileURLToPath(new URL('./hostEntry.ts', import.meta.url));
+  /** What a window proves on a Windows pipe (the host made it, or finds it); none on a unix socket. */
+  const secret = (): string | undefined => WIN ? hostSecret() : undefined;
   /** The host as the window side runs it: its own process, stderr read for the "listening" line. */
   const spawnHost = () => {
     // the idle time is short on purpose: a host that outlives its test (a vitest timeout skips a test's own cleanup) goes by itself
-    const child = spawn(process.execPath, [entry], { env: { PATH: process.env.PATH, NOTA_BENE_HOME: tmp, NOTA_BENE_TEST_WHISPER_IDLE_MS: '60000' }, stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(process.execPath, [entry], { env: { PATH: process.env.PATH, NOTA_BENE_HOME: tmp, NOTA_BENE_TEST_WHISPER_IDLE_MS: '60000', ...(WIN ? { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP } : {}) }, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
     children.push(child);
     const o = { child, gone: false, log: '', exited: undefined as unknown as Promise<{ code: number | null; signal: string | null }> };
     child.stderr.on('data', (d: Buffer) => { o.log += d.toString(); });
@@ -1067,24 +1150,25 @@ export const pipeline = async (task, model) => ${body};`);
   it('serves on the host socket of the state base, runs a job in a real thread, and exits 0 on shutdown; a second one finds the socket taken', async () => {
     const exit = main({});
     try {
-      await until(() => fs.existsSync(hostSocketPath()));
+      while (await nameGone(hostSocketPath())) await new Promise<void>((r) => setTimeout(r, 10));
       expect(await main({})).toEqual({ code: 0, wedged: false }); // another host answers: nothing to do
-      const c = await Conn.open(hostSocketPath());
+      const c = await Conn.open(hostSocketPath(), secret());
       conns.push(c);
       c.send(job(1, { lang: 'ru', detect: false }), pcm(5));
       expect(await c.next((m) => m.id === 1)).toEqual({ id: 1, text: `automatic-speech-recognition|${path.join(tmp, 'whisper', 'models', WHISPER_MODEL, WHISPER_REVISION)}|5|ru`, lang: 'ru' }); // the host's load is by the revision's folder
       c.send({ type: 'shutdown', reason: 'removed' });
       expect(await exit).toEqual({ code: 0, wedged: false });
-      expect(fs.existsSync(hostSocketPath())).toBe(false);
+      expect(await nameGone(hostSocketPath())).toBe(true);
     } finally {
-      if (fs.existsSync(hostSocketPath())) { // a failed test must not leave a host running
-        const c = await Conn.open(hostSocketPath());
+      if (!await nameGone(hostSocketPath())) { // a failed test must not leave a host running
+        const c = await Conn.open(hostSocketPath(), secret());
         c.send({ type: 'shutdown' });
         await exit;
       }
     }
   });
-  it('run as a script (what the window side spawns) it serves, and exits 0 on SIGTERM, its socket removed', async () => {
+  // POSIX only (this and the next): Windows has no SIGTERM to stop by, and no mkfifo; the script on a pipe is the test after them
+  it.skipIf(WIN)('run as a script (what the window side spawns) it serves, and exits 0 on SIGTERM, its socket removed', async () => {
     const h = spawnHost();
     try {
       await until(() => h.gone || h.log.includes('listening on')); // the socket is bound and listening, not just there
@@ -1100,7 +1184,7 @@ export const pipeline = async (task, model) => ${body};`);
       h.child.kill('SIGKILL');
     }
   });
-  it('a model thread stuck in a native call cannot be stopped, so the host kills its own process instead of hanging in exit()', async () => {
+  it.skipIf(WIN)('a model thread stuck in a native call cannot be stopped, so the host kills its own process instead of hanging in exit()', async () => {
     // the stub's call blocks in a read(2) of a pipe nobody writes to: no terminate() or exit() gets that thread out of it
     fifo = path.join(tmp, 'block.fifo');
     const marker = path.join(tmp, 'in-the-call');
@@ -1122,8 +1206,24 @@ export const pipeline = async (task, model) => ${body};`);
       h.child.kill('SIGKILL');
     }
   }, 30_000);
+  it.skipIf(!WIN)('Windows: run as a script it serves on the pipe a window that proves the secret, and exits 0 on shutdown', async () => {
+    const h = spawnHost();
+    try {
+      await until(() => h.gone || h.log.includes('listening on'));
+      expect(h.gone, h.log).toBe(false);
+      const c = await Conn.open(hostSocketPath(), secret());
+      conns.push(c);
+      c.send(job(1), pcm(2));
+      expect(await c.next((m) => m.id === 1)).toMatchObject({ id: 1, text: expect.stringMatching(/\|2\|en$/) });
+      c.send({ type: 'shutdown', reason: 'removed' });
+      expect(await h.exited).toEqual({ code: 0, signal: null });
+      expect(await nameGone(hostSocketPath())).toBe(true);
+    } finally {
+      h.child.kill('SIGKILL');
+    }
+  });
   it('NOTA_BENE_TEST_WHISPER_IDLE_MS shortens the idle time', async () => {
     expect(await main({ NOTA_BENE_TEST_WHISPER_IDLE_MS: '1' })).toEqual({ code: 0, wedged: false });
-    expect(fs.existsSync(hostSocketPath())).toBe(false);
+    expect(await nameGone(hostSocketPath())).toBe(true);
   });
 });
