@@ -1,5 +1,5 @@
-import { execFile } from 'node:child_process';
 import { OMP_MODES, type AgentMode, type Capabilities } from '@nota-bene/shared';
+import { agentOutput } from '../bin.ts';
 import { array, record } from '../json.ts';
 import { acpBackend, type AcpProfile, type ApprovalForm } from './backend.ts';
 import { OMP_MIN_VERSION } from '../versions.ts';
@@ -31,12 +31,9 @@ export function approvalForm(message: string, schema: Record<string, unknown>): 
 
 /** Refuses a conversation another omp process holds. An omp without `session lease` (or any failure) lets it through. */
 async function assertNotLeased(id: string): Promise<void> {
-  const held = await new Promise<unknown[]>((resolve) => {
-    execFile(command(), ['session', 'lease', '--json', '--', id], { timeout: 5000 }, (error, stdout) => {
-      if (error) return resolve([]);
-      try { resolve(array(record(JSON.parse(stdout)).held)); } catch { resolve([]); }
-    });
-  });
+  const out = await agentOutput(command(), ['session', 'lease', '--json', '--', id], 5000);
+  let held: unknown[] = [];
+  if (out !== null) { try { held = array(record(JSON.parse(out)).held); } catch { /* not the lease answer */ } }
   if (held.includes(id)) throw new Error('This omp conversation is open in another omp process. Close it there, or start a new conversation here.');
 }
 

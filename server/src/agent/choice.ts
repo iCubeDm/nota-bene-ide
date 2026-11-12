@@ -1,10 +1,12 @@
 // Which agent a bare `nota-bene` starts: the launcher asks in an interactive terminal when more than one can start here.
-// Agents are found by their executable and its `--version`, never by reading their login files. No imports beyond node and
-// versions.ts: the launcher runs this before any agent (and so any state folder) is chosen.
-import { execFile } from 'node:child_process';
+// Agents are found by their executable and its `--version`, never by reading their login files. No imports beyond node,
+// versions.ts and the spawn helpers (bin.ts, platform.ts): the launcher runs this before any agent (and so any state
+// folder) is chosen.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { renameRetry } from '../platform.ts';
+import { agentOutput } from './bin.ts';
 import type { AgentProvider } from './provider.ts';
 import { CODEX_MIN_VERSION, OMP_MIN_VERSION } from './versions.ts';
 
@@ -18,9 +20,7 @@ const ORDER: AgentProvider[] = ['claude', 'codex', 'omp'];
 const PROBE_MS = 5000;
 const FILE = 'agent-choice.json';
 
-const runVersion: Probe = (cmd, args) => new Promise((resolve) => {
-  execFile(cmd, args, { timeout: PROBE_MS }, (error, stdout) => resolve(error ? null : stdout));
-});
+const runVersion: Probe = (cmd, args) => agentOutput(cmd, args, PROBE_MS);
 
 const versionIn = (text: string): string | undefined => /(\d+\.\d+\.\d+)/.exec(text)?.[1];
 
@@ -102,6 +102,6 @@ export function rememberAgent(base: string, dir: string, agent: AgentProvider): 
     fs.mkdirSync(base, { recursive: true, mode: 0o700 });
     const file = path.join(base, FILE), tmp = `${file}.${process.pid}.tmp`;
     fs.writeFileSync(tmp, `${JSON.stringify({ ...read(base), [dir]: agent }, null, 2)}\n`, { mode: 0o600 });
-    fs.renameSync(tmp, file);
+    renameRetry(tmp, file);
   } catch { /* the choice is only a default for next time */ }
 }

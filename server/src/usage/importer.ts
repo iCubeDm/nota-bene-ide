@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { UsageProvider } from '@nota-bene/shared';
+import { realpathNative } from '../platform.ts';
 import { defaultProjectsDir } from '../sessions.ts';
 import { claudeAgentRecord, claudeFile, isTempDir, parseClaudeLine, parseCodexLine, type UsageRecord } from './parse.ts';
 import { readLines, type FileState, type ImportState, type UsageStore } from './store.ts';
@@ -14,10 +15,12 @@ const SAVE_EVERY_FILES = 50;
 /** Raise it when a parser change should reach what is already in the store: every transcript is read once more. */
 const PARSE_VERSION = 2;
 
-const tempDirs = (): string[] => {
+/** The temporary folders of this machine (POSIX: also /tmp and macOS's /private/tmp, whatever TMPDIR says). */
+export const tempDirs = (platform: NodeJS.Platform = process.platform): string[] => {
   const tmp = os.tmpdir();
   let real = tmp;
-  try { real = fs.realpathSync(tmp); } catch { /* keep the name */ }
+  try { real = realpathNative(tmp); } catch { /* keep the name */ }
+  if (platform === 'win32') return [...new Set([tmp.replace(/[\\/]+$/, ''), real])];
   return [...new Set(['/tmp', '/private/tmp', tmp.replace(/\/$/, ''), real])];
 };
 

@@ -26,6 +26,8 @@ export const es: Dict = {
   connecting: 'conectando…',
   offline: 'sin conexión con el servidor…',
   serverError: (w) => `Error del servidor${w ? ' · ' + w : ''}`,
+  gitBashTitle: 'No se encontró Git Bash',
+  gitBashMissing: 'En Windows, Claude Code ejecuta los comandos de shell en Git Bash y no lo encuentra. Instala Git for Windows o define CLAUDE_CODE_GIT_BASH_PATH con la ruta de su bash.exe y reinicia Nota Bene.',
   you: 'tú',
   youBusy: ' · mientras trabajaba',
   youForced: ' · interrumpió al agente',

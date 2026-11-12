@@ -58,6 +58,9 @@ export interface AgentBackend<M = Mode, E = EffortLevel> {
   nativeSessions?: boolean;
   close?(): Promise<void>;
   account?(): Promise<{ signedIn: boolean; required: boolean }>;
+  /** A problem of this machine the agent works on with reduced powers (Claude Code on Windows without Git Bash); the
+   *  session reports it once, as a server-error with this `where`, when the user first sends. null: nothing to say. */
+  warning?(): { where: string; message: string } | null;
   login?(): Promise<{ url: string }>;
 
   start(o: StartOptions<M, E>): AgentSession<M, E>;

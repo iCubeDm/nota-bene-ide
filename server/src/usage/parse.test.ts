@@ -137,3 +137,15 @@ it('isTempDir: the folder and what is under it, not a lookalike', () => {
   expect(isTempDir('/tmp', ['/tmp'])).toBe(true);
   expect(isTempDir('/tmpfiles/x', ['/tmp'])).toBe(false);
 });
+
+it('isTempDir on Windows: either separator, any case, not a lookalike', () => {
+  const temp = [String.raw`C:\Users\u\AppData\Local\Temp`];
+  expect(isTempDir(String.raw`c:\users\U\appdata\local\temp\x`, temp, 'win32')).toBe(true);
+  expect(isTempDir('C:/Users/u/AppData/Local/Temp', temp, 'win32')).toBe(true);
+  expect(isTempDir(String.raw`C:\Users\u\AppData\Local\Temporary\x`, temp, 'win32')).toBe(false);
+});
+
+it('claudeFile on Windows: the relative path has backslashes', () => {
+  if (process.platform !== 'win32') return; // path.sep decides; a POSIX file name may contain a backslash
+  expect(claudeFile(String.raw`proj\abc\subagents\agent-a1.jsonl`)).toEqual({ session: 'abc', agent: 'a1' });
+});

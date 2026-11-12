@@ -52,7 +52,8 @@ describe('importUsage', () => {
     expect(await importUsage(store, source())).toBe(true);
     expect((await calls()).map((c) => [c.id, c.session, c.agent]).sort()).toEqual([['m1', 's1', undefined], ['m2', 's1', 'a1']]);
     expect((await store.load()).some((r) => r.k === 'a' && r.label === 'Explore: routes')).toBe(true);
-    expect(fs.statSync(path.join(dir, 'claude.jsonl')).mode & 0o777).toBe(0o600);
+    // Windows has no POSIX modes (a file reads back as 0o666 whatever was asked)
+    if (process.platform !== 'win32') expect(fs.statSync(path.join(dir, 'claude.jsonl')).mode & 0o777).toBe(0o600);
   });
 
   it('a second pass reads only what was appended', async () => {
@@ -118,7 +119,9 @@ describe('importUsage', () => {
   });
 
   it('skips a temporary folder', async () => {
-    write('p/s1.jsonl', call('m1', 5, '/tmp/smoke') + call('m2', 5));
+    // Windows: the user's temp folder, as an agent may spell it (another case, forward slashes)
+    const smoke = process.platform === 'win32' ? path.join(os.tmpdir(), 'smoke').toUpperCase().split(path.sep).join('/') : '/tmp/smoke';
+    write('p/s1.jsonl', call('m1', 5, smoke) + call('m2', 5));
     await importUsage(store, source());
     expect((await calls()).map((c) => c.id)).toEqual(['m2']);
   });

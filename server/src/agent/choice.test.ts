@@ -27,9 +27,9 @@ describe('detectAgents', () => {
 
   it('counts Claude Code by its config folder when `claude` is not on PATH', async () => {
     const seen: string[] = [];
-    const found = await detectAgents({}, probeOf({}), (p) => (seen.push(p), p === '/home/u/.claude'), '/home/u');
+    const found = await detectAgents({}, probeOf({}), (p) => (seen.push(p), p === path.join('/home/u', '.claude')), '/home/u');
     expect(found).toEqual([{ agent: 'claude' }]);
-    expect(seen).toEqual(['/home/u/.claude']);
+    expect(seen).toEqual([path.join('/home/u', '.claude')]);
   });
 
   it('asks the executables NOTA_BENE_CODEX, NOTA_BENE_OMP and CLAUDE_CONFIG_DIR name', async () => {
@@ -90,7 +90,8 @@ describe('lastAgent and rememberAgent', () => {
     rememberAgent(base, '/p/a', 'claude');
     expect(lastAgent(base, '/p/a')).toBe('claude');
     expect(lastAgent(base, '/p/b')).toBe('omp');
-    expect(fs.statSync(path.join(base, 'agent-choice.json')).mode & 0o777).toBe(0o600);
+    // Windows has no POSIX modes (a file reads back as 0o666 whatever was asked)
+    if (process.platform !== 'win32') expect(fs.statSync(path.join(base, 'agent-choice.json')).mode & 0o777).toBe(0o600);
   });
 
   it('ignores a damaged file and an unknown agent in it', () => {

@@ -26,6 +26,8 @@ export const de: Dict = {
   connecting: 'verbinde…',
   offline: 'keine Verbindung zum Server…',
   serverError: (w) => `Serverfehler${w ? ' · ' + w : ''}`,
+  gitBashTitle: 'Git Bash nicht gefunden',
+  gitBashMissing: 'Claude Code führt Shell-Befehle unter Windows in Git Bash aus und findet es nicht. Installieren Sie Git for Windows oder setzen Sie CLAUDE_CODE_GIT_BASH_PATH auf dessen bash.exe und starten Sie Nota Bene dann neu.',
   you: 'du',
   youBusy: ' · während der Arbeit',
   youForced: ' · hat den Agenten unterbrochen',

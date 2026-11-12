@@ -1,4 +1,5 @@
 import type { EmitInput } from '../hub.ts';
+import { samePath } from '../platform.ts';
 import { saveSession } from '../state.ts';
 import { SESSION_ID, realOr } from './target.ts';
 
@@ -79,7 +80,7 @@ export class SessionIdentity {
 
   /** A switch lands on `id` in `real`; true when it is the same session in the same dir (a restart). */
   enter(id: string | null, real: string): boolean {
-    const same = id === this.sid && real === realOr(this.dir);
+    const same = id === this.sid && samePath(realOr(real), realOr(this.dir));
     this.dir = real;
     // a restart before the fork's first init keeps forking; any other target ends the pending fork
     if (!(this.forkPending && id === this.sid)) this.forkPending = false;

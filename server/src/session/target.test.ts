@@ -63,6 +63,6 @@ describe('checkTarget', () => {
 
   it('realOr: the realpath, or the resolved path when it does not exist', () => {
     expect(realOr(A)).toBe(A);
-    expect(realOr('/nonexistent-nb/x/..')).toBe('/nonexistent-nb');
+    expect(realOr('/nonexistent-nb/x/..')).toBe(path.resolve('/nonexistent-nb'));
   });
 });
