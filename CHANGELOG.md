@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The in-app updater revalidates npm metadata before installing a release, so a cached version list from before publication does not cause a spurious "No matching version found" failure.
+
 ## 1.8.1 — 2026-11-12
 
 - Context and plan-limit meters use the same order in Claude and Codex windows: context, 5-hour limit, weekly limit. Codex's weekly window uses the same label and tooltip as Claude's.
