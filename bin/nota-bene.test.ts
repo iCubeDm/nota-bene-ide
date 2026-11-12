@@ -30,7 +30,8 @@ const servers: net.Server[] = [];
 const sockets = new Set<net.Socket>();
 
 beforeEach(() => {
-  tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-bin-')));
+  // the native realpath, the spelling the launcher records: on Windows the JS one keeps an 8.3 TEMP (`C:\Users\RUNNER~1\...`)
+  tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-bin-')));
   home = path.join(tmp, 'home');
   project = path.join(tmp, 'project');
   fs.mkdirSync(home);

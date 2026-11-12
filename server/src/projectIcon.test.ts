@@ -73,13 +73,13 @@ describe('ProjectIconStore robustness', () => {
     }
   });
 
-  it('the key is the native real path: another spelling of the case of the same folder finds the icon', () => {
+  // macOS and Linux keep the JS realpath key, as before Windows support
+  it.runIf(process.platform === 'win32')('Windows: the key is the native real path: another spelling of the case of the same folder finds the icon', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-icon-root-'));
     try {
       const s = new ProjectIconStore({ dir });
       const v = s.put(root, PNG, 'image/png');
       expect(s.version(fs.realpathSync.native(root))).toBe(v);
-      // a case-insensitive file system (Windows, macOS by default) knows it under any case
       const other = path.join(path.dirname(root), path.basename(root).toUpperCase());
       if (fs.existsSync(other)) expect(s.version(other)).toBe(v);
     } finally {

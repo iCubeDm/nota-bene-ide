@@ -15,7 +15,7 @@ let temp: string, project: string, state: string;
 beforeEach(() => {
   vi.stubEnv('NOTA_BENE_OMP', FIXTURE); // the lease check runs the fixture, never a real omp
   temp = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-acp-'));
-  project = path.join(fs.realpathSync(temp), 'project'); fs.mkdirSync(project);
+  project = path.join(fs.realpathSync.native(temp), 'project'); fs.mkdirSync(project);
   state = path.join(temp, 'state.json');
 });
 afterEach(() => { vi.unstubAllEnvs(); fs.rmSync(temp, { recursive: true, force: true }); });
