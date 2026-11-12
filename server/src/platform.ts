@@ -107,24 +107,22 @@ export function spawnSpec(file: string, args: readonly string[], platform: Platf
   return { command: 'cmd.exe', args: ['/d', '/s', '/c', `"${line}"`], windowsVerbatimArguments: true };
 }
 
-/** `node <cli.js>` for npm's bundled CLI next to `execPath`, else the shim from PATH through `spawnSpec`. */
+/** Windows: `node <cli.js>` for npm's bundled CLI next to `execPath`, else the shim from PATH through `spawnSpec`.
+ *  POSIX: the bare name, spawned as before (npm/npx from PATH are plain executables there). */
 function npmCliSpec(cli: string, bin: string, args: readonly string[], execPath: string, env: Env, platform: Platform): SpawnSpec {
-  const dir = path.dirname(execPath);
-  const roots = isWindows(platform)
-    ? [path.join(dir, 'node_modules')] // the Windows installer: node.exe and node_modules\npm side by side
-    : [path.join(dir, '..', 'lib', 'node_modules'), path.join(dir, 'node_modules')]; // <prefix>/bin/node, <prefix>/lib/node_modules
-  for (const r of roots) {
-    const js = path.join(r, 'npm', 'bin', cli);
-    if (isFile(js)) return { command: execPath, args: [js, ...args] };
-  }
+  if (!isWindows(platform)) return { command: bin, args: [...args] };
+  // the Windows installer: node.exe and node_modules\npm side by side
+  const js = path.join(path.dirname(execPath), 'node_modules', 'npm', 'bin', cli);
+  if (isFile(js)) return { command: execPath, args: [js, ...args] };
   const found = resolveBin(bin, { env, platform });
   return found ? spawnSpec(found, args, platform) : { command: bin, args: [...args] };
 }
 
 type NpmOpts = { execPath?: string; env?: Env; platform?: Platform };
 
-/** How to run npm without its shell shim: `process.execPath` + npm-cli.js of the running Node when it has one, else `npm`
- *  resolved from PATH (a `.cmd` through cmd.exe, see `spawnSpec`), else bare `npm` (the spawn fails with ENOENT). */
+/** How to run npm. Windows, without its shell shim: `process.execPath` + npm-cli.js of the running Node when it has one,
+ *  else `npm` resolved from PATH (a `.cmd` through cmd.exe, see `spawnSpec`), else bare `npm` (the spawn fails with
+ *  ENOENT). POSIX: bare `npm`, looked up in PATH by spawn. */
 export const npmSpec = (args: readonly string[], { execPath = process.execPath, env = process.env, platform = process.platform }: NpmOpts = {}): SpawnSpec =>
   npmCliSpec('npm-cli.js', 'npm', args, execPath, env, platform);
 

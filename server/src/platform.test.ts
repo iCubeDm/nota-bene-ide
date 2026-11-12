@@ -167,10 +167,12 @@ describe('npmSpec / npxSpec', () => {
     expect(npxSpec(['vite'], { execPath: node, platform: 'win32', env: {} })).toEqual({ command: node, args: [npx, 'vite'] });
   });
 
-  it('runs <prefix>/lib/node_modules/npm on POSIX', () => {
+  it('spawns the bare npm / npx on POSIX, as before', () => {
     const node = touch(path.join(tmp, 'prefix', 'bin', 'node'));
-    const cli = touch(path.join(tmp, 'prefix', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'));
-    expect(npmSpec(['-v'], { execPath: node, platform: 'linux', env: {} })).toEqual({ command: node, args: [cli, '-v'] });
+    touch(path.join(tmp, 'prefix', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'));
+    touch(path.join(tmp, 'prefix', 'bin', 'node_modules', 'npm', 'bin', 'npx-cli.js'));
+    expect(npmSpec(['-v'], { execPath: node, platform: 'linux', env: {} })).toEqual({ command: 'npm', args: ['-v'] });
+    expect(npxSpec(['vite'], { execPath: node, platform: 'darwin', env: {} })).toEqual({ command: 'npx', args: ['vite'] });
   });
 
   it('falls back to the shim from PATH, through cmd.exe on win32', () => {

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { apiFetch } from '@/net/auth.ts';
-import { isDrivePath, underDir, wireAbs } from '@/lib/paths.ts';
+import { isDrivePath, isServerDrivePath, underDir, wireAbs } from '@/lib/paths.ts';
 
 /**
  * Images of the server's temp folders (a screenshot the agent left in /tmp). The tab is a plain file tab whose path is
@@ -31,14 +31,14 @@ export const useTmpDirs = (): string[] => useSyncExternalStore(subscribe, getTmp
 /** An absolute image path lexically under a temp folder (no `..`, no forbidden characters). The server decides for real.
  *  A drive path may use either separator: the one to open is `wireAbs(abs)`. */
 export function isTmpImagePath(abs: string, from: string[] = dirs): boolean {
-  if (!(abs.startsWith('/') || isDrivePath(abs)) || abs.startsWith('//') || /[\n\0`<>|*]/.test(abs) || !IMG.test(abs)) return false;
+  if (!(abs.startsWith('/') || isServerDrivePath(abs)) || abs.startsWith('//') || /[\n\0`<>|*]/.test(abs) || !IMG.test(abs)) return false;
   const p = wireAbs(abs);
   if (p.split('/').some((s) => s === '..' || s === '.')) return false;
   return from.some((d) => underDir(p, d) && p.length > d.length + 1);
 }
 
 /** A tab path that is a temp image (any absolute path: project paths are relative). */
-export const isTmpTabPath = (path: string): boolean => (path.startsWith('/') || isDrivePath(path)) && IMG.test(path);
+export const isTmpTabPath = (path: string): boolean => (path.startsWith('/') || isServerDrivePath(path)) && IMG.test(path);
 
 export const tmpImageUrl = (abs: string, bust = 0): string => `/tmpimage?path=${encodeURIComponent(abs)}${bust ? `&r=${bust}` : ''}`;
 
