@@ -51,6 +51,8 @@ Experimental 3D (the model tab for `.glb` `.gltf` `.blend`, Blender): off by def
 
 Ports: launcher windows may sit anywhere in 4777-4799 except 4780 and 4790-4795; dev 4780 (server) and 5173 (Vite); tests use only 4790-4795 (manual smoke 4790, unit/e2e 4791-4795), never another port. `/info.root` tells windows apart.
 
+Windows (in progress, #322): what differs from POSIX goes through two modules. `server/src/platform.ts` (the launcher imports it too): `resolveBin` (PATH × PATHEXT), `spawnSpec` (a `.cmd`/`.bat` through `cmd.exe /d /s /c` with tested quoting), `npmSpec`/`npxSpec` (`node npm-cli.js`, no shim), `killTree` (`taskkill /T /F` on win32, the group elsewhere), `pidAlive`, `samePath`/`pathKey`, `realpathNative`, `renameRetry`, `HIDDEN` (`windowsHide`). `shared/src/paths.ts` (`@nota-bene/shared/paths`, web and server): `isAbsPath`, `toSlash` (the wire form `C:/Users/x`), `basename`, `dirname`, `isInside`. Rules: no bare `spawn('npm' | 'npx' | 'codex' | ...)` (resolve, then `spawnSpec`), no `process.kill(-pid)` (`killTree`), no hard-coded `/` path checks or `===` on paths (`isAbsPath`, `samePath`, `isInside`). The repo is LF on every OS (`.gitattributes`). CI runs a `windows-latest` leg that may fail (`continue-on-error`, 30 min timeout) until it is green.
+
 State lives in `~/.nota-bene/` (override with `NOTA_BENE_HOME`), never in the repo:
 
 - `token` — the local access token (32 random bytes as hex, mode 600, state dir 700; see Access token below). Deleting it rotates it at the next server start. `control-token` is the separate secret of the cross-window `/control/` routes
