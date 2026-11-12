@@ -85,7 +85,10 @@ it('shortModel: a Claude id reads as a name and version, an alias as a name, any
   expect(shortModel('claude-opus-4-1-20250805')).toBe('Opus 4.1');
   expect(shortModel('claude-sonnet-5')).toBe('Sonnet 5');
   expect(shortModel('claude-sonnet-5-5[1m]')).toBe('Sonnet 5.5');
+  expect(shortModel('claude-fable-5-2')).toBe('Fable 5.2');
+  expect(shortModel('claude-fable-5[1m]')).toBe('Fable 5');
   expect(shortModel('sonnet')).toBe('Sonnet');
+  expect(shortModel('fable')).toBe('Fable');
   expect(shortModel('opus')).toBe('Opus');
   expect(shortModel('gpt-5-codex')).toBe('gpt-5-codex');
 });

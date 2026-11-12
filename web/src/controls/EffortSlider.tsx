@@ -90,7 +90,7 @@ export function EffortSlider({ levels, value, echo, onPick }: {
       className="flex w-full touch-none items-center gap-2 px-0 py-0.5"
     >
       <span className="text-[0.6875rem] text-muted-foreground">{t('effortLabel')}</span>
-      <div ref={track} className="relative mx-2 h-5 min-w-0 flex-1">
+      <div ref={track} className="relative ml-2 mr-1.5 h-5 min-w-0 flex-1">
         {/* the bar reaches an anchor and a half past both end stops, so the end anchors sit inside its rounded ends */}
         <div aria-hidden className="absolute -inset-x-1.5 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-muted-foreground/25" />
         {/* the fill: from the bar's left end to the centre of the current stop (the content width is the stop's percentage) */}
@@ -108,9 +108,15 @@ export function EffortSlider({ levels, value, echo, onPick }: {
         <span aria-hidden data-thumb style={{ left: `${pct(shown)}%` }}
           className={`pointer-events-none absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-popover motion-reduce:transition-none ${drag === null ? 'transition-[left] duration-[120ms]' : ''}`} />
       </div>
-      {/* a fixed slot, so the row does not jump with the name */}
-      <span aria-hidden className={`w-24 shrink-0 truncate text-right text-[0.6875rem] ${label === shown && hover === null ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
-        {nameOf(label)}
+      {/* the name slot is as wide as the longest name, so the row does not jump with the name and the track runs up to it:
+          every name sits in the one grid cell, the others invisible and set bold so the cell fits the widest */}
+      <span aria-hidden className="grid shrink-0 text-right text-[0.6875rem]">
+        {stops.map((_, i) => (
+          <span key={i}
+            className={`col-start-1 row-start-1 whitespace-nowrap ${i !== label ? 'invisible font-medium' : label === shown && hover === null ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
+            {nameOf(i)}
+          </span>
+        ))}
       </span>
     </DropdownMenuItem>
   );
