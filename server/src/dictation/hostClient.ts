@@ -2,6 +2,7 @@
 // started on demand by whichever window needs it first. A window that cannot use a host (its socket path does not fit, its
 // folder is not ours, the host keeps dying) answers `null` and transcribe.ts runs the model in its own process instead.
 import { spawn, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -22,6 +23,11 @@ export const HELLO_WAIT_MS = 5000;
 export const BACKOFF_FAILURES = 3;
 export const BACKOFF_WINDOW_MS = 60_000;
 export const FALLBACK_MS = 5 * 60_000;
+/**
+ * A spawn lock older than this is nobody's, whatever its pid says (a pid that is somebody else's now): the longest a live holder
+ * keeps it is a hello, the start-up wait and a hello (see `start`), and a margin for a clock that jumped (a machine that slept).
+ */
+export const LOCK_MARGIN_MS = 5000;
 /** How often a window looks at the socket of a host that is starting. */
 const POLL_MS = 25;
 
@@ -42,8 +48,8 @@ class HostDropped extends Error {}
 class HostFull extends Error {}
 /** There is nothing to start a host from (no `host.js` in this install): in-process, silently. */
 class NoHost extends Error {}
-/** The client was closed while the call was under way. */
-class ClientClosed extends Error {
+/** The client was closed (the window is going away) while the call was under way: not retried, by the client or by the voice flow. */
+export class ClientClosed extends Error {
   constructor() { super('the Whisper host client was closed'); }
 }
 
@@ -202,7 +208,7 @@ class HostConn {
     this.expected = true;
     this.closed = true; // at once, not when the socket says so: a connection that is closing is not handed to the next job
     this.clearIdle();
-    this.fail(new Error('the Whisper host connection was closed'));
+    this.fail(new ClientClosed());
     this.sock.destroy();
   }
 
@@ -478,10 +484,10 @@ export class HostClient {
     }
   }
 
-  /** A spawn lock older than twice the start-up wait is of a holder that died, or of a pid that is somebody else's now: it goes. */
+  /** A spawn lock older than LOCK_MARGIN_MS beyond the longest a live holder keeps it is of a holder that died, or of a pid that is somebody else's now: it goes. */
   private reapOldLock(lock: string): void {
-    const max = 2 * this.o.spawnWaitMs;
-    const age = (file: string): number => Date.now() - fs.statSync(file).mtimeMs;
+    const max = this.o.spawnWaitMs + 2 * HELLO_WAIT_MS + LOCK_MARGIN_MS;
+    const age = (file: string): number => this.o.now() - fs.statSync(file).mtimeMs;
     const aside = `${lock}.${process.pid}.${Math.random().toString(36).slice(2)}.old`;
     try {
       if (age(lock) <= max) return;
@@ -503,28 +509,46 @@ export class HostClient {
     if (!fs.existsSync(entry)) throw new NoHost(`there is no Whisper host to start (${entry})`); // an install without host.js
     const dir = hostDir();
     const lock = path.join(dir, 'spawn.lock');
+    const token = `whisper-host.${process.pid}.${randomBytes(6).toString('hex')}`; // which lock is ours
     const until = Date.now() + this.o.spawnWaitMs;
     for (;;) {
+      if (epoch !== this.epoch) throw new ClientClosed();
       this.reapOldLock(lock);
-      if (takeLockFile(lock, 'whisper-host')) break;
+      if (takeLockFile(lock, token)) break;
       const c = await this.dialHost(socketPath);
       if (c) return c;
-      if (epoch !== this.epoch) throw new ClientClosed();
       if (Date.now() >= until) throw new Error('another window is starting the Whisper host and it did not come up');
       await sleep(POLL_MS);
     }
     try {
       const c = await this.dialHost(socketPath); // the holder before us may have started it
       if (c) return c;
+      if (epoch !== this.epoch) throw new ClientClosed(); // a window that closed in the meantime starts nothing
       await sweepTempSockets(dir);
       return await this.spawnHost(socketPath, dir, entry, epoch);
     } finally {
-      fs.rmSync(lock, { force: true });
+      this.releaseLock(lock, token);
+    }
+  }
+
+  /** Removes the spawn lock if it is still ours: it may have been taken over (found old) and be another window's by now. */
+  private releaseLock(lock: string, token: string): void {
+    const aside = `${lock}.${process.pid}.${randomBytes(4).toString('hex')}.mine`;
+    try {
+      fs.renameSync(lock, aside); // takes whichever lock is there, at once
+      let ours = false;
+      try { ours = (JSON.parse(fs.readFileSync(aside, 'utf8')) as { version?: unknown }).version === token; } catch { /* unreadable: not ours */ }
+      if (!ours) { // another window's: put it back
+        try { fs.linkSync(aside, lock); } catch { /* a newer one is there already */ }
+      }
+    } catch { /* no lock */ } finally {
+      fs.rmSync(aside, { force: true });
     }
   }
 
   /** Starts a host (detached, its output in <dir>/host.log, the last one's in host.log.1) and waits for its socket to answer. */
   private async spawnHost(socketPath: string, dir: string, entry: string, epoch: number): Promise<HostConn> {
+    if (epoch !== this.epoch) throw new ClientClosed(); // right before the spawn: a window that closed (a test ended) starts no host
     const logFile = path.join(dir, 'host.log');
     try { fs.renameSync(logFile, `${logFile}.1`); } catch { /* the first start */ } // a live host keeps writing to its own file
     const log = fs.openSync(logFile, 'w', 0o600);

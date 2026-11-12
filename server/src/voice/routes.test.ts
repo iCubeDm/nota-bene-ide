@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AttachmentStore } from '../attachments.ts';
 import { makeWav } from '../dictation/wavFixture.ts';
 import { EventHub } from '../hub.ts';
-import { HostLost, WhisperBusy, WhisperOff } from '../dictation/hostClient.ts';
+import { ClientClosed, HostLost, WhisperBusy, WhisperOff } from '../dictation/hostClient.ts';
 import { queued } from '../dictation/transcribe.ts';
 import { transcribeVoice, VoiceBusy, VoiceFailure } from './transcribe.ts';
 import { voiceRoutes } from './routes.ts';
@@ -225,6 +225,12 @@ describe('transcribeVoice', () => {
     const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
     let calls = 0;
     await expect(transcribeVoice(store, id, 'en', async () => { calls++; throw new HostLost(); })).rejects.toBeInstanceOf(HostLost);
+    expect(calls).toBe(1);
+  });
+  it('a part cut off by the window closing is not tried again: a retry would connect or start a host again', async () => {
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    let calls = 0;
+    await expect(transcribeVoice(store, id, 'en', async () => { calls++; throw new ClientClosed(); })).rejects.toBeInstanceOf(ClientClosed);
     expect(calls).toBe(1);
   });
   it('a part is told its signal, and the signal does not abort while the caller is alive', async () => {

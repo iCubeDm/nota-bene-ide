@@ -13,7 +13,7 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventHub } from '../hub.ts';
-import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, clientDeadlineMs, FALLBACK_MS, HostClient, hostClient, hostEntryFile, HostLost, IDLE_CLOSE_MS, JOB_MARGIN_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
+import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, ClientClosed, clientDeadlineMs, FALLBACK_MS, HELLO_WAIT_MS, HostClient, hostClient, hostEntryFile, HostLost, IDLE_CLOSE_MS, JOB_MARGIN_MS, LOCK_MARGIN_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostDir, hostSocketPath, jobDeadlineMs, LOAD_DEADLINE_MS, pcmFromInt16, privateDir, type Header } from './hostWire.ts';
 import { setWhisperPref } from '../prefs.ts';
 import { dictationRoutes } from './routes.ts';
@@ -441,7 +441,7 @@ describe('the connection', () => {
     const p = c.transcribe(pcm(1), 'en', false);
     await f.next('job');
     c.close();
-    await expect(p).rejects.toThrow('closed');
+    await expect(p).rejects.toBeInstanceOf(ClientClosed); // our own close: the voice flow does not retry it either
     expect(f.of('job')).toHaveLength(1);
     expect(reports).toEqual([]);
   });
@@ -619,28 +619,56 @@ describe('starting the host', { timeout: 30_000 }, () => {
 describe('the spawn lock', { timeout: 30_000 }, () => {
   beforeEach(() => fakeInstall());
   const lockFile = (): string => path.join(hostDir(), 'spawn.lock');
-  /** A lock held by this very process (alive, as a reused pid would be), written `ageMs` ago. */
-  const lock = (ageMs: number): void => {
+  /** A lock held by this very process (alive, as a reused pid would be), with the modification time `at` (ms since the epoch). */
+  const lock = (at: number, version = 'x'): void => {
     privateDir(hostDir());
-    fs.writeFileSync(lockFile(), JSON.stringify({ version: 'x', pid: process.pid }));
-    const at = new Date(Date.now() - ageMs);
-    fs.utimesSync(lockFile(), at, at);
+    fs.writeFileSync(lockFile(), JSON.stringify({ version, pid: process.pid }));
+    fs.utimesSync(lockFile(), new Date(at), new Date(at));
   };
+  /** The longest age a live holder's lock may have for this client (see hostClient.ts). */
+  const limit = (spawnWaitMs: number): number => spawnWaitMs + 2 * HELLO_WAIT_MS + LOCK_MARGIN_MS;
 
-  it('a lock of a live pid that is older than twice the start-up wait is nobody\'s: it is taken over', async () => {
-    lock(60_000);
+  it('a lock of a live pid that is older than a holder keeps it is nobody\'s: it is taken over', async () => {
+    lock(0); // 1970: the clock of the client says how old it is, no wall-clock margin in this test
     const c = make({ spawnWaitMs: 500 });
     expect(text(await c.transcribe(pcm(1), 'en', false))[0]).toBe('1');
     expect(c.spawned).toBe(1);
     expect(fs.existsSync(lockFile())).toBe(false);
   });
 
-  it('a lock of a live pid that is not old is a window starting the host: this one waits, and fails when it does not come up', async () => {
-    lock(0);
-    const c = make({ spawnWaitMs: 300 });
+  it('a lock that is not that old is a window starting the host: this one waits, and fails when it does not come up', async () => {
+    const at = 1_000_000;
+    lock(at);
+    const c = make({ spawnWaitMs: 300, now: () => at + limit(300) - 1 }); // one millisecond short of the limit, by the client's clock
     expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
     expect(c.spawned).toBe(0);
     expect(fs.existsSync(lockFile())).toBe(true); // not ours: left as it was
+  });
+
+  it('the same lock, one millisecond older, is taken over', async () => {
+    const at = 1_000_000;
+    lock(at);
+    const c = make({ spawnWaitMs: 300, now: () => at + limit(300) + 1 });
+    expect(text(await c.transcribe(pcm(1), 'en', false))[0]).toBe('1');
+    expect(c.spawned).toBe(1);
+  });
+
+  it('a lock that was taken over by another window while this one started its host is left to that window', async () => {
+    const c = make();
+    const real = fs.readdirSync;
+    let taken = false;
+    vi.spyOn(fs, 'readdirSync').mockImplementation(((...a: Parameters<typeof real>) => {
+      if (a[0] === hostDir() && !taken) { // the sweep: this window holds the lock; another one found it old and made its own
+        taken = true;
+        const mine = `${lockFile()}.other.tmp`;
+        fs.writeFileSync(mine, JSON.stringify({ version: 'another window', pid: process.pid }));
+        fs.renameSync(mine, lockFile());
+      }
+      return (real as (...x: unknown[]) => unknown)(...a);
+    }) as typeof fs.readdirSync);
+    expect(text(await c.transcribe(pcm(1), 'en', false))[0]).toBe('1');
+    expect(taken).toBe(true);
+    expect(JSON.parse(fs.readFileSync(lockFile(), 'utf8'))).toMatchObject({ version: 'another window' }); // not deleted by us
   });
 });
 
@@ -697,6 +725,35 @@ describe('closing the client', { timeout: 30_000 }, () => {
     c.reportTo(() => c.close()); // the third is told to the window as the connection closes, and the window closes then
     await expect(c.transcribe(pcm(1), 'en', false)).rejects.toThrow('closed'); // not a lost host (the fallback it brought), not a retry
     expect(f.of('job')).toHaveLength(3);
+  });
+
+  it('a window that closes while it starts a host starts none (checked right before the spawn)', async () => {
+    const c = make();
+    const real = fs.readdirSync;
+    vi.spyOn(fs, 'readdirSync').mockImplementation(((...a: Parameters<typeof real>) => {
+      if (a[0] === hostDir()) c.close(); // the sweep: the lock is held, nothing spawned yet
+      return (real as (...x: unknown[]) => unknown)(...a);
+    }) as typeof fs.readdirSync);
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(ClientClosed);
+    expect(c.spawned).toBe(0);
+    expect(c.children.size).toBe(0);
+    expect(fs.existsSync(path.join(hostDir(), 'spawn.lock'))).toBe(false); // released
+    expect(reports).toEqual([]);
+  });
+
+  it('a window that closes while it looks again for a host does not even sweep, let alone start one', async () => {
+    const c = make();
+    const real = net.connect;
+    let dials = 0;
+    vi.spyOn(net, 'connect').mockImplementation(((...a: Parameters<typeof real>) => {
+      if (a[0] === hostSocketPath() && ++dials === 2) c.close(); // the second dial of the socket: the look under the lock
+      return (real as (...x: unknown[]) => net.Socket)(...a);
+    }) as typeof net.connect);
+    const sweeps = vi.spyOn(fs, 'readdirSync');
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(ClientClosed);
+    expect(dials).toBe(2);
+    expect(sweeps.mock.calls.filter((a) => a[0] === hostDir())).toEqual([]);
+    expect(c.spawned).toBe(0);
   });
 
   it('works again for calls made afterwards', async () => {

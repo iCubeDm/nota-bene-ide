@@ -27,6 +27,7 @@ export default defineConfig({
           name: 'launcher',
           env,
           environment: 'node',
+          setupFiles: ['./vitest.node-setup.ts'],
           include: ['bin/**/*.test.ts', 'scripts/nb-open.test.ts'],
           fileParallelism: false,
         },
