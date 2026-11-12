@@ -26,6 +26,8 @@ export const zhCN: Dict = {
   connecting: '连接中…',
   offline: '与服务器断开连接…',
   serverError: (w) => `服务器错误${w ? ' · ' + w : ''}`,
+  gitBashTitle: '未找到 Git Bash',
+  gitBashMissing: 'Windows 上的 Claude Code 在 Git Bash 中运行 shell 命令，但找不到它。请安装 Git for Windows，或将 CLAUDE_CODE_GIT_BASH_PATH 设为其 bash.exe 的路径，然后重启 Nota Bene。',
   you: '你',
   youBusy: ' · 工作期间',
   youForced: ' · 打断了代理',

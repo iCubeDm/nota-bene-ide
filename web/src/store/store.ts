@@ -42,7 +42,11 @@ const compactTimingMiddleware: Middleware = () => (next) => (action) => {
 /** A server error is a toast (R-M4-5), never a feed item. A middleware, not a reducer: reducers have no side effects. */
 const toastMiddleware: Middleware = () => (next) => (action) => {
   // not `busy`: the server broadcasts those refusals to every window, and a race outcome is not a server error (the asking control shows it inline)
-  if (serverEvent.match(action) && action.payload.kind === 'server-error' && action.payload.where !== 'busy') toast(t('serverError', action.payload.where), action.payload.message);
+  if (serverEvent.match(action) && action.payload.kind === 'server-error' && action.payload.where !== 'busy') {
+    // a warning the server names by `where` is shown in the page's language, not as the server's English text
+    if (action.payload.where === 'git-bash') toast(t('gitBashTitle'), t('gitBashMissing'));
+    else toast(t('serverError', action.payload.where), action.payload.message);
+  }
   return next(action);
 };
 

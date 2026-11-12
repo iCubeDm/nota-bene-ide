@@ -4,6 +4,7 @@ import type { ModelInfo, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude
 import { CLAUDE_CAPABILITIES, type AgentEvent, type EffortLevel, type Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
 import type { AgentBackend, AgentSession, PermissionAsk, SendImage } from '../types.ts';
 import { CommandTap, offered, pickCommands, toSlash } from './commands.ts';
+import { gitBashWarning } from './gitBash.ts';
 import { mapFrames } from './map.ts';
 import { transcriptToEvents } from './transcript.ts';
 import { agentOfCall, findSubagentMeta, hitFresh, hitGet, hitSet, isRunning, noMetaAdd, noMetaHas, subagentModel } from './subagents.ts';
@@ -213,8 +214,10 @@ class SdkSession implements AgentSession {
 }
 
 export function sdkBackend(): AgentBackend {
+  const warning = gitBashWarning(); // checked once, at startup
   return {
     capabilities: CLAUDE_CAPABILITIES,
+    warning: () => warning,
     start: (o) => new SdkSession(o),
     listSessions: () => listSessions({ limit: 300 }),
     sessionInfo: async (id, dir) => (await getSessionInfo(id, { dir })) ?? null,

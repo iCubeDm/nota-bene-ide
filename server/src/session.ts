@@ -361,6 +361,15 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     }
   }
 
+  /** the backend's warning (see AgentBackend.warning), once per server, when someone is there to read it */
+  let warned = false;
+  function warnOnce(): void {
+    if (warned) return;
+    warned = true;
+    const w = backend.warning?.();
+    if (w) report(w.where, w.message);
+  }
+
   /**
    * Why a send is not taken. A tracked command is refused while anything is unanswered, like the buttons: queued behind a turn,
    * its reset would settle the sends after it and its result would be stored.
@@ -379,6 +388,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
       const refusal = refused(text);
       if (refusal) return refusal;
       turns.assertNew(id); // first: a reused id is refused with no side effects
+      warnOnce();
       if (voice) {
         // the voice (the parser saw to it), with the batch of the pending comments riding along, if any: never a command;
         // forced like a typed one, once the transcript is in

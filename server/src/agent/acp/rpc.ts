@@ -1,5 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
+import { HIDDEN, killTree } from '../../platform.ts';
+import { agentSpawn } from '../bin.ts';
 
 /** what Nota Bene says it is in `initialize`; the release pin test keeps it at package.json's version */
 export const CLIENT_VERSION = '1.8.1';
@@ -47,8 +49,11 @@ export class AcpRpc implements AcpConnection {
   constructor(options: AcpRpcOptions) {
     this.options = options; this.name = options.name;
     this.closed = new Promise((resolve) => { this.closeResolve = resolve; });
-    this.child = spawn(options.command, options.args, {
-      cwd: options.cwd, env: options.env ?? process.env, stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32',
+    const env = options.env ?? process.env;
+    const run = agentSpawn(options.command, options.args, { env });
+    this.child = spawn(run.command, run.args, {
+      cwd: options.cwd, env: run.env ? { ...env, ...run.env } : env, stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32',
+      windowsVerbatimArguments: run.windowsVerbatimArguments, ...HIDDEN,
     });
     this.child.stdout.on('data', (data: Buffer) => this.receive(data));
     // the agent prints a banner and diagnostics there; never forward them
@@ -58,7 +63,7 @@ export class AcpRpc implements AcpConnection {
     this.child.on('exit', (code, signal) => this.fail(new Error(`${this.name} exited (${signal ?? code ?? 'unknown'})`)));
     this.child.on('close', () => {
       // the leader may exit while a tool descendant ignores TERM: retire the owned group before resolving close
-      if (process.platform !== 'win32' && this.child.pid) { try { process.kill(-this.child.pid, 'SIGKILL'); } catch { /* group already gone */ } }
+      if (process.platform !== 'win32' && this.child.pid) { try { killTree(this.child.pid, 'SIGKILL'); } catch { /* group already gone */ } }
       clearTimeout(this.killTimer); this.closeResolve();
     });
     this.ready = this.call('initialize', {
@@ -179,9 +184,16 @@ export class AcpRpc implements AcpConnection {
   }
 
   private stop(): void {
+    // Windows: no signals, and TerminateProcess would leave the agent's own children (a cmd.exe shim's node, tool
+    // processes) running: the whole tree goes at once, while the leader is still there to find it by
+    if (process.platform === 'win32') {
+      if (this.child.pid && this.child.exitCode === null && this.child.signalCode === null) killTree(this.child.pid);
+      try { this.child.kill(); } catch { /* already exited */ } // in case taskkill could not end it
+      return;
+    }
     const signal = (name: NodeJS.Signals) => {
       try {
-        if (process.platform !== 'win32' && this.child.pid) process.kill(-this.child.pid, name);
+        if (this.child.pid) killTree(this.child.pid, name);
         else this.child.kill(name);
       } catch { /* already exited */ }
     };

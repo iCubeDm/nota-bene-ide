@@ -32,9 +32,13 @@ export async function loadCodexHistory(rpc: HistoryRpc, threadId: string, attach
             if (part.type === 'localImage') {
               try {
                 const file = string(part.path); if (!path.isAbsolute(file)) throw new Error('Invalid native image path');
+                // Windows has no O_NOFOLLOW: a link is refused by lstat, and the opened file must be the one lstat saw
+                const link = fs.constants.O_NOFOLLOW === undefined ? fs.lstatSync(file) : null;
+                if (link && !link.isFile()) throw new Error('Native image is not a bounded regular file');
                 const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
                 try {
                   const st = fs.fstatSync(fd); if (!st.isFile() || st.size > MAX_ATTACHMENT_BYTES) throw new Error('Native image is not a bounded regular file');
+                  if (link && (st.ino !== link.ino || st.dev !== link.dev)) throw new Error('Native image changed while it was opened');
                   const bytes = Buffer.alloc(st.size); fs.readSync(fd, bytes, 0, bytes.length, 0);
                   const type = bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) ? 'image/png'
                     : bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff ? 'image/jpeg'

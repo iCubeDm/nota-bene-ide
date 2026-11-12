@@ -26,6 +26,8 @@ export const ptBR: Dict = {
   connecting: 'conectando…',
   offline: 'sem conexão com o servidor…',
   serverError: (w) => `Erro do servidor${w ? ' · ' + w : ''}`,
+  gitBashTitle: 'Git Bash não encontrado',
+  gitBashMissing: 'No Windows, o Claude Code executa comandos de shell no Git Bash e não o encontra. Instale o Git for Windows ou defina CLAUDE_CODE_GIT_BASH_PATH com o caminho do bash.exe dele e reinicie o Nota Bene.',
   you: 'você',
   youBusy: ' · durante o trabalho',
   youForced: ' · interrompeu o agente',

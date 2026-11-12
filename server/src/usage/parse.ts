@@ -1,6 +1,7 @@
 // Transcript lines to normalized usage records. Pure: the reading, the offsets and the merging are elsewhere.
 import path from 'node:path';
 import { BATCH_HEAD, type TokenCounts } from '@nota-bene/shared';
+import { isInside } from '@nota-bene/shared/paths';
 
 /** `id`: one API call; repeated ids merge, field by field, to the maximum (store.ts). `task`: set when the transcript names it. */
 export type CallRecord = TokenCounts & { k: 'c'; id: string; ts: number; cwd: string; session: string; model: string; agent?: string; task?: string };
@@ -18,7 +19,7 @@ export const LABEL_MAX = 64;
 
 /** Where a Claude transcript sits: `<project>/<session>.jsonl` or `<project>/<session>/subagents/agent-<id>.jsonl`. */
 export function claudeFile(rel: string): { session: string; agent?: string } {
-  const parts = rel.split(path.sep);
+  const parts = path.sep === '/' ? rel.split('/') : rel.split(/[\\/]/);
   const base = parts[parts.length - 1]!.replace(/\.jsonl$/, '');
   return parts.includes('subagents') ? { session: parts[1]!, agent: base.replace(/^agent-/, '') } : { session: base };
 }
@@ -42,9 +43,10 @@ const textOf = (content: unknown): string => {
   return content.map((b) => { const t = obj(b).text; return typeof t === 'string' ? t : ''; }).join(' ');
 };
 
-/** Under a temporary folder: smoke runs and tests, not work. */
-export function isTempDir(cwd: string, tmp: readonly string[]): boolean {
-  return tmp.some((d) => cwd === d || cwd.startsWith(d + path.sep));
+/** Under a temporary folder: smoke runs and tests, not work. Windows: either separator, any case (NTFS names). */
+export function isTempDir(cwd: string, tmp: readonly string[], platform: NodeJS.Platform = process.platform): boolean {
+  if (platform === 'win32') return tmp.some((d) => isInside(cwd, d, { caseInsensitive: true }));
+  return tmp.some((d) => cwd === d || cwd.startsWith(d + '/'));
 }
 
 /** The CLI's limit names; group 1 is the 5-hour one. Spend, budget, fast and credit limits share the wording and are no such window. */

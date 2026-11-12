@@ -202,7 +202,9 @@ export class CodexSession implements AgentSession {
   }
   async fileSuggestions(query: string): Promise<string[]> {
     const r = record(await this.rpc.request('fuzzyFileSearch', { query, roots: [this.o.cwd] }));
-    return array(r.files).map(record).map((f) => { const p = string(f.path); return path.isAbsolute(p) ? path.relative(this.o.cwd, p) : p; }).filter((p) => p && !p.startsWith('../') && !path.isAbsolute(p));
+    // Windows: in the page's `/` form, which also lets the `../` check below see a path outside the folder
+    const slash = (p: string) => (path.sep === '\\' ? p.replace(/\\/g, '/') : p);
+    return array(r.files).map(record).map((f) => { const p = string(f.path); return slash(path.isAbsolute(p) ? path.relative(this.o.cwd, p) : p); }).filter((p) => p && !p.startsWith('../') && !path.isAbsolute(p));
   }
   async rename(title: string): Promise<void> {
     await this.rpc.request('thread/name/set', { threadId: this.tid, name: title });

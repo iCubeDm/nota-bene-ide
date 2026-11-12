@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { AgentMode, Capabilities, Interaction } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from '../types.ts';
 import { array, record, string } from '../json.ts';
+import { samePath } from '../../platform.ts';
 import { AcpError, AcpRpc, CLIENT_VERSION, type AcpConnection } from './rpc.ts';
 import { AcpSession, captureReplay } from './session.ts';
 
@@ -58,7 +59,7 @@ export function acpBackend(profile: AcpProfile, options: { connect?: (mode: Agen
   return {
     capabilities: profile.capabilities, nativeSessions: true,
     start(o) {
-      const pre = preopened && o.resume === preopened.id && real(o.cwd) === preopened.cwd ? take() : undefined;
+      const pre = preopened && o.resume === preopened.id && samePath(real(o.cwd), preopened.cwd) ? take() : undefined;
       let s: AcpSession;
       if (pre && !o.fork) s = new AcpSession(o, profile, (mode) => connect(mode, o.cwd), { rpc: pre.rpc, mode: first, sessionId: pre.id, configOptions: pre.configOptions, blocks: pre.blocks, ...(pre.commands ? { commands: pre.commands } : {}) });
       else {
@@ -79,7 +80,7 @@ export function acpBackend(profile: AcpProfile, options: { connect?: (mode: Agen
     },
     async sessionInfo(id, dir) {
       const s = (await list(real(dir))).find((s) => s.sessionId === id);
-      if (!s || real(string(s.cwd)) !== real(dir)) return null;
+      if (!s || !samePath(real(string(s.cwd)), real(dir))) return null;
       return { cwd: string(s.cwd), customTitle: string(s.title) || undefined };
     },
     async renameSession() { throw new Error(`${profile.name} renames only the open conversation (use the session's own rename)`); },
