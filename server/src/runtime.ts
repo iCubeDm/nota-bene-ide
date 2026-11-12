@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { providerStateDir, type AgentProvider } from './agent/provider.ts';
+import { HIDDEN, killTree, npmSpec, resolveBin, spawnSpec } from './platform.ts';
 import { stateBaseDir } from './state.ts';
 import { RELEASE } from './update.ts';
 import { pidAlive } from './windows.ts';
@@ -123,21 +124,23 @@ export function takeLockFile(file: string, version: string): boolean {
   }
 }
 
+/** npm for `run`: the npm-cli.js of the running Node (no shell shim, see platform.ts npmSpec), else npm from PATH. */
 export function defaultNpm(): string | null {
-  const beside = path.join(path.dirname(process.execPath), 'npm');
-  if (fs.existsSync(beside)) return beside;
-  for (const d of (process.env.PATH ?? '').split(path.delimiter)) {
-    if (d && fs.existsSync(path.join(d, 'npm'))) return path.join(d, 'npm');
-  }
-  return null;
+  const s = npmSpec([]);
+  if (s.command === process.execPath && s.args.length === 1) return s.args[0]!;
+  return resolveBin('npm');
 }
 
+const JS_FILE = /\.[cm]?js$/i;
+
+/** Runs `cmd` (a JS file with this Node, a `.cmd` shim through cmd.exe: platform.ts spawnSpec); after `timeoutMs` its tree is killed. */
 export function run(cmd: string, args: string[], out: number | 'pipe', timeoutMs = NPM_TIMEOUT_MS): Promise<{ code: number | null; stdout: string; timedOut: boolean }> {
   return new Promise((resolve) => {
-    const c = spawn(cmd, args, { stdio: ['ignore', out, out === 'pipe' ? 'ignore' : out] });
+    const s = JS_FILE.test(cmd) ? { command: process.execPath, args: [cmd, ...args] } : spawnSpec(cmd, args);
+    const c = spawn(s.command, s.args, { stdio: ['ignore', out, out === 'pipe' ? 'ignore' : out], windowsVerbatimArguments: s.windowsVerbatimArguments, ...HIDDEN });
     let stdout = '';
     let timedOut = false;
-    const t = setTimeout(() => { timedOut = true; c.kill('SIGKILL'); }, timeoutMs);
+    const t = setTimeout(() => { timedOut = true; if (c.pid !== undefined) killTree(c.pid, 'SIGKILL'); }, timeoutMs);
     c.stdout?.on('data', (d: Buffer) => { stdout += d; });
     c.on('error', () => { clearTimeout(t); resolve({ code: null, stdout, timedOut }); });
     c.on('close', (code) => { clearTimeout(t); resolve({ code, stdout, timedOut }); });
