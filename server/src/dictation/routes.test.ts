@@ -28,8 +28,11 @@ afterEach(async () => {
 
 type Done = { code: number | null; stdout: string; timedOut: boolean };
 const npmOk = async (): Promise<Done> => { fs.mkdirSync(path.join(whisperDir(), 'node_modules'), { recursive: true }); return { code: 0, stdout: '', timedOut: false }; };
-async function serve(install?: Parameters<typeof dictationRoutes>[0]['install'], transcribe?: Parameters<typeof dictationRoutes>[0]['transcribe']): Promise<string> {
-  const routes = dictationRoutes({ hub: new EventHub(), install, transcribe });
+type Host = NonNullable<Parameters<typeof dictationRoutes>[0]['host']>;
+/** No Whisper host (the real one is in hostClient.test.ts: a socket path in this folder would not fit anyway). */
+const noHost: Host = { status: async () => null, stopHost: async () => null };
+async function serve(install?: Parameters<typeof dictationRoutes>[0]['install'], transcribe?: Parameters<typeof dictationRoutes>[0]['transcribe'], host: Host = noHost): Promise<string> {
+  const routes = dictationRoutes({ hub: new EventHub(), install, transcribe, host });
   server = http.createServer(((req, res) => routes[req.url!.split('?')[0]!]!(req, res)) as RequestListener);
   await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -42,7 +45,26 @@ describe('dictation routes', () => {
     const base = await serve();
     const r = await fetch(`${base}/dictation`);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ on: false, phase: 'none', downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL, dictationLang: 'auto' });
+    expect(await r.json()).toEqual({ on: false, phase: 'none', downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL, dictationLang: 'auto', host: null });
+  });
+
+  it('GET /dictation shows the host\'s state, and nothing else of it', async () => {
+    const base = await serve(undefined, undefined, { ...noHost, status: async () => ({ pid: 4242, loaded: true, queued: 2, running: true, clients: 3 }) });
+    expect((await (await fetch(`${base}/dictation`)).json() as { host: unknown }).host).toEqual({ loaded: true, queued: 2, running: true });
+    const lazy = await serve(undefined, undefined, { ...noHost, status: async () => ({ pid: 4242, loaded: false, queued: 0, running: false, clients: 0 }) });
+    expect((await (await fetch(`${lazy}/dictation`)).json() as { host: unknown }).host).toEqual({ loaded: false, queued: 0, running: false }); // not loaded yet is no trouble
+  });
+
+  it('GET /dictation shows `host: null`, still 200, for a host that cannot be asked (a client that throws too)', async () => {
+    const base = await serve(undefined, undefined, { ...noHost, status: async () => { throw new Error('boom'); } });
+    const r = await fetch(`${base}/dictation`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ phase: 'none', host: null });
+  });
+
+  it('HEAD /dictation is answered too', async () => {
+    const base = await serve();
+    expect((await fetch(`${base}/dictation`, { method: 'HEAD' })).status).toBe(200);
   });
 
   it('POST /dictation/lang stores auto or a language code, and GET /dictation and the prefs show it', async () => {
@@ -115,6 +137,47 @@ describe('dictation routes', () => {
     expect(fs.existsSync(whisperDir())).toBe(false);
     expect(fs.existsSync(path.join(home, 'keep.txt'))).toBe(true);
     expect(await (await fetch(`${base}/dictation`)).json()).toMatchObject({ on: false, phase: 'none' });
+  });
+
+  describe('POST /dictation/remove and the Whisper host', () => {
+    const ready = async (base: string) => {
+      await post(base, '/dictation/install');
+      await until(() => whisperPhase() === 'ready');
+      await post(base, '/dictation/on', { on: true });
+    };
+    const install = { npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} };
+
+    it('stops the host first, while the install is still there, then deletes it', async () => {
+      const seen: { reason?: string; installed?: boolean }[] = [];
+      const base = await serve(install, undefined, { ...noHost, stopHost: async (reason) => { seen.push({ reason, installed: whisperPhase() === 'ready' }); return { pid: 4242, gone: true, signalled: false }; } });
+      await ready(base);
+      expect((await post(base, '/dictation/remove')).status).toBe(200);
+      expect(seen).toEqual([{ reason: 'removed', installed: true }]);
+      expect(fs.existsSync(whisperDir())).toBe(false);
+      expect(readPrefs().whisper).toBe(false);
+    });
+
+    it('is refused while an install runs, and then the host is left alone', async () => {
+      let release!: () => void;
+      const gate = new Promise<void>((r) => { release = r; });
+      const stopped: string[] = [];
+      const base = await serve({ npm: '/fake/npm', spawn: async (): Promise<Done> => { await gate; return npmOk(); }, fetchModel: async () => {} }, undefined, { ...noHost, stopHost: async (reason) => { stopped.push(reason!); return null; } });
+      await post(base, '/dictation/install');
+      expect((await post(base, '/dictation/remove')).status).toBe(409);
+      expect(stopped).toEqual([]);
+      release();
+      await until(() => whisperPhase() === 'ready');
+    });
+
+    it('a host that cannot be stopped is reported, and the install is removed all the same', async () => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const base = await serve(install, undefined, { ...noHost, stopHost: async () => { throw new Error('the Whisper host did not answer hello'); } });
+      await ready(base);
+      expect((await post(base, '/dictation/remove')).status).toBe(200);
+      expect(errors).toHaveBeenCalledWith('[whisper-host]', expect.objectContaining({ message: 'the Whisper host did not answer hello' }));
+      expect(fs.existsSync(whisperDir())).toBe(false);
+      expect(readPrefs().whisper).toBe(false);
+    });
   });
 
   describe('POST /dictation/transcribe', () => {

@@ -19,6 +19,8 @@ export const SPAWN_WAIT_MS = 10_000;
 export const JOB_MARGIN_MS = 30_000;
 /** How long a host that accepted the connection gets to answer `hello`. */
 export const HELLO_WAIT_MS = 5000;
+/** How long `status()` waits for a host, hello and status together: a page that asks for it must not wait on a host that does not answer. */
+export const STATUS_WAIT_MS = 2000;
 /** This many deaths or failed starts within BACKOFF_WINDOW_MS send the window to its own model for FALLBACK_MS. */
 export const BACKOFF_FAILURES = 3;
 export const BACKOFF_WINDOW_MS = 60_000;
@@ -56,6 +58,7 @@ export class ClientClosed extends Error {
 /** How long a window waits for the answer to a job of `samples`. */
 export const clientDeadlineMs = (samples: number): number => LOAD_DEADLINE_MS + jobDeadlineMs(samples) + JOB_MARGIN_MS;
 
+/** What a host says about itself; `clients` is the windows connected to it, not the connection the question came in on. */
 export type HostInfo = { pid: number; loaded: boolean; queued: number; running: boolean; clients: number };
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -106,7 +109,7 @@ async function sweepTempSockets(dir: string): Promise<void> {
 }
 
 type Waiter<T> = { resolve: (v: T) => void; reject: (e: Error) => void };
-type ConnOptions = { idleMs: number; onClose: (c: HostConn, unexpected: boolean) => void };
+type ConnOptions = { idleMs: number; /** How long the host gets to answer `hello` (default HELLO_WAIT_MS). */ helloMs?: number; onClose: (c: HostConn, unexpected: boolean) => void };
 const WENT = 'the Whisper host closed the connection';
 
 /** One connection to the host, after `hello`. */
@@ -145,7 +148,7 @@ class HostConn {
     const c = new HostConn(await dial(socketPath), o);
     try {
       const h = await c.greet();
-      if (h.proto !== HOST_PROTO || h.pins !== HOST_PINS || !Number.isSafeInteger(h.pid)) throw new Error('the Whisper host speaks another protocol');
+      if (h.proto !== HOST_PROTO || h.pins !== HOST_PINS || !Number.isSafeInteger(h.pid) || (h.pid as number) <= 0) throw new Error('the Whisper host speaks another protocol');
       c.pid = h.pid as number;
     } catch (e) {
       c.close();
@@ -158,7 +161,7 @@ class HostConn {
 
   private greet(): Promise<Header> {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('the Whisper host did not answer hello')), HELLO_WAIT_MS);
+      const timer = setTimeout(() => reject(new Error('the Whisper host did not answer hello')), this.o.helloMs ?? HELLO_WAIT_MS);
       this.hello = { resolve: (h) => { clearTimeout(timer); resolve(h); }, reject: (e) => { clearTimeout(timer); reject(e); } };
       this.send({ type: 'hello', proto: HOST_PROTO });
     });
@@ -188,11 +191,19 @@ class HostConn {
     });
   }
 
-  /** The host's `status` answer. */
-  status(): Promise<Header> {
+  /** The host's `status` answer; a host that does not give it within `waitMs` is an error. */
+  status(waitMs: number): Promise<Header> {
     return new Promise((resolve, reject) => {
       this.clearIdle();
-      this.statuses.push({ resolve, reject });
+      const w: Waiter<Header> = {
+        resolve: (h) => { clearTimeout(timer); resolve(h); },
+        reject: (e) => { clearTimeout(timer); reject(e); },
+      };
+      const timer = setTimeout(() => {
+        this.statuses.splice(this.statuses.indexOf(w), 1);
+        reject(new Error('the Whisper host did not answer status'));
+      }, waitMs);
+      this.statuses.push(w);
       this.send({ type: 'status' });
     });
   }
@@ -211,9 +222,6 @@ class HostConn {
     this.fail(new ClientClosed());
     this.sock.destroy();
   }
-
-  /** The close that is not ours to expect counts as a death. */
-  expectClose(): void { this.expected = true; }
 
   private send(h: Header): void {
     if (!this.sock.destroyed) this.sock.write(encodeFrame(h));
@@ -285,6 +293,10 @@ export type HostClientOptions = {
   entry?: string;
   /** How long to wait for a host that is starting (default SPAWN_WAIT_MS). */
   spawnWaitMs?: number;
+  /** How long `status()` waits for a host (default STATUS_WAIT_MS). */
+  statusWaitMs?: number;
+  /** Signals a process (default process.kill): `stopHost` ends a host that will not stop by itself with it; a test passes a fake. */
+  kill?: (pid: number, signal: NodeJS.Signals | 0) => void;
   /** How long to wait for the answer to a job of this many samples (default clientDeadlineMs). */
   deadlineMs?: (samples: number) => number;
   /** Where problems are told: `reportError` of the window's hub (the server sets it); default the console. */
@@ -308,10 +320,10 @@ export class HostClient {
   private failures: number[] = [];
   private fallbackUntil = 0;
   private told: string | undefined;
-  private readonly o: HostClientOptions & { idleMs: number; now: () => number; spawnWaitMs: number; deadlineMs: (samples: number) => number };
+  private readonly o: HostClientOptions & { idleMs: number; now: () => number; spawnWaitMs: number; statusWaitMs: number; deadlineMs: (samples: number) => number };
 
   constructor(o: HostClientOptions = {}) {
-    this.o = { ...o, idleMs: o.idleMs ?? IDLE_CLOSE_MS, now: o.now ?? Date.now, spawnWaitMs: o.spawnWaitMs ?? SPAWN_WAIT_MS, deadlineMs: o.deadlineMs ?? clientDeadlineMs };
+    this.o = { ...o, idleMs: o.idleMs ?? IDLE_CLOSE_MS, now: o.now ?? Date.now, spawnWaitMs: o.spawnWaitMs ?? SPAWN_WAIT_MS, statusWaitMs: o.statusWaitMs ?? STATUS_WAIT_MS, deadlineMs: o.deadlineMs ?? clientDeadlineMs };
   }
 
   /** Where problems are told from now on. */
@@ -319,6 +331,12 @@ export class HostClient {
 
   /** Is a connection to a host open? */
   connected(): boolean { return this.conn !== undefined && !this.conn.closed; }
+
+  /** Deaths and failed starts counted so far toward the fallback (those within the last BACKOFF_WINDOW_MS; the count restarts when the fallback begins). */
+  recentFailures(): number {
+    const t = this.o.now();
+    return this.failures.filter((at) => t - at < BACKOFF_WINDOW_MS).length;
+  }
 
   /**
    * `pcm` as text through the host. Answers null when this window should transcribe in its own process: the host cannot be used
@@ -357,52 +375,75 @@ export class HostClient {
     }
   }
 
-  /** The running host's state, or null when there is none (never starts one). */
+  /**
+   * The running host's state, or null when there is none to ask: none running, one that has all the windows it takes, one that does
+   * not answer in time (STATUS_WAIT_MS), one of another protocol. Never starts a host and never throws. It asks on a short connection
+   * of its own, never on the window's: that one must be left to close after IDLE_CLOSE_MS (a page that polls this would keep it
+   * open for the host's own idle exit to end, and that would count as the host's death), and a failure here is no death.
+   */
   async status(): Promise<HostInfo | null> {
     const socketPath = this.place(false);
     if (!socketPath) return null;
-    const own = this.connected() ? this.conn : undefined;
-    let c: HostConn | undefined = own;
+    const until = Date.now() + this.o.statusWaitMs;
+    let c: HostConn | undefined;
     try {
-      c ??= await HostConn.open(socketPath, { idleMs: this.o.idleMs, onClose: () => {} });
-    } catch (e) {
-      if (absent(e)) return null;
-      throw e;
-    }
-    try {
-      const h = await c.status();
-      if (typeof h.loaded !== 'boolean' || typeof h.running !== 'boolean' || typeof h.queued !== 'number' || typeof h.clients !== 'number') throw new Error('the Whisper host sent a bad status');
-      return { pid: c.pid, loaded: h.loaded, queued: h.queued, running: h.running, clients: h.clients };
-    } catch (e) {
-      if (e instanceof HostDropped) return null; // it went while we asked
-      throw e;
+      c = await HostConn.open(socketPath, { idleMs: this.o.idleMs, helloMs: this.o.statusWaitMs, onClose: () => {} });
+      const h = await c.status(Math.max(until - Date.now(), 1));
+      if (typeof h.loaded !== 'boolean' || typeof h.running !== 'boolean' || typeof h.queued !== 'number' || typeof h.clients !== 'number') return null;
+      return { pid: c.pid, loaded: h.loaded, queued: h.queued, running: h.running, clients: Math.max(h.clients - 1, 0) }; // the host counts this connection too
+    } catch {
+      return null;
     } finally {
-      if (c !== own) c.close();
+      c?.close();
     }
   }
 
   /**
    * Tells the running host to stop (Remove does this before it deletes the install) and waits up to `waitMs` for it to end.
-   * Null when no host was running; else its pid and whether its socket name is gone, so that the caller can end a host that
-   * is not (SIGTERM to the pid) before it goes on.
+   * Null when no host was running (or one that was stopping already); else its pid and whether its socket name is gone, so that
+   * the caller can end a host that is not (SIGTERM to the pid) before it goes on. Throws when a host is there and cannot be
+   * talked to (it does not answer `hello`, it speaks another protocol, it has all the windows it takes and this window has no
+   * connection to it).
    */
   async shutdown(reason = 'shutdown', waitMs = 5000): Promise<{ pid: number; gone: boolean } | null> {
     const socketPath = this.place(false);
     if (!socketPath) return null;
-    this.conn?.expectClose(); // the host closes every connection: ours is no death
-    let c: HostConn;
-    try {
-      c = await HostConn.open(socketPath, { idleMs: this.o.idleMs, onClose: () => {} });
-    } catch (e) {
-      if (absent(e)) return null;
-      throw e;
+    // this window's own connection when it has one (a host that is full takes no other), else a short one of its own
+    let c = this.connected() ? this.conn : undefined;
+    if (!c) {
+      try {
+        c = await HostConn.open(socketPath, { idleMs: this.o.idleMs, onClose: () => {} });
+      } catch (e) {
+        if (absent(e) || e instanceof HostDropped) return null; // nobody there, or it went while we greeted it: it is stopping
+        throw e;
+      }
     }
-    c.shutdown(reason);
+    c.shutdown(reason); // the close that follows is expected, not a death: said only now that a host is known to be there
     let timer: NodeJS.Timeout | undefined;
     await Promise.race([c.ended, new Promise<void>((resolve) => { timer = setTimeout(resolve, waitMs); })]);
     clearTimeout(timer);
     c.close();
     return { pid: c.pid, gone: !fs.existsSync(socketPath) };
+  }
+
+  /**
+   * `shutdown`, and a host whose socket name is still there after `waitMs` gets SIGTERM: Remove must not leave a host that serves
+   * a model nobody can ask for. The pid is the one the host answered `hello` with on this socket a moment ago, so no unrelated
+   * process is signalled (and never this one, or a group). Null when no host was running. `signalled` says SIGTERM went out.
+   */
+  async stopHost(reason = 'removed', waitMs = 5000): Promise<{ pid: number; gone: boolean; signalled: boolean } | null> {
+    const r = await this.shutdown(reason, waitMs);
+    if (!r) return null;
+    let signalled = false;
+    if (!r.gone && r.pid > 1 && r.pid !== process.pid) {
+      const kill = this.o.kill ?? ((pid, signal) => { process.kill(pid, signal); });
+      try {
+        kill(r.pid, 0); // still there?
+        kill(r.pid, 'SIGTERM');
+        signalled = true;
+      } catch { /* it went by itself, or it is not ours to signal */ }
+    }
+    return { ...r, signalled };
   }
 
   /**
