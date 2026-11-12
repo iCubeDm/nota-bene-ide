@@ -161,7 +161,8 @@ export async function installRelease(version: string, o: { npm?: string; node?: 
       removeOwn(); // a leftover of an earlier failure
       const log = fs.openSync(o.log ?? path.join(runtimeDir(), 'update.log'), 'a', 0o600);
       try {
-        const got = await run(npm, ['install', '--prefix', dir, `nota-bene-ide@${version}`, '--no-audit', '--no-fund'], log, o.npmTimeoutMs);
+        // The release check may see a new version before npm's cached metadata expires.
+        const got = await run(npm, ['install', '--prefix', dir, `nota-bene-ide@${version}`, '--prefer-online', '--no-audit', '--no-fund'], log, o.npmTimeoutMs);
         if (got.timedOut) reason = 'npm timed out';
         else if (got.code !== 0) reason = `npm install exited with ${got.code}`;
       } finally { fs.closeSync(log); }

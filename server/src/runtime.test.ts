@@ -47,10 +47,12 @@ function fakeInstalled(v: string) {
 }
 
 describe('runtime store', () => {
-  it('installs, checks and points current at it', async () => {
+  it('revalidates npm metadata, installs, checks and points current at it', async () => {
     expect(await install('1.7.0')).toBe('installed');
     expect(readCurrent()).toBe('1.7.0');
-    expect(fs.readFileSync(path.join(runtimeDir(), 'update.log'), 'utf8')).toContain('fake npm install --prefix');
+    const log = fs.readFileSync(path.join(runtimeDir(), 'update.log'), 'utf8');
+    expect(log).toContain('fake npm install --prefix');
+    expect(log).toContain('--prefer-online');
     expect(installing()).toBeNull();
   });
 
