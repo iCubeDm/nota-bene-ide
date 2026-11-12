@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AttachmentStore } from '../attachments.ts';
 import { makeWav } from '../dictation/wavFixture.ts';
 import { EventHub } from '../hub.ts';
-import { WhisperBusy, WhisperOff } from '../dictation/hostClient.ts';
+import { HostLost, WhisperBusy, WhisperOff } from '../dictation/hostClient.ts';
 import { queued } from '../dictation/transcribe.ts';
 import { transcribeVoice, VoiceBusy, VoiceFailure } from './transcribe.ts';
 import { voiceRoutes } from './routes.ts';
@@ -26,7 +26,7 @@ afterEach(async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-type Run = (pcm: Float32Array, lang: string, detect?: boolean) => Promise<string | { text: string; lang: string }>;
+type Run = (pcm: Float32Array, lang: string, detect?: boolean, signal?: AbortSignal) => Promise<string | { text: string; lang: string }>;
 async function serve(o: { on?: boolean; run?: Run } = {}): Promise<string> {
   const routes = voiceRoutes({ hub: new EventHub(), store, on: () => o.on ?? true, transcribe: o.run ?? (async () => 'hello') });
   server = http.createServer(((req, res) => {
@@ -108,6 +108,24 @@ describe('POST /voice/<id>/text', () => {
     expect(await (await fetch(`${base}/voice/${id}/text?lang=en`, { method: 'POST' })).json()).toEqual({ text: 'bonjour', lang: 'en' });
     expect(await (await fetch(`${base}/voice/${id}/text?lang=en&detect=0`, { method: 'POST' })).json()).toEqual({ text: 'bonjour', lang: 'en' });
     expect(asked).toEqual([true, false, false]);
+  });
+  it('a client that hangs up before the answer stops the transcription', async () => {
+    let signal: AbortSignal | undefined;
+    let begun!: () => void;
+    const started = new Promise<void>((resolve) => { begun = resolve; });
+    const base = await serve({ run: (_pcm, _lang, _detect, s) => {
+      signal = s;
+      begun();
+      return new Promise((_, reject) => s!.addEventListener('abort', () => reject(s!.reason), { once: true }));
+    } });
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    const ac = new AbortController();
+    fetch(`${base}/voice/${id}/text?lang=en`, { method: 'POST', signal: ac.signal }).catch(() => {});
+    await started;
+    expect(signal!.aborted).toBe(false);
+    const aborted = new Promise<void>((resolve) => signal!.addEventListener('abort', () => resolve(), { once: true }));
+    ac.abort();
+    await aborted; // the part is cancelled: it was not left to run for nobody
   });
   it('503 busy when the Whisper host\'s queue is full, 503 off when it was removed under the job, any other failure a 500', async () => {
     let n = 0;
@@ -202,6 +220,12 @@ describe('transcribeVoice', () => {
     expect(calls).toBe(1);
     await expect(transcribeVoice(store, id, 'en', async () => { calls++; throw new WhisperOff('Whisper is off'); })).rejects.toMatchObject({ why: 'off' });
     expect(calls).toBe(2);
+  });
+  it('a part whose host was lost is not tried again: it may be what took the host down', async () => {
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    let calls = 0;
+    await expect(transcribeVoice(store, id, 'en', async () => { calls++; throw new HostLost(); })).rejects.toBeInstanceOf(HostLost);
+    expect(calls).toBe(1);
   });
   it('a part is told its signal, and the signal does not abort while the caller is alive', async () => {
     const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');

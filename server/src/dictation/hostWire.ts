@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { SecretError, stateBaseDir } from '../state.ts';
-import { MAX_AUDIO, WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
+import { MAX_AUDIO, WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_RATE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
 
 /** Bumped when the messages change incompatibly: it is part of the socket name, so hosts of different protocols never meet. */
 export const HOST_PROTO = 1;
@@ -15,6 +15,14 @@ export const HOST_PINS = createHash('sha256').update([WHISPER_PACKAGE, WHISPER_V
 export const MAX_HEADER = 64 * 1024;
 /** One frame, header and body together: the most audio a request carries (whisper.ts, the HTTP routes' cap too) and a full header. */
 export const MAX_FRAME = MAX_AUDIO + MAX_HEADER;
+
+/** A model call gets the larger of this and JOB_DEADLINE_FACTOR times the audio's length (the host's own limit; the window's is built on it). */
+export const JOB_DEADLINE_MIN_MS = 2 * 60_000;
+export const JOB_DEADLINE_FACTOR = 10;
+/** The model load gets this long while jobs wait for it (the model is on disk by then: this only unwedges a hung load). */
+export const LOAD_DEADLINE_MS = 5 * 60_000;
+/** How long a model call on `samples` of audio may take. */
+export const jobDeadlineMs = (samples: number): number => Math.max(JOB_DEADLINE_MIN_MS, JOB_DEADLINE_FACTOR * samples * 1000 / WHISPER_RATE);
 
 /** The host's folder, outside <stateBase>/whisper/ (Remove deletes that one while a host may still be answering). */
 export const hostDir = (): string => path.join(stateBaseDir(), 'whisper-host');
@@ -52,12 +60,16 @@ export type HostRequest =
   | { type: 'shutdown'; reason: string }
   | { type: 'status' };
 
-/** What the host answers; a job's answer is the only one without a `type`. */
+/**
+ * What the host answers; a job's answer is the only one without a `type`. `full`, instead of `hello`, says that the host has all
+ * the windows it takes: the connection closes after it. A `failed` answer may carry the model's message.
+ */
 export type HostReply =
   | { type: 'hello'; proto: number; pid: number; pins: string; loaded: boolean; queued: number }
   | { type: 'status'; loaded: boolean; queued: number; running: boolean; clients: number }
+  | { type: 'full' }
   | { id: number; text: string; lang: string }
-  | { id: number; error: JobError };
+  | { id: number; error: JobError; message?: string };
 
 /** One frame ready to write. Throws when it would exceed what the receiving end accepts. */
 export function encodeFrame(header: Header, body: Uint8Array = new Uint8Array(0)): Buffer {

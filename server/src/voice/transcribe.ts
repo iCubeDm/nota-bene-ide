@@ -1,7 +1,7 @@
 // A stored recording to text: the parts one after the other through the one Whisper queue, each tried once more.
 import type { VoiceError } from '@nota-bene/shared';
 import type { AttachmentStore } from '../attachments.ts';
-import { WhisperBusy, WhisperOff } from '../dictation/hostClient.ts';
+import { HostLost, WhisperBusy, WhisperOff } from '../dictation/hostClient.ts';
 import { queued, spokenOf, transcribeWith as defaultTranscribe, type Spoken, type SpokenOrText } from '../dictation/transcribe.ts';
 import { samplesOf } from '../dictation/wav.ts';
 import { splitPcm } from './parts.ts';
@@ -56,8 +56,10 @@ export async function transcribeVoice(store: AttachmentStore, id: string, lang: 
     }, dropped.signal);
     let got: ReturnType<typeof spokenOf>;
     try {
-      // a part is tried once more, except when the host is busy or off (nothing changes at once) or nobody waits any more
-      got = spokenOf(await once().catch((e: unknown) => (e instanceof WhisperBusy || e instanceof WhisperOff || dropped.signal.aborted ? Promise.reject(e) : once())));
+      // a part is tried once more, except when the host is busy or off (nothing changes at once), when a host was lost under it
+      // (the client retried it once already, and it never runs in this process: the part may be what took the host down), or
+      // when nobody waits any more
+      got = spokenOf(await once().catch((e: unknown) => (e instanceof WhisperBusy || e instanceof WhisperOff || e instanceof HostLost || dropped.signal.aborted ? Promise.reject(e) : once())));
     } catch (e) {
       if (dropped.signal.aborted) throw new VoiceFailure('failed', 'dropped');
       if (e instanceof WhisperBusy) throw new VoiceBusy();

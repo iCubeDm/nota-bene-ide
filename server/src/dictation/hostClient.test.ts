@@ -1,16 +1,20 @@
 // The window's side of the Whisper host: protocol behaviour against a scripted host on the real socket path, and the connect-or-
 // spawn path against real host processes (hostEntry.ts, with a stub in place of transformers.js). Unix sockets only, in a short
-// /tmp folder (sun_path is ~104 bytes); every host a test starts is killed in afterEach.
-import { spawn } from 'node:child_process';
+// /tmp folder (sun_path is ~104 bytes); every host a test starts is killed in afterEach, clients closed first.
+//
+// No test here may reach the real ~/.nota-bene (a host once ran there with the real model, started by a call that a test had
+// left running past its cleanup): NOTA_BENE_HOME is a folder of this file's own from the first line to the last, never unset
+// between tests, calls that outlive a test are ended by closing their client (and every wait here has a bound).
+import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import http, { type RequestListener } from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventHub } from '../hub.ts';
-import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, FALLBACK_MS, HostClient, hostClient, hostEntryFile, IDLE_CLOSE_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
-import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostDir, hostSocketPath, pcmFromInt16, privateDir, type Header } from './hostWire.ts';
+import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, clientDeadlineMs, FALLBACK_MS, HostClient, hostClient, hostEntryFile, HostLost, IDLE_CLOSE_MS, JOB_MARGIN_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
+import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostDir, hostSocketPath, jobDeadlineMs, LOAD_DEADLINE_MS, pcmFromInt16, privateDir, type Header } from './hostWire.ts';
 import { setWhisperPref } from '../prefs.ts';
 import { dictationRoutes } from './routes.ts';
 import { resetTranscriber, transcribe } from './transcribe.ts';
@@ -19,42 +23,62 @@ import { makeWav } from './wavFixture.ts';
 
 /** `n` samples of a quarter of full scale. */
 const pcm = (n: number): Float32Array => new Float32Array(n).fill(0.25);
-/** Waits, without a clock, until something that happens on its own has happened. */
-const until = async (cond: () => boolean | Promise<boolean>): Promise<void> => { while (!await cond()) await new Promise<void>((r) => setImmediate(r)); };
+/** Waits until something that happens on its own has happened; gives up after `ms`, so that a test that cannot finish ends. */
+const until = async (cond: () => boolean | Promise<boolean>, ms = 8000): Promise<void> => {
+  const stop = Date.now() + ms;
+  while (!await cond()) {
+    if (Date.now() > stop) throw new Error('timed out waiting for a condition');
+    await new Promise<void>((r) => setImmediate(r));
+  }
+};
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** The folder of this file: the home of any call that runs between two tests or after one. */
+const sandbox = fs.mkdtempSync('/tmp/nbw-');
+vi.stubEnv('NOTA_BENE_HOME', sandbox);
+vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '60000'); // a host a failed test leaves behind goes by itself
+afterAll(() => {
+  fs.rmSync(sandbox, { recursive: true, force: true });
+  vi.unstubAllEnvs();
+});
+/** Throws unless the state home is one of ours: a test that would reach the real home fails instead. */
+const sandboxed = (): void => {
+  const base = process.env.NOTA_BENE_HOME ?? '';
+  if (!base.startsWith('/tmp/nbw-')) throw new Error(`NOTA_BENE_HOME is ${base || 'unset'}: this file must never touch the real home`);
+};
 
 let home: string;
 let clients: HostClient[];
 let fakes: FakeHost[];
 let servers: net.Server[];
 let reports: [string, unknown][];
+/** Child processes a test made that no client knows of (the leftovers of a killed host). */
+let strays: ChildProcess[];
 
 beforeEach(() => {
+  sandboxed();
   home = fs.mkdtempSync('/tmp/nbw-');
   reports = [];
   clients = [];
   fakes = [];
   servers = [];
+  strays = [];
   vi.stubEnv('NOTA_BENE_HOME', home);
-  vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '60000'); // a host a failed test leaves behind goes by itself
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 afterEach(async () => {
-  for (const c of clients) c.close();
+  // first: nothing may go on after the test (a connect, a start, a retry, a wait), and nothing it started may live on
+  const all = [...clients, hostClient];
+  for (const c of all) c.close();
+  for (const child of [...all.flatMap((c) => [...c.children]), ...strays]) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
   for (const f of fakes) await f.stop();
   for (const s of servers) await new Promise<void>((r) => s.close(() => r()));
-  hostPids().forEach((pid) => { try { process.kill(pid, 'SIGKILL'); } catch { /* gone */ } });
+  // only then the folder; the env goes back to this file's own folder, never to unset (that is the real home)
+  vi.stubEnv('NOTA_BENE_HOME', sandbox);
   fs.rmSync(home, { recursive: true, force: true });
-  vi.unstubAllEnvs();
   vi.restoreAllMocks();
+  sandboxed();
 });
-
-/** The pid of every host the log of this test's host folder names. */
-function hostPids(): number[] {
-  try {
-    return [...fs.readFileSync(path.join(hostDir(), 'host.log'), 'utf8').matchAll(/whisper-host (\d+):/g)].map((m) => Number(m[1]));
-  } catch { return []; }
-}
 
 function make(o: HostClientOptions = {}): HostClient {
   const c = new HostClient({ report: (where, e) => { reports.push([where, e]); }, ...o });
@@ -166,6 +190,13 @@ describe('a host that answers', () => {
     expect(reports).toEqual([]); // a failed job is not a dead host
   });
 
+  it('the host\'s message for a failed job is the job\'s error message', async () => {
+    const f = await FakeHost.start();
+    f.on = (s, sock) => f.answer(sock, { id: s.header.id, error: 'failed', message: 'the model said no' });
+    const c = make();
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toThrow('could not transcribe it: the model said no');
+  });
+
   it('`busy` is a distinct error and is not retried; `off` too', async () => {
     const f = await FakeHost.start();
     f.on = (s, sock) => f.answer(sock, { id: s.header.id, error: s.body.length === 2 ? 'busy' : 'off' });
@@ -197,7 +228,7 @@ describe('a host that goes while it has the job', () => {
     const f = await FakeHost.start();
     f.on = (_s, sock) => sock.destroy();
     const c = make();
-    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toThrow('stopped before it answered');
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(HostLost);
     expect(f.of('job')).toHaveLength(2);
   });
 
@@ -208,13 +239,13 @@ describe('a host that goes while it has the job', () => {
     const c = make({ now: () => t });
     await expect(c.transcribe(pcm(1), 'en', false)).rejects.toThrow(); // deaths 1 and 2
     expect(reports).toEqual([]);
-    // death 3 (the first try of the next job): the retry finds the window in fallback and answers null
-    expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+    // death 3 (the first try of the next job): the window is in fallback now, but this job has lost a host and is not run here
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(HostLost);
     expect(told()).toHaveLength(1);
     expect(told()[0]).toMatch(new RegExp(`failed ${BACKOFF_FAILURES} times within a minute.*5 minutes`));
     const jobs = f.of('job').length;
     expect(jobs).toBe(3);
-    // in fallback no connection is made at all
+    // later jobs, with no host lost under them, are run here: no connection is made at all
     t += FALLBACK_MS - 1;
     expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
     expect(f.of('job')).toHaveLength(jobs);
@@ -333,19 +364,20 @@ describe('the connection', () => {
     expect(f.socks).toHaveLength(2);
   });
 
-  it('stays open while a job is waiting, however long', async () => {
+  it('has no idle clock running while a job waits, and starts it when the answer comes', async () => {
     const f = await FakeHost.start();
     const c = make({ idleMs: 20 });
     const p = c.transcribe(pcm(1), 'en', false);
     await f.next('job');
-    await sleep(150); // many idle periods
-    expect(c.connected()).toBe(true);
-    expect(f.socks[0]!.destroyed).toBe(false);
+    const conn = c['conn'] as unknown as { idle: unknown };
+    expect(conn.idle).toBeUndefined(); // armed when the connection was made, cleared by the job
     f.answer(f.socks[0]!, { id: 0, text: 'late', lang: 'en' });
     expect(await p).toEqual({ text: 'late', lang: 'en' });
+    expect(conn.idle).toBeDefined();
+    await until(() => !c.connected());
   });
 
-  it('stays open while another job waits after one was answered', async () => {
+  it('has no idle clock running while another job waits after one was answered', async () => {
     const f = await FakeHost.start();
     const c = make({ idleMs: 20 });
     const a = c.transcribe(pcm(1), 'en', false);
@@ -353,10 +385,50 @@ describe('the connection', () => {
     await f.next('job', 1);
     f.answer(f.socks[0]!, { id: 0, text: 'a', lang: 'en' });
     expect(await a).toEqual({ text: 'a', lang: 'en' });
-    await sleep(150); // many idle periods, with the second job still out
-    expect(c.connected()).toBe(true);
+    expect((c['conn'] as unknown as { idle: unknown }).idle).toBeUndefined(); // the second is still out
     f.answer(f.socks[0]!, { id: 1, text: 'b', lang: 'en' });
     expect(await b).toEqual({ text: 'b', lang: 'en' });
+    await until(() => !c.connected());
+  });
+
+  it('a connection that is closing is not given to the next job, which keeps its retry', async () => {
+    const f = await FakeHost.start();
+    let drop = false;
+    f.on = (s, sock) => { if (drop) { drop = false; sock.destroy(); } else f.answer(sock, { id: s.header.id, text: 'answered', lang: 'en' }); };
+    const c = make();
+    await c.transcribe(pcm(1), 'en', false); // the window's connection is open
+    // the idle clock fires: the connection is closing, its socket not yet seen closed
+    (c['conn'] as unknown as { close(): void }).close();
+    // the next job opens a connection of its own; the host drops that job once, and its retry is still there
+    drop = true;
+    expect(await c.transcribe(pcm(1), 'en', false)).toEqual({ text: 'answered', lang: 'en' });
+  });
+
+  it('a host that never answers is dropped after the deadline (a death), and the job goes once more', async () => {
+    const f = await FakeHost.start();
+    let n = 0;
+    f.on = (s, sock) => { if (++n > 1) f.answer(sock, { id: s.header.id, text: 'second host', lang: 'en' }); }; // the first job is never answered
+    const c = make({ deadlineMs: () => 30 });
+    expect(await c.transcribe(pcm(1), 'en', false)).toEqual({ text: 'second host', lang: 'en' });
+    expect(f.socks[0]!.destroyed).toBe(true);
+    expect(f.socks).toHaveLength(2);
+  });
+
+  it('a host that never answers twice is a lost host, and each silence counts: three send the window to its own model', async () => {
+    const f = await FakeHost.start();
+    const c = make({ deadlineMs: () => 20 });
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(HostLost); // deaths 1 and 2
+    expect(reports).toEqual([]);
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(HostLost); // death 3: fallback
+    expect(told()).toHaveLength(1);
+    expect(told()[0]).toMatch(/did not answer in time/);
+    expect(f.of('job')).toHaveLength(3);
+    expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+  });
+
+  it('the window waits as long as the host itself would: a model load, a model call, and a margin', () => {
+    expect(clientDeadlineMs(16_000)).toBe(LOAD_DEADLINE_MS + jobDeadlineMs(16_000) + JOB_MARGIN_MS);
+    expect(clientDeadlineMs(16_000 * 60)).toBeGreaterThan(jobDeadlineMs(16_000 * 60) + LOAD_DEADLINE_MS);
   });
 
   it('closes after a minute by default', () => {
@@ -408,11 +480,24 @@ export const pipeline = async () => async (audio, opts) => {
   return { text: [audio.length, opts.language, process.pid].join('|') };
 };`);
 }
+/** A host script that dies at once, saying which process it was: a start that fails (the host.log of each start tells them apart). */
+function badEntry(): string {
+  const file = path.join(home, 'bad-entry.mjs');
+  fs.writeFileSync(file, "console.error(`the cause ${process.pid}`); process.exit(1);\n");
+  return file;
+}
+/** A host script that runs but never serves: a start that does not come up. */
+function sleepyEntry(): string {
+  const file = path.join(home, 'sleepy-entry.mjs');
+  fs.writeFileSync(file, 'setInterval(() => {}, 1000);\n');
+  return file;
+}
 const callCount = (): number => { try { return fs.readFileSync(calls(), 'utf8').length; } catch { return 0; } };
 
 /** A socket file nobody listens on: its owner was killed without cleaning up. */
 async function staleSocket(file: string): Promise<void> {
   const child = spawn(process.execPath, ['-e', 'require("net").createServer().listen(process.argv[1], () => console.log("up"))', file], { stdio: ['ignore', 'pipe', 'inherit'] });
+  strays.push(child);
   await new Promise<void>((resolve) => child.stdout.once('data', () => resolve()));
   const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
   child.kill('SIGKILL');
@@ -452,9 +537,10 @@ describe('starting the host', { timeout: 30_000 }, () => {
   });
 
   it('the host gets only what it needs of the environment', async () => {
-    vi.stubEnv('NB_TEST_SECRET', 'nope');
+    process.env.NB_TEST_SECRET = 'nope';
     const c = make();
-    const got = await c.transcribe(pcm(1), 'en', false);
+    let got;
+    try { got = await c.transcribe(pcm(1), 'en', false); } finally { delete process.env.NB_TEST_SECRET; }
     const keys: string[] = JSON.parse(fs.readFileSync(envFile(), 'utf8'));
     expect(keys).toContain('NOTA_BENE_HOME');
     expect(keys).toContain('PATH');
@@ -530,6 +616,117 @@ describe('starting the host', { timeout: 30_000 }, () => {
   });
 });
 
+describe('the spawn lock', { timeout: 30_000 }, () => {
+  beforeEach(() => fakeInstall());
+  const lockFile = (): string => path.join(hostDir(), 'spawn.lock');
+  /** A lock held by this very process (alive, as a reused pid would be), written `ageMs` ago. */
+  const lock = (ageMs: number): void => {
+    privateDir(hostDir());
+    fs.writeFileSync(lockFile(), JSON.stringify({ version: 'x', pid: process.pid }));
+    const at = new Date(Date.now() - ageMs);
+    fs.utimesSync(lockFile(), at, at);
+  };
+
+  it('a lock of a live pid that is older than twice the start-up wait is nobody\'s: it is taken over', async () => {
+    lock(60_000);
+    const c = make({ spawnWaitMs: 500 });
+    expect(text(await c.transcribe(pcm(1), 'en', false))[0]).toBe('1');
+    expect(c.spawned).toBe(1);
+    expect(fs.existsSync(lockFile())).toBe(false);
+  });
+
+  it('a lock of a live pid that is not old is a window starting the host: this one waits, and fails when it does not come up', async () => {
+    lock(0);
+    const c = make({ spawnWaitMs: 300 });
+    expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+    expect(c.spawned).toBe(0);
+    expect(fs.existsSync(lockFile())).toBe(true); // not ours: left as it was
+  });
+});
+
+describe('closing the client', { timeout: 30_000 }, () => {
+  it('ends a connect that is still under way: nothing is sent, nothing is kept', async () => {
+    const f = await FakeHost.start();
+    let open!: () => void;
+    f.gate = new Promise<void>((resolve) => { open = resolve; }); // the host accepts, but does not say hello yet
+    const c = make();
+    const p = c.transcribe(pcm(1), 'en', false);
+    p.catch(() => {});
+    await until(() => f.socks.length === 1);
+    c.close();
+    open();
+    await expect(p).rejects.toThrow('closed');
+    await until(() => f.socks[0]!.destroyed);
+    expect(c.connected()).toBe(false);
+    expect(f.of('job')).toEqual([]);
+    expect(reports).toEqual([]);
+  });
+
+  it('ends the wait for a host that is starting (the host itself goes on)', async () => {
+    fakeInstall();
+    const c = make({ entry: sleepyEntry() });
+    const p = c.transcribe(pcm(1), 'en', false);
+    p.catch(() => {});
+    await until(() => c.children.size === 1);
+    c.close();
+    await expect(p).rejects.toThrow('closed');
+    expect(reports).toEqual([]); // a window closing is no failed start
+    expect(c.spawned).toBe(1);
+  });
+
+  it('a retry that is under way does not go on', async () => {
+    const f = await FakeHost.start();
+    f.on = (_s, sock) => sock.destroy(); // drops every job
+    const c = make();
+    const closing = new Promise<void>((resolve) => {
+      const was = f.on;
+      f.on = (s, sock) => { was(s, sock); if (f.of('job').length === 1) { c.close(); resolve(); } }; // the window closes as the first job drops
+    });
+    const p = c.transcribe(pcm(1), 'en', false);
+    p.catch(() => {});
+    await closing;
+    await expect(p).rejects.toThrow(/closed/);
+    expect(f.of('job')).toHaveLength(1); // never sent a second time
+  });
+
+  it('a call whose host dropped it does not go on to the retry when the window closed in between', async () => {
+    const f = await FakeHost.start();
+    f.on = (_s, sock) => sock.destroy();
+    const c = make({ now: () => 1_000_000 });
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(HostLost); // two deaths
+    c.reportTo(() => c.close()); // the third is told to the window as the connection closes, and the window closes then
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toThrow('closed'); // not a lost host (the fallback it brought), not a retry
+    expect(f.of('job')).toHaveLength(3);
+  });
+
+  it('works again for calls made afterwards', async () => {
+    const f = await FakeHost.start();
+    f.on = (s, sock) => f.answer(sock, { id: s.header.id, text: 'again', lang: 'en' });
+    const c = make();
+    await c.transcribe(pcm(1), 'en', false);
+    c.close();
+    expect(await c.transcribe(pcm(1), 'en', false)).toEqual({ text: 'again', lang: 'en' });
+  });
+});
+
+describe('a host that cannot be had for a job that lost one', () => {
+  it('is a lost host, not a job run in this process: the retry finds no host and cannot start one', async () => {
+    const f = await FakeHost.start();
+    f.on = (_s, sock) => { sock.destroy(); void f.stop(); }; // the host goes, socket and all
+    const c = make({ entry: badEntry() });
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(HostLost);
+    expect(c.spawned).toBe(1); // it tried
+  });
+
+  it('the same without a start to try (no host script): lost, not run here', async () => {
+    const f = await FakeHost.start();
+    f.on = (_s, sock) => { sock.destroy(); void f.stop(); };
+    const c = make({ entry: path.join(home, 'no-such-host.js') });
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(HostLost);
+    expect(c.spawned).toBe(0);
+  });
+});
+
 describe('a host that dies', { timeout: 30_000 }, () => {
   it('killed while it has the job: the job is sent once more, to a fresh host, and succeeds', async () => {
     fakeInstall({ blockFirst: true });
@@ -548,7 +745,7 @@ describe('a host that dies', { timeout: 30_000 }, () => {
   it('a model that fails the job is a failed job, not a dead host: no second host, no retry', async () => {
     fakeInstall({ fail: true });
     const c = make();
-    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toThrow('could not transcribe');
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toThrow('could not transcribe it: the model failed'); // the model's own words
     expect(callCount()).toBe(1);
     expect(c.spawned).toBe(1);
     await expect(c.transcribe(pcm(1), 'en', false)).rejects.toThrow('could not transcribe');
@@ -589,7 +786,7 @@ describe('a host that dies', { timeout: 30_000 }, () => {
 describe('a machine where the host cannot be started', { timeout: 60_000 }, () => {
   it('failed starts count: three within a minute send the window to its own model, told once', async () => {
     let t = 5_000_000;
-    const c = make({ entry: path.join(home, 'no-such-entry.ts'), now: () => t });
+    const c = make({ entry: badEntry(), now: () => t });
     for (let i = 0; i < BACKOFF_FAILURES; i++) expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
     expect(c.spawned).toBe(BACKOFF_FAILURES);
     expect(told()).toHaveLength(1);
@@ -603,13 +800,13 @@ describe('a machine where the host cannot be started', { timeout: 60_000 }, () =
   });
 
   it('a start that fails once is no more than a job run here', async () => {
-    const c = make({ entry: path.join(home, 'no-such-entry.ts') });
+    const c = make({ entry: badEntry() });
     expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
     expect(reports).toEqual([]);
   });
 
   it('windows that fail to start together count one failure, not one each', async () => {
-    const c = make({ entry: path.join(home, 'no-such-entry.ts') });
+    const c = make({ entry: badEntry() });
     const got = await Promise.all([1, 2, 3, 4].map((n) => c.transcribe(pcm(n), 'en', false)));
     expect(got).toEqual([null, null, null, null]);
     expect(c.spawned).toBe(1);
@@ -638,6 +835,81 @@ describe('a machine where the host cannot be started', { timeout: 60_000 }, () =
     expect(told()).toHaveLength(1);
     expect(told()[0]).toMatch(/belongs to another user/);
     expect(c.spawned).toBe(0);
+  });
+});
+
+describe('hosts that are not to be had', { timeout: 60_000 }, () => {
+  it('an install with no host script has no host to start: in process, silently, and nothing is counted', async () => {
+    const c = make({ entry: path.join(home, 'no-such-host.js') });
+    for (let i = 0; i < BACKOFF_FAILURES + 2; i++) expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+    expect(c.spawned).toBe(0);
+    expect(reports).toEqual([]);
+    // no fallback episode either: a host that is there is used at once
+    const f = await FakeHost.start();
+    f.on = (s, sock) => f.answer(sock, { id: s.header.id, text: 'there', lang: 'en' });
+    expect(await c.transcribe(pcm(1), 'en', false)).toEqual({ text: 'there', lang: 'en' });
+  });
+
+  it('on a platform without unix sockets (win32) the window uses its own model, silently, and makes nothing', async () => {
+    const was = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    try {
+      const c = make();
+      expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+      expect(await c.status()).toBeNull();
+      expect(await c.shutdown()).toBeNull();
+      expect(c.spawned).toBe(0);
+      expect(reports).toEqual([]);
+      expect(fs.existsSync(hostDir())).toBe(false);
+    } finally {
+      Object.defineProperty(process, 'platform', was);
+    }
+  });
+
+  it('a host that has all the windows it takes is no failed host: the job runs here, nothing is counted or told', async () => {
+    const f = await FakeHost.start();
+    const open = f.hello;
+    f.hello = { type: 'full' };
+    const c = make();
+    for (let i = 0; i < BACKOFF_FAILURES + 2; i++) expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+    expect(reports).toEqual([]);
+    expect(c.spawned).toBe(0);
+    f.hello = open; // a window left: there is room, and the host is used
+    f.on = (s, sock) => f.answer(sock, { id: s.header.id, text: 'room', lang: 'en' });
+    expect(await c.transcribe(pcm(1), 'en', false)).toEqual({ text: 'room', lang: 'en' });
+  });
+
+  it('a host that does not come up in time is a failed start, and the process that did not is ended', async () => {
+    const c = make({ entry: sleepyEntry(), spawnWaitMs: 300 });
+    const p = c.transcribe(pcm(1), 'en', false);
+    await until(() => c.children.size === 1);
+    const child = [...c.children][0]!;
+    expect(await p).toBeNull();
+    await until(() => child.signalCode !== null || child.exitCode !== null);
+    expect(child.signalCode).toBe('SIGTERM');
+    expect(c.spawned).toBe(1);
+    expect(fs.existsSync(path.join(hostDir(), 'spawn.lock'))).toBe(false);
+  });
+
+  it('each start keeps the log of the one before, so that the cause of a failed start survives the next', async () => {
+    const c = make({ entry: badEntry() });
+    expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+    const log = path.join(hostDir(), 'host.log');
+    const first = fs.readFileSync(log, 'utf8');
+    expect(first).toMatch(/the cause \d+/);
+    expect(await c.transcribe(pcm(1), 'en', false)).toBeNull();
+    expect(fs.readFileSync(`${log}.1`, 'utf8')).toBe(first);
+    expect(fs.readFileSync(log, 'utf8')).toMatch(/the cause \d+/);
+    expect(fs.readFileSync(log, 'utf8')).not.toBe(first); // another process, another pid
+    expect(fs.statSync(`${log}.1`).mode & 0o777).toBe(0o600);
+  });
+});
+
+describe('the home', () => {
+  it('is this file\'s own for the default client too: nothing here can reach the real one', () => {
+    sandboxed();
+    expect(hostSocketPath().startsWith(home)).toBe(true);
+    expect(hostDir().startsWith('/tmp/nbw-')).toBe(true);
   });
 });
 
@@ -724,6 +996,15 @@ describe('transcribe(), the way the routes call it', { timeout: 30_000 }, () => 
       resetTranscriber();
       fs.rmSync(long, { recursive: true, force: true });
     }
+  });
+
+  it('a model this window loaded for itself (a failed start) is disposed once the host answers again', async () => {
+    fakeInstall();
+    let disposed = 0;
+    await transcribe(pcm(1), 'en', { load: async () => Object.assign(async () => ({ text: 'mine' }), { dispose: async () => { disposed++; } }) });
+    expect(disposed).toBe(0);
+    expect(text(await transcribe(pcm(6), 'ru'))[0]).toBe('6'); // the host
+    await until(() => disposed === 1);
   });
 
   it('a test\'s own loader never goes near the host', async () => {

@@ -16,6 +16,7 @@ export default defineConfig({
           name: 'node',
           env,
           environment: 'node',
+          setupFiles: ['./vitest.node-setup.ts'],
           include: ['shared/**/*.test.ts', 'server/**/*.test.ts', 'scripts/**/*.test.ts'],
           exclude: ['scripts/nb-open.test.ts', '**/node_modules/**'], // the /nb tests spawn servers on shared ports: the launcher project
         },

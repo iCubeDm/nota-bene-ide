@@ -12,7 +12,9 @@ import { whisperDir } from './install.ts';
 import { defaultFactory, openPipeline, type Pipe, type WorkerFactory } from './pipelineHost.ts';
 import { speak } from './speak.ts';
 import { WHISPER_RATE } from './whisper.ts';
-import { FrameDecoder, encodeFrame, hostSocketPath, HOST_PINS, HOST_PROTO, parseRequest, pcmFromInt16, privateDir, WireError, type Frame, type HostReply, type HostRequest, type JobError, type JobOpts } from './hostWire.ts';
+import { FrameDecoder, encodeFrame, hostSocketPath, HOST_PINS, HOST_PROTO, jobDeadlineMs, LOAD_DEADLINE_MS, parseRequest, pcmFromInt16, privateDir, WireError, type Frame, type HostReply, type HostRequest, type JobError, type JobOpts } from './hostWire.ts';
+
+export { JOB_DEADLINE_FACTOR, JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS } from './hostWire.ts';
 
 /** The host exits, and the model with it, after this long with nothing queued or running. */
 export const WHISPER_IDLE_MS = 10 * 60_000;
@@ -22,22 +24,16 @@ export const MAX_QUEUED_PER_CLIENT = 16;
 export const MAX_QUEUED_TOTAL = 64;
 /** PCM waiting across all windows (the running job's not counted): a job that would exceed it is answered `busy`. */
 export const MAX_QUEUED_BYTES = 64 * 1024 * 1024;
-/** Connected windows; one more is closed at once. Each may be buffering a partial frame of up to MAX_FRAME. */
+/** The most of a model's error message that a `failed` answer carries to the window. */
+export const MAX_FAILURE_MESSAGE = 200;
+/** Connected windows; one more is told `full` and closed. Each may be buffering a partial frame of up to MAX_FRAME. */
 export const MAX_CLIENTS = 32;
 /** A window that does not read its answers is dropped once this much is waiting to be written to it. */
 export const MAX_PENDING_WRITE = 1024 * 1024;
-/** A model call gets the larger of this and JOB_DEADLINE_FACTOR times the audio's length. */
-export const JOB_DEADLINE_MIN_MS = 2 * 60_000;
-export const JOB_DEADLINE_FACTOR = 10;
-/** The model load gets this long while jobs wait for it (the model is on disk by then: this only unwedges a hung load). */
-export const LOAD_DEADLINE_MS = 5 * 60_000;
 /** After a stop, a connection that has not taken its last answers is destroyed after this long. */
 export const SOCKET_GRACE_MS = 1000;
 /** After a stop, the model thread gets this long (on top of the dispose grace) to exit before the host reports itself wedged. */
 export const THREAD_GRACE_MS = 1000;
-
-/** How long a model call on `samples` of audio may take. */
-export const jobDeadlineMs = (samples: number): number => Math.max(JOB_DEADLINE_MIN_MS, JOB_DEADLINE_FACTOR * samples * 1000 / WHISPER_RATE);
 
 export type HostOptions = {
   socketPath: string;
@@ -155,7 +151,7 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
     }
   };
   /** Answers a job once; the window may reuse its id afterwards. A transcript too long for a frame header is a failure, not a crash. */
-  const answer = (job: Job, r: { text: string; lang: string } | { error: JobError }): void => {
+  const answer = (job: Job, r: { text: string; lang: string } | { error: JobError; message?: string }): void => {
     job.client.ids.delete(job.id);
     try {
       send(job.client, { id: job.id, ...r });
@@ -202,17 +198,19 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
     // a model call that never returns would hold the queue, the idle clock and every window behind it
     const deadline = setTimeout(() => expire(job), jobDeadlineMs(job.body.length >> 1));
     let spoken: { text: string; lang: string } | undefined;
+    let why: string | undefined;
     try {
       spoken = await speak(p, pcmFromInt16(job.body), job.opts.lang, job.opts.detect);
     } catch (e) {
-      log(`a job failed: ${message(e)}`);
+      why = message(e);
+      log(`a job failed: ${why}`);
     }
     clearTimeout(deadline);
     running = undefined;
     if (ending) return; // stop() answered everything
     if (spoken) deaths = 0;
     // a cancelled job (or one whose window left) was answered, or has no one to answer: its result is dropped
-    if (!job.cancelled) answer(job, spoken ?? { error: 'failed' });
+    if (!job.cancelled) answer(job, spoken ?? { error: 'failed', message: why?.slice(0, MAX_FAILURE_MESSAGE) });
     pump();
   }
 
@@ -322,7 +320,14 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
   }
 
   const server = net.createServer((sock) => {
-    if (ending || clients.length >= MAX_CLIENTS) return void sock.destroy();
+    if (ending) return void sock.destroy();
+    if (clients.length >= MAX_CLIENTS) { // not a host that failed: the window must be able to tell, and use its own model without counting it
+      sock.on('error', () => {});
+      const bye = setTimeout(() => sock.destroy(), SOCKET_GRACE_MS);
+      bye.unref();
+      sock.once('close', () => clearTimeout(bye));
+      return void sock.end(encodeFrame({ type: 'full' }));
+    }
     const c: Client = { sock, queue: [], ids: new Set(), closing: false };
     // before the window served last, so that one's next job does not go first again
     const at = lastServed ? clients.indexOf(lastServed) : -1;

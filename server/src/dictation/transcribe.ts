@@ -43,7 +43,10 @@ export async function transcribe(pcm: Float32Array, lang: string, o: { load?: ()
   o.signal?.throwIfAborted();
   if (!o.load) {
     const got = await hostClient.transcribe(pcm, lang, o.detect === true, o.signal);
-    if (got) return got;
+    if (got) {
+      resetTranscriber(); // the host has the model again: one this window loaded while it had none (a failed start) is memory for nothing
+      return got;
+    }
   }
   return transcribeLocal(pcm, lang, o);
 }
