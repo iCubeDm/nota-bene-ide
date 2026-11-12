@@ -12,7 +12,7 @@ import net from 'node:net';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { EventHub } from '../hub.ts';
 import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, ClientClosed, clientDeadlineMs, FALLBACK_MS, HELLO_WAIT_MS, HostClient, hostClient, hostEntryFile, HostLost, IDLE_CLOSE_MS, JOB_MARGIN_MS, LOCK_MARGIN_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostDir, hostSocketPath, jobDeadlineMs, LOAD_DEADLINE_MS, pcmFromInt16, privateDir, type Header } from './hostWire.ts';
@@ -83,6 +83,7 @@ afterEach(async () => {
   for (const s of servers) await new Promise<void>((r) => s.close(() => r()));
   // only then the folder; the env goes back to this file's own folder, never to unset (that is the real home)
   vi.stubEnv('NOTA_BENE_HOME', sandbox);
+  vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '60000'); // a test that shortened the idle time (one that timed out too) leaves no short one behind
   fs.rmSync(home, { recursive: true, force: true });
   vi.restoreAllMocks();
   sandboxed();
@@ -618,11 +619,9 @@ describe('status()', () => {
     expect(c.connected()).toBe(true);
     const asked: Promise<unknown>[] = [];
     const poll = setInterval(() => asked.push(c.status()), 30);
-    try {
-      await until(() => !c.connected(), 3000); // asked on the window's own connection, it would have no idle close at all
-    } finally {
-      clearInterval(poll);
-    }
+    onTestFinished(() => clearInterval(poll)); // also when the test times out: no question goes on after it
+    await until(() => !c.connected(), 3000); // asked on the window's own connection, it would have no idle close at all
+    clearInterval(poll);
     expect((await Promise.all(asked)).every((h) => (h as { loaded: boolean }).loaded)).toBe(true);
     expect(f.socks.length).toBeGreaterThan(2);
     expect(reports).toEqual([]);
@@ -997,28 +996,26 @@ describe('a host that cannot be had for a job that lost one', () => {
 describe('a host that idles out', { timeout: 30_000 }, () => {
   it('while this window asks it for its state all the time: its idle exit is no death, for the window\'s own connection closed long before', async () => {
     fakeInstall();
-    vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '1200');
-    try {
-      const c = make({ idleMs: 150 });
-      const pid = Number(text(await c.transcribe(pcm(2), 'en', false))[2]);
-      expect(c.connected()).toBe(true);
-      const asked: Promise<unknown>[] = [];
-      const poll = setInterval(() => asked.push(c.status()), 40);
-      try {
-        await until(() => !c.connected(), 3000); // the idle close came on time
-        expect(alive(pid)).toBe(true);
-        await until(() => !alive(pid), 15_000); // and the questions did not keep the host up: its idle clock counts jobs
-      } finally {
-        clearInterval(poll);
-      }
-      await Promise.all(asked);
-      expect(c.recentFailures()).toBe(0);
-      expect(reports).toEqual([]);
-      expect(await c.status()).toBeNull();
-      expect(Number(text(await c.transcribe(pcm(1), 'en', false))[2])).not.toBe(pid); // the next job starts another
-    } finally {
-      vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '60000');
-    }
+    vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '1200'); // put back to 60000 by the file's afterEach
+    const c = make({ idleMs: 150 });
+    const pid = Number(text(await c.transcribe(pcm(2), 'en', false))[2]);
+    expect(c.connected()).toBe(true);
+    const asked: Promise<unknown>[] = [];
+    const poll = setInterval(() => asked.push(c.status()), 40);
+    onTestFinished(() => clearInterval(poll));
+    await until(() => !c.connected(), 3000); // the idle close came on time
+    expect(alive(pid)).toBe(true);
+    await until(() => !alive(pid), 15_000); // and the questions did not keep the host up: its idle clock counts jobs
+    clearInterval(poll);
+    await Promise.all(asked);
+    expect(c.recentFailures()).toBe(0);
+    expect(reports).toEqual([]);
+    expect(await c.status()).toBeNull();
+    expect(Number(text(await c.transcribe(pcm(1), 'en', false))[2])).not.toBe(pid); // the next job starts another
+  });
+
+  it('the short idle time of the test before is not left in the environment (the file\'s own is back, hosts started now idle out in a minute)', () => {
+    expect(process.env.NOTA_BENE_TEST_WHISPER_IDLE_MS).toBe('60000');
   });
 });
 
