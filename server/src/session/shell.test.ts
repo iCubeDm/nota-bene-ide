@@ -338,7 +338,8 @@ describe('a command that prints without end', () => {
     expect(r.take('x').length).toBeLessThan(70 * 1024);
   });
 
-  it('a reader slower than the flood still leaves the event loop its timers', async () => {
+  // onData yields only on Windows; elsewhere libuv already hands the loop back between reads
+  it.runIf(process.platform === 'win32')('a reader slower than the flood still leaves the event loop its timers', async () => {
     // a slow machine (a CI runner): each chunk costs more than the command takes to print the next. On Windows libuv kept
     // reading the full pipe and no timer ran until the flood ended
     const child = spawn(process.execPath, ['-e', 'const b = Buffer.alloc(1 << 16, 121); for (;;) process.stdout.write(b)'], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
