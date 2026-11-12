@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.9.0 — 2026-11-13
+
 - **Windows support, native (no WSL or Docker).** `nota-bene`, `npx nota-bene-ide`, the Claude Code plugin's `/nb`, the Codex plugin and the omp skill run on Windows. It needs Node.js 22 or newer; Git for Windows is recommended (without its Git Bash, Claude Code runs shell commands in PowerShell and the first message says so). See [Windows](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#windows) in the guide. 3D models are not supported on Windows yet.
 - **`!` commands on Windows** run in the shell of Settings → Defaults → **Shell for ! commands**: Auto (Git Bash, else PowerShell 7, else Windows PowerShell 5.1), Git Bash, PowerShell 7, Windows PowerShell or cmd. A chosen shell that is not installed refuses the run and says so; the first line of the output names the shell. Stop and the 10-minute limit end the command at once, background jobs of a Git Bash command included, and console output in the OEM code page is decoded. macOS and Linux keep `$SHELL -lc`. The Stop tooltip no longer names TERM and KILL.
 - **The state folder on Windows.** The token and the other private files are kept private by the user profile's access rights, so they are not checked for mode or owner there; a symbolic link or a junction in their place is still refused. A state folder outside `%USERPROFILE%` is refused, since other users of the computer can read it by default; `NOTA_BENE_ALLOW_SHARED_HOME=1` allows one whose access rights you restricted by hand. On file systems without hard links (FAT, exFAT, some network shares) the token is created without one, on every OS. State and project files are replaced with a short retry when antivirus or the indexer holds them.
