@@ -1,9 +1,8 @@
 // Speech to text on the host: one cached Whisper pipeline (the installer's loader, in a worker thread), one language per call.
-import { resolveLang } from './detect.ts';
 import { loadPipeline, type Pipe } from './install.ts';
+import { speak, type Spoken } from './speak.ts';
 
-/** A transcript and the language it was made in. */
-export type Spoken = { text: string; lang: string };
+export type { Spoken };
 
 /** The transcriber the routes use, in the shape their injectable fakes have. */
 export const transcribeWith = (pcm: Float32Array, lang: string, detect?: boolean): Promise<Spoken> => transcribe(pcm, lang, { detect });
@@ -45,12 +44,4 @@ export async function transcribe(pcm: Float32Array, lang: string, o: { load?: ()
     if (pipe.dead && attempt === 0) { if (cached === p) cached = undefined; continue; }
     return speak(pipe, pcm, lang, o.detect);
   }
-}
-
-/** One transcription on a loaded pipeline: this process's (`transcribe`) and the Whisper host's (hostMain.ts), so both run it the same way. */
-export async function speak(pipe: Pipe, pcm: Float32Array, lang: string, detect?: boolean): Promise<Spoken> {
-  // transformers.js slices the input to 30 s unless it chunks: 30 s windows with a 5 s stride, joined by the pipeline
-  const language = detect ? await resolveLang(pipe, pcm, lang) : lang;
-  const out = await pipe(pcm, { language, task: 'transcribe', chunk_length_s: 30, stride_length_s: 5 });
-  return { text: (out.text ?? '').trim(), lang: language };
 }

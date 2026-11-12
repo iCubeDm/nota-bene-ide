@@ -8,12 +8,11 @@ import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { SecretError } from '../state.ts';
 import { whisperDir } from './install.ts';
 import { defaultFactory, openPipeline, type Pipe, type WorkerFactory } from './pipelineHost.ts';
-import { speak } from './transcribe.ts';
+import { speak } from './speak.ts';
 import { WHISPER_RATE } from './whisper.ts';
-import { FrameDecoder, encodeFrame, hostSocketPath, HOST_PINS, HOST_PROTO, parseRequest, pcmFromInt16, WireError, type Frame, type HostReply, type HostRequest, type JobError, type JobOpts } from './hostWire.ts';
+import { FrameDecoder, encodeFrame, hostSocketPath, HOST_PINS, HOST_PROTO, parseRequest, pcmFromInt16, privateDir, WireError, type Frame, type HostReply, type HostRequest, type JobError, type JobOpts } from './hostWire.ts';
 
 /** The host exits, and the model with it, after this long with nothing queued or running. */
 export const WHISPER_IDLE_MS = 10 * 60_000;
@@ -74,13 +73,6 @@ const answering = (socketPath: string): Promise<boolean> => new Promise((resolve
   s.once('connect', () => { s.destroy(); resolve(true); });
   s.once('error', () => resolve(false));
 });
-
-/** The folder is ours and private: created 700, an existing one tightened (every window talks to the socket in it). */
-function privateDir(dir: string): void {
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  if (process.getuid && fs.statSync(dir).uid !== process.getuid()) throw new SecretError(`the Whisper host folder ${dir} belongs to another user; refusing to use it`);
-  try { fs.chmodSync(dir, 0o700); } catch { /* not ours to tighten */ }
-}
 
 /**
  * Makes `server` listen on `socketPath`, or returns null when a live host answers there. It binds under a name of its own and

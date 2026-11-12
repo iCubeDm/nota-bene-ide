@@ -2,8 +2,9 @@
 // A frame is [u32 headerLen][JSON header][u32 bodyLen][body], lengths big-endian. The body is raw 16-bit little-endian PCM
 // (16 kHz mono, as wav.ts takes it) in a job and empty otherwise. Bad framing is a WireError and ends the connection.
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
-import { stateBaseDir } from '../state.ts';
+import { SecretError, stateBaseDir } from '../state.ts';
 import { MAX_AUDIO, WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
 
 /** Bumped when the messages change incompatibly: it is part of the socket name, so hosts of different protocols never meet. */
@@ -24,6 +25,13 @@ export function hostSocketPath(): string {
   // sun_path holds 104 bytes on macOS, 108 on Linux (with the terminator)
   if (Buffer.byteLength(p) > 103) throw new Error(`the Whisper host socket path is too long for the system (${p}); use a shorter NOTA_BENE_HOME`);
   return p;
+}
+
+/** The folder is ours and private: created 700, an existing one tightened (every window talks to the socket in it). */
+export function privateDir(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (process.getuid && fs.statSync(dir).uid !== process.getuid()) throw new SecretError(`the Whisper host folder ${dir} belongs to another user; refusing to use it`);
+  try { fs.chmodSync(dir, 0o700); } catch { /* not ours to tighten */ }
 }
 
 export type Header = Record<string, unknown>;
