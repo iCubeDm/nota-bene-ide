@@ -485,6 +485,7 @@ export const ru = {
   modelSearch: 'Поиск модели',
   modelNone: 'Ничего не найдено',
   modelUnknown: 'По умолчанию',
+  model1m: '1M',
   effortLabel: 'Усилие',
   effort_low: 'Низкое',
   effort_medium: 'Среднее',

@@ -487,6 +487,8 @@ export const en: Dict = {
   modelSearch: 'Search models',
   modelNone: 'No model matches',
   modelUnknown: 'Default',
+  // the 1M-token context variant's tag in the model pill; "1M" is how every language writes it
+  model1m: '1M',
   effortLabel: 'Effort',
   effort_low: 'Low',
   effort_medium: 'Medium',

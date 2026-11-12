@@ -46,10 +46,11 @@ it('renders nothing until a model or a list is known', () => {
   expect(screen.queryByRole('button', { name: /Model and effort/ })).toBeNull();
 });
 
-it('shows the current model by its list name (the CLI reports the resolved id) and the effort', () => {
+it('shows the current model by its list name (the CLI reports the resolved id); the effort is in the accessible name', () => {
   const { ready } = setup();
   ready();
-  expect(pill()).toHaveTextContent('Sonnet 5 · Medium');
+  expect(pill()).toHaveTextContent(/^Sonnet 5$/); // the effort is a mini bar, not text
+  expect(pill()).toHaveAccessibleName(/^Sonnet 5 · Medium · Model and effort/);
 });
 
 it('without a list (an older server) it shows the reported name and is disabled', () => {
@@ -99,7 +100,7 @@ it('two rows resolving to one id (default and opus): only the alias in use is cu
   const { sent, emit } = setup();
   const twin: ModelOption[] = [{ value: 'default', name: 'Default', description: 'd', resolved: 'claude-opus-5' }, { value: 'opus', name: 'Opus 5', description: 'o', resolved: 'claude-opus-5' }];
   emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: twin }, { kind: 'model', model: 'claude-opus-5' });
-  expect(pill()).toHaveTextContent(/^Default$/); // the CLI's default: the first row with that id
+  expect(pill()).toHaveTextContent(/^Opus 5$/); // the CLI's default: the first row with that id, named by its sibling
   const menu = await open();
   await userEvent.click(within(menu).getByText('Opus 5'));
   expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'opus' });
@@ -154,7 +155,8 @@ it('the pill before the CLI reported a model: the pref\'s model, else "Default" 
   emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: MODELS }, { kind: 'model', model: null });
   expect(pill()).toHaveTextContent(/^Default$/);
   emit({ kind: 'model', model: 'opus', effort: 'max' });
-  expect(pill()).toHaveTextContent('Opus 5 · Max');
+  expect(pill()).toHaveTextContent(/^Opus 5$/);
+  expect(pill()).toHaveAccessibleName(/^Opus 5 · Max · /);
   act(() => setLang('ru'));
   emit({ kind: 'model', model: null });
   expect(screen.getByRole('button', { name: /Модель и усилие/ })).toHaveTextContent(/^По умолчанию$/);
@@ -273,7 +275,8 @@ const suffixed = (model: string, models = SUFFIXED) => {
 
 it('a session id with a [1m] suffix finds its row: the name, the check and the effort row', async () => {
   suffixed('claude-opus-5-5[1m]');
-  expect(pill()).toHaveTextContent('Opus 5.5 · High');
+  expect(pill()).toHaveTextContent(/^Opus 5\.5\s*1M$/);
+  expect(pill()).toHaveAccessibleName(/^Opus 5\.5 1M · High · /);
   const menu = await open();
   const rows = within(menu).getAllByRole('menuitem').filter((e) => !e.closest('[role="group"]'));
   expect(rows[1]).toHaveAttribute('aria-current', 'true');
@@ -290,7 +293,8 @@ it('an effort click on a suffixed session model keeps its exact id (no switch to
 
 it('with no matching row the default row\'s effort levels stay selectable, sent for the session id', async () => {
   const { sent } = suffixed('claude-mystery-9[1m]');
-  expect(pill()).toHaveTextContent('claude-mystery-9[1m] · High');
+  expect(pill()).toHaveTextContent(/^claude-mystery-9\s*1M$/); // the id without its suffix, and the tag
+  expect(pill()).toHaveAccessibleName(/^claude-mystery-9 1M · High · /);
   const menu = await open();
   expect(stopsOf(menu)).toHaveLength(3); // Auto + Low, Medium
   await userEvent.click(stopsOf(menu)[1]!); // Low
@@ -299,7 +303,8 @@ it('with no matching row the default row\'s effort levels stay selectable, sent 
 
 it('an unsuffixed session on Default: an effort click sends the row value, default', async () => {
   const { sent } = suffixed('claude-sonnet-5');
-  expect(pill()).toHaveTextContent('Default · High');
+  expect(pill()).toHaveTextContent(/^Default$/); // no row shares its model: the default row's name, its parenthetical dropped
+  expect(pill()).toHaveAccessibleName(/^Default · High · /);
   const menu = await open();
   await userEvent.click(stopsOf(menu)[1]!); // Low
   expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'default', effort: 'low' });
@@ -420,4 +425,88 @@ it('the slider and its group have different accessible names', async () => {
   const menu = await open();
   expect(within(menu).getAllByLabelText('Effort')).toHaveLength(1);
   void s;
+});
+
+// the pill label: a short name, a 1M tag, the effort as a mini bar; the full text is the accessible name and the tooltip
+const effortBar = () => within(pill()).queryByTestId('effort-bar');
+const fillOf = () => effortBar()!.querySelector<HTMLElement>('[data-fill]')!.style.width;
+const LEVELS: ModelOption['efforts'] = ['low', 'medium', 'high', 'xhigh', 'max'];
+const withDefault = (extra: ModelOption[], model = 'default', effort?: 'high' | 'xhigh') => {
+  const s = setup();
+  const list: ModelOption[] = [
+    { value: 'default', name: 'Default (recommended)', description: 'Opus 5.5 · Best for most tasks', resolved: 'claude-opus-5-5', efforts: LEVELS },
+    { value: 'sonnet', name: 'Sonnet 5', description: 's', resolved: 'claude-sonnet-5' },
+    ...extra,
+  ];
+  s.emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: list }, { kind: 'model', model, ...(effort && { effort }) });
+  return s;
+};
+
+it('the default row is shown under the name of the row that resolves to the same model, an alias row first', () => {
+  withDefault([
+    { value: 'claude-opus-5-5', name: 'Opus 5.5 (explicit id)', description: 'x', resolved: 'claude-opus-5-5' },
+    { value: 'opus', name: 'Opus 5.5', description: 'o', resolved: 'claude-opus-5-5' },
+  ]);
+  expect(pill()).toHaveTextContent(/^Opus 5\.5$/);
+});
+
+it('with no alias, any row that resolves to the default\'s model gives its name', () => {
+  withDefault([{ value: 'claude-opus-5-5', name: 'Opus 5.5 full', description: 'x', resolved: 'claude-opus-5-5' }]);
+  expect(pill()).toHaveTextContent(/^Opus 5\.5 full$/);
+});
+
+it('with no sibling at all, the default row keeps its own name minus the trailing parenthetical', () => {
+  withDefault([]);
+  expect(pill()).toHaveTextContent(/^Default$/);
+});
+
+it('other rows show their own name', () => {
+  withDefault([], 'sonnet');
+  expect(pill()).toHaveTextContent(/^Sonnet 5$/);
+});
+
+it('a [1m] session id adds a small muted 1M tag; no suffix, no tag', () => {
+  const s = suffixed('claude-opus-5-5[1m]');
+  const tag = within(pill()).getByTestId('model-1m');
+  expect(tag).toHaveTextContent('1M');
+  expect(tag.className).toMatch(/text-muted-foreground/);
+  s.emit({ kind: 'model', model: 'claude-opus-5-5', effort: 'high' });
+  expect(within(pill()).queryByTestId('model-1m')).toBeNull();
+});
+
+it('the effort is a mini bar whose fill is the level among the model\'s levels; Auto has no bar', () => {
+  const s = withDefault([], 'default', 'high');
+  expect(effortBar()).toHaveAttribute('aria-hidden', 'true');
+  expect(fillOf()).toBe('60%'); // High is 3 of low, medium, high, xhigh, max
+  s.emit({ kind: 'model', model: 'default', effort: 'xhigh' });
+  expect(fillOf()).toBe('80%');
+  s.emit({ kind: 'model', model: 'default' });
+  expect(effortBar()).toBeNull();
+});
+
+it('the accessible name carries the model name, the 1M tag and the effort name, then the tip', () => {
+  withDefault([{ value: 'opus', name: 'Opus 5.5', description: 'o', resolved: 'claude-opus-5-5' }], 'claude-opus-5-5[1m]', 'xhigh');
+  expect(pill()).toHaveAttribute('aria-label', 'Opus 5.5 1M · Extra high · Model and effort · a change applies from the next reply');
+  expect(pill()).toHaveTextContent(/^Opus 5\.5\s*1M$/);
+});
+
+it('the tooltip repeats the full name and effort above the tip', async () => {
+  withDefault([{ value: 'opus', name: 'Opus 5.5', description: 'o', resolved: 'claude-opus-5-5' }], 'default', 'xhigh');
+  await userEvent.hover(pill());
+  const tip = await screen.findAllByText(/Extra high/);
+  expect(tip.some((e) => e.getAttribute('data-slot') === 'tooltip-content' && e.textContent === 'Opus 5.5 · Extra high\nModel and effort · a change applies from the next reply')).toBe(true);
+});
+
+it('Russian: the 1M tag and the effort name', () => {
+  act(() => setLang('ru'));
+  suffixed('claude-opus-5-5[1m]');
+  const btn = screen.getByRole('button', { name: /Модель и усилие/ });
+  expect(btn).toHaveAttribute('aria-label', expect.stringContaining('Opus 5.5 1M · Высокое · '));
+});
+
+it('the name slot fits the longest name: every name is in it, one visible', async () => {
+  const sl = slider(await (async () => { wideSetup('high'); return open(); })());
+  const names = Array.from((Array.from(sl.children)[2] as HTMLElement).children) as HTMLElement[];
+  expect(names.map((n) => n.textContent)).toEqual(['Auto', 'Low', 'Medium', 'High', 'Extra high', 'Max']);
+  expect(names.filter((n) => !n.className.includes('invisible')).map((n) => n.textContent)).toEqual(['High']);
 });

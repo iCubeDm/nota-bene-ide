@@ -19,6 +19,18 @@ const rowFor = (models: ModelOption[], id: string | null | undefined): ModelOpti
   return exact(id) ?? exact(id.replace(/\[[^\]]*\]$/, ''));
 };
 
+/** a session id's context suffix for the 1M-token variant */
+const ONE_M = /\[1m\]$/i;
+/**
+ * The row's name for the pill. `default` is named after the row that resolves to the same model (an alias first):
+ * "Opus 5.5", not "Default (recommended)". With none, its own name minus the trailing parenthetical.
+ */
+function pillName(models: ModelOption[], row: ModelOption): string {
+  if (row.value !== 'default') return row.name;
+  const same = row.resolved ? models.filter((o) => o !== row && o.resolved === row.resolved) : [];
+  return (same.find(isAlias) ?? same[0])?.name ?? (row.name.replace(/\s*\([^)]*\)\s*$/, '') || row.name);
+}
+
 /** the aliases (`sonnet`) are the everyday list; explicit ids (`claude-sonnet-5`) go under "Other versions" */
 const isAlias = (o: ModelOption) => !o.value.startsWith('claude-');
 const resolvedOf = (o: ModelOption) => o.resolved ?? o.value;
@@ -68,16 +80,32 @@ export function ModelPill() {
   const searchRef = useRef<HTMLInputElement>(null);
   const hadTurn = useAppSelector((st) => st.feed.earlier > 0 || st.feed.items.some((it) => it.kind === 'user'));
   if (!id && !switchable) return null; // nothing known yet
-  const label = (current?.name ?? id ?? t('modelUnknown')) + (cur?.effort ? ` · ${t(`effort_${cur.effort}`)}` : '');
+  // the short name; a `[1m]` session id adds a small tag (unless the row's name already says it)
+  const name = current ? pillName(models, current) : id ? id.replace(ONE_M, '') : t('modelUnknown');
+  const tag1m = !!id && ONE_M.test(id) && !/\b1m\b/i.test(name);
+  const effortName = cur?.effort ? t(`effort_${cur.effort}`) : '';
+  // the full text for the accessible name and the tooltip: "Opus 5.5 1M · Extra high"
+  const summary = [tag1m ? `${name} ${t('model1m')}` : name, effortName].filter(Boolean).join(' · ');
+  // the effort as a mini bar mirroring the menu slider: the level's place among the model's levels (Auto: no bar)
+  const levelAt = cur?.effort ? (efforts?.indexOf(cur.effort) ?? -1) : -1;
+  const barPct = efforts && levelAt >= 0 ? ((levelAt + 1) * 100) / efforts.length : null;
   const trigger = (
     <button
       type="button"
-      aria-label={t('modelTip')}
+      aria-label={`${summary} · ${t('modelTip')}`}
       disabled={switching || !switchable}
       className="inline-flex h-[24px] items-center rounded-full border border-border-soft bg-transparent px-2.5 font-mono text-[0.6875rem] text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground disabled:opacity-70"
     >
-      {/* the model's name is the trigger's mark: it takes the model accent (the theme's own text colour in Plannotator) */}
-      <span className="text-accent-model">{label}</span>
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        {/* the model's name is the trigger's mark: it takes the model accent (the theme's own text colour in Plannotator) */}
+        <span className="max-w-[12rem] truncate text-accent-model">{name}</span>
+        {tag1m && <span data-testid="model-1m" className="shrink-0 text-[0.5625rem] text-muted-foreground">{t('model1m')}</span>}
+        {barPct !== null && (
+          <span aria-hidden data-testid="effort-bar" className="inline-block h-[3px] w-4 shrink-0 overflow-hidden rounded-full bg-muted-foreground/25">
+            <span data-fill style={{ width: `${barPct}%` }} className="block h-full rounded-full bg-accent-model" />
+          </span>
+        )}
+      </span>
     </button>
   );
   if (!switchable) return trigger;
@@ -133,7 +161,7 @@ export function ModelPill() {
             <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
           </span>
         </TooltipTrigger>
-        <TooltipContent>{t('modelTip')}</TooltipContent>
+        <TooltipContent className="whitespace-pre-line">{`${summary}\n${t('modelTip')}`}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent
         side="bottom"

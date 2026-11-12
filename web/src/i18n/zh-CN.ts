@@ -472,6 +472,7 @@ export const zhCN: Dict = {
   modelSearch: '搜索模型',
   modelNone: '没有匹配的模型',
   modelUnknown: '默认',
+  model1m: '1M',
   effortLabel: '强度',
   effort_low: '低',
   effort_medium: '中',

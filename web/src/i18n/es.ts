@@ -472,6 +472,7 @@ export const es: Dict = {
   modelSearch: 'Buscar modelos',
   modelNone: 'Ningún modelo coincide',
   modelUnknown: 'Predeterminado',
+  model1m: '1M',
   effortLabel: 'Esfuerzo',
   effort_low: 'Bajo',
   effort_medium: 'Medio',

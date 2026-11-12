@@ -115,10 +115,15 @@ test('model pill: pick another model and an effort; a reload keeps them @control
   await page.getByRole('menuitem', { name: /^Opus 5/ }).click();
   await expect(modelPill).toHaveText('Opus 5');
   await modelPill.click();
-  await page.getByRole('group', { name: en.effortLabel }).getByRole('menuitem', { name: en.effort_max }).click();
-  await expect(modelPill).toHaveText(`Opus 5 · ${en.effort_max}`);
+  await page.getByRole('slider', { name: en.effortLabel }).focus(); // the effort is a slider since #305: End is the last level
+  await page.keyboard.press('End');
+  await page.keyboard.press('Escape'); // the slider keeps the menu open; the pill is hidden from the page while it is
+  // the pill shows the name and a mini effort bar; the effort's name is in its accessible name
+  await expect(modelPill).toHaveText('Opus 5');
+  await expect(modelPill).toHaveAttribute('aria-label', new RegExp(`^Opus 5 · ${en.effort_max} · `));
   await page.reload();
-  await expect(modelPill).toHaveText(`Opus 5 · ${en.effort_max}`);
+  await expect(modelPill).toHaveText('Opus 5');
+  await expect(modelPill).toHaveAttribute('aria-label', new RegExp(`^Opus 5 · ${en.effort_max} · `));
 });
 
 test('plan card: comment on it, approve from acceptEdits, one restoring mode message @controls', async ({ page }) => {

@@ -472,6 +472,7 @@ export const ptBR: Dict = {
   modelSearch: 'Buscar modelos',
   modelNone: 'Nenhum modelo encontrado',
   modelUnknown: 'Padrão',
+  model1m: '1M',
   effortLabel: 'Esforço',
   effort_low: 'Baixo',
   effort_medium: 'Médio',
