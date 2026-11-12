@@ -137,7 +137,7 @@ and on single frames of a video:
 - A message sent while the agent works joins the running turn; Cmd/Ctrl+Enter interrupts the agent and sends, after a confirmation.
 - `@` mentions a file, `/` opens the agent's commands and skills, `!` runs a shell command in the project folder.
 - Subagent conversations in their own tabs, and a drawer for background tasks.
-- Agent permission modes, model and effort, context and plan-limit meters. Questions from the agent are cards you answer in the window.
+- Agent permission modes, model and effort, context, 5-hour and weekly plan-limit meters in the same order for Claude and Codex. Questions from the agent are cards you answer in the window.
 - Voice messages: record in the message field and your computer transcribes it with Whisper (installed from Settings, off by default); the agent gets the text. Comments can be voice clips too.
 - Prompt history: ↑ / ↓ bring back what you sent, and a searchable list finds older prompts.
 

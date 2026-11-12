@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.8.1 — 2026-11-12
+
+- Context and plan-limit meters use the same order in Claude and Codex windows: context, 5-hour limit, weekly limit. Codex's weekly window uses the same label and tooltip as Claude's.
+- A local checkout can be opened with `nota-bene-dev`, using the normal launcher's options and automatic UI build, with its state in `~/.nota-bene-dev`. See the [development setup](docs/agent-reference.md#rebuild-root); this command is installed from the checkout and is not part of the npm package.
+- Restart and timer characterization tests no longer race session shutdown or leave fake timers behind.
+
 ## 1.8.0 — 2026-11-12
 
 - **Remote control from an Android phone (a prototype).** `nota-bene remote` connects this computer to a relay, a small stateless program you run yourself (source and container recipe in `relay/`), and a paired phone reaches your windows through it. The computer and the phone both connect out, nothing on the computer accepts connections, and everything between them is end-to-end encrypted: the relay sees only ciphertext and which phone talks to which host. Pair with the QR code of `nota-bene remote pair` and compare the two fingerprints; `remote devices` lists the paired phones and `remote revoke` cuts one off at once. A paired phone is fully trusted: it can do in a window what a tab of that window can. The app is an APK built by a manual run of the repository's Mobile workflow; see [Remote access](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access-prototype).
