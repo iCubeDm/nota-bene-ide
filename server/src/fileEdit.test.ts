@@ -60,7 +60,7 @@ describe('writeEditable', () => {
     put('run.sh', 'a');
     fs.chmodSync(path.join(root, 'run.sh'), 0o750);
     await writeEditable(root, 'run.sh', 'b', null);
-    expect(fs.statSync(path.join(root, 'run.sh')).mode & 0o777).toBe(0o750);
+    if (process.platform !== 'win32') expect(fs.statSync(path.join(root, 'run.sh')).mode & 0o777).toBe(0o750); // no mode bits on Windows
     put('ro.txt', 'a');
     fs.chmodSync(path.join(root, 'ro.txt'), 0o444);
     expect(await writeEditable(root, 'ro.txt', 'b', null)).toMatchObject({ status: 403, body: { error: 'read-only' } });
