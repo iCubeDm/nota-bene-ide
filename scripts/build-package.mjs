@@ -46,7 +46,7 @@ export function packageJson() {
     repository: { type: 'git', url: 'git+https://github.com/iCubeDm/nota-bene-ide.git' },
     type: 'module',
     bin: { [BIN]: 'bin/nota-bene.mjs' },
-    files: ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/remote/cli.js', 'server/src/blend', 'server/src/dictation', 'web/dist', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'codex/skills/nb', 'omp/skills/nb'],
+    files: ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/host.js', 'server/src/remote/cli.js', 'server/src/blend', 'server/src/dictation', 'web/dist', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'codex/skills/nb', 'omp/skills/nb'],
     engines: { node: NODE_RANGE },
     dependencies: runtimeDependencies(),
     keywords: ['claude', 'claude-code', 'codex', 'omp', 'ide', 'agent'],
@@ -79,13 +79,17 @@ export async function buildPackage({ out = path.join(ROOT, 'pkg'), skipWeb = fal
   const common = { bundle: true, platform: 'node', format: 'esm', target: 'node22', external, logLevel: 'warning', legalComments: 'none' };
   await build({ ...common, entryPoints: [path.join(ROOT, 'server/src/main.ts')], outfile: path.join(out, 'server/src/main.js') });
   await build({ ...common, entryPoints: [path.join(ROOT, 'server/src/remote/cli.ts')], outfile: path.join(out, 'server/src/remote/cli.js') });
+  // the Whisper host: the process a window starts so that all windows share one model (server/src/dictation/hostClient.ts:
+  // hostEntryFile looks for host.js beside the server bundle). At server/src/, like main.js, so that its dictationAssetDir()
+  // finds pipelineWorker.mjs in server/src/dictation/ the same way.
+  await build({ ...common, entryPoints: [path.join(ROOT, 'server/src/dictation/hostEntry.ts')], outfile: path.join(out, 'server/src/host.js') });
   await build({ ...common, entryPoints: [path.join(ROOT, 'bin/nota-bene.mjs')], outfile: path.join(out, 'bin/nota-bene.mjs') });
   fs.chmodSync(path.join(out, 'bin/nota-bene.mjs'), 0o755);
 
   fs.mkdirSync(path.join(out, 'server/src/blend'), { recursive: true });
   for (const f of ['export.py', 'sandbox.sb']) fs.copyFileSync(path.join(ROOT, 'server/src/blend', f), path.join(out, 'server/src/blend', f));
   // Whisper on the host: the worker thread's entry (plain JS, run as is) and the lockfile `npm ci` installs from; the
-  // bundled server finds them beside server/src/main.js (server/src/dictation/pipelineHost.ts: dictationAssetDir)
+  // bundled server and host.js find them beside themselves (server/src/dictation/pipelineHost.ts: dictationAssetDir)
   fs.mkdirSync(path.join(out, 'server/src/dictation'), { recursive: true });
   for (const f of ['pipelineWorker.mjs', 'npm-shrinkwrap.json']) fs.copyFileSync(path.join(ROOT, 'server/src/dictation', f), path.join(out, 'server/src/dictation', f));
   fs.cpSync(path.join(ROOT, 'codex/skills/nb'), path.join(out, 'codex/skills/nb'), { recursive: true });

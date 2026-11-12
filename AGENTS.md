@@ -41,6 +41,8 @@ Load the reference relevant to the task; do not read every document at startup.
   a successful log filter is not evidence that the tests passed.
 - Tests/manual smoke use only 4790–4795; 4790 is for manual smoke. Dev uses 4780/5173.
   Use a temporary project, `NOTA_BENE_HOME` and `CLAUDE_JOURNAL_VAULT` for real-agent smoke tests.
+- A shared Whisper host may be serving the user's windows under `~/.nota-bene/whisper-host/`: leave it alone, use a temporary
+  `NOTA_BENE_HOME` for anything that starts one, and stop only your own: [Whisper host](docs/agent-reference.md#whisper-host).
 - If working through a live Nota Bene window, never kill, restart or probe its own server.
   Validate on a separate test instance before requesting a restart; verify the restart read-only.
 - Web edits need a build and page reload; server/shared edits need a server restart.

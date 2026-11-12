@@ -1,8 +1,8 @@
 // Speech to text for a window: through the Whisper host, which loads the model once for every window of the machine
 // (hostClient.ts), or, when the host cannot be used, in this process: one cached Whisper pipeline (the installer's loader, in a
 // worker thread), one language per call.
-import { hostClient } from './hostClient.ts';
-import { loadPipeline, type Pipe } from './install.ts';
+import { hostClient, WhisperOff } from './hostClient.ts';
+import { loadPipeline, whisperPhase, type Pipe } from './install.ts';
 import { speak, type Spoken } from './speak.ts';
 
 export type { Spoken };
@@ -51,10 +51,16 @@ export async function transcribe(pcm: Float32Array, lang: string, o: { load?: ()
   return transcribeLocal(pcm, lang, o);
 }
 
+/** The install's own loader: refuses (Whisper off) once the install no longer reads as ready, so that a load never starts from files Remove is deleting. */
+const loadInstalled = async (): Promise<Pipe> => {
+  if (whisperPhase() !== 'ready') throw new WhisperOff('Whisper is not installed');
+  return loadPipeline();
+};
+
 /** The same in this process, on the cached pipeline: what a window does when the host cannot be used. */
 export async function transcribeLocal(pcm: Float32Array, lang: string, o: { load?: () => Promise<Pipe>; detect?: boolean } = {}): Promise<Spoken> {
   for (let attempt = 0; ; attempt++) {
-    const p = cached ??= (o.load ?? (() => loadPipeline()))();
+    const p = cached ??= (o.load ?? loadInstalled)();
     let pipe: Pipe;
     try { pipe = await p; } catch (e) { if (cached === p) cached = undefined; throw e; }
     // the worker died since the last call: load a fresh one (once)

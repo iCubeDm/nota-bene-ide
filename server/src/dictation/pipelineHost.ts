@@ -1,8 +1,9 @@
 // The main-thread side of the Whisper pipeline: a worker thread owns the model (see pipelineWorker.mjs), this file talks to it.
 //
 // Where the worker file lives: the checkout runs the server as .ts from server/src/dictation/; the published package is one
-// esbuild bundle at server/src/main.js, so import.meta.url differs and scripts/build-package.mjs copies pipelineWorker.mjs
-// (and npm-shrinkwrap.json) to server/src/dictation/ of the package. `here()` resolves both.
+// esbuild bundle at server/src/main.js (and the Whisper host another, server/src/host.js), so import.meta.url differs and
+// scripts/build-package.mjs copies pipelineWorker.mjs (and npm-shrinkwrap.json) to server/src/dictation/ of the package.
+// `dictationAssetDir()` resolves both, for either bundle: they sit in the same folder.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
@@ -23,9 +24,10 @@ export interface WorkerLike {
   on(event: 'message' | 'error' | 'exit', fn: (...a: any[]) => void): unknown;
 }
 export type WorkerFactory = (data: WorkerData) => WorkerLike;
-export type WorkerData = { dir: string; pkg: string; model: string; revision: string; dtype: string };
+/** `download`: the load may fetch the model (the installer's, once); every other load reads the files in the install and nothing else. */
+export type WorkerData = { dir: string; pkg: string; model: string; revision: string; dtype: string; download: boolean };
 
-/** The folder holding pipelineWorker.mjs and npm-shrinkwrap.json: beside this file in the checkout, server/src/dictation/ in the bundle. */
+/** The folder holding pipelineWorker.mjs and npm-shrinkwrap.json: beside this file in the checkout, server/src/dictation/ beside the bundle (main.js or host.js). */
 export function dictationAssetDir(): string {
   const here = fileURLToPath(import.meta.url);
   return here.endsWith('.ts') ? path.dirname(here) : path.join(path.dirname(here), 'dictation');
@@ -36,9 +38,13 @@ const DISPOSE_GRACE_MS = 3000;
 
 export const defaultFactory: WorkerFactory = (data) => new Worker(path.join(dictationAssetDir(), 'pipelineWorker.mjs'), { workerData: data });
 
-/** Starts the worker, which loads the pipeline from the prefix `dir`. `close` ends it at once (a rejected `ready` if still loading). */
-export function openPipeline(dir: string, o: { worker?: WorkerFactory } = {}): { ready: Promise<Pipe>; close: (why?: Error) => void } {
-  const w = (o.worker ?? defaultFactory)({ dir, pkg: WHISPER_PACKAGE, model: WHISPER_MODEL, revision: WHISPER_REVISION, dtype: WHISPER_DTYPE });
+/**
+ * Starts the worker, which loads the pipeline from the prefix `dir`. `close` ends it at once (a rejected `ready` if still loading).
+ * Only `download: true` (the installer) lets transformers.js fetch the model: a load of an install that is being removed must fail,
+ * not download the model again into a folder that Remove is deleting.
+ */
+export function openPipeline(dir: string, o: { worker?: WorkerFactory; download?: boolean } = {}): { ready: Promise<Pipe>; close: (why?: Error) => void } {
+  const w = (o.worker ?? defaultFactory)({ dir, pkg: WHISPER_PACKAGE, model: WHISPER_MODEL, revision: WHISPER_REVISION, dtype: WHISPER_DTYPE, download: o.download === true });
   const pending = new Map<number, { resolve: (v: { text?: string; probs?: Record<string, number> }) => void; reject: (e: Error) => void }>();
   let nextId = 1;
   let ended = false;

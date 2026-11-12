@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { installWhisper, removeWhisper, whisperDir, whisperPhase } from './install.ts';
+import { installWhisper, loadPipeline, removeWhisper, whisperDir, whisperPhase, withdrawWhisper } from './install.ts';
 import { WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
 
 let home: string;
@@ -53,6 +53,77 @@ describe('installWhisper', () => {
     let prefix = '';
     await installWhisper({ npm: '/fake/npm', spawn: async (_cmd, args) => { prefix = args[args.indexOf('--prefix') + 1]; return npmOk(); }, fetchModel: async () => {} });
     expect(prefix).toBe(fs.realpathSync(path.join(home, 'whisper')));
+  });
+
+  /** A fake npm that leaves a package in place of transformers.js, which writes down every load: what it was asked for, whether it may fetch, and whether the install already said ready. */
+  const recordingNpm = (record: string, failOffline = false) => async (): Promise<Done> => {
+    const pkg = path.join(whisperDir(), 'node_modules', ...WHISPER_PACKAGE.split('/'));
+    fs.mkdirSync(pkg, { recursive: true });
+    fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: WHISPER_PACKAGE, version: '0.0.0', type: 'module', main: 'index.js' }));
+    fs.writeFileSync(path.join(pkg, 'index.js'), `import fs from 'node:fs';
+import path from 'node:path';
+export const env = { allowRemoteModels: true };
+export const pipeline = async (task, model, options) => {
+  fs.appendFileSync(${JSON.stringify(record)}, JSON.stringify({ model, remote: env.allowRemoteModels, ready: fs.existsSync(path.join(env.cacheDir, '..', 'ready.json')) }) + '\\n');
+  if (${failOffline} && !env.allowRemoteModels) throw new Error('no processor');
+  return async () => ({ text: '' });
+};`);
+    return ok;
+  };
+  const loads = (record: string): { model: string; remote: boolean; ready: boolean }[] => fs.readFileSync(record, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+
+  it('the install\'s own model fetch is the one load that may download (by the model id), and a load by the folder\'s path that cannot, run before ready.json is written, checks it', async () => {
+    // the real worker thread with a package in place of transformers.js
+    const record = path.join(home, 'loads.jsonl');
+    await installWhisper({ npm: '/fake/npm', spawn: recordingNpm(record) }); // no fetchModel of its own: the default ones run the worker
+    expect(whisperPhase()).toBe('ready');
+    expect(loads(record)).toEqual([
+      { model: WHISPER_MODEL, remote: true, ready: false },
+      { model: path.join(whisperDir(), 'models', WHISPER_MODEL, WHISPER_REVISION), remote: false, ready: false }, // the check: before `ready`
+    ]);
+    await (await loadPipeline()).dispose?.(); // and the load of a window or a host afterwards is the same as the check
+    expect(loads(record)[2]).toEqual({ model: path.join(whisperDir(), 'models', WHISPER_MODEL, WHISPER_REVISION), remote: false, ready: true });
+  });
+
+  it('a download that does not load offline is a failed install: no ready.json, phase failed, and the reason says so', async () => {
+    const record = path.join(home, 'loads.jsonl');
+    await expect(installWhisper({ npm: '/fake/npm', spawn: recordingNpm(record, true) })).rejects.toThrow('the downloaded model does not load: no processor');
+    expect(loads(record).map((l) => l.remote)).toEqual([true, false]);
+    expect(fs.existsSync(path.join(whisperDir(), 'ready.json'))).toBe(false);
+    expect(whisperPhase()).toBe('failed');
+    expect(JSON.parse(fs.readFileSync(path.join(whisperDir(), 'failed.json'), 'utf8')).reason).toContain('the downloaded model does not load');
+    expect(fs.existsSync(path.join(whisperDir(), 'install.lock'))).toBe(false);
+  });
+
+  it('a check that never answers gives up after verifyTimeoutMs, as a failed install', async () => {
+    await expect(installWhisper({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {}, verifyModel: () => new Promise<void>(() => {}), verifyTimeoutMs: 30 })).rejects.toThrow('the downloaded model does not load: model check timed out');
+    expect(whisperPhase()).toBe('failed');
+  });
+
+  it('a test\'s own fetchModel is not followed by the real check (its folder holds no model); its own verifyModel is', async () => {
+    const seen: string[] = [];
+    await installWhisper({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => { seen.push('fetch'); } });
+    expect(seen).toEqual(['fetch']);
+    expect(whisperPhase()).toBe('ready');
+    await installWhisper({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => { seen.push('fetch'); }, verifyModel: async () => { seen.push('verify'); } });
+    expect(seen).toEqual(['fetch', 'fetch', 'verify']);
+  });
+
+  it('withdrawWhisper takes ready.json away and nothing else, and is refused while an install holds the lock', async () => {
+    await installWhisper({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} });
+    expect(whisperPhase()).toBe('ready');
+    expect(withdrawWhisper()).toBe(true);
+    expect(whisperPhase()).toBe('none');
+    expect(fs.existsSync(path.join(whisperDir(), 'node_modules'))).toBe(true);
+    expect(withdrawWhisper()).toBe(true); // again: nothing to take
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const p = installWhisper({ npm: '/fake/npm', spawn: async () => { await gate; return npmOk(); }, fetchModel: async () => {} });
+    expect(whisperPhase()).toBe('installing');
+    expect(withdrawWhisper()).toBe(false);
+    release();
+    await p;
+    expect(whisperPhase()).toBe('ready');
   });
 
   it('runs fetchModel with the folder after npm succeeded', async () => {

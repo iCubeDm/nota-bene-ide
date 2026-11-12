@@ -8,7 +8,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parentPort, workerData } from 'node:worker_threads';
 
-const { dir, pkg, model, revision, dtype } = workerData;
+const { dir, pkg, model, revision, dtype, download } = workerData;
 let pipe;
 let api;
 
@@ -18,7 +18,16 @@ try {
   api = mod.pipeline ? mod : mod.default;
   if (!api?.pipeline || !api.env) throw new Error(`${pkg} has no pipeline`);
   api.env.cacheDir = path.join(dir, 'models');
-  pipe = await api.pipeline('automatic-speech-recognition', model, { revision, dtype });
+  // transformers.js fetches what the cache lacks unless told not to: only the installer's load (download) is to fetch the model
+  api.env.allowRemoteModels = download === true;
+  // Only the installer's load goes by the model id (and the pinned revision): that is what downloads it into models/<id>/<revision>/.
+  // Every other load reads that folder by its path. By id it would not find the processor offline: transformers.js 4.3.2 probes
+  // which files the pipeline needs (get_pipeline_files) without the revision, looks for preprocessor_config.json at `main`, finds
+  // nothing in a cache that holds the files under <revision>/, and loads a pipeline with no processor (every job then fails on a null
+  // feature extractor); with the network allowed the probe went to the network at every load.
+  pipe = download === true
+    ? await api.pipeline('automatic-speech-recognition', model, { revision, dtype })
+    : await api.pipeline('automatic-speech-recognition', path.join(dir, 'models', model, revision), { dtype });
   parentPort.postMessage({ type: 'ready' });
 } catch (e) {
   parentPort.postMessage({ type: 'error', message: e instanceof Error ? e.message : String(e) });
