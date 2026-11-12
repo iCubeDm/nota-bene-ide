@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { UsageProvider } from '@nota-bene/shared';
+import { renameRetry } from '../platform.ts';
 import { stateBaseDir } from '../state.ts';
 import type { CodexContext, UsageRecord } from './parse.ts';
 
@@ -16,7 +17,7 @@ export const usageDir = (): string => path.join(stateBaseDir(), 'usage');
 function writeAtomic(file: string, data: string): void {
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, data, { mode: 0o600 });
-  fs.renameSync(tmp, file);
+  renameRetry(tmp, file);
 }
 
 function readJson<T>(file: string, fallback: T): T {

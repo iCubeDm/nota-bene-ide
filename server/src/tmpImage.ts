@@ -70,14 +70,22 @@ export async function openTmpImage(p: string): Promise<TmpImage | 'big' | null> 
   if (!type || !tmpDirs().some((d) => under(real, d))) return null;
   if (underState(p) || underState(real)) return null;
   let handle: fs.promises.FileHandle;
+  let seen: fs.Stats | undefined;
   try {
-    handle = await fs.promises.open(real, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK | fs.constants.O_NOFOLLOW);
+    if (isWindows()) {
+      // no O_NOFOLLOW/O_NONBLOCK there (undefined, never OR-ed in): a link swapped in after realpath (a symlink or a junction)
+      // is refused by lstat, and the opened descriptor must be the file lstat saw
+      seen = await fs.promises.lstat(real);
+      if (!seen.isFile()) return null;
+    }
+    handle = await fs.promises.open(real, fs.constants.O_RDONLY | (isWindows() ? 0 : fs.constants.O_NONBLOCK | fs.constants.O_NOFOLLOW));
   } catch {
     return null;
   }
   try {
     const st = await handle.stat();
     if (!st.isFile()) throw new Error('not a regular file');
+    if (seen && (st.ino !== seen.ino || st.dev !== seen.dev)) throw new Error('replaced while it was being opened');
     if (st.size > TMP_IMAGE_MAX) {
       await handle.close();
       return 'big';

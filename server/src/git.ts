@@ -33,7 +33,7 @@ export class SourceError extends Error {
 
 export function git(cwd: string, args: string[], maxBuffer = 16 << 20, timeout = TIMEOUT): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd, env: gitEnv(), timeout, maxBuffer, encoding: 'buffer' }, (err, out) => (err ? reject(err) : resolve(out)));
+    execFile('git', args, { cwd, env: gitEnv(), timeout, maxBuffer, encoding: 'buffer', windowsHide: true }, (err, out) => (err ? reject(err) : resolve(out)));
   });
 }
 const gitText = async (cwd: string, args: string[]) => (await git(cwd, args)).toString('utf8');
