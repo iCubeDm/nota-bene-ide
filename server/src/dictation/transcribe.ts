@@ -43,9 +43,14 @@ export async function transcribe(pcm: Float32Array, lang: string, o: { load?: ()
     try { pipe = await p; } catch (e) { if (cached === p) cached = undefined; throw e; }
     // the worker died since the last call: load a fresh one (once)
     if (pipe.dead && attempt === 0) { if (cached === p) cached = undefined; continue; }
-    // transformers.js slices the input to 30 s unless it chunks: 30 s windows with a 5 s stride, joined by the pipeline
-    const language = o.detect ? await resolveLang(pipe, pcm, lang) : lang;
-    const out = await pipe(pcm, { language, task: 'transcribe', chunk_length_s: 30, stride_length_s: 5 });
-    return { text: (out.text ?? '').trim(), lang: language };
+    return speak(pipe, pcm, lang, o.detect);
   }
+}
+
+/** One transcription on a loaded pipeline: this process's (`transcribe`) and the Whisper host's (hostMain.ts), so both run it the same way. */
+export async function speak(pipe: Pipe, pcm: Float32Array, lang: string, detect?: boolean): Promise<Spoken> {
+  // transformers.js slices the input to 30 s unless it chunks: 30 s windows with a 5 s stride, joined by the pipeline
+  const language = detect ? await resolveLang(pipe, pcm, lang) : lang;
+  const out = await pipe(pcm, { language, task: 'transcribe', chunk_length_s: 30, stride_length_s: 5 });
+  return { text: (out.text ?? '').trim(), lang: language };
 }
