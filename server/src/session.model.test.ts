@@ -94,6 +94,21 @@ describe('model and effort', () => {
     s.close();
   });
 
+  it('an effort change on a suffixed session model keeps the exact id and does not setModel', async () => {
+    const b = fakeBackend([{ text: 'x' }], { models: MODELS });
+    const { make } = setup(b);
+    const s = await make();
+    await until(() => s.models().length > 0);
+    await s.setModel({ model: 'opus', effort: 'max' }, 'a1');
+    b.setModels.length = 0;
+    // the agent reports the 1M variant of the resolved id
+    const r = MODELS.find((m) => m.value === 'opus')!.resolved!;
+    await s.setModel({ model: `${r}[1m]`, effort: 'high' }, 'a2');
+    expect(b.setModels).toEqual([]);
+    expect(b.setEfforts.at(-1)).toBe('high');
+    s.close();
+  });
+
   it('the first init shows the CLI default without writing a pref', async () => {
     const b = fakeBackend([{ text: 'x' }], { models: MODELS });
     const { events, make } = setup(b);

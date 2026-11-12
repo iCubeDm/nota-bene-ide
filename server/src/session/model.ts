@@ -54,8 +54,11 @@ export class ModelKeeper {
     this.cur = this.startChoice(dir);
   }
 
+  /** a row by its value or resolved id; an id with a context suffix (`claude-opus-5-5[1m]`) finds the row of the bare id */
   private find(id: string): ModelOption | undefined {
-    return this.opts?.find((m) => m.value === id || m.resolved === id);
+    const bare = id.replace(/\[[^\]]*\]$/, '');
+    const by = (x: string) => this.opts?.find((m) => m.value === x || m.resolved === x);
+    return by(id) ?? (bare !== id ? by(bare) : undefined);
   }
 
   /** the CLI reports resolved ids (`claude-…`), the list has aliases (`sonnet`) */
@@ -112,15 +115,18 @@ export class ModelKeeper {
   }
 
   private async apply(a: Agent | null, next: { model: string; effort?: EffortLevel }, dir: string, still: () => boolean): Promise<void> {
-    const opt = this.find(next.model);
-    if (!opt) throw new Error(`model ${next.model} is not offered`);
-    if (next.effort && !opt.efforts?.includes(next.effort)) throw new Error(`model ${opt.value} has no effort ${next.effort}`);
     const before = this.cur.model;
+    const opt = this.find(next.model);
+    // the id the session already runs (maybe one the list has no row for) may be re-sent, for an effort-only change
+    const keep = !!before && next.model === before;
+    if (!opt && !keep) throw new Error(`model ${next.model} is not offered`);
+    if (opt && next.effort && !opt.efforts?.includes(next.effort)) throw new Error(`model ${opt.value} has no effort ${next.effort}`);
+    const id = keep ? before : opt!.value; // the exact id stays: a `[1m]` session is not switched to the alias
     this.fresh = false;
     this.inflight = true;
     try {
       if (a) {
-        if (!before || !this.same(before, opt.value)) await a.setModel(opt.value);
+        if (!keep && (!before || !this.same(before, id))) await a.setModel(id);
         // (applyFlagSettings also turns ultracode off; nothing here surfaces ultracode)
         if (next.effort !== this.cur.effort) await a.setEffort(next.effort ?? null);
       }
@@ -128,8 +134,8 @@ export class ModelKeeper {
       this.inflight = false;
     }
     if (!still()) return; // a switch meanwhile: this was the old session's
-    this.fresh = !!a && !(before && this.same(before, opt.value));
-    this.cur = { model: opt.value, ...(next.effort && { effort: next.effort }) };
+    this.fresh = !!a && !keep && !(before && this.same(before, id));
+    this.cur = { model: id, ...(next.effort && { effort: next.effort }) };
     setModelPref(dir, this.cur as { model: string; effort?: EffortLevel });
   }
 

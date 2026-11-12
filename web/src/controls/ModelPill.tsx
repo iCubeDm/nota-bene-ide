@@ -11,8 +11,12 @@ import { pickModel, selectModel, selectModelSwitchable, selectModels, selectSwit
  * The row for the model id in use. The CLI reports resolved ids, the list has aliases, and two rows can resolve to one
  * id (`default` and `opus`): an alias we set wins, a resolved id takes the first row that has it.
  */
-const rowFor = (models: ModelOption[], id: string | null | undefined): ModelOption | undefined =>
-  id ? (models.find((o) => o.value === id) ?? models.find((o) => o.resolved === id)) : undefined;
+const rowFor = (models: ModelOption[], id: string | null | undefined): ModelOption | undefined => {
+  if (!id) return undefined;
+  const exact = (x: string) => models.find((o) => o.value === x) ?? models.find((o) => o.resolved === x);
+  // a session id may carry a context suffix (`claude-opus-5-5[1m]`): then the bare id
+  return exact(id) ?? exact(id.replace(/\[[^\]]*\]$/, ''));
+};
 
 /** the aliases (`sonnet`) are the everyday list; explicit ids (`claude-sonnet-5`) go under "Other versions" */
 const isAlias = (o: ModelOption) => !o.value.startsWith('claude-');
@@ -54,6 +58,8 @@ export function ModelPill() {
   const sessionModel = useAppSelector(selectSession)?.model ?? null;
   const id = cur?.model ?? sessionModel;
   const current = rowFor(models, id);
+  // no row for the session's model: effort stays selectable with the default row's levels
+  const efforts = current ? current.efforts : id ? (models.find((o) => o.value === 'default' && o.efforts) ?? models.find((o) => o.efforts))?.efforts : undefined;
   const [more, setMore] = useState(false);
   const [hover, setHover] = useState<ModelOption | null>(null);
   const [query, setQuery] = useState('');
@@ -77,7 +83,12 @@ export function ModelPill() {
   const kTokens = Math.max(1, Math.round(used / 1000));
   const pick = (o: ModelOption, effort?: EffortLevel) => {
     if (o === current && effort === cur?.effort) return;
-    void dispatch(pickModel(o.value, effort));
+    // the current model keeps its exact session id (`[1m]` included): an effort change is not a model switch
+    void dispatch(pickModel(o === current && id ? id : o.value, effort));
+  };
+  const pickEffort = (e: EffortLevel) => {
+    if (e === cur?.effort) return;
+    void dispatch(pickModel(id ?? current?.value ?? '', e));
   };
   const searchable = models.length >= SEARCH_MIN;
   const shown = searchable && query.trim() ? models.filter((o) => matches(o, query)) : models;
@@ -171,15 +182,15 @@ export function ModelPill() {
           </>
         )}
         </div>
-        {current?.efforts && (
+        {efforts && (
           <div role="group" aria-label={t('effortLabel')} className="flex shrink-0 flex-wrap items-center gap-1 border-t border-border-soft px-2.5 pb-1 pt-1.5">
             <span className="mr-1 text-[0.6875rem] text-muted-foreground">{t('effortLabel')}</span>
-            {current.efforts.map((e) => (
+            {efforts.map((e) => (
               <DropdownMenuItem
                 key={e}
                 aria-current={cur?.effort === e || undefined}
                 onFocus={() => setHover(null)}
-                onSelect={() => pick(current, e)}
+                onSelect={() => pickEffort(e)}
                 className={`inline-flex h-[22px] w-auto items-center rounded-full border border-border-soft px-2 py-0 text-[0.6875rem] ${cur?.effort === e ? 'bg-muted font-medium' : ''}`}
               >
                 {t(`effort_${e}`)}

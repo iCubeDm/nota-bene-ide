@@ -103,7 +103,7 @@ it('two rows resolving to one id (default and opus): only the alias in use is cu
   expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'opus' });
 });
 
-it('picking an effort of the current model sends model + effort; the current choice sends nothing', async () => {
+it('picking an effort of the current model sends its exact session id + effort; the current choice sends nothing', async () => {
   const { sent, ready } = setup();
   ready();
   const menu = await open();
@@ -112,7 +112,7 @@ it('picking an effort of the current model sends model + effort; the current cho
   expect(sent).toHaveLength(n);
   const m2 = await open();
   await userEvent.click(within(within(m2).getByRole('group', { name: 'Effort' })).getByRole('menuitem', { name: 'High' }));
-  expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'sonnet', effort: 'high' });
+  expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'claude-sonnet-5', effort: 'high' });
 });
 
 it('the cache warning: ONE line at the bottom, in tokens/1000, once the session has had a turn', async () => {
@@ -258,4 +258,41 @@ it('a short list has no search field', async () => {
   ready();
   const menu = await open();
   expect(within(menu).queryByRole('searchbox')).toBeNull();
+});
+
+const SUFFIXED: ModelOption[] = [
+  { value: 'default', name: 'Default', description: 'd', resolved: 'claude-sonnet-5', efforts: ['low', 'medium'] },
+  { value: 'opus', name: 'Opus 5.5', description: 'o', resolved: 'claude-opus-5-5', efforts: ['low', 'high', 'max'] },
+];
+const suffixed = (model: string, models = SUFFIXED) => {
+  const s = setup();
+  s.emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models }, { kind: 'model', model, effort: 'high' });
+  return s;
+};
+
+it('a session id with a [1m] suffix finds its row: the name, the check and the effort row', async () => {
+  suffixed('claude-opus-5-5[1m]');
+  expect(pill()).toHaveTextContent('Opus 5.5 · High');
+  const menu = await open();
+  const rows = within(menu).getAllByRole('menuitem').filter((e) => !e.closest('[role="group"]'));
+  expect(rows[1]).toHaveAttribute('aria-current', 'true');
+  expect(rows[0]).not.toHaveAttribute('aria-current');
+  expect(within(within(menu).getByRole('group', { name: 'Effort' })).getAllByRole('menuitem').map((e) => e.textContent)).toEqual(['Low', 'High', 'Max']);
+});
+
+it('an effort click on a suffixed session model keeps its exact id (no switch to the alias)', async () => {
+  const { sent } = suffixed('claude-opus-5-5[1m]');
+  const menu = await open();
+  await userEvent.click(within(within(menu).getByRole('group', { name: 'Effort' })).getByRole('menuitem', { name: 'Max' }));
+  expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'claude-opus-5-5[1m]', effort: 'max' });
+});
+
+it('with no matching row the default row\'s effort levels stay selectable, sent for the session id', async () => {
+  const { sent } = suffixed('claude-mystery-9[1m]');
+  expect(pill()).toHaveTextContent('claude-mystery-9[1m] · High');
+  const menu = await open();
+  const grp = within(menu).getByRole('group', { name: 'Effort' });
+  expect(within(grp).getAllByRole('menuitem').map((e) => e.textContent)).toEqual(['Low', 'Medium']);
+  await userEvent.click(within(grp).getByRole('menuitem', { name: 'Low' }));
+  expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'claude-mystery-9[1m]', effort: 'low' });
 });
