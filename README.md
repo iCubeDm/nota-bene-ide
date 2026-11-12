@@ -137,7 +137,9 @@ and on single frames of a video:
 - A message sent while the agent works joins the running turn; Cmd/Ctrl+Enter interrupts the agent and sends, after a confirmation.
 - `@` mentions a file, `/` opens the agent's commands and skills, `!` runs a shell command in the project folder.
 - Subagent conversations in their own tabs, and a drawer for background tasks.
-- Agent permission modes, model and effort, context and plan-limit meters.
+- Agent permission modes, model and effort, context and plan-limit meters. Questions from the agent are cards you answer in the window.
+- Voice messages: record in the message field and your computer transcribes it with Whisper (installed from Settings, off by default); the agent gets the text. Comments can be voice clips too.
+- Prompt history: ↑ / ↓ bring back what you sent, and a searchable list finds older prompts.
 
 **Files and Git**
 - File tree and viewers: Markdown, highlighted code, images, video and audio with seeking. Mermaid and SVG diagrams render in the chat.
@@ -149,6 +151,9 @@ and on single frames of a video:
 - A Usage tab: tokens across every project and agent, limit hits and what was spent before them, extra usage.
 - An audit log of each window's system events (never what anyone wrote), for working out later why a turn stopped.
 - [Updates itself](#updating), with one click or automatically.
+
+**Remote control (prototype)**
+- An Android app drives your windows from a phone, through a relay you run yourself, end-to-end encrypted: chat, files and Git changes, comments, images and voice messages. Pair it with `nota-bene remote pair`; see [Remote access](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access-prototype).
 
 ![The window: chat, file tree and comments panel](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/overview.png)
 

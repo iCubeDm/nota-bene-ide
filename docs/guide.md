@@ -17,6 +17,7 @@ Contents
 - [Permission modes, settings, languages](#permission-modes-settings-languages)
 - [Hotkeys](#hotkeys)
 - [Security](#security)
+- [Remote access (prototype)](#remote-access-prototype)
 - [State on disk](#state-on-disk)
 - [Troubleshooting](#troubleshooting)
 
@@ -101,13 +102,14 @@ The chat is the first tab and cannot be closed. Type a message and press Enter t
 - Shift+Tab in the message field cycles the permission mode (see below).
 - Tool calls appear as lines such as `Read` or `Bash` with their argument. Click one to see the full input and output; errors are red.
 - A permission request shows as a card with **Allow** and **Deny**. In plan mode, the plan appears as a card: **Approve** continues in the previous mode, **Keep planning** stays in plan mode.
+- A question from the agent (Claude's AskUserQuestion, or a Codex or omp question) is a card too: its header, each question with its options and their descriptions (radio buttons, or checkboxes when several may be picked) and a free-text answer. **Send answers** sends them, **Cancel** declines. The phone shows the same card.
 - Mermaid and SVG blocks in replies render as diagrams. The **Open diagram** button opens one full size in its own tab.
 - The bar under the message box shows the context size, the 5-hour and weekly plan limits, and the session's API cost (on a plan, what the session would cost at API prices). An answer that comes without plan limits keeps the last known ones until their reset time. The compact and clear buttons by the message box run `/compact` and `/clear`.
 - An idle conversation is compacted for you 50 minutes after the last turn, if the window saw no activity for 15 minutes and the context is at least 200,000 tokens, so the prompt cache is not wasted. Click the idle-compaction indicator to turn it off for the project, or set `"idleCompaction": false` in `~/.claude/settings.json`.
 
 ### Voice messages
 
-With Whisper installed and on (Settings, Voice messages), one button sits right of the message field, as in a messenger: the microphone while there is nothing to send, **Send** as soon as there is (typed text, an attached image, a `!` command), the microphone again when the field is emptied. Pending comments do not count as something to send: with them and an empty field the microphone stays, and a recording takes them along. Without Whisper the microphone opens that settings section. A server older than this feature shows no microphone, only **Send**.
+With Whisper installed and on (Settings, Voice messages), the microphone sits inside the right edge of the message field, as in a messenger, while the field has no text: it goes when you type and comes back when the field is emptied. An attached image alone does not hide it, since a recording never carries the draft or its images. **Send** stays right of the field: it is off while there is nothing to send (no text, no image, no pending comment) and its badge counts the pending comments it will carry. Pending comments do not count as text: with them and an empty field the microphone stays, and a recording takes them along. Without Whisper the microphone opens that settings section. A server older than this feature shows no microphone.
 
 - **Click** the microphone (or press Alt+R): a recording starts and takes the place of the field: a blinking dot, the time, the live level and the buttons **Cancel** (Esc), **Stop** and **Send** (Enter, or Alt+R again). **Stop** keeps the recording for you to listen to; then **Send**, or the trash button to delete it.
 - **Press and hold** the microphone for more than 0.3 s: it records while you hold and sends when you let go.
@@ -127,7 +129,7 @@ This is the core of the tool: review first, then send everything at once.
 2. In the popup type `make this configurable` and press Cmd/Ctrl+Enter. The fragment turns yellow and a card appears in the **Comments** panel. Esc cancels the popup.
 3. Select a line in a second reply, and instead of typing, click a quick label such as **Verify this**. One click adds the comment with no typing.
 4. Open `src/queue.ts` from the **Files** panel, select a function and comment on it too.
-5. Comments alone are sent from **Send (3)** in the Comments panel. In the composer the microphone stays while the field is empty; type a message of your own and the button becomes **Send (3)**. Press **Send**.
+5. Comments alone are sent from **Send (3)** in the Comments panel, or from **Send** in the composer while its field is empty (its badge says 3). Type a message of your own and the same **Send** sends it with the comments. Press **Send**.
 
 The agent receives one message that starts with "Comments on fragments:" and lists each fragment with its source (a chat reply, a file, a tool command) next to your note. Comments sent are shown dimmed and tagged "sent".
 
@@ -136,7 +138,7 @@ Details:
 - You can comment on agent replies, on your own messages, on tool lines, on subagent replies (the comment goes to the main session), and on any open file.
 - The quick labels are Looks good, Love it!, Clarify this, Verify this, Give me an example, Missing overview, Match existing patterns, Consider alternatives, Ensure no regression, Out of scope and Needs tests. Most carry a short instruction for the agent that is sent with the batch.
 - Comment text takes emoji from the emoji menu or by typing a shortcode such as `:+1:`. The `@` picker works in the comment popup too.
-- Click a highlighted fragment to open its card in a popup; edit or delete it there or in the panel. The panel's cards jump to the source. Tabs and tree rows show a count badge.
+- Click a highlighted fragment to open its card in a popup; edit or delete it there or in the panel. Both the new-comment popup and an opened card can be dragged by their header line out of the way; a new selection or another card puts it back at its anchor. The panel's cards jump to the source. Tabs and tree rows show a count badge.
 - Comments are stored per session and survive reloads and resumes. If the text a comment was made on has changed, the card is marked "fragment changed" and kept; for a file that changed since, "the file has changed since".
 - The Comments panel opens with Cmd/Ctrl+Shift+C.
 - **Voice clips.** With Whisper on, the comment popup has the same field as the message box: a microphone while the field is empty that turns into **Add** once you type or attach an image. Click the microphone to record, click **Stop** to add the clip under the text (Esc while recording drops the recording, not the comment). Each clip shows a play button, its wave and its transcript; delete one with the cross, record again for more (up to 10). **Add** waits until every clip is transcribed; a clip that failed needs **Retry** or deletion. A comment can be clips only: with clips (or a drawing) and an empty field the microphone stays in the field, so more clips can be recorded, and **Add** sits in the row below it. The agent gets the clips' transcripts, each on its own line, after what you typed. Cards and the sent comments under a message show the clips with play and transcript.
@@ -325,7 +327,7 @@ This is narrow on purpose. Only absolute paths inside the system temp folders (`
 
 When the agent starts a subagent, the call in the chat is a card with the subagent's type, a description and its status (running, done, error, stopped). **Open** shows the subagent's conversation in its own tab, read-only, refreshed while it runs. Comments you make there go to the main session. The message box always talks to the main agent, whichever tab is open.
 
-The task indicator under the message box counts running subagents and background shell tasks. Click it or press Alt+T to open the **Tasks** drawer: a tree of subagents, shell tasks and monitors with status, elapsed time and the last tool. Per task you can open it, **Stop** it (click twice: the first click turns the button into "Stop?") or send a foreground call **To background**. A shell task opens as a **Task output** tab that shows the tail of its output and refreshes every second while it runs. Finished tasks stay in the list (the last 20).
+The task indicator under the message box counts running subagents and background shell tasks. Click it or press Alt+T to open the **Tasks** drawer: a tree of subagents, shell tasks and monitors with status, elapsed time, the last tool and, for a Claude subagent, its model. Per task you can open it, **Stop** it (click twice: the first click turns the button into "Stop?") or send a foreground call **To background**. A shell task opens as a **Task output** tab that shows the tail of its output and refreshes every second while it runs. Finished tasks stay in the list (the last 20).
 
 ## Sessions and history
 
@@ -352,7 +354,7 @@ The mode pill under the message box, or Shift+Tab in the box, cycles through:
 | Plan | Only reads and thinks, changes nothing, and ends with a plan to approve. |
 | Auto | A classifier approves safe actions itself and asks about the rest. |
 
-The mode is saved per project folder. The model and effort pill in the header sets the model and the effort (Low, Medium, High, Extra high, Max). It shows the model's short name (for the default row: the name of the row for the same model (an alias row first), else the model's short name such as "Opus 5.5", else the row's name without its parenthetical), a small `1M` for the 1M-context variant and a tiny bar for the effort (nothing for Auto); the tooltip and the screen-reader name spell the effort out. In the menu, the model under the pointer or focus (else the current one) has its full description under the list, since the rows cut it short. A change applies from the next reply, and the pill warns when it makes the next reply re-read the whole context. A long list (a router such as OpenRouter offers dozens of models) has a search field at the top, scrolls inside the menu and is grouped by provider, the provider in use first.
+The mode is saved per project folder. The model and effort pill in the header sets the model and the effort (Low, Medium, High, Extra high, Max). In the menu the effort is a stepped slider: **Auto** (the model's own default, no level) and one stop per level the model has; click a stop, drag, or step with Left, Right, Home and End. It shows the model's short name (for the default row: the name of the row for the same model (an alias row first), else the model's short name such as "Opus 5.5", else the row's name without its parenthetical), a small `1M` for the 1M-context variant and a tiny bar for the effort (nothing for Auto); the tooltip and the screen-reader name spell the effort out. In the menu, the model under the pointer or focus (else the current one) has its full description under the list, since the rows cut it short. A change applies from the next reply, and the pill warns when it makes the next reply re-read the whole context. A long list (a router such as OpenRouter offers dozens of models) has a search field at the top, scrolls inside the menu and is grouped by provider, the provider in use first.
 
 **Stop window** (⏻, the last button of the header, right of the gear) stops the agent and the window after a confirmation, which warns when a turn is running; the launcher exits with it (a `/nb` background task ends, a terminal gets its prompt back). The tab then says the window is stopped and does not reconnect; the session stays, and `/nb` or `nota-bene` opens it again.
 
@@ -362,7 +364,7 @@ The gear in the header opens a menu: the interface language, the colour theme, t
 
 - **Windows**: every running window with its folder, port, state (working or idle), number of open tabs and uptime. Open, Restart agent, Restart server and Stop work on any of them.
 - **Storage**: what is on disk for pasted images, voice recordings, comments, chat history from before compaction and media marks, with **Clean unreferenced files**, which moves pasted images and voice recordings that no message or comment references and that are over a day old, and the history of sessions that no longer exist, to the state folder's `trash/`. Nothing is deleted.
-- **Voice messages (Whisper)**: off by default. **Install Whisper** downloads the `whisper-small` speech model with the transformers runtime from npm and Hugging Face (about 430 MB to download, 770 MB on disk) into the `whisper` folder of the state folder, after a confirmation that names the exact path. The model runs in a separate thread, so the window stays responsive while it transcribes, and in a background process that all windows of this computer share: it loads the model at the first recording and unloads it after 10 minutes without one, so the model's memory is used once, not once per window. Once it is installed, a checkbox turns Whisper on or off: with it on, the microphone buttons of this window and of the phone (in the message field and in comments) record up to 10 minutes and this computer transcribes the recording, a long one in parts of up to a minute. Without Whisper the microphone button offers to install it, or to turn it on. The audio of voice messages is not thrown away after it is transcribed: see Voice messages in the chat section. **Spoken language** (with Whisper installed, on a new enough server) chooses what you speak: **Detect automatically** (the default) lets Whisper recognise the language of each recording from its first 30 seconds and falls back to the interface language when it is not sure or the recording is very short; picking one of the six languages pins it. The choice belongs to this computer and is shared by every window. **Remove Whisper** stops that background process and deletes the model files, not the recordings.
+- **Voice messages (Whisper)**: off by default. **Install Whisper** downloads the `whisper-small` speech model with the transformers runtime from npm and Hugging Face (about 430 MB to download, 770 MB on disk) into the `whisper` folder of the state folder, after a confirmation that names the exact path. After the install it needs no network: every window and the shared process read the model from that folder and fetch nothing. The model runs in a separate thread, so the window stays responsive while it transcribes, and in a background process that all windows of this computer share: it loads the model at the first recording and unloads it after 10 minutes without one, so the model's memory is used once, not once per window. Once it is installed, a checkbox turns Whisper on or off: with it on, the microphone buttons of this window and of the phone (in the message field and in comments) record up to 10 minutes and this computer transcribes the recording, a long one in parts of up to a minute. Without Whisper the microphone button offers to install it, or to turn it on. The audio of voice messages is not thrown away after it is transcribed: see Voice messages in the chat section. **Spoken language** (with Whisper installed, on a new enough server) chooses what you speak: **Detect automatically** (the default) lets Whisper recognise the language of each recording from its first 30 seconds and falls back to the interface language when it is not sure or the recording is very short; picking one of the six languages pins it. The choice belongs to this computer and is shared by every window. **Remove Whisper** stops that background process and deletes the model files, not the recordings.
 - **Defaults**: interface language, interface scale (90–150 %: text and spacing grow, for every window at once), and the agent mode for projects that have none of their own.
 - **Themes**: the six colour themes, each with a swatch of its own colours; pick one. It is the same choice as the Theme row of the gear menu.
 - **About**: version, state folder, where the logs are, Node version.
@@ -488,35 +490,60 @@ so a newer APK installs over the older one and keeps the phone's key and pairing
   and asks again after five minutes in the background. A phone without a screen lock cannot open it.
 - **Pair.** Run `nota-bene remote pair` on the computer, tap *Pair a host* and scan the code (or copy the
   `nbremote://` text and use *Paste the code instead*). Compare the two fingerprints with what `pair` printed.
-- **Sessions.** One group per paired host with its open windows (folder, session title, agent, model, a dot while it
-  works). An offline host shows when it was last seen; a host that revoked this phone says so and offers *Forget*.
-  At start the app reopens the chat used last, when its host is online and still has that window.
+- **Sessions.** One group per paired host with its open windows, two lines a row as in a messenger: the session title
+  with the time of the last message, and the last message (the folder as a coloured prefix) with a badge, the unread
+  count or ! when the window waits for your answer; a dot on the avatar shows while the window works. Pull down to
+  refresh. An offline host shows when it was last seen; a host that revoked this phone says so and offers *Forget*.
+  Long-press a host to rename it (the name is kept on the phone only; it starts as the computer's name). At start the
+  app reopens the chat used last, when its host is online and still has that window.
 - **Chat.** The window's conversation as on the desktop (Markdown, highlighted code, formulas, Mermaid diagrams as
-  pictures; tap a diagram to zoom, a tool line to see its result). Send (while the agent works, the message waits for
-the turn or, with *Send now*, interrupts it), *Stop*, and in the agent menu *Compact*,
-  *Model and effort* and *Restart agent*. A tool asking for permission opens a sheet with the whole command; questions
-  with choices and fields are answered in the chat. When the host is offline what arrived stays readable and sending is
-  off.
+  pictures; tap a diagram to zoom). Consecutive tool calls fold into one "N actions" line, with its errors and comments;
+  tap it to open the lines, and a line to see its result. A tool line on a Markdown file, an image or a video of the
+  project has an open button. Long-press a message for the quick labels, *Comment*, *Copy*, *Reply* (quotes it in the
+  field) and, except on a reply, *Select text*. Send (while the agent works, the message waits for the turn
+  or, with *Send now*, interrupts it) and *Stop*. The header pill shows the session and its state (online, working with
+  what it does (reading files, running commands, …) and for how long, waiting for your answer, compacting, offline); tap it for the window sheet: model,
+  effort, mode and *Restart agent*. The ring beside it is the context meter; tap it for the context sheet: tokens, the
+  5-hour and weekly limits, the session's cost, idle compaction, *Compact*, *Clear* and *Stats* (the usage report of the
+  computer, as the desktop's Usage tab). A tool asking for permission opens a sheet with the whole command; a question
+  from the agent is a card in the chat, with its options and a free-text answer. When the host is offline what arrived
+  stays readable and sending is off.
+- **Panes.** A chat is three panes: Files, Chat and Comments, with a pill of tabs and a swipe across the screen (side
+  by side on a wide screen). Files lists the session's files, then the project's folders and files with a search; a
+  Markdown file, an image or a video opens full screen, any other text file of up to 2 MiB read-only (a larger or binary file says so, with its size), and in a git
+  repository the pane has *Changes* and *Log* tabs whose files open as diffs.
 - **One tab.** The phone is a tab of the window: if the window is open on the computer, *Work here* takes it over,
   and the computer's tab offers to take it back.
-- **Themes.** The desktop's six themes, picked in the app's Settings. The phone keeps its own choice (Darcula until
-  one is picked) for every host; code highlighting and Mermaid diagrams follow it.
-- **Markdown files and comments.** A tool line on a Markdown file of the project has an open button, and the agent
-  menu's *Files* lists the session's Markdown files. The file opens over the chat. Select text and choose *Comment*:
-  the sheet shows the quote, the quick labels and a field. The comments gather in the *Comments* tab, and one line above the
-  composer, "N comments to send", says how many wait; tap it to open the tab, where they are edited (long-press),
-  deleted and sent with its *Send*. Typed text in the field takes them along as the desktop sends them, and so does a
-  voice message: a recording made while comments are pending carries them (with a new enough Nota Bene on the
-  computer; an older one gets the recording alone and the comments stay pending). The desktop shows them too, because
-  they are the window's comments. A comment is highlighted in its file; tap it to open it there. Comments
-  on images, video and pages made on the desktop stay there and are sent from the desktop.
-- **Project icons.** Long-press a session in the list and choose *Set icon* to give its project folder a picture from the
-  camera or the gallery (cut to a centre square of 256 px on the phone); *Remove icon* takes it away. The picture is kept
-  on the computer in Nota Bene's own folder, never in the project, so every window of that folder shows it on every phone
-  (as the session's avatar in the list and in the chat header). The desktop shows nothing new. A computer on an older
-  Nota Bene offers no *Set icon*.
-- **Not yet:** comments on chat messages, images and video, usage statistics and dictation come with the next parts
-  of #63.
+- **Settings.** The desktop's six themes (dark first, then light; Darcula until one is picked), the app's language
+  (the phone's own, or one of the six), the text size (85–150 %) and the interface size (90–130 %), the voice language and
+  the paired hosts. The choices stay on the phone, for every host; code highlighting and Mermaid diagrams follow the
+  theme.
+- **Comments.** Tap a paragraph, heading, list item, quote or table of a reply: a bubble offers the quick labels (a chevron
+  shows all eleven), *Comment* (a sheet with the quote, the labels, a field, images and voice clips) and *Copy*. In a
+  file, a Markdown text or a diff, select text and choose *Comment*; on an image or a video frame, mark it up (shapes,
+  colours) and comment, as on the desktop. The comments gather in the *Comments* pane, and one line above the composer,
+  "N comments to send", says how many wait; tap it to open the pane, where they are edited (long-press), deleted (swipe left,
+  with *Undo*) and sent with its *Send*; the sent ones fold under "Sent". Typed text in the field takes them along as the
+  desktop sends them, and so does a voice message: a recording made while comments are pending carries them. The desktop
+  shows them too, because they are the window's comments. A comment is highlighted in its file; tap it to open it there.
+  Comments on HTML pages, 3D models and images attached on the desktop stay there and are sent from there.
+- **Images.** Images open from the file links in the chat and zoom with a pinch (a double tap zooms in); the paperclip
+  opens a sheet with *Gallery*, *File*, *Camera* and your latest photos to attach up to ten. Videos play in the app.
+- **Voice messages.** With Whisper on at the computer (Settings, Voice messages there; without it the microphone offers to
+  install it or turn it on), hold the microphone in the message field to record, slide left to cancel, slide up to lock
+  the recording (then *Stop* leads to a preview with *Delete* and *Send*), let go to send. It is a message of its own,
+  up to 10 minutes; the computer transcribes it, and the message shows a play button, the wave and the transcript, with
+  *Retry* when it failed. Voice clips in a comment work the same way. The language is recognised by itself (**Automatic**,
+  the default) or pinned in Settings, Voice language; a badge with its code marks a message recognised in a language
+  other than the app's. The phone has no recognizer of its own.
+- **Project icons.** Long-press a session in the list, or open the window sheet, and choose *Set icon* to give its project
+  folder a picture from the camera or the gallery (cut to a centre square of 256 px on the phone); *Remove icon* takes it
+  away. The picture is kept on the computer in Nota Bene's own folder, never in the project, so every window of that
+  folder shows it on every phone (as the session's avatar in the list and in the chat header). The desktop shows nothing
+  new.
+- **Versions.** The app needs Nota Bene 1.8.0 or newer on the computer, the first version with `nota-bene remote`.
+  A newer app leaves out what an older computer cannot do.
+- **Not yet:** push notifications. Open items are tracked in #63.
 
 ## State on disk
 
