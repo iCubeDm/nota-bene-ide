@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { toSlash } from '@nota-bene/shared/paths';
 import { BIN, buildPackage, NODE_RANGE, PACKAGE_NAME } from '../scripts/build-package.mjs';
 import { HostClient } from '../server/src/dictation/hostClient.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostSocketPath } from '../server/src/dictation/hostWire.ts';
@@ -54,7 +55,8 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  const open = (d: string) => { fs.chmodSync(d, 0o755); for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory()) open(path.join(d, e.name)); };
+  // Windows: a read-only file (0o444 sets its read-only attribute) cannot be deleted, so the files are made writable again too
+  const open = (d: string) => { fs.chmodSync(d, 0o755); for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory()) open(path.join(d, e.name)); else if (process.platform === 'win32') fs.chmodSync(path.join(d, e.name), 0o644); };
   if (pkg) open(pkg);
   fs.rmSync(tmp, { recursive: true, force: true });
   vi.unstubAllEnvs();
@@ -69,7 +71,10 @@ const hostPids: number[] = [];
 /** State homes a test used: every host that logged `listening` in one of them is ended too (a host is detached, nothing else holds it). */
 const hostHomes = new Set<string>();
 /** Is `pid` a host of this package's (its command line names the package's host.js)? Nothing else is ever signalled by pid. */
-const isPackagedHost = (pid: number): boolean => spawnSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).stdout.includes(path.join(pkg, 'server/src/host.js'));
+const commandLine = (pid: number): string => (process.platform === 'win32'
+  ? spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").CommandLine`], { encoding: 'utf8', windowsHide: true }).stdout
+  : spawnSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).stdout) ?? '';
+const isPackagedHost = (pid: number): boolean => commandLine(pid).includes(path.join(pkg, 'server/src/host.js'));
 const alive = (pid: number): boolean => { try { process.kill(pid, 0); return true; } catch { return false; } };
 /** The pids of the hosts that logged `listening` in this home's host.log and host.log.1: the logs name every host a window started there. */
 function loggedHostPids(base: string): number[] {
@@ -121,7 +126,7 @@ it('the generated package.json: unscoped name, one bin, exact runtime deps only,
 });
 
 it('ships compiled JS with the shared protocol inlined, the blend assets and no TypeScript', () => {
-  const files = tree(pkg).map((f) => path.relative(pkg, f));
+  const files = tree(pkg).map((f) => toSlash(path.relative(pkg, f)));
   expect(files).toEqual(expect.arrayContaining(['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/host.js', 'server/src/blend/export.py', 'server/src/blend/sandbox.sb', 'server/src/dictation/pipelineWorker.mjs', 'server/src/dictation/npm-shrinkwrap.json', 'web/dist/index.html', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'package.json']));
   expect(files.filter((f) => /\.tsx?$/.test(f))).toEqual([]);
   for (const f of ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/host.js']) expect(fs.readFileSync(path.join(pkg, f), 'utf8')).not.toContain('@nota-bene/shared');
