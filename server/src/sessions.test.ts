@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import http from 'node:http';
 import { EventHub } from './hub.ts';
-import { cwdOf, listSessionsView, renameRoute, titleOf } from './sessions.ts';
+import { archiveRoute, cwdOf, deleteRoute, listSessionsView, renameRoute, titleOf } from './sessions.ts';
 import { wirePath } from './wirePath.ts';
 
 let dir: string;
@@ -111,6 +111,17 @@ describe('listSessionsView', () => {
       ],
     });
   });
+
+  it('marks the archived ones; an archived id the listing does not have is ignored', async () => {
+    const backend = {
+      listSessions: async () => [
+        { sessionId: 'kept', lastModified: 1, cwd: '/nb-a' },
+        { sessionId: 'hidden', lastModified: 2, cwd: '/nb-a' },
+      ],
+    };
+    const view = await listSessionsView({ backend, current: null, root: '/nb-a', archived: new Set(['hidden', 'gone']) });
+    expect(view.sessions.map((s) => [s.id, s.archived])).toEqual([['kept', undefined], ['hidden', true]]);
+  });
 });
 
 describe('POST /sessions/rename', () => {
@@ -145,5 +156,81 @@ describe('POST /sessions/rename', () => {
   it('refuses a GET, and says 500 when the agent refuses', async () => {
     expect(await call(async () => {}, '', 'GET')).toBe(405);
     expect(await call(async () => { throw new Error('no'); }, JSON.stringify({ id: ID, title: 'a' }))).toBe(500);
+  });
+});
+
+const ID = '11111111-1111-4111-8111-111111111111';
+const OPEN = '22222222-2222-4222-8222-222222222222';
+const post = async (route: http.RequestListener, body: string, method = 'POST') => {
+  const server = http.createServer(route);
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address() as { port: number };
+  const res = await fetch(`http://127.0.0.1:${port}/`, { method, ...(method === 'POST' ? { body } : {}) });
+  server.close();
+  return { status: res.status, text: await res.text() };
+};
+
+describe('POST /sessions/archive', () => {
+  const route = (set: (id: string, on: boolean) => void) => archiveRoute({ hub: new EventHub(), current: () => OPEN, set });
+
+  it('archives and restores another session', async () => {
+    const set = vi.fn();
+    expect((await post(route(set), JSON.stringify({ id: ID, archived: true }))).status).toBe(200);
+    expect((await post(route(set), JSON.stringify({ id: ID, archived: false }))).status).toBe(200);
+    expect(set.mock.calls).toEqual([[ID, true], [ID, false]]);
+  });
+
+  it('refuses to archive the open session (restoring it is fine)', async () => {
+    const set = vi.fn();
+    expect((await post(route(set), JSON.stringify({ id: OPEN, archived: true }))).status).toBe(409);
+    expect(set).not.toHaveBeenCalled();
+    expect((await post(route(set), JSON.stringify({ id: OPEN, archived: false }))).status).toBe(200);
+  });
+
+  it.each([
+    ['a bad id', { id: '../x', archived: true }],
+    ['no flag', { id: ID }],
+  ])('refuses %s', async (_, body) => {
+    const set = vi.fn();
+    expect((await post(route(set), JSON.stringify(body))).status).toBe(400);
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('refuses a GET and bad json', async () => {
+    expect((await post(route(vi.fn()), '', 'GET')).status).toBe(405);
+    expect((await post(route(vi.fn()), '{')).status).toBe(400);
+  });
+});
+
+describe('POST /sessions/delete', () => {
+  const route = (o: { remove?: (id: string) => Promise<void>; switching?: boolean; unarchive?: (id: string) => void }) =>
+    deleteRoute({ hub: new EventHub(), current: () => OPEN, switching: () => o.switching ?? false, remove: o.remove, unarchive: o.unarchive ?? (() => {}) });
+
+  it('deletes another session through the agent and drops it from the archive', async () => {
+    const remove = vi.fn(async () => {});
+    const unarchive = vi.fn();
+    expect((await post(route({ remove, unarchive }), JSON.stringify({ id: ID }))).status).toBe(200);
+    expect(remove).toHaveBeenCalledWith(ID);
+    expect(unarchive).toHaveBeenCalledWith(ID);
+  });
+
+  it('is a 404 for an agent that cannot delete', async () => {
+    expect((await post(route({}), JSON.stringify({ id: ID }))).status).toBe(404);
+  });
+
+  it('refuses the open session and any while a switch runs', async () => {
+    const remove = vi.fn(async () => {});
+    expect((await post(route({ remove }), JSON.stringify({ id: OPEN }))).status).toBe(409);
+    expect((await post(route({ remove, switching: true }), JSON.stringify({ id: ID }))).status).toBe(409);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('refuses a bad id; says 500 with the agent\'s words when it refuses, and keeps the archive entry', async () => {
+    const remove = vi.fn(async () => {});
+    expect((await post(route({ remove }), JSON.stringify({ id: '../x' }))).status).toBe(400);
+    expect(remove).not.toHaveBeenCalled();
+    const unarchive = vi.fn();
+    expect(await post(route({ remove: async () => { throw new Error('no such session'); }, unarchive }), JSON.stringify({ id: ID }))).toEqual({ status: 500, text: 'no such session' });
+    expect(unarchive).not.toHaveBeenCalled();
   });
 });

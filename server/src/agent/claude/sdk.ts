@@ -1,5 +1,5 @@
 import { askUserQuestion } from './ask-question.ts';
-import { getSessionInfo, getSessionMessages, getSubagentMessages, listSessions, listSubagents, query, renameSession } from '@anthropic-ai/claude-agent-sdk';
+import { deleteSession, getSessionInfo, getSessionMessages, getSubagentMessages, listSessions, listSubagents, query, renameSession } from '@anthropic-ai/claude-agent-sdk';
 import type { ModelInfo, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { CLAUDE_CAPABILITIES, type AgentEvent, type EffortLevel, type Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
 import type { AgentBackend, AgentSession, PermissionAsk, SendImage } from '../types.ts';
@@ -216,12 +216,14 @@ class SdkSession implements AgentSession {
 export function sdkBackend(): AgentBackend {
   const warning = gitBashWarning(); // checked once, at startup
   return {
-    capabilities: CLAUDE_CAPABILITIES,
+    capabilities: { ...CLAUDE_CAPABILITIES, deleteSession: true },
     warning: () => warning,
     start: (o) => new SdkSession(o),
     listSessions: () => listSessions({ limit: 300 }),
     sessionInfo: async (id, dir) => (await getSessionInfo(id, { dir })) ?? null,
     renameSession: (id, title) => renameSession(id, title),
+    // the transcript and its subagents' folder; throws when no project has it
+    deleteSession: (id) => deleteSession(id),
     history: async (sessionId, cwd, attachments, onError) => transcriptToEvents(await getSessionMessages(sessionId, { dir: cwd }), attachments, onError),
     subagent: async (sessionId, cwd, toolUseId, attachments, onError, call) => {
       const ids = await listSubagents(sessionId, { dir: cwd });

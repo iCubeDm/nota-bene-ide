@@ -527,6 +527,11 @@ export function fakeBackend(
       if (!x) throw new Error('no such session');
       x.customTitle = title;
     },
+    deleteSession: async (id) => {
+      const i = sessions.findIndex((e) => e.id === id);
+      if (i < 0) throw new Error('no such session');
+      sessions.splice(i, 1);
+    },
     subagent: async (_session, _cwd, toolUseId, attachments, onError) => {
       const a = (o.subagents ?? []).find((x) => x.toolUseId === toolUseId);
       return a ? { events: transcriptToEvents(subagentMessages(a), attachments, onError, { subagent: true }), running: a.running ?? false, type: a.type ?? '', description: a.description } : null;

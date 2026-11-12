@@ -88,7 +88,8 @@ export function transcriptExists(id: string, projectsDir: string = defaultProjec
 export type SessionsView = {
   current: string | null;
   root: string;
-  sessions: { id: string; title: string; at: number; size: number; cwd: string }[];
+  /** `archived`: hidden by the menu's archive (archivedSessions.ts) */
+  sessions: { id: string; title: string; at: number; size: number; cwd: string; archived?: true }[];
 };
 
 /** The native realpath (case, firmlinks, symlinks), the raw value when it cannot be resolved. */
@@ -106,38 +107,75 @@ export async function listSessionsView(o: {
   current: string | null;
   root: string;
   projectsDir?: string;
+  archived?: ReadonlySet<string>;
 }): Promise<SessionsView> {
   const list = await o.backend.listSessions();
   const sessions: SessionsView['sessions'] = [];
   for (const x of list) {
     const cwd = x.cwd || (o.backend.nativeSessions ? null : cwdOf(x.sessionId, o.projectsDir));
     if (!cwd) continue;
-    sessions.push({ id: x.sessionId, title: titleOf(x) ?? '', at: x.lastModified, size: x.fileSize ?? 0, cwd: wirePath(realOr(cwd)) });
+    sessions.push({
+      id: x.sessionId, title: titleOf(x) ?? '', at: x.lastModified, size: x.fileSize ?? 0, cwd: wirePath(realOr(cwd)),
+      ...(o.archived?.has(x.sessionId) ? { archived: true as const } : {}),
+    });
   }
   return { current: o.current, root: wirePath(o.root), sessions };
 }
 
-const MAX_TITLE = 200;
+type Answer = [status: number, body: string];
 
-/** POST /sessions/rename {id, title}: in the key tier (auth.ts). A title is one line of at most 200 characters. */
-export function renameRoute(o: { hub: EventHub; rename: (id: string, title: string) => Promise<void> }): RequestListener {
+/** A JSON POST route of the Sessions menu (key tier, auth.ts): `handle` answers; a throw is a 500 with its message. */
+function postRoute(hub: EventHub, where: string, handle: (body: Record<string, unknown>) => Promise<Answer> | Answer): RequestListener {
   return (req, res) => {
-    const answer = (status: number, body: string) => {
+    const answer = ([status, body]: Answer) => {
       res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
       res.end(body);
     };
-    if (req.method !== 'POST') return answer(405, 'method not allowed');
-    readJson(req).then(async (b) => {
-      const { id, title } = b as { id?: unknown; title?: unknown };
-      const t = typeof title === 'string' ? title.trim() : '';
-      // eslint-disable-next-line no-control-regex
-      if (!isSessionId(id) || !t || t.length > MAX_TITLE || /[\x00-\x1f\x7f]/.test(t)) return answer(400, 'bad id or title');
-      await o.rename(id, t);
-      answer(200, 'ok');
-    }).catch((e: unknown) => {
-      if (e instanceof SyntaxError) return answer(400, 'bad json');
-      reportError(o.hub, 'sessions/rename', e);
-      answer(500, e instanceof Error ? e.message : String(e));
+    if (req.method !== 'POST') return answer([405, 'method not allowed']);
+    readJson(req).then(async (b) => answer(await handle((b ?? {}) as Record<string, unknown>))).catch((e: unknown) => {
+      if (e instanceof SyntaxError) return answer([400, 'bad json']);
+      reportError(hub, where, e);
+      answer([500, e instanceof Error ? e.message : String(e)]);
     });
   };
+}
+
+const MAX_TITLE = 200;
+
+/** POST /sessions/rename {id, title}: a title is one line of at most 200 characters. */
+export function renameRoute(o: { hub: EventHub; rename: (id: string, title: string) => Promise<void> }): RequestListener {
+  return postRoute(o.hub, 'sessions/rename', async ({ id, title }) => {
+    const t = typeof title === 'string' ? title.trim() : '';
+    // eslint-disable-next-line no-control-regex
+    if (!isSessionId(id) || !t || t.length > MAX_TITLE || /[\x00-\x1f\x7f]/.test(t)) return [400, 'bad id or title'];
+    await o.rename(id, t);
+    return [200, 'ok'];
+  });
+}
+
+/** POST /sessions/archive {id, archived}: hides or restores a session in the menu; the open one cannot be archived. */
+export function archiveRoute(o: { hub: EventHub; current: () => string | null; set: (id: string, on: boolean) => void }): RequestListener {
+  return postRoute(o.hub, 'sessions/archive', ({ id, archived }) => {
+    if (!isSessionId(id) || typeof archived !== 'boolean') return [400, 'bad id or flag'];
+    if (archived && id === o.current()) return [409, 'the open session cannot be archived'];
+    o.set(id, archived);
+    return [200, 'ok'];
+  });
+}
+
+/**
+ * POST /sessions/delete {id}: the agent deletes a stored session for good (`remove`; none: the agent cannot, 404). Never the
+ * open session, nor any while a switch runs (its target may be the one asked for).
+ */
+export function deleteRoute(o: {
+  hub: EventHub; current: () => string | null; switching: () => boolean; remove: ((id: string) => Promise<void>) | undefined; unarchive: (id: string) => void;
+}): RequestListener {
+  return postRoute(o.hub, 'sessions/delete', async ({ id }) => {
+    if (!o.remove) return [404, 'this agent cannot delete sessions'];
+    if (!isSessionId(id)) return [400, 'bad id'];
+    if (id === o.current() || o.switching()) return [409, 'the open session cannot be deleted'];
+    await o.remove(id);
+    try { o.unarchive(id); } catch (e) { reportError(o.hub, 'sessions/delete', e); } // deleted all the same: a stale entry is ignored
+    return [200, 'ok'];
+  });
 }

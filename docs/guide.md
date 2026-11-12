@@ -180,7 +180,7 @@ Output of local commands such as `/context` or `/usage` is shown as a reply.
 - While the agent is busy they are refused with "Not sent: wait for the agent to finish. /compact and /clear cannot be queued." Send them again when the turn ends.
 - With pending comments, `/clear` is refused with "Not sent: /clear would drop the pending comments. Send or remove them first."
 
-`/clear` starts a new conversation and keeps the old session in the Sessions list. `/compact` shows a progress line while it runs and a "context compacted" line when done.
+`/clear` starts a new conversation and keeps the old session in the Sessions list; **Archive previous session** on the "context cleared" line hides it there. `/compact` shows a progress line while it runs and a "context compacted" line when done.
 
 ## Shell commands with !
 
@@ -341,9 +341,11 @@ The task indicator under the message box counts running subagents and background
 
 ## Sessions and history
 
-The **Sessions** icon in the header opens a picker over the selected provider's sessions on the machine, grouped by folder, with the current project first and a filter box (title or folder). Pick one to switch the window to it in place, without a reload. If the session is from another folder, the window moves to that project (tree, file access and the agent's working folder). The dialog warns you not to keep the same session open in another agent client at the same time: the history would get mixed up. **+ new session in this project** starts a fresh one. A new session can only start in the current folder or in a folder that already has sessions.
+The **Sessions** icon in the header opens a picker over the selected provider's sessions on the machine, grouped by folder, with the current project first and a filter box (title or folder). Each folder header shows its session count and opens or closes its group; only the current project's group starts open, and the menu remembers what you opened or closed. Typing in the filter opens every group with a match. Pick one to switch the window to it in place, without a reload. If the session is from another folder, the window moves to that project (tree, file access and the agent's working folder). The dialog warns you not to keep the same session open in another agent client at the same time: the history would get mixed up. **+ new session in this project** starts a fresh one. A new session can only start in the current folder or in a folder that already has sessions.
 
 ✎ on a row renames that session, the open one or any other, without switching to it. The open session also has **Rename** in the chat tab's right-click menu. Enter saves, Esc cancels. The title is the agent's own, so Claude Code or Codex shows it too.
+
+The archive icon on a row hides that session from the list. The archive belongs to Nota Bene, works the same for every agent and leaves the agent's own files alone, so the session still shows in Claude Code or Codex. **Show archive (N)** at the bottom lists the archived sessions, and **Restore** puts one back. ✕ deletes a session for good, after a confirmation. It is offered only where the agent can delete sessions (Claude Code: the transcript and its subagents' transcripts; Codex: the thread; not omp). Neither is offered for the open session: switch to another one first. After a `/clear`, the "context cleared" line has **Archive previous session**.
 
 Branches of a conversation: `/nb fork` from Claude Code, or `nota-bene --resume ID --fork`, opens a copy of a conversation that continues on its own. The original is untouched.
 

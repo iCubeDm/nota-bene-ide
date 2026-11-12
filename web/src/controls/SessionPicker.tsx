@@ -13,7 +13,8 @@ import { shortWinHome } from '@/lib/paths.ts';
 export type SessionsView = {
   current: string | null;
   root: string;
-  sessions: { id: string; title: string; at: number; size: number; cwd: string }[];
+  /** `archived`: hidden by the menu's archive (the server's list) */
+  sessions: { id: string; title: string; at: number; size: number; cwd: string; archived?: true }[];
 };
 type Item = SessionsView['sessions'][number];
 
@@ -37,6 +38,42 @@ export function groupSessions(v: SessionsView): { dir: string; here: boolean; it
   return [...groups].filter(([, xs]) => xs.length).map(([dir, items]) => ({ dir, here: dir === v.root, items }));
 }
 
+const GROUPS_KEY = 'sessions:groups';
+const MAX_GROUPS = 200;
+/** The folder groups the user opened (true) or closed (false); absent: closed, but this project's open. */
+type GroupState = Record<string, boolean>;
+function readGroups(): GroupState {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(GROUPS_KEY) ?? '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).filter(([, b]) => typeof b === 'boolean')) : {};
+  } catch {
+    return {};
+  }
+}
+function saveGroups(g: GroupState): void {
+  // the latest choices win: a key set again moves to the end
+  try { localStorage.setItem(GROUPS_KEY, JSON.stringify(Object.fromEntries(Object.entries(g).slice(-MAX_GROUPS)))); } catch { /* storage unavailable: not persisted */ }
+}
+
+const matches = (x: Item, needle: string) => !needle || `${x.title} ${x.cwd}`.toLowerCase().includes(needle);
+
+/**
+ * What the menu shows: the folder groups of the sessions not archived (only the ones with a match for `needle`), each open
+ * as `stored` says (this project's by default) or, with a filter, open; and the archived sessions that match, apart.
+ */
+export function menuGroups(v: SessionsView, needle: string, stored: GroupState) {
+  const groups = groupSessions({ ...v, sessions: v.sessions.filter((x) => !x.archived) })
+    .map((g) => ({ ...g, items: g.items.filter((x) => matches(x, needle)), open: needle ? true : stored[g.dir] ?? g.here }))
+    .filter((g) => g.items.length);
+  return { groups, archived: v.sessions.filter((x) => x.archived && matches(x, needle)) };
+}
+
+/** The session with its archive mark set or cleared. */
+const marked = (x: Item, on: boolean): Item => {
+  const { archived: _, ...rest } = x;
+  return on ? { ...rest, archived: true } : rest;
+};
+
 const isView = (v: unknown): v is SessionsView => {
   const o = v as SessionsView;
   return !!o && typeof o.root === 'string' && Array.isArray(o.sessions);
@@ -51,11 +88,20 @@ export const brief = (status: number | null, body: string): string => {
   return s.length > 120 ? `${s.slice(0, 119)}…` : s;
 };
 
-/** Renames a session (the open one or any other): null, or what went wrong. */
-export const renameSession = async (id: string, title: string): Promise<string | null> => {
-  const r = await apiFetch('/sessions/rename', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, title }) }).catch(() => null);
+/** POSTs JSON to a /sessions route: null, or what went wrong. */
+const postSessions = async (route: string, body: object): Promise<string | null> => {
+  const r = await apiFetch(route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null);
   return r?.ok ? null : brief(r?.status ?? null, r ? await r.text().catch(() => '') : '');
 };
+
+/** Renames a session (the open one or any other): null, or what went wrong. */
+export const renameSession = (id: string, title: string) => postSessions('/sessions/rename', { id, title });
+/** Archives (`on`) or restores a session in Nota Bene's own list: null, or what went wrong. */
+export const archiveSession = (id: string, on: boolean) => postSessions('/sessions/archive', { id, archived: on });
+/** Deletes a stored session for good (the agent's own files): null, or what went wrong. */
+const deleteSession = (id: string) => postSessions('/sessions/delete', { id });
+
+const ROW_ACTION = 'rounded px-1 text-xs text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-foreground focus-visible:opacity-100';
 
 /**
  * "Sessions ▾" in the header (claude --resume): every session of every folder, this project first. Picking one asks,
@@ -65,6 +111,7 @@ export const renameSession = async (id: string, title: string): Promise<string |
 export function SessionPicker() {
   const t = useT();
   const provider = useAppSelector((s) => s.controls.capabilities?.provider);
+  const canDelete = useAppSelector((s) => !!s.controls.capabilities?.deleteSession);
   const dispatch = useAppDispatch();
   const busy = useAppSelector(selectBusy);
   const switching = useAppSelector(selectSwitching);
@@ -74,12 +121,16 @@ export function SessionPicker() {
   const [q, setQ] = useState('');
   const [ask, setAsk] = useState<Ask | null>(null);
   const [edit, setEdit] = useState<{ id: string; text: string } | null>(null);
+  const [del, setDel] = useState<{ id: string; title: string } | null>(null);
+  const [stored, setStored] = useState<GroupState>(readGroups);
+  const [showArchive, setShowArchive] = useState(false);
   const filter = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const loadSeq = useRef(0);
   const confirmed = useRef(false);
   const [note, showNote] = useNote();
   const session = useAppSelector(selectSession);
+  const needle = q.trim().toLowerCase();
 
   // another session or root now (another window switched, a /clear): what the menu or the question showed is stale
   const sessionKey = session ? `${session.id}\n${session.root}` : '';
@@ -89,6 +140,7 @@ export function SessionPicker() {
     shownFor.current = sessionKey;
     setOpen(false);
     setAsk(null);
+    setDel(null);
   }, [sessionKey]);
 
   // the agent started working (another window sent) while the menu was open: nothing in it may be picked now
@@ -102,6 +154,7 @@ export function SessionPicker() {
     setQ('');
     setView(null);
     setEdit(null);
+    setShowArchive(false);
     const seq = ++loadSeq.current;
     void apiFetch('/sessions')
       .then(async (r) => {
@@ -113,6 +166,31 @@ export function SessionPicker() {
       .then((v) => { if (seq === loadSeq.current) setView(v); }, (e: unknown) => {
         if (seq === loadSeq.current) setView(t('sessFail') + brief(null, e instanceof Error ? e.message : String(e)));
       });
+  };
+
+  const toggle = (dir: string, open: boolean) => {
+    if (needle) return; // a filter keeps every group with a match open
+    setStored((g) => {
+      const { [dir]: _, ...rest } = g;
+      const next = { ...rest, [dir]: !open };
+      saveGroups(next);
+      return next;
+    });
+  };
+
+  const archive = async (id: string, on: boolean) => {
+    const failed = await archiveSession(id, on);
+    if (failed !== null) return showNote(t(on ? 'archiveFail' : 'restoreFail') + failed);
+    setView((w) => (w && typeof w === 'object'
+      ? { ...w, sessions: w.sessions.map((x) => (x.id === id ? marked(x, on) : x)) }
+      : w));
+    filter.current?.focus({ preventScroll: true });
+  };
+
+  const askDelete = (id: string, title: string) => {
+    trigger.current?.focus();
+    setOpen(false);
+    setDel({ id, title });
   };
 
   const pick = (a: Ask) => {
@@ -135,12 +213,7 @@ export function SessionPicker() {
   };
 
   const v = typeof view === 'object' ? view : null;
-  const needle = q.trim().toLowerCase();
-  const groups = v
-    ? groupSessions(v)
-      .map((g) => ({ ...g, items: g.items.filter((x) => !needle || `${x.title} ${x.cwd}`.toLowerCase().includes(needle)) }))
-      .filter((g) => g.items.length)
-    : [];
+  const { groups, archived } = v ? menuGroups(v, needle, stored) : { groups: [], archived: [] };
 
   return (
     <>
@@ -165,7 +238,7 @@ export function SessionPicker() {
           className="flex max-h-[min(70vh,560px)] w-[460px] flex-col"
           // focus the filter once the menu is positioned and shown, not while the popper still measures it
           onOpenAutoFocus={(e) => { e.preventDefault(); requestAnimationFrame(() => filter.current?.focus({ preventScroll: true })); }}
-          onCloseAutoFocus={(e) => { if (ask) e.preventDefault(); }}
+          onCloseAutoFocus={(e) => { if (ask || del) e.preventDefault(); }}
           // Esc protocol: consumed here, so the Composer does not also read it
           onEscapeKeyDown={(e) => {
             e.preventDefault();
@@ -195,15 +268,21 @@ export function SessionPicker() {
             {typeof view === 'string' && <div className="px-2.5 py-2 text-xs text-destructive">{view}</div>}
             {groups.map((g) => (
               <div key={g.dir}>
-                <div
+                <button
+                  type="button"
                   data-sess-group=""
                   data-here={g.here || undefined}
+                  aria-expanded={g.open}
                   title={g.dir}
-                  className={`truncate px-2.5 pt-2.5 pb-1 font-mono text-[0.65625rem] ${g.here ? 'text-link' : 'text-muted-foreground'}`}
+                  onClick={() => toggle(g.dir, g.open)}
+                  className={`flex w-full items-center rounded-md px-2.5 pt-2.5 pb-1 text-left font-mono text-[0.65625rem] hover:text-foreground ${g.here ? 'text-link' : 'text-muted-foreground'}`}
                 >
-                  {g.here ? t('thisProject') : ''}{short(g.dir)}
-                </div>
-                {g.items.map((x) => {
+                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden className={`mr-1 flex-none transition-transform ${g.open ? '' : '-rotate-90'}`}><path d="m6 9 6 6 6-6" /></svg>
+                  <span className="truncate">{g.here ? t('thisProject') : ''}{short(g.dir)}</span>
+                  {/* the count stays in sight when a long folder is cut */}
+                  <span className="flex-none">{`\u00a0· ${g.items.length}`}</span>
+                </button>
+                {g.open && g.items.map((x) => {
                   const cur = x.id === v!.current;
                   const title = x.title || t('untitled');
                   if (edit?.id === x.id) {
@@ -230,27 +309,84 @@ export function SessionPicker() {
                         aria-current={cur || undefined}
                         disabled={cur}
                         onClick={() => pick({ id: x.id, title, dir: x.cwd })}
-                        className={`block w-full rounded-md py-1.5 pr-8 pl-2.5 text-left hover:enabled:bg-muted ${cur ? 'cursor-default bg-primary/10' : ''}`}
+                        className={`block w-full rounded-md py-1.5 pr-16 pl-2.5 text-left hover:enabled:bg-muted ${cur ? 'cursor-default bg-primary/10' : ''}`}
                       >
                         <span data-t className="block truncate text-[0.8125rem] text-foreground">{title}</span>
                         <span className="block font-mono text-[0.65625rem] text-muted-foreground">
                           {x.id.slice(0, 8)} · {ago(x.at)} · {kb(x.size)}{cur ? t('openNow') : ''}
                         </span>
                       </button>
-                      <button
-                        type="button"
-                        aria-label={`${t('renameSess')}: ${title}`}
-                        title={t('renameSess')}
-                        onClick={() => setEdit({ id: x.id, text: x.title })}
-                        className="absolute top-1.5 right-1.5 rounded px-1 text-xs text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-foreground focus-visible:opacity-100"
-                      >
-                        ✎
-                      </button>
+                      <div className="absolute top-1.5 right-1.5 flex gap-0.5">
+                        <button
+                          type="button"
+                          aria-label={`${t('renameSess')}: ${title}`}
+                          title={t('renameSess')}
+                          onClick={() => setEdit({ id: x.id, text: x.title })}
+                          className={ROW_ACTION}
+                        >
+                          ✎
+                        </button>
+                        {/* the open session can be neither archived nor deleted: switch away first */}
+                        {!cur && (
+                          <button type="button" aria-label={`${t('archiveSess')}: ${title}`} title={t('archiveSess')} onClick={() => void archive(x.id, true)} className={ROW_ACTION}>
+                            <ArchiveIcon />
+                          </button>
+                        )}
+                        {!cur && canDelete && (
+                          <button type="button" aria-label={`${t('deleteSess')}: ${title}`} title={t('deleteSess')} onClick={() => askDelete(x.id, title)} className={`${ROW_ACTION} hover:text-destructive`}>
+                            ✕
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             ))}
+            {archived.length > 0 && (
+              <button
+                type="button"
+                aria-expanded={showArchive}
+                onClick={() => setShowArchive((a) => !a)}
+                className="mt-1 block w-full rounded-md border-t border-border-soft px-2.5 pt-2 pb-1 text-left font-mono text-[0.65625rem] text-muted-foreground hover:text-foreground"
+              >
+                {showArchive ? t('hideArchive') : t('showArchive', archived.length)}
+              </button>
+            )}
+            {showArchive && archived.map((x) => {
+              const cur = x.id === v!.current;
+              const title = x.title || t('untitled');
+              return (
+                <div key={x.id} data-sess-archived="" className="group/row relative">
+                  <button
+                    type="button"
+                    disabled={cur}
+                    onClick={() => pick({ id: x.id, title, dir: x.cwd })}
+                    className="block w-full rounded-md py-1.5 pr-24 pl-2.5 text-left opacity-70 hover:enabled:bg-muted"
+                  >
+                    <span className="block truncate text-[0.8125rem] text-foreground">{title}</span>
+                    <span className="block truncate font-mono text-[0.65625rem] text-muted-foreground" title={x.cwd}>
+                      {x.id.slice(0, 8)} · {ago(x.at)} · {short(x.cwd)}
+                    </span>
+                  </button>
+                  <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      aria-label={`${t('restoreSess')}: ${title}`}
+                      onClick={() => void archive(x.id, false)}
+                      className="rounded px-1 text-xs text-link hover:underline"
+                    >
+                      {t('restoreSess')}
+                    </button>
+                    {!cur && canDelete && (
+                      <button type="button" aria-label={`${t('deleteSess')}: ${title}`} title={t('deleteSess')} onClick={() => askDelete(x.id, title)} className={`${ROW_ACTION} hover:text-destructive`}>
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </PopoverContent>
       </Popover>
@@ -273,6 +409,30 @@ export function SessionPicker() {
           focusAfter={() => (confirmed.current ? document.getElementById('composer-input') : null)}
         />
       )}
+      {del && (
+        <ConfirmDialog
+          title={t('deleteQ', del.title)}
+          body={t('deleteWarn')}
+          confirm={t('deleteBtn')}
+          danger
+          onConfirm={() => {
+            const { id } = del;
+            setDel(null);
+            void deleteSession(id).then((failed) => {
+              if (failed !== null) return showNote(t('deleteFail') + failed);
+              onOpenChange(true); // the menu again, without it
+            });
+          }}
+          onCancel={() => setDel(null)}
+        />
+      )}
     </>
   );
 }
+
+/** An archive box: a lid over a box with a slot. */
+const ArchiveIcon = () => (
+  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className="inline-block align-[-1px]">
+    <rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />
+  </svg>
+);

@@ -279,6 +279,11 @@ test('a live reset frame empties the feed and adds the cleared line, keeping the
   expect(s.session).toEqual({ id: 'old', root: '/r', title: null, model: null }); // the session event that follows updates it
 });
 
+test('the cleared line keeps the id of the conversation before it, when the server names one', () => {
+  const s = fold([agent({ t: 'reset', newId: 'new', prev: 'old' }, 7)]);
+  expect(s.items).toEqual([{ key: expect.any(String), kind: 'marker', what: 'cleared', ts: 7, prev: 'old' }]);
+});
+
 test('a replay of the new session carries no cleared line', () => {
   expect(reduce(emptyFeed, { kind: 'replay', events: [] }).items).toEqual([]);
 });

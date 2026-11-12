@@ -187,6 +187,8 @@ export type Capabilities = {
   taskBackground?: boolean;
   taskOutput?: boolean;
   suggestions?: boolean;
+  /** the agent deletes a stored session for good (POST /sessions/delete); absent: the Sessions menu offers no delete */
+  deleteSession?: boolean;
 };
 /** Claude Code's set; the web assumes it when `hello` carries none (a server older than protocol 5). */
 export const CLAUDE_CAPABILITIES: Capabilities = {

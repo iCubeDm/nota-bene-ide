@@ -115,6 +115,38 @@ describe('GET /sessions', () => {
     });
   });
 
+  const postJson = (url: string, p: string, body: unknown) =>
+    fetch(url + p, { method: 'POST', headers: { 'content-type': 'application/json', origin: url }, body: JSON.stringify(body) });
+  const listed = async (url: string) => ((await (await get(url, '/sessions')).json()) as { sessions: { id: string; archived?: true }[] }).sessions;
+
+  it('an archived session is marked in the list and stays archived after a restart; restoring it clears the mark', async () => {
+    let s = await boot({ resume: SA });
+    expect((await postJson(s.url, '/sessions/archive', { id: SA, archived: true })).status).toBe(409); // the open one
+    expect((await postJson(s.url, '/sessions/archive', { id: SB, archived: true })).status).toBe(200);
+    expect((await listed(s.url)).map((x) => [x.id, x.archived])).toEqual([[SA, undefined], [SB, true]]);
+    await closers.pop()!();
+    s = await boot({ resume: SA });
+    expect((await listed(s.url)).find((x) => x.id === SB)?.archived).toBe(true);
+    expect((await postJson(s.url, '/sessions/archive', { id: SB, archived: false })).status).toBe(200);
+    expect((await listed(s.url)).find((x) => x.id === SB)?.archived).toBeUndefined();
+  });
+
+  it('delete: only with the capability, never the open session; a deleted one leaves the list and the archive', async () => {
+    const off = await boot({ resume: SA });
+    expect((await postJson(off.url, '/sessions/delete', { id: SB })).status).toBe(404);
+    await closers.pop()!();
+    const backend = fakeBackend([{ text: 'hello' }], {
+      capabilities: { deleteSession: true },
+      sessions: [{ id: SA, cwd: A, lastModified: 1 }, { id: SB, cwd: B, lastModified: 2 }],
+    });
+    const s = await boot({ backend, resume: SA });
+    expect((await postJson(s.url, '/sessions/delete', { id: SA })).status).toBe(409);
+    expect((await postJson(s.url, '/sessions/archive', { id: SB, archived: true })).status).toBe(200);
+    expect((await postJson(s.url, '/sessions/delete', { id: SB })).status).toBe(200);
+    expect((await listed(s.url)).map((x) => x.id)).toEqual([SA]);
+    expect(fs.readFileSync(path.join(home, 'archived-sessions.json'), 'utf8')).toBe('[]');
+  });
+
   it('refuses a foreign host', async () => {
     const s = await boot();
     const status = await new Promise<number>((resolve, reject) => {

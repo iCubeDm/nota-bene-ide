@@ -24,7 +24,8 @@ import { readPrefs } from './prefs.ts';
 import { httpHandler, isAllowedHost } from './http.ts';
 import { SwitchError, createSessionManager } from './session.ts';
 import type { IdleConfig } from './idle.ts';
-import { listSessionsView, renameRoute } from './sessions.ts';
+import { archiveRoute, deleteRoute, listSessionsView, renameRoute } from './sessions.ts';
+import { readArchived, setArchived } from './archivedSessions.ts';
 import { codeChecker } from './codeStamp.ts';
 import { stateBaseDir, stateDir } from './state.ts';
 import { AuditLog } from './audit.ts';
@@ -207,7 +208,7 @@ export async function startServer(o: {
         return;
       }
       const { id } = manager.info();
-      listSessionsView({ backend: o.backend, current: id, root: root() }).then(
+      listSessionsView({ backend: o.backend, current: id, root: root(), archived: readArchived() }).then(
         (view) => {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end(req.method === 'HEAD' ? undefined : JSON.stringify(view));
@@ -285,6 +286,11 @@ export async function startServer(o: {
         }),
         '/sessions': sessionsRoute,
         '/sessions/rename': renameRoute({ hub, rename: (id, title) => manager.rename(id, title) }),
+        '/sessions/archive': archiveRoute({ hub, current: () => manager.info().id, set: (id, on) => setArchived(id, on) }),
+        '/sessions/delete': deleteRoute({
+          hub, current: () => manager.info().id, switching: () => manager.switching(), unarchive: (id) => setArchived(id, false),
+          remove: o.backend.capabilities.deleteSession && o.backend.deleteSession ? (id) => o.backend.deleteSession!(id) : undefined,
+        }),
         '/agent-account': (req, res) => {
           const run = async () => {
             if (!o.backend.account) { res.writeHead(404); res.end(); return; }

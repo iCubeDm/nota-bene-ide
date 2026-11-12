@@ -11,6 +11,7 @@
 - **Paths on Windows.** Paths show as `C:/Users/...`; a reply's `src\a.ts` opens the same file as `src/a.ts` when the server runs on Windows, and `C:\` paths of temp images open as tabs. A project at a drive root (`D:\`) serves its files, `@`-completion hits with backslashes are normalised, and shortcut tips show Ctrl+Enter and Ctrl+V off a Mac. The session picker, Settings → Windows and the header handle Windows paths.
 - **The `/nb` skill helper is a Node script** (`open.mjs` instead of `open.sh`), so it runs on Windows. The Codex and omp skills start the launcher behind npm's `nota-bene.cmd` with Node. To link the omp skill on Windows, use a junction (see the README).
 - The in-app updater revalidates npm metadata before installing a release, so a cached version list from before publication does not cause a spurious "No matching version found" failure.
+- **A tidier Sessions menu.** Folder groups show their session count and open or close; only the current project starts open, the menu remembers the rest, and a filter opens every group with a match. A session can be archived: hidden from the list by Nota Bene alone (the agent's files stay), listed under **Show archive (N)** with **Restore**. Claude Code and Codex sessions can also be deleted for good, after a confirmation; omp sessions cannot. The open session can be neither archived nor deleted. After `/clear`, the "context cleared" line offers **Archive previous session**.
 
 ## 1.8.1 — 2026-11-12
 

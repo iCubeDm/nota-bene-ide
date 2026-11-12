@@ -224,6 +224,7 @@ describe('SessionManager characterization', () => {
     expect(lastSession('/proj')).toBe(newId);
     expect(heard).toEqual([[newId, 'fake-session']]);
     expect(agentOf(events, 'reset')).toHaveLength(1); // seen live
+    expect(agentOf(events, 'reset')[0]?.e).toMatchObject({ prev: 'fake-session' }); // the cleared one, for the page's archive offer
     const replay = stored(hub);
     expect(replay.filter((e) => e.kind === 'user' || e.kind === 'agent')).toEqual([]); // old turns, the reset and the clear's result: none stored
     expect(replay.find((e) => e.kind === 'session')).toMatchObject({ id: newId });
