@@ -34,7 +34,7 @@ export function dictationAssetDir(): string {
 /** How long a disposed worker gets to free its model and exit before it is terminated. */
 const DISPOSE_GRACE_MS = 3000;
 
-const defaultFactory: WorkerFactory = (data) => new Worker(path.join(dictationAssetDir(), 'pipelineWorker.mjs'), { workerData: data });
+export const defaultFactory: WorkerFactory = (data) => new Worker(path.join(dictationAssetDir(), 'pipelineWorker.mjs'), { workerData: data });
 
 /** Starts the worker, which loads the pipeline from the prefix `dir`. `close` ends it at once (a rejected `ready` if still loading). */
 export function openPipeline(dir: string, o: { worker?: WorkerFactory } = {}): { ready: Promise<Pipe>; close: (why?: Error) => void } {

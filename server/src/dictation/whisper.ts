@@ -30,3 +30,5 @@ export const DETECT_MIN_MS = 1000;
 export const DETECT_WINDOW_MS = 30_000;
 /** Whisper's input rate. */
 export const WHISPER_RATE = 16_000;
+/** The most audio one request carries, as a WAV or as PCM for the host: two minutes of 16 kHz 16-bit mono is 3.84 MB. */
+export const MAX_AUDIO = 4 * 1024 * 1024;

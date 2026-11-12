@@ -5,7 +5,7 @@ import { isDictationLang, readPrefs, setDictationLangPref, setWhisperPref } from
 import { installWhisper, removeWhisper, whisperDir, whisperPhase } from './install.ts';
 import { queued, resetTranscriber, spokenOf, transcribeWith as defaultTranscribe, type SpokenOrText } from './transcribe.ts';
 import { pcmFromWav, WavError } from './wav.ts';
-import { WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
+import { MAX_AUDIO, WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
 import { reportError } from '../errors.ts';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -25,9 +25,6 @@ export const LANG = /^[a-z]{2,3}$/;
 
 /** Whisper is installed, ready and switched on. */
 export const whisperOn = (): boolean => readPrefs().whisper === true && whisperPhase() === 'ready';
-
-/** Two minutes of 16 kHz 16-bit mono is 3.84 MB. */
-const MAX_AUDIO = 4 * 1024 * 1024;
 
 /** The body up to `max` bytes; null once it is larger (the rest is dropped, not buffered). */
 async function readAudio(req: IncomingMessage, max: number): Promise<Buffer | null> {
