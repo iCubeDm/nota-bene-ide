@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MAX_AUDIO } from './whisper.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostSocketPath, MAX_FRAME, MAX_HEADER, parseRequest, pcmFromInt16, pcmToInt16, WireError } from './hostWire.ts';
 
 const u32 = (n: number): Buffer => { const b = Buffer.alloc(4); b.writeUInt32BE(n); return b; };
@@ -61,6 +62,10 @@ describe('frames', () => {
     const head = Buffer.from('{"a":1}');
     const d = new FrameDecoder();
     expect(() => d.push(Buffer.concat([u32(head.length), head, u32(MAX_FRAME - head.length + 1)]))).toThrow(/too large/);
+  });
+  it('the cap is the most audio a request carries plus a full header, so the host and the HTTP routes cannot drift', () => {
+    expect(MAX_FRAME).toBe(MAX_AUDIO + MAX_HEADER);
+    expect(encodeFrame({ type: 'job' }, Buffer.alloc(MAX_AUDIO)).length).toBeLessThanOrEqual(MAX_FRAME + 8);
   });
   it('a frame of exactly the cap is accepted', () => {
     const head = Buffer.from('{"a":1}');

@@ -24,7 +24,7 @@ export const MAX_QUEUED_TOTAL = 64;
 /** PCM waiting across all windows (the running job's not counted): a job that would exceed it is answered `busy`. */
 export const MAX_QUEUED_BYTES = 64 * 1024 * 1024;
 /** Connected windows; one more is closed at once. Each may be buffering a partial frame of up to MAX_FRAME. */
-export const MAX_CLIENTS = 64;
+export const MAX_CLIENTS = 32;
 /** A window that does not read its answers is dropped once this much is waiting to be written to it. */
 export const MAX_PENDING_WRITE = 1024 * 1024;
 /** A model call gets the larger of this and JOB_DEADLINE_FACTOR times the audio's length. */
@@ -100,8 +100,9 @@ async function publish(server: net.Server, socketPath: string): Promise<{ ino: n
       await new Promise<void>((resolve) => server.close(() => resolve()));
       return null;
     }
+    const { ino } = fs.lstatSync(mine); // before the rename, which keeps the inode: the public name may be another host's a moment after it
     fs.renameSync(mine, socketPath);
-    return { ino: fs.lstatSync(socketPath).ino };
+    return { ino };
   } catch (e) {
     server.close();
     fs.rmSync(mine, { force: true });
@@ -366,7 +367,16 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
     return stopped = (async () => {
       const code = why === 'failed' || why === 'stuck' ? 1 : 0;
       let closed: Promise<void> = Promise.resolve();
-      await step('closing the socket', () => { closed = new Promise<void>((resolve) => server.close(() => resolve())); });
+      // first of all: the public name goes at once, so for the seconds the stop takes it does not lead to a host that refuses
+      // connections, and a freed inode number cannot be mistaken for ours later (libuv unlinks only the temp name this server bound)
+      await step('closing the socket', () => {
+        closed = new Promise<void>((resolve) => server.close(() => resolve()));
+        try {
+          if (published && fs.lstatSync(o.socketPath).ino === published.ino) fs.unlinkSync(o.socketPath);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; // already gone
+        }
+      });
       await step('answering the jobs', () => {
         const error: JobError = why === 'failed' ? 'failed' : 'off';
         for (const c of [...clients]) { // a window that does not read is dropped by its answer: not while iterating
@@ -395,8 +405,6 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
         clearTimeout(timer);
       });
       await step('waiting for the connections', () => closed);
-      // libuv unlinked the name this server bound; the public one is ours to remove only while it is still our socket
-      await step('removing the socket', () => { if (published && fs.lstatSync(o.socketPath).ino === published.ino) fs.unlinkSync(o.socketPath); });
       finish(code);
       return code;
     })();

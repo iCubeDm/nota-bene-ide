@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS, main, MAX_CLIENTS, MAX_QUEUED_BYTES, MAX_QUEUED_PER_CLIENT, MAX_QUEUED_TOTAL, startHost, WHISPER_IDLE_MS, type Host, type HostOptions } from './hostMain.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostSocketPath, MAX_HEADER, pcmToInt16, type Header } from './hostWire.ts';
 import type { WorkerData, WorkerFactory, WorkerLike } from './pipelineHost.ts';
-import { WHISPER_MODEL, WHISPER_PACKAGE } from './whisper.ts';
+import { MAX_AUDIO, WHISPER_MODEL, WHISPER_PACKAGE } from './whisper.ts';
 
 type Call = { worker: FakeWorker; id: number; audio: Float32Array; opts?: Record<string, unknown>; detect?: boolean };
 
@@ -658,6 +658,37 @@ describe('one host per socket', () => {
     expect(await c.status()).toMatchObject({ clients: 1 });
     expect(second!.status().clients).toBe(1);
   });
+  it('the socket inode a host removes is the one it renamed into place, not whatever is at the public name a moment later', async () => {
+    const rename = fs.renameSync.bind(fs);
+    vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      rename(from, to);
+      // another host moves its own socket over the public name right after ours
+      const theirs = `${String(to)}.theirs`;
+      fs.writeFileSync(theirs, '');
+      rename(theirs, to);
+    });
+    const h = await start();
+    vi.restoreAllMocks();
+    expect(fs.statSync(socketPath()).isSocket()).toBe(false); // theirs, a plain file
+    await h.stop();
+    expect(fs.existsSync(socketPath())).toBe(true); // and left alone
+  });
+  it('the public name goes when the stop begins, not after the model thread has taken its time to end', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const h = await start();
+    const a = await open();
+    a.send(job(1), pcm(1));
+    await rig.call(0);
+    rig.stuck = true; // the thread needs the whole grace to be given up on
+    const stopping = h.stop();
+    expect(fs.existsSync(socketPath())).toBe(false); // at once: nothing leads to a host that refuses connections
+    const next = await startMore(); // so a new host can take the name while this one is still stopping
+    expect(next).not.toBeNull();
+    await runDown(stopping);
+    const c = await open();
+    expect(await c.status()).toMatchObject({ clients: 1 }); // the new host's: the old one did not remove it on its way out
+    expect(next!.status().clients).toBe(1);
+  });
   it('a host that cannot publish its socket closes what it opened and leaves nothing behind', async () => {
     fs.mkdirSync(socketPath(), { recursive: true }); // a folder where the socket should go
     await expect(startHost({ socketPath: socketPath(), dir: path.join(tmp, 'whisper'), worker: rig.factory })).rejects.toThrow();
@@ -869,20 +900,21 @@ describe('limits on what a window can make the host hold', () => {
     await start();
     const a = await open();
     const b = await open();
-    const big = pcm(4_000_000); // 8 MB; eight of them are under the cap
-    expect(8 * big.length).toBeLessThanOrEqual(MAX_QUEUED_BYTES);
-    expect(9 * big.length).toBeGreaterThan(MAX_QUEUED_BYTES);
-    for (let n = 1; n <= 5; n++) a.send(job(n), big);
-    for (let n = 1; n <= 3; n++) b.send(job(n), big);
+    const big = pcm(2_000_000); // 4 MB; sixteen of them are under the cap, seventeen are not
+    expect(big.length).toBeLessThanOrEqual(MAX_AUDIO);
+    expect(16 * big.length).toBeLessThanOrEqual(MAX_QUEUED_BYTES);
+    expect(17 * big.length).toBeGreaterThan(MAX_QUEUED_BYTES);
+    for (let n = 1; n <= 10; n++) a.send(job(n), big);
+    for (let n = 1; n <= 6; n++) b.send(job(n), big);
     await a.status();
     await b.status();
     b.send(job(9), big);
     expect(await b.next()).toEqual({ id: 9, error: 'busy' });
-    expect(await b.status()).toMatchObject({ queued: 8 }); // busy for the bytes: 8 jobs are far from the count limit
+    expect(await b.status()).toMatchObject({ queued: 16 }); // busy for the bytes: 16 jobs are far from the count limit
     a.send({ type: 'cancel', id: 1 });
     expect(await a.next((m) => m.id === 1)).toEqual({ id: 1, error: 'cancelled' });
     b.send(job(10), big);
-    expect(await b.status()).toMatchObject({ queued: 8 }); // 7 after the cancel, 8 with the job that now fits
+    expect(await b.status()).toMatchObject({ queued: 16 }); // 15 after the cancel, 16 with the job that now fits
     expect(b.inbox.filter((m) => m.error === 'busy')).toHaveLength(1);
   });
   it('the bytes of jobs that ran or whose window left are no longer counted', async () => {
@@ -890,20 +922,20 @@ describe('limits on what a window can make the host hold', () => {
     const h = await start();
     const a = await open();
     const b = await open();
-    const big = pcm(4_000_000);
-    for (let n = 1; n <= 8; n++) a.send(job(n), big);
+    const big = pcm(2_000_000);
+    for (let n = 1; n <= MAX_QUEUED_PER_CLIENT; n++) a.send(job(n), big);
     await a.status();
     b.send(job(1), big);
     expect(await b.next()).toEqual({ id: 1, error: 'busy' });
-    a.sock.destroy(); // eight jobs go at once
+    a.sock.destroy(); // sixteen jobs go at once
     await until(() => h.status().queued === 0);
     b.send(job(2), big);
     expect(await b.status()).toMatchObject({ queued: 1 });
     rig.workers[0]!.ready();
     await rig.call(0);
     rig.answer(0, 'x');
-    for (let n = 3; n <= 11; n++) b.send(job(n), big); // the first of these runs at once; the rest fill the cap again
-    expect(await b.status()).toMatchObject({ queued: 8, running: true });
+    for (let n = 3; n <= 3 + MAX_QUEUED_PER_CLIENT; n++) b.send(job(n), big); // the first of these runs at once; the rest fill the cap again
+    expect(await b.status()).toMatchObject({ queued: MAX_QUEUED_PER_CLIENT, running: true });
     expect(b.inbox.filter((m) => m.error === 'busy')).toHaveLength(1);
   });
   it('a window past the cap of connections is closed at once', async () => {

@@ -4,16 +4,16 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { stateBaseDir } from '../state.ts';
-import { WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
+import { MAX_AUDIO, WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
 
 /** Bumped when the messages change incompatibly: it is part of the socket name, so hosts of different protocols never meet. */
 export const HOST_PROTO = 1;
 /** The pins of whisper.ts in eight hex digits: a host serves one set of pins, and the socket name carries them. */
 export const HOST_PINS = createHash('sha256').update([WHISPER_PACKAGE, WHISPER_VERSION, WHISPER_MODEL, WHISPER_REVISION, WHISPER_DTYPE].join('\n')).digest('hex').slice(0, 8);
-/** One frame, header and body together; a 60 s part is 1.9 MB. */
-export const MAX_FRAME = 8 * 1024 * 1024;
-/** The header is a small JSON object. */
+/** The header is a small JSON object (a transcript is in one too). */
 export const MAX_HEADER = 64 * 1024;
+/** One frame, header and body together: the most audio a request carries (whisper.ts, the HTTP routes' cap too) and a full header. */
+export const MAX_FRAME = MAX_AUDIO + MAX_HEADER;
 
 /** The host's folder, outside <stateBase>/whisper/ (Remove deletes that one while a host may still be answering). */
 export const hostDir = (): string => path.join(stateBaseDir(), 'whisper-host');
