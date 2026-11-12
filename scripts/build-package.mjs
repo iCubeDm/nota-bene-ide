@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { HIDDEN, npxSpec } from '../server/src/platform.ts';
 
 /** The published name. One constant: it may still change. The command it installs is BIN. */
 export const PACKAGE_NAME = 'nota-bene-ide';
@@ -55,8 +56,8 @@ export function packageJson() {
 
 /**
  * Makes `out` an empty directory. A missing or empty one is fine; a non-empty one must be a previous build of this package
- * (its package.json names PACKAGE_NAME) and goes to the Trash, never rmSync; anything else is refused, so a wrong --out
- * can never wipe a checkout or a home directory.
+ * (its package.json names PACKAGE_NAME) and goes to the Trash (the Recycle Bin on Windows), never rmSync; anything else is
+ * refused, so a wrong --out can never wipe a checkout or a home directory.
  */
 export function prepareOut(out) {
   if (fs.existsSync(out)) {
@@ -65,11 +66,22 @@ export function prepareOut(out) {
       let name;
       try { name = JSON.parse(fs.readFileSync(path.join(out, 'package.json'), 'utf8')).name; } catch { /* not a build */ }
       if (name !== PACKAGE_NAME) throw new Error(`refusing to build into ${out}: it is not empty and is not a previous ${PACKAGE_NAME} build`);
-      const r = spawnSync('trash', [out], { stdio: 'pipe' });
-      if (r.status !== 0 || fs.existsSync(out)) throw new Error(`could not move the previous build ${out} to the Trash (${r.error?.message ?? `trash exit code ${r.status}`})`);
+      const r = toTrash(out);
+      if (r.status !== 0 || fs.existsSync(out)) throw new Error(`could not move the previous build ${out} to the Trash (${r.error?.message ?? `${r.tool} exit code ${r.status}`})`);
     }
   }
   fs.mkdirSync(out, { recursive: true });
+}
+
+/**
+ * Moves `dir` to the Trash. macOS and Linux: the `trash` command. Windows has none: Windows PowerShell (always there) sends it
+ * to the Recycle Bin through .NET's FileSystem.DeleteDirectory, the path passed in the environment so nothing is quoted.
+ */
+function toTrash(dir) {
+  if (process.platform !== 'win32') return { ...spawnSync('trash', [dir], { stdio: 'pipe' }), tool: 'trash' };
+  const script = "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($env:NB_TRASH_DIR, 'OnlyErrorDialogs', 'SendToRecycleBin')";
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { stdio: 'pipe', env: { ...process.env, NB_TRASH_DIR: dir }, ...HIDDEN });
+  return { ...r, tool: 'powershell' };
 }
 
 export async function buildPackage({ out = path.join(ROOT, 'pkg'), skipWeb = false } = {}) {
@@ -103,7 +115,8 @@ export async function buildPackage({ out = path.join(ROOT, 'pkg'), skipWeb = fal
   else {
     // web/vite.config.ts keeps old chunks in web/dist on purpose (a reloading page asks for them); the package gets its own
     // outDir, emptied, so it holds the current build only. The local web/dist is not touched.
-    const r = spawnSync('npx', ['vite', 'build', '--outDir', path.join(out, 'web/dist'), '--emptyOutDir'], { cwd: path.join(ROOT, 'web'), stdio: 'inherit' });
+    const npx = npxSpec(['vite', 'build', '--outDir', path.join(out, 'web/dist'), '--emptyOutDir']);
+    const r = spawnSync(npx.command, npx.args, { cwd: path.join(ROOT, 'web'), stdio: 'inherit', windowsVerbatimArguments: npx.windowsVerbatimArguments, ...HIDDEN });
     if (r.status !== 0) throw new Error(`vite build failed (${r.error?.message ?? `exit code ${r.status}`})`);
   }
 

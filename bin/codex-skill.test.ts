@@ -34,3 +34,37 @@ it('Desktop skill survives its calling shell, reuses only its vendor window and 
     fs.rmSync(temp, { recursive: true, force: true });
   }
 }, 35000);
+
+// a standalone copy of the skill (no checkout or package above it) runs the `nota-bene` on PATH. Windows: that is npm's
+// nota-bene.cmd shim, which Node cannot spawn without a shell: the skill runs the .mjs it wraps with its own node instead
+it('a standalone Codex skill copy runs the nota-bene on PATH (Windows: the .mjs behind npm\'s .cmd shim)', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-skill-shim-'));
+  try {
+    const skill = path.join(temp, 'skills/nb'), bin = path.join(temp, 'npm bin');
+    fs.mkdirSync(skill, { recursive: true });
+    fs.copyFileSync(path.resolve('codex/skills/nb/open.mjs'), path.join(skill, 'open.mjs'));
+    const entry = path.join(bin, 'node_modules/nota-bene-ide/bin/nota-bene.mjs');
+    fs.mkdirSync(path.dirname(entry), { recursive: true });
+    fs.writeFileSync(entry, 'console.log(JSON.stringify(process.argv.slice(2))); console.log("opened http://127.0.0.1:4790/#t=abcdef123456");\n');
+    if (process.platform === 'win32') {
+      // the tail of the shim npm writes: "%_prog%" is node, the script is named relative to %dp0% (the shim's folder)
+      fs.writeFileSync(path.join(bin, 'nota-bene.cmd'), '@ECHO off\r\nIF EXIST "%dp0%\\node.exe" (\r\n  SET "_prog=%dp0%\\node.exe"\r\n) ELSE (\r\n  SET "_prog=node"\r\n)\r\n'
+        + 'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\lib\\nota-bene.mjs" %*\r\n');
+      fs.mkdirSync(path.join(bin, 'lib'));
+      fs.renameSync(entry, path.join(bin, 'lib/nota-bene.mjs')); // only where the shim names it, so the name is what is followed
+    } else {
+      fs.symlinkSync(entry, path.join(bin, 'nota-bene'));
+      fs.chmodSync(entry, 0o755);
+      fs.writeFileSync(entry, `#!${process.execPath}\n${fs.readFileSync(entry, 'utf8')}`);
+    }
+    const env: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== 'PATH' && k !== 'NOTA_BENE_BIN' && k !== 'NOTA_BENE_SUPERVISED'));
+    env.PATH = [bin, process.env.PATH ?? process.env.Path].join(path.delimiter);
+    const r = spawnSync(process.execPath, [path.join(skill, 'open.mjs'), 'new', '--dir', temp], { env, encoding: 'utf8', timeout: 15000, windowsHide: true });
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(JSON.stringify([temp, '--agent', 'codex']).slice(0, -1));
+    expect(r.stdout).not.toContain('abcdef123456');
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});

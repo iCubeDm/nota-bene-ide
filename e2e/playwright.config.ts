@@ -1,13 +1,16 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@playwright/test';
+import { HIDDEN, npmSpec } from '../server/src/platform.ts';
 import { loggedIn } from './auth.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 // Build the web app once, before the servers start (the env flag stops workers re-running it).
 if (!process.env.NB_E2E_BUILT) {
-  execFileSync('npm', ['run', 'build', '-w', 'web'], { cwd: root, stdio: 'inherit' });
+  const npm = npmSpec(['run', 'build', '-w', 'web']);
+  const r = spawnSync(npm.command, npm.args, { cwd: root, stdio: 'inherit', windowsVerbatimArguments: npm.windowsVerbatimArguments, ...HIDDEN });
+  if (r.status !== 0) throw new Error(`npm run build -w web failed (${r.error?.message ?? `exit code ${r.status}`})`);
   process.env.NB_E2E_BUILT = '1';
 }
 
@@ -15,7 +18,7 @@ if (!process.env.NB_E2E_BUILT) {
 // the spec workers (media tests skip with a message). NB_E2E_FFMPEG=0 forces the no-ffmpeg path.
 if (process.env.NB_E2E_FFMPEG === undefined) {
   try {
-    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore', ...HIDDEN });
     process.env.NB_E2E_FFMPEG = '1';
   } catch {
     process.env.NB_E2E_FFMPEG = '0';

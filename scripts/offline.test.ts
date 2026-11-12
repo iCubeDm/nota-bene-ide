@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { HIDDEN, npxSpec } from '../server/src/platform.ts';
 
 // The page must work offline and must not tell any third party that it was opened: a real build of the web app, then its
 // index.html and every CSS file are searched for a reference to another host. (The fonts are bundled: web/src/fonts.css.)
@@ -11,8 +12,9 @@ const WEB = fileURLToPath(new URL('../web', import.meta.url));
 let out: string;
 beforeAll(() => {
   out = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-offline-')));
-  const r = spawnSync('npx', ['vite', 'build', '--outDir', out, '--emptyOutDir'], { cwd: WEB, encoding: 'utf8' });
-  if (r.status !== 0) throw new Error(`vite build failed: ${r.stdout}${r.stderr}`);
+  const npx = npxSpec(['vite', 'build', '--outDir', out, '--emptyOutDir']);
+  const r = spawnSync(npx.command, npx.args, { cwd: WEB, encoding: 'utf8', windowsVerbatimArguments: npx.windowsVerbatimArguments, ...HIDDEN });
+  if (r.status !== 0) throw new Error(`vite build failed: ${r.error?.message ?? ''}${r.stdout}${r.stderr}`);
 }, 120_000);
 afterAll(() => fs.rmSync(out, { recursive: true, force: true }));
 

@@ -1,5 +1,5 @@
 # LF everywhere, on every OS: a Windows clone with core.autocrlf=true would otherwise get CRLF
-# scripts (bash cannot run a CRLF open.sh) and fixtures whose bytes the tests compare.
+# shell scripts (bash cannot run a CRLF script) and fixtures whose bytes the tests compare.
 * text=auto eol=lf
 
 # cmd.exe misparses labels and GOTO in LF batch files
