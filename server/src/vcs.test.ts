@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ const paths = (d: { repo: boolean; files?: { path: string }[] }) => (d as { file
 const src = async (id: string) => (await listSources(root)).find((s) => s.id === id)!;
 
 beforeAll(async () => {
-  dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-vcs-')));
+  dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-vcs-')));
   root = path.join(dir, 'main');
   one = path.join(dir, 'one');
   stacked = path.join(dir, 'stacked');
@@ -308,6 +308,13 @@ describe('the log', () => {
     for (const w of [one.toUpperCase(), one.replace(/\\/g, '/')]) {
       expect((await branchInfo(root, [w])).find((b) => b.id === 'ref:agent/one'), w).toMatchObject({ busy: true });
     }
+  });
+
+  it.runIf(process.platform === 'win32')('Windows: a busy window root in the 8.3 short form still marks its worktree', async (ctx) => {
+    // `%~sI` gives the short form (C:\Users\RUNNER~1\...: the TEMP of a user with a long name); none when the volume makes no 8.3 names
+    const short = spawnSync('cmd.exe', ['/d', '/s', '/c', `"for %I in ("${one}") do @echo %~sI"`], { windowsHide: true, windowsVerbatimArguments: true }).stdout.toString().trim();
+    if (!short || short.toLowerCase() === one.toLowerCase()) return ctx.skip();
+    expect((await branchInfo(root, [short])).find((b) => b.id === 'ref:agent/one')).toMatchObject({ busy: true });
   });
 
   it('a window in a worktree inside the project marks that worktree alone; a window below a folder marks the folder', async () => {

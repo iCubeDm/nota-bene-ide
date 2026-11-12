@@ -91,22 +91,23 @@ describe('cwdOf', () => {
 describe('listSessionsView', () => {
   it('drops entries without a cwd, falling back to the transcript', async () => {
     jsonl('-p', 'from-file', '{"cwd":"/from/file"}\n');
+    // cwds that exist nowhere, so they come back as given: a real one would be realpathed (`/a` is `D:\a` on a CI runner)
     const backend = {
       listSessions: async () => [
-        { sessionId: 'with-cwd', summary: 'A', lastModified: 10, fileSize: 100, cwd: '/a' },
+        { sessionId: 'with-cwd', summary: 'A', lastModified: 10, fileSize: 100, cwd: '/nb-a' },
         { sessionId: 'from-file', firstPrompt: 'B', lastModified: 20, fileSize: 200 },
         { sessionId: 'no-cwd', summary: 'C', lastModified: 30, fileSize: 300 },
-        { sessionId: 'slash', summary: '/clear', lastModified: 40, fileSize: 400, cwd: '/d' },
+        { sessionId: 'slash', summary: '/clear', lastModified: 40, fileSize: 400, cwd: '/nb-d' },
       ],
     };
-    const view = await listSessionsView({ backend, current: 'with-cwd', root: '/a', projectsDir: dir });
+    const view = await listSessionsView({ backend, current: 'with-cwd', root: '/nb-a', projectsDir: dir });
     expect(view).toEqual({
       current: 'with-cwd',
-      root: '/a',
+      root: '/nb-a',
       sessions: [
-        { id: 'with-cwd', title: 'A', at: 10, size: 100, cwd: '/a' },
+        { id: 'with-cwd', title: 'A', at: 10, size: 100, cwd: '/nb-a' },
         { id: 'from-file', title: 'B', at: 20, size: 200, cwd: '/from/file' },
-        { id: 'slash', title: '', at: 40, size: 400, cwd: '/d' },
+        { id: 'slash', title: '', at: 40, size: 400, cwd: '/nb-d' },
       ],
     });
   });

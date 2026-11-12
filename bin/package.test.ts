@@ -39,7 +39,8 @@ function tree(dir: string): string[] {
 const snapshot = (dir: string) => tree(dir).map((f) => `${f} ${fs.statSync(f).mtimeMs}`).sort();
 
 beforeAll(async () => {
-  tmp = fs.realpathSync(fs.mkdtempSync(path.join(SHORT, 'nbw-pkg-')));
+  // the native realpath, the spelling the launcher records: on Windows the JS one keeps an 8.3 TEMP (`C:\Users\RUNNER~1\...`)
+  tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(SHORT, 'nbw-pkg-')));
   pkg = path.join(tmp, 'node_modules', PACKAGE_NAME);
   home = path.join(tmp, 'home');
   project = path.join(tmp, 'project');

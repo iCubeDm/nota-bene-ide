@@ -202,7 +202,9 @@ export async function fileOf(root: string, src: Source | 'here', override: strin
   return capped(out.trim() ? untrackedPatch(s.cwd, rel) : '');
 }
 
-const real = (p: string) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+// Windows: the native realpath, which also expands 8.3 short names (`C:\Users\RUNNER~1\...`, a TEMP of a user with a long
+// name): the JS one keeps them, so a window root and a worktree git lists in the long form would never match.
+const real = (p: string) => { try { return process.platform === 'win32' ? fs.realpathSync.native(p) : fs.realpathSync(p); } catch { return path.resolve(p); } };
 
 /** The folder holding each working window: the deepest one, since worktrees often sit inside the project. */
 function holders(folders: string[], working: string[]): Set<string> {

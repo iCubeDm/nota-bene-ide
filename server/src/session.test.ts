@@ -808,7 +808,7 @@ describe('switch', () => {
   };
 
   it('a late message from the old agent after the reset is not emitted', async () => {
-    const dirB = fs.realpathSync(mkExtra('nb-switch-b-'));
+    const dirB = fs.realpathSync.native(mkExtra('nb-switch-b-'));
     let release!: () => void;
     const late = new Promise<void>((r) => { release = r; });
     let oldAsk: PermissionAsk | null = null;
@@ -972,7 +972,7 @@ describe('switch', () => {
   });
 
   it('a history read that hangs times out: reported as a switch error, empty replay, switching released', async () => {
-    const dirB = fs.realpathSync(mkExtra('nb-switch-h-'));
+    const dirB = fs.realpathSync.native(mkExtra('nb-switch-h-'));
     const sid = '55555555-5555-4555-8555-555555555555';
     const backend = fakeBackend([{ text: 'x' }], { sessions: [{ id: sid, cwd: dirB, history: [{ role: 'user', text: 'old' }] }] });
     backend.history = () => new Promise(() => {});

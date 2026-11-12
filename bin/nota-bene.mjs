@@ -580,7 +580,9 @@ function last(dir) {
 
 // --- launch ----------------------------------------------------------------------------------------------------
 
-function refuse(dir) {
+/** `dir` is the real path, `given` the path as typed (resolved): a drive root that resolves to a folder (a `subst` or mapped
+ *  drive on Windows) is still a root. */
+function refuse(dir, given = dir) {
   const home = (() => {
     try {
       return realDir(os.homedir());
@@ -588,7 +590,8 @@ function refuse(dir) {
       return os.homedir();
     }
   })();
-  return samePath(dir, home) || samePath(dir, path.parse(dir).root); // home, or a file system root (`/`, `C:\`, `\\host\share\`)
+  const isRoot = (p) => samePath(p, path.parse(p).root);
+  return samePath(dir, home) || isRoot(dir) || isRoot(given); // home, or a file system root (`/`, `C:\`, `\\host\share\`)
 
 }
 
@@ -1061,6 +1064,7 @@ export async function main(argv) {
     }
   }
   process.env.NOTA_BENE_AGENT = o.agent ?? 'claude';
+  let given;
   try {
     if (o.find !== undefined) return await find(o.find, o.scan);
     if (o.last !== undefined) return last(o.last);
@@ -1083,12 +1087,13 @@ export async function main(argv) {
       }
       return 0;
     }
-    o.dir = realDir(o.dir ?? '.');
+    given = path.resolve(o.dir ?? '.');
+    o.dir = realDir(given);
   } catch (e) {
     say(e.message);
     return e instanceof SecretError ? EXIT_SECRET : 1;
   }
-  if (refuse(o.dir)) {
+  if (refuse(o.dir, given)) {
     say(`refusing to open the whole ${o.dir} as a project — cd into a project first.`);
     return 1;
   }

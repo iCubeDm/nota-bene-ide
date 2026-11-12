@@ -25,7 +25,7 @@ const prevHome = process.env.NOTA_BENE_HOME;
 const closers: (() => Promise<void>)[] = [];
 
 beforeEach(() => {
-  tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-switch-')));
+  tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-switch-')));
   home = path.join(tmp, 'home');
   dist = path.join(tmp, 'dist');
   A = path.join(tmp, 'a');

@@ -11,7 +11,7 @@ let tmp: string;
 let A: string;
 let B: string;
 beforeEach(() => {
-  tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-target-')));
+  tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-target-')));
   A = path.join(tmp, 'a');
   B = path.join(tmp, 'b');
   fs.mkdirSync(A);

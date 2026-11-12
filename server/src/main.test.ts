@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STOP_MESSAGE, dropInheritedLauncherEnv, invocationCwd, launchTarget, parseArgs, stateLine, watchLauncher } from './main.ts';
 import { saveSession } from './state.ts';
 
-const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-main-')));
+const cwd = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-main-')));
 // --continue reads the session registry: keep it in a temp NOTA_BENE_HOME, never the real ~/.nota-bene
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-main-home-'));
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -38,7 +38,7 @@ describe('parseArgs', () => {
 
   it('resolves --fake against the invocation cwd, like the project dir', () => {
     expect(parseArgs(['--fake', 'f/s.json'], cwd).fake).toBe(path.join(cwd, 'f/s.json'));
-    expect(parseArgs(['--fake', '/abs/s.json'], cwd).fake).toBe(path.resolve('/abs/s.json')); // Windows: on the current drive
+    expect(parseArgs(['--fake', '/abs/s.json'], cwd).fake).toBe(path.resolve(cwd, '/abs/s.json')); // Windows: on the drive of that cwd
   });
 
   it('rejects a non-numeric port', () => {

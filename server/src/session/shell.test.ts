@@ -1,10 +1,11 @@
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SHELL_OUTPUT_CAP, type ServerEvent } from '@nota-bene/shared';
 import type { EmitInput } from '../hub.ts';
-import { SHELL_TIMEOUT_MS, ShellRunner, gitBashPath, pickWinShell, winShellSpec, winShells } from './shell.ts';
+import { SHELL_TIMEOUT_MS, ShellRunner, gitBashPath, onData, pickWinShell, winShellSpec, winShells } from './shell.ts';
 
 let dir: string;
 let events: EmitInput[];
@@ -20,7 +21,7 @@ const BG_PID = win ? 'cat /proc/$!/winpid' : 'echo $!';
 const SELF_PID = win ? 'cat /proc/$$/winpid' : 'echo $$';
 
 beforeEach(() => {
-  dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-shell-')));
+  dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-shell-')));
   events = [];
   reported = [];
 });
@@ -335,6 +336,22 @@ describe('a command that prints without end', () => {
     const r = make({ timeoutMs: 600 });
     await runToEnd(r, 'yes');
     expect(r.take('x').length).toBeLessThan(70 * 1024);
+  });
+
+  it('a reader slower than the flood still leaves the event loop its timers', async () => {
+    // a slow machine (a CI runner): each chunk costs more than the command takes to print the next. On Windows libuv kept
+    // reading the full pipe and no timer ran until the flood ended
+    const child = spawn(process.execPath, ['-e', 'const b = Buffer.alloc(1 << 16, 121); for (;;) process.stdout.write(b)'], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+    try {
+      let chunks = 0;
+      onData(child.stdout, () => { chunks++; const end = Date.now() + 2; while (Date.now() < end); });
+      let ticks = 0;
+      const tick = setInterval(() => ticks++, 50);
+      await sleep(1000);
+      clearInterval(tick);
+      expect(chunks).toBeGreaterThan(10);
+      expect(ticks).toBeGreaterThan(5);
+    } finally { child.kill('SIGKILL'); }
   });
 });
 

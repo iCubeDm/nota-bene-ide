@@ -31,7 +31,7 @@ const PWD = win ? 'pwd -W' : 'pwd';
 const BG_PID = win ? 'cat /proc/$!/winpid' : 'echo $!';
 
 beforeEach(() => {
-  tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-shellws-')));
+  tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-shellws-')));
   proj = path.join(tmp, 'proj');
   other = path.join(tmp, 'other');
   for (const d of ['home', 'dist', 'proj', 'other']) fs.mkdirSync(path.join(tmp, d));

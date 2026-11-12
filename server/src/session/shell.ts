@@ -62,6 +62,25 @@ type Options = {
 
 // every live process group is killed when this process exits, however it exits (exitWith, a signal handler, a crash handler
 // that calls process.exit): a command must not outlive the server. Only a SIGKILL of the server itself is beyond this.
+/**
+ * `stream.on('data', on)`; on Windows the stream also lets the event loop go round after each chunk. There libuv reads a
+ * pipe in a loop for as long as it holds data: with a command that prints without end (`yes`) and a reader a little slower
+ * than it, that loop never returns, so no timer (the frames, the run's timeout, the KILL) and no socket (Stop) is served
+ * until it ends. A pause until the next turn of the loop breaks it; the command waits at most that long. POSIX reads a
+ * bounded number of times per turn already: unchanged there.
+ */
+export function onData(stream: NodeJS.ReadableStream, on: (c: string | Buffer) => void): void {
+  if (!isWindows()) { stream.on('data', on); return; }
+  let held = false;
+  stream.on('data', (c: string | Buffer) => {
+    on(c);
+    if (held) return;
+    held = true;
+    stream.pause();
+    setImmediate(() => { held = false; stream.resume(); });
+  });
+}
+
 const live = new Set<Run>();
 let exitHooked = false;
 function killAllOnExit(): void {
@@ -283,8 +302,8 @@ export class ShellRunner {
       child.stderr!.setEncoding('utf8');
     }
     // always drained, whatever the sockets do: the tails stay current and the command is never held up by us
-    child.stdout!.on('data', (c: string | Buffer) => this.collect(run, ansiOut.push(typeof c === 'string' ? c : decOut!.push(c)), run.out));
-    child.stderr!.on('data', (c: string | Buffer) => this.collect(run, ansiErr.push(typeof c === 'string' ? c : decErr!.push(c)), run.err));
+    onData(child.stdout!, (c) => this.collect(run, ansiOut.push(typeof c === 'string' ? c : decOut!.push(c)), run.out));
+    onData(child.stderr!, (c) => this.collect(run, ansiErr.push(typeof c === 'string' ? c : decErr!.push(c)), run.err));
     child.stdout!.on('error', () => {});
     child.stderr!.on('error', () => {});
     // the block shows which shell ran, as the first line of its output (the stored events have no field for it); the
