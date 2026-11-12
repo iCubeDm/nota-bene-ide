@@ -1,3 +1,4 @@
+import { useAutosize } from '@/composer/autosize.ts';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
 import { isAttachmentAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
@@ -6,7 +7,7 @@ import { getLang, useT } from '@/i18n/index.ts';
 import { pageQuote } from '@/page/quote.ts';
 import { selectCapabilities, selectSwitching } from '@/controls/slice.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
-import { whisperLang } from '@/voice/lang.ts';
+import { dictationAsk } from '@/voice/lang.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { transcribeVoice } from '@/voice/upload.ts';
@@ -84,8 +85,6 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   const [note, setNote] = useState('');
   const [dropping, setDropping] = useState(false);
   const [busy, setBusyState] = useState(false); // a drawing's files are being written
-  const addIn = useRef<'field' | 'footer'>('footer'); // where Add was when it was clicked: it does not jump rows while saving
-  const showAddRef = useRef(false);
   const busyNow = useRef(false); // a second click in the same tick must not start a second prepare
   const setBusy = (v: boolean) => {
     busyNow.current = v;
@@ -118,7 +117,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   const patchClip = (id: string, p: Partial<Clip>) => setClips((l) => l.map((c) => (c.voice.id === id ? { ...c, ...p } : c)));
   const transcribe = (id: string) => {
     patchClip(id, { text: undefined, error: undefined });
-    void transcribeVoice(id, whisperLang()).then((r) => patchClip(id, 'text' in r ? { text: r.text } : { error: r.error }));
+    void transcribeVoice(id, dictationAsk(store.getState())).then((r) => patchClip(id, 'text' in r ? { text: r.text } : { error: r.error }));
   };
   const rec = useVoiceRecorder({
     preview: false,
@@ -144,7 +143,6 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
 
   const add = async (label?: QuickLabelId) => {
     if (uploading || switching || busyNow.current || waiting || recording) return;
-    addIn.current = showAddRef.current ? 'field' : 'footer'; // the button stays where it was clicked while the drawing saves
     const body = text.trim();
     const { prepare, id } = pending;
     // a drawing is content of its own: no text and no label is still a comment
@@ -218,12 +216,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   }, [onClose, hidden]);
 
   // autosize: the textarea grows with the comment up to its CSS max-height (40vh, as the composer), then scrolls
-  useLayoutEffect(() => {
-    const el = area.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
+  useAutosize(area, text);
 
   // the side (below or above the selection) is chosen once per selection: a growing comment never makes the popup
   // jump across it; below, it moves up only as far as the viewport needs; above, it grows upwards
@@ -248,14 +241,12 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     void add();
   };
   const quote = quoteOf(pending.anchor, t);
-  // Add takes the mic's place once the field has something (text, an image); a drawing and the voice clips are content
-  // of their own, so with an empty field their Add stays beside the attach and emoji buttons and the mic keeps the field's
-  // side (one more clip can still be recorded)
+  // the mic inside the field hides once it has something (text, an image); a recorded clip keeps it (one more can be recorded)
   const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
-  const showAdd = busy ? addIn.current === 'field' : hasContent || protocol < 14;
-  showAddRef.current = hasContent || protocol < 14;
+  // as in the composer, Add is always beside the field (off with nothing to add); a drawing and the clips are content of their own
+  const canAdd = hasContent || !!pending.prepare || clips.length > 0;
   const addButton = (
-    <Button className="h-8" disabled={off} aria-busy={busy || waiting || undefined} title={switching ? t('switching') : waiting ? t('voiceClipsWait') : undefined} onClick={() => void add()}>
+    <Button className="h-8" disabled={off || !canAdd} aria-busy={busy || waiting || undefined} title={switching ? t('switching') : waiting ? t('voiceClipsWait') : undefined} onClick={() => void add()}>
       {(busy || waiting) && <span aria-hidden className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
       {t('add')}
     </Button>
@@ -297,10 +288,9 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           placeholder={t('commentPh')}
           ariaLabel={t('commentPh')}
           // as in the composer: the mic while the field is empty, Add once it has something
-          hasContent={showAdd}
+          hasContent={hasContent}
           mic={protocol >= 14 ? (
             <MicButton
-              compact
               testId="popup-mic"
               anchor={micAnchor}
               label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}
@@ -379,7 +369,6 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           </button>
           {protocol >= 14 && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micAnchor} />}
           <span data-slot="emoji"><EmojiMenu target={area} /></span>
-          {(pending.prepare || clips.length > 0) && !showAdd && addButton}
         </span>
       </div>
     </div>

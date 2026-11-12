@@ -5,6 +5,7 @@ import { prefsKey, readPrefs, setModelPref } from '../prefs.ts';
 
 type ModelOptions = { dir: string; emit: (ev: Extract<EmitInput, { kind: 'model' | 'models' }>) => void; report: (where: string, e: unknown) => void };
 export type CurrentModel = { model: string | null; effort?: EffortLevel };
+const SUFFIX = /\[[^\]]*\]$/;
 type Agent = Pick<AgentSession, 'supportedModels' | 'setModel' | 'setEffort'>;
 
 /**
@@ -54,13 +55,26 @@ export class ModelKeeper {
     this.cur = this.startChoice(dir);
   }
 
+  /** a row by its value, else its resolved id; an id with a context suffix (`claude-opus-5-5[1m]`) finds the row of the bare id */
   private find(id: string): ModelOption | undefined {
-    return this.opts?.find((m) => m.value === id || m.resolved === id);
+    const by = (x: string) => this.opts?.find((m) => m.value === x) ?? this.opts?.find((m) => m.resolved === x);
+    const bare = id.replace(SUFFIX, '');
+    return by(id) ?? (bare !== id ? by(bare) : undefined);
   }
 
-  /** the CLI reports resolved ids (`claude-…`), the list has aliases (`sonnet`) */
+  /** the levels for an id with no row: the default row's, else the first row's that has any */
+  private fallbackEfforts(): EffortLevel[] | undefined {
+    return (this.opts?.find((m) => m.value === 'default' && m.efforts) ?? this.opts?.find((m) => m.efforts))?.efforts;
+  }
+
+  /** the CLI reports resolved ids (`claude-…`), the list has aliases (`sonnet`). The suffix counts: 1M and 200k are different models. */
   private same(a: string, b: string): boolean {
-    const canon = (x: string) => { const m = this.find(x); return m ? (m.resolved ?? m.value) : x; };
+    const canon = (x: string) => {
+      const suffix = x.match(SUFFIX)?.[0] ?? '';
+      const bare = x.slice(0, x.length - suffix.length);
+      const m = this.opts?.find((r) => r.value === bare) ?? this.opts?.find((r) => r.resolved === bare);
+      return (m ? (m.resolved ?? m.value) : bare) + suffix;
+    };
     return a === b || canon(a) === canon(b);
   }
 
@@ -112,15 +126,20 @@ export class ModelKeeper {
   }
 
   private async apply(a: Agent | null, next: { model: string; effort?: EffortLevel }, dir: string, still: () => boolean): Promise<void> {
-    const opt = this.find(next.model);
-    if (!opt) throw new Error(`model ${next.model} is not offered`);
-    if (next.effort && !opt.efforts?.includes(next.effort)) throw new Error(`model ${opt.value} has no effort ${next.effort}`);
     const before = this.cur.model;
+    const opt = this.find(next.model);
+    // the id the session already runs (maybe one the list has no row for) may be re-sent, for an effort-only change
+    const keep = !!before && next.model === before;
+    if (!opt && !keep) throw new Error(`model ${next.model} is not offered`);
+    const levels = opt ? opt.efforts : this.fallbackEfforts();
+    if (next.effort && !levels?.includes(next.effort)) throw new Error(`model ${opt?.value ?? next.model} has no effort ${next.effort}`);
+    // a suffixed id (`[1m]`) is kept exactly: the bare row value would drop the 1M variant
+    const id = SUFFIX.test(next.model) || keep ? next.model : opt!.value;
     this.fresh = false;
     this.inflight = true;
     try {
       if (a) {
-        if (!before || !this.same(before, opt.value)) await a.setModel(opt.value);
+        if (!keep && (!before || !this.same(before, id))) await a.setModel(id);
         // (applyFlagSettings also turns ultracode off; nothing here surfaces ultracode)
         if (next.effort !== this.cur.effort) await a.setEffort(next.effort ?? null);
       }
@@ -128,8 +147,8 @@ export class ModelKeeper {
       this.inflight = false;
     }
     if (!still()) return; // a switch meanwhile: this was the old session's
-    this.fresh = !!a && !(before && this.same(before, opt.value));
-    this.cur = { model: opt.value, ...(next.effort && { effort: next.effort }) };
+    this.fresh = !!a && !keep && !(before && this.same(before, id));
+    this.cur = { model: id, ...(next.effort && { effort: next.effort }) };
     setModelPref(dir, this.cur as { model: string; effort?: EffortLevel });
   }
 

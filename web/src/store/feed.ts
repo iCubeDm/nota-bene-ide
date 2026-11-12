@@ -5,7 +5,7 @@ export type FeedItem =
   /** idle: the server's own /compact after a quiet stretch, shown as a line, not as the user's message */
   | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; duringWork?: boolean; images?: ImageRef[]; idle?: boolean;
       /** a voice message (protocol 14): `text` is '' until the `voice-text` event puts the transcript in `voiceText`, or says why there is none in `voiceError` */
-      voice?: Voice; voiceText?: string; voiceError?: VoiceError }
+      voice?: Voice; voiceText?: string; voiceError?: VoiceError; /** the language the transcript was made in (protocol 18) */ voiceLang?: string }
   | { kind: 'assistant'; id: string; text: string; final: boolean } // `${uuid}:${blockIndex}`; while streaming `stream:${n}`
   | {
       kind: 'tool'; id: string; name: string; arg: string; sub: boolean; toolKind?: Extract<WireAgentEvent, { t: 'tool-call' }>['toolKind']; childSessionId?: string;
@@ -261,6 +261,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
         ...(ev.images?.length ? { images: ev.images } : {}),
         ...(ev.idle ? { idle: true } : {}),
         ...(ev.voice ? { voice: ev.voice } : {}),
+        ...(ev.voice && ev.voiceLang ? { voiceLang: ev.voiceLang } : {}),
         ...(!ev.historic && s.busy ? { duringWork: true } : {}),
       };
       return {
@@ -275,7 +276,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
       const i = s.items.findIndex((it) => it.kind === 'user' && it.id === ev.id);
       const cur = s.items[i];
       if (!cur || cur.kind !== 'user') return s; // the message is in an archived segment (or never came): nothing to patch
-      return { ...s, items: replaceAt(s.items, i, { ...cur, ...(ev.text !== undefined ? { voiceText: ev.text } : {}), ...(ev.error ? { voiceError: ev.error } : {}) }) };
+      return { ...s, items: replaceAt(s.items, i, { ...cur, ...(ev.text !== undefined ? { voiceText: ev.text } : {}), ...(ev.error ? { voiceError: ev.error } : {}), ...(ev.lang ? { voiceLang: ev.lang } : {}) }) };
     }
     case 'shell-start':
       return { ...s, items: [...s.items.filter((it) => !(it.kind === 'shell' && it.id === ev.id)), { kind: 'shell', id: ev.id, cmd: ev.cmd, output: '', truncated: false, running: true, code: null, ts: ev.ts }] };

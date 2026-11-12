@@ -1,15 +1,28 @@
-// Speech to text on the host: one cached Whisper pipeline (the installer's loader, in a worker thread), one language per call.
-import { loadPipeline, type Pipe } from './install.ts';
+// Speech to text for a window: through the Whisper host, which loads the model once for every window of the machine
+// (hostClient.ts), or, when the host cannot be used, in this process: one cached Whisper pipeline (the installer's loader, in a
+// worker thread), one language per call.
+import { hostClient, WhisperOff } from './hostClient.ts';
+import { loadPipeline, whisperPhase, type Pipe } from './install.ts';
+import { speak, type Spoken } from './speak.ts';
+
+export type { Spoken };
+
+/** The transcriber the routes use, in the shape their injectable fakes have. */
+export const transcribeWith = (pcm: Float32Array, lang: string, detect?: boolean, signal?: AbortSignal): Promise<Spoken> => transcribe(pcm, lang, { detect, signal });
+
+/** What a transcriber may answer: the text alone is a fake's shorthand (no language known). */
+export type SpokenOrText = string | Spoken;
+export const spokenOf = (v: SpokenOrText): { text: string; lang?: string } => (typeof v === 'string' ? { text: v } : v);
 
 let cached: Promise<Pipe> | undefined;
 
 // one at a time across the routes that transcribe (dictation, voice messages and clips): the model is single-threaded
-// and memory-heavy
+// and memory-heavy, and a window sends the host one job at a time
 let queue: Promise<unknown> = Promise.resolve();
 
-/** Runs `job` after every job queued before it; its failure does not hold the next one. */
-export function queued<T>(job: () => Promise<T>): Promise<T> {
-  const run = queue.then(job);
+/** Runs `job` after every job queued before it; its failure does not hold the next one. A `signal` that aborts before its turn drops it. */
+export function queued<T>(job: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  const run = queue.then(() => { signal?.throwIfAborted(); return job(); });
   queue = run.catch(() => {});
   return run;
 }
@@ -21,15 +34,37 @@ export function resetTranscriber(): void {
   void p?.then((pipe) => pipe.dispose?.()).catch(() => {});
 }
 
-export async function transcribe(pcm: Float32Array, lang: string, o: { load?: () => Promise<Pipe> } = {}): Promise<string> {
+/**
+ * `lang` is the language to transcribe in, or, with `detect`, the hint: the language detected from the first 30 s when the model
+ * is sure enough (detect.ts), else `lang`. The answer names the language used. A `signal` that aborts cancels a job still
+ * waiting at the host (one that runs cannot be stopped: its result is dropped). `load`, a test's own model, runs it in this process.
+ */
+export async function transcribe(pcm: Float32Array, lang: string, o: { load?: () => Promise<Pipe>; detect?: boolean; signal?: AbortSignal } = {}): Promise<Spoken> {
+  o.signal?.throwIfAborted();
+  if (!o.load) {
+    const got = await hostClient.transcribe(pcm, lang, o.detect === true, o.signal);
+    if (got) {
+      resetTranscriber(); // the host has the model again: one this window loaded while it had none (a failed start) is memory for nothing
+      return got;
+    }
+  }
+  return transcribeLocal(pcm, lang, o);
+}
+
+/** The install's own loader: refuses (Whisper off) once the install no longer reads as ready, so that a load never starts from files Remove is deleting. */
+const loadInstalled = async (): Promise<Pipe> => {
+  if (whisperPhase() !== 'ready') throw new WhisperOff('Whisper is not installed');
+  return loadPipeline();
+};
+
+/** The same in this process, on the cached pipeline: what a window does when the host cannot be used. */
+export async function transcribeLocal(pcm: Float32Array, lang: string, o: { load?: () => Promise<Pipe>; detect?: boolean } = {}): Promise<Spoken> {
   for (let attempt = 0; ; attempt++) {
-    const p = cached ??= (o.load ?? (() => loadPipeline()))();
+    const p = cached ??= (o.load ?? loadInstalled)();
     let pipe: Pipe;
     try { pipe = await p; } catch (e) { if (cached === p) cached = undefined; throw e; }
     // the worker died since the last call: load a fresh one (once)
     if (pipe.dead && attempt === 0) { if (cached === p) cached = undefined; continue; }
-    // transformers.js slices the input to 30 s unless it chunks: 30 s windows with a 5 s stride, joined by the pipeline
-    const out = await pipe(pcm, { language: lang, task: 'transcribe', chunk_length_s: 30, stride_length_s: 5 });
-    return (out.text ?? '').trim();
+    return speak(pipe, pcm, lang, o.detect);
   }
 }

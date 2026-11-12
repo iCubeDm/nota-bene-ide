@@ -10,6 +10,7 @@ import { mic } from '@/voice/recorder.ts';
 import { resetPlayer } from '@/voice/player.ts';
 import { selectSendable } from '@/comments/send.ts';
 import { installKeymap } from '@/shell/keymap.ts';
+import { PLANE_PATH } from './MessageInput.tsx';
 import { Composer } from './Composer.tsx';
 import { addImage, selectDraft, selectImages, setDraft } from './slice.ts';
 
@@ -34,53 +35,61 @@ const cm = (id: string): Comment => ({
   id, anchor: { source: { kind: 'message', id: 'u0' }, start: 0, end: 1, quote: 'q', prefix: '', suffix: '' }, text: 'note', status: 'pending', createdAt: 1,
 });
 
-function setup({ protocol = PROTOCOL, whisper = true, comments = [] as Comment[] } = {}) {
+function setup({ protocol = PROTOCOL, whisper = true, comments = [] as Comment[], dictationLang = undefined as string | undefined } = {}) {
   const sent: ClientMessage[] = [];
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (onState('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
   const feed = (ev: Parameters<typeof serverEvent>[0]) => act(() => void store.dispatch(serverEvent(ev)));
-  feed({ kind: 'hello', protocol, capabilities: { ...CLAUDE_CAPABILITIES, ...(whisper ? { dictation: 'whisper' } : {}) } } as never);
+  feed({ kind: 'hello', protocol, ...(dictationLang ? { dictationLang } : {}), capabilities: { ...CLAUDE_CAPABILITIES, ...(whisper ? { dictation: 'whisper' } : {}) } } as never);
   feed({ kind: 'user', id: 'u0', text: 'first', ts: 0, historic: true });
   feed({ kind: 'comments', items: comments });
   render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
   return { sent, store, feed, box: screen.getByRole('textbox') as HTMLTextAreaElement };
 }
 const mic$ = () => screen.queryByTestId('mic');
-const send$ = () => screen.queryByRole('button', { name: /^(Send|Run)/ });
+const send$ = () => screen.queryByRole('button', { name: /^(Send|Run)/ }) as HTMLButtonElement | null;
 
-it('an empty field shows the mic and no Send', () => {
+it('an empty field shows the mic and a disabled Send without a badge', () => {
   setup();
   expect(mic$()).toBeInTheDocument();
-  expect(send$()).toBeNull();
+  expect(send$()).toBeDisabled();
+  expect(screen.queryByTestId('send-count')).toBeNull();
+  expect(send$()).not.toHaveTextContent(/\S/); // an icon, no word
 });
 
-it('typed text swaps the mic for Send; clearing the field brings the mic back', async () => {
+it('Send draws the paper plane of the voice record bar, as in Telegram', () => {
+  setup();
+  expect(send$()!.querySelector('svg path')?.getAttribute('d')).toBe(PLANE_PATH);
+});
+
+it('typed text hides the mic and enables Send; clearing the field brings the mic back', async () => {
   const { box } = setup();
   await userEvent.type(box, 'hi');
   expect(mic$()).toBeNull();
-  expect(send$()).toBeInTheDocument();
+  expect(send$()).toBeEnabled();
   await userEvent.clear(box);
   expect(mic$()).toBeInTheDocument();
-  expect(send$()).toBeNull();
+  expect(send$()).toBeDisabled();
 });
 
-it('white space alone is nothing to send: the mic stays', async () => {
+it('white space alone is nothing to send: the mic stays and Send is off', async () => {
   const { box } = setup();
   await userEvent.type(box, '  ');
   expect(mic$()).toBeInTheDocument();
+  expect(send$()).toBeDisabled();
 });
 
-it('an attached image alone shows Send', () => {
+it('an attached image alone enables Send and keeps the mic (a recording rides beside the image)', () => {
   const { store } = setup();
   act(() => void store.dispatch(addImage({ id: 'a'.repeat(64) + '.png', mediaType: 'image/png' } as never)));
-  expect(mic$()).toBeNull();
-  expect(send$()).toBeInTheDocument();
+  expect(mic$()).toBeInTheDocument();
+  expect(send$()).toBeEnabled();
 });
 
 it('a `!` shell text shows Run in the Send place', async () => {
   const { box } = setup();
   await userEvent.type(box, '!ls');
   expect(mic$()).toBeNull();
-  expect(screen.getByRole('button', { name: 'Run' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Run' })).toBeEnabled();
 });
 
 it('Send sends the text and the mic returns', async () => {
@@ -89,17 +98,20 @@ it('Send sends the text and the mic returns', async () => {
   await userEvent.click(send$()!);
   expect(sent.find((m) => m.type === 'send')).toMatchObject({ text: 'hello' });
   expect(mic$()).toBeInTheDocument();
+  expect(send$()).toBeDisabled();
 });
 
-it('with pending comments and an empty field the mic stays; typing makes Send N', async () => {
+it('pending comments enable Send on an empty field and show their count as a badge; the mic stays', async () => {
   const { box } = setup({ comments: [cm('c1'), cm('c2')] });
   expect(mic$()).toBeInTheDocument();
-  expect(send$()).toBeNull();
+  expect(screen.getByRole('button', { name: 'Send (2)' })).toBeEnabled();
+  expect(screen.getByTestId('send-count')).toHaveTextContent('2');
   await userEvent.type(box, 'x');
   expect(screen.getByRole('button', { name: 'Send (2)' })).toBeInTheDocument();
+  expect(mic$()).toBeNull();
 });
 
-it('a server without voice (protocol 13) always shows Send', () => {
+it('a server without voice (protocol 13) shows Send and no mic', () => {
   setup({ protocol: 13 });
   expect(mic$()).toBeNull();
   expect(send$()).toBeInTheDocument();
@@ -111,6 +123,7 @@ it('the prompt history button is left of the field, the action button right of i
   const follows = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
   expect(follows(hist, box)).toBe(true);
   expect(follows(box, mic$()!)).toBe(true);
+  expect(follows(mic$()!, send$()!)).toBe(true);
   expect(follows(mic$()!, screen.getByRole('button', { name: 'Stop the agent' }))).toBe(true);
 });
 
@@ -123,6 +136,20 @@ it('a recording made with pending comments takes them along (protocol 16)', asyn
   expect(m.voice).toMatchObject({ id: VOICE.id });
   expect(m.commentIds).toEqual(['c1']);
   expect(m.text).toContain('note');
+});
+
+it('a recording that takes comments along asks for detection under Auto, and sends the pinned language otherwise', async () => {
+  for (const [dictationLang, want] of [[undefined, { lang: 'en', detect: true }], ['de', { lang: 'de' }]] as const) {
+    const { sent } = setup({ protocol: 18, comments: [cm('c1')], dictationLang });
+    fireEvent.click(mic$()!);
+    fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
+    await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
+    const m = sent.find((x) => x.type === 'send') as Extract<ClientMessage, { type: 'send' }>;
+    expect(m.commentIds).toEqual(['c1']);
+    expect(m).toMatchObject(want);
+    if (!('detect' in want)) expect(m.detect).toBeUndefined();
+    cleanup();
+  }
 });
 
 it('below protocol 16 a recording goes alone and the comments stay pending', async () => {
@@ -197,7 +224,7 @@ it('a detached attachment comment (its image is not in the composer) stays pendi
   fireEvent.click(mic$()!);
   fireEvent.click(await screen.findByRole('button', { name: /Send the voice message/ }));
   await waitFor(() => expect(sent.some((m) => m.type === 'send')).toBe(true));
-  expect(voiceMsg(sent)).toEqual({ type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en' });
+  expect(voiceMsg(sent)).toEqual({ type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en', detect: true });
   expect(store.getState().comments.items[0]?.status).toBe('pending');
 });
 
@@ -215,25 +242,18 @@ it('a draft typed, then Alt+R: the pending comments ride along and the draft sta
   expect(selectDraft(store.getState())).toBe('half a thought');
 });
 
-// a double click on Send must not hit the mic that replaces it under the cursor
-it('a press on the mic right after Send swapped to it starts nothing; after the window it records', async () => {
-  vi.useFakeTimers({ toFake: ['Date'] });
-  try {
-    const { box } = setup();
-    fireEvent.change(box, { target: { value: 'hi' } });
-    fireEvent.click(send$()!);
-    expect(mic$()).toBeInTheDocument();
-    fireEvent.pointerDown(mic$()!, { button: 0 }); // the second press of the double click
-    fireEvent.pointerUp(window);
-    expect(screen.queryByTestId('record-bar')).toBeNull();
-    expect(mic.start).not.toHaveBeenCalled();
-    vi.setSystemTime(Date.now() + 500);
-    fireEvent.pointerDown(mic$()!, { button: 0 });
-    fireEvent.pointerUp(window);
-    await waitFor(() => expect(screen.getByTestId('record-bar')).toBeInTheDocument());
-  } finally {
-    vi.useRealTimers();
-  }
+// Send keeps its own spot, so the mic that returns after a send is never under the cursor of a double click
+it('a fast double click on Send sends once and starts no recording', async () => {
+  const { box, sent } = setup();
+  fireEvent.change(box, { target: { value: 'hi' } });
+  const btn = send$()!;
+  fireEvent.click(btn);
+  fireEvent.pointerDown(btn, { button: 0 });
+  fireEvent.pointerUp(window);
+  fireEvent.click(send$()!); // disabled now: nothing more is sent
+  expect(sent.filter((m) => m.type === 'send')).toHaveLength(1);
+  expect(screen.queryByTestId('record-bar')).toBeNull();
+  expect(mic.start).not.toHaveBeenCalled();
 });
 
 it('when Send unmounts (a send that finished later) the caret stays in the field', async () => {

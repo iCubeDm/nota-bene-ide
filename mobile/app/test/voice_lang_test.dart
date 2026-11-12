@@ -9,22 +9,32 @@ import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/store/voice_lang.dart';
 
 void main() {
-  test('none until one is chosen; the choice is kept', () async {
+  test('Automatic until one is pinned; the pin is kept', () async {
     final v = MemoryVault();
     final a = await VoiceLang.load(v);
-    expect(a.code, isNull);
+    expect(a.code, VoiceLang.auto);
+    expect(a.isAuto, isTrue);
     await a.choose('ru');
     expect(a.code, 'ru');
+    expect(a.isAuto, isFalse);
     expect((await VoiceLang.load(v)).code, 'ru');
-    await a.choose(null);
+    await a.choose(VoiceLang.auto);
     expect(await v.read('voiceLang'), isNull);
-    expect((await VoiceLang.load(v)).code, isNull);
+    expect((await VoiceLang.load(v)).code, VoiceLang.auto);
+  });
+
+  test('the stored null (the old app-language default) migrates to auto; a pin '
+      'stays pinned', () async {
+    // nothing stored was "app language"; it is Automatic now
+    expect((await VoiceLang.load(MemoryVault())).isAuto, isTrue);
+    final v = MemoryVault()..values['voiceLang'] = 'de';
+    expect((await VoiceLang.load(v)).code, 'de');
   });
 
   test('a language Whisper is not asked for is not kept', () async {
     final v = MemoryVault();
     await v.write('voiceLang', 'fr');
-    expect((await VoiceLang.load(v)).code, isNull);
+    expect((await VoiceLang.load(v)).isAuto, isTrue);
   });
 
   Future<String> lang(WidgetTester t, VoiceLang? v) async {
@@ -51,6 +61,29 @@ void main() {
     expect(await lang(t, v), 'en');
     await v.choose('ru');
     expect(await lang(t, v), 'ru');
+  });
+
+  testWidgets('detect only under Automatic', (t) async {
+    late bool got;
+    final v = await VoiceLang.load(MemoryVault());
+    Future<bool> detect() async {
+      await t.pumpWidget(
+        NbApp(
+          voiceLang: v,
+          home: Builder(
+            builder: (c) {
+              got = voiceDetectOf(c);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      return got;
+    }
+
+    expect(await detect(), isTrue);
+    await v.choose('ru');
+    expect(await detect(), isFalse);
   });
 
   testWidgets('the app in Russian and no choice: Russian', (t) async {
@@ -98,9 +131,15 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Voice language'), findsOneWidget);
-    expect(find.text('App language'), findsOneWidget);
+    // the subtitle names the current choice
+    expect(find.text('Automatic'), findsOneWidget);
     await t.tap(row);
     await t.pumpAndSettle();
+    // Automatic first, then the six
+    expect(
+      t.getTopLeft(find.text('Automatic').last).dy,
+      lessThan(t.getTopLeft(find.text('English')).dy),
+    );
     for (final name in [
       'English',
       'Русский',

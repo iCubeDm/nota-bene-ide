@@ -9,8 +9,10 @@ import { stateDir } from './state.ts';
 /** `updateCheck`: asking npm for a newer version (Settings → Defaults; absent = on) */
 /** `audit`: the audit log of system events (Settings → Defaults; absent = on) */
 /** `models[root]`: the model (and effort) a project's next session starts with; absent = the agent's default */
-export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; uiScale?: UiScale; theme?: ThemeId; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean; audit?: boolean; whisper?: boolean };
+export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; uiScale?: UiScale; theme?: ThemeId; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean; audit?: boolean; whisper?: boolean; dictationLang?: string };
 
+/** `auto` or an ISO 639 language code, as Whisper takes it (en, ru, yue). */
+export const isDictationLang = (v: unknown): v is string => typeof v === 'string' && (v === 'auto' || /^[a-z]{2,3}$/.test(v));
 const isEffort = (v: unknown): v is EffortLevel => (EFFORT_LEVELS as readonly unknown[]).includes(v);
 const isMode = (v: unknown): v is Mode => (ALL_MODES as readonly unknown[]).includes(v);
 let reported = false; // a broken file is reported once per process, not on every read
@@ -39,7 +41,7 @@ export function readPrefs(): Prefs {
   try {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('prefs.json is not an object');
-    const { modes, models, lang, uiScale, theme, idleCompact, defaultMode, updateCheck, audit, whisper } = data as { modes?: unknown; models?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown; audit?: unknown; whisper?: unknown };
+    const { modes, models, lang, uiScale, theme, idleCompact, defaultMode, updateCheck, audit, whisper, dictationLang } = data as { modes?: unknown; models?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown; audit?: unknown; whisper?: unknown; dictationLang?: unknown };
     const out: Prefs = { modes: {}, models: {}, idleCompact: {} };
     if (modes && typeof modes === 'object' && !Array.isArray(modes)) {
       for (const [k, v] of Object.entries(modes)) if (isMode(v)) out.modes[k] = v;
@@ -55,6 +57,7 @@ export function readPrefs(): Prefs {
     if (idleCompact && typeof idleCompact === 'object' && !Array.isArray(idleCompact)) {
       for (const [k, v] of Object.entries(idleCompact)) if (typeof v === 'boolean') out.idleCompact[k] = v;
     }
+    if (isDictationLang(dictationLang)) out.dictationLang = dictationLang;
     if (isUiLang(lang)) out.lang = lang;
     if (isUiScale(uiScale)) out.uiScale = uiScale;
     if (isThemeId(theme)) out.theme = theme;
@@ -146,6 +149,11 @@ export function setUpdateCheckPref(on: boolean): void {
 /** Dictation with Whisper on the host: on only after the install; one for every window of this provider. */
 export function setWhisperPref(on: boolean): void {
   updateRawPrefs((raw) => void (raw.whisper = on));
+}
+
+/** The spoken language of dictation and voice messages: `auto` (detect it) or an ISO 639 code. One for every window of this provider, like `whisper`. */
+export function setDictationLangPref(lang: string): void {
+  updateRawPrefs((raw) => void (raw.dictationLang = lang));
 }
 
 /** Settings → Defaults: the audit log, one for every window of this provider. */

@@ -592,6 +592,43 @@ void main() {
       },
     );
 
+    testWidgets('Automatic sends detect with the app language as the hint', (
+      t,
+    ) async {
+      r.voiceLang = await VoiceLang.load(MemoryVault());
+      await openVoice(t, protocol: 18);
+      r.ch.onHttp = (port, method, path) async => ok();
+      await record(t);
+      await t.pump();
+      expect(r.sent.single['lang'], 'en');
+      expect(r.sent.single['detect'], isTrue);
+    });
+
+    testWidgets('a pinned language is sent as lang alone', (t) async {
+      final v = await VoiceLang.load(MemoryVault());
+      await v.choose('ru');
+      r.voiceLang = v;
+      await openVoice(t, protocol: 18);
+      r.ch.onHttp = (port, method, path) async => ok();
+      await record(t);
+      await t.pump();
+      expect(r.sent.single['lang'], 'ru');
+      expect(r.sent.single.containsKey('detect'), isFalse);
+    });
+
+    testWidgets('Automatic on a host older than protocol 18 sends no detect', (
+      t,
+    ) async {
+      final v = await VoiceLang.load(MemoryVault());
+      r.voiceLang = v;
+      await openVoice(t, protocol: 17);
+      r.ch.onHttp = (port, method, path) async => ok();
+      await record(t);
+      await t.pump();
+      expect(r.sent.single['lang'], 'en');
+      expect(r.sent.single.containsKey('detect'), isFalse);
+    });
+
     testWidgets(
       'while the agent works a voice message asks; After sends it without force',
       (t) async {

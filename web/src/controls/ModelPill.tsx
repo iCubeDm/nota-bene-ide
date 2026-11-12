@@ -1,22 +1,49 @@
 import { useRef, useState } from 'react';
-import type { AgentEffort as EffortLevel, ModelOption } from '@nota-bene/shared';
+import { shortModel, type AgentEffort as EffortLevel, type ModelOption } from '@nota-bene/shared';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
 import { selectStats } from '@/stats/slice.ts';
 import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { EffortSlider } from './EffortSlider.tsx';
 import { pickModel, selectModel, selectModelSwitchable, selectModels, selectSwitching } from './slice.ts';
 
 /**
  * The row for the model id in use. The CLI reports resolved ids, the list has aliases, and two rows can resolve to one
  * id (`default` and `opus`): an alias we set wins, a resolved id takes the first row that has it.
  */
-const rowFor = (models: ModelOption[], id: string | null | undefined): ModelOption | undefined =>
-  id ? (models.find((o) => o.value === id) ?? models.find((o) => o.resolved === id)) : undefined;
+const rowFor = (models: ModelOption[], id: string | null | undefined): ModelOption | undefined => {
+  if (!id) return undefined;
+  const exact = (x: string) => models.find((o) => o.value === x) ?? models.find((o) => o.resolved === x);
+  // a session id may carry a context suffix (`claude-opus-5-5[1m]`): then the bare id
+  return exact(id) ?? exact(id.replace(SUFFIXED_ID, ''));
+};
 
 /** the aliases (`sonnet`) are the everyday list; explicit ids (`claude-sonnet-5`) go under "Other versions" */
 const isAlias = (o: ModelOption) => !o.value.startsWith('claude-');
 const resolvedOf = (o: ModelOption) => o.resolved ?? o.value;
+/** a context suffix on a model id (`claude-opus-5-5[1m]`, `opus[1m]`) */
+const SUFFIXED_ID = /\[[^\]]*\]$/;
+/** the 1M-token variant's suffix */
+const ONE_M = /\[1m\]$/i;
+/** a name without its trailing parenthetical: `Sonnet (1M context)` is `Sonnet` (the 1M tag carries that) */
+const bare = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, '') || name;
+/**
+ * The row's name for the pill. `default` is named after what it is: the row that resolves to the same model (a row with no
+ * `[..]` suffix, an alias first: "Opus 5.5", not "Default (recommended)"), else the short name of its resolved id, else its
+ * own name. A trailing parenthetical is dropped from a borrowed or own name.
+ */
+function pillName(models: ModelOption[], row: ModelOption): string {
+  if (row.value !== 'default') return row.name;
+  const rank = (o: ModelOption) => (SUFFIXED_ID.test(o.value) ? 0 : 2) + (isAlias(o) ? 1 : 0);
+  const twin = row.resolved
+    ? models.filter((o) => o !== row && resolvedOf(o) === row.resolved).reduce<ModelOption | undefined>((best, o) => (!best || rank(o) > rank(best) ? o : best), undefined)
+    : undefined;
+  if (twin) return bare(twin.name);
+  const short = row.resolved ? shortModel(row.resolved) : '';
+  return short && short !== row.resolved ? short : bare(row.name);
+}
+
 /** a router's ids carry their provider (`anthropic/claude-opus-5`, `google/gemini-3-pro`): the list is grouped by it */
 const providerOf = (o: ModelOption) => (o.value.includes('/') ? o.value.slice(0, o.value.indexOf('/')) : '');
 /** from this many rows on the list has a search field */
@@ -54,6 +81,8 @@ export function ModelPill() {
   const sessionModel = useAppSelector(selectSession)?.model ?? null;
   const id = cur?.model ?? sessionModel;
   const current = rowFor(models, id);
+  // no row for the session's model: effort stays selectable with the default row's levels
+  const efforts = current ? current.efforts : id ? (models.find((o) => o.value === 'default' && o.efforts) ?? models.find((o) => o.efforts))?.efforts : undefined;
   const [more, setMore] = useState(false);
   const [hover, setHover] = useState<ModelOption | null>(null);
   const [query, setQuery] = useState('');
@@ -61,23 +90,48 @@ export function ModelPill() {
   const searchRef = useRef<HTMLInputElement>(null);
   const hadTurn = useAppSelector((st) => st.feed.earlier > 0 || st.feed.items.some((it) => it.kind === 'user'));
   if (!id && !switchable) return null; // nothing known yet
-  const label = (current?.name ?? id ?? t('modelUnknown')) + (cur?.effort ? ` · ${t(`effort_${cur.effort}`)}` : '');
+  // the short name; the 1M tag when the session id or the row's resolved id says so (unless the name already does)
+  const name = current ? pillName(models, current) : id ? id.replace(ONE_M, '') : t('modelUnknown');
+  const tag1m = (ONE_M.test(id ?? '') || ONE_M.test(current?.resolved ?? '')) && !/\b1m\b/i.test(name);
+  // the effort as a mini bar mirroring the menu slider: the level's place among the model's levels. An effort the model
+  // has no level for (the slider shows Auto) has no bar, and the name does not claim it either.
+  const levelAt = cur?.effort ? (efforts?.indexOf(cur.effort) ?? -1) : -1;
+  const barPct = efforts && levelAt >= 0 ? ((levelAt + 1) * 100) / efforts.length : null;
+  const effortName = cur?.effort && barPct !== null ? t(`effort_${cur.effort}`) : '';
+  // the full text for the accessible name and the tooltip: "Opus 5.5 1M · Extra high"
+  const summary = [tag1m ? `${name} ${t('model1m')}` : name, effortName].filter(Boolean).join(' · ');
   const trigger = (
     <button
       type="button"
-      aria-label={t('modelTip')}
+      aria-label={`${summary} · ${t('modelTip')}`}
       disabled={switching || !switchable}
       className="inline-flex h-[24px] items-center rounded-full border border-border-soft bg-transparent px-2.5 font-mono text-[0.6875rem] text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground disabled:opacity-70"
     >
-      {/* the model's name is the trigger's mark: it takes the model accent (the theme's own text colour in Plannotator) */}
-      <span className="text-accent-model">{label}</span>
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        {/* the model's name is the trigger's mark: it takes the model accent (the theme's own text colour in Plannotator) */}
+        <span className="max-w-[12rem] truncate text-accent-model">{name}</span>
+        {tag1m && <span data-testid="model-1m" className="shrink-0 text-[0.5625rem] text-muted-foreground">{t('model1m')}</span>}
+        {barPct !== null && (
+          <span aria-hidden data-testid="effort-bar" className="inline-block h-[3px] w-4 shrink-0 overflow-hidden rounded-full bg-muted-foreground/25">
+            <span data-fill style={{ width: `${barPct}%` }} className="block h-full rounded-full bg-accent-model" />
+          </span>
+        )}
+      </span>
     </button>
   );
   if (!switchable) return trigger;
   const kTokens = Math.max(1, Math.round(used / 1000));
+  // the current model's session id is sent only when a `[1m]`-style suffix tells it from the row (an effort change must
+  // not switch it to the alias and drop the 1M variant); otherwise the row's value, as always
+  const modelFor = (o: ModelOption) => (o === current && id && id !== o.value && id !== o.resolved ? id : o.value);
   const pick = (o: ModelOption, effort?: EffortLevel) => {
     if (o === current && effort === cur?.effort) return;
-    void dispatch(pickModel(o.value, effort));
+    void dispatch(pickModel(modelFor(o), effort));
+  };
+  /** `undefined`: Auto, the model's default: no effort in the message, which the server applies as setEffort(null) */
+  // the slider de-duplicates against its own pending stop: `cur` is stale until the echo, so a quick reversal needs no guard here
+  const pickEffort = (e: EffortLevel | undefined) => {
+    void dispatch(pickModel(current ? modelFor(current) : (id ?? ''), e));
   };
   const searchable = models.length >= SEARCH_MIN;
   const shown = searchable && query.trim() ? models.filter((o) => matches(o, query)) : models;
@@ -86,7 +140,9 @@ export function ModelPill() {
   const showMore = more || !!query.trim() || (!!current && !isAlias(current));
   // a model change drops the cache; the same resolved id keeps it. Nothing to re-read before the first turn.
   const differs = (o: ModelOption) => (current ? resolvedOf(o) !== resolvedOf(current) : true);
-  const warn = hadTurn && used > 0 && (hover ? differs(hover) : models.some(differs));
+  // the row under the pointer or focus; one the search filtered out is forgotten
+  const hovered = hover && shown.includes(hover) ? hover : null;
+  const warn = hadTurn && used > 0 && (hovered ? differs(hovered) : models.some(differs));
   const row = (o: ModelOption) => {
     const here = o === current;
     return (
@@ -107,7 +163,7 @@ export function ModelPill() {
   return (
     <DropdownMenu
       onOpenChange={(o) => {
-        if (!o) setQuery('');
+        if (!o) { setQuery(''); setHover(null); }
         // the menu focuses itself on open; a long list wants the search field instead
         else if (searchable) requestAnimationFrame(() => searchRef.current?.focus());
       }}
@@ -118,7 +174,7 @@ export function ModelPill() {
             <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
           </span>
         </TooltipTrigger>
-        <TooltipContent>{t('modelTip')}</TooltipContent>
+        <TooltipContent className="whitespace-pre-line">{`${summary}\n${t('modelTip')}`}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent
         side="bottom"
@@ -136,7 +192,7 @@ export function ModelPill() {
             value={query}
             placeholder={t('modelSearch')}
             aria-label={t('modelSearch')}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setHover(null); }}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -162,6 +218,7 @@ export function ModelPill() {
           <>
             <DropdownMenuItem
               aria-expanded={showMore}
+              onFocus={() => setHover(null)}
               onSelect={(e) => { e.preventDefault(); setMore(!more); }}
               className="px-2.5 py-1.5 text-[0.75rem] text-muted-foreground"
             >
@@ -171,20 +228,20 @@ export function ModelPill() {
           </>
         )}
         </div>
-        {current?.efforts && (
-          <div role="group" aria-label={t('effortLabel')} className="flex shrink-0 flex-wrap items-center gap-1 border-t border-border-soft px-2.5 pb-1 pt-1.5">
-            <span className="mr-1 text-[0.6875rem] text-muted-foreground">{t('effortLabel')}</span>
-            {current.efforts.map((e) => (
-              <DropdownMenuItem
-                key={e}
-                aria-current={cur?.effort === e || undefined}
-                onFocus={() => setHover(null)}
-                onSelect={() => pick(current, e)}
-                className={`inline-flex h-[22px] w-auto items-center rounded-full border border-border-soft px-2 py-0 text-[0.6875rem] ${cur?.effort === e ? 'bg-muted font-medium' : ''}`}
-              >
-                {t(`effort_${e}`)}
-              </DropdownMenuItem>
-            ))}
+        {/* the full description of the row under the pointer or focus, else the current row's: the rows cut it short. Three
+            lines of fixed height, so the menu does not jump between rows (longer text is clamped). Only when there is text:
+            no empty box for an unknown model, before a model is reported, or a backend with no descriptions. Screen
+            readers get the row's own name, which carries the description. */}
+        {(hovered ?? current)?.description && shown.some((o) => o.description) && (
+          <div className="shrink-0 border-t border-border-soft px-2.5 py-1.5">
+            <p data-testid="model-detail" aria-hidden className="m-0 line-clamp-3 h-12 break-words text-[0.71875rem] leading-4 text-muted-foreground">
+              {(hovered ?? current)?.description}
+            </p>
+          </div>
+        )}
+        {efforts && (
+          <div className="shrink-0 border-t border-border-soft px-2.5 pb-1 pt-1.5" onFocus={() => setHover(null)}>
+            <EffortSlider levels={efforts} value={cur?.effort} echo={cur} onPick={pickEffort} />
           </div>
         )}
         {warn && <p data-testid="cache-warn" className="m-0 shrink-0 border-t border-border-soft px-2.5 pb-1.5 pt-1.5 text-[0.71875rem] leading-snug text-warn">{t('modelCacheWarn', kTokens)}</p>}

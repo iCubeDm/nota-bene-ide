@@ -1,11 +1,12 @@
-// `GET /dictation`, `POST /dictation/{install,on,remove}`: Settings → Dictation's server side for the optional Whisper install.
+// `GET /dictation`, `POST /dictation/{install,on,lang,remove,transcribe}`: Settings → Dictation's server side for the optional Whisper install.
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import type { EventHub } from '../hub.ts';
-import { readPrefs, setWhisperPref } from '../prefs.ts';
-import { installWhisper, removeWhisper, whisperDir, whisperPhase } from './install.ts';
-import { queued, resetTranscriber, transcribe as defaultTranscribe } from './transcribe.ts';
+import { isDictationLang, readPrefs, setDictationLangPref, setWhisperPref } from '../prefs.ts';
+import { installWhisper, removeWhisper, whisperDir, whisperPhase, withdrawWhisper } from './install.ts';
+import { hostClient, WhisperBusy, WhisperOff, type HostClient } from './hostClient.ts';
+import { queued, resetTranscriber, spokenOf, transcribeWith as defaultTranscribe, type SpokenOrText } from './transcribe.ts';
 import { pcmFromWav, WavError } from './wav.ts';
-import { WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
+import { MAX_AUDIO, WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
 import { reportError } from '../errors.ts';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -26,9 +27,6 @@ export const LANG = /^[a-z]{2,3}$/;
 /** Whisper is installed, ready and switched on. */
 export const whisperOn = (): boolean => readPrefs().whisper === true && whisperPhase() === 'ready';
 
-/** Two minutes of 16 kHz 16-bit mono is 3.84 MB. */
-const MAX_AUDIO = 4 * 1024 * 1024;
-
 /** The body up to `max` bytes; null once it is larger (the rest is dropped, not buffered). */
 async function readAudio(req: IncomingMessage, max: number): Promise<Buffer | null> {
   const chunks: Buffer[] = [];
@@ -41,21 +39,37 @@ async function readAudio(req: IncomingMessage, max: number): Promise<Buffer | nu
   return Buffer.concat(chunks);
 }
 
-export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof installWhisper>[0]; transcribe?: (pcm: Float32Array, lang: string) => Promise<string> }): Record<string, RequestListener> {
+/** What a page learns of the Whisper host: it is loaded (has the model in memory), how many jobs wait, whether one runs. */
+export type HostState = { loaded: boolean; queued: number; running: boolean };
+
+export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof installWhisper>[0]; transcribe?: (pcm: Float32Array, lang: string, detect?: boolean, signal?: AbortSignal) => Promise<SpokenOrText>; host?: Pick<HostClient, 'status' | 'stopHost'> }): Record<string, RequestListener> {
+  /** What an async handler's failure becomes: a 400 for bad JSON, else it is reported and answered 500. */
+  const failed = (req: IncomingMessage, res: ServerResponse) => (e: unknown): void => {
+    if (e instanceof SyntaxError) return json(res, 400, { error: 'bad json' });
+    reportError(o.hub, req.url ?? '/dictation', e);
+    if (!res.headersSent) json(res, 500, { error: e instanceof Error ? e.message : String(e) });
+  };
   const post = (h: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>): RequestListener => (req, res) => {
     if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
-    Promise.resolve(h(req, res)).catch((e: unknown) => {
-      if (e instanceof SyntaxError) return json(res, 400, { error: 'bad json' });
-      reportError(o.hub, req.url ?? '/dictation', e);
-      if (!res.headersSent) json(res, 500, { error: e instanceof Error ? e.message : String(e) });
-    });
+    Promise.resolve(h(req, res)).catch(failed(req, res));
   };
   const run = o.transcribe ?? defaultTranscribe;
+  const host = o.host ?? hostClient;
+  /** The running host's state, or null: none running, or one that cannot be asked (that is no failure of this request). */
+  const hostState = async (): Promise<HostState | null> => {
+    try {
+      const h = await host.status();
+      return h && { loaded: h.loaded, queued: h.queued, running: h.running };
+    } catch { return null; }
+  };
   return {
     '/dictation': (req, res) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'method not allowed' });
-      const phase = whisperPhase();
-      json(res, 200, { on: readPrefs().whisper === true && phase === 'ready', phase, downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL });
+      // the host's state is asked first: the rest is read after it, so that the answer is as fresh as it can be
+      hostState().then((state) => {
+        const phase = whisperPhase();
+        json(res, 200, { on: readPrefs().whisper === true && phase === 'ready', phase, downloadMb: WHISPER_DOWNLOAD_MB, diskMb: WHISPER_DISK_MB, dir: whisperDir(), model: WHISPER_MODEL, dictationLang: readPrefs().dictationLang ?? 'auto', host: state });
+      }).catch(failed(req, res));
     },
     '/dictation/install': post((_req, res) => {
       if (whisperPhase() === 'installing') return json(res, 409, { error: 'already installing' });
@@ -70,17 +84,35 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
       setWhisperPref(b.on);
       json(res, 200, { ok: true });
     }),
-    '/dictation/remove': post((_req, res) => {
+    '/dictation/lang': post(async (req, res) => {
+      const b = await readBody(req);
+      if (!isDictationLang(b.lang)) return json(res, 400, { error: 'lang must be auto or a language code' });
+      setDictationLangPref(b.lang);
+      json(res, 200, { ok: true });
+    }),
+    '/dictation/remove': post(async (_req, res) => {
+      // first of all Whisper is off and the install no longer reads as ready (a refusal, while an install runs, stops nothing): a
+      // dictation that passed its gate before, or a job that retries after the host is stopped, then finds Whisper off instead of
+      // starting a host (or a load) from files that are about to go
+      if (!withdrawWhisper()) return json(res, 409, { error: 'installing' });
+      setWhisperPref(false);
+      // the Whisper host serves from this install: it stops next (jobs waiting for it fail as `off`), so that no process goes on
+      // holding a model that cannot be asked for. A host that cannot be stopped is told, and the removal goes on.
+      try { await host.stopHost('removed'); } catch (e) { reportError(o.hub, 'whisper-host', e); }
       if (!removeWhisper()) return json(res, 409, { error: 'installing' });
       resetTranscriber();
-      setWhisperPref(false);
       json(res, 200, { ok: true });
     }),
     '/dictation/transcribe': post(async (req, res) => {
       if (!whisperOn()) return json(res, 503, { error: 'dictation is off' });
       if (!(req.headers['content-type'] ?? '').toLowerCase().startsWith('audio/wav')) return json(res, 415, { error: 'audio/wav only' });
-      const lang = new URL(req.url ?? '', 'http://x').searchParams.get('lang') || 'en';
+      const q = new URL(req.url ?? '', 'http://x').searchParams;
+      const lang = q.get('lang') || 'en';
       if (!LANG.test(lang)) return json(res, 400, { error: 'bad lang' });
+      const detect = q.get('detect') === '1';
+      // the client left before the answer (a closed tab, a dropped phone): its job is cancelled, not transcribed for nobody
+      const gone = new AbortController();
+      res.on('close', () => { if (!res.writableFinished) gone.abort(); });
       const declared = Number(req.headers['content-length']);
       const body = declared > MAX_AUDIO ? null : await readAudio(req, MAX_AUDIO);
       if (!body) return json(res, 413, { error: 'audio too long' });
@@ -89,7 +121,16 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
         if (e instanceof WavError) return json(res, 400, { error: e.message });
         throw e;
       }
-      json(res, 200, { text: await queued(() => run(pcm, lang)) });
+      let got: ReturnType<typeof spokenOf>;
+      try {
+        got = spokenOf(await queued(() => run(pcm, lang, detect, gone.signal), gone.signal));
+      } catch (e) {
+        if (gone.signal.aborted) return;
+        if (e instanceof WhisperBusy) return json(res, 503, { error: 'busy' });
+        if (e instanceof WhisperOff) return json(res, 503, { error: 'dictation is off' });
+        throw e;
+      }
+      json(res, 200, { text: got.text, lang: got.lang ?? lang });
     }),
   };
 }

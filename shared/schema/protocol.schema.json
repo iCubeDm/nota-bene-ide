@@ -225,6 +225,10 @@
               },
               "type": "array"
             },
+            "detect": {
+              "const": true,
+              "type": "boolean"
+            },
             "force": {
               "type": "boolean"
             },
@@ -1098,6 +1102,9 @@
             "capabilities": {
               "$ref": "#/definitions/Capabilities"
             },
+            "dictationLang": {
+              "type": "string"
+            },
             "kind": {
               "const": "hello",
               "type": "string"
@@ -1201,6 +1208,9 @@
             },
             "voice": {
               "$ref": "#/definitions/Voice"
+            },
+            "voiceLang": {
+              "type": "string"
             }
           },
           "required": [
@@ -1221,6 +1231,9 @@
             },
             "kind": {
               "const": "voice-text",
+              "type": "string"
+            },
+            "lang": {
               "type": "string"
             },
             "text": {
@@ -2890,5 +2903,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 17
+  "x-protocol": 18
 }

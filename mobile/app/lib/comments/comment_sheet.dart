@@ -159,7 +159,12 @@ class _SheetState extends State<_Sheet> {
       _clips.any((c) => c.error != null) || _images.any((i) => i.failed);
 
   void _recorded(Uint8List wav, Duration length) {
-    final c = _Clip.fresh(uuidV4(), wav, voiceLangOf(context));
+    final c = _Clip.fresh(
+      uuidV4(),
+      wav,
+      voiceLangOf(context),
+      voiceDetectOf(context),
+    );
     setState(() => _clips.add(c));
     unawaited(_attempt(c));
   }
@@ -446,6 +451,9 @@ class _SheetState extends State<_Sheet> {
   Future<void> _run(_Clip c) async {
     final tab = widget.tab;
     final lang = c.lang ??= voiceLangOf(context);
+    final detect =
+        (c.detect ??= voiceDetectOf(context)) &&
+        (tab?.detectProtocolOk ?? false);
     setState(() {
       c.busy = true;
       c.error = null;
@@ -469,7 +477,7 @@ class _SheetState extends State<_Sheet> {
         return _done(c, error: VoiceError.failed);
       }
     }
-    final r = await transcribeClip(http, c.id!, lang);
+    final r = await transcribeClip(http, c.id!, lang, detect: detect);
     if (r.error == VoiceError.off) tab!.whisperOn = false;
     _done(c, text: r.text, error: r.error);
   }
@@ -762,7 +770,7 @@ class _Img {
 
 /// One clip of the sheet: a fresh recording on its way to the host and its text, or one the comment already has.
 class _Clip {
-  _Clip.fresh(this.key, Uint8List this.wav, this.lang)
+  _Clip.fresh(this.key, Uint8List this.wav, this.lang, this.detect)
     : ms = wavMs(wav),
       wave = waveOf(wav),
       busy = true;
@@ -778,6 +786,9 @@ class _Clip {
 
   /// The language it was recorded in; a Retry asks for the text in it, whatever Settings say by then.
   String? lang;
+
+  /// Whether it was recorded under Automatic (the language above is then the hint).
+  bool? detect;
   Uint8List? wav;
   String? id;
   int ms;

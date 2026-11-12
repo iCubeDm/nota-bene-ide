@@ -96,13 +96,22 @@ test.afterEach(async ({ page }) => {
       await expect(cards).toHaveCount(before - 1);
     }
   }
-  // the model back on the first one (and no effort)
+  // the model back on the first one, with no effort. The pill's text is the model's name only (the effort is a bar), so the
+  // check is its accessible name: "Sonnet 5 · <tip>", and "Sonnet 5 · Max · <tip>" while an effort is left.
   const modelPill = page.getByRole('button', { name: en.modelTip });
   await expect(modelPill).toBeEnabled();
-  if ((await modelPill.textContent()) !== 'Sonnet 5') {
+  const clean = `Sonnet 5 · ${en.modelTip}`;
+  if ((await modelPill.getAttribute('aria-label')) !== clean) {
     await modelPill.click();
     await page.getByRole('menuitem', { name: /^Sonnet 5/ }).click();
-    await expect(modelPill).toHaveText('Sonnet 5');
+    await expect(modelPill).toHaveAttribute('aria-label', /^Sonnet 5 · /); // the server's echo
+    if ((await modelPill.getAttribute('aria-label')) !== clean) { // an effort is left: Auto is the slider's first stop
+      await modelPill.click();
+      await page.getByRole('slider', { name: en.effortLabel }).focus();
+      await page.keyboard.press('Home');
+      await page.keyboard.press('Escape');
+    }
+    await expect(modelPill).toHaveAttribute('aria-label', clean);
   }
   await setMode(page, t, 'default');
 });
@@ -115,10 +124,15 @@ test('model pill: pick another model and an effort; a reload keeps them @control
   await page.getByRole('menuitem', { name: /^Opus 5/ }).click();
   await expect(modelPill).toHaveText('Opus 5');
   await modelPill.click();
-  await page.getByRole('group', { name: en.effortLabel }).getByRole('menuitem', { name: en.effort_max }).click();
-  await expect(modelPill).toHaveText(`Opus 5 · ${en.effort_max}`);
+  await page.getByRole('slider', { name: en.effortLabel }).focus(); // the effort is a slider since #305: End is the last level
+  await page.keyboard.press('End');
+  await page.keyboard.press('Escape'); // the slider keeps the menu open; the pill is hidden from the page while it is
+  // the pill shows the name and a mini effort bar; the effort's name is in its accessible name
+  await expect(modelPill).toHaveText('Opus 5');
+  await expect(modelPill).toHaveAttribute('aria-label', new RegExp(`^Opus 5 · ${en.effort_max} · `));
   await page.reload();
-  await expect(modelPill).toHaveText(`Opus 5 · ${en.effort_max}`);
+  await expect(modelPill).toHaveText('Opus 5');
+  await expect(modelPill).toHaveAttribute('aria-label', new RegExp(`^Opus 5 · ${en.effort_max} · `));
 });
 
 test('plan card: comment on it, approve from acceptEdits, one restoring mode message @controls', async ({ page }) => {

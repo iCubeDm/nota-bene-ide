@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WS from 'ws';
 import { shellEnv } from '../server/src/session/shellText.ts';
 // @ts-expect-error plain ESM, no types
-import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, handoverTarget, needsBuild, portFree, serverEnv } from './nota-bene.mjs';
+import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, ensureBuildAsync, handoverTarget, needsBuild, portFree, serverEnv } from './nota-bene.mjs';
 
 const BIN = fileURLToPath(new URL('./nota-bene.mjs', import.meta.url));
 const FAKE = fileURLToPath(new URL('../server/test/fixtures/hello.json', import.meta.url));
@@ -69,7 +69,7 @@ afterEach(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-type Win = { root: string; pid: number; launcherPid?: number; startedAt: number };
+type Win = { root: string; pid: number; launcherPid?: number; startedAt: number; building?: boolean };
 function windows(): Record<string, Win> {
   const out: Record<string, Win> = {};
   let names: string[] = [];
@@ -413,6 +413,19 @@ describe('nota-bene launcher', () => {
     expect(await r.exited, r.err()).toBe(0);
     expect(r.out()).toBe('nota-bene: already open at http://127.0.0.1:4792\n');
     expect(Object.keys(windows())).toEqual(['4792']);
+  }, 20000);
+
+  it('a window stuck "building" is waited for only up to the cap, with one notice on stderr (--find too)', () => {
+    const dead = Number(spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' }).stdout);
+    const launcher = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' }); // a live "launcher" the cleanup may kill
+    groups.add(launcher.pid!);
+    fs.mkdirSync(path.join(home, 'windows'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'windows', '4793.json'), JSON.stringify({ root: project, pid: dead, launcherPid: launcher.pid, startedAt: Date.now(), building: true }));
+    const t0 = Date.now();
+    const r = bin(['--find', project], { NOTA_BENE_REBUILD_WAIT_MAX_MS: '1500' });
+    expect(r.status).toBe(1);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(1400);
+    expect(r.stderr.match(/waiting for a rebuild/g)).toHaveLength(1);
   }, 20000);
 
   it('a relaunch that finds its port taken gives up at once, not after 5 crashes', async () => {
@@ -882,6 +895,87 @@ describe('web/dist freshness', () => {
   });
 });
 
+describe('a build lock of a dead owner (gh-275)', () => {
+  const deadPid = () => {
+    const r = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
+    return Number(r.stdout);
+  };
+  const lockedBy = (lock: string, pid: number) => {
+    fs.mkdirSync(lock, { recursive: true });
+    fs.writeFileSync(path.join(lock, 'pid'), String(pid));
+  };
+  const mk = () => {
+    const r = path.join(tmp, 'deadlock-repo');
+    fs.mkdirSync(path.join(r, 'web/src'), { recursive: true });
+    fs.writeFileSync(path.join(r, 'web/src/a.tsx'), '');
+    return r;
+  };
+
+  it('ensureBuild breaks it at once and builds', () => {
+    const r = mk();
+    const lock = buildLock(r);
+    lockedBy(lock, deadPid());
+    try {
+      const marker = path.join(tmp, 'built-sync');
+      const t0 = Date.now();
+      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: `touch '${marker}'` }, 'ignore', 20_000);
+      expect(Date.now() - t0).toBeLessThan(5000);
+      expect(fs.existsSync(marker)).toBe(true);
+      expect(fs.existsSync(lock)).toBe(false);
+    } finally {
+      fs.rmSync(lock, { recursive: true, force: true });
+    }
+  });
+
+  it('ensureBuildAsync breaks it at once and builds', async () => {
+    const r = mk();
+    const lock = buildLock(r);
+    lockedBy(lock, deadPid());
+    try {
+      const marker = path.join(tmp, 'built-async');
+      const t0 = Date.now();
+      await ensureBuildAsync(r, { ...process.env, NOTA_BENE_BUILD_CMD: `touch '${marker}'` }, 'ignore', 20_000).done;
+      expect(Date.now() - t0).toBeLessThan(5000);
+      expect(fs.existsSync(marker)).toBe(true);
+      expect(fs.existsSync(lock)).toBe(false);
+    } finally {
+      fs.rmSync(lock, { recursive: true, force: true });
+    }
+  });
+
+  it('a lock with no pid (or a reused one) is broken once older than the stale limit', () => {
+    const r = mk();
+    const lock = buildLock(r);
+    fs.mkdirSync(lock, { recursive: true });
+    const old = (Date.now() - 120_000) / 1000;
+    fs.utimesSync(lock, old, old);
+    try {
+      const marker = path.join(tmp, 'built-old');
+      const t0 = Date.now();
+      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: `touch '${marker}'` }, 'ignore', 20_000);
+      expect(Date.now() - t0).toBeLessThan(5000);
+      expect(fs.existsSync(marker)).toBe(true);
+      expect(fs.existsSync(lock)).toBe(false);
+    } finally {
+      fs.rmSync(lock, { recursive: true, force: true });
+    }
+  });
+
+  it('a live owner keeps the lock: the build waits for it', () => {
+    const r = mk();
+    const lock = buildLock(r);
+    lockedBy(lock, process.pid);
+    try {
+      const t0 = Date.now();
+      ensureBuild(r, { ...process.env, NOTA_BENE_BUILD_CMD: 'true' }, 'ignore', 600);
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(600);
+      expect(fs.existsSync(lock)).toBe(true); // not ours to remove
+    } finally {
+      fs.rmSync(lock, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('serverEnv', () => {
   it('strips from the server child what the `! cmd` environment strips (server/src/session/shellText.ts shellEnv)', () => {
     for (const base of [
@@ -1178,6 +1272,117 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     expect(await helloN(4792)).not.toBe(n1);
     expect((await fetch('http://127.0.0.1:4792/info', { headers: { cookie: login.cookie.replace('4791', '4792'), 'x-nota-bene-key': login.key } })).status).toBe(401);
   }, 40000);
+
+  describe('a restart rebuilds a stale web/dist (gh-275)', () => {
+    // The launcher builds NOTA_BENE_BUILD_ROOT (a temp tree with its own web/src), never the checkout, and its build lock
+    // is named after that tree. NOTA_BENE_BUILD_CMD stub: logs each run to a marker; `body` runs after the log line.
+    const marker = () => path.join(tmp, 'builds');
+    const builds = () => (fs.existsSync(marker()) ? fs.readFileSync(marker(), 'utf8').split('\n').filter(Boolean).length : 0);
+    const source = () => path.join(tmp, 'buildroot/web/src/a.tsx');
+    const setup = (body: string, sourceTime = Date.now()) => {
+      fs.mkdirSync(path.dirname(source()), { recursive: true });
+      fs.writeFileSync(source(), '');
+      fs.utimesSync(source(), sourceTime / 1000, sourceTime / 1000);
+      const script = path.join(tmp, 'build.sh');
+      fs.writeFileSync(script, `#!/bin/sh\necho x >> '${marker()}'\n${body}\n`);
+      fs.chmodSync(script, 0o755);
+      return { NOTA_BENE_BUILD_ROOT: path.join(tmp, 'buildroot'), NOTA_BENE_BUILD_CMD: script };
+    };
+    const lines = (n: number) => `[ "$(wc -l < '${marker()}')" -le ${n} ]`; // true for the first n runs
+    const restart = async (port: number) => {
+      const first = await waitFor(() => windows()[String(port)]);
+      const login = await loginAt(port);
+      const res = await fetch(`http://127.0.0.1:${port}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      expect(res.status).toBe(200);
+      await waitFor(() => { const w = windows()[String(port)]; return w && w.pid !== first.pid ? w : null; });
+      await waitFor(async () => (await info(port)) !== null);
+    };
+
+    it('exit 75 with a stale source runs the build before the relaunch', async () => {
+      const r = launch(['--port', '4791'], setup('true')); // writes no dist: the source stays stale
+      await waitFor(() => windows()['4791']);
+      expect(builds()).toBe(1); // the launcher's own build
+      await restart(4791);
+      expect(builds()).toBe(2);
+      expect(r.err()).not.toMatch(/failed/);
+    }, 40000);
+
+    it('exit 75 with a fresh stamp does not build again', async () => {
+      launch(['--port', '4792'], setup('mkdir -p web/dist && touch web/dist/index.html', Date.now() - 60_000));
+      await waitFor(() => windows()['4792']);
+      expect(builds()).toBe(1);
+      await restart(4792);
+      expect(builds()).toBe(1);
+    }, 40000);
+
+    it('a failing build is logged, keeps the old dist and still relaunches (same port)', async () => {
+      const r = launch(['--port', '4793'], setup(lines(1) + ' || exit 1'));
+      await waitFor(() => windows()['4793']);
+      await restart(4793);
+      expect(builds()).toBe(2);
+      expect(r.err()).toMatch(/building web\/dist failed .* relaunching with the old web\/dist/);
+      expect(await info(4793)).not.toBeNull();
+    }, 40000);
+
+    it('a failed build is not repeated on the next restart until a source changes', async () => {
+      const r = launch(['--port', '4794'], setup(lines(1) + ' || exit 1'));
+      await waitFor(() => windows()['4794']);
+      await restart(4794);
+      expect(builds()).toBe(2); // failed
+      await restart(4794);
+      expect(builds()).toBe(2); // sources unchanged since the failure: skipped
+      expect(r.err()).toMatch(/skipping the build/);
+      const later = Date.now() + 60_000;
+      fs.utimesSync(source(), later / 1000, later / 1000);
+      await restart(4794);
+      expect(builds()).toBe(3); // a changed source is tried again
+    }, 60000);
+
+    it('a crash relaunch does not build (a crash loop still reaches its give-up)', async () => {
+      const r = launch(['--port', '4791'], setup('true'));
+      const first = await waitFor(() => windows()['4791']);
+      expect(builds()).toBe(1);
+      process.kill(first.pid, 'SIGKILL');
+      await waitFor(() => { const w = windows()['4791']; return w && w.pid !== first.pid ? w : null; });
+      await waitFor(async () => (await info(4791)) !== null);
+      expect(r.err()).toMatch(/relaunching \(1 crash/);
+      expect(builds()).toBe(1);
+    }, 40000);
+
+    it('SIGTERM during the relaunch build stops the launcher at once: no server is started, no "failed" message', async () => {
+      const r = launch(['--port', '4792'], setup(`${lines(1)} || { ps -o pgid= -p $$ | tr -d ' ' > '${tmp}/buildgroup'; sh -c "trap '' TERM; exec sleep 600" & wait; }`));
+      await waitFor(() => windows()['4792']);
+      const login = await loginAt(4792);
+      const res = await fetch('http://127.0.0.1:4792/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      expect(res.status).toBe(200);
+      await waitFor(() => builds() === 2); // the slow build is running
+      const buildGroup = Number(await waitFor(() => (fs.existsSync(`${tmp}/buildgroup`) ? fs.readFileSync(`${tmp}/buildgroup`, 'utf8').trim() : '')));
+      process.kill(r.p.pid!, 'SIGTERM');
+      expect(await r.exited).toBe(0);
+      await new Promise((res) => setTimeout(res, 500)); // well inside the 3 s grace: the group must die with the leader, not later
+      expect(() => process.kill(-buildGroup, 0)).toThrow(); // the build's whole group (a TERM-ignoring grandchild too) is gone
+      expect(r.err()).not.toMatch(/failed/);
+      expect(r.out().match(/Nota Bene: /g)).toHaveLength(1); // the first server only
+      expect(windows()['4792']).toBeUndefined();
+    }, 40000);
+
+    it('another launch on the folder keeps waiting past the usual 10 s while the restarting window builds', async () => {
+      const gate = path.join(tmp, 'go');
+      launch(['--port', '4793'], setup(`${lines(1)} || { while [ ! -e '${gate}' ]; do sleep 0.1; done; }`));
+      await waitFor(() => windows()['4793']);
+      const login = await loginAt(4793);
+      await fetch('http://127.0.0.1:4793/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      await waitFor(() => windows()['4793']?.building);
+      const second = launch([]); // the same folder, in the gap
+      await new Promise((r) => setTimeout(r, 11_000)); // longer than the 10 s a restart gap is waited for
+      expect(second.p.exitCode).toBeNull(); // still waiting, not a second window
+      fs.writeFileSync(gate, '');
+      expect(await second.exited, second.err()).toBe(0);
+      expect(second.out()).toBe('nota-bene: already open at http://127.0.0.1:4793\n');
+      expect(Object.keys(windows())).toEqual(['4793']);
+      expect(windows()['4793']?.building).toBeUndefined();
+    }, 60000);
+  });
 
   it('after a CRASH relaunch the nonce is new and the browser is opened on a fresh login: the old cookie, key and login value are dead', async () => {
     const op = (() => {

@@ -3,11 +3,13 @@ import http, { type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AttachmentStore } from '../attachments.ts';
 import { makeWav } from '../dictation/wavFixture.ts';
 import { EventHub } from '../hub.ts';
-import { transcribeVoice, VoiceFailure } from './transcribe.ts';
+import { ClientClosed, HostLost, WhisperBusy, WhisperOff } from '../dictation/hostClient.ts';
+import { queued } from '../dictation/transcribe.ts';
+import { transcribeVoice, VoiceBusy, VoiceFailure } from './transcribe.ts';
 import { voiceRoutes } from './routes.ts';
 import { httpHandler } from '../http.ts';
 
@@ -24,7 +26,7 @@ afterEach(async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-type Run = (pcm: Float32Array, lang: string) => Promise<string>;
+type Run = (pcm: Float32Array, lang: string, detect?: boolean, signal?: AbortSignal) => Promise<string | { text: string; lang: string }>;
 async function serve(o: { on?: boolean; run?: Run } = {}): Promise<string> {
   const routes = voiceRoutes({ hub: new EventHub(), store, on: () => o.on ?? true, transcribe: o.run ?? (async () => 'hello') });
   server = http.createServer(((req, res) => {
@@ -95,8 +97,47 @@ describe('POST /voice/<id>/text', () => {
     const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
     const r = await fetch(`${base}/voice/${id}/text?lang=ru`, { method: 'POST' });
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ text: 'said' });
+    expect(await r.json()).toEqual({ text: 'said', lang: 'ru' });
     expect(langs).toEqual(['ru']);
+  });
+  it('?detect=1 asks for detection and answers the language used; without it nothing is detected', async () => {
+    const asked: (boolean | undefined)[] = [];
+    const base = await serve({ run: async (_p, _l, detect) => { asked.push(detect); return { text: 'bonjour', lang: detect ? 'fr' : 'en' }; } });
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    expect(await (await fetch(`${base}/voice/${id}/text?lang=en&detect=1`, { method: 'POST' })).json()).toEqual({ text: 'bonjour', lang: 'fr' });
+    expect(await (await fetch(`${base}/voice/${id}/text?lang=en`, { method: 'POST' })).json()).toEqual({ text: 'bonjour', lang: 'en' });
+    expect(await (await fetch(`${base}/voice/${id}/text?lang=en&detect=0`, { method: 'POST' })).json()).toEqual({ text: 'bonjour', lang: 'en' });
+    expect(asked).toEqual([true, false, false]);
+  });
+  it('a client that hangs up before the answer stops the transcription', async () => {
+    let signal: AbortSignal | undefined;
+    let begun!: () => void;
+    const started = new Promise<void>((resolve) => { begun = resolve; });
+    const base = await serve({ run: (_pcm, _lang, _detect, s) => {
+      signal = s;
+      begun();
+      return new Promise((_, reject) => s!.addEventListener('abort', () => reject(s!.reason), { once: true }));
+    } });
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    const ac = new AbortController();
+    fetch(`${base}/voice/${id}/text?lang=en`, { method: 'POST', signal: ac.signal }).catch(() => {});
+    await started;
+    expect(signal!.aborted).toBe(false);
+    const aborted = new Promise<void>((resolve) => signal!.addEventListener('abort', () => resolve(), { once: true }));
+    ac.abort();
+    await aborted; // the part is cancelled: it was not left to run for nobody
+  });
+  it('503 busy when the Whisper host\'s queue is full, 503 off when it was removed under the job, any other failure a 500', async () => {
+    let n = 0;
+    const base = await serve({ run: async () => { throw [new WhisperBusy('busy'), new WhisperOff('off'), new Error('down')][n++]!; } });
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    const go = () => fetch(`${base}/voice/${id}/text?lang=en`, { method: 'POST' });
+    const busy = await go();
+    expect([busy.status, await busy.json()]).toEqual([503, { error: 'busy' }]);
+    const off = await go();
+    expect([off.status, await off.json()]).toEqual([503, { error: 'dictation is off' }]);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await go()).status).toBe(500);
   });
   it('503 while Whisper is off, 404 for an unknown id, 400 for a bad lang', async () => {
     const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
@@ -120,13 +161,13 @@ describe('transcribeVoice', () => {
       running--;
       return `p${++n}`;
     });
-    expect(text).toBe('p1 p2 p3');
+    expect(text.text).toBe('p1 p2 p3');
     expect(most).toBe(1);
   });
   it('a failed part is tried once more, then the whole fails', async () => {
     const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
     let calls = 0;
-    expect(await transcribeVoice(store, id, 'en', async () => { if (++calls === 1) throw new Error('flake'); return 'ok'; })).toBe('ok');
+    expect((await transcribeVoice(store, id, 'en', async () => { if (++calls === 1) throw new Error('flake'); return 'ok'; })).text).toBe('ok');
     await expect(transcribeVoice(store, id, 'en', async () => { throw new Error('down'); })).rejects.toThrow('down');
   });
   it('stops between parts once the caller is gone (a switch), without starting the next one', async () => {
@@ -135,12 +176,93 @@ describe('transcribeVoice', () => {
     await expect(transcribeVoice(store, id, 'en', async () => { n++; alive = false; return 'x'; }, () => alive)).rejects.toBeInstanceOf(VoiceFailure);
     expect(n).toBe(1);
   });
+  it('a caller that goes while a part waits for Whisper aborts it (the part queued at the host is cancelled)', async () => {
+    const id = store.put(makeWav({ seconds: 150 }), 'audio/wav');
+    let alive = true, n = 0;
+    let begun!: () => void;
+    const started = new Promise<void>((resolve) => { begun = resolve; });
+    let signal: AbortSignal | undefined;
+    const gone = transcribeVoice(store, id, 'en', (_pcm, _lang, _detect, s) => {
+      n++;
+      signal = s;
+      begun();
+      return new Promise((_, reject) => s!.addEventListener('abort', () => reject(s!.reason), { once: true }));
+    }, () => alive);
+    const failed = expect(gone).rejects.toMatchObject({ why: 'failed', message: 'dropped' });
+    await started;
+    expect(signal!.aborted).toBe(false); // alive: nothing is aborted
+    alive = false;
+    await failed;
+    expect(signal!.aborted).toBe(true);
+    expect(n).toBe(1); // not retried, and the next part never started
+  });
+  it('a part still waiting its turn in the window\'s queue is dropped when the caller goes: it never reaches Whisper', async () => {
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    let release!: () => void;
+    const busy = queued(() => new Promise<void>((resolve) => { release = resolve; })); // another recording holds the queue
+    let gone = false;
+    let polled!: () => void;
+    const sawIt = new Promise<void>((resolve) => { polled = resolve; });
+    let calls = 0;
+    const result = transcribeVoice(store, id, 'en', async () => { calls++; return 'x'; }, () => { if (gone) polled(); return !gone; });
+    const dropped = expect(result).rejects.toMatchObject({ why: 'failed', message: 'dropped' });
+    gone = true;
+    await sawIt; // the caller's `alive` has said no, and its part is aborted
+    release();
+    await busy;
+    await dropped;
+    expect(calls).toBe(0);
+  });
+  it('a part that finds Whisper busy fails the message as `failed` and is not tried again; off is `off`', async () => {
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    let calls = 0;
+    await expect(transcribeVoice(store, id, 'en', async () => { calls++; throw new WhisperBusy('Whisper is busy'); })).rejects.toBeInstanceOf(VoiceBusy);
+    expect(calls).toBe(1);
+    await expect(transcribeVoice(store, id, 'en', async () => { calls++; throw new WhisperOff('Whisper is off'); })).rejects.toMatchObject({ why: 'off' });
+    expect(calls).toBe(2);
+  });
+  it('a part whose host was lost is not tried again: it may be what took the host down', async () => {
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    let calls = 0;
+    await expect(transcribeVoice(store, id, 'en', async () => { calls++; throw new HostLost(); })).rejects.toBeInstanceOf(HostLost);
+    expect(calls).toBe(1);
+  });
+  it('a part cut off by the window closing is not tried again: a retry would connect or start a host again', async () => {
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    let calls = 0;
+    await expect(transcribeVoice(store, id, 'en', async () => { calls++; throw new ClientClosed(); })).rejects.toBeInstanceOf(ClientClosed);
+    expect(calls).toBe(1);
+  });
+  it('a part is told its signal, and the signal does not abort while the caller is alive', async () => {
+    const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
+    let signal: AbortSignal | undefined;
+    await transcribeVoice(store, id, 'en', async (_pcm, _lang, _detect, s) => { signal = s; return 'x'; });
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal!.aborted).toBe(false);
+  });
   it('each part reaches Whisper as samples of -1..1', async () => {
     const id = store.put(makeWav({ seconds: 1 }), 'audio/wav');
     let peak = 0;
     await transcribeVoice(store, id, 'en', async (pcm) => { peak = Math.max(...pcm); return 'x'; });
     expect(peak).toBeGreaterThan(0.4);
     expect(peak).toBeLessThanOrEqual(1);
+  });
+  it('detects on the first part only and pins what it found for the rest', async () => {
+    const id = store.put(makeWav({ seconds: 150 }), 'audio/wav');
+    const calls: [string, boolean | undefined][] = [];
+    const out = await transcribeVoice(store, id, 'en', async (_pcm, lang, detect) => {
+      calls.push([lang, detect]);
+      return { text: 'x', lang: detect ? 'fr' : lang };
+    }, undefined, true);
+    expect(calls).toEqual([['en', true], ['fr', false], ['fr', false]]);
+    expect(out).toEqual({ text: 'x x x', lang: 'fr' });
+  });
+  it('without detect every part is in the asked language, and the answer says so', async () => {
+    const id = store.put(makeWav({ seconds: 150 }), 'audio/wav');
+    const calls: [string, boolean | undefined][] = [];
+    const out = await transcribeVoice(store, id, 'de', async (_pcm, lang, detect) => { calls.push([lang, detect]); return 'x'; });
+    expect(calls).toEqual([['de', false], ['de', false], ['de', false]]);
+    expect(out.lang).toBe('de');
   });
   it('an unknown recording is a VoiceFailure', async () => {
     await expect(transcribeVoice(store, '0'.repeat(64), 'en', async () => 'x')).rejects.toBeInstanceOf(VoiceFailure);

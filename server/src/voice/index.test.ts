@@ -56,6 +56,20 @@ describe('VoiceIndex', () => {
       const batch = 'run the tests\n\nComments on fragments:\n\n1. [a.md]\n> q\n→ note';
       expect(made().resolve([{ id: 'x1', text: batch }])).toEqual([v(1)]);
     });
+    it('keeps the language a message was transcribed in, by id and by text', () => {
+      const i = new VoiceIndex({ file: file() });
+      i.put('a', v(1)); i.putText('a', 'hello', 'fr');
+      i.put('b', v(2)); i.putText('b', 'plain');
+      const j = new VoiceIndex({ file: file() });
+      expect(j.langOf('a')).toBe('fr');
+      expect(j.langOf('b')).toBeUndefined();
+      expect(j.resolveWithLang([{ id: 'a', text: '' }, { id: 'x', text: 'plain' }, { id: 'y', text: 'typed' }])).toEqual([{ voice: v(1), lang: 'fr' }, { voice: v(2) }, undefined]);
+      expect(j.resolve([{ id: 'a', text: '' }])).toEqual([v(1)]);
+    });
+    it('ignores a stored lang that is not a language code', () => {
+      fs.writeFileSync(file(), `{"id":"u1","voice":${JSON.stringify(v(1))}}\n{"id":"u1","text":"x","lang":"Russian"}\n`);
+      expect(new VoiceIndex({ file: file() }).langOf('u1')).toBeUndefined();
+    });
     it('ignores the zero-width guard before a slash', () => {
       expect(made().resolve([{ id: 'x1', text: '\u200b/clear the cache' }])).toEqual([v(3)]);
     });

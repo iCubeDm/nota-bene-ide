@@ -1,9 +1,11 @@
+import { useAutosize } from './autosize.ts';
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
 import { selectSendable, sendBatch } from '@/comments/send.ts';
+import { selectPending } from '@/comments/slice.ts';
 import { CompactClear } from '@/controls/CompactClear.tsx';
 import { ModePill } from '@/controls/ModePill.tsx';
 import { nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching } from '@/controls/slice.ts';
@@ -12,7 +14,7 @@ import { MentionPicker } from './MentionPicker.tsx';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
 import { PromptHistory } from './PromptHistory.tsx';
-import { MessageInput, MicButton } from './MessageInput.tsx';
+import { MessageInput, MicButton, SendIcon } from './MessageInput.tsx';
 import type { PromptEntry } from '@nota-bene/shared';
 import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
@@ -38,6 +40,7 @@ export function Composer() {
   const conn = useAppSelector(selectConn);
   const onAgentTab = useAppSelector((s) => s.tabs.active.startsWith('agent:')); // the message goes to the main agent, not the subagent on screen
   const nPending = useAppSelector(selectSendable).length;
+  const anyPending = useAppSelector(selectPending).length; // also comments detached from the composer: Send stays on to say why they wait
   const mode = useAppSelector(selectMode);
   const caps = useAppSelector(selectCapabilities);
   const text = useAppSelector(selectDraft);
@@ -64,6 +67,7 @@ export function Composer() {
     if (!busy) setAskForce(false);
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const fieldBox = useRef<HTMLDivElement>(null);
   // ↑/↓ through the prompts sent before (newest first): `id` is the recalled one (null = not browsing), `stash` the draft it replaced
   // (a list choice or a search makes one); `query` is the text a search walk started from (null = the whole list is walked)
   const recall = useMemo(() => recallList(items), [items]);
@@ -164,12 +168,8 @@ export function Composer() {
     if (recPhase === 'idle' && wasRecording.current) ref.current?.focus({ preventScroll: true });
     wasRecording.current = recPhase !== 'idle';
   }, [recPhase]);
-  // Send turns into the mic under the cursor: the second press of a double click on Send must not start a recording
-  const SWAP_GUARD_MS = 400;
-  const swappedAt = useRef(0);
   const micDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || !whisper || switching || recRef.current.st.phase !== 'idle') return;
-    if (Date.now() - swappedAt.current < SWAP_GUARD_MS) return;
     recRef.current.start(true);
     // the button is gone from under the finger once the bar replaces it: the release is read on the window
     const up = () => { window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); recRef.current.release(); };
@@ -182,19 +182,21 @@ export function Composer() {
     onBusy: (d) => void dispatch(d > 0 ? uploadStarted() : uploadFinished()),
   });
 
-  // something to send: text, an image (also one still uploading), as on the phone; pending comments do not count
-  const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
+  // the mic shows while the field has no text; an image (also one still uploading) is something to send, as on the phone
+  const hasText = !!text.trim();
+  const canSend = hasText || images.length > 0 || intake.pending.length > 0 || anyPending > 0;
 
-  // Send gives way to the mic (a send, or the field emptied): note when, and keep the caret in the field if the button that
-  // had it is gone (a send that finished after its composite images were built)
-  const hadContent = useRef(hasContent);
+  // Send goes off once there is nothing left (a send, or the field emptied): keep the caret in the field if the button that
+  // had it lost it (a disabled button, or one that finished after its composite images were built)
+  const hadSend = useRef(canSend);
+  const sendBtn = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
-    if (hadContent.current && !hasContent) {
-      swappedAt.current = Date.now();
-      if (document.activeElement === document.body && !recording) ref.current?.focus({ preventScroll: true });
+    if (hadSend.current && !canSend) {
+      const at = document.activeElement;
+      if ((at === document.body || at === sendBtn.current) && !recording) ref.current?.focus({ preventScroll: true });
     }
-    hadContent.current = hasContent;
-  }, [hasContent, recording]);
+    hadSend.current = canSend;
+  }, [canSend, recording]);
 
   // drop anywhere in the window attaches to the message (a drop inside an open comment popup is taken there first)
   const addRef = useRef(intake.add);
@@ -228,20 +230,15 @@ export function Composer() {
     };
   }, []);
 
-  // autosize; max-height (40vh) is applied by CSS
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    // empty: stay one line — a long placeholder would otherwise wrap and grow the field (prototype clips it)
-    if (text) el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
+  // autosize; max-height (40vh) is applied by CSS. Empty: stay one line — a long placeholder would otherwise wrap and grow the field
+  useAutosize(ref, text, !text);
 
   // a send that failed while offline is forgotten once the socket is back, so a later drop shows no stale label
   useEffect(() => {
     if (conn === 'open') setFailed(false);
   }, [conn]);
 
+  const sendLabel = shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send');
   const submit = (force: boolean) => {
     if (uploading || switching) return;
     if (force && busy && !askForce) {
@@ -258,27 +255,38 @@ export function Composer() {
 
   // true when the key was a history step. A walk starts from an empty field (the whole list) or from a single-line draft (the
   // prompts containing it; ↓ past the newest brings the draft back); it goes on while the draft is still exactly the recalled
-  // prompt: any edit ends it
-  const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+  // prompt: any edit ends it. `always` (Alt+↑/↓) ignores the caret, a selection and a multi-line draft: a multi-line draft
+  // is stashed and the whole list walked
+  const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>, always: boolean): boolean => {
     const el = e.currentTarget;
     const b = browse.current;
     const { selectionStart: from, selectionEnd: to, value } = el;
     let list = walkList();
     const at = placeOf(value);
     if (at < 0) { b.id = null; b.query = null; list = recallRef.current; }
-    if (from !== to) return false;
+    if (from !== to && !always) return false;
     const show = (to: number, draft: string) => {
       b.id = to >= 0 ? list[to]!.id : null;
       if (to < 0) b.query = null;
       dispatch(setDraft(draft));
-      // the controlled value lands on the next render; the caret goes after it
-      requestAnimationFrame(() => ref.current?.setSelectionRange(draft.length, draft.length));
+      // the controlled value lands on the next render; the caret goes after it, unless typing changed the value meanwhile
+      requestAnimationFrame(() => {
+        const el = ref.current;
+        if (el?.value === draft) el.setSelectionRange(draft.length, draft.length);
+      });
     };
     if (e.key === 'ArrowUp') {
       if (!list.length) return false;
       if (at < 0) {
         if (value === '') {
           b.stash = '';
+          show(0, list[0]!.text);
+          return true;
+        }
+        if (always) {
+          // Alt: the whole list, newest first, whatever the draft (no search, a draft with no match too)
+          b.query = null;
+          b.stash = value;
           show(0, list[0]!.text);
           return true;
         }
@@ -291,11 +299,11 @@ export function Composer() {
         show(0, list[0]!.text);
         return true;
       }
-      if (value.slice(0, from).includes('\n')) return false; // not on the first line: the field's own
+      if (!always && value.slice(0, from).includes('\n')) return false; // not on the first line: the field's own
       if (at + 1 < list.length) show(at + 1, list[at + 1]!.text);
       return true;
     }
-    if (at < 0 || value.indexOf('\n', from) !== -1) return false; // ↓ is the field's own unless on the last line of a recall
+    if (at < 0 || (!always && value.indexOf('\n', from) !== -1)) return false; // ↓ is the field's own unless on the last line of a recall
     if (at > 0) show(at - 1, list[at - 1]!.text);
     else show(-1, b.stash);
     return true;
@@ -332,7 +340,8 @@ export function Composer() {
       setAskForce(false);
       return;
     }
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.nativeEvent.isComposing && stepHistory(e)) {
+    // Alt+↑/↓ (Option on a Mac) always walk the history; an open / or @ list took the key at window capture before this
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.nativeEvent.isComposing && stepHistory(e, e.altKey)) {
       e.preventDefault();
       return;
     }
@@ -382,7 +391,8 @@ export function Composer() {
           onPaste={intake.onPaste}
           placeholder={showSug ? suggestion : onAgentTab ? t('composerPhAgent') : t('composerPh')}
           dataShell={shellMode}
-          fieldClass={showSug ? 'pr-16 placeholder:text-foreground placeholder:opacity-45' : 'placeholder:truncate'}
+          endPad={showSug ? 'pr-28' : undefined}
+          fieldClass={showSug ? 'placeholder:text-foreground placeholder:opacity-45' : 'placeholder:truncate'}
           bar={recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} busy={busy} onCancel={rec.cancel} onEscape={escQuestion} onStop={() => void rec.stop()} onSend={voiceSubmit} /> : undefined}
           overlay={<>
             {shellMode && (
@@ -391,14 +401,15 @@ export function Composer() {
               </span>
             )}
             {showSug && (
-              <span aria-hidden className="pointer-events-none absolute right-2.5 bottom-2.5 rounded bg-muted px-1.5 py-px font-mono text-[0.65625rem] text-muted-foreground">
+              <span aria-hidden className="pointer-events-none absolute right-11 bottom-2.5 rounded bg-muted px-1.5 py-px font-mono text-[0.65625rem] text-muted-foreground">
                 Tab ⇥
               </span>
             )}
           </>}
-          leading={<PromptHistory onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}
-          // the mic while there is nothing to send, Send once there is; pending comments are not content (they ride along with a recording)
-          hasContent={hasContent}
+          boxRef={fieldBox}
+          leading={<PromptHistory anchor={fieldBox} onPick={pickHistory} onClosed={() => ref.current?.focus({ preventScroll: true })} />}
+          // the mic only while the field has no text; Send is always there (off with nothing to send), its badge counts the comments it carries
+          hasContent={hasText}
           mic={voiceOk ? (
             <MicButton
               testId="mic"
@@ -411,11 +422,16 @@ export function Composer() {
             />
           ) : undefined}
           send={
-            <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
-              <Button type="button" className="h-10" disabled={uploading || switching} onClick={() => submit(false)}>
-                {shellMode ? t('shellRun') : nPending ? t('sendN', nPending) : t('send')}
-              </Button>
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
+                  <Button ref={sendBtn} type="button" className="relative h-10 px-3" disabled={!canSend || uploading || switching} aria-label={sendLabel} onClick={() => submit(false)}>
+                    <SendIcon count={shellMode ? 0 : nPending} run={shellMode} />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{sendLabel}</TooltipContent>
+            </Tooltip>
           }
           trailing={
             <Tooltip>
@@ -443,7 +459,7 @@ export function Composer() {
           <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
           <ShortcodePicker target={ref} />
         </MessageInput>
-        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasContent ? ref : micBox} />}
+        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasText ? ref : micBox} />}
       </div>
       <div data-tools-row className="flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-1 pb-2">
         <input

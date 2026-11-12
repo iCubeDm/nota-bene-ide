@@ -77,7 +77,7 @@ class SettingsScreen extends StatelessWidget {
         builder: (c) {
           final t = AppLocalizations.of(c);
           final primary = Theme.of(c).extension<NbColors>()!.primary;
-          Widget row(String? code, String name) => ListTile(
+          Widget row(String code, String name) => ListTile(
             title: Text(name),
             trailing: code == voice.code
                 ? Icon(Icons.check, color: primary)
@@ -92,7 +92,7 @@ class SettingsScreen extends StatelessWidget {
             child: ListView(
               shrinkWrap: true,
               children: [
-                row(null, t.voiceLanguageApp),
+                row(VoiceLang.auto, t.voiceLanguageAuto),
                 for (final (code, name) in voiceLangs) row(code, name),
               ],
             ),
@@ -191,8 +191,9 @@ class SettingsScreen extends StatelessWidget {
                 leading: const Icon(Icons.record_voice_over_outlined),
                 title: Text(t.voiceLanguage),
                 subtitle: Text(
-                  voiceLangs.where((l) => l.$1 == voice.code).firstOrNull?.$2 ??
-                      t.voiceLanguageApp,
+                  voice.isAuto
+                      ? t.voiceLanguageAuto
+                      : voiceLangName(voice.code),
                 ),
                 onTap: () => _pickVoiceLang(context, voice),
               ),

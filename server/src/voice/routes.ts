@@ -8,7 +8,7 @@ import { samplesOf, WavError } from '../dictation/wav.ts';
 import { reportError } from '../errors.ts';
 import type { EventHub } from '../hub.ts';
 import { parseRange } from '../range.ts';
-import { transcribeVoice, VoiceFailure, type Transcribe } from './transcribe.ts';
+import { transcribeVoice, VoiceBusy, VoiceFailure, type Transcribe } from './transcribe.ts';
 import { msOf, waveOf } from './wave.ts';
 
 /** Ten minutes of 16 kHz 16-bit mono is 19.2 MB. */
@@ -54,13 +54,20 @@ export function voiceRoutes(o: { hub: EventHub; store: AttachmentStore; on?: () 
   };
   const text = async (req: IncomingMessage, res: ServerResponse, id: string) => {
     if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
-    const lang = new URL(req.url ?? '', 'http://x').searchParams.get('lang') || 'en';
+    const q = new URL(req.url ?? '', 'http://x').searchParams;
+    const lang = q.get('lang') || 'en';
     if (!LANG.test(lang)) return json(res, 400, { error: 'bad lang' });
     if (!on()) return json(res, 503, { error: 'dictation is off' });
     req.resume(); // no body is read
+    // a client that hangs up before the answer stops the transcription: its parts are cancelled, not run for nobody
+    let gone = false;
+    res.on('close', () => { if (!res.writableFinished) gone = true; });
     try {
-      json(res, 200, { text: await transcribeVoice(o.store, id, lang, o.transcribe) });
+      json(res, 200, await transcribeVoice(o.store, id, lang, o.transcribe, () => !gone, q.get('detect') === '1'));
     } catch (e) {
+      if (gone) return; // nobody to answer
+      if (e instanceof VoiceBusy) return json(res, 503, { error: 'busy' });
+      if (e instanceof VoiceFailure && e.why === 'off') return json(res, 503, { error: 'dictation is off' });
       if (e instanceof VoiceFailure) return json(res, 404, { error: e.message });
       throw e;
     }

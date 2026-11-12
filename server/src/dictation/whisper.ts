@@ -21,3 +21,17 @@ export const WHISPER_DISK_MB = 770;
  * 1.1 Mbit/s): slower than that is not a usable install anyway, and a hung connection cannot hold the install lock for good.
  */
 export const FETCH_MODEL_TIMEOUT_MS = 30 * 60_000;
+
+/** The installer's check that the files it downloaded load (by path, offline, as every window and host loads them) gives up after this long. */
+export const VERIFY_MODEL_TIMEOUT_MS = 5 * 60_000;
+
+/** Language detection takes the most probable language only from this probability up; below it the caller's hint stands. */
+export const DETECT_MIN_P = 0.5;
+/** Audio shorter than this is not detected at all (a clipped word or a click is noise to the detector): the hint stands. */
+export const DETECT_MIN_MS = 1000;
+/** The detector listens to the first 30 s, one Whisper window. */
+export const DETECT_WINDOW_MS = 30_000;
+/** Whisper's input rate. */
+export const WHISPER_RATE = 16_000;
+/** The most audio one request carries, as a WAV or as PCM for the host: two minutes of 16 kHz 16-bit mono is 3.84 MB. */
+export const MAX_AUDIO = 4 * 1024 * 1024;

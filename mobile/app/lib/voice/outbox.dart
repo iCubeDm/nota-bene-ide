@@ -34,6 +34,7 @@ class PendingVoice {
     this.wav,
     this.commentIds = const [],
     this.commentLang = 'en',
+    this.detect = false,
   }) : id = uuidV4();
 
   PendingVoice.fromJson(Map<String, Object?> j)
@@ -44,6 +45,7 @@ class PendingVoice {
       id = j['id']! as String,
       commentIds = ((j['commentIds'] as List?) ?? const []).cast<String>(),
       commentLang = (j['commentLang'] as String?) ?? 'en',
+      detect = j['detect'] == true,
       voice = j['voice'] == null
           ? null
           : Voice.fromJson((j['voice']! as Map).cast<String, Object?>()),
@@ -52,6 +54,9 @@ class PendingVoice {
   /// What the player, the feed and the file on disk know it by (a fresh uuid, never reused).
   final String key;
   final String lang;
+
+  /// Recorded under Automatic: [lang] is the hint, and a host that can (protocol 18) detects the language.
+  final bool detect;
   final int ms;
   List<num> wave;
 
@@ -80,6 +85,7 @@ class PendingVoice {
   Map<String, Object?> toJson() => {
     'key': key,
     'lang': lang,
+    if (detect) 'detect': true,
     'ms': ms,
     'wave': wave,
     'id': id,
@@ -222,6 +228,7 @@ class VoiceOutbox extends ChangeNotifier {
   bool Function(ClientMessage)? _send;
   WindowHttp? Function()? _http;
   ComposeFor? _compose;
+  bool Function()? _canDetect;
   bool _disposed = false;
 
   void _adopt(List<PendingVoice> found) {
@@ -236,7 +243,9 @@ class VoiceOutbox extends ChangeNotifier {
     required bool Function(ClientMessage) send,
     required WindowHttp? Function() http,
     ComposeFor? compose,
+    bool Function()? canDetect,
   }) {
+    _canDetect = canDetect;
     _owner = owner;
     _send = send;
     _http = http;
@@ -245,7 +254,7 @@ class VoiceOutbox extends ChangeNotifier {
 
   void detach(Object owner) {
     if (!identical(_owner, owner)) return;
-    _owner = _send = _http = _compose = null;
+    _owner = _send = _http = _compose = _canDetect = null;
     for (final e in entries) {
       e._timer?.cancel();
       e._timer = null;
@@ -271,6 +280,7 @@ class VoiceOutbox extends ChangeNotifier {
     bool force = false,
     List<String> commentIds = const [],
     String commentLang = 'en',
+    bool detect = false,
   }) {
     final e = PendingVoice(
       uuidV4(),
@@ -280,6 +290,7 @@ class VoiceOutbox extends ChangeNotifier {
       wav: wav,
       commentIds: commentIds,
       commentLang: commentLang,
+      detect: detect,
     )..force = force;
     entries.add(e);
     _changed();
@@ -345,6 +356,7 @@ class VoiceOutbox extends ChangeNotifier {
           text: e.text,
           voice: e.voice,
           lang: e.lang,
+          detect: e.detect && (_canDetect?.call() ?? false) ? true : null,
           force: e.force ? true : null,
           commentIds: e.commentIds.isEmpty ? null : e.commentIds,
           images: e.images.isEmpty ? null : e.images,

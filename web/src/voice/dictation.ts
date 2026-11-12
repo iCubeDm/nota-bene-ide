@@ -1,9 +1,9 @@
-import { dictationSet } from '@/controls/slice.ts';
+import { dictationLangSet, dictationSet } from '@/controls/slice.ts';
 import { apiFetch } from '@/net/auth.ts';
 import type { AppDispatch } from '@/store/store.ts';
 
 /** `GET /dictation`: the optional Whisper install that transcribes voice messages and the phone's microphone */
-export type Dictation = { on: boolean; phase: 'none' | 'installing' | 'ready' | 'failed'; downloadMb: number; diskMb: number; dir: string; model: string };
+export type Dictation = { on: boolean; phase: 'none' | 'installing' | 'ready' | 'failed'; downloadMb: number; diskMb: number; dir: string; model: string; /** protocol 18: `auto` or an ISO 639 code */ dictationLang?: string };
 
 export async function getDictation(): Promise<Dictation> {
   const r = await apiFetch('/dictation');
@@ -17,6 +17,7 @@ export async function getDictation(): Promise<Dictation> {
  */
 export function dictationChanged(dispatch: AppDispatch, url: string, body: unknown): void {
   if (url === '/dictation/remove') dispatch(dictationSet(false));
+  else if (url === '/dictation/lang') dispatch(dictationLangSet((body as { lang: string }).lang));
   else if (url === '/dictation/on') dispatch(dictationSet((body as { on: boolean }).on));
 }
 

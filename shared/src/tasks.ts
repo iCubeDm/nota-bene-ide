@@ -32,9 +32,9 @@ export function taskKind(type: string, call?: string): TaskKind {
 
 /** A model for a row: `claude-sonnet-5-5` is "Sonnet 5.5" (a date suffix and a `[1m]` tag are dropped), an alias such as `sonnet` is "Sonnet"; any other id is shown as given. */
 export function shortModel(id: string): string {
-  const m = /^claude-(opus|sonnet|haiku)(?:-(\d+))?(?:-(\d{1,2}))?(?:-\d{8})?(?:\[[^\]]*\])?$/.exec(id);
+  const m = /^claude-(opus|sonnet|haiku|fable)(?:-(\d+))?(?:-(\d{1,2}))?(?:-\d{8})?(?:\[[^\]]*\])?$/.exec(id);
   if (m) return `${m[1][0].toUpperCase()}${m[1].slice(1)}${m[2] ? ` ${m[2]}${m[3] ? `.${m[3]}` : ''}` : ''}`;
-  return /^(opus|sonnet|haiku)$/.test(id) ? `${id[0].toUpperCase()}${id.slice(1)}` : id;
+  return /^(opus|sonnet|haiku|fable)$/.test(id) ? `${id[0].toUpperCase()}${id.slice(1)}` : id;
 }
 
 const without = (s: TasksState, ids: string[]): TasksState => {

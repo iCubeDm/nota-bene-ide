@@ -16,6 +16,7 @@ import '../comments/strings.g.dart';
 import '../hosts/host_link.dart';
 import '../media/fetch.dart';
 import '../media/media_comment.dart' show WindowHttp;
+import '../store/voice_lang.dart' show detectProtocol;
 import '../voice/outbox.dart';
 import 'feed.dart';
 
@@ -74,7 +75,13 @@ class WindowTab extends ChangeNotifier {
     this.root, {
     Future<void> Function(Duration)? retry,
   }) : _retry = retry ?? ((d) => Future<void>.delayed(d)) {
-    voiceOutbox.attach(this, send: send, http: () => http, compose: composeFor);
+    voiceOutbox.attach(
+      this,
+      send: send,
+      http: () => http,
+      compose: composeFor,
+      canDetect: () => detectProtocolOk,
+    );
     comments.held = () => voiceOutbox.heldIds;
     voiceOutbox.addListener(comments.refresh);
     link.addListener(_linkChanged);
@@ -128,16 +135,27 @@ class WindowTab extends ChangeNotifier {
   bool isRetrying(String voiceId) => _retrying.containsValue(voiceId);
 
   /// Sends [voice] again as a new message (the Retry of a failed bubble). False when the window did not take it.
-  bool retryVoice(Voice voice, String lang) {
+  bool retryVoice(Voice voice, String lang, {bool detect = false}) {
     if (isRetrying(voice.id)) return true;
     final id = uuidV4();
-    if (!send(ClientMessageSend(id: id, text: '', voice: voice, lang: lang))) {
+    if (!send(
+      ClientMessageSend(
+        id: id,
+        text: '',
+        voice: voice,
+        lang: lang,
+        detect: detect && detectProtocolOk ? true : null,
+      ),
+    )) {
       return false;
     }
     _retrying[id] = voice.id;
     _notify();
     return true;
   }
+
+  /// Whether the window can detect the spoken language (protocol 18); an older one gets the language alone.
+  bool get detectProtocolOk => (protocol ?? 0) >= detectProtocol;
 
   /// Whether the window speaks protocol 14, where voice messages begin.
   bool get voiceProtocol => (protocol ?? 0) >= 14;

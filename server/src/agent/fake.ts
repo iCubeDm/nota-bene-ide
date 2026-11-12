@@ -262,6 +262,7 @@ class FakeSession implements FakeAgentSession {
   /** the id an init reports, as the CLI does: the resolved id of the row picked (else of the first, the default) */
   private reportedModel(t: FakeTurn): string | undefined {
     if (t.model) return t.model;
+    if (this.mdl.running && /\[[^\]]*\]$/.test(this.mdl.running)) return this.mdl.running; // a context-suffixed id is reported as it runs
     const o = this.mdl.options.find((x) => x.value === this.mdl.running || x.resolved === this.mdl.running) ?? this.mdl.options[0];
     return this.mdl.running && !o ? this.mdl.running : o && (o.resolved ?? o.value);
   }

@@ -10,7 +10,7 @@ import { startServer } from './server.ts';
 import { tmpDirNames } from './tmpImage.ts';
 import { whisperDir } from './dictation/install.ts';
 import { WHISPER_MODEL, WHISPER_REVISION, WHISPER_VERSION } from './dictation/whisper.ts';
-import { setWhisperPref } from './prefs.ts';
+import { setDictationLangPref, setWhisperPref } from './prefs.ts';
 
 let home: string;
 let dist: string;
@@ -71,6 +71,19 @@ describe('server', () => {
     expect(await dictation()).toBe('whisper');
     setWhisperPref(false);
     expect(await dictation()).toBeUndefined();
+  });
+
+  it('hello carries dictationLang once it is chosen, and not before', async () => {
+    const hello = async () => {
+      const c = await connect((await boot()).url);
+      await until(() => c.events.some((e) => e.kind === 'hello'));
+      return c.events.find((e) => e.kind === 'hello') as { dictationLang?: string };
+    };
+    expect((await hello()).dictationLang).toBeUndefined();
+    setDictationLangPref('auto');
+    expect((await hello()).dictationLang).toBe('auto');
+    setDictationLangPref('ru');
+    expect((await hello()).dictationLang).toBe('ru');
   });
 
   it('chat round-trip over ws', async () => {

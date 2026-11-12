@@ -25,6 +25,8 @@
 // A relaunch keeps the port, so the open tab reconnects by itself, reopens the folder the window has now (it may have
 // switched), and drops --resume/--fork/--new for --continue. The registry entry stays through the restart gap (it is
 // removed only when the launcher ends), so no other launch picks the port meanwhile; a 98 on a relaunch gives up.
+// A restart (75, not a crash) rebuilds a stale web/dist first (ensureBuildAsync); a failed build is logged, not retried until
+// a source changes, and the relaunch goes on.
 //
 // Handover (in-app update): a published launcher whose runtime/current (server/src/runtime.ts) names a newer x.y.z runs that
 // version's launcher as a child instead of its own (the outer part, `outer`), on the same port with the same nonce, and again
@@ -47,7 +49,7 @@ import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgen
 import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
 import {
-  liveWindows, pidAlive, probeInfo, readWindows, registerWindow, restartingWindows, unregisterWindow,
+  liveWindows, pidAlive, probeInfo, readWindows, registerWindow, restartingWindows, setBuilding, unregisterWindow,
 } from '../server/src/windows.ts';
 
 const REPO = fileURLToPath(new URL('..', import.meta.url));
@@ -79,6 +81,7 @@ const GUARD_WINDOW_MS = 60_000;
 const DETACH_WAIT_MS = Number(process.env.NOTA_BENE_DETACH_WAIT_MS) || 20_000;
 const LOCK_STALE_MS = 60_000;
 const LOCK_WAIT_MS = 30_000;
+const REBUILD_WAIT_MAX_MS = 5 * 60_000; // the most a launch or --find waits in total for a window that is rebuilding web/dist
 const RESTART_WAIT_MS = 10_000; // how long a launch waits for a restarting window of its folder to come back
 
 /** This package's version (the checkout's root package.json says the same). */
@@ -234,6 +237,8 @@ async function firstFreePort(skip = new Set()) {
 const SOURCES = ['web/src', 'web/index.html', 'web/public', 'web/vite.config.ts', 'web/package.json', 'shared/src',
   'package-lock.json'];
 const STAMP = 'web/dist/.nb-built';
+// the tree whose web/ is built (and whose lock names the build); only the tests move it, next to NOTA_BENE_BUILD_CMD
+const BUILD_ROOT = process.env.NOTA_BENE_BUILD_ROOT || REPO;
 
 function newestMtime(p) {
   let st;
@@ -259,12 +264,60 @@ export function needsBuild(repo) {
   } catch {
     return true;
   }
-  return Math.max(...SOURCES.map((p) => newestMtime(path.join(repo, p)))) > built;
+  return newestSourceMtime(repo) > built;
 }
+
+/** The mtime of the newest build input: a failed build is not retried until this moves. */
+export const newestSourceMtime = (repo) => Math.max(...SOURCES.map((p) => newestMtime(path.join(repo, p))));
 
 export const buildLock = (repo) =>
   path.join(os.tmpdir(), `nota-bene-build-${createHash('sha1').update(repo).digest('hex').slice(0, 12)}.lock`);
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/**
+ * One try at the build lock (an mkdir holding the owner's pid, as the launch lock does): 'got', 'held', or 'none' when
+ * the lock cannot be made at all. A lock whose owner is dead (a SIGKILLed launcher) is broken at once.
+ */
+function tryBuildLock(lock) {
+  for (let broke = 0; ; broke++) {
+    try {
+      fs.mkdirSync(lock);
+      try {
+        fs.writeFileSync(path.join(lock, 'pid'), String(process.pid));
+      } catch {
+        // an empty lock reads as owner unknown: waited for, then taken as stale
+      }
+      return 'got';
+    } catch (e) {
+      if (e.code !== 'EEXIST') return 'none';
+    }
+    const owner = () => {
+      try {
+        const n = Number(fs.readFileSync(path.join(lock, 'pid'), 'utf8').trim());
+        return Number.isInteger(n) && n > 0 ? n : undefined;
+      } catch {
+        return undefined; // between the owner's mkdir and its pid write, or no pid file: unknown, never "dead"
+      }
+    };
+    const pid = owner();
+    let age = 0;
+    try {
+      age = Date.now() - fs.statSync(lock).mtimeMs;
+    } catch {
+      continue; // gone meanwhile
+    }
+    // a dead owner, or a lock older than the stale limit (no pid file, a reused pid): broken
+    if (!((pid !== undefined && !pidAlive(pid)) || age > LOCK_STALE_MS) || broke >= 3) return 'held';
+    const gone = `${lock}.stale-${process.pid}`;
+    try {
+      // re-check the owner: of two builders breaking the same lock, the loser must not rename the winner's fresh one
+      if (owner() === pid) fs.renameSync(lock, gone);
+      fs.rmSync(gone, { recursive: true, force: true });
+    } catch {
+      // someone else broke it first
+    }
+  }
+}
 
 /**
  * Builds web/dist when stale: `npm run build -w web`, or NOTA_BENE_BUILD_CMD (a shell command; the tests stub it).
@@ -278,13 +331,9 @@ export function ensureBuild(repo, env = process.env, stdio = 'inherit', lockWait
   let locked = false;
   const end = Date.now() + lockWaitMs;
   for (;;) {
-    try {
-      fs.mkdirSync(lock);
-      locked = true;
-      break;
-    } catch (e) {
-      if (e.code !== 'EEXIST') break; // cannot lock at all: build unguarded
-    }
+    const got = tryBuildLock(lock);
+    if (got === 'got') locked = true;
+    if (got !== 'held') break; // cannot lock at all: build unguarded
     if (Date.now() >= end) break;
     pause(250);
     if (!needsBuild(repo)) return ''; // the other launcher built it
@@ -300,15 +349,86 @@ export function ensureBuild(repo, env = process.env, stdio = 'inherit', lockWait
     if (r.status !== 0) {
       throw Object.assign(new Error(`building web/dist failed (${r.error?.message ?? `exit code ${r.status}`})`), { output });
     }
-    const index = path.join(repo, 'web/dist/index.html');
-    if (fs.existsSync(index) && fs.statSync(index).mtimeMs >= started - 1000) {
-      fs.writeFileSync(path.join(repo, STAMP), '');
-      fs.utimesSync(path.join(repo, STAMP), started / 1000, started / 1000);
-    }
+    stampBuild(repo, started);
     return output;
   } finally {
     if (locked) fs.rmSync(lock, { recursive: true, force: true });
   }
+}
+
+/** Stamps a finished build: its START time, and only if the build really wrote dist/index.html. */
+function stampBuild(repo, started) {
+  const index = path.join(repo, 'web/dist/index.html');
+  if (fs.existsSync(index) && fs.statSync(index).mtimeMs >= started - 1000) {
+    fs.writeFileSync(path.join(repo, STAMP), '');
+    fs.utimesSync(path.join(repo, STAMP), started / 1000, started / 1000);
+  }
+}
+
+/**
+ * ensureBuild for a running supervisor: the same stamp and lock, but nothing blocks the event loop, so a signal is
+ * still handled. Returns { done, abort }: abort() stops the lock wait or kills the build (its process group), and
+ * `done` then resolves quietly (an aborted build is not a failure); any other failure rejects.
+ */
+export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', lockWaitMs = 60_000) {
+  let aborted = false;
+  let child = null;
+  const abort = () => {
+    aborted = true;
+    if (!child?.pid) return;
+    killGroup(child, 'SIGTERM');
+    // a build that ignores SIGTERM must not hang the stop: the group gets SIGKILL after a short grace
+    const c = child;
+    setTimeout(() => killGroup(c, 'SIGKILL'), 3000).unref();
+  };
+  const killGroup = (c, sig) => {
+    try {
+      process.kill(-c.pid, sig);
+    } catch {
+      try {
+        c.kill(sig);
+      } catch {
+        // already gone
+      }
+    }
+  };
+  const run = async () => {
+    if (!needsBuild(repo)) return;
+    const lock = buildLock(repo);
+    let locked = false;
+    const end = Date.now() + lockWaitMs;
+    for (;;) {
+      const got = tryBuildLock(lock);
+      if (got === 'got') locked = true;
+      if (got !== 'held') break;
+      if (Date.now() >= end) break;
+      await sleep(250);
+      if (aborted || !needsBuild(repo)) return;
+    }
+    try {
+      if (aborted || !needsBuild(repo)) return;
+      const started = Date.now();
+      const cmd = env.NOTA_BENE_BUILD_CMD;
+      child = cmd
+        ? spawn(cmd, { cwd: repo, env, stdio, shell: true, detached: true })
+        : spawn('npm', ['run', 'build', '-w', 'web'], { cwd: repo, env, stdio, detached: true });
+      if (aborted) abort(); // the signal came between the checks and the spawn
+      const r = await new Promise((resolve) => {
+        child.on('error', (error) => resolve({ status: null, error }));
+        child.on('exit', (status) => {
+          if (aborted) killGroup(child, 'SIGKILL'); // the leader is gone: a grandchild that ignored TERM must not outlive us
+          resolve({ status });
+        });
+      });
+      if (aborted) return;
+      if (r.status !== 0) throw new Error(`building web/dist failed (${r.error?.message ?? `exit code ${r.status}`})`);
+      stampBuild(repo, started);
+    } finally {
+      child = null;
+      if (locked) fs.rmSync(lock, { recursive: true, force: true });
+    }
+  };
+  return { done: run(), abort };
 }
 
 // --- one window per folder ------------------------------------------------------------------------------------
@@ -381,11 +501,23 @@ export async function acquireLaunchLock(root, waitMs = LOCK_WAIT_MS) {
  * in its restart gap is waited for (up to waitMs), so the launch finds it instead of opening a second one.
  */
 async function windowFor(root, waitMs = RESTART_WAIT_MS) {
-  const end = Date.now() + waitMs;
+  let end = Date.now() + waitMs;
+  const cap = Date.now() + (Number(process.env.NOTA_BENE_REBUILD_WAIT_MAX_MS) || REBUILD_WAIT_MAX_MS);
+  let told = false;
   for (;;) {
     const hit = (await liveWindows((p) => probeInfo(p))).find((w) => w.root === root);
     if (hit) return hit;
-    if (Date.now() >= end || !restartingWindows().some((w) => w.root === root)) return undefined;
+    const gap = restartingWindows().filter((w) => w.root === root);
+    // a launcher rebuilding web/dist has no fixed length: the wait starts over from the end of its build
+    // (but never past the cap: a hung build must not hold a launch or --find for ever)
+    if (gap.some((w) => w.building)) {
+      end = Math.min(Date.now() + waitMs, cap);
+      if (!told) {
+        told = true;
+        say('waiting for a rebuild of web/dist to finish…');
+      }
+    }
+    if (!gap.length || Date.now() >= end) return undefined;
     await sleep(250);
   }
 }
@@ -656,11 +788,15 @@ async function supervise(o, autoPort, release, state) {
   let child = null;
   let stopping = false;
   let wake = null; // cuts the 1 s crash pause short on a signal
+  let build = null; // the relaunch build in flight: a signal stops it
   const onSignal = (sig) => {
     if (stopping) return;
     stopping = true;
     if (child) child.kill(sig);
-    else wake?.();
+    else {
+      wake?.();
+      build?.abort();
+    }
   };
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, onSignal);
   watchParent(onSignal);
@@ -672,6 +808,36 @@ async function supervise(o, autoPort, release, state) {
     while (list.length && now - list[0] >= GUARD_WINDOW_MS) list.shift();
     list.push(now);
     return list.length;
+  };
+  let failedSources; // the newest source mtime a build failed on: not retried until a source changes
+  // A long-lived window must not keep serving a stale web/dist: its restart (exit 75) rebuilds first, a no-op when the
+  // stamp is fresh. A crash relaunch never builds (a crash loop must reach its give-up). The registry entry still
+  // reserves the port, and is marked `building` so another launch keeps waiting. A failed build keeps the old dist.
+  const rebuild = async () => {
+    if (stopping || !needsBuild(BUILD_ROOT)) return;
+    const sources = newestSourceMtime(BUILD_ROOT);
+    if (failedSources !== undefined && sources <= failedSources) {
+      say('skipping the build: the sources have not changed since the failed one — relaunching with the old web/dist');
+      return;
+    }
+    const mark = (on) => {
+      try {
+        setBuilding(port, process.pid, on);
+      } catch {
+        // the window works without the mark
+      }
+    };
+    mark(true);
+    build = ensureBuildAsync(BUILD_ROOT, process.env, 'inherit');
+    try {
+      await build.done;
+    } catch (e) {
+      failedSources = sources;
+      say(`${e.message} — relaunching with the old web/dist`);
+    } finally {
+      build = null;
+      mark(false);
+    }
   };
   let first = true;
   let retried = false;
@@ -779,6 +945,7 @@ async function supervise(o, autoPort, release, state) {
         say(`server asked for ${n} restarts in the last minute — restarting in a loop, giving up`);
         return RESTART;
       }
+      await rebuild();
     } else if (code !== null && CLEAN_EXITS.has(code)) {
       return code;
     } else {
@@ -797,6 +964,7 @@ async function supervise(o, autoPort, release, state) {
       wake = null;
       if (stopping) return 0;
     }
+    if (stopping) return 0;
     first = false;
   }
 }
@@ -874,7 +1042,7 @@ async function main(argv) {
   // build first, pick the port after: a long build must not widen the race between the bind test and the listen
   let buildOutput = '';
   try {
-    buildOutput = ensureBuild(REPO, process.env, o.detach ? 'pipe' : 'inherit'); // --detach: stdout stays one line
+    buildOutput = ensureBuild(BUILD_ROOT, process.env, o.detach ? 'pipe' : 'inherit'); // --detach: stdout stays one line
   } catch (e) {
     say(e.message);
     if (e.output) process.stderr.write(tail(e.output));

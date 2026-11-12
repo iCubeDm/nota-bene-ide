@@ -33,6 +33,7 @@ import { controlToken, describeVersion, systemRoutes } from './system.ts';
 import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
 import { runtimeDir } from './runtime.ts';
+import { hostClient } from './dictation/hostClient.ts';
 import { dictationRoutes } from './dictation/routes.ts';
 import { voiceRoutes } from './voice/routes.ts';
 import { whisperPhase } from './dictation/install.ts';
@@ -97,6 +98,7 @@ export async function startServer(o: {
   heartbeatMs?: number;
 }): Promise<{ url: string; close(): Promise<void> }> {
   const hub = new EventHub();
+  hostClient.reportTo((where, e) => reportError(hub, where, e)); // the Whisper host's trouble is this window's to show
   installProcessHandlers();
   hubs.add(hub);
   const audit = o.audit ? new AuditLog({ port: o.port, ...o.audit }) : null;
@@ -382,8 +384,8 @@ export async function startServer(o: {
     // the hello every socket gets, owner or not
     const sendHello = (ws: WebSocket) => {
       try {
-        const { lang, uiScale, theme, whisper } = readPrefs(); // the user's UI language, scale and theme, shared by every window; absent until chosen
-        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d, ...(whisper === true && whisperPhase() === 'ready' ? { dictation: 'whisper' as const } : {}) }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), tmpDirs: tmpDirNames() }));
+        const { lang, uiScale, theme, whisper, dictationLang } = readPrefs(); // the user's UI language, scale and theme, shared by every window; absent until chosen
+        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d, ...(whisper === true && whisperPhase() === 'ready' ? { dictation: 'whisper' as const } : {}) }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), ...(dictationLang ? { dictationLang } : {}), tmpDirs: tmpDirNames() }));
       } catch (e) {
         reportError(hub, 'hello', e);
       }
@@ -484,7 +486,7 @@ export async function startServer(o: {
                 reportError(hub, 'comments', e); // the message itself must still go out
               }
             }
-            manager.send({ id: msg.id, text: msg.text, ...(msg.force ? { force: true } : {}), ...(msg.images?.length ? { images: msg.images } : {}), ...(msg.voice ? { voice: msg.voice, lang: msg.lang } : {}) });
+            manager.send({ id: msg.id, text: msg.text, ...(msg.force ? { force: true } : {}), ...(msg.images?.length ? { images: msg.images } : {}), ...(msg.voice ? { voice: msg.voice, lang: msg.lang, ...(msg.detect ? { detect: true as const } : {}) } : {}) });
             break;
           case 'comments':
             // R14: a set in flight across a switch (or a /clear) must not land in the session that replaced it
@@ -706,6 +708,7 @@ export async function startServer(o: {
       if (heartbeat) clearInterval(heartbeat);
       win.stop();
       manager.close();
+      hostClient.close(); // the Whisper host drops this window's jobs
       const backendClose = o.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
       blend?.dispose();
       for (const c of wss.clients) c.terminate();
