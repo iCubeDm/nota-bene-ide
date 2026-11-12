@@ -2,9 +2,10 @@
 // A frame is [u32 headerLen][JSON header][u32 bodyLen][body], lengths big-endian. The body is raw 16-bit little-endian PCM
 // (16 kHz mono, as wav.ts takes it) in a job and empty otherwise. Bad framing is a WireError and ends the connection.
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
-import { stateBaseDir } from '../state.ts';
-import { MAX_AUDIO, WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
+import { SecretError, stateBaseDir } from '../state.ts';
+import { MAX_AUDIO, WHISPER_DTYPE, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_RATE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
 
 /** Bumped when the messages change incompatibly: it is part of the socket name, so hosts of different protocols never meet. */
 export const HOST_PROTO = 1;
@@ -15,6 +16,14 @@ export const MAX_HEADER = 64 * 1024;
 /** One frame, header and body together: the most audio a request carries (whisper.ts, the HTTP routes' cap too) and a full header. */
 export const MAX_FRAME = MAX_AUDIO + MAX_HEADER;
 
+/** A model call gets the larger of this and JOB_DEADLINE_FACTOR times the audio's length (the host's own limit; the window's is built on it). */
+export const JOB_DEADLINE_MIN_MS = 2 * 60_000;
+export const JOB_DEADLINE_FACTOR = 10;
+/** The model load gets this long while jobs wait for it (the model is on disk by then: this only unwedges a hung load). */
+export const LOAD_DEADLINE_MS = 5 * 60_000;
+/** How long a model call on `samples` of audio may take. */
+export const jobDeadlineMs = (samples: number): number => Math.max(JOB_DEADLINE_MIN_MS, JOB_DEADLINE_FACTOR * samples * 1000 / WHISPER_RATE);
+
 /** The host's folder, outside <stateBase>/whisper/ (Remove deletes that one while a host may still be answering). */
 export const hostDir = (): string => path.join(stateBaseDir(), 'whisper-host');
 
@@ -24,6 +33,13 @@ export function hostSocketPath(): string {
   // sun_path holds 104 bytes on macOS, 108 on Linux (with the terminator)
   if (Buffer.byteLength(p) > 103) throw new Error(`the Whisper host socket path is too long for the system (${p}); use a shorter NOTA_BENE_HOME`);
   return p;
+}
+
+/** The folder is ours and private: created 700, an existing one tightened (every window talks to the socket in it). */
+export function privateDir(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (process.getuid && fs.statSync(dir).uid !== process.getuid()) throw new SecretError(`the Whisper host folder ${dir} belongs to another user; refusing to use it`);
+  try { fs.chmodSync(dir, 0o700); } catch { /* not ours to tighten */ }
 }
 
 export type Header = Record<string, unknown>;
@@ -44,12 +60,16 @@ export type HostRequest =
   | { type: 'shutdown'; reason: string }
   | { type: 'status' };
 
-/** What the host answers; a job's answer is the only one without a `type`. */
+/**
+ * What the host answers; a job's answer is the only one without a `type`. `full`, instead of `hello`, says that the host has all
+ * the windows it takes: the connection closes after it. A `failed` answer may carry the model's message.
+ */
 export type HostReply =
   | { type: 'hello'; proto: number; pid: number; pins: string; loaded: boolean; queued: number }
   | { type: 'status'; loaded: boolean; queued: number; running: boolean; clients: number }
+  | { type: 'full' }
   | { id: number; text: string; lang: string }
-  | { id: number; error: JobError };
+  | { id: number; error: JobError; message?: string };
 
 /** One frame ready to write. Throws when it would exceed what the receiving end accepts. */
 export function encodeFrame(header: Header, body: Uint8Array = new Uint8Array(0)): Buffer {

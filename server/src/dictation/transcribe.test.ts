@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resetTranscriber, transcribe } from './transcribe.ts';
+import { queued, resetTranscriber, transcribe } from './transcribe.ts';
 
 describe('transcribe', () => {
   it('without detect the language is the one asked for, whatever the pipeline could detect', async () => {
@@ -71,5 +71,39 @@ describe('transcribe', () => {
     const p = loadPipeline('/nowhere', { worker: (d) => { made.push(d); queueMicrotask(() => w.emit('message', { type: 'ready' })); return w; } });
     await p;
     expect(made).toHaveLength(1);
+  });
+  it('queued runs one job at a time, in order', async () => {
+    const order: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const a = queued(async () => { order.push('a start'); await gate; order.push('a end'); return 'a'; });
+    const b = queued(async () => { order.push('b'); return 'b'; });
+    await Promise.resolve();
+    release();
+    expect(await Promise.all([a, b])).toEqual(['a', 'b']);
+    expect(order).toEqual(['a start', 'a end', 'b']);
+  });
+  it('queued drops a job whose signal aborted before its turn, and the next one still runs', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const ac = new AbortController();
+    let ran = false;
+    const first = queued(() => gate);
+    const dropped = queued(async () => { ran = true; }, ac.signal);
+    const last = queued(async () => 'last');
+    ac.abort(new Error('left'));
+    release();
+    await first;
+    await expect(dropped).rejects.toThrow('left');
+    expect(await last).toBe('last');
+    expect(ran).toBe(false);
+  });
+  it('a call whose signal already aborted does not start', async () => {
+    resetTranscriber();
+    let loads = 0;
+    const ac = new AbortController();
+    ac.abort();
+    await expect(transcribe(new Float32Array(1), 'en', { load: async () => { loads++; return async () => ({ text: 'x' }); }, signal: ac.signal })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(loads).toBe(0);
   });
 });

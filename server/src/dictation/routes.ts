@@ -3,6 +3,7 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 import type { EventHub } from '../hub.ts';
 import { isDictationLang, readPrefs, setDictationLangPref, setWhisperPref } from '../prefs.ts';
 import { installWhisper, removeWhisper, whisperDir, whisperPhase } from './install.ts';
+import { WhisperBusy, WhisperOff } from './hostClient.ts';
 import { queued, resetTranscriber, spokenOf, transcribeWith as defaultTranscribe, type SpokenOrText } from './transcribe.ts';
 import { pcmFromWav, WavError } from './wav.ts';
 import { MAX_AUDIO, WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
@@ -38,7 +39,7 @@ async function readAudio(req: IncomingMessage, max: number): Promise<Buffer | nu
   return Buffer.concat(chunks);
 }
 
-export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof installWhisper>[0]; transcribe?: (pcm: Float32Array, lang: string, detect?: boolean) => Promise<SpokenOrText> }): Record<string, RequestListener> {
+export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof installWhisper>[0]; transcribe?: (pcm: Float32Array, lang: string, detect?: boolean, signal?: AbortSignal) => Promise<SpokenOrText> }): Record<string, RequestListener> {
   const post = (h: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>): RequestListener => (req, res) => {
     if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
     Promise.resolve(h(req, res)).catch((e: unknown) => {
@@ -86,6 +87,9 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
       const lang = q.get('lang') || 'en';
       if (!LANG.test(lang)) return json(res, 400, { error: 'bad lang' });
       const detect = q.get('detect') === '1';
+      // the client left before the answer (a closed tab, a dropped phone): its job is cancelled, not transcribed for nobody
+      const gone = new AbortController();
+      res.on('close', () => { if (!res.writableFinished) gone.abort(); });
       const declared = Number(req.headers['content-length']);
       const body = declared > MAX_AUDIO ? null : await readAudio(req, MAX_AUDIO);
       if (!body) return json(res, 413, { error: 'audio too long' });
@@ -94,7 +98,15 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
         if (e instanceof WavError) return json(res, 400, { error: e.message });
         throw e;
       }
-      const got = spokenOf(await queued(() => run(pcm, lang, detect)));
+      let got: ReturnType<typeof spokenOf>;
+      try {
+        got = spokenOf(await queued(() => run(pcm, lang, detect, gone.signal), gone.signal));
+      } catch (e) {
+        if (gone.signal.aborted) return;
+        if (e instanceof WhisperBusy) return json(res, 503, { error: 'busy' });
+        if (e instanceof WhisperOff) return json(res, 503, { error: 'dictation is off' });
+        throw e;
+      }
       json(res, 200, { text: got.text, lang: got.lang ?? lang });
     }),
   };

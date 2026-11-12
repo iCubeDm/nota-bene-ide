@@ -1,12 +1,12 @@
 // The Whisper host, for real sockets (unix, in a short /tmp folder: sun_path is ~104 bytes) and a fake model thread.
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS, main, MAX_CLIENTS, MAX_QUEUED_BYTES, MAX_QUEUED_PER_CLIENT, MAX_QUEUED_TOTAL, startHost, WHISPER_IDLE_MS, type Host, type HostOptions } from './hostMain.ts';
+import { JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS, main, MAX_CLIENTS, MAX_FAILURE_MESSAGE, MAX_QUEUED_BYTES, MAX_QUEUED_PER_CLIENT, MAX_QUEUED_TOTAL, startHost, WHISPER_IDLE_MS, type Host, type HostOptions } from './hostMain.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostSocketPath, MAX_HEADER, pcmToInt16, type Header } from './hostWire.ts';
 import type { WorkerData, WorkerFactory, WorkerLike } from './pipelineHost.ts';
 import { MAX_AUDIO, WHISPER_MODEL, WHISPER_PACKAGE } from './whisper.ts';
@@ -115,8 +115,14 @@ const OPTS = { lang: 'en', detect: false };
 const job = (id: number, opts: object = OPTS): Header => ({ type: 'job', id, opts });
 /** A PCM body of `n` samples. */
 const pcm = (n: number): Uint8Array => pcmToInt16(new Float32Array(n).fill(0.25));
-/** Waits, without a clock, until something the host does on its own has happened. */
-const until = async (cond: () => boolean): Promise<void> => { while (!cond()) await new Promise<void>((r) => setImmediate(r)); };
+/** Waits until something the host does on its own has happened; gives up after `ms`, so that a test that cannot finish ends. */
+const until = async (cond: () => boolean, ms = 10_000): Promise<void> => {
+  const stop = Date.now() + ms;
+  while (!cond()) {
+    if (Date.now() > stop) throw new Error('timed out waiting for a condition');
+    await new Promise<void>((r) => setImmediate(r));
+  }
+};
 
 let tmp: string;
 let rig: Rig;
@@ -276,11 +282,19 @@ describe('jobs', () => {
     c.send(job(1), pcm(1));
     const first = await rig.call(0);
     first.worker.emit('message', { id: first.id, error: 'bad audio' });
-    expect(await c.next()).toEqual({ id: 1, error: 'failed' });
+    expect(await c.next()).toEqual({ id: 1, error: 'failed', message: 'bad audio' }); // the model's message goes to the window
     c.send(job(2), pcm(2));
     await rig.call(1);
     rig.answer(1, 'ok');
     expect(await c.next()).toMatchObject({ id: 2, text: 'ok' });
+  });
+  it('the message of a failed job is cut to what a window shows', async () => {
+    await start();
+    const c = await open();
+    c.send(job(1), pcm(1));
+    const first = await rig.call(0);
+    first.worker.emit('message', { id: first.id, error: 'x'.repeat(MAX_FAILURE_MESSAGE + 50) });
+    expect(await c.next()).toEqual({ id: 1, error: 'failed', message: 'x'.repeat(MAX_FAILURE_MESSAGE) });
   });
   it('a transcript too long for a frame is a failed job, not a crashed host', async () => {
     await start();
@@ -578,7 +592,7 @@ describe('the model', () => {
     c.send(job(1), pcm(1));
     await rig.call(0);
     rig.workers[0]!.emit('exit', 1);
-    expect(await c.next()).toEqual({ id: 1, error: 'failed' });
+    expect(await c.next()).toEqual({ id: 1, error: 'failed', message: 'the Whisper worker exited (1)' });
     c.send(job(2), pcm(2));
     await rig.call(1);
     expect(rig.workers).toHaveLength(2);
@@ -587,7 +601,7 @@ describe('the model', () => {
     c.send(job(3), pcm(3));
     await rig.call(2);
     rig.workers[1]!.emit('exit', 1);
-    expect(await c.next()).toEqual({ id: 3, error: 'failed' });
+    expect(await c.next()).toEqual({ id: 3, error: 'failed', message: 'the Whisper worker exited (1)' });
     c.send(job(4), pcm(4));
     await rig.call(3);
     expect(rig.workers).toHaveLength(3);
@@ -601,11 +615,11 @@ describe('the model', () => {
     c.send(job(1), pcm(1));
     await rig.call(0);
     rig.workers[0]!.emit('exit', 1);
-    expect(await c.next()).toEqual({ id: 1, error: 'failed' });
+    expect(await c.next()).toEqual({ id: 1, error: 'failed', message: 'the Whisper worker exited (1)' });
     c.send(job(2), pcm(2));
     await rig.call(1);
     rig.workers[1]!.emit('exit', 1);
-    expect(await c.next((m) => m.id === 2)).toEqual({ id: 2, error: 'failed' });
+    expect(await c.next((m) => m.id === 2)).toEqual({ id: 2, error: 'failed', message: 'the Whisper worker exited (1)' });
     c.send(job(3), pcm(3));
     expect(await c.next((m) => m.id === 3)).toEqual({ id: 3, error: 'failed' });
     expect(await h.done).toBe(1);
@@ -938,13 +952,17 @@ describe('limits on what a window can make the host hold', () => {
     expect(await b.status()).toMatchObject({ queued: MAX_QUEUED_PER_CLIENT, running: true });
     expect(b.inbox.filter((m) => m.error === 'busy')).toHaveLength(1);
   });
-  it('a window past the cap of connections is closed at once', async () => {
+  it('a window past the cap of connections is told `full` and closed at once', async () => {
     const h = await start();
     for (let i = 0; i < MAX_CLIENTS; i++) await open();
     expect(h.status().clients).toBe(MAX_CLIENTS);
     const extraSock = net.connect(socketPath());
     extraSock.on('error', () => {});
+    const decoder = new FrameDecoder();
+    const heard: Header[] = [];
+    extraSock.on('data', (d: Buffer) => { for (const f of decoder.push(d)) heard.push(f.header); });
     await new Promise<void>((resolve) => extraSock.once('close', () => resolve()));
+    expect(heard).toEqual([{ type: 'full' }]);
     expect(h.status().clients).toBe(MAX_CLIENTS);
     conns[0]!.sock.destroy();
     await until(() => h.status().clients === MAX_CLIENTS - 1);
@@ -991,6 +1009,17 @@ describe('a stop that goes wrong', () => {
 });
 
 describe('the process entry, with the real model thread', () => {
+  /** Every host process a test here started, and the FIFO its model call may be blocked on: ended by afterEach, whatever the test did. */
+  let children: ChildProcess[] = [];
+  let fifo: string | undefined;
+  afterEach(() => {
+    if (fifo) { // lets a thread blocked in read(2) go (opened read-write: it does not wait for a reader)
+      try { const fd = fs.openSync(fifo, 'r+'); fs.writeSync(fd, 'x'); fs.closeSync(fd); } catch { /* no such FIFO */ }
+      fifo = undefined;
+    }
+    for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
+    children = [];
+  });
   /** An install whose package answers `task|model|samples|language`, in place of transformers.js. */
   const fakeInstall = (body = `async (audio, opts) => ({ text: [task, model, audio.length, opts.language].join('|') })`): void => {
     const pkg = path.join(tmp, 'whisper', 'node_modules', ...WHISPER_PACKAGE.split('/'));
@@ -1003,7 +1032,9 @@ export const pipeline = async (task, model) => ${body};`);
   const entry = fileURLToPath(new URL('./hostEntry.ts', import.meta.url));
   /** The host as the window side runs it: its own process, stderr read for the "listening" line. */
   const spawnHost = () => {
-    const child = spawn(process.execPath, [entry], { env: { PATH: process.env.PATH, NOTA_BENE_HOME: tmp }, stdio: ['ignore', 'ignore', 'pipe'] });
+    // the idle time is short on purpose: a host that outlives its test (a vitest timeout skips a test's own cleanup) goes by itself
+    const child = spawn(process.execPath, [entry], { env: { PATH: process.env.PATH, NOTA_BENE_HOME: tmp, NOTA_BENE_TEST_WHISPER_IDLE_MS: '60000' }, stdio: ['ignore', 'ignore', 'pipe'] });
+    children.push(child);
     const o = { child, gone: false, log: '', exited: undefined as unknown as Promise<{ code: number | null; signal: string | null }> };
     child.stderr.on('data', (d: Buffer) => { o.log += d.toString(); });
     o.exited = new Promise((resolve) => child.once('exit', (code, signal) => { o.gone = true; resolve({ code, signal }); }));
@@ -1053,7 +1084,7 @@ export const pipeline = async (task, model) => ${body};`);
   });
   it('a model thread stuck in a native call cannot be stopped, so the host kills its own process instead of hanging in exit()', async () => {
     // the stub's call blocks in a read(2) of a pipe nobody writes to: no terminate() or exit() gets that thread out of it
-    const fifo = path.join(tmp, 'block.fifo');
+    fifo = path.join(tmp, 'block.fifo');
     const marker = path.join(tmp, 'in-the-call');
     execFileSync('mkfifo', [fifo]);
     fakeInstall(`async () => { fs.writeFileSync(${JSON.stringify(marker)}, ''); const fd = fs.openSync(${JSON.stringify(fifo)}, 'r+'); fs.readSync(fd, Buffer.alloc(1)); return { text: '' }; }`);
