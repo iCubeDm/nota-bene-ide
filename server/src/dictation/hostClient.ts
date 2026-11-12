@@ -1,15 +1,20 @@
-// The window's side of the Whisper host (hostMain.ts): one connection to the host's unix socket, jobs multiplexed by id, the host
-// started on demand by whichever window needs it first. A window that cannot use a host (its socket path does not fit, its
-// folder is not ours, the host keeps dying) answers `null` and transcribe.ts runs the model in its own process instead.
+// The window's side of the Whisper host (hostMain.ts): one connection to the host's unix socket (a named pipe on Windows), jobs
+// multiplexed by id, the host started on demand by whichever window needs it first. A window that cannot use a host (its socket
+// path does not fit, its folder or secret is not ours, the host keeps dying) answers `null` and transcribe.ts runs the model in
+// its own process instead.
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { HIDDEN, killTree } from '../platform.ts';
 import { takeLockFile } from '../runtime.ts';
 import { whisperPhase } from './install.ts';
-import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostDir, hostSocketPath, jobDeadlineMs, LOAD_DEADLINE_MS, pcmToInt16, privateDir, WireError, type Header, type JobOpts } from './hostWire.ts';
+import {
+  encodeFrame, FrameDecoder, helloProof, HOST_PINS, HOST_PROTO, hostDir, hostSecret, hostSocketPath, isPipePath, jobDeadlineMs, LOAD_DEADLINE_MS, newNonce,
+  pcmToInt16, privateDir, proofMatches, WireError, type Header, type JobOpts,
+} from './hostWire.ts';
 import type { Spoken } from './speak.ts';
 
 /** A connection that has no job for this long is closed: a host nobody talks to is not kept awake by an idle window. */
@@ -92,8 +97,10 @@ function abortable<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
 
 /** The environment of a host: what it needs and nothing else (it is long-lived and detached; it never sees a window's secrets). */
 function hostEnv(): NodeJS.ProcessEnv {
-  // the last one shortens the host's idle time (tests and smoke runs only; hostMain.ts main())
-  const keep = ['PATH', 'HOME', 'TMPDIR', 'NOTA_BENE_HOME', 'NOTA_BENE_TEST_WHISPER_IDLE_MS'];
+  // the last one shortens the host's idle time (tests and smoke runs only; hostMain.ts main()). Windows: the system folder (Node
+  // and its crypto need it), the profile (os.homedir(), so the host finds the same state base and pipe name) and the temp folders.
+  const keep = ['PATH', 'HOME', 'TMPDIR', 'NOTA_BENE_HOME', 'NOTA_BENE_TEST_WHISPER_IDLE_MS',
+    ...(process.platform === 'win32' ? ['SystemRoot', 'windir', 'USERPROFILE', 'TEMP', 'TMP', 'LOCALAPPDATA', 'APPDATA'] : [])];
   return Object.fromEntries(keep.filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k]]));
 }
 
@@ -103,7 +110,8 @@ export function hostEntryFile(): string {
   return path.join(path.dirname(here), here.endsWith('.ts') ? 'hostEntry.ts' : 'host.js');
 }
 
-/** Temp sockets (`.xxxxxxxx.sock`) that a host killed between bind and rename left behind; one that still answers is a host starting. */
+/** Temp sockets (`.xxxxxxxx.sock`) that a host killed between bind and rename left behind; one that still answers is a host starting.
+ * (A host on a Windows pipe binds its name directly and leaves none.) */
 async function sweepTempSockets(dir: string): Promise<void> {
   for (const name of fs.readdirSync(dir)) {
     if (!/^\.[0-9a-f]{8}\.sock$/.test(name)) continue;
@@ -135,10 +143,15 @@ class HostConn {
   private hello: Waiter<Header> | undefined;
   private readonly statuses: Waiter<Header>[] = [];
   private idle: NodeJS.Timeout | undefined;
+  /** On a pipe: the home's host secret, and this side's nonce for the handshake (see hostWire.ts `helloProof`). */
+  private readonly secret: string | undefined;
+  private readonly nonce = newNonce();
+  private challenge: string | undefined;
 
-  private constructor(sock: net.Socket, o: ConnOptions) {
+  private constructor(sock: net.Socket, o: ConnOptions, secret: string | undefined) {
     this.sock = sock;
     this.o = o;
+    this.secret = secret;
     const decoder = new FrameDecoder();
     this.ended = new Promise((resolve) => sock.once('close', () => resolve()));
     sock.on('data', (d: Buffer) => {
@@ -149,10 +162,20 @@ class HostConn {
 
   /** Connects to the host on `socketPath` and says hello. Throws the connect error (ENOENT, ECONNREFUSED: nobody there) or a wrong answer. */
   static async open(socketPath: string, o: ConnOptions): Promise<HostConn> {
-    const c = new HostConn(await dial(socketPath), o);
+    const sock = await dial(socketPath);
+    let secret: string | undefined;
+    try {
+      secret = isPipePath(socketPath) ? hostSecret() : undefined;
+    } catch (e) {
+      sock.destroy();
+      throw e;
+    }
+    const c = new HostConn(sock, o, secret);
     try {
       const h = await c.greet();
       if (h.proto !== HOST_PROTO || h.pins !== HOST_PINS || !Number.isSafeInteger(h.pid) || (h.pid as number) <= 0) throw new Error('the Whisper host speaks another protocol');
+      // a pipe any local user may have taken: a host that cannot prove the secret gets no audio
+      if (secret !== undefined && !proofMatches(h.proof, helloProof(secret, 'host', c.challenge!, c.nonce))) throw new Error('what answers on the Whisper host pipe is not this user\'s host');
       c.pid = h.pid as number;
     } catch (e) {
       c.close();
@@ -167,7 +190,7 @@ class HostConn {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('the Whisper host did not answer hello')), this.o.helloMs ?? HELLO_WAIT_MS);
       this.hello = { resolve: (h) => { clearTimeout(timer); resolve(h); }, reject: (e) => { clearTimeout(timer); reject(e); } };
-      this.send({ type: 'hello', proto: HOST_PROTO });
+      if (this.secret === undefined) this.send({ type: 'hello', proto: HOST_PROTO }); // on a pipe: when the challenge comes (reply)
     });
   }
 
@@ -245,7 +268,14 @@ class HostConn {
   }
 
   private reply(h: Header): void {
+    if (h.type === 'challenge') {
+      // the host's nonce, once, before hello: answered with ours and the proof; anything else ends the connection
+      if (this.secret === undefined || this.challenge !== undefined || !this.hello || typeof h.nonce !== 'string' || !/^[0-9a-f]{64}$/.test(h.nonce)) return void this.sock.destroy();
+      this.challenge = h.nonce;
+      return this.send({ type: 'hello', proto: HOST_PROTO, nonce: this.nonce, proof: helloProof(this.secret, 'window', h.nonce, this.nonce) });
+    }
     if (h.type === 'hello') {
+      if (this.secret !== undefined && this.challenge === undefined) return void this.sock.destroy(); // a hello we did not send for
       const w = this.hello;
       this.hello = undefined;
       return w?.resolve(h);
@@ -299,7 +329,7 @@ export type HostClientOptions = {
   spawnWaitMs?: number;
   /** How long `status()` waits for a host (default STATUS_WAIT_MS). */
   statusWaitMs?: number;
-  /** Signals a process (default process.kill): `stopHost` ends a host that will not stop by itself with it; a test passes a fake. */
+  /** Signals a process (default process.kill; killTree on Windows): `stopHost` ends a host that will not stop by itself with it; a test passes a fake. */
   kill?: (pid: number, signal: NodeJS.Signals | 0) => void;
   /** How long to wait for the answer to a job of this many samples (default clientDeadlineMs). */
   deadlineMs?: (samples: number) => number;
@@ -428,7 +458,8 @@ export class HostClient {
     clearTimeout(timer);
     const held = !c.closed;
     c.close();
-    return { pid: c.pid, gone: !fs.existsSync(socketPath), held };
+    // a pipe leaves no name behind: it is gone when nothing answers on it
+    return { pid: c.pid, gone: isPipePath(socketPath) ? !await answering(socketPath) : !fs.existsSync(socketPath), held };
   }
 
   /**
@@ -453,7 +484,8 @@ export class HostClient {
     let signalled = false;
     if (r.held && r.pid > 1 && r.pid !== process.pid) {
       try {
-        (this.o.kill ?? ((pid, signal) => { process.kill(pid, signal); }))(r.pid, 'SIGTERM');
+        // Windows has no SIGTERM: the host and its children end hard (killTree)
+        (this.o.kill ?? ((pid, signal) => { if (process.platform === 'win32') killTree(pid); else process.kill(pid, signal); }))(r.pid, 'SIGTERM');
         signalled = true;
       } catch { /* it went by itself, or it is not ours to signal */ }
     }
@@ -474,13 +506,15 @@ export class HostClient {
 
   /**
    * The host's socket, in a folder that is ours before a connection is made (made if need be, unless `create` is false: only
-   * looking for a host); undefined on a machine where that cannot be (said once, except where there is no unix socket at all).
+   * looking for a host); undefined on a machine where that cannot be (said once).
    */
   private place(create = true): string | undefined {
-    if (process.platform === 'win32') return undefined; // no unix sockets: the window's own model, silently
     try {
       const socketPath = hostSocketPath();
-      if (!this.connected() && (create || fs.existsSync(hostDir()))) privateDir(hostDir());
+      if (!this.connected() && (create || fs.existsSync(hostDir()))) {
+        privateDir(hostDir());
+        if (isPipePath(socketPath)) hostSecret(); // made, or found bad (said once here, not counted as a host's failure)
+      }
       return socketPath;
     } catch (e) {
       const text = message(e);
@@ -614,7 +648,7 @@ export class HostClient {
     let over = '';
     try {
       fs.fchmodSync(log, 0o600);
-      child = spawn(process.execPath, [entry], { detached: true, stdio: ['ignore', log, log], env: hostEnv(), cwd: dir });
+      child = spawn(process.execPath, [entry], { detached: true, stdio: ['ignore', log, log], env: hostEnv(), cwd: dir, ...HIDDEN });
     } finally {
       fs.closeSync(log);
     }

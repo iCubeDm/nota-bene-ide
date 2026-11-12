@@ -1,9 +1,9 @@
 // The Whisper host: one process per host serves every window's transcription jobs from one shared queue, so the model is
 // loaded once, not once per window. The model runs in the pipeline worker thread (pipelineHost.ts), which leaves this thread
 // free for the socket; the process exits, which unloads the model, after WHISPER_IDLE_MS without work. Windows connect to
-// the unix socket (hostWire.ts has the framing and the messages) and start the host when nobody listens. The host takes PCM
-// only, never a path, and never reads preferences: a window checks whether Whisper is on before it sends a job.
-// The process entry is hostEntry.ts: this module has no side effects, so it can be imported (bundled) anywhere.
+// the unix socket (hostWire.ts has the framing and the messages; on Windows a named pipe) and start the host when nobody
+// listens. The host takes PCM only, never a path, and never reads preferences: a window checks whether Whisper is on before it
+// sends a job. The process entry is hostEntry.ts: this module has no side effects, so it can be imported (bundled) anywhere.
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -12,7 +12,10 @@ import { whisperDir } from './install.ts';
 import { defaultFactory, openPipeline, type Pipe, type WorkerFactory } from './pipelineHost.ts';
 import { speak } from './speak.ts';
 import { WHISPER_RATE } from './whisper.ts';
-import { FrameDecoder, encodeFrame, hostSocketPath, HOST_PINS, HOST_PROTO, jobDeadlineMs, LOAD_DEADLINE_MS, parseRequest, pcmFromInt16, privateDir, WireError, type Frame, type HostReply, type HostRequest, type JobError, type JobOpts } from './hostWire.ts';
+import {
+  FrameDecoder, encodeFrame, helloProof, hostSecret, hostSocketPath, HOST_PINS, HOST_PROTO, isPipePath, jobDeadlineMs, LOAD_DEADLINE_MS, newNonce,
+  parseRequest, pcmFromInt16, privateDir, proofMatches, WireError, type Frame, type HostReply, type HostRequest, type JobError, type JobOpts,
+} from './hostWire.ts';
 
 export { JOB_DEADLINE_FACTOR, JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS } from './hostWire.ts';
 
@@ -32,6 +35,8 @@ export const MAX_CLIENTS = 32;
 export const MAX_PENDING_WRITE = 1024 * 1024;
 /** After a stop, a connection that has not taken its last answers is destroyed after this long. */
 export const SOCKET_GRACE_MS = 1000;
+/** On a Windows pipe: how long a new host waits for a stopping one, which answers nobody, to let go of the name. */
+const PIPE_TAKE_MS = 2 * SOCKET_GRACE_MS;
 /** After a stop, the model thread gets this long (on top of the dispose grace) to exit before the host reports itself wedged. */
 export const THREAD_GRACE_MS = 1000;
 
@@ -43,6 +48,12 @@ export type HostOptions = {
   worker?: WorkerFactory;
   idleMs?: number;
   log?: (message: string) => void;
+  /**
+   * The secret a window must prove in `hello` before anything else is served, and the host proves back (hostWire.ts
+   * `helloProof`). `main` gives the home's `hostSecret()` on a Windows pipe, which any local user may be able to open; a unix
+   * socket has none (mode 600 in a 700 folder is the trust there).
+   */
+  secret?: string;
 };
 
 export type HostStatus = { loaded: boolean; queued: number; running: boolean; clients: number };
@@ -57,7 +68,8 @@ export type Host = {
   wedged: () => boolean;
 };
 
-type Client = { sock: net.Socket; queue: Job[]; ids: Set<number>; closing: boolean };
+/** `nonce` is the challenge it was sent (with a secret only); `authed` once its hello proved the secret, or from the start without one. */
+type Client = { sock: net.Socket; queue: Job[]; ids: Set<number>; closing: boolean; nonce?: string; authed: boolean };
 type Job = { client: Client; id: number; opts: JobOpts; body: Buffer; cancelled: boolean };
 type Why = 'idle' | 'shutdown' | 'failed' | 'stuck';
 
@@ -75,8 +87,26 @@ const answering = (socketPath: string): Promise<boolean> => new Promise((resolve
  * moves that into place only when nothing answers (rename replaces a stale socket file atomically), so a socket is never
  * reachable before it listens and a host never unlinks another's. Two hosts that race over a stale file both publish and the
  * last wins: the other is an orphan nobody can reach (it holds no model until a job comes, and idles out). `ino` names ours.
+ * A Windows pipe has no file: the first server to listen holds the name until it and its connections close (its process
+ * gone, the name goes too), so EADDRINUSE with somebody answering is a live host; with nobody, one that is stopping. No `ino`.
  */
-async function publish(server: net.Server, socketPath: string): Promise<{ ino: number } | null> {
+async function publish(server: net.Server, socketPath: string): Promise<{ ino?: number } | null> {
+  if (isPipePath(socketPath)) {
+    // a host that is stopping holds the name until its last connection closes, answering nobody: that one is waited for, briefly
+    for (const until = Date.now() + PIPE_TAKE_MS; ;) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', reject);
+          server.listen(socketPath, () => { server.off('error', reject); resolve(); });
+        });
+        return {};
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw e;
+        if (await answering(socketPath) || Date.now() >= until) return null;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+  }
   const mine = path.join(path.dirname(socketPath), `.${randomBytes(4).toString('hex')}.sock`);
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -298,9 +328,17 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
     if (ending || c.closing) return; // a window that is leaving is not served
     const m: HostRequest = parseRequest(f.header);
     if (f.body.length && m.type !== 'job') throw new WireError('a body without a job');
+    let proof: string | undefined;
+    if (o.secret !== undefined) { // a pipe: nothing is served to a window before its hello proved the secret for our challenge
+      if (!c.authed) {
+        if (m.type !== 'hello' || m.nonce === undefined || !proofMatches(m.proof, helloProof(o.secret, 'window', c.nonce!, m.nonce))) throw new WireError('a window that did not prove the secret');
+        c.authed = true;
+      }
+      if (m.type === 'hello' && m.nonce !== undefined) proof = helloProof(o.secret, 'host', c.nonce!, m.nonce);
+    }
     switch (m.type) {
       case 'hello':
-        send(c, { type: 'hello', proto: HOST_PROTO, pid: process.pid, pins: HOST_PINS, loaded: status().loaded, queued });
+        send(c, { type: 'hello', proto: HOST_PROTO, pid: process.pid, pins: HOST_PINS, loaded: status().loaded, queued, ...(proof ? { proof } : {}) });
         if (m.proto !== HOST_PROTO) { // the answer says which protocol this host speaks; then the window goes
           c.closing = true;
           c.sock.end();
@@ -327,7 +365,11 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
       sock.once('close', () => clearTimeout(bye));
       return void sock.end(encodeFrame({ type: 'full' }));
     }
-    const c: Client = { sock, queue: [], ids: new Set(), closing: false };
+    const c: Client = { sock, queue: [], ids: new Set(), closing: false, authed: o.secret === undefined };
+    if (o.secret !== undefined) {
+      c.nonce = newNonce();
+      sock.write(encodeFrame({ type: 'challenge', nonce: c.nonce } satisfies HostReply));
+    }
     // before the window served last, so that one's next job does not go first again
     const at = lastServed ? clients.indexOf(lastServed) : -1;
     if (at >= 0) clients.splice(at, 0, c); else clients.push(c);
@@ -345,7 +387,7 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
   });
 
   let stopped: Promise<number> | undefined;
-  let published: { ino: number } | undefined;
+  let published: { ino?: number } | undefined;
   /** Runs one step of the stop whatever the others did: a stop that throws would leave `done` pending and the socket in place. */
   const step = async (what: string, fn: () => unknown): Promise<void> => {
     try { await fn(); } catch (e) { log(`${what} failed: ${message(e)}`); }
@@ -368,7 +410,7 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
       await step('closing the socket', () => {
         closed = new Promise<void>((resolve) => server.close(() => resolve()));
         try {
-          if (published && fs.lstatSync(o.socketPath).ino === published.ino) fs.unlinkSync(o.socketPath);
+          if (published?.ino !== undefined && fs.lstatSync(o.socketPath).ino === published.ino) fs.unlinkSync(o.socketPath);
         } catch (e) {
           if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; // already gone
         }
@@ -406,7 +448,7 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
     })();
   }
 
-  privateDir(path.dirname(o.socketPath));
+  if (!isPipePath(o.socketPath)) privateDir(path.dirname(o.socketPath)); // a pipe is in no folder
   published = await publish(server, o.socketPath) ?? undefined;
   if (!published) return null;
   server.on('error', (e) => log(`the socket failed: ${message(e)}`));
@@ -423,7 +465,8 @@ export async function startHost(o: HostOptions): Promise<Host | null> {
 export async function main(env: NodeJS.ProcessEnv = process.env): Promise<{ code: number; wedged: boolean }> {
   const log = (m: string) => console.error(`${new Date().toISOString()} whisper-host ${process.pid}: ${m}`);
   const idleMs = Number(env.NOTA_BENE_TEST_WHISPER_IDLE_MS);
-  const host = await startHost({ socketPath: hostSocketPath(), idleMs: idleMs > 0 ? idleMs : undefined, log });
+  const socketPath = hostSocketPath();
+  const host = await startHost({ socketPath, idleMs: idleMs > 0 ? idleMs : undefined, log, ...(isPipePath(socketPath) ? { secret: hostSecret() } : {}) });
   if (!host) {
     log('another host already serves this socket');
     return { code: 0, wedged: false };

@@ -8,11 +8,10 @@
 // `pair`.
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import fs from 'node:fs';
 import type net from 'node:net';
 import { DeviceChannel } from './device.ts';
 import { Windows } from './discover.ts';
-import { running, serveControl, socketPath, write, type Msg } from './control.ts';
+import { closeControl, running, serveControl, write, type Msg } from './control.ts';
 import type { KeyPair } from './noise.ts';
 import { RelayClient } from './relayClient.ts';
 import {
@@ -95,8 +94,7 @@ export class Connector extends EventEmitter {
     if (this.#server) {
       const srv = this.#server;
       this.#server = undefined;
-      await new Promise((r) => srv.close(r));
-      fs.rmSync(socketPath(), { force: true });
+      await closeControl(srv);
     }
     this.windows.stop();
     await this.#relay?.stop();

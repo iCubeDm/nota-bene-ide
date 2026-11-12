@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { HIDDEN } from '../platform.ts';
 
 const relaySrc = fileURLToPath(new URL('../../../relay', import.meta.url));
 let built: Promise<string> | undefined;
@@ -14,8 +15,8 @@ let built: Promise<string> | undefined;
 function build(): Promise<string> {
   built ??= (async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-relay-bin-'));
-    const bin = path.join(dir, 'nb-relay');
-    await promisify(execFile)('go', ['build', '-o', bin, './cmd/nb-relay'], { cwd: relaySrc });
+    const bin = path.join(dir, process.platform === 'win32' ? 'nb-relay.exe' : 'nb-relay');
+    await promisify(execFile)('go', ['build', '-o', bin, './cmd/nb-relay'], { cwd: relaySrc, ...HIDDEN });
     return bin;
   })();
   return built;
@@ -45,7 +46,7 @@ export async function startRelay(): Promise<TestRelay> {
   let out = '';
   let child: ChildProcess | undefined;
   const up = async () => {
-    child = spawn(bin, ['-listen', `127.0.0.1:${port}`], { stdio: ['ignore', 'pipe', 'pipe'] });
+    child = spawn(bin, ['-listen', `127.0.0.1:${port}`], { stdio: ['ignore', 'pipe', 'pipe'], ...HIDDEN });
     child.stdout!.on('data', (d) => (out += d));
     child.stderr!.on('data', (d) => (out += d));
     const deadline = Date.now() + 10_000;
