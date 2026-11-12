@@ -1,6 +1,8 @@
 // Claude Code on Windows runs its Bash tool in Git Bash: CLAUDE_CODE_GIT_BASH_PATH, else the bash.exe of the Git for
-// Windows install that `git` on PATH belongs to. Without one the CLI cannot run shell commands. A check, not a fix: the
-// window still opens, the user is told once (the `git-bash` server-error, translated by the page).
+// Windows install that `git` on PATH belongs to. Without one the CLI has no Bash tool and runs shell commands through its
+// PowerShell tool (code.claude.com/docs/en/setup: Git for Windows is optional, recommended for the Bash tool). A check,
+// not a fix: the window still opens, the user gets the recommendation once (the `git-bash` server-error, translated by
+// the page).
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveBin } from '../../platform.ts';
@@ -23,7 +25,7 @@ export function gitBash({ env = process.env, platform = process.platform, exists
   return candidates.find(exists) ?? null;
 }
 
-/** The warning for a Windows machine without Git Bash, or null when there is nothing to say. English: the console and
+/** The recommendation for a Windows machine without Git Bash, or null when there is nothing to say. English: the console and
  *  the toast's fallback; the page shows its own translation of the `git-bash` warning. */
 export function gitBashWarning(o: Parameters<typeof gitBash>[0] = {}): { where: 'git-bash'; message: string } | null {
   const platform = o.platform ?? process.platform;
@@ -32,7 +34,7 @@ export function gitBashWarning(o: Parameters<typeof gitBash>[0] = {}): { where: 
   return {
     where: 'git-bash',
     message: set
-      ? 'CLAUDE_CODE_GIT_BASH_PATH does not name an existing bash.exe: Claude Code cannot run shell commands. Point it at the bash.exe of Git for Windows, then restart Nota Bene.'
-      : 'Git Bash was not found: Claude Code on Windows needs it to run shell commands. Install Git for Windows (or set CLAUDE_CODE_GIT_BASH_PATH to its bash.exe), then restart Nota Bene.',
+      ? 'CLAUDE_CODE_GIT_BASH_PATH does not name an existing bash.exe: Claude Code cannot use Git Bash for its Bash tool. Point it at the bash.exe of Git for Windows, then restart Nota Bene.'
+      : 'Git Bash was not found, so Claude Code runs shell commands in PowerShell, without its Bash tool. For the Bash tool, install Git for Windows (or set CLAUDE_CODE_GIT_BASH_PATH to its bash.exe), then restart Nota Bene.',
   };
 }

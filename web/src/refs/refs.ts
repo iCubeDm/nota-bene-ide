@@ -3,7 +3,7 @@ import { t } from '@/i18n/index.ts';
 import { fileUrl, isPath } from '@/files/kinds.ts';
 import { isTmpImagePath } from '@/files/tmpImages.ts';
 import { getSources, loadSources, refOf, sourceForAbs } from '@/files/sources.ts';
-import { isDrivePath, slashRel, wireAbs } from '@/lib/paths.ts';
+import { isServerDrivePath, serverSep, slashRel, wireAbs } from '@/lib/paths.ts';
 import type { AppThunk } from '@/store/store.ts';
 import { openFile } from '@/tabs/slice.ts';
 
@@ -35,11 +35,11 @@ function mark(el: HTMLElement, first: string | null, src?: string, alt?: string 
 
 /**
  * An absolute path is a ref only inside the dir of a known source ('here' or a worktree, from /sources; M3-16).
- * isPath still refuses absolute paths: this is a separate check, with the same forbidden characters. A Windows path
- * (`C:\a`, `C:/a`) is taken in the wire form `C:/a`; a UNC one (`\\host`) never.
+ * isPath still refuses absolute paths: this is a separate check, with the same forbidden characters. On a Windows
+ * server a drive path (`C:\a`, `C:/a`) is taken in the wire form `C:/a`; a UNC one (`\\host`) never.
  */
 function markAbs(el: HTMLElement, raw: string): void {
-  if (!(raw.startsWith('/') || isDrivePath(raw)) || raw.startsWith('//') || /[\n`<>|*]/.test(raw)) return;
+  if (!(raw.startsWith('/') || isServerDrivePath(raw)) || raw.startsWith('//') || /[\n`<>|*]/.test(raw)) return;
   const abs = wireAbs(raw);
   const hit = sourceForAbs(abs);
   if (hit) return mark(el, hit.path, hit.src);
@@ -62,14 +62,14 @@ export function markRefs(root: HTMLElement, baseDir?: string): void {
   root.querySelectorAll<HTMLElement>('code').forEach((c) => {
     if (c.closest('pre, a')) return;
     const text = slashRel(stripLine((c.textContent ?? '').trim())).replace(/^\.\//, '');
-    if (text.startsWith('/') || isDrivePath(text)) return markAbs(c, text);
+    if (text.startsWith('/') || isServerDrivePath(text)) return markAbs(c, text);
     if (!text || !isPath(text)) return;
     mark(c, normalize(text), undefined, baseDir ? normalize(text, baseDir) : null);
   });
   root.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((a) => {
     const href = a.getAttribute('href') ?? '';
-    // `C:/a.md` (or `C:%5Ca.md`) is a Windows path, not a URL scheme
-    const drive = /^[a-z]:(?:[\\/]|%5c)/i.test(href);
+    // on a Windows server `C:/a.md` (or `C:%5Ca.md`) is a drive path, not a URL scheme
+    const drive = serverSep() === '\\' && /^[a-z]:(?:[\\/]|%5c)/i.test(href);
     if (!href || href.startsWith('#') || (!drive && /^[a-z][a-z0-9+.-]*:/i.test(href))) return;
     let p = href.replace(/[?#].*$/, '');
     try {

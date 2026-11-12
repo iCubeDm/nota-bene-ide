@@ -27,6 +27,7 @@ import { uiScale } from '../shell/uiScale.ts';
 import { theme } from '../shell/theme.ts';
 import { setModel3d } from '../files/kinds.ts';
 import { setTmpDirs } from '../files/tmpImages.ts';
+import { learnServerSep } from '../lib/paths.ts';
 import { persistListeners, type PersistState } from './persist.ts';
 import { emptyFeed, historyPrepended, prependHistory, reduce, type FeedState } from './feed.ts';
 
@@ -187,6 +188,9 @@ export function makeStore(o: {
       if (ev.kind === 'hello') uiScale.adopt(ev.uiScale);
       if (ev.kind === 'hello') theme.adopt(ev.theme);
       if (ev.kind === 'hello') setModel3d(ev.capabilities?.model3d === true); // before the dispatch: views read it on re-render
+      // the server's separator, for paths in agent text (lib/paths.ts serverSep): from its first absolute path
+      if (ev.kind === 'hello') learnServerSep(ev.tmpDirs?.[0]);
+      if (ev.kind === 'session') learnServerSep(ev.root);
       if (ev.kind === 'hello') setTmpDirs(ev.tmpDirs);
       store.dispatch(serverEvent(ev));
     },

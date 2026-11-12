@@ -36,12 +36,12 @@ export class ProjectIconStore {
     this.dir = o.dir;
   }
 
-  /** The hash of the root's native real path (so a symlinked path or another spelling of the case is the same folder),
-   *  else of the path as given. */
+  /** The hash of the root's real path (so a symlinked path is the same folder; on Windows the native one, so another
+   *  spelling of the case is the same folder too), else of the path as given. */
   private key(root: string): string {
     let real = root;
     try {
-      real = fs.realpathSync.native(root);
+      real = process.platform === 'win32' ? fs.realpathSync.native(root) : fs.realpathSync(root);
     } catch { /* a root that is gone: its own path */ }
     return createHash('sha256').update(real).digest('hex');
   }

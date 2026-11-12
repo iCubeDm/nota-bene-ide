@@ -9,6 +9,7 @@ import { makeStore } from '@/store/store.ts';
 import { selectTabs } from '@/tabs/slice.ts';
 import { setTmpDirs } from '@/files/tmpImages.ts';
 import { resetSources, setSources } from '@/files/sources.ts';
+import { setServerSep } from '@/lib/paths.ts';
 import { clearRefCache, escapeMentions, markRefs, refClick, splitMentions } from './refs.ts';
 
 beforeEach(() => {
@@ -19,6 +20,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   window.getSelection()?.removeAllRanges();
+  setServerSep('/');
 });
 
 const div = (html: string) => {
@@ -179,7 +181,8 @@ it('relative links never navigate, but a modifier click keeps the browser defaul
   expect(fireEvent.click(a, { metaKey: true })).toBe(true);
 });
 
-it('user @mentions are clickable and keep the message text identical', async () => {
+it.each([['/', 'lib\\b.ts'], ['\\', 'lib/b.ts']] as const)('user @mentions are clickable and keep the message text identical (server separator %s)', async (sep, lib) => {
+  setServerSep(sep);
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
   const text = 'look at @src/a.ts and @"my doc.md" or @lib\\b.ts please';
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
@@ -193,7 +196,7 @@ it('user @mentions are clickable and keep the message text identical', async () 
   const msg = root.querySelector<HTMLElement>('[data-kind="user"]')!;
   expect(textOf(msg)).toContain(text);
   const ms = msg.querySelectorAll<HTMLElement>('.mention');
-  expect([...ms].map((m) => m.dataset.path)).toEqual(['src/a.ts', 'my doc.md', 'lib/b.ts']); // a Windows separator becomes '/'
+  expect([...ms].map((m) => m.dataset.path)).toEqual(['src/a.ts', 'my doc.md', lib]); // a Windows server's separator becomes '/'
   fireEvent.click(ms[1]);
   await tick();
   expect(selectTabs(store.getState()).open.map((t) => t.id)).toContain('file:my doc.md');
@@ -217,6 +220,7 @@ it('a temp image path in code or a link is a ref once the server named its temp 
 });
 
 it('Windows: relative refs with backslashes become "/" paths; C:\\ and C:/ paths are never relative, they map to a source or a temp folder', () => {
+  setServerSep('\\');
   setSources([{ id: 'here', kind: 'checkout', label: '', ref: '', dir: 'C:/Users/x/proj' }]);
   setTmpDirs(['C:/Users/x/AppData/Local/Temp']);
   try {
@@ -234,6 +238,18 @@ it('Windows: relative refs with backslashes become "/" paths; C:\\ and C:/ paths
     ]);
   } finally {
     setTmpDirs([]);
+    resetSources();
+  }
+});
+
+it('a POSIX server: a backslash is a name character and C:/ a relative folder, as before Windows support', () => {
+  setSources([{ id: 'here', kind: 'checkout', label: '', ref: '', dir: '/home/x/proj' }]);
+  try {
+    const d = div('<code>src\\a.ts</code> <a href="docs%5Cc.md">l</a> <code>C:/x/e.md</code> <code>C:\\x\\f.md</code> <a href="C:/x/g.md">g</a>');
+    markRefs(d);
+    const refs = [...d.querySelectorAll<HTMLElement>('.ref')].map((e) => [e.dataset.path, e.dataset.src ?? '']);
+    expect(refs).toEqual([['src\\a.ts', ''], ['docs\\c.md', ''], ['C:/x/e.md', ''], ['C:\\x\\f.md', '']]);
+  } finally {
     resetSources();
   }
 });

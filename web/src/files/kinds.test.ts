@@ -1,4 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
+import { setServerSep } from '@/lib/paths.ts';
 import { fileUrl, isPath, kindOf, modelUrl, setModel3d } from './kinds.ts';
 
 afterEach(() => setModel3d(false));
@@ -43,6 +44,17 @@ it('isPath is the prototype predicate', () => {
   expect(isPath('~/a.md')).toBe(false);
   expect(isPath('a b')).toBe(false);
   expect(isPath('a|b/c')).toBe(false);
+});
+
+it('isPath: Windows absolute forms are refused only on a Windows server', () => {
+  for (const p of ['C:\\a\\b.md', 'C:/a/b.md', '\\\\host\\share\\a.md']) expect(isPath(p), p).toBe(true); // POSIX: relative names
+  setServerSep('\\');
+  try {
+    for (const p of ['C:\\a\\b.md', 'C:/a/b.md', '\\\\host\\share\\a.md']) expect(isPath(p), p).toBe(false);
+    expect(isPath('src/a.ts')).toBe(true);
+  } finally {
+    setServerSep('/');
+  }
 });
 
 it('modelUrl: a .blend goes through /model (converted by Blender), a glb / gltf through /file', () => {

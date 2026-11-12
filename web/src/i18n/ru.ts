@@ -25,9 +25,9 @@ export const ru = {
   connecting: 'подключение…', // new in M0 (the prototype set the label from markup)
   offline: 'нет связи с сервером…',
   serverError: (w?: string) => `Ошибка сервера${w ? ' · ' + w : ''}`,
-  // a server-error with where `git-bash`: Claude Code on Windows without Git Bash (server agent/claude/gitBash.ts)
-  gitBashTitle: 'Git Bash не найден',
-  gitBashMissing: 'Claude Code в Windows выполняет команды оболочки в Git Bash и не может его найти. Установите Git for Windows или укажите путь к его bash.exe в CLAUDE_CODE_GIT_BASH_PATH, затем перезапустите Nota Bene.',
+  // a server-error with where `git-bash`: Claude Code on Windows without Git Bash, so on PowerShell only (server agent/claude/gitBash.ts)
+  gitBashTitle: 'Рекомендуется Git Bash',
+  gitBashMissing: 'Git Bash не найден, поэтому Claude Code выполняет команды оболочки в PowerShell, без инструмента Bash. Чтобы он появился, установите Git for Windows (или укажите путь к его bash.exe в CLAUDE_CODE_GIT_BASH_PATH) и перезапустите Nota Bene.',
   you: 'ты',
   youBusy: ' · во время работы',
   youForced: ' · прервал агента',
