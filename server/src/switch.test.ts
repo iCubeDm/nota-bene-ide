@@ -10,6 +10,7 @@ import type { FakeTurn } from './agent/fake.ts';
 import { CommentStore } from './comments.ts';
 import { startServer } from './server.ts';
 import { lastSession } from './state.ts';
+import { wirePath } from './wirePath.ts';
 
 const SA = '11111111-1111-4111-8111-111111111111';
 const SB = '22222222-2222-4222-8222-222222222222';
@@ -102,13 +103,14 @@ describe('GET /sessions', () => {
   it('lists the sessions with a cwd, with titles, the current id and the root', async () => {
     const s = await boot({ resume: SA });
     const r = await get(s.url, '/sessions');
+    // the wire form (`C:/...` on Windows); `/info` and the agent's cwd keep the server's own form
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({
       current: SA,
-      root: A,
+      root: wirePath(A),
       sessions: [
-        { id: SA, title: 'A work', at: 1, size: 10, cwd: A },
-        { id: SB, title: 'B work', at: 2, size: 20, cwd: B },
+        { id: SA, title: 'A work', at: 1, size: 10, cwd: wirePath(A) },
+        { id: SB, title: 'B work', at: 2, size: 20, cwd: wirePath(B) },
       ],
     });
   });
@@ -141,7 +143,7 @@ describe('switch', () => {
     const replay = after[1] as Extract<ServerEvent, { kind: 'replay' }>;
     expect(replay.events.map((e) => (e.kind === 'user' ? e.text : e.kind === 'agent' ? e.e.t : e.kind))).toEqual(['b-before', 'message']);
     expect(after[2]).toEqual({ kind: 'resumed', id: SB });
-    expect(after[3]).toEqual({ kind: 'session', id: SB, root: B, title: 'B work', model: null });
+    expect(after[3]).toEqual({ kind: 'session', id: SB, root: wirePath(B), title: 'B work', model: null });
     expect(errors(c)).toEqual([]);
 
     expect((await get(s.url, '/file?path=a-only.txt')).status).toBe(404);
@@ -177,11 +179,22 @@ describe('switch', () => {
     const c = await connect(s.url);
     await until(() => lastOf(c, 'comments') !== undefined);
     c.ws.send(JSON.stringify({ type: 'switch', id: null, dir: B }));
-    await until(() => switched(c, null) && lastOf(c, 'session')?.root === B);
-    expect(lastOf(c, 'session')).toEqual({ kind: 'session', id: null, root: B, title: null, model: null });
+    await until(() => switched(c, null) && lastOf(c, 'session')?.root === wirePath(B));
+    expect(lastOf(c, 'session')).toEqual({ kind: 'session', id: null, root: wirePath(B), title: null, model: null });
     expect(lastOf(c, 'mode')).toEqual({ kind: 'mode', mode: 'plan' });
     expect(s.backend.starts.at(-1)).toEqual({ cwd: B, permissionMode: 'plan' });
     expect(c.events.some((e) => e.kind === 'resumed' && e.id === null)).toBe(false);
+  });
+
+  it.runIf(process.platform === 'win32')('Windows: a dir sent back in the wire form C:/... (and a lower-case drive) is the same folder', async () => {
+    const s = await boot({ resume: SA });
+    const c = await connect(s.url);
+    await until(() => lastOf(c, 'comments') !== undefined);
+    const dir = wirePath(B).replace(/^[A-Z]:/, (d) => d.toLowerCase());
+    c.ws.send(JSON.stringify({ type: 'switch', id: SB, dir }));
+    await until(() => switched(c, SB) && lastOf(c, 'session')?.root === wirePath(B));
+    expect(s.backend.starts.at(-1)).toMatchObject({ cwd: B, resume: SB });
+    expect(errors(c)).toEqual([]);
   });
 
   it('is rejected while the agent is busy', async () => {
@@ -251,7 +264,7 @@ describe('restart', () => {
     c.ws.send(JSON.stringify({ type: 'restart' }));
     await until(() => s.backend.starts.length === 2 && switchedSince(c, mark, SA));
     expect(s.backend.starts[1]).toMatchObject({ cwd: A, resume: SA });
-    expect(lastOf(c, 'session')).toMatchObject({ id: SA, root: A });
+    expect(lastOf(c, 'session')).toMatchObject({ id: SA, root: wirePath(A) });
     expect(c.events.filter((e) => e.kind === 'replay').at(-1)!.events.length).toBeGreaterThan(0);
   });
 
@@ -291,7 +304,7 @@ describe('restart while busy', () => {
     await until(() => s.backend.starts.length === 2 && switchedSince(c, mark, 'fake-session'));
     const after = c.events.slice(mark);
     expect(after.some((e) => e.kind === 'replay')).toBe(true);
-    expect(after.find((e) => e.kind === 'session')).toMatchObject({ id: 'fake-session', root: A });
+    expect(after.find((e) => e.kind === 'session')).toMatchObject({ id: 'fake-session', root: wirePath(A) });
     expect(s.backend.starts[1]).toMatchObject({ resume: 'fake-session' });
     expect(errors(c)).toHaveLength(1);
     // not busy any more: a switch now runs
@@ -462,7 +475,7 @@ describe('title and model', () => {
     const c = await connect(s.url);
     c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi' }));
     await until(() => lastOf(c, 'session')?.title === 'Hello chat');
-    expect(lastOf(c, 'session')).toEqual({ kind: 'session', id: 'fake-session', root: A, title: 'Hello chat', model: 'claude-fake' });
+    expect(lastOf(c, 'session')).toEqual({ kind: 'session', id: 'fake-session', root: wirePath(A), title: 'Hello chat', model: 'claude-fake' });
     expect(await (await get(s.url, '/info')).json()).toMatchObject({ title: 'Hello chat', model: 'claude-fake' });
   });
 });

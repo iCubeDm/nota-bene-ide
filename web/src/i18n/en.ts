@@ -55,8 +55,8 @@ export const en: Dict = {
   emptyComments: 'Select text in the chat or an open file and press “Comment”.\nComments collect here and go to the agent as one batch.',
   hidePanel: 'Hide panel',
   stopTip: 'Stop the agent',
-  keysTip: 'Enter — send\nShift+Enter — new line\n⌘Enter — interrupt the agent and send (asks first)',
-  forceAsk: 'The agent will be interrupted. ⌘Enter again or the button: interrupt and send. Esc: cancel. Enter: add the message without interrupting.',
+  keysTip: (mod) => `Enter — send\nShift+Enter — new line\n${mod}Enter — interrupt the agent and send (asks first)`,
+  forceAsk: (mod) => `The agent will be interrupted. ${mod}Enter again or the button: interrupt and send. Esc: cancel. Enter: add the message without interrupting.`,
   forceYes: 'Interrupt and send',
   forceNo: 'Cancel',
   composerPhAgent: 'Message the main agent… comments on the subagent’s replies go to it too',
@@ -435,7 +435,7 @@ export const en: Dict = {
   modelFailed: (e) => `Could not show the model: ${e}`,
   modelOutsideRefs: (paths) => `This .blend references files outside the project: ${paths}`,
   modelConverting: 'Blender converts the file…',
-  modelNoBlender: 'A .blend file needs Blender installed on this computer. Looked for: the NOTA_BENE_BLENDER variable, "blender" on PATH, /Applications/Blender.app/Contents/MacOS/Blender',
+  modelNoBlender: 'A .blend file needs Blender installed on this computer. Looked for: the NOTA_BENE_BLENDER variable, "blender" on PATH, and on macOS /Applications/Blender.app/Contents/MacOS/Blender. On another system set NOTA_BENE_BLENDER to the Blender program or put blender on PATH',
   modelBlendNote: 'converted by Blender: materials made of shader nodes may look different',
   modelLost: 'The WebGL context was lost: the browser took the GPU back. Reload the tab (↻)',
   modelInfo: (size, meshes, tris, mats, anims) =>
@@ -453,7 +453,7 @@ export const en: Dict = {
   modelViewGo: 'Go to this view',
   modelPause: 'Pause',
   // image attachments (M3-12)
-  attach: 'Attach an image\nor paste from the clipboard ⌘V / drop into the window',
+  attach: (mod) => `Attach an image\nor paste from the clipboard ${mod}V / drop into the window`,
   remove: 'Remove',
   imgLabel: (k: number) => `[image ${k}]`,
   imgLabelC: (k: number, ci: number) => `[image ${k} · for comment ${ci}]`,

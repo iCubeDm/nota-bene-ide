@@ -55,8 +55,8 @@ export const ru = {
   emptyComments: 'Выдели текст в чате или в открытом файле и нажми «Комментировать».\nКомментарии копятся здесь и уходят агенту одной пачкой.',
   hidePanel: 'Скрыть панель',
   stopTip: 'Остановить агента',
-  keysTip: 'Enter — отправить\nShift+Enter — новая строка\n⌘Enter — прервать агента и отправить (с подтверждением)',
-  forceAsk: 'Агент будет прерван. ⌘Enter ещё раз или кнопка — прервать и отправить. Esc — отмена. Enter — добавить сообщение без прерывания.',
+  keysTip: (mod: string) => `Enter — отправить\nShift+Enter — новая строка\n${mod}Enter — прервать агента и отправить (с подтверждением)`,
+  forceAsk: (mod: string) => `Агент будет прерван. ${mod}Enter ещё раз или кнопка — прервать и отправить. Esc — отмена. Enter — добавить сообщение без прерывания.`,
   forceYes: 'Прервать и отправить',
   forceNo: 'Отмена',
   composerPhAgent: 'Сообщение главному агенту… комментарии к ответам субагента тоже уйдут ему',
@@ -435,7 +435,7 @@ export const ru = {
   modelFailed: (e: string) => `Не удалось показать модель: ${e}`,
   modelOutsideRefs: (paths: string) => `Этот .blend ссылается на файлы вне проекта: ${paths}`,
   modelConverting: 'Blender конвертирует файл…',
-  modelNoBlender: 'Для файла .blend нужен установленный Blender. Искали: переменную NOTA_BENE_BLENDER, "blender" в PATH, /Applications/Blender.app/Contents/MacOS/Blender',
+  modelNoBlender: 'Для файла .blend нужен установленный Blender. Искали: переменную NOTA_BENE_BLENDER, "blender" в PATH и на macOS /Applications/Blender.app/Contents/MacOS/Blender. В другой системе укажи программу Blender в NOTA_BENE_BLENDER или добавь blender в PATH',
   modelBlendNote: 'сконвертировано Blender: материалы из шейдерных нод могут выглядеть иначе',
   modelLost: 'Контекст WebGL потерян: браузер забрал видеокарту. Перезагрузите вкладку (↻)',
   modelInfo: (size: string, meshes: number, tris: number, mats: number, anims: number) =>
@@ -453,7 +453,7 @@ export const ru = {
   modelViewGo: 'Перейти к этому виду',
   modelPause: 'Пауза',
   // image attachments (M3-12)
-  attach: 'Прикрепить изображение\nили вставь из буфера ⌘V / перетащи в окно',
+  attach: (mod: string) => `Прикрепить изображение\nили вставь из буфера ${mod}V / перетащи в окно`,
   remove: 'Убрать',
   imgLabel: (k: number) => `[изображение ${k}]`,
   imgLabelC: (k: number, ci: number) => `[изображение ${k} · к комментарию ${ci}]`,

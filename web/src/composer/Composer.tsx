@@ -23,7 +23,7 @@ import { ComposerAttachments } from '@/attachments/ComposerAttachments.tsx';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { addImage, removeImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { BINDINGS, keysLabel, VOICE_KEY, withKey } from '@/shell/keymap.ts';
+import { BINDINGS, keysLabel, modKey, VOICE_KEY, withKey } from '@/shell/keymap.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { onVoiceRefused } from '@/voice/inflight.ts';
@@ -367,7 +367,7 @@ export function Composer() {
       </div>
       {askForce && (
         <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-foreground">
-          <span>{t('forceAsk')}</span>
+          <span>{t('forceAsk', modKey())}</span>
           <span className="grow" />
           <Button type="button" size="sm" variant="destructive" className="h-7" onClick={() => (recording ? voiceSubmit(true) : submit(true))}>
             {t('forceYes')}
@@ -476,7 +476,7 @@ export function Composer() {
         />
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('keysTip')}>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('keysTip', modKey())}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <circle cx="12" cy="12" r="9" />
                 <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6" />
@@ -484,18 +484,18 @@ export function Composer() {
               </svg>
             </Button>
           </TooltipTrigger>
-          <TooltipContent className="whitespace-pre-line">{`${t('keysTip')}\n\n${t('hkTitle')}\n${BINDINGS.map((b) => `${keysLabel(b)} — ${t(b.id)}`).join('\n')}\n\n${t('pkTitle')}\n${PLAYER_HELP.map(([k, id]) => `${k} — ${t(id, seekStep)}`).join('\n')}`}</TooltipContent>
+          <TooltipContent className="whitespace-pre-line">{`${t('keysTip', modKey())}\n\n${t('hkTitle')}\n${BINDINGS.map((b) => `${keysLabel(b)} — ${t(b.id)}`).join('\n')}\n\n${t('pkTitle')}\n${PLAYER_HELP.map(([k, id]) => `${k} — ${t(id, seekStep)}`).join('\n')}`}</TooltipContent>
         </Tooltip>
         <ModePill />
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('attach')} onClick={() => fileIn.current?.click()}>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('attach', modKey())} onClick={() => fileIn.current?.click()}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
               </svg>
             </Button>
           </TooltipTrigger>
-          <TooltipContent className="whitespace-pre-line">{t('attach')}</TooltipContent>
+          <TooltipContent className="whitespace-pre-line">{t('attach', modKey())}</TooltipContent>
         </Tooltip>
         <span className="grow" />
         <AgentAccount /><Meters />

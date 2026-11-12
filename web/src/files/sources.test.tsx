@@ -131,6 +131,20 @@ it('absolute paths match the realpath dir or the form the server was started wit
   expect(sourceForAbs('/var/pa.md', list)).toBeNull();
 });
 
+it('a Windows dir (C:/ from the server) matches a path in either separator, ignoring the letter case', () => {
+  const list: Source[] = [
+    { id: 'here', kind: 'checkout', label: 'm', ref: 'main', dir: 'C:/Users/x/proj' },
+    { id: 'ref:f', kind: 'worktree', label: 'f', ref: 'f', dir: 'C:/Users/x/proj/.wt/f' },
+  ];
+  expect(sourceForAbs('C:\\Users\\x\\proj\\src\\a.md', list)).toEqual({ src: 'here', path: 'src/a.md' });
+  expect(sourceForAbs('c:/users/X/Proj/src/a.md', list)).toEqual({ src: 'here', path: 'src/a.md' });
+  expect(sourceForAbs('C:\\Users\\x\\proj\\.wt\\f\\b.md', list)).toEqual({ src: 'ref:f', path: 'b.md' });
+  expect(sourceForAbs('C:/Users/x/projx/a.md', list)).toBeNull();
+  expect(sourceForAbs('D:/Users/x/proj/a.md', list)).toBeNull();
+  // a POSIX dir keeps its case
+  expect(sourceForAbs('/P/main/a.md', [{ id: 'here', kind: 'checkout', label: 'm', ref: 'main', dir: '/p/main' }])).toBeNull();
+});
+
 it('legacy saved tabs (paths only) still restore', () => {
   localStorage.setItem('tabs:/r1', JSON.stringify({ paths: ['a.md'], active: 'file:a.md' }));
   const m = mk();

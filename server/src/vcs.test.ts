@@ -144,6 +144,11 @@ describe('one file', () => {
     expect(await fileOf(root, 'here', null, '/etc/passwd', null)).toBeNull();
     expect(await fileOf(root, 'here', null, 'a.md', '../x')).toBeNull();
   });
+  it.runIf(process.platform === 'win32')('Windows: a backslash climb or a drive path is outside too', async () => {
+    for (const p of ['..\\x', 'src\\..\\..\\x', 'C:/Windows/win.ini', path.join(root, 'a.md')]) {
+      expect(await fileOf(root, 'here', null, p, null), p).toBeNull();
+    }
+  });
 
   it('a symlink in the working tree shows no target', async () => {
     fs.writeFileSync(path.join(dir, 'secret'), 'secret');
@@ -235,7 +240,8 @@ describe('edges', () => {
     expect((await commitFileOf(project, sha, 'src/a.txt', null))!.patch).toContain('+b');
   });
 
-  it('a git killed halfway is an error, not "no common ancestor"', async () => {
+  // a #!/bin/sh wrapper found through a ':'-joined PATH: POSIX only (Windows runs git.exe, never a script named git)
+  it.skipIf(process.platform === 'win32')('a git killed halfway is an error, not "no common ancestor"', async () => {
     const real = execFileSync('which', ['git']).toString().trim();
     const bin = path.join(dir, 'bin');
     write(path.join(bin, 'git'), `#!/bin/sh\ncase "$*" in *merge-base*) kill -9 $$;; esac\nexec ${real} "$@"\n`);
@@ -297,6 +303,11 @@ describe('the log', () => {
     expect(list.find((b) => b.id === 'ref:agent/one')).toMatchObject({ base: 'main', ahead: 1, dirty: true, busy: true });
     expect(list.find((b) => b.id === 'ref:agent/stacked')).toMatchObject({ base: 'feature/parent', ahead: 0, dirty: false });
     expect(list.find((b) => b.id === 'here')).toMatchObject({ base: null, dirty: false, busy: false });
+  });
+  it.runIf(process.platform === 'win32')('Windows: a busy window root in another letter case or the slash form still marks its worktree', async () => {
+    for (const w of [one.toUpperCase(), one.replace(/\\/g, '/')]) {
+      expect((await branchInfo(root, [w])).find((b) => b.id === 'ref:agent/one'), w).toMatchObject({ busy: true });
+    }
   });
 
   it('a window in a worktree inside the project marks that worktree alone; a window below a folder marks the folder', async () => {

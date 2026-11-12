@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import http from 'node:http';
 import { EventHub } from './hub.ts';
 import { cwdOf, listSessionsView, renameRoute, titleOf } from './sessions.ts';
+import { wirePath } from './wirePath.ts';
 
 let dir: string;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-sessions-')); });
@@ -17,7 +18,7 @@ const jsonl = (project: string, id: string, body: string) => {
 
 describe('listSessionsView cwd', () => {
   it('normalises every cwd with the native realpath, keeping the raw value when it does not exist', async () => {
-    const real = fs.realpathSync(dir);
+    const real = fs.realpathSync.native(dir);
     const link = path.join(real, 'link');
     fs.symlinkSync(real, link);
     const backend = {
@@ -27,7 +28,9 @@ describe('listSessionsView cwd', () => {
       ],
     } as never;
     const view = await listSessionsView({ backend, current: null, root: real, projectsDir: dir });
-    expect(view.sessions.map((s) => s.cwd)).toEqual([real, '/nb-no-such-dir/x']);
+    // in the wire form: `C:/...` on Windows, the path itself on POSIX
+    expect(view.sessions.map((s) => s.cwd)).toEqual([wirePath(real), '/nb-no-such-dir/x']);
+    expect(view.root).toBe(wirePath(real));
   });
 });
 

@@ -23,6 +23,7 @@ import { renameRetry } from './platform.ts';
 import { stateDir } from './state.ts';
 import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from './update.ts';
 import type { Updater } from './updater.ts';
+import { wirePath } from './wirePath.ts';
 import { pidAlive, readWindows } from './windows.ts';
 
 export const CONTROL_HEADER = 'x-nota-bene-control';
@@ -219,7 +220,7 @@ export async function listWindows(own: number, probe = probeWindow): Promise<Win
       : info && info.root === w.root ? 'live' : 'silent';
     const live = state === 'live' && info;
     return {
-      port, root: w.root, pid: w.pid, startedAt: w.startedAt, current: port === own, state,
+      port, root: wirePath(w.root), pid: w.pid, startedAt: w.startedAt, current: port === own, state,
       session: live ? info.session ?? null : null, title: live ? info.title ?? null : null,
       supervised: live ? !!info.supervised : false, busy: live ? !!info.busy : false, clients: live ? info.clients ?? 0 : 0,
     };
@@ -447,8 +448,8 @@ export function systemRoutes(o: {
         const w = readWindows()[String(port)];
         if (!w || !pidAlive(w.pid)) return text(res, 404, 'no such window');
         // the window the user saw (and confirmed) must still be the one on that port: a port reused by a newer window
-        // after the list was loaded is not touched
-        if (w.root !== root || w.pid !== pid || w.startedAt !== startedAt) return text(res, 409, 'window changed');
+        // after the list was loaded is not touched. The list sent the root in the wire form; the stored form is fine too
+        if ((w.root !== root && wirePath(w.root) !== root) || w.pid !== pid || w.startedAt !== startedAt) return text(res, 409, 'window changed');
         const info = await probe(port as number);
         if (!info || info.root !== w.root) return text(res, 409, 'window not answering');
         const status = await relay(port as number, action as ControlAction, controlToken());

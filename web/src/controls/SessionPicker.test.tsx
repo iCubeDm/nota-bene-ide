@@ -107,6 +107,20 @@ it('groups: new first, this project marked, then other folders in first-appearan
   expect(menu().className).toContain('w-[460px]');
 });
 
+it('a Windows server: C:/Users/<name> folders shorten to ~, other drives stay as they are', async () => {
+  view = {
+    current: A,
+    root: 'C:/Users/me/proj',
+    sessions: [
+      { id: A, title: 'current talk', at: NOW, size: 12_000, cwd: 'C:/Users/me/proj' },
+      { id: B, title: 'other one', at: NOW, size: 800, cwd: 'D:/work/x' },
+    ],
+  };
+  setup();
+  await openPicker();
+  expect(rows()).toEqual(['+ new session in this project', '# this project · ~/proj (here)', 'current talk', '# D:/work/x', 'other one']);
+});
+
 it('the filter is focused, matches title + folder, keeps "new" and hides empty groups', async () => {
   setup();
   await openPicker();
