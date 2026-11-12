@@ -21,6 +21,13 @@ let other: string;
 const prevHome = process.env.NOTA_BENE_HOME;
 const closers: (() => Promise<void>)[] = [];
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+// Windows runs these in Git Bash (the setting's auto): the block starts with the shell's name, a path in a command takes
+// forward slashes, `pwd -W` gives the Windows form of the folder, and a pid the tests look at must be the Windows one
+const win = process.platform === 'win32';
+const HEAD = win ? '[Git Bash]\n' : '';
+const sh = (p: string) => (win ? p.replace(/\\/g, '/') : p);
+const PWD = win ? 'pwd -W' : 'pwd';
+const BG_PID = win ? 'cat /proc/$!/winpid' : 'echo $!';
 
 beforeEach(() => {
   tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-shellws-')));
@@ -73,12 +80,13 @@ describe('running a command', () => {
   it('shell-run streams a block to the socket: start, output, end with the code', async () => {
     const s = await boot();
     const c = await connect(s.url);
-    c.send({ type: 'shell-run', id: 'r1', cmd: 'echo hello; pwd' });
+    c.send({ type: 'shell-run', id: 'r1', cmd: `echo hello; ${PWD}` });
     await until(() => !!endOf(c));
     const kinds = c.events.map((e) => e.kind).filter((k) => k.startsWith('shell'));
     expect(kinds[0]).toBe('shell-start');
     expect(kinds.at(-1)).toBe('shell-end');
-    expect(endOf(c)).toMatchObject({ code: 0, cmd: 'echo hello; pwd', output: `hello\n${proj}\n` });
+    expect(endOf(c)).toMatchObject({ code: 0, cmd: `echo hello; ${PWD}` });
+    expect(endOf(c)!.output.toLowerCase()).toBe(`${HEAD}hello\n${sh(proj)}\n`.toLowerCase());
   });
 
   it('works while the agent is busy and starts no turn', async () => {
@@ -128,7 +136,7 @@ describe('running a command', () => {
     expect(endOf(c)).toBeUndefined();
     c.send({ type: 'shell-stop', id: 'r1' });
     await until(() => !!endOf(c));
-    expect(endOf(c)).toMatchObject({ stop: 'user', code: null, output: 'up\n' });
+    expect(endOf(c)).toMatchObject({ stop: 'user', code: null, output: `${HEAD}up\n` });
   });
 
   it('a run past the timeout is stopped with that reason', async () => {
@@ -148,7 +156,7 @@ describe('running a command', () => {
     await until(() => b.events.some((e) => e.kind === 'hello'));
     const replay = ofKind(b, 'replay')[0]!;
     expect(replay.events.map((e) => e.kind)).toContain('shell-start');
-    expect(ofKind(b, 'shell-out')[0]).toEqual({ kind: 'shell-out', id: 'r1', text: 'first\n', truncated: false });
+    expect(ofKind(b, 'shell-out')[0]).toEqual({ kind: 'shell-out', id: 'r1', text: `${HEAD}first\n`, truncated: false });
     b.send({ type: 'shell-stop', id: 'r1' });
     await until(() => !!endOf(a));
     const c = await connect(s.url);
@@ -191,7 +199,7 @@ describe('/clear', () => {
     const s = await boot({ turns: [{ text: 'a' }, { text: 'b' }] });
     const c = await connect(s.url);
     const pidFile = path.join(tmp, 'pid');
-    c.send({ type: 'shell-run', id: 'r1', cmd: `echo old-output; sleep 60 & echo $! > ${pidFile}; wait` });
+    c.send({ type: 'shell-run', id: 'r1', cmd: `echo old-output; sleep 60 & ${BG_PID} > ${sh(pidFile)}; wait` });
     await until(() => fs.existsSync(pidFile) && fs.readFileSync(pidFile, 'utf8').trim() !== '');
     const pid = Number(fs.readFileSync(pidFile, 'utf8'));
     c.send({ type: 'command', name: 'clear' });
@@ -277,7 +285,7 @@ describe('what the agent hears', () => {
     const s = await boot();
     const c = await connect(s.url);
     const pidFile = path.join(tmp, 'pid');
-    c.send({ type: 'shell-run', id: 'r1', cmd: `sleep 60 & echo $! > ${pidFile}; wait` });
+    c.send({ type: 'shell-run', id: 'r1', cmd: `sleep 60 & ${BG_PID} > ${sh(pidFile)}; wait` });
     await until(() => fs.existsSync(pidFile) && fs.readFileSync(pidFile, 'utf8').trim() !== '');
     const pid = Number(fs.readFileSync(pidFile, 'utf8'));
     c.send({ type: 'switch', id: SB, dir: other });
@@ -287,9 +295,9 @@ describe('what the agent hears', () => {
     expect(endOf(c)).toBeUndefined();
     const last = ofKind(c, 'replay').at(-1)!;
     expect(last.events.some((e) => e.kind.startsWith('shell'))).toBe(false);
-    c.send({ type: 'shell-run', id: 'r2', cmd: 'pwd' }); // the new session runs in its own root
+    c.send({ type: 'shell-run', id: 'r2', cmd: PWD }); // the new session runs in its own root
     await until(() => !!endOf(c, 'r2'));
-    expect(endOf(c, 'r2')!.output).toBe(`${other}\n`);
+    expect(endOf(c, 'r2')!.output.toLowerCase()).toBe(`${HEAD}${sh(other)}\n`.toLowerCase());
   });
 
   it('is refused while a switch is in progress', async () => {
@@ -297,7 +305,7 @@ describe('what the agent hears', () => {
     const c = await connect(s.url);
     c.send({ type: 'switch', id: SB, dir: other });
     await sleep(100);
-    c.send({ type: 'shell-run', id: 'r1', cmd: `touch ${path.join(tmp, 'ran')}` });
+    c.send({ type: 'shell-run', id: 'r1', cmd: `touch ${sh(path.join(tmp, 'ran'))}` });
     await until(() => refused(c).length === 1);
     expect(refused(c)[0]).toMatchObject({ id: 'r1', reason: 'switching' });
     await sleep(300);
@@ -310,7 +318,7 @@ describe('the server going away', () => {
     const s = await boot();
     const c = await connect(s.url);
     const pidFile = path.join(tmp, 'pid');
-    c.send({ type: 'shell-run', id: 'r1', cmd: `sleep 60 & echo $! > ${pidFile}; wait` });
+    c.send({ type: 'shell-run', id: 'r1', cmd: `sleep 60 & ${BG_PID} > ${sh(pidFile)}; wait` });
     await until(() => fs.existsSync(pidFile) && fs.readFileSync(pidFile, 'utf8').trim() !== '');
     const pid = Number(fs.readFileSync(pidFile, 'utf8'));
     expect(alive(pid)).toBe(true);
@@ -320,7 +328,7 @@ describe('the server going away', () => {
 });
 
 describe('it adds no way in but the owner’s socket', () => {
-  const marker = () => path.join(tmp, 'ran');
+  const marker = () => sh(path.join(tmp, 'ran'));
   const ran = () => fs.existsSync(marker());
 
   it('has no HTTP route: a POST finds nothing, a GET gets the page', async () => {
@@ -398,11 +406,12 @@ describe('it adds no way in but the owner’s socket', () => {
     const c = await connect(s.url);
     c.send({ type: 'shell-run', id: 'r1', cmd: `printf '%s' "a b" '$HOME' ; echo` });
     await until(() => !!endOf(c));
-    expect(endOf(c)!.output).toBe('a b$HOME\n');
+    expect(endOf(c)!.output).toBe(`${HEAD}a b$HOME\n`);
   });
 });
 
-describe('signals that end the server', () => {
+// Windows has no signals: a child.kill there is TerminateProcess, which runs no exit hook of the server
+describe.skipIf(win)('signals that end the server', () => {
   // fileURLToPath, not .pathname: on Windows that is `/C:/...`, which node resolves to `C:\C:\...`
   const MAIN = fileURLToPath(new URL('./main.ts', import.meta.url));
   const FAKE = fileURLToPath(new URL('../test/fixtures/hello.json', import.meta.url));
@@ -436,7 +445,7 @@ describe('signals that end the server', () => {
       const url = /Nota Bene: (http:\/\/127\.0\.0\.1:\d+)/.exec(out)![1]!;
       const c = await connect(url, { authorization: `Bearer ${accessToken()}` }); // the real main.ts: auth on
       const pidFile = path.join(tmp, `pid-${sig}`);
-      c.send({ type: 'shell-run', id: 'r1', cmd: `sleep 60 & echo $! > ${pidFile}; wait` });
+      c.send({ type: 'shell-run', id: 'r1', cmd: `sleep 60 & ${BG_PID} > ${sh(pidFile)}; wait` });
       await until(() => fs.existsSync(pidFile) && fs.readFileSync(pidFile, 'utf8').trim() !== '');
       const pid = Number(fs.readFileSync(pidFile, 'utf8'));
       expect(alive(pid)).toBe(true);

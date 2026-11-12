@@ -1,6 +1,7 @@
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SHELL_OUTPUT_CAP } from '@nota-bene/shared';
-import { AnsiStripper, Tail, bashBlock, isSlashCommand, leadOf, shellEnv, splitBashBlocks } from './shellText.ts';
+import { AnsiStripper, OutputDecoder, Tail, bashBlock, codePageDecoder, isSlashCommand, leadOf, shellEnv, splitBashBlocks } from './shellText.ts';
 
 const strip = (...chunks: string[]) => {
   const s = new AnsiStripper();
@@ -65,8 +66,13 @@ describe('shellEnv', () => {
     expect(e).toEqual({ PATH: '/usr/bin', HOME: '/h', NOTA_BENE_HOME: '/state' });
   });
   it('strips what npm leaked: the npm_* variables, INIT_CWD and npm’s PATH prefix', () => {
-    const e = shellEnv({ npm_execpath: '/x/npm', npm_lifecycle_event: 'start', npm_config_registry: 'r', INIT_CWD: '/w', PATH: '/p/node_modules/.bin:/q/node-gyp-bin:/usr/bin:/bin', HOME: '/h' });
-    expect(e).toEqual({ PATH: '/usr/bin:/bin', HOME: '/h' }); // bin/nota-bene.test.ts checks serverEnv gives the same
+    const D = path.delimiter; // the host's: shellEnv splits PATH the way this OS does
+    const e = shellEnv({ npm_execpath: '/x/npm', npm_lifecycle_event: 'start', npm_config_registry: 'r', INIT_CWD: '/w', PATH: ['/p/node_modules/.bin', '/q/node-gyp-bin', '/usr/bin', '/bin'].join(D), HOME: '/h' });
+    expect(e).toEqual({ PATH: ['/usr/bin', '/bin'].join(D), HOME: '/h' }); // bin/nota-bene.test.ts checks serverEnv gives the same
+  });
+  it.skipIf(process.platform !== 'win32')('strips npm’s PATH prefix from Windows’ `Path` too', () => {
+    const e = shellEnv({ npm_lifecycle_event: 'start', Path: 'C:\\w\\node_modules\\.bin;C:\\n\\node-gyp-bin;C:\\Windows\\System32' });
+    expect(e).toEqual({ Path: 'C:\\Windows\\System32' });
   });
   it('keeps the user’s own npm variables when npm did not start us', () => {
     expect(shellEnv({ NPM_TOKEN: 't', npm_config_registry: 'r' })).toEqual({ NPM_TOKEN: 't', npm_config_registry: 'r' });
@@ -185,5 +191,41 @@ describe('a lead with runs left out reads back', () => {
   });
   it('a user line that merely looks like the note is kept when no blocks lead', () => {
     expect(splitBashBlocks('[1 earlier shell run left out: too long]\n\nhi').rest).toBe('[1 earlier shell run left out: too long]\n\nhi');
+  });
+});
+
+describe('OutputDecoder (Windows output bytes)', () => {
+  const bytes = (...b: number[]) => Uint8Array.from(b);
+  const utf8 = (s: string) => new TextEncoder().encode(s);
+  const decode = (oem: number | null, ...chunks: Uint8Array[]) => {
+    const d = new OutputDecoder(codePageDecoder(oem));
+    return chunks.map((c) => d.push(c)).join('') + d.end();
+  };
+
+  it('reads UTF-8 as UTF-8, also when a character is cut between chunks', () => {
+    const b = utf8('привет ✓ 😀');
+    expect(decode(866, b)).toBe('привет ✓ 😀');
+    for (let i = 1; i < b.length; i++) expect(decode(866, b.subarray(0, i), b.subarray(i))).toBe('привет ✓ 😀');
+  });
+
+  it('reads what is not UTF-8 in the OEM code page: 866 through TextDecoder, 437 and 850 from their own tables', () => {
+    expect(decode(866, bytes(0x8f, 0xe0, 0xa8, 0xa2, 0xa5, 0xe2))).toBe('Привет');
+    expect(decode(437, bytes(0x81, 0x62, 0x65, 0x72))).toBe('über');
+    expect(decode(850, bytes(0x9b, 0x9d))).toBe('øØ');
+    expect(decode(1252, bytes(0xe9))).toBe('é'); // a code page TextDecoder knows as windows-1252
+  });
+
+  it('chunk by chunk: one command may mix UTF-8 (MSYS tools) and the OEM code page (console programs)', () => {
+    expect(decode(866, utf8('ок '), bytes(0xae, 0xaa))).toBe('ок ок');
+  });
+
+  it('a code page it does not know: the odd bytes are U+FFFD, the rest is kept', () => {
+    expect(codePageDecoder(12345)).toBeNull();
+    expect(codePageDecoder(null)).toBeNull();
+    expect(decode(null, bytes(0x61, 0xff, 0x62))).toBe('a�b');
+  });
+
+  it('a lead byte left at the very end is decoded at the end', () => {
+    expect(decode(866, bytes(0x61, 0xe0))).toBe('aр'); // 0xE0 opens a UTF-8 sequence, and is р in 866
   });
 });

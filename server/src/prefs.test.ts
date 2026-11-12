@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { prefsKey, readPrefs, setIdleCompactPref, setModePref, setDictationLangPref, setModelPref, setThemePref } from './prefs.ts';
+import { prefsKey, readPrefs, setIdleCompactPref, setModePref, setDictationLangPref, setModelPref, setShellPref, setThemePref } from './prefs.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -34,6 +34,15 @@ describe('prefs', () => {
     expect(readPrefs().dictationLang).toBe('auto');
     fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ dictationLang: 'Russian' }));
     expect(readPrefs().dictationLang).toBeUndefined();
+  });
+  it('the shell of ! commands round-trips, and a value that is no choice reads as absent (auto)', () => {
+    expect(readPrefs().shell).toBeUndefined();
+    setShellPref('pwsh');
+    expect(readPrefs().shell).toBe('pwsh');
+    setShellPref('auto');
+    expect(readPrefs().shell).toBe('auto');
+    fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ shell: 'fish' }));
+    expect(readPrefs().shell).toBeUndefined();
   });
   it('stores a mode per project dir and keeps the others', () => {
     setModePref('/a', 'plan');
