@@ -10,6 +10,7 @@ import { fakeBackend } from './agent/fake.ts';
 import type { FakeTurn } from './agent/fake.ts';
 import { accessToken } from './auth.ts';
 import { startServer } from './server.ts';
+import { wirePath } from './wirePath.ts';
 
 // `! cmd` over the WebSocket: the one way in (protocol 11)
 
@@ -275,7 +276,7 @@ describe('what the agent hears', () => {
     c.send({ type: 'shell-run', id: 'r2', cmd: 'echo gone' });
     await until(() => !!endOf(c, 'r2'));
     c.send({ type: 'switch', id: SB, dir: other });
-    await until(() => ofKind(c, 'session').some((e) => e.root === other));
+    await until(() => ofKind(c, 'session').some((e) => e.root === wirePath(other)));
     c.send({ type: 'send', id: 'u2', text: 'in B' });
     await until(() => s.backend.prompts.length === 2);
     expect(s.backend.prompts[1]).toBe('in B');
@@ -289,7 +290,7 @@ describe('what the agent hears', () => {
     await until(() => fs.existsSync(pidFile) && fs.readFileSync(pidFile, 'utf8').trim() !== '');
     const pid = Number(fs.readFileSync(pidFile, 'utf8'));
     c.send({ type: 'switch', id: SB, dir: other });
-    await until(() => ofKind(c, 'session').some((e) => e.root === other));
+    await until(() => ofKind(c, 'session').some((e) => e.root === wirePath(other)));
     await until(() => !alive(pid));
     await sleep(100);
     expect(endOf(c)).toBeUndefined();
