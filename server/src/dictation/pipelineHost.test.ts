@@ -95,38 +95,46 @@ export const pipeline = async (task, model, o) => async (audio, opts) => ({ text
     const h = openPipeline(dir);
     const pipe = await h.ready;
     const out = await pipe(new Float32Array(5), { language: 'ru' });
-    expect(out.text).toBe(`automatic-speech-recognition|${WHISPER_MODEL}|${WHISPER_REVISION}|${WHISPER_DTYPE}|5|ru|false|${path.join(dir, 'models')}`);
+    // the model is the pinned revision's folder (no revision option: it is in the path)
+    expect(out.text).toBe(`automatic-speech-recognition|${path.join(dir, 'models', WHISPER_MODEL, WHISPER_REVISION)}||${WHISPER_DTYPE}|5|ru|false|${path.join(dir, 'models')}`);
     await pipe.dispose?.();
   });
-  /** A package in place of transformers.js that writes down whether the load may fetch the model. */
+  /** A package in place of transformers.js that writes down what it was asked to load and whether the load may fetch the model. */
   const recording = (): string => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-pipe-'));
     const pkg = path.join(dir, 'node_modules', '@huggingface', 'transformers');
     fs.mkdirSync(pkg, { recursive: true });
     fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: WHISPER_PACKAGE, version: '0.0.0', type: 'module', main: 'index.js' }));
-    const record = path.join(dir, 'allowRemoteModels');
+    const record = path.join(dir, 'load.json');
     fs.writeFileSync(path.join(pkg, 'index.js'), `import fs from 'node:fs';
 export const env = { allowRemoteModels: true }; // transformers.js's own default
-export const pipeline = async () => { fs.writeFileSync(${JSON.stringify(record)}, String(env.allowRemoteModels)); return async () => ({ text: '' }); };`);
+export const pipeline = async (task, model, options) => { fs.writeFileSync(${JSON.stringify(record)}, JSON.stringify({ task, model, options, remote: env.allowRemoteModels })); return async () => ({ text: '' }); };`);
     return record;
   };
+  const loaded = (record: string): { task: string; model: string; options: Record<string, unknown>; remote: boolean } => JSON.parse(fs.readFileSync(record, 'utf8'));
   it('a load reads the files in the install and nothing else: transformers.js is told not to fetch the model (its default is to)', async () => {
     const record = recording();
     const pipe = await openPipeline(dir).ready;
     await pipe.dispose?.();
-    expect(fs.readFileSync(record, 'utf8')).toBe('false');
+    expect(loaded(record).remote).toBe(false);
+  });
+  it('a load goes by the path of the pinned revision\'s folder, not by the model id: the library\'s file probe ignores the revision, finds no processor offline, and every job would fail', async () => {
+    const record = recording();
+    const pipe = await openPipeline(dir).ready;
+    await pipe.dispose?.();
+    expect(loaded(record)).toEqual({ task: 'automatic-speech-recognition', model: path.join(dir, 'models', WHISPER_MODEL, WHISPER_REVISION), options: { dtype: WHISPER_DTYPE }, remote: false });
   });
   it('the transcription load (loadPipeline) is such a load', async () => {
     const record = recording();
     const pipe = await loadPipeline(dir);
     await pipe.dispose?.();
-    expect(fs.readFileSync(record, 'utf8')).toBe('false');
+    expect(loaded(record)).toMatchObject({ model: path.join(dir, 'models', WHISPER_MODEL, WHISPER_REVISION), remote: false });
   });
-  it('the installer\'s load (download) may fetch the model', async () => {
+  it('the installer\'s load (download) goes by the model id and the pinned revision, and may fetch the model', async () => {
     const record = recording();
     const pipe = await openPipeline(dir, { download: true }).ready;
     await pipe.dispose?.();
-    expect(fs.readFileSync(record, 'utf8')).toBe('true');
+    expect(loaded(record)).toEqual({ task: 'automatic-speech-recognition', model: WHISPER_MODEL, options: { revision: WHISPER_REVISION, dtype: WHISPER_DTYPE }, remote: true });
   });
   it('the detect op softmaxes the language tokens after the start token (a Tensor decoder input, no past cache)', async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-pipe-'));

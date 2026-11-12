@@ -66,12 +66,25 @@ afterAll(() => {
 const started: ChildProcess[] = [];
 const clients: HostClient[] = [];
 const hostPids: number[] = [];
+/** State homes a test used: every host that logged `listening` in one of them is ended too (a host is detached, nothing else holds it). */
+const hostHomes = new Set<string>();
 /** Is `pid` a host of this package's (its command line names the package's host.js)? Nothing else is ever signalled by pid. */
 const isPackagedHost = (pid: number): boolean => spawnSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).stdout.includes(path.join(pkg, 'server/src/host.js'));
 const alive = (pid: number): boolean => { try { process.kill(pid, 0); return true; } catch { return false; } };
+/** The pids of the hosts that logged `listening` in this home's host.log and host.log.1: the logs name every host a window started there. */
+function loggedHostPids(base: string): number[] {
+  const pids: number[] = [];
+  for (const name of ['host.log', 'host.log.1']) {
+    let log = '';
+    try { log = fs.readFileSync(path.join(base, 'whisper-host', name), 'utf8'); } catch { continue; }
+    for (const m of log.matchAll(/whisper-host (\d+): listening/g)) pids.push(Number(m[1]));
+  }
+  return pids;
+}
 function endStarted(): void {
   for (const c of clients.splice(0)) { c.close(); started.push(...c.children); }
-  for (const pid of hostPids.splice(0)) if (alive(pid) && isPackagedHost(pid)) process.kill(pid, 'SIGKILL');
+  for (const base of hostHomes) hostPids.push(...loggedHostPids(base));
+  for (const pid of hostPids.splice(0)) if (alive(pid) && isPackagedHost(pid)) process.kill(pid, 'SIGKILL'); // only after its command line is checked
   for (const child of started.splice(0)) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
 }
 afterEach(() => {
@@ -150,6 +163,7 @@ it('a read-only install runs: --find / --last answer, a window serves /info and 
   const lastAfter = run(['--last', project]);
   expect([lastAfter.status, lastAfter.stdout.trim()]).toEqual([0, id]);
 
+  hostHomes.add(home); // whatever the packaged server starts here is ended after the test, whatever happened in it
   // Whisper is installed (a stub package) and on, so that the window's own dictation route has a job for the packaged host
   stubWhisper(home);
   fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ whisper: true }));
@@ -213,12 +227,14 @@ describe.skipIf(process.platform === 'win32')('the Whisper host in the package',
   let base: string;
   beforeEach(() => {
     base = fs.realpathSync(fs.mkdtempSync(path.join(SHORT, 'nbw-')));
+    hostHomes.add(base);
     vi.stubEnv('NOTA_BENE_HOME', base);
     vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '2000');
   });
   // a describe's hook runs before the file's: the processes are ended first here too, then the folder they used goes
   afterEach(() => {
     endStarted();
+    hostHomes.delete(base);
     fs.rmSync(base, { recursive: true, force: true });
   });
 
@@ -260,11 +276,28 @@ describe.skipIf(process.platform === 'win32')('the Whisper host in the package',
     stubWhisper(base);
     const told: unknown[] = [];
     const c = new HostClient({ entry: hostJs(), report: (_where, e) => { told.push(e); } });
-    clients.push(c); // closed, and its host killed, after the test whatever happened in it
+    clients.push(c); // closed, and its host ended, after the test whatever happened in it
     expect(await c.transcribe(new Float32Array(160).fill(0.25), 'en', false)).toEqual({ text: 'heard 160', lang: 'en' });
     expect(c.spawned).toBe(1);
     expect(await c.status()).toMatchObject({ loaded: true, running: false });
     expect(told).toEqual([]);
+  });
+
+  it('a host that nothing in the test holds (detached, its pid never learned by the test) is ended through the log of its home', async () => {
+    stubWhisper(base);
+    vi.stubEnv('NOTA_BENE_TEST_WHISPER_IDLE_MS', '60000'); // it does not idle out by itself within the test: only the log can end it
+    const c = new HostClient({ entry: hostJs(), report: () => {} }); // not in `clients`, its child not in `started`
+    let pid = 0;
+    try {
+      expect(await c.transcribe(new Float32Array(160).fill(0.25), 'en', false)).toEqual({ text: 'heard 160', lang: 'en' });
+      pid = loggedHostPids(base)[0]!;
+      expect(isPackagedHost(pid)).toBe(true);
+      endStarted(); // what a failed test's afterEach does
+      await until(() => !alive(pid), 10_000);
+    } finally {
+      c.close();
+      if (pid && alive(pid) && isPackagedHost(pid)) process.kill(pid, 'SIGKILL'); // the test's own net: the one under test did not end it
+    }
   });
 });
 

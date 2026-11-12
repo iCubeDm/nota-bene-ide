@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS, main, MAX_CLIENTS, MAX_FAILURE_MESSAGE, MAX_QUEUED_BYTES, MAX_QUEUED_PER_CLIENT, MAX_QUEUED_TOTAL, startHost, WHISPER_IDLE_MS, type Host, type HostOptions } from './hostMain.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostSocketPath, MAX_HEADER, pcmToInt16, type Header } from './hostWire.ts';
 import type { WorkerData, WorkerFactory, WorkerLike } from './pipelineHost.ts';
-import { MAX_AUDIO, WHISPER_MODEL, WHISPER_PACKAGE } from './whisper.ts';
+import { MAX_AUDIO, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION } from './whisper.ts';
 
 type Call = { worker: FakeWorker; id: number; audio: Float32Array; opts?: Record<string, unknown>; detect?: boolean };
 
@@ -1072,7 +1072,7 @@ export const pipeline = async (task, model) => ${body};`);
       const c = await Conn.open(hostSocketPath());
       conns.push(c);
       c.send(job(1, { lang: 'ru', detect: false }), pcm(5));
-      expect(await c.next((m) => m.id === 1)).toEqual({ id: 1, text: `automatic-speech-recognition|${WHISPER_MODEL}|5|ru`, lang: 'ru' });
+      expect(await c.next((m) => m.id === 1)).toEqual({ id: 1, text: `automatic-speech-recognition|${path.join(tmp, 'whisper', 'models', WHISPER_MODEL, WHISPER_REVISION)}|5|ru`, lang: 'ru' }); // the host's load is by the revision's folder
       c.send({ type: 'shutdown', reason: 'removed' });
       expect(await exit).toEqual({ code: 0, wedged: false });
       expect(fs.existsSync(hostSocketPath())).toBe(false);
