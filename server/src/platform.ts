@@ -28,6 +28,14 @@ function envGet(env: Env, name: string, platform: Platform): string | undefined 
 const isFile = (p: string): boolean => {
   try { return fs.statSync(p).isFile(); } catch { return false; }
 };
+// A Windows app execution alias (`%LOCALAPPDATA%\Microsoft\WindowsApps\pwsh.exe` of a Store install): a reparse point that
+// lstat calls a link and stat cannot follow (EACCES), though CreateProcess runs it. A dangling link (ENOENT) is no binary.
+const isAppAlias = (p: string): boolean => {
+  try {
+    if (!fs.lstatSync(p).isSymbolicLink()) return false;
+  } catch { return false; }
+  try { fs.statSync(p); return false; } catch (e) { return (e as NodeJS.ErrnoException).code !== 'ENOENT'; }
+};
 const isExecutable = (p: string): boolean => {
   if (!isFile(p)) return false;
   try { fs.accessSync(p, fs.constants.X_OK); return true; } catch { return false; }
@@ -36,7 +44,7 @@ const isExecutable = (p: string): boolean => {
 /**
  * The full path of the binary `name` would run, or null. Pure stat checks, nothing is spawned.
  * Windows: every PATH folder × PATHEXT (default `.COM;.EXE;.BAT;.CMD`), so `npm` finds `npm.cmd`, never the extensionless
- * sh script next to it. A name that already ends in a PATHEXT extension is looked up as is; a name with a folder part is
+ * sh script next to it; a Store app's execution alias counts as a file. A name that already ends in a PATHEXT extension is looked up as is; a name with a folder part is
  * not searched in PATH (with PATHEXT appended when it has no such extension). The current folder is never searched.
  * POSIX: the first executable regular file named `name` in PATH; a name containing `/` is checked as is.
  */
@@ -58,7 +66,7 @@ export function resolveBin(name: string, { env = process.env, platform = process
     for (const c of candidates) {
       // the host's join: on a real Windows host this is path.win32; tests of this branch on POSIX use POSIX temp folders
       const p = dir ? path.join(dir, c) : c;
-      if (isFile(p)) return p;
+      if (isFile(p) || isAppAlias(p)) return p;
     }
   }
   return null;

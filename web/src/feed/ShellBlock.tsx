@@ -4,6 +4,7 @@ import { stopShell } from '@/composer/shellMode.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { useAppDispatch } from '@/store/store.ts';
 import { Button } from '@/components/ui/button.tsx';
+import { shellError } from '@/settings/shells.ts';
 
 /** A `! cmd` run (protocol 11): the command, its merged output, and how it ended; Stop while it runs. */
 export function ShellBlock({ item }: { item: Extract<FeedItem, { kind: 'shell' }> }) {
@@ -17,7 +18,7 @@ export function ShellBlock({ item }: { item: Extract<FeedItem, { kind: 'shell' }
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [item.output]);
   const how = item.running ? null
-    : item.error ? t('shellCouldNot', item.error)
+    : item.error ? t('shellCouldNot', shellError(t, item.error))
     : item.stop === 'timeout' ? t('shellTimedOut')
     : item.stop === 'user' ? t('shellStopped')
     : item.code !== null ? t('shellExit', item.code)

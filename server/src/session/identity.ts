@@ -1,7 +1,6 @@
 import type { EmitInput } from '../hub.ts';
 import { samePath } from '../platform.ts';
 import { saveSession } from '../state.ts';
-import { samePath } from '../platform.ts';
 import { wirePath } from '../wirePath.ts';
 import { SESSION_ID, realOr } from './target.ts';
 

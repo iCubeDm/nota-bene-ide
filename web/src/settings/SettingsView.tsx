@@ -13,6 +13,7 @@ import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
 import { uiScale, useUiScale } from '@/shell/uiScale.ts';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '@/shell/theme.ts';
 import { folderName, shortWinHome } from '@/lib/paths.ts';
+import { SHELL_NAMES, WIN_SHELLS, type ShellChoice, type WinShell } from './shells.ts';
 
 type Size = { bytes: number; files: number };
 /** `history`: the archive before compactions (R-M7-1); absent from a server older than M7-12 */
@@ -73,6 +74,27 @@ const Row = ({ label, children }: { label: ReactNode; children: ReactNode }) => 
   </div>
 );
 
+/** Windows only (the server sends `shells` there): which shell runs `! cmd`. A choice that is not installed stays selectable
+ *  and is marked: a run with it is refused, never handed to another shell. */
+function ShellRow({ choice, found, onChoose }: { choice: ShellChoice; found: Record<WinShell, string | null>; onChoose: (c: ShellChoice) => void }) {
+  const t = useT();
+  const auto = WIN_SHELLS.slice(0, 3).find((s) => found[s]);
+  const name = (s: WinShell) => (found[s] ? SHELL_NAMES[s] : t('defShellMissing', SHELL_NAMES[s]));
+  return (
+    <Row label={t('defShell')}>
+      <span className="flex flex-col gap-1">
+        <select aria-label={t('defShell')} value={choice} onChange={(e) => onChoose(e.target.value as ShellChoice)}
+          className="w-fit rounded-md border border-border-soft bg-transparent px-2 py-1 text-[0.8125rem] text-foreground">
+          <option value="auto">{auto ? t('defShellAuto', SHELL_NAMES[auto]) : t('defShellAutoNone')}</option>
+          {WIN_SHELLS.map((s) => <option key={s} value={s}>{name(s)}</option>)}
+        </select>
+        {choice !== 'auto' && !found[choice] ? <span role="alert" className="text-xs text-warn">{t('defShellMissingHint', SHELL_NAMES[choice])}</span>
+          : <span className="text-xs text-muted-foreground">{choice === 'auto' ? t('defShellAutoHint') : found[choice]}</span>}
+      </span>
+    </Row>
+  );
+}
+
 /**
  * The Settings tab (M6-15, R-M6-4): everything outside a session. Windows (every Nota Bene window, with restart and
  * stop for the others), Storage (sizes; moving unreferenced pasted images to the trash), Defaults, About.
@@ -86,7 +108,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const windows = useLoad<WindowRow[]>('/system/windows', active);
   const storage = useLoad<Storage>('/system/storage', active);
   const about = useLoad<About>('/system/about', active);
-  const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean; audit?: boolean; auditDir?: string }>('/system/prefs', active);
+  const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean; audit?: boolean; auditDir?: string; shell?: ShellChoice; shells?: Record<WinShell, string | null> }>('/system/prefs', active);
   const upd = useLoad<{ auto: boolean }>('/system/update', active);
   const dict = useLoad<Dictation>('/dictation', active);
   const [ask, setAsk] = useState<{ title: string; body: string; confirm: string; run: () => Promise<void> } | null>(null);
@@ -130,7 +152,7 @@ export function SettingsView({ active }: { active: boolean }) {
     }
     storage.reload();
   };
-  const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean } | { audit: boolean }) => {
+  const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean } | { audit: boolean } | { shell: ShellChoice }) => {
     try {
       const r = await postJson('/system/prefs', pref);
       if (!r.ok) throw new Error(`${r.status}`);
@@ -313,6 +335,7 @@ export function SettingsView({ active }: { active: boolean }) {
             </span>
           )}
         </Row>
+        {prefs.data?.shells && <ShellRow choice={prefs.data.shell ?? 'auto'} found={prefs.data.shells} onChoose={(shell) => void savePref({ shell })} />}
       </Section>
 
       <Section title={t('setThemes')}>

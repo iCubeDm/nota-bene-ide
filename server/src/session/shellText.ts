@@ -47,6 +47,89 @@ function clean(t: string): string {
   return t.replace(SEQ_G, '').replace(/\r\n?/g, '\n').replace(/\x1b/g, '').replace(CONTROLS, '');
 }
 
+// how many bytes at the end of `b` start a UTF-8 sequence that the next chunk completes (0: none)
+function partialUtf8(b: Uint8Array): number {
+  for (let i = 1; i <= Math.min(3, b.length); i++) {
+    const c = b[b.length - i]!;
+    if ((c & 0xc0) === 0x80) continue; // a continuation byte: look further back for the lead
+    const need = c >= 0xf0 ? 4 : c >= 0xe0 ? 3 : c >= 0xc0 ? 2 : 1;
+    return need > i ? i : 0;
+  }
+  return 0;
+}
+
+const NONE = new Uint8Array(0);
+
+/**
+ * Text out of a Windows process's output bytes. Console programs there write a pipe in the OEM code page (cmd, both
+ * PowerShells, ipconfig: 866 on a Russian system, 437 on a US one), the MSYS tools of Git Bash and most newer programs write
+ * UTF-8, and one command may mix them. So each chunk is read as UTF-8 when it is valid UTF-8 (OEM text with letters beyond
+ * ASCII rarely is), else in `oem`; without one (a code page TextDecoder does not know) the odd bytes become U+FFFD. A UTF-8
+ * sequence cut at a chunk's end is held for the next chunk. Not used on macOS and Linux: their output is read as UTF-8.
+ */
+export class OutputDecoder {
+  private held: Uint8Array = NONE;
+  private readonly utf8 = new TextDecoder('utf-8', { fatal: true });
+  private readonly other: Decoder;
+
+  constructor(oem: Decoder | null) {
+    this.other = oem ?? new TextDecoder('utf-8');
+  }
+
+  push(chunk: Uint8Array): string {
+    let b = chunk;
+    if (this.held.length) {
+      b = new Uint8Array(this.held.length + chunk.length);
+      b.set(this.held);
+      b.set(chunk, this.held.length);
+    }
+    const keep = partialUtf8(b);
+    this.held = keep ? b.slice(b.length - keep) : NONE;
+    return this.decode(keep ? b.subarray(0, b.length - keep) : b);
+  }
+
+  /** The end of the stream: whatever is still held. */
+  end(): string {
+    const b = this.held;
+    this.held = NONE;
+    return b.length ? this.decode(b) : '';
+  }
+
+  private decode(b: Uint8Array): string {
+    if (!b.length) return '';
+    try {
+      return this.utf8.decode(b);
+    } catch {
+      return this.other.decode(b);
+    }
+  }
+}
+
+type Decoder = { decode(b: Uint8Array): string };
+
+// TextDecoder's names of the OEM code pages that are not `ibm<n>` or `windows-<n>`
+const CODE_PAGE_LABELS: Record<number, string> = { 932: 'shift_jis', 936: 'gbk', 949: 'euc-kr', 950: 'big5', 65001: 'utf-8' };
+// 0x80–0xFF of the two usual OEM code pages TextDecoder leaves out (WHATWG has no DOS code pages but 866): the US and the
+// Western European one, as Windows maps them
+const HIGH_HALF: Record<number, string> = {
+  437: 'ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ',
+  850: 'ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜø£Ø×ƒáíóúñÑªº¿®¬½¼¡«»░▒▓│┤ÁÂÀ©╣║╗╝¢¥┐└┴┬├─┼ãÃ╚╔╩╦╠═╬¤ðÐÊËÈıÍÎÏ┘┌█▄¦Ì▀ÓßÔÒõÕµþÞÚÛÙýÝ¯´­±‗¾¶§÷¸°¨·¹³²■ ',
+};
+
+/** A decoder for Windows code page `cp`, or null for one it does not know. */
+export function codePageDecoder(cp: number | null): Decoder | null {
+  if (!cp) return null;
+  const high = HIGH_HALF[cp];
+  if (high) return { decode: (b) => { let s = ''; for (const c of b) s += c < 0x80 ? String.fromCharCode(c) : high[c - 0x80]!; return s; } };
+  for (const label of [CODE_PAGE_LABELS[cp], `ibm${cp}`, `windows-${cp}`]) {
+    if (!label) continue;
+    try {
+      return new TextDecoder(label);
+    } catch { /* not this name */ }
+  }
+  return null;
+}
+
 /** The last `cap` characters pushed; `cut` says anything was dropped from the front. */
 export class Tail {
   text = '';

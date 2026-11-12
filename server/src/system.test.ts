@@ -221,6 +221,23 @@ describe('defaults and about', () => {
     expect(readPrefs().audit).toBe(false);
   });
 
+  it('the shell of ! commands: stored and validated; only Windows shows it, with where each choice is installed', async () => {
+    const s = await boot();
+    const read = async () => (await fetch(`${s.url}/system/prefs`)).json() as Promise<{ shell?: string; shells?: Record<string, string | null> }>;
+    const got = await read();
+    if (process.platform === 'win32') {
+      expect(got.shell).toBe('auto');
+      expect(Object.keys(got.shells!).sort()).toEqual(['cmd', 'git-bash', 'powershell', 'pwsh']);
+      expect(got.shells!.cmd).toMatch(/cmd\.exe$/i);
+    } else {
+      expect('shell' in got || 'shells' in got).toBe(false); // $SHELL runs it, as always
+    }
+    expect((await post(`${s.url}/system/prefs`, { shell: 'fish' }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { shell: 'cmd' }, { origin: s.origin })).status).toBe(200);
+    expect(readPrefs().shell).toBe('cmd');
+    if (process.platform === 'win32') expect(await read()).toMatchObject({ shell: 'cmd' });
+  });
+
   it('the default mode is stored and validated', async () => {
     const s = await boot();
     expect(await (await fetch(`${s.url}/system/prefs`)).json()).toMatchObject({ defaultMode: 'auto' });

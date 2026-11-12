@@ -74,6 +74,18 @@ it('says why a stopped command ended: the user, the timeout, or a failure to sta
   expect(how).toEqual(['stopped', 'stopped: it ran longer than 10 minutes', 'could not run: spawn /bin/sh ENOENT']);
 });
 
+it('words the server’s refusals for the shell setting (Windows) in the user’s language', () => {
+  setLang('ru');
+  const { feed } = setup();
+  feed(start('a')); feed(end({ id: 'a', code: null, error: 'shell-missing:pwsh' }));
+  feed(start('b')); feed(end({ id: 'b', code: null, error: 'shell-cmd-one-line' }));
+  const how = screen.getAllByTestId('shell-how').map((e) => e.textContent);
+  expect(how).toEqual([
+    'не удалось запустить: PowerShell 7 не установлен (Настройки → По умолчанию → Оболочка для команд !)',
+    'не удалось запустить: cmd выполняет одну строку: объедините команды через &',
+  ]);
+});
+
 it('marks a cut output, and says so when a command printed nothing', () => {
   const { feed } = setup();
   feed(start('a')); feed(end({ id: 'a', output: 'tail', truncated: true }));

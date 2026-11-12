@@ -68,6 +68,23 @@ describe('resolveBin on win32', () => {
     fs.mkdirSync(path.join(tmp, 'd.exe'), { recursive: true });
     expect(resolveBin('d', opts({ PATH: tmp }))).toBeNull();
   });
+
+  // a file symlink needs admin or Developer Mode on Windows
+  it.skipIf(win32)('a dangling link is no binary', () => {
+    fs.symlinkSync(path.join(tmp, 'gone.exe'), path.join(tmp, 'x.exe'));
+    expect(resolveBin('x', opts({ PATH: tmp }))).toBeNull();
+  });
+
+  // a Store app's execution alias (pwsh, winget, python): a link that stat cannot follow, which CreateProcess runs
+  const apps = win32 && process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps') : '';
+  const alias = (() => {
+    try {
+      return fs.readdirSync(apps).find((f) => /\.exe$/i.test(f) && fs.lstatSync(path.join(apps, f)).isSymbolicLink());
+    } catch { return undefined; }
+  })();
+  it.skipIf(!alias)('finds a Windows app execution alias', () => {
+    expect(resolveBin(alias!.replace(/\.exe$/i, ''), opts({ PATH: apps }))).toBe(path.join(apps, alias!));
+  });
 });
 
 // POSIX PATH uses ':' as its separator, which a Windows temp path (C:\...) contains.
