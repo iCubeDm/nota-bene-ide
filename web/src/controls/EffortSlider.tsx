@@ -91,16 +91,22 @@ export function EffortSlider({ levels, value, echo, onPick }: {
     >
       <span className="text-[0.6875rem] text-muted-foreground">{t('effortLabel')}</span>
       <div ref={track} className="relative mx-2 h-5 min-w-0 flex-1">
-        <div aria-hidden className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border-soft" />
+        {/* the bar reaches an anchor and a half past both end stops, so the end anchors sit inside its rounded ends */}
+        <div aria-hidden className="absolute -inset-x-1.5 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-muted-foreground/25" />
+        {/* the fill: from the bar's left end to the centre of the current stop (the content width is the stop's percentage) */}
+        <div aria-hidden data-fill style={{ width: `${pct(shown)}%` }}
+          className={`absolute -left-1.5 top-1/2 box-content h-1.5 -translate-y-1/2 rounded-full bg-primary pl-1.5 motion-reduce:transition-none ${drag === null ? 'transition-[width] duration-[120ms]' : ''}`} />
         {stops.map((_, i) => (
           // the stop's hit area is wider than its dot
           <span key={i} data-stop={i} onPointerEnter={() => setHover(i)} style={{ left: `${pct(i)}%` }}
-            className="absolute top-0 flex h-5 w-4 -translate-x-1/2 cursor-pointer items-center justify-center">
-            <span aria-hidden className={`size-1 rounded-full ${i <= shown ? 'bg-primary' : 'bg-muted-foreground/60'}`} />
+            className="group absolute top-0 flex h-5 w-4 -translate-x-1/2 cursor-pointer items-center justify-center">
+            <span aria-hidden
+              className={`size-1.5 rounded-full transition-transform motion-reduce:transition-none group-hover:scale-125 ${i <= shown ? 'bg-primary-foreground' : 'bg-muted-foreground/60'}`} />
           </span>
         ))}
-        <span aria-hidden style={{ left: `${pct(shown)}%` }}
-          className="pointer-events-none absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-sm" />
+        {/* the thumb is the current anchor: larger, ringed in the menu's own colour so it reads as the handle */}
+        <span aria-hidden data-thumb style={{ left: `${pct(shown)}%` }}
+          className={`pointer-events-none absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-popover motion-reduce:transition-none ${drag === null ? 'transition-[left] duration-[120ms]' : ''}`} />
       </div>
       {/* a fixed slot, so the row does not jump with the name */}
       <span aria-hidden className={`w-24 shrink-0 truncate text-right text-[0.6875rem] ${label === shown && hover === null ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
