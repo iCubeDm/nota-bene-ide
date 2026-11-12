@@ -147,12 +147,13 @@ describe('dictation routes', () => {
     };
     const install = { npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} };
 
-    it('stops the host first, while the install is still there, then deletes it', async () => {
-      const seen: { reason?: string; installed?: boolean }[] = [];
-      const base = await serve(install, undefined, { ...noHost, stopHost: async (reason) => { seen.push({ reason, installed: whisperPhase() === 'ready' }); return { pid: 4242, gone: true, signalled: false }; } });
+    it('turns Whisper off and the install not ready first, then stops the host while the files are still there, then deletes them', async () => {
+      const seen: { reason?: string; phase?: string; on?: boolean; files?: boolean }[] = [];
+      const base = await serve(install, undefined, { ...noHost, stopHost: async (reason) => { seen.push({ reason, phase: whisperPhase(), on: readPrefs().whisper, files: fs.existsSync(path.join(whisperDir(), 'node_modules')) }); return { pid: 4242, gone: true, held: false, signalled: false }; } });
       await ready(base);
+      expect(readPrefs().whisper).toBe(true);
       expect((await post(base, '/dictation/remove')).status).toBe(200);
-      expect(seen).toEqual([{ reason: 'removed', installed: true }]);
+      expect(seen).toEqual([{ reason: 'removed', phase: 'none', on: false, files: true }]);
       expect(fs.existsSync(whisperDir())).toBe(false);
       expect(readPrefs().whisper).toBe(false);
     });

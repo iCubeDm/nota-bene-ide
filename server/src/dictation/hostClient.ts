@@ -8,6 +8,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { takeLockFile } from '../runtime.ts';
+import { whisperPhase } from './install.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostDir, hostSocketPath, jobDeadlineMs, LOAD_DEADLINE_MS, pcmToInt16, privateDir, WireError, type Header, type JobOpts } from './hostWire.ts';
 import type { Spoken } from './speak.ts';
 
@@ -57,6 +58,9 @@ export class ClientClosed extends Error {
 
 /** How long a window waits for the answer to a job of `samples`. */
 export const clientDeadlineMs = (samples: number): number => LOAD_DEADLINE_MS + jobDeadlineMs(samples) + JOB_MARGIN_MS;
+
+/** What `stopHost` did to a host (see there); `next` is a second host that took the socket name. */
+export type StopResult = { pid: number; gone: boolean; held: boolean; signalled: boolean; next?: StopResult };
 
 /** What a host says about itself; `clients` is the windows connected to it, not the connection the question came in on. */
 export type HostInfo = { pid: number; loaded: boolean; queued: number; running: boolean; clients: number };
@@ -360,7 +364,7 @@ export class HostClient {
       try {
         conn = await abortable(this.connect(socketPath), signal);
       } catch (e) {
-        if (signal?.aborted || e instanceof ClientClosed) throw e;
+        if (signal?.aborted || e instanceof ClientClosed || e instanceof WhisperOff) throw e; // Whisper removed: no host is started for the job, here or there
         return here(); // counted by connect() when it is a failure
       }
       try {
@@ -399,13 +403,13 @@ export class HostClient {
   }
 
   /**
-   * Tells the running host to stop (Remove does this before it deletes the install) and waits up to `waitMs` for it to end.
-   * Null when no host was running (or one that was stopping already); else its pid and whether its socket name is gone, so that
-   * the caller can end a host that is not (SIGTERM to the pid) before it goes on. Throws when a host is there and cannot be
-   * talked to (it does not answer `hello`, it speaks another protocol, it has all the windows it takes and this window has no
-   * connection to it).
+   * Tells the running host to stop (Remove does this before it deletes the install) and waits up to `waitMs` for it to end the
+   * connection. Null when no host was running (or one that was stopping already); else its pid, whether its socket name is gone,
+   * and `held`: the connection was still open after `waitMs`, so the host did not do what it was told (and is a live process whose
+   * pid it said itself). Throws when a host is there and cannot be talked to (it does not answer `hello`, it speaks another
+   * protocol, it has all the windows it takes and this window has no connection to it).
    */
-  async shutdown(reason = 'shutdown', waitMs = 5000): Promise<{ pid: number; gone: boolean } | null> {
+  async shutdown(reason = 'shutdown', waitMs = 5000): Promise<{ pid: number; gone: boolean; held: boolean } | null> {
     const socketPath = this.place(false);
     if (!socketPath) return null;
     // this window's own connection when it has one (a host that is full takes no other), else a short one of its own
@@ -422,28 +426,38 @@ export class HostClient {
     let timer: NodeJS.Timeout | undefined;
     await Promise.race([c.ended, new Promise<void>((resolve) => { timer = setTimeout(resolve, waitMs); })]);
     clearTimeout(timer);
+    const held = !c.closed;
     c.close();
-    return { pid: c.pid, gone: !fs.existsSync(socketPath) };
+    return { pid: c.pid, gone: !fs.existsSync(socketPath), held };
   }
 
   /**
-   * `shutdown`, and a host whose socket name is still there after `waitMs` gets SIGTERM: Remove must not leave a host that serves
-   * a model nobody can ask for. The pid is the one the host answered `hello` with on this socket a moment ago, so no unrelated
-   * process is signalled (and never this one, or a group). Null when no host was running. `signalled` says SIGTERM went out.
+   * `shutdown`, and a host that kept our connection open after `waitMs` gets SIGTERM: Remove must not leave a host that serves a
+   * model nobody can ask for. Only such a host is signalled, and the pid is the one it answered `hello` with on that very
+   * connection, so it is the live peer and no process that has the pid by now (never this process, either, or a group). When the
+   * connection ended but the socket name still answers, it is another host's (this one's was a host of the same install that went
+   * and a new one took the name): that one is asked once, on a connection of its own, by the same rule. Null when no host was running.
+   * `signalled` says SIGTERM went out; `next` is that second host.
    */
-  async stopHost(reason = 'removed', waitMs = 5000): Promise<{ pid: number; gone: boolean; signalled: boolean } | null> {
+  async stopHost(reason = 'removed', waitMs = 5000): Promise<StopResult | null> {
+    const first = await this.stopOne(reason, waitMs);
+    if (!first) return null;
+    if (first.held || first.gone) return first;
+    const next = await this.stopOne(reason, waitMs);
+    return next ? { ...first, next } : first;
+  }
+
+  private async stopOne(reason: string, waitMs: number): Promise<StopResult | null> {
     const r = await this.shutdown(reason, waitMs);
     if (!r) return null;
     let signalled = false;
-    if (!r.gone && r.pid > 1 && r.pid !== process.pid) {
-      const kill = this.o.kill ?? ((pid, signal) => { process.kill(pid, signal); });
+    if (r.held && r.pid > 1 && r.pid !== process.pid) {
       try {
-        kill(r.pid, 0); // still there?
-        kill(r.pid, 'SIGTERM');
+        (this.o.kill ?? ((pid, signal) => { process.kill(pid, signal); }))(r.pid, 'SIGTERM');
         signalled = true;
       } catch { /* it went by itself, or it is not ours to signal */ }
     }
-    return { ...r, signalled };
+    return { pid: r.pid, gone: r.gone, held: r.held, signalled };
   }
 
   /**
@@ -495,8 +509,8 @@ export class HostClient {
         if (epoch !== this.epoch) { c.close(); throw new ClientClosed(); } // closed meanwhile: not ours to keep
         return this.conn = c;
       } catch (e) {
-        // a host that is full, a window that closed, an install with no host to start are not the host failing
-        if (!(e instanceof HostFull || e instanceof NoHost || e instanceof ClientClosed)) this.fail(e);
+        // a host that is full, a window that closed, an install with no host to start, Whisper gone are not the host failing
+        if (!(e instanceof HostFull || e instanceof NoHost || e instanceof ClientClosed || e instanceof WhisperOff)) this.fail(e);
         throw e;
       } finally {
         if (this.connecting === attempt) this.connecting = undefined;
@@ -590,6 +604,9 @@ export class HostClient {
   /** Starts a host (detached, its output in <dir>/host.log, the last one's in host.log.1) and waits for its socket to answer. */
   private async spawnHost(socketPath: string, dir: string, entry: string, epoch: number): Promise<HostConn> {
     if (epoch !== this.epoch) throw new ClientClosed(); // right before the spawn: a window that closed (a test ended) starts no host
+    // and one for an install that is not ready (never installed, or Remove has begun) starts none either: the host would load from
+    // files that are going, and could download the model again into the folder Remove is deleting. Nothing awaits between this and the spawn.
+    if (whisperPhase() !== 'ready') throw new WhisperOff('Whisper is not installed');
     const logFile = path.join(dir, 'host.log');
     try { fs.renameSync(logFile, `${logFile}.1`); } catch { /* the first start */ } // a live host keeps writing to its own file
     const log = fs.openSync(logFile, 'w', 0o600);

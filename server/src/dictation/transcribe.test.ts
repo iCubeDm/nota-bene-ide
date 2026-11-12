@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { queued, resetTranscriber, transcribe } from './transcribe.ts';
+import { WhisperOff } from './hostClient.ts';
+import { queued, resetTranscriber, transcribe, transcribeLocal } from './transcribe.ts';
 
 describe('transcribe', () => {
+  it('the in-process load of an install that does not read as ready (never installed, or Remove has begun) is refused: Whisper off, no worker started', async () => {
+    resetTranscriber();
+    // this file's home has no install: its default load would start a worker thread that cannot find the package, and fail otherwise
+    await expect(transcribeLocal(new Float32Array(16), 'en')).rejects.toBeInstanceOf(WhisperOff);
+    await expect(transcribeLocal(new Float32Array(16), 'en')).rejects.toBeInstanceOf(WhisperOff); // and it is not cached as a load
+  });
   it('without detect the language is the one asked for, whatever the pipeline could detect', async () => {
     resetTranscriber();
     const calls: unknown[] = [];

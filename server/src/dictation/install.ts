@@ -41,9 +41,9 @@ export function loadPipeline(dir: string = whisperDir(), o: { worker?: WorkerFac
   return openPipeline(dir, o).ready;
 }
 
-/** Loads the model once in a worker that is ended afterwards; `signal` ends it early (the download timed out). */
+/** Loads the model once in a worker that is ended afterwards; `signal` ends it early (the download timed out). The only load that may download. */
 async function defaultFetchModel(dir: string, signal?: AbortSignal): Promise<void> {
-  const h = openPipeline(dir);
+  const h = openPipeline(dir, { download: true });
   const stop = () => h.close(new Error('model download timed out'));
   if (signal?.aborted) stop(); else signal?.addEventListener('abort', stop, { once: true });
   try {
@@ -96,6 +96,17 @@ async function fetchWithTimeout(fetchModel: (dir: string, signal?: AbortSignal) 
   const job = fetchModel(dir, ac.signal);
   job.catch(() => {}); // when the timeout wins, its late rejection is not unhandled
   try { await Promise.race([job, timeout]); } finally { clearTimeout(timer); }
+}
+
+/**
+ * Makes the install read as not installed (`ready.json` goes), which is what Remove does first: from then on no window starts a host
+ * or a load from files that are about to go. Refused (false) while a live process holds the install lock, as `removeWhisper` is.
+ */
+export function withdrawWhisper(): boolean {
+  const l = readLock(lockFile());
+  if (l && l !== 'stale') return false;
+  fs.rmSync(readyFile(), { force: true });
+  return true;
 }
 
 /** Deletes the install, never while a live process holds the install lock (this one included). Returns false when refused. */

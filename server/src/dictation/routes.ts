@@ -2,7 +2,7 @@
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import type { EventHub } from '../hub.ts';
 import { isDictationLang, readPrefs, setDictationLangPref, setWhisperPref } from '../prefs.ts';
-import { installWhisper, removeWhisper, whisperDir, whisperPhase } from './install.ts';
+import { installWhisper, removeWhisper, whisperDir, whisperPhase, withdrawWhisper } from './install.ts';
 import { hostClient, WhisperBusy, WhisperOff, type HostClient } from './hostClient.ts';
 import { queued, resetTranscriber, spokenOf, transcribeWith as defaultTranscribe, type SpokenOrText } from './transcribe.ts';
 import { pcmFromWav, WavError } from './wav.ts';
@@ -91,13 +91,16 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
       json(res, 200, { ok: true });
     }),
     '/dictation/remove': post(async (_req, res) => {
-      if (whisperPhase() === 'installing') return json(res, 409, { error: 'installing' }); // nothing of it is stopped for a refusal
-      // the Whisper host serves from this install: it stops first (jobs waiting for it fail as `off`), so that no process goes on
+      // first of all Whisper is off and the install no longer reads as ready (a refusal, while an install runs, stops nothing): a
+      // dictation that passed its gate before, or a job that retries after the host is stopped, then finds Whisper off instead of
+      // starting a host (or a load) from files that are about to go
+      if (!withdrawWhisper()) return json(res, 409, { error: 'installing' });
+      setWhisperPref(false);
+      // the Whisper host serves from this install: it stops next (jobs waiting for it fail as `off`), so that no process goes on
       // holding a model that cannot be asked for. A host that cannot be stopped is told, and the removal goes on.
       try { await host.stopHost('removed'); } catch (e) { reportError(o.hub, 'whisper-host', e); }
       if (!removeWhisper()) return json(res, 409, { error: 'installing' });
       resetTranscriber();
-      setWhisperPref(false);
       json(res, 200, { ok: true });
     }),
     '/dictation/transcribe': post(async (req, res) => {

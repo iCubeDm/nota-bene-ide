@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { installWhisper, removeWhisper, whisperDir, whisperPhase } from './install.ts';
+import { installWhisper, loadPipeline, removeWhisper, whisperDir, whisperPhase, withdrawWhisper } from './install.ts';
 import { WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION, WHISPER_VERSION } from './whisper.ts';
 
 let home: string;
@@ -53,6 +53,42 @@ describe('installWhisper', () => {
     let prefix = '';
     await installWhisper({ npm: '/fake/npm', spawn: async (_cmd, args) => { prefix = args[args.indexOf('--prefix') + 1]; return npmOk(); }, fetchModel: async () => {} });
     expect(prefix).toBe(fs.realpathSync(path.join(home, 'whisper')));
+  });
+
+  it('the install\'s own model fetch is the one load that may download; every other load reads the install only', async () => {
+    // the real worker thread with a package in place of transformers.js, which writes down what the load was allowed to do
+    const record = path.join(home, 'allowRemoteModels');
+    const npm = async (): Promise<Done> => {
+      const pkg = path.join(whisperDir(), 'node_modules', ...WHISPER_PACKAGE.split('/'));
+      fs.mkdirSync(pkg, { recursive: true });
+      fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: WHISPER_PACKAGE, version: '0.0.0', type: 'module', main: 'index.js' }));
+      fs.writeFileSync(path.join(pkg, 'index.js'), `import fs from 'node:fs';
+export const env = { allowRemoteModels: true };
+export const pipeline = async () => { fs.appendFileSync(${JSON.stringify(record)}, String(env.allowRemoteModels) + '\\n'); return async () => ({ text: '' }); };`);
+      return ok;
+    };
+    await installWhisper({ npm: '/fake/npm', spawn: npm }); // no fetchModel of its own: the default one runs the worker
+    expect(whisperPhase()).toBe('ready');
+    expect(fs.readFileSync(record, 'utf8')).toBe('true\n');
+    await (await loadPipeline()).dispose?.(); // and the load of a window or a host afterwards
+    expect(fs.readFileSync(record, 'utf8')).toBe('true\nfalse\n');
+  });
+
+  it('withdrawWhisper takes ready.json away and nothing else, and is refused while an install holds the lock', async () => {
+    await installWhisper({ npm: '/fake/npm', spawn: npmOk, fetchModel: async () => {} });
+    expect(whisperPhase()).toBe('ready');
+    expect(withdrawWhisper()).toBe(true);
+    expect(whisperPhase()).toBe('none');
+    expect(fs.existsSync(path.join(whisperDir(), 'node_modules'))).toBe(true);
+    expect(withdrawWhisper()).toBe(true); // again: nothing to take
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const p = installWhisper({ npm: '/fake/npm', spawn: async () => { await gate; return npmOk(); }, fetchModel: async () => {} });
+    expect(whisperPhase()).toBe('installing');
+    expect(withdrawWhisper()).toBe(false);
+    release();
+    await p;
+    expect(whisperPhase()).toBe('ready');
   });
 
   it('runs fetchModel with the folder after npm succeeded', async () => {

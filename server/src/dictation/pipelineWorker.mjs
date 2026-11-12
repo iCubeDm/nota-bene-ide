@@ -8,7 +8,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parentPort, workerData } from 'node:worker_threads';
 
-const { dir, pkg, model, revision, dtype } = workerData;
+const { dir, pkg, model, revision, dtype, download } = workerData;
 let pipe;
 let api;
 
@@ -18,6 +18,8 @@ try {
   api = mod.pipeline ? mod : mod.default;
   if (!api?.pipeline || !api.env) throw new Error(`${pkg} has no pipeline`);
   api.env.cacheDir = path.join(dir, 'models');
+  // transformers.js fetches what the cache lacks unless told not to: only the installer's load (download) is to fetch the model
+  api.env.allowRemoteModels = download === true;
   pipe = await api.pipeline('automatic-speech-recognition', model, { revision, dtype });
   parentPort.postMessage({ type: 'ready' });
 } catch (e) {

@@ -24,7 +24,8 @@ export interface WorkerLike {
   on(event: 'message' | 'error' | 'exit', fn: (...a: any[]) => void): unknown;
 }
 export type WorkerFactory = (data: WorkerData) => WorkerLike;
-export type WorkerData = { dir: string; pkg: string; model: string; revision: string; dtype: string };
+/** `download`: the load may fetch the model (the installer's, once); every other load reads the files in the install and nothing else. */
+export type WorkerData = { dir: string; pkg: string; model: string; revision: string; dtype: string; download: boolean };
 
 /** The folder holding pipelineWorker.mjs and npm-shrinkwrap.json: beside this file in the checkout, server/src/dictation/ beside the bundle (main.js or host.js). */
 export function dictationAssetDir(): string {
@@ -37,9 +38,13 @@ const DISPOSE_GRACE_MS = 3000;
 
 export const defaultFactory: WorkerFactory = (data) => new Worker(path.join(dictationAssetDir(), 'pipelineWorker.mjs'), { workerData: data });
 
-/** Starts the worker, which loads the pipeline from the prefix `dir`. `close` ends it at once (a rejected `ready` if still loading). */
-export function openPipeline(dir: string, o: { worker?: WorkerFactory } = {}): { ready: Promise<Pipe>; close: (why?: Error) => void } {
-  const w = (o.worker ?? defaultFactory)({ dir, pkg: WHISPER_PACKAGE, model: WHISPER_MODEL, revision: WHISPER_REVISION, dtype: WHISPER_DTYPE });
+/**
+ * Starts the worker, which loads the pipeline from the prefix `dir`. `close` ends it at once (a rejected `ready` if still loading).
+ * Only `download: true` (the installer) lets transformers.js fetch the model: a load of an install that is being removed must fail,
+ * not download the model again into a folder that Remove is deleting.
+ */
+export function openPipeline(dir: string, o: { worker?: WorkerFactory; download?: boolean } = {}): { ready: Promise<Pipe>; close: (why?: Error) => void } {
+  const w = (o.worker ?? defaultFactory)({ dir, pkg: WHISPER_PACKAGE, model: WHISPER_MODEL, revision: WHISPER_REVISION, dtype: WHISPER_DTYPE, download: o.download === true });
   const pending = new Map<number, { resolve: (v: { text?: string; probs?: Record<string, number> }) => void; reject: (e: Error) => void }>();
   let nextId = 1;
   let ended = false;

@@ -56,6 +56,12 @@ let reports: [string, unknown][];
 /** Child processes a test made that no client knows of (the leftovers of a killed host). */
 let strays: ChildProcess[];
 
+/** The install under `base` reads as ready (`ready.json` with the pins), as the client wants before it starts a host: nothing of the model itself. */
+function markReady(base: string): void {
+  fs.mkdirSync(path.join(base, 'whisper'), { recursive: true });
+  fs.writeFileSync(path.join(base, 'whisper', 'ready.json'), JSON.stringify({ version: WHISPER_VERSION, model: WHISPER_MODEL, revision: WHISPER_REVISION }));
+}
+
 beforeEach(() => {
   sandboxed();
   home = fs.mkdtempSync('/tmp/nbw-');
@@ -65,6 +71,7 @@ beforeEach(() => {
   servers = [];
   strays = [];
   vi.stubEnv('NOTA_BENE_HOME', home);
+  markReady(home);
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 afterEach(async () => {
@@ -287,7 +294,7 @@ describe('a host that goes while it has the job', () => {
     const c = make();
     for (let i = 0; i < BACKOFF_FAILURES; i++) {
       await c.transcribe(pcm(1), 'en', false); // our own connection is open
-      expect(await c.shutdown('removed', 1000)).toEqual({ pid: 4242, gone: false }); // the scripted host keeps its socket name
+      expect(await c.shutdown('removed', 1000)).toEqual({ pid: 4242, gone: false, held: false }); // the scripted host keeps its socket name
       await until(() => !c.connected());
     }
     expect(f.of('shutdown')[0]!.header).toEqual({ type: 'shutdown', reason: 'removed' });
@@ -325,7 +332,7 @@ describe('shutdown() and stopHost() against a scripted host', () => {
     const { c } = makeKiller();
     await c.transcribe(pcm(1), 'en', false);
     f.hello = { type: 'full' }; // every connection after the window's own
-    expect(await c.shutdown('removed', 1000)).toEqual({ pid: 4242, gone: false }); // the scripted host keeps its socket name
+    expect(await c.shutdown('removed', 1000)).toEqual({ pid: 4242, gone: false, held: false }); // the scripted host keeps its socket name
     expect(f.of('shutdown').map((x) => x.conn)).toEqual([0]);
     expect(f.socks).toHaveLength(1);
     expect(c.connected()).toBe(false);
@@ -333,28 +340,89 @@ describe('shutdown() and stopHost() against a scripted host', () => {
     expect(reports).toEqual([]);
   });
 
-  it('a host whose socket name is gone is not signalled', async () => {
+  /** What a scripted host does with `shutdown` when it does as it is told: its name goes and every connection with it. */
+  const stops = (f: FakeHost): void => {
+    f.on = (s) => { if (s.header.type === 'shutdown') { fs.unlinkSync(hostSocketPath()); for (const o of f.socks) o.destroy(); } };
+  };
+  /** The next host takes the name from `f` when it stops, and only then does `f` close its connections: a host that is replaced. */
+  const handsOver = (f: FakeHost, next: (n: FakeHost) => void, pid: number): void => {
+    f.on = (s, sock) => {
+      if (s.header.type === 'job') return f.answer(sock, { id: s.header.id, text: 'x', lang: 'en' });
+      if (s.header.type !== 'shutdown') return;
+      fs.unlinkSync(hostSocketPath());
+      void FakeHost.start().then((n) => { n.hello = { ...n.hello, pid }; next(n); for (const o of f.socks) o.destroy(); });
+    };
+  };
+
+  it('a host that stops as told (its name and our connection go) is not signalled', async () => {
     const f = await FakeHost.start();
-    f.on = (s) => { if (s.header.type === 'shutdown') fs.unlinkSync(hostSocketPath()); };
+    stops(f);
     const { c, sent } = makeKiller();
-    expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: true, signalled: false });
+    expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: true, held: false, signalled: false });
     expect(sent).toEqual([]);
   });
 
-  it('a host whose socket name is still there after the wait is found alive and gets SIGTERM, once', async () => {
+  it('a host that keeps our connection open after the wait is a live peer that ignored the shutdown: it gets SIGTERM, once', async () => {
     const f = await FakeHost.start();
     const { c, sent } = makeKiller();
-    expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: false, signalled: true });
+    expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: false, held: true, signalled: true });
+    expect(f.of('shutdown')).toHaveLength(1);
     expect(f.of('shutdown')[0]!.header).toEqual({ type: 'shutdown', reason: 'removed' });
-    expect(sent).toEqual([[4242, 0], [4242, 'SIGTERM']]);
+    expect(sent).toEqual([[4242, 'SIGTERM']]); // no probe: the open connection is the proof
+  });
+
+  it('a host that unlinked its name but keeps our connection open is still signalled (the name says nothing of the connection)', async () => {
+    const f = await FakeHost.start();
+    f.on = (s) => { if (s.header.type === 'shutdown') fs.unlinkSync(hostSocketPath()); };
+    const { c, sent } = makeKiller();
+    expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: true, held: true, signalled: true });
+    expect(sent).toEqual([[4242, 'SIGTERM']]);
+  });
+
+  it('a host that closed our connection is not signalled though its name is still there: the name is asked once more, and answers the same host', async () => {
+    const f = await FakeHost.start();
+    f.on = (s) => { if (s.header.type === 'shutdown') for (const o of f.socks) o.destroy(); }; // keeps its name
+    const { c, sent } = makeKiller();
+    expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: false, held: false, signalled: false, next: { pid: 4242, gone: false, held: false, signalled: false } });
+    expect(f.of('shutdown')).toHaveLength(2); // once, and once more on a connection of its own
+    expect(sent).toEqual([]);
+  });
+
+  it('when the host our connection was to is gone and another one has its name, that one is asked, on a connection of its own, and by the rule: its own pid, and only for a connection it keeps open', async () => {
+    const a = await FakeHost.start();
+    let b!: FakeHost;
+    handsOver(a, (n) => { b = n; }, 5151);
+    const { c, sent } = makeKiller();
+    await c.transcribe(pcm(1), 'en', false); // the window's own connection is to a, whose pid is 4242
+    expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: false, held: false, signalled: false, next: { pid: 5151, gone: false, held: true, signalled: true } });
+    expect(b.of('shutdown')).toHaveLength(1);
+    expect(b.of('shutdown')[0]!.conn).toBe(0); // its first connection: a fresh one, not the window's
+    expect(sent).toEqual([[5151, 'SIGTERM']]); // not 4242: a's connection had closed
+  });
+
+  it('asks one more host at most: a third that takes the name is left alone', async () => {
+    const a = await FakeHost.start();
+    let b!: FakeHost;
+    let c3!: FakeHost;
+    handsOver(a, (n) => {
+      b = n;
+      handsOver(n, (m) => { c3 = m; }, 6262); // b stops as told too, and a third takes the name
+    }, 5151);
+    const { c, sent } = makeKiller();
+    await c.transcribe(pcm(1), 'en', false); // the window's own connection is to a
+    const r = await c.stopHost('removed', 100);
+    expect(r).toEqual({ pid: 4242, gone: false, held: false, signalled: false, next: { pid: 5151, gone: false, held: false, signalled: false } });
+    expect(b.of('shutdown')).toHaveLength(1);
+    expect(c3.of('shutdown')).toEqual([]); // never asked
+    expect(sent).toEqual([]);
   });
 
   it('a host that is gone by the time of the signal (no such process) is left alone', async () => {
     await FakeHost.start();
     const sent: [number, NodeJS.Signals | 0][] = [];
     const c = make({ kill: (pid, signal) => { sent.push([pid, signal]); throw Object.assign(new Error('no such process'), { code: 'ESRCH' }); } });
-    expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: false, signalled: false });
-    expect(sent).toEqual([[4242, 0]]); // looked, and did not signal
+    expect(await c.stopHost('removed', 100)).toEqual({ pid: 4242, gone: false, held: true, signalled: false });
+    expect(sent).toEqual([[4242, 'SIGTERM']]); // tried, and it was gone
   });
 
   it('never signals this process, nor a pid that would be a process group or every process', async () => {
@@ -362,7 +430,7 @@ describe('shutdown() and stopHost() against a scripted host', () => {
     const { c, sent } = makeKiller();
     for (const pid of [process.pid, 1]) {
       f.hello = { ...f.hello, pid };
-      expect(await c.stopHost('removed', 50)).toEqual({ pid, gone: false, signalled: false });
+      expect(await c.stopHost('removed', 50)).toEqual({ pid, gone: false, held: true, signalled: false });
     }
     for (const pid of [0, -1, -4242, 1.5]) { // not a host's pid at all: it is not a host of ours
       f.hello = { ...f.hello, pid };
@@ -605,6 +673,7 @@ const envFile = (): string => path.join(home, 'env.json');
 
 /** An install whose package answers `samples|language|pid` in place of transformers.js; what it does is `o`. */
 function fakeInstall(o: Stub = {}, base = home): void {
+  markReady(base);
   const pkg = path.join(base, 'whisper', 'node_modules', ...WHISPER_PACKAGE.split('/'));
   fs.mkdirSync(pkg, { recursive: true });
   fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: WHISPER_PACKAGE, version: '0.0.0', type: 'module', main: 'index.js' }));
@@ -998,7 +1067,7 @@ describe('a host that dies', { timeout: 30_000 }, () => {
     fakeInstall();
     const c = make();
     const pid = Number(text(await c.transcribe(pcm(1), 'en', false))[2]);
-    expect(await c.shutdown('removed')).toEqual({ pid, gone: true });
+    expect(await c.shutdown('removed')).toEqual({ pid, gone: true, held: false });
     expect(fs.existsSync(hostSocketPath())).toBe(false);
     await until(() => !alive(pid));
     expect(await c.shutdown()).toBeNull();
@@ -1020,7 +1089,7 @@ describe('stopHost() against real processes', { timeout: 30_000 }, () => {
     second.catch(() => {});
     await until(async () => (await c.status())?.queued === 1);
     const { pid } = (await c.status())!;
-    expect(await c.stopHost('removed')).toEqual({ pid, gone: true, signalled: false }); // it answered, so there was nothing to signal
+    expect(await c.stopHost('removed')).toEqual({ pid, gone: true, held: false, signalled: false }); // it answered, so there was nothing to signal
     await expect(first).rejects.toBeInstanceOf(WhisperOff);
     await expect(second).rejects.toBeInstanceOf(WhisperOff);
     expect(fs.existsSync(hostSocketPath())).toBe(false);
@@ -1036,7 +1105,7 @@ describe('stopHost() against real processes', { timeout: 30_000 }, () => {
     const a = make();
     const pid = Number(text(await a.transcribe(pcm(1), 'en', false))[2]);
     const b = make(); // another window: asks on a connection of its own
-    expect(await b.stopHost('removed')).toEqual({ pid, gone: true, signalled: false });
+    expect(await b.stopHost('removed')).toEqual({ pid, gone: true, held: false, signalled: false });
     await until(() => !alive(pid), 15_000);
     await until(() => !a.connected()); // the host closed the first window's connection: to that window one death (three in a minute are needed)
     expect(a.recentFailures()).toBeLessThan(BACKOFF_FAILURES);
@@ -1062,9 +1131,41 @@ net.createServer((s) => {
     await new Promise<void>((resolve) => child.stdout.once('data', () => resolve()));
     const exited = new Promise<string | null>((resolve) => child.once('exit', (_code, signal) => resolve(signal)));
     const c = make();
-    expect(await c.stopHost('removed', 200)).toEqual({ pid: child.pid, gone: false, signalled: true });
+    expect(await c.stopHost('removed', 200)).toEqual({ pid: child.pid, gone: false, held: true, signalled: true });
     expect(await exited).toBe('SIGTERM');
     expect(reports).toEqual([]);
+  });
+});
+
+describe('a host is started only for an install that is ready', { timeout: 30_000 }, () => {
+  const unready = (): void => { fs.rmSync(path.join(home, 'whisper', 'ready.json')); };
+
+  it('an install that is not ready (never installed, or Remove has begun) gets no host: Whisper off, nothing counted, no process, no log', async () => {
+    fakeInstall();
+    unready();
+    const c = make();
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(WhisperOff);
+    await expect(c.transcribe(pcm(1), 'en', false)).rejects.toBeInstanceOf(WhisperOff); // however often
+    expect(c.spawned).toBe(0);
+    expect(c.recentFailures()).toBe(0);
+    expect(reports).toEqual([]);
+    expect(fs.existsSync(path.join(hostDir(), 'host.log'))).toBe(false);
+  });
+
+  it('a job whose host died after Remove began is not retried on a new host: Whisper off, not a host lost, and no process is started', async () => {
+    fakeInstall({ blockFirst: true });
+    const c = make();
+    const job = c.transcribe(pcm(1), 'en', false);
+    job.catch(() => {});
+    await until(() => fs.existsSync(marker())); // the model is on it
+    const { pid } = (await c.status())!;
+    unready(); // Remove has begun
+    process.kill(pid, 'SIGKILL');
+    await expect(job).rejects.toBeInstanceOf(WhisperOff); // the retry finds Whisper off
+    expect(c.spawned).toBe(1);
+    expect(callCount()).toBe(1);
+    expect(c.recentFailures()).toBe(1); // the death itself is one; the refusal adds none
+    await until(() => !alive(pid), 15_000);
   });
 });
 
@@ -1212,8 +1313,7 @@ describe('the HTTP route', { timeout: 30_000 }, () => {
   }
   /** Whisper is on and installed, as the route checks. */
   const on = (): void => {
-    fs.mkdirSync(path.join(home, 'whisper'), { recursive: true });
-    fs.writeFileSync(path.join(home, 'whisper', 'ready.json'), JSON.stringify({ version: WHISPER_VERSION, model: WHISPER_MODEL, revision: WHISPER_REVISION }));
+    markReady(home);
     setWhisperPref(true);
   };
 
@@ -1281,16 +1381,16 @@ describe('the HTTP route', { timeout: 30_000 }, () => {
     expect(reports).toEqual([]);
   });
 
-  it('Remove stops a running host first: it is gone, with its socket name, before the install is deleted', async () => {
+  it('Remove makes Whisper off and not ready first, then stops a running host (gone, with its socket name) before it deletes the install', async () => {
     fakeInstall();
     on();
     const c = make();
-    let seen: { stopped: boolean; installThere: boolean } | undefined;
+    let seen: { stopped: boolean; readyThere: boolean; modelThere: boolean; on: boolean | undefined } | undefined;
     const base = await serve(c, {
       status: () => c.status(),
       stopHost: async (reason, waitMs) => {
         const r = await c.stopHost(reason, waitMs);
-        seen = { stopped: !fs.existsSync(hostSocketPath()), installThere: fs.existsSync(path.join(home, 'whisper', 'ready.json')) };
+        seen = { stopped: !fs.existsSync(hostSocketPath()), readyThere: fs.existsSync(path.join(home, 'whisper', 'ready.json')), modelThere: fs.existsSync(path.join(home, 'whisper', 'node_modules')), on: readPrefs().whisper };
         return r;
       },
     });
@@ -1298,13 +1398,40 @@ describe('the HTTP route', { timeout: 30_000 }, () => {
     expect(alive(pid)).toBe(true);
     const r = await fetch(`${base}/dictation/remove`, { method: 'POST' });
     expect([r.status, await r.json()]).toEqual([200, { ok: true }]);
-    expect(seen).toEqual({ stopped: true, installThere: true });
+    expect(seen).toEqual({ stopped: true, readyThere: false, modelThere: true, on: false }); // the files are still there; the install no longer says ready
     expect(fs.existsSync(path.join(home, 'whisper'))).toBe(false);
     expect(readPrefs().whisper).toBe(false);
     await until(() => !alive(pid), 15_000);
     expect(c.connected()).toBe(false);
     expect(reports).toEqual([]); // told nothing: the host's close was asked for
     expect(c.spawned).toBe(1);
+  });
+
+  it('a dictation that reaches the client after Remove has stopped the host is refused: no new host is started from the install being removed', async () => {
+    fakeInstall();
+    on();
+    const c = make();
+    let late: unknown;
+    let lateStatus = 0;
+    let base = '';
+    base = await serve(c, {
+      status: () => c.status(),
+      stopHost: async (reason, waitMs) => {
+        const r = await c.stopHost(reason, waitMs); // the host is gone, the install is still on disk
+        late = await c.transcribe(pcm(1), 'en', false).then(() => 'served', (e: unknown) => e); // a job that was past its gate
+        lateStatus = (await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: new Uint8Array(makeWav()) })).status; // and one that is not
+        return r;
+      },
+    });
+    await c.transcribe(pcm(1), 'en', false);
+    expect(c.spawned).toBe(1);
+    expect((await fetch(`${base}/dictation/remove`, { method: 'POST' })).status).toBe(200);
+    expect(late).toBeInstanceOf(WhisperOff);
+    expect(lateStatus).toBe(503);
+    expect(c.spawned).toBe(1);
+    expect(c.recentFailures()).toBe(0);
+    expect(reports).toEqual([]);
+    expect(fs.existsSync(path.join(home, 'whisper'))).toBe(false);
   });
 
   it('a dictation that waits at the host when Remove comes is answered 503 `dictation is off`', async () => {
