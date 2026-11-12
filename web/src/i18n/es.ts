@@ -513,6 +513,7 @@ export const es: Dict = {
   agentSignIn: 'Iniciar sesión en Codex',
   agentRetry: 'Reintentar',
   effort_max: 'Máximo',
+  effort_auto: 'Automático',
   modelCacheWarn: (k) => `La siguiente respuesta vuelve a leer el contexto: ~${k}k tokens`,
   tasksLabel: 'Tareas en segundo plano',
   tasksRunning: (n) => `${n} tarea${n === 1 ? '' : 's'}`,
