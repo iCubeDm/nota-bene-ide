@@ -1,12 +1,12 @@
 // The Whisper host, for real sockets (unix, in a short /tmp folder: sun_path is ~104 bytes) and a fake model thread.
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { main, MAX_QUEUED_PER_CLIENT, MAX_QUEUED_TOTAL, startHost, WHISPER_IDLE_MS, type Host, type HostOptions } from './hostMain.ts';
+import { JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS, main, MAX_CLIENTS, MAX_QUEUED_BYTES, MAX_QUEUED_PER_CLIENT, MAX_QUEUED_TOTAL, startHost, WHISPER_IDLE_MS, type Host, type HostOptions } from './hostMain.ts';
 import { encodeFrame, FrameDecoder, HOST_PINS, HOST_PROTO, hostSocketPath, MAX_HEADER, pcmToInt16, type Header } from './hostWire.ts';
 import type { WorkerData, WorkerFactory, WorkerLike } from './pipelineHost.ts';
 import { WHISPER_MODEL, WHISPER_PACKAGE } from './whisper.ts';
@@ -27,12 +27,21 @@ class FakeWorker extends EventEmitter implements WorkerLike {
   }
   ready(): void { this.emit('message', { type: 'ready' }); }
   postMessage(m: { type?: string; id: number; audio: Float32Array; opts?: Record<string, unknown>; detect?: boolean }): void {
-    // pipelineWorker.mjs on {type:'dispose'}: frees the model and exits
-    if (m.type === 'dispose') { this.disposed = true; queueMicrotask(() => this.emit('exit', 0)); return; }
+    // pipelineWorker.mjs on {type:'dispose'}: frees the model and exits (a stuck thread does not even see it)
+    if (m.type === 'dispose') {
+      if (this.rig.throwOnDispose) throw new Error('the port is closed');
+      this.disposed = true;
+      if (!this.rig.stuck) queueMicrotask(() => this.emit('exit', 0));
+      return;
+    }
     this.rig.calls.push({ worker: this, id: m.id, audio: m.audio, opts: m.opts, detect: m.detect });
     this.rig.changed();
   }
-  terminate(): Promise<number> { this.terminated++; return Promise.resolve(0); }
+  terminate(): Promise<number> {
+    this.terminated++;
+    if (!this.rig.stuck) queueMicrotask(() => this.emit('exit', 1));
+    return this.rig.stuck ? new Promise(() => {}) : Promise.resolve(1);
+  }
 }
 
 class Rig {
@@ -40,6 +49,9 @@ class Rig {
   /** What the model threads were asked, in order, across reloads. */
   calls: Call[] = [];
   autoReady = true;
+  /** The thread is stuck in native code: it neither exits on `dispose` nor can be terminated. */
+  stuck = false;
+  throwOnDispose = false;
   private waiting: (() => void)[] = [];
   readonly factory: WorkerFactory = (data) => { const w = new FakeWorker(this, data); this.workers.push(w); return w; };
   changed(): void { for (const f of this.waiting.splice(0)) f(); }
@@ -109,14 +121,31 @@ const until = async (cond: () => boolean): Promise<void> => { while (!cond()) aw
 let tmp: string;
 let rig: Rig;
 let host: Host | null | undefined;
+/** Hosts a test started besides `host`: stopped in afterEach. */
+let extra: Host[];
 let conns: Conn[];
 let logs: string[];
 const socketPath = () => path.join(tmp, 'whisper-host', 'h.sock');
 
 async function start(o: Partial<HostOptions> = {}): Promise<Host> {
   host = await startHost({ socketPath: socketPath(), dir: path.join(tmp, 'whisper'), worker: rig.factory, log: (m) => logs.push(m), ...o });
-  if (rig.autoReady) await until(() => host!.status().loaded);
   return host!;
+}
+/** Another host on the same socket (it may win it, or find it taken). */
+async function startMore(): Promise<Host | null> {
+  const h = await startHost({ socketPath: socketPath(), dir: path.join(tmp, 'whisper'), worker: rig.factory, log: (m) => logs.push(m) });
+  if (h) extra.push(h);
+  return h;
+}
+/** Runs the fake clock down until `p` settles: the stop's steps take turns of the event loop, its grace timers take fake time. */
+async function runDown(p: Promise<unknown>): Promise<void> {
+  let settled = false;
+  void p.then(() => { settled = true; }, () => { settled = true; });
+  for (let i = 0; i < 100 && !settled; i++) {
+    await new Promise<void>((r) => setImmediate(r));
+    vi.advanceTimersByTime(1000);
+  }
+  expect(settled, 'the stop did not finish').toBe(true);
 }
 async function open(): Promise<Conn> {
   const c = await Conn.open(socketPath());
@@ -128,6 +157,7 @@ beforeEach(() => {
   tmp = fs.mkdtempSync('/tmp/nbw-');
   rig = new Rig();
   conns = [];
+  extra = [];
   logs = [];
   host = undefined;
 });
@@ -137,6 +167,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   for (const c of conns) c.sock.destroy();
   await host?.stop();
+  for (const h of extra) await h.stop();
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -146,12 +177,28 @@ describe('the socket and the handshake', () => {
     expect(fs.statSync(socketPath()).mode & 0o777).toBe(0o600);
     expect(fs.statSync(path.dirname(socketPath())).mode & 0o777).toBe(0o700);
   });
-  it('answers hello with the protocol, the pins, its pid and what it holds', async () => {
+  it('tightens a folder that already exists', async () => {
+    fs.mkdirSync(path.dirname(socketPath()), { mode: 0o755 });
+    fs.chmodSync(path.dirname(socketPath()), 0o755);
+    await start();
+    expect(fs.statSync(path.dirname(socketPath())).mode & 0o777).toBe(0o700);
+  });
+  it('refuses a folder that belongs to another user', async () => {
+    fs.mkdirSync(path.dirname(socketPath()));
+    vi.spyOn(process, 'getuid').mockReturnValue((process.getuid!() + 1));
+    await expect(startHost({ socketPath: socketPath(), dir: path.join(tmp, 'whisper'), worker: rig.factory })).rejects.toThrow(/belongs to another user/);
+    expect(fs.readdirSync(path.dirname(socketPath()))).toEqual([]);
+  });
+  it('loads no model until the first job', async () => {
     rig.autoReady = false;
     const h = await start();
     const c = await open();
+    expect(rig.workers).toHaveLength(0);
     c.send({ type: 'hello', proto: HOST_PROTO, version: '1.8.0', client: { pid: 1, port: 4777, provider: 'claude' } });
     expect(await c.next()).toEqual({ type: 'hello', proto: HOST_PROTO, pid: process.pid, pins: HOST_PINS, loaded: false, queued: 0 });
+    c.send(job(1), pcm(1));
+    await c.status();
+    expect(rig.workers).toHaveLength(1);
     rig.workers[0]!.ready();
     await until(() => h.status().loaded);
     c.send({ type: 'hello', proto: HOST_PROTO });
@@ -165,12 +212,22 @@ describe('the socket and the handshake', () => {
     await c.closed();
     await until(() => h.status().clients === 0);
   });
+  it('frames pipelined behind a hello of another protocol are not served', async () => {
+    const h = await start();
+    const c = await open();
+    c.sock.write(Buffer.concat([encodeFrame({ type: 'hello', proto: HOST_PROTO + 1 }), encodeFrame(job(1), pcm(1))]));
+    await c.closed();
+    await until(() => h.status().clients === 0);
+    expect(h.status().queued).toBe(0);
+    expect(rig.workers).toHaveLength(0); // the job never made it to the queue, so nothing loaded a model for it
+  });
   it('status says what is loaded, queued and running, and how many windows are connected', async () => {
     const h = await start();
     const a = await open();
     const b = await open();
-    expect(await a.status()).toEqual({ type: 'status', loaded: true, queued: 0, running: false, clients: 2 });
+    expect(await a.status()).toEqual({ type: 'status', loaded: false, queued: 0, running: false, clients: 2 });
     a.send(job(1), pcm(1));
+    await rig.call(0);
     a.send(job(2), pcm(2));
     expect(await a.status()).toEqual({ type: 'status', loaded: true, queued: 1, running: true, clients: 2 });
     expect(h.status()).toEqual({ loaded: true, queued: 1, running: true, clients: 2 });
@@ -267,12 +324,12 @@ describe('the queue', () => {
     for (const n of [1, 2, 3]) expect(await a.next()).toMatchObject({ id: n, text: 'x' });
     for (const n of [11, 12]) expect(await b.next()).toMatchObject({ id: n, text: 'x' });
   });
-  it('a window that comes while another one has a backlog gets the very next turn', async () => {
+  it('a window that comes while another one has a backlog gets the very next turn, not the one after its next job', async () => {
     await start();
     const a = await open();
-    const b = await open();
     a.send(job(1), pcm(1));
     await rig.call(0);
+    const b = await open(); // after A's first job was taken: A was the window served last
     a.send(job(2), pcm(2));
     a.send(job(3), pcm(3));
     await a.status();
@@ -307,7 +364,9 @@ describe('the queue', () => {
   it('the running job is not counted as waiting', async () => {
     await start();
     const a = await open();
-    for (let n = 1; n <= MAX_QUEUED_PER_CLIENT + 2; n++) a.send(job(n), pcm(1));
+    a.send(job(1), pcm(1));
+    await rig.call(0);
+    for (let n = 2; n <= MAX_QUEUED_PER_CLIENT + 2; n++) a.send(job(n), pcm(1));
     expect(await a.next()).toEqual({ id: MAX_QUEUED_PER_CLIENT + 2, error: 'busy' });
     expect(await a.status()).toMatchObject({ queued: MAX_QUEUED_PER_CLIENT, running: true });
   });
@@ -404,6 +463,27 @@ describe('cancel and disconnect', () => {
     rig.answer(1, 'x');
     expect(await b.next()).toMatchObject({ id: 11, text: 'x' });
     expect(rig.ran).toEqual([1, 11]);
+  });
+});
+
+describe('a cancel is the sender\'s own', () => {
+  it('another window\'s running job with the same id is not cancelled, nor is its queued one', async () => {
+    await start();
+    const a = await open();
+    const b = await open();
+    a.send(job(1), pcm(1)); // A's job 1 runs
+    await rig.call(0);
+    b.send({ type: 'cancel', id: 1 }); // B has no job 1
+    await b.status();
+    expect(b.inbox).toHaveLength(1); // the status only
+    b.send(job(1), pcm(11)); // B's own job 1 waits behind A's
+    await b.status();
+    b.send({ type: 'cancel', id: 1 });
+    expect(await b.next((m) => m.id === 1)).toEqual({ id: 1, error: 'cancelled' }); // B's, the queued one
+    rig.answer(0, 'x');
+    expect(await a.next()).toMatchObject({ id: 1, text: 'x' }); // A's was not touched
+    expect(a.inbox).toHaveLength(1);
+    expect(rig.ran).toEqual([1]);
   });
 });
 
@@ -536,19 +616,52 @@ describe('the model', () => {
 describe('one host per socket', () => {
   it('a second host on a socket that is answering serves nothing and leaves the first alone', async () => {
     const first = await start();
-    const second = await startHost({ socketPath: socketPath(), dir: path.join(tmp, 'whisper'), worker: rig.factory });
-    expect(second).toBeNull();
+    const a = await open();
+    a.send(job(1), pcm(1));
+    await rig.call(0);
+    expect(await startMore()).toBeNull();
     expect(rig.workers).toHaveLength(1); // no second model
+    expect(fs.readdirSync(path.dirname(socketPath()))).toEqual(['h.sock']); // and no name left behind
     const c = await open();
     expect(await c.status()).toMatchObject({ loaded: true });
-    await until(() => first.status().clients === 1); // the second host's probe has gone
+    await until(() => first.status().clients === 2); // the second host's probe has gone
   });
   it('a stale socket file, with nobody answering, is replaced', async () => {
     fs.mkdirSync(path.dirname(socketPath()), { recursive: true });
     fs.writeFileSync(socketPath(), '');
     await start();
     const c = await open();
-    expect(await c.status()).toMatchObject({ loaded: true });
+    expect(await c.status()).toMatchObject({ clients: 1 });
+    expect(fs.readdirSync(path.dirname(socketPath()))).toEqual(['h.sock']);
+  });
+  it('hosts that race over a stale socket file: one is reachable, and stopping the others leaves its socket in place', async () => {
+    fs.mkdirSync(path.dirname(socketPath()), { recursive: true });
+    fs.writeFileSync(socketPath(), '');
+    const racing = (await Promise.all([startMore(), startMore(), startMore()])).filter((h): h is Host => h !== null);
+    expect(racing.length).toBeGreaterThan(0);
+    const c = await open();
+    await c.status();
+    const reached = racing.filter((h) => h.status().clients === 1);
+    expect(reached).toHaveLength(1);
+    await Promise.all(racing.filter((h) => h !== reached[0]).map((h) => h.stop()));
+    const again = await open(); // the name still leads to the host that was reached
+    expect(await again.status()).toMatchObject({ clients: 2 });
+    expect(reached[0]!.status().clients).toBe(2);
+  });
+  it('a host whose socket was replaced by another one\'s does not remove that one when it stops', async () => {
+    const first = await start();
+    fs.rmSync(socketPath()); // what a racing host recovering a "stale" file does to the host that just bound it
+    const second = await startMore();
+    expect(second).not.toBeNull();
+    expect(await first.stop()).toBe(0);
+    const c = await open();
+    expect(await c.status()).toMatchObject({ clients: 1 });
+    expect(second!.status().clients).toBe(1);
+  });
+  it('a host that cannot publish its socket closes what it opened and leaves nothing behind', async () => {
+    fs.mkdirSync(socketPath(), { recursive: true }); // a folder where the socket should go
+    await expect(startHost({ socketPath: socketPath(), dir: path.join(tmp, 'whisper'), worker: rig.factory })).rejects.toThrow();
+    expect(fs.readdirSync(path.dirname(socketPath()))).toEqual(['h.sock']);
   });
 });
 
@@ -559,26 +672,26 @@ describe('idle', () => {
   it('is ten minutes, and the host\'s own default', () => {
     expect(WHISPER_IDLE_MS).toBe(10 * 60_000);
   });
-  it('a host with nothing to do unloads the model and stops after the idle time, to the millisecond', async () => {
+  it('a host that never got a job holds no model and stops after the idle time, to the millisecond', async () => {
     fakeClock();
     const h = await start({ idleMs: 5000 });
     const c = await open();
     vi.advanceTimersByTime(4999);
-    expect(await c.status()).toMatchObject({ loaded: true }); // connections are not work
+    expect(await c.status()).toMatchObject({ loaded: false }); // connections are not work
     vi.advanceTimersByTime(1);
     expect(await h.done).toBe(0);
-    expect(rig.workers[0]!.disposed).toBe(true);
+    expect(rig.workers).toHaveLength(0);
     await c.closed();
     expect(fs.existsSync(socketPath())).toBe(false);
   });
-  it('the clock starts again when a job is done, and does not run while one is running', async () => {
+  it('the clock starts again when a job is done, does not run while one is running, and then unloads the model', async () => {
     fakeClock();
     const h = await start({ idleMs: 5000 });
     const c = await open();
     vi.advanceTimersByTime(4000);
     c.send(job(1), pcm(1));
     await rig.call(0);
-    vi.advanceTimersByTime(60 * 5000); // a long job
+    vi.advanceTimersByTime(60 * 1000); // a long job (under its deadline)
     expect(await c.status()).toMatchObject({ running: true });
     rig.answer(0, 'x');
     expect(await c.next()).toMatchObject({ id: 1, text: 'x' });
@@ -586,6 +699,7 @@ describe('idle', () => {
     expect(await c.status()).toMatchObject({ loaded: true, running: false });
     vi.advanceTimersByTime(1);
     expect(await h.done).toBe(0);
+    expect(rig.workers[0]!.disposed).toBe(true);
   });
   it('does not run while jobs wait for the model', async () => {
     fakeClock();
@@ -614,16 +728,254 @@ describe('idle', () => {
     vi.advanceTimersByTime(5000);
     expect(await h.done).toBe(0);
   });
+  it('the clock starts when the model finishes a job that its window cancelled, with nothing else queued', async () => {
+    fakeClock();
+    const h = await start({ idleMs: 5000 });
+    const c = await open();
+    c.send(job(1), pcm(1));
+    await rig.call(0);
+    c.send({ type: 'cancel', id: 1 });
+    expect(await c.next((m) => m.id === 1)).toEqual({ id: 1, error: 'cancelled' });
+    vi.advanceTimersByTime(60 * 1000); // the model is still on it
+    expect(h.status().running).toBe(true);
+    rig.answer(0, 'late');
+    await until(() => !h.status().running);
+    vi.advanceTimersByTime(4999);
+    expect(await c.status()).toMatchObject({ running: false });
+    vi.advanceTimersByTime(1);
+    expect(await h.done).toBe(0);
+  });
+  it('the clock starts when the model finishes a job whose window left, with nothing else queued', async () => {
+    fakeClock();
+    const h = await start({ idleMs: 5000 });
+    const c = await open();
+    c.send(job(1), pcm(1));
+    await rig.call(0);
+    c.sock.destroy();
+    await until(() => h.status().clients === 0);
+    vi.advanceTimersByTime(60 * 1000);
+    expect(h.status().running).toBe(true);
+    rig.answer(0, 'nobody listens');
+    await until(() => !h.status().running);
+    vi.advanceTimersByTime(5000);
+    expect(await h.done).toBe(0);
+  });
+});
+
+describe('a model that does not answer', () => {
+  const fakeClock = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+  it('a call has 2 minutes, or 10 times the audio\'s length when that is more', () => {
+    expect(jobDeadlineMs(16_000)).toBe(JOB_DEADLINE_MIN_MS);
+    expect(jobDeadlineMs(16_000 * 12)).toBe(JOB_DEADLINE_MIN_MS);
+    expect(jobDeadlineMs(16_000 * 20)).toBe(200_000);
+    expect(jobDeadlineMs(16_000 * 60)).toBe(600_000);
+  });
+  it('a call past its deadline fails its job and stops the host, whose windows see the connection close and start again', async () => {
+    fakeClock();
+    const h = await start();
+    const a = await open();
+    const b = await open();
+    a.send(job(1), pcm(1));
+    await rig.call(0);
+    b.send(job(11), pcm(11));
+    await b.status();
+    vi.advanceTimersByTime(JOB_DEADLINE_MIN_MS - 1);
+    expect(await a.status()).toMatchObject({ running: true });
+    vi.advanceTimersByTime(1);
+    expect(await a.next((m) => m.id === 1)).toEqual({ id: 1, error: 'failed' });
+    expect(await h.done).toBe(1);
+    await b.closed();
+    expect(b.inbox.some((m) => m.id === 11)).toBe(false); // not failed: retryable on a new host
+    expect(fs.existsSync(socketPath())).toBe(false);
+    expect(h.wedged()).toBe(false);
+    expect(logs.some((m) => m.includes('deadline'))).toBe(true);
+  });
+  it('the deadline follows the audio: 20 seconds of it is 200 seconds', async () => {
+    fakeClock();
+    const h = await start();
+    const a = await open();
+    a.send(job(1), pcm(16_000 * 20));
+    await rig.call(0);
+    vi.advanceTimersByTime(199_999);
+    expect(await a.status()).toMatchObject({ running: true });
+    vi.advanceTimersByTime(1);
+    expect(await a.next((m) => m.id === 1)).toEqual({ id: 1, error: 'failed' });
+    expect(await h.done).toBe(1);
+  });
+  it('a call that returns in time cancels its deadline', async () => {
+    fakeClock();
+    const h = await start();
+    const a = await open();
+    a.send(job(1), pcm(1));
+    await rig.call(0);
+    vi.advanceTimersByTime(JOB_DEADLINE_MIN_MS - 1);
+    rig.answer(0, 'x');
+    expect(await a.next((m) => m.id === 1)).toMatchObject({ id: 1, text: 'x' });
+    expect(vi.getTimerCount()).toBe(1); // the idle clock; the deadline is gone, not just harmless
+    vi.advanceTimersByTime(JOB_DEADLINE_MIN_MS * 2);
+    expect(await a.status()).toMatchObject({ loaded: true, running: false });
+    expect(h.status().loaded).toBe(true);
+  });
+  it('a thread that does not exit is reported as wedged once the host has stopped', async () => {
+    fakeClock();
+    const h = await start();
+    const a = await open();
+    a.send(job(1), pcm(1));
+    await rig.call(0);
+    rig.stuck = true; // from now on the thread neither exits on dispose nor can be terminated
+    vi.advanceTimersByTime(JOB_DEADLINE_MIN_MS);
+    await runDown(h.done);
+    expect(await h.done).toBe(1);
+    expect(h.wedged()).toBe(true);
+    expect(await a.next((m) => m.id === 1)).toEqual({ id: 1, error: 'failed' });
+  });
+  it('a model load past its deadline fails the waiting jobs and stops the host', async () => {
+    fakeClock();
+    rig.autoReady = false;
+    const h = await start();
+    const a = await open();
+    a.send(job(1), pcm(1));
+    await a.status();
+    vi.advanceTimersByTime(LOAD_DEADLINE_MS - 1);
+    expect(await a.status()).toMatchObject({ queued: 1 });
+    vi.advanceTimersByTime(1);
+    expect(await a.next((m) => m.id === 1)).toEqual({ id: 1, error: 'failed' });
+    expect(await h.done).toBe(1);
+    expect(rig.workers[0]!.terminated).toBeGreaterThan(0);
+  });
+  it('a load that finishes in time cancels its deadline', async () => {
+    fakeClock();
+    rig.autoReady = false;
+    const h = await start();
+    const a = await open();
+    a.send(job(1), pcm(1));
+    await a.status();
+    vi.advanceTimersByTime(LOAD_DEADLINE_MS - 1);
+    rig.workers[0]!.ready();
+    await rig.call(0);
+    rig.answer(0, 'x');
+    expect(await a.next((m) => m.id === 1)).toMatchObject({ id: 1, text: 'x' });
+    expect(vi.getTimerCount()).toBe(1); // the idle clock; the load's deadline is gone
+    vi.advanceTimersByTime(LOAD_DEADLINE_MS); // it would have passed long ago
+    expect(await a.status()).toMatchObject({ loaded: true });
+    expect(h.status().loaded).toBe(true);
+  });
+});
+
+describe('limits on what a window can make the host hold', () => {
+  it('PCM waiting across all windows is capped: past it a job is answered `busy`, and what is freed is usable again', async () => {
+    rig.autoReady = false;
+    await start();
+    const a = await open();
+    const b = await open();
+    const big = pcm(4_000_000); // 8 MB; eight of them are under the cap
+    expect(8 * big.length).toBeLessThanOrEqual(MAX_QUEUED_BYTES);
+    expect(9 * big.length).toBeGreaterThan(MAX_QUEUED_BYTES);
+    for (let n = 1; n <= 5; n++) a.send(job(n), big);
+    for (let n = 1; n <= 3; n++) b.send(job(n), big);
+    await a.status();
+    await b.status();
+    b.send(job(9), big);
+    expect(await b.next()).toEqual({ id: 9, error: 'busy' });
+    expect(await b.status()).toMatchObject({ queued: 8 }); // busy for the bytes: 8 jobs are far from the count limit
+    a.send({ type: 'cancel', id: 1 });
+    expect(await a.next((m) => m.id === 1)).toEqual({ id: 1, error: 'cancelled' });
+    b.send(job(10), big);
+    expect(await b.status()).toMatchObject({ queued: 8 }); // 7 after the cancel, 8 with the job that now fits
+    expect(b.inbox.filter((m) => m.error === 'busy')).toHaveLength(1);
+  });
+  it('the bytes of jobs that ran or whose window left are no longer counted', async () => {
+    rig.autoReady = false;
+    const h = await start();
+    const a = await open();
+    const b = await open();
+    const big = pcm(4_000_000);
+    for (let n = 1; n <= 8; n++) a.send(job(n), big);
+    await a.status();
+    b.send(job(1), big);
+    expect(await b.next()).toEqual({ id: 1, error: 'busy' });
+    a.sock.destroy(); // eight jobs go at once
+    await until(() => h.status().queued === 0);
+    b.send(job(2), big);
+    expect(await b.status()).toMatchObject({ queued: 1 });
+    rig.workers[0]!.ready();
+    await rig.call(0);
+    rig.answer(0, 'x');
+    for (let n = 3; n <= 11; n++) b.send(job(n), big); // the first of these runs at once; the rest fill the cap again
+    expect(await b.status()).toMatchObject({ queued: 8, running: true });
+    expect(b.inbox.filter((m) => m.error === 'busy')).toHaveLength(1);
+  });
+  it('a window past the cap of connections is closed at once', async () => {
+    const h = await start();
+    for (let i = 0; i < MAX_CLIENTS; i++) await open();
+    expect(h.status().clients).toBe(MAX_CLIENTS);
+    const extraSock = net.connect(socketPath());
+    extraSock.on('error', () => {});
+    await new Promise<void>((resolve) => extraSock.once('close', () => resolve()));
+    expect(h.status().clients).toBe(MAX_CLIENTS);
+    conns[0]!.sock.destroy();
+    await until(() => h.status().clients === MAX_CLIENTS - 1);
+    expect(await (await open()).status()).toMatchObject({ clients: MAX_CLIENTS });
+  });
+  it('a window that does not read its answers is dropped once a megabyte of them waits', async () => {
+    const h = await start();
+    const c = await open();
+    c.sock.pause(); // takes nothing from the socket
+    c.sock.write(Buffer.concat(Array.from({ length: 30_000 }, () => encodeFrame({ type: 'status' }))));
+    await until(() => h.status().clients === 0);
+  });
+  it('a window that does not read cannot hold the stop: its connection is destroyed after a short grace', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const h = await start();
+    const c = await open();
+    c.sock.pause();
+    for (let n = 1; n <= 16; n++) {
+      c.send(job(n), pcm(1));
+      await rig.call(n - 1);
+      rig.answer(n - 1, 'x'.repeat(60_000)); // ~1 MB in all: more than the socket holds, less than the cap
+    }
+    await until(() => !h.status().running);
+    const stopping = h.stop('test');
+    await runDown(stopping);
+    expect(await stopping).toBe(0);
+  });
+});
+
+describe('a stop that goes wrong', () => {
+  it('still finishes, ends the model thread and removes the socket when the model refuses to be disposed', async () => {
+    const h = await start();
+    const c = await open();
+    c.send(job(1), pcm(1));
+    await rig.call(0);
+    rig.answer(0, 'x');
+    await c.next((m) => m.id === 1);
+    rig.throwOnDispose = true;
+    await expect(h.stop()).resolves.toBe(0);
+    expect(rig.workers[0]!.terminated).toBeGreaterThan(0);
+    expect(fs.existsSync(socketPath())).toBe(false);
+    expect(logs.some((m) => m.includes('disposing the model failed'))).toBe(true);
+  });
 });
 
 describe('the process entry, with the real model thread', () => {
   /** An install whose package answers `task|model|samples|language`, in place of transformers.js. */
-  const fakeInstall = (): void => {
+  const fakeInstall = (body = `async (audio, opts) => ({ text: [task, model, audio.length, opts.language].join('|') })`): void => {
     const pkg = path.join(tmp, 'whisper', 'node_modules', ...WHISPER_PACKAGE.split('/'));
     fs.mkdirSync(pkg, { recursive: true });
     fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: WHISPER_PACKAGE, version: '0.0.0', type: 'module', main: 'index.js' }));
-    fs.writeFileSync(path.join(pkg, 'index.js'), `export const env = {};
-export const pipeline = async (task, model) => async (audio, opts) => ({ text: [task, model, audio.length, opts.language].join('|') });`);
+    fs.writeFileSync(path.join(pkg, 'index.js'), `import fs from 'node:fs';
+export const env = {};
+export const pipeline = async (task, model) => ${body};`);
+  };
+  const entry = fileURLToPath(new URL('./hostEntry.ts', import.meta.url));
+  /** The host as the window side runs it: its own process, stderr read for the "listening" line. */
+  const spawnHost = () => {
+    const child = spawn(process.execPath, [entry], { env: { PATH: process.env.PATH, NOTA_BENE_HOME: tmp }, stdio: ['ignore', 'ignore', 'pipe'] });
+    const o = { child, gone: false, log: '', exited: undefined as unknown as Promise<{ code: number | null; signal: string | null }> };
+    child.stderr.on('data', (d: Buffer) => { o.log += d.toString(); });
+    o.exited = new Promise((resolve) => child.once('exit', (code, signal) => { o.gone = true; resolve({ code, signal }); }));
+    return o;
   };
   beforeEach(() => {
     vi.stubEnv('NOTA_BENE_HOME', tmp);
@@ -635,13 +987,13 @@ export const pipeline = async (task, model) => async (audio, opts) => ({ text: [
     const exit = main({});
     try {
       await until(() => fs.existsSync(hostSocketPath()));
-      expect(await main({})).toBe(0); // another host answers: nothing to do
+      expect(await main({})).toEqual({ code: 0, wedged: false }); // another host answers: nothing to do
       const c = await Conn.open(hostSocketPath());
       conns.push(c);
       c.send(job(1, { lang: 'ru', detect: false }), pcm(5));
       expect(await c.next((m) => m.id === 1)).toEqual({ id: 1, text: `automatic-speech-recognition|${WHISPER_MODEL}|5|ru`, lang: 'ru' });
       c.send({ type: 'shutdown', reason: 'removed' });
-      expect(await exit).toBe(0);
+      expect(await exit).toEqual({ code: 0, wedged: false });
       expect(fs.existsSync(hostSocketPath())).toBe(false);
     } finally {
       if (fs.existsSync(hostSocketPath())) { // a failed test must not leave a host running
@@ -652,27 +1004,45 @@ export const pipeline = async (task, model) => async (audio, opts) => ({ text: [
     }
   });
   it('run as a script (what the window side spawns) it serves, and exits 0 on SIGTERM, its socket removed', async () => {
-    const child = spawn(process.execPath, [fileURLToPath(new URL('./hostMain.ts', import.meta.url))], { env: { PATH: process.env.PATH, NOTA_BENE_HOME: tmp }, stdio: ['ignore', 'ignore', 'pipe'] });
-    let gone = false;
-    let log = '';
-    child.stderr.on('data', (d: Buffer) => { log += d.toString(); });
-    const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => { gone = true; resolve(code); }));
+    const h = spawnHost();
     try {
-      await until(() => gone || log.includes('listening on')); // the socket is bound and listening, not just there
-      expect(gone, log).toBe(false);
+      await until(() => h.gone || h.log.includes('listening on')); // the socket is bound and listening, not just there
+      expect(h.gone, h.log).toBe(false);
       const c = await Conn.open(hostSocketPath());
       conns.push(c);
       c.send(job(1), pcm(2));
       expect(await c.next((m) => m.id === 1)).toMatchObject({ id: 1, text: expect.stringMatching(/\|2\|en$/) });
-      child.kill('SIGTERM');
-      expect(await exited).toBe(0);
+      h.child.kill('SIGTERM');
+      expect(await h.exited).toEqual({ code: 0, signal: null });
       expect(fs.existsSync(hostSocketPath())).toBe(false);
     } finally {
-      child.kill('SIGKILL');
+      h.child.kill('SIGKILL');
     }
   });
+  it('a model thread stuck in a native call cannot be stopped, so the host kills its own process instead of hanging in exit()', async () => {
+    // the stub's call blocks in a read(2) of a pipe nobody writes to: no terminate() or exit() gets that thread out of it
+    const fifo = path.join(tmp, 'block.fifo');
+    const marker = path.join(tmp, 'in-the-call');
+    execFileSync('mkfifo', [fifo]);
+    fakeInstall(`async () => { fs.writeFileSync(${JSON.stringify(marker)}, ''); const fd = fs.openSync(${JSON.stringify(fifo)}, 'r+'); fs.readSync(fd, Buffer.alloc(1)); return { text: '' }; }`);
+    const h = spawnHost();
+    try {
+      await until(() => h.gone || h.log.includes('listening on'));
+      expect(h.gone, h.log).toBe(false);
+      const c = await Conn.open(hostSocketPath());
+      conns.push(c);
+      c.send(job(1), pcm(2));
+      await until(() => h.gone || fs.existsSync(marker)); // the thread is in the call
+      expect(h.gone, h.log).toBe(false);
+      h.child.kill('SIGTERM');
+      expect(await h.exited).toEqual({ code: null, signal: 'SIGKILL' });
+      expect(h.log).toContain('stopping (shutdown)');
+    } finally {
+      h.child.kill('SIGKILL');
+    }
+  }, 30_000);
   it('NOTA_BENE_TEST_WHISPER_IDLE_MS shortens the idle time', async () => {
-    expect(await main({ NOTA_BENE_TEST_WHISPER_IDLE_MS: '1' })).toBe(0);
+    expect(await main({ NOTA_BENE_TEST_WHISPER_IDLE_MS: '1' })).toEqual({ code: 0, wedged: false });
     expect(fs.existsSync(hostSocketPath())).toBe(false);
   });
 });
