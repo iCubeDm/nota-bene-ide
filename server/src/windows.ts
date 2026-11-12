@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { SecretError, verifiedBearer } from './auth.ts';
-import { pidAlive } from './platform.ts';
+import { pidAlive, renameRetry } from './platform.ts';
 import { stateDir } from './state.ts';
 
 export type WindowEntry = {
@@ -61,7 +61,7 @@ export function registerWindow(port: number, root: string, pid: number, launcher
   const tmp = `${f}.tmp${process.pid}`;
   const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now(), ...(version !== undefined ? { version } : {}), ...(nonce !== undefined ? { nonce } : {}) };
   fs.writeFileSync(tmp, JSON.stringify(entry, null, 2));
-  fs.renameSync(tmp, f);
+  renameRetry(tmp, f);
 }
 
 /**
@@ -82,7 +82,7 @@ export function setBuilding(port: number, launcherPid: number, on: boolean): voi
   const f = fileOf(port);
   const tmp = `${f}.tmp${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(on ? { ...rest, building: true } : rest, null, 2));
-  fs.renameSync(tmp, f);
+  renameRetry(tmp, f);
 }
 
 /** Removes the port's entry only if it is still this pid's (or unreadable): a newer window on the port keeps its own. */

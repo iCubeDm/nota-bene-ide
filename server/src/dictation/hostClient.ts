@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HIDDEN, killTree } from '../platform.ts';
+import { HIDDEN, killTree, renameRetry } from '../platform.ts';
 import { takeLockFile } from '../runtime.ts';
 import { whisperPhase } from './install.ts';
 import {
@@ -642,7 +642,7 @@ export class HostClient {
     // files that are going, and could download the model again into the folder Remove is deleting. Nothing awaits between this and the spawn.
     if (whisperPhase() !== 'ready') throw new WhisperOff('Whisper is not installed');
     const logFile = path.join(dir, 'host.log');
-    try { fs.renameSync(logFile, `${logFile}.1`); } catch { /* the first start */ } // a live host keeps writing to its own file
+    try { renameRetry(logFile, `${logFile}.1`); } catch { /* the first start */ } // a live host keeps writing to its own file
     const log = fs.openSync(logFile, 'w', 0o600);
     let child: ChildProcess;
     let over = '';

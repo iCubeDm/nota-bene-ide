@@ -150,7 +150,7 @@ function gitFiles(root: string): Promise<string[] | null> {
     execFile(
       'git',
       ['-c', 'core.fsmonitor=false', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-      { cwd: root, env: gitEnv(), maxBuffer: 64 << 20, timeout: GIT_TIMEOUT },
+      { cwd: root, env: gitEnv(), maxBuffer: 64 << 20, timeout: GIT_TIMEOUT, windowsHide: true },
       (err, out) => {
         if (err || !out) return resolve(null); // not a repo, no git, timeout, or an empty repo: walk instead
         resolve(out.split('\0').filter(Boolean));

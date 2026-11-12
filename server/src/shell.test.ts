@@ -417,7 +417,7 @@ describe.skipIf(win)('signals that end the server', () => {
   const MAIN = fileURLToPath(new URL('./main.ts', import.meta.url));
   const FAKE = fileURLToPath(new URL('../test/fixtures/hello.json', import.meta.url));
   it('a straggler that ignored TERM is killed when the server exits inside the 3 s', async () => {
-    const child = spawn(process.execPath, [MAIN, proj, '--port', '0', '--fake', FAKE], { env: { ...process.env, NOTA_BENE_HOME: path.join(tmp, 'home') }, stdio: ['ignore', 'pipe', 'inherit'] });
+    const child = spawn(process.execPath, [MAIN, proj, '--port', '0', '--fake', FAKE], { env: { ...process.env, NOTA_BENE_HOME: path.join(tmp, 'home') }, stdio: ['ignore', 'pipe', 'inherit'], windowsHide: true });
     closers.push(async () => { child.kill('SIGKILL'); });
     let out = '';
     child.stdout!.on('data', (d) => { out += String(d); });
@@ -437,7 +437,7 @@ describe.skipIf(win)('signals that end the server', () => {
 
   for (const sig of ['SIGTERM', 'SIGHUP', 'SIGQUIT', 'SIGINT'] as const) {
     it(`${sig} stops a running command's whole group, and the server exits`, async () => {
-      const child = spawn(process.execPath, [MAIN, proj, '--port', '0', '--fake', FAKE], { env: { ...process.env, NOTA_BENE_HOME: path.join(tmp, 'home') }, stdio: ['ignore', 'pipe', 'inherit'] });
+      const child = spawn(process.execPath, [MAIN, proj, '--port', '0', '--fake', FAKE], { env: { ...process.env, NOTA_BENE_HOME: path.join(tmp, 'home') }, stdio: ['ignore', 'pipe', 'inherit'], windowsHide: true });
       closers.push(async () => { child.kill('SIGKILL'); });
       let out = '';
       child.stdout!.on('data', (d) => { out += String(d); });

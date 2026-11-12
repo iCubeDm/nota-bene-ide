@@ -20,7 +20,7 @@ import { isShellChoice, readPrefs, setAuditPref, setDefaultModePref, setLangPref
 import { winShells } from './session/shell.ts';
 import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
-import { renameRetry } from './platform.ts';
+import { HIDDEN, renameRetry } from './platform.ts';
 import { stateDir } from './state.ts';
 import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from './update.ts';
 import type { Updater } from './updater.ts';
@@ -244,7 +244,7 @@ export function describeVersion(dir: string): Promise<string> {
     }
   }
   return new Promise((resolve) => {
-    execFile('git', ['describe', '--tags', '--always', '--dirty'], { cwd: dir, timeout: 3000 }, (e, out) => resolve(e ? 'unknown' : out.trim()));
+    execFile('git', ['describe', '--tags', '--always', '--dirty'], { cwd: dir, timeout: 3000, ...HIDDEN }, (e, out) => resolve(e ? 'unknown' : out.trim()));
   });
 }
 

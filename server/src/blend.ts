@@ -2,6 +2,7 @@ import { spawn, execFile, type ChildProcess } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { HIDDEN } from './platform.ts';
 
 /** Blender's own app path on macOS, the last place we look. */
 export const MAC_BLENDER = '/Applications/Blender.app/Contents/MacOS/Blender';
@@ -15,6 +16,22 @@ function installOf(bin: string): string {
   const real = fs.realpathSync(bin);
   const m = /^(.*?\.app)\//.exec(real);
   return m ? m[1]! : path.dirname(path.dirname(real));
+}
+
+/** `fs.promises.rename` over a cache file; on Windows a reader holding `to` open (EPERM/EACCES/EBUSY) is waited out
+ *  for about 2 s without blocking the loop (as `renameRetry` in platform.ts does synchronously). POSIX: one attempt. */
+async function renameOver(from: string, to: string): Promise<void> {
+  if (process.platform !== 'win32') return fs.promises.rename(from, to);
+  const start = Date.now();
+  for (let delay = 10; ; delay = Math.min(delay * 2, 250)) {
+    try {
+      return await fs.promises.rename(from, to);
+    } catch (e) {
+      const left = 2000 - (Date.now() - start);
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes((e as NodeJS.ErrnoException).code ?? '') || left <= 0) throw e;
+      await new Promise((r) => setTimeout(r, Math.min(delay, left)));
+    }
+  }
 }
 
 const isExecutable = (p: string): boolean => {
@@ -184,7 +201,7 @@ export class BlendConverter {
     let v = this.versions.get(bin);
     if (!v) {
       v = new Promise<string>((resolve, reject) => {
-        execFile(bin, ['--version'], { timeout: 15_000, env: childEnv() }, (err, stdout) => {
+        execFile(bin, ['--version'], { timeout: 15_000, env: childEnv(), ...HIDDEN }, (err, stdout) => {
           const m = /Blender\s+(\d+(?:\.\d+)*)/i.exec(String(stdout));
           if (err || !m) reject(new BlendError(501, 'no-blender', 'could not run Blender --version'));
           else resolve(m[1]!);
@@ -261,10 +278,10 @@ export class BlendConverter {
       // the file may have changed while Blender read it: then the result is served but not cached under the old hash
       if ('file' in input && (await sha256Of(input.file, true)) !== content) {
         const tmp = path.join(dir, `tmp-${crypto.randomBytes(8).toString('hex')}.glb`);
-        await fs.promises.rename(out, tmp);
+        await renameOver(out, tmp);
         return { glb: tmp, hash: crypto.randomBytes(16).toString('hex'), transient: true };
       }
-      await fs.promises.rename(out, hit);
+      await renameOver(out, hit);
       return { glb: hit, hash };
     } finally {
       this.works.delete(work);
@@ -287,7 +304,7 @@ export class BlendConverter {
         }
         const env = childEnv(work);
         if (this.o.skipStaticCheck) env.NB_TEST_SKIP_STATIC_CHECK = '1';
-        child = spawn(cmd, argv, { cwd: work, env, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
+        child = spawn(cmd, argv, { cwd: work, env, stdio: ['ignore', 'pipe', 'pipe'], shell: false, ...HIDDEN });
       } catch (e) {
         return reject(spawnError(e));
       }
