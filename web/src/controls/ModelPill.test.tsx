@@ -103,7 +103,7 @@ it('two rows resolving to one id (default and opus): only the alias in use is cu
   expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'opus' });
 });
 
-it('picking an effort of the current model sends its exact session id + effort; the current choice sends nothing', async () => {
+it('picking an effort of the current model sends model + effort; the current choice sends nothing', async () => {
   const { sent, ready } = setup();
   ready();
   const menu = await open();
@@ -112,7 +112,7 @@ it('picking an effort of the current model sends its exact session id + effort; 
   expect(sent).toHaveLength(n);
   const m2 = await open();
   await userEvent.click(within(within(m2).getByRole('group', { name: 'Effort' })).getByRole('menuitem', { name: 'High' }));
-  expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'claude-sonnet-5', effort: 'high' });
+  expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'sonnet', effort: 'high' });
 });
 
 it('the cache warning: ONE line at the bottom, in tokens/1000, once the session has had a turn', async () => {
@@ -295,4 +295,12 @@ it('with no matching row the default row\'s effort levels stay selectable, sent 
   expect(within(grp).getAllByRole('menuitem').map((e) => e.textContent)).toEqual(['Low', 'Medium']);
   await userEvent.click(within(grp).getByRole('menuitem', { name: 'Low' }));
   expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'claude-mystery-9[1m]', effort: 'low' });
+});
+
+it('an unsuffixed session on Default: an effort click sends the row value, default', async () => {
+  const { sent } = suffixed('claude-sonnet-5');
+  expect(pill()).toHaveTextContent('Default · High');
+  const menu = await open();
+  await userEvent.click(within(within(menu).getByRole('group', { name: 'Effort' })).getByRole('menuitem', { name: 'Low' }));
+  expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'default', effort: 'low' });
 });

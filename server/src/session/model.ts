@@ -5,6 +5,7 @@ import { prefsKey, readPrefs, setModelPref } from '../prefs.ts';
 
 type ModelOptions = { dir: string; emit: (ev: Extract<EmitInput, { kind: 'model' | 'models' }>) => void; report: (where: string, e: unknown) => void };
 export type CurrentModel = { model: string | null; effort?: EffortLevel };
+const SUFFIX = /\[[^\]]*\]$/;
 type Agent = Pick<AgentSession, 'supportedModels' | 'setModel' | 'setEffort'>;
 
 /**
@@ -54,16 +55,26 @@ export class ModelKeeper {
     this.cur = this.startChoice(dir);
   }
 
-  /** a row by its value or resolved id; an id with a context suffix (`claude-opus-5-5[1m]`) finds the row of the bare id */
+  /** a row by its value, else its resolved id; an id with a context suffix (`claude-opus-5-5[1m]`) finds the row of the bare id */
   private find(id: string): ModelOption | undefined {
-    const bare = id.replace(/\[[^\]]*\]$/, '');
-    const by = (x: string) => this.opts?.find((m) => m.value === x || m.resolved === x);
+    const by = (x: string) => this.opts?.find((m) => m.value === x) ?? this.opts?.find((m) => m.resolved === x);
+    const bare = id.replace(SUFFIX, '');
     return by(id) ?? (bare !== id ? by(bare) : undefined);
   }
 
-  /** the CLI reports resolved ids (`claude-…`), the list has aliases (`sonnet`) */
+  /** the levels for an id with no row: the default row's, else the first row's that has any */
+  private fallbackEfforts(): EffortLevel[] | undefined {
+    return (this.opts?.find((m) => m.value === 'default' && m.efforts) ?? this.opts?.find((m) => m.efforts))?.efforts;
+  }
+
+  /** the CLI reports resolved ids (`claude-…`), the list has aliases (`sonnet`). The suffix counts: 1M and 200k are different models. */
   private same(a: string, b: string): boolean {
-    const canon = (x: string) => { const m = this.find(x); return m ? (m.resolved ?? m.value) : x; };
+    const canon = (x: string) => {
+      const suffix = x.match(SUFFIX)?.[0] ?? '';
+      const bare = x.slice(0, x.length - suffix.length);
+      const m = this.opts?.find((r) => r.value === bare) ?? this.opts?.find((r) => r.resolved === bare);
+      return (m ? (m.resolved ?? m.value) : bare) + suffix;
+    };
     return a === b || canon(a) === canon(b);
   }
 
@@ -120,8 +131,10 @@ export class ModelKeeper {
     // the id the session already runs (maybe one the list has no row for) may be re-sent, for an effort-only change
     const keep = !!before && next.model === before;
     if (!opt && !keep) throw new Error(`model ${next.model} is not offered`);
-    if (opt && next.effort && !opt.efforts?.includes(next.effort)) throw new Error(`model ${opt.value} has no effort ${next.effort}`);
-    const id = keep ? before : opt!.value; // the exact id stays: a `[1m]` session is not switched to the alias
+    const levels = opt ? opt.efforts : this.fallbackEfforts();
+    if (next.effort && !levels?.includes(next.effort)) throw new Error(`model ${opt?.value ?? next.model} has no effort ${next.effort}`);
+    // a suffixed id (`[1m]`) is kept exactly: the bare row value would drop the 1M variant
+    const id = SUFFIX.test(next.model) || keep ? next.model : opt!.value;
     this.fresh = false;
     this.inflight = true;
     try {

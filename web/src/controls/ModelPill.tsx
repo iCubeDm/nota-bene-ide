@@ -81,14 +81,16 @@ export function ModelPill() {
   );
   if (!switchable) return trigger;
   const kTokens = Math.max(1, Math.round(used / 1000));
+  // the current model's session id is sent only when a `[1m]`-style suffix tells it from the row (an effort change must
+  // not switch it to the alias and drop the 1M variant); otherwise the row's value, as always
+  const modelFor = (o: ModelOption) => (o === current && id && id !== o.value && id !== o.resolved ? id : o.value);
   const pick = (o: ModelOption, effort?: EffortLevel) => {
     if (o === current && effort === cur?.effort) return;
-    // the current model keeps its exact session id (`[1m]` included): an effort change is not a model switch
-    void dispatch(pickModel(o === current && id ? id : o.value, effort));
+    void dispatch(pickModel(modelFor(o), effort));
   };
   const pickEffort = (e: EffortLevel) => {
     if (e === cur?.effort) return;
-    void dispatch(pickModel(id ?? current?.value ?? '', e));
+    void dispatch(pickModel(current ? modelFor(current) : (id ?? ''), e));
   };
   const searchable = models.length >= SEARCH_MIN;
   const shown = searchable && query.trim() ? models.filter((o) => matches(o, query)) : models;

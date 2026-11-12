@@ -94,19 +94,74 @@ describe('model and effort', () => {
     s.close();
   });
 
-  it('an effort change on a suffixed session model keeps the exact id and does not setModel', async () => {
-    const b = fakeBackend([{ text: 'x' }], { models: MODELS });
-    const { make } = setup(b);
-    const s = await make();
-    await until(() => s.models().length > 0);
-    await s.setModel({ model: 'opus', effort: 'max' }, 'a1');
-    b.setModels.length = 0;
-    // the agent reports the 1M variant of the resolved id
-    const r = MODELS.find((m) => m.value === 'opus')!.resolved!;
-    await s.setModel({ model: `${r}[1m]`, effort: 'high' }, 'a2');
-    expect(b.setModels).toEqual([]);
-    expect(b.setEfforts.at(-1)).toBe('high');
-    s.close();
+  describe('a 1M-suffixed session model', () => {
+    const M1 = 'claude-opus-5-5[1m]';
+    const LIST: ModelOption[] = [
+      { value: 'default', name: 'Default', description: '', resolved: 'claude-opus-5-5', efforts: ['low', 'high'] },
+      { value: 'opus', name: 'Opus', description: '', resolved: 'claude-opus-5-5', efforts: ['low', 'high', 'max'] },
+      { value: 'claude-opus-5-5', name: 'Opus 5.5', description: '', efforts: ['low', 'high', 'max'] },
+    ];
+
+    it('an effort change keeps the exact id: no setModel, agent and pref stay on [1m], a restart starts on it', async () => {
+      setModelPref('/proj', { model: M1 });
+      const b = fakeBackend([{ text: 'x', crash: true }, { text: 'y' }], { models: LIST });
+      const { events, make } = setup(b);
+      const s = await make();
+      await until(() => s.models().length > 0);
+      expect(b.starts[0]).toMatchObject({ model: M1 });
+      expect(s.model()).toEqual({ model: M1 }); // load() keeps it: the list has the row
+      await s.setModel({ model: M1, effort: 'max' }, 'a1');
+      expect(b.setModels).toEqual([]);
+      expect(b.setEfforts).toEqual(['max']);
+      expect(pref()).toEqual({ model: M1, effort: 'max' });
+      s.send({ id: 'u1', text: 'hi' });
+      await until(() => events.some((e) => e.kind === 'agent' && e.e.t === 'turn-end')); // the crash: next send restarts
+      s.send({ id: 'u2', text: 'again' });
+      expect(b.starts.at(-1)).toMatchObject({ model: M1, effort: 'max' });
+      await until(() => b.starts.length === 2);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(s.model()).toEqual({ model: M1, effort: 'max' }); // load() after the restart does not drop the 1M model
+      s.close();
+    });
+
+    it('1M to the alias or the bare id is a real switch: setModel and the pref follow', async () => {
+      setModelPref('/proj', { model: M1 });
+      const b = fakeBackend([{ text: 'x' }], { models: LIST });
+      const { make } = setup(b);
+      const s = await make();
+      await until(() => s.models().length > 0);
+      await s.setModel({ model: 'opus' }, 'a1');
+      expect(b.setModels).toEqual(['opus']);
+      expect(pref()).toEqual({ model: 'opus' });
+      await s.setModel({ model: M1 }, 'a2'); // and back
+      expect(b.setModels).toEqual(['opus', M1]);
+      s.close();
+    });
+
+    it('with no current model, a request for the suffixed id sets exactly that id (never the bare row value)', async () => {
+      const b = fakeBackend([{ text: 'x' }], { models: LIST });
+      const { make } = setup(b);
+      const s = await make();
+      await until(() => s.models().length > 0);
+      expect(s.model()).toEqual({ model: null });
+      await s.setModel({ model: M1, effort: 'high' }, 'a1');
+      expect(b.setModels).toEqual([M1]);
+      expect(b.setEfforts).toEqual(['high']);
+      expect(pref()).toEqual({ model: M1, effort: 'high' });
+      s.close();
+    });
+
+    it('a row-less session id: an effort the fallback row lacks is rejected, one it lists is applied', async () => {
+      const b = fakeBackend([{ text: 'x' }], { models: LIST });
+      const { make } = setup(b);
+      const s = await make();
+      await until(() => s.models().length > 0);
+      s.send({ id: 'u1', text: 'hi' });
+      await s.setModel({ model: 'claude-mystery-9', effort: 'high' }, 'a0').catch(() => {}); // not offered: nothing changes
+      expect(b.setModels).toEqual([]);
+      expect(b.setEfforts).toEqual([]);
+      s.close();
+    });
   });
 
   it('the first init shows the CLI default without writing a pref', async () => {
