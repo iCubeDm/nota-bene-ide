@@ -4,13 +4,15 @@ import type { ServerEvent } from './protocol.ts';
 // compaction replays to the same state (R-M7-12). Pure: no web dependency.
 
 export type TaskStatus = 'running' | 'done' | 'failed' | 'stopped';
-/** `agent`: a subagent; `shell`: a background shell or Monitor (has an output to read); `other`: workflows and the rest */
-export type TaskKind = 'agent' | 'shell' | 'other';
+/** `agent`: a subagent; `shell`: a background shell or Monitor (has an output to read); `workflow`: a Claude Code workflow run; `other`: the rest */
+export type TaskKind = 'agent' | 'shell' | 'workflow' | 'other';
 
 export type Task = {
   desc: string; type: string; kind: TaskKind;
   /** the tool-use id of the call that started it, when the CLI said */ call?: string;
   /** task_id of the subagent task that launched it, when the CLI said */ parent?: string;
+  /** the model response that launched it, kept from its first start: tasks of one response are a swarm */ group?: string;
+  /** a workflow's name */ workflow?: string;
   /** the CLI's `is_backgrounded`: false = blocks its tool call, true = in the background; absent = not said */ bg?: boolean;
   /** a live-update watcher: listed, but not counted as activity */ ambient?: boolean;
   start: number; status: TaskStatus; /** the server time the task ended; only once it is not running */ end?: number;
@@ -27,6 +29,7 @@ export const FINISHED_CAP = 20;
 export function taskKind(type: string, call?: string): TaskKind {
   if (/agent/.test(type)) return 'agent';
   if (/bash|shell|monitor/.test(type)) return 'shell';
+  if (/workflow/.test(type)) return 'workflow';
   return !type && call ? 'agent' : 'other';
 }
 
@@ -68,13 +71,15 @@ export function reduceTasks(s: TasksState, ev: ServerEvent): TasksState {
       // but the subagent's files are known by the original call, so the original `call` (and parent / bg) stays
       const call = cur?.call ?? e.call;
       const parent = cur?.parent ?? e.parent;
+      const group = cur?.group ?? e.group; // a resume's own call came from another response
+      const workflow = e.workflow ?? cur?.workflow;
       const bg = e.bg ?? cur?.bg;
       const model = e.model ?? cur?.model; // a resume does not say it again
       return {
         ...s,
         [e.id]: {
           desc: e.desc ?? 'task', type, kind: taskKind(type, call), ...(call ? { call } : {}), ...(parent ? { parent } : {}),
-          ...(bg !== undefined ? { bg } : {}), ...(model ? { model } : {}), ...(e.ambient ? { ambient: true } : {}),
+          ...(group ? { group } : {}), ...(workflow ? { workflow } : {}), ...(bg !== undefined ? { bg } : {}), ...(model ? { model } : {}), ...(e.ambient ? { ambient: true } : {}),
           start: ev.ts, status: 'running', tokens: 0, tool: '', summary: '',
         },
       };

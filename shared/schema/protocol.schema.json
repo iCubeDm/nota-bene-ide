@@ -2834,6 +2834,9 @@
             "desc": {
               "type": "string"
             },
+            "group": {
+              "type": "string"
+            },
             "id": {
               "type": "string"
             },
@@ -2873,6 +2876,9 @@
               "type": "string"
             },
             "type": {
+              "type": "string"
+            },
+            "workflow": {
               "type": "string"
             }
           },

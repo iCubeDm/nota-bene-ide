@@ -367,7 +367,20 @@ test('a restart of a known task that had no call takes the new one; an unknown i
 });
 test('taskKind', () => {
   expect([taskKind('local_agent'), taskKind('remote_agent'), taskKind('local_bash'), taskKind('monitor_mcp'), taskKind('local_workflow'), taskKind('', 'toolu_A'), taskKind('')])
-    .toEqual(['agent', 'agent', 'shell', 'shell', 'other', 'agent', 'other']);
+    .toEqual(['agent', 'agent', 'shell', 'shell', 'workflow', 'agent', 'other']);
+});
+test('group and workflow are kept from the first start: a resume keeps the group of its launch; replay equals the fold', () => {
+  const evs = [
+    T(1, { id: 'a', phase: 'started', desc: 'a', type: 'local_agent', call: 'toolu_A', group: 'msg_1' }),
+    T(2, { id: 'a', phase: 'done' }),
+    T(3, { id: 'a', phase: 'started', desc: 'a', type: 'local_agent', call: 'toolu_Send', group: 'msg_9' }),
+    T(4, { id: 'w', phase: 'started', desc: 'review', type: 'local_workflow', workflow: 'spec' }),
+  ];
+  const s = evs.reduce(reduceTasks, {} as ReturnType<typeof reduceTasks>);
+  expect(s.a).toMatchObject({ group: 'msg_1', status: 'running' });
+  expect(s.w).toMatchObject({ kind: 'workflow', workflow: 'spec' });
+  expect(reduceTasks({}, { kind: 'replay', events: evs as never, ts: 0 } as never)).toEqual(s);
+  expect(reduceTasks({}, T(1, { id: 'b', phase: 'started', desc: 'b', type: 'local_agent' })).b).not.toHaveProperty('group');
 });
 
 test('task-stop and task-background parse strictly', () => {

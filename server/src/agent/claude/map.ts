@@ -17,7 +17,7 @@ type Block = { type?: string; text?: string; id?: string; name?: string; input?:
 type Frame = {
   type?: string; subtype?: string; uuid?: string; parent_tool_use_id?: string | null;
   event?: { type?: string; content_block?: { type?: string }; delta?: { type?: string; text?: string } };
-  message?: { content?: unknown };
+  message?: { id?: string; content?: unknown };
   // result
   duration_ms?: number; is_error?: boolean; result?: unknown; errors?: unknown; terminal_reason?: string;
   queued_turn_count?: number; user_message_uuid?: unknown; user_message_uuids?: unknown;
@@ -29,7 +29,7 @@ type Frame = {
   compact_metadata?: { pre_tokens?: number; duration_ms?: number };
   new_conversation_id?: unknown;
   // tasks
-  task_id?: string; parent_task_id?: string; tool_use_id?: string; description?: string; subagent_type?: string; task_type?: string; ambient?: boolean; skip_transcript?: boolean;
+  task_id?: string; parent_task_id?: string; tool_use_id?: string; description?: string; subagent_type?: string; task_type?: string; workflow_name?: string; ambient?: boolean; skip_transcript?: boolean;
   usage?: { total_tokens?: number }; last_tool_name?: string; summary?: string;
   patch?: { status?: string; description?: string; is_backgrounded?: boolean }; is_backgrounded?: boolean;
   // commands_changed, local_command_output
@@ -138,7 +138,7 @@ function task(m: Frame): AgentEvent[] {
       // housekeeping (skip_transcript) is never shown; a watcher (ambient) only when it is a shell / Monitor, which the shell
       // tab exists for, and then flagged so it stays out of the counts
       if (m.skip_transcript || (m.ambient && taskKind(m.task_type ?? '') !== 'shell')) return [];
-      return [{ t: 'task', id, phase: 'started', ...(m.ambient ? { ambient: true } : {}), ...(typeof m.is_backgrounded === 'boolean' ? { bg: m.is_backgrounded } : {}), desc: m.description || m.subagent_type || m.task_type || 'task', type: m.task_type ?? '', ...(typeof m.tool_use_id === 'string' && TOOL_USE_ID.test(m.tool_use_id) ? { call: m.tool_use_id } : {}), ...(typeof m.parent_task_id === 'string' && TASK_ID.test(m.parent_task_id) ? { parent: m.parent_task_id } : {}) }];
+      return [{ t: 'task', id, phase: 'started', ...(m.ambient ? { ambient: true } : {}), ...(typeof m.is_backgrounded === 'boolean' ? { bg: m.is_backgrounded } : {}), desc: m.description || m.workflow_name || m.subagent_type || m.task_type || 'task', type: m.task_type ?? '', ...(m.task_type === 'local_workflow' && m.workflow_name ? { workflow: m.workflow_name } : {}), ...(typeof m.tool_use_id === 'string' && TOOL_USE_ID.test(m.tool_use_id) ? { call: m.tool_use_id } : {}), ...(typeof m.parent_task_id === 'string' && TASK_ID.test(m.parent_task_id) ? { parent: m.parent_task_id } : {}) }];
     case 'task_progress':
       return [{ t: 'task', id, phase: 'progress', tokens: m.usage?.total_tokens || 0, tool: m.last_tool_name || '', summary: m.summary || '' }];
     case 'task_updated': {
@@ -197,18 +197,27 @@ export function mapSdk(msg: SDKMessage): AgentEvent[] {
 }
 
 /**
- * A backend's frame stream as AgentEvents: each frame's events in order, nothing for a frame that maps to none. With
- * `readModel` (the subagent's transcript model for a session and an Agent call, or undefined while unknown) a subagent's
- * task events carry its `model`: the call's own `model` input at start, the transcript's once it is written (read on
- * each progress until it is found, then never again).
+ * A backend's frame stream as AgentEvents: each frame's events in order, nothing for a frame that maps to none. A task
+ * started by a call of this turn carries the call's API message id as its `group` (the parallel calls of one response
+ * arrive as one assistant frame per block, all with that id). With `readModel` (the subagent's transcript model for a
+ * session and an Agent call, or undefined while unknown) a subagent's task events carry its `model`: the call's own
+ * `model` input at start, the transcript's once it is written (read on each progress until it is found, then never again).
  */
 export async function* mapFrames(frames: AsyncIterable<SDKMessage>, readModel?: (sessionId: string, call: string) => string | undefined): AsyncGenerator<AgentEvent> {
   const asked = new Map<string, string>(); // Agent call id -> the `model` input
   const calls = new Map<string, string>(); // task id -> its Agent call, while the transcript's model is not known
+  const responses = new Map<string, string>(); // a call of this turn -> the API message id of its response
   for await (const m of frames) {
-    const evs = mapSdk(m);
+    const f = m as unknown as Frame;
+    const msg = f.type === 'assistant' ? str(f.message?.id) : undefined;
+    if (f.type === 'result') responses.clear(); // a task starts while its call's turn runs
+    const evs = mapSdk(m).map((e) => {
+      if (e.t === 'tool-call' && msg) responses.set(e.id, msg);
+      const group = e.t === 'task' && e.phase === 'started' && e.call ? responses.get(e.call) : undefined;
+      return group ? { ...e, group } : e;
+    });
     if (!readModel) { yield* evs; continue; }
-    const session = str((m as unknown as Frame).session_id) ?? '';
+    const session = str(f.session_id) ?? '';
     for (const e of evs) {
       if (e.t === 'tool-call' && (e.name === 'Agent' || e.name === 'Task') && typeof e.input.model === 'string' && e.input.model) asked.set(e.id, e.input.model);
       if (e.t !== 'task' || (e.phase !== 'started' && e.phase !== 'progress')) { yield e; continue; }

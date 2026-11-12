@@ -39,3 +39,39 @@ describe('mapFrames: the subagent model on task events', () => {
     expect(shell[0]).not.toHaveProperty('model');
   });
 });
+
+describe('mapFrames: the model response that launched a task (`group`)', () => {
+  // one API response of parallel calls arrives as one assistant frame per block, all with the response's message.id
+  const block = (msg: string, id: string, name = 'Agent', parent: string | null = null) =>
+    f({ type: 'assistant', uuid: `u-${id}`, parent_tool_use_id: parent, session_id: 'S', message: { id: msg, content: [{ type: 'tool_use', id, name, input: { description: id } }] } });
+  const started = (task: string, call: string, type = 'local_agent') => sys('task_started', { task_id: task, description: task, task_type: type, tool_use_id: call });
+  const groups = (events: AgentEvent[]) => events.flatMap((e) => (e.t === 'task' && e.phase === 'started' ? [`${e.id}:${e.group ?? '-'}`] : []));
+
+  it('calls of one response share its message id; a later response has its own; with or without a model reader', async () => {
+    const frames = [
+      block('msg_1', 'toolu_A'), block('msg_1', 'toolu_B'), started('a', 'toolu_A'), started('b', 'toolu_B'),
+      block('msg_2', 'toolu_C'), started('c', 'toolu_C'),
+    ];
+    expect(groups(await run(frames, () => undefined))).toEqual(['a:msg_1', 'b:msg_1', 'c:msg_2']);
+    const plain: AgentEvent[] = [];
+    for await (const e of mapFrames((async function* () { yield* frames; })())) plain.push(e);
+    expect(groups(plain)).toEqual(['a:msg_1', 'b:msg_1', 'c:msg_2']);
+  });
+
+  it('a subagent\'s own parallel calls are grouped by its response; a task without a known call, or after the turn ended, has none', async () => {
+    const events = await run([
+      block('msg_s', 'toolu_X', 'Agent', 'toolu_P'), block('msg_s', 'toolu_Y', 'Agent', 'toolu_P'),
+      started('x', 'toolu_X'), started('y', 'toolu_Y'),
+      sys('task_started', { task_id: 'z', description: 'z', task_type: 'local_bash' }),
+      block('msg_3', 'toolu_L'), f({ type: 'result', subtype: 'success', session_id: 'S' }), started('l', 'toolu_L'),
+    ], () => undefined);
+    expect(groups(events)).toEqual(['x:msg_s', 'y:msg_s', 'z:-', 'l:-']);
+  });
+
+  it('a workflow task says its name; its description stays the row text', async () => {
+    const events = await run([sys('task_started', { task_id: 'w', description: 'Review the change', task_type: 'local_workflow', workflow_name: 'spec' })], () => undefined);
+    expect(events[0]).toMatchObject({ phase: 'started', type: 'local_workflow', workflow: 'spec', desc: 'Review the change' });
+    const nameless = await run([sys('task_started', { task_id: 'v', task_type: 'local_workflow', workflow_name: 'spec' })], () => undefined);
+    expect(nameless[0]).toMatchObject({ desc: 'spec', workflow: 'spec' });
+  });
+});

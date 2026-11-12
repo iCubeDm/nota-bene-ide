@@ -31,6 +31,25 @@ describe('Codex event normalization', () => {
     expect(child.some((event) => event.t === 'task' && event.phase === 'done')).toBe(false);
   });
 
+  it('groups the agents spawned by one response: a run of spawns until a message, reasoning or a new turn', () => {
+    const mapper = new CodexMapper();
+    const spawn = (id: string, children: string[]) => mapper.item({ type: 'collabAgentToolCall', id, tool: 'spawnAgent', prompt: id, receiverThreadIds: children, agentsStates: Object.fromEntries(children.map((c) => [c, { status: 'running' }])) }, false);
+    const groups = (events: ReturnType<typeof spawn>) => events.flatMap((e) => (e.t === 'task' && e.phase === 'started' ? [`${e.id}:${e.group}`] : []));
+    mapper.notification('turn/started', {});
+    mapper.item({ type: 'reasoning', id: 'r1' }, false);
+    expect(groups(spawn('s1', ['c1']))).toEqual([`${itemId('c1')}:${itemId('s1')}`]);
+    mapper.item({ type: 'commandExecution', id: 'cmd', command: 'ls' }, false); // a call of the same response does not end the run
+    expect(groups(spawn('s2', ['c2', 'c3']))).toEqual([`${itemId('c2')}:${itemId('s1')}`, `${itemId('c3')}:${itemId('s1')}`]);
+    mapper.item({ type: 'reasoning', id: 'r1' }, true); // the end of an item already seen is not a new response
+    expect(groups(spawn('s3', ['c4']))).toEqual([`${itemId('c4')}:${itemId('s1')}`]);
+    mapper.item({ type: 'reasoning', id: 'r2' }, false);
+    expect(groups(spawn('s4', ['c5']))).toEqual([`${itemId('c5')}:${itemId('s4')}`]);
+    mapper.item({ type: 'agentMessage', id: 'm1', text: 'spawning' }, true);
+    expect(groups(spawn('s5', ['c6']))).toEqual([`${itemId('c6')}:${itemId('s5')}`]);
+    mapper.notification('turn/started', {});
+    expect(groups(spawn('s6', ['c7']))).toEqual([`${itemId('c7')}:${itemId('s6')}`]);
+  });
+
   it('does not invent compaction token counts or duplicate a boundary', () => {
     const mapper = new CodexMapper();
     expect(mapper.item({ type: 'contextCompaction', id: 'compact' }, false)).toEqual([{ t: 'compacting' }]);
