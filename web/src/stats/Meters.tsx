@@ -47,11 +47,14 @@ export function Meters() {
   const resets = (l: Limit): string =>
     l.resets_at ? ` · ${t('resets', new Date(l.resets_at).toLocaleString(getLang(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}` : '';
   const L = st.limits;
+  const windows = st.windows ?? [];
+  const fiveHour = L?.five_hour ?? windows.find((w) => w.minutes === 300);
+  const week = L?.seven_day ?? windows.find((w) => w.minutes === 10080);
   const parts = [
-    ...(st.windows ?? []).map((w, i) => <Meter key={`native-${i}`} label={w.minutes == null ? w.label : `${w.minutes % 60 === 0 ? w.minutes / 60 + 'h' : w.minutes + 'm'}`} pct={w.utilization} tip={`${w.label}${resets(w)}`} />),
     st.context && <Meter key="ctx" label={t('ctx')} pct={st.context.pct} tip={t('ctxTip', fmtK(st.context.used), fmtK(st.context.max))} />,
-    L?.five_hour && <Meter key="h5" label={t('h5')} pct={L.five_hour.utilization} tip={`${t('h5Tip')}${resets(L.five_hour)}`} />,
-    L?.seven_day && <Meter key="week" label={t('week')} pct={L.seven_day.utilization} tip={`${t('weekTip')}${resets(L.seven_day)}`} />,
+    fiveHour && <Meter key="h5" label={t('h5')} pct={fiveHour.utilization} tip={`${t('h5Tip')}${resets(fiveHour)}`} />,
+    week && <Meter key="week" label={t('week')} pct={week.utilization} tip={`${t('weekTip')}${resets(week)}`} />,
+    ...windows.filter((w) => w.minutes !== 300 && w.minutes !== 10080).map((w, i) => <Meter key={`native-${i}`} label={w.minutes == null ? w.label : `${w.minutes % 60 === 0 ? w.minutes / 60 + 'h' : w.minutes + 'm'}`} pct={w.utilization} tip={`${w.label}${resets(w)}`} />),
     // on a plan the cost is not billed, but shows what the session's work is worth at API prices
     st.cost != null && (
       <Tooltip key="cost">

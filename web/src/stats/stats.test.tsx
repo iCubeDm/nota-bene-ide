@@ -86,6 +86,33 @@ it('null stats and null parts render nothing', () => {
   expect(container).toBeEmptyDOMElement();
 });
 
+it('shows context, 5h and week in the same order for both provider formats', () => {
+  const { stats } = setup();
+  const five = { utilization: 30, resets_at: null };
+  const week = { utilization: 10, resets_at: null };
+  stats({ ...none, context: ctx(42), limits: { five_hour: five, seven_day: week } });
+  const labels = () => screen.getAllByRole('meter').map((m) => m.getAttribute('aria-label'));
+  expect(labels()).toEqual(['context 42%', '5h 30%', 'week 10%']);
+  stats({ ...none, context: ctx(42), windows: [
+    { ...week, label: 'secondary', minutes: 10080 },
+    { ...five, label: 'primary', minutes: 300 },
+  ] });
+  expect(labels()).toEqual(['context 42%', '5h 30%', 'week 10%']);
+  act(() => setLang('ru'));
+  expect(labels()).toEqual(['контекст 42%', '5ч 30%', 'неделя 10%']);
+});
+
+it('keeps nonstandard and unknown native windows after standard windows, including zero usage', () => {
+  const { stats } = setup();
+  stats({ ...none, windows: [
+    { label: 'custom', minutes: 120, utilization: 15, resets_at: null },
+    { label: 'unknown', minutes: null, utilization: 7, resets_at: null },
+    { label: 'secondary', minutes: 10080, utilization: 0, resets_at: null },
+  ] });
+  expect(screen.getAllByRole('meter').map((m) => m.getAttribute('aria-label')))
+    .toEqual(['week 0%', '2h 15%', 'unknown 7%']);
+});
+
 it('labels follow the language', () => {
   const { stats } = setup();
   stats({ ...none, context: ctx(10) });
