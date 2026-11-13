@@ -3,6 +3,7 @@ import { deleteSession, getSessionInfo, getSessionMessages, getSubagentMessages,
 import type { ModelInfo, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { CLAUDE_CAPABILITIES, type AgentEvent, type EffortLevel, type Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
 import type { AgentBackend, AgentSession, PermissionAsk, SendImage } from '../types.ts';
+import { SessionNotFoundError } from '../types.ts';
 import { CommandTap, offered, pickCommands, toSlash } from './commands.ts';
 import { gitBashWarning } from './gitBash.ts';
 import { mapFrames } from './map.ts';
@@ -223,7 +224,9 @@ export function sdkBackend(): AgentBackend {
     sessionInfo: async (id, dir) => (await getSessionInfo(id, { dir })) ?? null,
     renameSession: (id, title) => renameSession(id, title),
     // the transcript and its subagents' folder; throws when no project has it
-    deleteSession: (id) => deleteSession(id),
+    deleteSession: (id) => deleteSession(id).catch((e: unknown) => {
+      throw e instanceof Error && /not found/i.test(e.message) ? new SessionNotFoundError(e.message) : e;
+    }),
     history: async (sessionId, cwd, attachments, onError) => transcriptToEvents(await getSessionMessages(sessionId, { dir: cwd }), attachments, onError),
     subagent: async (sessionId, cwd, toolUseId, attachments, onError, call) => {
       const ids = await listSubagents(sessionId, { dir: cwd });

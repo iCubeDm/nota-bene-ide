@@ -6,6 +6,7 @@ import { ConfirmDialog } from './ConfirmDialog.tsx';
 import { selectSwitching, switchSession } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
 import { apiFetch } from '@/net/auth.ts';
+import { archiveSession, brief, deleteSession, renameSession } from './sessionsApi.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { shortWinHome } from '@/lib/paths.ts';
 
@@ -59,13 +60,15 @@ const matches = (x: Item, needle: string) => !needle || `${x.title} ${x.cwd}`.to
 
 /**
  * What the menu shows: the folder groups of the sessions not archived (only the ones with a match for `needle`), each open
- * as `stored` says (this project's by default) or, with a filter, open; and the archived sessions that match, apart.
+ * as `stored` says (this project's by default) or, with a filter, open; and the archived sessions that match, apart. The
+ * open session is never in the archive: one opened from there stays in its group while it is open.
  */
 export function menuGroups(v: SessionsView, needle: string, stored: GroupState) {
-  const groups = groupSessions({ ...v, sessions: v.sessions.filter((x) => !x.archived) })
+  const hidden = (x: Item) => !!x.archived && x.id !== v.current;
+  const groups = groupSessions({ ...v, sessions: v.sessions.filter((x) => !hidden(x)) })
     .map((g) => ({ ...g, items: g.items.filter((x) => matches(x, needle)), open: needle ? true : stored[g.dir] ?? g.here }))
     .filter((g) => g.items.length);
-  return { groups, archived: v.sessions.filter((x) => x.archived && matches(x, needle)) };
+  return { groups, archived: v.sessions.filter((x) => hidden(x) && matches(x, needle)) };
 }
 
 /** The session with its archive mark set or cleared. */
@@ -81,25 +84,6 @@ const isView = (v: unknown): v is SessionsView => {
 
 type Ask = { id: string | null; title: string; dir: string };
 
-/** A failed load's text for the menu: one short line, never an HTML error page. */
-export const brief = (status: number | null, body: string): string => {
-  const plain = /^\s*</.test(body) ? '' : body.replace(/\s+/g, ' ').trim();
-  const s = plain || (status ? `HTTP ${status}` : '');
-  return s.length > 120 ? `${s.slice(0, 119)}…` : s;
-};
-
-/** POSTs JSON to a /sessions route: null, or what went wrong. */
-const postSessions = async (route: string, body: object): Promise<string | null> => {
-  const r = await apiFetch(route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null);
-  return r?.ok ? null : brief(r?.status ?? null, r ? await r.text().catch(() => '') : '');
-};
-
-/** Renames a session (the open one or any other): null, or what went wrong. */
-export const renameSession = (id: string, title: string) => postSessions('/sessions/rename', { id, title });
-/** Archives (`on`) or restores a session in Nota Bene's own list: null, or what went wrong. */
-export const archiveSession = (id: string, on: boolean) => postSessions('/sessions/archive', { id, archived: on });
-/** Deletes a stored session for good (the agent's own files): null, or what went wrong. */
-const deleteSession = (id: string) => postSessions('/sessions/delete', { id });
 
 const ROW_ACTION = 'rounded px-1 text-xs text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-foreground focus-visible:opacity-100';
 
@@ -155,6 +139,11 @@ export function SessionPicker() {
     setView(null);
     setEdit(null);
     setShowArchive(false);
+    load();
+  };
+
+  /** (Re)loads the list; the filter and the archive view stay as they are. */
+  const load = () => {
     const seq = ++loadSeq.current;
     void apiFetch('/sessions')
       .then(async (r) => {
@@ -167,6 +156,9 @@ export function SessionPicker() {
         if (seq === loadSeq.current) setView(t('sessFail') + brief(null, e instanceof Error ? e.message : String(e)));
       });
   };
+  // read when a delete answers: the agent may have started working while the question was open
+  const offNow = useRef(off);
+  offNow.current = off;
 
   const toggle = (dir: string, open: boolean) => {
     if (needle) return; // a filter keeps every group with a match open
@@ -353,14 +345,13 @@ export function SessionPicker() {
                 {showArchive ? t('hideArchive') : t('showArchive', archived.length)}
               </button>
             )}
+            {/* never the open session (menuGroups) */}
             {showArchive && archived.map((x) => {
-              const cur = x.id === v!.current;
               const title = x.title || t('untitled');
               return (
                 <div key={x.id} data-sess-archived="" className="group/row relative">
                   <button
                     type="button"
-                    disabled={cur}
                     onClick={() => pick({ id: x.id, title, dir: x.cwd })}
                     className="block w-full rounded-md py-1.5 pr-24 pl-2.5 text-left opacity-70 hover:enabled:bg-muted"
                   >
@@ -378,7 +369,7 @@ export function SessionPicker() {
                     >
                       {t('restoreSess')}
                     </button>
-                    {!cur && canDelete && (
+                    {canDelete && (
                       <button type="button" aria-label={`${t('deleteSess')}: ${title}`} title={t('deleteSess')} onClick={() => askDelete(x.id, title)} className={`${ROW_ACTION} hover:text-destructive`}>
                         ✕
                       </button>
@@ -420,7 +411,10 @@ export function SessionPicker() {
             setDel(null);
             void deleteSession(id).then((failed) => {
               if (failed !== null) return showNote(t('deleteFail') + failed);
-              onOpenChange(true); // the menu again, without it
+              setView((w) => (w && typeof w === 'object' ? { ...w, sessions: w.sessions.filter((x) => x.id !== id) } : w));
+              if (offNow.current) return;
+              setOpen(true); // the menu again, where it was (filter, archive view), without it
+              load();
             });
           }}
           onCancel={() => setDel(null)}

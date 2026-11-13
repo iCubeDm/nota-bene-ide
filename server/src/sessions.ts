@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { RequestListener } from 'node:http';
 import { isSessionId } from '@nota-bene/shared';
-import type { ProviderBackend as AgentBackend } from './agent/types.ts';
+import { SessionNotFoundError, type ProviderBackend as AgentBackend } from './agent/types.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { wirePath } from './wirePath.ts';
@@ -165,17 +165,26 @@ export function archiveRoute(o: { hub: EventHub; current: () => string | null; s
 
 /**
  * POST /sessions/delete {id}: the agent deletes a stored session for good (`remove`; none: the agent cannot, 404). Never the
- * open session, nor any while a switch runs (its target may be the one asked for).
+ * open session, nor any while a switch runs (its target may be the one asked for), nor one another live window has open.
+ * Then `forget` drops Nota Bene's own data of it, also when the agent had it no more (404, nothing reported).
  */
 export function deleteRoute(o: {
-  hub: EventHub; current: () => string | null; switching: () => boolean; remove: ((id: string) => Promise<void>) | undefined; unarchive: (id: string) => void;
+  hub: EventHub; current: () => string | null; switching: () => boolean; openElsewhere: (id: string) => Promise<boolean>;
+  remove: ((id: string) => Promise<void>) | undefined; forget: (id: string) => void;
 }): RequestListener {
   return postRoute(o.hub, 'sessions/delete', async ({ id }) => {
     if (!o.remove) return [404, 'this agent cannot delete sessions'];
     if (!isSessionId(id)) return [400, 'bad id'];
     if (id === o.current() || o.switching()) return [409, 'the open session cannot be deleted'];
-    await o.remove(id);
-    try { o.unarchive(id); } catch (e) { reportError(o.hub, 'sessions/delete', e); } // deleted all the same: a stale entry is ignored
-    return [200, 'ok'];
+    if (await o.openElsewhere(id)) return [409, 'the session is open in another window'];
+    let gone = false;
+    try {
+      await o.remove(id);
+    } catch (e) {
+      if (!(e instanceof SessionNotFoundError)) throw e;
+      gone = true;
+    }
+    o.forget(id);
+    return gone ? [404, 'no such session'] : [200, 'ok'];
   });
 }

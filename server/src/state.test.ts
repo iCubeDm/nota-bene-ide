@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { lastSession, saveSession, SecretError, sharedHomeRefusal, stateDir } from './state.ts';
+import { forgetSession, lastSession, saveSession, SecretError, sharedHomeRefusal, stateDir } from './state.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -19,6 +19,14 @@ describe('state', () => {
   it('saves then reads a session id', () => {
     saveSession('/p', 'abc');
     expect(lastSession('/p')).toBe('abc');
+  });
+  it('forgetSession drops every project whose last session it was, and only those', () => {
+    saveSession('/p', 'gone');
+    saveSession('/q', 'gone');
+    saveSession('/r', 'kept');
+    expect(forgetSession('gone')).toBe(2);
+    expect([lastSession('/p'), lastSession('/q'), lastSession('/r')]).toEqual([undefined, undefined, 'kept']);
+    expect(forgetSession('gone')).toBe(0);
   });
   it('null deletes the entry', () => {
     saveSession('/p', 'abc');

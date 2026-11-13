@@ -88,6 +88,12 @@ export class PromptStore {
     }
   }
 
+  /** A deleted session: its prompts go (none is fine). */
+  forget(sessionId: string): void {
+    fs.rmSync(fileFor(this.dir, sessionId), { force: true });
+    this.cache.delete(sessionId);
+  }
+
   /** The in-memory ones of a session that never got an id: another session must not adopt them. */
   dropPending(): void {
     this.pending = [];

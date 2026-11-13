@@ -9,7 +9,7 @@ import { fakeBackend } from './agent/fake.ts';
 import type { FakeTurn } from './agent/fake.ts';
 import { CommentStore } from './comments.ts';
 import { startServer } from './server.ts';
-import { lastSession } from './state.ts';
+import { lastSession, saveSession } from './state.ts';
 import { wirePath } from './wirePath.ts';
 
 const SA = '11111111-1111-4111-8111-111111111111';
@@ -145,6 +145,26 @@ describe('GET /sessions', () => {
     expect((await postJson(s.url, '/sessions/delete', { id: SB })).status).toBe(200);
     expect((await listed(s.url)).map((x) => x.id)).toEqual([SA]);
     expect(fs.readFileSync(path.join(home, 'archived-sessions.json'), 'utf8')).toBe('[]');
+    expect((await postJson(s.url, '/sessions/delete', { id: SB })).status).toBe(404); // gone already
+  });
+
+  it('a delete takes Nota Bene\'s own data of the session along, and no folder resumes it any more', async () => {
+    const backend = fakeBackend([{ text: 'hello' }], {
+      capabilities: { deleteSession: true },
+      sessions: [{ id: SA, cwd: A, lastModified: 1 }, { id: SB, cwd: B, lastModified: 2 }],
+    });
+    const s = await boot({ backend, resume: SA });
+    const own = [['history', `${SB}.jsonl`], ['prompts', `${SB}.jsonl`], ['comments', `${SB}.json`]].map(([d, f]) => path.join(home, d!, f!));
+    for (const f of own) { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, '{}\n'); }
+    const keep = path.join(home, 'prompts', `${SA}.jsonl`);
+    fs.writeFileSync(keep, '{}\n');
+    saveSession(B, SB);
+    saveSession(A, SA);
+    expect((await postJson(s.url, '/sessions/delete', { id: SB })).status).toBe(200);
+    expect(own.filter((f) => fs.existsSync(f))).toEqual([]);
+    expect(fs.existsSync(keep)).toBe(true);
+    expect(lastSession(B)).toBeUndefined();
+    expect(lastSession(A)).toBe(SA);
   });
 
   it('refuses a foreign host', async () => {

@@ -10,7 +10,8 @@ import { setDraft } from '@/composer/slice.ts';
 import { setLang } from '@/i18n/index.ts';
 import { Header } from '@/shell/Header.tsx';
 import { makeStore } from '@/store/store.ts';
-import { ago, brief, groupSessions, kb, menuGroups, type SessionsView } from './SessionPicker.tsx';
+import { ago, groupSessions, kb, menuGroups, type SessionsView } from './SessionPicker.tsx';
+import { brief } from './sessionsApi.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 
@@ -407,6 +408,13 @@ describe('folder groups', () => {
     expect(menuGroups(v, 'other', {}).archived.map((x) => x.id)).toEqual([B]);
   });
 
+  it('menuGroups: the open session stays in its group even when archived (it was opened from the archive)', () => {
+    const v: SessionsView = { ...VIEW, sessions: VIEW.sessions.map((x) => (x.id === A ? { ...x, archived: true } : x)) };
+    const m = menuGroups(v, '', {});
+    expect(m.groups[0]!.items.map((x) => x.id)).toEqual([A, C]);
+    expect(m.archived).toEqual([]);
+  });
+
   it('collapsing and expanding is remembered across openings and reloads', async () => {
     setup();
     await openPicker();
@@ -482,6 +490,37 @@ describe('archive and delete', () => {
     expect(posts('/sessions/delete')).toEqual([{ id: C }]);
     await screen.findByText('current talk'); // the menu opens again, without it
     expect(screen.queryByText('(untitled)')).toBeNull();
+  });
+
+  it('a delete from the archive list comes back to the archive list, filter kept', async () => {
+    const { emit } = setup();
+    withDelete(emit);
+    view = { ...VIEW, sessions: VIEW.sessions.map((x) => (x.id === B || x.id === D ? { ...x, archived: true } : x)) };
+    answer();
+    await openPicker();
+    await userEvent.type(screen.getByPlaceholderText('Search by title or folder…'), 'o');
+    await userEvent.click(screen.getByRole('button', { name: 'Show archive (2)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete: other one' }));
+    view = { ...view, sessions: view.sessions.filter((x) => x.id !== B) };
+    await userEvent.click(within(await screen.findByRole('dialog', { name: /Delete session/ })).getByRole('button', { name: 'Delete' }));
+    await screen.findByText('third folder');
+    expect(screen.getByPlaceholderText('Search by title or folder…')).toHaveValue('o');
+    expect(screen.getByRole('button', { name: 'Hide archive' })).toBeInTheDocument();
+    expect(screen.queryByText('other one')).toBeNull();
+  });
+
+  it('a delete answered while the agent works does not reopen the menu', async () => {
+    const { emit } = setup();
+    withDelete(emit);
+    answer();
+    await openPicker();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete: (untitled)' }));
+    const dlg = await screen.findByRole('dialog', { name: /Delete session/ });
+    emit({ kind: 'user', id: 'u1', text: 'from another window', ts: 1 });
+    await userEvent.click(within(dlg).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(posts('/sessions/delete')).toEqual([{ id: C }]));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole('dialog', { name: 'Sessions' })).toBeNull();
   });
 
   it('a refused archive or delete says so', async () => {

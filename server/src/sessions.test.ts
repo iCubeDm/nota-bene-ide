@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import http from 'node:http';
+import { SessionNotFoundError } from './agent/types.ts';
 import { EventHub } from './hub.ts';
 import { archiveRoute, cwdOf, deleteRoute, listSessionsView, renameRoute, titleOf } from './sessions.ts';
 import { wirePath } from './wirePath.ts';
@@ -203,34 +204,48 @@ describe('POST /sessions/archive', () => {
 });
 
 describe('POST /sessions/delete', () => {
-  const route = (o: { remove?: (id: string) => Promise<void>; switching?: boolean; unarchive?: (id: string) => void }) =>
-    deleteRoute({ hub: new EventHub(), current: () => OPEN, switching: () => o.switching ?? false, remove: o.remove, unarchive: o.unarchive ?? (() => {}) });
+  const route = (o: { remove?: (id: string) => Promise<void>; switching?: boolean; forget?: (id: string) => void; elsewhere?: string; hub?: EventHub }) =>
+    deleteRoute({
+      hub: o.hub ?? new EventHub(), current: () => OPEN, switching: () => o.switching ?? false, openElsewhere: async (id) => id === o.elsewhere,
+      remove: o.remove, forget: o.forget ?? (() => {}),
+    });
 
-  it('deletes another session through the agent and drops it from the archive', async () => {
+  it('deletes another session through the agent, then forgets Nota Bene\'s own data of it', async () => {
     const remove = vi.fn(async () => {});
-    const unarchive = vi.fn();
-    expect((await post(route({ remove, unarchive }), JSON.stringify({ id: ID }))).status).toBe(200);
+    const forget = vi.fn();
+    expect((await post(route({ remove, forget }), JSON.stringify({ id: ID }))).status).toBe(200);
     expect(remove).toHaveBeenCalledWith(ID);
-    expect(unarchive).toHaveBeenCalledWith(ID);
+    expect(forget).toHaveBeenCalledWith(ID);
   });
 
   it('is a 404 for an agent that cannot delete', async () => {
     expect((await post(route({}), JSON.stringify({ id: ID }))).status).toBe(404);
   });
 
-  it('refuses the open session and any while a switch runs', async () => {
+  it('refuses the open session, any while a switch runs, and one another live window has open', async () => {
     const remove = vi.fn(async () => {});
     expect((await post(route({ remove }), JSON.stringify({ id: OPEN }))).status).toBe(409);
     expect((await post(route({ remove, switching: true }), JSON.stringify({ id: ID }))).status).toBe(409);
+    expect(await post(route({ remove, elsewhere: ID }), JSON.stringify({ id: ID }))).toEqual({ status: 409, text: 'the session is open in another window' });
     expect(remove).not.toHaveBeenCalled();
   });
 
-  it('refuses a bad id; says 500 with the agent\'s words when it refuses, and keeps the archive entry', async () => {
+  it('a session the agent no longer has is a 404, not a server error; its own data goes all the same', async () => {
+    const hub = new EventHub();
+    const emit = vi.spyOn(hub, 'emit');
+    const forget = vi.fn();
+    const r = await post(route({ hub, remove: async () => { throw new SessionNotFoundError('Session x not found'); }, forget }), JSON.stringify({ id: ID }));
+    expect(r.status).toBe(404);
+    expect(forget).toHaveBeenCalledWith(ID);
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('refuses a bad id; says 500 with the agent\'s words when it refuses, and keeps its own data', async () => {
     const remove = vi.fn(async () => {});
     expect((await post(route({ remove }), JSON.stringify({ id: '../x' }))).status).toBe(400);
     expect(remove).not.toHaveBeenCalled();
-    const unarchive = vi.fn();
-    expect(await post(route({ remove: async () => { throw new Error('no such session'); }, unarchive }), JSON.stringify({ id: ID }))).toEqual({ status: 500, text: 'no such session' });
-    expect(unarchive).not.toHaveBeenCalled();
+    const forget = vi.fn();
+    expect(await post(route({ remove: async () => { throw new Error('disk busy'); }, forget }), JSON.stringify({ id: ID }))).toEqual({ status: 500, text: 'disk busy' });
+    expect(forget).not.toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@ import { useT } from '@/i18n/index.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { useAppSelector } from '@/store/store.ts';
 import { selectIdleCompact } from '@/controls/slice.ts';
-import { archiveSession } from '@/controls/SessionPicker.tsx';
+import { archiveSession } from '@/controls/sessionsApi.ts';
 import { compactProgress, expectedCompactMs, mmss } from './compactTiming.ts';
 import { timeOf } from './UserMessage.tsx';
 
