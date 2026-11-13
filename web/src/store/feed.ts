@@ -314,6 +314,8 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
       return { ...s, lineN, items: [...s.items, { kind: 'notice', key, text: ev.id.slice(0, 8) }] };
     }
     case 'comments': // handled by the comments store, not the feed
+    case 'comment-ack': // protocol 19: answers to the comments store's ops
+    case 'comment-refused':
     case 'stats': // handled by the stats store (M4)
     case 'mode':
     case 'model': // the controls slice

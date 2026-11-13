@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { EventEmitter } from 'node:events';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { isAttachmentAnchor, parseClientMessage, PROTOCOL, TAKEN_OVER_CODE } from '@nota-bene/shared';
-import type { ClientMessage, Comment, Stats } from '@nota-bene/shared';
+import type { ClientMessage, Comment, ServerEvent, Stats } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { guard, reportError } from './errors.ts';
 import { HistoryArchive, historyRoutes } from './archive.ts';
@@ -132,18 +132,23 @@ export async function startServer(o: {
       ...(o.idleOffInSettings ? { idleOffInSettings: o.idleOffInSettings } : {}),
       ...(o.shell ? { shell: o.shell } : {}),
       // a voice message whose transcript failed never reaches the agent: the comments it carried are pending again
-      onDropped: (id) => broadcastComments(store.markPending(manager.info().id, id)),
+      onDropped: (id) => { store.markPending(manager.info().id, id); broadcastComments(); },
     });
     const store = new CommentStore({ dir: path.join(stateDir(), 'comments') });
     // comments are live state, not history: never stored in the replay, a new socket gets the set directly
     const currentComments = () => store.get(manager.info().id);
-    const broadcastComments = (items: Comment[]) => hub.emit({ kind: 'comments', items }, { store: false });
+    /** the current session's set with its revision (protocol 19); `ack` names the ops this change applied */
+    const commentsEvent = (ack?: string): Extract<ServerEvent, { kind: 'comments' }> => {
+      const { items, rev } = store.state(manager.info().id);
+      return { kind: 'comments', items, rev, ...(ack ? { ack: [ack] } : {}) };
+    };
+    const broadcastComments = (ack?: string) => hub.emit(commentsEvent(ack), { store: false });
     // the web's prompt history: a new session's first prompts wait in memory for its id (as comments do); a /clear or a fork
     // keeps the history, so the new id gets a copy of the previous one's
     const prompts = new PromptStore({ dir: path.join(stateDir(), 'prompts'), report: (e) => reportError(hub, 'prompts', e) });
     manager.onSessionId((id, prev) => {
       if (prev === null) store.adopt(id);
-      broadcastComments(store.get(id));
+      broadcastComments();
       try {
         if (prev !== null) prompts.carry(prev, id);
         prompts.adopt(id); // a fork or an id-less /clear too: its first prompts waited in memory
@@ -155,8 +160,8 @@ export async function startServer(o: {
       if (!restart) prompts.dropPending();
       // the unsent set of a new session (in memory, no id yet) stays behind: it must not be adopted by another
       // session. A restart keeps the same session (and root), so it keeps the set too
-      if (!restart) store.set(null, []);
-      broadcastComments(store.get(id));
+      if (!restart) store.dropPending();
+      broadcastComments();
     });
     // supervised = our launcher is still our parent: an orphan (launcher killed) must not offer a restart nobody catches.
     // Windows never reparents, so the parent must also still be there: its IPC channel open (main.ts watchLauncher), or
@@ -430,7 +435,7 @@ export async function startServer(o: {
       }
       manager.clientAttached();
       try {
-        ws.send(JSON.stringify({ kind: 'comments', items: currentComments() }));
+        ws.send(JSON.stringify(commentsEvent()));
       } catch (e) {
         reportError(hub, 'comments', e);
       }
@@ -507,7 +512,8 @@ export async function startServer(o: {
               }
               // before the agent call: the UI flips to sent even if the agent later fails
               try {
-                broadcastComments(store.markSent(manager.info().id, msg.commentIds, msg.id));
+                store.markSent(manager.info().id, msg.commentIds, msg.id);
+                broadcastComments();
               } catch (e) {
                 reportError(hub, 'comments', e); // the message itself must still go out
               }
@@ -527,7 +533,7 @@ export async function startServer(o: {
               try {
                 prev = store.get(id);
                 merged = store.merge(id, msg.items);
-                broadcastComments(merged);
+                broadcastComments();
               } catch (e) {
                 reportError(hub, 'comments', e); // nothing stored, nothing broadcast; the socket stays up
                 break;
@@ -536,6 +542,37 @@ export async function startServer(o: {
                 marks.sync(prev, merged); // a deleted media comment takes its frame/layer files along
               } catch (e) {
                 reportError(hub, 'marks', e); // the merge stands
+              }
+            }
+            break;
+          case 'comment-op':
+            {
+              // an op names the session it was made in, so work queued across a switch lands there; null is the
+              // window's current session (a comment made before the session had an id, adopted since)
+              const id = msg.sessionId ?? manager.info().id;
+              let prev: Comment[];
+              let refused: ReturnType<CommentStore['apply']>;
+              try {
+                prev = store.get(id);
+                refused = store.apply(id, msg.ops);
+              } catch (e) {
+                reportError(hub, 'comments', e);
+                // nothing stored: the client keeps the op and sends it again
+                ws.send(JSON.stringify({ kind: 'comment-refused', opId: msg.opId, reason: 'failed' }));
+                break;
+              }
+              if (refused) {
+                ws.send(JSON.stringify({ kind: 'comment-refused', opId: msg.opId, reason: refused.reason, id: refused.id }));
+                break;
+              }
+              // the window's set: everyone sees the change, the sender its ack; another session's set is no one's view,
+              // and during a switch the switch's end sends the set
+              if (id === manager.info().id && !manager.switching()) broadcastComments(msg.opId);
+              else ws.send(JSON.stringify({ kind: 'comment-ack', opId: msg.opId }));
+              try {
+                marks.sync(prev, store.get(id)); // a deleted media comment takes its frame/layer files along
+              } catch (e) {
+                reportError(hub, 'marks', e); // the change stands
               }
             }
             break;

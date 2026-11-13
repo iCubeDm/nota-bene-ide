@@ -50,7 +50,7 @@ function unreadable(file: string): void {
 function unwritable(sessionId: string): void {
   const dir = path.join(home, 'comments');
   if (process.platform === 'win32') {
-    fs.mkdirSync(path.join(dir, `${sessionId}.json.tmp${process.pid}`));
+    fs.mkdirSync(path.join(dir, `${sessionId}.v2.json.tmp${process.pid}`));
     return;
   }
   fs.chmodSync(dir, 0o555);
@@ -98,7 +98,7 @@ describe('comment sync', () => {
     const cl = await connect(s.url);
     await until(() => cl.events.length >= 2);
     expect(cl.events[0]!.kind).toBe('replay');
-    expect(cl.events[1]).toEqual({ kind: 'comments', items: [c('a')] });
+    expect(cl.events[1]).toEqual({ kind: 'comments', items: [c('a')], rev: expect.any(Number) });
   });
 
   it('comments never enter the replay history', async () => {
@@ -204,7 +204,7 @@ describe('comment sync', () => {
     it('an unreadable comment store does not block the send', async () => {
       const backend = fakeBackend([{ text: 'ok' }]);
       const { a } = await setup(backend);
-      const file = path.join(home, 'comments', 'fake-session.json');
+      const file = path.join(home, 'comments', 'fake-session.v2.json');
       fs.writeFileSync(file, '[]');
       unreadable(file);
       a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi', commentIds: ['att'] }));
@@ -329,7 +329,7 @@ describe('a model comment', () => {
     const cl2 = await connect(s.url);
     await until(() => lastComments(cl2)?.length === 1);
     expect((lastComments(cl2)![0].anchor as unknown as { camera: unknown }).camera).toEqual(camera);
-    const onDisk = JSON.parse(fs.readFileSync(path.join(home, 'comments', 'sess-cam.json'), 'utf8')) as { items?: Comment[] } | Comment[];
+    const onDisk = JSON.parse(fs.readFileSync(path.join(home, 'comments', 'sess-cam.v2.json'), 'utf8')) as { items?: Comment[] } | Comment[];
     const stored = Array.isArray(onDisk) ? onDisk : onDisk.items!;
     expect((stored[0]!.anchor as unknown as { camera: unknown }).camera).toEqual(camera);
   });
@@ -409,5 +409,97 @@ describe('sent comments keep their mark files', () => {
     const d = await fetch(`${origin}/marks/${A}`, { method: 'DELETE', headers: { origin } });
     expect(d.status).toBe(409);
     expect(fs.existsSync(path.join(proj, '.nota-bene', 'marks', A, 'frame.jpg'))).toBe(true);
+  });
+});
+
+describe('comment ops (protocol 19)', () => {
+  const op = (opId: string, sessionId: string | null, ops: unknown[]) => JSON.stringify({ type: 'comment-op', opId, sessionId, ops });
+  const ack = (cl: Client, opId: string) => cl.events.find((e) => e.kind === 'comments' && e.ack?.includes(opId));
+
+  it('hello announces protocol 19; an op reaches every client with a higher revision, and the sender its ack', async () => {
+    const s = await boot();
+    const a = await connect(s.url);
+    const b = await connect(s.url);
+    await until(() => lastComments(a) !== undefined && lastComments(b) !== undefined);
+    expect(a.events.find((e) => e.kind === 'hello')).toMatchObject({ protocol: 19 });
+    const rev0 = (a.events.find((e) => e.kind === 'comments') as { rev: number }).rev;
+    a.ws.send(op('o1', null, [{ op: 'add', comment: c('a') }]));
+    await until(() => ack(b, 'o1') !== undefined && ack(a, 'o1') !== undefined);
+    expect(ack(b, 'o1')).toEqual({ kind: 'comments', items: [c('a')], rev: expect.any(Number), ack: ['o1'] });
+    expect((ack(b, 'o1') as { rev: number }).rev).toBeGreaterThan(rev0);
+  });
+
+  it('issue 259: a client that never saw a new comment cannot delete it by removing another one', async () => {
+    const s = await boot();
+    const desk = await connect(s.url);
+    const phone = await connect(s.url);
+    await until(() => lastComments(desk) !== undefined && lastComments(phone) !== undefined);
+    desk.ws.send(op('d1', null, [{ op: 'add', comment: c('old') }]));
+    await until(() => ack(phone, 'd1') !== undefined);
+    // the phone stops listening (in the background); the desktop adds a comment it never sees
+    phone.ws.pause();
+    desk.ws.send(op('d2', null, [{ op: 'add', comment: c('new') }]));
+    await until(() => ack(desk, 'd2') !== undefined);
+    // back, the phone deletes the comment it knows: the new one stays
+    phone.ws.send(op('p1', null, [{ op: 'remove', id: 'old' }]));
+    await until(() => ack(desk, 'p1') !== undefined);
+    expect(lastComments(desk)).toEqual([c('new')]);
+    // and a queued add of the comment the desktop deleted cannot bring it back
+    desk.ws.send(op('d3', null, [{ op: 'remove', id: 'new' }]));
+    await until(() => ack(desk, 'd3') !== undefined);
+    phone.ws.resume();
+    phone.ws.send(op('p2', null, [{ op: 'add', comment: c('new') }]));
+    await until(() => phone.events.some((e) => e.kind === 'comment-refused'));
+    expect(phone.events.find((e) => e.kind === 'comment-refused')).toEqual({ kind: 'comment-refused', opId: 'p2', reason: 'gone', id: 'new' });
+    expect(desk.events.some((e) => e.kind === 'comment-refused')).toBe(false);
+    expect(lastComments(desk)).toEqual([]);
+  });
+
+  it('an op for a session the window does not show lands in its file; the sender alone gets comment-ack', async () => {
+    store().set('earlier', [c('e')]);
+    const s = await boot();
+    const a = await connect(s.url);
+    const b = await connect(s.url);
+    await until(() => [a, b].every((x) => lastComments(x) !== undefined && x.events.some((e) => e.kind === 'hello')));
+    await new Promise((r) => setTimeout(r, 50));
+    const before = b.events.length;
+    a.ws.send(op('x1', 'earlier', [{ op: 'remove', id: 'e' }, { op: 'add', comment: c('f') }]));
+    await until(() => a.events.some((e) => e.kind === 'comment-ack'));
+    expect(a.events.find((e) => e.kind === 'comment-ack')).toEqual({ kind: 'comment-ack', opId: 'x1' });
+    expect(store().get('earlier')).toEqual([c('f')]);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(b.events.slice(before)).toEqual([]);
+    expect(lastComments(a)).toEqual([]);
+  });
+
+  it('a refused op stores nothing and is told to the sender only; a malformed one never reaches the store', async () => {
+    const s = await boot();
+    const a = await connect(s.url);
+    const b = await connect(s.url);
+    await until(() => lastComments(a) !== undefined && lastComments(b) !== undefined);
+    a.ws.send(op('e1', null, [{ op: 'edit', comment: c('missing') }]));
+    await until(() => a.events.some((e) => e.kind === 'comment-refused'));
+    expect(a.events.find((e) => e.kind === 'comment-refused')).toEqual({ kind: 'comment-refused', opId: 'e1', reason: 'gone', id: 'missing' });
+    a.ws.send(op('', null, [{ op: 'add', comment: c('a') }]));
+    a.ws.send(op('m1', null, []));
+    a.ws.send(op('m2', null, [{ op: 'move', id: 'a' }]));
+    a.ws.send(op('ok', null, [{ op: 'add', comment: c('b') }]));
+    await until(() => ack(a, 'ok') !== undefined);
+    expect(lastComments(a)).toEqual([c('b')]);
+    expect(b.events.some((e) => e.kind === 'comment-refused')).toBe(false);
+  });
+
+  it('a failing write answers failed, so the client keeps the op', async () => {
+    const s = await boot();
+    const a = await connect(s.url);
+    await until(() => lastComments(a) !== undefined);
+    a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi' }));
+    await until(() => a.events.some(isResult));
+    fs.mkdirSync(path.join(home, 'comments'), { recursive: true });
+    unwritable('fake-session');
+    a.ws.send(op('w1', 'fake-session', [{ op: 'add', comment: c('a') }]));
+    await until(() => a.events.some((e) => e.kind === 'comment-refused'));
+    expect(a.events.find((e) => e.kind === 'comment-refused')).toEqual({ kind: 'comment-refused', opId: 'w1', reason: 'failed' });
+    expect(a.events.find((e) => e.kind === 'server-error')).toMatchObject({ where: 'comments' });
   });
 });

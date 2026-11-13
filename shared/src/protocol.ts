@@ -143,7 +143,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 17: attachment anchors (marks on an image attached to the unsent message) and the `detached` send refusal.
 // 18: spoken-language detection: `send.detect` (a voice send asks the server to detect the language; `lang` is then the hint), `voice-text.lang`, `user.voiceLang` (the language a replayed voice message was transcribed in) and `hello.dictationLang` (the host's dictation language, `auto` or a code).
 // (Other additions to protocol 15, such as optional Interaction fields and the `task` event's optional `model`, are listed beside this line by their own changes.)
-export const PROTOCOL = 18;
+// 19: comment ops: the client's `comment-op` (add / edit / remove, idempotent) answered by `comments.ack` or, for a session the window does not show, `comment-ack`, or by `comment-refused`; `comments.rev`. An older server gets whole sets (`comments`) as before.
+export const PROTOCOL = 19;
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
 export const TAKEN_OVER_CODE = 4001;
@@ -216,11 +217,25 @@ export type Interaction = {
 };
 export type InteractionAnswer = { choice: string; values?: Record<string, string> };
 
+/**
+ * One change to a session's comments (protocol 19). `add` of a stored id changes nothing (a resent op); `edit` carries the
+ * comment as edited, of which the server takes the text, label, images, recordings and generated-image count; `remove`
+ * leaves the id deleted, so no later add brings it back.
+ */
+export type CommentOp = { op: 'add'; comment: Comment } | { op: 'edit'; comment: Comment } | { op: 'remove'; id: string };
+/** gone: the comment was deleted, or is missing for an edit; sent: a sent comment cannot change (the client drops the op);
+ * failed: the server could not store it (the client keeps the op and sends it again) */
+export type CommentRefusal = 'gone' | 'sent' | 'failed';
+/** at most this many ops in one `comment-op` */
+export const COMMENT_OPS_MAX = 50;
+
 export type ClientMessage =
   /** protocol 14 (comments riding along: 16): with `voice`, `text` is '' and there are no `images` or `commentIds`, unless pending comments ride along (protocol 16): then `commentIds` is not empty, `text` is their batch (what a typed send carries after the typed words) and `images` theirs; the agent gets the transcript, then the batch. `force` works as for text (the turn is interrupted once the transcript is in); the server transcribes it in `lang` (ISO 639) and the agent gets the text */
   | { type: 'send'; id: string; text: string; force?: boolean; commentIds?: string[]; images?: ImageRef[]; voice?: Voice; lang?: string; /** protocol 18, voice only: detect the spoken language (`lang` is the fallback when unsure); absent = transcribe in `lang` */ detect?: true }
   /** full replacement of this session's comment set */
   | { type: 'comments'; sessionId: string | null; items: Comment[] }
+  /** protocol 19: applied to `sessionId`'s set (null: the window's current one), all or none */
+  | { type: 'comment-op'; opId: string; sessionId: string | null; ops: CommentOp[] }
   | { type: 'interrupt' }
   /** `input` is ignored by the server (an allow always runs the original input); no client sends it. */
   | { type: 'permission'; id: string; allow: boolean; input?: Record<string, unknown>; response?: InteractionAnswer }
@@ -273,7 +288,12 @@ export type ServerEvent =
   | { kind: 'permission'; id: string; toolName: string; input: Record<string, unknown>; prompt?: Interaction; ts: number }
   | { kind: 'permission-done'; id: string; allow: boolean; ts: number }
   /** full comment set; never stored in history, so no ts */
-  | { kind: 'comments'; items: Comment[] }
+  /** protocol 19: `rev` grows with every change of the set; `ack` names the `comment-op`s this change applied */
+  | { kind: 'comments'; items: Comment[]; rev?: number; ack?: string[] }
+  /** protocol 19, to the sender only: its `comment-op` was applied to a session the window does not show */
+  | { kind: 'comment-ack'; opId: string }
+  /** protocol 19, to the sender only: nothing of the `comment-op` was applied; `id` names the comment that refused it */
+  | { kind: 'comment-refused'; opId: string; reason: CommentRefusal; id?: string }
   | { kind: 'session'; id: string | null; root: string; title: string | null; model: string | null }
   /** never stored in history */
   | { kind: 'stats'; stats: Stats }
@@ -450,6 +470,12 @@ function isComment(v: unknown): v is Comment {
     && (v.genImages === undefined || isOffset(v.genImages));
 }
 
+function isCommentOp(v: unknown): v is CommentOp {
+  if (!isObj(v)) return false;
+  if (v.op === 'remove') return typeof v.id === 'string' && v.id !== '';
+  return (v.op === 'add' || v.op === 'edit') && isComment(v.comment);
+}
+
 function isPermission(o: Obj): boolean {
   return typeof o.id === 'string' && typeof o.allow === 'boolean' && (o.input === undefined || isObj(o.input));
 }
@@ -517,6 +543,10 @@ function toComment(c: Comment): Comment {
   };
 }
 
+function toCommentOp(o: CommentOp): CommentOp {
+  return o.op === 'remove' ? { op: 'remove', id: o.id } : { op: o.op, comment: toComment(o.comment) };
+}
+
 function toImageRef(i: ImageRef): ImageRef {
   return { id: i.id, mediaType: i.mediaType, label: i.label };
 }
@@ -544,6 +574,11 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
       if (m.sessionId !== null && typeof m.sessionId !== 'string') return { error: 'comments needs sessionId: string | null' };
       if (!Array.isArray(m.items) || !m.items.every(isComment)) return { error: 'comments needs items: valid Comment[]' };
       return { type: 'comments', sessionId: m.sessionId, items: (m.items as Comment[]).map(toComment) };
+    case 'comment-op':
+      if (typeof m.opId !== 'string' || m.opId === '' || m.opId.length > 100) return { error: 'comment-op needs opId: a short string' };
+      if (m.sessionId !== null && typeof m.sessionId !== 'string') return { error: 'comment-op needs sessionId: string | null' };
+      if (!Array.isArray(m.ops) || m.ops.length === 0 || m.ops.length > COMMENT_OPS_MAX || !m.ops.every(isCommentOp)) return { error: 'comment-op needs ops: 1 to 50 valid CommentOp' };
+      return { type: 'comment-op', opId: m.opId, sessionId: m.sessionId, ops: (m.ops as CommentOp[]).map(toCommentOp) };
     case 'interrupt':
       return { type: 'interrupt' };
     case 'permission':
