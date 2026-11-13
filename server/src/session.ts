@@ -206,8 +206,10 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     titles.reset();
     shell.stopAll(); // a run in progress belongs to the conversation that was cleared: stopped, its output dropped
     shell.dropQueue(); // and what the old one never heard is not the new one's business
+    const prev = who.info().id;
     const next = who.reset(e.newId);
-    hub.emit({ kind: 'agent', e }, { store: false });
+    // the cleared conversation's id rides along, so the page can offer to archive it
+    hub.emit({ kind: 'agent', e: prev && prev !== next ? { ...e, prev } : e }, { store: false });
     who.announce();
     stats.onAgent(e);
     if (next) who.hear(next);
