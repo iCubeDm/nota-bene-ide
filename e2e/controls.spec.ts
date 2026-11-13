@@ -57,6 +57,13 @@ async function setMode(page: Page, t: ReturnType<typeof track>, mode: Mode) {
 
 const modeSends = (t: ReturnType<typeof track>, from = 0) => t.sent.slice(from).filter((f) => f.type === 'mode');
 
+/** Opens every collapsed folder group of the open Sessions menu (only this project's starts open). */
+async function expandSessionGroups(page: Page) {
+  await expect(page.locator('[data-sess-group]').first()).toBeVisible();
+  const closed = page.locator('[data-sess-group][aria-expanded="false"]');
+  while (await closed.count()) await closed.first().click();
+}
+
 /**
  * Idempotent clean-up: every test leaves the shared server as the next one expects it, even when it failed half way.
  * Each step first checks whether there is anything to do, so a clean server costs one page load and no changes.
@@ -69,6 +76,7 @@ test.afterEach(async ({ page }) => {
   await expect(page.locator('#conn')).toHaveText(''); // a switch still running finishes first
   if (/\/other$/.test((await root.textContent()) ?? '')) {
     await page.locator('#sessBtn').click();
+    await expandSessionGroups(page);
     await page.locator('[data-sess-item]').filter({ hasText: 'Alpha session' }).click();
     await page.getByRole('dialog').getByRole('button', { name: en.switchBtn }).click();
     await expect(root).not.toHaveText(/\/other$/);
@@ -303,6 +311,7 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
 
   const pickSession = async (title: string) => {
     await page.locator('#sessBtn').click();
+    await expandSessionGroups(page);
     await page.locator('[data-sess-item]').filter({ hasText: title }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText(title);
@@ -312,6 +321,7 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
   // renamed from the menu without switching to it, and back: the next tests look for this title
   const rename = async (from: string, to: string) => {
     await page.locator('#sessBtn').click();
+    await expandSessionGroups(page);
     await page.getByRole('button', { name: `${en.renameSess}: ${from}` }).click({ force: true });
     await page.getByRole('textbox', { name: en.renameSess }).fill(to);
     await page.keyboard.press('Enter');

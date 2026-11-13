@@ -1,4 +1,5 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
 import { CompactingLine, DoneLine, MarkerLine, NoticeLine } from './DoneLine.tsx';
@@ -30,6 +31,36 @@ it('the compacted line tells how long it took; a failed one is red with the erro
   rerender(<MarkerLine item={{ kind: 'marker', key: 'k', what: 'compactFailed', error: 'boom', ts: 0 }} />);
   expect(container.querySelector('[data-kind="marker"]')).toHaveClass('text-destructive');
   expect(container).toHaveTextContent('⇣ сжать контекст не удалось: boom');
+});
+
+it('a cleared line offers to archive the conversation before it; done, it says so', async () => {
+  setLang('en');
+  const fetch = vi.fn(async () => new Response('ok'));
+  vi.stubGlobal('fetch', fetch);
+  try {
+    const { container, rerender } = render(<MarkerLine item={{ kind: 'marker', key: 'k', what: 'cleared', ts: 0 }} />);
+    expect(screen.queryByRole('button')).toBeNull(); // no previous id: nothing to offer
+    rerender(<MarkerLine item={{ kind: 'marker', key: 'k', what: 'cleared', ts: 0, prev: '11111111-1111-4111-8111-111111111111' }} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Archive previous session' }));
+    expect(fetch).toHaveBeenCalledWith('/sessions/archive', expect.objectContaining({ body: JSON.stringify({ id: '11111111-1111-4111-8111-111111111111', archived: true }) }));
+    await waitFor(() => expect(container).toHaveTextContent('previous session archived'));
+    expect(screen.queryByRole('button')).toBeNull();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it('a refused archive of the previous conversation says why and can be tried again', async () => {
+  setLang('en');
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('disk full', { status: 500 })));
+  try {
+    const { container } = render(<MarkerLine item={{ kind: 'marker', key: 'k', what: 'cleared', ts: 0, prev: '11111111-1111-4111-8111-111111111111' }} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Archive previous session' }));
+    await waitFor(() => expect(container).toHaveTextContent('Could not archive the session: disk full'));
+    expect(screen.getByRole('button', { name: 'Archive previous session' })).toBeEnabled();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
 
 it('the compacting line counts from the server ts and fills the bar towards the usual time', () => {

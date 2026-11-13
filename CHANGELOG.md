@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **A tidier Sessions menu.** Folder groups show their session count and open or close; only the current project starts open, the menu remembers the rest, and a filter opens every group with a match. A session can be archived: hidden from the list by Nota Bene alone (the agent's files stay), listed under **Show archive (N)** with **Restore**. Claude Code and Codex sessions can also be deleted for good, after a confirmation; omp sessions cannot. The open session can be neither archived nor deleted. After `/clear`, the "context cleared" line offers **Archive previous session**.
+
 ## 1.9.0 — 2026-11-13
 
 - **Windows support, native (no WSL or Docker).** `nota-bene`, `npx nota-bene-ide`, the Claude Code plugin's `/nb`, the Codex plugin and the omp skill run on Windows. It needs Node.js 22 or newer; Git for Windows is recommended (without its Git Bash, Claude Code runs shell commands in PowerShell and the first message says so). See [Windows](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#windows) in the guide. 3D models are not supported on Windows yet.

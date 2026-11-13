@@ -28,7 +28,7 @@ export function codexTooOld(userAgent: unknown): string | null {
 }
 export const CODEX_CAPABILITIES: Capabilities = {
   provider: 'codex', compact: true, clear: true, fork: true, usage: true, fileSuggestions: true, idleCompact: true, models: true,
-  modes: [...CODEX_MODES], taskBackground: false, taskOutput: false, suggestions: false,
+  modes: [...CODEX_MODES], taskBackground: false, taskOutput: false, suggestions: false, deleteSession: true,
   modeDescriptors: [
     { id: 'codex-configured', name: 'Codex config', description: 'Inherit Codex approval and sandbox settings. Changes apply to the next turn.' },
     { id: 'codex-read-only', name: 'Read only', description: 'Read-only sandbox; request approval when necessary. Applies to the next turn.' },

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { selectPendingCountByPath } from '@/comments/slice.ts';
-import { renameSession } from '@/controls/SessionPicker.tsx';
+import { renameSession } from '@/controls/sessionsApi.ts';
 import { FileIcon } from '@/files/FileIcon.tsx';
 import { fileKey } from '@/files/sources.ts';
 import { SourceChip } from '@/files/SourcePicker.tsx';
