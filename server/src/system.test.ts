@@ -209,6 +209,17 @@ describe('defaults and about', () => {
     vi.unstubAllEnvs();
   });
 
+  it('sounds: the ask cue is on and the turn-end cue off until changed, for every window', async () => {
+    const s = await boot();
+    const read = async () => ((await fetch(`${s.url}/system/prefs`)).json() as Promise<{ sounds: unknown }>).then((p) => p.sounds);
+    expect(await read()).toEqual({ ask: true, done: false });
+    expect((await post(`${s.url}/system/prefs`, { sounds: { ask: false } }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { sounds: { ask: 'no', done: true } }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { sounds: { ask: false, done: true } }, { origin: s.origin })).status).toBe(200);
+    expect(await read()).toEqual({ ask: false, done: true });
+    expect(readPrefs().sounds).toEqual({ ask: false, done: true });
+  });
+
   it('the audit log is on until turned off; prefs name its folder', async () => {
     const s = await boot();
     const read = async () => (await fetch(`${s.url}/system/prefs`)).json() as Promise<{ audit: boolean; auditDir: string }>;

@@ -199,6 +199,22 @@ it('Defaults: the audit log is on by default, names its folder and is switched o
   await waitFor(() => expect(box).not.toBeChecked());
 });
 
+it('Defaults: the sounds show the server\'s choice and save both cues together', async () => {
+  let prefs: unknown = { defaultMode: 'auto', sounds: { ask: true, done: false } };
+  const real = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, init) => (url === '/system/prefs' && !init?.method ? Response.json(prefs) : real(url, init)));
+  setup();
+  const ask = await screen.findByRole('checkbox', { name: 'When the agent waits for you (a permission, a plan, a question)' });
+  const done = screen.getByRole('checkbox', { name: 'When a turn ends' });
+  expect(ask).toBeChecked();
+  expect(done).not.toBeChecked();
+  expect(screen.getByRole('button', { name: 'Play: When a turn ends' })).toBeInTheDocument();
+  prefs = { defaultMode: 'auto', sounds: { ask: true, done: true } };
+  fireEvent.click(done);
+  await waitFor(() => expect(posts).toContainEqual({ url: '/system/prefs', body: { sounds: { ask: true, done: true } } }));
+  await waitFor(() => expect(done).toBeChecked());
+});
+
 it('Defaults: the shell of ! commands is a Windows setting; auto names what it takes, a missing choice is marked', async () => {
   const found = { 'git-bash': null, pwsh: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', powershell: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', cmd: 'C:\\Windows\\system32\\cmd.exe' };
   let prefs: unknown = { defaultMode: 'auto', shell: 'auto', shells: found };
