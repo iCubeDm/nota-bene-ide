@@ -180,6 +180,35 @@ describe('rows', () => {
     expect([...document.querySelectorAll('[data-task]')].map((n) => n.getAttribute('data-task'))).toEqual(['p', 'k']);
   });
 
+  it('parallel agents of one response sit under an umbrella row: how many, how they stand, time and tokens; members indented under it', () => {
+    const { task } = setup();
+    for (const id of ['a', 'b', 'c']) task(start(id, { type: 'local_agent', call: `toolu_${id}`, group: 'msg_1' }), 100_000);
+    task({ t: 'task', phase: 'progress', id: 'a', tokens: 2000 }); task({ t: 'task', phase: 'progress', id: 'b', tokens: 1000 });
+    task({ t: 'task', id: 'a', phase: 'done' }, 104_000); task({ t: 'task', id: 'b', phase: 'done', status: 'failed' }, 105_000);
+    fireEvent.click(indicator()!);
+    const g = document.querySelector<HTMLElement>('[data-task-group="msg_1"]')!;
+    expect(g).toHaveAttribute('data-status', 'running');
+    expect(g).toHaveTextContent('3 parallel agents');
+    expect(g.querySelector('[data-task-summary]')).toHaveTextContent('1/3 done, 1 failed');
+    expect(g.querySelector('[data-task-meta]')).toHaveTextContent('0s · 3k tok');
+    expect(g.style.paddingLeft).toBe('12px');
+    expect(row('c').style.paddingLeft).toBe('30px');
+    expect([...document.querySelectorAll('[data-task], [data-task-group]')].map((n) => n.getAttribute('data-task') ?? 'group')).toEqual(['group', 'c', 'b', 'a']);
+  });
+
+  it('a workflow row names its workflow', () => {
+    const { task } = setup();
+    task(start('w', { type: 'local_workflow', desc: 'Review the change', workflow: 'spec' }));
+    fireEvent.click(indicator()!);
+    expect(row('w')).toHaveAttribute('data-kind', 'workflow');
+    expect(row('w').querySelector('[data-task-meta]')).toHaveTextContent('workflow “spec” · 0s');
+    task(start('a1', { type: 'workflow_agent', desc: 'alpha', parent: 'w', inner: true }));
+    expect(row('a1').style.paddingLeft).toBe('30px');
+    expect(row('a1').querySelector('[data-task-stop]')).toBeNull(); // stopped with its workflow
+    expect(row('a1').querySelector('[data-task-open]')).toBeNull();
+    expect(row('w').querySelector('[data-task-stop]')).not.toBeNull();
+  });
+
   it('empty drawer (all tasks gone with a reset) says so', () => {
     const { task, ev } = setup();
     task(start('a'));
@@ -221,6 +250,24 @@ describe('actions', () => {
     fireEvent.click(stop());
     expect(sent.filter((m) => m.type === 'task-stop')).toEqual([{ type: 'task-stop', id: 'a' }]);
     expect(stop()).not.toHaveTextContent('Stop?');
+  });
+
+  it('Stop all on an umbrella asks first, then stops every running member (once each); gone when none runs', () => {
+    const { sent, task } = setup();
+    for (const id of ['a', 'b', 'c']) task(start(id, { type: 'local_agent', group: 'msg_1' }));
+    task({ t: 'task', id: 'b', phase: 'done' });
+    fireEvent.click(indicator()!);
+    const stop = () => document.querySelector<HTMLElement>('[data-task-group="msg_1"] [data-task-stop]');
+    expect(stop()).toHaveTextContent('Stop all');
+    expect(stop()).toHaveAttribute('title', 'Stop every running agent of the group (a second click confirms)');
+    fireEvent.click(stop()!);
+    expect(stop()).toHaveTextContent('Stop all?');
+    expect(sent.filter((m) => m.type === 'task-stop')).toEqual([]);
+    fireEvent.click(stop()!);
+    expect(sent.filter((m) => m.type === 'task-stop')).toEqual([{ type: 'task-stop', id: 'a' }, { type: 'task-stop', id: 'c' }]);
+    task({ t: 'task', id: 'a', phase: 'done', status: 'stopped' }); task({ t: 'task', id: 'c', phase: 'done', status: 'stopped' });
+    expect(stop()).toBeNull();
+    expect(document.querySelector('[data-task-group="msg_1"]')).toHaveAttribute('data-status', 'stopped');
   });
 
   it('Stop is for running tasks only', () => {
