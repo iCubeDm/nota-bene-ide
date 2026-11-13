@@ -77,6 +77,10 @@ function seedFiles(dir) {
   fs.writeFileSync(path.join(dir, 'docs/pic.png'), Buffer.from(png, 'base64'));
   fs.writeFileSync(path.join(dir, 'docs/big.png'), bigPng(3000, 2000));
   fs.writeFileSync(path.join(dir, 'edit-me.txt'), 'first line\r\nsecond line\r\n');
+  // a path long enough, without a space, to be wider than the comments panel (issue 367)
+  const deep = path.join(dir, 'docs/a-folder-name-long-enough/another-folder-that-keeps-going');
+  fs.mkdirSync(deep, { recursive: true });
+  fs.writeFileSync(path.join(deep, 'a_file_name_without_any_spaces_in_it.md'), 'alpha bravo charlie delta\n');
   fs.mkdirSync(path.join(dir, 'media'));
   // the config sets NB_E2E_FFMPEG (1/0); run alone, serve.mjs asks ffmpeg itself. Without it the media tests skip
   if (hasFfmpeg()) {
