@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/comments/queue.dart';
 import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_app/voice/player.dart';
 import 'package:nb_app/voice/recorder.dart';
@@ -139,4 +140,15 @@ class MemoryOutFiles implements OutFiles {
 
   @override
   Future<void> deleteWav(String name) async => wavs.remove(name);
+}
+
+/// The comment queues' file, in memory.
+class MemoryQueueFile implements QueueFile {
+  String? json;
+
+  @override
+  Future<String?> read() async => json;
+
+  @override
+  Future<void> write(String json) async => this.json = json;
 }

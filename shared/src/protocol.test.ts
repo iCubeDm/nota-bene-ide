@@ -529,3 +529,14 @@ test('a comment carries up to 10 clips with their texts; with clips its own text
   expect(parseClientMessage(comments(comment({ voice: [{ ...clip, text: 'x'.repeat(20_001) }] })))).toHaveProperty('error');
   expect(parseClientMessage(comments(comment({ text: '', voice: [] })))).toHaveProperty('error');
 });
+
+test('comment-op: an add may carry before and restore; anything else in them is refused, unknown keys are dropped', () => {
+  const op = (o: Record<string, unknown>) => JSON.stringify({ type: 'comment-op', opId: 'o1', sessionId: null, ops: [o] });
+  const c = comment();
+  expect(parseClientMessage(op({ op: 'add', comment: c, before: 'c0', restore: true, x: 1 })))
+    .toEqual({ type: 'comment-op', opId: 'o1', sessionId: null, ops: [{ op: 'add', comment: c, before: 'c0', restore: true }] });
+  expect(parseClientMessage(op({ op: 'add', comment: c }))).toEqual({ type: 'comment-op', opId: 'o1', sessionId: null, ops: [{ op: 'add', comment: c }] });
+  expect(parseClientMessage(op({ op: 'add', comment: c, before: 3 }))).toHaveProperty('error');
+  expect(parseClientMessage(op({ op: 'add', comment: c, restore: false }))).toHaveProperty('error');
+  expect(parseClientMessage(op({ op: 'edit', comment: c, before: 'c0' }))).toEqual({ type: 'comment-op', opId: 'o1', sessionId: null, ops: [{ op: 'edit', comment: c }] });
+});

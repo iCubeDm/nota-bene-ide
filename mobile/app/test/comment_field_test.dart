@@ -68,7 +68,7 @@ void main() {
         },
         () => 's',
         now: () => now,
-      );
+      )..hello(13);
       cs.add(_c('a').anchor, 'hi', null, id: 'a');
       now = now.add(const Duration(minutes: 1));
       expect(cs.pending.map((x) => x.id), ['a']);
@@ -78,9 +78,10 @@ void main() {
       open = true;
       cs.apply([_c('d')]);
       expect(sent.last.items.map((x) => x.id), ['d', 'a']);
-      // once it went out, the overlay expires as before
-      now = now.add(const Duration(seconds: 6));
+      // once it went out, the window's next set is the list (no ack before protocol 19)
+      cs.apply([_c('d')]);
       expect(cs.all.map((x) => x.id), ['d']);
+      expect(sent.length, 1);
     });
 
     test('an edit made offline is not undone by the server\'s older copy', () {

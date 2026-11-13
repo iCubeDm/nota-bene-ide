@@ -116,6 +116,7 @@
   "labelsAll": "Todos os rótulos",
   "save": "Salvar",
   "deleteComment": "Excluir comentário",
+  "commentChangedElsewhere": "Um comentário foi alterado ou excluído em outra janela, então sua alteração não foi aplicada",
   "commentDeleted": "Comentário excluído",
   "fileNotFound": "Este arquivo não existe (ou não existe mais).",
   "fileOutside": "Este arquivo está fora do projeto.",

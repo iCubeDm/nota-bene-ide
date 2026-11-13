@@ -834,19 +834,28 @@ final class CommentOpUnknown extends CommentOp {
 }
 
 final class CommentOpAdd extends CommentOp {
-  const CommentOpAdd({required this.comment});
+  const CommentOpAdd({required this.comment, this.before, this.restore});
 
   factory CommentOpAdd.fromJson(Map<String, Object?> json) {
     return CommentOpAdd(
       comment: Comment.fromJson(json['comment'] as Map<String, Object?>),
+      before: json['before'] as String?,
+      restore: json['restore'] as bool?,
     );
   }
 
   final Comment comment;
+  final String? before;
+  final bool? restore;
 
   @override
   Map<String, Object?> toJson() {
-    return {'op': 'add', 'comment': comment.toJson()};
+    return {
+      'op': 'add',
+      'comment': comment.toJson(),
+      if (before != null) 'before': before,
+      if (restore != null) 'restore': restore,
+    };
   }
 }
 

@@ -227,6 +227,7 @@
   "labelsAll": "All labels",
   "save": "Save",
   "deleteComment": "Delete comment",
+  "commentChangedElsewhere": "A comment was changed or deleted in another window, so your change was not applied",
   "commentDeleted": "Comment deleted",
   "fileNotFound": "This file is not there (any more).",
   "fileOutside": "This file is outside the project.",

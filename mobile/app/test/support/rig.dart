@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/chat_route.dart';
 import 'package:nb_app/chat/mermaid.dart';
 import 'package:nb_app/chat/window_tab.dart';
+import 'package:nb_app/comments/queue.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
@@ -44,8 +45,11 @@ class Rig {
     // false: the window said hello and has not replayed yet (the tab is still connecting)
     bool replay = true,
   }) async {
-    // the voice outboxes are the app's: each test starts with an empty disk
-    if (!keepStore) VoiceStore.instance = VoiceStore(MemoryOutFiles());
+    // the voice outboxes and the comment queues are the app's: each test starts with an empty disk
+    if (!keepStore) {
+      VoiceStore.instance = VoiceStore(MemoryOutFiles());
+      CommentQueues.instance = CommentQueues(MemoryQueueFile());
+    }
     final f = FakeFactory();
     ch = FakeChannel([win ?? window(4791, '/home/u/notes')]);
     f.results.add(ch);
