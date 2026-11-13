@@ -294,6 +294,36 @@
         },
         {
           "properties": {
+            "opId": {
+              "type": "string"
+            },
+            "ops": {
+              "items": {
+                "$ref": "#/definitions/CommentOp"
+              },
+              "type": "array"
+            },
+            "sessionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "comment-op",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "opId",
+            "sessionId",
+            "ops"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
             "type": {
               "const": "interrupt",
               "type": "string"
@@ -592,6 +622,68 @@
         "createdAt"
       ],
       "type": "object"
+    },
+    "CommentOp": {
+      "anyOf": [
+        {
+          "properties": {
+            "comment": {
+              "$ref": "#/definitions/Comment"
+            },
+            "op": {
+              "const": "add",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "comment"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "comment": {
+              "$ref": "#/definitions/Comment"
+            },
+            "op": {
+              "const": "edit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "comment"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "op": {
+              "const": "remove",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "One change to a session's comments (protocol 19). `add` of a stored id changes nothing (a resent op); `edit` carries the comment as edited, of which the server takes the text, label, images, recordings and generated-image count; `remove` leaves the id deleted, so no later add brings it back."
+    },
+    "CommentRefusal": {
+      "description": "gone: the comment was deleted, or is missing for an edit; sent: a sent comment cannot change (the client drops the op); failed: the server could not store it (the client keeps the op and sends it again)",
+      "enum": [
+        "gone",
+        "sent",
+        "failed"
+      ],
+      "type": "string"
     },
     "FileSource": {
       "properties": {
@@ -1312,6 +1404,12 @@
         },
         {
           "properties": {
+            "ack": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "items": {
               "items": {
                 "$ref": "#/definitions/Comment"
@@ -1321,11 +1419,53 @@
             "kind": {
               "const": "comments",
               "type": "string"
+            },
+            "rev": {
+              "type": "number"
             }
           },
           "required": [
             "kind",
             "items"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "comment-ack",
+              "type": "string"
+            },
+            "opId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "opId"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "comment-refused",
+              "type": "string"
+            },
+            "opId": {
+              "type": "string"
+            },
+            "reason": {
+              "$ref": "#/definitions/CommentRefusal"
+            }
+          },
+          "required": [
+            "kind",
+            "opId",
+            "reason"
           ],
           "type": "object"
         },
@@ -2919,5 +3059,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 18
+  "x-protocol": 19
 }

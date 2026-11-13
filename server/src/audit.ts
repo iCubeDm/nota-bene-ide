@@ -113,6 +113,7 @@ export class AuditLog {
       case 'shell-stop': Object.assign(f, { id: msg.id }); break;
       case 'idle-compact': Object.assign(f, { on: msg.on }); break;
       case 'comments': Object.assign(f, { count: msg.items.length }); break;
+      case 'comment-op': Object.assign(f, { opId: msg.opId, ops: msg.ops.map((o) => o.op).join(',') }); break;
       case 'activity': return; // a heartbeat of the page, not an event
       default: break;
     }

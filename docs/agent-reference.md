@@ -68,7 +68,7 @@ State lives in `~/.nota-bene/` (override with `NOTA_BENE_HOME`), never in the re
 - `sessions.json` — the last session per project (folder)
 - `archived-sessions.json` — the Sessions menu's archive: the session ids it hides, oldest first (at most 5000; `server/src/archivedSessions.ts`). Nota Bene's own, so the agent's files are never touched; an id the listing does not have is ignored. A delete drops its id. The open session stays in its folder group even when archived
 - `prefs.json` — agent permission mode per project dir (`modes[root]`)
-- `comments/<sessionId>.json` — pending and sent margin comments of one agent session
+- `comments/<sessionId>.v2.json` — pending and sent margin comments of one agent session, with the set's revision and the deleted ids (protocol 19; the legacy `<sessionId>.json` is read when there is no v2 file and never rewritten)
 - `attachments/<sha256>.<ext>` — pasted images, content-addressed; only ids travel over the socket
 - `update-check.json` — `{latest, at}`: the newest version seen on npm, shared by every window (the registry is asked at most once a minute)
 - `runtime/` — the in-app update: `<x.y.z>/` (a full `nota-bene-ide` package each, installed by `npm install --prefix`), `current` (the version a launcher hands over to), `state.json` (`auto`, `previous`, `failed`, `rolledBack`), `update.lock` (one install at a time across windows), `update.log` (npm's output). Keeps `current`, the one before it and any version a live window runs
