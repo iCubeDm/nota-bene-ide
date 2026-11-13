@@ -266,15 +266,17 @@ When the agent changes the page, a comment finds its element again by what it re
 
 ### Other branches and worktrees
 
-The window never switches your checkout, since a live window may be running from it. Instead the branch button in the header opens a list of "this folder", every other git worktree of the repository, and every local branch that has no worktree, with a search box. Each row shows `↑N`, the commits over its base, `✗` when it has uncommitted work, and a pulsing dot when an agent is working there. The dot follows the Nota Bene windows on this machine: an agent in a plain terminal, or a subagent in its own worktree, gets none.
+The branch button in the header opens a list of "this folder", every other git worktree of the repository, and every local branch that has no worktree, with a search box. Each row shows `↑N`, the commits over its base, `✗` when it has uncommitted work, and a pulsing dot when an agent is working there. The dot follows the Nota Bene windows on this machine: an agent in a plain terminal, or a subagent in its own worktree, gets none.
 
 Pick one and the tree, Changes and the log show it. The button turns orange and says "viewing": the window's folder and the agent stay where they are. Files from another source open read-only in tabs marked with the branch name, and you can still comment on them; the comment remembers the ref.
+
+To move the folder itself to another branch, use **Switch** on a row under "Branches" (it shows on hover and on keyboard focus). The row asks first; Escape or Cancel leaves everything as it was. Uncommitted changes go along when they do not conflict with the other branch. Nota Bene refuses while an agent of any of its windows is mid-turn in this folder, and shows git's own words when git refuses: changes the switch would overwrite, for one. Worktree rows have no Switch, since git keeps a branch to the one worktree that has it. After a switch the window shows the folder again, on the new branch; open tabs reload from disk, and one with unsaved edits asks as it does after any change on disk. The agent is not told: its next turn simply runs on the new branch. If Nota Bene itself runs from this folder, restart the server afterwards.
 
 Example: the agent works in the `feature/retry` worktree while your window is on `main`. Pick that worktree in the header, open `src/queue.ts` from it, comment on a line, and send. Paths the agent prints inside another worktree open from that worktree too.
 
 ### Changes and the Git log
 
-In a git repository the left strip has two more buttons. Both only read: nothing here commits, stages, reverts or switches.
+In a git repository the left strip has two more buttons. Both only read: nothing here commits, stages or reverts.
 
 **Changes** opens a panel in place of Files and a tab with one changed file at a time, so a large diff stays as light as a small one; `‹ ›` moves between files, and one or two columns are remembered. **Show** picks what is compared:
 

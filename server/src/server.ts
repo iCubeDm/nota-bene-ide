@@ -278,7 +278,10 @@ export async function startServer(o: {
       allowedHosts,
       allowedOrigins,
       extra: {
-        ...fileRoutes({ root, hub, complete: (q) => complete({ session: manager, root: root() }, q), blend }),
+        ...fileRoutes({
+          root, hub, complete: (q) => complete({ session: manager, root: root() }, q), blend,
+          selfBusy: () => manager.busy(), ...(audit ? { audit: (ev, f) => audit.write(ev, f) } : {}),
+        }),
         ...attachmentRoutes(attachments, hub),
         ...voiceRoutes({ hub, store: attachments }),
         // the project folder's picture, set from the phone (protocol 15)

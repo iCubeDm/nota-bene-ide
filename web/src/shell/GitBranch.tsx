@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '@/i18n/index.ts';
-import type { Source, VcsBranch } from '@nota-bene/shared';
+import type { GitSwitchAnswer, Source, VcsBranch } from '@nota-bene/shared';
 import { selectSession, selectTurnSeq, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { loadSources, useSources } from '@/files/sources.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { pickSource, selectTree } from '@/tree/slice.ts';
+import { diskChanged, pickSource, selectTree } from '@/tree/slice.ts';
 import { setHasRepo } from '@/vcs/store.ts';
 
 type GitStatus = { branch: string | null; detached: boolean; dirty: boolean };
@@ -19,9 +19,10 @@ const isStatus = (v: unknown): v is GitStatus => {
 
 /**
  * GET /git-status for the current root: on load, on a root change, after each live turn and on window focus, at most
- * one request per 3 s (a request inside the window is deferred to its end, not dropped). null: not a repo / no answer.
+ * one request per 3 s (a request inside the window is deferred to its end, not dropped); a branch switch (`diskSeq`)
+ * asks at once. null: not a repo / no answer.
  */
-function useGitStatus(root: string | undefined, turnSeq: number): GitStatus | null {
+function useGitStatus(root: string | undefined, turnSeq: number, diskSeq: number): GitStatus | null {
   const [status, setStatus] = useState<GitStatus | null>(null);
   const last = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,20 +65,46 @@ function useGitStatus(root: string | undefined, turnSeq: number): GitStatus | nu
     if (first.current) { first.current = false; return; }
     run.current();
   }, [turnSeq]);
+  const firstDisk = useRef(true);
+  useEffect(() => {
+    if (firstDisk.current) { firstDisk.current = false; return; }
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    last.current = 0;
+    run.current();
+  }, [diskSeq]);
   return status;
 }
 
-/** The branch button: picking changes what the window shows, the checkout and the agent stay where they are. */
+type Refusal = { lead: string; detail?: string };
+
+/** The menu's line for a refused switch: the server's code translated, git's own words under their lead. */
+function refusal(t: ReturnType<typeof useT>, v: GitSwitchAnswer | null): Refusal {
+  const e = v && 'error' in v ? v : null;
+  if (e?.error === 'busy') return { lead: t('vcsSwitchBusy') };
+  if (e?.error === 'git') return { lead: t('vcsSwitchGit'), ...(e.detail ? { detail: e.detail } : {}) };
+  if (e?.error === 'unknown-branch') return { lead: t('vcsSwitchGone') };
+  if (e?.error === 'timeout') return { lead: t('vcsSwitchTimeout') };
+  return { lead: t('vcsSwitchFailed') };
+}
+
+/**
+ * The branch button: picking changes what the window shows, the checkout and the agent stay where they are. Only a
+ * branch row's Switch, once confirmed, moves this folder to that branch (POST /git-switch).
+ */
 export function GitBranch() {
   const t = useT();
   const d = useAppDispatch();
   const root = useAppSelector(selectSession)?.root;
-  const st = useGitStatus(root, useAppSelector(selectTurnSeq));
-  const { src } = useAppSelector(selectTree);
+  const { src, diskSeq } = useAppSelector(selectTree);
+  const st = useGitStatus(root, useAppSelector(selectTurnSeq), diskSeq);
   const sources = useSources();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [info, setInfo] = useState<VcsBranch[]>([]);
+  const [ask, setAsk] = useState<string | null>(null); // the branch row asking "switch?"
+  const [going, setGoing] = useState(false);
+  const [err, setErr] = useState<Refusal | null>(null);
   const viewing = src !== 'here';
   useEffect(() => setInfo([]), [root]); // an id of the old project may mean another branch here
   useEffect(() => {
@@ -105,10 +132,30 @@ export function GitBranch() {
   const dirty = viewing ? info.find((i) => i.id === src)?.dirty : st.dirty; // undefined: not known yet, no mark
   const f = q.trim().toLowerCase();
   const match = (s: Source) => !f || s.label.toLowerCase().includes(f);
-  const row = (s: Source) => {
+  const confirm = (id: string | null) => { setAsk(id); setErr(null); };
+  const switchTo = async (s: Source) => {
+    setGoing(true);
+    setErr(null);
+    try {
+      const r = await apiFetch('/git-switch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ branch: s.ref }) });
+      const v = await r.json().catch(() => null) as GitSwitchAnswer | null;
+      if (!r.ok) return setErr(refusal(t, v));
+      // the folder is now that branch: show it, and reload what a finished turn reloads (status, tree, tabs, Changes, log)
+      setOpen(false);
+      confirm(null);
+      d(pickSource('here'));
+      d(diskChanged());
+      void loadSources(true);
+    } catch {
+      setErr(refusal(t, null));
+    } finally {
+      setGoing(false);
+    }
+  };
+  const row = (s: Source, wide = true) => {
     const i = info.find((x) => x.id === s.id);
     return (
-      <button key={s.id} type="button" onClick={() => { d(pickSource(s.id)); setOpen(false); }} className={`flex h-7 w-full items-center gap-2 rounded px-2 text-left text-[0.78125rem] hover:bg-muted ${s.id === src ? 'bg-primary/10' : ''}`}>
+      <button key={s.id} type="button" onClick={() => { d(pickSource(s.id)); setOpen(false); }} className={`flex h-7 ${wide ? 'w-full' : 'min-w-0 flex-1'} items-center gap-2 rounded px-2 text-left text-[0.78125rem] hover:bg-muted ${s.id === src ? 'bg-primary/10' : ''}`}>
         <span className="w-3 flex-none text-link">{s.id === src ? '✓' : ''}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-foreground">{s.id === 'here' ? here : s.label}</span>
         {i?.busy && <span data-agent-dot role="img" aria-label={t('vcsAgentHere')} title={t('vcsAgentHere')} className="size-2 flex-none animate-pulse rounded-full bg-nb-accent" />}
@@ -117,11 +164,33 @@ export function GitBranch() {
       </button>
     );
   };
+  // a branch row: view it (the row) or switch this folder to it (the button, then an inline confirm)
+  const branchRow = (s: Source) => ask !== s.id ? (
+    <div key={s.id} className="group flex items-center">
+      {row(s, false)}
+      <button type="button" onClick={() => confirm(s.id)} title={t('vcsSwitchTip', s.label)} aria-label={t('vcsSwitchTip', s.label)} className="ml-1 h-6 flex-none rounded px-1.5 text-[0.6875rem] text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100">{t('vcsSwitch')}</button>
+    </div>
+  ) : (
+    <div key={s.id} data-switch-confirm className="my-0.5 rounded bg-muted/60 px-2 py-1.5 text-[0.75rem]">
+      <div className="font-medium break-all text-foreground">{t('vcsSwitchQ', s.label)}</div>
+      <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">{t('vcsSwitchNote')}</div>
+      {err && (
+        <div role="alert" className="mt-1 text-[0.6875rem] text-destructive">
+          {err.lead}
+          {err.detail && <pre className="mt-0.5 font-mono whitespace-pre-wrap">{err.detail}</pre>}
+        </div>
+      )}
+      <div className="mt-1.5 flex justify-end gap-1.5">
+        <button type="button" onClick={() => confirm(null)} className="h-6 rounded px-2 hover:bg-muted">{t('cancel')}</button>
+        <button type="button" autoFocus disabled={going} onClick={() => void switchTo(s)} className="h-6 rounded bg-primary px-2 text-primary-foreground disabled:opacity-60">{t('vcsSwitch')}</button>
+      </div>
+    </div>
+  );
   const trees = sources.filter((s) => s.kind === 'worktree' && match(s));
   const plain = sources.filter((s) => s.kind === 'branch' && match(s));
   const label = (s: string) => <div className="px-2 pt-2 pb-0.5 text-[0.65625rem] uppercase tracking-wide text-muted-foreground">{s}</div>;
   return (
-    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQ(''); }}>
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setQ(''); confirm(null); } }}>
       <PopoverTrigger asChild>
         <button type="button" id="git-branch" title={viewing ? t('vcsViewingTip', shown ?? '', here ?? '') : `${t('gitBranch')} · ${st.dirty ? t('gitDirty') : t('gitClean')}`} className={`flex h-7 flex-none items-center gap-1.5 rounded-md px-2 font-mono text-[0.71875rem] whitespace-nowrap hover:bg-muted ${viewing ? 'bg-nb-accent/15 text-nb-accent' : 'text-foreground/85'}`}>
           <Svg size={13}>{ICONS.log}</Svg>
@@ -131,15 +200,15 @@ export function GitBranch() {
           <span className="opacity-60">▾</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[340px] p-1.5">
+      <PopoverContent align="start" className="w-[340px] p-1.5" onEscapeKeyDown={(e) => { if (ask) { e.preventDefault(); confirm(null); } }}>
         <input autoFocus type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('vcsFindBranch')} aria-label={t('vcsFindBranch')} className="mb-1 h-[28px] w-full rounded-md border border-transparent bg-muted/50 px-2 text-[0.78125rem] text-foreground outline-0 focus:border-input-focus-soft focus:ring-2 focus:ring-input-ring" />
         <div className="max-h-[60vh] overflow-auto">
           {label(t('vcsThisFolder'))}
-          {sources.filter((s) => s.id === 'here').map(row)}
+          {sources.filter((s) => s.id === 'here').map((s) => row(s))}
           {trees.length > 0 && label(t('vcsWorktrees'))}
-          {trees.map(row)}
+          {trees.map((s) => row(s))}
           {plain.length > 0 && label(t('vcsBranches'))}
-          {plain.map(row)}
+          {plain.map(branchRow)}
         </div>
       </PopoverContent>
     </Popover>

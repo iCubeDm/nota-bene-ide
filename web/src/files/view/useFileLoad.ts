@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { apiFetch } from '@/net/auth.ts';
 import { selectMediaComments } from '@/comments/slice.ts';
-import { selectTurnSeq, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { selectRefreshSeq } from '@/tree/slice.ts';
 import type { FileKind } from '../kinds.ts';
 import { fileTabId } from '@/tabs/slice.ts';
 import { takeStartAt, type StartAt } from '../startAt.ts';
@@ -59,7 +60,7 @@ export function useFileLoad({ path, src, ref, url, kind, media, hasVersion, acti
   active: boolean; fixed: boolean; marking: boolean; markingRef: MutableRefObject<boolean>;
 }) {
   const dispatch = useAppDispatch();
-  const turnSeq = useAppSelector(selectTurnSeq);
+  const turnSeq = useAppSelector(selectRefreshSeq); // a finished turn or a branch switch
   const [rev, setRev] = useState(0);
   const [data, setData] = useState<Loaded | null>(null);
   const [failed, setFailed] = useState(false); // image/media could not load
@@ -87,7 +88,7 @@ export function useFileLoad({ path, src, ref, url, kind, media, hasVersion, acti
     setBust((b) => b + 1);
   }, []);
 
-  // a finished turn marks the view stale; the fetch effect below only runs while active, so an inactive view catches up
+  // a finished turn (or a branch switch) marks the view stale; the fetch effect below only runs while active, so an inactive view catches up
   // on activation. Media: an image always reloads; a video/audio only while paused (a playing one is not cut off)
   // While marking up, the media is held as it is (the drawing belongs to this frame); leaving catches up.
   const seenTurn = useRef(turnSeq);

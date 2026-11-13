@@ -21,13 +21,18 @@ const branches = [
 let answer: unknown;
 let calls: number;
 let timedOut = false;
+let switched: { status: number; body: unknown };
+let switchCalls: unknown[];
 beforeEach(() => {
   vi.useFakeTimers();
   setLang('en');
   answer = { branch: 'main', detached: false, dirty: false };
   calls = 0;
   timedOut = false;
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+  switched = { status: 200, body: { branch: 'old' } };
+  switchCalls = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/git-switch') { switchCalls.push(JSON.parse(String(init?.body))); return new Response(JSON.stringify(switched.body), { status: switched.status }); }
     if (url === '/vcs-branches') return new Response(JSON.stringify(branches));
     if (url === '/sources') return new Response(JSON.stringify(SOURCES));
     if (url === '/git-status') { calls++; return timedOut ? new Response('git status timed out', { status: 503 }) : new Response(JSON.stringify(answer)); }
@@ -130,7 +135,7 @@ describe('the picker', () => {
     expect(row).toHaveTextContent('↑2');
     expect(row).toHaveTextContent('✗');
     expect(row.querySelector('[data-agent-dot]')).toHaveAttribute('title', 'An agent is working here');
-    expect(screen.getByRole('button', { name: /^.*old/ }).querySelector('[data-agent-dot]')).toBeNull();
+    expect(screen.getByRole('button', { name: /^old/ }).querySelector('[data-agent-dot]')).toBeNull();
   });
 
   it('picking changes the view and says so; the checkout is not touched', async () => {
@@ -140,6 +145,62 @@ describe('the picker', () => {
     expect(el()).toHaveTextContent('viewing');
     expect(el()).toHaveAttribute('title', 'Viewing agent/one; the window and the agent stay on main');
     expect(vi.mocked(fetch).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+  });
+
+  it('Switch is offered on branch rows only, never on the folder or a worktree', async () => {
+    await open();
+    expect(screen.getAllByRole('button', { name: /^Switch this folder to/ }).map((b) => b.getAttribute('aria-label'))).toEqual(['Switch this folder to old']);
+  });
+
+  it('Switch asks first; Cancel and Escape leave everything as it was', async () => {
+    const { store, wait } = await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch this folder to old' }));
+    expect(screen.getByText('Switch this folder to old?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Switch this folder to old?')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch this folder to old' }));
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    await wait(0);
+    expect(screen.queryByText('Switch this folder to old?')).toBeNull();
+    expect(screen.getByRole('searchbox', { name: 'Find a branch' })).toBeInTheDocument(); // the menu stays open
+    expect(switchCalls).toEqual([]);
+    expect(selectTree(store.getState()).src).toBe('here');
+  });
+
+  it('a confirmed switch posts the branch, goes back to this folder and reloads the status at once', async () => {
+    const { store, wait } = await open();
+    fireEvent.click(screen.getByRole('button', { name: /agent\/one/ })); // viewing a worktree before the switch
+    fireEvent.click(document.getElementById('git-branch')!);
+    await wait(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Switch this folder to old' }));
+    const before = calls;
+    const seq = selectTree(store.getState()).diskSeq;
+    answer = { branch: 'old', detached: false, dirty: false };
+    fireEvent.click(screen.getByRole('button', { name: 'Switch' }));
+    await wait(0);
+    expect(switchCalls).toEqual([{ branch: 'old' }]);
+    expect(selectTree(store.getState()).src).toBe('here');
+    expect(selectTree(store.getState()).diskSeq).toBe(seq + 1);
+    expect(calls).toBe(before + 1); // inside the 3 s throttle, all the same
+    expect(document.getElementById('git-branch')).toHaveTextContent('old✔');
+    expect(screen.queryByRole('searchbox')).toBeNull();
+  });
+
+  it('a refusal shows its reason in the menu and changes nothing: git\'s own words, a busy agent', async () => {
+    const { store, wait } = await open();
+    switched = { status: 409, body: { error: 'git', detail: 'error: Your local changes would be overwritten by checkout:\n\ta.txt' } };
+    fireEvent.click(screen.getByRole('button', { name: 'Switch this folder to old' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch' }));
+    await wait(0);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Git refused to switch:');
+    expect(alert).toHaveTextContent('Your local changes would be overwritten');
+    expect(selectTree(store.getState()).diskSeq).toBe(0);
+    switched = { status: 409, body: { error: 'busy' } };
+    fireEvent.click(screen.getByRole('button', { name: 'Switch' }));
+    await wait(0);
+    expect(screen.getByRole('alert')).toHaveTextContent('An agent is at work in this folder');
+    expect(selectTree(store.getState()).diskSeq).toBe(0);
   });
 
   it('the search narrows the rows', async () => {

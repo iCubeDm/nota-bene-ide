@@ -7,7 +7,8 @@ import { enterRoot } from '../tabs/slice.ts';
  * that source (project-relative, '/'-joined; each source keeps its own set in storage). `reveal`: a request the sheet
  * consumes (scrolls to the row, then clears).
  */
-export type TreeState = { open: boolean; src: string; dirs: string[]; reveal: string | null };
+/** diskSeq: moves when this folder's files changed outside a turn (a branch switch), so the views reload as after one. */
+export type TreeState = { open: boolean; src: string; dirs: string[]; reveal: string | null; diskSeq: number };
 
 const ancestors = (p: string): string[] => {
   const parts = p.split('/').slice(0, -1);
@@ -25,7 +26,7 @@ const readTreeOpen = (): boolean => {
 
 export const treeSlice = createSlice({
   name: 'tree',
-  initialState: (): TreeState => ({ open: readTreeOpen(), src: 'here', dirs: [], reveal: null }),
+  initialState: (): TreeState => ({ open: readTreeOpen(), src: 'here', dirs: [], reveal: null, diskSeq: 0 }),
   reducers: {
     /** Opens the sheet and expands every ancestor of the path. */
     reveal: (s, a: PayloadAction<string>) => {
@@ -46,6 +47,7 @@ export const treeSlice = createSlice({
       s.dirs = a.payload.dirs;
       s.reveal = null;
     },
+    diskChanged: (s) => void s.diskSeq++,
   },
   extraReducers: (b) =>
     b.addCase(enterRoot, (s, a) => {
@@ -63,9 +65,11 @@ export const treeSlice = createSlice({
 });
 
 export const revealInTree = treeSlice.actions.reveal;
-export const { clearReveal, setTreeOpen, toggleDir, setDirs, setSource } = treeSlice.actions;
+export const { clearReveal, setTreeOpen, toggleDir, setDirs, setSource, diskChanged } = treeSlice.actions;
 
 export const selectTree = (s: RootState): TreeState => s.tree;
+/** Moves after each live turn and each change of this folder outside one: the views that reload after a turn watch it. */
+export const selectRefreshSeq = (s: RootState): number => s.feed.turnSeq + s.tree.diskSeq;
 
 /** `tree:<root>` for this folder (unchanged since M3-07), `tree:<root>:<src>` for another source. */
 export const treeKey = (root: string, src = 'here') => (src === 'here' ? `tree:${root}` : `tree:${root}:${src}`);

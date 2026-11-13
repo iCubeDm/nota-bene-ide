@@ -600,7 +600,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
 export type { AgentEvent, StopReason, WireAgentEvent } from './agent.ts';
 export { FINISHED_CAP, orderedTasks, reduceTasks, shortModel, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
 export { BATCH_HEAD, BATCH_HEADS, DEFAULT_THEME, isThemeId, isUiLang, isUiScale, THEME_KIND, THEMES, UI_LANGS, UI_SCALES, type ThemeId, type UiLang, type UiScale } from './lang.ts';
-export type { VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsPatch } from './vcs.ts';
+export type { GitSwitchAnswer, GitSwitchError, VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsPatch } from './vcs.ts';
 export { USAGE_PERIODS, type TokenCounts, type UsageAgentRow, type UsageCallRow, type UsageExtra, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageRow, type UsageTank, type UsageTaskRow } from './usage.ts';
 
 /** `GET /subagent` (protocol 7): a subagent's conversation as feed events, whether it still runs, and what the Agent call named it. */

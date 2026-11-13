@@ -207,7 +207,7 @@ export async function fileOf(root: string, src: Source | 'here', override: strin
 const real = (p: string) => { try { return process.platform === 'win32' ? fs.realpathSync.native(p) : fs.realpathSync(p); } catch { return path.resolve(p); } };
 
 /** The folder holding each working window: the deepest one, since worktrees often sit inside the project. */
-function holders(folders: string[], working: string[]): Set<string> {
+export function holders(folders: string[], working: string[]): Set<string> {
   const held = new Set<string>();
   // compared by pathKey: on Windows a window's root and a source dir may differ in letter case or separator
   const under = (w: string, f: string) => w === f || w.startsWith(f.endsWith(path.sep) ? f : f + path.sep);
