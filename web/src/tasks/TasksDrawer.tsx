@@ -22,7 +22,7 @@ const ICON: Record<Task['status'], { glyph: string; cls: string; key: 'taskRunni
 /**
  * The tasks drawer: slides up over the bottom of the feed (an overlay, the feed keeps its size). Closed by Esc, a click
  * outside it (the indicator toggles it itself) and Alt+T. One row per task; a task launched by a subagent task is
- * nested under it.
+ * nested under it, and the agents of one model response under an umbrella row of their swarm.
  */
 export function TasksDrawer() {
   const t = useT();
@@ -76,9 +76,32 @@ export function TasksDrawer() {
         <div className="px-4 py-3 text-xs text-muted-foreground">{t('tasksNone')}</div>
       ) : (
         <ul className="flex flex-col py-1">
-          {rows.map(({ id, task, depth }) => {
+          {rows.map(({ id, task, group, depth }) => {
+            if (group) {
+              const icon = ICON[group.status];
+              const ended = [group.failed ? t('taskGroupFailed', group.failed) : '', group.stopped ? t('taskGroupStopped', group.stopped) : ''].filter(Boolean);
+              return (
+                <li
+                  key={id}
+                  data-task-group={group.key}
+                  data-status={group.status}
+                  style={{ paddingLeft: 12 + depth * 18 }}
+                  className="flex items-center gap-2 py-1 pr-3 text-[0.75rem] hover:bg-muted/40"
+                >
+                  <span aria-label={t(icon.key)} title={t(icon.key)} data-task-status className={`w-3 flex-none text-center ${icon.cls}`}>{icon.glyph}</span>
+                  <span className="min-w-0 flex-[0_1_40%] truncate font-medium text-foreground/90">{t('taskGroup', group.total)}</span>
+                  <span className="flex-none font-mono text-[0.65625rem] text-muted-foreground" data-task-meta>
+                    {[fmtElapsed((group.end ?? now) - group.start), group.tokens ? `${fmtK(group.tokens)} tok` : ''].filter(Boolean).join(' · ')}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[0.6875rem] text-muted-foreground" data-task-summary>
+                    {[t('taskGroupDone', group.done, group.total), ...ended].join(', ')}
+                  </span>
+                  {controls && group.live.length > 0 && <StopButton id={id} members={group.live} />}
+                </li>
+              );
+            }
             const icon = ICON[task.status];
-            const meta = [task.type, task.model ? shortModel(task.model) : '', fmtElapsed((task.end ?? now) - task.start), task.tokens ? `${fmtK(task.tokens)} tok` : '', task.tool].filter(Boolean).join(' · ');
+            const meta = [task.workflow ? t('taskWorkflow', task.workflow) : task.type, task.model ? shortModel(task.model) : '', fmtElapsed((task.end ?? now) - task.start), task.tokens ? `${fmtK(task.tokens)} tok` : '', task.tool].filter(Boolean).join(' · ');
             const canOpen = (task.kind === 'agent' && task.type !== 'remote_agent' && !!task.call && protocol >= AGENT_PROTOCOL) || (task.kind === 'shell' && protocol >= TASKS_PROTOCOL && capabilities?.taskOutput !== false);
             return (
               <li
@@ -107,7 +130,7 @@ export function TasksDrawer() {
                     {t('taskOpen')}
                   </button>
                 )}
-                {controls && task.status === 'running' && <StopButton id={id} />}
+                {controls && task.status === 'running' && !task.inner && <StopButton id={id} />}
                 {task.status === 'running' && <BackgroundButton id={id} task={task} />}
               </li>
             );

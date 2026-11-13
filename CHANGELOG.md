@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Parallel agents under one row.** Agents that one reply starts together (Claude Code or Codex) are listed under an umbrella row in the tasks drawer, with their combined state (done, failed), tokens and time and a **Stop all**. A Claude Code workflow shows its name and lists its agents under it.
 - **A tidier Sessions menu.** Folder groups show their session count and open or close; only the current project starts open, the menu remembers the rest, and a filter opens every group with a match. A session can be archived: hidden from the list by Nota Bene alone (the agent's files stay), listed under **Show archive (N)** with **Restore**. Claude Code and Codex sessions can also be deleted for good, after a confirmation; omp sessions cannot. The open session can be neither archived nor deleted. After `/clear`, the "context cleared" line offers **Archive previous session**.
 
 ## 1.9.0 — 2026-11-13
