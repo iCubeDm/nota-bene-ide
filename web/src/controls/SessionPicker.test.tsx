@@ -75,9 +75,9 @@ function setup() {
 }
 const btn = () => screen.getByRole('button', { name: 'Sessions' });
 const menu = () => screen.getByRole('dialog', { name: 'Sessions' });
-it('the Sessions button is an icon: no visible text, the tooltip keeps the old sentence', () => {
+it('the Sessions button says what it opens; the tooltip keeps the longer sentence', () => {
   setup();
-  expect(btn().textContent).toBe('');
+  expect(btn().textContent).toBe('Sessions');
   expect(btn().title).toMatch(/^Open another Claude Code session/);
 });
 

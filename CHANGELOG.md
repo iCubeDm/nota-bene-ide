@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **The ↻ Agent button's menu half lines up again.** Its chevron is drawn like the Sessions button's, and both halves are one height, so the seam between them no longer looks broken.
+- **Clearer header buttons.** The Sessions button says **Sessions** next to its clock, and it is the same height, corners and type as ↻ Agent beside it. The ↻ Agent button's menu half lines up again: both halves are one height, so the seam between them no longer looks broken.
 - **Switch the folder's branch.** A local branch in the header's branch menu has a **Switch** button: after an inline confirmation the project folder moves to that branch, carrying uncommitted changes that do not conflict. It is refused, with the reason, while an agent works in the folder or when git refuses; the tree, Changes, the log and open tabs then show the new branch.
 
 ## 1.10.0 — 2026-11-13

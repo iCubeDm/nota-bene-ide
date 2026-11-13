@@ -218,9 +218,11 @@ export function SessionPicker() {
             aria-label={t('sessions')}
             title={t(provider === 'codex' ? 'sessTipCodex' : provider === 'omp' ? 'sessTipOmp' : 'sessTip')}
             disabled={off}
-            className="inline-flex flex-none items-center gap-1 rounded border border-border-soft px-2 py-px font-mono text-[0.6875rem] text-muted-foreground hover:enabled:border-primary hover:enabled:text-foreground disabled:cursor-default disabled:opacity-35 [&>svg]:text-accent-sessions"
+            // the restart button's height, corners and type beside it; the word says what the clock opens
+            className="inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-md border border-border-soft px-2 py-0.5 text-[0.6875rem] font-medium leading-none text-muted-foreground hover:enabled:border-primary hover:enabled:text-foreground disabled:cursor-default disabled:opacity-35 [&>svg:first-child]:text-accent-sessions"
           >
             <Svg size={14}>{ICONS.history}</Svg>
+            <span>{t('sessions')}</span>
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
           </button>
         </PopoverTrigger>
