@@ -155,9 +155,10 @@ export function renameRoute(o: { hub: EventHub; rename: (id: string, title: stri
 
 /** POST /sessions/archive {id, archived}: hides or restores a session in the menu; the open one cannot be archived. */
 export function archiveRoute(o: { hub: EventHub; current: () => string | null; set: (id: string, on: boolean) => void }): RequestListener {
-  return postRoute(o.hub, 'sessions/archive', ({ id, archived }) => {
-    if (!isSessionId(id) || typeof archived !== 'boolean') return [400, 'bad id or flag'];
-    if (archived && id === o.current()) return [409, 'the open session cannot be archived'];
+  return postRoute(o.hub, 'sessions/archive', ({ id: raw, archived }) => {
+    if (!isSessionId(raw) || typeof archived !== 'boolean') return [400, 'bad id or flag'];
+    const id = raw.toLowerCase(); // one form for every comparison: an uppercase copy of the open id is the open id
+    if (archived && id === o.current()?.toLowerCase()) return [409, 'the open session cannot be archived'];
     o.set(id, archived);
     return [200, 'ok'];
   });
@@ -172,10 +173,11 @@ export function deleteRoute(o: {
   hub: EventHub; current: () => string | null; switching: () => boolean; openElsewhere: (id: string) => Promise<boolean>;
   remove: ((id: string) => Promise<void>) | undefined; forget: (id: string) => void;
 }): RequestListener {
-  return postRoute(o.hub, 'sessions/delete', async ({ id }) => {
+  return postRoute(o.hub, 'sessions/delete', async ({ id: raw }) => {
     if (!o.remove) return [404, 'this agent cannot delete sessions'];
-    if (!isSessionId(id)) return [400, 'bad id'];
-    if (id === o.current() || o.switching()) return [409, 'the open session cannot be deleted'];
+    if (!isSessionId(raw)) return [400, 'bad id'];
+    const id = raw.toLowerCase(); // one form for every comparison and for the cleanup: an uppercase copy of the open id is the open id
+    if (id === o.current()?.toLowerCase() || o.switching()) return [409, 'the open session cannot be deleted'];
     if (await o.openElsewhere(id)) return [409, 'the session is open in another window'];
     let gone = false;
     try {

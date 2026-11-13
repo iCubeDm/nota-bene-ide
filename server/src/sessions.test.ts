@@ -184,6 +184,7 @@ describe('POST /sessions/archive', () => {
   it('refuses to archive the open session (restoring it is fine)', async () => {
     const set = vi.fn();
     expect((await post(route(set), JSON.stringify({ id: OPEN, archived: true }))).status).toBe(409);
+    expect((await post(route(set), JSON.stringify({ id: OPEN.toUpperCase(), archived: true }))).status).toBe(409);
     expect(set).not.toHaveBeenCalled();
     expect((await post(route(set), JSON.stringify({ id: OPEN, archived: false }))).status).toBe(200);
   });
@@ -210,10 +211,10 @@ describe('POST /sessions/delete', () => {
       remove: o.remove, forget: o.forget ?? (() => {}),
     });
 
-  it('deletes another session through the agent, then forgets Nota Bene\'s own data of it', async () => {
+  it('deletes another session through the agent, then forgets Nota Bene\'s own data of it (the id in lowercase)', async () => {
     const remove = vi.fn(async () => {});
     const forget = vi.fn();
-    expect((await post(route({ remove, forget }), JSON.stringify({ id: ID }))).status).toBe(200);
+    expect((await post(route({ remove, forget }), JSON.stringify({ id: ID.toUpperCase() }))).status).toBe(200);
     expect(remove).toHaveBeenCalledWith(ID);
     expect(forget).toHaveBeenCalledWith(ID);
   });
@@ -225,6 +226,7 @@ describe('POST /sessions/delete', () => {
   it('refuses the open session, any while a switch runs, and one another live window has open', async () => {
     const remove = vi.fn(async () => {});
     expect((await post(route({ remove }), JSON.stringify({ id: OPEN }))).status).toBe(409);
+    expect((await post(route({ remove }), JSON.stringify({ id: OPEN.toUpperCase() }))).status).toBe(409);
     expect((await post(route({ remove, switching: true }), JSON.stringify({ id: ID }))).status).toBe(409);
     expect(await post(route({ remove, elsewhere: ID }), JSON.stringify({ id: ID }))).toEqual({ status: 409, text: 'the session is open in another window' });
     expect(remove).not.toHaveBeenCalled();

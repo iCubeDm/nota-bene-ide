@@ -300,7 +300,7 @@ export async function startServer(o: {
         '/sessions/delete': deleteRoute({
           hub, current: () => manager.info().id, switching: () => manager.switching(),
           // another live window of this provider on it (a terminal CLI cannot be seen: the dialog says so)
-          openElsewhere: async (id) => (await listWindows(ownPort)).some((w) => !w.current && w.state === 'live' && w.session === id),
+          openElsewhere: async (id) => (await listWindows(ownPort)).some((w) => !w.current && w.state === 'live' && w.session?.toLowerCase() === id),
           remove: o.backend.capabilities.deleteSession && o.backend.deleteSession ? (id) => o.backend.deleteSession!(id) : undefined,
           forget: forgetDeleted,
         }),

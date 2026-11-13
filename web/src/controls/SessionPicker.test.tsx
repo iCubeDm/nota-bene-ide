@@ -523,6 +523,23 @@ describe('archive and delete', () => {
     expect(screen.queryByRole('dialog', { name: 'Sessions' })).toBeNull();
   });
 
+  it('a delete answered 404 (gone already) drops the row without a failure note', async () => {
+    const { emit } = setup();
+    withDelete(emit);
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      if (url === '/sessions') return new Response(JSON.stringify(view));
+      if (url === '/sessions/delete') return new Response('no such session', { status: 404 });
+      return new Response('[]');
+    });
+    await openPicker();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete: (untitled)' }));
+    view = { ...VIEW, sessions: VIEW.sessions.filter((x) => x.id !== C) };
+    await userEvent.click(within(await screen.findByRole('dialog', { name: /Delete session/ })).getByRole('button', { name: 'Delete' }));
+    await screen.findByText('current talk');
+    expect(screen.queryByText('(untitled)')).toBeNull();
+    expect(screen.queryByText(/Could not delete/)).toBeNull();
+  });
+
   it('a refused archive or delete says so', async () => {
     const { emit } = setup();
     withDelete(emit);
