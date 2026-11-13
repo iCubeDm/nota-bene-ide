@@ -2834,14 +2834,8 @@
             "desc": {
               "type": "string"
             },
-            "group": {
-              "type": "string"
-            },
             "id": {
               "type": "string"
-            },
-            "inner": {
-              "type": "boolean"
             },
             "model": {
               "type": "string"
@@ -2879,9 +2873,6 @@
               "type": "string"
             },
             "type": {
-              "type": "string"
-            },
-            "workflow": {
               "type": "string"
             }
           },

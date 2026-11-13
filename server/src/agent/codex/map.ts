@@ -55,17 +55,15 @@ export class CodexMapper {
   private readonly output = new Map<string, string>();
   private readonly children = new Map<string, boolean>();
   private compacted = false;
-  /** the first spawn call of the current run: the `group` of the agents the run's calls start */
-  private response: string | undefined;
 
   notification(method: string, params: Record<string, unknown>): AgentEvent[] {
-    if (method === 'turn/started') { this.compacted = false; this.response = undefined; return []; }
+    if (method === 'turn/started') { this.compacted = false; return []; }
     if (method === 'item/started' || method === 'item/completed') return this.item(record(params.item), method === 'item/completed');
     if (method === 'item/agentMessage/delta') {
       const id = string(params.itemId);
       if (!id || this.completed.has(id)) return [];
       const events: AgentEvent[] = [];
-      if (!this.started.has(id)) { this.started.add(id); this.response = undefined; events.push({ t: 'message-start' }); }
+      if (!this.started.has(id)) { this.started.add(id); events.push({ t: 'message-start' }); }
       const delta = string(params.delta);
       this.texts.set(id, (this.texts.get(id) ?? '') + delta);
       if (delta) events.push({ t: 'message-chunk', text: delta });
@@ -78,7 +76,6 @@ export class CodexMapper {
       this.output.set(id, text);
       return [{ t: 'tool-update', id: itemId(id), text, isError: false }];
     }
-    if (method === 'thread/tokenUsage/updated') { this.response = undefined; return []; } // a model response ended
     if (method === 'thread/compacted' && !this.compacted) { this.compacted = true; return [{ t: 'compacted' }]; }
     return [];
   }
@@ -88,22 +85,15 @@ export class CodexMapper {
     if (!rawId || this.completed.has(rawId)) return [];
     const type = string(item.type);
     if (done) this.completed.add(rawId);
-    // no response id on the items: a run of spawns is one batch until the response ends (its token usage, live only), the
-    // model's text or reasoning opens another, or a wait: a response may spawn, wait, then spawn again (recorded), and
-    // what comes after a wait is not parallel to what came before (other calls do not end the run)
-    const fresh = !this.started.has(rawId);
-    if (fresh && ['agentMessage', 'plan', 'reasoning', 'userMessage', 'hookPrompt'].includes(type)) {
-      this.response = undefined;
-      if (!done) this.started.add(rawId);
-    }
-    if (type === 'collabAgentToolCall' && string(item.tool) === 'wait') this.response = undefined;
     if (type === 'agentMessage' || type === 'plan') {
       if (done) {
         const text = typeof item.text === 'string' ? item.text : this.texts.get(rawId) ?? '';
         this.texts.delete(rawId);
         return text ? [{ t: 'message', id: itemId(rawId), text }] : [];
       }
-      return fresh ? [{ t: 'message-start' }] : [];
+      if (this.started.has(rawId)) return [];
+      this.started.add(rawId);
+      return [{ t: 'message-start' }];
     }
     if (type === 'contextCompaction') {
       if (done) { if (this.compacted) return []; this.compacted = true; return [{ t: 'compacted', boundaryId: itemId(rawId) }]; }
@@ -122,9 +112,7 @@ export class CodexMapper {
         const was = this.children.get(child);
         if (was === undefined || (was === false && !ended && (['pendingInit', 'running'].includes(status) || ['sendInput', 'resumeAgent', 'followupTask', 'sendMessage'].includes(string(item.tool))))) {
           this.children.set(child, true);
-          // a resume keeps the group of its spawn (the reducer keeps the first), so only a new child opens a run
-          if (was === undefined) this.response ??= id;
-          events.push({ t: 'task', id: itemId(child), phase: 'started', type: 'agent', call: id, ...(was === undefined ? { group: this.response } : {}), desc: string(item.prompt) || string(item.tool) });
+          events.push({ t: 'task', id: itemId(child), phase: 'started', type: 'agent', call: id, desc: string(item.prompt) || string(item.tool) });
         }
         if (ended && this.children.get(child)) {
           this.children.set(child, false);

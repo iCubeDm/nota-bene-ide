@@ -25,7 +25,7 @@ it('counts: running and finished apart; a finished task leaves the running count
 it('rows: running first (oldest first), then finished newest first', () => {
   const { store, task } = setup();
   task(start('a')); task(start('b')); task(start('c')); task(done('a')); task(done('c', 'failed'));
-  expect(selectTaskRows(store.getState()).map((r) => `${r.id}:${r.task?.status}`)).toEqual(['b:running', 'c:failed', 'a:done']);
+  expect(selectTaskRows(store.getState()).map((r) => `${r.id}:${r.task.status}`)).toEqual(['b:running', 'c:failed', 'a:done']);
 });
 
 it('rows: a task with a known parent is nested under it; an unknown parent stands alone; a cycle does not loop', () => {
@@ -43,56 +43,6 @@ it('a finished child stays under its running parent', () => {
   const { store, task } = setup();
   task(start('p', { type: 'local_agent' })); task(start('k', { parent: 'p' })); task(done('k'));
   expect(selectTaskRows(store.getState()).map((r) => `${r.depth}${r.id}`)).toEqual(['0p', '1k']);
-});
-
-const tag = (r: ReturnType<typeof selectTaskRows>[number]) => `${r.depth}${r.group ? `[${r.group.ids.join(',')}]` : r.id}`;
-
-it('rows: agents launched by one response sit under one umbrella, wherever its first member stands; one alone or a shell stays plain', () => {
-  const { store, task } = setup();
-  task(start('a', { type: 'local_agent', group: 'msg_1' }));
-  task(start('solo', { type: 'local_agent', group: 'msg_2' }));
-  task(start('b', { type: 'local_agent', group: 'msg_1' }));
-  task(start('sh1', { group: 'msg_3' })); task(start('sh2', { group: 'msg_3' })); // shells are not a swarm
-  task(start('c', { type: 'local_agent', group: 'msg_1' }));
-  task(done('a'));
-  expect(selectTaskRows(store.getState()).map(tag)).toEqual(['0solo', '0[b,c,a]', '1b', '1c', '1a', '0sh1', '0sh2']);
-  expect(selectTaskRows(store.getState())[1]!.id).toBe('group::msg_1');
-});
-
-it('rows: an umbrella aggregates its members: status, counts, tokens and the span from the first start to the last end', () => {
-  const { store, task } = setup(); // event ts 1, 2, 3, ...
-  task(start('a', { type: 'local_agent', group: 'g' })); task(start('b', { type: 'local_agent', group: 'g' })); task(start('c', { type: 'local_agent', group: 'g' }));
-  task({ t: 'task', phase: 'progress', id: 'a', tokens: 100 }); task({ t: 'task', phase: 'progress', id: 'b', tokens: 50 });
-  task(done('a')); task(done('b', 'failed'));
-  let g = selectTaskRows(store.getState())[0]!.group!;
-  expect(g).toMatchObject({ status: 'running', total: 3, running: 1, done: 1, failed: 1, stopped: 0, tokens: 150, start: 1 });
-  expect(g.live).toEqual(['c']);
-  expect(g.end).toBeUndefined();
-  task(done('c', 'stopped'));
-  g = selectTaskRows(store.getState())[0]!.group!;
-  expect(g).toMatchObject({ status: 'failed', running: 0, stopped: 1, end: 8 });
-  task(start('d', { type: 'local_agent', group: 'h' })); task(start('e', { type: 'local_agent', group: 'h' })); task(done('d')); task(done('e', 'stopped'));
-  expect(selectTaskRows(store.getState()).find((r) => r.id === 'group::h')!.group!.status).toBe('stopped');
-});
-
-it('rows: a subagent\'s own parallel agents get an umbrella under it; the same group under two parents is two umbrellas', () => {
-  const { store, task } = setup();
-  task(start('p', { type: 'local_agent' }));
-  task(start('k1', { type: 'local_agent', parent: 'p', group: 'm' })); task(start('k2', { type: 'local_agent', parent: 'p', group: 'm' }));
-  task(start('q', { type: 'local_agent' }));
-  task(start('k3', { type: 'local_agent', parent: 'q', group: 'm' })); task(start('k4', { type: 'local_agent', parent: 'q', group: 'm' }));
-  const rows = selectTaskRows(store.getState());
-  expect(rows.map(tag)).toEqual(['0p', '1[k1,k2]', '2k1', '2k2', '0q', '1[k3,k4]', '2k3', '2k4']);
-  expect(rows.filter((r) => r.group).map((r) => r.id)).toEqual(['group:p:m', 'group:q:m']); // one key each
-});
-
-it('a workflow\'s agents (inner) nest under it and are not counted: the workflow is', () => {
-  const { store, task } = setup();
-  task(start('w', { type: 'local_workflow', workflow: 'pair' }));
-  task(start('a1', { type: 'workflow_agent', parent: 'w', inner: true })); task(start('a2', { type: 'workflow_agent', parent: 'w', inner: true })); task(done('a1'));
-  expect(selectTaskRows(store.getState()).map(tag)).toEqual(['0w', '1a2', '1a1']);
-  expect(selectRunningCount(store.getState())).toBe(1);
-  expect(selectFinishedCount(store.getState())).toBe(0);
 });
 
 it('selectTaskByCall finds the running task of a call only', () => {

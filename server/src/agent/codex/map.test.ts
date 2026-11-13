@@ -1,10 +1,5 @@
-import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CodexMapper, codexInput, itemId } from './map.ts';
-
-type Recorded = { method: string; params: Record<string, unknown> };
-/** real app-server notifications of the parent thread, ids neutral (server/test/fixtures/swarm-frames.json) */
-const recorded = (JSON.parse(fs.readFileSync(new URL('../../../test/fixtures/swarm-frames.json', import.meta.url), 'utf8')) as { codex: Record<'parallel' | 'sequential', Recorded[]> }).codex;
 
 describe('Codex event normalization', () => {
   it('streams text once and keeps the same stable id in the final item', () => {
@@ -34,38 +29,6 @@ describe('Codex event normalization', () => {
     expect(child).toContainEqual(expect.objectContaining({ t: 'tool-call', toolKind: 'agent', childSessionId: 'child_1' }));
     expect(child).toContainEqual(expect.objectContaining({ t: 'task', phase: 'started', type: 'agent', call: itemId('spawn') }));
     expect(child.some((event) => event.t === 'task' && event.phase === 'done')).toBe(false);
-  });
-
-  it('recorded: two spawns of one response share a group; spawn, wait, spawn in one response are two groups', () => {
-    const groups = (run: Recorded[]) => {
-      const mapper = new CodexMapper();
-      return run.flatMap((n) => mapper.notification(n.method, n.params)).flatMap((e) => (e.t === 'task' && e.phase === 'started' ? [`${e.id}:${e.group}`] : []));
-    };
-    expect(groups(recorded.parallel)).toEqual([`${itemId('thread-02')}:${itemId('item-11')}`, `${itemId('thread-03')}:${itemId('item-11')}`]);
-    expect(groups(recorded.sequential)).toEqual([`${itemId('thread-05')}:${itemId('item-20')}`, `${itemId('thread-06')}:${itemId('item-22')}`]);
-  });
-
-  it('a run ends with the response (token usage), a message, reasoning, a wait or a turn; other calls and an item seen before do not end it', () => {
-    const mapper = new CodexMapper();
-    const spawn = (id: string, children: string[], tool = 'spawnAgent') => mapper.item({ type: 'collabAgentToolCall', id, tool, prompt: id, receiverThreadIds: children, agentsStates: Object.fromEntries(children.map((c) => [c, { status: 'running' }])) }, true);
-    const groups = (events: ReturnType<typeof spawn>) => events.flatMap((e) => (e.t === 'task' && e.phase === 'started' ? [`${e.id}:${e.group ?? '-'}`] : []));
-    mapper.notification('turn/started', {});
-    mapper.item({ type: 'reasoning', id: 'r1' }, false);
-    expect(groups(spawn('s1', ['c1']))).toEqual([`${itemId('c1')}:${itemId('s1')}`]);
-    mapper.item({ type: 'commandExecution', id: 'cmd', command: 'ls' }, false);
-    mapper.item({ type: 'reasoning', id: 'r1' }, true);
-    expect(groups(spawn('s2', ['c2', 'c3']))).toEqual([`${itemId('c2')}:${itemId('s1')}`, `${itemId('c3')}:${itemId('s1')}`]);
-    mapper.notification('thread/tokenUsage/updated', {});
-    expect(groups(spawn('s3', ['c4']))).toEqual([`${itemId('c4')}:${itemId('s3')}`]);
-    mapper.item({ type: 'collabAgentToolCall', id: 'w1', tool: 'wait', receiverThreadIds: ['c4'], agentsStates: { c4: { status: 'completed' } } }, true);
-    expect(groups(spawn('s4', ['c5']))).toEqual([`${itemId('c5')}:${itemId('s4')}`]);
-    mapper.item({ type: 'agentMessage', id: 'm1', text: 'spawning' }, true);
-    expect(groups(spawn('s5', ['c6']))).toEqual([`${itemId('c6')}:${itemId('s5')}`]);
-    // a resume of a finished child has no group of its own and does not open a run for the spawns after it
-    mapper.notification('turn/started', {});
-    expect(groups(spawn('r', ['c4'], 'sendInput'))).toEqual([`${itemId('c4')}:-`]);
-    expect(groups(spawn('s6', ['c7']))).toEqual([`${itemId('c7')}:${itemId('s6')}`]);
-    expect(groups(spawn('s7', ['c8']))).toEqual([`${itemId('c8')}:${itemId('s6')}`]);
   });
 
   it('does not invent compaction token counts or duplicate a boundary', () => {

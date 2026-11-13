@@ -14,10 +14,9 @@ export const BTN = 'flex-none cursor-pointer rounded border border-border-soft p
 
 /**
  * Stop, with the confirmation inline: the first click turns the button into "Stop?" for STOP_CONFIRM_MS, a second click
- * in that time stops the task; no modal. Absent (not disabled) for a server older than protocol 8. With `members` it is
- * a swarm's Stop all: `id` names the row, the members are what it stops.
+ * in that time stops the task; no modal. Absent (not disabled) for a server older than protocol 8.
  */
-export function StopButton({ id, members, className = BTN }: { id: string; members?: string[]; className?: string }) {
+export function StopButton({ id, className = BTN }: { id: string; className?: string }) {
   const t = useT();
   const d = useAppDispatch();
   const controls = useAppSelector(selectTaskControls);
@@ -37,14 +36,14 @@ export function StopButton({ id, members, className = BTN }: { id: string; membe
       type="button"
       data-task-stop
       data-sure={sure || undefined}
-      title={t(members ? 'taskStopAllTip' : 'taskStopTip')}
+      title={t('taskStopTip')}
       onClick={() => {
         clearTimeout(timer.current);
         if (sure) {
           setSure(false);
           setPending(true);
           wait.current = setTimeout(() => setPending(false), STOP_WAIT_MS);
-          d(stopTask(members ?? id));
+          d(stopTask(id));
         } else {
           setSure(true);
           timer.current = setTimeout(() => setSure(false), STOP_CONFIRM_MS);
@@ -52,7 +51,7 @@ export function StopButton({ id, members, className = BTN }: { id: string; membe
       }}
       className={sure ? className.replace('border-border-soft', 'border-destructive').replace('text-foreground', 'text-destructive') : className}
     >
-      {members ? t(sure ? 'taskStopAllConfirm' : 'taskStopAll') : t(sure ? 'taskStopConfirm' : 'taskStop')}
+      {sure ? t('taskStopConfirm') : t('taskStop')}
     </button>
   );
 }

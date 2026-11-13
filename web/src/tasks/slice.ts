@@ -1,5 +1,5 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { orderedTasks, reduceTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
+import { orderedTasks, reduceTasks, type Task, type TasksState } from '@nota-bene/shared';
 import { serverEvent, type AppThunk, type RootState } from '../store/store.ts';
 
 export type { Task, TasksState } from '@nota-bene/shared';
@@ -33,41 +33,18 @@ export const selectLiveCalls = createSelector([(s: RootState) => s.tasks], (t): 
   new Set(Object.values(t).flatMap((x) => (x.call && x.status === 'running' ? [x.call] : []))));
 
 export const selectTasks = (s: RootState): TasksState => s.tasks;
-/** How many tasks run (what the indicator, the pulse and the favicon count; a workflow's agents count as their workflow). */
-export const selectRunningCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status === 'running' && !x.ambient && !x.inner).length);
+/** How many tasks run (what the indicator, the pulse and the favicon count). */
+export const selectRunningCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status === 'running' && !x.ambient).length);
 /** Running watchers (`ambient`): only they exist => the indicator shows a quiet variant, so the drawer stays reachable. */
 export const selectWatcherCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status === 'running' && x.ambient).length);
 /** Finished tasks, not counting watchers (`ambient`, listed in the drawer but never activity). */
-export const selectFinishedCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status !== 'running' && !x.ambient && !x.inner).length);
+export const selectFinishedCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status !== 'running' && !x.ambient).length);
 
-/**
- * A swarm: the agents one model response launched, as one row. `live`: the running members, the ones Stop all stops.
- * Counted from the members still kept: past FINISHED_CAP the oldest finished ones are gone, and with one left there is no umbrella.
- */
-export type TaskGroup = {
-  key: string; ids: string[]; live: string[]; status: TaskStatus;
-  total: number; running: number; done: number; failed: number; stopped: number; tokens: number;
-  /** the first start; `end`, the last end, once none runs */ start: number; end?: number;
-};
-export type TaskRow = { id: string; depth: number } & ({ task: Task; group?: undefined } | { group: TaskGroup; task?: undefined });
-
-function swarm(key: string, members: [string, Task][]): TaskGroup {
-  const ts = members.map(([, x]) => x);
-  const n = (st: TaskStatus) => ts.filter((x) => x.status === st).length;
-  const g = { running: n('running'), done: n('done'), failed: n('failed'), stopped: n('stopped') };
-  return {
-    key, ids: members.map(([id]) => id), live: members.flatMap(([id, x]) => (x.status === 'running' ? [id] : [])), ...g, total: ts.length,
-    status: g.running ? 'running' : g.failed ? 'failed' : g.stopped ? 'stopped' : 'done',
-    tokens: ts.reduce((a, x) => a + x.tokens, 0), start: Math.min(...ts.map((x) => x.start)),
-    ...(g.running ? {} : { end: Math.max(...ts.map((x) => x.end ?? x.start)) }),
-  };
-}
-
+export type TaskRow = { id: string; task: Task; depth: number };
 /**
  * The drawer's rows: the running tasks (oldest first) then the finished (newest ended first); a task that has a known
  * parent task is nested under it (`depth` 1+), whatever its own status; one whose parent is unknown (never started here,
- * or pushed out by the cap) stands on its own. Two or more agents of one `group` under the same parent (or none) are a
- * swarm: an umbrella row where its first member would stand, its members nested under it.
+ * or pushed out by the cap) stands on its own.
  */
 export const selectTaskRows = createSelector([selectTasks], (t): TaskRow[] => {
   // a finished parent with a running descendant is shown with the running rows (the live child must not sink into the finished block)
@@ -79,11 +56,9 @@ export const selectTaskRows = createSelector([selectTasks], (t): TaskRow[] => {
   }
   const ordered = [...ordered0.filter(([id]) => live.has(id)), ...ordered0.filter(([id]) => !live.has(id))];
   const kids = new Map<string, [string, Task][]>();
-  const roots: [string, Task][] = [];
   for (const e of ordered) {
     const p = e[1].parent;
     if (p && p !== e[0] && t[p]) kids.set(p, [...(kids.get(p) ?? []), e]);
-    else roots.push(e);
   }
   const rows: TaskRow[] = [];
   const seen = new Set<string>();
@@ -91,21 +66,9 @@ export const selectTaskRows = createSelector([selectTasks], (t): TaskRow[] => {
     if (seen.has(e[0])) return; // a parent cycle (never sent) must not loop
     seen.add(e[0]);
     rows.push({ id: e[0], task: e[1], depth });
-    level(kids.get(e[0]) ?? [], depth + 1, e[0]);
+    for (const c of kids.get(e[0]) ?? []) walk(c, depth + 1);
   };
-  // one level of siblings: a swarm's umbrella takes its first member's place
-  const level = (list: [string, Task][], depth: number, parent = '') => {
-    const swarms = new Map<string, [string, Task][]>();
-    for (const e of list) if (e[1].kind === 'agent' && e[1].group) swarms.set(e[1].group, [...(swarms.get(e[1].group) ?? []), e]);
-    for (const e of list) {
-      const members = e[1].kind === 'agent' && e[1].group ? swarms.get(e[1].group)! : [];
-      if (members.length < 2) { walk(e, depth); continue; }
-      if (members[0] !== e) continue;
-      rows.push({ id: `group:${parent}:${e[1].group}`, group: swarm(e[1].group!, members), depth });
-      for (const m of members) walk(m, depth + 1);
-    }
-  };
-  level(roots, 0);
+  for (const e of ordered) if (!e[1].parent || e[1].parent === e[0] || !t[e[1].parent]) walk(e, 0);
   return rows;
 });
 
@@ -146,8 +109,8 @@ export const selectForeground = (s: RootState, id: string): boolean => {
 /** The server understands the task controls (stop, to background, shell output). */
 export const selectTaskControls = (s: RootState): boolean => s.controls.protocol >= TASKS_PROTOCOL;
 
-export const stopTask = (id: string | string[]): AppThunk => (_d, getState, { send }) => {
-  if (selectTaskControls(getState())) for (const one of typeof id === 'string' ? [id] : id) send({ type: 'task-stop', id: one });
+export const stopTask = (id: string): AppThunk => (_d, getState, { send }) => {
+  if (selectTaskControls(getState())) send({ type: 'task-stop', id });
 };
 export const backgroundTask = (toolUseId: string): AppThunk => (_d, getState, { send }) => {
   if (selectTaskControls(getState())) send({ type: 'task-background', toolUseId });
