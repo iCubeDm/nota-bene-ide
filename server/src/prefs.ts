@@ -9,9 +9,18 @@ import { stateDir } from './state.ts';
 /** `defaultMode`: the mode of a project with no entry in `modes` (Settings → Defaults; absent = auto) */
 /** `updateCheck`: asking npm for a newer version (Settings → Defaults; absent = on) */
 /** `audit`: the audit log of system events (Settings → Defaults; absent = on) */
+/** `sounds`: which events a tab nobody looks at sounds for (Settings → Defaults; absent = `ask` only) */
 /** `models[root]`: the model (and effort) a project's next session starts with; absent = the agent's default */
 /** `shell`: the shell of `! cmd` runs on Windows (Settings → Defaults; absent = auto); other systems run $SHELL whatever it says */
-export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; uiScale?: UiScale; theme?: ThemeId; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean; audit?: boolean; whisper?: boolean; dictationLang?: string; shell?: ShellChoice };
+/** ask: a permission, a plan or a question waits for the user; done: a turn ended (or failed). */
+export type Sounds = { ask: boolean; done: boolean };
+export const DEFAULT_SOUNDS: Sounds = { ask: true, done: false };
+export const isSounds = (v: unknown): v is Sounds => {
+  const s = v as Sounds;
+  return !!s && typeof s === 'object' && typeof s.ask === 'boolean' && typeof s.done === 'boolean';
+};
+
+export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; uiScale?: UiScale; theme?: ThemeId; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean; audit?: boolean; sounds?: Sounds; whisper?: boolean; dictationLang?: string; shell?: ShellChoice };
 
 /** The choices for the shell of `! cmd` on Windows: `auto` takes Git Bash, else PowerShell 7, else Windows PowerShell 5.1. */
 export const SHELL_CHOICES = ['auto', 'git-bash', 'pwsh', 'powershell', 'cmd'] as const;
@@ -48,7 +57,7 @@ export function readPrefs(): Prefs {
   try {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('prefs.json is not an object');
-    const { modes, models, lang, uiScale, theme, idleCompact, defaultMode, updateCheck, audit, whisper, dictationLang, shell } = data as { modes?: unknown; models?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown; audit?: unknown; whisper?: unknown; dictationLang?: unknown; shell?: unknown };
+    const { modes, models, lang, uiScale, theme, idleCompact, defaultMode, updateCheck, audit, sounds, whisper, dictationLang, shell } = data as { modes?: unknown; models?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown; audit?: unknown; sounds?: unknown; whisper?: unknown; dictationLang?: unknown; shell?: unknown };
     const out: Prefs = { modes: {}, models: {}, idleCompact: {} };
     if (modes && typeof modes === 'object' && !Array.isArray(modes)) {
       for (const [k, v] of Object.entries(modes)) if (isMode(v)) out.modes[k] = v;
@@ -71,6 +80,7 @@ export function readPrefs(): Prefs {
     if (isMode(defaultMode)) out.defaultMode = defaultMode;
     if (typeof updateCheck === 'boolean') out.updateCheck = updateCheck;
     if (typeof audit === 'boolean') out.audit = audit;
+    if (isSounds(sounds)) out.sounds = { ask: sounds.ask, done: sounds.done };
     if (typeof whisper === 'boolean') out.whisper = whisper;
     if (isShellChoice(shell)) out.shell = shell;
     return out;
@@ -167,6 +177,11 @@ export function setDictationLangPref(lang: string): void {
 /** Settings → Defaults: the shell of `! cmd` on Windows, one for every window of this provider, like the language. */
 export function setShellPref(shell: ShellChoice): void {
   updateRawPrefs((raw) => void (raw.shell = shell));
+}
+
+/** Settings → Defaults: the sounds, one for every window of this provider. */
+export function setSoundsPref(sounds: Sounds): void {
+  updateRawPrefs((raw) => void (raw.sounds = { ask: sounds.ask, done: sounds.done }));
 }
 
 /** Settings → Defaults: the audit log, one for every window of this provider. */

@@ -12,6 +12,7 @@ import { getLang, chooseLang, LANGS, t as tNow, useT, type Lang } from '@/i18n/i
 import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
 import { uiScale, useUiScale } from '@/shell/uiScale.ts';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '@/shell/theme.ts';
+import { playCue, type Sounds } from '@/shell/sounds.ts';
 import { folderName, shortWinHome } from '@/lib/paths.ts';
 import { SHELL_NAMES, WIN_SHELLS, type ShellChoice, type WinShell } from './shells.ts';
 
@@ -108,7 +109,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const windows = useLoad<WindowRow[]>('/system/windows', active);
   const storage = useLoad<Storage>('/system/storage', active);
   const about = useLoad<About>('/system/about', active);
-  const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean; audit?: boolean; auditDir?: string; shell?: ShellChoice; shells?: Record<WinShell, string | null> }>('/system/prefs', active);
+  const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean; audit?: boolean; auditDir?: string; sounds?: Sounds; shell?: ShellChoice; shells?: Record<WinShell, string | null> }>('/system/prefs', active);
   const upd = useLoad<{ auto: boolean }>('/system/update', active);
   const dict = useLoad<Dictation>('/dictation', active);
   const [ask, setAsk] = useState<{ title: string; body: string; confirm: string; run: () => Promise<void> } | null>(null);
@@ -152,7 +153,7 @@ export function SettingsView({ active }: { active: boolean }) {
     }
     storage.reload();
   };
-  const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean } | { audit: boolean } | { shell: ShellChoice }) => {
+  const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean } | { audit: boolean } | { sounds: Sounds } | { shell: ShellChoice }) => {
     try {
       const r = await postJson('/system/prefs', pref);
       if (!r.ok) throw new Error(`${r.status}`);
@@ -332,6 +333,25 @@ export function SettingsView({ active }: { active: boolean }) {
                 onChange={(e) => void savePref({ audit: e.target.checked })}
                 className="size-3.5 accent-primary" />
               {prefs.data.auditDir && <span className="text-xs text-muted-foreground">{t('defAuditHint', prefs.data.auditDir)}</span>}
+            </span>
+          )}
+        </Row>
+        <Row label={t('defSounds')}>
+          {prefs.data?.sounds && (
+            <span className="flex flex-col gap-1">
+              {(['ask', 'done'] as const).map((k) => (
+                <span key={k} className="flex items-center gap-1">
+                  <label className="flex items-center gap-2 text-[0.8125rem] text-foreground">
+                    <input type="checkbox" checked={prefs.data!.sounds![k]}
+                      onChange={(e) => void savePref({ sounds: { ...prefs.data!.sounds!, [k]: e.target.checked } })}
+                      className="size-3.5 accent-primary" />
+                    {t(k === 'ask' ? 'defSoundAsk' : 'defSoundDone')}
+                  </label>
+                  <button type="button" onClick={() => playCue(k)} title={t('defSoundTry')} aria-label={`${t('defSoundTry')}: ${t(k === 'ask' ? 'defSoundAsk' : 'defSoundDone')}`}
+                    className="grid size-5 place-items-center rounded text-[0.625rem] text-muted-foreground hover:bg-muted hover:text-foreground">▶</button>
+                </span>
+              ))}
+              <span className="text-xs text-muted-foreground">{t('defSoundsHint')}</span>
             </span>
           )}
         </Row>

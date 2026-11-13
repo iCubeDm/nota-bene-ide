@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A sound when a tab needs you.** A tab you are not looking at plays a short sound when the agent waits for you: a permission, a plan to approve, a question. Settings → Defaults → **Sounds** turns it off, or adds a sound when a turn ends; the choice is shared by every window. Only one tab of a window sounds, and a reload or reconnect never does.
 - **Switch the folder's branch.** A local branch in the header's branch menu has a **Switch** button: after an inline confirmation the project folder moves to that branch, carrying uncommitted changes that do not conflict. It is refused, with the reason, while an agent works in the folder or when git refuses; the tree, Changes, the log and open tabs then show the new branch.
 
 ## 1.10.0 — 2026-11-13

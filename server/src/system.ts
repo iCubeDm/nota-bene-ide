@@ -16,7 +16,7 @@ import { isThemeId, isUiLang, isUiScale, MODES, type AgentMode as Mode } from '@
 import { SecretError, stateSecret, verifiedBearer } from './auth.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
-import { isShellChoice, readPrefs, setAuditPref, setDefaultModePref, setLangPref, setShellPref, setThemePref, setUiScalePref, setUpdateCheckPref } from './prefs.ts';
+import { DEFAULT_SOUNDS, isShellChoice, isSounds, readPrefs, setAuditPref, setDefaultModePref, setLangPref, setShellPref, setSoundsPref, setThemePref, setUiScalePref, setUpdateCheckPref } from './prefs.ts';
 import { winShells } from './session/shell.ts';
 import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
@@ -374,14 +374,15 @@ export function systemRoutes(o: {
     '/system/prefs': (req, res) => {
       if (req.method === 'POST') {
         void readJson(req).then((b) => {
-          const { defaultMode: mode, lang, uiScale, theme, ifUnset, updateCheck, audit, shell } = b as { defaultMode?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; ifUnset?: unknown; updateCheck?: unknown; audit?: unknown; shell?: unknown };
-          if (mode === undefined && lang === undefined && uiScale === undefined && theme === undefined && updateCheck === undefined && audit === undefined && shell === undefined) return text(res, 400, 'bad defaultMode');
+          const { defaultMode: mode, lang, uiScale, theme, ifUnset, updateCheck, audit, sounds, shell } = b as { defaultMode?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; ifUnset?: unknown; updateCheck?: unknown; audit?: unknown; sounds?: unknown; shell?: unknown };
+          if (mode === undefined && lang === undefined && uiScale === undefined && theme === undefined && updateCheck === undefined && audit === undefined && sounds === undefined && shell === undefined) return text(res, 400, 'bad defaultMode');
           if (mode !== undefined && !((o.modes ?? MODES) as readonly unknown[]).includes(mode)) return text(res, 400, 'bad defaultMode');
           if (lang !== undefined && !isUiLang(lang)) return text(res, 400, 'bad lang');
           if (uiScale !== undefined && !isUiScale(uiScale)) return text(res, 400, 'bad uiScale');
           if (theme !== undefined && !isThemeId(theme)) return text(res, 400, 'bad theme');
           if (updateCheck !== undefined && typeof updateCheck !== 'boolean') return text(res, 400, 'bad updateCheck');
           if (audit !== undefined && typeof audit !== 'boolean') return text(res, 400, 'bad audit');
+          if (sounds !== undefined && !isSounds(sounds)) return text(res, 400, 'bad sounds');
           if (shell !== undefined && !isShellChoice(shell)) return text(res, 400, 'bad shell');
           if (mode !== undefined) setDefaultModePref(mode as Mode);
           if (lang !== undefined) setLangPref(lang, ifUnset === true);
@@ -389,8 +390,9 @@ export function systemRoutes(o: {
           if (theme !== undefined) setThemePref(theme);
           if (updateCheck !== undefined) setUpdateCheckPref(updateCheck);
           if (audit !== undefined) setAuditPref(audit);
+          if (sounds !== undefined) setSoundsPref(sounds);
           if (shell !== undefined) setShellPref(shell);
-          json(res, 200, { ...(mode !== undefined ? { defaultMode: mode } : {}), ...(lang !== undefined ? { lang: readPrefs().lang ?? lang } : {}), ...(uiScale !== undefined ? { uiScale } : {}), ...(theme !== undefined ? { theme } : {}), ...(updateCheck !== undefined ? { updateCheck } : {}), ...(audit !== undefined ? { audit } : {}), ...(shell !== undefined ? { shell } : {}) });
+          json(res, 200, { ...(mode !== undefined ? { defaultMode: mode } : {}), ...(lang !== undefined ? { lang: readPrefs().lang ?? lang } : {}), ...(uiScale !== undefined ? { uiScale } : {}), ...(theme !== undefined ? { theme } : {}), ...(updateCheck !== undefined ? { updateCheck } : {}), ...(audit !== undefined ? { audit } : {}), ...(sounds !== undefined ? { sounds } : {}), ...(shell !== undefined ? { shell } : {}) });
         }).catch((e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/system/prefs', e)));
         return;
       }
@@ -402,6 +404,7 @@ export function systemRoutes(o: {
         updateCheckForcedOff: updateCheckForcedOff(),
         audit: prefs.audit !== false,
         auditDir: auditDir(),
+        sounds: prefs.sounds ?? DEFAULT_SOUNDS, // read by every tab right before it sounds: a change applies at once
         // Windows only: the shell of `! cmd` (the setting, and where each choice is installed: null = not); elsewhere $SHELL runs it
         ...(process.platform === 'win32' ? { shell: prefs.shell ?? 'auto', shells: winShells() } : {}),
       });

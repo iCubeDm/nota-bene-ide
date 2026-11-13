@@ -24,6 +24,7 @@ import { Stopped } from './shell/Stopped.tsx';
 import { OneTab } from './shell/OneTab.tsx';
 import { Toasts } from './shell/Toasts.tsx';
 import { useFavicon } from './shell/Favicon.ts';
+import { useSounds } from './shell/sounds.ts';
 import { RecentFiles } from '@/files/RecentFiles.tsx';
 import { installKeymap } from './shell/keymap.ts';
 
@@ -32,6 +33,7 @@ export function App() {
   const store = useStore() as AppStore;
   useEffect(() => installKeymap(store), [store]);
   useFavicon();
+  useSounds();
   useActivity();
   const sendPanel = useCallback(() => void dispatch(sendBatch(false)), [dispatch]);
   const [pending, setPending] = useState<PendingSelection | null>(null);
