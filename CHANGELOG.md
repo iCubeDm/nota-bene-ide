@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Parallel agents under one row.** Agents that one reply starts together (Claude Code or Codex) are listed under an umbrella row in the tasks drawer, with their combined state (done, failed), tokens and time and a **Stop all**. A Claude Code workflow shows its name and lists its agents under it.
+
 ## 1.9.0 — 2026-11-13
 
 - **Windows support, native (no WSL or Docker).** `nota-bene`, `npx nota-bene-ide`, the Claude Code plugin's `/nb`, the Codex plugin and the omp skill run on Windows. It needs Node.js 22 or newer; Git for Windows is recommended (without its Git Bash, Claude Code runs shell commands in PowerShell and the first message says so). See [Windows](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#windows) in the guide. 3D models are not supported on Windows yet.
