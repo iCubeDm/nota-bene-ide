@@ -477,6 +477,7 @@ export const ptBR: Dict = {
   uploadWait: 'Aguarde o fim do envio da imagem',
   buildingImage: 'Montando a imagem…',
   changedWhileSending: 'Os comentários mudaram durante o envio: nada foi enviado, envie novamente',
+  commentChangedElsewhere: 'Um comentário foi alterado ou excluído em outra janela, então sua alteração não foi aplicada',
   sendFailedRetry: 'Falha no envio; os comentários continuam aqui, envie novamente',
   attachHere: 'Anexar uma imagem (ou colar / soltar aqui)',
   imgFail: 'Não foi possível ler a imagem',

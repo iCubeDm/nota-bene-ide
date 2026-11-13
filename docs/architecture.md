@@ -378,7 +378,7 @@ App
 | `tasks/ShellView.tsx` | `GET /task-output?session&task` | A shell task's output; 404 / 409 mean "the server no longer knows this task", a failed read shows a line and keeps the previous output, retry after 3 s. |
 | `subagent/slice.ts` (`fetchSubagent`), `subagent/AgentView.tsx` | `GET /subagent?session&tool` | A subagent's conversation; 404 / 409 mean "this subagent is not in the current session", other errors show a line in the pane. Comments on it go to the main session. |
 | `feed/history.ts`, `feed/EarlierButton.tsx` | `GET /history?session&before` | An archived segment before a compaction; 409 for a session that is not the current one, 404 if there is no segment. |
-| `comments/slice.ts` (`resyncComments`, add/edit/remove) | WS `comments` (the full set) | Comment sync; the server does a `merge`, protecting `sent`. Only the owner tab writes. |
+| `comments/slice.ts` (`flushComments`, add/edit/remove) | WS `comment-op`, `comments`, `comment-ack`, `comment-refused`; the full `comments` set to a server older than 19 | Comment sync. From protocol 19 a change is queued as an op and shown at once (the server's set with the queue folded on top); every queued op is sent, in order, as soon as the socket is open, again after a reconnect, and leaves the queue on its ack. `gone` / `sent` refusals drop it with a toast; `failed` keeps it. A server older than 19 gets the whole set and does a `merge`, protecting `sent`. Only the owner tab writes. |
 | `comments/send.ts` → `sendMessage` | WS `send{commentIds, images}` | The batch: the draft plus all pending comments as one message. |
 | `composer/shellMode.ts` | WS `shell-run{id, cmd}`, `shell-stop{id}` | A `! cmd` run; the block in the feed is driven by `shell-start` / `shell-out` / `shell-end`. |
 | `attachments/image.ts` | `POST /attach`, `GET /attach/<id>` | Image upload; only ids travel over the socket. |
@@ -442,7 +442,7 @@ sequenceDiagram
 
 1. A second tab connects while an owner exists: after 700 ms it gets `occupied` and shows the overlay "The window is already open in another tab".
 2. "Work here" sends `takeover`. The server sends the old owner `taken-over`, detaches it and closes it with code 4001; the new tab attaches as in a normal connection and gets the `replay`.
-3. The old tab shows "Open in another tab" with the same "Work here" button and does not reconnect by itself; its unsynced comment edits are discarded.
+3. The old tab shows "Open in another tab" with the same "Work here" button and does not reconnect by itself; with a server older than 19 its unsynced comment edits are discarded, from 19 its queued ops wait and go if it takes the window back.
 
 **Reload of the owner within the grace period:**
 
@@ -504,9 +504,9 @@ Weak points (assessed before M7; what was done is marked):
 1. **The web depended on the shape of SDK messages. Done (M7).** The server emits its own `AgentEvent` stream (the provider mappers are the bridges), `web/src/store/feed.ts` parses it instead of raw `SDKMessage`s, and the agent's abilities are declared by `capabilities`. Codex now uses its native app-server adapter alongside Claude; ACP is still future work. What remains: `agent/claude/sdk.ts` uses non-public APIs (`q.request({subtype:'file_suggestions'})`, `usage_EXPERIMENTAL_...`), so the SDK is updated by hand and with a run of `server/test/fixtures/real-frames.json`.
 2. **`SessionManager` was an implicit state machine. Done (M7).** A facade and the parts in `session/`: `Phase`, `TurnLedger`, `AgentSlot`, `SendQueue`, `PermissionBroker`; strict transitions where the server takes the step.
 3. **The persistence subscriber in `store.ts` was re-entrant. Done (M7).** Moved to listener middleware (`store/persist.ts`).
-4. **Comments sync as a full set.**
-   - **Problem.** Every change sends the whole array. The server protects only `sent`; for `pending` it is last writer wins.
-   - **What M7 changed.** One tab per window: only the owner writes, and a race between tabs is possible only in the gap of a takeover (unsynced edits of a busy or taken-over tab are discarded on `occupied` / `taken`). Operations `add / edit / remove` with ids would be needed if another source of edits appears, or hundreds of comments.
+4. **Comments sync as a full set. Done for the web (protocol 19).**
+   - **Problem.** Every change sent the whole array. The server protects only `sent`; for `pending` it was last writer wins, so a client with a stale set deleted a comment it had never seen (issue 259).
+   - **What changed.** Protocol 19: `add / edit / remove` ops with ids, acks and deleted ids on the server; the web sends ops. The phone still sends whole sets until it moves to ops too.
 5. **The `EventHub` history grew without bound. Done (M7).** The replay starts at the last compaction; the rest is in `history/<sid>.jsonl` and is loaded on request ("Show before compaction"). What remains is growth within one period between compactions, which is not noticeable.
 6. **Large components. Done (M7).** `FileView`, `CommentCard` and `FileTree` were split into compositions (`files/view`, `comments/card`, `files/tree`): loading hooks apart from rendering.
 7. **A shared `web/dist` for all windows** causes version skew between page and server, hence the `PROTOCOL` mechanism. This is a deliberate compromise (one build, instant update by reload). The price is that every new protocol message needs a version check on the client. In the reverse skew (a new page, an old server) unknown `kind` and `t` must not crash the reducers (`default` returns the state), and at a rollout the server is restarted first and the page reloaded second.

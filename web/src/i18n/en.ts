@@ -490,6 +490,7 @@ export const en: Dict = {
   uploadWait: 'Wait for the image to finish uploading',
   buildingImage: 'Building the image…',
   changedWhileSending: 'The comments changed during sending: nothing was sent, send again',
+  commentChangedElsewhere: 'A comment was changed or deleted in another window, so your change was not applied',
   sendFailedRetry: 'Sending failed; the comments are still here, send again',
   attachHere: 'Attach an image (or paste / drop here)',
   imgFail: 'Could not read the image',

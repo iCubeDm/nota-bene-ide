@@ -477,6 +477,7 @@ export const es: Dict = {
   uploadWait: 'Espera a que termine de subirse la imagen',
   buildingImage: 'Generando la imagen…',
   changedWhileSending: 'Los comentarios cambiaron durante el envío: no se envió nada, vuelve a enviar',
+  commentChangedElsewhere: 'Un comentario se cambió o eliminó en otra ventana, así que tu cambio no se aplicó',
   sendFailedRetry: 'Falló el envío; los comentarios siguen aquí, vuelve a enviar',
   attachHere: 'Adjuntar una imagen (o pegar / soltar aquí)',
   imgFail: 'No se pudo leer la imagen',
