@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Stop spares background agents (Claude).** Stopping the turn no longer ends the subagents running in the background; they go on and stop from the Tasks drawer, one by one or with **Stop all**. Background shell tasks already went on.
 - **A sound when a tab needs you.** A tab you are not looking at plays a short sound when the agent waits for you: a permission, a plan to approve, a question. Settings → Defaults → **Sounds** turns it off, or adds a sound when a turn ends; the choice is shared by every window. Only one tab of a window sounds, and a reload or reconnect never does.
 - **Clearer header buttons.** The Sessions button says **Sessions** next to its clock, and it is the same height, corners and type as ↻ Agent beside it. The ↻ Agent button's menu half lines up again: both halves are one height, so the seam between them no longer looks broken.
 - **Switch the folder's branch.** A local branch in the header's branch menu has a **Switch** button: after an inline confirmation the project folder moves to that branch, carrying uncommitted changes that do not conflict. It is refused, with the reason, while an agent works in the folder or when git refuses; the tree, Changes, the log and open tabs then show the new branch.
