@@ -69,19 +69,6 @@ export function saveSession(projectDir: string, id: string | null): void {
   renameRetry(tmp, file);
 }
 
-/** A deleted session: every project whose last session it was forgets it (one atomic write); returns how many did. */
-export function forgetSession(id: string): number {
-  const file = path.join(stateDir(), 'sessions.json');
-  const data = read(file);
-  const dirs = Object.keys(data).filter((k) => data[k] === id);
-  if (dirs.length === 0) return 0;
-  for (const k of dirs) delete data[k];
-  const tmp = `${file}.tmp${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  renameRetry(tmp, file);
-  return dirs.length;
-}
-
 /** Adds the entries the file does not have yet (never overwrites), in one atomic write; returns how many were added. */
 export function addMissingSessions(entries: Record<string, string>): number {
   const file = path.join(stateDir(), 'sessions.json');

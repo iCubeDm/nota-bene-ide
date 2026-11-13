@@ -11,8 +11,6 @@ import { useT } from '@/i18n/index.ts';
  */
 export function ConfirmDialog(p: {
   title: string; body: string; confirm: string; cancel?: string; onConfirm: () => void; onCancel: () => void;
-  /** the answer cannot be undone: the confirm button is the destructive one */
-  danger?: boolean;
   /** Where focus goes when it closes, instead of the opener (null: the opener), e.g. when the answer disables it. */
   focusAfter?: () => HTMLElement | null;
 }) {
@@ -43,7 +41,7 @@ export function ConfirmDialog(p: {
         </DialogHeader>
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={p.onCancel}>{p.cancel ?? t('cancel')}</Button>
-          <Button ref={confirmRef} type="button" variant={p.danger ? 'destructive' : 'default'} onClick={p.onConfirm}>{p.confirm}</Button>
+          <Button ref={confirmRef} type="button" onClick={p.onConfirm}>{p.confirm}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

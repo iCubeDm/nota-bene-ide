@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ProviderBackend as AgentBackend, SessionListEntry } from '../types.ts';
-import { SessionNotFoundError } from '../types.ts';
 import { CODEX_CAPABILITIES, type CodexConnection } from './controls.ts';
 import { CodexRpc } from './rpc.ts';
 import { CodexSession } from './session.ts';
@@ -43,12 +42,6 @@ export function codexBackend(options: { connect?: (cwd?: string) => CodexConnect
     },
     async sessionInfo(id, dir) { const t = await read(id); if (!t.cwd || !samePath(real(string(t.cwd)), real(dir))) return null; return { cwd: string(t.cwd), customTitle: string(t.name) || undefined, firstPrompt: string(t.preview) || undefined }; },
     async renameSession(id, title) { await rpc().request('thread/name/set', { threadId: id, name: title }); },
-    async deleteSession(id) {
-      // in app-server since before CODEX_MIN_VERSION (0.166.0 has thread/delete)
-      await rpc().request('thread/delete', { threadId: id }).catch((e: unknown) => {
-        throw e instanceof Error && /thread not found|no rollout found/i.test(e.message) ? new SessionNotFoundError(e.message) : e;
-      });
-    },
     async history(id, cwd, attachments, onError) {
       const t = await read(id); if (!t.cwd || !samePath(real(string(t.cwd)), real(cwd))) throw new Error('Codex conversation belongs to another folder');
       const events = remember(id, await loadCodexHistory(rpc(), id, attachments, onError));

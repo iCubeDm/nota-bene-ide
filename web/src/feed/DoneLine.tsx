@@ -4,7 +4,6 @@ import { useT } from '@/i18n/index.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { useAppSelector } from '@/store/store.ts';
 import { selectIdleCompact } from '@/controls/slice.ts';
-import { archiveSession } from '@/controls/sessionsApi.ts';
 import { compactProgress, expectedCompactMs, mmss } from './compactTiming.ts';
 import { timeOf } from './UserMessage.tsx';
 
@@ -39,32 +38,7 @@ export function MarkerLine({ item }: { item: Extract<FeedItem, { kind: 'marker' 
       {item.what === 'compacted' ? item.pre === undefined ? t('compactedUnknown') : t('compacted', fmtK(item.pre), at, item.ms ? mmss(item.ms) : '')
         : item.what === 'compactFailed' ? t('compactFailed', item.error ?? '', at)
         : t('cleared', at)}
-      {item.what === 'cleared' && item.prev ? <ArchivePrev id={item.prev} /> : null}
     </div>
-  );
-}
-
-/** After a /clear: the conversation before it goes to the Sessions menu's archive in one click (it stays restorable there). */
-function ArchivePrev({ id }: { id: string }) {
-  const t = useT();
-  const [state, setState] = useState<'idle' | 'busy' | 'done' | { failed: string }>('idle');
-  if (state === 'done') return <span> · {t('prevArchived')}</span>;
-  return (
-    <>
-      {' · '}
-      <button
-        type="button"
-        disabled={state === 'busy'}
-        onClick={() => {
-          setState('busy');
-          void archiveSession(id, true).then((failed) => setState(failed === null ? 'done' : { failed }));
-        }}
-        className="text-link hover:underline disabled:opacity-50"
-      >
-        {t('archivePrev')}
-      </button>
-      {typeof state === 'object' ? <span className="text-destructive"> · {t('archiveFail')}{state.failed}</span> : null}
-    </>
   );
 }
 

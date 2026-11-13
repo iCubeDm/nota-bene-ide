@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { RequestListener } from 'node:http';
 import { isSessionId } from '@nota-bene/shared';
-import { SessionNotFoundError, type ProviderBackend as AgentBackend } from './agent/types.ts';
+import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { wirePath } from './wirePath.ts';
@@ -88,8 +88,7 @@ export function transcriptExists(id: string, projectsDir: string = defaultProjec
 export type SessionsView = {
   current: string | null;
   root: string;
-  /** `archived`: hidden by the menu's archive (archivedSessions.ts) */
-  sessions: { id: string; title: string; at: number; size: number; cwd: string; archived?: true }[];
+  sessions: { id: string; title: string; at: number; size: number; cwd: string }[];
 };
 
 /** The native realpath (case, firmlinks, symlinks), the raw value when it cannot be resolved. */
@@ -107,86 +106,38 @@ export async function listSessionsView(o: {
   current: string | null;
   root: string;
   projectsDir?: string;
-  archived?: ReadonlySet<string>;
 }): Promise<SessionsView> {
   const list = await o.backend.listSessions();
   const sessions: SessionsView['sessions'] = [];
   for (const x of list) {
     const cwd = x.cwd || (o.backend.nativeSessions ? null : cwdOf(x.sessionId, o.projectsDir));
     if (!cwd) continue;
-    sessions.push({
-      id: x.sessionId, title: titleOf(x) ?? '', at: x.lastModified, size: x.fileSize ?? 0, cwd: wirePath(realOr(cwd)),
-      ...(o.archived?.has(x.sessionId) ? { archived: true as const } : {}),
-    });
+    sessions.push({ id: x.sessionId, title: titleOf(x) ?? '', at: x.lastModified, size: x.fileSize ?? 0, cwd: wirePath(realOr(cwd)) });
   }
   return { current: o.current, root: wirePath(o.root), sessions };
 }
 
-type Answer = [status: number, body: string];
+const MAX_TITLE = 200;
 
-/** A JSON POST route of the Sessions menu (key tier, auth.ts): `handle` answers; a throw is a 500 with its message. */
-function postRoute(hub: EventHub, where: string, handle: (body: Record<string, unknown>) => Promise<Answer> | Answer): RequestListener {
+/** POST /sessions/rename {id, title}: in the key tier (auth.ts). A title is one line of at most 200 characters. */
+export function renameRoute(o: { hub: EventHub; rename: (id: string, title: string) => Promise<void> }): RequestListener {
   return (req, res) => {
-    const answer = ([status, body]: Answer) => {
+    const answer = (status: number, body: string) => {
       res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
       res.end(body);
     };
-    if (req.method !== 'POST') return answer([405, 'method not allowed']);
-    readJson(req).then(async (b) => answer(await handle((b ?? {}) as Record<string, unknown>))).catch((e: unknown) => {
-      if (e instanceof SyntaxError) return answer([400, 'bad json']);
-      reportError(hub, where, e);
-      answer([500, e instanceof Error ? e.message : String(e)]);
+    if (req.method !== 'POST') return answer(405, 'method not allowed');
+    readJson(req).then(async (b) => {
+      const { id, title } = b as { id?: unknown; title?: unknown };
+      const t = typeof title === 'string' ? title.trim() : '';
+      // eslint-disable-next-line no-control-regex
+      if (!isSessionId(id) || !t || t.length > MAX_TITLE || /[\x00-\x1f\x7f]/.test(t)) return answer(400, 'bad id or title');
+      await o.rename(id, t);
+      answer(200, 'ok');
+    }).catch((e: unknown) => {
+      if (e instanceof SyntaxError) return answer(400, 'bad json');
+      reportError(o.hub, 'sessions/rename', e);
+      answer(500, e instanceof Error ? e.message : String(e));
     });
   };
-}
-
-const MAX_TITLE = 200;
-
-/** POST /sessions/rename {id, title}: a title is one line of at most 200 characters. */
-export function renameRoute(o: { hub: EventHub; rename: (id: string, title: string) => Promise<void> }): RequestListener {
-  return postRoute(o.hub, 'sessions/rename', async ({ id, title }) => {
-    const t = typeof title === 'string' ? title.trim() : '';
-    // eslint-disable-next-line no-control-regex
-    if (!isSessionId(id) || !t || t.length > MAX_TITLE || /[\x00-\x1f\x7f]/.test(t)) return [400, 'bad id or title'];
-    await o.rename(id, t);
-    return [200, 'ok'];
-  });
-}
-
-/** POST /sessions/archive {id, archived}: hides or restores a session in the menu; the open one cannot be archived. */
-export function archiveRoute(o: { hub: EventHub; current: () => string | null; set: (id: string, on: boolean) => void }): RequestListener {
-  return postRoute(o.hub, 'sessions/archive', ({ id: raw, archived }) => {
-    if (!isSessionId(raw) || typeof archived !== 'boolean') return [400, 'bad id or flag'];
-    const id = raw.toLowerCase(); // one form for every comparison: an uppercase copy of the open id is the open id
-    if (archived && id === o.current()?.toLowerCase()) return [409, 'the open session cannot be archived'];
-    o.set(id, archived);
-    return [200, 'ok'];
-  });
-}
-
-/**
- * POST /sessions/delete {id}: the agent deletes a stored session for good (`remove`; none: the agent cannot, 404). Never the
- * open session, nor any while a switch runs (its target may be the one asked for), nor one another live window has open.
- * Then `forget` drops Nota Bene's own data of it, also when the agent had it no more (404, nothing reported).
- */
-export function deleteRoute(o: {
-  hub: EventHub; current: () => string | null; switching: () => boolean; openElsewhere: (id: string) => Promise<boolean>;
-  remove: ((id: string) => Promise<void>) | undefined; forget: (id: string) => void;
-}): RequestListener {
-  return postRoute(o.hub, 'sessions/delete', async ({ id: raw }) => {
-    if (!o.remove) return [404, 'this agent cannot delete sessions'];
-    if (!isSessionId(raw)) return [400, 'bad id'];
-    const id = raw.toLowerCase(); // one form for every comparison and for the cleanup: an uppercase copy of the open id is the open id
-    if (id === o.current()?.toLowerCase() || o.switching()) return [409, 'the open session cannot be deleted'];
-    if (await o.openElsewhere(id)) return [409, 'the session is open in another window'];
-    let gone = false;
-    try {
-      await o.remove(id);
-    } catch (e) {
-      if (!(e instanceof SessionNotFoundError)) throw e;
-      gone = true;
-    }
-    o.forget(id);
-    return gone ? [404, 'no such session'] : [200, 'ok'];
-  });
 }

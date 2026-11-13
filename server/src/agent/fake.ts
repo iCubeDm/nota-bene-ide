@@ -7,7 +7,6 @@ import { offered, pickCommands, toSlash } from './claude/commands.ts';
 import { isWire, mapFrames, mapSdk, type SDKMessage } from './claude/map.ts';
 import { transcriptToEvents } from './claude/transcript.ts';
 import type { ProviderBackend as AgentBackend, ProviderSession as AgentSession, PermissionAsk } from './types.ts';
-import { SessionNotFoundError } from './types.ts';
 
 export type FakeTurn = {
   text: string;
@@ -527,11 +526,6 @@ export function fakeBackend(
       const x = sessions.find((e) => e.id === id);
       if (!x) throw new Error('no such session');
       x.customTitle = title;
-    },
-    deleteSession: async (id) => {
-      const i = sessions.findIndex((e) => e.id === id);
-      if (i < 0) throw new SessionNotFoundError('no such session');
-      sessions.splice(i, 1);
     },
     subagent: async (_session, _cwd, toolUseId, attachments, onError) => {
       const a = (o.subagents ?? []).find((x) => x.toolUseId === toolUseId);

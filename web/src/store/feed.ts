@@ -18,7 +18,7 @@ export type FeedItem =
    * a one-line mark in the transcript: the context was compacted (pre = tokens before, ms = how long it took), a
    * compaction failed (error = the CLI's text), or the context was cleared; ts 0 = no time
    */
-  | { kind: 'marker'; what: 'compacted' | 'compactFailed' | 'cleared'; pre?: number; ms?: number; error?: string; ts: number; key: string; /** cleared: the id of the conversation before it */ prev?: string }
+  | { kind: 'marker'; what: 'compacted' | 'compactFailed' | 'cleared'; pre?: number; ms?: number; error?: string; ts: number; key: string }
   | { kind: 'done'; key: string; secs: number; ts: number; status: 'done' | 'interrupted' | 'failed'; error?: string }
   | { kind: 'permission'; id: string; toolName: string; input: Record<string, unknown>; answer?: boolean; prompt?: Interaction; archived?: true }
   /**
@@ -155,8 +155,7 @@ function reduceAgent(s: FeedState, e: WireAgentEvent, ts: number): FeedState {
     case 'reset': // live only (never stored): the server's replay [] came first, this adds the line
     {
       const { key, lineN } = lineKey(s);
-      const cleared: FeedItem = { kind: 'marker', what: 'cleared', ts, key, ...(e.prev ? { prev: e.prev } : {}) };
-      return { ...emptyFeed, session: s.session, turnSeq: s.turnSeq, lineN, items: [cleared] };
+      return { ...emptyFeed, session: s.session, turnSeq: s.turnSeq, lineN, items: [{ kind: 'marker', what: 'cleared', ts, key }] };
     }
     // a compaction: compacting, then its end (compact-failed, compact-end), then (on success) compacted
     case 'compacting': // the CLI repeats it as a keepalive (every 30 s) and at each phase: the compaction started at the first one

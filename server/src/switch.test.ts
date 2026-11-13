@@ -9,7 +9,7 @@ import { fakeBackend } from './agent/fake.ts';
 import type { FakeTurn } from './agent/fake.ts';
 import { CommentStore } from './comments.ts';
 import { startServer } from './server.ts';
-import { lastSession, saveSession } from './state.ts';
+import { lastSession } from './state.ts';
 import { wirePath } from './wirePath.ts';
 
 const SA = '11111111-1111-4111-8111-111111111111';
@@ -113,58 +113,6 @@ describe('GET /sessions', () => {
         { id: SB, title: 'B work', at: 2, size: 20, cwd: wirePath(B) },
       ],
     });
-  });
-
-  const postJson = (url: string, p: string, body: unknown) =>
-    fetch(url + p, { method: 'POST', headers: { 'content-type': 'application/json', origin: url }, body: JSON.stringify(body) });
-  const listed = async (url: string) => ((await (await get(url, '/sessions')).json()) as { sessions: { id: string; archived?: true }[] }).sessions;
-
-  it('an archived session is marked in the list and stays archived after a restart; restoring it clears the mark', async () => {
-    let s = await boot({ resume: SA });
-    expect((await postJson(s.url, '/sessions/archive', { id: SA, archived: true })).status).toBe(409); // the open one
-    expect((await postJson(s.url, '/sessions/archive', { id: SB, archived: true })).status).toBe(200);
-    expect((await listed(s.url)).map((x) => [x.id, x.archived])).toEqual([[SA, undefined], [SB, true]]);
-    await closers.pop()!();
-    s = await boot({ resume: SA });
-    expect((await listed(s.url)).find((x) => x.id === SB)?.archived).toBe(true);
-    expect((await postJson(s.url, '/sessions/archive', { id: SB, archived: false })).status).toBe(200);
-    expect((await listed(s.url)).find((x) => x.id === SB)?.archived).toBeUndefined();
-  });
-
-  it('delete: only with the capability, never the open session; a deleted one leaves the list and the archive', async () => {
-    const off = await boot({ resume: SA });
-    expect((await postJson(off.url, '/sessions/delete', { id: SB })).status).toBe(404);
-    await closers.pop()!();
-    const backend = fakeBackend([{ text: 'hello' }], {
-      capabilities: { deleteSession: true },
-      sessions: [{ id: SA, cwd: A, lastModified: 1 }, { id: SB, cwd: B, lastModified: 2 }],
-    });
-    const s = await boot({ backend, resume: SA });
-    expect((await postJson(s.url, '/sessions/delete', { id: SA })).status).toBe(409);
-    expect((await postJson(s.url, '/sessions/archive', { id: SB, archived: true })).status).toBe(200);
-    expect((await postJson(s.url, '/sessions/delete', { id: SB })).status).toBe(200);
-    expect((await listed(s.url)).map((x) => x.id)).toEqual([SA]);
-    expect(fs.readFileSync(path.join(home, 'archived-sessions.json'), 'utf8')).toBe('[]');
-    expect((await postJson(s.url, '/sessions/delete', { id: SB })).status).toBe(404); // gone already
-  });
-
-  it('a delete takes Nota Bene\'s own data of the session along, and no folder resumes it any more', async () => {
-    const backend = fakeBackend([{ text: 'hello' }], {
-      capabilities: { deleteSession: true },
-      sessions: [{ id: SA, cwd: A, lastModified: 1 }, { id: SB, cwd: B, lastModified: 2 }],
-    });
-    const s = await boot({ backend, resume: SA });
-    const own = [['history', `${SB}.jsonl`], ['prompts', `${SB}.jsonl`], ['comments', `${SB}.json`]].map(([d, f]) => path.join(home, d!, f!));
-    for (const f of own) { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, '{}\n'); }
-    const keep = path.join(home, 'prompts', `${SA}.jsonl`);
-    fs.writeFileSync(keep, '{}\n');
-    saveSession(B, SB);
-    saveSession(A, SA);
-    expect((await postJson(s.url, '/sessions/delete', { id: SB })).status).toBe(200);
-    expect(own.filter((f) => fs.existsSync(f))).toEqual([]);
-    expect(fs.existsSync(keep)).toBe(true);
-    expect(lastSession(B)).toBeUndefined();
-    expect(lastSession(A)).toBe(SA);
   });
 
   it('refuses a foreign host', async () => {

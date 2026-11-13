@@ -229,7 +229,6 @@ final class Capabilities implements _Json {
     this.taskBackground,
     this.taskOutput,
     this.suggestions,
-    this.deleteSession,
   });
 
   factory Capabilities.fromJson(Map<String, Object?> json) {
@@ -252,7 +251,6 @@ final class Capabilities implements _Json {
       taskBackground: json['taskBackground'] as bool?,
       taskOutput: json['taskOutput'] as bool?,
       suggestions: json['suggestions'] as bool?,
-      deleteSession: json['deleteSession'] as bool?,
     );
   }
 
@@ -271,7 +269,6 @@ final class Capabilities implements _Json {
   final bool? taskBackground;
   final bool? taskOutput;
   final bool? suggestions;
-  final bool? deleteSession;
 
   @override
   Map<String, Object?> toJson() {
@@ -292,7 +289,6 @@ final class Capabilities implements _Json {
       if (taskBackground != null) 'taskBackground': taskBackground,
       if (taskOutput != null) 'taskOutput': taskOutput,
       if (suggestions != null) 'suggestions': suggestions,
-      if (deleteSession != null) 'deleteSession': deleteSession,
     };
   }
 }
@@ -3372,25 +3368,17 @@ final class WireAgentEventMode extends WireAgentEvent {
 }
 
 final class WireAgentEventReset extends WireAgentEvent {
-  const WireAgentEventReset({this.newId, this.prev});
+  const WireAgentEventReset({this.newId});
 
   factory WireAgentEventReset.fromJson(Map<String, Object?> json) {
-    return WireAgentEventReset(
-      newId: json['newId'] as String?,
-      prev: json['prev'] as String?,
-    );
+    return WireAgentEventReset(newId: json['newId'] as String?);
   }
 
   final String? newId;
-  final String? prev;
 
   @override
   Map<String, Object?> toJson() {
-    return {
-      't': 'reset',
-      if (newId != null) 'newId': newId,
-      if (prev != null) 'prev': prev,
-    };
+    return {'t': 'reset', if (newId != null) 'newId': newId};
   }
 }
 

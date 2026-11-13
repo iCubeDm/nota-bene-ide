@@ -85,12 +85,6 @@ export class HistoryArchive {
     }
   }
 
-  /** A deleted session: its archive goes (none is fine). */
-  forget(sessionId: string): void {
-    fs.rmSync(this.file(sessionId), { force: true });
-    this.reported.delete(sessionId);
-  }
-
   private file(sessionId: string): string {
     if (!SAFE_SESSION_ID.test(sessionId)) throw new Error(`invalid session id: ${JSON.stringify(sessionId)}`);
     return path.join(this.dir, `${sessionId}.jsonl`);

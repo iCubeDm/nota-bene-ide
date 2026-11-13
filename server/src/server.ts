@@ -24,14 +24,13 @@ import { readPrefs } from './prefs.ts';
 import { httpHandler, isAllowedHost } from './http.ts';
 import { SwitchError, createSessionManager } from './session.ts';
 import type { IdleConfig } from './idle.ts';
-import { archiveRoute, deleteRoute, listSessionsView, renameRoute } from './sessions.ts';
-import { readArchived, setArchived } from './archivedSessions.ts';
+import { listSessionsView, renameRoute } from './sessions.ts';
 import { codeChecker } from './codeStamp.ts';
-import { forgetSession, stateBaseDir, stateDir } from './state.ts';
+import { stateBaseDir, stateDir } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { moveWindow } from './windows.ts';
 import { pidAlive } from './platform.ts';
-import { controlToken, describeVersion, listWindows, systemRoutes } from './system.ts';
+import { controlToken, describeVersion, systemRoutes } from './system.ts';
 import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
 import { runtimeDir } from './runtime.ts';
@@ -201,16 +200,6 @@ export async function startServer(o: {
     const model3d = o.experimental3d ?? process.env.NOTA_BENE_EXPERIMENTAL_3D === '1';
     const blend = model3d ? new BlendConverter({ stateDir }) : undefined;
     const marks = new MarkFiles({ root, stateDir });
-    // a deleted session: Nota Bene's own data of it goes too, each part on its own (a failure is reported, the rest still goes)
-    const forgetDeleted = (id: string) => {
-      const parts: [string, () => void][] = [
-        ['history', () => archive.forget(id)], ['prompts', () => prompts.forget(id)], ['comments', () => store.forget(id)],
-        ['archived', () => setArchived(id, false)], ['last session', () => void forgetSession(id)],
-      ];
-      for (const [what, drop] of parts) {
-        try { drop(); } catch (e) { reportError(hub, `sessions/delete ${what}`, e); }
-      }
-    };
     const sessionsRoute: http.RequestListener = (req, res) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         res.writeHead(405, { allow: 'GET, HEAD', 'content-type': 'text/plain; charset=utf-8' });
@@ -218,7 +207,7 @@ export async function startServer(o: {
         return;
       }
       const { id } = manager.info();
-      listSessionsView({ backend: o.backend, current: id, root: root(), archived: readArchived() }).then(
+      listSessionsView({ backend: o.backend, current: id, root: root() }).then(
         (view) => {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end(req.method === 'HEAD' ? undefined : JSON.stringify(view));
@@ -296,14 +285,6 @@ export async function startServer(o: {
         }),
         '/sessions': sessionsRoute,
         '/sessions/rename': renameRoute({ hub, rename: (id, title) => manager.rename(id, title) }),
-        '/sessions/archive': archiveRoute({ hub, current: () => manager.info().id, set: (id, on) => setArchived(id, on) }),
-        '/sessions/delete': deleteRoute({
-          hub, current: () => manager.info().id, switching: () => manager.switching(),
-          // another live window of this provider on it (a terminal CLI cannot be seen: the dialog says so)
-          openElsewhere: async (id) => (await listWindows(ownPort)).some((w) => !w.current && w.state === 'live' && w.session?.toLowerCase() === id),
-          remove: o.backend.capabilities.deleteSession && o.backend.deleteSession ? (id) => o.backend.deleteSession!(id) : undefined,
-          forget: forgetDeleted,
-        }),
         '/agent-account': (req, res) => {
           const run = async () => {
             if (!o.backend.account) { res.writeHead(404); res.end(); return; }

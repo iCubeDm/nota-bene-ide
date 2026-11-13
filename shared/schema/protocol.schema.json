@@ -133,10 +133,6 @@
         "compact": {
           "type": "boolean"
         },
-        "deleteSession": {
-          "description": "the agent deletes a stored session for good (POST /sessions/delete); absent: the Sessions menu offers no delete",
-          "type": "boolean"
-        },
         "dictation": {
           "const": "whisper",
           "description": "speech to text runs on the host (Whisper installed, ready and switched on); absent: not offered. Set by the server, not by the agent.",
@@ -2796,9 +2792,6 @@
         {
           "properties": {
             "newId": {
-              "type": "string"
-            },
-            "prev": {
               "type": "string"
             },
             "t": {
