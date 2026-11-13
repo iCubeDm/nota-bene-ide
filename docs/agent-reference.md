@@ -126,17 +126,11 @@ force-push and deletion of `main` are refused.
    `pr-format`. The branch must be up to date with `main`.
 5. Squash merge, the only method allowed. The title becomes the commit on `main`.
 
-A release can instead gather its work on a branch `release/<version>` cut from `main`:
-
-- An umbrella issue tracks the release. A large piece of work is an epic issue whose
-  subtasks are checkboxes in it, not issues of their own.
-- Each issue or subtask is a small pull request into the release branch, titled
-  `gh-<issue>: <message>` with the issue or epic number. It is reviewed and passes the
-  tests of the folders it touches, `npx tsc -b` and `npm run build -w web` locally, then
-  is squash-merged there without waiting for CI. Push and run CI on the branch every few
-  merges, so a platform-only failure surfaces early.
-- The release branch reaches `main` as one pull request through steps 4 and 5, its body
-  listing `Closes #<issue>` for every issue it carries. The release branch is kept.
+There are no release branches: `main` is always the next release, and a release is a
+version-bump pull request into `main` plus a tag on its commit (see below). A large piece
+of work is an epic issue whose subtasks are checkboxes in it, not issues of their own;
+each subtask is its own pull request into `main`, titled `gh-<epic>: <message>`
+with `Part of #<epic>` in its body; the last one closes the epic.
 
 ## Releasing
 
