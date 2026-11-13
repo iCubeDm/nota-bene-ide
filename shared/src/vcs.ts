@@ -27,3 +27,6 @@ export type VcsBranch = { id: string; branch: string | null; base: string | null
 export type VcsCommit = { sha: string; parents: string[]; author: string; at: number; subject: string; refs: string[] };
 export type VcsLog = { repo: boolean; commits: VcsCommit[]; tip: string | null; more: boolean };
 export type VcsCommitDetail = { sha: string; author: string; at: number; message: string; files: VcsFile[]; truncated: boolean };
+/** Why POST /git-switch refused; `detail` carries git's own words for 'git'. 200 answers `{ branch }`. */
+export type GitSwitchError = 'bad-request' | 'not-a-repo' | 'unknown-branch' | 'busy' | 'git' | 'timeout';
+export type GitSwitchAnswer = { branch: string } | { error: GitSwitchError; detail?: string };

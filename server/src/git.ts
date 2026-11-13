@@ -11,9 +11,10 @@ import { wirePath } from './wirePath.ts';
 export type { Source };
 
 /**
- * Read-only views of other worktrees and branches (M3-16). The window's own checkout is never switched: a live window
- * may run from it. Every git call is execFile (never a shell), refs come only from git's own listings, and paths go
- * after `--` or inside `<ref>:<path>` once they are validated as project-relative.
+ * Read-only views of other worktrees and branches (M3-16). The one write is gitSwitch.ts: the window's own checkout
+ * switches to another local branch only when the user asks, never while an agent works in it. Every git call is
+ * execFile (never a shell), refs come only from git's own listings, and paths go after `--` or inside `<ref>:<path>`
+ * once they are validated as project-relative.
  */
 
 const TIMEOUT = 5_000;
@@ -47,8 +48,11 @@ async function realOr(p: string): Promise<string> {
   }
 }
 
-/** top: the repo's top level ('' when not a repo); prefix: root's path inside it, '' or ending in '/'. */
-type Repo = { top: string; prefix: string; sources: Source[] };
+/**
+ * top: the repo's top level ('' when not a repo); prefix: root's path inside it, '' or ending in '/'; checkouts: the
+ * realpath of every worktree's top level that exists, this one's first.
+ */
+type Repo = { top: string; prefix: string; sources: Source[]; checkouts: string[] };
 
 /** The ref of a detached worktree, for comments and the chip. `(` and a space fail check-ref-format: never a branch name. */
 const detachedRef = (dir: string) => `(detached) ${path.basename(dir)}`;
@@ -72,9 +76,10 @@ async function scan(root: string): Promise<Repo> {
     prefix = out[1] ?? '';
     if (!top) throw new Error('no top level');
   } catch {
-    return { top: '', prefix: '', sources: [here] }; // not a repo, or no git
+    return { top: '', prefix: '', sources: [here], checkouts: [] }; // not a repo, or no git
   }
   const realTop = await realOr(top);
+  const checkouts = [realTop];
   const live = new Map<string, { dir: string; alias?: string }>(); // branch -> serving dir of its live worktree
   const worktrees: Source[] = [];
   try {
@@ -89,6 +94,7 @@ async function scan(root: string): Promise<Repo> {
         continue;
       }
       if (!fs.existsSync(real)) continue; // prunable: its branch (if any) is served from blobs below
+      checkouts.push(real);
       // path.join keeps the prefix's trailing '/' (as `\` on Windows)
       const serve = wirePath(path.join(real, prefix).replace(/[\\/]$/, ''));
       const given = wirePath(path.join(wt, prefix).replace(/[\\/]$/, ''));
@@ -116,12 +122,17 @@ async function scan(root: string): Promise<Repo> {
   } catch {
     // an empty repo has no refs
   }
-  return { top, prefix, sources: [here, ...worktrees, ...branches] };
+  return { top, prefix, sources: [here, ...worktrees, ...branches], checkouts };
 }
 
 const cache = new Map<string, { at: number; p: Promise<Repo> }>();
 /** Test hook. */
 export const clearSourceCache = () => cache.clear();
+/** After this checkout changed branch: the next read of the sources and the status asks git again. */
+export function forgetRepo(root: string): void {
+  cache.delete(root);
+  statusCache.delete(root);
+}
 
 export function repo(root: string): Promise<Repo> {
   const hit = cache.get(root);

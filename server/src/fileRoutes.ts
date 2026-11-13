@@ -8,6 +8,8 @@ import { EDIT_MAX, readEditable, writeEditable, type EditAnswer } from './fileEd
 import { listDir, listFiles, resolveInRoot } from './files.ts';
 import { blobSize, branchFiles, gitStatus, listSources, readFile, readTree, SourceError, type Source } from './git.ts';
 import { branchInfo, commitFileOf, commitOf, diffOf, fileOf, logOf } from './vcs.ts';
+import { switchBranch, SwitchRefused } from './gitSwitch.ts';
+import type { Fields } from './audit.ts';
 import { listWindows } from './system.ts';
 import { fuzzyScore } from './fuzzy.ts';
 import type { ProviderSession as AgentSession } from './agent/types.ts';
@@ -44,18 +46,21 @@ function queryPath(req: IncomingMessage): string {
   return new URL(req.url ?? '/', 'http://x').searchParams.get('path') ?? '';
 }
 
-/** The JSON of a save, null when it cannot fit a file we would take: every byte of the text may take six in JSON. */
-async function editBody(req: IncomingMessage): Promise<Record<string, unknown> | null> {
+/** A JSON object body of at most `max` bytes; null above it. Throws SyntaxError on bad JSON. */
+async function jsonBody(req: IncomingMessage, max: number): Promise<Record<string, unknown> | null> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const c of req as AsyncIterable<Buffer>) {
     size += c.length;
-    if (size > EDIT_MAX * 6 + 4096) return null;
+    if (size > max) return null;
     chunks.push(c);
   }
   const v: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
   return v && typeof v === 'object' ? v as Record<string, unknown> : {};
 }
+
+/** The JSON of a save, null when it cannot fit a file we would take: every byte of the text may take six in JSON. */
+const editBody = (req: IncomingMessage) => jsonBody(req, EDIT_MAX * 6 + 4096);
 
 /**
  * The `src` of a request: none or 'here' is this checkout (no git call); anything else must be an id from the current
@@ -142,8 +147,12 @@ export function fileRoutes(o: {
   complete: (q: string) => Promise<string[]>;
   /** .blend → GLB for /model; without it the route is not served */
   blend?: BlendConverter;
-  /** the roots of the windows whose agent is at work, for the branch list; a test passes its own */
+  /** the roots of the windows whose agent is at work, for the branch list and the switch; a test passes its own */
   working?: () => Promise<string[]>;
+  /** this window's agent is at work: no branch switch under it */
+  selfBusy?: () => boolean;
+  /** a line of the window's audit log */
+  audit?: (ev: string, f: Fields) => void;
 }): Record<string, RequestListener> {
   const working = o.working ?? (async () => (await listWindows(0)).filter((w) => w.busy).map((w) => w.root));
   const fail = (req: IncomingMessage, res: ServerResponse, e: unknown) => {
@@ -258,6 +267,28 @@ export function fileRoutes(o: {
       if (!getOnly(req, res)) return;
       // 503 = git did not answer in time: the header keeps what it shows
       gitStatus(o.root()).then((st) => json(req, res, 200, st), () => plain(res, 503, 'git status timed out'));
+    },
+
+    // this checkout to another local branch, by the user's click (gitSwitch.ts): the key route, never the cookie's
+    '/git-switch': (req, res) => {
+      if (req.method !== 'POST') {
+        res.writeHead(405, { allow: 'POST', 'content-type': 'text/plain; charset=utf-8' });
+        res.end('method not allowed');
+        return;
+      }
+      const root = o.root();
+      const refuse = (status: number, error: string, detail?: string) => json(req, res, status, { error, ...(detail !== undefined ? { detail } : {}) });
+      jsonBody(req, 4096).then(async (b) => {
+        const branch = b?.branch;
+        if (typeof branch !== 'string' || !branch) return refuse(400, 'bad-request');
+        const done = await switchBranch(root, branch, { selfBusy: o.selfBusy ?? (() => false), working });
+        if (done.from !== done.branch) o.audit?.('git-switch', { from: done.from, to: done.branch });
+        json(req, res, 200, { branch: done.branch });
+      }).catch((e: unknown) => {
+        if (e instanceof SyntaxError) return refuse(400, 'bad-request');
+        if (e instanceof SwitchRefused) return refuse(e.status, e.code, e.detail);
+        fail(req, res, e);
+      });
     },
 
     '/vcs-diff': (req, res) => {

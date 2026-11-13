@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Switch the folder's branch.** A local branch in the header's branch menu has a **Switch** button: after an inline confirmation the project folder moves to that branch, carrying uncommitted changes that do not conflict. It is refused, with the reason, while an agent works in the folder or when git refuses; the tree, Changes, the log and open tabs then show the new branch.
+
 ## 1.10.0 — 2026-11-13
 
 - **Parallel agents under one row.** Agents that one reply starts together (Claude Code or Codex) are listed under an umbrella row in the tasks drawer, with their combined state (done, failed), tokens and time and a **Stop all**. A Claude Code workflow shows its name and lists its agents under it.

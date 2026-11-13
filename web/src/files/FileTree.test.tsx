@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent, TreeEntry } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
-import { revealInTree, setTreeOpen } from '@/tree/slice.ts';
+import { diskChanged, revealInTree, setTreeOpen } from '@/tree/slice.ts';
 import { openFile, selectTabs } from '@/tabs/slice.ts';
 import { FileTree } from './FileTree.tsx';
 
@@ -247,4 +247,15 @@ it('refresh lists only shown folders; a folder under a closed parent is not fetc
   fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
   await waitFor(() => expect(calls).toContain('/tree?path='));
   expect(calls.some((u) => u.includes('path=src%2Flib'))).toBe(false);
+});
+
+it('a branch switch of this folder reloads the open folders, as a finished turn does', async () => {
+  const store = setup();
+  fireEvent.click(await row('src'));
+  await row('main.ts');
+  calls.length = 0;
+  fs.src = [{ name: 'lib', dir: true }, { name: 'other.ts', dir: false }];
+  act(() => { store.dispatch(diskChanged()); });
+  await row('other.ts');
+  expect(calls).toContain('/tree?path=');
 });

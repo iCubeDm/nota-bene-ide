@@ -348,6 +348,7 @@ const MATRIX: { method: string; path: string; cookie: 'open' | 'refused' }[] = [
   { method: 'POST', path: '/restart-server', cookie: 'refused' },
   { method: 'POST', path: '/system/prefs', cookie: 'refused' },
   { method: 'POST', path: '/usage/reset', cookie: 'refused' },
+  { method: 'POST', path: '/git-switch', cookie: 'refused' },
   { method: 'POST', path: '/edit', cookie: 'refused' },
   { method: 'POST', path: '/system/storage/clean', cookie: 'refused' },
   { method: 'POST', path: '/system/windows/action', cookie: 'refused' },
