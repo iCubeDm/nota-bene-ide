@@ -477,6 +477,7 @@ export const zhCN: Dict = {
   uploadWait: '请等待图片上传完成',
   buildingImage: '正在生成图片…',
   changedWhileSending: '发送期间评论发生了变化：未发送任何内容，请重新发送',
+  commentChangedElsewhere: '该评论已在另一个窗口中被修改或删除，你的更改未生效',
   sendFailedRetry: '发送失败；评论仍在这里，请重新发送',
   attachHere: '附加图片（或粘贴 / 拖到这里）',
   imgFail: '无法读取图片',

@@ -477,6 +477,7 @@ export const de: Dict = {
   uploadWait: 'Warte, bis das Bild fertig hochgeladen ist',
   buildingImage: 'Erstelle das Bild…',
   changedWhileSending: 'Die Kommentare haben sich beim Senden geändert: Nichts wurde gesendet, sende erneut',
+  commentChangedElsewhere: 'Ein Kommentar wurde in einem anderen Fenster geändert oder gelöscht, deine Änderung wurde nicht übernommen',
   sendFailedRetry: 'Senden fehlgeschlagen; die Kommentare sind noch da, sende erneut',
   attachHere: 'Bild anhängen (oder hier einfügen / ablegen)',
   imgFail: 'Bild konnte nicht gelesen werden',
