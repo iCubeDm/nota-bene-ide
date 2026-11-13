@@ -81,8 +81,10 @@ export const commentsSlice = createSlice({
       }
       if (ev.kind === 'comment-ack' || ev.kind === 'comment-refused') {
         // gone or sent: another window changed the comment first, and this change is dropped (the store toasts it);
-        // failed: the server could not store it, so it stays queued and goes again
-        if (ev.kind === 'comment-ack' || ev.reason !== 'failed') s.queue = s.queue.filter((o) => o.opId !== ev.opId);
+        // failed: the server could not store it, so it stays queued, and stays wired until the next open (sent again
+        // at once, it would be refused again in a loop)
+        if (ev.kind === 'comment-refused' && ev.reason === 'failed') return;
+        s.queue = s.queue.filter((o) => o.opId !== ev.opId);
         s.wired = s.wired.filter((id) => id !== ev.opId);
         s.items = view(s);
         return;

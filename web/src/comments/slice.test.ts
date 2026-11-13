@@ -264,12 +264,17 @@ describe('comment ops (protocol 19)', () => {
     spy.mockRestore();
   });
 
-  it('a failed store keeps the change queued and sends it again, without a toast', () => {
+  it('a failed store keeps the change queued and sends it again on the next open, not at once', () => {
     const { f, store } = boot();
     store.dispatch(addComment({ ...draft, id: 'a' }));
     const id = ops(f)[0]!.opId;
     f.ev({ kind: 'comment-refused', opId: id, reason: 'failed' });
     expect(selectComments(store.getState()).map((c) => c.id)).toEqual(['a']);
+    expect(ops(f).map((o) => o.opId)).toEqual([id]);
+    f.setOpen(false);
+    f.state('closed');
+    f.setOpen(true);
+    f.state('open');
     expect(ops(f).map((o) => o.opId)).toEqual([id, id]);
   });
 
