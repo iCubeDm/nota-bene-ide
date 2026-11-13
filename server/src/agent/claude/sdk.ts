@@ -93,6 +93,8 @@ class SdkSession implements AgentSession {
         promptSuggestions: true,
         // the SDK doesn't enable Claude in Chrome on its own — without the flag the session has no browser tools
         extraArgs: { chrome: null },
+        // the tasks drawer stops a background agent on its own (stopTask), so Stop ends only the turn and spares them
+        perTaskStopAffordance: true,
         systemPrompt: { type: 'preset', preset: 'claude_code', append: APPEND },
         canUseTool: async (toolName, input, { signal }) => {
           const { interact } = o;
