@@ -116,6 +116,7 @@
   "labelsAll": "Todas las etiquetas",
   "save": "Guardar",
   "deleteComment": "Eliminar comentario",
+  "commentChangedElsewhere": "Un comentario se cambió o eliminó en otra ventana, así que tu cambio no se aplicó",
   "commentDeleted": "Comentario eliminado",
   "fileNotFound": "Este archivo no está (o ya no está).",
   "fileOutside": "Este archivo está fuera del proyecto.",

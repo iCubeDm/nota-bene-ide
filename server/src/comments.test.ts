@@ -166,6 +166,22 @@ describe('CommentStore: ops and revisions (protocol 19)', () => {
     expect(s.get('k')).toEqual([c('b')]);
   });
 
+  it('add goes before the comment it names, else at the end; a restore brings back a deleted id', () => {
+    const s = new CommentStore({ dir });
+    s.set('k', [c('a'), c('b')]);
+    expect(s.apply('k', [{ op: 'add', comment: c('x'), before: 'b' }, { op: 'add', comment: c('y'), before: 'gone' }])).toBeNull();
+    expect(s.get('k').map((x) => x.id)).toEqual(['a', 'x', 'b', 'y']);
+    s.apply('k', [{ op: 'remove', id: 'a' }]);
+    expect(s.apply('k', [{ op: 'add', comment: c('a'), before: 'x', restore: true }])).toBeNull();
+    expect(s.get('k').map((x) => x.id)).toEqual(['a', 'x', 'b', 'y']);
+    expect(s.state('k').removed).toEqual([]);
+    // restored, the id is an ordinary one again: a resent restore changes nothing, a remove deletes it again
+    expect(s.apply('k', [{ op: 'add', comment: { ...c('a'), text: 'other' }, restore: true }])).toBeNull();
+    expect(s.get('k')[0]).toEqual(c('a'));
+    s.apply('k', [{ op: 'remove', id: 'a' }]);
+    expect(s.apply('k', [add(c('a'))])).toEqual({ reason: 'gone', id: 'a' });
+  });
+
   it('edit replaces the editable fields and keeps the anchor, time and status; a missing or sent comment refuses', () => {
     const s = new CommentStore({ dir });
     s.set('k', [{ ...c('a'), label: 'clarify', images: ['i1'] }, sent('s')]);

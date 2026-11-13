@@ -218,11 +218,15 @@ export type Interaction = {
 export type InteractionAnswer = { choice: string; values?: Record<string, string> };
 
 /**
- * One change to a session's comments (protocol 19). `add` of a stored id changes nothing (a resent op); `edit` carries the
- * comment as edited, of which the server takes the text, label, images, recordings and generated-image count; `remove`
- * leaves the id deleted, so no later add brings it back.
+ * One change to a session's comments (protocol 19). `add` of a stored id changes nothing (a resent op); it goes before the
+ * comment `before` names (appended when absent or not stored), and `restore` (the Undo of a deletion) may bring back a
+ * deleted id. `edit` carries the comment as edited, of which the server takes the text, label, images, recordings and
+ * generated-image count; `remove` leaves the id deleted, so no later add brings it back except a `restore`.
  */
-export type CommentOp = { op: 'add'; comment: Comment } | { op: 'edit'; comment: Comment } | { op: 'remove'; id: string };
+export type CommentOp =
+  | { op: 'add'; comment: Comment; before?: string; restore?: true }
+  | { op: 'edit'; comment: Comment }
+  | { op: 'remove'; id: string };
 /** gone: the comment was deleted, or is missing for an edit; sent: a sent comment cannot change (the client drops the op);
  * failed: the server could not store it (the client keeps the op and sends it again) */
 export type CommentRefusal = 'gone' | 'sent' | 'failed';
@@ -473,7 +477,10 @@ function isComment(v: unknown): v is Comment {
 function isCommentOp(v: unknown): v is CommentOp {
   if (!isObj(v)) return false;
   if (v.op === 'remove') return typeof v.id === 'string' && v.id !== '';
-  return (v.op === 'add' || v.op === 'edit') && isComment(v.comment);
+  if (v.op === 'add') {
+    return isComment(v.comment) && (v.before === undefined || typeof v.before === 'string') && (v.restore === undefined || v.restore === true);
+  }
+  return v.op === 'edit' && isComment(v.comment);
 }
 
 function isPermission(o: Obj): boolean {
@@ -544,7 +551,9 @@ function toComment(c: Comment): Comment {
 }
 
 function toCommentOp(o: CommentOp): CommentOp {
-  return o.op === 'remove' ? { op: 'remove', id: o.id } : { op: o.op, comment: toComment(o.comment) };
+  if (o.op === 'remove') return { op: 'remove', id: o.id };
+  if (o.op === 'edit') return { op: 'edit', comment: toComment(o.comment) };
+  return { op: 'add', comment: toComment(o.comment), ...(o.before === undefined ? {} : { before: o.before }), ...(o.restore ? { restore: true } : {}) };
 }
 
 function toImageRef(i: ImageRef): ImageRef {

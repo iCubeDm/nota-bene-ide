@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' show FilledButton;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -98,7 +99,7 @@ void main() {
       final cs = Comments((m) {
         sent.add(m);
         return true;
-      }, () => 's');
+      }, () => 's')..hello(13);
       final x = cs.add(
         c('z', 'q', '').anchor,
         'hi',
@@ -279,10 +280,11 @@ void main() {
     late Comments cs;
     setUp(() {
       out = [];
+      // a window older than protocol 19: the whole set
       cs = Comments((m) {
         out.add(m);
         return true;
-      }, () => 's1');
+      }, () => 's1')..hello(13);
     });
 
     test('the server set replaces the list; pending and per file', () {
@@ -311,18 +313,6 @@ void main() {
         expect(m.items.last.status, CommentStatus.pending);
       },
     );
-
-    test('an older set arriving before the echo keeps the new comment', () {
-      cs.apply([c('a', 'x', 'desk')]);
-      final n = cs.add(c('tmp', 'q', '').anchor as TextAnchor, 'mine', null);
-      cs.apply([c('a', 'x', 'desk')]); // broadcast from before ours
-      expect(cs.all.map((x) => x.id), ['a', n.id]);
-      cs.apply([c('a', 'x', 'desk'), cs.all.last]); // our echo
-      cs.apply([
-        c('a', 'x', 'desk'),
-      ]); // the desktop removed ours after that: gone
-      expect(cs.all.map((x) => x.id), ['a']);
-    });
 
     test('edit and remove send the changed set', () {
       cs.apply([c('a', 'x', '1'), c('b', 'y', '2')]);

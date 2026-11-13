@@ -11,6 +11,7 @@ import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/comments.dart';
+import '../comments/queue.dart';
 import '../comments/strings.g.dart';
 
 import '../hosts/host_link.dart';
@@ -111,14 +112,21 @@ class WindowTab extends ChangeNotifier {
   AgentMode? mode;
   num? protocol;
 
-  /// The window's comments of this session (the server's set).
-  late final comments = Comments(send, () => feed.sessionId);
+  /// What the app keeps for this window beyond the tab, by host and session (the project before the host lists one).
+  late final String _box =
+      '${link.host.id}|${link.windows.where((w) => w.port == port).firstOrNull?.session ?? root}';
+
+  /// The window's comments of this session (the server's set), with the changes made here it has not acked, which
+  /// outlive the app.
+  late final comments = Comments(
+    send,
+    () => feed.sessionId,
+    queue: CommentQueues.instance.of(_box),
+  );
 
   /// The voice messages recorded for this window that it has not shown yet. They belong to the app, by host and
   /// window, and outlive this tab: leaving the chat loses none.
-  late final voiceOutbox = VoiceStore.instance.outbox(
-    '${link.host.id}|${link.windows.where((w) => w.port == port).firstOrNull?.session ?? root}',
-  );
+  late final voiceOutbox = VoiceStore.instance.outbox(_box);
 
   /// The window's own requests through its channel; null while the host is offline.
   WindowHttp? get http {
@@ -373,6 +381,7 @@ class WindowTab extends ChangeNotifier {
         _set(TabState.open);
         // what waited for the window goes on now that it takes messages
         voiceOutbox.opened();
+        comments.flush();
       case ServerEventOccupied():
         _passive = true;
         if (_takeoverWanted) {
@@ -386,6 +395,7 @@ class WindowTab extends ChangeNotifier {
         :final tmpDirs,
       ):
         this.protocol = protocol;
+        comments.hello(protocol);
         this.capabilities = capabilities;
         this.tmpDirs = [
           for (final d in tmpDirs ?? const <String>[])
@@ -404,8 +414,12 @@ class WindowTab extends ChangeNotifier {
         stats = e;
       case ServerEventIdleCompact(:final state):
         idleCompact = state;
-      case ServerEventComments(:final items):
-        comments.apply(items);
+      case ServerEventComments(:final items, :final ack):
+        comments.apply(items, ack: ack);
+      case ServerEventCommentAck(:final opId):
+        comments.acked(opId);
+      case ServerEventCommentRefused(:final opId, :final reason):
+        comments.refused(opId, reason);
       case ServerEventSendRefused(:final id):
         _retrying.remove(id);
         voiceOutbox.refused(id);

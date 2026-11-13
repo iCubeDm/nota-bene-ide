@@ -104,7 +104,7 @@ export class CommentStore {
 
   /**
    * Applies a client's ops (protocol 19), all or none. An add of a stored id changes nothing (a resent op), of a deleted
-   * one is refused `gone`; an edit replaces the comment's text, label, images, recordings and generated-image count, and is
+   * one is refused `gone` unless it is a `restore`; it goes before `before` when that is stored; an edit replaces the comment's text, label, images, recordings and generated-image count, and is
    * refused `gone` for a missing comment and `sent` for a sent one; a remove leaves the id deleted, is a no-op for a
    * missing one and is refused `sent` for a sent one. Returns the refusal, or null when the set is stored.
    */
@@ -118,10 +118,13 @@ export class CommentStore {
       const cur = items[at];
       if (o.op === 'add') {
         if (cur) continue;
-        if (removed.includes(id)) return { reason: 'gone', id };
+        const dead = removed.indexOf(id);
+        if (dead >= 0 && !o.restore) return { reason: 'gone', id };
+        if (dead >= 0) removed.splice(dead, 1);
         // a new comment is pending whatever the client says: only a send makes one sent
         const { sentIn: _sentIn, ...fresh } = o.comment;
-        items.push({ ...fresh, status: 'pending' });
+        const next = o.before === undefined ? -1 : items.findIndex((c) => c.id === o.before);
+        items.splice(next < 0 ? items.length : next, 0, { ...fresh, status: 'pending' });
       } else if (o.op === 'edit') {
         if (!cur) return { reason: 'gone', id };
         if (cur.status === 'sent') return { reason: 'sent', id };

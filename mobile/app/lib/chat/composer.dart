@@ -54,6 +54,7 @@ class _ComposerState extends State<Composer> {
   late final _own = widget.controller == null ? TextEditingController() : null;
   TextEditingController get _text => widget.controller ?? _own!;
   StreamSubscription<ServerEventSendRefused>? _refused;
+  StreamSubscription<void>? _elsewhere;
   ({String id, String text, Set<String> comments, List<_Draft> images})? _last;
   final _drafts = <_Draft>[];
   late final _session = RecordSession(
@@ -65,6 +66,14 @@ class _ComposerState extends State<Composer> {
   void initState() {
     super.initState();
     _refused = widget.tab.refusals.listen(_onRefused);
+    _elsewhere = widget.tab.comments.changedElsewhere.listen((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).commentChangedElsewhere),
+        ),
+      );
+    });
     _text.addListener(_changed);
   }
 
@@ -74,6 +83,7 @@ class _ComposerState extends State<Composer> {
   void dispose() {
     _text.removeListener(_changed);
     _refused?.cancel();
+    _elsewhere?.cancel();
     _own?.dispose();
     _session.dispose();
     super.dispose();

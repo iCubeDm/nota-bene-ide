@@ -627,12 +627,19 @@
       "anyOf": [
         {
           "properties": {
+            "before": {
+              "type": "string"
+            },
             "comment": {
               "$ref": "#/definitions/Comment"
             },
             "op": {
               "const": "add",
               "type": "string"
+            },
+            "restore": {
+              "const": true,
+              "type": "boolean"
             }
           },
           "required": [
@@ -674,7 +681,7 @@
           "type": "object"
         }
       ],
-      "description": "One change to a session's comments (protocol 19). `add` of a stored id changes nothing (a resent op); `edit` carries the comment as edited, of which the server takes the text, label, images, recordings and generated-image count; `remove` leaves the id deleted, so no later add brings it back."
+      "description": "One change to a session's comments (protocol 19). `add` of a stored id changes nothing (a resent op); it goes before the comment `before` names (appended when absent or not stored), and `restore` (the Undo of a deletion) may bring back a deleted id. `edit` carries the comment as edited, of which the server takes the text, label, images, recordings and generated-image count; `remove` leaves the id deleted, so no later add brings it back except a `restore`."
     },
     "CommentRefusal": {
       "description": "gone: the comment was deleted, or is missing for an edit; sent: a sent comment cannot change (the client drops the op); failed: the server could not store it (the client keeps the op and sends it again)",

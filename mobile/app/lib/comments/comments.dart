@@ -1,6 +1,10 @@
-// The window's comments, as the desktop keeps them: the server holds the set of the session (the `comments` event,
-// on connect and after every change), a client sends the whole set back after a change (`comments` message), and a
-// send with `commentIds` makes the server mark them sent. The batch text is the desktop's (web/src/comments/compose.ts).
+// The window's comments, as the desktop keeps them: the server holds the set of the session (the `comments` event, on
+// connect and after every change). A change made here is queued as an op (protocol 19: `comment-op`, answered by the
+// set's `ack`, `comment-ack` or `comment-refused`) and shown at once, folded over the server's set; the queue is on disk,
+// so a change made offline outlives the app. A window older than 19 gets the whole set instead, as before. A send with
+// `commentIds` makes the server mark them sent. The batch text is the desktop's (web/src/comments/compose.ts).
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -8,37 +12,78 @@ import '../chat/feed.dart' show Feed;
 import '../chat/window_tab.dart' show uuidV4;
 import '../media/shapes.dart';
 import 'chat_anchor.dart';
+import 'queue.dart';
 import 'strings.g.dart';
 
-/// How long a comment added here is shown before the server's set has it (a broadcast from before ours can land first).
-const _overlayFor = Duration(seconds: 5);
+/// The window that takes comment ops; an older one gets the whole set.
+const opsProtocol = 19;
 
 class Comments extends ChangeNotifier {
-  Comments(this._send, this._session, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
+  Comments(
+    this._send,
+    this._session, {
+    DateTime Function()? now,
+    CommentQueue? queue,
+  }) : _now = now ?? DateTime.now,
+       _queue = queue ?? CommentQueue.memory() {
+    // what the disk kept from an earlier run shows, and goes once the window is there
+    _queue.ready.then((_) {
+      notifyListeners();
+      flush();
+    });
+  }
 
   final bool Function(ClientMessage) _send;
   final String? Function() _session;
   final DateTime Function() _now;
+  final CommentQueue _queue;
 
   List<Comment> _server = const [];
 
-  /// added here, not yet in a set from the server: id -> (comment, when)
-  final _mine = <String, ({Comment c, DateTime at})>{};
+  /// Whether the window takes ops (its hello); null before the first hello, when nothing goes out.
+  bool? _ops;
 
+  /// The queued ops sent on this socket: each goes once, and again on the next one.
+  final _wired = <String>{};
+
+  final _elsewhere = StreamController<void>.broadcast();
+
+  /// A change made here was refused because the window changed or deleted the comment first.
+  Stream<void> get changedElsewhere => _elsewhere.stream;
+
+  /// The server's set with the queued changes of this session on top. An op made before the session had an id (null) is
+  /// this one's: the server applies it here.
   List<Comment> get all {
-    final now = _now();
-    // one the server has not had stays until it goes out, however long that takes
-    _mine.removeWhere(
-      (id, v) => !_unsent.containsKey(id) && now.difference(v.at) > _overlayFor,
-    );
-    final have = {for (final c in _server) c.id};
-    return [
-      ..._server,
-      for (final v in _mine.values)
-        if (!have.contains(v.c.id)) v.c,
-    ];
+    final now = _session();
+    var items = _server;
+    for (final q in _queue.ops) {
+      if (q.sessionId != null && q.sessionId != now) continue;
+      for (final o in q.ops) {
+        items = _fold(items, o);
+      }
+    }
+    return items;
   }
+
+  static List<Comment> _fold(List<Comment> items, CommentOp o) => switch (o) {
+    CommentOpRemove(:final id) => [
+      for (final c in items)
+        if (c.id != id) c,
+    ],
+    CommentOpAdd(:final comment, :final before)
+        when !items.any((c) => c.id == comment.id) =>
+      () {
+        final at = before == null
+            ? -1
+            : items.indexWhere((c) => c.id == before);
+        return [...items]..insert(at < 0 ? items.length : at, comment);
+      }(),
+    CommentOpEdit(:final comment) => [
+      for (final c in items)
+        c.id == comment.id && c.status != CommentStatus.sent ? comment : c,
+    ],
+    _ => items,
+  };
 
   /// Every pending comment, held ones too: what the pane lists. What there is to send is [sendable].
   List<Comment> get pending => [
@@ -48,18 +93,6 @@ class Comments extends ChangeNotifier {
 
   /// The one count of "comments to send" (strip, tab badge, pane header): [sendable]'s.
   int get toSend => sendable.length;
-
-  /// Pushes the set again when something made here did not reach the server; false still when the tab is not open.
-  void flush() {
-    if (_unsent.isEmpty) return;
-    _push(all);
-  }
-
-  /// comments added or edited here that did not reach the server (the tab was not open), by id: kept in the list and
-  /// pushed again once the window answers, into the session they were made in. [add]: the server never had it; an edit
-  /// of one it had is dropped when the server's set no longer has the comment. Memory only: they survive a reconnect,
-  /// not the app being killed.
-  final _unsent = <String, ({String? session, bool add})>{};
 
   /// sent with a message the server has not answered yet
   final _sending = <String>{};
@@ -127,60 +160,74 @@ class Comments extends ChangeNotifier {
         c,
   ];
 
-  /// The server's set. A comment of ours stops being overlaid once the server has had it.
-  void apply(List<Comment> items) {
+  /// A new socket said hello: [protocol] says how the changes go, and what went on the old socket goes again.
+  void hello(num? protocol) {
+    _ops = (protocol ?? 0) >= opsProtocol;
+    _wired.clear();
+  }
+
+  /// The server's set; [ack]: the ops it applied, off the queue now.
+  void apply(List<Comment> items, {List<String>? ack}) {
     _server = List.unmodifiable(items);
     _sending.clear();
-    final now = _session();
-    final have = {for (final c in items) c.id};
-    for (final id in [..._unsent.keys]) {
-      final u = _unsent[id]!;
-      final other = u.session != null && now != null && u.session != now;
-      // another session's comment, or an edit of one deleted elsewhere, is not brought back; one the server has now
-      // (an add that got through) is no longer unsent
-      if (other ||
-          (!u.add && !have.contains(id)) ||
-          (u.add && have.contains(id))) {
-        _unsent.remove(id);
-        _mine.remove(id);
-      }
-    }
-    for (final c in items) {
-      final mine = _mine[c.id];
-      if (_unsent.containsKey(c.id) && mine != null) {
-        // an edit made here that never went out is not replaced by the server's older copy
-        _server = [for (final s in _server) s.id == c.id ? mine.c : s];
-      } else {
-        _mine.remove(c.id);
-      }
-    }
+    if (ack != null) _drop(ack.toSet());
     notifyListeners();
     flush();
   }
 
-  /// [add]: the ids newly made here; [edit]: the ids changed. When the push does not go, they are kept as unsent.
-  void _push(
-    List<Comment> next, {
-    Iterable<String> add = const [],
-    Iterable<String> edit = const [],
-  }) {
-    final ok = _send(ClientMessageComments(sessionId: _session(), items: next));
-    if (ok) {
-      _unsent.clear();
-    } else {
-      for (final id in add) {
-        _unsent[id] = (session: _session(), add: true);
-      }
-      for (final id in edit) {
-        final was = _unsent[id];
-        _unsent[id] = (
-          session: was?.session ?? _session(),
-          add: was?.add ?? false,
-        );
-        _mine[id] = (c: next.firstWhere((c) => c.id == id), at: _now());
-      }
-    }
+  /// The window applied op [opId] to another session than the one shown.
+  void acked(String opId) {
+    _drop({opId});
     notifyListeners();
+  }
+
+  /// The window refused op [opId]: gone or sent, it is dropped (the comment changed elsewhere); failed (the window could
+  /// not store it), it stays queued and goes on the next socket, not at once, which would be refused again.
+  void refused(String opId, CommentRefusal reason) {
+    if (reason == CommentRefusal.failed) return;
+    _drop({opId});
+    notifyListeners();
+    _elsewhere.add(null);
+  }
+
+  void _drop(Set<String> opIds) {
+    final n = _queue.ops.length;
+    _queue.ops.removeWhere((o) => opIds.contains(o.opId));
+    _wired.removeAll(opIds);
+    if (_queue.ops.length != n) _queue.save();
+  }
+
+  /// Sends what the window has not had: the queued ops not on this socket yet, in order (the socket keeps it, and an op
+  /// applied twice changes nothing, so a message sent after them finds them applied). A window older than 19 gets the
+  /// set with them instead, which is then its set; nothing goes before the first hello or while the tab is not open.
+  void flush() {
+    final ops = _ops;
+    if (ops == null || _queue.ops.isEmpty) return;
+    if (!ops) {
+      final items = all;
+      if (!_send(ClientMessageComments(sessionId: _session(), items: items))) {
+        return;
+      }
+      _server = List.unmodifiable(items);
+      _queue.ops.clear();
+      _queue.save();
+      notifyListeners();
+      return;
+    }
+    for (final q in _queue.ops) {
+      if (_wired.contains(q.opId)) continue;
+      if (!_send(q)) break;
+      _wired.add(q.opId);
+    }
+  }
+
+  void _change(CommentOp op) {
+    _queue.ops.add(
+      ClientMessageCommentOp(opId: uuidV4(), sessionId: _session(), ops: [op]),
+    );
+    _queue.save();
+    notifyListeners();
+    flush();
   }
 
   /// [id]: a media comment's, chosen before its files were written to `/marks/<id>`. [images] with [genImages]: the
@@ -205,9 +252,7 @@ class Comments extends ChangeNotifier {
       genImages: genImages,
       voice: voice == null || voice.isEmpty ? null : voice,
     );
-    final next = [...all, c];
-    _mine[c.id] = (c: c, at: _now());
-    _push(next, add: [c.id]);
+    _change(CommentOpAdd(comment: c));
     return c;
   }
 
@@ -241,40 +286,29 @@ class Comments extends ChangeNotifier {
     List<VoiceClip>? voice,
     List<String>? images,
   }) {
-    final next = [
-      for (final c in all)
-        c.id == id ? _with(c, text, label, voice, images) : c,
-    ];
-    if (_mine.containsKey(id)) {
-      _mine[id] = (c: next.firstWhere((c) => c.id == id), at: _now());
-    }
-    _server = [
-      for (final c in _server)
-        c.id == id ? _with(c, text, label, voice, images) : c,
-    ];
-    _push(next, edit: [id]);
+    final c = all.where((c) => c.id == id).firstOrNull;
+    if (c == null) return;
+    _change(CommentOpEdit(comment: _with(c, text, label, voice, images)));
   }
 
-  /// [c] back where it was in [all] (index [at]), as the Undo of a deletion: with its text, images and state.
+  /// [c] back where it was in [all] (index [at]), as the Undo of a deletion: with its text, images and state. The
+  /// window takes it back even though it was deleted (`restore`).
   void restore(Comment c, int at) {
     // one that went out meanwhile would be sent twice
     if (_sending.contains(c.id)) return;
-    final next = [...all];
-    if (next.any((x) => x.id == c.id)) return;
-    next.insert(at.clamp(0, next.length), c);
-    _mine[c.id] = (c: c, at: _now());
-    _server = next;
-    _push(next, add: [c.id]);
+    final now = all;
+    if (now.any((x) => x.id == c.id)) return;
+    final i = at.clamp(0, now.length);
+    _change(
+      CommentOpAdd(
+        comment: c,
+        before: i < now.length ? now[i].id : null,
+        restore: true,
+      ),
+    );
   }
 
-  void remove(String id) {
-    _mine.remove(id);
-    _server = [
-      for (final c in _server)
-        if (c.id != id) c,
-    ];
-    _push(all);
-  }
+  void remove(String id) => _change(CommentOpRemove(id: id));
 }
 
 List<String>? _orNone(List<String> l) => l.isEmpty ? null : l;

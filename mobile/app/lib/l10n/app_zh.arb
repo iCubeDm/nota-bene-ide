@@ -116,6 +116,7 @@
   "labelsAll": "所有标签",
   "save": "保存",
   "deleteComment": "删除评论",
+  "commentChangedElsewhere": "该评论已在另一个窗口中被修改或删除，你的更改未生效",
   "commentDeleted": "评论已删除",
   "fileNotFound": "这个文件不存在（或已被删除）。",
   "fileOutside": "这个文件在项目之外。",

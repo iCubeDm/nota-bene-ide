@@ -116,6 +116,7 @@
   "labelsAll": "Alle Labels",
   "save": "Speichern",
   "deleteComment": "Kommentar löschen",
+  "commentChangedElsewhere": "Ein Kommentar wurde in einem anderen Fenster geändert oder gelöscht, deine Änderung wurde nicht übernommen",
   "commentDeleted": "Kommentar gelöscht",
   "fileNotFound": "Diese Datei gibt es nicht (mehr).",
   "fileOutside": "Diese Datei liegt außerhalb des Projekts.",

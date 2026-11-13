@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Phone comments made offline are kept.** A comment added, edited or deleted on the phone while the computer is out of reach shows at once and reaches the window once it is back, even after the app was closed. A deletion made on the phone no longer comes back, and the phone no longer deletes a comment it has not seen. When the window changed or deleted the comment first, the phone says so and keeps the window's version.
 - **Stop spares background agents (Claude).** Stopping the turn no longer ends the subagents running in the background; they go on and stop from the Tasks drawer, one by one or with **Stop all**. Background shell tasks already went on.
 - **A sound when a tab needs you.** A tab you are not looking at plays a short sound when the agent waits for you: a permission, a plan to approve, a question. Settings → Defaults → **Sounds** turns it off, or adds a sound when a turn ends; the choice is shared by every window. Only one tab of a window sounds, and a reload or reconnect never does.
 - **Clearer header buttons.** The Sessions button says **Sessions** next to its clock, and it is the same height, corners and type as ↻ Agent beside it. The ↻ Agent button's menu half lines up again: both halves are one height, so the seam between them no longer looks broken.
