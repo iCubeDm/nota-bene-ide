@@ -9,7 +9,7 @@ import { composerSlice } from '../composer/slice.ts';
 import { refusedMiddleware } from '../composer/refused.ts';
 import { historyMiddleware, historySlice } from '../composer/history.ts';
 import { controlsListener, controlsSlice } from '../controls/slice.ts';
-import { commentsSlice, resyncComments } from '../comments/slice.ts';
+import { commentsSlice, flushComments } from '../comments/slice.ts';
 import { activate, tabsSlice, type Tab, type TabsState } from '../tabs/slice.ts';
 import { AUDIO, VIDEO } from '../files/kinds.ts';
 import { browserPip, MediaController, type PipApi } from '../media/mediaController.ts';
@@ -193,11 +193,15 @@ export function makeStore(o: {
       if (ev.kind === 'session') learnServerSep(ev.root);
       if (ev.kind === 'hello') setTmpDirs(ev.tmpDirs);
       store.dispatch(serverEvent(ev));
+      // protocol 19: another window changed or deleted the comment first, so this change was not made
+      if (ev.kind === 'comment-refused' && ev.reason !== 'failed') toast(t('commentChangedElsewhere'), '');
+      // the next queued comment change goes once the server is known (hello) and the previous one is answered
+      if (ev.kind === 'hello' || ev.kind === 'comments' || ev.kind === 'comment-ack' || ev.kind === 'comment-refused') store.dispatch(flushComments());
     },
     (s) => {
       if (store.getState().conn.state === 'stopped') return;
       store.dispatch(connState(s));
-      if (s === 'open') store.dispatch(resyncComments());
+      if (s === 'open') store.dispatch(flushComments());
     },
   );
   return store;
