@@ -129,7 +129,8 @@ force-push and deletion of `main` are refused.
 There are no release branches: `main` is always the next release, and a release is a
 version-bump pull request into `main` plus a tag on its commit (see below). A large piece
 of work is an epic issue whose subtasks are checkboxes in it, not issues of their own;
-each subtask is its own pull request into `main`, titled `gh-<epic>: <message>` with `Part of #<epic>` in its body; the last one closes the epic.
+each subtask is its own pull request into `main`, titled `gh-<epic>: <message>`
+with `Part of #<epic>` in its body; the last one closes the epic.
 
 ## Releasing
 
