@@ -49,6 +49,9 @@ export type SessionListEntry = {
   lastModified: number; fileSize?: number; cwd?: string;
 };
 
+/** The agent has no stored session with that id (a delete of one already gone). */
+export class SessionNotFoundError extends Error {}
+
 export type SessionInfo = { customTitle?: string; summary?: string; firstPrompt?: string; cwd?: string };
 
 export interface AgentBackend<M = Mode, E = EffortLevel> {
@@ -71,6 +74,8 @@ export interface AgentBackend<M = Mode, E = EffortLevel> {
   sessionInfo(id: string, dir: string): Promise<SessionInfo | null>;
   /** Sets the title of a stored session of any folder. Rejects when there is no such session. */
   renameSession(id: string, title: string): Promise<void>;
+  /** Deletes a stored session for good (with `capabilities.deleteSession`). Rejects with SessionNotFoundError when there is no such session. */
+  deleteSession?(id: string): Promise<void>;
   /** The replay of a stored session: `user` events and `agent` events (message, tool-call, tool-update), ts 0. */
   history(sessionId: string, cwd: string, attachments: AttachmentStore, onError?: (e: unknown) => void): Promise<ServerEvent[]>;
   /**

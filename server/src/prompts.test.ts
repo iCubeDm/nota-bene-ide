@@ -23,6 +23,16 @@ describe('PromptStore', () => {
     expect(fs.readFileSync(path.join(dir, 'sess-1.jsonl'), 'utf8').split('\n').filter(Boolean)).toHaveLength(2);
     expect(new PromptStore({ dir }).list('sess-1')).toHaveLength(2);
   });
+  it('forget removes the file and the cached list; a missing one is fine, a bad id is refused', () => {
+    const s = new PromptStore({ dir });
+    s.append('sess-1', p('a'));
+    s.forget('sess-1');
+    expect(fs.existsSync(path.join(dir, 'sess-1.jsonl'))).toBe(false);
+    expect(s.list('sess-1')).toEqual([]);
+    s.forget('sess-1');
+    expect(() => s.forget('../x')).toThrow();
+  });
+
   it('the same id again is ignored', () => {
     const s = new PromptStore({ dir });
     s.append('s', p('a'));

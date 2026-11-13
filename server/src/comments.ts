@@ -20,6 +20,11 @@ export class CommentStore {
     this.dir = o.dir;
   }
 
+  /** A deleted session: its comments go (none is fine). */
+  forget(sessionId: string): void {
+    fs.rmSync(fileFor(this.dir, sessionId), { force: true });
+  }
+
   get(sessionId: string | null): Comment[] {
     if (sessionId === null) return [...this.pending];
     const file = fileFor(this.dir, sessionId);
