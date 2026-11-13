@@ -33,14 +33,17 @@ export const selectLiveCalls = createSelector([(s: RootState) => s.tasks], (t): 
   new Set(Object.values(t).flatMap((x) => (x.call && x.status === 'running' ? [x.call] : []))));
 
 export const selectTasks = (s: RootState): TasksState => s.tasks;
-/** How many tasks run (what the indicator, the pulse and the favicon count). */
-export const selectRunningCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status === 'running' && !x.ambient).length);
+/** How many tasks run (what the indicator, the pulse and the favicon count; a workflow's agents count as their workflow). */
+export const selectRunningCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status === 'running' && !x.ambient && !x.inner).length);
 /** Running watchers (`ambient`): only they exist => the indicator shows a quiet variant, so the drawer stays reachable. */
 export const selectWatcherCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status === 'running' && x.ambient).length);
 /** Finished tasks, not counting watchers (`ambient`, listed in the drawer but never activity). */
-export const selectFinishedCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status !== 'running' && !x.ambient).length);
+export const selectFinishedCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status !== 'running' && !x.ambient && !x.inner).length);
 
-/** A swarm: the agents one model response launched, as one row. `live`: the running members, the ones Stop all stops. */
+/**
+ * A swarm: the agents one model response launched, as one row. `live`: the running members, the ones Stop all stops.
+ * Counted from the members still kept: past FINISHED_CAP the oldest finished ones are gone, and with one left there is no umbrella.
+ */
 export type TaskGroup = {
   key: string; ids: string[]; live: string[]; status: TaskStatus;
   total: number; running: number; done: number; failed: number; stopped: number; tokens: number;
@@ -88,17 +91,17 @@ export const selectTaskRows = createSelector([selectTasks], (t): TaskRow[] => {
     if (seen.has(e[0])) return; // a parent cycle (never sent) must not loop
     seen.add(e[0]);
     rows.push({ id: e[0], task: e[1], depth });
-    level(kids.get(e[0]) ?? [], depth + 1);
+    level(kids.get(e[0]) ?? [], depth + 1, e[0]);
   };
   // one level of siblings: a swarm's umbrella takes its first member's place
-  const level = (list: [string, Task][], depth: number) => {
+  const level = (list: [string, Task][], depth: number, parent = '') => {
     const swarms = new Map<string, [string, Task][]>();
     for (const e of list) if (e[1].kind === 'agent' && e[1].group) swarms.set(e[1].group, [...(swarms.get(e[1].group) ?? []), e]);
     for (const e of list) {
       const members = e[1].kind === 'agent' && e[1].group ? swarms.get(e[1].group)! : [];
       if (members.length < 2) { walk(e, depth); continue; }
       if (members[0] !== e) continue;
-      rows.push({ id: `group:${e[1].group}`, group: swarm(e[1].group!, members), depth });
+      rows.push({ id: `group:${parent}:${e[1].group}`, group: swarm(e[1].group!, members), depth });
       for (const m of members) walk(m, depth + 1);
     }
   };

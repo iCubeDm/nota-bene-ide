@@ -13,6 +13,7 @@ export type Task = {
   /** task_id of the subagent task that launched it, when the CLI said */ parent?: string;
   /** the model response that launched it, kept from its first start: tasks of one response are a swarm */ group?: string;
   /** a workflow's name */ workflow?: string;
+  /** runs inside its parent's run (a workflow's agent): no stop, no transcript, not counted */ inner?: boolean;
   /** the CLI's `is_backgrounded`: false = blocks its tool call, true = in the background; absent = not said */ bg?: boolean;
   /** a live-update watcher: listed, but not counted as activity */ ambient?: boolean;
   start: number; status: TaskStatus; /** the server time the task ended; only once it is not running */ end?: number;
@@ -22,7 +23,7 @@ export type Task = {
 /** task_id -> task, the running ones and the last FINISHED_CAP finished. Rebuilt from replayed task events, so a reload mid-task still shows it. */
 export type TasksState = Record<string, Task>;
 
-/** the most finished tasks kept (the oldest ended go first) */
+/** the most finished tasks kept (a workflow's agents go first, then the oldest ended); a swarm or workflow past it lists only the members kept */
 export const FINISHED_CAP = 20;
 
 /** The task's kind from the CLI's task_type (local_agent, remote_agent, local_bash, monitor_mcp, ...); no type but a call: an agent. */
@@ -79,7 +80,7 @@ export function reduceTasks(s: TasksState, ev: ServerEvent): TasksState {
         ...s,
         [e.id]: {
           desc: e.desc ?? 'task', type, kind: taskKind(type, call), ...(call ? { call } : {}), ...(parent ? { parent } : {}),
-          ...(group ? { group } : {}), ...(workflow ? { workflow } : {}), ...(bg !== undefined ? { bg } : {}), ...(model ? { model } : {}), ...(e.ambient ? { ambient: true } : {}),
+          ...(group ? { group } : {}), ...(workflow ? { workflow } : {}), ...(bg !== undefined ? { bg } : {}), ...(model ? { model } : {}), ...(e.ambient ? { ambient: true } : {}), ...(e.inner || cur?.inner ? { inner: true } : {}),
           start: ev.ts, status: 'running', tokens: 0, tool: '', summary: '',
         },
       };
@@ -93,7 +94,7 @@ export function reduceTasks(s: TasksState, ev: ServerEvent): TasksState {
       const next = { ...s, [e.id]: { ...cur, status: e.status ?? 'done', end: ev.ts } as Task };
       const finished = Object.entries(next).filter(([, t]) => t.status !== 'running');
       if (finished.length <= FINISHED_CAP) return next;
-      const drop = finished.sort((a, b) => (a[1].end ?? 0) - (b[1].end ?? 0)).slice(0, finished.length - FINISHED_CAP).map(([id]) => id);
+      const drop = finished.sort((a, b) => Number(!!b[1].inner) - Number(!!a[1].inner) || (a[1].end ?? 0) - (b[1].end ?? 0)).slice(0, finished.length - FINISHED_CAP).map(([id]) => id);
       return without(next, drop);
     }
   }

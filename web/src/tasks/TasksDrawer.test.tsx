@@ -202,6 +202,11 @@ describe('rows', () => {
     fireEvent.click(indicator()!);
     expect(row('w')).toHaveAttribute('data-kind', 'workflow');
     expect(row('w').querySelector('[data-task-meta]')).toHaveTextContent('workflow “spec” · 0s');
+    task(start('a1', { type: 'workflow_agent', desc: 'alpha', parent: 'w', inner: true }));
+    expect(row('a1').style.paddingLeft).toBe('30px');
+    expect(row('a1').querySelector('[data-task-stop]')).toBeNull(); // stopped with its workflow
+    expect(row('a1').querySelector('[data-task-open]')).toBeNull();
+    expect(row('w').querySelector('[data-task-stop]')).not.toBeNull();
   });
 
   it('empty drawer (all tasks gone with a reset) says so', () => {

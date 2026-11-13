@@ -560,7 +560,7 @@ export const ru = {
   taskGroupDone: (done: number, total: number) => `${done}/${total} готово`,
   taskGroupFailed: (n: number) => `${n} с ошибкой`,
   taskGroupStopped: (n: number) => `${n} остановлено`,
-  taskWorkflow: (name: string) => `воркфлоу «${name}»`,
+  taskWorkflow: (name: string) => `workflow «${name}»`,
   taskBackground: 'В фон',
   taskBackgroundTip: 'Отправить задачу в фон: вызов вернётся сразу, задача продолжит работать',
   taskMenu: 'Действия с задачей',

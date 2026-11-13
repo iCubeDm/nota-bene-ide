@@ -2840,6 +2840,9 @@
             "id": {
               "type": "string"
             },
+            "inner": {
+              "type": "boolean"
+            },
             "model": {
               "type": "string"
             },

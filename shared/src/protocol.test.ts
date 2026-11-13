@@ -365,6 +365,15 @@ test('a restart of a known task that had no call takes the new one; an unknown i
   expect(s.b).toMatchObject({ call: 'toolu_Y', status: 'running' });
   expect(reduceTasks({}, { kind: 'replay', events: evs as never, ts: 0 } as never)).toEqual(s);
 });
+test('inner (a workflow\'s agent) is kept; past the cap finished inner tasks go before any other; replay equals the fold', () => {
+  const evs = [T(1, { id: 'old', phase: 'started', desc: 'old', type: 'local_agent' }), T(2, { id: 'old', phase: 'done' })];
+  for (let i = 0; i < FINISHED_CAP; i++) evs.push(T(10 + 2 * i, { id: `in${i}`, phase: 'started', desc: 'x', type: 'workflow_agent', parent: 'w', inner: true }), T(11 + 2 * i, { id: `in${i}`, phase: 'done' }));
+  const s = evs.reduce(reduceTasks, {} as ReturnType<typeof reduceTasks>);
+  expect(s.old?.status).toBe('done');
+  expect(s.in0).toBeUndefined();
+  expect(s[`in${FINISHED_CAP - 1}`]).toMatchObject({ inner: true, kind: 'agent', parent: 'w' });
+  expect(reduceTasks({}, { kind: 'replay', events: evs as never, ts: 0 } as never)).toEqual(s);
+});
 test('taskKind', () => {
   expect([taskKind('local_agent'), taskKind('remote_agent'), taskKind('local_bash'), taskKind('monitor_mcp'), taskKind('local_workflow'), taskKind('', 'toolu_A'), taskKind('')])
     .toEqual(['agent', 'agent', 'shell', 'shell', 'workflow', 'agent', 'other']);

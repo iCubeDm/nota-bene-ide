@@ -130,7 +130,7 @@ export function TasksDrawer() {
                     {t('taskOpen')}
                   </button>
                 )}
-                {controls && task.status === 'running' && <StopButton id={id} />}
+                {controls && task.status === 'running' && !task.inner && <StopButton id={id} />}
                 {task.status === 'running' && <BackgroundButton id={id} task={task} />}
               </li>
             );

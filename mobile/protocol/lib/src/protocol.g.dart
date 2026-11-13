@@ -3407,6 +3407,7 @@ final class WireAgentEventTask extends WireAgentEvent {
     this.parent,
     this.group,
     this.workflow,
+    this.inner,
     this.bg,
     this.ambient,
     this.tokens,
@@ -3426,6 +3427,7 @@ final class WireAgentEventTask extends WireAgentEvent {
       parent: json['parent'] as String?,
       group: json['group'] as String?,
       workflow: json['workflow'] as String?,
+      inner: json['inner'] as bool?,
       bg: json['bg'] as bool?,
       ambient: json['ambient'] as bool?,
       tokens: json['tokens'] as num?,
@@ -3444,6 +3446,7 @@ final class WireAgentEventTask extends WireAgentEvent {
   final String? parent;
   final String? group;
   final String? workflow;
+  final bool? inner;
   final bool? bg;
   final bool? ambient;
   final num? tokens;
@@ -3464,6 +3467,7 @@ final class WireAgentEventTask extends WireAgentEvent {
       if (parent != null) 'parent': parent,
       if (group != null) 'group': group,
       if (workflow != null) 'workflow': workflow,
+      if (inner != null) 'inner': inner,
       if (bg != null) 'bg': bg,
       if (ambient != null) 'ambient': ambient,
       if (tokens != null) 'tokens': tokens,

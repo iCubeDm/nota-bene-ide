@@ -31,6 +31,7 @@ type Frame = {
   // tasks
   task_id?: string; parent_task_id?: string; tool_use_id?: string; description?: string; subagent_type?: string; task_type?: string; workflow_name?: string; ambient?: boolean; skip_transcript?: boolean;
   usage?: { total_tokens?: number }; last_tool_name?: string; summary?: string;
+  /** a workflow's task_progress: its phases and agents so far (not in sdk.d.ts; seen in real frames) */ workflow_progress?: unknown;
   patch?: { status?: string; description?: string; is_backgrounded?: boolean }; is_backgrounded?: boolean;
   // commands_changed, local_command_output
   commands?: unknown; content?: unknown;
@@ -138,7 +139,7 @@ function task(m: Frame): AgentEvent[] {
       // housekeeping (skip_transcript) is never shown; a watcher (ambient) only when it is a shell / Monitor, which the shell
       // tab exists for, and then flagged so it stays out of the counts
       if (m.skip_transcript || (m.ambient && taskKind(m.task_type ?? '') !== 'shell')) return [];
-      return [{ t: 'task', id, phase: 'started', ...(m.ambient ? { ambient: true } : {}), ...(typeof m.is_backgrounded === 'boolean' ? { bg: m.is_backgrounded } : {}), desc: m.description || m.workflow_name || m.subagent_type || m.task_type || 'task', type: m.task_type ?? '', ...(m.task_type === 'local_workflow' && m.workflow_name ? { workflow: m.workflow_name } : {}), ...(typeof m.tool_use_id === 'string' && TOOL_USE_ID.test(m.tool_use_id) ? { call: m.tool_use_id } : {}), ...(typeof m.parent_task_id === 'string' && TASK_ID.test(m.parent_task_id) ? { parent: m.parent_task_id } : {}) }];
+      return [{ t: 'task', id, phase: 'started', ...(m.ambient ? { ambient: true } : {}), ...(typeof m.is_backgrounded === 'boolean' ? { bg: m.is_backgrounded } : {}), desc: m.description || (m.task_type === 'local_workflow' && m.workflow_name) || m.subagent_type || m.task_type || 'task', type: m.task_type ?? '', ...(m.task_type === 'local_workflow' && m.workflow_name ? { workflow: m.workflow_name } : {}), ...(typeof m.tool_use_id === 'string' && TOOL_USE_ID.test(m.tool_use_id) ? { call: m.tool_use_id } : {}), ...(typeof m.parent_task_id === 'string' && TASK_ID.test(m.parent_task_id) ? { parent: m.parent_task_id } : {}) }];
     case 'task_progress':
       return [{ t: 'task', id, phase: 'progress', tokens: m.usage?.total_tokens || 0, tool: m.last_tool_name || '', summary: m.summary || '' }];
     case 'task_updated': {
@@ -196,25 +197,69 @@ export function mapSdk(msg: SDKMessage): AgentEvent[] {
   }
 }
 
+type Task = Extract<AgentEvent, { t: 'task' }>;
+const WORKFLOW_END: Record<string, 'done' | 'failed' | 'stopped'> = {
+  done: 'done', completed: 'done', failed: 'failed', error: 'failed', errored: 'failed',
+  cancelled: 'stopped', canceled: 'stopped', stopped: 'stopped', killed: 'stopped', aborted: 'stopped', skipped: 'stopped',
+};
+
+/**
+ * A workflow's agents as tasks of their own, nested under it and `inner` (they have no task_started, no transcript of
+ * ours and no stop: the CLI reports them only in the workflow's task_progress.workflow_progress, a snapshot of all its
+ * agents so far, each with its agentId once it starts). `agents`: the workflow's agents seen, running or not, and their tokens.
+ */
+function workflowAgents(wf: string, progress: unknown, agents: Map<string, { running: boolean; tokens: number }>): Task[] {
+  const out: Task[] = [];
+  for (const a of Array.isArray(progress) ? (progress as Record<string, unknown>[]) : []) {
+    const id = a?.type === 'workflow_agent' && typeof a.agentId === 'string' && TASK_ID.test(a.agentId) ? a.agentId : undefined;
+    if (!id) continue;
+    let seen = agents.get(id);
+    if (!seen) {
+      seen = { running: true, tokens: 0 };
+      agents.set(id, seen);
+      const model = str(a.model);
+      out.push({ t: 'task', id, phase: 'started', type: 'workflow_agent', parent: wf, inner: true, desc: str(a.label) ?? str(a.phaseTitle) ?? 'agent', ...(model ? { model } : {}) });
+    }
+    if (!seen.running) continue;
+    if (typeof a.tokens === 'number' && a.tokens !== seen.tokens) { seen.tokens = a.tokens; out.push({ t: 'task', id, phase: 'progress', tokens: a.tokens }); }
+    const end = typeof a.state === 'string' ? WORKFLOW_END[a.state] : undefined;
+    if (end) { seen.running = false; out.push({ t: 'task', id, phase: 'done', ...(end !== 'done' ? { status: end } : {}) }); }
+  }
+  return out;
+}
+
 /**
  * A backend's frame stream as AgentEvents: each frame's events in order, nothing for a frame that maps to none. A task
- * started by a call of this turn carries the call's API message id as its `group` (the parallel calls of one response
- * arrive as one assistant frame per block, all with that id). With `readModel` (the subagent's transcript model for a
+ * started by an Agent call carries the call's API message id as its `group` (the parallel calls of one response
+ * arrive as one assistant frame per block, all with that id, each before its task_started). A workflow's agents become
+ * tasks under it (workflowAgents). With `readModel` (the subagent's transcript model for a
  * session and an Agent call, or undefined while unknown) a subagent's task events carry its `model`: the call's own
  * `model` input at start, the transcript's once it is written (read on each progress until it is found, then never again).
  */
 export async function* mapFrames(frames: AsyncIterable<SDKMessage>, readModel?: (sessionId: string, call: string) => string | undefined): AsyncGenerator<AgentEvent> {
   const asked = new Map<string, string>(); // Agent call id -> the `model` input
   const calls = new Map<string, string>(); // task id -> its Agent call, while the transcript's model is not known
-  const responses = new Map<string, string>(); // a call of this turn -> the API message id of its response
+  const responses = new Map<string, string>(); // an Agent call whose task has not started -> the API message id of its response
+  const flows = new Map<string, Map<string, { running: boolean; tokens: number }>>(); // a running workflow -> its agents
   for await (const m of frames) {
     const f = m as unknown as Frame;
     const msg = f.type === 'assistant' ? str(f.message?.id) : undefined;
-    if (f.type === 'result') responses.clear(); // a task starts while its call's turn runs
-    const evs = mapSdk(m).map((e) => {
-      if (e.t === 'tool-call' && msg) responses.set(e.id, msg);
-      const group = e.t === 'task' && e.phase === 'started' && e.call ? responses.get(e.call) : undefined;
-      return group ? { ...e, group } : e;
+    const evs = mapSdk(m).flatMap((e): AgentEvent[] => {
+      if (e.t === 'tool-call' && msg && ['Agent', 'Task', 'SendMessage'].includes(e.name)) responses.set(e.id, msg);
+      if (e.t !== 'task') return [e];
+      if (e.phase === 'started') {
+        if (taskKind(e.type ?? '') === 'workflow') flows.set(e.id, flows.get(e.id) ?? new Map());
+        const group = e.call ? responses.get(e.call) : undefined;
+        if (e.call) responses.delete(e.call);
+        return [group ? { ...e, group } : e];
+      }
+      const agents = flows.get(e.id);
+      if (!agents) return [e];
+      if (e.phase === 'progress') return [e, ...workflowAgents(e.id, f.workflow_progress, agents)];
+      if (e.phase !== 'done') return [e];
+      // the workflow ended: so did any agent of it that had not said so
+      flows.delete(e.id);
+      return [...[...agents].filter(([, a]) => a.running).map(([id]): Task => ({ t: 'task', id, phase: 'done', ...(e.status ? { status: e.status } : {}) })), e];
     });
     if (!readModel) { yield* evs; continue; }
     const session = str(f.session_id) ?? '';
