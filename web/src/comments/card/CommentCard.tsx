@@ -80,8 +80,9 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
       data-editing={editing || undefined}
       className={`rounded-[10px] border px-3 py-2.5 text-[0.8125rem] ${popover ? 'bg-popover' : 'bg-card/50'} ${editing ? 'border-primary' : 'border-border-soft hover:border-border'}`}
     >
-      <div {...handle} className={`mb-1 flex items-center justify-between font-mono text-[0.625rem] text-muted-foreground ${handle?.className ?? ''}`}>
-        <span>
+      <div {...handle} className={`mb-1 flex items-center justify-between gap-2 font-mono text-[0.625rem] text-muted-foreground ${handle?.className ?? ''}`}>
+        {/* a path has no spaces: it breaks anywhere, or the card would be as wide as the whole path (issue 367) */}
+        <span className="min-w-0 [overflow-wrap:anywhere]">
           {[index >= 0 ? String(index + 1) : '', where].filter(Boolean).join(' · ')}{sent ? ` · ${t('sentTag')}` : ''}
         </span>
         {!sent && <CardActions editing={editing} switching={switching} start={start} finish={finish} remove={() => dispatch(removeComment(c.id))} />}

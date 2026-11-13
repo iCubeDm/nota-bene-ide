@@ -25,7 +25,7 @@ export function CardActions({ editing, switching, start, finish, remove }: {
   const t = useT();
   const noFocusSteal = { onMouseDown: (e: React.MouseEvent) => e.preventDefault() };
   return (
-    <span className="flex items-center gap-0.5">
+    <span className="flex flex-none items-center gap-0.5">
       {editing ? (
         <>
           <Tooltip>

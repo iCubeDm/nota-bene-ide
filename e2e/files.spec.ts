@@ -403,6 +403,45 @@ async function selectEnd(page: Page, n = 5) {
   }, n);
 }
 
+test('a card of a long path stays inside the comments panel, the path wrapped @files', async ({ page }) => {
+  await page.goto('/');
+  await expect(composer(page)).toBeVisible();
+  await openPanel(page);
+  while ((await cards(page).count()) > 0) {
+    const n = await cards(page).count();
+    await cards(page).first().getByRole('button', { name: /^(Delete|Удалить)$/ }).click();
+    await expect(cards(page)).toHaveCount(n - 1);
+  }
+  if (await page.locator('#tree-sheet').isHidden()) await page.locator('#toggleTree').click();
+  const dir = 'docs/a-folder-name-long-enough/another-folder-that-keeps-going';
+  const file = `${dir}/a_file_name_without_any_spaces_in_it.md`;
+  for (const p of ['docs', 'docs/a-folder-name-long-enough', dir, file]) await page.locator(`button[data-path="${p}"]`).click();
+  const p = page.locator(`[data-file-path="${file}"] p`).first();
+  await expect(p).toHaveText('alpha bravo charlie delta');
+  await page.locator('#toggleTree').click();
+  await p.evaluate((el) => {
+    const r = document.createRange();
+    r.setStart(el.firstChild!, 6);
+    r.setEnd(el.firstChild!, 11);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(r);
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+  await page.getByRole('button', { name: /^💬/ }).click();
+  await page.getByPlaceholder('Comment…').fill('long path');
+  await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
+  const card = cards(page).first();
+  await expect(card).toContainText('a_file_name_without_any_spaces_in_it.md');
+  const fit = await card.evaluate((el) => {
+    const c = el.getBoundingClientRect(), s = document.querySelector('#comments')!.getBoundingClientRect();
+    return { inside: c.left >= s.left - 0.5 && c.right <= s.right + 0.5, overflow: el.scrollWidth - el.clientWidth };
+  });
+  expect(fit).toEqual({ inside: true, overflow: 0 });
+  // Delete stays in reach
+  await card.getByRole('button', { name: /^(Delete|Удалить)$/ }).click();
+  await expect(cards(page)).toHaveCount(0);
+});
+
 test('the comment popup takes focus with the tree open and closed: typing lands in it @files', async ({ page }) => {
   await start(page);
   await openFromTree(page, MD);
