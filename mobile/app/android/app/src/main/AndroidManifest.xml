@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- the links stay while agents work (AgentService), and agent replies and waits are notified -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
@@ -38,6 +42,10 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <service
+            android:name=".AgentService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging"/>
         <!-- Serves the one photo the camera app writes into our cache (cache/pick) -->
         <provider
             android:name="androidx.core.content.FileProvider"
