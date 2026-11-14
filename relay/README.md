@@ -72,8 +72,8 @@ at start a missing or broken file is an error.
 
 Under systemd, run the subcommands as the relay's user (`sudo -u nb-relay
 nb-relay invite …`) so the file stays theirs. In the container, keep the file
-on a volume owned by the image's user (uid 65532) and run the subcommands with
-the entrypoint replaced:
+in `/members` (a volume, created owned by the image's user) and run the
+subcommands with the entrypoint replaced:
 
 ```sh
 docker run -d … -v nb-relay-members:/members nb-relay -domain relay.example.com -members /members/members.json
