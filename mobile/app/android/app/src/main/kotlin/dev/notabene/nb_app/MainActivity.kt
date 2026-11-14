@@ -38,6 +38,10 @@ import java.io.File
 import java.io.IOException
 import android.net.Uri
 import android.util.Size
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.view.WindowInsetsCompat
+import io.flutter.embedding.android.FlutterView
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ConcurrentHashMap
@@ -863,6 +867,28 @@ class MainActivity : FlutterFragmentActivity() {
                 retriever.release()
             } catch (_: Exception) {}
         }
+    }
+
+    // Flutter defers the keyboard's inset while the keyboard animates and applies it when the animation ends. Leaving the
+    // app while the keyboard hides can drop that end, and Flutter then swallows every later inset: the layout keeps
+    // room for a keyboard that is gone until the keyboard opens and closes again. Back in focus with no keyboard, the
+    // current insets go straight to the Flutter view.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        val decor = window.decorView
+        decor.post {
+            val insets = decor.rootWindowInsets ?: return@post
+            if (WindowInsetsCompat.toWindowInsetsCompat(insets).isVisible(WindowInsetsCompat.Type.ime())) return@post
+            flutterView(decor)?.onApplyWindowInsets(insets)
+        }
+    }
+
+    private fun flutterView(v: View): FlutterView? {
+        if (v is FlutterView) return v
+        if (v !is ViewGroup) return null
+        for (i in 0 until v.childCount) flutterView(v.getChildAt(i))?.let { return it }
+        return null
     }
 
     override fun onDestroy() {
