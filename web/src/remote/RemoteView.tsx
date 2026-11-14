@@ -4,13 +4,12 @@ import { Button } from '@/components/ui/button.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { cancelPair, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
-import { clearPair, indicator, selectRemote, type Indicator } from './slice.ts';
+import { clearPair, indicator, selectRemote } from './slice.ts';
+import { TONE, troubleWhy, WORD } from './RemoteMenu.tsx';
 
 /** The guide's remote-access section (how to run a relay). */
 export const REMOTE_GUIDE_URL = 'https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access';
 
-const STATE_WORD = { off: 'remoteStateOff', connecting: 'remoteStateConnecting', online: 'remoteStateOnline', trouble: 'remoteStateTrouble' } as const satisfies Record<Indicator, string>;
-const STATE_TONE: Record<Indicator, string> = { off: 'text-muted-foreground', connecting: 'text-warn', online: 'text-success', trouble: 'text-destructive' };
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
   return (
@@ -69,6 +68,54 @@ function RelayField({ relay, onSaved }: { relay: string | null; onSaved: (stoppe
         {relay !== null && <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>{t('remoteCancel')}</Button>}
       </span>
       {error && <span role="alert" className="text-xs text-destructive">{error}</span>}
+    </form>
+  );
+}
+
+/** The access key: a password field with Save while none is saved; "saved" with Change and Remove once one is. */
+function AccessKeyField({ saved, legacy }: { saved: boolean; legacy: boolean }) {
+  const t = useT();
+  const [editing, setEditing] = useState(!saved);
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (!saved) setEditing(true); }, [saved]);
+  const send = async (accessKey: string | null) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await saveRemote({ accessKey });
+      setValue('');
+      setEditing(accessKey === null);
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const err = error && <span role="alert" className="text-xs text-destructive">{error}</span>;
+  if (!editing) {
+    return (
+      <span className="flex flex-col gap-1.5">
+        <span className="flex flex-wrap items-center gap-2">
+          <span id="remoteKeySaved" className="text-success">{t('remoteKeySaved')}</span>
+          <Button type="button" variant="ghost" size="xs" disabled={busy || legacy} onClick={() => { setError(null); setEditing(true); }}>{t('remoteKeyChange')}</Button>
+          <Button type="button" variant="ghost" size="xs" disabled={busy || legacy} onClick={() => void send(null)}>{t('remoteKeyRemove')}</Button>
+        </span>
+        {err}
+      </span>
+    );
+  }
+  return (
+    <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); void send(value.trim()); }}>
+      <span className="flex flex-wrap items-center gap-2">
+        <input id="remoteAccessKey" type="password" aria-label={t('remoteKey')} value={value} placeholder="nbk1_…" spellCheck={false} autoComplete="off"
+          onChange={(e) => setValue(e.target.value)} className={input} />
+        <Button type="submit" size="sm" disabled={busy || legacy || !value.trim()}>{t('remoteSave')}</Button>
+        {saved && <Button type="button" variant="ghost" size="sm" onClick={() => { setValue(''); setEditing(false); }}>{t('remoteCancel')}</Button>}
+      </span>
+      <span className="text-xs text-muted-foreground">{t('remoteKeyHint')}</span>
+      {err}
     </form>
   );
 }
@@ -183,7 +230,7 @@ function Phone({ p }: { p: RemoteDevice }) {
 /** The Remote tab: what `nota-bene remote` and its commands do, from the window. */
 export function RemoteView() {
   const t = useT();
-  const { supported, state } = useAppSelector(selectRemote);
+  const { supported, keys, state } = useAppSelector(selectRemote);
   const [note, setNote] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
   if (!supported) return <div className="nb-prose mx-auto mt-6 text-[0.8125rem] text-muted-foreground">{t('remoteOldServer')}</div>;
@@ -221,14 +268,19 @@ export function RemoteView() {
               </span>
             </Row>
             <Row label={t('remoteAccess')}>
-              <span id="remoteStateWord" data-state={ind} className={STATE_TONE[ind]}>{t(STATE_WORD[ind])}</span>
-              {ind === 'trouble' && <span className="ml-2 text-xs text-muted-foreground">{state.lastError?.message ?? t('remoteNotStarted')}</span>}
+              <span id="remoteStateWord" data-state={ind} className={TONE[ind]}>{t(WORD[ind])}</span>
+              {ind === 'trouble' && <span id="remoteWhy" className="ml-2 text-xs text-muted-foreground">{troubleWhy(state, t)}</span>}
             </Row>
           </>
         )}
         <Row label={t('remoteRelay')}>
           <RelayField key={state?.relay ?? ''} relay={state?.relay ?? null} onSaved={(hand) => setNote(hand ? t('remoteHandStopped') : null)} />
         </Row>
+        {keys && (
+          <Row label={t('remoteKey')}>
+            <AccessKeyField saved={!!state?.accessKey} legacy={!!state?.legacy} />
+          </Row>
+        )}
         {state?.hostFingerprint && <Row label={t('remoteHostFp')}><span className="font-mono">{state.hostFingerprint}</span></Row>}
       </Section>
       {configured && (
