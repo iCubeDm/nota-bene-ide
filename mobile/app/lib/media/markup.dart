@@ -413,8 +413,10 @@ class _MarkupZoomState extends State<MarkupZoom> {
 
   void _up(PointerEvent e) {
     _at.remove(e.pointer);
-    if (_at.length >= 2)
-      return _begin(); // a third finger left: the other two go on
+    if (_at.length >= 2) {
+      // a third finger left: the other two go on
+      return _begin();
+    }
     _start = null;
     // the finger left after a pinch draws nothing until every finger is up
     if (_at.isEmpty) widget.markup.pinching = false;
