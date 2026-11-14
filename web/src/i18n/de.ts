@@ -265,7 +265,7 @@ export const de: Dict = {
   remoteKeyChange: 'Ändern',
   remoteKeyRemove: 'Entfernen',
   remoteKeyHint: 'Der Code, den du vom Betreiber des Relays bekommen hast (nbk1_…). Er bleibt auf diesem Computer.',
-  remoteNeedsKey: 'das Relay lässt diesen Computer nicht zu: gib den Zugangsschlüssel ein, den du bekommen hast, oder bitte um einen neuen',
+  remoteNeedsKey: 'das Relay lässt diesen Computer nicht zu: gib den Zugangsschlüssel ein, den du bekommen hast (wurde er widerrufen, bitte um einen neuen)',
   remoteKeyLimit: 'dieser Zugangsschlüssel wird schon auf so vielen Computern verwendet wie erlaubt: schließe Nota Bene auf einem anderen Computer oder bitte um ein höheres Limit',
   usageLoading: 'Lese die Transkripte…',
   usageImporting: 'Lese die Transkripte: Die Zahlen wachsen noch.',

@@ -179,7 +179,7 @@ describe('relay client with access keys', () => {
     await until(() => signed.ev.online === 1);
     const bare = host(keyed.url, generateKeyPair());
     await until(() => bare.ev.fatal.length === 1);
-    expect(bare.ev.fatal[0]).toMatch(/access key is missing, unknown or revoked/);
+    expect(bare.ev.fatal[0]).toMatch(/no access key, or one it does not know or revoked/);
     await signed.c.stop();
   });
 

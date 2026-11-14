@@ -101,6 +101,10 @@ func saveMembers(path string, ms []member) error {
 		tmp.Close()
 		return err
 	}
+	if err := tmp.Sync(); err != nil { // a crash must not leave a truncated file the relay cannot start with
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
@@ -153,14 +157,15 @@ type enforcer interface {
 // changes and applies removals and lowered limits to connected hosts. A file
 // that does not load is logged and the previous list kept.
 func watchMembers(ctx context.Context, path string, l *memberList, h enforcer, every time.Duration, log *slog.Logger) {
-	stamp := func() (time.Time, int64) {
-		fi, err := os.Stat(path)
-		if err != nil {
-			return time.Time{}, -1
-		}
-		return fi.ModTime(), fi.Size()
+	// every save renames a new file in, so the file's identity changes even when its time and size do not
+	stamp := func() os.FileInfo {
+		fi, _ := os.Stat(path)
+		return fi
 	}
-	mt, size := stamp()
+	same := func(a, b os.FileInfo) bool {
+		return a != nil && b != nil && os.SameFile(a, b) && a.ModTime().Equal(b.ModTime()) && a.Size() == b.Size()
+	}
+	var last os.FileInfo // nil: the first tick reloads, covering an edit since the start's load
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
@@ -169,11 +174,11 @@ func watchMembers(ctx context.Context, path string, l *memberList, h enforcer, e
 			return
 		case <-t.C:
 		}
-		m, s := stamp()
-		if m.Equal(mt) && s == size {
+		fi := stamp()
+		if same(fi, last) {
 			continue
 		}
-		mt, size = m, s
+		last = fi
 		ms, err := loadMembers(path)
 		if err != nil {
 			log.Error("members file not reloaded, the previous list is kept", "err", err)
@@ -239,6 +244,12 @@ func invite(args []string, out, errOut io.Writer) error {
 	if *hosts < 1 {
 		return errors.New("-hosts must be at least 1")
 	}
+	// read, change and write under the lock: two subcommands at once cannot undo each other's change
+	unlock, err := lockFile(*path + ".lock")
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	ms, err := loadMembers(*path)
 	if errors.Is(err, os.ErrNotExist) {
 		ms, err = nil, nil
@@ -269,6 +280,12 @@ func revoke(args []string, out, errOut io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// read, change and write under the lock: two subcommands at once cannot undo each other's change
+	unlock, err := lockFile(*path + ".lock")
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	ms, err := loadMembers(*path)
 	if err != nil {
 		return err
@@ -294,6 +311,12 @@ func limit(args []string, out, errOut io.Writer) error {
 	if _, err := fmt.Sscanf(rest[1], "%d", &n); err != nil || n < 1 || fmt.Sprint(n) != rest[1] {
 		return errors.New("N must be a whole number, at least 1")
 	}
+	// read, change and write under the lock: two subcommands at once cannot undo each other's change
+	unlock, err := lockFile(*path + ".lock")
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	ms, err := loadMembers(*path)
 	if err != nil {
 		return err

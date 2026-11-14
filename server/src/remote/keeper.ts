@@ -16,9 +16,20 @@ import { stateBaseDir } from '../state.ts';
 import { readLock, takeLockFile } from '../runtime.ts';
 import { controlClient, running, type ControlClient, type Msg } from './control.ts';
 import {
-  checkRelay, clearLastError, fingerprint, fromB64u, parseAccessKey, readConfig, readDevices, readLastError, remoteDir, writeAccessKey, writeConfig,
+  checkRelay, clearLastError, fingerprint, fromB64u, parseAccessKey, readAccessKey, readConfig, readDevices, readLastError, remoteDir, writeAccessKey, writeConfig,
   type RemoteConfig,
 } from './store.ts';
+
+/** A readable access key is saved. Nothing is created to find out; a broken file (mode, owner) counts as none, so the tab
+ * asks for the key again, and saving it rewrites the file. */
+function hasAccessKey(): boolean {
+  if (!fs.existsSync(path.join(stateBaseDir(), 'remote', 'access-key'))) return false;
+  try {
+    return readAccessKey() !== null;
+  } catch {
+    return false;
+  }
+}
 
 /** How often a window looks at the connector. */
 export const ENSURE_MS = 5000;
@@ -153,7 +164,15 @@ export class RemoteKeeper extends EventEmitter {
     if (replace) {
       await this.#stopConnector();
       stopped = st.managed === true ? 'managed' : 'hand';
-    } else if (accessKey !== undefined && st) await this.#ask({ op: 'reconnect' });
+    } else if (accessKey !== undefined && st) {
+      // a connector of the release before access keys has a version but neither reads the key nor knows `reconnect`
+      const r = await this.#ask({ op: 'reconnect' });
+      if (r?.ok !== true) {
+        // stopped, as the switch stops it: a window's connector of this version comes up with the key
+        await this.#stopConnector();
+        stopped = st.managed === true ? 'managed' : 'hand';
+      }
+    }
     return { state: await this.refresh(), stopped };
   }
 
@@ -309,8 +328,7 @@ export class RemoteKeeper extends EventEmitter {
       legacy: !!st && st.version === undefined,
       lastError: none ? null : readLastError(),
       startFailed: this.#startFailed,
-      // looked at, not read: nothing is created, and a broken file is the connector's to report (the relay then refuses)
-      accessKey: fs.existsSync(path.join(stateBaseDir(), 'remote', 'access-key')),
+      accessKey: hasAccessKey(),
     };
   }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -291,5 +292,43 @@ func TestMembersFlagAdmitsOnlyMembers(t *testing.T) {
 	}
 	if got := hostHello(t, addr, &seed); got != "ok" {
 		t.Fatalf("member: %s", got)
+	}
+}
+
+func TestReloadSeesSameSizeEdit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "members.json")
+	a, _, _ := admin(t, "invite", "-members", path, "-hosts", "3", "alice")
+	alice := hub.MemberPub(seedOf(t, a))
+	ms, _ := loadMembers(path)
+	l := newMemberList(ms)
+	f := &fakeHub{limits: map[[32]byte]int{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// a limit change saved right before the watcher starts, with the old modification time and size
+	before, _ := os.Stat(path)
+	admin(t, "limit", "-members", path, "alice", "2")
+	os.Chtimes(path, before.ModTime(), before.ModTime())
+	go watchMembers(ctx, path, l, f, 20*time.Millisecond, slog.New(slog.NewTextHandler(&lockedBuf{}, nil)))
+	eventually(t, func() bool { n, _ := l.admit(ctx, "", &alice); return n == 2 })
+	admin(t, "limit", "-members", path, "alice", "1")
+	os.Chtimes(path, before.ModTime(), before.ModTime())
+	eventually(t, func() bool { f.mu.Lock(); defer f.mu.Unlock(); return f.limits[alice] == 1 })
+}
+
+func TestConcurrentEditsKeepEachOther(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "members.json")
+	var wg sync.WaitGroup
+	for i := range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, _, err := admin(t, "invite", "-members", path, fmt.Sprintf("m%d", i)); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if ms, err := loadMembers(path); err != nil || len(ms) != 8 {
+		t.Fatalf("after 8 invites at once: %d members, %v", len(ms), err)
 	}
 }

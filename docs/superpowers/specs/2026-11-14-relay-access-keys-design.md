@@ -121,7 +121,7 @@ new code, and that 4405 retries with backoff.
 - `relayClient.ts` adds `member` and `sig` to the hello when a key is set. Close 4405 is not fatal, at hello or after
   `ok`: back off and retry, record it in `last-error.json` while retrying (cleared once online, as today), so the window
   can explain it. 4402's message becomes: the relay does not admit
-  this host — the access key is missing, unknown or revoked.
+  this host: its operator refused it (no access key, or one it does not know or revoked).
 - `nota-bene remote key` reads a code from stdin (prompt, no echo when a terminal) and saves it; `nota-bene remote key
   --clear` removes it. A running connector picks the change up on its next connection; the window's path below restarts
   it so the change applies now.
@@ -136,7 +136,8 @@ new code, and that 4405 retries with backoff.
   `legacy`, as for the other settings.
 - Remote tab: an **Access key** row under the relay address: a password-style field and Save while none is set; "set"
   and a Change / Remove pair once one is. Errors in the tab and the header tooltip:
-  - 4402: "The relay does not admit this computer: enter the access key you were given, or ask for a new one."
+  - 4402: "The relay does not admit this computer: enter the access key you were given (if it was revoked, ask for a
+    new one)."
   - 4405: "This access key is already used on the most computers allowed. Close Nota Bene on another computer, or ask
     for a higher limit."
   All new strings in all six languages.

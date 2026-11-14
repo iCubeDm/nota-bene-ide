@@ -273,7 +273,7 @@ export const en: Dict = {
   remoteKeyChange: 'Change',
   remoteKeyRemove: 'Remove',
   remoteKeyHint: 'The code the relay\'s operator gave you (nbk1_…). It stays on this computer.',
-  remoteNeedsKey: 'the relay does not admit this computer: enter the access key you were given, or ask for a new one',
+  remoteNeedsKey: 'the relay does not admit this computer: enter the access key you were given (if it was revoked, ask for a new one)',
   remoteKeyLimit: 'this access key is already used on the most computers allowed: close Nota Bene on another computer, or ask for a higher limit',
   usageLoading: 'Reading the transcripts…',
   usageImporting: 'Reading the transcripts: the numbers will grow.',

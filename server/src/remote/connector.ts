@@ -15,7 +15,7 @@ import { closeControl, running, serveControl, write, type Msg } from './control.
 import type { KeyPair } from './noise.ts';
 import { KEY_LIMIT, KEY_LIMIT_MESSAGE, RelayClient } from './relayClient.ts';
 import {
-  addDevice, b64u, clearLastError, deviceHash, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readAccessKey, readDevices, removeDevice, writeLastError, type Device,
+  addDevice, b64u, clearLastError, deviceHash, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readAccessKey, readDevices, readLastError, removeDevice, writeLastError, type Device,
 } from './store.ts';
 
 const MAX_DEVICES = 32; // the relay's limit for a device list
@@ -96,6 +96,8 @@ export class Connector extends EventEmitter {
       writeLastError({ code: KEY_LIMIT, message: KEY_LIMIT_MESSAGE, at: Date.now() });
       this.#log(`${KEY_LIMIT_MESSAGE}; retrying`);
     });
+    // the key limit is no longer why it is offline (the relay is down, say): the windows stop saying so
+    this.#relay.on('retry', () => { if (readLastError()?.code === KEY_LIMIT) clearLastError(); });
     this.#relay.on('fatal', (code: number, message: string) => {
       writeLastError({ code, message, at: Date.now() }); // the windows say why, and wait before they start another
       this.#log(message);

@@ -215,3 +215,38 @@ func TestRevokeDuringAdmission(t *testing.T) {
 		t.Fatalf("host admitted across a revoke: %d", code)
 	}
 }
+
+func TestLimitDuringAdmission(t *testing.T) {
+	seed := seqBytes(0x41)
+	o := DefaultOptions()
+	var gate sync.Mutex
+	var hold chan struct{}
+	asked := make(chan struct{}, 4)
+	o.Admit = func(_ context.Context, _ string, m *[32]byte) (int, bool) {
+		gate.Lock()
+		h := hold
+		gate.Unlock()
+		asked <- struct{}{}
+		if h != nil {
+			<-h
+		}
+		return 3, m != nil
+	}
+	s, url := newTestServer(t, o)
+	a, _ := keyPair(t)
+	b, _ := keyPair(t)
+	dialMember(t, url, a, seed)
+	<-asked
+	gate.Lock()
+	hold = make(chan struct{})
+	release := hold
+	gate.Unlock()
+	h := dialMemberNoWait(t, url, b, seed, nil)
+	<-asked
+	s.Limit(MemberPub(seed), 1) // Admit already answered 3 for b
+	close(release)
+	if code := closeCode(t, h.c); code != 4405 {
+		t.Fatalf("host admitted above a limit lowered during its admission: %d", code)
+	}
+	waitHosts(t, s, 1)
+}

@@ -73,18 +73,19 @@ function RelayField({ relay, onSaved }: { relay: string | null; onSaved: (stoppe
 }
 
 /** The access key: a password field with Save while none is saved; "saved" with Change and Remove once one is. */
-function AccessKeyField({ saved, legacy }: { saved: boolean; legacy: boolean }) {
+function AccessKeyField({ saved, legacy, onSaved }: { saved: boolean; legacy: boolean; onSaved: (stoppedHand: boolean) => void }) {
   const t = useT();
   const [editing, setEditing] = useState(!saved);
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (!saved) setEditing(true); }, [saved]);
+  useEffect(() => setEditing(!saved), [saved]); // the state may arrive after the tab (a restored tab, a restarted server)
   const send = async (accessKey: string | null) => {
     setBusy(true);
     setError(null);
     try {
-      await saveRemote({ accessKey });
+      const r = await saveRemote({ accessKey });
+      onSaved(r.stopped === 'hand');
       setValue('');
       setEditing(accessKey === null);
     } catch (e) {
@@ -278,7 +279,7 @@ export function RemoteView() {
         </Row>
         {keys && (
           <Row label={t('remoteKey')}>
-            <AccessKeyField saved={!!state?.accessKey} legacy={!!state?.legacy} />
+            <AccessKeyField saved={!!state?.accessKey} legacy={!!state?.legacy} onSaved={(hand) => setNote(hand ? t('remoteHandStopped') : null)} />
           </Row>
         )}
         {state?.hostFingerprint && <Row label={t('remoteHostFp')}><span className="font-mono">{state.hostFingerprint}</span></Row>}

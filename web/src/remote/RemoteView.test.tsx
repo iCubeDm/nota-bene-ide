@@ -5,7 +5,7 @@ import type { RemoteState } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
-import { selectTabs } from '@/tabs/slice.ts';
+import { openRemote, selectTabs } from '@/tabs/slice.ts';
 
 const OFF: RemoteState = {
   configured: false, enabled: true, running: false, online: false, relay: null, hostFingerprint: null, devices: [],
@@ -209,6 +209,15 @@ describe('Remote tab', () => {
     expect(screen.queryByLabelText('Access key')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(posts.at(-1)).toEqual({ url: '/remote/config', body: { accessKey: null } }));
+  });
+
+  it('a tab open before the state arrives shows a saved key once it does', () => {
+    const store = setup({});
+    act(() => { store.dispatch(openRemote()); });
+    expect(screen.getByLabelText('Access key')).toBeTruthy();
+    act(() => { store.dispatch(serverEvent({ kind: 'remote', state: { ...ONLINE, accessKey: true } })); });
+    expect(screen.getByText('Saved')).toBeTruthy();
+    expect(screen.queryByLabelText('Access key')).toBeNull();
   });
 
   it('a protocol-20 server takes no access key: no key row', () => {

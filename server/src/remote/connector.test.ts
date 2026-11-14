@@ -293,7 +293,7 @@ describe('connector with an access key', () => {
     const fatal = new Promise<string>((r) => bare.once('fatal', r));
     await bare.start();
     closers.push(() => bare.stop());
-    expect(await fatal).toMatch(/access key is missing/);
+    expect(await fatal).toMatch(/no access key/);
     expect(readLastError()).toMatchObject({ code: 4402 });
     await bare.stop();
     closers.pop();
@@ -328,5 +328,23 @@ describe('connector with an access key', () => {
     expect(out.join('')).not.toContain(bob);
     expect(await remoteMain(['key', '--clear'], io)).toBe(0);
     expect(readAccessKey()).toBeNull();
+  });
+
+  it('a key-limit message goes once the connector fails for another reason (the relay is down)', async () => {
+    const blocker = new RelayClient({ url: keyed.url, key: generateKeyPair(), devices: () => [], ticket: () => null, member: () => parseAccessKey(alice) });
+    blocker.start();
+    closers.push(() => blocker.stop());
+    await until(() => blocker.online);
+    writeAccessKey(alice);
+    const c = new Connector({ relay: keyed.url, backoff: { minMs: 100, maxMs: 200 } });
+    await c.start();
+    closers.push(() => c.stop());
+    await until(() => readLastError()?.code === 4405);
+    await keyed.stop();
+    try {
+      await until(() => readLastError() === null);
+    } finally {
+      await keyed.restart();
+    }
   });
 });

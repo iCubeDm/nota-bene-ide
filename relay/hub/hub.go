@@ -79,6 +79,9 @@ type Server struct {
 	// revoked is the seq at a member key's last Revoke: a host whose Admit was
 	// answered before it must not register after it.
 	revoked map[[32]byte]uint64
+	// limited is a member key's last Limit: its seq and hosts, applied to a
+	// host whose Admit was answered before it.
+	limited map[[32]byte]limitMark
 
 	pending chan struct{} // semaphore of connections still in the challenge; nil = unlimited
 	budget  *budget       // hub-wide data bytes; nil = unlimited
@@ -139,6 +142,11 @@ func (s *Server) TakeCloses() map[CloseKey]int {
 	c := s.closes
 	s.closes = map[CloseKey]int{}
 	return c
+}
+
+type limitMark struct {
+	seq   uint64
+	hosts int
 }
 
 // host is one admitted host connection and its devices.
@@ -343,6 +351,11 @@ func (s *Server) register(h *host, limit int, asked uint64) websocket.StatusCode
 		s.mu.Unlock()
 		return codeLimit
 	}
+	if h.member != nil {
+		if l, ok := s.limited[*h.member]; ok && l.seq > asked && (limit <= 0 || l.hosts < limit) {
+			limit = l.hosts
+		}
+	}
 	if h.member != nil && limit > 0 {
 		n := 0
 		for _, o := range s.hosts {
@@ -411,6 +424,11 @@ func (s *Server) Limit(member [32]byte, hosts int) {
 		return
 	}
 	s.mu.Lock()
+	s.seq++
+	if s.limited == nil {
+		s.limited = map[[32]byte]limitMark{}
+	}
+	s.limited[member] = limitMark{seq: s.seq, hosts: hosts}
 	list := s.memberHosts(member)
 	s.mu.Unlock()
 	if len(list) <= hosts {

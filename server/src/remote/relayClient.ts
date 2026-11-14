@@ -14,7 +14,7 @@ export function relayProof(role: 'host' | 'device', priv: Buffer, eph: Buffer, n
 
 const FATAL: Record<number, string> = {
   4401: 'the relay refused the host key proof',
-  4402: 'the relay does not admit this host: the access key is missing, unknown or revoked',
+  4402: 'the relay does not admit this host: its operator refused it (no access key, or one it does not know or revoked)',
   4409: 'another nota-bene remote with this host key is connected to the relay',
   4413: 'a frame was too large for the relay',
 };
@@ -25,7 +25,8 @@ export const KEY_LIMIT_MESSAGE = 'this access key is already used on the most co
 
 /**
  * Events: `online`, `offline(code)` (every conn is reported `gone` first), `open(conn, deviceHash)`, `gone(conn)`,
- * `frame(conn, payload)`, `limited` (closed with 4405; a reconnect follows), `fatal(code, message)` (no reconnect follows).
+ * `frame(conn, payload)`, `limited` (closed with 4405; a reconnect follows), `retry(code)` (closed otherwise; a reconnect
+ * follows), `fatal(code, message)` (no reconnect follows).
  */
 export class RelayClient extends EventEmitter {
   #o: { url: string; key: KeyPair; devices: () => string[]; ticket: () => Buffer | null; member: () => Buffer | null; backoff: { minMs: number; maxMs: number }; silenceMs: number };
@@ -179,6 +180,7 @@ export class RelayClient extends EventEmitter {
         return;
       }
       if (code === KEY_LIMIT) this.emit('limited');
+      else this.emit('retry', code);
       const { minMs, maxMs } = this.#o.backoff;
       const delay = this.#soon ? 0 : Math.min(maxMs, minMs * 2 ** this.#attempt++) * (0.8 + Math.random() * 0.4);
       this.#soon = false;

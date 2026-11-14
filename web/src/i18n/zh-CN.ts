@@ -265,7 +265,7 @@ export const zhCN: Dict = {
   remoteKeyChange: '更改',
   remoteKeyRemove: '移除',
   remoteKeyHint: '中继运营者给你的代码（nbk1_…）。它只保存在这台电脑上。',
-  remoteNeedsKey: '中继不接纳这台电脑：请输入你拿到的访问密钥，或申请一个新的',
+  remoteNeedsKey: '中继不接纳这台电脑：请输入你拿到的访问密钥（如果它已被撤销，请申请一个新的）',
   remoteKeyLimit: '此访问密钥已在允许的最多台电脑上使用：请在另一台电脑上关闭 Nota Bene，或申请提高上限',
   usageLoading: '正在读取记录…',
   usageImporting: '正在读取记录：数字会继续增长。',

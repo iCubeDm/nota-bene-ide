@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Connector } from './connector.ts';
+import { closeControl, serveControl, write } from './control.ts';
 import { Windows } from './discover.ts';
 import { BACKOFF_MS, LegacyConnector, olderVersion, RemoteKeeper, type PairOutcome } from './keeper.ts';
 import { generateKeyPair } from './noise.ts';
@@ -302,5 +303,24 @@ describe('remote keeper', () => {
     const { k } = keeper();
     expect((await k.refresh()).accessKey).toBe(false);
     expect(fs.existsSync(path.join(tmp, 'h', 'remote'))).toBe(false);
+  });
+
+  it('a terminal connector of the release before access keys: saving a key stops it, as the switch does', async () => {
+    writeConfig({ relay: relay.url });
+    // what `nota-bene remote` of that release answers: a version, but no `reconnect`
+    let srv: Awaited<ReturnType<typeof serveControl>> | undefined;
+    srv = await serveControl((m, sock) => {
+      const reply = (o: Record<string, unknown>) => write(sock, o);
+      if (m.op === 'status') reply({ online: true, relay: relay.url, hostFingerprint: 'aaaa-bbbb-cccc-dddd', windows: 1, devices: [], version: '1.10.0', managed: false, pairing: null });
+      else if (m.op === 'stop') { reply({ ok: true }); const s = srv; srv = undefined; if (s) void closeControl(s); }
+      else reply({ ok: false, error: 'unknown op' });
+    });
+    closers.push(async () => { if (srv) await closeControl(srv); });
+    const { k } = keeper();
+    expect(await k.refresh()).toMatchObject({ running: true, legacy: false });
+    const r = await k.setConfig({ accessKey: `nbk1_${b64u(Buffer.alloc(32, 7))}` });
+    expect(r.stopped).toBe('hand');
+    expect(srv).toBeUndefined();
+    expect(readAccessKey()).toEqual(Buffer.alloc(32, 7));
   });
 });

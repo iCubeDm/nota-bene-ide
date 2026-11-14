@@ -265,7 +265,7 @@ export const ptBR: Dict = {
   remoteKeyChange: 'Alterar',
   remoteKeyRemove: 'Remover',
   remoteKeyHint: 'O código que o operador do relay te deu (nbk1_…). Ele fica neste computador.',
-  remoteNeedsKey: 'o relay não admite este computador: digite a chave de acesso que você recebeu ou peça uma nova',
+  remoteNeedsKey: 'o relay não admite este computador: digite a chave de acesso que você recebeu (se ela foi revogada, peça uma nova)',
   remoteKeyLimit: 'esta chave de acesso já está em uso no máximo de computadores permitido: feche o Nota Bene em outro computador ou peça um limite maior',
   usageLoading: 'Lendo as transcrições…',
   usageImporting: 'Lendo as transcrições: os números vão crescer.',
