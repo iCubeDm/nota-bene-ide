@@ -3,7 +3,7 @@
 // Windows, `control-secret` (what a client of the control pipe proves it holds, control.ts). All
 // mode 600, written whole and renamed in, read with the token's checks (auth.ts readPrivateFile). Also the pairing
 // derivations of CHANNEL.md.
-import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, createPrivateKey, createPublicKey, randomBytes, sign, type KeyObject } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readPrivateFile, writePrivateFile } from '../auth.ts';
@@ -223,6 +223,45 @@ export function readLastError(): LastError | null {
 
 export const writeLastError = (e: LastError): void => writePrivateFile(lastErrorFile(), `${JSON.stringify(e)}\n`);
 export const clearLastError = (): void => fs.rmSync(lastErrorFile(), { force: true });
+
+/**
+ * The access key the relay's operator gave this person (`nb-relay invite`): `nbk1_` + base64url of an Ed25519 seed. Kept
+ * as that text in `access-key`; every relay connection is signed with it (relayClient.ts). The page only learns that one
+ * is set.
+ */
+const ACCESS_RE = /^nbk1_[A-Za-z0-9_-]{43}$/;
+
+/** The seed of an access key typed or pasted by the person; the message says what is wrong, never repeats the input. */
+export function parseAccessKey(code: string): Buffer {
+  const c = code.trim();
+  if (c.startsWith('nbremote:')) throw new Error('this is a phone pairing code, not an access key; an access key starts with nbk1_');
+  if (!ACCESS_RE.test(c)) throw new Error('an access key starts with nbk1_ and has 48 characters');
+  return fromB64u(c.slice(5), 32);
+}
+
+const accessKeyFile = (): string => path.join(remoteDir(), 'access-key');
+
+export function readAccessKey(): Buffer | null {
+  const have = readPrivateFile(accessKeyFile(), ACCESS_RE, 'an access key (nbk1_ and 43 base64url characters)', 'enter the access key again in the Remote tab or with `nota-bene remote key`');
+  return have ? fromB64u(have.slice(5), 32) : null;
+}
+
+/** Saves a checked access key, or removes it (null). */
+export function writeAccessKey(code: string | null): void {
+  if (code === null) return void fs.rmSync(accessKeyFile(), { force: true });
+  parseAccessKey(code);
+  writePrivateFile(accessKeyFile(), `${code.trim()}\n`);
+}
+
+const PKCS8_ED25519 = Buffer.from('302e020100300506032b657004220420', 'hex');
+const memberKey = (seed: Buffer): KeyObject => createPrivateKey({ key: Buffer.concat([PKCS8_ED25519, seed]), format: 'der', type: 'pkcs8' });
+
+/** The access key's public half: the member id the relay knows. */
+export const memberPub = (seed: Buffer): Buffer => fromB64u(createPublicKey(memberKey(seed)).export({ format: 'jwk' }).x!, 32);
+
+/** Ed25519 over "nb-relay-v1 member" ‖ nonce ‖ eph ‖ host public key (relay/PROTOCOL.md, Admission). */
+export const memberSign = (seed: Buffer, nonce: Buffer, eph: Buffer, hostPub: Buffer): Buffer =>
+  sign(null, Buffer.concat([Buffer.from('nb-relay-v1 member'), nonce, eph, hostPub]), memberKey(seed));
 
 /** What the host hands the relay while a pairing is in flight: the relay never learns the secret. */
 export const pairTicket = (secret: Buffer): Buffer => createHmac('sha256', secret).update('nb-relay-ticket-v1').digest();

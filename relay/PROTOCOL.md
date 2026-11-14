@@ -54,7 +54,12 @@ ticket id derived from it.
    bytes; a larger one may end with WebSocket `1009` instead of `4400`.
 
 3. Host hello adds `"devices":[<deviceHash>, ...]` (at most 32; absent means
-   none) and optionally `"ticket":<32 B>`. On success the relay answers
+   none) and optionally `"ticket":<32 B>`. A host given an access key by the
+   relay's operator adds `"member":<32 B>` (the access key's Ed25519 public
+   key) and `"sig":<64 B>`: the Ed25519 signature by that key over the ASCII
+   string `"nb-relay-v1 member"` followed by the 32 raw bytes of `nonce`, of
+   `eph` and of the host's own `key`. It binds the access key to this
+   connection and this host key. On success the relay answers
    `{"t":"ok"}`. Unknown fields are ignored. A `devices` array is parsed in
    either hello, so one with more than 32 entries or a malformed entry ends
    with 4400 even in a device hello (where the list is otherwise unused).
@@ -67,6 +72,16 @@ ticket id derived from it.
 5. A proven hello is still refused with 4429 while the relay is over its
    memory budget (see Flow control), and a host may be refused with 4402 by
    the operator's admission hook (for example, no subscription).
+
+6. A relay that requires access keys (`nb-relay -members`) refuses a host
+   hello with 4402 when `member` is missing, malformed or unknown, or `sig`
+   does not verify; and with 4405 when that key already has as many other
+   hosts connected as it may (a reconnect of a connected host id with the same
+   key is a replacement and needs no free slot). It closes a connected host
+   with 4402 when its key is revoked, and with 4405 when the key's limit is
+   lowered below the hosts connected with it (the most recently admitted go
+   first). A relay without access keys ignores `member` and `sig`, even
+   malformed ones; a device hello never needs them.
 
 Worked example (test keys, never use them). Keys are written as 32 bytes,
 the private ones for illustration only:
@@ -82,8 +97,12 @@ the private ones for illustration only:
 | `hostId` (host public key) | `WGmv9FBUlzLLqu1eXfmzCm2jHLDldCutWtShp2jxpns` |
 | device `proof` | `X2BJlpgFEN2Z9t7I2JL_d3lZgo0FRsi2nCTG5pOa6II` |
 | host `proof` | `n7FU6_HfPhaPqmnxzofDb73cYRnRzvWyX6abvpdp3wQ` |
+| access key seed (bytes 0x41..0x60) | `QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2A` |
+| `member` (access key public key) | `rcFAEfgtHFbZVqpPnXPYhYNhpgYEhSXg0Ixjjcdd2Mc` |
+| host `sig` (over this `nonce`, `eph`, `hostId`) | `-vOct9A16uJIfbR1au3S4OotZgm9sgSL2qNJABjkjfymYxWwTRZBruwp8T8sZPKvDbRovJX2sHU6bLOsFvtLCg` |
 
-Both proofs use the same `eph` and `nonce`. `TestProtocolExample` in
+Both proofs and the signature use the same `eph` and `nonce`. The person is
+given the seed as the code `nbk1_` + its base64url (48 characters). `TestProtocolExample` in
 `cmd/nb-relay` checks that these values are what the code computes and that this
 table has not drifted.
 
@@ -184,7 +203,8 @@ connection); they need not ping themselves.
 | --- | --- |
 | 4400 | Malformed hello, wrong first message, or hello not received within 10 s; also malformed host control messages |
 | 4401 | Proof failed |
-| 4402 | Host not admitted: the relay's admission hook refused this host id (for example, no subscription); do not retry unchanged |
+| 4402 | Host not admitted: no, an unknown or a revoked access key, a bad signature, or the operator's admission hook refused this host id (for example, no subscription); do not retry unchanged |
+| 4405 | The access key's host limit is reached: it has as many other hosts connected as it may; retry with backoff |
 | 4403 | Not allowed: device not in the list and its ticket missing, wrong, or the host has no current ticket; device removed or closed by the host |
 | 4404 | Host offline (device side); also sent to every device when its host leaves or is replaced |
 | 4408 | Too slow or unresponsive: a device whose queue stayed full or blocked on the budget for 10 s, a peer that failed keepalive, or a peer with more than 1024 control messages waiting |
@@ -195,7 +215,7 @@ connection); they need not ping themselves.
 The relay going down closes connections with `1001`, or drops them without a
 close frame; reconnect with backoff. A client that is closed with 4402, 4403, 4401
 or 4413 should not retry unchanged, and one closed with 4409 must not reconnect
-automatically (see Admission). After 4429 retry with backoff.
+automatically (see Admission). After 4429 or 4405 retry with backoff.
 
 ## Default limits
 

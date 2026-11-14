@@ -1,15 +1,15 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteState } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
-import { selectTabs } from '@/tabs/slice.ts';
+import { openRemote, selectTabs } from '@/tabs/slice.ts';
 
 const OFF: RemoteState = {
   configured: false, enabled: true, running: false, online: false, relay: null, hostFingerprint: null, devices: [],
-  pairing: null, legacy: false, lastError: null, startFailed: false,
+  pairing: null, legacy: false, lastError: null, startFailed: false, accessKey: false,
 };
 const ONLINE: RemoteState = {
   ...OFF, configured: true, running: true, online: true, relay: 'wss://relay.example.com', hostFingerprint: 'abcd-efgh-ijkl-mnop',
@@ -41,46 +41,68 @@ function setup(o: { protocol?: number; state?: RemoteState } = {}) {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   render(<Provider store={store}><App /></Provider>);
   act(() => {
-    store.dispatch(serverEvent({ kind: 'hello', protocol: o.protocol ?? 20 }));
+    store.dispatch(serverEvent({ kind: 'hello', protocol: o.protocol ?? 21 }));
     if (o.state) store.dispatch(serverEvent({ kind: 'remote', state: o.state }));
   });
   return store;
 }
-const btn = () => document.getElementById('remoteBtn');
-const open = () => fireEvent.click(btn()!);
+/** Opens the settings menu (Radix opens it on a key press on its trigger). */
+const menu = () => fireEvent.keyDown(document.getElementById('settingsBtn')!, { key: 'Enter' });
+const row = () => document.getElementById('remoteMenu');
+const dot = () => document.getElementById('settingsDot');
+const open = () => { menu(); fireEvent.click(row()!); };
 
-describe('header indicator', () => {
-  it('is hidden for a server older than protocol 20', () => {
+describe('settings menu: Remote access and Usage', () => {
+  it('the header has no Remote or Usage button any more', () => {
+    setup({ state: ONLINE });
+    expect(document.getElementById('remoteBtn')).toBeNull();
+    expect(document.getElementById('usageBtn')).toBeNull();
+  });
+
+  it('is hidden for a server older than protocol 20, with no dot on the gear', () => {
     setup({ protocol: 19, state: ONLINE });
-    expect(btn()).toBeNull();
+    expect(dot()).toBeNull();
+    menu();
+    expect(row()).toBeNull();
+    expect(document.getElementById('usageMenu')).not.toBeNull();
   });
 
   it.each([
     ['off', OFF, /Remote access is off/],
     ['connecting', { ...ONLINE, online: false, devices: [] }, /connecting to the relay/],
     ['online', { ...ONLINE, devices: [] }, /^Remote access: online$/],
-    ['trouble', { ...ONLINE, online: false, running: false, lastError: { code: 4402, message: 'the relay does not admit this host', at: 1 } }, /not working: the relay does not admit this host/],
+    ['trouble', { ...ONLINE, online: false, running: false, lastError: { code: 4401, message: 'the relay refused the host key proof', at: 1 } }, /not working: the relay refused the host key proof/],
+    ['trouble', { ...ONLINE, online: false, running: false, lastError: { code: 4402, message: 'x', at: 1 } }, /not working: the relay does not admit this computer: enter the access key/],
+    ['trouble', { ...ONLINE, online: false, lastError: { code: 4405, message: 'x', at: 1 } }, /used on the most computers allowed/],
     ['trouble', { ...ONLINE, online: false, running: false, startFailed: true }, /connector\.log/],
   ] as [string, RemoteState, RegExp][])('%s', (want, state, tip) => {
     setup({ state });
-    expect(btn()!.dataset.state).toBe(want);
-    expect(btn()!.title).toMatch(tip);
-    expect(btn()!.querySelector('[data-dot]') !== null).toBe(want !== 'off');
+    if (want === 'off') expect(dot()).toBeNull();
+    else expect(dot()!.dataset.state).toBe(want);
+    menu();
+    expect(row()!.dataset.state).toBe(want);
+    expect(row()!.title).toMatch(tip);
   });
 
   it('off when access is turned off, even with a relay saved', () => {
     setup({ state: { ...ONLINE, enabled: false } });
-    expect(btn()!.dataset.state).toBe('off');
+    expect(dot()).toBeNull();
+    menu();
+    expect(row()!.dataset.state).toBe('off');
   });
 
-  it('online shows how many phones are connected; a click opens one Remote tab', () => {
+  it('online shows how many phones are connected; the row opens one Remote tab, Usage opens Usage', () => {
     const store = setup({ state: ONLINE });
-    expect(btn()!.querySelector('[data-phones]')!.textContent).toBe('2');
-    expect(btn()!.title).toMatch(/phones connected: 2/);
-    open();
+    menu();
+    expect(row()!.querySelector('[data-phones]')!.textContent).toBe('· 2');
+    expect(row()!.title).toMatch(/phones connected: 2/);
+    fireEvent.click(row()!);
     open();
     expect(selectTabs(store.getState()).active).toBe('remote');
     expect(selectTabs(store.getState()).open.filter((t) => t.kind === 'remote')).toHaveLength(1);
+    menu();
+    fireEvent.click(document.getElementById('usageMenu')!);
+    expect(selectTabs(store.getState()).active).toBe('usage');
   });
 });
 
@@ -92,7 +114,7 @@ describe('Remote tab', () => {
     expect(document.getElementById('remotePair')).toBeNull();
     answer = () => Response.json({ error: 'the relay must be a wss:// URL' }, { status: 400 });
     fireEvent.change(screen.getByLabelText('Relay'), { target: { value: ' http://relay.example.com ' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]!); // the relay's; the access key's comes after
     expect(await screen.findByRole('alert')).toHaveTextContent('the relay must be a wss:// URL');
     expect(posts).toEqual([{ url: '/remote/config', body: { relay: 'http://relay.example.com' } }]);
   });
@@ -167,6 +189,50 @@ describe('Remote tab', () => {
     expect(row).toHaveTextContent('Revoke this phone?');
     fireEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[0]!);
     await waitFor(() => expect(posts).toEqual([{ url: '/remote/revoke', body: { id: 'aaaa' } }]));
+  });
+
+  it('access key: a password field and Save while none is saved; a refusal is shown; then saved, Change and Remove', async () => {
+    const store = setup({ state: ONLINE });
+    open();
+    const field = screen.getByLabelText('Access key') as HTMLInputElement;
+    expect(field.type).toBe('password');
+    answer = () => Response.json({ error: 'this is a phone pairing code, not an access key; an access key starts with nbk1_' }, { status: 400 });
+    fireEvent.change(field, { target: { value: ' nbremote://pair?v=1 ' } });
+    fireEvent.click(within(document.getElementById('remoteAccess')!).getAllByRole('button', { name: 'Save' }).at(-1)!);
+    expect(await screen.findByRole('alert')).toHaveTextContent('phone pairing code');
+    answer = () => Response.json({ state: { ...ONLINE, accessKey: true }, stopped: null });
+    fireEvent.change(field, { target: { value: 'nbk1_abc' } });
+    fireEvent.click(within(document.getElementById('remoteAccess')!).getAllByRole('button', { name: 'Save' }).at(-1)!);
+    await waitFor(() => expect(posts.at(-1)).toEqual({ url: '/remote/config', body: { accessKey: 'nbk1_abc' } }));
+    act(() => { store.dispatch(serverEvent({ kind: 'remote', state: { ...ONLINE, accessKey: true } })); });
+    expect(await screen.findByText('Saved')).toBeTruthy();
+    expect(screen.queryByLabelText('Access key')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(posts.at(-1)).toEqual({ url: '/remote/config', body: { accessKey: null } }));
+  });
+
+  it('a tab open before the state arrives shows a saved key once it does', () => {
+    const store = setup({});
+    act(() => { store.dispatch(openRemote()); });
+    expect(screen.getByLabelText('Access key')).toBeTruthy();
+    act(() => { store.dispatch(serverEvent({ kind: 'remote', state: { ...ONLINE, accessKey: true } })); });
+    expect(screen.getByText('Saved')).toBeTruthy();
+    expect(screen.queryByLabelText('Access key')).toBeNull();
+  });
+
+  it('a protocol-20 server takes no access key: no key row', () => {
+    setup({ protocol: 20, state: ONLINE });
+    open();
+    expect(screen.queryByLabelText('Access key')).toBeNull();
+    expect(screen.queryByText('Saved')).toBeNull();
+  });
+
+  it('the relay\'s refusals are explained in the tab', () => {
+    const store = setup({ state: { ...ONLINE, online: false, running: false, lastError: { code: 4402, message: 'x', at: 1 } } });
+    open();
+    expect(document.getElementById('remoteWhy')).toHaveTextContent(/enter the access key you were given/);
+    act(() => { store.dispatch(serverEvent({ kind: 'remote', state: { ...ONLINE, online: false, accessKey: true, lastError: { code: 4405, message: 'x', at: 1 } } })); });
+    expect(document.getElementById('remoteWhy')).toHaveTextContent(/close Nota Bene on another computer/);
   });
 
   it('an older server: the tab says to restart it', () => {

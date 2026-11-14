@@ -10,7 +10,7 @@ import { UpdateNotice } from './UpdateNotice.tsx';
 import { GitBranch } from './GitBranch.tsx';
 import { RestartMenu } from './RestartMenu.tsx';
 import { StopButton } from './StopButton.tsx';
-import { RemoteButton } from '@/remote/RemoteButton.tsx';
+import { RemoteDot, RemoteMenuItem } from '@/remote/RemoteMenu.tsx';
 import { folderName } from '@/lib/paths.ts';
 import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
@@ -52,17 +52,6 @@ export function Header() {
       <RestartMenu />
       <ModelPill />
       <span id="session" className="font-mono text-[0.6875rem]">{session?.id?.slice(0, 8) ?? ''}</span>
-      <RemoteButton />
-      <button
-        type="button"
-        id="usageBtn"
-        aria-label={t('usage')}
-        title={t('usageTip')}
-        onClick={() => d(openUsage())}
-        className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground [&>svg]:text-accent-usage"
-      >
-        <Svg size={15}>{ICONS.usage}</Svg>
-      </button>
       {/* the settings at hand: language and scale here, the rest in the Settings tab */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -71,9 +60,10 @@ export function Header() {
             id="settingsBtn"
             aria-label={t('settings')}
             title={t('settingsTip')}
-            className="grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="relative grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Svg size={15}>{ICONS.settings}</Svg>
+            <RemoteDot />
           </button>
         </DropdownMenuTrigger>
         {/* rows as in a browser's side menu: an icon, the label, then the value, the steps or the submenu arrow */}
@@ -126,6 +116,11 @@ export function Header() {
                 onClick={() => uiScale.step(1)} className={stepBtn}>+</button>
             </span>
           </div>
+          <RemoteMenuItem className={row} />
+          <DropdownMenuItem id="usageMenu" title={t('usageTip')} onSelect={() => d(openUsage())} className={`${row} [&>svg]:text-accent-usage`}>
+            <Svg size={15}>{ICONS.usage}</Svg>
+            <span className="flex-1">{t('usage')}</span>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem id="allSettings" onSelect={() => d(openSettings())} className={row}>
             <Svg size={15}>{ICONS.settings}</Svg>

@@ -19,7 +19,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   return j as T;
 }
 
-export const saveRemote = (c: { relay?: string; enabled?: boolean }) => post<{ state: RemoteState; stopped: 'hand' | 'managed' | null }>('/remote/config', c);
+export const saveRemote = (c: { relay?: string; enabled?: boolean; accessKey?: string | null }) => post<{ state: RemoteState; stopped: 'hand' | 'managed' | null }>('/remote/config', c);
 export const startPair = () => post<PairCode>('/remote/pair');
 export const cancelPair = () => post<{ ok: true }>('/remote/pair/cancel');
 export const revokePhone = (id: string) => post<{ ok: boolean; error?: string }>('/remote/revoke', { id });

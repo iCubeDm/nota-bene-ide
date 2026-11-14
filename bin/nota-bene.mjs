@@ -62,7 +62,7 @@ const MAIN = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/main.js')
 const REMOTE = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/remote/cli.js')) ? 'server/src/remote/cli.js' : 'server/src/remote/cli.ts');
 const USAGE = 'Usage: nota-bene [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]\n'
   + '       nota-bene --find DIR [--scan] | --last DIR | --url PORT | --front PORT\n'
-  + '       nota-bene remote [pair | devices | revoke ID | status | --relay URL]   (remote access, see nota-bene remote --help)\n'
+  + '       nota-bene remote [pair | devices | revoke ID | status | key | --relay URL]   (remote access, see nota-bene remote --help)\n'
   + '       nota-bene --help | --version';
 const DEV_BACKEND_PORT = 4780; // `npm run dev`'s server (scripts/dev.mjs, web/vite.config.ts)
 const EXIT_SECRET = 3; // a secret file is refused (loose mode, foreign owner, ...): --find & co. say so instead of "not found"

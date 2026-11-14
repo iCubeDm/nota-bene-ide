@@ -254,7 +254,7 @@ func TestAdmitHook(t *testing.T) {
 	o := DefaultOptions()
 	badPriv, badPub := keyPair(t)
 	bad := HostID(badPub)
-	o.Admit = func(_ context.Context, id string) bool { return id != bad }
+	o.Admit = func(_ context.Context, id string, _ *[32]byte) (int, bool) { return 0, id != bad }
 	s, url := newTestServer(t, o)
 	h := dialHostNoWait(t, url, badPriv, nil, nil)
 	if c := closeCode(t, h.c); c != 4402 {
@@ -1052,9 +1052,9 @@ func TestKeepaliveDisabled(t *testing.T) {
 func TestAdmitContext(t *testing.T) {
 	o := DefaultOptions()
 	o.HelloTimeout = 300 * time.Millisecond
-	o.Admit = func(ctx context.Context, _ string) bool {
+	o.Admit = func(ctx context.Context, _ string, _ *[32]byte) (int, bool) {
 		<-ctx.Done()
-		return false
+		return 0, false
 	}
 	_, url := newTestServer(t, o)
 	start := time.Now()

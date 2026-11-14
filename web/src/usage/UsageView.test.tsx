@@ -44,18 +44,24 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
+/** Usage is a row of the settings menu (Radix opens the menu on a key press on its trigger). */
+function openUsage() {
+  fireEvent.keyDown(document.getElementById('settingsBtn')!, { key: 'Enter' });
+  fireEvent.click(document.getElementById('usageMenu')!);
+}
+
 function setup() {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   render(<Provider store={store}><App /></Provider>);
-  fireEvent.click(screen.getByRole('button', { name: 'Usage' }));
+  openUsage();
   return store;
 }
 
-it('the header button opens one Usage tab', async () => {
+it('the settings menu\'s Usage row opens one Usage tab', async () => {
   const store = setup();
   await screen.findByText('Review the parser');
   expect(selectTabs(store.getState()).active).toBe('usage');
-  fireEvent.click(screen.getByRole('button', { name: 'Usage' }));
+  openUsage();
   expect(selectTabs(store.getState()).open.filter((t) => t.kind === 'usage')).toHaveLength(1);
   expect(gets[0]).toBe('/usage?provider=claude&period=trip');
 });

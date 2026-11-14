@@ -38,6 +38,22 @@ The window runs as a background task of that Claude Code session. It shows in th
 
 If a window for the folder is already open, `/nb` brings it to the front instead of starting another.
 
+### Access key
+
+A relay may admit only the computers of people its operator invited: then the operator gives you an **access key**, a
+code that starts with `nbk1_`. Enter it in the Remote tab's **Access key** field (or with `nota-bene remote key`); it
+stays on this computer (`remote/access-key`, readable by you only) and the page only shows that one is saved. Every
+connection to the relay is signed with it. One key works on a few computers at once (3 unless the operator set
+another number). What the tab says when the relay refuses:
+
+- *The relay does not admit this computer*: no key is saved, or the key is mistyped or was revoked. Enter the key you
+  were given, or ask for a new one.
+- *This access key is already used on the most computers allowed*: close Nota Bene on another computer (its connector
+  stops a minute after its last window); this computer connects by itself once a place is free.
+
+Running a relay of your own, you issue and revoke the keys: see `relay/README.md`, Access keys. A relay started without
+`-members` admits any computer, and a key saved here is then simply not needed.
+
 ### From a terminal: `nota-bene`
 
 ```sh
@@ -442,7 +458,7 @@ The residual risk, in plain words:
 
 ### Usage
 
-The bars button in the header opens **Usage**: exact token accounting for every project on this machine, read from the transcripts of Claude Code and Codex, so work outside Nota Bene counts too. Everything stays on your machine.
+**Usage** in the settings menu (the gear in the header) opens exact token accounting for every project on this machine, read from the transcripts of Claude Code and Codex, so work outside Nota Bene counts too. Everything stays on your machine.
 
 - **Claude** and **Codex** have separate counters. **Reset** starts a new count; nothing is deleted, the older data stays under **All time**.
 - The large number is **weighted tokens**: input ×1, cache write ×1.25, cache read ×0.1, output ×5, the same for every model. It is a yardstick, not a price; a plain sum would be almost only cache reads. Hover over the word for the raw counts, or over a model for its own. The bar under it splits the tokens by model.
@@ -481,12 +497,13 @@ encrypted (the relay sees only ciphertext and which phone talks to which host). 
 
 ### From a window
 
-The phone icon in the header, beside Usage, shows the state of remote access: no dot when it is off, amber while it
-connects to the relay, green when it is online (with the number of phones connected), red when it does not work (the
-tooltip says why). A click opens the **Remote** tab:
+The settings button (the gear in the header) carries the state of remote access as a dot: none when it is off, amber
+while it connects to the relay, green when it is online, red when it does not work. Its menu has a **Remote access**
+row with the state in words (and the number of phones connected); the row's tooltip says why it does not work, and a
+click opens the **Remote** tab:
 
-- **Access**: the relay address (saved once, then Edit), the switch that allows paired phones in, the state in words
-  and the computer's fingerprint.
+- **Access**: the relay address (saved once, then Edit), the access key (below), the switch that allows paired phones
+  in, the state in words and the computer's fingerprint.
 - **Pair a phone**: a QR code to scan with the app, the code as text with Copy, the time left and the fingerprint to
   compare; the phone's name and fingerprint when it is paired. A code pairs one phone; another phone presenting it is
   refused and named. Only the window that started a pairing shows its code.
@@ -510,6 +527,7 @@ nota-bene remote pair                             # in another terminal: a QR co
 nota-bene remote devices                          # the paired phones: id, name, fingerprint, online
 nota-bene remote revoke <id>                      # unpair a phone; its connection is cut at once
 nota-bene remote status
+nota-bene remote key                              # save the access key you were given (typed, not shown); --clear removes it
 ```
 
 - The connector runs in the foreground; it reaches every window of every agent (Claude, Codex, omp) the way the
@@ -610,7 +628,7 @@ All state lives in `~/.nota-bene/`, except the media marks. Set `NOTA_BENE_HOME`
 | `runtime/` | releases installed by the in-app update, and its state and log (see [Updates](#updates)) |
 | `audit/YYYY-MM-DD.jsonl` | the audit log of system events of every window ([Audit log](#audit-log)) |
 | `usage/` | the Usage tab: token counts of every project and short labels (the first 64 characters of a prompt, a subagent's description) |
-| `remote/` | the remote connector's host key (`host.key`), paired phones (`devices.json`), relay address (`config.json`), all mode 600, and its control socket (`control.sock`; on Windows a named pipe, with the secret its clients prove in `control-secret`); deleting `host.key` unpairs every phone |
+| `remote/` | the remote connector's host key (`host.key`), paired phones (`devices.json`), relay address (`config.json`), the relay access key (`access-key`), all mode 600, and its control socket (`control.sock`; on Windows a named pipe, with the secret its clients prove in `control-secret`); deleting `host.key` unpairs every phone |
 | `whisper-host/` | the shared Whisper process's socket (on Windows a named pipe and `host-secret`), start lock and log |
 
 On Windows `~` is your user profile (`%USERPROFILE%`), and the state folder must stay inside it: see [Windows](#windows).

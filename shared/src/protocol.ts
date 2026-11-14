@@ -145,7 +145,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // (Other additions to protocol 15, such as optional Interaction fields and the `task` event's optional `model`, are listed beside this line by their own changes.)
 // 19: comment ops: the client's `comment-op` (add / edit / remove, idempotent) answered by `comments.ack` or, for a session the window does not show, `comment-ack`, or by `comment-refused`; `comments.rev`. An older server gets whole sets (`comments`) as before.
 // 20: remote access from the window: the server's `remote` (the connector's state) and `remote-pair` events and the `/remote` routes; an older server has neither, so the page shows no indicator and no Remote tab.
-export const PROTOCOL = 20;
+// 21: relay access keys: `RemoteState.accessKey` (one is saved) and `POST /remote/config {accessKey}`; `lastError` may be a 4405 (the key's computer limit) while the connector retries.
+export const PROTOCOL = 21;
 
 /** A paired phone as the Remote tab lists it (protocol 20). */
 export type RemoteDevice = { id: string; name?: string; fingerprint: string; online: boolean; pairedAt: number };
@@ -167,8 +168,10 @@ export type RemoteState = {
   pairing: { expiresAt: number; mine: boolean } | null;
   /** the connector was started in a terminal by an older version: it cannot be switched from a window */
   legacy: boolean;
-  /** the relay refused the host for good (the code it closed with) */
+  /** the relay refused the host: for good (4402 and the like: the connector stopped), or 4405 while it retries (the access key is on the most computers allowed) */
   lastError: { code: number; message: string; at: number } | null;
+  /** protocol 21: an access key for the relay is saved (the key itself never leaves the server) */
+  accessKey: boolean;
   /** a window tried to start the connector and it did not come up (no relay refusal explains it) */
   startFailed: boolean;
 };

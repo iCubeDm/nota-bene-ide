@@ -236,6 +236,8 @@ type hello struct {
 	Proof   string   `json:"proof"`
 	Devices []string `json:"devices"`
 	Ticket  *string  `json:"ticket"`
+	Member  string   `json:"member"`
+	Sig     string   `json:"sig"`
 }
 
 // readHello waits for the client's hello and checks its proof. On failure it
@@ -317,21 +319,35 @@ func (s *Server) runHost(ctx context.Context, p *peer, _ *http.Request, ch Chall
 		return
 	}
 	id := HostID(key)
+	var member *[32]byte
+	limit := 0
+	mark := s.admissionMark()
 	if s.o.Admit != nil {
+		if h.Member != "" || h.Sig != "" {
+			m, err := decodeKey(h.Member)
+			sig, serr := decodeSig(h.Sig)
+			if err != nil || serr != nil || !VerifyMember(m, ch.Nonce, ch.EphPub, key, sig) {
+				p.closeWith(codeHostRefused)
+				return
+			}
+			member = &m
+		}
 		actx, cancel := context.WithDeadline(ctx, deadline)
-		allowed := s.o.Admit(actx, id)
+		n, allowed := s.o.Admit(actx, id, member)
 		cancel()
 		if !allowed {
 			p.closeWith(codeHostRefused)
 			return
 		}
+		limit = n
 	}
 	if s.overBudget(p) {
 		return
 	}
 	hs := newHost(id, p, h.Devices, ticket, s.o.SlowTimeout)
-	if !s.register(hs) {
-		p.closeWith(codeLimit)
+	hs.member = member
+	if code := s.register(hs, limit, mark); code != 0 {
+		p.closeWith(code)
 		return
 	}
 	defer s.unregister(hs)

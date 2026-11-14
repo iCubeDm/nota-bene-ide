@@ -16,8 +16,20 @@ import { stateBaseDir } from '../state.ts';
 import { readLock, takeLockFile } from '../runtime.ts';
 import { controlClient, running, type ControlClient, type Msg } from './control.ts';
 import {
-  checkRelay, clearLastError, fingerprint, fromB64u, readConfig, readDevices, readLastError, remoteDir, writeConfig, type RemoteConfig,
+  checkRelay, clearLastError, fingerprint, fromB64u, parseAccessKey, readAccessKey, readConfig, readDevices, readLastError, remoteDir, writeAccessKey, writeConfig,
+  type RemoteConfig,
 } from './store.ts';
+
+/** A readable access key is saved. Nothing is created to find out; a broken file (mode, owner) counts as none, so the tab
+ * asks for the key again, and saving it rewrites the file. */
+function hasAccessKey(): boolean {
+  if (!fs.existsSync(path.join(stateBaseDir(), 'remote', 'access-key'))) return false;
+  try {
+    return readAccessKey() !== null;
+  } catch {
+    return false;
+  }
+}
 
 /** How often a window looks at the connector. */
 export const ENSURE_MS = 5000;
@@ -87,7 +99,7 @@ export class RemoteKeeper extends EventEmitter {
   #pass: Promise<RemoteState> | undefined;
   #state: RemoteState = {
     configured: false, enabled: true, running: false, online: false, relay: null, hostFingerprint: null, devices: [],
-    pairing: null, legacy: false, lastError: null, startFailed: false,
+    pairing: null, legacy: false, lastError: null, startFailed: false, accessKey: false,
   };
   #last = '';
   #warned = '';
@@ -129,16 +141,21 @@ export class RemoteKeeper extends EventEmitter {
   }
 
   /**
-   * Saves the relay and the switch, then acts on them: off, or another relay, stops the running connector (a managed one
-   * comes back for the new relay). `stopped` says whose connector was stopped: a terminal's (`hand`) is worth telling.
+   * Saves the relay, the switch and the access key, then acts on them: off, or another relay, stops the running connector
+   * (a managed one comes back for the new relay); a new access key makes it reconnect with it. `stopped` says whose
+   * connector was stopped: a terminal's (`hand`) is worth telling.
    */
-  async setConfig(c: RemoteConfig): Promise<{ state: RemoteState; stopped: 'hand' | 'managed' | null }> {
-    if (c.relay !== undefined) checkRelay(c.relay);
+  async setConfig(c: RemoteConfig & { accessKey?: string | null }): Promise<{ state: RemoteState; stopped: 'hand' | 'managed' | null }> {
+    const { accessKey, ...cfg } = c;
+    if (cfg.relay !== undefined) checkRelay(cfg.relay);
+    if (typeof accessKey === 'string') parseAccessKey(accessKey);
     await this.#pass;
     const st = await this.#ask({ op: 'status' });
-    const replace = !!st && (c.enabled === false || (c.relay !== undefined && c.relay !== st.relay));
-    if (replace && st.version === undefined) throw new LegacyConnector();
-    writeConfig({ ...readConfig(), ...c });
+    const replace = !!st && (cfg.enabled === false || (cfg.relay !== undefined && cfg.relay !== st.relay));
+    // a connector from before access keys neither reads nor reconnects with one
+    if ((replace || (accessKey !== undefined && !!st)) && st!.version === undefined) throw new LegacyConnector();
+    if (Object.keys(cfg).length) writeConfig({ ...readConfig(), ...cfg });
+    if (accessKey !== undefined) writeAccessKey(accessKey);
     clearLastError();
     this.#failures = 0;
     this.#retryAt = 0;
@@ -147,6 +164,14 @@ export class RemoteKeeper extends EventEmitter {
     if (replace) {
       await this.#stopConnector();
       stopped = st.managed === true ? 'managed' : 'hand';
+    } else if (accessKey !== undefined && st) {
+      // a connector of the release before access keys has a version but neither reads the key nor knows `reconnect`
+      const r = await this.#ask({ op: 'reconnect' });
+      if (r?.ok !== true) {
+        // stopped, as the switch stops it: a window's connector of this version comes up with the key
+        await this.#stopConnector();
+        stopped = st.managed === true ? 'managed' : 'hand';
+      }
     }
     return { state: await this.refresh(), stopped };
   }
@@ -303,6 +328,7 @@ export class RemoteKeeper extends EventEmitter {
       legacy: !!st && st.version === undefined,
       lastError: none ? null : readLastError(),
       startFailed: this.#startFailed,
+      accessKey: hasAccessKey(),
     };
   }
 

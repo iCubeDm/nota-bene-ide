@@ -47,12 +47,17 @@ export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undef
       const b = await readBody(req);
       if (b.relay !== undefined && typeof b.relay !== 'string') return json(res, 400, { error: 'relay must be a string' });
       if (b.enabled !== undefined && typeof b.enabled !== 'boolean') return json(res, 400, { error: 'enabled must be a boolean' });
+      if (b.accessKey !== undefined && b.accessKey !== null && typeof b.accessKey !== 'string') return json(res, 400, { error: 'accessKey must be a string or null' });
       let r: Awaited<ReturnType<RemoteKeeperApi['setConfig']>>;
       try {
-        r = await k.setConfig({ ...(typeof b.relay === 'string' ? { relay: b.relay.trim() } : {}), ...(typeof b.enabled === 'boolean' ? { enabled: b.enabled } : {}) });
+        r = await k.setConfig({
+          ...(typeof b.relay === 'string' ? { relay: b.relay.trim() } : {}),
+          ...(typeof b.enabled === 'boolean' ? { enabled: b.enabled } : {}),
+          ...(b.accessKey === null || typeof b.accessKey === 'string' ? { accessKey: b.accessKey === null ? null : b.accessKey.trim() } : {}),
+        });
       } catch (e) {
-        // a relay address checkRelay refused: the message says what is wrong with it
-        if (e instanceof Error && !(e instanceof LegacyConnector) && /relay must be|not a URL/.test(e.message)) return json(res, 400, { error: e.message });
+        // a relay address checkRelay refused, or an access key parseAccessKey refused: the message says what is wrong
+        if (e instanceof Error && !(e instanceof LegacyConnector) && /relay must be|not a URL|access key|pairing code/.test(e.message)) return json(res, 400, { error: e.message });
         throw e;
       }
       json(res, 200, r);

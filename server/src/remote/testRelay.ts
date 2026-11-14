@@ -40,13 +40,20 @@ export type TestRelay = {
   restart: () => Promise<void>;
 };
 
-export async function startRelay(): Promise<TestRelay> {
+/** Runs `nb-relay invite` on a members file and returns the code it printed. */
+export async function inviteMember(file: string, name: string, hosts = 3): Promise<string> {
+  const { stdout } = await promisify(execFile)(await build(), ['invite', '-members', file, '-hosts', String(hosts), name], HIDDEN);
+  return stdout.trim();
+}
+
+/** `members`: the relay admits only hosts signed by a key in this file (`-members`). */
+export async function startRelay(o: { members?: string } = {}): Promise<TestRelay> {
   const bin = await build();
   const port = await freePort();
   let out = '';
   let child: ChildProcess | undefined;
   const up = async () => {
-    child = spawn(bin, ['-listen', `127.0.0.1:${port}`], { stdio: ['ignore', 'pipe', 'pipe'], ...HIDDEN });
+    child = spawn(bin, ['-listen', `127.0.0.1:${port}`, ...(o.members ? ['-members', o.members] : [])], { stdio: ['ignore', 'pipe', 'pipe'], ...HIDDEN });
     child.stdout!.on('data', (d) => (out += d));
     child.stderr!.on('data', (d) => (out += d));
     const deadline = Date.now() + 10_000;

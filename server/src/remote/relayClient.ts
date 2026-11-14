@@ -5,7 +5,7 @@ import { createHmac } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
 import { dh, type KeyPair } from './noise.ts';
-import { b64u, fromB64u } from './store.ts';
+import { b64u, fromB64u, memberPub, memberSign } from './store.ts';
 
 /** HMAC-SHA256(key = X25519(priv, eph), "nb-relay-v1 <role>" ‖ nonce): the relay's admission proof. */
 export function relayProof(role: 'host' | 'device', priv: Buffer, eph: Buffer, nonce: Buffer): Buffer {
@@ -14,32 +14,39 @@ export function relayProof(role: 'host' | 'device', priv: Buffer, eph: Buffer, n
 
 const FATAL: Record<number, string> = {
   4401: 'the relay refused the host key proof',
-  4402: 'the relay does not admit this host (its operator refused it)',
+  4402: 'the relay does not admit this host: its operator refused it (no access key, or one it does not know or revoked)',
   4409: 'another nota-bene remote with this host key is connected to the relay',
   4413: 'a frame was too large for the relay',
 };
 
+/** Close 4405: the access key already has as many computers connected as it may. Retried with backoff. */
+export const KEY_LIMIT = 4405;
+export const KEY_LIMIT_MESSAGE = 'this access key is already used on the most computers allowed';
+
 /**
  * Events: `online`, `offline(code)` (every conn is reported `gone` first), `open(conn, deviceHash)`, `gone(conn)`,
- * `frame(conn, payload)`, `fatal(code, message)` (no reconnect follows).
+ * `frame(conn, payload)`, `limited` (closed with 4405; a reconnect follows), `retry(code)` (closed otherwise; a reconnect
+ * follows), `fatal(code, message)` (no reconnect follows).
  */
 export class RelayClient extends EventEmitter {
-  #o: { url: string; key: KeyPair; devices: () => string[]; ticket: () => Buffer | null; backoff: { minMs: number; maxMs: number }; silenceMs: number };
+  #o: { url: string; key: KeyPair; devices: () => string[]; ticket: () => Buffer | null; member: () => Buffer | null; backoff: { minMs: number; maxMs: number }; silenceMs: number };
   #ws: WebSocket | undefined;
   #online = false;
   #onlineAt = 0;
   #attempt = 0;
   #timer: NodeJS.Timeout | undefined;
   #stopped = false;
+  #soon = false; // the next connection without backoff (reconnect)
   #conns = new Set<number>();
 
   /**
    * `silenceMs`: with nothing from the relay for this long (it pings every 30 s), the connection is presumed dead and
    * replaced. A laptop that slept through the relay's close never gets its FIN, and its socket would look alive forever.
    */
-  constructor(o: { url: string; key: KeyPair; devices: () => string[]; ticket: () => Buffer | null; backoff?: { minMs: number; maxMs: number }; silenceMs?: number }) {
+  /** `member`: the access key's seed, read for every connection (none: the hello is not signed, as for an open relay). */
+  constructor(o: { url: string; key: KeyPair; devices: () => string[]; ticket: () => Buffer | null; member?: () => Buffer | null; backoff?: { minMs: number; maxMs: number }; silenceMs?: number }) {
     super();
-    this.#o = { ...o, backoff: o.backoff ?? { minMs: 1000, maxMs: 30_000 }, silenceMs: o.silenceMs ?? 75_000 };
+    this.#o = { ...o, member: o.member ?? (() => null), backoff: o.backoff ?? { minMs: 1000, maxMs: 30_000 }, silenceMs: o.silenceMs ?? 75_000 };
   }
 
   get online(): boolean {
@@ -60,6 +67,20 @@ export class RelayClient extends EventEmitter {
       ws.once('close', () => r());
       ws.close(1000);
     });
+  }
+
+  /** Drops the connection and connects again now, as a new access key needs. */
+  reconnect(): void {
+    if (this.#stopped) return;
+    this.#attempt = 0;
+    const ws = this.#ws;
+    if (!ws || ws.readyState === WebSocket.CLOSED) {
+      clearTimeout(this.#timer);
+      this.#connect();
+      return;
+    }
+    this.#soon = true;
+    ws.close(1000);
   }
 
   setDevices(hashes: string[]): void {
@@ -114,9 +135,13 @@ export class RelayClient extends EventEmitter {
         if (m.t !== 'challenge' || typeof m.eph !== 'string' || typeof m.nonce !== 'string') return ws.close(4400);
         greeted = true;
         try {
-          const proof = relayProof('host', this.#o.key.priv, fromB64u(m.eph, 32), fromB64u(m.nonce, 32));
+          const eph = fromB64u(m.eph, 32);
+          const nonce = fromB64u(m.nonce, 32);
+          const proof = relayProof('host', this.#o.key.priv, eph, nonce);
           const ticket = this.#o.ticket();
-          ws.send(JSON.stringify({ t: 'hello', key: b64u(this.#o.key.pub), proof: b64u(proof), devices: this.#o.devices(), ...(ticket ? { ticket: b64u(ticket) } : {}) }));
+          const seed = this.#o.member();
+          const member = seed ? { member: b64u(memberPub(seed)), sig: b64u(memberSign(seed, nonce, eph, this.#o.key.pub)) } : {};
+          ws.send(JSON.stringify({ t: 'hello', key: b64u(this.#o.key.pub), proof: b64u(proof), devices: this.#o.devices(), ...(ticket ? { ticket: b64u(ticket) } : {}), ...member }));
         } catch {
           ws.close(4400);
         }
@@ -154,8 +179,11 @@ export class RelayClient extends EventEmitter {
         this.emit('fatal', code, fatal);
         return;
       }
+      if (code === KEY_LIMIT) this.emit('limited');
+      else this.emit('retry', code);
       const { minMs, maxMs } = this.#o.backoff;
-      const delay = Math.min(maxMs, minMs * 2 ** this.#attempt++) * (0.8 + Math.random() * 0.4);
+      const delay = this.#soon ? 0 : Math.min(maxMs, minMs * 2 ** this.#attempt++) * (0.8 + Math.random() * 0.4);
+      this.#soon = false;
       this.#timer = setTimeout(() => this.#connect(), delay);
     });
   }

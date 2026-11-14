@@ -8,12 +8,12 @@ import { registerWindow } from '../windows.ts';
 import { remoteMain } from './cli.ts';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient } from './control.ts';
-import { hostKey, pairProof, pairTicket, parsePairUri, b64u, readConfig, readLastError, writeConfig } from './store.ts';
+import { hostKey, pairProof, pairTicket, parseAccessKey, parsePairUri, b64u, readAccessKey, readConfig, readLastError, writeAccessKey, writeConfig } from './store.ts';
 import { Windows, type HostWindow } from './discover.ts';
 import { RelayClient } from './relayClient.ts';
 import { generateKeyPair } from './noise.ts';
 import { relayPhone } from './testPhone.ts';
-import { startRelay, type TestRelay } from './testRelay.ts';
+import { inviteMember, startRelay, type TestRelay } from './testRelay.ts';
 
 let relay: TestRelay;
 let tmp: string;
@@ -269,5 +269,82 @@ describe('connector', () => {
     expect(out.join('')).toMatch(/--relay wss:\/\//);
     expect(out.join('')).toMatch(/nota-bene \.\/remote/); // a folder named remote is opened with ./remote
     expect(await remoteMain(['--relay', 'http://x'], io)).toBe(2);
+  });
+});
+
+describe('connector with an access key', () => {
+  let keyed: TestRelay;
+  let dir: string;
+  let alice: string, bob: string;
+  beforeAll(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-members-'));
+    const file = path.join(dir, 'members.json');
+    alice = await inviteMember(file, 'alice', 1);
+    bob = await inviteMember(file, 'bob', 1);
+    keyed = await startRelay({ members: file });
+  }, 120_000);
+  afterAll(async () => {
+    await keyed?.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('no key: the relay\'s refusal is left for the windows; with the key it is online', async () => {
+    const bare = new Connector({ relay: keyed.url, backoff: { minMs: 50, maxMs: 200 } });
+    const fatal = new Promise<string>((r) => bare.once('fatal', r));
+    await bare.start();
+    closers.push(() => bare.stop());
+    expect(await fatal).toMatch(/no access key/);
+    expect(readLastError()).toMatchObject({ code: 4402 });
+    await bare.stop();
+    closers.pop();
+    writeAccessKey(alice);
+    const c = new Connector({ relay: keyed.url, backoff: { minMs: 50, maxMs: 200 } });
+    await c.start();
+    closers.push(() => c.stop());
+    await until(() => c.online);
+    expect(readLastError()).toBeNull();
+  });
+
+  it('over the limit it says so while retrying; `remote key` saves another key and reconnects with it', async () => {
+    const blocker = new RelayClient({ url: keyed.url, key: generateKeyPair(), devices: () => [], ticket: () => null, member: () => parseAccessKey(alice) });
+    blocker.start();
+    closers.push(() => blocker.stop());
+    await until(() => blocker.online);
+    writeAccessKey(alice);
+    const c = new Connector({ relay: keyed.url, backoff: { minMs: 5000, maxMs: 5000 } });
+    await c.start();
+    closers.push(() => c.stop());
+    await until(() => readLastError()?.code === 4405);
+    expect(readLastError()!.message).toMatch(/most computers allowed/);
+
+    const out: string[] = [];
+    const io = { out: (x: string) => void out.push(x), err: (x: string) => void out.push(x), input: async () => `  ${bob}\n` };
+    expect(await remoteMain(['key'], { ...io, input: async () => 'nbremote://pair?v=1' })).toBe(1);
+    expect(out.join('')).toMatch(/phone pairing code/);
+    expect(await remoteMain(['key'], io)).toBe(0);
+    expect(readAccessKey()).toEqual(parseAccessKey(bob));
+    await until(() => c.online, 2000); // not the 5 s backoff
+    expect(readLastError()).toBeNull();
+    expect(out.join('')).not.toContain(bob);
+    expect(await remoteMain(['key', '--clear'], io)).toBe(0);
+    expect(readAccessKey()).toBeNull();
+  });
+
+  it('a key-limit message goes once the connector fails for another reason (the relay is down)', async () => {
+    const blocker = new RelayClient({ url: keyed.url, key: generateKeyPair(), devices: () => [], ticket: () => null, member: () => parseAccessKey(alice) });
+    blocker.start();
+    closers.push(() => blocker.stop());
+    await until(() => blocker.online);
+    writeAccessKey(alice);
+    const c = new Connector({ relay: keyed.url, backoff: { minMs: 100, maxMs: 200 } });
+    await c.start();
+    closers.push(() => c.stop());
+    await until(() => readLastError()?.code === 4405);
+    await keyed.stop();
+    try {
+      await until(() => readLastError() === null);
+    } finally {
+      await keyed.restart();
+    }
   });
 });

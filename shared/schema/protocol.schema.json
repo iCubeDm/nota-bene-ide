@@ -1213,6 +1213,10 @@
     "RemoteState": {
       "description": "What a window knows of the remote-access connector (`nota-bene remote`), shared by every window of the user.",
       "properties": {
+        "accessKey": {
+          "description": "protocol 21: an access key for the relay is saved (the key itself never leaves the server)",
+          "type": "boolean"
+        },
         "configured": {
           "description": "a relay address is saved",
           "type": "boolean"
@@ -1258,7 +1262,7 @@
               "type": "null"
             }
           ],
-          "description": "the relay refused the host for good (the code it closed with)"
+          "description": "the relay refused the host: for good (4402 and the like: the connector stopped), or 4405 while it retries (the access key is on the most computers allowed)"
         },
         "legacy": {
           "description": "the connector was started in a terminal by an older version: it cannot be switched from a window",
@@ -1317,6 +1321,7 @@
         "pairing",
         "legacy",
         "lastError",
+        "accessKey",
         "startFailed"
       ],
       "type": "object"
@@ -3251,5 +3256,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 20
+  "x-protocol": 21
 }
