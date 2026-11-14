@@ -4,7 +4,7 @@ import { HIDDEN, killTree } from '../../platform.ts';
 import { agentSpawn } from '../bin.ts';
 
 /** what Nota Bene says it is in `initialize`; the release pin test keeps it at package.json's version */
-export const CLIENT_VERSION = '1.10.0';
+export const CLIENT_VERSION = '1.11.0';
 
 export class AcpError extends Error {
   readonly code: number | undefined;
