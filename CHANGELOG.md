@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Zoom while marking up on the phone.** Marking up a picture or a video frame on the phone keeps the zoom: one finger draws, two fingers zoom and move the picture, so small marks land where you mean them.
+
 ## 1.11.0 — 2026-11-14
 
 - **Relay access keys.** A relay can now admit only invited people: its operator issues each person an access key (`nb-relay invite`), every connection of their computer is signed with it, one key works on up to 3 computers at once (`nb-relay limit` changes it), and `nb-relay revoke` cuts that person's computers off within seconds. Enter the key in the Remote tab or with `nota-bene remote key`; the tab says when the key is missing, revoked or in use on too many computers. A relay started without `-members` stays open as before. See [Access key](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#access-key).

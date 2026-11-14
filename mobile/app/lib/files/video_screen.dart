@@ -54,6 +54,7 @@ class _VideoScreenState extends State<VideoScreen> {
   bool _taking = false;
   bool _busy = false;
   final _markup = Markup();
+  final _frameZoom = TransformationController();
 
   @override
   void initState() {
@@ -68,6 +69,7 @@ class _VideoScreenState extends State<VideoScreen> {
     _proxy?.close();
     _frame?.dispose();
     _markup.dispose();
+    _frameZoom.dispose();
     super.dispose();
   }
 
@@ -144,6 +146,7 @@ class _VideoScreenState extends State<VideoScreen> {
     _frame?.dispose();
     _frame = frame;
     _framePosition = position;
+    _frameZoom.value = Matrix4.identity();
     _markup.marking = true;
   }
 
@@ -228,11 +231,15 @@ class _VideoScreenState extends State<VideoScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (frame != null && _markup.marking) {
-      return MarkupLayer(
-        natural: Size(frame.width.toDouble(), frame.height.toDouble()),
+      return MarkupZoom(
+        zoom: _frameZoom,
         markup: _markup,
-        shown: const [],
-        child: RawImage(image: frame, fit: BoxFit.fill),
+        child: MarkupLayer(
+          natural: Size(frame.width.toDouble(), frame.height.toDouble()),
+          markup: _markup,
+          shown: const [],
+          child: RawImage(image: frame, fit: BoxFit.fill),
+        ),
       );
     }
     return _player(controller, t);

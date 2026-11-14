@@ -403,9 +403,8 @@ class _ImageScreenState extends State<ImageScreen>
         children: [
           if (_item.markable)
             _action('act-markup', NbGlyph.pen, t.markUp, () {
-              // marks are drawn on the fitted picture: no zoom carries into marking
+              // the zoom carries into marking: small marks are placed zoomed in
               _glide.stop();
-              _zoom.value = Matrix4.identity();
               _markup.marking = true;
             }),
           if (_item.markable)
@@ -499,11 +498,9 @@ class _ImageScreenState extends State<ImageScreen>
       shown: item.path == null ? const [] : shownMarks(widget.tab, item.path!),
       child: RawImage(image: image, fit: BoxFit.fill),
     );
-    // while marking, a drag draws: the zoom stays where it was but takes no gestures
+    // while marking, one finger draws and two zoom
     if (_markup.marking) {
-      return ClipRect(
-        child: Transform(transform: _zoom.value, child: layer),
-      );
+      return MarkupZoom(zoom: _zoom, markup: _markup, child: layer);
     }
     final viewer = InteractiveViewer(
       transformationController: i == _index ? _zoom : null,

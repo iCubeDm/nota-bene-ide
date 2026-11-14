@@ -210,6 +210,26 @@ void main() {
     r.dispose();
   });
 
+  testWidgets('a frame being marked up zooms with two fingers', (t) async {
+    final r = await openVideo(t, at: 61.5);
+    await t.tap(find.byTooltip('Mark up'));
+    await settleReal(t, 4);
+    final fit = t.getRect(find.byType(RawImage));
+    final c = fit.center;
+    final a = await t.startGesture(c - const Offset(10, 0), pointer: 1);
+    final b = await t.startGesture(c + const Offset(10, 0), pointer: 2);
+    await t.pump(const Duration(milliseconds: 16));
+    for (var i = 1; i <= 10; i++) {
+      await b.moveTo(c + const Offset(10, 0) + const Offset(40, 0) * (i / 10));
+      await t.pump(const Duration(milliseconds: 16));
+    }
+    await a.up();
+    await b.up();
+    await t.pumpAndSettle();
+    expect(t.getRect(find.byType(RawImage)).width, greaterThan(fit.width * 2));
+    r.dispose();
+  });
+
   testWidgets(
     'a paused frame marked up becomes a media comment with its time',
     (t) async {
