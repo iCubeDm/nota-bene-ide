@@ -142,6 +142,18 @@ new code, and that 4405 retries with backoff.
   All new strings in all six languages.
 - `docs/guide.md` Remote access: where the key comes from, entering it, what the two errors mean.
 
+### Header: Remote and Usage move into the settings menu (asked by the user)
+
+- The header loses its Remote and Usage buttons. The settings menu (the gear) gets two rows above "All settings", in
+  the menu's row style: **Remote access** with its state on the right (off / connecting / online · N phones / not
+  working), opening the Remote tab; **Usage**, opening the Usage tab. The state text and tooltip are the current
+  indicator's.
+- The gear carries the access state as a dot while access is on and a relay is saved: green online (the user's ask),
+  and — my call, so trouble isn't hidden behind a calm gear — yellow while connecting and red when not working. No dot
+  when access is off, unconfigured, or the server is older than protocol 20.
+- `RemoteButton` becomes the menu row plus the gear's dot; ids `remoteMenu` and `usageMenu` replace `remoteBtn` and
+  `usageBtn` (the e2e and unit tests move with them).
+
 ### Switching the live relay over
 
 1. Release a Nota Bene with this change; every user updates.
@@ -154,6 +166,7 @@ new code, and that 4405 retries with backoff.
 - Code format `nbk1_` + seed; members file as JSON with re-read every 2 s; subcommands in the same binary.
 - No key on an open relay is fine; `-members` is opt-in, the live droplet turns it on.
 - A lowered limit closes with 4405, not 4402 (the person's key still works).
+- The gear's dot also shows yellow (connecting) and red (not working), not only green.
 - Revocation and limits apply to connected hosts at once, not only at the next connection.
 
 ## Left to the builder
