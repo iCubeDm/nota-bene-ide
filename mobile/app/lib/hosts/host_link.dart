@@ -40,6 +40,11 @@ class HostLink extends ChangeNotifier {
   LinkState _state = LinkState.connecting;
   DateTime? _lastSeen;
   List<HostWindow> _windows = const [];
+
+  /// Window lists received since the current connection was made: 0 while the host has not listed its windows yet
+  /// (the link is online from the handshake on, the list comes after).
+  int _lists = 0;
+  int get lists => _lists;
   Channel? _channel;
   int _attempt = 0;
   int _gen = 0;
@@ -194,8 +199,10 @@ class HostLink extends ChangeNotifier {
       _channel = ch;
       if (ch.hostName case final n?) onName?.call(n);
       final onlineAt = _clock();
+      _lists = 0;
       final sub = ch.windows.listen((l) {
         _windows = _keepIcons(l);
+        _lists++;
         _notify();
       });
       _set(LinkState.online);

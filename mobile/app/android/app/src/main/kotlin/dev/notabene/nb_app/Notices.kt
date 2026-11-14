@@ -144,7 +144,6 @@ class BackgroundChannel(private val activity: MainActivity, messenger: BinaryMes
                     } else {
                         pendingPermission?.success(false)
                         pendingPermission = result
-                        Notices.markAsked(ctx)
                         ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST)
                     }
                 }
@@ -192,7 +191,11 @@ class BackgroundChannel(private val activity: MainActivity, messenger: BinaryMes
         }
     }
 
-    fun permissionAnswered(granted: Boolean) {
+    /// Android's answer. Only a real refusal counts as asked: a dialog dismissed or interrupted (empty results) may be
+    /// asked again, or the app would stay "denied" for good.
+    fun permissionAnswered(grantResults: IntArray) {
+        val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+        if (grantResults.isNotEmpty() && !granted) Notices.markAsked(activity)
         pendingPermission?.success(granted)
         pendingPermission = null
     }

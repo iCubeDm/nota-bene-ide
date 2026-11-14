@@ -45,6 +45,7 @@
         <service
             android:name=".AgentService"
             android:exported="false"
+            android:stopWithTask="true"
             android:foregroundServiceType="remoteMessaging"/>
         <!-- Serves the one photo the camera app writes into our cache (cache/pick) -->
         <provider

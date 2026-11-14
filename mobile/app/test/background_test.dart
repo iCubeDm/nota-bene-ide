@@ -42,6 +42,7 @@ class Kit {
   late FakeBackground platform;
   late Background bg;
   late String hostId;
+  late Hosts hosts;
   var explained = 0;
 
   HostLink get link => links.all.single;
@@ -53,7 +54,7 @@ class Kit {
     List<HostWindow>? first,
   }) async {
     final v = MemoryVault();
-    final hosts = await Hosts.load(v);
+    hosts = await Hosts.load(v);
     hostId = b64u(List.filled(32, 1));
     await hosts.add(
       PairedHost(
@@ -249,6 +250,58 @@ void main() {
       await t.pump();
       expect(k.platform.of('notify'), isEmpty);
       expect(k.platform.of('startService'), hasLength(1));
+      k.dispose();
+    },
+  );
+
+  testWidgets('check reads the list that comes after the connection', (
+    t,
+  ) async {
+    final k = Kit();
+    await k.start(t);
+    k.visible.visible = false;
+    await t.pump(const Duration(minutes: 10, seconds: 1));
+    final late = FakeChannel();
+    k.f.results.add(late);
+    final done = k.bg.check();
+    await t.pump();
+    late.push([w(replies: 2, text: 'Later.')]);
+    await t.pump();
+    await done;
+    expect(k.platform.of('notify').single['text'], 'Later.');
+    k.dispose();
+  });
+
+  testWidgets(
+    'notifications allowed in Android settings work once the app is back',
+    (t) async {
+      final k = Kit();
+      await k.start(t, answer: 'denied');
+      k.visible.visible = false;
+      await t.pump();
+      k.platform.answer =
+          'granted'; // the user allowed them in Android's settings
+      k.visible.visible = true;
+      await t.pump();
+      await t.pump();
+      k.ch.push([w(busy: true)]);
+      await t.pump();
+      await t.pump();
+      expect(k.platform.of('startService'), hasLength(1));
+      expect(k.platform.of('schedule').map((c) => c['on']).last, isTrue);
+      k.dispose();
+    },
+  );
+
+  testWidgets(
+    'pairing the first host schedules the check; forgetting the last cancels it',
+    (t) async {
+      final k = Kit();
+      await k.start(t);
+      expect(k.platform.of('schedule').map((c) => c['on']), [true]);
+      await k.hosts.forget(k.hostId);
+      await t.pump();
+      expect(k.platform.of('schedule').map((c) => c['on']).last, isFalse);
       k.dispose();
     },
   );

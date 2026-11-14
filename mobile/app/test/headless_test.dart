@@ -89,14 +89,28 @@ void main() {
     },
   );
 
-  test('notifications turned off in Settings: the check posts nothing', () async {
+  test(
+    'notifications turned off in Settings: the check posts nothing',
+    () async {
+      final v = await paired([a]);
+      (await Seen.load(v)).observe(a, [w(1)]);
+      await (await NotifyChoice.load(v)).set(false);
+      final f = FakeFactory()..results.add(FakeChannel([w(2)]));
+      final p = FakeBackground();
+      await runCheck(vault: v, connect: f.factory, platform: p, strings: en);
+      expect(p.of('notify'), isEmpty);
+      expect(f.calls, isEmpty, reason: 'it does not even connect');
+    },
+  );
+
+  test('a list that comes after the connection is still read', () async {
     final v = await paired([a]);
     (await Seen.load(v)).observe(a, [w(1)]);
-    await (await NotifyChoice.load(v)).set(false);
-    final f = FakeFactory()..results.add(FakeChannel([w(2)]));
+    final late = FakeChannel(); // connected, the host's list not sent yet
+    final f = FakeFactory()..results.add(late);
     final p = FakeBackground();
+    Timer(const Duration(milliseconds: 50), () => late.push([w(2)]));
     await runCheck(vault: v, connect: f.factory, platform: p, strings: en);
-    expect(p.of('notify'), isEmpty);
-    expect(f.calls, isEmpty, reason: 'it does not even connect');
+    expect(p.of('notify'), hasLength(1));
   });
 }

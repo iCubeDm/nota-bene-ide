@@ -681,7 +681,7 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == BackgroundChannel.REQUEST) {
-            background?.permissionAnswered(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+            background?.permissionAnswered(grantResults)
             return
         }
         if (requestCode == GALLERY_PERMISSION) {

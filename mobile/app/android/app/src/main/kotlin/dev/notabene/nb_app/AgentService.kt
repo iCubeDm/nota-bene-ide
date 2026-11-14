@@ -15,6 +15,12 @@ import androidx.core.app.ServiceCompat
 class AgentService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
+    // swiped out of the recent apps: the activity's onDestroy is not guaranteed, and the engine with the links is gone
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val title = intent?.getStringExtra("title") ?: ""
         val text = intent?.getStringExtra("text") ?: ""

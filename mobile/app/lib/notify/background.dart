@@ -10,6 +10,7 @@ import '../store/notified.dart';
 import '../store/seen.dart';
 import 'events.dart';
 import 'platform.dart';
+import 'settle.dart';
 import 'visible.dart';
 
 /// Posts [e] as a notification: the project as title, the reply's start (or "waits for you") as text; the lock screen
@@ -82,26 +83,44 @@ class Background {
   bool _wasVisible = true;
 
   Future<void> _init() async {
+    _wasVisible = visible.visible;
+    await _recheck();
+  }
+
+  /// Asks Android again: notifications may have been allowed or blocked in its settings meanwhile.
+  Future<void> _recheck() async {
     final p = await platform.permission();
+    if (_disposed) return;
     _granted = p == 'granted';
     _refused = p == 'denied';
-    _wasVisible = visible.visible;
     await _schedule();
     _changed();
   }
 
-  Future<void> _schedule() =>
-      platform.schedule(_enabled && _granted && links.all.isNotEmpty);
+  /// Whether a host was paired when the check was last scheduled.
+  bool? _hadHosts;
+
+  Future<void> _schedule() {
+    _hadHosts = links.all.isNotEmpty;
+    return platform.schedule(_enabled && _granted && _hadHosts!);
+  }
 
   Future<void> setEnabled(bool on) async {
     _enabled = on;
-    if (!on) await _stop();
-    await _schedule();
-    if (on) _changed();
+    if (!on) {
+      await _stop();
+      await _schedule();
+    } else {
+      await _recheck();
+    }
   }
 
   void _changed() {
     if (_disposed) return;
+    // a first host paired, or the last one forgotten
+    if (_hadHosts != null && _hadHosts != links.all.isNotEmpty) {
+      unawaited(_schedule());
+    }
     final online = [
       for (final l in links.all)
         if (l.state == LinkState.online) l,
@@ -201,6 +220,7 @@ class Background {
         links.resume();
         unawaited(seen.reload());
         unawaited(notified.reload());
+        unawaited(_recheck());
       } else if (!_serviceOn) {
         _pause ??= Timer(hiddenPause, () {
           _pause = null;
@@ -229,22 +249,7 @@ class Background {
     _pause?.cancel();
     _pause = null;
     links.resume();
-    final settled = Completer<void>();
-    void look() {
-      if (links.all.every((l) => l.state != LinkState.connecting) &&
-          !settled.isCompleted) {
-        settled.complete();
-      }
-    }
-
-    links.addListener(look);
-    final timer = Timer(wait, () {
-      if (!settled.isCompleted) settled.complete();
-    });
-    look();
-    await settled.future;
-    timer.cancel();
-    links.removeListener(look);
+    await linksSettled(links, wait);
     _changed();
     if (!visible.visible && !_serviceOn) links.pause();
   }

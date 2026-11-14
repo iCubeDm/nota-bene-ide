@@ -19,6 +19,7 @@ import '../store/vault.dart';
 import 'background.dart' show postEvent;
 import 'events.dart';
 import 'platform.dart';
+import 'settle.dart';
 
 @pragma('vm:entry-point')
 Future<void> backgroundCheck() async {
@@ -61,22 +62,7 @@ Future<void> runCheck({
     sleep: (_) => Completer<void>().future,
   );
   try {
-    final settled = Completer<void>();
-    void look() {
-      if (links.all.every((l) => l.state != LinkState.connecting) &&
-          !settled.isCompleted) {
-        settled.complete();
-      }
-    }
-
-    links.addListener(look);
-    final timer = Timer(wait, () {
-      if (!settled.isCompleted) settled.complete();
-    });
-    look();
-    await settled.future;
-    timer.cancel();
-    links.removeListener(look);
+    await linksSettled(links, wait);
     for (final l in links.all) {
       if (l.state != LinkState.online) continue;
       seen.observe(l.host.id, l.windows);
