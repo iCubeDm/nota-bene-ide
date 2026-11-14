@@ -121,7 +121,8 @@ Every string in all six languages.
   indicator is red and the tab shows the reason in words. Windows back off: after a failed start the next attempt waits
   1, 2, 5, then 10 minutes; a change in the tab (relay, on) starts at once and clears the back-off and the error.
 - **An older connector after an upgrade.** `status` gains `version` (the package version) and `managed`. A managed
-  connector of another version is stopped with `stop` and replaced. One that answers without `version` predates this
+  connector of an older version is stopped with `stop` and replaced (only older: a window of the previous release still
+  open must not replace the new one back). One that answers without `version` predates this
   change and was started by hand (no managed ones existed): it is reused, and the tab says "started in a terminal by an
   older version; restart it there to use the switches", with the switches disabled.
 - **Pairing across windows:** only the window that started a pairing shows its QR and outcome; the others show "a

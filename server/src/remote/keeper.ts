@@ -41,6 +41,19 @@ export type PairOutcome = { result: RemotePairResult; device?: RemoteDevice; fin
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+/** `a` is an older release than `b` (x.y.z; a pre-release before its release). Anything else is not older: left alone. */
+export function olderVersion(a: unknown, b: string): boolean {
+  const parse = (v: unknown) => {
+    const m = typeof v === 'string' ? /^(\d+)\.(\d+)\.(\d+)(-.+)?$/.exec(v) : null;
+    return m ? { n: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ?? null } : null;
+  };
+  const x = parse(a);
+  const y = parse(b);
+  if (!x || !y) return false;
+  for (let i = 0; i < 3; i++) if (x.n[i] !== y.n[i]) return x.n[i]! < y.n[i]!;
+  return x.pre !== null && (y.pre === null || x.pre < y.pre);
+}
+
 /** What a detached connector gets: what it needs to find this user's state, and nothing of the window's secrets. */
 function connectorEnv(): NodeJS.ProcessEnv {
   const keep = ['PATH', 'HOME', 'TMPDIR', 'NOTA_BENE_HOME', 'NOTA_BENE_ALLOW_SHARED_HOME',
@@ -247,8 +260,9 @@ export class RemoteKeeper extends EventEmitter {
       }
       cfg = readConfig();
       let st = await this.#ask({ op: 'status' });
-      // a managed connector of another version (the package was updated): replaced by one of this version
-      if (st && st.managed === true && this.#o.version && st.version !== this.#o.version) {
+      // a managed connector of an older version (the package was updated): replaced by one of this version. Only older: a
+      // window of the previous release still open must not replace the new one back, every few seconds
+      if (st && st.managed === true && this.#o.version && olderVersion(st.version, this.#o.version)) {
         await this.#stopConnector();
         st = null;
       }

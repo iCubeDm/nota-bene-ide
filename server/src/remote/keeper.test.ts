@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Connector } from './connector.ts';
 import { Windows } from './discover.ts';
-import { BACKOFF_MS, LegacyConnector, RemoteKeeper, type PairOutcome } from './keeper.ts';
+import { BACKOFF_MS, LegacyConnector, olderVersion, RemoteKeeper, type PairOutcome } from './keeper.ts';
 import { generateKeyPair } from './noise.ts';
 import { b64u, pairProof, pairTicket, parsePairUri, readConfig, remoteDir, writeConfig, writeLastError } from './store.ts';
 import { relayPhone } from './testPhone.ts';
@@ -143,7 +143,28 @@ describe('remote keeper', () => {
     expect(spawns).toEqual([]);
   });
 
-  it('a managed connector of another version is replaced', async () => {
+  it('versions: only an older release is older', () => {
+    expect(olderVersion('1.10.0', '1.11.0')).toBe(true);
+    expect(olderVersion('1.9.9', '1.10.0')).toBe(true);
+    expect(olderVersion('1.11.0-rc.1', '1.11.0')).toBe(true);
+    expect(olderVersion('1.11.0', '1.11.0')).toBe(false);
+    expect(olderVersion('1.12.0', '1.11.0')).toBe(false);
+    expect(olderVersion(undefined, '1.11.0')).toBe(false);
+    expect(olderVersion('dev', '1.11.0')).toBe(false);
+  });
+
+  it('a newer managed connector is kept by a window of the previous release', async () => {
+    writeConfig({ relay: relay.url });
+    const newer = await connector({ managed: true, version: '10.0.0' });
+    const exits: string[] = [];
+    newer.on('exit', (w: string) => exits.push(w));
+    const { k, spawns } = keeper();
+    expect(await k.refresh()).toMatchObject({ running: true });
+    expect(exits).toEqual([]);
+    expect(spawns).toEqual([]);
+  });
+
+  it('a managed connector of an older version is replaced', async () => {
     writeConfig({ relay: relay.url });
     const old = await connector({ managed: true, version: '0.0.1' });
     const exits: string[] = [];
