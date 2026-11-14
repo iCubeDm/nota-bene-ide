@@ -139,7 +139,9 @@ async function main(): Promise<void> {
       ...(!native && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),
       ...(nonce ? { nonce } : {}),
       audit: {},
-      remote: remoteKeeper(),
+      // only a launcher's window is in the registry the connector serves: one outside it (npm run dev, a test server) would
+      // start a connector that finds no window and exits within a minute, again and again
+      ...(process.env.NOTA_BENE_SUPERVISED === '1' ? { remote: remoteKeeper() } : {}),
     });
   } catch (e) {
     if ((e as NodeJS.ErrnoException).syscall !== 'listen') throw e;

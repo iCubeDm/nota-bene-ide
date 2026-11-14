@@ -12,6 +12,7 @@ import path from 'node:path';
 import type { RemoteDevice, RemotePairResult, RemoteState } from '@nota-bene/shared';
 import { renderSVG } from 'uqr';
 import { HIDDEN, renameRetry } from '../platform.ts';
+import { stateBaseDir } from '../state.ts';
 import { readLock, takeLockFile } from '../runtime.ts';
 import { controlClient, running, type ControlClient, type Msg } from './control.ts';
 import {
@@ -237,6 +238,13 @@ export class RemoteKeeper extends EventEmitter {
   async #ensure(): Promise<RemoteState> {
     let cfg: RemoteConfig = {};
     try {
+      // never set up: nothing to ask, and nothing is created (remote/, and on Windows the pipe's secret) by asking.
+      // A connector needs a saved relay, so none runs without this file.
+      if (!fs.existsSync(path.join(stateBaseDir(), 'remote', 'config.json'))) {
+        this.#wasRunning = false;
+        this.#publish(this.#compute(cfg, null, []));
+        return this.#state;
+      }
       cfg = readConfig();
       let st = await this.#ask({ op: 'status' });
       // a managed connector of another version (the package was updated): replaced by one of this version
@@ -264,11 +272,11 @@ export class RemoteKeeper extends EventEmitter {
     return this.#state;
   }
 
-  #compute(cfg: RemoteConfig, st: Msg | null): RemoteState {
+  #compute(cfg: RemoteConfig, st: Msg | null, none?: []): RemoteState {
     const pairing = st?.pairing as { expiresAt?: unknown } | null | undefined;
-    const devices = st
+    const devices = none ?? (st
       ? ((st.devices as Msg[]) ?? []).map(device)
-      : readDevices().map((d) => ({ id: d.id, ...(d.name ? { name: d.name } : {}), fingerprint: fingerprint(fromB64u(d.pub, 32)), online: false, pairedAt: d.addedAt }));
+      : readDevices().map((d) => ({ id: d.id, ...(d.name ? { name: d.name } : {}), fingerprint: fingerprint(fromB64u(d.pub, 32)), online: false, pairedAt: d.addedAt })));
     return {
       configured: !!cfg.relay,
       enabled: cfg.enabled !== false,
@@ -279,7 +287,7 @@ export class RemoteKeeper extends EventEmitter {
       devices,
       pairing: pairing && typeof pairing.expiresAt === 'number' ? { expiresAt: pairing.expiresAt, mine: !!this.#pairClient } : null,
       legacy: !!st && st.version === undefined,
-      lastError: readLastError(),
+      lastError: none ? null : readLastError(),
       startFailed: this.#startFailed,
     };
   }

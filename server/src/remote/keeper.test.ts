@@ -86,6 +86,7 @@ describe('remote keeper', () => {
     const s = await k.refresh();
     expect(spawns).toEqual([]);
     expect(s).toMatchObject({ configured: false, running: false });
+    expect(fs.existsSync(path.join(process.env.NOTA_BENE_HOME!, 'remote'))).toBe(false); // asking created nothing
   });
 
   it('a saved relay starts one connector, which goes online', async () => {
