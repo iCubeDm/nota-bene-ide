@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Notifications on the phone.** The Android app tells you when an agent finishes a reply or waits for you, and a tap opens that chat. While an agent works it keeps its connection in the background (a quiet line in the notification shade, gone five minutes after the agents stop); otherwise it looks every 15 minutes. Settings → Notifications turns it off. See [Remote access](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#the-android-app-prototype).
+
 - **Zoom while marking up on the phone.** Marking up a picture or a video frame on the phone keeps the zoom: one finger draws, two fingers zoom and move the picture, so small marks land where you mean them.
 
 ## 1.11.0 — 2026-11-14

@@ -13,6 +13,7 @@ import '../pairing/pair_flow.dart' show ChannelFactory, connectChannel;
 import '../store/hosts.dart';
 import '../store/lang_choice.dart';
 import '../store/notified.dart';
+import '../store/notify_choice.dart';
 import '../store/seen.dart';
 import '../store/vault.dart';
 import 'background.dart' show postEvent;
@@ -46,6 +47,7 @@ Future<void> runCheck({
   required AppLocalizations strings,
   Duration wait = const Duration(seconds: 20),
 }) async {
+  if (!(await NotifyChoice.load(vault)).on) return;
   final hosts = await Hosts.load(vault);
   if (hosts.all.isEmpty) return;
   final id = await Identity.load(vault);

@@ -19,6 +19,7 @@ import 'pairing/scan_screen.dart';
 import 'settings_screen.dart';
 import 'store/hosts.dart';
 import 'store/notified.dart';
+import 'store/notify_choice.dart';
 import 'store/seen.dart';
 import 'store/lang_choice.dart';
 import 'store/sizes.dart';
@@ -88,7 +89,14 @@ class _AppRootState extends State<AppRoot> {
   /// start screen listens (a launch is known before it is built).
   final _opened = StreamController<ChatPlace>();
   late final Future<
-    ({Identity id, Hosts hosts, Seen seen, Links links, Background background})
+    ({
+      Identity id,
+      Hosts hosts,
+      Seen seen,
+      Links links,
+      Background background,
+      NotifyChoice notify,
+    })
   >
   _load = () async {
     final v = SecureVault();
@@ -96,6 +104,7 @@ class _AppRootState extends State<AppRoot> {
     final hosts = await Hosts.load(v);
     final seen = await Seen.load(v);
     final notified = await Notified.load(v);
+    final notify = await NotifyChoice.load(v);
     final links = Links(hosts, connectChannel, id);
     seen.watch(hosts, links);
     hosts.addListener(() => notified.prune({for (final h in hosts.all) h.id}));
@@ -110,6 +119,7 @@ class _AppRootState extends State<AppRoot> {
             resolveLocale(PlatformDispatcher.instance.locales),
       ),
       explain: _explain,
+      enabled: notify.on,
     );
     _platform.opened.listen(_opened.add);
     unawaited(
@@ -123,6 +133,7 @@ class _AppRootState extends State<AppRoot> {
       seen: seen,
       links: links,
       background: background,
+      notify: notify,
     );
   }();
 
@@ -209,6 +220,11 @@ class _AppRootState extends State<AppRoot> {
               langs: widget.langs,
               voiceLang: widget.voiceLang,
               sizes: widget.sizes,
+              notify: NotifySettings(
+                choice: d.notify,
+                platform: _platform,
+                apply: d.background.setEnabled,
+              ),
               onPair: pair,
             ),
           ),

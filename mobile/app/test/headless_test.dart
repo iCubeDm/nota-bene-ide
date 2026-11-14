@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/l10n/app_localizations.dart';
 import 'package:nb_app/notify/headless.dart';
 import 'package:nb_app/store/hosts.dart';
+import 'package:nb_app/store/notify_choice.dart';
 import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_channel/nb_channel.dart';
@@ -87,4 +88,15 @@ void main() {
       expect(p.of('notify').single['hostId'], b);
     },
   );
+
+  test('notifications turned off in Settings: the check posts nothing', () async {
+    final v = await paired([a]);
+    (await Seen.load(v)).observe(a, [w(1)]);
+    await (await NotifyChoice.load(v)).set(false);
+    final f = FakeFactory()..results.add(FakeChannel([w(2)]));
+    final p = FakeBackground();
+    await runCheck(vault: v, connect: f.factory, platform: p, strings: en);
+    expect(p.of('notify'), isEmpty);
+    expect(f.calls, isEmpty, reason: 'it does not even connect');
+  });
 }
