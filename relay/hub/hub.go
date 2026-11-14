@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"log/slog"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,7 @@ const (
 	codeMalformed   = websocket.StatusCode(4400)
 	codeBadProof    = websocket.StatusCode(4401)
 	codeHostRefused = websocket.StatusCode(4402)
+	codeKeyLimit    = websocket.StatusCode(4405)
 	codeNotAllowed  = websocket.StatusCode(4403)
 	codeHostOffline = websocket.StatusCode(4404)
 	codeTooSlow     = websocket.StatusCode(4408)
@@ -40,9 +42,14 @@ type Options struct {
 	// (parked, queued and in flight). Over it, pushes wait and new
 	// connections are refused with 4429.
 	TotalBytes int
-	// Admit, when set, is asked about every proven host id; false refuses it
-	// with 4402. ctx ends at the hello deadline or at server shutdown.
-	Admit func(ctx context.Context, hostID string) bool
+	// Admit, when set, is asked about every proven host id with the member key
+	// its hello was signed with (nil when it carries none; a member key whose
+	// signature fails is refused with 4402 before Admit is asked). ok false
+	// refuses the host with 4402; hosts > 0 is how many hosts that member key may
+	// have connected at once (more are refused with 4405). Without Admit the
+	// member fields are ignored. ctx ends at the hello deadline or at server
+	// shutdown.
+	Admit func(ctx context.Context, hostID string, member *[32]byte) (hosts int, ok bool)
 	// Log receives counts and close codes only. Nil discards.
 	Log *slog.Logger
 }
@@ -66,8 +73,12 @@ type Server struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	mu    sync.Mutex // guards hosts
+	mu    sync.Mutex // guards hosts and seq
 	hosts map[string]*host
+	seq   uint64 // admission order of hosts
+	// revoked is the seq at a member key's last Revoke: a host whose Admit was
+	// answered before it must not register after it.
+	revoked map[[32]byte]uint64
 
 	pending chan struct{} // semaphore of connections still in the challenge; nil = unlimited
 	budget  *budget       // hub-wide data bytes; nil = unlimited
@@ -132,9 +143,11 @@ func (s *Server) TakeCloses() map[CloseKey]int {
 
 // host is one admitted host connection and its devices.
 type host struct {
-	id   string
-	p    *peer
-	slow time.Duration // how long a frame may wait for a device's queue
+	id     string
+	member *[32]byte // the member key it was admitted with; nil on an open hub
+	seq    uint64    // admission order, set by register
+	p      *peer
+	slow   time.Duration // how long a frame may wait for a device's queue
 
 	mu      sync.Mutex // guards everything below
 	closed  bool
@@ -315,13 +328,35 @@ func (h *host) shutdown() {
 // register makes h the host for its id, replacing and closing any previous
 // one, then confirms to the host. The confirmation is queued under the lock so
 // it precedes any "open" a device can trigger.
-func (s *Server) register(h *host) bool {
+// register adds an admitted host, replacing a connected one with the same id.
+// It refuses with codeLimit when the hub is full and with codeKeyLimit when
+// the host's member key already has limit other hosts connected (the replaced
+// host does not count); 0 means registered.
+func (s *Server) register(h *host, limit int, asked uint64) websocket.StatusCode {
 	s.mu.Lock()
+	if h.member != nil && s.revoked[*h.member] > asked {
+		s.mu.Unlock()
+		return codeHostRefused
+	}
 	old := s.hosts[h.id]
 	if old == nil && s.o.MaxHosts > 0 && len(s.hosts) >= s.o.MaxHosts {
 		s.mu.Unlock()
-		return false
+		return codeLimit
 	}
+	if h.member != nil && limit > 0 {
+		n := 0
+		for _, o := range s.hosts {
+			if o != old && o.member != nil && *o.member == *h.member {
+				n++
+			}
+		}
+		if n >= limit {
+			s.mu.Unlock()
+			return codeKeyLimit
+		}
+	}
+	s.seq++
+	h.seq = s.seq
 	s.hosts[h.id] = h
 	h.p.sendJSON(map[string]any{"t": "ok"})
 	s.mu.Unlock()
@@ -329,10 +364,64 @@ func (s *Server) register(h *host) bool {
 		old.p.closeWith(codeReplaced)
 		old.shutdown()
 	}
-	return true
+	return 0
 }
 
-// unregister drops h if it is still the registered host, then closes its devices.
+// memberHosts returns the hosts admitted with member, oldest first. s.mu held.
+func (s *Server) memberHosts(member [32]byte) []*host {
+	var list []*host
+	for _, h := range s.hosts {
+		if h.member != nil && *h.member == member {
+			list = append(list, h)
+		}
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].seq < list[j].seq })
+	return list
+}
+
+// admissionMark is the point a later Revoke is measured against (see register).
+func (s *Server) admissionMark() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.seq
+}
+
+// Revoke closes every host admitted with the member key with 4402, and refuses
+// one whose admission is under way. The caller makes Admit refuse it from now.
+func (s *Server) Revoke(member [32]byte) {
+	s.mu.Lock()
+	s.seq++
+	if s.revoked == nil {
+		s.revoked = map[[32]byte]uint64{}
+	}
+	s.revoked[member] = s.seq
+	list := s.memberHosts(member)
+	s.mu.Unlock()
+	for _, h := range list {
+		h.p.closeWith(codeHostRefused)
+		h.shutdown()
+	}
+}
+
+// Limit applies a lowered host limit to connected hosts: those admitted with
+// the member key beyond the first hosts, the most recent first, are closed with
+// 4405. hosts <= 0 means no limit.
+func (s *Server) Limit(member [32]byte, hosts int) {
+	if hosts <= 0 {
+		return
+	}
+	s.mu.Lock()
+	list := s.memberHosts(member)
+	s.mu.Unlock()
+	if len(list) <= hosts {
+		return
+	}
+	for _, h := range list[hosts:] {
+		h.p.closeWith(codeKeyLimit)
+		h.shutdown()
+	}
+}
+
 func (s *Server) unregister(h *host) {
 	s.mu.Lock()
 	if s.hosts[h.id] == h {

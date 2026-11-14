@@ -3,6 +3,7 @@
 package hub
 
 import (
+	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -68,6 +69,54 @@ func (c Challenge) Verify(role string, pub [32]byte, proof []byte) bool {
 // other than "host" or "device" or for a degenerate ephPub.
 func Proof(role string, priv, ephPub, nonce [32]byte) []byte {
 	return mac(role, priv, ephPub, nonce)
+}
+
+const memberLabel = "nb-relay-v1 member"
+
+// memberMessage is what a member key signs in a host hello: the label, then the
+// challenge's nonce and eph and the host's key, so a signature admits only this
+// host key on this connection.
+func memberMessage(nonce, eph, hostKey [32]byte) []byte {
+	m := make([]byte, 0, len(memberLabel)+96)
+	m = append(m, memberLabel...)
+	m = append(m, nonce[:]...)
+	m = append(m, eph[:]...)
+	return append(m, hostKey[:]...)
+}
+
+// MemberPub is the public half of a member key given by its 32-byte seed.
+func MemberPub(seed [32]byte) [32]byte {
+	var pub [32]byte
+	copy(pub[:], ed25519.NewKeyFromSeed(seed[:]).Public().(ed25519.PublicKey))
+	return pub
+}
+
+// MemberSign is the client side of the member signature (Ed25519, 64 bytes).
+func MemberSign(seed [32]byte, nonce, eph, hostKey [32]byte) []byte {
+	return ed25519.Sign(ed25519.NewKeyFromSeed(seed[:]), memberMessage(nonce, eph, hostKey))
+}
+
+// VerifyMember reports whether sig is the member key pub's signature for this
+// challenge and host key.
+func VerifyMember(pub [32]byte, nonce, eph, hostKey [32]byte, sig []byte) bool {
+	return len(sig) == ed25519.SignatureSize && ed25519.Verify(pub[:], memberMessage(nonce, eph, hostKey), sig)
+}
+
+// sigLen is the length of 64 bytes in unpadded base64url.
+const sigLen = 86
+
+func decodeSig(s string) ([]byte, error) {
+	if len(s) != sigLen {
+		return nil, errors.New("signature must be 86 base64url characters")
+	}
+	raw, err := b64.Strict().DecodeString(s)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) != ed25519.SignatureSize {
+		return nil, errors.New("signature must be 64 bytes")
+	}
+	return raw, nil
 }
 
 // HostID is the host's public key as base64url without padding.
