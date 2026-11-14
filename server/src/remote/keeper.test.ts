@@ -203,6 +203,7 @@ describe('remote keeper', () => {
     let now = 1_000_000;
     const { k, spawns } = keeper({ now: () => now });
     expect(await k.refresh()).toMatchObject({ running: true });
+    await until(async () => (await k.refresh()).online); // going online clears a refusal: it comes after that
     // what a refused connector does: it writes why and exits
     writeLastError({ code: 4402, message: 'the relay does not admit this host', at: now });
     await started.pop()!.stop();
