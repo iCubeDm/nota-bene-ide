@@ -8,6 +8,7 @@ import 'hosts/host_link.dart';
 import 'hosts/hosts_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'lock/lock.dart';
+import 'notify/visible.dart';
 import 'pairing/pair_flow.dart';
 import 'pairing/scan_screen.dart';
 import 'settings_screen.dart';
@@ -74,6 +75,7 @@ class AppRoot extends StatefulWidget {
 }
 
 class _AppRootState extends State<AppRoot> {
+  final _visible = AppVisible();
   late final Future<({Identity id, Hosts hosts, Seen seen, Links links})>
   _load = () async {
     final v = SecureVault();
@@ -88,6 +90,7 @@ class _AppRootState extends State<AppRoot> {
   @override
   void dispose() {
     _load.then((d) => d.links.dispose(), onError: (Object _) {});
+    _visible.dispose();
     super.dispose();
   }
 
@@ -147,7 +150,13 @@ class _AppRootState extends State<AppRoot> {
           final link = d.links.of(hostId);
           return link == null
               ? Scaffold(appBar: AppBar(title: Text(folderOf(w.root))))
-              : ChatRoute(link: link, port: w.port, root: w.root, seen: d.seen);
+              : ChatRoute(
+                  link: link,
+                  port: w.port,
+                  root: w.root,
+                  seen: d.seen,
+                  visible: _visible,
+                );
         },
       );
     },
