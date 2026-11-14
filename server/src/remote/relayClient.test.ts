@@ -1,9 +1,13 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket, { WebSocketServer } from 'ws';
 import { generateKeyPair, publicOf, type KeyPair } from './noise.ts';
 import { relayProof, RelayClient } from './relayClient.ts';
 import { b64u, deviceHash, fromB64u, hostId } from './store.ts';
-import { startRelay, type TestRelay } from './testRelay.ts';
+import { inviteMember, startRelay, type TestRelay } from './testRelay.ts';
+import { parseAccessKey } from './store.ts';
 
 const seq = (from: number) => Buffer.from(Array.from({ length: 32 }, (_, i) => from + i));
 const until = async (cond: () => boolean, ms = 5000) => {
@@ -32,9 +36,10 @@ function device(url: string, host: Buffer, key: KeyPair, ticket?: Buffer) {
   return { ws, got, state };
 }
 
-function host(url: string, key: KeyPair, list: string[] = [], ticket: Buffer | null = null) {
-  const c = new RelayClient({ url, key, devices: () => list, ticket: () => ticket, backoff: { minMs: 50, maxMs: 200 } });
-  const ev = { online: 0, offline: [] as number[], opens: [] as [number, string][], gone: [] as number[], frames: [] as [number, Buffer][], fatal: [] as string[] };
+function host(url: string, key: KeyPair, list: string[] = [], ticket: Buffer | null = null, member: () => Buffer | null = () => null) {
+  const c = new RelayClient({ url, key, devices: () => list, ticket: () => ticket, member, backoff: { minMs: 50, maxMs: 200 } });
+  const ev = { online: 0, offline: [] as number[], opens: [] as [number, string][], gone: [] as number[], frames: [] as [number, Buffer][], fatal: [] as string[], limited: 0 };
+  c.on('limited', () => ev.limited++);
   c.on('online', () => ev.online++);
   c.on('offline', (code: number) => ev.offline.push(code));
   c.on('open', (conn: number, dev: string) => ev.opens.push([conn, dev]));
@@ -150,5 +155,59 @@ describe('relay client', () => {
     await c.stop();
     for (const ws of wss.clients) ws.terminate();
     await new Promise((r) => wss.close(r));
+  });
+});
+
+describe('relay client with access keys', () => {
+  let keyed: TestRelay;
+  let dir: string;
+  let alice: Buffer, bob: Buffer;
+  beforeAll(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-members-'));
+    const file = path.join(dir, 'members.json');
+    alice = parseAccessKey(await inviteMember(file, 'alice', 1));
+    bob = parseAccessKey(await inviteMember(file, 'bob', 1));
+    keyed = await startRelay({ members: file });
+  }, 120_000);
+  afterAll(async () => {
+    await keyed?.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('a keyed relay admits a signed hello and refuses an unsigned one for good, saying why', async () => {
+    const signed = host(keyed.url, generateKeyPair(), [], null, () => alice);
+    await until(() => signed.ev.online === 1);
+    const bare = host(keyed.url, generateKeyPair());
+    await until(() => bare.ev.fatal.length === 1);
+    expect(bare.ev.fatal[0]).toMatch(/access key is missing, unknown or revoked/);
+    await signed.c.stop();
+  });
+
+  it('over the key\'s limit: 4405 is retried, and the host gets in once a slot is free', async () => {
+    const first = host(keyed.url, generateKeyPair(), [], null, () => alice);
+    await until(() => first.ev.online === 1);
+    const second = host(keyed.url, generateKeyPair(), [], null, () => alice);
+    await until(() => second.ev.limited >= 2);
+    expect(second.ev.fatal).toEqual([]);
+    await first.c.stop();
+    await until(() => second.ev.online === 1);
+    await second.c.stop();
+  });
+
+  it('reconnect connects now with the key it reads then', async () => {
+    let key: Buffer | null = alice;
+    const blocker = host(keyed.url, generateKeyPair(), [], null, () => alice);
+    await until(() => blocker.ev.online === 1);
+    const h = new RelayClient({ url: keyed.url, key: generateKeyPair(), devices: () => [], ticket: () => null, member: () => key, backoff: { minMs: 5000, maxMs: 5000 } });
+    let limited = 0, online = 0;
+    h.on('limited', () => limited++);
+    h.on('online', () => online++);
+    h.start();
+    await until(() => limited === 1);
+    key = bob;
+    h.reconnect(); // without it the next try is 5 s away
+    await until(() => online === 1, 2000);
+    await h.stop();
+    await blocker.c.stop();
   });
 });

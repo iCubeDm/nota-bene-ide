@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publicOf } from './noise.ts';
 import {
   addDevice, b64u, controlSecret, deviceHash, fingerprint, fromB64u, hostId, hostKey, pairProof, pairTicket, pairUri, parsePairUri,
-  clearLastError, readConfig, readDevices, readLastError, remoteDir, removeDevice, writeConfig, writeLastError,
+  clearLastError, memberPub, memberSign, parseAccessKey, readAccessKey, readConfig, readDevices, readLastError, remoteDir, removeDevice,
+  writeAccessKey, writeConfig, writeLastError,
 } from './store.ts';
 
 const WIN = process.platform === 'win32';
@@ -177,5 +178,39 @@ describe('remote store', () => {
     expect(t['pairing proof']).toBe(b64u(pairProof(secret, examplePhone)));
     expect(t['device fingerprint']).toBe(fingerprint(examplePhone));
     expect(pairTicket(secret).equals(pairProof(secret, examplePhone))).toBe(false);
+  });
+});
+
+describe('access key', () => {
+  // relay/PROTOCOL.md's worked example: access key seed = bytes 0x41..0x60, host private key = 0x21..0x40
+  const code = `nbk1_${b64u(seq(0x41))}`;
+
+  it('parses a code; refuses another shape without repeating it', () => {
+    expect(parseAccessKey(` ${code}\n`)).toEqual(seq(0x41));
+    expect(() => parseAccessKey('nbremote://pair?v=1&r=x')).toThrow(/phone pairing code/);
+    for (const bad of ['nbk2_' + b64u(seq(0x41)), code.slice(0, -1), b64u(seq(0x41)), `${code}x`]) {
+      expect(() => parseAccessKey(bad)).toThrow(/starts with nbk1_ and has 48 characters/);
+      try { parseAccessKey(bad); } catch (e) { expect((e as Error).message).not.toContain(bad); }
+    }
+  });
+
+  it('is saved readable by its owner only, read back, and removed', () => {
+    expect(readAccessKey()).toBeNull();
+    writeAccessKey(code);
+    expect(readAccessKey()).toEqual(seq(0x41));
+    if (!WIN) expect(fs.statSync(path.join(remoteDir(), 'access-key')).mode & 0o777).toBe(0o600);
+    expect(() => writeAccessKey('nope')).toThrow(/nbk1_/);
+    expect(readAccessKey()).toEqual(seq(0x41));
+    writeAccessKey(null);
+    expect(readAccessKey()).toBeNull();
+  });
+
+  it('signs as in the relay protocol example', () => {
+    const doc = fs.readFileSync(new URL('../../../relay/PROTOCOL.md', import.meta.url), 'utf8');
+    const row = (item: string) => new RegExp(`\\| ${item.replace(/[()`]/g, '\\$&')}[^|]*\\| \`([^\`]+)\` \\|`).exec(doc)![1]!;
+    const seed = fromB64u(row('access key seed'), 32);
+    expect(b64u(memberPub(seed))).toBe(row('`member`'));
+    const sig = memberSign(seed, fromB64u(row('challenge `nonce`'), 32), fromB64u(row('challenge `eph`'), 32), publicOf(seq(0x21)));
+    expect(b64u(sig)).toBe(row('host `sig`'));
   });
 });

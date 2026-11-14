@@ -13,9 +13,9 @@ import { DeviceChannel } from './device.ts';
 import { Windows } from './discover.ts';
 import { closeControl, running, serveControl, write, type Msg } from './control.ts';
 import type { KeyPair } from './noise.ts';
-import { RelayClient } from './relayClient.ts';
+import { KEY_LIMIT, KEY_LIMIT_MESSAGE, RelayClient } from './relayClient.ts';
 import {
-  addDevice, b64u, clearLastError, deviceHash, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readDevices, removeDevice, writeLastError, type Device,
+  addDevice, b64u, clearLastError, deviceHash, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readAccessKey, readDevices, removeDevice, writeLastError, type Device,
 } from './store.ts';
 
 const MAX_DEVICES = 32; // the relay's limit for a device list
@@ -35,6 +35,7 @@ export class Connector extends EventEmitter {
   #backoff: { minMs: number; maxMs: number } | undefined;
   #key!: KeyPair;
   #relay!: RelayClient;
+  #keyWarned = false;
   #server: net.Server | undefined;
   #channels = new Map<number, { ch: DeviceChannel; hash: string }>();
   #pairing: Pairing | undefined;
@@ -78,6 +79,7 @@ export class Connector extends EventEmitter {
       key: this.#key,
       devices: () => this.#hashes(),
       ticket: () => (this.#pairing ? pairTicket(this.#pairing.secret) : null),
+      member: () => this.#accessKey(),
       ...(this.#backoff ? { backoff: this.#backoff } : {}),
     });
     this.#relay.on('online', () => {
@@ -88,6 +90,11 @@ export class Connector extends EventEmitter {
     this.#relay.on('offline', (code: number) => {
       this.#log(`offline (relay closed with ${code}); reconnecting`);
       this.emit('offline', code);
+    });
+    this.#relay.on('limited', () => {
+      // the windows say why while it retries; going online clears it
+      writeLastError({ code: KEY_LIMIT, message: KEY_LIMIT_MESSAGE, at: Date.now() });
+      this.#log(`${KEY_LIMIT_MESSAGE}; retrying`);
     });
     this.#relay.on('fatal', (code: number, message: string) => {
       writeLastError({ code, message, at: Date.now() }); // the windows say why, and wait before they start another
@@ -226,6 +233,19 @@ export class Connector extends EventEmitter {
     return { ok: true, device: { ...this.#view(d), online: false } };
   }
 
+  /** The saved access key, read for every relay connection; a broken file is reported once and the hello goes unsigned. */
+  #accessKey(): Buffer | null {
+    try {
+      const k = readAccessKey();
+      this.#keyWarned = false;
+      return k;
+    } catch (e) {
+      if (!this.#keyWarned) this.#log((e as Error).message);
+      this.#keyWarned = true;
+      return null;
+    }
+  }
+
   #control(m: Msg, sock: net.Socket): void {
     switch (m.op) {
       case 'status':
@@ -235,6 +255,11 @@ export class Connector extends EventEmitter {
           ...(this.#version ? { version: this.#version } : {}), managed: this.#managed,
           pairing: this.#pairing && !this.#pairing.used ? { expiresAt: this.#pairing.expiresAt } : null,
         });
+      case 'reconnect':
+        // a new access key: connect with it now
+        write(sock, { ok: true });
+        this.#log('reconnecting with the saved access key');
+        return void this.#relay.reconnect();
       case 'stop':
         write(sock, { ok: true });
         this.#log('asked to stop over the control socket');

@@ -5,13 +5,14 @@ import path from 'node:path';
 import { renderUnicodeCompact } from 'uqr';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient, type Msg } from './control.ts';
-import { readConfig, writeConfig } from './store.ts';
+import { readConfig, writeAccessKey, writeConfig } from './store.ts';
 
 export const REMOTE_USAGE = 'Usage: nota-bene remote [--relay wss://HOST]   run the connector in the foreground (the relay is saved)\n'
   + '       nota-bene remote pair                    show a QR code to pair a phone\n'
   + '       nota-bene remote devices                 list the paired phones\n'
   + '       nota-bene remote revoke ID               unpair a phone and cut it off\n'
   + '       nota-bene remote status\n'
+  + '       nota-bene remote key [--clear]           save the relay access key you were given (read from stdin), or remove it\n'
   + '(a folder named remote opens with `nota-bene ./remote`)';
 
 /** The package's version, for `status` (a window replaces a connector it started from another version). Here and in the
@@ -25,8 +26,69 @@ function packageVersion(): string | undefined {
   }
 }
 
-type Io = { out: (s: string) => void; err: (s: string) => void };
-const stdio: Io = { out: (s) => void process.stdout.write(s), err: (s) => void process.stderr.write(s) };
+type Io = { out: (s: string) => void; err: (s: string) => void; input?: (prompt: string) => Promise<string> };
+const stdio: Io = { out: (s) => void process.stdout.write(s), err: (s) => void process.stderr.write(s), input: readSecret };
+
+/** One line from stdin; on a terminal the typed characters are not echoed. */
+function readSecret(prompt: string): Promise<string> {
+  const stdin = process.stdin;
+  return new Promise((resolve, reject) => {
+    let line = '';
+    const done = (v: string) => {
+      stdin.off('data', onData);
+      stdin.off('end', onEnd);
+      if (stdin.isTTY) stdin.setRawMode(false);
+      stdin.pause();
+      resolve(v);
+    };
+    const onEnd = () => done(line);
+    const onData = (d: Buffer) => {
+      for (const ch of d.toString('utf8')) {
+        if (ch === '\u0003') { // Ctrl+C on a raw terminal
+          if (stdin.isTTY) stdin.setRawMode(false);
+          return reject(new Error('interrupted'));
+        }
+        if (ch === '\r' || ch === '\n') {
+          if (stdin.isTTY) process.stderr.write('\n');
+          return done(line);
+        }
+        if (ch === '\u007f' || ch === '\b') line = line.slice(0, -1);
+        else line += ch;
+      }
+    };
+    process.stderr.write(prompt);
+    if (stdin.isTTY) stdin.setRawMode(true);
+    stdin.on('data', onData);
+    stdin.once('end', onEnd);
+    stdin.resume();
+  });
+}
+
+/** Saves or removes the access key; a running connector reconnects with it. */
+async function key(rest: string[], io: Io): Promise<number> {
+  try {
+    if (rest[0] === '--clear') {
+      writeAccessKey(null);
+      io.out('access key removed\n');
+    } else {
+      const code = await (io.input ?? readSecret)('Access key (nbk1_…): ');
+      writeAccessKey(code);
+      io.out('access key saved\n');
+    }
+  } catch (e) {
+    io.err(`nota-bene: ${(e as Error).message}\n`);
+    return 1;
+  }
+  let cl: ControlClient | undefined;
+  try {
+    cl = await controlClient();
+    cl.send({ op: 'reconnect' });
+    await cl.next();
+  } catch { /* not running: the next start uses it */ } finally {
+    cl?.close();
+  }
+  return 0;
+}
 
 async function connect(io: Io): Promise<ControlClient | null> {
   try {
@@ -141,6 +203,7 @@ export async function remoteMain(argv: string[], io: Io = stdio): Promise<number
   }
   if (cmd === undefined || cmd.startsWith('--')) return run(argv, io);
   if (cmd === 'pair' && rest.length === 0) return pair(io);
+  if (cmd === 'key' && (rest.length === 0 || (rest.length === 1 && rest[0] === '--clear'))) return key(rest, io);
   if (cmd === 'devices' && rest.length === 0) {
     const r = await ask(io, { op: 'devices' });
     if (!r) return 1;
