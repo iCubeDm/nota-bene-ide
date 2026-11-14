@@ -144,7 +144,36 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 18: spoken-language detection: `send.detect` (a voice send asks the server to detect the language; `lang` is then the hint), `voice-text.lang`, `user.voiceLang` (the language a replayed voice message was transcribed in) and `hello.dictationLang` (the host's dictation language, `auto` or a code).
 // (Other additions to protocol 15, such as optional Interaction fields and the `task` event's optional `model`, are listed beside this line by their own changes.)
 // 19: comment ops: the client's `comment-op` (add / edit / remove, idempotent) answered by `comments.ack` or, for a session the window does not show, `comment-ack`, or by `comment-refused`; `comments.rev`. An older server gets whole sets (`comments`) as before.
-export const PROTOCOL = 19;
+// 20: remote access from the window: the server's `remote` (the connector's state) and `remote-pair` events and the `/remote` routes; an older server has neither, so the page shows no indicator and no Remote tab.
+export const PROTOCOL = 20;
+
+/** A paired phone as the Remote tab lists it (protocol 20). */
+export type RemoteDevice = { id: string; name?: string; fingerprint: string; online: boolean; pairedAt: number };
+
+/** What a window knows of the remote-access connector (`nota-bene remote`), shared by every window of the user. */
+export type RemoteState = {
+  /** a relay address is saved */
+  configured: boolean;
+  /** access is not turned off */
+  enabled: boolean;
+  /** the connector answers on its control socket */
+  running: boolean;
+  /** the connector is connected to the relay */
+  online: boolean;
+  relay: string | null;
+  hostFingerprint: string | null;
+  devices: RemoteDevice[];
+  /** a pairing code is valid; `mine`: this window started it (only that one shows the code) */
+  pairing: { expiresAt: number; mine: boolean } | null;
+  /** the connector was started in a terminal by an older version: it cannot be switched from a window */
+  legacy: boolean;
+  /** the relay refused the host for good (the code it closed with) */
+  lastError: { code: number; message: string; at: number } | null;
+  /** a window tried to start the connector and it did not come up (no relay refusal explains it) */
+  startFailed: boolean;
+};
+
+export type RemotePairResult = 'paired' | 'refused' | 'expired' | 'cancelled';
 
 /** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
 export const TAKEN_OVER_CODE = 4001;
@@ -298,6 +327,10 @@ export type ServerEvent =
   | { kind: 'comment-ack'; opId: string }
   /** protocol 19, to the sender only: nothing of the `comment-op` was applied; `id` names the comment that refused it */
   | { kind: 'comment-refused'; opId: string; reason: CommentRefusal; id?: string }
+  /** protocol 20: the connector's state, on attach and when it changes */
+  | { kind: 'remote'; state: RemoteState }
+  /** protocol 20: what became of the pairing this window started; `fingerprint`: a refused phone's */
+  | { kind: 'remote-pair'; result: RemotePairResult; device?: RemoteDevice; fingerprint?: string }
   | { kind: 'session'; id: string | null; root: string; title: string | null; model: string | null }
   /** never stored in history */
   | { kind: 'stats'; stats: Stats }
