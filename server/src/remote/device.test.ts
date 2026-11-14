@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
 import { startServer } from '../server.ts';
 import { registerWindow } from '../windows.ts';
-import { computerName, DeviceChannel } from './device.ts';
+import { computerName, DeviceChannel, goodPath } from './device.ts';
 import { Windows } from './discover.ts';
 import { CONN_WINDOW } from './mux.ts';
 import { generateKeyPair, type KeyPair } from './noise.ts';
@@ -114,6 +114,11 @@ describe('device channel', () => {
     expect(computerName('build.example.net')).toBe('build.example.net');
     expect(computerName('.local')).toBeUndefined();
     expect(computerName('  ')).toBeUndefined();
+  });
+
+  it('a phone reaches no remote-access route: it would pair, revoke or switch access off unseen', () => {
+    for (const p of ['/remote', '/remote/pair', '/remote/config', '/remote?x=1', '/REMOTE/revoke', '/control']) expect(goodPath(p)).toBe(false);
+    for (const p of ['/remotely.md', '/file?path=remote/a.md', '/info']) expect(goodPath(p)).toBe(true);
   });
 
   it('the computer name loses control and bidi-override characters and is capped at 64', () => {
@@ -228,6 +233,7 @@ describe('device channel', () => {
     expect(post.status).toBe(200);
     expect(post.headers['set-cookie']).toBeUndefined();
     await expect(l.phone.http(a.port, 'GET', '/control/stop')).rejects.toMatchObject({ code: 4900 });
+    await expect(l.phone.http(a.port, 'POST', '/remote/pair')).rejects.toMatchObject({ code: 4900 });
     await expect(l.phone.http(a.port, 'GET', '//evil.example/x')).rejects.toMatchObject({ code: 4900 });
     await expect(l.phone.http(a.port + 1, 'GET', '/info')).rejects.toMatchObject({ code: 4904 });
     const ws = l.phone.ws(a.port, '/info');

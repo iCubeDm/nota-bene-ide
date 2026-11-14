@@ -102,7 +102,10 @@ function gate(sock: net.Socket, secret: string, handle: (m: Msg) => void): (m: M
 export async function serveControl(handle: (m: Msg, sock: net.Socket) => void): Promise<net.Server> {
   const p = socketPath();
   const secret = isPipe() ? controlSecret() : undefined;
+  const open = new Set<net.Socket>();
   const srv = net.createServer((sock) => {
+    open.add(sock);
+    sock.once('close', () => open.delete(sock));
     sock.on('error', () => {});
     const on = (m: Msg) => handle(m, sock);
     lines(sock, secret === undefined ? on : gate(sock, secret, on));
@@ -112,12 +115,17 @@ export async function serveControl(handle: (m: Msg, sock: net.Socket) => void): 
     srv.listen(p, () => resolve());
   });
   if (!isPipe()) fs.chmodSync(p, 0o600);
+  clients.set(srv, open);
   return srv;
 }
 
-/** Stops listening; the socket file goes too (a pipe leaves none). */
+const clients = new WeakMap<net.Server, Set<net.Socket>>();
+
+/** Stops listening and drops every client still connected (a window's status poll, a pairing); the socket file goes too (a pipe leaves none). */
 export async function closeControl(srv: net.Server): Promise<void> {
-  await new Promise((r) => srv.close(r));
+  const closed = new Promise((r) => srv.close(r));
+  for (const s of clients.get(srv) ?? []) s.destroy();
+  await closed;
   if (!isPipe()) fs.rmSync(socketPath(), { force: true });
 }
 

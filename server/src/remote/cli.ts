@@ -1,5 +1,7 @@
 // `nota-bene remote …` (the launcher hands its argv over before its own parsing). The foreground run is the connector;
 // the other commands talk to it over the control socket.
+import fs from 'node:fs';
+import path from 'node:path';
 import { renderUnicodeCompact } from 'uqr';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient, type Msg } from './control.ts';
@@ -11,6 +13,17 @@ export const REMOTE_USAGE = 'Usage: nota-bene remote [--relay wss://HOST]   run 
   + '       nota-bene remote revoke ID               unpair a phone and cut it off\n'
   + '       nota-bene remote status\n'
   + '(a folder named remote opens with `nota-bene ./remote`)';
+
+/** The package's version, for `status` (a window replaces a connector it started from another version). Here and in the
+ * package bundle alike, this file is three folders below the package root. */
+function packageVersion(): string | undefined {
+  try {
+    const v = (JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../../../package.json'), 'utf8')) as { version?: unknown }).version;
+    return typeof v === 'string' && v ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 type Io = { out: (s: string) => void; err: (s: string) => void };
 const stdio: Io = { out: (s) => void process.stdout.write(s), err: (s) => void process.stderr.write(s) };
@@ -39,15 +52,21 @@ const deviceLine = (d: Msg) => `${String(d.id).padEnd(8)}  ${String(d.name ?? '-
 
 async function run(argv: string[], io: Io): Promise<number> {
   let relay: string | undefined;
+  // --managed: a window started it (keeper.ts). It exits when access is off or no window is left, and leaves the setting alone
+  let managed = false;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--relay' && argv[i + 1] !== undefined) relay = argv[++i];
+    else if (argv[i] === '--managed') managed = true;
     else {
       io.err(`${REMOTE_USAGE}\n`);
       return 2;
     }
   }
   try {
-    if (relay !== undefined) writeConfig({ ...readConfig(), relay });
+    const cfg = readConfig();
+    if (managed && cfg.enabled === false) return 0; // turned off in a window since it was started
+    // run by hand: an explicit request for access, so a switch turned off in a window is on again
+    if (relay !== undefined || (!managed && cfg.enabled === false)) writeConfig({ ...cfg, ...(relay !== undefined ? { relay } : {}), ...(managed ? {} : { enabled: true }) });
   } catch (e) {
     io.err(`nota-bene: ${(e as Error).message}\n`);
     return 2;
@@ -58,7 +77,8 @@ async function run(argv: string[], io: Io): Promise<number> {
       + 'To open a folder named remote in a window, run `nota-bene ./remote`.\n');
     return 2;
   }
-  const c = new Connector({ relay });
+  const version = packageVersion();
+  const c = new Connector({ relay, managed, ...(version ? { version } : {}) });
   const stamp = () => new Date().toISOString().slice(11, 19);
   c.on('log', (m: string) => io.err(`${stamp()} ${m}\n`));
   try {
@@ -73,6 +93,7 @@ async function run(argv: string[], io: Io): Promise<number> {
     process.once('SIGINT', quit);
     process.once('SIGTERM', quit);
     c.once('fatal', () => resolve(1));
+    c.once('exit', () => resolve(0));
   });
   await c.stop();
   return code;

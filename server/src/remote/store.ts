@@ -1,5 +1,5 @@
 // The connector's state under `<stateBase>/remote/` (700): `host.key` (the host's X25519 private key, base64url),
-// `devices.json` (the paired phones: the source of truth for who may connect), `config.json` (the relay URL) and, on
+// `devices.json` (the paired phones: the source of truth for who may connect), `config.json` (the relay URL, access on or off), `last-error.json` (the relay's last refusal) and, on
 // Windows, `control-secret` (what a client of the control pipe proves it holds, control.ts). All
 // mode 600, written whole and renamed in, read with the token's checks (auth.ts readPrivateFile). Also the pairing
 // derivations of CHANNEL.md.
@@ -186,7 +186,7 @@ export function removeDevice(idOrPrefix: string): Device | null {
   return matches[0]!;
 }
 
-function checkRelay(url: string): void {
+export function checkRelay(url: string): void {
   let u: URL;
   try {
     u = new URL(url);
@@ -198,15 +198,31 @@ function checkRelay(url: string): void {
   throw new Error(`the relay must be a wss:// URL (ws:// only on 127.0.0.1 or localhost with a port): ${url}`);
 }
 
-export function readConfig(): { relay?: string } {
+/** `enabled: false` is access turned off from a window (absent means on): windows then start no connector. */
+export type RemoteConfig = { relay?: string; enabled?: boolean };
+
+export function readConfig(): RemoteConfig {
   const j = readJson('config.json', 'the connector settings (JSON)');
-  return j && typeof j.relay === 'string' ? { relay: j.relay } : {};
+  return { ...(j && typeof j.relay === 'string' ? { relay: j.relay } : {}), ...(j?.enabled === false ? { enabled: false } : {}) };
 }
 
-export function writeConfig(c: { relay?: string }): void {
+export function writeConfig(c: RemoteConfig): void {
   if (c.relay !== undefined) checkRelay(c.relay);
-  writePrivateFile(path.join(remoteDir(), 'config.json'), `${JSON.stringify(c, null, 2)}\n`);
+  const out = { ...(c.relay !== undefined ? { relay: c.relay } : {}), ...(c.enabled === false ? { enabled: false } : {}) };
+  writePrivateFile(path.join(remoteDir(), 'config.json'), `${JSON.stringify(out, null, 2)}\n`);
 }
+
+/** Why the relay refused the host for good (a code it closed with, relayClient.ts FATAL): the windows show it. */
+export type LastError = { code: number; message: string; at: number };
+const lastErrorFile = () => path.join(remoteDir(), 'last-error.json');
+
+export function readLastError(): LastError | null {
+  const j = readJson('last-error.json', 'the relay\'s last refusal (JSON)');
+  return j && typeof j.code === 'number' && typeof j.message === 'string' && typeof j.at === 'number' ? { code: j.code, message: j.message, at: j.at } : null;
+}
+
+export const writeLastError = (e: LastError): void => writePrivateFile(lastErrorFile(), `${JSON.stringify(e)}\n`);
+export const clearLastError = (): void => fs.rmSync(lastErrorFile(), { force: true });
 
 /** What the host hands the relay while a pairing is in flight: the relay never learns the secret. */
 export const pairTicket = (secret: Buffer): Buffer => createHmac('sha256', secret).update('nb-relay-ticket-v1').digest();
