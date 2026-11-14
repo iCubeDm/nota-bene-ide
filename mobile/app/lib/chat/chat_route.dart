@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../hosts/host_link.dart';
 import '../l10n/app_localizations.dart';
+import '../notify/visible.dart';
 import '../store/seen.dart';
 import '../theme.dart';
 import '../comments/comment_strip.dart';
@@ -29,6 +30,7 @@ class ChatRoute extends StatefulWidget {
     required this.port,
     required this.root,
     this.seen,
+    this.visible,
     this.onTab,
     this.retry,
   });
@@ -39,6 +41,9 @@ class ChatRoute extends StatefulWidget {
 
   /// Told the window's replies while the chat is open, so the list shows none of them unread.
   final Seen? seen;
+
+  /// Whether the app is on screen: replies count as seen only while it is (none: always, as in tests).
+  final AppVisible? visible;
 
   /// for tests: the tab once made
   final void Function(WindowTab tab)? onTab;
@@ -69,13 +74,16 @@ class _ChatRouteState extends State<ChatRoute> {
     widget.onTab?.call(_tab);
     widget.link.addListener(_see);
     _tab.addListener(_see);
+    widget.visible?.addListener(_see);
+    widget.visible?.open(widget.link.host.id, widget.port, widget.root);
     _see();
   }
 
-  /// While the tab is open, the window's replies count as seen.
+  /// While the tab is open and the app on screen, the window's replies count as seen.
   void _see() {
     final seen = widget.seen;
     if (seen == null || _tab.state != TabState.open) return;
+    if (widget.visible?.visible == false) return;
     final w = widget.link.windows
         .where((w) => w.port == widget.port && w.root == widget.root)
         .firstOrNull;
@@ -94,6 +102,8 @@ class _ChatRouteState extends State<ChatRoute> {
   void dispose() {
     widget.link.removeListener(_see);
     _tab.removeListener(_see);
+    widget.visible?.removeListener(_see);
+    widget.visible?.close(widget.link.host.id, widget.port, widget.root);
     _asks?.dispose();
     _tab.dispose();
     _draft.dispose();

@@ -24,7 +24,18 @@ class Seen extends ChangeNotifier {
   Hosts? _hosts;
   Links? _links;
 
-  static Future<Seen> load(Vault v) async {
+  static Future<Seen> load(Vault v) async => Seen._(v, await _read(v));
+
+  /// Reads the store again: another engine (the periodic check) may have written it.
+  Future<void> reload() async {
+    final m = await _read(_v);
+    _m
+      ..clear()
+      ..addAll(m);
+    notifyListeners();
+  }
+
+  static Future<Map<String, Map<String, int>>> _read(Vault v) async {
     final m = <String, Map<String, int>>{};
     final s = await v.read(_slot);
     if (s != null) {
@@ -40,7 +51,7 @@ class Seen extends ChangeNotifier {
         m.clear();
       }
     }
-    return Seen._(v, m);
+    return m;
   }
 
   /// Follows the host stream: a session met for the first time counts as seen up to its replies (recorded when the
@@ -79,6 +90,9 @@ class Seen extends ChangeNotifier {
   int seenOf(String hostId, String session) => _m[hostId]?[session] ?? 0;
 
   Future<void> _save() => _v.write(_slot, jsonEncode(_m));
+
+  /// Writes the counts now (a headless check ends right after).
+  Future<void> save() => _save();
 
   /// Stores [replies] for [session], as the most recently updated of its host, within [maxPerHost].
   void _put(String hostId, String session, int replies) {

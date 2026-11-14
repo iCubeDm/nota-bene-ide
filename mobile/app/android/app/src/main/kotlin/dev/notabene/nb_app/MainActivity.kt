@@ -207,8 +207,26 @@ class MainActivity : FlutterFragmentActivity() {
     private var recording: Recording? = null
     private var pendingStart: MethodChannel.Result? = null
 
+    // `nb/background`: the foreground service, the agent notifications and the periodic check (Notices.kt)
+    private var background: BackgroundChannel? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        alive = true
+        background?.launch = BackgroundChannel.placeOf(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        BackgroundChannel.placeOf(intent)?.let { background?.opened(it) }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        background = BackgroundChannel(this, flutterEngine.dartExecutor.binaryMessenger).also {
+            it.launch = BackgroundChannel.placeOf(intent)
+            channel = it.channel
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "nb/frame").setMethodCallHandler { call, result ->
             if (call.method != "frameAt") {
                 result.notImplemented()
@@ -662,6 +680,10 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == BackgroundChannel.REQUEST) {
+            background?.permissionAnswered(grantResults)
+            return
+        }
         if (requestCode == GALLERY_PERMISSION) {
             galleryAnswered()
             return
@@ -866,6 +888,10 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
+        alive = false
+        channel = null
+        // the links go with this activity's engine: a service left running would claim a connection nobody holds
+        stopService(Intent(this, AgentService::class.java))
         mainHandler.removeCallbacksAndMessages(null)
         dropRecording()
         releasePlayer()
@@ -875,21 +901,29 @@ class MainActivity : FlutterFragmentActivity() {
         super.onDestroy()
     }
 
-    private companion object {
-        const val MIC_PERMISSION = 4791
-        const val CAMERA_PERMISSION = 4792
-        const val PICK_REQUEST = 4793
-        const val GALLERY_PERMISSION = 4794
+    companion object {
+        /// An activity, and with it the app's engine and links, exists: the periodic check asks it rather than connect.
+        @Volatile
+        var alive = false
+
+        /// This activity's `nb/background`, for the worker's `check`.
+        @Volatile
+        var channel: MethodChannel? = null
+
+        private const val MIC_PERMISSION = 4791
+        private const val CAMERA_PERMISSION = 4792
+        private const val PICK_REQUEST = 4793
+        private const val GALLERY_PERMISSION = 4794
 
         // what a pick answers: at most ten images, none over 40 MB (the phone skips it and says so)
-        const val MAX_PICK_COUNT = 10
-        const val MAX_PICK_BYTES = 40 * 1024 * 1024
+        private const val MAX_PICK_COUNT = 10
+        private const val MAX_PICK_BYTES = 40 * 1024 * 1024
         // a file of cache/pick younger than this may still belong to a draft or a share; the camera start spares it
-        const val PICK_KEEP_MS = 60L * 60 * 1000
+        private const val PICK_KEEP_MS = 60L * 60 * 1000
 
         // what the host takes (`POST /voice`): 16 kHz mono PCM16, at most 10 minutes (19.2 MB); the host splits it for
         // Whisper itself
-        const val RATE = 16000
-        const val MAX_PCM = RATE * 2 * 600
+        private const val RATE = 16000
+        private const val MAX_PCM = RATE * 2 * 600
     }
 }

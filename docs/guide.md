@@ -576,8 +576,8 @@ so a newer APK installs over the older one and keeps the phone's key and pairing
 - **One tab.** The phone is a tab of the window: if the window is open on the computer, *Work here* takes it over,
   and the computer's tab offers to take it back.
 - **Settings.** The desktop's six themes (dark first, then light; Darcula until one is picked), the app's language
-  (the phone's own, or one of the six), the text size (85–150 %) and the interface size (90–130 %), the voice language and
-  the paired hosts. The choices stay on the phone, for every host; code highlighting and Mermaid diagrams follow the
+  (the phone's own, or one of the six), the text size (85–150 %) and the interface size (90–130 %), the voice language,
+  notifications and the paired hosts. The choices stay on the phone, for every host; code highlighting and Mermaid diagrams follow the
   theme.
 - **Comments.** Tap a paragraph, heading, list item, quote or table of a reply: a bubble offers the quick labels (a chevron
   shows all eleven), *Comment* (a sheet with the quote, the labels, a field, images and voice clips) and *Copy*. In a
@@ -604,7 +604,14 @@ so a newer APK installs over the older one and keeps the phone's key and pairing
   new.
 - **Versions.** The app needs Nota Bene 1.8.0 or newer on the computer, the first version with `nota-bene remote`.
   A newer app leaves out what an older computer cannot do.
-- **Not yet:** push notifications. Open items are tracked in #63.
+- **Notifications.** The app tells you when an agent finishes a reply (the project and the reply's start) or waits for
+  you (a permission, a question, a plan); a tap opens that chat. The chat on screen does not notify, and the lock screen
+  shows only "New reply in <project>". While some agent works or waits, and for five minutes after, the app keeps its
+  connection in the background, with a quiet line at the bottom of the notification shade (on Android 13 and newer it
+  can be swiped away). Otherwise it looks every 15 minutes, or later when the phone sleeps deeply. Android asks once
+  for the permission, the first time an agent works; Settings → **Notifications** turns all of it off. Closing the app
+  from the recent apps list ends the connection, and the 15-minute look goes on. Push through Google is not used.
+  Open items are tracked in #63.
 
 ## State on disk
 

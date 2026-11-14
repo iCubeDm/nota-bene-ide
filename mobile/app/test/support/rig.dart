@@ -9,6 +9,7 @@ import 'package:nb_app/comments/queue.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
+import 'package:nb_app/notify/visible.dart';
 import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/sizes.dart';
 import 'package:nb_app/store/vault.dart';
@@ -37,6 +38,7 @@ class Rig {
     List<Map<String, Object?>> events = const [],
     Map<String, Object?>? hello,
     Seen? seen,
+    AppVisible? visible,
     HostWindow? win,
     // false when something on screen animates for good (a pulsing dot)
     bool settle = true,
@@ -76,6 +78,7 @@ class Rig {
             port: 4791,
             root: '/home/u/notes',
             seen: seen,
+            visible: visible,
             onTab: (x) => tab = x,
             retry: (_) async {},
           ),
