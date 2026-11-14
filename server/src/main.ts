@@ -6,6 +6,7 @@ import { fakeFromScript } from './agent/fake.ts';
 import { codexBackend } from './agent/codex/backend.ts';
 import { ompBackend } from './agent/acp/omp.ts';
 import { sdkBackend } from './agent/claude/sdk.ts';
+import { RemoteKeeper } from './remote/keeper.ts';
 import { startServer } from './server.ts';
 import { HANDOVER } from './updater.ts';
 import { hitRecorder, limitRecorder } from './usage/routes.ts';
@@ -138,6 +139,7 @@ async function main(): Promise<void> {
       ...(!native && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),
       ...(nonce ? { nonce } : {}),
       audit: {},
+      remote: remoteKeeper(),
     });
   } catch (e) {
     if ((e as NodeJS.ErrnoException).syscall !== 'listen') throw e;
@@ -190,6 +192,18 @@ export function watchLauncher(launcherPid: string | undefined, stop: () => void,
 }
 
 const self = fileURLToPath(import.meta.url);
+
+/** The window's remote-access keeper: it starts the package's own launcher (`bin/nota-bene.mjs remote --managed`), here and in
+ * the package bundle alike two folders above this file, and tells the connector the package version. */
+function remoteKeeper(): RemoteKeeper {
+  const repo = fileURLToPath(new URL('../..', import.meta.url));
+  let version: string | undefined;
+  try {
+    const v = (JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8')) as { version?: unknown }).version;
+    if (typeof v === 'string' && v) version = v;
+  } catch { /* no version: a connector of another one is then not replaced */ }
+  return new RemoteKeeper({ entry: path.join(repo, 'bin', 'nota-bene.mjs'), ...(version ? { version } : {}) });
+}
 if (process.argv[1] && samePath(realpathNative(process.argv[1]), realpathNative(self))) {
 
   // TEST-ONLY: bin/nota-bene.test.ts injects exit loops with it: exit with this code (1 = crash, 75 = restart) before
