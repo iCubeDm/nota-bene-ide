@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Remote access from the window.** While a relay is saved, the first window starts the connector in the background and the others share it, so the phone keeps its access while any window is open, without `nota-bene remote` in a terminal. A phone icon in the header shows the state (connecting, online with the number of phones, or why it does not work), and its **Remote** tab sets the relay, turns access on and off, pairs a phone with a QR code and revokes one. The terminal commands still work. A paired phone cannot use these actions. See [Remote access](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access).
 - **Long paths fit in a comment card.** A comment on a file with a long path no longer makes its card wider than the comments panel: the path wraps, and the edit and delete buttons stay in reach.
 - **Comments no longer vanish between windows.** A comment change is sent as that change alone, from the web and the phone, so a window that has not seen a new comment can no longer delete it, and a comment deleted in one window does not come back from another. Changes made offline go once the window reconnects; on the phone they are kept even when the app is closed. When another window changed or deleted the comment first, your change is dropped and a message says so.
 - **Stop spares background agents (Claude).** Stopping the turn no longer ends the subagents running in the background; they go on and stop from the Tasks drawer, one by one or with **Stop all**. Background shell tasks already went on.

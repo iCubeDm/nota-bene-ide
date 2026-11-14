@@ -164,7 +164,7 @@ and on single frames of a video:
 - [Updates itself](#updating), with one click or automatically.
 
 **Remote control (prototype)**
-- An Android app drives your windows from a phone, through a relay you run yourself, end-to-end encrypted: chat, files and Git changes, comments, images and voice messages. Pair it with `nota-bene remote pair`; see [Remote access](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access-prototype).
+- An Android app drives your windows from a phone, through a relay you run yourself, end-to-end encrypted: chat, files and Git changes, comments, images and voice messages. Pair it from the window's Remote tab; see [Remote access](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access).
 
 ![The window: chat, file tree and comments panel](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/overview.png)
 
