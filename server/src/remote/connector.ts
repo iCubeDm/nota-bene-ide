@@ -15,14 +15,19 @@ import { closeControl, running, serveControl, write, type Msg } from './control.
 import type { KeyPair } from './noise.ts';
 import { RelayClient } from './relayClient.ts';
 import {
-  addDevice, b64u, deviceHash, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readDevices, removeDevice, type Device,
+  addDevice, b64u, clearLastError, deviceHash, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readDevices, removeDevice, writeLastError, type Device,
 } from './store.ts';
 
 const MAX_DEVICES = 32; // the relay's limit for a device list
+/** How long a connector the windows started stays with no window to serve (a window restarting within it keeps the phone). */
+export const IDLE_EXIT_MS = 60_000;
 
 type Pairing = { secret: Buffer; expiresAt: number; used: boolean; client: net.Socket | undefined; timer: NodeJS.Timeout };
 
-/** Events: `log(message)` (never content), `online`, `offline(code)`, `fatal(message)`. */
+/**
+ * Events: `log(message)` (never content), `online`, `offline(code)`, `fatal(message)`, `exit(reason)`: the connector asks
+ * its runner to stop, `stop` (a window turned access off or replaced it) or `idle` (a managed one with no window left).
+ */
 export class Connector extends EventEmitter {
   readonly windows: Windows;
   #relayUrl: string;
@@ -34,10 +39,22 @@ export class Connector extends EventEmitter {
   #channels = new Map<number, { ch: DeviceChannel; hash: string }>();
   #pairing: Pairing | undefined;
   #pairClients = new Set<net.Socket>();
+  #managed: boolean;
+  #version: string | undefined;
+  #idleMs: number;
+  #idleSince: number | undefined;
+  #idleTimer: NodeJS.Timeout | undefined;
 
-  constructor(o: { relay: string; windows?: Windows; pairTtlMs?: number; backoff?: { minMs: number; maxMs: number } }) {
+  /** `managed`: started by a window (`--managed`), so it exits with no window to serve. `version`: the package's, for `status`. */
+  constructor(o: {
+    relay: string; windows?: Windows; pairTtlMs?: number; backoff?: { minMs: number; maxMs: number };
+    managed?: boolean; version?: string; idleExitMs?: number;
+  }) {
     super();
     this.#relayUrl = o.relay;
+    this.#managed = o.managed ?? false;
+    this.#version = o.version;
+    this.#idleMs = o.idleExitMs ?? IDLE_EXIT_MS;
     this.windows = o.windows ?? new Windows();
     this.#ttl = o.pairTtlMs ?? 5 * 60_000;
     this.#backoff = o.backoff;
@@ -64,6 +81,7 @@ export class Connector extends EventEmitter {
       ...(this.#backoff ? { backoff: this.#backoff } : {}),
     });
     this.#relay.on('online', () => {
+      clearLastError();
       this.#log('online');
       this.emit('online');
     });
@@ -71,7 +89,8 @@ export class Connector extends EventEmitter {
       this.#log(`offline (relay closed with ${code}); reconnecting`);
       this.emit('offline', code);
     });
-    this.#relay.on('fatal', (_code: number, message: string) => {
+    this.#relay.on('fatal', (code: number, message: string) => {
+      writeLastError({ code, message, at: Date.now() }); // the windows say why, and wait before they start another
       this.#log(message);
       this.emit('fatal', message);
     });
@@ -83,9 +102,26 @@ export class Connector extends EventEmitter {
     });
     this.#server = await serveControl((m, sock) => this.#control(m, sock));
     this.#relay.start();
+    if (this.#managed) {
+      this.#idleTimer = setInterval(() => this.#idleCheck(), Math.max(10, this.#idleMs / 4));
+      this.#idleTimer.unref();
+      this.windows.on('change', () => this.#idleCheck());
+      this.#idleCheck();
+    }
+  }
+
+  #idleCheck(): void {
+    if (this.windows.list().length > 0) return void (this.#idleSince = undefined);
+    const now = Date.now();
+    this.#idleSince ??= now;
+    if (now - this.#idleSince < this.#idleMs) return;
+    clearInterval(this.#idleTimer);
+    this.#log(`no window for ${Math.round(this.#idleMs / 1000)} s; exiting`);
+    this.emit('exit', 'idle');
   }
 
   async stop(): Promise<void> {
+    clearInterval(this.#idleTimer);
     if (this.#pairing) clearTimeout(this.#pairing.timer);
     this.#pairing = undefined;
     for (const { ch } of this.#channels.values()) ch.close();
@@ -110,7 +146,7 @@ export class Connector extends EventEmitter {
 
   #view(d: Device): Msg {
     const online = [...this.#channels.values()].some((c) => c.ch.devicePub !== undefined && b64u(c.ch.devicePub) === d.pub);
-    return { id: d.id, ...(d.name ? { name: d.name } : {}), fingerprint: fingerprint(fromB64u(d.pub, 32)), online };
+    return { id: d.id, ...(d.name ? { name: d.name } : {}), fingerprint: fingerprint(fromB64u(d.pub, 32)), online, pairedAt: d.addedAt };
   }
 
   #open(conn: number, hash: string): void {
@@ -196,7 +232,13 @@ export class Connector extends EventEmitter {
         return write(sock, {
           online: this.online, relay: this.#relayUrl, hostFingerprint: this.hostFingerprint,
           windows: this.windows.list().length, devices: readDevices().map((d) => this.#view(d)),
+          ...(this.#version ? { version: this.#version } : {}), managed: this.#managed,
+          pairing: this.#pairing && !this.#pairing.used ? { expiresAt: this.#pairing.expiresAt } : null,
         });
+      case 'stop':
+        write(sock, { ok: true });
+        this.#log('asked to stop over the control socket');
+        return void setImmediate(() => this.emit('exit', 'stop'));
       case 'devices':
         return write(sock, { devices: readDevices().map((d) => this.#view(d)) });
       case 'revoke':

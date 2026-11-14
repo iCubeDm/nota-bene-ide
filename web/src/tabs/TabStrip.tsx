@@ -25,6 +25,8 @@ export const ICONS = {
   changes: <><path d="M12 4v7M8.5 7.5h7M8.5 17h7" /><rect x="3" y="2.5" width="18" height="19" rx="2" /></>,
   log: <><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="9" r="2" /><path d="M6 7v10M16.2 10a8 8 0 0 1-8.2 7" /></>,
   usage: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
+  // remote access: a phone with a signal
+  remote: <><rect x="5" y="7" width="9" height="15" rx="2" /><path d="M9 18.5h1M17 7.5a4 4 0 0 1 0 5M19.5 5a7.5 7.5 0 0 1 0 10" /></>,
   // the interface scale: a large and a small A
   textSize: <path d="M3 19 8.5 5 14 19M5.3 14h6.4M15 19l3-7.5 3 7.5M16.1 16.5h3.8" />,
   // the sessions history: a clock with a counter-clockwise arrow
@@ -93,7 +95,7 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
   const session = useAppSelector((s) => selectSession(s)?.id ?? null);
   const [renaming, setRenaming] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const label = tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : basename(tab.path);
+  const label = tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'remote' ? t('remote') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : basename(tab.path);
   const isChat = tab.kind === 'chat';
   return (
     <ContextMenu>

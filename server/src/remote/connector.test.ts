@@ -8,7 +8,9 @@ import { registerWindow } from '../windows.ts';
 import { remoteMain } from './cli.ts';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient } from './control.ts';
-import { pairProof, pairTicket, parsePairUri, b64u } from './store.ts';
+import { hostKey, pairProof, pairTicket, parsePairUri, b64u, readConfig, readLastError, writeConfig } from './store.ts';
+import { Windows, type HostWindow } from './discover.ts';
+import { RelayClient } from './relayClient.ts';
 import { generateKeyPair } from './noise.ts';
 import { relayPhone } from './testPhone.ts';
 import { startRelay, type TestRelay } from './testRelay.ts';
@@ -46,7 +48,7 @@ const until = async (cond: () => boolean, ms = 5000) => {
   }
 };
 
-async function connector(o: { pairTtlMs?: number } = {}) {
+async function connector(o: { pairTtlMs?: number; managed?: boolean; idleExitMs?: number; version?: string; windows?: Windows } = {}) {
   const c = new Connector({ relay: relay.url, backoff: { minMs: 50, maxMs: 200 }, ...o });
   await c.start();
   closers.push(() => c.stop());
@@ -178,6 +180,86 @@ describe('connector', () => {
     expect(await remoteMain(['revoke', 'zzzz'], io)).toBe(1);
     expect(await remoteMain(['revoke', device.id], io)).toBe(0);
     expect(out.join('')).toContain(`revoked ${device.id}`);
+  });
+
+  it('status says the version, whether windows started it, and the pairing in flight; a device says when it was paired', async () => {
+    await connector({ version: '9.9.9' });
+    const cl = await client();
+    cl.send({ op: 'status' });
+    expect(await cl.next()).toMatchObject({ version: '9.9.9', managed: false, pairing: null });
+    const { cl: pc, code } = await pairCode();
+    const p = present(code.uri);
+    await p.phone.ready;
+    await pc.next((m) => m.t === 'paired');
+    cl.send({ op: 'status' });
+    const st = await cl.next() as { pairing: unknown; devices: { pairedAt: number }[] };
+    expect(st.pairing).toBeNull(); // used: the code is over
+    expect(st.devices[0]!.pairedAt).toBeGreaterThan(0);
+    const { cl: pc2, code: code2 } = await pairCode();
+    void pc2;
+    cl.send({ op: 'status' });
+    expect(await cl.next()).toMatchObject({ pairing: { expiresAt: code2.expiresAt } });
+  });
+
+  it('stop answers, then the connector asks to exit', async () => {
+    const c = await connector();
+    const exits: string[] = [];
+    c.on('exit', (why: string) => exits.push(why));
+    const cl = await client();
+    cl.send({ op: 'stop' });
+    expect(await cl.next()).toEqual({ ok: true });
+    await until(() => exits.length === 1);
+    expect(exits).toEqual(['stop']);
+  });
+
+  it('a managed connector exits after a while with no window; one started by hand never does', async () => {
+    const lone = new Windows();
+    const m = await connector({ managed: true, idleExitMs: 80, windows: lone });
+    const exits: string[] = [];
+    m.on('exit', (why: string) => exits.push(why));
+    await until(() => exits.length === 1, 2000);
+    expect(exits).toEqual(['idle']);
+    await m.stop();
+    const one = new (class extends Windows { override list(): HostWindow[] { return [{ port: 4790, provider: 'claude', root: '/p', bearer: 'b', nonce: 'n' }]; } })();
+    const kept = await connector({ managed: true, idleExitMs: 80, windows: one });
+    const later: string[] = [];
+    kept.on('exit', (w: string) => later.push(`managed ${w}`));
+    await new Promise((r) => setTimeout(r, 300));
+    await kept.stop();
+    const hand = await connector({ idleExitMs: 80, windows: new Windows() });
+    hand.on('exit', (w: string) => later.push(`hand ${w}`));
+    await new Promise((r) => setTimeout(r, 300));
+    expect(later).toEqual([]);
+  });
+
+  it('a refusal for good is kept for the windows; going online clears it', async () => {
+    const c = await connector();
+    const fatal: string[] = [];
+    c.on('fatal', (m: string) => fatal.push(m));
+    // another connector with this host key: the relay closes the first one with 4409
+    const other = new RelayClient({ url: relay.url, key: hostKey(), devices: () => [], ticket: () => null });
+    closers.push(() => other.stop());
+    other.start();
+    await until(() => fatal.length === 1);
+    expect(readLastError()).toMatchObject({ code: 4409 });
+    await other.stop();
+    await c.stop();
+    await connector();
+    expect(readLastError()).toBeNull();
+  });
+
+  it('cli: a run by hand turns access back on; a managed run with access off starts nothing; stop ends the run', async () => {
+    const io = { out: () => {}, err: () => {} };
+    writeConfig({ relay: relay.url, enabled: false });
+    expect(await remoteMain(['--managed'], io)).toBe(0);
+    expect(readConfig().enabled).toBe(false);
+    const run = remoteMain([], io);
+    await until(() => readConfig().enabled === undefined);
+    await until(() => fs.existsSync(path.join(process.env.NOTA_BENE_HOME!, 'remote', 'control.sock')));
+    const cl = await client();
+    cl.send({ op: 'stop' });
+    expect(await run).toBe(0); // with this client still connected: the connector drops it
+
   });
 
   it('cli: without a relay the foreground run says how to set one', async () => {

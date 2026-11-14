@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publicOf } from './noise.ts';
 import {
   addDevice, b64u, controlSecret, deviceHash, fingerprint, fromB64u, hostId, hostKey, pairProof, pairTicket, pairUri, parsePairUri,
-  readConfig, readDevices, remoteDir, removeDevice, writeConfig,
+  clearLastError, readConfig, readDevices, readLastError, remoteDir, removeDevice, writeConfig, writeLastError,
 } from './store.ts';
 
 const WIN = process.platform === 'win32';
@@ -141,6 +141,23 @@ describe('remote store', () => {
     writeConfig({ relay: 'ws://127.0.0.1:9000' });
     writeConfig({ relay: 'wss://relay.example.com' });
     expect(readConfig()).toEqual({ relay: 'wss://relay.example.com' });
+  });
+
+  it('keeps access off in the config; on is the default and is not written', () => {
+    writeConfig({ relay: 'wss://relay.example.com', enabled: false });
+    expect(readConfig()).toEqual({ relay: 'wss://relay.example.com', enabled: false });
+    writeConfig({ relay: 'wss://relay.example.com' });
+    expect(readConfig()).toEqual({ relay: 'wss://relay.example.com' });
+    writeConfig({ relay: 'wss://relay.example.com', enabled: true });
+    expect(fs.readFileSync(path.join(remoteDir(), 'config.json'), 'utf8')).not.toMatch(/enabled/);
+  });
+
+  it('keeps the relay\'s last refusal until it is cleared', () => {
+    expect(readLastError()).toBeNull();
+    writeLastError({ code: 4402, message: 'refused', at: 5 });
+    expect(readLastError()).toEqual({ code: 4402, message: 'refused', at: 5 });
+    clearLastError();
+    expect(readLastError()).toBeNull();
   });
 
   it('pair URI round trip', () => {

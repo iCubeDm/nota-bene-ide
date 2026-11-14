@@ -416,12 +416,12 @@ describe('comment ops (protocol 19)', () => {
   const op = (opId: string, sessionId: string | null, ops: unknown[]) => JSON.stringify({ type: 'comment-op', opId, sessionId, ops });
   const ack = (cl: Client, opId: string) => cl.events.find((e) => e.kind === 'comments' && e.ack?.includes(opId));
 
-  it('hello announces protocol 19; an op reaches every client with a higher revision, and the sender its ack', async () => {
+  it('hello announces protocol 19 or later; an op reaches every client with a higher revision, and the sender its ack', async () => {
     const s = await boot();
     const a = await connect(s.url);
     const b = await connect(s.url);
     await until(() => lastComments(a) !== undefined && lastComments(b) !== undefined);
-    expect(a.events.find((e) => e.kind === 'hello')).toMatchObject({ protocol: 19 });
+    expect((a.events.find((e) => e.kind === 'hello') as { protocol: number }).protocol).toBeGreaterThanOrEqual(19);
     const rev0 = (a.events.find((e) => e.kind === 'comments') as { rev: number }).rev;
     a.ws.send(op('o1', null, [{ op: 'add', comment: c('a') }]));
     await until(() => ack(b, 'o1') !== undefined && ack(a, 'o1') !== undefined);

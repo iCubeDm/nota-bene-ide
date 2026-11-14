@@ -86,8 +86,9 @@ test('comment on a subagent reply, send: the message names the subagent and quot
   const body = String(sent.text);
   expect(body).toContain('[subagent reply «Review batch fixes»]');
   expect(body).toContain('send path');
-  const comments = t.sent.filter((f) => f.type === 'comments').at(-1);
-  expect(JSON.stringify(comments)).toContain('"agent":"toolu_e2e_done"');
+  // protocol 19: the comment went as an op (an older server would get the whole set)
+  const added = t.sent.filter((f) => f.type === 'comment-op' || f.type === 'comments').at(0);
+  expect(JSON.stringify(added)).toContain('"agent":"toolu_e2e_done"');
 });
 
 test('a resumed agent (a second task start with the SendMessage call) opens the same tab from the drawer and from its card @controls', async ({ page }) => {

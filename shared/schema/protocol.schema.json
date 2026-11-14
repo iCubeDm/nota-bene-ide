@@ -1174,6 +1174,153 @@
       ],
       "type": "string"
     },
+    "RemoteDevice": {
+      "description": "A paired phone as the Remote tab lists it (protocol 20).",
+      "properties": {
+        "fingerprint": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "online": {
+          "type": "boolean"
+        },
+        "pairedAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "fingerprint",
+        "online",
+        "pairedAt"
+      ],
+      "type": "object"
+    },
+    "RemotePairResult": {
+      "enum": [
+        "paired",
+        "refused",
+        "expired",
+        "cancelled"
+      ],
+      "type": "string"
+    },
+    "RemoteState": {
+      "description": "What a window knows of the remote-access connector (`nota-bene remote`), shared by every window of the user.",
+      "properties": {
+        "configured": {
+          "description": "a relay address is saved",
+          "type": "boolean"
+        },
+        "devices": {
+          "items": {
+            "$ref": "#/definitions/RemoteDevice"
+          },
+          "type": "array"
+        },
+        "enabled": {
+          "description": "access is not turned off",
+          "type": "boolean"
+        },
+        "hostFingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastError": {
+          "anyOf": [
+            {
+              "properties": {
+                "at": {
+                  "type": "number"
+                },
+                "code": {
+                  "type": "number"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "at"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "the relay refused the host for good (the code it closed with)"
+        },
+        "legacy": {
+          "description": "the connector was started in a terminal by an older version: it cannot be switched from a window",
+          "type": "boolean"
+        },
+        "online": {
+          "description": "the connector is connected to the relay",
+          "type": "boolean"
+        },
+        "pairing": {
+          "anyOf": [
+            {
+              "properties": {
+                "expiresAt": {
+                  "type": "number"
+                },
+                "mine": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "expiresAt",
+                "mine"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "a pairing code is valid; `mine`: this window started it (only that one shows the code)"
+        },
+        "relay": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "running": {
+          "description": "the connector answers on its control socket",
+          "type": "boolean"
+        },
+        "startFailed": {
+          "description": "a window tried to start the connector and it did not come up (no relay refusal explains it)",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "configured",
+        "enabled",
+        "running",
+        "online",
+        "relay",
+        "hostFingerprint",
+        "devices",
+        "pairing",
+        "legacy",
+        "lastError",
+        "startFailed"
+      ],
+      "type": "object"
+    },
     "ServerEvent": {
       "anyOf": [
         {
@@ -1473,6 +1620,44 @@
             "kind",
             "opId",
             "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "remote",
+              "type": "string"
+            },
+            "state": {
+              "$ref": "#/definitions/RemoteState"
+            }
+          },
+          "required": [
+            "kind",
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "device": {
+              "$ref": "#/definitions/RemoteDevice"
+            },
+            "fingerprint": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "remote-pair",
+              "type": "string"
+            },
+            "result": {
+              "$ref": "#/definitions/RemotePairResult"
+            }
+          },
+          "required": [
+            "kind",
+            "result"
           ],
           "type": "object"
         },
@@ -3066,5 +3251,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 19
+  "x-protocol": 20
 }

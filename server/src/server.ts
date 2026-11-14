@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { EventEmitter } from 'node:events';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { isAttachmentAnchor, parseClientMessage, PROTOCOL, TAKEN_OVER_CODE } from '@nota-bene/shared';
-import type { ClientMessage, Comment, ServerEvent, Stats } from '@nota-bene/shared';
+import type { ClientMessage, Comment, RemoteState, ServerEvent, Stats } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { guard, reportError } from './errors.ts';
 import { HistoryArchive, historyRoutes } from './archive.ts';
@@ -37,6 +37,8 @@ import { updater } from './updater.ts';
 import { runtimeDir } from './runtime.ts';
 import { hostClient } from './dictation/hostClient.ts';
 import { dictationRoutes } from './dictation/routes.ts';
+import type { PairOutcome, RemoteKeeper } from './remote/keeper.ts';
+import { remoteRoutes } from './remote/routes.ts';
 import { voiceRoutes } from './voice/routes.ts';
 import { whisperPhase } from './dictation/install.ts';
 import { usageRoutes } from './usage/routes.ts';
@@ -98,6 +100,8 @@ export async function startServer(o: {
   /** tests shorten the reload grace (R-M7-6) and the heartbeat (R-M7-7) */
   takeoverGraceMs?: number;
   heartbeatMs?: number;
+  /** keeps the remote-access connector running and serves /remote (main.ts); absent = none (tests), /remote answers 503 */
+  remote?: RemoteKeeper;
 }): Promise<{ url: string; close(): Promise<void> }> {
   const hub = new EventHub();
   hostClient.reportTo((where, e) => reportError(hub, where, e)); // the Whisper host's trouble is this window's to show
@@ -353,6 +357,7 @@ export async function startServer(o: {
         },
         ...usageRoutes({ hub }),
         ...dictationRoutes({ hub }),
+        ...remoteRoutes({ hub, keeper: o.remote }),
         ...systemRoutes({
           updater: win, newer,
           hub, root, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir,
@@ -438,6 +443,13 @@ export async function startServer(o: {
         ws.send(JSON.stringify(commentsEvent()));
       } catch (e) {
         reportError(hub, 'comments', e);
+      }
+      if (o.remote) {
+        try {
+          ws.send(JSON.stringify({ kind: 'remote', state: o.remote.state() }));
+        } catch (e) {
+          reportError(hub, 'remote', e);
+        }
       }
       try {
         ws.send(JSON.stringify({ kind: 'mode', mode: manager.mode() }));
@@ -762,6 +774,16 @@ export async function startServer(o: {
     });
     allowedHosts.push(`127.0.0.1:${port}`, `localhost:${port}`);
     allowedOrigins.push(`http://127.0.0.1:${port}`, `http://localhost:${port}`);
+    const keeper = o.remote;
+    const remoteState = (state: RemoteState) => hub.emit({ kind: 'remote', state }, { store: false });
+    const remotePair = (p: PairOutcome) => hub.emit({ kind: 'remote-pair', ...p }, { store: false });
+    const remoteWarn = (m: string) => reportError(hub, 'remote', new Error(m));
+    if (keeper) {
+      keeper.on('state', remoteState);
+      keeper.on('pair', remotePair);
+      keeper.on('warn', remoteWarn);
+      keeper.start();
+    }
 
     let closing: Promise<void> | null = null;
     const close = () => (closing ??= new Promise<void>((resolve) => {
@@ -772,6 +794,12 @@ export async function startServer(o: {
       win.stop();
       manager.close();
       hostClient.close(); // the Whisper host drops this window's jobs
+      if (keeper) {
+        keeper.stop(); // the connector goes on for the other windows
+        keeper.off('state', remoteState);
+        keeper.off('pair', remotePair);
+        keeper.off('warn', remoteWarn);
+      }
       const backendClose = o.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
       blend?.dispose();
       for (const c of wss.clients) c.terminate();

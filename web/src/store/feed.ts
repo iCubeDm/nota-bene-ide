@@ -328,6 +328,8 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'send-refused': // composer/refused.ts: restores the draft, never the feed
     case 'shell-refused': // the same, for a `! cmd`
     case 'server-error': // a toast (store.ts), live only, never swallowed (M0 error policy)
+    case 'remote': // protocol 20: the remote slice
+    case 'remote-pair':
       return s;
     default: {
       // as above: a protocol-4 server still sends `{kind:'sdk'}`

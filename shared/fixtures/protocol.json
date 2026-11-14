@@ -1322,6 +1322,48 @@
       "kind": "comment-refused",
       "opId": "op-3",
       "reason": "failed"
+    },
+    {
+      "kind": "remote",
+      "state": {
+        "configured": true,
+        "enabled": true,
+        "running": true,
+        "online": true,
+        "relay": "wss://relay.example.com",
+        "hostFingerprint": "abcd-efgh-ijkl-mnop",
+        "devices": [{ "id": "qrst", "name": "Test phone", "fingerprint": "qrst-uvwx-yz23-4567", "online": true, "pairedAt": 1700000000000 }],
+        "pairing": { "expiresAt": 1700000300000, "mine": true },
+        "legacy": false,
+        "lastError": null,
+        "startFailed": false
+      }
+    },
+    {
+      "kind": "remote",
+      "state": {
+        "configured": true,
+        "enabled": true,
+        "running": false,
+        "online": false,
+        "relay": "wss://relay.example.com",
+        "hostFingerprint": null,
+        "devices": [],
+        "pairing": null,
+        "legacy": false,
+        "lastError": { "code": 4402, "message": "the relay does not admit this host (its operator refused it)", "at": 1700000000000 },
+        "startFailed": false
+      }
+    },
+    {
+      "kind": "remote-pair",
+      "result": "paired",
+      "device": { "id": "qrst", "fingerprint": "qrst-uvwx-yz23-4567", "online": true, "pairedAt": 1700000000000 }
+    },
+    {
+      "kind": "remote-pair",
+      "result": "refused",
+      "fingerprint": "wxyz-wxyz-wxyz-wxyz"
     }
   ],
   "usage": [
