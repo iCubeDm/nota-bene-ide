@@ -422,7 +422,26 @@ void main() {
     r.dispose();
   });
 
-  testWidgets('entering markup while zoomed resets to fit', (t) async {
+  /// The shapes of the comment last sent.
+  List<Map<String, Object?>> lastShapes(Rig r) => [
+    for (final s
+        in ((((commentSets(r).last['items'] as List).last as Map)['anchor']
+                as Map)['shapes']
+            as List))
+      (s as Map).cast<String, Object?>(),
+  ];
+
+  Future<void> commentMarks(WidgetTester t) async {
+    await t.tap(find.text('Comment'));
+    await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField), 'small');
+    await tapSend(t);
+    await settleReal(t, 10);
+  }
+
+  testWidgets('entering markup keeps the zoom, and a mark lands where drawn', (
+    t,
+  ) async {
     final r = await openImage(t);
     final fit = t.getRect(find.byType(RawImage));
     final at = t.getCenter(find.byType(PageView)) + const Offset(40, 10);
@@ -430,12 +449,46 @@ void main() {
     await t.pump(const Duration(milliseconds: 60));
     await t.tapAt(at);
     await settleReal(t, 2);
-    expect(t.getRect(find.byType(RawImage)).width, greaterThan(fit.width * 2));
+    final zoomed = t.getRect(find.byType(RawImage));
+    expect(zoomed.width, greaterThan(fit.width * 2));
     await t.tap(find.byTooltip('Mark up'));
     await t.pumpAndSettle();
-    expect(t.getSize(find.byType(RawImage)), fit.size);
-    final box = t.getRect(find.byKey(const ValueKey('markup-surface')));
-    expect(box.width, lessThanOrEqualTo(t.view.physicalSize.width));
+    // the toolbar is taller than the actions bar, so only the height of the view changes
+    final marking = t.getRect(find.byType(RawImage));
+    expect(marking.width, zoomed.width);
+    final from = t.getCenter(find.byType(PageView)) - const Offset(40, 20);
+    await t.dragFrom(from, const Offset(80, 40));
+    await t.pumpAndSettle();
+    await commentMarks(t);
+    final s = lastShapes(r).single;
+    expect(s['kind'], 'rect');
+    final k = marking.width / fit.width;
+    expect(
+      s['x'] as double,
+      closeTo((from.dx - marking.left) / marking.width, 0.01),
+    );
+    expect(s['w'] as double, closeTo(80 / k / fit.width, 0.01));
+    r.dispose();
+  });
+
+  testWidgets('while marking, two fingers zoom and draw nothing; one draws', (
+    t,
+  ) async {
+    final r = await openImage(t);
+    final fit = t.getRect(find.byType(RawImage));
+    await t.tap(find.byTooltip('Mark up'));
+    await t.pumpAndSettle();
+    final fingers = await pinch(t, const Offset(200, 120));
+    for (final g in fingers) {
+      await g.up();
+    }
+    await t.pumpAndSettle();
+    expect(t.getRect(find.byType(RawImage)).width, greaterThan(fit.width * 2));
+    final c = t.getCenter(find.byType(PageView));
+    await t.dragFrom(c, const Offset(60, 30));
+    await t.pumpAndSettle();
+    await commentMarks(t);
+    expect(lastShapes(r), hasLength(1), reason: 'the pinch drew no shape');
     r.dispose();
   });
 

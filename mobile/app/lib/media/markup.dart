@@ -44,6 +44,15 @@ class Markup extends ChangeNotifier {
     shapes.removeLast();
     notifyListeners();
   }
+
+  /// Set while two fingers zoom the picture ([MarkupZoom]): nothing is drawn, and the shape under way is dropped.
+  bool _pinching = false;
+  bool get pinching => _pinching;
+  set pinching(bool v) {
+    if (v == _pinching) return;
+    _pinching = v;
+    notifyListeners();
+  }
 }
 
 /// A comment's shapes on the picture, with its number in the strip.
@@ -100,6 +109,7 @@ class _MarkupLayerState extends State<MarkupLayer> {
                   dragStartBehavior: DragStartBehavior.down,
                   onPanStart: m.marking
                       ? (d) => setState(() {
+                          if (m.pinching) return;
                           _a = _b = rel(d.localPosition);
                           _pen
                             ..clear()
@@ -108,6 +118,10 @@ class _MarkupLayerState extends State<MarkupLayer> {
                       : null,
                   onPanUpdate: m.marking
                       ? (d) => setState(() {
+                          if (m.pinching || _a == null) {
+                            _a = _b = null;
+                            return;
+                          }
                           _b = rel(d.localPosition);
                           _pen.addAll([_b!.dx, _b!.dy]);
                         })
@@ -329,4 +343,110 @@ class MarkupToolbar extends StatelessWidget {
       },
     );
   }
+}
+
+/// While marking: two fingers zoom and pan [zoom] (from 1 to [maxScale], the picture always filling the view), one finger
+/// is left to the [MarkupLayer] in [child], which draws. A second finger drops the shape under way.
+class MarkupZoom extends StatefulWidget {
+  const MarkupZoom({
+    super.key,
+    required this.zoom,
+    required this.markup,
+    required this.child,
+    this.maxScale = 8,
+  });
+
+  final TransformationController zoom;
+  final Markup markup;
+  final Widget child;
+  final double maxScale;
+
+  @override
+  State<MarkupZoom> createState() => _MarkupZoomState();
+}
+
+class _MarkupZoomState extends State<MarkupZoom> {
+  final _at = <int, Offset>{};
+  Size _size = Size.zero;
+
+  /// the zoom, focal point and span when the two fingers came down
+  Matrix4? _start;
+  Offset _focal = Offset.zero;
+  double _span = 1;
+
+  (Offset, double) _pair() {
+    final [a, b, ...] = _at.values.toList();
+    return ((a + b) / 2, math.max((a - b).distance, 1));
+  }
+
+  void _begin() {
+    _start = widget.zoom.value.clone();
+    final (focal, span) = _pair();
+    _focal = focal;
+    _span = span;
+    widget.markup.pinching = true;
+  }
+
+  void _down(PointerDownEvent e) {
+    _at[e.pointer] = e.localPosition;
+    if (_at.length >= 2) _begin();
+  }
+
+  void _move(PointerMoveEvent e) {
+    if (!_at.containsKey(e.pointer)) return;
+    _at[e.pointer] = e.localPosition;
+    final start = _start;
+    if (start == null || _at.length < 2) return;
+    final (focal, span) = _pair();
+    final s0 = start.getMaxScaleOnAxis();
+    final t0 = Offset(start.storage[12], start.storage[13]);
+    final s = (s0 * span / _span).clamp(1.0, widget.maxScale);
+    // the point of the picture under the fingers at the start stays under them
+    final t = focal - (_focal - t0) / s0 * s;
+    widget.zoom.value = Matrix4.diagonal3Values(s, s, 1)
+      ..setTranslationRaw(
+        t.dx.clamp(_size.width * (1 - s), 0.0),
+        t.dy.clamp(_size.height * (1 - s), 0.0),
+        0,
+      );
+  }
+
+  void _up(PointerEvent e) {
+    _at.remove(e.pointer);
+    if (_at.length >= 2) {
+      // a third finger left: the other two go on
+      return _begin();
+    }
+    _start = null;
+    // the finger left after a pinch draws nothing until every finger is up
+    if (_at.isEmpty) widget.markup.pinching = false;
+  }
+
+  @override
+  void dispose() {
+    widget.markup.pinching = false;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      _size = box.biggest;
+      return Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: _down,
+        onPointerMove: _move,
+        onPointerUp: _up,
+        onPointerCancel: _up,
+        child: ClipRect(
+          child: ValueListenableBuilder<Matrix4>(
+            valueListenable: widget.zoom,
+            builder: (context, m, child) =>
+                Transform(transform: m, child: child),
+            child: widget.child,
+          ),
+        ),
+      );
+    },
+  );
 }
