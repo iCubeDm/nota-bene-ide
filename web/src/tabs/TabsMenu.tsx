@@ -34,7 +34,7 @@ export function TabsMenu({ strip }: { strip: RefObject<HTMLElement | null> }) {
   const input = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
-  const label = (tab: Tab) => (tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : tab.path.split('/').pop() || tab.path);
+  const label = (tab: Tab) => (tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'remote' ? t('remote') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : tab.path.split('/').pop() || tab.path);
   const needle = q.trim().toLowerCase();
   const match = (tab: Tab) => !needle || (tab.kind === 'file' ? tab.path : label(tab)).toLowerCase().includes(needle);
   // no query: the hidden ones, then all; a query: every match once

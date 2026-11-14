@@ -16,6 +16,8 @@ const prevHome = process.env.NOTA_BENE_HOME;
 const closers: (() => Promise<void> | void)[] = [];
 /** the connectors started in this test, last one last */
 const started: Connector[] = [];
+/** stopped first: a keeper's pass must not start a connector while the test's connectors go */
+const keepers: RemoteKeeper[] = [];
 
 beforeAll(async () => {
   relay = await startRelay();
@@ -28,6 +30,7 @@ beforeEach(() => {
   process.env.NOTA_BENE_HOME = path.join(tmp, 'h');
 });
 afterEach(async () => {
+  for (const k of keepers.splice(0)) k.stop();
   while (closers.length) await closers.pop()!();
   started.length = 0;
   if (prevHome === undefined) delete process.env.NOTA_BENE_HOME; else process.env.NOTA_BENE_HOME = prevHome;
@@ -65,11 +68,19 @@ function keeper(o: { version?: string; spawn?: () => void; now?: () => number } 
     ...(o.now ? { now: o.now } : {}),
     ...(o.version ? { version: o.version } : {}),
   });
-  closers.push(() => k.stop());
+  keepers.push(k);
   return { k, spawns };
 }
 
 describe('remote keeper', () => {
+  it('a stopped keeper starts nothing (the window is closing)', async () => {
+    writeConfig({ relay: relay.url });
+    const { k, spawns } = keeper();
+    k.stop();
+    expect(await k.refresh()).toMatchObject({ running: false });
+    expect(spawns).toEqual([]);
+  });
+
   it('no relay saved: nothing is started, access reads as not set up', async () => {
     const { k, spawns } = keeper();
     const s = await k.refresh();

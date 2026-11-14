@@ -5,6 +5,7 @@ import { FileView } from '@/files/FileView.tsx';
 import { SettingsView } from '@/settings/SettingsView.tsx';
 import { AgentView } from '@/subagent/AgentView.tsx';
 import { ShellView } from '@/tasks/ShellView.tsx';
+import { RemoteView } from '@/remote/RemoteView.tsx';
 import { UsageView } from '@/usage/UsageView.tsx';
 import { ChangesView } from '@/vcs/ChangesView.tsx';
 import { LogView } from '@/vcs/LogView.tsx';
@@ -30,6 +31,10 @@ export function Panes({ chat }: { chat: ReactNode }) {
           ) : tab.kind === 'usage' ? (
             <div key="usage" data-pane="usage" data-anchor-skip hidden={active !== 'usage'} className="grid-pane relative min-h-0 flex-1 overflow-auto">
               <UsageView active={active === 'usage'} />
+            </div>
+          ) : tab.kind === 'remote' ? (
+            <div key="remote" data-pane="remote" data-anchor-skip hidden={active !== 'remote'} className="grid-pane relative min-h-0 flex-1 overflow-auto">
+              <RemoteView />
             </div>
           ) : tab.kind === 'changes' ? <ChangesView key={`${rootGen}:changes`} active={active === 'changes'} />
           : tab.kind === 'log' ? <LogView key={`${rootGen}:log`} active={active === 'log'} />

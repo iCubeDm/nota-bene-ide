@@ -82,6 +82,7 @@ export class RemoteKeeper extends EventEmitter {
   #startFailed = false;
   #wasRunning = false;
   #pairClient: ControlClient | undefined;
+  #stopped = false;
 
   constructor(o: KeeperOptions = {}) {
     super();
@@ -89,6 +90,7 @@ export class RemoteKeeper extends EventEmitter {
   }
 
   start(): void {
+    this.#stopped = false;
     void this.refresh();
     this.#timer = setInterval(() => void this.refresh(), this.#o.pollMs);
     this.#timer.unref();
@@ -96,6 +98,7 @@ export class RemoteKeeper extends EventEmitter {
 
   /** Stops looking; the connector goes on (it serves the other windows, and exits by itself after the last one). */
   stop(): void {
+    this.#stopped = true; // a pass still under way starts nothing now
     clearInterval(this.#timer);
     this.#pairClient?.close();
     this.#pairClient = undefined;
@@ -155,7 +158,8 @@ export class RemoteKeeper extends EventEmitter {
     void this.#follow(cl);
     void this.refresh();
     const uri = String(code.uri);
-    return { uri, qr: renderSVG(uri), hostFingerprint: String(code.hostFingerprint), expiresAt: Number(code.expiresAt) };
+    // dark on its own white in every theme, with a quiet zone a phone camera finds
+    return { uri, qr: renderSVG(uri, { border: 2 }), hostFingerprint: String(code.hostFingerprint), expiresAt: Number(code.expiresAt) };
   }
 
   /** Withdraws this window's code (the connector ends a pairing whose client went). */
@@ -242,7 +246,7 @@ export class RemoteKeeper extends EventEmitter {
       }
       // it was running and it is gone, the relay's refusal left behind: it exited for good, so wait before the next one
       if (!st && this.#wasRunning && readLastError()) this.#backOff();
-      if (!st && cfg.relay && cfg.enabled !== false && this.#o.now() >= this.#retryAt) {
+      if (!st && !this.#stopped && cfg.relay && cfg.enabled !== false && this.#o.now() >= this.#retryAt) {
         if (await this.#start()) {
           st = await this.#ask({ op: 'status' });
           this.#failures = 0;
@@ -306,6 +310,7 @@ export class RemoteKeeper extends EventEmitter {
     }
     try {
       if (await running()) return true;
+      if (this.#stopped) return false; // the window is closing: the next window's pass starts one
       try {
         (this.#o.spawn ?? (() => this.#spawn()))();
       } catch (e) {

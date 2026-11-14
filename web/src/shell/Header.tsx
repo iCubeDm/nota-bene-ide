@@ -10,6 +10,7 @@ import { UpdateNotice } from './UpdateNotice.tsx';
 import { GitBranch } from './GitBranch.tsx';
 import { RestartMenu } from './RestartMenu.tsx';
 import { StopButton } from './StopButton.tsx';
+import { RemoteButton } from '@/remote/RemoteButton.tsx';
 import { folderName } from '@/lib/paths.ts';
 import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
@@ -51,6 +52,7 @@ export function Header() {
       <RestartMenu />
       <ModelPill />
       <span id="session" className="font-mono text-[0.6875rem]">{session?.id?.slice(0, 8) ?? ''}</span>
+      <RemoteButton />
       <button
         type="button"
         id="usageBtn"
