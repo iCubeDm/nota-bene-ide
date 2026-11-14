@@ -45,8 +45,48 @@ HTTPS on 443). The machine needs:
   certificates. Keep `/cache` on a volume.
 
 Flags: `-domain` (required), `-email` (optional ACME contact), `-cache`,
-`-https`, `-http`, `-max-hosts`, `-max-devices`; run the binary with `-h` for
-defaults.
+`-https`, `-http`, `-max-hosts`, `-max-devices`, `-members`; run the binary
+with `-h` for defaults.
+
+## Access keys
+
+Without `-members` the relay admits any host that proves its own key: anyone
+who learns its address can use it. With `-members FILE` it admits only hosts
+signed by a person's access key listed in that file, each key on at most a set
+number of computers at once (see PROTOCOL.md, Admission).
+
+```sh
+nb-relay invite  -members /etc/nb-relay/members.json [-hosts 3] alice   # prints alice's code once
+nb-relay limit   -members /etc/nb-relay/members.json alice 5
+nb-relay revoke  -members /etc/nb-relay/members.json alice
+nb-relay members -members /etc/nb-relay/members.json
+```
+
+The code (`nbk1_…`) is shown only once and stored nowhere: send it privately;
+the person enters it in Nota Bene's Remote tab (or `nota-bene remote key`).
+The file holds only public keys, readable by its owner (mode 0600). A running
+relay checks the file every 2 s and applies changes to connected computers: a
+revoked key's computers are closed at once, a lowered limit closes the most
+recent ones. A file that fails to load is logged and the previous list kept;
+at start a missing or broken file is an error.
+
+Under systemd, run the subcommands as the relay's user (`sudo -u nb-relay
+nb-relay invite …`) so the file stays theirs. In the container, keep the file
+on a volume owned by the image's user (uid 65532) and run the subcommands with
+the entrypoint replaced:
+
+```sh
+docker run -d … -v nb-relay-members:/members nb-relay -domain relay.example.com -members /members/members.json
+docker run --rm -v nb-relay-members:/members --entrypoint /nb-relay nb-relay invite -members /members/members.json alice
+```
+
+Switching a running open relay over without cutting anyone off:
+
+1. Everyone updates Nota Bene to a version that knows access keys.
+2. Invite each person (yourself first) and send them their code; they enter it.
+   The open relay ignores the key, so nothing changes yet.
+3. Restart the relay with `-members`. A computer without a key is now refused
+   with 4402, and Nota Bene says an access key is needed.
 
 Memory: each connection's outgoing queue holds at most 1 MiB, and the whole
 relay at most 256 MiB of data in transit; beyond that senders wait and new

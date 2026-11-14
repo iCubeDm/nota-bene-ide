@@ -29,6 +29,9 @@ import (
 // shutdownGrace bounds the whole shutdown; a variable so a test can shorten it.
 var shutdownGrace = 5 * time.Second
 
+// membersEvery is how often the members file is checked for changes.
+var membersEvery = 2 * time.Second
+
 func main() {
 	os.Exit(exitCode(run(os.Args[1:], nil)))
 }
@@ -48,6 +51,11 @@ func exitCode(err error) int {
 // run serves until SIGINT or SIGTERM. ready, when not nil, is told the address
 // of the main listener once it accepts connections.
 func run(args []string, ready func(addr string)) error {
+	if len(args) > 0 {
+		if cmd, ok := adminCommands[args[0]]; ok {
+			return cmd(args[1:], os.Stdout, os.Stderr)
+		}
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return runCtx(ctx, args, ready)
@@ -62,6 +70,7 @@ func runCtx(ctx context.Context, args []string, ready func(addr string)) error {
 	httpAddr := fs.String("http", ":80", "ACME challenge and https redirect listen address")
 	listen := fs.String("listen", "", "plain HTTP on a loopback address, for tests and local runs")
 	maxHosts := fs.Int("max-hosts", hub.DefaultOptions().MaxHosts, "most hosts connected at once (0 = unlimited)")
+	membersPath := fs.String("members", "", "admit only hosts signed by a member key in this file (see nb-relay invite); without it the relay is open")
 	maxDevices := fs.Int("max-devices", hub.DefaultOptions().MaxDevicesPerHost, "most devices per host (0 = unlimited)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -78,7 +87,19 @@ func runCtx(ctx context.Context, args []string, ready func(addr string)) error {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	o := hub.DefaultOptions()
 	o.MaxHosts, o.MaxDevicesPerHost, o.Log = *maxHosts, *maxDevices, logger
+	var members *memberList
+	if *membersPath != "" {
+		ms, err := loadMembers(*membersPath)
+		if err != nil {
+			return err
+		}
+		members = newMemberList(ms)
+		o.Admit = members.admit
+	}
 	srv := hub.NewServer(o)
+	if members != nil {
+		go watchMembers(ctx, *membersPath, members, srv, membersEvery, logger)
+	}
 	handler := srv.Handler()
 
 	var servers []*http.Server

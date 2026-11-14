@@ -85,6 +85,10 @@ const (
 	exHostID      = "WGmv9FBUlzLLqu1eXfmzCm2jHLDldCutWtShp2jxpns"
 	exDeviceProof = "X2BJlpgFEN2Z9t7I2JL_d3lZgo0FRsi2nCTG5pOa6II"
 	exHostProof   = "n7FU6_HfPhaPqmnxzofDb73cYRnRzvWyX6abvpdp3wQ"
+	// computed with Node's crypto (OpenSSL Ed25519), not with hub.MemberSign
+	exMemberSeed = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2A"
+	exMemberPub  = "rcFAEfgtHFbZVqpPnXPYhYNhpgYEhSXg0Ixjjcdd2Mc"
+	exMemberSig  = "-vOct9A16uJIfbR1au3S4OotZgm9sgSL2qNJABjkjfymYxWwTRZBruwp8T8sZPKvDbRovJX2sHU6bLOsFvtLCg"
 )
 
 func TestProtocolExample(t *testing.T) {
@@ -116,12 +120,16 @@ func TestProtocolExample(t *testing.T) {
 	check("host id", hub.HostID(hostPub), exHostID)
 	check("device proof", base64URL.EncodeToString(hub.Proof("device", devPriv, eph, nonce)), exDeviceProof)
 	check("host proof", base64URL.EncodeToString(hub.Proof("host", hostPriv, eph, nonce)), exHostProof)
+	seed := dec(exMemberSeed)
+	mpub := hub.MemberPub(seed)
+	check("member key", base64URL.EncodeToString(mpub[:]), exMemberPub)
+	check("member sig", base64URL.EncodeToString(hub.MemberSign(seed, nonce, eph, hostPub)), exMemberSig)
 
 	doc, err := os.ReadFile("../../PROTOCOL.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, v := range []string{exDevicePriv, exHostPriv, exEphPub, exNonce, exDevicePub, exDeviceHash, exHostID, exDeviceProof, exHostProof} {
+	for _, v := range []string{exDevicePriv, exHostPriv, exEphPub, exNonce, exDevicePub, exDeviceHash, exHostID, exDeviceProof, exHostProof, exMemberSeed, exMemberPub, exMemberSig} {
 		if !strings.Contains(string(doc), v) {
 			t.Errorf("PROTOCOL.md does not contain %s", v)
 		}
