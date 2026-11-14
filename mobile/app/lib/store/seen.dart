@@ -91,6 +91,9 @@ class Seen extends ChangeNotifier {
 
   Future<void> _save() => _v.write(_slot, jsonEncode(_m));
 
+  /// Writes the counts now (a headless check ends right after).
+  Future<void> save() => _save();
+
   /// Stores [replies] for [session], as the most recently updated of its host, within [maxPerHost].
   void _put(String hostId, String session, int replies) {
     final per = _m[hostId] ??= {};

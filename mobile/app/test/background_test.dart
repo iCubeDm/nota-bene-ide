@@ -163,10 +163,9 @@ void main() {
       final before = k.platform.of('cancel').length;
       k.visible.visible = true;
       await t.pump();
-      expect(
-        k.platform.of('cancel').skip(before).map((c) => c['tag']),
-        ['${k.hostId} s1'],
-      );
+      expect(k.platform.of('cancel').skip(before).map((c) => c['tag']), [
+        '${k.hostId} s1',
+      ]);
       k.dispose();
     },
   );

@@ -225,6 +225,7 @@ class MainActivity : FlutterFragmentActivity() {
         super.configureFlutterEngine(flutterEngine)
         background = BackgroundChannel(this, flutterEngine.dartExecutor.binaryMessenger).also {
             it.launch = BackgroundChannel.placeOf(intent)
+            channel = it.channel
         }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "nb/frame").setMethodCallHandler { call, result ->
             if (call.method != "frameAt") {
@@ -888,6 +889,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onDestroy() {
         alive = false
+        channel = null
         // the links go with this activity's engine: a service left running would claim a connection nobody holds
         stopService(Intent(this, AgentService::class.java))
         mainHandler.removeCallbacksAndMessages(null)
@@ -903,6 +905,10 @@ class MainActivity : FlutterFragmentActivity() {
         /// An activity, and with it the app's engine and links, exists: the periodic check asks it rather than connect.
         @Volatile
         var alive = false
+
+        /// This activity's `nb/background`, for the worker's `check`.
+        @Volatile
+        var channel: MethodChannel? = null
 
         private const val MIC_PERMISSION = 4791
         private const val CAMERA_PERMISSION = 4792

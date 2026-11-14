@@ -175,7 +175,7 @@ class BackgroundChannel(private val activity: MainActivity, messenger: BinaryMes
                     result.success(null)
                 }
                 "schedule" -> {
-                    // the periodic check comes with CheckWorker
+                    CheckWorker.schedule(ctx, call.argument<Boolean>("on") == true)
                     result.success(null)
                 }
                 "openSettings" -> {

@@ -12,6 +12,29 @@ import 'events.dart';
 import 'platform.dart';
 import 'visible.dart';
 
+/// Posts [e] as a notification: the project as title, the reply's start (or "waits for you") as text; the lock screen
+/// shows only the public title.
+Future<void> postEvent(
+  BackgroundPlatform platform,
+  AgentEvent e,
+  AppLocalizations s,
+) => platform.notify(
+  tag: e.key,
+  title: e.project,
+  text: switch (e) {
+    ReplyEvent(:final text) => text,
+    WaitEvent() => s.notifyWaitingText,
+  },
+  publicTitle: switch (e) {
+    ReplyEvent() => s.notifyReplyPublic(e.project),
+    WaitEvent() => s.notifyWaitingPublic(e.project),
+  },
+  hostId: e.hostId,
+  port: e.port,
+  root: e.root,
+  channelName: s.notifyChannelEvents,
+);
+
 class Background {
   Background({
     required this.links,
@@ -94,7 +117,7 @@ class Background {
           notified,
           onScreen: visible.onScreen,
         )) {
-          unawaited(_post(e, s));
+          unawaited(postEvent(platform, e, s));
         }
       }
     }
@@ -122,23 +145,6 @@ class Background {
       unawaited(_start(text));
     }
   }
-
-  Future<void> _post(AgentEvent e, AppLocalizations s) => platform.notify(
-    tag: e.key,
-    title: e.project,
-    text: switch (e) {
-      ReplyEvent(:final text) => text,
-      WaitEvent() => s.notifyWaitingText,
-    },
-    publicTitle: switch (e) {
-      ReplyEvent() => s.notifyReplyPublic(e.project),
-      WaitEvent() => s.notifyWaitingPublic(e.project),
-    },
-    hostId: e.hostId,
-    port: e.port,
-    root: e.root,
-    channelName: s.notifyChannelEvents,
-  );
 
   Future<void> _start(String text) async {
     if (_starting || _refused) return;
