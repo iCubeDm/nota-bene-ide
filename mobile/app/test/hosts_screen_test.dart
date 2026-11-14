@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nb_app/home.dart';
+import 'package:nb_app/notify/visible.dart';
 import 'package:nb_app/hosts/hosts_screen.dart' show rowTime;
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
@@ -40,7 +41,11 @@ void main() {
     f = FakeFactory();
   });
 
-  Future<Links> pump(WidgetTester t, {List<String>? opened}) async {
+  Future<Links> pump(
+    WidgetTester t, {
+    List<String>? opened,
+    Stream<ChatPlace>? tapped,
+  }) async {
     final links = Links(
       hosts,
       f.factory,
@@ -55,6 +60,7 @@ void main() {
           clock: () => now,
           links: links,
           onPair: () {},
+          opened: tapped,
           chat: (hostId, w) {
             opened?.add('$hostId ${w.port}');
             return Scaffold(body: Text('chat ${w.root}'));
@@ -140,6 +146,28 @@ void main() {
       links.dispose();
     },
   );
+
+  testWidgets('a tapped notification opens its chat, over another open chat', (
+    t,
+  ) async {
+    await hosts.add(paired(a, 'laptop'));
+    await hosts.setLastChat('$a 4791 /home/u/notes');
+    f.results.add(
+      FakeChannel([window(4791, '/home/u/notes'), window(4792, '/home/u/web')]),
+    );
+    final opened = <String>[];
+    final tapped = StreamController<ChatPlace>();
+    final links = await pump(t, opened: opened, tapped: tapped.stream);
+    expect(find.text('chat /home/u/notes'), findsOneWidget);
+    tapped.add((hostId: a, port: 4792, root: '/home/u/web'));
+    await t.pumpAndSettle();
+    expect(opened, ['$a 4791', '$a 4792']);
+    expect(find.text('chat /home/u/web'), findsOneWidget);
+    expect(find.text('chat /home/u/notes'), findsNothing);
+    expect(hosts.lastChat, '$a 4792 /home/u/web');
+    await tapped.close();
+    links.dispose();
+  });
 
   testWidgets('Home stays on the list when the last chat is gone', (t) async {
     await hosts.add(paired(a, 'laptop'));

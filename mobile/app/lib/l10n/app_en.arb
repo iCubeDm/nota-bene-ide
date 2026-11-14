@@ -542,5 +542,40 @@
   "commentDiscardTitle": "Discard the comment?",
   "commentDiscardBody": "What you wrote will be lost.",
   "commentKeep": "Keep writing",
-  "commentDiscard": "Discard"
+  "commentDiscard": "Discard",
+  "notifySetting": "Notifications",
+  "notifyHint": "While agents work the app keeps its connection and tells you when an agent answers or waits for you.",
+  "notifyDenied": "Notifications are turned off for Nota Bene in Android's settings.",
+  "notifyOpenSettings": "Open settings",
+  "notifyAsk": "Nota Bene can tell you when an agent answers or waits for you, and keep its connection while agents work. Allow notifications?",
+  "notifyAskAllow": "Allow",
+  "notifyAskLater": "Not now",
+  "notifyChannelService": "Connection while agents work",
+  "notifyChannelEvents": "Agent replies and requests",
+  "notifyServiceWorking": "{n, plural, =1{1 agent working} other{{n} agents working}}",
+  "@notifyServiceWorking": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "notifyServiceWaiting": "An agent waits for you",
+  "notifyWaitingText": "The agent waits for you",
+  "notifyReplyPublic": "New reply in {project}",
+  "@notifyReplyPublic": {
+    "placeholders": {
+      "project": {
+        "type": "String"
+      }
+    }
+  },
+  "notifyWaitingPublic": "{project}: the agent waits for you",
+  "@notifyWaitingPublic": {
+    "placeholders": {
+      "project": {
+        "type": "String"
+      }
+    }
+  }
 }

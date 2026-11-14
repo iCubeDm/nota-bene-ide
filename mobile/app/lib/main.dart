@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -8,11 +11,14 @@ import 'hosts/host_link.dart';
 import 'hosts/hosts_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'lock/lock.dart';
+import 'notify/background.dart';
+import 'notify/platform.dart';
 import 'notify/visible.dart';
 import 'pairing/pair_flow.dart';
 import 'pairing/scan_screen.dart';
 import 'settings_screen.dart';
 import 'store/hosts.dart';
+import 'store/notified.dart';
 import 'store/seen.dart';
 import 'store/lang_choice.dart';
 import 'store/sizes.dart';
@@ -76,21 +82,81 @@ class AppRoot extends StatefulWidget {
 
 class _AppRootState extends State<AppRoot> {
   final _visible = AppVisible();
-  late final Future<({Identity id, Hosts hosts, Seen seen, Links links})>
+  final _platform = ChannelBackground();
+
+  /// The chats of tapped notifications: the one that started the app, then each tapped while it runs. Kept until the
+  /// start screen listens (a launch is known before it is built).
+  final _opened = StreamController<ChatPlace>();
+  late final Future<
+    ({Identity id, Hosts hosts, Seen seen, Links links, Background background})
+  >
   _load = () async {
     final v = SecureVault();
     final id = await Identity.load(v);
     final hosts = await Hosts.load(v);
     final seen = await Seen.load(v);
+    final notified = await Notified.load(v);
     final links = Links(hosts, connectChannel, id);
     seen.watch(hosts, links);
-    return (id: id, hosts: hosts, seen: seen, links: links);
+    hosts.addListener(() => notified.prune({for (final h in hosts.all) h.id}));
+    final background = Background(
+      links: links,
+      seen: seen,
+      notified: notified,
+      visible: _visible,
+      platform: _platform,
+      strings: () => lookupAppLocalizations(
+        widget.langs.locale ??
+            resolveLocale(PlatformDispatcher.instance.locales),
+      ),
+      explain: _explain,
+    );
+    _platform.opened.listen(_opened.add);
+    unawaited(
+      _platform.takeLaunch().then((p) {
+        if (p != null) _opened.add(p);
+      }),
+    );
+    return (
+      id: id,
+      hosts: hosts,
+      seen: seen,
+      links: links,
+      background: background,
+    );
   }();
+
+  /// Why notifications are wanted, before Android's own question; true to go on to it.
+  Future<bool> _explain() async {
+    if (!mounted) return false;
+    final t = AppLocalizations.of(context);
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Text(t.notifyAsk),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(t.notifyAskLater),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(t.notifyAskAllow),
+          ),
+        ],
+      ),
+    );
+    return yes == true;
+  }
 
   @override
   void dispose() {
-    _load.then((d) => d.links.dispose(), onError: (Object _) {});
+    _load.then((d) {
+      d.background.dispose();
+      d.links.dispose();
+    }, onError: (Object _) {});
     _visible.dispose();
+    unawaited(_opened.close());
     super.dispose();
   }
 
@@ -133,6 +199,7 @@ class _AppRootState extends State<AppRoot> {
         seen: d.seen,
         links: d.links,
         onPair: pair,
+        opened: _opened.stream,
         onSettings: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => SettingsScreen(

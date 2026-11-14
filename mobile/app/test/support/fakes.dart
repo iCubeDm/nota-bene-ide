@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:nb_app/notify/platform.dart';
+import 'package:nb_app/notify/visible.dart';
 import 'package:nb_app/pairing/pair_flow.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -227,3 +229,97 @@ HostWindow window(
   icon: icon,
   iconSupported: iconSupported || icon != null,
 );
+
+/// The Android side of `nb/background`, recorded: [calls] holds each method with its arguments.
+class FakeBackground implements BackgroundPlatform {
+  FakeBackground({this.answer = 'granted', this.allow = true});
+
+  /// What [permission] answers; [allow] is what the system dialog gives.
+  String answer;
+  bool allow;
+  final calls = <(String, Map<String, Object?>)>[];
+  final _opened = StreamController<ChatPlace>.broadcast();
+  Future<void> Function()? check;
+  ChatPlace? launch;
+
+  Iterable<Map<String, Object?>> of(String method) =>
+      calls.where((c) => c.$1 == method).map((c) => c.$2);
+
+  void open(ChatPlace p) => _opened.add(p);
+
+  @override
+  Future<String> permission() async => answer;
+
+  @override
+  Future<bool> requestPermission() async {
+    calls.add(('requestPermission', {}));
+    answer = allow ? 'granted' : 'denied';
+    return allow;
+  }
+
+  @override
+  Future<void> startService(
+    String title,
+    String text,
+    String channelName,
+  ) async => calls.add((
+    'startService',
+    {'title': title, 'text': text, 'channel': channelName},
+  ));
+
+  @override
+  Future<void> updateService(String title, String text) async =>
+      calls.add(('updateService', {'title': title, 'text': text}));
+
+  @override
+  Future<void> stopService() async => calls.add(('stopService', {}));
+
+  @override
+  Future<void> notify({
+    required String tag,
+    required String title,
+    String? text,
+    required String publicTitle,
+    required String hostId,
+    required int port,
+    required String root,
+    required String channelName,
+  }) async => calls.add((
+    'notify',
+    {
+      'tag': tag,
+      'title': title,
+      'text': text,
+      'publicTitle': publicTitle,
+      'hostId': hostId,
+      'port': port,
+      'root': root,
+      'channel': channelName,
+    },
+  ));
+
+  @override
+  Future<void> cancel(String tag) async => calls.add(('cancel', {'tag': tag}));
+
+  @override
+  Future<void> schedule(bool on) async => calls.add(('schedule', {'on': on}));
+
+  @override
+  Future<void> openSettings() async => calls.add(('openSettings', {}));
+
+  @override
+  Future<void> done() async => calls.add(('done', {}));
+
+  @override
+  Future<ChatPlace?> takeLaunch() async {
+    final l = launch;
+    launch = null;
+    return l;
+  }
+
+  @override
+  Stream<ChatPlace> get opened => _opened.stream;
+
+  @override
+  void onCheck(Future<void> Function() check) => this.check = check;
+}
