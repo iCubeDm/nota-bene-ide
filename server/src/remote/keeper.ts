@@ -16,7 +16,8 @@ import { stateBaseDir } from '../state.ts';
 import { readLock, takeLockFile } from '../runtime.ts';
 import { controlClient, running, type ControlClient, type Msg } from './control.ts';
 import {
-  checkRelay, clearLastError, fingerprint, fromB64u, readConfig, readDevices, readLastError, remoteDir, writeConfig, type RemoteConfig,
+  checkRelay, clearLastError, fingerprint, fromB64u, parseAccessKey, readConfig, readDevices, readLastError, remoteDir, writeAccessKey, writeConfig,
+  type RemoteConfig,
 } from './store.ts';
 
 /** How often a window looks at the connector. */
@@ -87,7 +88,7 @@ export class RemoteKeeper extends EventEmitter {
   #pass: Promise<RemoteState> | undefined;
   #state: RemoteState = {
     configured: false, enabled: true, running: false, online: false, relay: null, hostFingerprint: null, devices: [],
-    pairing: null, legacy: false, lastError: null, startFailed: false,
+    pairing: null, legacy: false, lastError: null, startFailed: false, accessKey: false,
   };
   #last = '';
   #warned = '';
@@ -129,16 +130,21 @@ export class RemoteKeeper extends EventEmitter {
   }
 
   /**
-   * Saves the relay and the switch, then acts on them: off, or another relay, stops the running connector (a managed one
-   * comes back for the new relay). `stopped` says whose connector was stopped: a terminal's (`hand`) is worth telling.
+   * Saves the relay, the switch and the access key, then acts on them: off, or another relay, stops the running connector
+   * (a managed one comes back for the new relay); a new access key makes it reconnect with it. `stopped` says whose
+   * connector was stopped: a terminal's (`hand`) is worth telling.
    */
-  async setConfig(c: RemoteConfig): Promise<{ state: RemoteState; stopped: 'hand' | 'managed' | null }> {
-    if (c.relay !== undefined) checkRelay(c.relay);
+  async setConfig(c: RemoteConfig & { accessKey?: string | null }): Promise<{ state: RemoteState; stopped: 'hand' | 'managed' | null }> {
+    const { accessKey, ...cfg } = c;
+    if (cfg.relay !== undefined) checkRelay(cfg.relay);
+    if (typeof accessKey === 'string') parseAccessKey(accessKey);
     await this.#pass;
     const st = await this.#ask({ op: 'status' });
-    const replace = !!st && (c.enabled === false || (c.relay !== undefined && c.relay !== st.relay));
-    if (replace && st.version === undefined) throw new LegacyConnector();
-    writeConfig({ ...readConfig(), ...c });
+    const replace = !!st && (cfg.enabled === false || (cfg.relay !== undefined && cfg.relay !== st.relay));
+    // a connector from before access keys neither reads nor reconnects with one
+    if ((replace || (accessKey !== undefined && !!st)) && st!.version === undefined) throw new LegacyConnector();
+    if (Object.keys(cfg).length) writeConfig({ ...readConfig(), ...cfg });
+    if (accessKey !== undefined) writeAccessKey(accessKey);
     clearLastError();
     this.#failures = 0;
     this.#retryAt = 0;
@@ -147,7 +153,7 @@ export class RemoteKeeper extends EventEmitter {
     if (replace) {
       await this.#stopConnector();
       stopped = st.managed === true ? 'managed' : 'hand';
-    }
+    } else if (accessKey !== undefined && st) await this.#ask({ op: 'reconnect' });
     return { state: await this.refresh(), stopped };
   }
 
@@ -303,6 +309,8 @@ export class RemoteKeeper extends EventEmitter {
       legacy: !!st && st.version === undefined,
       lastError: none ? null : readLastError(),
       startFailed: this.#startFailed,
+      // looked at, not read: nothing is created, and a broken file is the connector's to report (the relay then refuses)
+      accessKey: fs.existsSync(path.join(stateBaseDir(), 'remote', 'access-key')),
     };
   }
 

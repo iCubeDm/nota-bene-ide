@@ -15,7 +15,7 @@ afterEach(async () => {
 const STATE: RemoteState = {
   configured: true, enabled: true, running: true, online: true, relay: 'wss://relay.example.com', hostFingerprint: 'abcd-efgh-ijkl-mnop',
   devices: [{ id: 'abcd', name: 'Test phone', fingerprint: 'qrst-uvwx-yz23-4567', online: true, pairedAt: 1 }],
-  pairing: null, legacy: false, lastError: null, startFailed: false,
+  pairing: null, legacy: false, lastError: null, startFailed: false, accessKey: false,
 };
 
 function fake(over: Partial<RemoteKeeperApi> = {}) {
@@ -58,6 +58,20 @@ describe('remote routes', () => {
     expect((await post(base, '/remote/config', { enabled: 'yes' })).status).toBe(400);
     expect((await post(base, '/remote/config', { relay: 5 })).status).toBe(400);
     expect((await post(base, '/remote/config', '{')).status).toBe(400);
+  });
+
+  it('config passes the access key (trimmed) or its removal, and refuses another type', async () => {
+    const { k, calls } = fake();
+    const base = await serve(k);
+    expect((await post(base, '/remote/config', { accessKey: ' nbk1_x ' })).status).toBe(200);
+    expect((await post(base, '/remote/config', { accessKey: null })).status).toBe(200);
+    expect(calls).toEqual([{ accessKey: 'nbk1_x' }, { accessKey: null }]);
+    expect((await post(base, '/remote/config', { accessKey: 5 })).status).toBe(400);
+    server!.close();
+    const bad = await serve(fake({ setConfig: async () => { throw new Error('an access key starts with nbk1_ and has 48 characters'); } }).k);
+    const r = await post(bad, '/remote/config', { accessKey: 'nope' });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ error: 'an access key starts with nbk1_ and has 48 characters' });
   });
 
   it('a bad relay address is a 400 with the reason; a terminal connector of an older version is a 409', async () => {

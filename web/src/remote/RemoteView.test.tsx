@@ -9,7 +9,7 @@ import { selectTabs } from '@/tabs/slice.ts';
 
 const OFF: RemoteState = {
   configured: false, enabled: true, running: false, online: false, relay: null, hostFingerprint: null, devices: [],
-  pairing: null, legacy: false, lastError: null, startFailed: false,
+  pairing: null, legacy: false, lastError: null, startFailed: false, accessKey: false,
 };
 const ONLINE: RemoteState = {
   ...OFF, configured: true, running: true, online: true, relay: 'wss://relay.example.com', hostFingerprint: 'abcd-efgh-ijkl-mnop',

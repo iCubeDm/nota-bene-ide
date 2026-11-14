@@ -6,7 +6,7 @@ import { Connector } from './connector.ts';
 import { Windows } from './discover.ts';
 import { BACKOFF_MS, LegacyConnector, olderVersion, RemoteKeeper, type PairOutcome } from './keeper.ts';
 import { generateKeyPair } from './noise.ts';
-import { b64u, pairProof, pairTicket, parsePairUri, readConfig, remoteDir, writeConfig, writeLastError } from './store.ts';
+import { b64u, pairProof, pairTicket, parsePairUri, readAccessKey, readConfig, readLastError, remoteDir, writeConfig, writeLastError } from './store.ts';
 import { relayPhone } from './testPhone.ts';
 import { startRelay, type TestRelay } from './testRelay.ts';
 
@@ -139,6 +139,8 @@ describe('remote keeper', () => {
     const { k, spawns } = keeper();
     expect(await k.refresh()).toMatchObject({ running: true, legacy: true });
     await expect(k.setConfig({ enabled: false })).rejects.toBeInstanceOf(LegacyConnector);
+    await expect(k.setConfig({ accessKey: `nbk1_${b64u(Buffer.alloc(32, 7))}` })).rejects.toBeInstanceOf(LegacyConnector);
+    expect(readAccessKey()).toBeNull();
     expect(readConfig().enabled).toBeUndefined();
     expect(spawns).toEqual([]);
   });
@@ -255,5 +257,50 @@ describe('remote keeper', () => {
     expect((await k.refresh()).pairing).not.toBeNull();
     k.cancelPair();
     await until(async () => (await k.refresh()).pairing === null);
+  });
+
+  it('the access key: saved, shown only as set, removed; a running connector reconnects with it', async () => {
+    const code = `nbk1_${b64u(Buffer.alloc(32, 7))}`;
+    writeConfig({ relay: relay.url });
+    const { k } = keeper();
+    await until(async () => (await k.refresh()).online);
+    expect(k.state().accessKey).toBe(false);
+    const c = started.at(-1)!;
+    const logs: string[] = [];
+    c.on('log', (m: string) => logs.push(m));
+    await expect(k.setConfig({ accessKey: 'nbremote://pair?v=1' })).rejects.toThrow(/phone pairing code/);
+    const r = await k.setConfig({ accessKey: code });
+    expect(r).toMatchObject({ state: { accessKey: true, running: true }, stopped: null });
+    expect(JSON.stringify(r.state)).not.toContain(code.slice(5));
+    expect(readAccessKey()).toEqual(Buffer.alloc(32, 7));
+    expect(readConfig()).toEqual({ relay: relay.url });
+    await until(() => logs.some((m) => /reconnecting with the saved access key/.test(m)));
+    expect((await k.setConfig({ accessKey: null })).state.accessKey).toBe(false);
+  });
+
+  it('a connector the relay refused for lack of a key is started again as soon as one is saved', async () => {
+    writeConfig({ relay: relay.url });
+    let now = 1_000_000;
+    let refuse = true;
+    const { k, spawns } = keeper({
+      now: () => now,
+      spawn: () => {
+        if (refuse) writeLastError({ code: 4402, message: 'the relay does not admit this host: the access key is missing, unknown or revoked', at: now });
+        else setTimeout(() => void connector({ managed: true, version: '9.9.9' }), 50);
+      },
+    });
+    expect(await k.refresh()).toMatchObject({ running: false, lastError: { code: 4402 } });
+    expect(spawns).toHaveLength(1);
+    refuse = false;
+    const r = await k.setConfig({ accessKey: `nbk1_${b64u(Buffer.alloc(32, 9))}` });
+    expect(spawns).toHaveLength(2); // not after the back-off
+    expect(r.state).toMatchObject({ running: true, accessKey: true, lastError: null });
+    expect(readLastError()).toBeNull();
+  });
+
+  it('a home never set up: the state says no key and nothing is created', async () => {
+    const { k } = keeper();
+    expect((await k.refresh()).accessKey).toBe(false);
+    expect(fs.existsSync(path.join(tmp, 'h', 'remote'))).toBe(false);
   });
 });

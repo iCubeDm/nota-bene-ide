@@ -1336,7 +1336,8 @@
         "pairing": { "expiresAt": 1700000300000, "mine": true },
         "legacy": false,
         "lastError": null,
-        "startFailed": false
+        "startFailed": false,
+        "accessKey": true
       }
     },
     {
@@ -1351,8 +1352,9 @@
         "devices": [],
         "pairing": null,
         "legacy": false,
-        "lastError": { "code": 4402, "message": "the relay does not admit this host (its operator refused it)", "at": 1700000000000 },
-        "startFailed": false
+        "lastError": { "code": 4405, "message": "this access key is already used on the most computers allowed", "at": 1700000000000 },
+        "startFailed": false,
+        "accessKey": false
       }
     },
     {
