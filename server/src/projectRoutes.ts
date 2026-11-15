@@ -24,6 +24,7 @@ export type Launch = (args: string[], env: NodeJS.ProcessEnv) => Promise<{ code:
 export type Agents = () => Promise<{ agents: AgentProvider[]; default: AgentProvider }>;
 
 const LAUNCH_MS = 30_000;
+const STILL_STARTING = 'still starting';
 const MAX_DIRS = 500;
 /** What a launcher this server started must not inherit: they describe this server's own launch. */
 const LAUNCH_STATE = ['NOTA_BENE_SUPERVISED', 'NOTA_BENE_LAUNCHER_PID', 'NOTA_BENE_NONCE', 'NOTA_BENE_AGENT', 'NOTA_BENE_INNER', 'NOTA_BENE_LOCKED',
@@ -44,17 +45,27 @@ export function validName(name: unknown): name is string {
 
 const isProvider = (p: unknown): p is AgentProvider => (PROVIDERS as unknown[]).includes(p);
 
-function launcherOf(repoDir: string): Launch {
+/**
+ * The launcher of `repoDir`. Its line is read to the end of its stdout ('close', not 'exit': the output may still be in
+ * flight when the process ends). A launch slower than `waitMs` (a rebuild, a lock wait) is left running: its window comes
+ * up by itself and shows under Running; killing it would stop only the launcher in front, not its detached child.
+ */
+export function launcherOf(repoDir: string, waitMs = LAUNCH_MS): Launch {
   const bin = path.join(repoDir, 'bin', 'nota-bene.mjs');
   return (args, env) => new Promise((resolve) => {
     const p = spawn(process.execPath, [bin, ...args], { env, stdio: ['ignore', 'pipe', 'pipe'], ...HIDDEN });
     let out = '', err = '';
     p.stdout.on('data', (d: Buffer) => { if (out.length < 8192) out += d; });
     p.stderr.on('data', (d: Buffer) => { if (err.length < 8192) err += d; });
-    const timer = setTimeout(() => { p.kill(); resolve({ code: -1, firstLine: 'the launcher did not answer in time' }); }, LAUNCH_MS);
+    const timer = setTimeout(() => {
+      p.stdout.destroy();
+      p.stderr.destroy();
+      p.unref();
+      resolve({ code: -1, firstLine: STILL_STARTING });
+    }, waitMs);
     const first = (s: string) => s.split(/\r?\n/).find((l) => l.trim() !== '')?.trim() ?? '';
     p.on('error', (e) => { clearTimeout(timer); resolve({ code: -1, firstLine: e.message }); });
-    p.on('exit', (code) => { clearTimeout(timer); resolve({ code: code ?? -1, firstLine: first(out) || first(err) }); });
+    p.on('close', (code) => { clearTimeout(timer); resolve({ code: code ?? -1, firstLine: first(out) || first(err) }); });
   });
 }
 
@@ -111,6 +122,7 @@ export function projectRoutes(o: {
     const r = await launch([dir, '--agent', provider, ...(fresh ? ['--new'] : []), '--detach', '--no-open'], launchEnv(process.env));
     const m = r.code === 0 ? OPENED.exec(r.firstLine) : null;
     if (m) return json(res, 200, { url: m[1] });
+    if (r.code === -1 && r.firstLine === STILL_STARTING) return text(res, 504, STILL_STARTING);
     // never echo a line that carries a login: an unexpected success line is a failure without its text
     text(res, 502, r.firstLine && !r.firstLine.includes('#t=') ? r.firstLine : `the launcher exited with ${r.code}`);
   };

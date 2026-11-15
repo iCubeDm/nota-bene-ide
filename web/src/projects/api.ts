@@ -54,6 +54,14 @@ export function useProjects(active: boolean): { data: ProjectsList | null; reloa
 export const postJson = (url: string, body: unknown): Promise<Response> =>
   apiFetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
+/** The server's fixed refusals (server/src/projects.ts, projectRoutes.ts), in the page's language; any other text (a launcher's line) as it is. */
+const REASONS = {
+  'no such window': 'whyNoWindow', 'window not answering': 'whyNotAnswering', 'not a folder': 'whyNotFolder', 'not readable': 'whyNotReadable',
+  'not writable': 'whyNotWritable', 'git init failed': 'whyGitInit', 'bad request': 'whyBadRequest', 'bad answer': 'whyBadRequest',
+  'still starting': 'startStill', exists: 'startExists',
+} as const;
+export const reasonText = (why: string): string => (why in REASONS ? t(REASONS[why as keyof typeof REASONS]) : why);
+
 /** A failed answer's reason: the server's short text, or the status. */
 export const reasonOf = async (r: Response): Promise<string> => (await r.text().catch(() => '')).trim() || String(r.status);
 
@@ -61,9 +69,9 @@ export const reasonOf = async (r: Response): Promise<string> => (await r.text().
 export async function enterProject(row: RunningRow): Promise<void> {
   try {
     const r = await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root });
-    if (!r.ok) return toast(t('projEnterFailed', await reasonOf(r)), row.root);
+    if (!r.ok) return toast(t('projEnterFailed', reasonText(await reasonOf(r))), row.root);
     const { url } = (await r.json()) as { url?: unknown };
-    if (typeof url !== 'string') return toast(t('projEnterFailed', 'bad answer'), row.root);
+    if (typeof url !== 'string') return toast(t('projEnterFailed', reasonText('bad answer')), row.root);
     nav.go(url);
   } catch (e) {
     toast(t('projEnterFailed', e instanceof Error ? e.message : String(e)), row.root);

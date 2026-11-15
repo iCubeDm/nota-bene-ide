@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { EventHub } from './hub.ts';
-import { launchEnv, projectRoutes, type Launch } from './projectRoutes.ts';
+import { launchEnv, launcherOf, projectRoutes, type Launch } from './projectRoutes.ts';
 
 let tree: string;
 let home: string;
@@ -155,4 +155,35 @@ it('projects lists running and recent', async () => {
 it('launchEnv drops the launch-state variables and keeps the rest', () => {
   const env = launchEnv({ NOTA_BENE_HOME: '/h', NOTA_BENE_PORT_RANGE: '4791-4795', NOTA_BENE_SUPERVISED: '1', NOTA_BENE_LAUNCHER_PID: '1', NOTA_BENE_NONCE: 'n', NOTA_BENE_AGENT: 'codex', NOTA_BENE_INNER: '1', NOTA_BENE_LOCKED: '1', NOTA_BENE_AUTOPORT: '1', NOTA_BENE_HANDOVER: '1', NOTA_BENE_HANDOVER_NONCE: 'n', NOTA_BENE_UPDATED_FROM: '1.0.0', PATH: '/bin' });
   expect(env).toEqual({ NOTA_BENE_HOME: '/h', NOTA_BENE_PORT_RANGE: '4791-4795', PATH: '/bin' });
+});
+
+/** A stand-in launcher at `<repo>/bin/nota-bene.mjs` running `body`. */
+function stubBin(body: string): string {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-proutes-bin-'));
+  fs.mkdirSync(path.join(repo, 'bin'));
+  fs.writeFileSync(path.join(repo, 'bin', 'nota-bene.mjs'), body);
+  closers.push(async () => fs.rmSync(repo, { recursive: true, force: true }));
+  return repo;
+}
+
+it('the launcher line is read even when it is written just before the exit', async () => {
+  // the line goes out in pieces, the last one as the process ends: stdout must be read to its end, not to 'exit'
+  const repo = stubBin(`process.stdout.write('opened http://127.0.0.1:4793/');\nsetTimeout(() => { process.stdout.write('#t=${'a'.repeat(64)}\\n'); process.exit(0); }, 20);\n`);
+  for (let i = 0; i < 5; i++) expect(await launcherOf(repo)([], process.env)).toEqual({ code: 0, firstLine: `opened ${URL_OK}` });
+});
+
+it('a launcher that takes longer than the wait is left running and reported as still starting', async () => {
+  const mark = path.join(tree, 'done');
+  const repo = stubBin(`import fs from 'node:fs';\nsetTimeout(() => fs.writeFileSync(${JSON.stringify(mark)}, 'x'), 600);\n`);
+  const r = await launcherOf(repo, 100)([], process.env);
+  expect(r).toEqual({ code: -1, firstLine: 'still starting' });
+  await new Promise((res) => setTimeout(res, 1200));
+  expect(fs.existsSync(mark)).toBe(true); // not killed: its window still comes up
+});
+
+it('a still-starting launch answers 504 still starting', async () => {
+  const s = await serve(async () => ({ code: -1, firstLine: 'still starting' }));
+  const r = await s.post('/system/projects/open', { dir: tree, provider: 'claude' });
+  expect(r.status).toBe(504);
+  expect(await r.text()).toBe('still starting');
 });

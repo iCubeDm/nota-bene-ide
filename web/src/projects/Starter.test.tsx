@@ -127,3 +127,15 @@ it('while the launcher runs the buttons are disabled and a wait line is shown', 
   await act(async () => release());
   await waitFor(() => expect(nav.go).toHaveBeenCalledWith(URL_OK));
 });
+
+it('the server\'s fixed reasons are shown in the page\'s language; a slow launch says it is still starting', async () => {
+  setLang('ru');
+  await start('open');
+  const field = screen.getByRole('textbox', { name: t('startPath') });
+  fireEvent.change(field, { target: { value: '/nowhere' } });
+  fireEvent.keyDown(field, { key: 'Enter' });
+  expect(await screen.findByText(t('startFailed', t('whyNotFolder')))).toBeInTheDocument();
+  answer = (url) => (url === '/system/projects/open' ? new Response('still starting', { status: 504 }) : null);
+  fireEvent.click(screen.getByRole('button', { name: t('startOpen') }));
+  expect(await screen.findByText(t('startStill'))).toBeInTheDocument();
+});

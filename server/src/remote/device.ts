@@ -19,10 +19,12 @@ const INFO_FIELDS = ['title', 'session', 'model', 'busy', 'supervised', 'pending
 
 /**
  * A path the proxy sends on: one of the window's own routes, never another host, never the control routes, never the
- * remote-access routes (a paired phone would pair another device, revoke phones or turn access off unseen).
+ * remote-access routes (a paired phone would pair another device, revoke phones or turn access off unseen), never the
+ * project switcher's (they start windows, create folders and hand out other windows' logins: the desktop's until phase 2).
  */
 export const goodPath = (p: unknown): p is string =>
-  typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !p.startsWith('//') && !/[\\#]/.test(p) && !/^\/(control|remote)(\/|\?|$)/i.test(p);
+  typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !p.startsWith('//') && !/[\\#]/.test(p) && !/^\/(control|remote)(\/|\?|$)/i.test(p)
+  && !/^\/system\/(projects|folders|agents)(\/|\?|$)/i.test(p);
 
 /** What this computer calls itself, for the phone's host label: `os.hostname()` without a trailing `.local`, control and bidi-override characters dropped, at most 64 characters. */
 export function computerName(raw: string = os.hostname()): string | undefined {

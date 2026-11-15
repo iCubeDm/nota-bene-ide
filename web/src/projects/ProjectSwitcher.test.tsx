@@ -86,7 +86,7 @@ it('a failed enter shows its reason and stays', async () => {
   enter = () => new Response('window not answering', { status: 409 });
   await openMenu();
   fireEvent.click(screen.getByRole('button', { name: /Codex.*working/ }));
-  await waitFor(() => expect(getToasts().some((x) => x.title === t('projEnterFailed', 'window not answering'))).toBe(true));
+  await waitFor(() => expect(getToasts().some((x) => x.title === t('projEnterFailed', t('whyNotAnswering')))).toBe(true));
   expect(nav.go).not.toHaveBeenCalled();
 });
 

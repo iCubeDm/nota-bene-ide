@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { shortWinHome } from '@/lib/paths.ts';
 import { toast } from '@/shell/toast.ts';
 import { withKey } from '@/shell/keymap.ts';
-import { enterProject, openFolder, openStarter, PROVIDER_LABEL, projectsMenu, useProjects, type ProjectState, type RecentRow, type RunningRow } from './api.ts';
+import { enterProject, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, useProjects, type ProjectState, type RecentRow, type RunningRow } from './api.ts';
 
 const folderOf = (root: string) => root.split(/[\\/]/).filter(Boolean).pop() ?? root;
 const short = (d: string) => shortWinHome(d).replace(/^\/Users\/[^/]+/, '~');
@@ -38,7 +38,7 @@ export function ProjectSwitcher({ project }: { project: string }) {
     setBusy(true);
     const why = await openFolder(e.root, e.provider);
     setBusy(false);
-    if (why) toast(t('startFailed', why), e.root);
+    if (why) toast(why === 'still starting' ? reasonText(why) : t('startFailed', reasonText(why)), e.root);
   };
   const starter = (mode: 'open' | 'new') => { projectsMenu.close(); openStarter(mode); };
 

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog.tsx';
 import { useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
-import { isAbsolute, openFolder, postJson, PROVIDER_LABEL, reasonOf, setStarter, validName, type Provider } from './api.ts';
+import { isAbsolute, openFolder, postJson, PROVIDER_LABEL, reasonOf, reasonText, setStarter, validName, type Provider } from './api.ts';
 
 type Listing = { path: string; parent: string | null; home: string; dirs: { name: string; git: boolean }[] };
 const join = (dir: string, name: string) => `${dir.replace(/[\\/]+$/, '')}${dir.includes('\\') && !dir.includes('/') ? '\\' : '/'}${name}`;
@@ -28,7 +28,7 @@ export function Starter() {
   const browse = async (path: string | undefined, withHidden = hidden) => {
     try {
       const r = await postJson('/system/folders', { ...(path !== undefined ? { path } : {}), hidden: withHidden });
-      if (!r.ok) return setNote(t('startFailed', await reasonOf(r)));
+      if (!r.ok) return setNote(t('startFailed', reasonText(await reasonOf(r))));
       const l = (await r.json()) as Listing;
       setList(l);
       setTyped(l.path);
@@ -62,7 +62,7 @@ export function Starter() {
     setNote(null);
     const why = await openFolder(list.path, agent, mode === 'new' ? { name, git } : undefined);
     setRunning(false);
-    if (why) setNote(why === 'exists' ? t('startExists') : t('startFailed', why));
+    if (why) setNote(why === 'exists' || why === 'still starting' ? reasonText(why) : t('startFailed', reasonText(why)));
   };
   const nameBad = mode === 'new' && name !== '' && !validName(name);
   const canGo = !!list && !running && (mode === 'open' || validName(name));
