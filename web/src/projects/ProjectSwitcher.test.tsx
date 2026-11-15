@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang, t } from '@/i18n/index.ts';
 import { getToasts } from '@/shell/toast.ts';
 import type { ProjectsList } from './api.ts';
-import { nav, projectsMenu } from './api.ts';
+import { nav, projectsMenu, setStarter } from './api.ts';
 import { ProjectSwitcher } from './ProjectSwitcher.tsx';
 
 const LIST: ProjectsList = {
@@ -102,4 +102,20 @@ it('a list that is not a projects list renders as empty', async () => {
   render(<ProjectSwitcher project="notes" />);
   act(() => projectsMenu.open());
   expect(await screen.findByRole('textbox', { name: t('projSearch') })).toBeInTheDocument();
+});
+
+it('Open folder and New project close the menu and open the starter in that mode', async () => {
+  const modes: string[] = [];
+  setStarter((m) => modes.push(m));
+  try {
+    await openMenu();
+    fireEvent.click(screen.getByRole('button', { name: t('projNew') }));
+    expect(modes).toEqual(['new']);
+    expect(projectsMenu.get()).toBe(false);
+    act(() => projectsMenu.open());
+    fireEvent.click(await screen.findByRole('button', { name: t('projOpenFolder') }));
+    expect(modes).toEqual(['new', 'open']);
+  } finally {
+    setStarter(null);
+  }
 });

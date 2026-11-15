@@ -90,3 +90,9 @@ export async function openFolder(dir: string, provider: Provider, create?: { nam
     return e instanceof Error ? e.message : String(e);
   }
 }
+
+/** The folder names the server's create accepts (server/src/projectRoutes.ts validName): one segment, no edge spaces, ≤255 bytes. */
+export const validName = (name: string): boolean =>
+  name !== '' && name !== '.' && name !== '..' && !/[/\\\0]/.test(name) && name.trim() === name && new TextEncoder().encode(name).length <= 255;
+
+export const isAbsolute = (p: string): boolean => p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p) || p.startsWith('\\\\');
