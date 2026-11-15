@@ -1,11 +1,11 @@
 import { Fragment, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
-import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTaskRow } from '@nota-bene/shared';
+import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTank, type UsageTaskRow } from '@nota-bene/shared';
 import { useAppSelector } from '@/store/store.ts';
 import { getLang, useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 
 const POLL_MS = 2000;
-const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, WEEKS_SHOWN = 16, WINDOWS_SHOWN = 32, TANKS_SHOWN = 4;
+const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, WEEKS_SHOWN = 16, WINDOWS_SHOWN = 32, TANKS_SHOWN = 12;
 const PROVIDERS: { id: UsageProvider; name: string }[] = [{ id: 'claude', name: 'Claude' }, { id: 'codex', name: 'Codex' }];
 const PERIOD_KEY = { trip: 'usagePeriodTrip', '7d': 'usagePeriod7d', '30d': 'usagePeriod30d', all: 'usagePeriodAll' } as const;
 /** The named models, by rank in the report; everything else is the rest. */
@@ -215,17 +215,35 @@ function Limits({ r }: { r: UsageReport }) {
           {extra.month !== null && ` ${extra.limit === null ? t('usageExtraMonth', money(extra.month, extra.currency)) : t('usageExtraOf', money(extra.month, extra.currency), money(extra.limit, extra.currency))}`}
         </p>
       )}
-      {r.tanks.length > 0 && (
-        <p className="text-[0.8125rem] text-muted-foreground" title={t('usageTankTip')}>
-          {t('usageTank')} <span className="font-mono text-foreground">{r.tanks.slice(-TANKS_SHOWN).map((k) => fmtTokens(k.perPct)).join(' → ')}</span>
-        </p>
-      )}
-      {r.tanks.slice(-TANKS_SHOWN).some((k) => k.h5) && (
-        <p className="text-[0.8125rem] text-muted-foreground" title={t('usageTank5hTip')}>
-          {t('usageTank5h')} <span className="font-mono text-foreground">{r.tanks.slice(-TANKS_SHOWN).map((k) => (k.h5 ? fmtTokens(k.h5.perPct) : '—')).join(' → ')}</span>
-        </p>
-      )}
+      {r.tanks.length > 0 && <TankTable tanks={r.tanks.slice(-TANKS_SHOWN)} />}
     </section>
+  );
+}
+
+/** Tokens per 1%: a column per weekly window, oldest first; the 5-hour row when a window has its readings, then the weekly one. */
+function TankTable({ tanks }: { tanks: UsageTank[] }) {
+  const t = useT();
+  const span = (k: UsageTank): string => (shortTime(k.from) === shortTime(k.to) ? shortTime(k.from) : `${shortTime(k.from)} – ${shortTime(k.to)}`);
+  const rows: { label: string; tip: string; cell: (k: UsageTank) => string }[] = [
+    ...(tanks.some((k) => k.h5) ? [{ label: t('usageTank5h'), tip: t('usageTank5hTip'), cell: (k: UsageTank) => (k.h5 ? fmtTokens(k.h5.perPct) : '—') }] : []),
+    { label: t('usageTank'), tip: t('usageTankTip'), cell: (k: UsageTank) => fmtTokens(k.perPct) },
+  ];
+  return (
+    <div className="min-w-0 overflow-x-auto">
+      <table aria-label={t('usageTankTable')} className="border-collapse text-[0.8125rem]">
+        <thead>
+          <tr><th className={TH} />{tanks.map((k) => <th key={k.from} className={`${TH} whitespace-nowrap text-right`}>{span(k)}</th>)}</tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.label}>
+              <th scope="row" title={row.tip} className={`${TD} whitespace-nowrap text-left font-normal text-muted-foreground`}>{row.label}</th>
+              {tanks.map((k) => <td key={k.from} className={`${TD} text-right font-mono`}>{row.cell(k)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
