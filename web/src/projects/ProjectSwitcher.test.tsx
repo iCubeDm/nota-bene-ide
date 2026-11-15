@@ -52,30 +52,29 @@ it('the trigger shows the project and the waiting count', async () => {
   expect(within(trigger).getByTitle(t('projWaitingTip', 1))).toBeInTheDocument();
 });
 
-it('each running window is named by its session, with the folder, agent and state below; recent lists only what is not running', async () => {
+it('each running window is named by its folder, with its session, agent and state below; recent lists only what is not running', async () => {
   await openMenu();
   const running = screen.getByRole('group', { name: t('projRunning') });
-  const titled = within(running).getByRole('button', { name: /^Fix the login form/ });
-  expect(titled).toHaveAccessibleName(`Fix the login form site · Claude · ${t('projWaiting')}`);
-  // a window with no session title yet is named by its folder
-  expect(within(running).getByRole('button', { name: `site site · Codex · ${t('projWorking')}` })).toBeInTheDocument();
-  expect(within(running).queryByRole('button', { name: /Weekly notes/ })).toBeNull();
-  expect(within(running).getByText('Weekly notes')).toBeInTheDocument();
+  expect(within(running).getByRole('button', { name: `site Fix the login form · Claude · ${t('projWaiting')}` })).toBeInTheDocument();
+  // a window whose session has no title yet shows only its agent and state below the folder
+  expect(within(running).getByRole('button', { name: `site Codex · ${t('projWorking')}` })).toBeInTheDocument();
+  expect(within(running).queryByRole('button', { name: /^notes/ })).toBeNull();
+  expect(within(running).getByText(`Weekly notes · Claude · ${t('projIdle')}`)).toBeInTheDocument();
   expect(within(running).getByText(t('projThis'))).toBeInTheDocument();
   const recent = screen.getByRole('group', { name: t('projRecent') });
   expect(within(recent).getByText('old')).toBeInTheDocument();
   expect(within(recent).queryByText('site')).toBeNull();
 });
 
-it('search filters by session title, folder name and path', async () => {
+it('search filters by folder name, path and session title', async () => {
   const search = await openMenu();
   fireEvent.change(search, { target: { value: 'sit' } });
-  expect(screen.getByRole('button', { name: /^Fix the login form/ })).toBeInTheDocument();
-  expect(screen.queryByText('Weekly notes')).toBeNull();
+  expect(screen.getByRole('button', { name: /Fix the login form/ })).toBeInTheDocument();
+  expect(screen.queryByText(/Weekly notes/)).toBeNull();
   expect(screen.queryByText('old')).toBeNull();
   fireEvent.change(search, { target: { value: 'weekly' } });
-  expect(screen.getByText('Weekly notes')).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /^Fix the login form/ })).toBeNull();
+  expect(screen.getByText(/Weekly notes/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Fix the login form/ })).toBeNull();
   fireEvent.change(search, { target: { value: 'zzz' } });
   expect(screen.getByText(t('projNone'))).toBeInTheDocument();
 });
@@ -97,7 +96,7 @@ it('a failed enter shows its reason and stays', async () => {
 
 it('a restarting window is shown with its state and no action', async () => {
   await openMenu();
-  expect(screen.getByText(new RegExp(`gone · omp · ${t('projRestarting')}`))).toBeInTheDocument();
+  expect(screen.getByText(`omp · ${t('projRestarting')}`)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /gone/ })).toBeNull();
 });
 

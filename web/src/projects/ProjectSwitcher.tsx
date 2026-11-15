@@ -32,7 +32,7 @@ export function ProjectSwitcher({ project }: { project: string }) {
   const shown = running.filter((r) => hit(r.root, r.title));
   const recent = (data?.recent ?? []).filter((e) => !e.running && hit(e.root)).slice(0, RECENT_SHOWN);
   const onOpenChange = (o: boolean) => { if (o) projectsMenu.open(); else { projectsMenu.close(); setQ(''); } };
-  const detail = (r: RunningRow) => `${folderOf(r.root)} · ${PROVIDER_LABEL[r.provider]} · ${t(STATE_KEY[r.state])}`;
+  const detail = (r: RunningRow) => [r.title, PROVIDER_LABEL[r.provider], t(STATE_KEY[r.state])].filter(Boolean).join(' · ');
   const openRecent = async (e: RecentRow) => {
     setBusy(true);
     const why = await openFolder(e.root, e.provider);
@@ -62,12 +62,12 @@ export function ProjectSwitcher({ project }: { project: string }) {
             <div role="group" aria-label={t('projRunning')} className="py-0.5">
               <div className="px-2.5 pt-1.5 pb-0.5 text-[0.6875rem] uppercase tracking-wide text-muted-foreground">{t('projRunning')}</div>
               {shown.map((r) => {
-                // a window is named by its session; the folder, agent and state go below
+                // a window is named by its folder, as its own header names it; its session, agent and state go below
                 const body = (
                   <>
                     <span aria-hidden className={`mt-1.5 size-2 flex-none self-start rounded-full ${DOT[r.state]}`} />
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-[0.8125rem] text-foreground">{r.title || folderOf(r.root)}</span>{' '}
+                      <span className="truncate text-[0.8125rem] text-foreground">{folderOf(r.root)}</span>{' '}
                       <span className="truncate text-[0.6875rem] text-muted-foreground" title={short(r.root)}>{detail(r)}</span>
                     </span>
                     {r.current && <span className="self-start text-muted-foreground">{t('projThis')}</span>}
