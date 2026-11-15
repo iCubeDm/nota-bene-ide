@@ -83,6 +83,8 @@ it('the trigger shows one badge: ! while another project waits; the tab title to
   setup();
   const trigger = screen.getByRole('button', { name: /notes/ });
   await waitFor(() => expect(within(trigger).getByText('!')).toBeInTheDocument());
+  // over the ▾, out of the flow: the name and the path do not move when it comes, goes or grows to two digits
+  expect(within(trigger).getByText('!').closest('[data-badge-over]')).toHaveClass('absolute');
   expect(document.title).toBe('(!) Weekly notes · notes · Nota Bene');
 });
 

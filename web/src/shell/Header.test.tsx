@@ -116,3 +116,13 @@ it('document title: session title first when there is one; header shows the mode
   expect(document.title).toBe('proj · Nota Bene');
   expect(document.getElementById('session')).toHaveTextContent(/^5f0c2a9e$/);
 });
+
+it('the path stands under the project name, in one block with it', () => {
+  setLang('en');
+  const { ev } = setup();
+  ev({ kind: 'session', id: 'abcdefgh-1', root: '/w/notes', title: null, model: null } as ServerEvent);
+  const block = document.getElementById('proj')!.closest('[data-proj-block]');
+  expect(block).not.toBeNull();
+  expect(block!.querySelector('#root-path')).toHaveTextContent('/w/notes');
+  expect(block!.className).toMatch(/flex-col/);
+});

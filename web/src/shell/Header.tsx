@@ -43,8 +43,11 @@ export function Header() {
     <header className="relative z-[6] flex h-12 flex-none items-center gap-3 border-b border-border-soft bg-chrome px-4 text-xs text-muted-foreground backdrop-blur-[24px]">
       <Logo className="-mr-1 size-6 flex-none" />
       {/* the project's name opens the switcher: every window of every provider, recent folders, open or create one */}
-      <ProjectSwitcher project={project} windowTitle={windowTitle} />
-      <span id="root-path" className="min-w-0 truncate font-mono text-[0.6875rem] opacity-70">{session?.root ?? ''}</span>
+      {/* the path under the name, one block */}
+      <div data-proj-block className="flex min-w-0 flex-col items-start">
+        <ProjectSwitcher project={project} windowTitle={windowTitle} />
+        <span id="root-path" className="max-w-full truncate px-1 font-mono text-[0.625rem] leading-3 opacity-70">{session?.root ?? ''}</span>
+      </div>
       <GitBranch />
       <span className="flex-1" />
       <span id="conn" className="text-warn">{conn === 'connecting' ? t('connecting') : conn === 'closed' ? t('offline') : switching ? t(restarting ? 'restarting' : 'switching') : ''}</span>

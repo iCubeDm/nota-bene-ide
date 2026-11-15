@@ -115,10 +115,17 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <button type="button" title={withKey(t('projSwitchTip'), 'hk_projects')}
-          className="inline-flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-muted">
-          <b id="proj" className="truncate text-[0.9375rem] font-semibold tracking-[-0.01em] text-foreground">{project}</b>
-          <span aria-hidden className="text-[0.625rem] text-muted-foreground">▾</span>
-          {badge !== null && <span title={badge === '!' ? t('projWaitTip') : t('projUnseenTip', badge)}><BadgeView b={badge} /></span>}
+          className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-md px-1 hover:bg-muted">
+          <b id="proj" className="truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-foreground">{project}</b>
+          {/* the badge sits over the ▾, out of the flow: nothing moves when it comes, goes or grows to two digits */}
+          <span className="relative flex-none">
+            <span aria-hidden className="text-[0.625rem] text-muted-foreground">▾</span>
+            {badge !== null && (
+              <span data-badge-over title={badge === '!' ? t('projWaitTip') : t('projUnseenTip', badge)} className="absolute -top-2 left-1.5">
+                <BadgeView b={badge} />
+              </span>
+            )}
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="flex max-h-[min(75vh,640px)] w-[460px] flex-col"
