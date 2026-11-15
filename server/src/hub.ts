@@ -154,17 +154,22 @@ export class EventHub {
    * What a window tells the phone's list of its session: the latest user message or final reply (one plain line) and
    * how many final replies there are (the desktop's reply numbering: the final `message` items of the current history).
    */
-  summary(): { last: { role: 'user' | 'assistant'; text: string; at?: number } | null; replies: number } {
-    let replies = 0;
-    for (const ev of this.history) if (ev.kind === 'agent' && ev.e.t === 'message') replies++;
+  summary(seenAt = 0): { last: { role: 'user' | 'assistant'; text: string; at?: number } | null; replies: number; unseen: number } {
+    let replies = 0, unseen = 0;
+    for (const ev of this.history) {
+      if (ev.kind !== 'agent' || ev.e.t !== 'message') continue;
+      replies++;
+      // a replayed reply has ts 0: it is older than any mark
+      if (ev.ts > seenAt) unseen++;
+    }
     // the latest, scanned from the end so the text is made one line once; `at` only when the event has a real time
     // (a replayed history event has ts 0)
     for (let i = this.history.length - 1; i >= 0; i--) {
       const ev = this.history[i];
-      if (ev.kind === 'agent' && ev.e.t === 'message') return { last: { role: 'assistant', text: oneLine(ev.e.text), ...stampOf(ev.ts) }, replies };
-      if (ev.kind === 'user' && !ev.idle) return { last: { role: 'user', text: oneLine(ev.text), ...stampOf(ev.ts) }, replies };
+      if (ev.kind === 'agent' && ev.e.t === 'message') return { last: { role: 'assistant', text: oneLine(ev.e.text), ...stampOf(ev.ts) }, replies, unseen };
+      if (ev.kind === 'user' && !ev.idle) return { last: { role: 'user', text: oneLine(ev.text), ...stampOf(ev.ts) }, replies, unseen };
     }
-    return { last: null, replies };
+    return { last: null, replies, unseen };
   }
 
   private replayFrame(): string {

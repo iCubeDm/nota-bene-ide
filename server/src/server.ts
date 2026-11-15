@@ -24,8 +24,9 @@ import { readPrefs } from './prefs.ts';
 import { httpHandler, isAllowedHost } from './http.ts';
 import { SwitchError, createSessionManager } from './session.ts';
 import type { IdleConfig } from './idle.ts';
-import { archiveRoute, deleteRoute, listSessionsView, renameRoute } from './sessions.ts';
+import { archiveRoute, deleteRoute, listSessionsView, renameRoute, seenRoute } from './sessions.ts';
 import { readArchived, setArchived } from './archivedSessions.ts';
+import { markSeen, readSeen } from './seen.ts';
 import { codeChecker } from './codeStamp.ts';
 import { forgetSession, stateBaseDir, stateDir } from './state.ts';
 import { AuditLog } from './audit.ts';
@@ -310,6 +311,7 @@ export async function startServer(o: {
         }),
         '/sessions': sessionsRoute,
         '/sessions/rename': renameRoute({ hub, rename: (id, title) => manager.rename(id, title) }),
+        '/seen': seenRoute({ hub, current: () => manager.info().id, mark: (id, at) => markSeen(id, at) }),
         '/sessions/archive': archiveRoute({ hub, current: () => manager.info().id, set: (id, on) => setArchived(id, on) }),
         '/sessions/delete': deleteRoute({
           hub, current: () => manager.info().id, switching: () => manager.switching(),
@@ -378,7 +380,7 @@ export async function startServer(o: {
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), pending: manager.pending(), ...hub.summary(), clients: hub.clients(), blender: blend?.available() ?? false, icon: projectIcons.versionOrNull(root) };
+        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), pending: manager.pending(), ...hub.summary(id ? readSeen()[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), blender: blend?.available() ?? false, icon: projectIcons.versionOrNull(root) };
       },
     }));
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
