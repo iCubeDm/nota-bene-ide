@@ -111,6 +111,8 @@ A window also has one owner tab. Open the same address in a second browser tab a
 
 ## Projects: switching, opening, creating
 
+Under the name is the project's path, its home folder shown as `~` and its start cut off when it is long; a click copies the whole path. The git branch sits over the middle column, in line with the first tab.
+
 The project's name at the left of the header opens the project switcher (Alt+P), a list of your projects in the manner of a chat app. Each running folder is one row, whatever agents work in it: its name, the time of the last message, that message on one line, and below it the window's session, its agent and its state. An agent is *working*, *waiting for you* (a permission, a question or a plan) or *idle*; a window can also be *restarting* or *not answering*. Type to filter by folder name, path or session title.
 
 One badge per row says what needs you: **!** when the project waits for you, otherwise the number of replies you have not seen. A reply counts as seen once its session was on screen in a focused tab; replies that came before a restart of that window or its agent count as seen. The header's project button shows one badge for all the other projects by the same rule, and so does the tab title, as `(!)` or `(3)` in front of it. Rows that wait come first, then those with unseen replies, then the rest, newest first.
