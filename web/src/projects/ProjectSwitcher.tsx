@@ -1,17 +1,20 @@
 // The project switcher in the header: a list of chats, one row per folder over the windows of every agent in it, with what
 // happened last and one badge (`!` when it waits for the person, else the replies they have not seen). A row expands to its
 // sessions (ProjectSessions); choosing another project moves this tab to its newest window, logged in (api.ts enterProject).
+// Another project's windows are stopped from its row (⏻, after a confirm); this one's from the header's Stop Nota Bene.
 // Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent.
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
+import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
 import { ago } from '@/controls/SessionPicker.tsx';
 import { shortWinHome } from '@/lib/paths.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { toast } from '@/shell/toast.ts';
 import { withKey } from '@/shell/keymap.ts';
 import { selectSession, useAppSelector } from '@/store/store.ts';
-import { enterProject, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, useProjects, type Provider, type ProjectState } from './api.ts';
+import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
+import { enterProject, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider, type ProjectState } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, titlePrefix, type Badge, type ProjectRow } from './rows.ts';
 
@@ -61,12 +64,13 @@ type RecentItem = { root: string; provider: Provider; at: number };
 export function ProjectSwitcher({ project, windowTitle }: { project: string; windowTitle: string }) {
   const t = useT();
   const open = useSyncExternalStore(projectsMenu.subscribe, projectsMenu.get);
-  const { data } = useProjects(open);
+  const { data, reload } = useProjects(open);
   const session = useAppSelector(selectSession);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [local, setLocal] = useState<LocalSession[]>([]);
+  const [stopAsk, setStopAsk] = useState<ProjectRow | null>(null);
   const running = data?.running ?? [];
   const badge = badgeOf(running);
   useEffect(() => { document.title = titlePrefix(badge) + windowTitle; }, [badge, windowTitle]);
@@ -109,6 +113,14 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     projectsMenu.close();
     void enterProject(w);
   };
+  const stopRow = async (r: ProjectRow) => {
+    setStopAsk(null);
+    for (const w of r.windows.filter((x) => LIVE.has(x.state))) {
+      const why = await stopProject(w);
+      if (why) toast(t('projStopFail', reasonText(why)), r.root);
+    }
+    reload();
+  };
   const starter = (mode: 'open' | 'new') => { projectsMenu.close(); openStarter(mode); };
 
   return (
@@ -117,11 +129,11 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
         <button type="button" title={withKey(t('projSwitchTip'), 'hk_projects')}
           className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-md px-1 hover:bg-muted">
           <b id="proj" className="truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-foreground">{project}</b>
-          {/* the badge sits over the ▾, out of the flow: nothing moves when it comes, goes or grows to two digits */}
-          <span className="relative flex-none">
+          {/* the badge sits right of the ▾ on the same line, out of the flow: nothing moves when it comes, goes or grows */}
+          <span className="relative flex flex-none items-center">
             <span aria-hidden className="text-[0.625rem] text-muted-foreground">▾</span>
             {badge !== null && (
-              <span data-badge-over title={badge === '!' ? t('projWaitTip') : t('projUnseenTip', badge)} className="absolute -top-2 left-1.5">
+              <span data-badge-over title={badge === '!' ? t('projWaitTip') : t('projUnseenTip', badge)} className="absolute top-1/2 left-full ml-1 flex -translate-y-1/2">
                 <BadgeView b={badge} />
               </span>
             )}
@@ -144,7 +156,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                 const isOpen = expanded.has(r.root);
                 return (
                   <div key={r.root}>
-                    <div className={`flex items-center gap-1 rounded-md pr-1 ${r.current ? 'bg-primary/10' : ''}`}>
+                    <div className={`group/proj flex items-center gap-1 rounded-md pr-1 ${r.current ? 'bg-primary/10' : ''}`}>
                       <button type="button" aria-label={`${folder} · ${detail}`} title={short(r.root)} onClick={() => goTo(r)}
                         className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-muted ${!r.current && !r.windows.some((w) => LIVE.has(w.state)) ? 'opacity-60' : ''}`}>
                         <Tile root={r.root} state={r.state} />
@@ -158,6 +170,12 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                         </span>
                         <BadgeView b={b} />
                       </button>
+                      {!r.current && r.windows.some((w) => LIVE.has(w.state)) && (
+                        <button type="button" aria-label={t('projStop', folder)} title={t('projStop', folder)} onClick={() => setStopAsk(r)}
+                          className="grid size-6 flex-none cursor-pointer place-items-center rounded text-muted-foreground opacity-0 hover:bg-muted hover:text-destructive focus-visible:opacity-100 group-hover/proj:opacity-100">
+                          <Svg size={13}>{ICONS.power}</Svg>
+                        </button>
+                      )}
                       <Chevron open={isOpen} label={t('projExpand', folder)} onClick={() => toggle(r.root)} />
                     </div>
                     {isOpen && <ProjectSessions root={r.root} windows={r.windows} local={local} setLocal={setLocal} onDone={() => projectsMenu.close()} />}
@@ -211,6 +229,16 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
           <button type="button" onClick={() => starter('open')} className="block w-full cursor-pointer rounded-md px-2.5 py-1 text-left text-xs text-link hover:bg-muted">{t('projOpenFolder')}</button>
           <button type="button" onClick={() => starter('new')} className="block w-full cursor-pointer rounded-md px-2.5 py-1 text-left text-xs text-link hover:bg-muted">{t('projNew')}</button>
         </div>
+        {stopAsk && (
+          <ConfirmDialog
+            title={t('projStopQ', folderOf(stopAsk.root))}
+            body={[t('projStopBody', stopAsk.windows.filter((w) => LIVE.has(w.state)).map((w) => PROVIDER_LABEL[w.provider]).join(', ')),
+              ...(stopAsk.windows.some((w) => w.state === 'working') ? [t('stopWindowBusy')] : [])].join('\n')}
+            confirm={t('winStop')}
+            onConfirm={() => void stopRow(stopAsk)}
+            onCancel={() => setStopAsk(null)}
+          />
+        )}
       </PopoverContent>
     </Popover>
   );

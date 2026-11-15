@@ -215,3 +215,11 @@ it('validName refuses what Windows refuses', () => {
   for (const n of ['a:b', 'a*', 'a?', 'a"b', 'a<b', 'a>b', 'a|b', 'CON', 'con.txt', 'NUL', 'com1', 'LPT9', 'name.', 'a\x01b']) expect(validName(n), n).toBe(false);
   for (const n of ['console', 'a.b', 'my project', 'CONx', 'проект']) expect(validName(n), n).toBe(true);
 });
+
+it('stop refuses a bad body, this window and an unknown one; stop-others with none is a count of zero', async () => {
+  const s = await serve();
+  expect((await s.post('/system/projects/stop', { provider: 'claude', port: 'x', root: tree })).status).toBe(400);
+  expect((await s.post('/system/projects/stop', { provider: 'claude', port: 4791, root: tree })).status).toBe(409);
+  expect((await s.post('/system/projects/stop', { provider: 'claude', port: 4794, root: tree })).status).toBe(404);
+  expect(await (await s.post('/system/projects/stop-others', {})).json()).toEqual({ stopped: 0, failed: 0 });
+});

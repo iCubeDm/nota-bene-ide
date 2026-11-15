@@ -64,7 +64,7 @@ export const postJson = (url: string, body: unknown): Promise<Response> =>
 const REASONS = {
   'no such window': 'whyNoWindow', 'window not answering': 'whyNotAnswering', 'not a folder': 'whyNotFolder', 'not readable': 'whyNotReadable',
   'not writable': 'whyNotWritable', 'git init failed': 'whyGitInit', 'bad request': 'whyBadRequest', 'bad answer': 'whyBadRequest',
-  'still starting': 'startStill', exists: 'startExists',
+  'still starting': 'startStill', exists: 'startExists', refused: 'whyRefused',
 } as const;
 export const reasonText = (why: string): string => (why in REASONS ? t(REASONS[why as keyof typeof REASONS]) : why);
 
@@ -81,6 +81,28 @@ export async function enterProject(row: RunningRow, session?: string): Promise<v
     nav.go(url);
   } catch (e) {
     toast(t('projEnterFailed', e instanceof Error ? e.message : String(e)), row.root);
+  }
+}
+
+/** Stops that window from the list (its agent and launcher; the session stays); the refusal's reason, or null. */
+export async function stopProject(row: RunningRow): Promise<string | null> {
+  try {
+    const r = await postJson('/system/projects/stop', { provider: row.provider, port: row.port, root: row.root });
+    return r.ok ? null : await reasonOf(r);
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
+
+/** The header's Stop Nota Bene, before this window stops itself: every other window; how many could not be stopped. */
+export async function stopOthers(): Promise<number> {
+  try {
+    const r = await postJson('/system/projects/stop-others', {});
+    if (!r.ok) return -1;
+    const j = (await r.json()) as { failed?: unknown };
+    return typeof j.failed === 'number' ? j.failed : -1;
+  } catch {
+    return -1;
   }
 }
 

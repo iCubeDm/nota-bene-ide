@@ -57,6 +57,7 @@ beforeEach(() => {
         : { current: S2, sessions: [{ id: S2, title: 'Fix the login form', at: 40 }, { id: S4, title: 'Earlier on site', at: 10 }] });
     }
     if (url === '/sessions/rename' || url === '/sessions/archive') return new Response('ok');
+    if (url === '/system/projects/stop') return body?.provider === 'codex' ? new Response('window not answering', { status: 409 }) : Response.json({ ok: true });
     return new Response('[]');
   }));
   vi.spyOn(nav, 'go').mockImplementation(() => {});
@@ -254,4 +255,22 @@ it('this window\'s sessions can be renamed and archived from their row; the open
   const site = await screen.findByRole('group', { name: t('projSessionsOf', 'site') });
   await within(site).findByRole('button', { name: /Earlier on site/ });
   expect(within(site).queryByRole('button', { name: new RegExp(t('renameSess')) })).toBeNull();
+});
+
+it('another project stops from its row after a confirm, each live window of it; this one and a restarting one have no stop', async () => {
+  await openMenu();
+  const g = within(screen.getByRole('group', { name: t('projProjects') }));
+  expect(g.queryByRole('button', { name: 'Stop notes' })).toBeNull();
+  expect(g.queryByRole('button', { name: 'Stop gone' })).toBeNull();
+  fireEvent.click(g.getByRole('button', { name: 'Stop site' }));
+  const dlg = await screen.findByRole('dialog');
+  expect(dlg).toHaveTextContent('Stop site?');
+  expect(dlg).toHaveTextContent('Its agent stops (Claude, Codex)');
+  expect(dlg).toHaveTextContent('An agent is working');
+  fireEvent.click(within(dlg).getByRole('button', { name: 'Stop' }));
+  await waitFor(() => expect(calls.filter((c) => c.url === '/system/projects/stop').map((c) => c.body)).toEqual([
+    { provider: 'claude', port: 4792, root: '/w/site' },
+    { provider: 'codex', port: 4793, root: '/w/site' },
+  ]));
+  await waitFor(() => expect(getToasts().some((x) => x.title === 'Could not stop: the window is not answering')).toBe(true));
 });

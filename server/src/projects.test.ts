@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
 import { recordRecent } from './recent.ts';
-import { enterUrl, listProjects, sessionsOf, type ProbedInfo } from './projects.ts';
+import { enterUrl, listProjects, sessionsOf, stopAt, stopOthers, type ProbedInfo } from './projects.ts';
 import { startServer } from './server.ts';
 import { registerWindow } from './windows.ts';
 
@@ -31,10 +31,10 @@ afterEach(async () => {
 });
 
 /** A real window of `provider` on `root`, registered in that provider's registry. */
-async function windowOf(provider: 'claude' | 'codex', root: string) {
+async function windowOf(provider: 'claude' | 'codex', root: string, exit: (code: number) => void = () => {}) {
   if (provider === 'codex') process.env.NOTA_BENE_AGENT = 'codex';
   try {
-    const s = await startServer({ cwd: root, port: 0, backend: fakeBackend([{ text: 'hi' }]), webDist: dist, exit: () => {} });
+    const s = await startServer({ cwd: root, port: 0, backend: fakeBackend([{ text: 'hi' }]), webDist: dist, exit });
     closers.push(s.close);
     const port = Number(new URL(s.url).port);
     registerWindow(port, root, process.pid);
@@ -165,4 +165,39 @@ it('enterUrl with a session carries it after the login', async () => {
   const r = await enterUrl({ provider: 'claude', port: pb, root: b, session: S2 });
   if (!('url' in r)) throw new Error(r.error);
   expect(r.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${pb}/#t=[0-9a-f]{64}&s=${S2}$`));
+});
+
+const exited = () => {
+  let done: (code: number) => void = () => {};
+  const p = new Promise<number>((r) => { done = r; });
+  return { exit: (code: number) => done(code), code: p };
+};
+
+it('stopAt stops that window with its own provider\'s control token', async () => {
+  const a = mk('nb-proj-a-');
+  const e = exited();
+  const pa = await windowOf('codex', a, e.exit);
+  expect(await stopAt({ provider: 'codex', port: pa, root: a })).toEqual({ ok: true });
+  expect(await e.code).toBe(0);
+});
+
+it('stopAt refuses a window that is not on that folder before sending anything', async () => {
+  const a = mk('nb-proj-a-');
+  const pa = await windowOf('claude', a);
+  let sent = 0;
+  const counting: typeof fetch = (u, i) => { if (String(u).includes('/control/')) sent++; return fetch(u, i); };
+  expect(await stopAt({ provider: 'claude', port: pa, root: '/x/other' }, counting)).toEqual({ error: 'no such window' });
+  expect(sent).toBe(0);
+});
+
+it('stopOthers stops every window but this one, of every provider', async () => {
+  const [a, b, c] = [mk('nb-proj-a-'), mk('nb-proj-b-'), mk('nb-proj-c-')];
+  const ea = exited(), eb = exited();
+  let ownStopped = false;
+  const own = await windowOf('claude', a, () => { ownStopped = true; });
+  await windowOf('claude', b, ea.exit);
+  await windowOf('codex', c, eb.exit);
+  expect(await stopOthers({ port: own, provider: 'claude' })).toEqual({ stopped: 2, failed: 0 });
+  expect(await Promise.all([ea.code, eb.code])).toEqual([0, 0]);
+  expect(ownStopped).toBe(false);
 });

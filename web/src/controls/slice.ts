@@ -256,7 +256,7 @@ export const restartAgent = (): AppThunk<boolean> => (dispatch, getState, { send
 };
 
 /**
- * the header's Stop window (⏻): POST /stop; the server answers, then exits 0 and its launcher with it (the session stays and can
+ * the header's Stop Nota Bene (⏻), after the other windows: POST /stop; the server answers, then exits 0 and its launcher with it (the session stays and can
  * be resumed). The tab parks on the Stopped overlay at once, before the socket drops, so it never shows a reconnect.
  */
 export const stopWindow = (): AppThunk<Promise<boolean>> => async (_dispatch, getState, { stopSocket }) => {

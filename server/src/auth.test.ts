@@ -355,6 +355,8 @@ const MATRIX: { method: string; path: string; cookie: 'open' | 'refused' }[] = [
   { method: 'POST', path: '/system/projects/enter', cookie: 'refused' },
   { method: 'POST', path: '/seen', cookie: 'refused' },
   { method: 'POST', path: '/system/projects/sessions', cookie: 'refused' },
+  { method: 'POST', path: '/system/projects/stop', cookie: 'refused' },
+  { method: 'POST', path: '/system/projects/stop-others', cookie: 'refused' },
   { method: 'POST', path: '/system/folders', cookie: 'refused' },
   { method: 'POST', path: '/system/projects/open', cookie: 'refused' },
   { method: 'POST', path: '/system/projects/create', cookie: 'refused' },

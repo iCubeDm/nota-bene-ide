@@ -34,7 +34,7 @@ With the plugin installed (see the README), type in any Claude Code session:
 | `/nb new` | Opens the window on a fresh session. |
 | `/nb fork` | Continues the current Claude Code conversation in the browser as a separate branch. Messages sent here and there no longer see each other. |
 
-The window runs as a background task of that Claude Code session. It shows in the task list, its output is the window's log, and it stops when you stop the task, end the session, or press **Stop window** (⏻) in the window. The first `/nb` after installing or updating the plugin installs the npm package into the plugin's data folder (about 330 MB per plugin version) and takes a few minutes.
+The window runs as a background task of that Claude Code session. It shows in the task list, its output is the window's log, and it stops when you stop the task, end the session, or press **Stop Nota Bene** (⏻) in the window, which stops every window. The first `/nb` after installing or updating the plugin installs the npm package into the plugin's data folder (about 330 MB per plugin version) and takes a few minutes.
 
 If a window for the folder is already open, `/nb` brings it to the front instead of starting another.
 
@@ -402,7 +402,7 @@ The mode pill under the message box, or Shift+Tab in the box, cycles through:
 
 The mode is saved per project folder. The model and effort pill in the header sets the model and the effort (Low, Medium, High, Extra high, Max). In the menu the effort is a stepped slider: **Auto** (the model's own default, no level) and one stop per level the model has; click a stop, drag, or step with Left, Right, Home and End. It shows the model's short name (for the default row: the name of the row for the same model (an alias row first), else the model's short name such as "Opus 5.5", else the row's name without its parenthetical), a small `1M` for the 1M-context variant and a tiny bar for the effort (nothing for Auto); the tooltip and the screen-reader name spell the effort out. In the menu, the model under the pointer or focus (else the current one) has its full description under the list, since the rows cut it short. A change applies from the next reply, and the pill warns when it makes the next reply re-read the whole context. A long list (a router such as OpenRouter offers dozens of models) has a search field at the top, scrolls inside the menu and is grouped by provider, the provider in use first.
 
-**Stop window** (⏻, the last button of the header, right of the gear) stops the agent and the window after a confirmation, which warns when a turn is running; the launcher exits with it (a `/nb` background task ends, a terminal gets its prompt back). The tab then says the window is stopped and does not reconnect; the session stays, and `/nb` or `nota-bene` opens it again.
+**Stop Nota Bene** (⏻, the last button of the header, right of the gear) stops every window and its agent after a confirmation, which warns when a turn is running in any of them; the other windows stop first, then this one, and each launcher exits with its window (a `/nb` background task ends, a terminal gets its prompt back). If another window does not stop, this one stays open and says so, so the rest can still be reached. The tab then says Nota Bene is stopped and does not reconnect; the sessions stay, and `/nb` or `nota-bene` opens a window again. To stop one project, open the project list and press ⏻ on its row (it shows on hover): its windows stop after a confirmation and the other projects go on. This window's own project has no ⏻ there: stopping it would leave the tab with nothing to show.
 
 ### Settings
 
@@ -819,6 +819,6 @@ Renaming a session other than the open one is refused; open it first.
 From omp, install the skill once (`ln -sfn "$PWD/omp/skills/nb" ~/.omp/agent/skills/nb`
 from a checkout), then `/skill:nb` opens or brings forward the window for the current
 folder, `/skill:nb new` starts a fresh conversation and `/skill:nb fork` continues the
-invoking omp conversation as a branch. The window runs detached; **Stop window** (⏻) in the window's header
+invoking omp conversation as a branch. The window runs detached; **Stop Nota Bene** (⏻) in the window's header
 ends it. Do not keep working in the same conversation from an omp terminal while the
 window owns it.

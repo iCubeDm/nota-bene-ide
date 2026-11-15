@@ -15,7 +15,7 @@ import { isSessionId } from '@nota-bene/shared';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { HIDDEN } from './platform.ts';
-import { enterUrl, listProjects, PROVIDERS, sessionsOf } from './projects.ts';
+import { enterUrl, listProjects, PROVIDERS, sessionsOf, stopAt, stopOthers } from './projects.ts';
 import { readRecent } from './recent.ts';
 import { stateBaseDir } from './state.ts';
 import { readJson } from './system.ts';
@@ -175,6 +175,21 @@ export function projectRoutes(o: {
       if (!('error' in r)) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : 409, r.error);
     }),
+
+    // a project's window from the list; this window's own stop is POST /stop (its header)
+    '/system/projects/stop': post('/system/projects/stop', async (b, res) => {
+      if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return text(res, 400, 'bad request');
+      if (b.port === o.port() && b.provider === o.provider) return text(res, 409, 'this window');
+      const r = await stopAt({ provider: b.provider, port: b.port as number, root: b.root });
+      if ('ok' in r) return json(res, 200, r);
+      text(res, r.error === 'no such window' ? 404 : r.error === 'refused' ? 502 : 409, r.error);
+    }),
+
+    // the header's Stop Nota Bene: every other window first, then the page stops this one (POST /stop)
+    '/system/projects/stop-others': (req, res) => {
+      if (!only('POST', req, res)) return;
+      stopOthers({ port: o.port(), provider: o.provider }).then((r) => json(res, 200, r), (e) => fail(res, '/system/projects/stop-others', e));
+    },
 
     '/system/agents': (req, res) => {
       if (!only('GET', req, res)) return;

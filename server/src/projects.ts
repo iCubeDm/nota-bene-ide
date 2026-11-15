@@ -6,8 +6,10 @@
 // in bin/nota-bene.mjs): derived from that token, that port and the nonce the listener proved. It goes only into the JSON
 // answer to the page, which navigates to it; never into a log, an error or a URL query.
 import { providerStateDir, type AgentProvider } from './agent/provider.ts';
-import { helperCredential, loginCredential, proveListener, SecretError } from './auth.ts';
+import path from 'node:path';
+import { helperCredential, loginCredential, proveListener, readSecret, SecretError } from './auth.ts';
 import { readRecent, type RecentEntry } from './recent.ts';
+import { CONTROL_HEADER } from './system.ts';
 import { providerToken } from './remote/discover.ts';
 import { stateBaseDir } from './state.ts';
 import { pidAlive, readWindows, type WindowEntry } from './windows.ts';
@@ -135,4 +137,46 @@ export async function sessionsOf(o: Window, fetchFn: typeof fetch = fetch): Prom
   } catch {
     return { error: 'window not answering' };
   }
+}
+
+export type StopResult = { ok: true } | { error: 'no such window' | 'window not answering' | 'refused' };
+
+/**
+ * Stops that window (its POST /control/stop, with its provider's control token): its agent and launcher stop, the session
+ * stays. The window is proved first, so the token goes only to a listener that holds that provider's access token.
+ */
+export async function stopAt(o: Window, fetchFn: typeof fetch = fetch): Promise<StopResult> {
+  const r = await proved(o, fetchFn);
+  if ('error' in r) return r;
+  const control = readSecret(path.join(providerStateDir(stateBaseDir(), o.provider), 'control-token'));
+  if (!control) return { error: 'refused' };
+  try {
+    // redirect: 'error': a 307/308 would carry the token on to wherever it points
+    const res = await fetchFn(`http://127.0.0.1:${o.port}/control/stop`, { method: 'POST', headers: { [CONTROL_HEADER]: control }, signal: AbortSignal.timeout(3000), redirect: 'error' });
+    return res.ok ? { ok: true } : { error: 'refused' };
+  } catch {
+    return { error: 'window not answering' };
+  }
+}
+
+/** Header ⏻, before this window stops itself: every other live window of every provider; how many stopped and failed. */
+export async function stopOthers(own: { port: number; provider: AgentProvider }, fetchFn: typeof fetch = fetch): Promise<{ stopped: number; failed: number }> {
+  const targets: Window[] = [];
+  for (const provider of PROVIDERS) {
+    let p: ReturnType<typeof providerOf>;
+    try {
+      p = providerOf(provider);
+    } catch (e) {
+      if (e instanceof SecretError) continue;
+      throw e;
+    }
+    for (const [key, w] of p?.entries ?? []) {
+      const port = Number(key);
+      if ((port === own.port && provider === own.provider) || !pidAlive(w.pid)) continue;
+      targets.push({ provider, port, root: w.root });
+    }
+  }
+  const results = await Promise.all(targets.map((w) => stopAt(w, fetchFn)));
+  const stopped = results.filter((r) => 'ok' in r).length;
+  return { stopped, failed: results.length - stopped };
 }
