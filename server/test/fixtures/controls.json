@@ -13,6 +13,10 @@
     {
       "id": "22222222-2222-4222-8222-222222222222", "cwd": "../other", "customTitle": "Beta session", "lastModified": 1700000100000, "fileSize": 4096,
       "history": [{ "role": "user", "text": "beta question" }, { "role": "assistant", "text": "beta answer" }]
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333", "cwd": ".", "customTitle": "Gamma session", "lastModified": 1700000050000, "fileSize": 1024,
+      "history": [{ "role": "user", "text": "gamma question" }, { "role": "assistant", "text": "gamma answer" }]
     }
   ],
   "subagents": [

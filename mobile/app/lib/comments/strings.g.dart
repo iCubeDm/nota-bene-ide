@@ -881,12 +881,12 @@ const _json = r'''
    "de": "Kontext leeren"
   },
   "clearQ": {
-   "en": "Clear the context and start a new conversation?\n\nThe current session is kept — reopen it from “Sessions ▾”.",
-   "ru": "Очистить контекст и начать новый разговор?\n\nТекущая сессия сохранится — вернуться можно через «Сессии ▾».",
-   "zh": "清空上下文并开始新对话？\n\n当前会话会保留 — 可从“会话 ▾”重新打开。",
-   "es": "¿Limpiar el contexto y empezar una conversación nueva?\n\nLa sesión actual se conserva: reábrela desde «Sesiones ▾».",
-   "pt": "Limpar o contexto e começar uma nova conversa?\n\nA sessão atual é mantida — reabra-a em “Sessões ▾”.",
-   "de": "Kontext leeren und eine neue Unterhaltung beginnen?\n\nDie aktuelle Sitzung bleibt erhalten — öffne sie wieder über „Sitzungen ▾“."
+   "en": "Clear the context and start a new conversation?\n\nThe current session is kept — reopen it from ▾ on the chat tab.",
+   "ru": "Очистить контекст и начать новый разговор?\n\nТекущая сессия сохранится — вернуться можно через ▾ на вкладке чата.",
+   "zh": "清空上下文并开始新对话？\n\n当前会话会保留 — 可从聊天标签页上的 ▾ 重新打开。",
+   "es": "¿Limpiar el contexto y empezar una conversación nueva?\n\nLa sesión actual se conserva: reábrela desde ▾ en la pestaña del chat.",
+   "pt": "Limpar o contexto e começar uma nova conversa?\n\nA sessão atual é mantida — reabra-a pelo ▾ na aba do chat.",
+   "de": "Kontext leeren und eine neue Unterhaltung beginnen?\n\nDie aktuelle Sitzung bleibt erhalten — öffne sie wieder über ▾ am Chat-Tab."
   },
   "clearBtn": {
    "en": "Clear",
@@ -905,12 +905,12 @@ const _json = r'''
    "de": "Kontext komprimieren — der Agent fasst die Unterhaltung zusammen und macht mit der Zusammenfassung weiter (/compact)"
   },
   "clearTip": {
-   "en": "Clear context — start a fresh conversation (/clear). The current session stays in “Sessions ▾”",
-   "ru": "Очистить контекст — новый разговор с нуля (/clear). Текущая сессия останется в «Сессии ▾»",
-   "zh": "清空上下文 — 开始全新的对话 (/clear)。当前会话保留在“会话 ▾”中",
-   "es": "Limpiar contexto — empezar una conversación nueva (/clear). La sesión actual queda en «Sesiones ▾»",
-   "pt": "Limpar contexto — começar uma conversa nova (/clear). A sessão atual fica em “Sessões ▾”",
-   "de": "Kontext leeren — eine neue Unterhaltung beginnen (/clear). Die aktuelle Sitzung bleibt unter „Sitzungen ▾“"
+   "en": "Clear context — start a fresh conversation (/clear). The current session stays in the chat tab’s ▾ menu",
+   "ru": "Очистить контекст — новый разговор с нуля (/clear). Текущая сессия останется в меню ▾ на вкладке чата",
+   "zh": "清空上下文 — 开始全新的对话 (/clear)。当前会话保留在聊天标签页的 ▾ 菜单中",
+   "es": "Limpiar contexto — empezar una conversación nueva (/clear). La sesión actual queda en el menú ▾ de la pestaña del chat",
+   "pt": "Limpar contexto — começar uma conversa nova (/clear). A sessão atual fica no menu ▾ da aba do chat",
+   "de": "Kontext leeren — eine neue Unterhaltung beginnen (/clear). Die aktuelle Sitzung bleibt im Menü ▾ des Chat-Tabs"
   },
   "clearFail": {
    "en": "Could not clear: ",

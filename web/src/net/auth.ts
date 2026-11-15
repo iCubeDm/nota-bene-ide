@@ -6,7 +6,12 @@
 
 export const KEY_STORAGE = 'nb.key';
 export const KEY_HEADER = 'x-nota-bene-key';
-const FRAGMENT = /^#t=([0-9a-f]{64})$/;
+// `&s=<session id>` or `&s=new`: the project switcher's hand-off names the session the page opens once logged in
+// (projects/landing.ts)
+const FRAGMENT = /^#t=([0-9a-f]{64})(?:&s=([0-9a-fA-F-]{36}|new))?$/;
+
+/** The session a hand-off asks this page to open, or null; read before the login takes the fragment away. */
+export const fragmentSession = (hash: string): string | null => FRAGMENT.exec(hash)?.[2] ?? null;
 
 export function getKey(): string | null {
   try {

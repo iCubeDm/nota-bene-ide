@@ -125,6 +125,23 @@ describe('server', () => {
     expect((await info(s.url)).pending).toBe(false);
   });
 
+  it('/info tells the replies not seen; POST /seen marks the open session seen', async () => {
+    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'one' }, { text: 'two' }]), webDist: dist, oneTab: false, resume: '33333333-3333-4333-8333-333333333333' });
+    closers.push(s.close);
+    const info = async () => (await (await fetch(`${s.url}/info`)).json()) as { session: string; unseen: number };
+    const c = await connect(s.url);
+    c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi' }));
+    await until(() => c.events.some(isResult));
+    const first = await info();
+    expect(first.unseen).toBe(1);
+    const seen = await fetch(`${s.url}/seen`, { method: 'POST', headers: { origin: s.url, 'content-type': 'application/json' }, body: JSON.stringify({ session: first.session }) });
+    expect(seen.status).toBe(200);
+    expect((await info()).unseen).toBe(0);
+    c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'again' }));
+    await until(() => c.events.filter(isResult).length === 2);
+    expect((await info()).unseen).toBe(1);
+  });
+
   it('a new socket gets the current stats, and stats never enter the replay', async () => {
     const hot = { used: 180000, max: 200000, pct: 90 };
     const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello', context: hot }]), webDist: dist, oneTab: false });

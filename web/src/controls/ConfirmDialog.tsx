@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button.tsx';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog.tsx';
 import { useT } from '@/i18n/index.ts';
@@ -15,6 +15,8 @@ export function ConfirmDialog(p: {
   danger?: boolean;
   /** Where focus goes when it closes, instead of the opener (null: the opener), e.g. when the answer disables it. */
   focusAfter?: () => HTMLElement | null;
+  /** Inputs between the question and the buttons (e.g. a choice the answer takes). */
+  children?: ReactNode;
 }) {
   const t = useT();
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -41,6 +43,7 @@ export function ConfirmDialog(p: {
           <DialogTitle>{p.title}</DialogTitle>
           <DialogDescription className="whitespace-pre-line">{p.body}</DialogDescription>
         </DialogHeader>
+        {p.children}
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={p.onCancel}>{p.cancel ?? t('cancel')}</Button>
           <Button ref={confirmRef} type="button" variant={p.danger ? 'destructive' : 'default'} onClick={p.onConfirm}>{p.confirm}</Button>

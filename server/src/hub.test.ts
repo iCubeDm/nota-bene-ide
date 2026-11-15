@@ -383,13 +383,13 @@ describe('EventHub.summary: what a window tells of its session', () => {
   const said = (text: string, id = 'm'): Parameters<EventHub['emit']>[0] => ({ kind: 'agent', e: { t: 'message', id, text } } as never);
 
   it('an empty history has no last message and no replies', () => {
-    expect(new EventHub().summary()).toEqual({ last: null, replies: 0 });
+    expect(new EventHub().summary()).toEqual({ last: null, replies: 0, unseen: 0 });
   });
 
   it('the last is the latest user message or final reply, the replies count the final ones', () => {
     const hub = new EventHub();
     hub.emit({ kind: 'user', id: 'u1', text: 'hi', ts: 10 });
-    expect(hub.summary()).toEqual({ last: { role: 'user', text: 'hi', at: 10 }, replies: 0 });
+    expect(hub.summary()).toEqual({ last: { role: 'user', text: 'hi', at: 10 }, replies: 0, unseen: 0 });
     hub.emit(said('one', 'a:0'));
     hub.emit({ kind: 'agent', e: { t: 'message-chunk', text: 'streaming' }, ts: 20 } as never);
     hub.emit(said('two', 'a:1'));
@@ -397,7 +397,19 @@ describe('EventHub.summary: what a window tells of its session', () => {
     expect(s.replies).toBe(2);
     expect(s.last).toMatchObject({ role: 'assistant', text: 'two' });
     hub.reset();
-    expect(hub.summary()).toEqual({ last: null, replies: 0 });
+    expect(hub.summary()).toEqual({ last: null, replies: 0, unseen: 0 });
+  });
+
+  it('unseen counts the final replies after the seen time; a replayed reply (ts 0) is never unseen', () => {
+    const hub = new EventHub();
+    hub.emit({ kind: 'agent', e: { t: 'message', id: 'a:0', text: 'old' }, ts: 0 } as never);
+    hub.emit({ kind: 'agent', e: { t: 'message', id: 'a:1', text: 'one' }, ts: 100 } as never);
+    hub.emit({ kind: 'agent', e: { t: 'message-chunk', text: 'x' }, ts: 150 } as never);
+    hub.emit({ kind: 'agent', e: { t: 'message', id: 'a:2', text: 'two' }, ts: 200 } as never);
+    expect(hub.summary().unseen).toBe(2);
+    expect(hub.summary(100).unseen).toBe(1);
+    expect(hub.summary(200).unseen).toBe(0);
+    expect(hub.summary(100).replies).toBe(3);
   });
 
   it('a replayed event without a time (ts 0) is summarised without `at`', () => {

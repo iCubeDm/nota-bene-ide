@@ -1,15 +1,19 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang, t } from '@/i18n/index.ts';
-import { nav, openStarter } from './api.ts';
+import { nav, openStarter, validName } from './api.ts';
 import { Starter } from './Starter.tsx';
 
 const HOME = '/home/u';
 const URL_OK = 'http://127.0.0.1:4793/#t=' + 'a'.repeat(64);
 const tree: Record<string, { name: string; git: boolean }[]> = {
-  [HOME]: [{ name: 'a', git: false }, { name: 'b', git: true }],
-  [`${HOME}/a`]: [],
+  [HOME]: [{ name: 'alpha', git: false }, { name: 'beta', git: true }, { name: 'Projects', git: false }],
+  [`${HOME}/alpha`]: [],
+  [`${HOME}/Projects`]: [{ name: 'site', git: true }, { name: 'sandbox', git: false }, { name: 'notes', git: true }],
+  [`${HOME}/Projects/site`]: [],
+  [`${HOME}/Desktop`]: [],
 };
+const PLACES = [{ path: HOME, kind: 'home' }, { path: `${HOME}/Desktop`, kind: 'desktop' }, { path: `${HOME}/Projects`, kind: 'recent' }];
 let calls: { url: string; body: Record<string, unknown> | undefined }[];
 let answer: (url: string, body: Record<string, unknown> | undefined) => Response | Promise<Response> | null;
 
@@ -29,7 +33,7 @@ beforeEach(() => {
       const dirs = tree[p];
       if (!dirs) return new Response('not a folder', { status: 404 });
       const hidden = body?.hidden ? [{ name: '.cfg', git: false }] : [];
-      return Response.json({ path: p, parent: p === '/' ? null : p.slice(0, p.lastIndexOf('/')) || '/', home: HOME, dirs: [...hidden, ...dirs] });
+      return Response.json({ path: p, parent: p === '/' ? null : p.slice(0, p.lastIndexOf('/')) || '/', home: HOME, dirs: [...hidden, ...dirs], places: PLACES });
     }
     if (url === '/system/projects/open' || url === '/system/projects/create') return Response.json({ url: URL_OK });
     return new Response('[]');
@@ -38,56 +42,111 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-async function start(mode: 'open' | 'new') {
+async function start(mode: 'open' | 'new' = 'open') {
   render(<Starter />);
   act(() => openStarter(mode));
   await screen.findByRole('dialog');
-  await screen.findByRole('button', { name: 'a' });
+  await screen.findByRole('option', { name: /alpha/ });
 }
 const folderCalls = () => calls.filter((c) => c.url === '/system/folders').map((c) => c.body?.path ?? null);
+const list = () => screen.getByRole('listbox', { name: t('startFolders') });
+const names = () => within(list()).queryAllByRole('option').map((o) => o.getAttribute('data-name'));
+const enter = (name: string) => fireEvent.doubleClick(within(list()).getByRole('option', { name: new RegExp(name) }));
 
-it('open: browses from home, enters a folder, goes up, and opens the chosen one with the chosen agent', async () => {
-  await start('open');
-  expect(screen.getByRole('heading', { name: t('startOpenTitle') })).toBeInTheDocument();
-  await waitFor(() => expect((screen.getByRole('combobox', { name: t('startAgent') }) as HTMLSelectElement).value).toBe('codex'));
-  fireEvent.click(screen.getByRole('button', { name: 'a' }));
-  await screen.findByText(t('startEmpty'));
-  expect(folderCalls().at(-1)).toBe(`${HOME}/a`);
-  fireEvent.click(screen.getByRole('button', { name: t('startUp') }));
-  await screen.findByRole('button', { name: 'b' });
-  expect(folderCalls().at(-1)).toBe(HOME);
-  fireEvent.click(screen.getByRole('button', { name: 'a' }));
-  await screen.findByText(t('startEmpty'));
-  fireEvent.change(screen.getByRole('combobox', { name: t('startAgent') }), { target: { value: 'claude' } });
-  fireEvent.click(screen.getByRole('button', { name: t('startOpen') }));
-  await waitFor(() => expect(nav.go).toHaveBeenCalledWith(URL_OK));
-  expect(calls.find((c) => c.url === '/system/projects/open')!.body).toEqual({ dir: `${HOME}/a`, provider: 'claude' });
+it('starts at home; git repositories come first, then the rest, each by name', async () => {
+  await start();
+  expect(folderCalls()[0]).toBeNull();
+  expect(names()).toEqual(['beta', 'alpha', 'Projects']);
 });
 
-it('open: a typed absolute path is browsed on Enter; a relative one is refused without a request', async () => {
-  await start('open');
-  const field = screen.getByRole('textbox', { name: t('startPath') });
+it('places browse: home, Desktop, the parents of recent projects', async () => {
+  await start();
+  const places = screen.getByRole('navigation', { name: t('startPlaces') });
+  expect(within(places).getAllByRole('button').map((b) => b.textContent)).toEqual([t('startHome'), t('startDesktop'), 'Projects']);
+  fireEvent.click(within(places).getByRole('button', { name: 'Projects' }));
+  await waitFor(() => expect(names()).toEqual(['notes', 'site', 'sandbox']));
+});
+
+it('breadcrumbs name the path and browse a step up', async () => {
+  await start();
+  enter('Projects');
+  await waitFor(() => expect(names()).toContain('site'));
+  const crumbs = screen.getByRole('navigation', { name: t('startPath') });
+  expect(within(crumbs).getAllByRole('button').map((b) => b.textContent)).toEqual(['/', 'home', 'u', 'Projects']);
+  fireEvent.click(within(crumbs).getByRole('button', { name: 'u' }));
+  await waitFor(() => expect(names()).toContain('alpha'));
+  expect(folderCalls().at(-1)).toBe(HOME);
+});
+
+it('a click selects without browsing; a double click or Enter goes in; Open opens the selection with the chosen agent', async () => {
+  await start();
+  const n = folderCalls().length;
+  fireEvent.click(within(list()).getByRole('option', { name: /alpha/ }));
+  expect(within(list()).getByRole('option', { name: /alpha/ })).toHaveAttribute('aria-selected', 'true');
+  expect(folderCalls()).toHaveLength(n);
+  await waitFor(() => expect((screen.getByRole('combobox', { name: t('startAgent') }) as HTMLSelectElement).value).toBe('codex'));
+  fireEvent.click(screen.getByRole('button', { name: t('startOpen') }));
+  await waitFor(() => expect(nav.go).toHaveBeenCalledWith(URL_OK));
+  expect(calls.find((c) => c.url === '/system/projects/open')!.body).toEqual({ dir: `${HOME}/alpha`, provider: 'codex' });
+  fireEvent.keyDown(within(list()).getByRole('option', { name: /Projects/ }), { key: 'Enter' });
+  await waitFor(() => expect(names()).toContain('site'));
+});
+
+it('Open with nothing selected opens the folder being browsed', async () => {
+  await start();
+  enter('Projects');
+  await waitFor(() => expect(names()).toContain('site'));
+  fireEvent.click(screen.getByRole('button', { name: t('startOpen') }));
+  await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/open')?.body).toMatchObject({ dir: `${HOME}/Projects` }));
+});
+
+it('the path field: Tab completes a folder name, Enter browses, a relative path is refused', async () => {
+  await start();
+  const field = screen.getByRole('textbox', { name: t('startPathField') });
+  fireEvent.change(field, { target: { value: `${HOME}/Pro` } });
+  fireEvent.keyDown(field, { key: 'Tab' });
+  await waitFor(() => expect(field).toHaveValue(`${HOME}/Projects/`));
+  fireEvent.change(field, { target: { value: `${HOME}/Projects/s` } });
+  fireEvent.keyDown(field, { key: 'Tab' });
+  await waitFor(() => expect(calls.filter((c) => c.url === '/system/folders').at(-1)!.body).toMatchObject({ path: `${HOME}/Projects` }));
+  expect(field).toHaveValue(`${HOME}/Projects/s`); // site and sandbox: nothing longer in common
+  fireEvent.change(field, { target: { value: `${HOME}/Projects/si` } });
+  fireEvent.keyDown(field, { key: 'Tab' });
+  await waitFor(() => expect(field).toHaveValue(`${HOME}/Projects/site/`));
+  fireEvent.keyDown(field, { key: 'Enter' });
+  await waitFor(() => expect(folderCalls().at(-1)).toBe(`${HOME}/Projects/site`));
   fireEvent.change(field, { target: { value: 'rel/x' } });
   fireEvent.keyDown(field, { key: 'Enter' });
   expect(screen.getByText(t('startPathAbs'))).toBeInTheDocument();
-  const n = folderCalls().length;
-  fireEvent.change(field, { target: { value: `${HOME}/a` } });
-  fireEvent.keyDown(field, { key: 'Enter' });
-  await screen.findByText(t('startEmpty'));
-  expect(folderCalls()).toHaveLength(n + 1);
 });
 
-it('open: show hidden re-requests with hidden: true', async () => {
-  await start('open');
+it('show hidden re-requests with hidden: true; a reopen starts at the last folder with hidden off', async () => {
+  await start();
   fireEvent.click(screen.getByRole('checkbox', { name: t('startHidden') }));
-  await screen.findByRole('button', { name: '.cfg' });
-  expect(calls.filter((c) => c.url === '/system/folders').at(-1)!.body).toMatchObject({ hidden: true });
+  await within(list()).findByRole('option', { name: /\.cfg/ });
+  enter('Projects');
+  await waitFor(() => expect(names()).toContain('site'));
+  act(() => openStarter('open'));
+  await waitFor(() => expect(calls.filter((c) => c.url === '/system/folders').at(-1)!.body).toEqual({ path: `${HOME}/Projects`, hidden: false }));
+  expect(screen.getByRole('checkbox', { name: t('startHidden') })).not.toBeChecked();
 });
 
-it('new: creates under the browsed folder with git init on by default', async () => {
+it('a listing that arrives after a newer one is dropped', async () => {
+  let late!: () => void;
+  answer = (url, body) => (url === '/system/folders' && body?.path === `${HOME}/alpha`
+    ? new Promise<Response>((r) => { late = () => r(Response.json({ path: `${HOME}/alpha`, parent: HOME, home: HOME, dirs: [{ name: 'stale', git: false }], places: PLACES })); })
+    : null);
+  await start();
+  enter('alpha');
+  enter('Projects');
+  await waitFor(() => expect(names()).toContain('site'));
+  await act(async () => late());
+  expect(names()).not.toContain('stale');
+});
+
+it('New project opens with the new-folder row: creates in the folder being browsed, git on by default', async () => {
   await start('new');
   expect(screen.getByRole('heading', { name: t('startNewTitle') })).toBeInTheDocument();
-  expect(screen.getByText(t('startIn', HOME))).toBeInTheDocument();
   expect(screen.getByRole('checkbox', { name: t('startGit') })).toBeChecked();
   fireEvent.change(screen.getByRole('textbox', { name: t('startName') }), { target: { value: 'fresh' } });
   await waitFor(() => expect((screen.getByRole('combobox', { name: t('startAgent') }) as HTMLSelectElement).value).toBe('codex'));
@@ -96,46 +155,27 @@ it('new: creates under the browsed folder with git init on by default', async ()
   expect(calls.find((c) => c.url === '/system/projects/create')!.body).toEqual({ parent: HOME, name: 'fresh', git: true, provider: 'codex' });
 });
 
-it('new: a bad name is refused before sending', async () => {
-  await start('new');
-  fireEvent.change(screen.getByRole('textbox', { name: t('startName') }), { target: { value: 'a/b' } });
+it('the new-folder row opens from its button in Open mode too, and a bad name is refused before sending', async () => {
+  await start();
+  fireEvent.click(screen.getByRole('button', { name: t('startNewHere') }));
+  fireEvent.change(screen.getByRole('textbox', { name: t('startName') }), { target: { value: 'a:b' } });
   expect(screen.getByText(t('startNameBad'))).toBeInTheDocument();
   expect(screen.getByRole('button', { name: t('startCreate') })).toBeDisabled();
 });
 
-it('a server refusal is shown in the dialog and the buttons come back', async () => {
+it('a server refusal is shown in the dialog; a slow launch says it is still starting', async () => {
   answer = (url) => (url === '/system/projects/create' ? new Response('exists', { status: 409 }) : null);
   await start('new');
   fireEvent.change(screen.getByRole('textbox', { name: t('startName') }), { target: { value: 'taken' } });
   fireEvent.click(screen.getByRole('button', { name: t('startCreate') }));
   expect(await screen.findByText(t('startExists'))).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: t('startCreate') })).toBeEnabled();
-  answer = (url) => (url === '/system/projects/create' ? new Response('the launcher exited with 1', { status: 502 }) : null);
-  fireEvent.click(screen.getByRole('button', { name: t('startCreate') }));
-  expect(await screen.findByText(t('startFailed', 'the launcher exited with 1'))).toBeInTheDocument();
-  expect(screen.getByRole('dialog')).toBeInTheDocument();
-  expect(nav.go).not.toHaveBeenCalled();
-});
-
-it('while the launcher runs the buttons are disabled and a wait line is shown', async () => {
-  let release!: () => void;
-  answer = (url) => (url === '/system/projects/open' ? new Promise<Response>((r) => { release = () => r(Response.json({ url: URL_OK })); }) : null);
-  await start('open');
-  fireEvent.click(screen.getByRole('button', { name: t('startOpen') }));
-  expect(await screen.findByText(t('startOpening'))).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: t('startOpen') })).toBeDisabled();
-  await act(async () => release());
-  await waitFor(() => expect(nav.go).toHaveBeenCalledWith(URL_OK));
-});
-
-it('the server\'s fixed reasons are shown in the page\'s language; a slow launch says it is still starting', async () => {
-  setLang('ru');
-  await start('open');
-  const field = screen.getByRole('textbox', { name: t('startPath') });
-  fireEvent.change(field, { target: { value: '/nowhere' } });
-  fireEvent.keyDown(field, { key: 'Enter' });
-  expect(await screen.findByText(t('startFailed', t('whyNotFolder')))).toBeInTheDocument();
   answer = (url) => (url === '/system/projects/open' ? new Response('still starting', { status: 504 }) : null);
   fireEvent.click(screen.getByRole('button', { name: t('startOpen') }));
   expect(await screen.findByText(t('startStill'))).toBeInTheDocument();
+  expect(nav.go).not.toHaveBeenCalled();
+});
+
+it('validName mirrors the server: no Windows-reserved names or characters', () => {
+  for (const n of ['a:b', 'a*', 'a?', 'a"b', 'a<b', 'a>b', 'a|b', 'CON', 'nul.txt', 'com1', 'name.', ' a', 'a/b', '']) expect(validName(n), n).toBe(false);
+  for (const n of ['console', 'a.b', 'my project', 'проект']) expect(validName(n), n).toBe(true);
 });

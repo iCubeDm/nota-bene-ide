@@ -172,6 +172,14 @@ it('the chat tab shows the session title and tooltip; without one, Chat and the 
   expect(titled).toHaveAttribute('title', 'Fix login');
 });
 
+it('the Sessions menu opens from ▾ on the chat tab, also while a file tab is in front; no line above the chat', () => {
+  setup(['a.md']);
+  const chat = screen.getByRole('tab', { name: /Chat/ });
+  expect(within(chat).getByRole('button', { name: 'Sessions' })).toBeVisible();
+  expect(document.querySelector('#items')?.previousElementSibling?.querySelector('#sessBtn') ?? null).toBeNull();
+  expect(document.querySelectorAll('#sessBtn')).toHaveLength(1);
+});
+
 // ---- M6-12: overflow
 const rect = (left: number, width: number) => ({ left, right: left + width, top: 0, bottom: 28, width, height: 28, x: left, y: 0, toJSON() {} }) as DOMRect;
 

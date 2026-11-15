@@ -41,7 +41,7 @@ export const COOKIE_MAX_AGE_S = 365 * 24 * 3600;
  * profile's ACL is trusted (`stateDir` refuses a state folder outside the profile). A symlink or a junction is still
  * refused, with `lstat` (O_NOFOLLOW does not exist there).
  */
-function readSecret(file: string): string | null {
+export function readSecret(file: string): string | null {
   return readPrivateFile(file, TOKEN_RE, 'a token (64 hex characters)', 'delete it to make a new token (every open window then has to be reopened)');
 }
 

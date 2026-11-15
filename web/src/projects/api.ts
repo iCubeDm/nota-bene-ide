@@ -7,9 +7,15 @@ import { toast } from '@/shell/toast.ts';
 
 export type Provider = 'claude' | 'codex' | 'omp';
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
-export type RunningRow = { provider: Provider; port: number; root: string; title: string | null; session: string | null; state: ProjectState; current: boolean; clients: number };
+export type LastMessage = { role: 'user' | 'assistant'; text: string; at?: number };
+export type RunningRow = {
+  provider: Provider; port: number; root: string; title: string | null; session: string | null; state: ProjectState; current: boolean; clients: number;
+  /** final replies of its session the person has not seen (server/src/seen.ts) */
+  unseen: number;
+  last: LastMessage | null;
+};
 export type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
-export type ProjectsList = { running: RunningRow[]; recent: RecentRow[] };
+export type ProjectsList = { running: RunningRow[]; recent: RecentRow[]; /** folders removed from Recent: out of this window's history too */ hidden?: string[] };
 
 export const PROVIDER_LABEL: Record<Provider, string> = { claude: 'Claude', codex: 'Codex', omp: 'omp' };
 
@@ -58,17 +64,27 @@ export const postJson = (url: string, body: unknown): Promise<Response> =>
 const REASONS = {
   'no such window': 'whyNoWindow', 'window not answering': 'whyNotAnswering', 'not a folder': 'whyNotFolder', 'not readable': 'whyNotReadable',
   'not writable': 'whyNotWritable', 'git init failed': 'whyGitInit', 'bad request': 'whyBadRequest', 'bad answer': 'whyBadRequest',
-  'still starting': 'startStill', exists: 'startExists',
+  'still starting': 'startStill', exists: 'startExists', refused: 'whyRefused',
 } as const;
 export const reasonText = (why: string): string => (why in REASONS ? t(REASONS[why as keyof typeof REASONS]) : why);
 
 /** A failed answer's reason: the server's short text, or the status. */
 export const reasonOf = async (r: Response): Promise<string> => (await r.text().catch(() => '')).trim() || String(r.status);
 
-/** Moves this tab to the window of `row`, logged in; a refusal is a toast and the tab stays. */
-export async function enterProject(row: RunningRow): Promise<void> {
+/** Removes a folder from Recent (POST /system/projects/forget): null, or the reason it failed. */
+export async function forgetRecent(root: string): Promise<string | null> {
   try {
-    const r = await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root });
+    const r = await postJson('/system/projects/forget', { root });
+    return r.ok ? null : reasonOf(r);
+  } catch {
+    return 'window not answering';
+  }
+}
+
+/** Moves this tab to the window of `row`, logged in (that window opens `session` when given); a refusal is a toast and the tab stays. */
+export async function enterProject(row: RunningRow, session?: string): Promise<void> {
+  try {
+    const r = await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
     if (!r.ok) return toast(t('projEnterFailed', reasonText(await reasonOf(r))), row.root);
     const { url } = (await r.json()) as { url?: unknown };
     if (typeof url !== 'string') return toast(t('projEnterFailed', reasonText('bad answer')), row.root);
@@ -78,13 +94,38 @@ export async function enterProject(row: RunningRow): Promise<void> {
   }
 }
 
+/** Stops that window from the list (its agent and launcher; the session stays); the refusal's reason, or null. */
+export async function stopProject(row: RunningRow): Promise<string | null> {
+  try {
+    const r = await postJson('/system/projects/stop', { provider: row.provider, port: row.port, root: row.root });
+    return r.ok ? null : await reasonOf(r);
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
+
+/** The header's Stop Nota Bene, before this window stops itself: every other window; how many could not be stopped. */
+export async function stopOthers(): Promise<number> {
+  try {
+    const r = await postJson('/system/projects/stop-others', {});
+    if (!r.ok) return -1;
+    const j = (await r.json()) as { failed?: unknown };
+    return typeof j.failed === 'number' ? j.failed : -1;
+  } catch {
+    return -1;
+  }
+}
+
 /** The starter's open handle (Starter.tsx mounts the dialog and listens). */
 let starter: ((mode: 'open' | 'new') => void) | null = null;
 export const setStarter = (f: ((mode: 'open' | 'new') => void) | null): void => { starter = f; };
 export const openStarter = (mode: 'open' | 'new'): void => starter?.(mode);
 
-/** Opens `dir` in a window of `provider` (started if none) and moves this tab there; resolves to the refusal's reason, or null. */
-export async function openFolder(dir: string, provider: Provider, create?: { name: string; git: boolean }): Promise<string | null> {
+/**
+ * Opens `dir` in a window of `provider` (started if none) and moves this tab there, to `session` when given (landing.ts);
+ * resolves to the refusal's reason, or null.
+ */
+export async function openFolder(dir: string, provider: Provider, create?: { name: string; git: boolean }, session?: string): Promise<string | null> {
   try {
     const r = create
       ? await postJson('/system/projects/create', { parent: dir, name: create.name, git: create.git, provider })
@@ -92,15 +133,17 @@ export async function openFolder(dir: string, provider: Provider, create?: { nam
     if (!r.ok) return reasonOf(r);
     const { url } = (await r.json()) as { url?: unknown };
     if (typeof url !== 'string') return 'bad answer';
-    nav.go(url);
+    nav.go(session ? `${url}&s=${session}` : url);
     return null;
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }
 }
 
-/** The folder names the server's create accepts (server/src/projectRoutes.ts validName): one segment, no edge spaces, ≤255 bytes. */
+/** The folder names the server's create accepts (server/src/projectRoutes.ts validName): one segment, nothing Windows refuses. */
 export const validName = (name: string): boolean =>
-  name !== '' && name !== '.' && name !== '..' && !/[/\\\0]/.test(name) && name.trim() === name && new TextEncoder().encode(name).length <= 255;
+  name !== '' && name !== '.' && name !== '..' && !/[/\\:*?"<>|\x00-\x1f]/.test(name)
+  && !/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(name) && !name.endsWith('.')
+  && name.trim() === name && new TextEncoder().encode(name).length <= 255;
 
 export const isAbsolute = (p: string): boolean => p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p) || p.startsWith('\\\\');

@@ -1,17 +1,18 @@
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { getLang, chooseLang, LANGS, useT } from '@/i18n/index.ts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { selectConn, selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openSettings, openUsage } from '@/tabs/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { ModelPill } from '@/controls/ModelPill.tsx';
-import { SessionPicker } from '@/controls/SessionPicker.tsx';
 import { UpdateNotice } from './UpdateNotice.tsx';
 import { GitBranch } from './GitBranch.tsx';
 import { RestartMenu } from './RestartMenu.tsx';
 import { StopButton } from './StopButton.tsx';
 import { RemoteDot, RemoteMenuItem } from '@/remote/RemoteMenu.tsx';
-import { folderName } from '@/lib/paths.ts';
+import { folderName, shortHome } from '@/lib/paths.ts';
+import { toast } from './toast.ts';
+import { useTabAligned } from './tabAlign.ts';
 import { isMac } from './keymap.ts';
 import { selectRestarting, selectSwitching } from '@/controls/slice.ts';
 import { UI_SCALES } from '@nota-bene/shared';
@@ -38,18 +39,32 @@ export function Header() {
   // the project, not the app, names the window: several windows on different projects must be told apart
   const project = (session && folderName(session.root)) || 'Nota Bene';
   const title = session?.title ?? null;
-  useEffect(() => { document.title = `${title ? title + ' · ' : ''}${project} · Nota Bene`; }, [title, project]);
+  // the tab's title; the switcher puts the other projects' badge in front of it
+  const headerRef = useRef<HTMLElement>(null);
+  const blockRef = useRef<HTMLDivElement>(null);
+  const gitLeft = useTabAligned(headerRef, blockRef);
+  const windowTitle = `${title ? title + ' · ' : ''}${project} · Nota Bene`;
   return (
-    <header className="relative z-[6] flex h-12 flex-none items-center gap-3 border-b border-border-soft bg-chrome px-4 text-xs text-muted-foreground backdrop-blur-[24px]">
+    <header ref={headerRef} className="relative z-[6] flex h-12 flex-none items-center gap-3 border-b border-border-soft bg-chrome px-4 text-xs text-muted-foreground backdrop-blur-[24px]">
       <Logo className="-mr-1 size-6 flex-none" />
       {/* the project's name opens the switcher: every window of every provider, recent folders, open or create one */}
-      <ProjectSwitcher project={project} />
-      <span id="root-path" className="min-w-0 truncate font-mono text-[0.6875rem] opacity-70">{session?.root ?? ''}</span>
-      <GitBranch />
+      {/* the path under the name, one block; pr-6 keeps room for the badge right of the ▾. The name alone sets the width
+          (w-0 min-w-full: the path adds none, so the git branch never moves for a long one); the path shows its end, cut on
+          the left (dir rtl over an ltr run keeps its slashes in order), and the whole of it in the tooltip; the home folder is ~, a click copies the whole path. A floor of 14rem
+          keeps a short name from cutting the path to nothing; the branch moves only for a name longer than that */}
+      <div ref={blockRef} data-proj-block className="flex min-w-[min(14rem,30vw)] flex-col items-start pr-6">
+        <ProjectSwitcher project={project} windowTitle={windowTitle} />
+        <button type="button" id="root-path" dir="rtl" title={session?.root ? `${session.root} · ${t('copyPath')}` : undefined} disabled={!session?.root}
+          onClick={() => { if (session?.root) void navigator.clipboard?.writeText(session.root).then(() => toast(t('codeCopied'), shortHome(session.root))); }}
+          className="w-0 min-w-full cursor-pointer truncate rounded px-1 text-left font-mono text-[0.625rem] leading-3 opacity-70 hover:opacity-100 disabled:cursor-default"><span dir="ltr">{session?.root ? shortHome(session.root) : ''}</span></button>
+      </div>
+      {/* over the middle column, its left edge on the first tab's (tabAlign.ts); out of the flow, so nothing else moves */}
+      <div data-git-slot className="absolute inset-y-0 flex items-center" style={{ left: gitLeft ?? undefined, visibility: gitLeft === null ? 'hidden' : undefined }}>
+        <GitBranch />
+      </div>
       <span className="flex-1" />
       <span id="conn" className="text-warn">{conn === 'connecting' ? t('connecting') : conn === 'closed' ? t('offline') : switching ? t(restarting ? 'restarting' : 'switching') : ''}</span>
       <UpdateNotice />
-      <SessionPicker />
       {/* enabled while busy: the escape hatch for a stuck agent (R-M4-4); only a running switch/restart disables it */}
       <RestartMenu />
       <ModelPill />

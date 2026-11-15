@@ -24,6 +24,7 @@ import { Stopped } from './shell/Stopped.tsx';
 import { OneTab } from './shell/OneTab.tsx';
 import { Toasts } from './shell/Toasts.tsx';
 import { useFavicon } from './shell/Favicon.ts';
+import { useSeen } from './projects/seen.ts';
 import { useSounds } from './shell/sounds.ts';
 import { RecentFiles } from '@/files/RecentFiles.tsx';
 import { Starter } from '@/projects/Starter.tsx';
@@ -34,6 +35,7 @@ export function App() {
   const store = useStore() as AppStore;
   useEffect(() => installKeymap(store), [store]);
   useFavicon();
+  useSeen();
   useSounds();
   useActivity();
   const sendPanel = useCallback(() => void dispatch(sendBatch(false)), [dispatch]);
@@ -56,7 +58,7 @@ export function App() {
         <LeftStrip />
         <FileTree key={rootGen} />
         <ChangesPanel />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div data-center className="flex min-w-0 flex-1 flex-col">
           <TabStrip />
           <div className="relative flex min-h-0 flex-1 flex-col">
             <Panes
