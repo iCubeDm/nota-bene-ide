@@ -271,6 +271,21 @@ describe('tank', () => {
     ]);
   });
 
+  it('a reset time that jitters by milliseconds or seconds is one window; a reset hours later is another', () => {
+    const r = report([
+      { k: 'l', ts: T0, minutes: week, pct: 10, resets: T0 + 6 * D + 578 },
+      { k: 'l', ts: T0 + H, minutes: week, pct: 15, resets: T0 + 6 * D + 591 },
+      { k: 'l', ts: T0 + D, minutes: week, pct: 20, resets: T0 + 6 * D + 4_000 },
+      { k: 'l', ts: T0 + D + H, minutes: week, pct: 0, resets: T0 + 6 * D + 3 * H },
+      { k: 'l', ts: T0 + 2 * D, minutes: week, pct: 30, resets: T0 + 6 * D + 3 * H + 1_000 },
+      call({ id: 'in', ts: T0 + 2 * H, out: 200 }),
+    ], { period: 'all' });
+    expect(r.tanks).toEqual([
+      { from: T0, to: T0 + D, pct: 10, w: 1000, perPct: 25 },
+      { from: T0 + D + H, to: T0 + 2 * D, pct: 30, w: 0, perPct: 0 },
+    ]);
+  });
+
   it('under one percent is no measurement; five-hour readings are not the tank', () => {
     expect(report([
       { k: 'l', ts: T0, minutes: week, pct: 10, resets: 1 }, { k: 'l', ts: T0 + D, minutes: week, pct: 10.5, resets: 1 },

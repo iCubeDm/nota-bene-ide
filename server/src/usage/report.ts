@@ -234,16 +234,22 @@ function weeksOf(calls: readonly CallRecord[], events: readonly HitEvent[], isEx
   return out;
 }
 
+/** Providers report a window's reset with jitter (Claude milliseconds, Codex seconds); a moved reset is hours away. */
+const RESET_JITTER_MS = 10 * 60_000;
+
 /** Each limit window of `minutes` (by its reset) with its percent and tokens from its first to its last reading. */
 function limitWindows(calls: readonly CallRecord[], records: readonly UsageRecord[], minutes: number) {
-  const windows = new Map<number, LimitRecord[]>();
-  for (const r of records) {
-    if (r.k !== 'l' || r.minutes !== minutes || r.resets === null) continue;
-    let list = windows.get(r.resets);
-    if (!list) windows.set(r.resets, list = []);
-    list.push(r);
+  const readings = records
+    .filter((r): r is LimitRecord & { resets: number } => r.k === 'l' && r.minutes === minutes && r.resets !== null)
+    .sort((a, b) => a.resets - b.resets);
+  const windows: [number, LimitRecord[]][] = [];
+  let prev = -Infinity;
+  for (const r of readings) {
+    if (r.resets - prev <= RESET_JITTER_MS) windows[windows.length - 1]![1].push(r);
+    else windows.push([r.resets, [r]]);
+    prev = r.resets;
   }
-  return [...windows].map(([resets, list]) => {
+  return windows.map(([resets, list]) => {
     list.sort((a, b) => a.ts - b.ts);
     const first = list[0]!, last = list[list.length - 1]!;
     const w = calls.reduce((sum, c) => (c.ts > first.ts && c.ts <= last.ts ? sum + weigh(c) : sum), 0);
