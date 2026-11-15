@@ -98,6 +98,9 @@ Map<String, Object?> report({
   ],
 };
 
+/// The page's own list: the per-1% table scrolls sideways on its own.
+final page = find.byType(Scrollable).first;
+
 void main() {
   late Rig r;
   Future<HttpAnswer> Function(String path)? on;
@@ -160,18 +163,25 @@ void main() {
   });
 
   testWidgets(
-    'the five-hour line follows the weekly one, a dash where a week has none',
+    'tokens per 1% are a table: a column per weekly window with its dates, a 5-hour row then the weekly one, a dash where a week has none',
     (t) async {
+      int d(int day) => DateTime(2026, 11, day, 12).millisecondsSinceEpoch;
       host(
         (p) async => answer(
           200,
           jsonEncode({
             ...report(),
             'tanks': [
-              {'from': 1, 'to': 2, 'pct': 10, 'w': 100, 'perPct': 3800000},
               {
-                'from': 3,
-                'to': 4,
+                'from': d(1),
+                'to': d(7),
+                'pct': 10,
+                'w': 100,
+                'perPct': 3800000,
+              },
+              {
+                'from': d(8),
+                'to': d(8),
                 'pct': 10,
                 'w': 100,
                 'perPct': 3700000,
@@ -182,13 +192,30 @@ void main() {
         ),
       );
       await show(t);
-      final five = find.textContaining(w('usageTank5h'), skipOffstage: false);
-      await t.scrollUntilVisible(five, 200);
-      expect(five, findsOneWidget);
-      expect(
-        (t.widget(five) as Text).data,
-        '${w('usageTank5h')} — → ${fmtTokens(900000, 'en')}',
+      final table = find.byKey(const Key('usageTanks'), skipOffstage: false);
+      await t.scrollUntilVisible(
+        table,
+        200,
+        scrollable: find
+            .byType(Scrollable)
+            .first, // the page; the table scrolls sideways on its own
       );
+      final cells = find
+          .descendant(of: table, matching: find.byType(Text))
+          .evaluate()
+          .map((e) => (e.widget as Text).data)
+          .toList();
+      expect(cells, [
+        '',
+        'Nov 1 – Nov 7',
+        'Nov 8',
+        w('usageTank5h'),
+        '—',
+        fmtTokens(900000, 'en'),
+        w('usageTank'),
+        fmtTokens(3800000, 'en'),
+        fmtTokens(3700000, 'en'),
+      ]);
     },
   );
 
@@ -289,7 +316,11 @@ void main() {
   testWidgets('a task row opens its detail', (t) async {
     host((p) async => answer(200, jsonEncode(report())));
     await show(t);
-    await t.scrollUntilVisible(find.text('Write the intro'), 300);
+    await t.scrollUntilVisible(
+      find.text('Write the intro'),
+      300,
+      scrollable: page,
+    );
     await t.drag(find.byType(ListView), const Offset(0, -200));
     await t.pumpAndSettle();
     expect(find.text(w('usageTopCalls')), findsNothing);
@@ -360,7 +391,11 @@ void main() {
     task['project'] = 'P' * 120;
     host((p) async => answer(200, jsonEncode(rep)));
     await show(t);
-    await t.scrollUntilVisible(find.text(fmtTokens(900000, 'en')), 300);
+    await t.scrollUntilVisible(
+      find.text(fmtTokens(900000, 'en')),
+      300,
+      scrollable: page,
+    );
     expect(t.takeException(), isNull);
     expect(find.text(fmtTokens(900000, 'en')), findsOneWidget);
   });

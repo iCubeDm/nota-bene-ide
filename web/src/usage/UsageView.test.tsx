@@ -76,25 +76,30 @@ it('shows the meter, the model mix, the hits and the tank', async () => {
   expect(screen.getByText('red: ended on a limit hit')).toBeTruthy();
   expect(screen.getByRole('img', { name: '5-hour windows' })).toBeTruthy();
   expect(screen.getByRole('img', { name: 'Weeks' })).toBeTruthy();
-  expect(screen.getByText('Per 1% of the weekly limit:').textContent).toContain('100');
+  expect(within(screen.getByRole('table', { name: 'Tokens per 1% of the limit' })).getByRole('row', { name: /avg 1% weekly/ }).textContent).toContain('100');
 });
 
-it('the five-hour line follows the weekly one, window for window; a week without five-hour readings is a dash; none, no line', async () => {
+it('tokens per 1% are a table: a column per weekly window headed by its dates, oldest first; a 5-hour row, then the weekly one; a week without 5-hour readings is a dash', async () => {
+  const d = (day: number) => new Date(2026, 10, day, 12).getTime();
   reply = () => ({ ...REPORT, tanks: [
-    { from: 1, to: 2, pct: 10, w: 1000, perPct: 3_800_000 },
-    { from: 3, to: 4, pct: 10, w: 1000, perPct: 3_700_000, h5: { pct: 40, w: 1000, perPct: 900_000 } },
-    { from: 5, to: 6, pct: 10, w: 1000, perPct: 3_500_000, h5: { pct: 40, w: 1000, perPct: 800_000 } },
+    { from: d(1), to: d(7), pct: 10, w: 1000, perPct: 3_800_000 },
+    { from: d(8), to: d(14), pct: 10, w: 1000, perPct: 3_700_000, h5: { pct: 40, w: 1000, perPct: 900_000 } },
+    { from: d(15), to: d(15), pct: 10, w: 1000, perPct: 3_500_000, h5: { pct: 40, w: 1000, perPct: 800_000 } },
   ] });
   setup();
-  const five = await screen.findByText('Per 1% of the 5-hour limit, a week\'s windows:');
-  expect(five.textContent).toBe(`Per 1% of the 5-hour limit, a week's windows: — → ${fmtTokens(900_000)} → ${fmtTokens(800_000)}`);
-  expect(screen.getByText('Per 1% of the weekly limit:').textContent).toBe(`Per 1% of the weekly limit: ${fmtTokens(3_800_000)} → ${fmtTokens(3_700_000)} → ${fmtTokens(3_500_000)}`);
+  const table = await screen.findByRole('table', { name: 'Tokens per 1% of the limit' });
+  const rows = within(table).getAllByRole('row').map((r) => Array.from(r.children).map((c) => c.textContent));
+  expect(rows).toEqual([
+    ['', 'Nov 1 – Nov 7', 'Nov 8 – Nov 14', 'Nov 15'],
+    ['avg 1% 5h', '—', fmtTokens(900_000), fmtTokens(800_000)],
+    ['avg 1% weekly', fmtTokens(3_800_000), fmtTokens(3_700_000), fmtTokens(3_500_000)],
+  ]);
 });
 
-it('without five-hour readings there is no five-hour line', async () => {
+it('without five-hour readings the table has no 5-hour row', async () => {
   setup();
-  await screen.findByText('Per 1% of the weekly limit:');
-  expect(screen.queryByText(/5-hour limit, a week/)).toBeNull();
+  const table = await screen.findByRole('table', { name: 'Tokens per 1% of the limit' });
+  expect(within(table).getAllByRole('row').map((r) => r.firstElementChild!.textContent)).toEqual(['', 'avg 1% weekly']);
 });
 
 it('a bar says its tokens under the pointer, the low one too, and whether it was a hit', async () => {
@@ -113,7 +118,8 @@ it('a bar says its tokens under the pointer, the low one too, and whether it was
 it('the hits are a table, and a row opens to the tasks that ate its window', async () => {
   setup();
   await screen.findByText('app 78%, film 22%');
-  expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['When', 'Limit', 'Tokens', 'Calls', 'Projects']);
+  const hits = screen.getByText('app 78%, film 22%').closest('table')!;
+  expect(within(hits).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['When', 'Limit', 'Tokens', 'Calls', 'Projects']);
   expect(screen.queryByText('Long job')).toBeNull();
   fireEvent.click(screen.getByText('app 78%, film 22%'));
   expect(screen.getByText('Long job')).toBeTruthy();

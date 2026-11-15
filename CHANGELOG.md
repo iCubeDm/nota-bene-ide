@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Usage: tokens per 1% as a table.** The two lines with arrows are one table: a column per weekly window, headed by its dates, and the rows avg 1% 5h and avg 1% weekly (web and phone).
+
 ## 2.0.0 — 2026-11-15
 
 - **Projects as a list of chats.** The project's name in the header (Alt+P) opens every project you have open, whatever its agent, as a list of chats: the last message, the session and agent, and one badge, **!** when a project waits for you, otherwise the number of replies you have not seen. The header and the tab title carry the same badge for the other projects. A click moves the tab to that project, already logged in; the arrow on a row lists its sessions, opens one in its window or starts a new one with any installed agent. **Recent** brings back folders and earlier sessions that are not running; **✕** removes a folder from it. See [Projects](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#projects-switching-opening-creating).

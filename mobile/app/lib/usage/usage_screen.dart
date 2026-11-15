@@ -651,16 +651,61 @@ class _LimitsState extends State<_Limits> {
               ].join(' '),
               style: _small(context),
             ),
-          if (tanks.isNotEmpty)
-            Text(
-              '${usageString('usageTank', lang)} ${tanks.map((k) => fmtTokens(k.perPct, lang)).join(' → ')}',
-              style: _small(context),
-            ),
+          if (tanks.isNotEmpty) _TankTable(tanks: tanks, lang: lang),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tokens per 1%: a column per weekly window, oldest first; the 5-hour row
+/// when a window has its readings, then the weekly one.
+class _TankTable extends StatelessWidget {
+  const _TankTable({required this.tanks, required this.lang});
+  final List<UsageTank> tanks;
+  final String lang;
+
+  String _span(UsageTank k) {
+    final from = shortTime(k.from.toInt(), lang),
+        to = shortTime(k.to.toInt(), lang);
+    return from == to ? from : '$from – $to';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final small = _small(context);
+    Widget cell(String text, {TextStyle? style, bool left = false}) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      child: Text(
+        text,
+        style: style ?? _mono,
+        textAlign: left ? TextAlign.left : TextAlign.right,
+      ),
+    );
+    TableRow row(String label, String Function(UsageTank) value) => TableRow(
+      children: [
+        cell(label, style: small, left: true),
+        for (final k in tanks) cell(value(k)),
+      ],
+    );
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Table(
+        key: const Key('usageTanks'),
+        defaultColumnWidth: const IntrinsicColumnWidth(),
+        children: [
+          TableRow(
+            children: [
+              cell('', style: small),
+              for (final k in tanks) cell(_span(k), style: small),
+            ],
+          ),
           if (tanks.any((k) => k.h5 != null))
-            Text(
-              '${usageString('usageTank5h', lang)} ${tanks.map((k) => k.h5 == null ? '—' : fmtTokens(k.h5!.perPct, lang)).join(' → ')}',
-              style: _small(context),
+            row(
+              usageString('usageTank5h', lang),
+              (k) => k.h5 == null ? '—' : fmtTokens(k.h5!.perPct, lang),
             ),
+          row(usageString('usageTank', lang), (k) => fmtTokens(k.perPct, lang)),
         ],
       ),
     );

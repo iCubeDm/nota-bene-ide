@@ -551,36 +551,44 @@ const _json = r'''
    "de": "Betrag unbekannt"
   },
   "usageTank": {
-   "en": "Per 1% of the weekly limit:",
-   "ru": "На 1% недельного лимита:",
-   "zh": "每 1% 周限额：",
-   "es": "Por 1 % del límite semanal:",
-   "pt": "Por 1% do limite semanal:",
-   "de": "Pro 1 % des Wochenlimits:"
+   "en": "avg 1% weekly",
+   "ru": "ср. 1% неделя",
+   "zh": "每周 1% 平均",
+   "es": "prom. 1 % semanal",
+   "pt": "méd. 1% semanal",
+   "de": "Ø 1 % Woche"
   },
   "usageTank5h": {
-   "en": "Per 1% of the 5-hour limit, a week's windows:",
-   "ru": "На 1% 5-часового лимита, окна недели:",
-   "zh": "每 1% 5 小时限额（按周内窗口）：",
-   "es": "Por 1 % del límite de 5 horas, ventanas de la semana:",
-   "pt": "Por 1% do limite de 5 horas, janelas da semana:",
-   "de": "Pro 1 % des 5-Stunden-Limits, Fenster einer Woche:"
+   "en": "avg 1% 5h",
+   "ru": "ср. 1% 5 ч",
+   "zh": "5 小时 1% 平均",
+   "es": "prom. 1 % 5 h",
+   "pt": "méd. 1% 5 h",
+   "de": "Ø 1 % 5 Std."
   },
   "usageTank5hTip": {
-   "en": "Each number is the average over a week's 5-hour windows, from that week up to the current one; it stands under the same week's number above.",
-   "ru": "Каждое число: среднее по 5-часовым окнам недели, от этой недели до текущей; стоит под числом той же недели выше.",
-   "zh": "每个数字是一周内各 5 小时窗口的平均值，从该周算到当前周；与上方同一周的数字对应。",
-   "es": "Cada número es la media de las ventanas de 5 horas de una semana, desde esa semana hasta la actual; va bajo el número de la misma semana de arriba.",
-   "pt": "Cada número é a média das janelas de 5 horas de uma semana, dessa semana até a atual; fica sob o número da mesma semana acima.",
-   "de": "Jede Zahl ist der Durchschnitt über die 5-Stunden-Fenster einer Woche, von dieser Woche bis zur aktuellen; sie steht unter der Zahl derselben Woche oben."
+   "en": "Tokens per 1% of the 5-hour limit, averaged over the 5-hour windows from the column's week up to the current one. A dash: no 5-hour readings that week.",
+   "ru": "Токены на 1% 5-часового лимита, среднее по 5-часовым окнам от недели этого столбца до текущей. Прочерк: в ту неделю 5-часовых показаний нет.",
+   "zh": "5 小时限额每 1% 的 token，按从该列所在周到本周的 5 小时窗口取平均。短横线：该周没有 5 小时读数。",
+   "es": "Tokens por 1 % del límite de 5 horas, promediados sobre las ventanas de 5 horas desde la semana de la columna hasta la actual. Un guion: esa semana no hay lecturas de 5 horas.",
+   "pt": "Tokens por 1% do limite de 5 horas, em média nas janelas de 5 horas da semana da coluna até a atual. Um traço: sem leituras de 5 horas nessa semana.",
+   "de": "Tokens pro 1 % des 5-Stunden-Limits, gemittelt über die 5-Stunden-Fenster von der Woche der Spalte bis zur aktuellen. Ein Strich: in dieser Woche keine 5-Stunden-Werte."
+  },
+  "usageTankTable": {
+   "en": "Tokens per 1% of the limit",
+   "ru": "Токены на 1% лимита",
+   "zh": "每 1% 限额的 token",
+   "es": "Tokens por 1 % del límite",
+   "pt": "Tokens por 1% do limite",
+   "de": "Tokens pro 1 % des Limits"
   },
   "usageTankTip": {
-   "en": "Each number is the average from that weekly window up to the current one; the last is the current window alone. A falling line means the same 100% buys fewer tokens.",
-   "ru": "Каждое число: среднее от этого недельного окна до текущего; последнее — только текущее окно. Падение значит, что те же 100% дают меньше токенов.",
-   "zh": "每个数字是从该周限额窗口到当前窗口的平均值；最后一个只是当前窗口。折线下降表示同样的 100% 能换到更少的令牌。",
-   "es": "Cada número es la media desde esa ventana semanal hasta la actual; el último es solo la ventana actual. Una línea descendente significa que el mismo 100 % compra menos tokens.",
-   "pt": "Cada número é a média dessa janela semanal até a atual; o último é só a janela atual. Uma linha em queda significa que os mesmos 100% rendem menos tokens.",
-   "de": "Jede Zahl ist der Durchschnitt von diesem Wochenfenster bis zum aktuellen; die letzte ist nur das aktuelle Fenster. Eine fallende Linie heißt: Dieselben 100 % ergeben weniger Tokens."
+   "en": "Tokens per 1% of the weekly limit, averaged from the column's window up to the current one; the last column is the current window alone. A falling row means the same 100% buys fewer tokens.",
+   "ru": "Токены на 1% недельного лимита, среднее от окна этого столбца до текущего; последний столбец — только текущее окно. Падение значит, что те же 100% дают меньше токенов.",
+   "zh": "每周限额每 1% 的 token，从该列的窗口到当前窗口取平均；最后一列只算当前窗口。数值下降意味着同样的 100% 换来更少的 token。",
+   "es": "Tokens por 1 % del límite semanal, promediados desde la ventana de la columna hasta la actual; la última columna es solo la ventana actual. Si la fila baja, el mismo 100 % da menos tokens.",
+   "pt": "Tokens por 1% do limite semanal, em média da janela da coluna até a atual; a última coluna é só a janela atual. Se a linha cai, os mesmos 100% rendem menos tokens.",
+   "de": "Tokens pro 1 % des Wochenlimits, gemittelt vom Fenster der Spalte bis zum aktuellen; die letzte Spalte ist nur das aktuelle Fenster. Fällt die Zeile, ergeben dieselben 100 % weniger Tokens."
   },
   "usageTaskLine": {
    "en": "Calls: {0}, subagents {1}, {2}",
