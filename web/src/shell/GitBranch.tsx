@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { openFolder, reasonText } from '@/projects/api.ts';
 import { useT } from '@/i18n/index.ts';
 import type { GitSwitchAnswer, Source, VcsBranch } from '@nota-bene/shared';
 import { selectSession, selectTurnSeq, useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -105,6 +106,8 @@ export function GitBranch() {
   const [ask, setAsk] = useState<string | null>(null); // the branch row asking "switch?"
   const [going, setGoing] = useState(false);
   const [err, setErr] = useState<Refusal | null>(null);
+  const [openErr, setOpenErr] = useState<string | null>(null);
+  const provider = useAppSelector((x) => x.controls.capabilities?.provider) ?? 'claude';
   const viewing = src !== 'here';
   useEffect(() => setInfo([]), [root]); // an id of the old project may mean another branch here
   useEffect(() => {
@@ -133,6 +136,14 @@ export function GitBranch() {
   const f = q.trim().toLowerCase();
   const match = (s: Source) => !f || s.label.toLowerCase().includes(f);
   const confirm = (id: string | null) => { setAsk(id); setErr(null); };
+  const openTree = async (s: Source) => {
+    if (!s.dir) return;
+    setGoing(true);
+    setOpenErr(null);
+    const why = await openFolder(s.dir, provider);
+    setGoing(false);
+    if (why) setOpenErr(reasonText(why));
+  };
   const switchTo = async (s: Source) => {
     setGoing(true);
     setErr(null);
@@ -186,11 +197,21 @@ export function GitBranch() {
       </div>
     </div>
   );
+  // a worktree row: view it (the row) or open its folder in a window of this agent (the button): git keeps its branch there
+  const treeRow = (s: Source) => (
+    <div key={s.id} className="group flex items-center">
+      {row(s, false)}
+      {s.dir && (
+        <button type="button" disabled={going} onClick={() => void openTree(s)} title={t('vcsOpenTreeTip', s.label)} aria-label={t('vcsOpenTreeTip', s.label)}
+          className="ml-1 h-6 flex-none rounded px-1.5 text-[0.6875rem] text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100">{t('vcsOpenTree')}</button>
+      )}
+    </div>
+  );
   const trees = sources.filter((s) => s.kind === 'worktree' && match(s));
   const plain = sources.filter((s) => s.kind === 'branch' && match(s));
   const label = (s: string) => <div className="px-2 pt-2 pb-0.5 text-[0.65625rem] uppercase tracking-wide text-muted-foreground">{s}</div>;
   return (
-    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setQ(''); confirm(null); } }}>
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setQ(''); confirm(null); setOpenErr(null); } }}>
       <PopoverTrigger asChild>
         <button type="button" id="git-branch" title={viewing ? t('vcsViewingTip', shown ?? '', here ?? '') : `${t('gitBranch')} · ${st.dirty ? t('gitDirty') : t('gitClean')}`} className={`flex h-7 flex-none items-center gap-1.5 rounded-md px-2 font-mono text-[0.71875rem] whitespace-nowrap hover:bg-muted ${viewing ? 'bg-nb-accent/15 text-nb-accent' : 'text-foreground/85'}`}>
           <Svg size={13}>{ICONS.log}</Svg>
@@ -206,7 +227,8 @@ export function GitBranch() {
           {label(t('vcsThisFolder'))}
           {sources.filter((s) => s.id === 'here').map((s) => row(s))}
           {trees.length > 0 && label(t('vcsWorktrees'))}
-          {trees.map((s) => row(s))}
+          {trees.map(treeRow)}
+          {openErr && <div role="alert" className="px-2 py-1 text-[0.6875rem] text-destructive">{t('vcsOpenFail', openErr)}</div>}
           {plain.length > 0 && label(t('vcsBranches'))}
           {plain.map(branchRow)}
         </div>

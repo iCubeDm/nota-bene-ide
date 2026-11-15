@@ -1,3 +1,4 @@
+import { nav } from '@/projects/api.ts';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,6 +19,8 @@ const branches = [
   { id: 'ref:agent/one', branch: 'agent/one', base: 'main', ahead: 2, dirty: true, busy: true, at: 1 },
   { id: 'ref:old', branch: 'old', base: 'main', ahead: 1, dirty: false, busy: false, at: 1 },
 ];
+let openCalls: unknown[] = [];
+let opened: () => Response = () => new Response('');
 let answer: unknown;
 let calls: number;
 let timedOut = false;
@@ -31,9 +34,12 @@ beforeEach(() => {
   timedOut = false;
   switched = { status: 200, body: { branch: 'old' } };
   switchCalls = [];
+  openCalls = [];
+  opened = () => Response.json({ url: `http://127.0.0.1:4793/#t=${'a'.repeat(64)}` });
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (url === '/git-switch') { switchCalls.push(JSON.parse(String(init?.body))); return new Response(JSON.stringify(switched.body), { status: switched.status }); }
     if (url === '/vcs-branches') return new Response(JSON.stringify(branches));
+    if (url === '/system/projects/open') { openCalls.push(JSON.parse(String(init?.body))); return opened(); }
     if (url === '/sources') return new Response(JSON.stringify(SOURCES));
     if (url === '/git-status') { calls++; return timedOut ? new Response('git status timed out', { status: 503 }) : new Response(JSON.stringify(answer)); }
     return new Response('nope', { status: 404 });
@@ -131,7 +137,7 @@ describe('the picker', () => {
 
   it('lists the folder, the worktrees and the branches, with distance, dirt and a dot where an agent works', async () => {
     await open();
-    const row = screen.getByRole('button', { name: /agent\/one/ });
+    const row = screen.getByRole('button', { name: /^agent\/one/ });
     expect(row).toHaveTextContent('↑2');
     expect(row).toHaveTextContent('✗');
     expect(row.querySelector('[data-agent-dot]')).toHaveAttribute('title', 'An agent is working here');
@@ -140,7 +146,7 @@ describe('the picker', () => {
 
   it('picking changes the view and says so; the checkout is not touched', async () => {
     const { store, el } = await open();
-    fireEvent.click(screen.getByRole('button', { name: /agent\/one/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^agent\/one/ }));
     expect(selectTree(store.getState()).src).toBe('ref:agent/one');
     expect(el()).toHaveTextContent('viewing');
     expect(el()).toHaveAttribute('title', 'Viewing agent/one; the window and the agent stay on main');
@@ -150,6 +156,24 @@ describe('the picker', () => {
   it('Switch is offered on branch rows only, never on the folder or a worktree', async () => {
     await open();
     expect(screen.getAllByRole('button', { name: /^Switch this folder to/ }).map((b) => b.getAttribute('aria-label'))).toEqual(['Switch this folder to old']);
+  });
+
+  it('a worktree row opens its folder in a window of this agent and moves there', async () => {
+    const go = vi.spyOn(nav, 'go').mockImplementation(() => {});
+    const { wait } = await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent/one in its own window' }));
+    await wait(0);
+    expect(openCalls).toEqual([{ dir: '/p/one', provider: 'claude' }]);
+    expect(go).toHaveBeenCalledWith(`http://127.0.0.1:4793/#t=${'a'.repeat(64)}`);
+    go.mockRestore();
+  });
+
+  it('a worktree that cannot be opened says why in the menu', async () => {
+    opened = () => new Response('not a folder', { status: 404 });
+    const { wait } = await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent/one in its own window' }));
+    await wait(0);
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not open: no such folder');
   });
 
   it('Switch asks first; Cancel and Escape leave everything as it was', async () => {
@@ -169,7 +193,7 @@ describe('the picker', () => {
 
   it('a confirmed switch posts the branch, goes back to this folder and reloads the status at once', async () => {
     const { store, wait } = await open();
-    fireEvent.click(screen.getByRole('button', { name: /agent\/one/ })); // viewing a worktree before the switch
+    fireEvent.click(screen.getByRole('button', { name: /^agent\/one/ })); // viewing a worktree before the switch
     fireEvent.click(document.getElementById('git-branch')!);
     await wait(0);
     fireEvent.click(screen.getByRole('button', { name: 'Switch this folder to old' }));
@@ -206,6 +230,6 @@ describe('the picker', () => {
   it('the search narrows the rows', async () => {
     await open();
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find a branch' }), { target: { value: 'old' } });
-    expect(screen.queryByRole('button', { name: /agent\/one/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^agent\/one/ })).toBeNull();
   });
 });
