@@ -4,7 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { EventHub } from './hub.ts';
-import { launchEnv, launcherOf, projectRoutes, type Launch } from './projectRoutes.ts';
+import { launchEnv, launcherOf, projectRoutes, validName, type Launch } from './projectRoutes.ts';
+import { recordRecent } from './recent.ts';
 
 let tree: string;
 let home: string;
@@ -186,4 +187,30 @@ it('a still-starting launch answers 504 still starting', async () => {
   const r = await s.post('/system/projects/open', { dir: tree, provider: 'claude' });
   expect(r.status).toBe(504);
   expect(await r.text()).toBe('still starting');
+});
+
+it('sessions and enter refuse a bad body; sessions of an unknown window is 404', async () => {
+  const s = await serve();
+  expect((await s.post('/system/projects/sessions', { provider: 'claude', port: 'x', root: tree })).status).toBe(400);
+  expect((await s.post('/system/projects/sessions', { provider: 'claude', port: 4795, root: tree })).status).toBe(404);
+  expect((await s.post('/system/projects/enter', { provider: 'claude', port: 4795, root: tree, session: '../x' })).status).toBe(400);
+});
+
+it('folders names the places: home first, then the parents of recent projects, once each', async () => {
+  for (const d of ['p1/a', 'p1/b', 'p2/c']) fs.mkdirSync(path.join(tree, d), { recursive: true });
+  recordRecent(home, path.join(tree, 'p1', 'a'), 'claude', 1);
+  recordRecent(home, path.join(tree, 'p2', 'c'), 'claude', 2);
+  recordRecent(home, path.join(tree, 'p1', 'b'), 'codex', 3);
+  recordRecent(home, path.join(os.homedir(), 'x'), 'claude', 4);
+  const s = await serve();
+  const r = (await (await s.post('/system/folders', { path: tree })).json()) as { places: { path: string; kind: string }[] };
+  expect(r.places[0]).toEqual({ path: os.homedir(), kind: 'home' });
+  const recent = r.places.filter((p) => p.kind === 'recent').map((p) => p.path);
+  expect(recent).toEqual([path.join(tree, 'p1'), path.join(tree, 'p2')]);
+  expect(r.places.filter((p) => p.path === os.homedir())).toHaveLength(1);
+});
+
+it('validName refuses what Windows refuses', () => {
+  for (const n of ['a:b', 'a*', 'a?', 'a"b', 'a<b', 'a>b', 'a|b', 'CON', 'con.txt', 'NUL', 'com1', 'LPT9', 'name.', 'a\x01b']) expect(validName(n), n).toBe(false);
+  for (const n of ['console', 'a.b', 'my project', 'CONx', 'проект']) expect(validName(n), n).toBe(true);
 });

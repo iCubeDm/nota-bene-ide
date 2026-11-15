@@ -17,12 +17,19 @@ export const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'omp'];
 const PROBE_MS = 700;
 
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
+export type LastMessage = { role: 'user' | 'assistant'; text: string; at?: number };
 export type RunningRow = {
   provider: AgentProvider; port: number; root: string; title: string | null; session: string | null;
   state: ProjectState; current: boolean; clients: number;
+  /** final replies of its session after the person last saw it (seen.ts) */
+  unseen: number;
+  last: LastMessage | null;
 };
 export type ProjectsList = { running: RunningRow[]; recent: (RecentEntry & { running: boolean })[] };
-export type ProbedInfo = { root: string; session?: string | null; title?: string | null; busy?: boolean; pending?: boolean; clients?: number };
+export type ProbedInfo = {
+  root: string; session?: string | null; title?: string | null; busy?: boolean; pending?: boolean; clients?: number;
+  unseen?: number; last?: LastMessage | null;
+};
 export type Probe = (port: number, token: string) => Promise<ProbedInfo | null>;
 
 /** The listener on `port` proved with `token`, then its /info with that launch's helper bearer; null for anything else. */
@@ -71,6 +78,7 @@ export async function listProjects(own: { port: number; provider: AgentProvider 
       rows.push({
         provider, port, root: wirePath(w.root), title: live?.title ?? null, session: live?.session ?? null, state,
         current: port === own.port && provider === own.provider, clients: live?.clients ?? 0,
+        unseen: typeof live?.unseen === 'number' ? live.unseen : 0, last: live?.last ?? null,
       });
     }));
   }));
@@ -81,20 +89,52 @@ export async function listProjects(own: { port: number; provider: AgentProvider 
 }
 
 export type EnterResult = { url: string } | { error: 'no such window' | 'window not answering' };
+type Window = { provider: AgentProvider; port: number; root: string };
+type Proved = { token: string; nonce: string; bearer: string } | { error: 'no such window' | 'window not answering' };
 
-/** The login URL of a registered window of `provider` on `port` that still holds `root`. */
-export async function enterUrl(o: { provider: AgentProvider; port: number; root: string }, fetchFn: typeof fetch = fetch): Promise<EnterResult> {
+/** A registered window of `provider` on `port` that still holds `root`: proved with its provider's token, its /info checked. */
+async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
   const p = providerOf(o.provider);
   const w = p?.entries.find(([k]) => Number(k) === o.port)?.[1];
   if (!p || !w || !pidAlive(w.pid) || !sameRoot(w.root, o.root)) return { error: 'no such window' };
   const n = await proveListener({ dial: o.port, timeoutMs: 1500, token: p.token, fetchFn });
   if (n === null) return { error: 'window not answering' };
+  const bearer = `Bearer ${helperCredential(p.token, o.port, n)}`;
   try {
-    const r = await fetchFn(`http://127.0.0.1:${o.port}/info`, { headers: { authorization: `Bearer ${helperCredential(p.token, o.port, n)}` }, signal: AbortSignal.timeout(1500), redirect: 'error' });
+    const r = await fetchFn(`http://127.0.0.1:${o.port}/info`, { headers: { authorization: bearer }, signal: AbortSignal.timeout(1500), redirect: 'error' });
     const j = r.ok ? ((await r.json()) as { root?: unknown } | null) : null;
     if (!j || j.root !== w.root) return { error: 'window not answering' };
   } catch {
     return { error: 'window not answering' };
   }
-  return { url: `http://127.0.0.1:${o.port}/#t=${loginCredential(p.token, o.port, n)}` };
+  return { token: p.token, nonce: n, bearer };
+}
+
+/** The login URL of that window; with `session`, the page there opens that session once logged in (web landing.ts). */
+export async function enterUrl(o: Window & { session?: string }, fetchFn: typeof fetch = fetch): Promise<EnterResult> {
+  const r = await proved(o, fetchFn);
+  if ('error' in r) return r;
+  return { url: `http://127.0.0.1:${o.port}/#t=${loginCredential(r.token, o.port, r.nonce)}${o.session ? `&s=${o.session}` : ''}` };
+}
+
+export type SessionRow = { id: string; title: string; at: number; archived?: true };
+export type SessionsResult = { current: string | null; sessions: SessionRow[] } | { error: 'no such window' | 'window not answering' };
+
+const inside = (dir: string, root: string) => dir === root || dir.startsWith(root.endsWith('/') || root.endsWith('\\') ? root : `${root}/`) || dir.startsWith(`${root}\\`);
+
+/** That window's sessions (its GET /sessions) whose folder is its root or inside it. */
+export async function sessionsOf(o: Window, fetchFn: typeof fetch = fetch): Promise<SessionsResult> {
+  const r = await proved(o, fetchFn);
+  if ('error' in r) return r;
+  try {
+    const res = await fetchFn(`http://127.0.0.1:${o.port}/sessions`, { headers: { authorization: r.bearer }, signal: AbortSignal.timeout(3000), redirect: 'error' });
+    const v = res.ok ? ((await res.json()) as { current?: unknown; sessions?: unknown } | null) : null;
+    if (!v || !Array.isArray(v.sessions)) return { error: 'window not answering' };
+    const sessions = (v.sessions as { id: string; title: string; at: number; cwd: string; archived?: true }[])
+      .filter((x) => typeof x?.id === 'string' && typeof x.cwd === 'string' && inside(x.cwd, o.root))
+      .map((x) => ({ id: x.id, title: typeof x.title === 'string' ? x.title : '', at: typeof x.at === 'number' ? x.at : 0, ...(x.archived ? { archived: true as const } : {}) }));
+    return { current: typeof v.current === 'string' ? v.current : null, sessions };
+  } catch {
+    return { error: 'window not answering' };
+  }
 }

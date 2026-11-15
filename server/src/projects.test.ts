@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
 import { recordRecent } from './recent.ts';
-import { enterUrl, listProjects, type ProbedInfo } from './projects.ts';
+import { enterUrl, listProjects, sessionsOf, type ProbedInfo } from './projects.ts';
 import { startServer } from './server.ts';
 import { registerWindow } from './windows.ts';
 
@@ -119,4 +119,50 @@ it('enterUrl refuses another provider\'s listener', async () => {
   registerWindow(pa, a, process.pid); // filed under codex, but the port is a claude window
   delete process.env.NOTA_BENE_AGENT;
   expect(await enterUrl({ provider: 'codex', port: pa, root: a })).toEqual({ error: 'window not answering' });
+});
+
+it('rows carry the unseen replies and the last message; a window that does not answer has neither', async () => {
+  const a = mk('nb-proj-a-');
+  const pa = await windowOf('claude', a);
+  registerWindow(4794, '/x/restarting', DEAD, process.pid);
+  const last = { role: 'assistant' as const, text: 'done', at: 5 };
+  const list = await listProjects({ port: pa, provider: 'claude' }, async () => ({ root: a, unseen: 2, last }));
+  const by = Object.fromEntries(list.running.map((r) => [r.port, r]));
+  expect(by[pa]).toMatchObject({ unseen: 2, last });
+  expect(by[4794]).toMatchObject({ unseen: 0, last: null });
+});
+
+const S1 = '11111111-1111-4111-8111-111111111111';
+const S2 = '22222222-2222-4222-8222-222222222222';
+const S3 = '33333333-3333-4333-8333-333333333333';
+
+it('sessionsOf lists the sessions of that window inside its folder', async () => {
+  const a = mk('nb-proj-a-');
+  const pa = await windowOf('claude', a);
+  const view = { current: S1, root: a, sessions: [
+    { id: S1, title: 'here', at: 3, size: 1, cwd: a },
+    { id: S2, title: 'sub', at: 2, size: 1, cwd: path.join(a, 'web') },
+    { id: S3, title: 'elsewhere', at: 1, size: 1, cwd: `${a}-other`, archived: true as const },
+  ] };
+  const fetchFn: typeof fetch = (u, i) => (String(u).endsWith('/sessions') ? Promise.resolve(Response.json(view)) : fetch(u, i));
+  expect(await sessionsOf({ provider: 'claude', port: pa, root: a }, fetchFn)).toEqual({
+    current: S1, sessions: [{ id: S1, title: 'here', at: 3 }, { id: S2, title: 'sub', at: 2 }],
+  });
+});
+
+it('sessionsOf refuses a window that is not on that folder before asking it anything', async () => {
+  const a = mk('nb-proj-a-');
+  const pa = await windowOf('claude', a);
+  let asked = 0;
+  const counting: typeof fetch = (u, i) => { if (/\/(info|sessions)$/.test(String(u))) asked++; return fetch(u, i); };
+  expect(await sessionsOf({ provider: 'claude', port: pa, root: '/x/other' }, counting)).toEqual({ error: 'no such window' });
+  expect(asked).toBe(0);
+});
+
+it('enterUrl with a session carries it after the login', async () => {
+  const b = mk('nb-proj-b-');
+  const pb = await windowOf('claude', b);
+  const r = await enterUrl({ provider: 'claude', port: pb, root: b, session: S2 });
+  if (!('url' in r)) throw new Error(r.error);
+  expect(r.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${pb}/#t=[0-9a-f]{64}&s=${S2}$`));
 });

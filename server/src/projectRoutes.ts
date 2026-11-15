@@ -11,10 +11,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { defaultChoice, detectAgents } from './agent/choice.ts';
 import type { AgentProvider } from './agent/provider.ts';
+import { isSessionId } from '@nota-bene/shared';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { HIDDEN } from './platform.ts';
-import { enterUrl, listProjects, PROVIDERS } from './projects.ts';
+import { enterUrl, listProjects, PROVIDERS, sessionsOf } from './projects.ts';
 import { readRecent } from './recent.ts';
 import { stateBaseDir } from './state.ts';
 import { readJson } from './system.ts';
@@ -37,9 +38,13 @@ export function launchEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return out;
 }
 
-/** A folder name the starter may create: one path segment, no NUL, no edge spaces, at most 255 bytes. */
+/**
+ * A folder name the starter may create: one path segment, no edge spaces, at most 255 bytes, and nothing Windows refuses
+ * (its reserved characters and device names, control characters, a trailing dot), on every system, so a project moves.
+ */
 export function validName(name: unknown): name is string {
-  return typeof name === 'string' && name !== '' && name !== '.' && name !== '..' && !/[/\\\0]/.test(name)
+  return typeof name === 'string' && name !== '' && name !== '.' && name !== '..' && !/[/\\:*?"<>|\x00-\x1f]/.test(name)
+    && !/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(name) && !name.endsWith('.')
     && name.trim() === name && Buffer.byteLength(name, 'utf8') <= 255;
 }
 
@@ -78,6 +83,27 @@ function defaultAgents(): Agents {
     const last = readRecent(stateBaseDir()).find((e) => agents.includes(e.provider))?.provider;
     return { agents, default: defaultChoice(agents, last) };
   };
+}
+
+const RECENT_PLACES = 5;
+const isDir = (p: string) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
+
+/** The starter's places: home, Desktop when it is a folder, then the parents of recent projects (newest first, once each). */
+function places(): { path: string; kind: 'home' | 'desktop' | 'recent' }[] {
+  const home = os.homedir();
+  const out: { path: string; kind: 'home' | 'desktop' | 'recent' }[] = [{ path: home, kind: 'home' }];
+  const desktop = path.join(home, 'Desktop');
+  if (isDir(desktop)) out.push({ path: desktop, kind: 'desktop' });
+  const seen = new Set(out.map((p) => p.path));
+  let n = 0;
+  for (const e of readRecent(stateBaseDir())) {
+    const parent = path.dirname(e.root);
+    if (n >= RECENT_PLACES || seen.has(parent) || parent === e.root || !isDir(parent)) continue;
+    seen.add(parent);
+    out.push({ path: parent, kind: 'recent' });
+    n++;
+  }
+  return out;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -136,8 +162,16 @@ export function projectRoutes(o: {
 
     '/system/projects/enter': post('/system/projects/enter', async (b, res) => {
       if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return text(res, 400, 'bad request');
-      const r = await enterUrl({ provider: b.provider, port: b.port as number, root: b.root });
+      if (b.session !== undefined && !isSessionId(b.session)) return text(res, 400, 'bad request');
+      const r = await enterUrl({ provider: b.provider, port: b.port as number, root: b.root, ...(b.session ? { session: b.session } : {}) });
       if ('url' in r) return json(res, 200, r);
+      text(res, r.error === 'no such window' ? 404 : 409, r.error);
+    }),
+
+    '/system/projects/sessions': post('/system/projects/sessions', async (b, res) => {
+      if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return text(res, 400, 'bad request');
+      const r = await sessionsOf({ provider: b.provider, port: b.port as number, root: b.root });
+      if (!('error' in r)) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : 409, r.error);
     }),
 
@@ -175,7 +209,7 @@ export function projectRoutes(o: {
         .sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }))
         .slice(0, MAX_DIRS);
       const parent = path.dirname(dir);
-      json(res, 200, { path: dir, parent: parent === dir ? null : parent, home: os.homedir(), dirs });
+      json(res, 200, { path: dir, parent: parent === dir ? null : parent, home: os.homedir(), dirs, places: places() });
     }),
 
     '/system/projects/open': post('/system/projects/open', async (b, res) => {
