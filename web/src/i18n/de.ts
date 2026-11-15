@@ -362,6 +362,7 @@ export const de: Dict = {
   projSilent: 'antwortet nicht',
   projWaitingTip: (n: number) => `Warten auf dich: ${n}`,
   projEnterFailed: (why: string) => `Wechsel fehlgeschlagen: ${why}`,
+  projLandFailed: 'Diese Sitzung ließ sich nicht öffnen',
   projNone: 'Nichts gefunden',
   startOpenTitle: 'Ordner öffnen',
   startNewTitle: 'Neues Projekt',

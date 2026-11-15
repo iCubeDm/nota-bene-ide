@@ -362,6 +362,7 @@ export const zhCN: Dict = {
   projSilent: '无响应',
   projWaitingTip: (n: number) => `等你处理：${n}`,
   projEnterFailed: (why: string) => `无法切换：${why}`,
+  projLandFailed: '无法打开该会话',
   projNone: '未找到',
   startOpenTitle: '打开文件夹',
   startNewTitle: '新建项目',

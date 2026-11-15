@@ -370,6 +370,7 @@ export const en: Dict = {
   projSilent: 'not answering',
   projWaitingTip: (n: number) => `Waiting for you: ${n}`,
   projEnterFailed: (why: string) => `Could not switch: ${why}`,
+  projLandFailed: 'Could not open that session',
   projNone: 'Nothing found',
   startOpenTitle: 'Open folder',
   startNewTitle: 'New project',

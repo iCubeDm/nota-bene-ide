@@ -26,6 +26,13 @@ describe('loginFromFragment', () => {
     expect(await loginFromFragment(loc(`#t=${TOKEN}`), h, (async () => { throw new TypeError('offline'); }) as typeof fetch)).toBe(false);
   });
 
+  it('a fragment with a session after the login logs in and is dropped whole', async () => {
+    const replace = vi.fn();
+    const fetchFn = vi.fn(async () => Response.json({ key: 'k' }));
+    expect(await loginFromFragment(loc(`#t=${TOKEN}&s=11111111-1111-4111-8111-111111111111`), { replaceState: replace } as unknown as History, fetchFn as unknown as typeof fetch)).toBe(true);
+    expect(replace).toHaveBeenCalledWith(null, '', expect.not.stringContaining('#'));
+  });
+
   it('no fragment, or another fragment: nothing is sent and the address is left alone', async () => {
     const replace = vi.fn();
     const fetchFn = vi.fn();

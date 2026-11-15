@@ -362,6 +362,7 @@ export const es: Dict = {
   projSilent: 'no responde',
   projWaitingTip: (n: number) => `Te esperan: ${n}`,
   projEnterFailed: (why: string) => `No se pudo cambiar: ${why}`,
+  projLandFailed: 'No se pudo abrir esa sesión',
   projNone: 'No se encontró nada',
   startOpenTitle: 'Abrir carpeta',
   startNewTitle: 'Proyecto nuevo',

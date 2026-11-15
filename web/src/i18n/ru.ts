@@ -370,6 +370,7 @@ export const ru = {
   projSilent: 'не отвечает',
   projWaitingTip: (n: number) => `Ждут тебя: ${n}`,
   projEnterFailed: (why: string) => `Не удалось перейти: ${why}`,
+  projLandFailed: 'Не удалось открыть эту сессию',
   projNone: 'Ничего не найдено',
   startOpenTitle: 'Открыть папку',
   startNewTitle: 'Новый проект',

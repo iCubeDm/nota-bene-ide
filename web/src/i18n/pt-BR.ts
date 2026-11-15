@@ -362,6 +362,7 @@ export const ptBR: Dict = {
   projSilent: 'não responde',
   projWaitingTip: (n: number) => `Esperando por você: ${n}`,
   projEnterFailed: (why: string) => `Não foi possível alternar: ${why}`,
+  projLandFailed: 'Não foi possível abrir essa sessão',
   projNone: 'Nada encontrado',
   startOpenTitle: 'Abrir pasta',
   startNewTitle: 'Novo projeto',
