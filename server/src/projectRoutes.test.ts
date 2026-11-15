@@ -150,7 +150,7 @@ it('enter refuses a bad body and an unknown window', async () => {
 
 it('projects lists running and recent', async () => {
   const s = await serve();
-  expect(await (await fetch(`${s.base}/system/projects`)).json()).toEqual({ running: [], recent: [] });
+  expect(await (await fetch(`${s.base}/system/projects`)).json()).toEqual({ running: [], recent: [], hidden: [] });
 });
 
 it('launchEnv drops the launch-state variables and keeps the rest', () => {
@@ -222,4 +222,16 @@ it('stop refuses a bad body, this window and an unknown one; stop-others with no
   expect((await s.post('/system/projects/stop', { provider: 'claude', port: 4791, root: tree })).status).toBe(409);
   expect((await s.post('/system/projects/stop', { provider: 'claude', port: 4794, root: tree })).status).toBe(404);
   expect(await (await s.post('/system/projects/stop-others', {})).json()).toEqual({ stopped: 0, failed: 0 });
+});
+
+it('forget drops a folder from Recent and lists it as hidden; a bad root is refused', async () => {
+  const s = await serve();
+  recordRecent(home, '/p/a', 'claude', 1);
+  recordRecent(home, '/p/b', 'codex', 2);
+  expect((await s.post('/system/projects/forget', { root: 'rel' })).status).toBe(400);
+  expect((await s.post('/system/projects/forget', {})).status).toBe(400);
+  expect((await s.post('/system/projects/forget', { root: '/p/a' })).status).toBe(200);
+  const l = await (await fetch(`${s.base}/system/projects`)).json() as { recent: { root: string }[]; hidden: string[] };
+  expect(l.recent.map((e) => e.root)).toEqual(['/p/b']);
+  expect(l.hidden).toEqual(['/p/a']);
 });

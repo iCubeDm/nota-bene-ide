@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { RECENT_MAX, readRecent, recordRecent } from './recent.ts';
+import { forgetRecent, readHidden, RECENT_MAX, readRecent, recordRecent } from './recent.ts';
 
 let base: string;
 beforeEach(() => { base = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-recent-')); });
@@ -39,4 +39,18 @@ it('unreadable files read as empty', () => {
   expect(readRecent(base)).toEqual([]);
   fs.writeFileSync(path.join(base, 'recent.json'), JSON.stringify([{ root: '/p/a', provider: 'gpt', at: 1 }, { root: '/p/b', provider: 'codex', at: 2 }]));
   expect(readRecent(base)).toEqual([{ root: '/p/b', provider: 'codex', at: 2 }]);
+});
+
+it('a forgotten folder leaves the list for every provider, seeded ones too, until it is opened again', () => {
+  fs.writeFileSync(path.join(base, 'agent-choice.json'), JSON.stringify({ '/p/c': 'omp' }));
+  recordRecent(base, '/p/a', 'claude', 1);
+  recordRecent(base, '/p/a', 'codex', 2);
+  recordRecent(base, '/p/b', 'claude', 3);
+  forgetRecent(base, '/p/a');
+  forgetRecent(base, '/p/c');
+  expect(readRecent(base)).toEqual([{ root: '/p/b', provider: 'claude', at: 3 }]);
+  expect(readHidden(base)).toEqual(['/p/c', '/p/a']);
+  recordRecent(base, '/p/a', 'codex', 4);
+  expect(readRecent(base).map((e) => e.root)).toEqual(['/p/a', '/p/b']);
+  expect(readHidden(base)).toEqual(['/p/c']);
 });

@@ -10,7 +10,7 @@ import { setDraft } from '@/composer/slice.ts';
 import { setLang } from '@/i18n/index.ts';
 import { Header } from '@/shell/Header.tsx';
 import { makeStore } from '@/store/store.ts';
-import { ago, groupSessions, kb, menuGroups, SessionPicker, type SessionsView } from './SessionPicker.tsx';
+import { ago, kb, menuItems, SessionPicker, type SessionsView } from './SessionPicker.tsx';
 import { brief } from './sessionsApi.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
@@ -20,6 +20,7 @@ const A = '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = '22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const C = '33333333-cccc-4ccc-8ccc-cccccccccccc';
 const D = '44444444-dddd-4ddd-8ddd-dddddddddddd';
+const E = '55555555-eeee-4eee-8eee-eeeeeeeeeeee';
 const VIEW: SessionsView = {
   current: A,
   root: '/Users/me/proj',
@@ -28,6 +29,7 @@ const VIEW: SessionsView = {
     { id: A, title: 'current talk', at: NOW, size: 12_000, cwd: '/Users/me/proj' },
     { id: C, title: '', at: NOW - 3 * 3600_000, size: 800, cwd: '/Users/me/proj' },
     { id: D, title: 'third folder', at: NOW - 2 * 86400_000, size: 5000, cwd: '/tmp/x' },
+    { id: E, title: 'older here', at: NOW - 3 * 86400_000, size: 3000, cwd: '/Users/me/proj' },
   ],
 };
 
@@ -79,69 +81,39 @@ const menu = () => screen.getByRole('dialog', { name: 'Sessions' });
 it('the Sessions trigger is a ▾ (the chat tab names the session); the tooltip says what it opens', () => {
   setup();
   expect(btn().textContent).toBe('');
-  expect(btn().title).toMatch(/^Open another Claude Code session/);
+  expect(btn().title).toMatch(/^This project's Claude Code sessions/);
 });
 
 async function openPicker() {
   await userEvent.click(btn());
   await screen.findByText('current talk');
 }
-const rows = () => [...menu().querySelectorAll('[data-sess-group], [data-sess-item]')].map((el) =>
-  el.hasAttribute('data-sess-group') ? `${el.getAttribute('aria-expanded') === 'true' ? 'v' : '>'} ${el.textContent!.replace(/\u00a0/g, ' ')}${el.hasAttribute('data-here') ? ' (here)' : ''}` : el.querySelector('[data-t]')!.textContent!);
-/** Opens a folder group of the menu (collapsed unless it is this project's). */
-const expand = async (dir: string) => {
-  const g = [...menu().querySelectorAll('[data-sess-group]')].find((el) => el.textContent!.startsWith(dir))!;
-  if (g.getAttribute('aria-expanded') !== 'true') await userEvent.click(g);
-};
+const rows = () => [...menu().querySelectorAll('[data-sess-item]')].map((el) => el.querySelector('[data-t]')!.textContent!);
 
-it('groups: new first, this project marked, then other folders in first-appearance order; meta line id8 · ago · size', async () => {
+it('only this project\'s sessions: new first, then its sessions; other folders are not offered; meta line id8 · ago · size', async () => {
   setup();
   await openPicker();
-  // only this project's group starts open; the others show their count
-  expect(rows()).toEqual([
-    '+ new session in this project',
-    'v this project · ~/proj · 2 (here)',
-    'current talk',
-    '(untitled)',
-    '> ~/other · 1',
-    '> /tmp/x · 1',
-  ]);
-  await expand('~/other');
-  await expand('/tmp/x');
+  expect(rows()).toEqual(['+ new session in this project', 'current talk', '(untitled)', 'older here']);
+  expect(screen.queryByText('other one')).toBeNull();
+  expect(screen.queryByText('third folder')).toBeNull();
   const cur = screen.getByText('current talk').closest('button')!;
   expect(cur).toHaveTextContent('11111111 · just now · 12 KB · open now');
-  expect(screen.getByText('other one').closest('button')).toHaveTextContent('22222222 · 5 min ago · 2.4 MB');
   expect(screen.getByText('(untitled)', { selector: '[data-t]' }).closest('button')).toHaveTextContent('33333333 · 3 h ago · 1 KB');
   expect(menu().className).toContain('w-[460px]');
 });
 
-it('a Windows server: C:/Users/<name> folders shorten to ~, other drives stay as they are', async () => {
-  view = {
-    current: A,
-    root: 'C:/Users/me/proj',
-    sessions: [
-      { id: A, title: 'current talk', at: NOW, size: 12_000, cwd: 'C:/Users/me/proj' },
-      { id: B, title: 'other one', at: NOW, size: 800, cwd: 'D:/work/x' },
-    ],
-  };
+it('the filter is focused, matches the title and keeps "new"', async () => {
   setup();
   await openPicker();
-  expect(rows()).toEqual(['+ new session in this project', 'v this project · ~/proj · 1 (here)', 'current talk', '> D:/work/x · 1']);
-});
-
-it('the filter is focused, matches title + folder, keeps "new" and hides empty groups', async () => {
-  setup();
-  await openPicker();
-  const f = screen.getByPlaceholderText('Search by title or folder…');
+  const f = screen.getByPlaceholderText('Search by title…');
   await waitFor(() => expect(f).toHaveFocus());
-  await userEvent.type(f, 'OTHER');
-  // a filter opens every group with a match, collapsed or not
-  expect(rows()).toEqual(['+ new session in this project', 'v ~/other · 1', 'other one']);
+  await userEvent.type(f, 'TALK');
+  expect(rows()).toEqual(['+ new session in this project', 'current talk']);
   await userEvent.clear(f);
-  await userEvent.type(f, '/tmp');
-  expect(rows()).toEqual(['+ new session in this project', 'v /tmp/x · 1', 'third folder']);
+  await userEvent.type(f, 'other');
+  expect(rows()).toEqual(['+ new session in this project']);
   await userEvent.clear(f);
-  expect(rows()).toEqual(['+ new session in this project', 'v this project · ~/proj · 2 (here)', 'current talk', '(untitled)', '> ~/other · 1', '> /tmp/x · 1']);
+  expect(rows()).toEqual(['+ new session in this project', 'current talk', '(untitled)', 'older here']);
 });
 
 it('the current session is inert', async () => {
@@ -153,18 +125,6 @@ it('the current session is inert', async () => {
   expect(screen.queryByRole('alertdialog')).toBeNull();
   expect(screen.queryByText(/Open session/)).toBeNull();
   expect(switches()).toEqual([]);
-});
-
-it('picking a session in another folder asks (open + move + warn), then moves this window there', async () => {
-  const { switches } = setup();
-  await openPicker();
-  await expand('~/other');
-  await userEvent.click(screen.getByText('other one'));
-  const dlg = await screen.findByRole('dialog', { name: 'Open session “other one”?' });
-  expect(dlg).toHaveTextContent('the window will switch to the project /Users/me/other');
-  expect(dlg).toHaveTextContent('Don’t keep this same session open in a terminal claude');
-  await userEvent.click(within(dlg).getByRole('button', { name: 'Switch' }));
-  expect(switches()).toEqual([{ type: 'switch', id: B, dir: '/Users/me/other' }]);
 });
 
 it('a switch in this folder: switching… in the header, the line is off until the window tells the new session', async () => {
@@ -182,12 +142,13 @@ it('a switch in this folder: switching… in the header, the line is off until t
   expect(btn()).toBeEnabled();
 });
 
-it('a session of this folder asks without the move line', async () => {
+it('a session asks, with the warning and without a move line', async () => {
   const { switches } = setup();
   await openPicker();
   await userEvent.click(screen.getByText('(untitled)', { selector: '[data-t]' }));
   const dlg = await screen.findByRole('dialog', { name: 'Open session “(untitled)”?' });
   expect(dlg).not.toHaveTextContent('another folder');
+  expect(dlg).toHaveTextContent('Don’t keep this same session open in a terminal claude');
   await userEvent.keyboard('{Enter}');
   expect(switches()).toEqual([{ type: 'switch', id: C, dir: '/Users/me/proj' }]);
 });
@@ -331,8 +292,6 @@ it('formatting: ago and kb as in the prototype', () => {
   expect(kb(1_000_000)).toBe('1000 КБ');
   setLang('en');
   expect(ago(NOW - 3 * 86400_000, NOW)).toBe(new Date(NOW - 3 * 86400_000).toLocaleDateString('en', { day: 'numeric', month: 'short' }));
-  expect(groupSessions(VIEW).map((g) => g.dir)).toEqual(['/Users/me/proj', '/Users/me/other', '/tmp/x']);
-  expect(groupSessions({ ...VIEW, sessions: [VIEW.sessions[0]] }).map((g) => g.dir)).toEqual(['/Users/me/other']);
 });
 
 describe('rename', () => {
@@ -348,14 +307,13 @@ describe('rename', () => {
     const { switches } = setup();
     answer(new Response('ok'));
     await openPicker();
-    await expand('~/other');
-    await userEvent.click(pencil('other one'));
+    await userEvent.click(pencil('older here'));
     const box = screen.getByRole('textbox', { name: 'Rename' });
-    expect(box).toHaveValue('other one');
+    expect(box).toHaveValue('older here');
     await userEvent.clear(box);
     await userEvent.type(box, 'better{Enter}');
     expect(await screen.findByText('better')).toBeInTheDocument();
-    expect(JSON.parse(posted()[0]![1]!.body as string)).toEqual({ id: B, title: 'better' });
+    expect(JSON.parse(posted()[0]![1]!.body as string)).toEqual({ id: E, title: 'better' });
     expect(switches()).toEqual([]);
     expect(screen.queryByRole('dialog', { name: /Open/ })).toBeNull();
   });
@@ -371,12 +329,11 @@ describe('rename', () => {
   it('Esc cancels the edit and leaves the menu open; nothing is sent', async () => {
     setup();
     await openPicker();
-    await waitFor(() => expect(screen.getByPlaceholderText('Search by title or folder…')).toHaveFocus()); // it moves there a frame later
-    await expand('~/other');
-    await userEvent.click(pencil('other one'));
+    await waitFor(() => expect(screen.getByPlaceholderText('Search by title…')).toHaveFocus()); // it moves there a frame later
+    await userEvent.click(pencil('older here'));
     await userEvent.keyboard('x{Escape}');
     expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
-    expect(screen.getByText('other one')).toBeInTheDocument();
+    expect(screen.getByText('older here')).toBeInTheDocument();
     expect(menu()).toBeInTheDocument();
     expect(posted()).toEqual([]);
   });
@@ -385,8 +342,7 @@ describe('rename', () => {
     setup();
     answer(new Response('no such session', { status: 500 }));
     await openPicker();
-    await expand('~/other');
-    await userEvent.click(pencil('other one'));
+    await userEvent.click(pencil('older here'));
     await userEvent.clear(screen.getByRole('textbox', { name: 'Rename' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Rename' }), 'better{Enter}');
     expect(await screen.findByRole('status')).toHaveTextContent('Could not rename the session: no such session');
@@ -394,42 +350,21 @@ describe('rename', () => {
   });
 });
 
-describe('folder groups', () => {
-  it('menuGroups: counts, this project open by default, a stored choice wins, a filter opens every group with a match', () => {
-    const shape = (gs: ReturnType<typeof menuGroups>['groups']) => gs.map((g) => [g.dir, g.items.length, g.open]);
-    expect(shape(menuGroups(VIEW, '', {}).groups)).toEqual([['/Users/me/proj', 2, true], ['/Users/me/other', 1, false], ['/tmp/x', 1, false]]);
-    expect(shape(menuGroups(VIEW, '', { '/Users/me/proj': false, '/tmp/x': true }).groups))
-      .toEqual([['/Users/me/proj', 2, false], ['/Users/me/other', 1, false], ['/tmp/x', 1, true]]);
-    expect(shape(menuGroups(VIEW, 'folder', { '/tmp/x': false }).groups)).toEqual([['/tmp/x', 1, true]]);
-    expect(shape(menuGroups(VIEW, 'talk', { '/Users/me/proj': false }).groups)).toEqual([['/Users/me/proj', 1, true]]);
-  });
-
-  it('menuGroups: archived sessions leave the groups (an emptied group goes) and are listed apart, filtered too', () => {
+describe('menuItems', () => {
+  it('only this project\'s sessions not archived, filtered by title; the archived ones of this project apart', () => {
     const v: SessionsView = { ...VIEW, sessions: VIEW.sessions.map((x) => (x.id === B || x.id === C ? { ...x, archived: true } : x)) };
-    const m = menuGroups(v, '', {});
-    expect(m.groups.map((g) => [g.dir, g.items.map((x) => x.id)])).toEqual([['/Users/me/proj', [A]], ['/tmp/x', [D]]]);
-    expect(m.archived.map((x) => x.id)).toEqual([B, C]);
-    expect(menuGroups(v, 'other', {}).archived.map((x) => x.id)).toEqual([B]);
+    const m = menuItems(v, '');
+    expect(m.items.map((x) => x.id)).toEqual([A, E]);
+    expect(m.archived.map((x) => x.id)).toEqual([C]);
+    expect(menuItems(VIEW, 'here').items.map((x) => x.id)).toEqual([E]);
+    expect(menuItems(VIEW, '/tmp').items).toEqual([]);
   });
 
-  it('menuGroups: the open session stays in its group even when archived (it was opened from the archive)', () => {
+  it('the open session stays in the list even when archived (it was opened from the archive)', () => {
     const v: SessionsView = { ...VIEW, sessions: VIEW.sessions.map((x) => (x.id === A ? { ...x, archived: true } : x)) };
-    const m = menuGroups(v, '', {});
-    expect(m.groups[0]!.items.map((x) => x.id)).toEqual([A, C]);
+    const m = menuItems(v, '');
+    expect(m.items.map((x) => x.id)).toEqual([A, C, E]);
     expect(m.archived).toEqual([]);
-  });
-
-  it('collapsing and expanding is remembered across openings and reloads', async () => {
-    setup();
-    await openPicker();
-    await userEvent.click(screen.getByRole('button', { name: /this project · ~\/proj/ }));
-    await expand('/tmp/x');
-    expect(rows()).toEqual(['+ new session in this project', '> this project · ~/proj · 2 (here)', '> ~/other · 1', 'v /tmp/x · 1', 'third folder']);
-    expect(JSON.parse(localStorage.getItem('sessions:groups')!)).toEqual({ '/Users/me/proj': false, '/tmp/x': true });
-    await userEvent.keyboard('{Escape}');
-    await userEvent.click(btn());
-    await screen.findByText('third folder');
-    expect(rows()).toEqual(['+ new session in this project', '> this project · ~/proj · 2 (here)', '> ~/other · 1', 'v /tmp/x · 1', 'third folder']);
   });
 });
 
@@ -449,7 +384,7 @@ describe('archive and delete', () => {
     await openPicker();
     await userEvent.click(screen.getByRole('button', { name: 'Archive: (untitled)' }));
     expect(posts('/sessions/archive')).toEqual([{ id: C, archived: true }]);
-    await waitFor(() => expect(rows()).toEqual(['+ new session in this project', 'v this project · ~/proj · 1 (here)', 'current talk', '> ~/other · 1', '> /tmp/x · 1']));
+    await waitFor(() => expect(rows()).toEqual(['+ new session in this project', 'current talk', 'older here']));
     await userEvent.click(screen.getByRole('button', { name: 'Show archive (1)' }));
     const row = within(menu()).getByText('(untitled)').closest('[data-sess-archived]') as HTMLElement;
     await userEvent.click(within(row).getByRole('button', { name: 'Restore: (untitled)' }));
@@ -499,18 +434,17 @@ describe('archive and delete', () => {
   it('a delete from the archive list comes back to the archive list, filter kept', async () => {
     const { emit } = setup();
     withDelete(emit);
-    view = { ...VIEW, sessions: VIEW.sessions.map((x) => (x.id === B || x.id === D ? { ...x, archived: true } : x)) };
+    view = { ...VIEW, sessions: VIEW.sessions.map((x) => (x.id === C || x.id === E ? { ...x, archived: true } : x)) };
     answer();
     await openPicker();
-    await userEvent.type(screen.getByPlaceholderText('Search by title or folder…'), 'o');
-    await userEvent.click(screen.getByRole('button', { name: 'Show archive (2)' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Delete: other one' }));
-    view = { ...view, sessions: view.sessions.filter((x) => x.id !== B) };
+    await userEvent.type(screen.getByPlaceholderText('Search by title…'), 'e');
+    await userEvent.click(screen.getByRole('button', { name: 'Show archive (1)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete: older here' }));
+    view = { ...view, sessions: view.sessions.filter((x) => x.id !== E) };
     await userEvent.click(within(await screen.findByRole('dialog', { name: /Delete session/ })).getByRole('button', { name: 'Delete' }));
-    await screen.findByText('third folder');
-    expect(screen.getByPlaceholderText('Search by title or folder…')).toHaveValue('o');
-    expect(screen.getByRole('button', { name: 'Hide archive' })).toBeInTheDocument();
-    expect(screen.queryByText('other one')).toBeNull();
+    await screen.findByText('current talk');
+    expect(screen.getByPlaceholderText('Search by title…')).toHaveValue('e');
+    expect(screen.queryByText('older here')).toBeNull();
   });
 
   it('a delete answered while the agent works does not reopen the menu', async () => {

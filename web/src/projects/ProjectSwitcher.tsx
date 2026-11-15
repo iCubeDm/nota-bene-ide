@@ -2,7 +2,8 @@
 // happened last and one badge (`!` when it waits for the person, else the replies they have not seen). A row expands to its
 // sessions (ProjectSessions); choosing another project moves this tab to its newest window, logged in (api.ts enterProject).
 // Another project's windows are stopped from its row (⏻, after a confirm); this one's from the header's Stop Nota Bene.
-// Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent.
+// Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent,
+// ✕ removes one from both (the server keeps it out until it is launched again).
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
@@ -14,7 +15,7 @@ import { toast } from '@/shell/toast.ts';
 import { withKey } from '@/shell/keymap.ts';
 import { selectSession, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { enterProject, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider, type ProjectState } from './api.ts';
+import { enterProject, forgetRecent, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider, type ProjectState } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, titlePrefix, type Badge, type ProjectRow } from './rows.ts';
 
@@ -71,6 +72,8 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [local, setLocal] = useState<LocalSession[]>([]);
   const [stopAsk, setStopAsk] = useState<ProjectRow | null>(null);
+  // removed here before the next poll says so
+  const [forgot, setForgot] = useState<Set<string>>(new Set());
   const running = data?.running ?? [];
   const badge = badgeOf(running);
   useEffect(() => { document.title = titlePrefix(badge) + windowTitle; }, [badge, windowTitle]);
@@ -92,10 +95,11 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
   const hit = (...s: (string | null | undefined)[]) => !needle || s.some((x) => x?.toLowerCase().includes(needle));
   const rows = foldRows(running).filter((r) => hit(r.root, ...r.windows.map((w) => w.title)));
   const runningRoots = new Set(running.map((r) => r.root));
+  const hidden = new Set([...(data?.hidden ?? []), ...forgot]);
   const recentAll = new Map<string, RecentItem>();
-  for (const e of data?.recent ?? []) if (!e.running && !runningRoots.has(e.root) && !recentAll.has(e.root)) recentAll.set(e.root, e);
+  for (const e of data?.recent ?? []) if (!e.running && !runningRoots.has(e.root) && !hidden.has(e.root) && !recentAll.has(e.root)) recentAll.set(e.root, e);
   for (const s of [...local].sort((a, b) => b.at - a.at)) {
-    if (!runningRoots.has(s.cwd) && !recentAll.has(s.cwd)) recentAll.set(s.cwd, { root: s.cwd, provider: myProvider, at: s.at });
+    if (!runningRoots.has(s.cwd) && !hidden.has(s.cwd) && !recentAll.has(s.cwd)) recentAll.set(s.cwd, { root: s.cwd, provider: myProvider, at: s.at });
   }
   const recent = [...recentAll.values()].filter((e) => hit(e.root, ...local.filter((s) => s.cwd === e.root).map((s) => s.title))).slice(0, RECENT_SHOWN);
   const onOpenChange = (o: boolean) => { if (o) projectsMenu.open(); else { projectsMenu.close(); setQ(''); } };
@@ -105,6 +109,14 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     const why = await openFolder(e.root, e.provider, undefined, sessionId);
     setBusy(false);
     if (why) toast(why === 'still starting' ? reasonText(why) : t('startFailed', reasonText(why)), e.root);
+  };
+  const forget = async (root: string) => {
+    setForgot((f) => new Set(f).add(root));
+    const why = await forgetRecent(root);
+    if (why) {
+      setForgot((f) => { const n = new Set(f); n.delete(root); return n; });
+      toast(t('projForgetFail', reasonText(why)), root);
+    } else reload();
   };
   const goTo = (r: ProjectRow) => {
     if (r.current) return toggle(r.root);
@@ -193,7 +205,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                 const mine = local.some((s) => s.cwd === e.root);
                 return (
                   <div key={e.root}>
-                    <div className="flex items-center gap-1 pr-1">
+                    <div className="group/rec flex items-center gap-1 pr-1">
                       <button type="button" aria-label={`${folder} · ${short(e.root)} · ${PROVIDER_LABEL[e.provider]}`} disabled={busy} onClick={() => void openRecent(e)}
                         className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-left opacity-80 hover:bg-muted disabled:opacity-50">
                         <Tile root={e.root} />
@@ -204,6 +216,10 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                           </span>
                           <span className="truncate font-mono text-[0.65625rem] text-muted-foreground">{short(e.root)} · {PROVIDER_LABEL[e.provider]}</span>
                         </span>
+                      </button>
+                      <button type="button" aria-label={t('projForget', folder)} title={t('projForget', folder)} onClick={() => void forget(e.root)}
+                        className="grid size-6 flex-none cursor-pointer place-items-center rounded text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/rec:opacity-100">
+                        <Svg size={10}><path d="M18 6 6 18M6 6l12 12" /></Svg>
                       </button>
                       {mine && <Chevron open={isOpen} label={t('projExpand', folder)} onClick={() => toggle(e.root)} />}
                     </div>

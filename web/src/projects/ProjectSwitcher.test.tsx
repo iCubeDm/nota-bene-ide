@@ -28,6 +28,7 @@ const LIST: ProjectsList = {
     { root: '/w/site', provider: 'claude', at: 2, running: true },
     { root: '/w/old', provider: 'claude', at: 1, running: false },
   ],
+  hidden: [],
 };
 const LOCAL = { current: S1, root: '/w/notes', sessions: [
   { id: S1, title: 'Weekly notes', at: 9, size: 1, cwd: '/w/notes' },
@@ -38,15 +39,18 @@ const LOCAL = { current: S1, root: '/w/notes', sessions: [
 
 let calls: { url: string; body: Record<string, unknown> | undefined }[];
 let enter: () => Response;
+let hidden: string[];
 beforeEach(() => {
   setLang('en');
   calls = [];
+  hidden = [];
   enter = () => Response.json({ url: URL_OK });
   vi.stubGlobal('fetch', vi.fn(async (u: string, init?: RequestInit) => {
     const url = String(u);
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
     calls.push({ url, body });
-    if (url === '/system/projects') return Response.json(LIST);
+    if (url === '/system/projects') return Response.json({ ...LIST, recent: LIST.recent.filter((e) => !hidden.includes(e.root)), hidden });
+    if (url === '/system/projects/forget') { hidden.push(String(body?.root)); return Response.json({ ok: true }); }
     if (url === '/system/projects/enter') return enter();
     if (url === '/system/projects/open') return Response.json({ url: URL_OK });
     if (url === '/sessions') return Response.json(LOCAL);
@@ -169,6 +173,23 @@ it('recent lists folders not running, also from this window\'s session history; 
   fireEvent.click(await screen.findByRole('button', { name: /Old idea/ }));
   await waitFor(() => expect(nav.go).toHaveBeenCalledWith(`${URL_OK}&s=${S3.replace('3333', '6666')}`));
   expect(calls.find((c) => c.url === '/system/projects/open')!.body).toEqual({ dir: '/w/archive-x', provider: 'claude' });
+});
+
+it('✕ removes a folder from Recent, one from the launcher\'s list and one from this window\'s history alike', async () => {
+  await openMenu();
+  const recent = () => screen.getByRole('group', { name: t('projRecent') });
+  fireEvent.click(within(recent()).getByRole('button', { name: t('projForget', 'old') }));
+  await waitFor(() => expect(within(recent()).queryByRole('button', { name: /^old\b/ })).toBeNull());
+  expect(calls.find((c) => c.url === '/system/projects/forget')!.body).toEqual({ root: '/w/old' });
+  fireEvent.click(within(recent()).getByRole('button', { name: t('projForget', 'archive-x') }));
+  await waitFor(() => expect(within(recent()).queryByRole('button', { name: /^archive-x\b/ })).toBeNull());
+  expect(within(recent()).getByRole('button', { name: /^web\b/ })).toBeInTheDocument();
+  // the next poll keeps them out: the server lists them as hidden
+  act(() => projectsMenu.close());
+  act(() => projectsMenu.open());
+  await screen.findByRole('textbox', { name: t('projSearch') });
+  await waitFor(() => expect(calls.filter((c) => c.url === '/system/projects').length).toBeGreaterThan(2));
+  expect(within(recent()).queryByRole('button', { name: /^(old|archive-x)\b/ })).toBeNull();
 });
 
 it('search filters by folder, path and session title', async () => {

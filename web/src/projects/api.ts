@@ -15,7 +15,7 @@ export type RunningRow = {
   last: LastMessage | null;
 };
 export type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
-export type ProjectsList = { running: RunningRow[]; recent: RecentRow[] };
+export type ProjectsList = { running: RunningRow[]; recent: RecentRow[]; /** folders removed from Recent: out of this window's history too */ hidden?: string[] };
 
 export const PROVIDER_LABEL: Record<Provider, string> = { claude: 'Claude', codex: 'Codex', omp: 'omp' };
 
@@ -70,6 +70,16 @@ export const reasonText = (why: string): string => (why in REASONS ? t(REASONS[w
 
 /** A failed answer's reason: the server's short text, or the status. */
 export const reasonOf = async (r: Response): Promise<string> => (await r.text().catch(() => '')).trim() || String(r.status);
+
+/** Removes a folder from Recent (POST /system/projects/forget): null, or the reason it failed. */
+export async function forgetRecent(root: string): Promise<string | null> {
+  try {
+    const r = await postJson('/system/projects/forget', { root });
+    return r.ok ? null : reasonOf(r);
+  } catch {
+    return 'window not answering';
+  }
+}
 
 /** Moves this tab to the window of `row`, logged in (that window opens `session` when given); a refusal is a toast and the tab stays. */
 export async function enterProject(row: RunningRow, session?: string): Promise<void> {

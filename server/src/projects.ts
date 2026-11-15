@@ -8,7 +8,7 @@
 import { providerStateDir, type AgentProvider } from './agent/provider.ts';
 import path from 'node:path';
 import { helperCredential, loginCredential, proveListener, readSecret, SecretError } from './auth.ts';
-import { readRecent, type RecentEntry } from './recent.ts';
+import { readHidden, readRecent, type RecentEntry } from './recent.ts';
 import { CONTROL_HEADER } from './system.ts';
 import { providerToken } from './remote/discover.ts';
 import { stateBaseDir } from './state.ts';
@@ -27,7 +27,7 @@ export type RunningRow = {
   unseen: number;
   last: LastMessage | null;
 };
-export type ProjectsList = { running: RunningRow[]; recent: (RecentEntry & { running: boolean })[] };
+export type ProjectsList = { running: RunningRow[]; recent: (RecentEntry & { running: boolean })[]; /** folders removed from Recent (recent.ts): the page drops them from its session history too */ hidden: string[] };
 export type ProbedInfo = {
   root: string; session?: string | null; title?: string | null; busy?: boolean; pending?: boolean; clients?: number;
   unseen?: number; last?: LastMessage | null;
@@ -87,7 +87,7 @@ export async function listProjects(own: { port: number; provider: AgentProvider 
   rows.sort((a, b) => folder(a.root).localeCompare(folder(b.root)) || a.root.localeCompare(b.root) || PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider));
   const up = new Set(rows.filter((r) => r.state !== 'restarting').map((r) => `${r.provider} ${r.root}`));
   const recent = readRecent(stateBaseDir()).map((e) => ({ ...e, root: wirePath(e.root), running: up.has(`${e.provider} ${wirePath(e.root)}`) }));
-  return { running: rows, recent };
+  return { running: rows, recent, hidden: readHidden(stateBaseDir()) };
 }
 
 export type EnterResult = { url: string } | { error: 'no such window' | 'window not answering' };

@@ -16,7 +16,7 @@ import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { HIDDEN } from './platform.ts';
 import { enterUrl, listProjects, PROVIDERS, sessionsOf, stopAt, stopOthers } from './projects.ts';
-import { readRecent } from './recent.ts';
+import { forgetRecent, readRecent } from './recent.ts';
 import { stateBaseDir } from './state.ts';
 import { readJson } from './system.ts';
 
@@ -190,6 +190,13 @@ export function projectRoutes(o: {
       if (!only('POST', req, res)) return;
       stopOthers({ port: o.port(), provider: o.provider }).then((r) => json(res, 200, r), (e) => fail(res, '/system/projects/stop-others', e));
     },
+
+    // a folder out of Recent (✕ on its row); launching it again brings it back (recent.ts)
+    '/system/projects/forget': post('/system/projects/forget', async (b, res) => {
+      if (typeof b.root !== 'string' || !path.isAbsolute(b.root)) return text(res, 400, 'bad request');
+      forgetRecent(stateBaseDir(), b.root);
+      json(res, 200, { ok: true });
+    }),
 
     '/system/agents': (req, res) => {
       if (!only('GET', req, res)) return;
