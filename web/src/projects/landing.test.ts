@@ -23,6 +23,7 @@ afterEach(() => vi.restoreAllMocks());
 
 it('the fragment may carry a session after the login; anything else after it is no session', () => {
   expect(fragmentSession(`#t=${TOKEN}&s=${A}`)).toBe(A);
+  expect(fragmentSession(`#t=${TOKEN}&s=new`)).toBe('new');
   expect(fragmentSession(`#t=${TOKEN}`)).toBeNull();
   expect(fragmentSession(`#t=${TOKEN}&s=../x`)).toBeNull();
   expect(fragmentSession(`#s=${A}`)).toBeNull();
@@ -36,6 +37,14 @@ it('once the window tells its session, a different one is switched to, once', ()
   expect(r.sent.filter((m) => m.type === 'switch')).toEqual([{ type: 'switch', id: B, dir: '/r' }]);
   r.session(A);
   expect(r.sent.filter((m) => m.type === 'switch')).toHaveLength(1);
+});
+
+it('new starts a new session in the window\'s folder', () => {
+  const r = rig();
+  startLanding(r.store, 'new');
+  r.open();
+  r.session(A);
+  expect(r.sent.filter((m) => m.type === 'switch')).toEqual([{ type: 'switch', id: null, dir: '/r' }]);
 });
 
 it('the session already open is left as it is', () => {

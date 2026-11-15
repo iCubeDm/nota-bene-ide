@@ -194,6 +194,7 @@ it('sessions and enter refuse a bad body; sessions of an unknown window is 404',
   expect((await s.post('/system/projects/sessions', { provider: 'claude', port: 'x', root: tree })).status).toBe(400);
   expect((await s.post('/system/projects/sessions', { provider: 'claude', port: 4795, root: tree })).status).toBe(404);
   expect((await s.post('/system/projects/enter', { provider: 'claude', port: 4795, root: tree, session: '../x' })).status).toBe(400);
+  expect((await s.post('/system/projects/enter', { provider: 'claude', port: 4795, root: tree, session: 'new' })).status).toBe(404);
 });
 
 it('folders names the places: home first, then the parents of recent projects, once each', async () => {

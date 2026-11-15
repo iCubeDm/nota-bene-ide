@@ -162,7 +162,8 @@ export function projectRoutes(o: {
 
     '/system/projects/enter': post('/system/projects/enter', async (b, res) => {
       if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return text(res, 400, 'bad request');
-      if (b.session !== undefined && !isSessionId(b.session)) return text(res, 400, 'bad request');
+      // a session id, or `new`: the page there starts a new session (web landing.ts)
+      if (b.session !== undefined && b.session !== 'new' && !isSessionId(b.session)) return text(res, 400, 'bad request');
       const r = await enterUrl({ provider: b.provider, port: b.port as number, root: b.root, ...(b.session ? { session: b.session } : {}) });
       if ('url' in r) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : 409, r.error);
