@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.0.0 — 2026-11-15
+
 - **Projects as a list of chats.** The project's name in the header (Alt+P) opens every project you have open, whatever its agent, as a list of chats: the last message, the session and agent, and one badge, **!** when a project waits for you, otherwise the number of replies you have not seen. The header and the tab title carry the same badge for the other projects. A click moves the tab to that project, already logged in; the arrow on a row lists its sessions, opens one in its window or starts a new one with any installed agent. **Recent** brings back folders and earlier sessions that are not running; **✕** removes a folder from it. See [Projects](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#projects-switching-opening-creating).
 - **Open folder and New project.** A folder dialog with places (home, Desktop, where your projects live), a clickable path, Tab completion and git repositories first; **New folder here** creates one, optionally as a git repository, and opens it in a window of the agent you pick. A worktree in the branch menu opens in its own window too.
 - **Sessions from the chat tab.** The header's Sessions button moved to **▾** on the chat tab, which names the session. It now lists only this project's sessions; another project's are in the project list.
@@ -10,6 +12,8 @@
 - **Usage: per 1% as averages.** Each “Per 1% of the weekly limit” number now averages its week and every later one up to the current; a second line does the same for the 5-hour limit, over each week's 5-hour windows (web and phone).
 
 - **Notifications on the phone.** The Android app tells you when an agent finishes a reply or waits for you, and a tap opens that chat. While an agent works it keeps its connection in the background (a quiet line in the notification shade, gone five minutes after the agents stop); otherwise it looks every 15 minutes. Settings → Notifications turns it off. See [Remote access](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#the-android-app-prototype).
+
+- **No empty space on the phone after switching apps.** Coming back to the app without the keyboard open no longer leaves the keyboard's space under the chat.
 
 - **Zoom while marking up on the phone.** Marking up a picture or a video frame on the phone keeps the zoom: one finger draws, two fingers zoom and move the picture, so small marks land where you mean them.
 
