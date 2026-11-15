@@ -10,7 +10,8 @@ import { setDraft } from '@/composer/slice.ts';
 import { setLang } from '@/i18n/index.ts';
 import { Header } from '@/shell/Header.tsx';
 import { makeStore } from '@/store/store.ts';
-import { ago, groupSessions, kb, menuGroups, type SessionsView } from './SessionPicker.tsx';
+import { nav } from '@/projects/api.ts';
+import { ago, groupSessions, kb, menuGroups, SessionPicker, type SessionsView } from './SessionPicker.tsx';
 import { brief } from './sessionsApi.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
@@ -39,6 +40,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url === '/sessions') return new Response(JSON.stringify(view));
     if (url === '/sources') return new Response(JSON.stringify([]));
+    if (url === '/system/projects/open') return Response.json({ url: `http://127.0.0.1:4793/#t=${'a'.repeat(64)}` });
     return new Response('nope', { status: 404 });
   }));
 });
@@ -62,6 +64,7 @@ function setup() {
     <Provider store={store}>
       <TooltipProvider>
         <Header />
+        <SessionPicker />
         <Composer />
         <CommentsPanel onSend={() => {}} />
       </TooltipProvider>
@@ -75,10 +78,13 @@ function setup() {
 }
 const btn = () => screen.getByRole('button', { name: 'Sessions' });
 const menu = () => screen.getByRole('dialog', { name: 'Sessions' });
-it('the Sessions button says what it opens; the tooltip keeps the longer sentence', () => {
-  setup();
-  expect(btn().textContent).toBe('Sessions');
+it('the session line names the open session and its agent; it opens the Sessions menu; the header has no Sessions button', () => {
+  const { emit } = setup();
+  expect(btn().textContent).toBe('(untitled)');
   expect(btn().title).toMatch(/^Open another Claude Code session/);
+  emit({ kind: 'session', id: A, root: '/Users/me/proj', title: 'current talk', model: null });
+  expect(btn().textContent).toBe('current talk');
+  expect(document.querySelector('header #sessBtn')).toBeNull();
 });
 
 async function openPicker() {
@@ -110,7 +116,7 @@ it('groups: new first, this project marked, then other folders in first-appearan
   const cur = screen.getByText('current talk').closest('button')!;
   expect(cur).toHaveTextContent('11111111 · just now · 12 KB · open now');
   expect(screen.getByText('other one').closest('button')).toHaveTextContent('22222222 · 5 min ago · 2.4 MB');
-  expect(screen.getByText('(untitled)').closest('button')).toHaveTextContent('33333333 · 3 h ago · 1 KB');
+  expect(screen.getByText('(untitled)', { selector: '[data-t]' }).closest('button')).toHaveTextContent('33333333 · 3 h ago · 1 KB');
   expect(menu().className).toContain('w-[460px]');
 });
 
@@ -154,20 +160,28 @@ it('the current session is inert', async () => {
   expect(switches()).toEqual([]);
 });
 
-it('picking a session in another folder asks (open + move + warn), then sends switch with its id and cwd', async () => {
-  const { switches, emit, store } = setup();
+it('a session in another folder opens in that folder\'s window, this one stays where it is', async () => {
+  const go = vi.spyOn(nav, 'go').mockImplementation(() => {});
+  const { switches } = setup();
   await openPicker();
   await expand('~/other');
   await userEvent.click(screen.getByText('other one'));
-  const dlg = await screen.findByRole('dialog', { name: 'Open session “other one”?' });
-  expect(dlg).toHaveTextContent('the window will switch to the project /Users/me/other');
-  expect(dlg).toHaveTextContent('Don’t keep this same session open in a terminal claude');
-  expect(dlg).not.toHaveTextContent(/server restarts/i);
+  await waitFor(() => expect(go).toHaveBeenCalledWith(`http://127.0.0.1:4793/#t=${'a'.repeat(64)}&s=${B}`));
+  expect(switches()).toEqual([]);
+  expect(screen.queryByRole('dialog', { name: /Open session/ })).toBeNull();
+  go.mockRestore();
+});
+
+it('a switch in this folder: switching… in the header, the line is off until the window tells the new session', async () => {
+  const { switches, emit, store } = setup();
+  await openPicker();
+  await userEvent.click(screen.getByText('(untitled)', { selector: '[data-t]' }));
+  const dlg = await screen.findByRole('dialog', { name: 'Open session “(untitled)”?' });
   await userEvent.click(within(dlg).getByRole('button', { name: 'Switch' }));
-  expect(switches()).toEqual([{ type: 'switch', id: B, dir: '/Users/me/other' }]);
+  expect(switches()).toEqual([{ type: 'switch', id: C, dir: '/Users/me/proj' }]);
   expect(document.getElementById('conn')).toHaveTextContent('switching…');
   expect(btn()).toBeDisabled();
-  emit({ kind: 'replay', events: [] }, { kind: 'session', id: B, root: '/Users/me/other', title: 'other one', model: null });
+  emit({ kind: 'replay', events: [] }, { kind: 'session', id: C, root: '/Users/me/proj', title: null, model: null });
   expect(document.getElementById('conn')).toHaveTextContent('');
   expect(store.getState().controls.switching).toBeNull();
   expect(btn()).toBeEnabled();
@@ -176,7 +190,7 @@ it('picking a session in another folder asks (open + move + warn), then sends sw
 it('a session of this folder asks without the move line', async () => {
   const { switches } = setup();
   await openPicker();
-  await userEvent.click(screen.getByText('(untitled)'));
+  await userEvent.click(screen.getByText('(untitled)', { selector: '[data-t]' }));
   const dlg = await screen.findByRole('dialog', { name: 'Open session “(untitled)”?' });
   expect(dlg).not.toHaveTextContent('another folder');
   await userEvent.keyboard('{Enter}');
@@ -208,8 +222,7 @@ it('while switching: Send (composer and panel) is off with the switching title, 
   const { emit, store, sent } = setup();
   act(() => { store.dispatch(setDraft('keep me')); });
   await openPicker();
-  await expand('~/other');
-  await userEvent.click(screen.getByText('other one'));
+  await userEvent.click(screen.getByText('(untitled)', { selector: '[data-t]' }));
   await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Switch' }));
   const send = screen.getAllByRole('button', { name: 'Send', hidden: true });
   expect(send).toHaveLength(2);
@@ -230,8 +243,7 @@ it('while switching: Send (composer and panel) is off with the switching title, 
 
 async function confirmOther() {
   await openPicker();
-  await expand('~/other');
-  await userEvent.click(screen.getByText('other one'));
+  await userEvent.click(screen.getByText('(untitled)', { selector: '[data-t]' }));
   await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Switch' }));
 }
 
@@ -277,9 +289,8 @@ it('another window switching closes the menu and an open question', async () => 
   emit({ kind: 'replay', events: [] }, { kind: 'session', id: D, root: '/tmp/x', title: null, model: null });
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Sessions' })).toBeNull());
   await openPicker();
-  await expand('~/other');
-  await userEvent.click(screen.getByText('other one'));
-  await screen.findByRole('dialog', { name: 'Open session “other one”?' });
+  await userEvent.click(screen.getByText('(untitled)', { selector: '[data-t]' }));
+  await screen.findByRole('dialog', { name: 'Open session “(untitled)”?' });
   emit({ kind: 'session', id: C, root: '/Users/me/proj', title: null, model: null });
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(switches()).toEqual([]);
@@ -288,9 +299,8 @@ it('another window switching closes the menu and an open question', async () => 
 it('a confirm refused because the agent started meanwhile says so', async () => {
   const { emit, switches } = setup();
   await openPicker();
-  await expand('~/other');
-  await userEvent.click(screen.getByText('other one'));
-  const dlg = await screen.findByRole('dialog', { name: 'Open session “other one”?' });
+  await userEvent.click(screen.getByText('(untitled)', { selector: '[data-t]' }));
+  const dlg = await screen.findByRole('dialog', { name: 'Open session “(untitled)”?' });
   emit({ kind: 'user', id: 'u1', text: 'from another window', ts: 1 });
   await userEvent.click(within(dlg).getByRole('button', { name: 'Switch' }));
   expect(switches()).toEqual([]);
@@ -300,9 +310,8 @@ it('a confirm refused because the agent started meanwhile says so', async () => 
 it('a confirm refused while offline says so', async () => {
   const { switches, offline } = setup();
   await openPicker();
-  await expand('~/other');
-  await userEvent.click(screen.getByText('other one'));
-  const dlg = await screen.findByRole('dialog', { name: 'Open session “other one”?' });
+  await userEvent.click(screen.getByText('(untitled)', { selector: '[data-t]' }));
+  const dlg = await screen.findByRole('dialog', { name: 'Open session “(untitled)”?' });
   offline();
   await userEvent.click(within(dlg).getByRole('button', { name: 'Switch' }));
   expect(switches()).toEqual([]);
@@ -447,7 +456,7 @@ describe('archive and delete', () => {
     expect(posts('/sessions/archive')).toEqual([{ id: C, archived: true }]);
     await waitFor(() => expect(rows()).toEqual(['+ new session in this project', 'v this project · ~/proj · 1 (here)', 'current talk', '> ~/other · 1', '> /tmp/x · 1']));
     await userEvent.click(screen.getByRole('button', { name: 'Show archive (1)' }));
-    const row = screen.getByText('(untitled)').closest('[data-sess-archived]') as HTMLElement;
+    const row = within(menu()).getByText('(untitled)').closest('[data-sess-archived]') as HTMLElement;
     await userEvent.click(within(row).getByRole('button', { name: 'Restore: (untitled)' }));
     expect(posts('/sessions/archive')).toEqual([{ id: C, archived: true }, { id: C, archived: false }]);
     await waitFor(() => expect(screen.queryByRole('button', { name: /Show archive|Hide archive/ })).toBeNull());
@@ -489,7 +498,7 @@ describe('archive and delete', () => {
     await userEvent.click(within(dlg).getByRole('button', { name: 'Delete' }));
     expect(posts('/sessions/delete')).toEqual([{ id: C }]);
     await screen.findByText('current talk'); // the menu opens again, without it
-    expect(screen.queryByText('(untitled)')).toBeNull();
+    expect(screen.queryByText('(untitled)', { selector: '[data-t]' })).toBeNull();
   });
 
   it('a delete from the archive list comes back to the archive list, filter kept', async () => {
@@ -536,7 +545,7 @@ describe('archive and delete', () => {
     view = { ...VIEW, sessions: VIEW.sessions.filter((x) => x.id !== C) };
     await userEvent.click(within(await screen.findByRole('dialog', { name: /Delete session/ })).getByRole('button', { name: 'Delete' }));
     await screen.findByText('current talk');
-    expect(screen.queryByText('(untitled)')).toBeNull();
+    expect(screen.queryByText('(untitled)', { selector: '[data-t]' })).toBeNull();
     expect(screen.queryByText(/Could not delete/)).toBeNull();
   });
 

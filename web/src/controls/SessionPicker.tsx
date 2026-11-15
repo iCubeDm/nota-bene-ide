@@ -7,8 +7,8 @@ import { selectSwitching, switchSession } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { archiveSession, brief, deleteSession, renameSession } from './sessionsApi.ts';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { shortWinHome } from '@/lib/paths.ts';
+import { openFolder, PROVIDER_LABEL, reasonText } from '@/projects/api.ts';
 
 /** GET /sessions (server/src/sessions.ts SessionsView). */
 export type SessionsView = {
@@ -189,6 +189,11 @@ export function SessionPicker() {
     // focus goes back to the trigger first, so the dialog returns it there when it closes
     trigger.current?.focus();
     setOpen(false);
+    // a session of another folder opens in that folder's window (started if none): this window stays on its project
+    if (a.id && v && a.dir !== v.root) {
+      void openFolder(a.dir, provider ?? 'claude', undefined, a.id).then((why) => { if (why) showNote(t('switchFail') + reasonText(why)); });
+      return;
+    }
     setAsk(a);
   };
 
@@ -218,12 +223,13 @@ export function SessionPicker() {
             aria-label={t('sessions')}
             title={t(provider === 'codex' ? 'sessTipCodex' : provider === 'omp' ? 'sessTipOmp' : 'sessTip')}
             disabled={off}
-            // the restart button's height, corners and type beside it; the word says what the clock opens
-            className="inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-md border border-border-soft px-2 py-0.5 text-[0.6875rem] font-medium leading-none text-muted-foreground hover:enabled:border-primary hover:enabled:text-foreground disabled:cursor-default disabled:opacity-35 [&>svg:first-child]:text-accent-sessions"
+            // the window's session above the chat (the project is the header's): its title and agent; it opens the Sessions menu
+            className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:enabled:bg-muted disabled:cursor-default"
           >
-            <Svg size={14}>{ICONS.history}</Svg>
-            <span>{t('sessions')}</span>
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
+            <span aria-hidden className={`size-2 flex-none rounded-full ${busy ? 'bg-primary' : 'bg-success'}`} />
+            <span className="truncate text-foreground">{session?.title || t('untitled')}</span>
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className="flex-none"><path d="m6 9 6 6 6-6" /></svg>
+            {provider && <span className="flex-none">· {PROVIDER_LABEL[provider]}</span>}
           </button>
         </PopoverTrigger>
         <PopoverContent

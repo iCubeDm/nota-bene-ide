@@ -25,6 +25,7 @@ import { OneTab } from './shell/OneTab.tsx';
 import { Toasts } from './shell/Toasts.tsx';
 import { useFavicon } from './shell/Favicon.ts';
 import { useSeen } from './projects/seen.ts';
+import { SessionPicker } from './controls/SessionPicker.tsx';
 import { useSounds } from './shell/sounds.ts';
 import { RecentFiles } from '@/files/RecentFiles.tsx';
 import { Starter } from '@/projects/Starter.tsx';
@@ -64,6 +65,10 @@ export function App() {
             <Panes
               chat={
                 <>
+                  {/* the window's session, above its chat; it opens the Sessions menu (the header names the project) */}
+                  <div className="sticky top-0 z-[2] flex min-w-0 items-center gap-2 bg-background/85 px-8 py-1 backdrop-blur-sm">
+                    <SessionPicker />
+                  </div>
                   <div
                     id="items"
                     className="nb-card nb-prose px-10 pt-5 pb-7 text-[0.9375rem] leading-[1.625] text-foreground/90"

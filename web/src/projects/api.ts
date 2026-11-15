@@ -71,10 +71,10 @@ export const reasonText = (why: string): string => (why in REASONS ? t(REASONS[w
 /** A failed answer's reason: the server's short text, or the status. */
 export const reasonOf = async (r: Response): Promise<string> => (await r.text().catch(() => '')).trim() || String(r.status);
 
-/** Moves this tab to the window of `row`, logged in; a refusal is a toast and the tab stays. */
-export async function enterProject(row: RunningRow): Promise<void> {
+/** Moves this tab to the window of `row`, logged in (that window opens `session` when given); a refusal is a toast and the tab stays. */
+export async function enterProject(row: RunningRow, session?: string): Promise<void> {
   try {
-    const r = await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root });
+    const r = await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
     if (!r.ok) return toast(t('projEnterFailed', reasonText(await reasonOf(r))), row.root);
     const { url } = (await r.json()) as { url?: unknown };
     if (typeof url !== 'string') return toast(t('projEnterFailed', reasonText('bad answer')), row.root);
@@ -89,8 +89,11 @@ let starter: ((mode: 'open' | 'new') => void) | null = null;
 export const setStarter = (f: ((mode: 'open' | 'new') => void) | null): void => { starter = f; };
 export const openStarter = (mode: 'open' | 'new'): void => starter?.(mode);
 
-/** Opens `dir` in a window of `provider` (started if none) and moves this tab there; resolves to the refusal's reason, or null. */
-export async function openFolder(dir: string, provider: Provider, create?: { name: string; git: boolean }): Promise<string | null> {
+/**
+ * Opens `dir` in a window of `provider` (started if none) and moves this tab there, to `session` when given (landing.ts);
+ * resolves to the refusal's reason, or null.
+ */
+export async function openFolder(dir: string, provider: Provider, create?: { name: string; git: boolean }, session?: string): Promise<string | null> {
   try {
     const r = create
       ? await postJson('/system/projects/create', { parent: dir, name: create.name, git: create.git, provider })
@@ -98,7 +101,7 @@ export async function openFolder(dir: string, provider: Provider, create?: { nam
     if (!r.ok) return reasonOf(r);
     const { url } = (await r.json()) as { url?: unknown };
     if (typeof url !== 'string') return 'bad answer';
-    nav.go(url);
+    nav.go(session ? `${url}&s=${session}` : url);
     return null;
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
