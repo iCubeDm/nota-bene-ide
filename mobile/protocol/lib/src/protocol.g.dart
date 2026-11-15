@@ -3433,6 +3433,7 @@ final class UsageTank implements _Json {
     required this.pct,
     required this.w,
     required this.perPct,
+    this.h5,
   });
 
   factory UsageTank.fromJson(Map<String, Object?> json) {
@@ -3442,6 +3443,7 @@ final class UsageTank implements _Json {
       pct: json['pct'] as num,
       w: json['w'] as num,
       perPct: json['perPct'] as num,
+      h5: _opt(json['h5'], _obj(UsageTankH5.fromJson)),
     );
   }
 
@@ -3450,10 +3452,39 @@ final class UsageTank implements _Json {
   final num pct;
   final num w;
   final num perPct;
+  final UsageTankH5? h5;
 
   @override
   Map<String, Object?> toJson() {
-    return {'from': from, 'to': to, 'pct': pct, 'w': w, 'perPct': perPct};
+    return {
+      'from': from,
+      'to': to,
+      'pct': pct,
+      'w': w,
+      'perPct': perPct,
+      if (h5 != null) 'h5': h5!.toJson(),
+    };
+  }
+}
+
+final class UsageTankH5 implements _Json {
+  const UsageTankH5({required this.pct, required this.w, required this.perPct});
+
+  factory UsageTankH5.fromJson(Map<String, Object?> json) {
+    return UsageTankH5(
+      pct: json['pct'] as num,
+      w: json['w'] as num,
+      perPct: json['perPct'] as num,
+    );
+  }
+
+  final num pct;
+  final num w;
+  final num perPct;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'pct': pct, 'w': w, 'perPct': perPct};
   }
 }
 

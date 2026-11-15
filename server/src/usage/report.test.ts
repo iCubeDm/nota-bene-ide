@@ -255,6 +255,22 @@ describe('tank', () => {
     expect(r.tanks).toEqual([{ from: T0, to: T0 + D, pct: 10, w: 1000, perPct: 100 }]);
   });
 
+  it('each number averages its window and every later one up to the current; the five-hour line averages a week\'s five-hour windows the same way', () => {
+    const l = (ts: number, minutes: number, pct: number, resets: number): UsageRecord => ({ k: 'l', ts, minutes, pct, resets });
+    const r = report([
+      l(T0, week, 10, T0 + 6 * D), l(T0 + D, week, 20, T0 + 6 * D),
+      l(T0 + 7 * D, week, 0, T0 + 13 * D), l(T0 + 8 * D, week, 40, T0 + 13 * D),
+      l(T0 + H, 300, 0, T0 + 5 * H), l(T0 + 3 * H, 300, 20, T0 + 5 * H),
+      l(T0 + 7 * D + H, 300, 5, T0 + 7 * D + 5 * H), l(T0 + 7 * D + 3 * H, 300, 25, T0 + 7 * D + 5 * H),
+      call({ id: 'a', ts: T0 + 2 * H, out: 200 }),
+      call({ id: 'b', ts: T0 + 7 * D + 2 * H, out: 400 }),
+    ], { period: 'all' });
+    expect(r.tanks).toEqual([
+      { from: T0, to: T0 + D, pct: 10, w: 1000, perPct: 60, h5: { pct: 20, w: 1000, perPct: 75 } },
+      { from: T0 + 7 * D, to: T0 + 8 * D, pct: 40, w: 2000, perPct: 50, h5: { pct: 20, w: 2000, perPct: 100 } },
+    ]);
+  });
+
   it('under one percent is no measurement; five-hour readings are not the tank', () => {
     expect(report([
       { k: 'l', ts: T0, minutes: week, pct: 10, resets: 1 }, { k: 'l', ts: T0 + D, minutes: week, pct: 10.5, resets: 1 },

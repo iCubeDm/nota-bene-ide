@@ -234,24 +234,43 @@ function weeksOf(calls: readonly CallRecord[], events: readonly HitEvent[], isEx
   return out;
 }
 
-/** Tokens per percent of each weekly limit window, from its first to its last reading. */
-function tanksOf(calls: readonly CallRecord[], records: readonly UsageRecord[]): UsageTank[] {
+/** Each limit window of `minutes` (by its reset) with its percent and tokens from its first to its last reading. */
+function limitWindows(calls: readonly CallRecord[], records: readonly UsageRecord[], minutes: number) {
   const windows = new Map<number, LimitRecord[]>();
   for (const r of records) {
-    if (r.k !== 'l' || r.minutes !== WEEK_MINUTES || r.resets === null) continue;
+    if (r.k !== 'l' || r.minutes !== minutes || r.resets === null) continue;
     let list = windows.get(r.resets);
     if (!list) windows.set(r.resets, list = []);
     list.push(r);
   }
-  const out: UsageTank[] = [];
-  for (const list of windows.values()) {
+  return [...windows].map(([resets, list]) => {
     list.sort((a, b) => a.ts - b.ts);
-    const first = list[0]!, last = list[list.length - 1]!, pct = last.pct - first.pct;
-    if (pct < 1) continue;
+    const first = list[0]!, last = list[list.length - 1]!;
     const w = calls.reduce((sum, c) => (c.ts > first.ts && c.ts <= last.ts ? sum + weigh(c) : sum), 0);
-    out.push({ from: first.ts, to: last.ts, pct, w, perPct: w / pct });
+    return { resets, from: first.ts, to: last.ts, pct: last.pct - first.pct, w };
+  });
+}
+
+/**
+ * Tokens per percent of the weekly limit, one entry per weekly window: `perPct` averages that window and every later one
+ * up to the current (tokens over percent, summed), so the last is the current window alone. `h5` does the same for the
+ * five-hour limit: a week's five-hour windows (by their first reading) summed, then averaged up to the current week.
+ */
+function tanksOf(calls: readonly CallRecord[], records: readonly UsageRecord[]): UsageTank[] {
+  const weeks = limitWindows(calls, records, WEEK_MINUTES).filter((x) => x.pct >= 1).sort((a, b) => a.from - b.from);
+  const fives = limitWindows(calls, records, 5 * 60).filter((x) => x.pct > 0);
+  const h5 = weeks.map((k) => {
+    const own = fives.filter((f) => f.from > k.resets - 7 * DAY && f.from <= k.resets);
+    return { pct: own.reduce((sum, f) => sum + f.pct, 0), w: own.reduce((sum, f) => sum + f.w, 0) };
+  });
+  const out: UsageTank[] = [];
+  let pct = 0, w = 0, pct5 = 0, w5 = 0;
+  for (let i = weeks.length - 1; i >= 0; i--) {
+    const k = weeks[i]!, f = h5[i]!;
+    pct += k.pct; w += k.w; pct5 += f.pct; w5 += f.w;
+    out.unshift({ from: k.from, to: k.to, pct: k.pct, w: k.w, perPct: w / pct, ...(pct5 > 0 ? { h5: { pct: f.pct, w: f.w, perPct: w5 / pct5 } } : {}) });
   }
-  return out.sort((a, b) => a.from - b.from);
+  return out;
 }
 
 export function periodStart(period: UsagePeriod, trip: number | null, now: number): number | null {

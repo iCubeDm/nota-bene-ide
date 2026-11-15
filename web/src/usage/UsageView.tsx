@@ -220,6 +220,11 @@ function Limits({ r }: { r: UsageReport }) {
           {t('usageTank')} <span className="font-mono text-foreground">{r.tanks.slice(-TANKS_SHOWN).map((k) => fmtTokens(k.perPct)).join(' → ')}</span>
         </p>
       )}
+      {r.tanks.slice(-TANKS_SHOWN).some((k) => k.h5) && (
+        <p className="text-[0.8125rem] text-muted-foreground" title={t('usageTank5hTip')}>
+          {t('usageTank5h')} <span className="font-mono text-foreground">{r.tanks.slice(-TANKS_SHOWN).map((k) => (k.h5 ? fmtTokens(k.h5.perPct) : '—')).join(' → ')}</span>
+        </p>
+      )}
     </section>
   );
 }

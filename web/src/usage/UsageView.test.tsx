@@ -79,6 +79,24 @@ it('shows the meter, the model mix, the hits and the tank', async () => {
   expect(screen.getByText('Per 1% of the weekly limit:').textContent).toContain('100');
 });
 
+it('the five-hour line follows the weekly one, window for window; a week without five-hour readings is a dash; none, no line', async () => {
+  reply = () => ({ ...REPORT, tanks: [
+    { from: 1, to: 2, pct: 10, w: 1000, perPct: 3_800_000 },
+    { from: 3, to: 4, pct: 10, w: 1000, perPct: 3_700_000, h5: { pct: 40, w: 1000, perPct: 900_000 } },
+    { from: 5, to: 6, pct: 10, w: 1000, perPct: 3_500_000, h5: { pct: 40, w: 1000, perPct: 800_000 } },
+  ] });
+  setup();
+  const five = await screen.findByText('Per 1% of the 5-hour limit, a week\'s windows:');
+  expect(five.textContent).toBe(`Per 1% of the 5-hour limit, a week's windows: — → ${fmtTokens(900_000)} → ${fmtTokens(800_000)}`);
+  expect(screen.getByText('Per 1% of the weekly limit:').textContent).toBe(`Per 1% of the weekly limit: ${fmtTokens(3_800_000)} → ${fmtTokens(3_700_000)} → ${fmtTokens(3_500_000)}`);
+});
+
+it('without five-hour readings there is no five-hour line', async () => {
+  setup();
+  await screen.findByText('Per 1% of the weekly limit:');
+  expect(screen.queryByText(/5-hour limit, a week/)).toBeNull();
+});
+
 it('a bar says its tokens under the pointer, the low one too, and whether it was a hit', async () => {
   setup();
   const weeks = await screen.findByRole('img', { name: 'Weeks' });
