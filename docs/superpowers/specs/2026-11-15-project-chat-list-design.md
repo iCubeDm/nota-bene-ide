@@ -29,6 +29,23 @@ the second level under their project.
 - A worktree row in the branch menu gets "Open": it opens (or reaches) a window on that worktree, through the
   starter's open route.
 
+## The folder browser (starter)
+
+The starter becomes a familiar "Open folder" dialog, one mode instead of two:
+
+- Places on the left: Home, the parent folders of recent projects (deduplicated, at most five), Desktop when it
+  exists.
+- The path on top as clickable breadcrumbs; a path field beside them completes the folder name with Tab and
+  browses on Enter.
+- The list puts git repositories first, then the other folders, each group by name. A single click selects a
+  folder, a double click (or Enter) goes into it; Open opens the selected folder, or the current one when none is
+  selected.
+- "New folder here" replaces the separate New project mode: an inline row asks for the name and git init (on by
+  default); confirming creates the folder and opens it, as the create route does today. The header menu's "New
+  project…" opens the starter with that row already shown.
+- A reopen starts from the last browsed folder, with hidden folders off; a late listing never replaces a newer one.
+- Folder names Windows refuses (`:*?"<>|`, CON and the like, a trailing dot or space) are refused before sending.
+
 ## Non-goals
 
 - The left column of projects (variant B): with phase 2.
