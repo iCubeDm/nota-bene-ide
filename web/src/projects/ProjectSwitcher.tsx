@@ -1,12 +1,13 @@
 // The project switcher in the header (phase 1 of the one-tab design): the project's name opens a list of every running
 // window of every provider with its agent's state, the recent folders, and the starter. Choosing a window moves this tab
 // there, logged in (api.ts enterProject); a recent folder is opened in a window of its last agent.
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { shortWinHome } from '@/lib/paths.ts';
 import { toast } from '@/shell/toast.ts';
 import { withKey } from '@/shell/keymap.ts';
+import { badgeOf, titlePrefix } from './rows.ts';
 import { enterProject, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, useProjects, type ProjectState, type RecentRow, type RunningRow } from './api.ts';
 
 const folderOf = (root: string) => root.split(/[\\/]/).filter(Boolean).pop() ?? root;
@@ -19,14 +20,15 @@ const LIVE = new Set<ProjectState>(['working', 'waiting', 'idle']);
 const RECENT_SHOWN = 10;
 const rowCls = 'flex w-full items-center gap-2 rounded-md px-2.5 py-1 text-left text-xs';
 
-export function ProjectSwitcher({ project }: { project: string }) {
+export function ProjectSwitcher({ project, windowTitle }: { project: string; windowTitle: string }) {
   const t = useT();
   const open = useSyncExternalStore(projectsMenu.subscribe, projectsMenu.get);
   const { data } = useProjects(open);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const running = data?.running ?? [];
-  const waiting = running.filter((r) => r.state === 'waiting' && !r.current).length;
+  const badge = badgeOf(running);
+  useEffect(() => { document.title = titlePrefix(badge) + windowTitle; }, [badge, windowTitle]);
   const needle = q.trim().toLowerCase();
   const hit = (...s: (string | null)[]) => !needle || s.some((x) => x?.toLowerCase().includes(needle));
   const shown = running.filter((r) => hit(r.root, r.title));
@@ -48,8 +50,9 @@ export function ProjectSwitcher({ project }: { project: string }) {
           className="inline-flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-muted">
           <b id="proj" className="truncate text-[0.9375rem] font-semibold tracking-[-0.01em] text-foreground">{project}</b>
           <span aria-hidden className="text-[0.625rem] text-muted-foreground">▾</span>
-          {waiting > 0 && (
-            <span title={t('projWaitingTip', waiting)} className="rounded-full bg-warn px-1.5 text-[0.625rem] font-semibold leading-4 text-background">{waiting}</span>
+          {badge !== null && (
+            <span title={badge === '!' ? t('projWaitTip') : t('projUnseenTip', badge)}
+              className={`rounded-full px-1.5 text-[0.625rem] font-semibold leading-4 ${badge === '!' ? 'bg-warn text-background' : 'bg-primary text-primary-foreground'}`}>{badge}</span>
           )}
         </button>
       </PopoverTrigger>

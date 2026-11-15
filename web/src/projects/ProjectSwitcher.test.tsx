@@ -8,10 +8,10 @@ import { ProjectSwitcher } from './ProjectSwitcher.tsx';
 
 const LIST: ProjectsList = {
   running: [
-    { provider: 'claude', port: 4791, root: '/w/notes', title: 'Weekly notes', session: 's1', state: 'idle', current: true, clients: 1 },
-    { provider: 'claude', port: 4792, root: '/w/site', title: 'Fix the login form', session: 's2', state: 'waiting', current: false, clients: 0 },
-    { provider: 'codex', port: 4793, root: '/w/site', title: null, session: 's3', state: 'working', current: false, clients: 0 },
-    { provider: 'omp', port: 4794, root: '/w/gone', title: null, session: null, state: 'restarting', current: false, clients: 0 },
+    { provider: 'claude', port: 4791, root: '/w/notes', title: 'Weekly notes', session: 's1', state: 'idle', current: true, clients: 1, unseen: 0, last: null },
+    { provider: 'claude', port: 4792, root: '/w/site', title: 'Fix the login form', session: 's2', state: 'waiting', current: false, clients: 0, unseen: 0, last: null },
+    { provider: 'codex', port: 4793, root: '/w/site', title: null, session: 's3', state: 'working', current: false, clients: 0, unseen: 2, last: null },
+    { provider: 'omp', port: 4794, root: '/w/gone', title: null, session: null, state: 'restarting', current: false, clients: 0, unseen: 0, last: null },
   ],
   recent: [
     { root: '/w/site', provider: 'claude', at: 2, running: true },
@@ -36,7 +36,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); act(() => projectsMenu.close()); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 async function setup() {
-  render(<ProjectSwitcher project="notes" />);
+  render(<ProjectSwitcher project="notes" windowTitle="notes · Nota Bene" />);
   await waitFor(() => expect(calls.some((c) => c.url === '/system/projects')).toBe(true));
   return screen.getByRole('button', { name: /notes/ });
 }
@@ -46,10 +46,11 @@ const openMenu = async () => {
   return screen.findByRole('textbox', { name: t('projSearch') });
 };
 
-it('the trigger shows the project and the waiting count', async () => {
+it('the trigger shows one badge: ! while another project waits, and so does the tab title', async () => {
   const trigger = await setup();
-  await waitFor(() => expect(within(trigger).getByText('1')).toBeInTheDocument());
-  expect(within(trigger).getByTitle(t('projWaitingTip', 1))).toBeInTheDocument();
+  await waitFor(() => expect(within(trigger).getByText('!')).toBeInTheDocument());
+  expect(within(trigger).getByTitle(t('projWaitTip'))).toBeInTheDocument();
+  expect(document.title).toBe('(!) notes · Nota Bene');
 });
 
 it('each running window is named by its folder, with its session, agent and state below; recent lists only what is not running', async () => {
@@ -102,7 +103,7 @@ it('a restarting window is shown with its state and no action', async () => {
 
 it('a list that is not a projects list renders as empty', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response('[]')));
-  render(<ProjectSwitcher project="notes" />);
+  render(<ProjectSwitcher project="notes" windowTitle="notes · Nota Bene" />);
   act(() => projectsMenu.open());
   expect(await screen.findByRole('textbox', { name: t('projSearch') })).toBeInTheDocument();
 });

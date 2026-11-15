@@ -38,12 +38,13 @@ export function Header() {
   // the project, not the app, names the window: several windows on different projects must be told apart
   const project = (session && folderName(session.root)) || 'Nota Bene';
   const title = session?.title ?? null;
-  useEffect(() => { document.title = `${title ? title + ' · ' : ''}${project} · Nota Bene`; }, [title, project]);
+  // the tab's title; the switcher puts the other projects' badge in front of it
+  const windowTitle = `${title ? title + ' · ' : ''}${project} · Nota Bene`;
   return (
     <header className="relative z-[6] flex h-12 flex-none items-center gap-3 border-b border-border-soft bg-chrome px-4 text-xs text-muted-foreground backdrop-blur-[24px]">
       <Logo className="-mr-1 size-6 flex-none" />
       {/* the project's name opens the switcher: every window of every provider, recent folders, open or create one */}
-      <ProjectSwitcher project={project} />
+      <ProjectSwitcher project={project} windowTitle={windowTitle} />
       <span id="root-path" className="min-w-0 truncate font-mono text-[0.6875rem] opacity-70">{session?.root ?? ''}</span>
       <GitBranch />
       <span className="flex-1" />

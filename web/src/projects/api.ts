@@ -7,7 +7,13 @@ import { toast } from '@/shell/toast.ts';
 
 export type Provider = 'claude' | 'codex' | 'omp';
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
-export type RunningRow = { provider: Provider; port: number; root: string; title: string | null; session: string | null; state: ProjectState; current: boolean; clients: number };
+export type LastMessage = { role: 'user' | 'assistant'; text: string; at?: number };
+export type RunningRow = {
+  provider: Provider; port: number; root: string; title: string | null; session: string | null; state: ProjectState; current: boolean; clients: number;
+  /** final replies of its session the person has not seen (server/src/seen.ts) */
+  unseen: number;
+  last: LastMessage | null;
+};
 export type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
 export type ProjectsList = { running: RunningRow[]; recent: RecentRow[] };
 
