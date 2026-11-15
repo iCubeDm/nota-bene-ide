@@ -7,7 +7,7 @@ import { selectSwitching, switchSession } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { archiveSession, brief, deleteSession, renameSession } from './sessionsApi.ts';
-import { shortWinHome } from '@/lib/paths.ts';
+import { shortHome } from '@/lib/paths.ts';
 
 /** GET /sessions (server/src/sessions.ts SessionsView). */
 export type SessionsView = {
@@ -26,7 +26,7 @@ export const ago = (at: number, now = Date.now()): string => {
 };
 /** Prototype `kb`: MB above 1e6 bytes, whole KB below. */
 export const kb = (n: number): string => (n > 1e6 ? `${(n / 1e6).toFixed(1)} ${tNow('mb')}` : `${Math.round(n / 1e3)} ${tNow('kb')}`);
-const short = (d: string) => shortWinHome(d).replace(/^\/Users\/[^/]+/, '~');
+const short = shortHome;
 
 /** This project first, then the other folders in first-appearance order; empty groups are dropped. */
 export function groupSessions(v: SessionsView): { dir: string; here: boolean; items: Item[] }[] {

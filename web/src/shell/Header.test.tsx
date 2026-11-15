@@ -1,6 +1,6 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
@@ -85,7 +85,7 @@ it('path and short session id come from the session event', () => {
   const { ev } = setup();
   expect(document.getElementById('root-path')).toHaveTextContent('');
   ev({ kind: 'session', id: null, root: '/Users/me/proj', title: null, model: null });
-  expect(document.getElementById('root-path')).toHaveTextContent('/Users/me/proj');
+  expect(document.getElementById('root-path')).toHaveTextContent('~/proj');
   expect(document.getElementById('session')).toHaveTextContent('');
   ev({ kind: 'session', id: '5f0c2a9e-7d41-4c4b', root: '/Users/me/proj', title: null, model: null });
   expect(document.getElementById('session')).toHaveTextContent(/^5f0c2a9e$/);
@@ -134,5 +134,18 @@ it('a long path does not widen the block (the git branch stays put): it fits the
   expect(p.className).toMatch(/\bw-0\b/);
   expect(p.className).toMatch(/\bmin-w-full\b/);
   expect(p).toHaveAttribute('dir', 'rtl');
-  expect(p).toHaveAttribute('title', '/Users/me/very/long/path/to/proj');
+  expect(p.title).toMatch(/^\/Users\/me\/very\/long\/path\/to\/proj/);
+});
+
+it('the path shows the home folder as ~ and a click copies the whole path', async () => {
+  const writeText = vi.fn(async () => {});
+  vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+  const { ev } = setup();
+  ev({ kind: 'session', id: null, root: '/Users/me/proj', title: null, model: null });
+  const p = document.getElementById('root-path')!;
+  expect(p).toHaveTextContent(/^~\/proj$/);
+  expect(p.tagName).toBe('BUTTON');
+  p.click();
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith('/Users/me/proj'));
+  vi.unstubAllGlobals();
 });

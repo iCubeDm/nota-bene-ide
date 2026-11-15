@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { folderName, isDrivePath, isServerDrivePath, learnServerSep, serverSep, setServerSep, shortWinHome, slashRel, underDir, wireAbs } from './paths.ts';
+import { folderName, isDrivePath, isServerDrivePath, learnServerSep, serverSep, setServerSep, shortHome, shortWinHome, slashRel, underDir, wireAbs } from './paths.ts';
 
 it('wireAbs: a drive path in the slash form, a POSIX path untouched', () => {
   expect(wireAbs('c:\\Users\\x\\a.png')).toBe('C:/Users/x/a.png');
@@ -60,4 +60,14 @@ it('folderName and shortWinHome', () => {
   expect(shortWinHome('c:\\users\\me\\proj')).toBe('~/proj');
   expect(shortWinHome('D:/work')).toBe('D:/work');
   expect(shortWinHome('/Users/me/proj')).toBe('/Users/me/proj');
+});
+
+it('shortHome turns any home folder into ~ and leaves other paths', () => {
+  expect(shortHome('/Users/me/proj')).toBe('~/proj');
+  expect(shortHome('/home/me/proj')).toBe('~/proj');
+  expect(shortHome('/Users/me')).toBe('~');
+  expect(shortHome('C:\\Users\\me\\proj')).toBe('~/proj');
+  expect(shortHome('/Users/meet-up')).toBe('~');
+  expect(shortHome('/srv/proj')).toBe('/srv/proj');
+  expect(shortHome('/Usersx/me/proj')).toBe('/Usersx/me/proj');
 });

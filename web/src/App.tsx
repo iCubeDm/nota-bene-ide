@@ -58,7 +58,7 @@ export function App() {
         <LeftStrip />
         <FileTree key={rootGen} />
         <ChangesPanel />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div data-center className="flex min-w-0 flex-1 flex-col">
           <TabStrip />
           <div className="relative flex min-h-0 flex-1 flex-col">
             <Panes

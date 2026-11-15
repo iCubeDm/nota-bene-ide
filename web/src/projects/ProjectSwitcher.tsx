@@ -8,7 +8,7 @@ import { useT } from '@/i18n/index.ts';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
 import { ago } from '@/controls/SessionPicker.tsx';
-import { shortWinHome } from '@/lib/paths.ts';
+import { shortHome } from '@/lib/paths.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { toast } from '@/shell/toast.ts';
 import { withKey } from '@/shell/keymap.ts';
@@ -19,7 +19,7 @@ import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, titlePrefix, type Badge, type ProjectRow } from './rows.ts';
 
 export const folderOf = (root: string) => root.split(/[\\/]/).filter(Boolean).pop() ?? root;
-const short = (d: string) => shortWinHome(d).replace(/^\/Users\/[^/]+/, '~');
+const short = shortHome;
 const DOT: Record<ProjectState, string> = {
   working: 'bg-primary', waiting: 'bg-warn', idle: 'bg-success', restarting: 'bg-muted-foreground/30', silent: 'bg-destructive/60',
 };
