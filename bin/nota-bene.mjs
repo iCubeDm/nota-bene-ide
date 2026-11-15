@@ -47,6 +47,7 @@ import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } f
 import { transcriptExists } from '../server/src/sessions.ts';
 import { lastSession, stateBaseDir, stateDir } from '../server/src/state.ts';
 import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgent } from '../server/src/agent/choice.ts';
+import { recordRecent } from '../server/src/recent.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
 import {
@@ -1098,6 +1099,7 @@ export async function main(argv) {
     return 1;
   }
   rememberAgent(stateBaseDir(), o.dir, o.agent ?? 'claude');
+  recordRecent(stateBaseDir(), o.dir, o.agent ?? 'claude');
   // the secrets, before any spawn: a refused one is reported once here, never as a crash loop of servers that die on it
   try {
     accessToken();

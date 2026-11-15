@@ -90,10 +90,17 @@ function read(base: string): Record<string, unknown> {
   }
 }
 
+const isAgent = (a: unknown): a is AgentProvider => typeof a === 'string' && (ORDER as string[]).includes(a);
+
 /** The agent last opened on `dir` (a real path), from the state root's agent-choice.json. */
 export function lastAgent(base: string, dir: string): AgentProvider | undefined {
   const a = read(base)[dir];
-  return typeof a === 'string' && (ORDER as string[]).includes(a) ? (a as AgentProvider) : undefined;
+  return isAgent(a) ? a : undefined;
+}
+
+/** Every folder of agent-choice.json with its last agent (in the file's order; it keeps no time). */
+export function readChoices(base: string): [string, AgentProvider][] {
+  return Object.entries(read(base)).filter((e): e is [string, AgentProvider] => isAgent(e[1]));
 }
 
 /** Records the agent opened on `dir`. Best effort: a launch never fails on it. */
