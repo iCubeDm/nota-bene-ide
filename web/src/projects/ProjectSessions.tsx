@@ -84,10 +84,18 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
     if (failed !== null) return toast(t('archiveFail') + failed, root);
     setLocal((l) => l.map((x) => (x.id === id ? { ...x, archived: true as const } : x)));
   };
+  const [pick, setPick] = useState<Provider | null>(null);
+  const picked = pick ? live.find((x) => x.provider === pick) : undefined;
+  // the agent of a window here first (this window's when it is one), else the first installed
+  const firstAgent = (): Provider | null => (mine ?? live[0])?.provider ?? agents[0] ?? null;
   const fresh = async (agent: Provider) => {
     const w = live.find((x) => x.provider === agent);
-    if (w?.current) return setAsk({ id: null, title: '' });
     onDone();
+    if (w?.current) {
+      const r = dispatch(switchSession(null, root));
+      if (r !== 'sent') toast(t('switchFail') + t(REFUSED[r]), root);
+      return;
+    }
     if (w) return void enterProject(w, 'new');
     const why = await openFolder(root, agent);
     if (why) toast(t('startFailed', reasonText(why)), root);
@@ -144,9 +152,26 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
       {items.length > SHOWN && !all && (
         <button type="button" onClick={() => setAll(true)} className={`${rowCls} text-muted-foreground`}>{t('projMore', items.length)}</button>
       )}
-      {agents.map((a) => (
-        <button key={a} type="button" onClick={() => void fresh(a)} className={`${rowCls} text-link`}>{t('projNewWith', PROVIDER_LABEL[a])}</button>
-      ))}
+      <button type="button" onClick={() => setPick(firstAgent())} className={`${rowCls} text-link`}>{t('projNewSess')}</button>
+      {pick && (
+        <ConfirmDialog
+          title={t('newQ')}
+          // a new session in this window replaces the open one here: the switch warning; elsewhere nothing is replaced
+          body={picked?.current ? t(pick === 'codex' ? 'switchWarnCodex' : pick === 'omp' ? 'switchWarnOmp' : 'switchWarn').trim() : ''}
+          confirm={t('projNewSessStart')}
+          onConfirm={() => { const a = pick; setPick(null); void fresh(a); }}
+          onCancel={() => setPick(null)}
+        >
+          <div role="radiogroup" aria-label={t('startAgent')} className="flex flex-wrap gap-2">
+            {agents.map((a) => (
+              <label key={a} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm ${a === pick ? 'border-primary text-foreground' : 'border-border-soft text-muted-foreground'}`}>
+                <input type="radio" name="nb-new-agent" aria-label={PROVIDER_LABEL[a]} checked={a === pick} onChange={() => setPick(a)} className="accent-primary" />
+                {PROVIDER_LABEL[a]}
+              </label>
+            ))}
+          </div>
+        </ConfirmDialog>
+      )}
       {ask && (
         <ConfirmDialog
           title={ask.id ? t('openQ', ask.title) : t('newQ')}

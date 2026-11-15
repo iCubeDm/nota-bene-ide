@@ -134,16 +134,25 @@ it('a session of another window opens there', async () => {
   expect(calls.find((c) => c.url === '/system/projects/enter')!.body).toEqual({ provider: 'claude', port: 4792, root: '/w/site', session: S4 });
 });
 
-it('New session: per installed agent; with a window there it starts in it, without one a window is opened', async () => {
+it('New session: one entry; the dialog picks the agent; with its window there it starts in it, without one a window is opened', async () => {
   await openMenu();
   fireEvent.click(screen.getByRole('button', { name: t('projExpand', 'blog') }));
   const blog = await screen.findByRole('group', { name: t('projSessionsOf', 'blog') });
-  fireEvent.click(await within(blog).findByRole('button', { name: t('projNewWith', 'Claude') }));
+  expect(within(blog).getAllByRole('button', { name: /New session/ })).toHaveLength(1);
+  fireEvent.click(within(blog).getByRole('button', { name: t('projNewSess') }));
+  let dlg = await screen.findByRole('dialog', { name: t('newQ') });
+  const agent = within(dlg).getByRole('radiogroup', { name: t('startAgent') });
+  await waitFor(() => expect(within(agent).getAllByRole('radio').map((r) => r.getAttribute('aria-label'))).toEqual(['Claude', 'Codex']));
+  expect(within(agent).getByRole('radio', { name: 'Claude' })).toBeChecked(); // this window's agent first
+  fireEvent.click(within(dlg).getByRole('button', { name: t('projNewSessStart') }));
   await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/enter')?.body).toEqual({ provider: 'claude', port: 4795, root: '/w/blog', session: 'new' }));
   act(() => projectsMenu.open());
   fireEvent.click(screen.getByRole('button', { name: t('projExpand', 'blog') }));
   const again = await screen.findByRole('group', { name: t('projSessionsOf', 'blog') });
-  fireEvent.click(await within(again).findByRole('button', { name: t('projNewWith', 'Codex') }));
+  fireEvent.click(within(again).getByRole('button', { name: t('projNewSess') }));
+  dlg = await screen.findByRole('dialog', { name: t('newQ') });
+  fireEvent.click(await within(dlg).findByRole('radio', { name: 'Codex' }));
+  fireEvent.click(within(dlg).getByRole('button', { name: t('projNewSessStart') }));
   await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/open')?.body).toEqual({ dir: '/w/blog', provider: 'codex' }));
 });
 
@@ -205,6 +214,24 @@ it('a session of this window asks first, then switches here', async () => {
   const dlg = await screen.findByRole('dialog', { name: t('openQ', 'Older notes') });
   fireEvent.click(within(dlg).getByRole('button', { name: t('switchBtn') }));
   expect(sent).toContainEqual({ type: 'switch', id: S2.replace('2222', '5555'), dir: '/w/notes' });
+});
+
+it('a new session with this window\'s agent warns like a switch and starts here', async () => {
+  const sent: unknown[] = [];
+  const store = makeStore({ url: 'ws://x', connect: (_u, onEvent, onState) => {
+    queueMicrotask(() => { (onState as (s: string) => void)('open'); onEvent({ kind: 'session', id: S1, root: '/w/notes', title: 'Weekly notes', model: null } as ServerEvent); });
+    return { send: (m: unknown) => { sent.push(m); return true; }, close() {} };
+  } });
+  render(<Provider store={store}><ProjectSwitcher project="notes" windowTitle="notes" /></Provider>);
+  await waitFor(() => expect(calls.some((c) => c.url === '/system/projects')).toBe(true));
+  act(() => projectsMenu.open());
+  const mine = await screen.findByRole('group', { name: t('projSessionsOf', 'notes') });
+  fireEvent.click(within(mine).getByRole('button', { name: t('projNewSess') }));
+  const dlg = await screen.findByRole('dialog', { name: t('newQ') });
+  expect(dlg).toHaveTextContent(t('switchWarn').trim().split('\n')[0]);
+  await within(dlg).findByRole('radio', { name: 'Claude' });
+  fireEvent.click(within(dlg).getByRole('button', { name: t('projNewSessStart') }));
+  expect(sent).toContainEqual({ type: 'switch', id: null, dir: '/w/notes' });
 });
 
 it('this window\'s sessions can be renamed and archived from their row; the open one is not archived; another window\'s only open', async () => {
