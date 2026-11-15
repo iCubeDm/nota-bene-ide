@@ -19,7 +19,7 @@ const _agentsShown = 12,
     _rowsShown = 5,
     _weeksShown = 16,
     _windowsShown = 32,
-    _tanksShown = 4;
+    _tanksShown = 12;
 
 const _periods = [
   (UsagePeriod.trip, 'trip', 'usagePeriodTrip'),

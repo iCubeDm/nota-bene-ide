@@ -96,6 +96,15 @@ it('tokens per 1% are a table: a column per weekly window headed by its dates, o
   ]);
 });
 
+it('the table shows the last 12 weekly windows', async () => {
+  const d = (day: number) => new Date(2026, 6, day, 12).getTime();
+  reply = () => ({ ...REPORT, tanks: Array.from({ length: 14 }, (_, i) => ({ from: d(1 + 7 * i), to: d(7 + 7 * i), pct: 10, w: 1000, perPct: 1000 * (i + 1) })) });
+  setup();
+  const table = await screen.findByRole('table', { name: 'Tokens per 1% of the limit' });
+  const weekly = within(table).getByRole('row', { name: /avg 1% weekly/ });
+  expect(Array.from(weekly.children).slice(1).map((c) => c.textContent)).toEqual(Array.from({ length: 12 }, (_, i) => fmtTokens(1000 * (i + 3))));
+});
+
 it('without five-hour readings the table has no 5-hour row', async () => {
   setup();
   const table = await screen.findByRole('table', { name: 'Tokens per 1% of the limit' });

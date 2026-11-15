@@ -5,7 +5,7 @@ import { getLang, useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 
 const POLL_MS = 2000;
-const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, WEEKS_SHOWN = 16, WINDOWS_SHOWN = 32, TANKS_SHOWN = 4;
+const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, WEEKS_SHOWN = 16, WINDOWS_SHOWN = 32, TANKS_SHOWN = 12;
 const PROVIDERS: { id: UsageProvider; name: string }[] = [{ id: 'claude', name: 'Claude' }, { id: 'codex', name: 'Codex' }];
 const PERIOD_KEY = { trip: 'usagePeriodTrip', '7d': 'usagePeriod7d', '30d': 'usagePeriod30d', all: 'usagePeriodAll' } as const;
 /** The named models, by rank in the report; everything else is the rest. */
