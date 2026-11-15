@@ -16,7 +16,7 @@ function rig() {
   let st!: (s: never) => void;
   const store = makeStore({ url: 'ws://x', connect: (_u, onEvent, onState) => { ev = onEvent; st = onState as never; return { send: (m: ClientMessage) => { sent.push(m); return true; }, close() {} }; } });
   const open = () => st('open' as never);
-  const session = (id: string) => ev({ kind: 'session', id, root: '/r', title: null, model: null } as ServerEvent);
+  const session = (id: string | null) => ev({ kind: 'session', id, root: '/r', title: null, model: null } as ServerEvent);
   return { store, sent, open, session };
 }
 afterEach(() => vi.restoreAllMocks());
@@ -62,4 +62,18 @@ it('a refused switch says so', () => {
   r.session(A);
   expect(getToasts().some((x) => x.title === t('projLandFailed') && x.msg === t('working'))).toBe(true);
   expect(r.sent.some((m) => m.type === 'switch')).toBe(false);
+});
+
+it('a fresh window without a session id yet: a chosen session opens at once, new needs nothing', () => {
+  const r = rig();
+  startLanding(r.store, B);
+  r.open();
+  r.session(null);
+  expect(r.sent.filter((m) => m.type === 'switch')).toEqual([{ type: 'switch', id: B, dir: '/r' }]);
+  const n = rig();
+  startLanding(n.store, 'new');
+  n.open();
+  n.session(null);
+  n.session(A);
+  expect(n.sent.some((m) => m.type === 'switch')).toBe(false);
 });

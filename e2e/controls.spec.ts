@@ -75,6 +75,7 @@ test.afterEach(async ({ page }) => {
   const root = page.locator('#root-path');
   await expect(page.locator('#conn')).toHaveText(''); // a switch still running finishes first
   if (/\/other$/.test((await root.textContent()) ?? '')) {
+    await page.locator('[data-tab="chat"]').click(); // the session line is above the chat
     await page.locator('#sessBtn').click();
     await expandSessionGroups(page);
     await page.locator('[data-sess-item]').filter({ hasText: 'Alpha session' }).click();
@@ -310,6 +311,7 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
   await page.locator('#toggleTree').click();
 
   const pickSession = async (title: string) => {
+    await page.locator('[data-tab="chat"]').click(); // the session line is above the chat
     await page.locator('#sessBtn').click();
     await expandSessionGroups(page);
     await page.locator('[data-sess-item]').filter({ hasText: title }).click();
@@ -320,6 +322,7 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
 
   // renamed from the menu without switching to it, and back: the next tests look for this title
   const rename = async (from: string, to: string) => {
+    await page.locator('[data-tab="chat"]').click();
     await page.locator('#sessBtn').click();
     await expandSessionGroups(page);
     await page.getByRole('button', { name: `${en.renameSess}: ${from}` }).click({ force: true });

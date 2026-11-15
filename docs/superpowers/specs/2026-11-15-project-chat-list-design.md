@@ -57,10 +57,12 @@ The starter becomes a familiar "Open folder" dialog, one mode instead of two:
 ## Unseen replies
 
 A window already reports, in `/info`, the number of replies of its current session and the last message
-(`hub.summary()`). A reply is seen when a page shows that session while the page is visible. The window keeps,
-per session id, how many replies were seen; the page reports visibility on its socket, and while any visible page
-shows the current session the window marks every reply as seen. The marks persist in the window's state dir, so a
-restart or a reload keeps them. `/info` adds `unseen`. Only the current session of a window can gain replies, so
+(`hub.summary()`). A reply is seen when a page shows that session while the page is visible and focused. The window
+keeps, per session id, the time the session was last seen; unseen is the replies after it (a time, not a count: a
+compaction drops replies). The marks persist in the state dir. Known limit: a reply replayed from the transcript has
+no time, so replies that came before a restart of the window or the agent, or before a switch back to that session,
+count as seen; replies after it count again. `/info` adds `unseen`. Only the current session of a window can gain
+replies, so
 its count is the row's count; a session left with unseen replies keeps its count in the session list.
 
 ## Folder rows over windows

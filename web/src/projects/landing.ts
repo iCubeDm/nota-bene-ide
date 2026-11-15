@@ -12,10 +12,11 @@ export function startLanding(store: AppStore, session: string, switchFn?: (id: s
   const check = () => {
     const st = store.getState();
     const cur = selectSession(st);
-    if (done || selectConn(st) !== 'open' || !cur?.id) return;
+    if (done || selectConn(st) !== 'open' || !cur) return;
     done = true;
     unsubscribe();
-    if (cur.id.toLowerCase() === session.toLowerCase()) return;
+    // a fresh window may have no id until its first turn: it already is a new session
+    if (cur.id ? cur.id.toLowerCase() === session.toLowerCase() : session === 'new') return;
     const r = sw(session === 'new' ? null : session, cur.root);
     if (r !== 'sent') toast(t('projLandFailed'), t(REFUSED[r]));
   };

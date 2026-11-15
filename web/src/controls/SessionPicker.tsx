@@ -8,7 +8,7 @@ import { REFUSED, useNote } from './useNote.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { archiveSession, brief, deleteSession, renameSession } from './sessionsApi.ts';
 import { shortWinHome } from '@/lib/paths.ts';
-import { openFolder, PROVIDER_LABEL, reasonText } from '@/projects/api.ts';
+import { PROVIDER_LABEL } from '@/projects/api.ts';
 
 /** GET /sessions (server/src/sessions.ts SessionsView). */
 export type SessionsView = {
@@ -88,7 +88,7 @@ type Ask = { id: string | null; title: string; dir: string };
 const ROW_ACTION = 'rounded px-1 text-xs text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-foreground focus-visible:opacity-100';
 
 /**
- * "Sessions ▾" in the header (claude --resume): every session of every folder, this project first. Picking one asks,
+ * The Sessions menu of the line above the chat (claude --resume): every session of every folder, this project first. Picking one asks,
  * then sends `switch`; the header says "switching…" until the new session is announced. Off while the agent works or
  * a switch runs (R-M4-4).
  */
@@ -189,11 +189,6 @@ export function SessionPicker() {
     // focus goes back to the trigger first, so the dialog returns it there when it closes
     trigger.current?.focus();
     setOpen(false);
-    // a session of another folder opens in that folder's window (started if none): this window stays on its project
-    if (a.id && v && a.dir !== v.root) {
-      void openFolder(a.dir, provider ?? 'claude', undefined, a.id).then((why) => { if (why) showNote(t('switchFail') + reasonText(why)); });
-      return;
-    }
     setAsk(a);
   };
 

@@ -33,6 +33,7 @@ const LOCAL = { current: S1, root: '/w/notes', sessions: [
   { id: S1, title: 'Weekly notes', at: 9, size: 1, cwd: '/w/notes' },
   { id: S2.replace('2222', '5555'), title: 'Older notes', at: 5, size: 1, cwd: '/w/notes' },
   { id: S3.replace('3333', '6666'), title: 'Old idea', at: 3, size: 1, cwd: '/w/archive-x' },
+  { id: S4.replace('4444', '7777'), title: 'In a subfolder', at: 4, size: 1, cwd: '/w/notes/web' },
 ] };
 
 let calls: { url: string; body: Record<string, unknown> | undefined }[];
@@ -116,6 +117,7 @@ it('this project starts expanded with its sessions; another expands on its chevr
   const mine = await screen.findByRole('group', { name: t('projSessionsOf', 'notes') });
   expect(within(mine).getByRole('button', { name: /Older notes/ })).toBeInTheDocument();
   expect(within(mine).queryByText('Old idea')).toBeNull(); // another folder
+  expect(within(mine).queryByRole('button', { name: /In a subfolder/ })).toBeNull(); // its own folder: not switchable here
   fireEvent.click(screen.getByRole('button', { name: t('projExpand', 'site') }));
   const site = await screen.findByRole('group', { name: t('projSessionsOf', 'site') });
   await waitFor(() => expect(within(site).getByRole('button', { name: /Earlier on site.*Claude/ })).toBeInTheDocument());

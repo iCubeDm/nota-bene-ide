@@ -136,7 +136,7 @@ const S1 = '11111111-1111-4111-8111-111111111111';
 const S2 = '22222222-2222-4222-8222-222222222222';
 const S3 = '33333333-3333-4333-8333-333333333333';
 
-it('sessionsOf lists the sessions of that window inside its folder', async () => {
+it('sessionsOf lists the sessions of that window in its folder, not in a subfolder', async () => {
   const a = mk('nb-proj-a-');
   const pa = await windowOf('claude', a);
   const view = { current: S1, root: a, sessions: [
@@ -146,7 +146,7 @@ it('sessionsOf lists the sessions of that window inside its folder', async () =>
   ] };
   const fetchFn: typeof fetch = (u, i) => (String(u).endsWith('/sessions') ? Promise.resolve(Response.json(view)) : fetch(u, i));
   expect(await sessionsOf({ provider: 'claude', port: pa, root: a }, fetchFn)).toEqual({
-    current: S1, sessions: [{ id: S1, title: 'here', at: 3 }, { id: S2, title: 'sub', at: 2 }],
+    current: S1, sessions: [{ id: S1, title: 'here', at: 3 }],
   });
 });
 

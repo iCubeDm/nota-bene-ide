@@ -90,7 +90,7 @@ export async function listProjects(own: { port: number; provider: AgentProvider 
 
 export type EnterResult = { url: string } | { error: 'no such window' | 'window not answering' };
 type Window = { provider: AgentProvider; port: number; root: string };
-type Proved = { token: string; nonce: string; bearer: string } | { error: 'no such window' | 'window not answering' };
+type Proved = { token: string; nonce: string; bearer: string; root: string } | { error: 'no such window' | 'window not answering' };
 
 /** A registered window of `provider` on `port` that still holds `root`: proved with its provider's token, its /info checked. */
 async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
@@ -107,7 +107,7 @@ async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
   } catch {
     return { error: 'window not answering' };
   }
-  return { token: p.token, nonce: n, bearer };
+  return { token: p.token, nonce: n, bearer, root: w.root };
 }
 
 /** The login URL of that window; with `session`, the page there opens that session once logged in (web landing.ts). */
@@ -120,9 +120,7 @@ export async function enterUrl(o: Window & { session?: string }, fetchFn: typeof
 export type SessionRow = { id: string; title: string; at: number; archived?: true };
 export type SessionsResult = { current: string | null; sessions: SessionRow[] } | { error: 'no such window' | 'window not answering' };
 
-const inside = (dir: string, root: string) => dir === root || dir.startsWith(root.endsWith('/') || root.endsWith('\\') ? root : `${root}/`) || dir.startsWith(`${root}\\`);
-
-/** That window's sessions (its GET /sessions) whose folder is its root or inside it. */
+/** That window's sessions (its GET /sessions) in its folder: one in a subfolder is that folder's (its switch would move the window). */
 export async function sessionsOf(o: Window, fetchFn: typeof fetch = fetch): Promise<SessionsResult> {
   const r = await proved(o, fetchFn);
   if ('error' in r) return r;
@@ -131,7 +129,7 @@ export async function sessionsOf(o: Window, fetchFn: typeof fetch = fetch): Prom
     const v = res.ok ? ((await res.json()) as { current?: unknown; sessions?: unknown } | null) : null;
     if (!v || !Array.isArray(v.sessions)) return { error: 'window not answering' };
     const sessions = (v.sessions as { id: string; title: string; at: number; cwd: string; archived?: true }[])
-      .filter((x) => typeof x?.id === 'string' && typeof x.cwd === 'string' && inside(x.cwd, o.root))
+      .filter((x) => typeof x?.id === 'string' && x.cwd === r.root)
       .map((x) => ({ id: x.id, title: typeof x.title === 'string' ? x.title : '', at: typeof x.at === 'number' ? x.at : 0, ...(x.archived ? { archived: true as const } : {}) }));
     return { current: typeof v.current === 'string' ? v.current : null, sessions };
   } catch {

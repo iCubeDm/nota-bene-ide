@@ -18,7 +18,6 @@ export type LocalSession = { id: string; title: string; at: number; cwd: string;
 type Item = { id: string; title: string; at: number; window: RunningRow };
 const SHOWN = 8;
 const LIVE = new Set(['working', 'waiting', 'idle']);
-const inside = (dir: string, root: string) => dir === root || dir.startsWith(`${root}/`) || dir.startsWith(`${root}\\`);
 const rowCls = 'flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted disabled:cursor-default';
 
 export function ProjectSessions({ root, windows, local, onDone }: { root: string; windows: RunningRow[]; local: LocalSession[]; onDone: () => void }) {
@@ -52,7 +51,7 @@ export function ProjectSessions({ root, windows, local, onDone }: { root: string
   }, [root]);
 
   const items: Item[] = [
-    ...(mine ? local.filter((s) => !s.archived && inside(s.cwd, root)).map((s) => ({ id: s.id, title: s.title, at: s.at, window: mine })) : []),
+    ...(mine ? local.filter((s) => !s.archived && s.cwd === root).map((s) => ({ id: s.id, title: s.title, at: s.at, window: mine })) : []),
     ...others,
   ].sort((a, b) => b.at - a.at);
   const shown = all ? items : items.slice(0, SHOWN);

@@ -348,7 +348,7 @@ test('the header picks another worktree read-only: open a file only it has, the 
     await page.locator('#git-branch').click();
     await page.getByRole('button', { name }).click();
   };
-  await pickBranch(/feature\/x/);
+  await pickBranch(/^feature\/x/); // not its Open button
   await expect(page.locator('#git-branch')).toContainText('feature/x');
   await sheet.locator('button[data-path="only-x.md"]').click();
   const tab = page.locator('[data-tab="file:ref:feature/x:only-x.md"]');
@@ -365,7 +365,7 @@ test('the header picks another worktree read-only: open a file only it has, the 
 test('Changes shows what another worktree has not committed, a comment on it is marked in the diff, the log lists the history @files', async ({ page }) => {
   await start(page);
   await page.locator('#git-branch').click();
-  await page.getByRole('button', { name: /feature\/x/ }).click();
+  await page.getByRole('button', { name: /^feature\/x/ }).click();
   await page.locator('#toggleChanges').click();
   const pane = page.locator('[data-pane="changes"]');
   await expect(pane.locator('[data-file-path="only-x.md"]')).toContainText('written by another agent');

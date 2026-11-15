@@ -10,7 +10,6 @@ import { setDraft } from '@/composer/slice.ts';
 import { setLang } from '@/i18n/index.ts';
 import { Header } from '@/shell/Header.tsx';
 import { makeStore } from '@/store/store.ts';
-import { nav } from '@/projects/api.ts';
 import { ago, groupSessions, kb, menuGroups, SessionPicker, type SessionsView } from './SessionPicker.tsx';
 import { brief } from './sessionsApi.ts';
 
@@ -40,7 +39,6 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url === '/sessions') return new Response(JSON.stringify(view));
     if (url === '/sources') return new Response(JSON.stringify([]));
-    if (url === '/system/projects/open') return Response.json({ url: `http://127.0.0.1:4793/#t=${'a'.repeat(64)}` });
     return new Response('nope', { status: 404 });
   }));
 });
@@ -160,16 +158,16 @@ it('the current session is inert', async () => {
   expect(switches()).toEqual([]);
 });
 
-it('a session in another folder opens in that folder\'s window, this one stays where it is', async () => {
-  const go = vi.spyOn(nav, 'go').mockImplementation(() => {});
+it('picking a session in another folder asks (open + move + warn), then moves this window there', async () => {
   const { switches } = setup();
   await openPicker();
   await expand('~/other');
   await userEvent.click(screen.getByText('other one'));
-  await waitFor(() => expect(go).toHaveBeenCalledWith(`http://127.0.0.1:4793/#t=${'a'.repeat(64)}&s=${B}`));
-  expect(switches()).toEqual([]);
-  expect(screen.queryByRole('dialog', { name: /Open session/ })).toBeNull();
-  go.mockRestore();
+  const dlg = await screen.findByRole('dialog', { name: 'Open session “other one”?' });
+  expect(dlg).toHaveTextContent('the window will switch to the project /Users/me/other');
+  expect(dlg).toHaveTextContent('Don’t keep this same session open in a terminal claude');
+  await userEvent.click(within(dlg).getByRole('button', { name: 'Switch' }));
+  expect(switches()).toEqual([{ type: 'switch', id: B, dir: '/Users/me/other' }]);
 });
 
 it('a switch in this folder: switching… in the header, the line is off until the window tells the new session', async () => {
