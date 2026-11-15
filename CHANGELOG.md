@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.0.1 — 2026-11-15
+
 - **Usage: tokens per 1% as a table.** The two lines with arrows are one table: a column per weekly window (the last 8), headed by its dates, and the rows avg 1% 5h and avg 1% weekly (web and phone).
 - **Usage: one column per week.** A weekly window no longer splits into many when the provider reports its reset a few milliseconds or seconds apart; old readings are grouped the same way.
 
