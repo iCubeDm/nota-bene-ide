@@ -109,6 +109,17 @@ A folder has at most one window per provider. Claude, Codex and omp can each hav
 
 A window also has one owner tab. Open the same address in a second browser tab and that tab shows "The window is already open in another tab". Press **Work here** to take the window over: the first tab then shows "Open in another tab" and stops. A reload of the owner tab within a moment is not counted as a second tab.
 
+## Projects: switching, opening, creating
+
+The project's name at the left of the header opens the project switcher (Alt+P). It lists every running window of every provider, grouped by folder, with its agent's state. An agent is *working*, *waits for you* (a permission, a question or a plan), or *idle*. A window can also be *restarting* or *not answering*. Next to the name, a count shows how many other windows wait for you. Type to filter by folder name or path.
+
+- **Choose a window** to move this tab to it, already logged in. The other window's own tab rule applies: if it is open in another tab, it offers **Work here**.
+- **Recent** lists folders opened before that are not running now. A click opens the folder in a window of the agent it was last opened with.
+- **Open folder…** browses folders from your home folder. You can also type a full path and press Enter. **Show hidden** lists folders whose names start with a dot. Pick the agent and press **Open**: the folder opens in a new window (or in its existing window for that agent), and this tab moves there.
+- **New project…** creates a folder inside the one being browsed, optionally as a git repository, and opens it the same way.
+
+The other windows keep running. Settings → Windows still lists the windows of this window's provider, with their restart and stop actions.
+
 ## Chat
 
 The chat is the first tab and cannot be closed. Type a message and press Enter to send, Shift+Enter for a new line.
@@ -422,6 +433,7 @@ The full list is in the window's Hotkeys help. Tab keys use Alt because Chrome k
 | Alt+Left, Alt+Right | previous or next tab |
 | Alt+1 to Alt+9 | tab N (1 is the chat, 9 is the last) |
 | Alt+E | recent files and project search |
+| Alt+P | project switcher: switch, open or create a project |
 | Alt+H | prompt history (searchable list) |
 | Alt+↑ / Alt+↓ | older / newer prompt in the message field, any draft |
 | Cmd/Ctrl+Shift+F | Files panel |

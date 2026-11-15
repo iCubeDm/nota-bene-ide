@@ -134,6 +134,10 @@ The host side is `nota-bene remote` (`server/src/remote/`), one process per user
 
 The phone side is in `mobile/`: `mobile/channel` (`nb_channel`, pure Dart) is the same channel from the other end (Noise IK on the `cryptography` package, checked against the same vectors and worked examples; the mux; relay admission), proved end to end against the real relay and connector by `cross_test.dart`, which drives `server/src/remote/crossHost.ts`. `mobile/app` (`nb_app`, Flutter, Android) keeps one link per paired host (`hosts/host_link.dart`) and is an ordinary tab of a window over it (`chat/window_tab.dart`, the feed a port of `web/src/store/feed.ts`); it uses the protocol types generated into `mobile/protocol`. Build and test commands are in [mobile/README.md](../mobile/README.md).
 
+### 2.4 Projects across windows
+
+Until one server holds every project (design: [one tab for all projects](superpowers/specs/2026-11-15-one-tab-projects-design.md)), the header's project switcher works over today's windows. The current window's server reads every provider's registry and proves each listener with that provider's token, as the connector does (`server/src/projects.ts`). To move a tab, it derives the target's login value from that token, the port and the proved nonce, exactly as the launcher's `loginTarget` does. The value goes only into the JSON answer; the page navigates to it. To open a folder, it runs its own launcher with `--detach --no-open`, without this server's launch-state variables, and returns the URL from the launcher's one line (`server/src/projectRoutes.ts`). The launcher records each launch in `recent.json` in the base state folder (`server/src/recent.ts`). The web side is `web/src/projects/`.
+
 ## 3. Server
 
 ### 3.1 Modules
