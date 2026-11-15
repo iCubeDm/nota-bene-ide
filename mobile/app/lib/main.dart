@@ -81,7 +81,27 @@ class AppRoot extends StatefulWidget {
   State<AppRoot> createState() => _AppRootState();
 }
 
+// DIAGNOSTIC gh-401, removed before the PR
+class _NbInsetsLog with WidgetsBindingObserver {
+  void log(String at) {
+    final v = WidgetsBinding.instance.platformDispatcher.views.first;
+    // ignore: avoid_print
+    print('NBInsets flutter $at viewInsets=${v.viewInsets.bottom} viewPadding=${v.viewPadding.bottom}');
+  }
+  @override
+  void didChangeMetrics() => log('metrics');
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState s) => log('life ${s.name}');
+}
+final _nbInsetsLog = _NbInsetsLog();
+
 class _AppRootState extends State<AppRoot> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(_nbInsetsLog);
+  }
+
   final _visible = AppVisible();
   final _platform = ChannelBackground();
 

@@ -897,14 +897,28 @@ class MainActivity : FlutterFragmentActivity() {
     // current insets go straight to the Flutter view.
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        nbDiag("focus=$hasFocus")
         if (!hasFocus || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val decor = window.decorView
+        decor.postDelayed({ nbDiag("focus+300") }, 300)
+        decor.postDelayed({ nbDiag("focus+1000") }, 1000)
         decor.post {
             val insets = decor.rootWindowInsets ?: return@post
-            if (WindowInsetsCompat.toWindowInsetsCompat(insets).isVisible(WindowInsetsCompat.Type.ime())) return@post
+            if (WindowInsetsCompat.toWindowInsetsCompat(insets).isVisible(WindowInsetsCompat.Type.ime())) { nbDiag("post: ime visible, skip"); return@post }
+            nbDiag("post: apply, view=${flutterView(decor) != null}")
             flutterView(decor)?.onApplyWindowInsets(insets)
         }
     }
+
+    // DIAGNOSTIC gh-401, removed before the PR
+    private fun nbDiag(at: String) {
+        val raw = window.decorView.rootWindowInsets
+        val i = raw?.let { WindowInsetsCompat.toWindowInsetsCompat(it) }
+        android.util.Log.i("NBInsets", "$at ime=${i?.isVisible(WindowInsetsCompat.Type.ime())} imeBottom=${i?.getInsets(WindowInsetsCompat.Type.ime())?.bottom} navBottom=${i?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom}")
+    }
+
+    override fun onResume() { super.onResume(); nbDiag("resume") }
+    override fun onPause() { nbDiag("pause"); super.onPause() }
 
     private fun flutterView(v: View): FlutterView? {
         if (v is FlutterView) return v
