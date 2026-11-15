@@ -159,6 +159,39 @@ void main() {
     expect(find.textContaining('Opus 5.5'), findsWidgets);
   });
 
+  testWidgets(
+    'the five-hour line follows the weekly one, a dash where a week has none',
+    (t) async {
+      host(
+        (p) async => answer(
+          200,
+          jsonEncode({
+            ...report(),
+            'tanks': [
+              {'from': 1, 'to': 2, 'pct': 10, 'w': 100, 'perPct': 3800000},
+              {
+                'from': 3,
+                'to': 4,
+                'pct': 10,
+                'w': 100,
+                'perPct': 3700000,
+                'h5': {'pct': 40, 'w': 100, 'perPct': 900000},
+              },
+            ],
+          }),
+        ),
+      );
+      await show(t);
+      final five = find.textContaining(w('usageTank5h'), skipOffstage: false);
+      await t.scrollUntilVisible(five, 200);
+      expect(five, findsOneWidget);
+      expect(
+        (t.widget(five) as Text).data,
+        '${w('usageTank5h')} — → ${fmtTokens(900000, 'en')}',
+      );
+    },
+  );
+
   testWidgets('a codex window opens on codex', (t) async {
     host((p) async => answer(200, jsonEncode(report(provider: 'codex'))));
     await show(t, provider: 'codex');

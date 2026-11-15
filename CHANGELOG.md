@@ -7,6 +7,7 @@
 - **Sessions from the chat tab.** The header's Sessions button moved to **▾** on the chat tab, which names the session. It now lists only this project's sessions; another project's are in the project list.
 - **Header.** The project's path sits under its name, its home folder shown as `~`; a click copies the whole path. The git branch sits over the middle column, in line with the first tab, so a long name or path no longer moves it.
 - **Stop Nota Bene, or one project.** The header's ⏻ now stops every window and its agent, after a confirmation; if another window does not stop, this one stays open. One project stops from its row in the project list (⏻ on hover), and the others go on. The sessions stay either way.
+- **Usage: per 1% as averages.** Each “Per 1% of the weekly limit” number now averages its week and every later one up to the current; a second line does the same for the 5-hour limit, over each week's 5-hour windows (web and phone).
 
 - **Notifications on the phone.** The Android app tells you when an agent finishes a reply or waits for you, and a tap opens that chat. While an agent works it keeps its connection in the background (a quiet line in the notification shade, gone five minutes after the agents stop); otherwise it looks every 15 minutes. Settings → Notifications turns it off. See [Remote access](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#the-android-app-prototype).
 

@@ -2707,10 +2707,29 @@
       "type": "object"
     },
     "UsageTank": {
-      "description": "One weekly limit window: the tokens between its first and last reading, per percent gained.",
+      "description": "One weekly limit window: its own percent and tokens; `perPct` is the tokens per 1% averaged over it and every later window up to the current. `h5`: the five-hour limit's, over the week's five-hour windows, averaged the same way.",
       "properties": {
         "from": {
           "type": "number"
+        },
+        "h5": {
+          "properties": {
+            "pct": {
+              "type": "number"
+            },
+            "perPct": {
+              "type": "number"
+            },
+            "w": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "pct",
+            "w",
+            "perPct"
+          ],
+          "type": "object"
         },
         "pct": {
           "type": "number"

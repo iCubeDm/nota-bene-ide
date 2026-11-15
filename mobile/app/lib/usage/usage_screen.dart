@@ -656,6 +656,11 @@ class _LimitsState extends State<_Limits> {
               '${usageString('usageTank', lang)} ${tanks.map((k) => fmtTokens(k.perPct, lang)).join(' → ')}',
               style: _small(context),
             ),
+          if (tanks.any((k) => k.h5 != null))
+            Text(
+              '${usageString('usageTank5h', lang)} ${tanks.map((k) => k.h5 == null ? '—' : fmtTokens(k.h5!.perPct, lang)).join(' → ')}',
+              style: _small(context),
+            ),
         ],
       ),
     );

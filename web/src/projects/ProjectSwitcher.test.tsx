@@ -88,9 +88,10 @@ it('the trigger shows one badge: ! while another project waits; the tab title to
   setup();
   const trigger = screen.getByRole('button', { name: /notes/ });
   await waitFor(() => expect(within(trigger).getByText('!')).toBeInTheDocument());
-  // over the ▾, out of the flow: the name and the path do not move when it comes, goes or grows to two digits
+  // right of the ▾, out of the flow: the name and the path do not move when it comes, goes or grows to two digits
   expect(within(trigger).getByText('!').closest('[data-badge-over]')).toHaveClass('absolute');
-  expect(document.title).toBe('(!) Weekly notes · notes · Nota Bene');
+  // the title is set by an effect after the badge renders: a slow runner may check in between
+  await waitFor(() => expect(document.title).toBe('(!) Weekly notes · notes · Nota Bene'));
 });
 
 it('one row per folder: name, last message, session and agent below, one badge; waiting first, then unseen', async () => {

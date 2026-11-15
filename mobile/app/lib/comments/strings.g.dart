@@ -558,13 +558,29 @@ const _json = r'''
    "pt": "Por 1% do limite semanal:",
    "de": "Pro 1 % des Wochenlimits:"
   },
+  "usageTank5h": {
+   "en": "Per 1% of the 5-hour limit, a week's windows:",
+   "ru": "На 1% 5-часового лимита, окна недели:",
+   "zh": "每 1% 5 小时限额（按周内窗口）：",
+   "es": "Por 1 % del límite de 5 horas, ventanas de la semana:",
+   "pt": "Por 1% do limite de 5 horas, janelas da semana:",
+   "de": "Pro 1 % des 5-Stunden-Limits, Fenster einer Woche:"
+  },
+  "usageTank5hTip": {
+   "en": "Each number is the average over a week's 5-hour windows, from that week up to the current one; it stands under the same week's number above.",
+   "ru": "Каждое число: среднее по 5-часовым окнам недели, от этой недели до текущей; стоит под числом той же недели выше.",
+   "zh": "每个数字是一周内各 5 小时窗口的平均值，从该周算到当前周；与上方同一周的数字对应。",
+   "es": "Cada número es la media de las ventanas de 5 horas de una semana, desde esa semana hasta la actual; va bajo el número de la misma semana de arriba.",
+   "pt": "Cada número é a média das janelas de 5 horas de uma semana, dessa semana até a atual; fica sob o número da mesma semana acima.",
+   "de": "Jede Zahl ist der Durchschnitt über die 5-Stunden-Fenster einer Woche, von dieser Woche bis zur aktuellen; sie steht unter der Zahl derselben Woche oben."
+  },
   "usageTankTip": {
-   "en": "Each number is one limit window. A falling line means the same 100% buys fewer tokens.",
-   "ru": "Каждое число: одно окно лимита. Падение значит, что те же 100% дают меньше токенов.",
-   "zh": "每个数字对应一个限额窗口。折线下降表示同样的 100% 能换到更少的令牌。",
-   "es": "Cada número es una ventana de límite. Una línea descendente significa que el mismo 100 % compra menos tokens.",
-   "pt": "Cada número é uma janela de limite. Uma linha em queda significa que os mesmos 100% rendem menos tokens.",
-   "de": "Jede Zahl ist ein Limit-Fenster. Eine fallende Linie heißt: Dieselben 100 % ergeben weniger Tokens."
+   "en": "Each number is the average from that weekly window up to the current one; the last is the current window alone. A falling line means the same 100% buys fewer tokens.",
+   "ru": "Каждое число: среднее от этого недельного окна до текущего; последнее — только текущее окно. Падение значит, что те же 100% дают меньше токенов.",
+   "zh": "每个数字是从该周限额窗口到当前窗口的平均值；最后一个只是当前窗口。折线下降表示同样的 100% 能换到更少的令牌。",
+   "es": "Cada número es la media desde esa ventana semanal hasta la actual; el último es solo la ventana actual. Una línea descendente significa que el mismo 100 % compra menos tokens.",
+   "pt": "Cada número é a média dessa janela semanal até a atual; o último é só a janela atual. Uma linha em queda significa que os mesmos 100% rendem menos tokens.",
+   "de": "Jede Zahl ist der Durchschnitt von diesem Wochenfenster bis zum aktuellen; die letzte ist nur das aktuelle Fenster. Eine fallende Linie heißt: Dieselben 100 % ergeben weniger Tokens."
   },
   "usageTaskLine": {
    "en": "Calls: {0}, subagents {1}, {2}",
