@@ -43,10 +43,13 @@ export function Header() {
     <header className="relative z-[6] flex h-12 flex-none items-center gap-3 border-b border-border-soft bg-chrome px-4 text-xs text-muted-foreground backdrop-blur-[24px]">
       <Logo className="-mr-1 size-6 flex-none" />
       {/* the project's name opens the switcher: every window of every provider, recent folders, open or create one */}
-      {/* the path under the name, one block; pr-6 keeps room for the badge right of the ▾ */}
-      <div data-proj-block className="flex min-w-0 flex-col items-start pr-6">
+      {/* the path under the name, one block; pr-6 keeps room for the badge right of the ▾. The name alone sets the width
+          (w-0 min-w-full: the path adds none, so the git branch never moves for a long one); the path shows its end, cut on
+          the left (dir rtl over an ltr run keeps its slashes in order), and the whole of it in the tooltip. A floor of 14rem
+          keeps a short name from cutting the path to nothing; the branch moves only for a name longer than that */}
+      <div data-proj-block className="flex min-w-[min(14rem,30vw)] flex-col items-start pr-6">
         <ProjectSwitcher project={project} windowTitle={windowTitle} />
-        <span id="root-path" className="max-w-full truncate px-1 font-mono text-[0.625rem] leading-3 opacity-70">{session?.root ?? ''}</span>
+        <span id="root-path" dir="rtl" title={session?.root ?? undefined} className="w-0 min-w-full truncate px-1 text-left font-mono text-[0.625rem] leading-3 opacity-70"><span dir="ltr">{session?.root ?? ''}</span></span>
       </div>
       <GitBranch />
       <span className="flex-1" />

@@ -126,3 +126,13 @@ it('the path stands under the project name, in one block with it', () => {
   expect(block!.querySelector('#root-path')).toHaveTextContent('/w/notes');
   expect(block!.className).toMatch(/flex-col/);
 });
+
+it('a long path does not widen the block (the git branch stays put): it fits the name, its end shown, the whole in the tooltip', () => {
+  const { ev } = setup();
+  ev({ kind: 'session', id: null, root: '/Users/me/very/long/path/to/proj', title: null, model: null });
+  const p = document.getElementById('root-path')!;
+  expect(p.className).toMatch(/\bw-0\b/);
+  expect(p.className).toMatch(/\bmin-w-full\b/);
+  expect(p).toHaveAttribute('dir', 'rtl');
+  expect(p).toHaveAttribute('title', '/Users/me/very/long/path/to/proj');
+});
