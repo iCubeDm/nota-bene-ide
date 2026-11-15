@@ -32,6 +32,8 @@ import { AuditLog } from './audit.ts';
 import { moveWindow } from './windows.ts';
 import { pidAlive } from './platform.ts';
 import { controlToken, describeVersion, listWindows, systemRoutes } from './system.ts';
+import { projectRoutes } from './projectRoutes.ts';
+import { parseProvider } from './agent/provider.ts';
 import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
 import { runtimeDir } from './runtime.ts';
@@ -358,6 +360,7 @@ export async function startServer(o: {
         ...usageRoutes({ hub }),
         ...dictationRoutes({ hub }),
         ...remoteRoutes({ hub, keeper: o.remote }),
+        ...projectRoutes({ hub, port: () => ownPort, provider: parseProvider(process.env.NOTA_BENE_AGENT), repoDir }),
         ...systemRoutes({
           updater: win, newer,
           hub, root, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir,
