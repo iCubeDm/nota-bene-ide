@@ -76,13 +76,10 @@ function setup() {
 }
 const btn = () => screen.getByRole('button', { name: 'Sessions' });
 const menu = () => screen.getByRole('dialog', { name: 'Sessions' });
-it('the session line names the open session and its agent; it opens the Sessions menu; the header has no Sessions button', () => {
-  const { emit } = setup();
-  expect(btn().textContent).toBe('(untitled)');
+it('the Sessions trigger is a ▾ (the chat tab names the session); the tooltip says what it opens', () => {
+  setup();
+  expect(btn().textContent).toBe('');
   expect(btn().title).toMatch(/^Open another Claude Code session/);
-  emit({ kind: 'session', id: A, root: '/Users/me/proj', title: 'current talk', model: null });
-  expect(btn().textContent).toBe('current talk');
-  expect(document.querySelector('header #sessBtn')).toBeNull();
 });
 
 async function openPicker() {

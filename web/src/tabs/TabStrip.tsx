@@ -10,6 +10,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { toast } from '@/shell/toast.ts';
 import { activate, closeAll, closeOthers, closeRight, closeTab, selectTabs, type Tab } from './slice.ts';
 import { TabsMenu } from './TabsMenu.tsx';
+import { SessionPicker } from '@/controls/SessionPicker.tsx';
 
 export const Svg = ({ children, size = 14 }: { children: ReactNode; size?: number }) => (
   <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={size} height={size} className="flex-none">{children}</svg>
@@ -124,6 +125,7 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
             : <span className="truncate">{label}</span>}
           {tab.kind === 'file' && tab.ref && <SourceChip name={tab.ref} />}
           {badge > 0 && <span data-badge className="rounded-full bg-nb-accent/[.18] px-1.5 text-[0.625rem] font-semibold leading-4 text-nb-accent">{badge}</span>}
+          {isChat && <SessionPicker />}
           {!isChat && (
             <button
               type="button"

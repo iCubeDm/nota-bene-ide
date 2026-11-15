@@ -8,7 +8,6 @@ import { REFUSED, useNote } from './useNote.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { archiveSession, brief, deleteSession, renameSession } from './sessionsApi.ts';
 import { shortWinHome } from '@/lib/paths.ts';
-import { PROVIDER_LABEL } from '@/projects/api.ts';
 
 /** GET /sessions (server/src/sessions.ts SessionsView). */
 export type SessionsView = {
@@ -88,7 +87,7 @@ type Ask = { id: string | null; title: string; dir: string };
 const ROW_ACTION = 'rounded px-1 text-xs text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-foreground focus-visible:opacity-100';
 
 /**
- * The Sessions menu of the line above the chat (claude --resume): every session of every folder, this project first. Picking one asks,
+ * The Sessions menu, from ▾ on the chat tab (claude --resume): every session of every folder, this project first. Picking one asks,
  * then sends `switch`; the header says "switching…" until the new session is announced. Off while the agent works or
  * a switch runs (R-M4-4).
  */
@@ -218,13 +217,11 @@ export function SessionPicker() {
             aria-label={t('sessions')}
             title={t(provider === 'codex' ? 'sessTipCodex' : provider === 'omp' ? 'sessTipOmp' : 'sessTip')}
             disabled={off}
-            // the window's session above the chat (the project is the header's): its title and agent; it opens the Sessions menu
-            className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:enabled:bg-muted disabled:cursor-default"
+            // ▾ on the chat tab, which names the session: it opens the Sessions menu
+            onClick={(e) => e.stopPropagation()}
+            className="grid size-[18px] flex-none place-items-center rounded-[5px] text-muted-foreground hover:enabled:bg-muted hover:enabled:text-foreground disabled:cursor-default disabled:opacity-35"
           >
-            <span aria-hidden className={`size-2 flex-none rounded-full ${busy ? 'bg-primary' : 'bg-success'}`} />
-            <span className="truncate text-foreground">{session?.title || t('untitled')}</span>
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className="flex-none"><path d="m6 9 6 6 6-6" /></svg>
-            {provider && <span className="flex-none">· {PROVIDER_LABEL[provider]}</span>}
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
           </button>
         </PopoverTrigger>
         <PopoverContent
@@ -428,7 +425,7 @@ export function SessionPicker() {
 }
 
 /** An archive box: a lid over a box with a slot. */
-const ArchiveIcon = () => (
+export const ArchiveIcon = () => (
   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className="inline-block align-[-1px]">
     <rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />
   </svg>

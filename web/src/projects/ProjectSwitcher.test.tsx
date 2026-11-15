@@ -56,6 +56,7 @@ beforeEach(() => {
         ? { current: S3, sessions: [{ id: S3, title: '', at: 30 }] }
         : { current: S2, sessions: [{ id: S2, title: 'Fix the login form', at: 40 }, { id: S4, title: 'Earlier on site', at: 10 }] });
     }
+    if (url === '/sessions/rename' || url === '/sessions/archive') return new Response('ok');
     return new Response('[]');
   }));
   vi.spyOn(nav, 'go').mockImplementation(() => {});
@@ -115,7 +116,7 @@ it('a failed move shows its reason and stays', async () => {
 it('this project starts expanded with its sessions; another expands on its chevron with both agents\' sessions', async () => {
   await openMenu();
   const mine = await screen.findByRole('group', { name: t('projSessionsOf', 'notes') });
-  expect(within(mine).getByRole('button', { name: /Older notes/ })).toBeInTheDocument();
+  expect(within(mine).getByRole('button', { name: /^Older notes/ })).toBeInTheDocument();
   expect(within(mine).queryByText('Old idea')).toBeNull(); // another folder
   expect(within(mine).queryByRole('button', { name: /In a subfolder/ })).toBeNull(); // its own folder: not switchable here
   fireEvent.click(screen.getByRole('button', { name: t('projExpand', 'site') }));
@@ -200,8 +201,28 @@ it('a session of this window asks first, then switches here', async () => {
   await waitFor(() => expect(calls.some((c) => c.url === '/system/projects')).toBe(true));
   act(() => projectsMenu.open());
   const mine = await screen.findByRole('group', { name: t('projSessionsOf', 'notes') });
-  fireEvent.click(await within(mine).findByRole('button', { name: /Older notes/ }));
+  fireEvent.click(await within(mine).findByRole('button', { name: /^Older notes/ }));
   const dlg = await screen.findByRole('dialog', { name: t('openQ', 'Older notes') });
   fireEvent.click(within(dlg).getByRole('button', { name: t('switchBtn') }));
   expect(sent).toContainEqual({ type: 'switch', id: S2.replace('2222', '5555'), dir: '/w/notes' });
+});
+
+it('this window\'s sessions can be renamed and archived from their row; the open one is not archived; another window\'s only open', async () => {
+  await openMenu();
+  const mine = await screen.findByRole('group', { name: t('projSessionsOf', 'notes') });
+  expect(within(mine).getByRole('button', { name: `${t('renameSess')}: Weekly notes` })).toBeInTheDocument();
+  expect(within(mine).queryByRole('button', { name: `${t('archiveSess')}: Weekly notes` })).toBeNull();
+  fireEvent.click(within(mine).getByRole('button', { name: `${t('renameSess')}: Older notes` }));
+  const box = within(mine).getByRole('textbox', { name: t('renameSess') });
+  fireEvent.change(box, { target: { value: 'Newer name' } });
+  fireEvent.keyDown(box, { key: 'Enter' });
+  await waitFor(() => expect(calls.find((c) => c.url === '/sessions/rename')?.body).toEqual({ id: S2.replace('2222', '5555'), title: 'Newer name' }));
+  expect(await within(mine).findByRole('button', { name: /^Newer name/ })).toBeInTheDocument();
+  fireEvent.click(within(mine).getByRole('button', { name: `${t('archiveSess')}: Newer name` }));
+  await waitFor(() => expect(calls.find((c) => c.url === '/sessions/archive')?.body).toEqual({ id: S2.replace('2222', '5555'), archived: true }));
+  await waitFor(() => expect(within(mine).queryByRole('button', { name: /^Newer name/ })).toBeNull());
+  fireEvent.click(screen.getByRole('button', { name: t('projExpand', 'site') }));
+  const site = await screen.findByRole('group', { name: t('projSessionsOf', 'site') });
+  await within(site).findByRole('button', { name: /Earlier on site/ });
+  expect(within(site).queryByRole('button', { name: new RegExp(t('renameSess')) })).toBeNull();
 });

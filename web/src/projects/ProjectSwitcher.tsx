@@ -153,7 +153,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                       </button>
                       <Chevron open={isOpen} label={t('projExpand', folder)} onClick={() => toggle(r.root)} />
                     </div>
-                    {isOpen && <ProjectSessions root={r.root} windows={r.windows} local={local} onDone={() => projectsMenu.close()} />}
+                    {isOpen && <ProjectSessions root={r.root} windows={r.windows} local={local} setLocal={setLocal} onDone={() => projectsMenu.close()} />}
                   </div>
                 );
               })}
