@@ -200,6 +200,12 @@ describe('killTree', () => {
     expect(() => killTree(-5)).not.toThrow();
   });
 
+  it('never signals pid 1: its group would be kill(-1), every process the user owns', () => {
+    const kill = vi.spyOn(process, 'kill').mockImplementation((() => true) as typeof process.kill);
+    for (const platform of ['darwin', 'linux'] as const) killTree(1, 'SIGKILL', platform);
+    expect(kill).not.toHaveBeenCalled();
+  });
+
   it('signals the group on POSIX, the process when it leads none', () => {
     const kill = vi.spyOn(process, 'kill').mockImplementation(((pid: number) => {
       if (pid < 0) throw Object.assign(new Error('no group'), { code: 'ESRCH' });

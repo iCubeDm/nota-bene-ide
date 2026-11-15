@@ -44,6 +44,7 @@ afterEach(async () => {
     if (w.launcherPid) groups.add(w.launcherPid);
     groups.add(w.pid);
   }
+  for (const g of groups) if (g <= 1) groups.delete(g); // never 1: see killTree
   for (const g of groups) killTree(g, 'SIGKILL'); // the group, or the process alone; Windows: its tree (taskkill /T)
   // SIGKILL is asynchronous: wait until each group is really gone, or a process may still write into tmp while it is removed
   for (const g of groups) {
@@ -684,6 +685,8 @@ describe('handoverTarget', () => {
 
 describe('handover to the current version', () => {
   const OWN = (JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
+  // the newer version a handover goes to: one that never ships, so no release of ours is ever newer (1.99.0 was, at 2.0.0)
+  const FUTURE = '999.999.999';
   const runtime = () => path.join(home, 'runtime');
   const stubLog = () => path.join(tmp, 'stub.log');
   const serverLog = () => path.join(tmp, 'server.log');
@@ -719,9 +722,9 @@ if (process.argv[1] === ${JSON.stringify(main)}) {
     fs.existsSync(serverLog()) ? fs.readFileSync(serverLog(), 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : [];
 
   it('a server exit 77 starts the current launcher on the same port with the same nonce', async () => {
-    installStub('1.99.0', 0);
+    installStub(FUTURE, 0);
     fs.mkdirSync(runtime(), { recursive: true });
-    const r = launch(['--port', '4791'], { NOTA_BENE_TEST_PUBLISHED: '1', NOTA_BENE_TEST_CRASH: '77', ...serverPreload('1.99.0') });
+    const r = launch(['--port', '4791'], { NOTA_BENE_TEST_PUBLISHED: '1', NOTA_BENE_TEST_CRASH: '77', ...serverPreload(FUTURE) });
     expect(await r.exited).toBe(0);
     const [srv] = serverRuns();
     expect(serverRuns()).toHaveLength(1);
@@ -740,24 +743,24 @@ if (process.argv[1] === ${JSON.stringify(main)}) {
   }, 20000);
 
   it('an inner launcher exit 77 runs the current launcher again, updated from the version that exited', async () => {
-    installStub('1.99.0', `fs.existsSync(${JSON.stringify(stubLog())}) ? 0 : 77`);
-    setCurrent('1.99.0');
+    installStub(FUTURE, `fs.existsSync(${JSON.stringify(stubLog())}) ? 0 : 77`);
+    setCurrent(FUTURE);
     const r = launch(['--port', '4794'], { NOTA_BENE_TEST_PUBLISHED: '1' });
     expect(await r.exited).toBe(0);
     const runs = stubRuns();
     expect(runs).toHaveLength(2);
     expect(runs[0]!.env.NOTA_BENE_UPDATED_FROM).toBeUndefined(); // the first start is no update
-    expect(runs[1]!.env.NOTA_BENE_UPDATED_FROM).toBe('1.99.0');
+    expect(runs[1]!.env.NOTA_BENE_UPDATED_FROM).toBe(FUTURE);
     // the stub recorded no nonce: a fresh one (the recorded-nonce case has its own test)
     expect(runs[1]!.env.NOTA_BENE_HANDOVER_NONCE).not.toBe(runs[0]!.env.NOTA_BENE_HANDOVER_NONCE);
     expect(runs[1]!.argv).toContain('4794');
-    expect(fs.readFileSync(path.join(runtime(), 'current'), 'utf8')).toBe('1.99.0'); // a 77 is no failure
+    expect(fs.readFileSync(path.join(runtime(), 'current'), 'utf8')).toBe(FUTURE); // a 77 is no failure
   }, 20000);
 
   it('a new version that exits at once is rolled back', async () => {
-    installStub('1.99.0', 1);
+    installStub(FUTURE, 1);
     setCurrent(OWN); // what the update replaced
-    setCurrent('1.99.0');
+    setCurrent(FUTURE);
     fs.writeFileSync(path.join(runtime(), 'state.json'), JSON.stringify({ auto: false, previous: OWN }));
     const r = launch(['--port', '4792'], { NOTA_BENE_TEST_PUBLISHED: '1' });
     await waitFor(async () => (await info(4792))?.root === project, 15000);
@@ -765,8 +768,8 @@ if (process.argv[1] === ${JSON.stringify(main)}) {
     expect(stubRuns()[0]!.argv).toContain('--fake');
     expect(fs.readFileSync(path.join(runtime(), 'current'), 'utf8').trim()).toBe(OWN);
     const state = JSON.parse(fs.readFileSync(path.join(runtime(), 'state.json'), 'utf8'));
-    expect(state.rolledBack.version).toBe('1.99.0');
-    expect(fs.readFileSync(path.join(runtime(), 'update.log'), 'utf8')).toMatch(/1\.99\.0.*rolled back/);
+    expect(state.rolledBack.version).toBe(FUTURE);
+    expect(fs.readFileSync(path.join(runtime(), 'update.log'), 'utf8')).toMatch(/999\.999\.999.*rolled back/);
     expect(r.err()).toMatch(/rolled back/);
     const w = await waitFor(() => windows()['4792']);
     expect(w.launcherPid).toBe(r.p.pid); // the outer part runs the window itself now
@@ -775,17 +778,21 @@ if (process.argv[1] === ${JSON.stringify(main)}) {
   }, 30000);
 
   it('--detach with a handover prints the URL of the window the new version runs (its registry entry is the inner launcher\'s)', async () => {
-    // runtime 1.99.0's launcher is this checkout's (a symlink): a real window, run by an inner launcher
-    const v = path.join(runtime(), '1.99.0', 'node_modules', 'nota-bene-ide', 'bin');
+    // runtime FUTURE's launcher is this checkout's (a symlink): a real window, run by an inner launcher
+    const v = path.join(runtime(), FUTURE, 'node_modules', 'nota-bene-ide', 'bin');
     fs.mkdirSync(v, { recursive: true });
     fs.symlinkSync(BIN, path.join(v, 'nota-bene.mjs'));
-    setCurrent('1.99.0');
+    setCurrent(FUTURE);
     const r = spawnSync(process.execPath, [BIN, project, '--port', '4795', '--detach', '--fake', FAKE, '--no-open'], {
       env: env({ NOTA_BENE_TEST_PUBLISHED: '1' }), encoding: 'utf8', timeout: 25000,
     });
     const w = windows()['4795'];
-    if (w?.launcherPid) { // the outer part
-      groups.add(WIN ? winProcs().find((x) => x.pid === w.launcherPid)!.ppid : Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(w.launcherPid)], { encoding: 'utf8' }).trim()));
+    if (w?.launcherPid) { // the outer part, the inner launcher's parent: only when that is this test's own launcher
+      // an orphan's parent is 1 (launchd, init), and stopping its group is kill(-1): every process of the user
+      const outer = WIN ? winProcs().find((x) => x.pid === w.launcherPid)?.ppid : Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(w.launcherPid)], { encoding: 'utf8' }).trim());
+      let args = '';
+      try { if (outer && outer > 1) args = argsOf(outer); } catch { /* gone */ }
+      if (args.includes(BIN) && args.includes(project)) groups.add(outer!);
     }
     expect(r.status).toBe(0);
     expect(r.stdout).toBe(`opened ${await loginUrlOf(4795)}\n`);
@@ -794,7 +801,7 @@ if (process.argv[1] === ${JSON.stringify(main)}) {
   }, 30000);
 
   it('a new version whose window hangs (no /info, SIGTERM ignored, port held) is stopped with its whole group and rolled back', async () => {
-    const bin = path.join(runtime(), '1.99.0', 'node_modules', 'nota-bene-ide', 'bin', 'nota-bene.mjs');
+    const bin = path.join(runtime(), FUTURE, 'node_modules', 'nota-bene-ide', 'bin', 'nota-bene.mjs');
     fs.mkdirSync(path.dirname(bin), { recursive: true });
     const held = path.join(tmp, 'held.pid');
     // the "server": holds the port, never answers, ignores SIGTERM; the "launcher" ignores SIGTERM too
@@ -805,13 +812,13 @@ const port = process.argv[process.argv.indexOf('--port') + 1];
 spawn(process.execPath, ['-e', ${JSON.stringify(server)}, port], { stdio: 'ignore' });
 setInterval(() => {}, 1000);
 `);
-    setCurrent('1.99.0');
+    setCurrent(FUTURE);
     const r = launch(['--port', '4791'], { NOTA_BENE_TEST_PUBLISHED: '1', NOTA_BENE_TEST_HANDOVER_INFO_MS: '1500' });
     const hung = Number(await waitFor(() => fs.existsSync(held) && fs.readFileSync(held, 'utf8')));
     groups.add(hung);
     await waitFor(async () => (await info(4791))?.root === project, 20000);
     expect(alive(hung)).toBe(false);
-    expect(JSON.parse(fs.readFileSync(path.join(runtime(), 'state.json'), 'utf8')).rolledBack.version).toBe('1.99.0');
+    expect(JSON.parse(fs.readFileSync(path.join(runtime(), 'state.json'), 'utf8')).rolledBack.version).toBe(FUTURE);
     expect(r.err()).toMatch(/no answer on \/info.*rolled back/);
     expect(alive(r.p.pid!)).toBe(true);
   }, 30000);
@@ -820,13 +827,13 @@ setInterval(() => {}, 1000);
   it.skipIf(WIN)('a signal while a failed new version\'s port is still held stops the launcher: the previous version is not started', async () => {
     const go = path.join(tmp, 'go');
     // the new version: records its run, then exits 1 (a failure within 60 s) once the test holds the port
-    const bin = path.join(runtime(), '1.99.0', 'node_modules', 'nota-bene-ide', 'bin', 'nota-bene.mjs');
+    const bin = path.join(runtime(), FUTURE, 'node_modules', 'nota-bene-ide', 'bin', 'nota-bene.mjs');
     fs.mkdirSync(path.dirname(bin), { recursive: true });
     fs.writeFileSync(bin, `import fs from 'node:fs';
 fs.appendFileSync(${JSON.stringify(stubLog())}, JSON.stringify({ argv: process.argv.slice(2), env: {} }) + '\\n');
 setInterval(() => { if (fs.existsSync(${JSON.stringify(go)})) process.exit(1); }, 20);
 `);
-    setCurrent('1.99.0');
+    setCurrent(FUTURE);
     const r = launch(['--port', '4793'], { NOTA_BENE_TEST_PUBLISHED: '1', ...serverPreload() });
     await waitFor(() => stubRuns().length === 1);
     await hold(4793); // the port stays taken: the launcher waits for it before it would start the previous version
@@ -837,21 +844,21 @@ setInterval(() => { if (fs.existsSync(${JSON.stringify(go)})) process.exit(1); }
     expect(await r.exited).toBe(0);
     expect(Date.now() - at).toBeLessThan(3000);
     expect(serverRuns()).toHaveLength(0); // the previous version never ran
-    expect(JSON.parse(fs.readFileSync(path.join(runtime(), 'state.json'), 'utf8')).rolledBack.version).toBe('1.99.0'); // it failed all the same
+    expect(JSON.parse(fs.readFileSync(path.join(runtime(), 'state.json'), 'utf8')).rolledBack.version).toBe(FUTURE); // it failed all the same
   }, 30000);
 
   it('a new version whose server finds no agent binary (76) is not rolled back: the launcher exits 76', async () => {
-    installStub('1.99.0', 76);
-    setCurrent('1.99.0');
+    installStub(FUTURE, 76);
+    setCurrent(FUTURE);
     const r = launch(['--port', '4792'], { NOTA_BENE_TEST_PUBLISHED: '1' });
     expect(await r.exited).toBe(76);
-    expect(fs.readFileSync(path.join(runtime(), 'current'), 'utf8')).toBe('1.99.0');
+    expect(fs.readFileSync(path.join(runtime(), 'current'), 'utf8')).toBe(FUTURE);
     expect(fs.existsSync(path.join(runtime(), 'state.json')) ? JSON.parse(fs.readFileSync(path.join(runtime(), 'state.json'), 'utf8')).rolledBack : undefined).toBeUndefined();
   }, 20000);
 
   it('a handover loop ends on the own version, whose server may not exit 77: the window keeps running', async () => {
-    installStub('1.99.0', 77);
-    setCurrent('1.99.0');
+    installStub(FUTURE, 77);
+    setCurrent(FUTURE);
     const r = launch(['--port', '4793'], { NOTA_BENE_TEST_PUBLISHED: '1', ...serverPreload() });
     await waitFor(async () => (await info(4793))?.root === project, 20000);
     expect(stubRuns()).toHaveLength(11);
@@ -864,14 +871,14 @@ setInterval(() => { if (fs.existsSync(${JSON.stringify(go)})) process.exit(1); }
     const entry = path.join(home, 'windows', '4794.json');
     const recorded = 'ab'.repeat(16);
     // run 1 exits 77 with an entry naming its nonce; run 2 exits 77 with an entry without one; run 3 exits 0
-    installStub('1.99.0', `(() => {
+    installStub(FUTURE, `(() => {
       const n = fs.existsSync(${JSON.stringify(stubLog())}) ? fs.readFileSync(${JSON.stringify(stubLog())}, 'utf8').trim().split('\\n').length : 0;
       if (n >= 2) return 0;
       fs.mkdirSync(${JSON.stringify(path.dirname(entry))}, { recursive: true });
       fs.writeFileSync(${JSON.stringify(entry)}, JSON.stringify({ root: ${JSON.stringify(project)}, pid: process.pid, launcherPid: process.pid, startedAt: Date.now(), ...(n === 0 ? { nonce: '${recorded}' } : {}) }));
       return 77;
     })()`);
-    setCurrent('1.99.0');
+    setCurrent(FUTURE);
     const r = launch(['--port', '4794'], { NOTA_BENE_TEST_PUBLISHED: '1' });
     expect(await r.exited).toBe(0);
     const runs = stubRuns();
@@ -883,23 +890,23 @@ setInterval(() => { if (fs.existsSync(${JSON.stringify(go)})) process.exit(1); }
   }, 20000);
 
   it('an inner launcher whose server exits 77 records its nonce, and the next version gets it', async () => {
-    const v = path.join(runtime(), '1.99.0', 'node_modules', 'nota-bene-ide', 'bin');
+    const v = path.join(runtime(), FUTURE, 'node_modules', 'nota-bene-ide', 'bin');
     fs.mkdirSync(v, { recursive: true });
     fs.symlinkSync(BIN, path.join(v, 'nota-bene.mjs'));
-    setCurrent('1.99.0');
+    setCurrent(FUTURE);
     const r = launch(['--port', '4795'], { NOTA_BENE_TEST_PUBLISHED: '1', NOTA_BENE_TEST_CRASH: '77', ...serverPreload() });
     await waitFor(async () => (await info(4795))?.root === project, 20000);
     const [first, second] = serverRuns();
     expect(serverRuns()).toHaveLength(2);
     expect(second!.env.NOTA_BENE_NONCE).toBe(first!.env.NOTA_BENE_NONCE);
-    expect(second!.env.NOTA_BENE_UPDATED_FROM).toBe('1.99.0');
+    expect(second!.env.NOTA_BENE_UPDATED_FROM).toBe(FUTURE);
     r.p.kill('SIGTERM'); // a clean stop: nothing is still writing into tmp when the hook removes it
     await r.exited;
   }, 30000);
 
   it('a checkout never hands over', async () => {
-    installStub('1.99.0', 0);
-    setCurrent('1.99.0');
+    installStub(FUTURE, 0);
+    setCurrent(FUTURE);
     const r = launch(['--port', '4793'], serverPreload());
     await waitFor(async () => (await info(4793))?.root === project, 15000);
     expect(stubRuns()).toHaveLength(0);

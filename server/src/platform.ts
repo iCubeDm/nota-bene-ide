@@ -134,10 +134,11 @@ export const npxSpec = (args: readonly string[], { execPath = process.execPath, 
  * Stops `pid` and its descendants; never throws for a process that is already gone.
  * POSIX: `signal` to the process group `-pid` (a child spawned with `detached: true` leads one), falling back to the
  * process alone when it leads no group. Windows has no signals or groups: `taskkill /PID <pid> /T /F` kills the tree
- * hard whatever `signal` says, so the processes get no chance to clean up.
+ * hard whatever `signal` says, so the processes get no chance to clean up. A pid under 2 is refused.
  */
 export function killTree(pid: number, signal: NodeJS.Signals = 'SIGTERM', platform: Platform = process.platform): void {
-  if (!Number.isInteger(pid) || pid <= 0) return;
+  // never pid 1 (launchd, init: the parent an orphan gets): its "group" -1 is every process the user may signal
+  if (!Number.isInteger(pid) || pid <= 1) return;
   if (isWindows(platform)) {
     // exit 128 = not found: nothing to do. Its output is not interesting either way.
     spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { ...HIDDEN, stdio: 'ignore' });
