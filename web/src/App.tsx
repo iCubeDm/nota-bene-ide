@@ -26,6 +26,7 @@ import { Toasts } from './shell/Toasts.tsx';
 import { useFavicon } from './shell/Favicon.ts';
 import { useSounds } from './shell/sounds.ts';
 import { RecentFiles } from '@/files/RecentFiles.tsx';
+import { Starter } from '@/projects/Starter.tsx';
 import { installKeymap } from './shell/keymap.ts';
 
 export function App() {
@@ -83,6 +84,7 @@ export function App() {
       <CommentCardPopover />
       <Toasts />
       <RecentFiles />
+      <Starter />
       </div>
       <OneTab />
       <LoginRequired />

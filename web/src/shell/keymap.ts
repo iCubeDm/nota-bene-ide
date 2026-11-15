@@ -1,6 +1,7 @@
 import { setPanelOpen } from '@/comments/slice.ts';
 import { promptHistoryModal } from '@/composer/historyModal.ts';
 import { recentModal } from '@/files/recent.ts';
+import { projectsMenu } from '@/projects/api.ts';
 import { wrapLines } from '@/files/wrap.ts';
 import type { ru } from '@/i18n/ru.ts';
 import { selectConn, type AppStore } from '@/store/store.ts';
@@ -79,6 +80,8 @@ export const BINDINGS: Binding[] = [
   // Alt+E, not Cmd/Ctrl+E: Claude in Chrome takes ⌘E (the user, 2026-10-27). In a field too, also on a Mac: there
   // Option+E is the ´ dead key, which the binding consumes (recent files from the composer is the common case)
   { id: 'hk_recent', codes: ['KeyE'], mods: { alt: true }, inFields: true, run: () => (recentModal.get() ? recentModal.close() : recentModal.open()) },
+  // Alt+P, in a field too (also on a Mac, where Option+P types π): the project switcher in the header
+  { id: 'hk_projects', codes: ['KeyP'], mods: { alt: true }, inFields: true, run: () => projectsMenu.toggle() },
   // Alt+H, in a field too (also on a Mac, where Option+H types ˙): the prompt history list of the composer. No clash: H was free
   { id: 'hk_promptHistory', codes: ['KeyH'], mods: { alt: true }, inFields: true, run: () => (promptHistoryModal.get() ? promptHistoryModal.close() : promptHistoryModal.open()) },
   // Alt+↑/↓ (Option on a Mac): older / newer prompt in the composer, whatever the draft. Only the composer's own key handler

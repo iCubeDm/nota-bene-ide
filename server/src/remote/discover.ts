@@ -16,7 +16,8 @@ const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'omp'];
 const TOKEN_RE = /^[0-9a-f]{64}$/;
 const PROVE_MS = 1000;
 
-function tokenOf(dir: string): string | null {
+/** A provider state dir's access token, or null when it has none; throws SecretError for an unusable file. */
+export function providerToken(dir: string): string | null {
   return readPrivateFile(path.join(dir, 'token'), TOKEN_RE, 'a token (64 hex characters)', 'delete it to make a new token (every open window then has to be reopened)');
 }
 
@@ -66,7 +67,7 @@ export class Windows extends EventEmitter {
     if (!old) return undefined;
     let token: string | null = null;
     try {
-      token = tokenOf(providerStateDir(stateBaseDir(), old.provider));
+      token = providerToken(providerStateDir(stateBaseDir(), old.provider));
     } catch { /* reported by the poll */ }
     const w = token ? await this.#prove(old.port, old.provider, old.root, token) : undefined;
     const next = new Map(this.#list);
@@ -88,7 +89,7 @@ export class Windows extends EventEmitter {
       if (!fs.existsSync(dir)) return;
       let token: string | null;
       try {
-        token = tokenOf(dir);
+        token = providerToken(dir);
       } catch (e) {
         this.emit('warn', (e as Error).message);
         return;
