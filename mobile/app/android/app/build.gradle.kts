@@ -40,6 +40,7 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName(if (keystore != null) "release" else "debug")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
@@ -52,4 +53,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // the 15-minute check while the app is away (CheckWorker)
+    implementation("androidx.work:work-runtime:2.10.1")
 }

@@ -324,5 +324,19 @@
   "commentDiscardTitle": "Отбросить комментарий?",
   "commentDiscardBody": "Написанное пропадёт.",
   "commentKeep": "Продолжить",
-  "commentDiscard": "Отбросить"
+  "commentDiscard": "Отбросить",
+  "notifySetting": "Уведомления",
+  "notifyHint": "Пока агенты работают, приложение держит соединение и сообщает, когда агент ответил или ждёт тебя.",
+  "notifyDenied": "Уведомления Nota Bene выключены в настройках Android.",
+  "notifyOpenSettings": "Открыть настройки",
+  "notifyAsk": "Nota Bene может сообщать, когда агент ответил или ждёт тебя, и держать соединение, пока агенты работают. Разрешить уведомления?",
+  "notifyAskAllow": "Разрешить",
+  "notifyAskLater": "Не сейчас",
+  "notifyChannelService": "Соединение, пока работают агенты",
+  "notifyChannelEvents": "Ответы и запросы агентов",
+  "notifyServiceWorking": "{n, plural, =1{Работает 1 агент} few{Работают {n} агента} many{Работают {n} агентов} other{Работают {n} агента}}",
+  "notifyServiceWaiting": "Агент ждёт тебя",
+  "notifyWaitingText": "Агент ждёт тебя",
+  "notifyReplyPublic": "Новый ответ в {project}",
+  "notifyWaitingPublic": "{project}: агент ждёт тебя"
 }

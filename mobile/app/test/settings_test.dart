@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/settings_screen.dart';
+import 'package:nb_app/store/notify_choice.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/theme_choice.dart';
 import 'package:nb_app/store/vault.dart';
@@ -14,6 +15,7 @@ import 'package:nb_channel/nb_channel.dart';
 import 'support/fakes.dart';
 
 void main() {
+  notifyTests();
   testWidgets('forget asks, removes the host and stops its link', (t) async {
     final v = MemoryVault();
     final id = await Identity.load(v);
@@ -161,5 +163,75 @@ void main() {
     final ys = [for (final s in order) t.getTopLeft(find.text(s)).dy];
     expect([...ys]..sort(), ys, reason: 'dark first, then light, as designed');
     expect(ys.toSet(), hasLength(order.length));
+  });
+}
+
+void notifyTests() {
+  Future<(NotifyChoice, FakeBackground, List<bool>)> open(
+    WidgetTester t, {
+    String answer = 'granted',
+  }) async {
+    final v = MemoryVault();
+    final choice = await NotifyChoice.load(v);
+    final platform = FakeBackground(answer: answer);
+    final applied = <bool>[];
+    await t.pumpWidget(
+      NbApp(
+        home: SettingsScreen(
+          identity: await Identity.load(v),
+          hosts: await Hosts.load(v),
+          themes: await ThemeChoice.load(v),
+          onPair: () {},
+          notify: NotifySettings(
+            choice: choice,
+            platform: platform,
+            apply: (on) async => applied.add(on),
+          ),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    return (choice, platform, applied);
+  }
+
+  testWidgets('the notifications switch is on by default and turns them off', (
+    t,
+  ) async {
+    final (choice, _, applied) = await open(t);
+    final row = find.byKey(const ValueKey('notify'));
+    expect(row, findsOneWidget);
+    expect(t.widget<SwitchListTile>(row).value, isTrue);
+    expect(
+      find.text(
+        'Notifications are turned off for Nota Bene in Android\'s settings.',
+      ),
+      findsNothing,
+    );
+    await t.tap(row);
+    await t.pumpAndSettle();
+    expect(choice.on, isFalse);
+    expect(applied, [false]);
+    expect(t.widget<SwitchListTile>(row).value, isFalse);
+  });
+
+  testWidgets(
+    'with notifications denied by Android, a hint and a way to the settings',
+    (t) async {
+      final (_, platform, _) = await open(t, answer: 'denied');
+      expect(
+        find.text(
+          'Notifications are turned off for Nota Bene in Android\'s settings.',
+        ),
+        findsOneWidget,
+      );
+      await t.tap(find.text('Open settings'));
+      expect(platform.of('openSettings'), hasLength(1));
+    },
+  );
+
+  test('the choice is kept', () async {
+    final v = MemoryVault();
+    await (await NotifyChoice.load(v)).set(false);
+    expect((await NotifyChoice.load(v)).on, isFalse);
   });
 }

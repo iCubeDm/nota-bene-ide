@@ -324,5 +324,19 @@
   "commentDiscardTitle": "¿Descartar el comentario?",
   "commentDiscardBody": "Lo que escribiste se perderá.",
   "commentKeep": "Seguir escribiendo",
-  "commentDiscard": "Descartar"
+  "commentDiscard": "Descartar",
+  "notifySetting": "Notificaciones",
+  "notifyHint": "Mientras los agentes trabajan, la app mantiene su conexión y te avisa cuando un agente responde o te espera.",
+  "notifyDenied": "Las notificaciones de Nota Bene están desactivadas en los ajustes de Android.",
+  "notifyOpenSettings": "Abrir ajustes",
+  "notifyAsk": "Nota Bene puede avisarte cuando un agente responde o te espera, y mantener la conexión mientras los agentes trabajan. ¿Permitir notificaciones?",
+  "notifyAskAllow": "Permitir",
+  "notifyAskLater": "Ahora no",
+  "notifyChannelService": "Conexión mientras trabajan los agentes",
+  "notifyChannelEvents": "Respuestas y solicitudes de los agentes",
+  "notifyServiceWorking": "{n, plural, =1{1 agente trabajando} other{{n} agentes trabajando}}",
+  "notifyServiceWaiting": "Un agente te espera",
+  "notifyWaitingText": "El agente te espera",
+  "notifyReplyPublic": "Nueva respuesta en {project}",
+  "notifyWaitingPublic": "{project}: el agente te espera"
 }

@@ -26,6 +26,14 @@ void main() {
     seen = await Seen.load(v);
   });
 
+  test('reload takes what another engine wrote', () async {
+    seen.observe('h', [win('s1', 5)]);
+    final other = await Seen.load(v);
+    await other.see('h', 's1', 7);
+    await seen.reload();
+    expect(seen.seenOf('h', 's1'), 7);
+  });
+
   test('first sight is seen up to the current replies', () {
     seen.observe('h', [win('s1', 5)]);
     expect(seen.unread('h', win('s1', 5)), 0);

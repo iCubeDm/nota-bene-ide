@@ -10,6 +10,7 @@ import 'hosts/icon_flow.dart';
 import 'hosts/hosts_screen.dart';
 import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';
+import 'notify/visible.dart';
 import 'store/hosts.dart';
 import 'store/seen.dart';
 
@@ -24,6 +25,7 @@ class Home extends StatefulWidget {
     required this.onPair,
     required this.chat,
     this.onSettings,
+    this.opened,
     this.clock = DateTime.now,
   });
 
@@ -35,14 +37,19 @@ class Home extends StatefulWidget {
   final VoidCallback? onSettings;
   final ChatBuilder chat;
 
+  /// The chats of tapped notifications: each opens, over whatever chat is open.
+  final Stream<ChatPlace>? opened;
+
   @override
   State<Home> createState() => _HomeState();
 }
 
 class _HomeState extends State<Home> {
-  late final AppLifecycleListener _life;
-  Timer? _pause;
+  StreamSubscription<ChatPlace>? _tapped;
   bool _lastTried = false;
+
+  /// A tapped notification's chat, opened as the last chat is at start (once its host has answered).
+  String? _want;
 
   @override
   void initState() {
@@ -50,15 +57,11 @@ class _HomeState extends State<Home> {
     widget.links.addListener(_changed);
     widget.hosts.addListener(_changed);
     widget.seen.addListener(_changed);
-    _life = AppLifecycleListener(
-      onHide: () =>
-          _pause ??= Timer(const Duration(minutes: 10), widget.links.pause),
-      onShow: () {
-        _pause?.cancel();
-        _pause = null;
-        widget.links.resume();
-      },
-    );
+    _tapped = widget.opened?.listen((p) {
+      _want = '${p.hostId} ${p.port} ${p.root}';
+      _lastTried = false;
+      _openLast();
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _openLast());
   }
 
@@ -67,8 +70,7 @@ class _HomeState extends State<Home> {
     widget.links.removeListener(_changed);
     widget.hosts.removeListener(_changed);
     widget.seen.removeListener(_changed);
-    _life.dispose();
-    _pause?.cancel();
+    unawaited(_tapped?.cancel());
     super.dispose();
   }
 
@@ -78,10 +80,11 @@ class _HomeState extends State<Home> {
     _openLast();
   }
 
-  /// Once, at start: the last chat, if its host answers and still lists it before anything else happens.
+  /// Once, at start: the last chat, if its host answers and still lists it before anything else happens. Again for
+  /// each tapped notification.
   void _openLast() {
     if (_lastTried || !mounted) return;
-    final last = widget.hosts.lastChat?.split(' ');
+    final last = (_want ?? widget.hosts.lastChat)?.split(' ');
     if (last == null || last.length < 3) {
       _lastTried = true;
       return;
@@ -104,10 +107,13 @@ class _HomeState extends State<Home> {
 
   void _open(HostLink link, HostWindow w) {
     _lastTried = true;
+    _want = null;
     unawaited(widget.hosts.setLastChat('${link.host.id} ${w.port} ${w.root}'));
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => widget.chat(link.host.id, w)),
-    );
+    Navigator.of(context)
+      ..popUntil((r) => r.isFirst)
+      ..push(
+        MaterialPageRoute<void>(builder: (_) => widget.chat(link.host.id, w)),
+      );
   }
 
   @override

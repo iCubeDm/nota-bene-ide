@@ -324,5 +324,19 @@
   "commentDiscardTitle": "Kommentar verwerfen?",
   "commentDiscardBody": "Das Geschriebene geht verloren.",
   "commentKeep": "Weiterschreiben",
-  "commentDiscard": "Verwerfen"
+  "commentDiscard": "Verwerfen",
+  "notifySetting": "Benachrichtigungen",
+  "notifyHint": "Während Agenten arbeiten, hält die App ihre Verbindung und meldet, wenn ein Agent antwortet oder auf dich wartet.",
+  "notifyDenied": "Benachrichtigungen für Nota Bene sind in den Android-Einstellungen ausgeschaltet.",
+  "notifyOpenSettings": "Einstellungen öffnen",
+  "notifyAsk": "Nota Bene kann melden, wenn ein Agent antwortet oder auf dich wartet, und die Verbindung halten, solange Agenten arbeiten. Benachrichtigungen erlauben?",
+  "notifyAskAllow": "Erlauben",
+  "notifyAskLater": "Nicht jetzt",
+  "notifyChannelService": "Verbindung während Agenten arbeiten",
+  "notifyChannelEvents": "Antworten und Anfragen der Agenten",
+  "notifyServiceWorking": "{n, plural, =1{1 Agent arbeitet} other{{n} Agenten arbeiten}}",
+  "notifyServiceWaiting": "Ein Agent wartet auf dich",
+  "notifyWaitingText": "Der Agent wartet auf dich",
+  "notifyReplyPublic": "Neue Antwort in {project}",
+  "notifyWaitingPublic": "{project}: Der Agent wartet auf dich"
 }

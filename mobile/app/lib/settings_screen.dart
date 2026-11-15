@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 
 import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';
+import 'notify/platform.dart';
 import 'store/hosts.dart';
+import 'store/notify_choice.dart';
 import 'store/lang_choice.dart';
 import 'store/sizes.dart';
 import 'store/theme_choice.dart';
@@ -20,6 +22,7 @@ class SettingsScreen extends StatelessWidget {
     this.langs,
     this.voiceLang,
     this.sizes,
+    this.notify,
     required this.onPair,
   });
 
@@ -35,6 +38,9 @@ class SettingsScreen extends StatelessWidget {
 
   /// Text and interface size; no rows without it.
   final Sizes? sizes;
+
+  /// The notifications switch; no row without it.
+  final NotifySettings? notify;
   final VoidCallback onPair;
 
   Future<void> _pickLang(BuildContext context, LangChoice langs) =>
@@ -135,6 +141,7 @@ class SettingsScreen extends StatelessWidget {
           ?langs,
           ?voiceLang,
           ?sizes,
+          ?notify?.choice,
         ]),
         builder: (context, _) => ListView(
           children: [
@@ -171,6 +178,32 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
+            if (notify case final n?) ...[
+              const Divider(),
+              SwitchListTile(
+                key: const ValueKey('notify'),
+                secondary: const Icon(Icons.notifications_outlined),
+                title: Text(t.notifySetting),
+                subtitle: Text(t.notifyHint),
+                value: n.choice.on,
+                onChanged: (on) async {
+                  await n.choice.set(on);
+                  await n.apply(on);
+                },
+              ),
+              FutureBuilder<String>(
+                future: n.platform.permission(),
+                builder: (context, s) => s.data != 'denied'
+                    ? const SizedBox.shrink()
+                    : ListTile(
+                        subtitle: Text(t.notifyDenied),
+                        trailing: TextButton(
+                          onPressed: n.platform.openSettings,
+                          child: Text(t.notifyOpenSettings),
+                        ),
+                      ),
+              ),
+            ],
             if (langs case final langs?) ...[
               const Divider(),
               ListTile(
@@ -299,4 +332,17 @@ class _SizeControls extends StatelessWidget {
       ],
     );
   }
+}
+
+/// What the notifications row needs: the stored choice, Android's permission, and how the app applies a change.
+class NotifySettings {
+  const NotifySettings({
+    required this.choice,
+    required this.platform,
+    required this.apply,
+  });
+
+  final NotifyChoice choice;
+  final BackgroundPlatform platform;
+  final Future<void> Function(bool on) apply;
 }

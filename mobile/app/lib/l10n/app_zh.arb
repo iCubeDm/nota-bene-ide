@@ -324,5 +324,19 @@
   "commentDiscardTitle": "放弃评论？",
   "commentDiscardBody": "你写的内容将会丢失。",
   "commentKeep": "继续编辑",
-  "commentDiscard": "放弃"
+  "commentDiscard": "放弃",
+  "notifySetting": "通知",
+  "notifyHint": "代理工作时，应用会保持连接，并在代理回复或等你处理时通知你。",
+  "notifyDenied": "Nota Bene 的通知已在 Android 设置中关闭。",
+  "notifyOpenSettings": "打开设置",
+  "notifyAsk": "Nota Bene 可以在代理回复或等你处理时通知你，并在代理工作时保持连接。允许通知吗？",
+  "notifyAskAllow": "允许",
+  "notifyAskLater": "以后再说",
+  "notifyChannelService": "代理工作时的连接",
+  "notifyChannelEvents": "代理的回复和请求",
+  "notifyServiceWorking": "{n, plural, other{{n} 个代理正在工作}}",
+  "notifyServiceWaiting": "有代理在等你",
+  "notifyWaitingText": "代理在等你",
+  "notifyReplyPublic": "{project} 有新回复",
+  "notifyWaitingPublic": "{project}：代理在等你"
 }
