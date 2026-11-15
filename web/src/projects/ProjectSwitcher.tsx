@@ -28,12 +28,11 @@ export function ProjectSwitcher({ project }: { project: string }) {
   const running = data?.running ?? [];
   const waiting = running.filter((r) => r.state === 'waiting' && !r.current).length;
   const needle = q.trim().toLowerCase();
-  const hit = (root: string) => !needle || root.toLowerCase().includes(needle);
-  const groups = new Map<string, RunningRow[]>();
-  for (const r of running) if (hit(r.root)) groups.set(r.root, [...(groups.get(r.root) ?? []), r]);
+  const hit = (...s: (string | null)[]) => !needle || s.some((x) => x?.toLowerCase().includes(needle));
+  const shown = running.filter((r) => hit(r.root, r.title));
   const recent = (data?.recent ?? []).filter((e) => !e.running && hit(e.root)).slice(0, RECENT_SHOWN);
   const onOpenChange = (o: boolean) => { if (o) projectsMenu.open(); else { projectsMenu.close(); setQ(''); } };
-  const stateText = (r: RunningRow) => `${PROVIDER_LABEL[r.provider]} · ${t(STATE_KEY[r.state])}`;
+  const detail = (r: RunningRow) => `${folderOf(r.root)} · ${PROVIDER_LABEL[r.provider]} · ${t(STATE_KEY[r.state])}`;
   const openRecent = async (e: RecentRow) => {
     setBusy(true);
     const why = await openFolder(e.root, e.provider);
@@ -59,27 +58,27 @@ export function ProjectSwitcher({ project }: { project: string }) {
         <input id="projSearch" aria-label={t('projSearch')} placeholder={t('projSearch')} value={q} onChange={(e) => setQ(e.target.value)}
           className="m-1 flex-none rounded-md border border-border-soft bg-transparent px-2 py-1.5 text-xs text-foreground outline-none focus-visible:border-input-focus focus-visible:ring-2 focus-visible:ring-input-ring" />
         <div className="min-h-0 overflow-auto">
-          {groups.size > 0 && <div className="px-2.5 pt-1.5 pb-0.5 text-[0.6875rem] uppercase tracking-wide text-muted-foreground">{t('projRunning')}</div>}
-          {[...groups].map(([root, rows]) => (
-            <div key={root} role="group" aria-label={folderOf(root)} className="py-0.5">
-              <div className="flex items-baseline gap-2 px-2.5 pt-1">
-                <span className="text-[0.8125rem] text-foreground">{folderOf(root)}</span>
-                <span className="truncate font-mono text-[0.65625rem] text-muted-foreground">{short(root)}</span>
-              </div>
-              {rows.map((r) => {
+          {shown.length > 0 && (
+            <div role="group" aria-label={t('projRunning')} className="py-0.5">
+              <div className="px-2.5 pt-1.5 pb-0.5 text-[0.6875rem] uppercase tracking-wide text-muted-foreground">{t('projRunning')}</div>
+              {shown.map((r) => {
+                // a window is named by its session; the folder, agent and state go below
                 const body = (
                   <>
-                    <span aria-hidden className={`size-2 flex-none rounded-full ${DOT[r.state]}`} />
-                    <span className="flex-1 truncate">{stateText(r)}</span>
-                    {r.current && <span className="text-muted-foreground">{t('projThis')}</span>}
+                    <span aria-hidden className={`mt-1.5 size-2 flex-none self-start rounded-full ${DOT[r.state]}`} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-[0.8125rem] text-foreground">{r.title || folderOf(r.root)}</span>{' '}
+                      <span className="truncate text-[0.6875rem] text-muted-foreground" title={short(r.root)}>{detail(r)}</span>
+                    </span>
+                    {r.current && <span className="self-start text-muted-foreground">{t('projThis')}</span>}
                   </>
                 );
                 return !r.current && LIVE.has(r.state)
                   ? <button key={`${r.provider}${r.port}`} type="button" onClick={() => { projectsMenu.close(); void enterProject(r); }} className={`${rowCls} cursor-pointer hover:bg-muted`}>{body}</button>
-                  : <div key={`${r.provider}${r.port}`} className={`${rowCls} text-muted-foreground`}>{body}</div>;
+                  : <div key={`${r.provider}${r.port}`} className={`${rowCls} ${r.current ? '' : 'opacity-60'}`}>{body}</div>;
               })}
             </div>
-          ))}
+          )}
           {recent.length > 0 && (
             <div role="group" aria-label={t('projRecent')} className="py-0.5">
               <div className="px-2.5 pt-1.5 pb-0.5 text-[0.6875rem] uppercase tracking-wide text-muted-foreground">{t('projRecent')}</div>
@@ -92,7 +91,7 @@ export function ProjectSwitcher({ project }: { project: string }) {
               ))}
             </div>
           )}
-          {data && groups.size === 0 && recent.length === 0 && <div className="px-2.5 py-2 text-xs text-muted-foreground">{t('projNone')}</div>}
+          {data && shown.length === 0 && recent.length === 0 && <div className="px-2.5 py-2 text-xs text-muted-foreground">{t('projNone')}</div>}
         </div>
         <div className="mt-1 flex-none border-t border-border-soft pt-1">
           <button type="button" onClick={() => starter('open')} className={`${rowCls} cursor-pointer text-link hover:bg-muted`}>{t('projOpenFolder')}</button>

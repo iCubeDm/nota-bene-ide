@@ -8,8 +8,8 @@ import { ProjectSwitcher } from './ProjectSwitcher.tsx';
 
 const LIST: ProjectsList = {
   running: [
-    { provider: 'claude', port: 4791, root: '/w/notes', title: null, session: 's1', state: 'idle', current: true, clients: 1 },
-    { provider: 'claude', port: 4792, root: '/w/site', title: null, session: 's2', state: 'waiting', current: false, clients: 0 },
+    { provider: 'claude', port: 4791, root: '/w/notes', title: 'Weekly notes', session: 's1', state: 'idle', current: true, clients: 1 },
+    { provider: 'claude', port: 4792, root: '/w/site', title: 'Fix the login form', session: 's2', state: 'waiting', current: false, clients: 0 },
     { provider: 'codex', port: 4793, root: '/w/site', title: null, session: 's3', state: 'working', current: false, clients: 0 },
     { provider: 'omp', port: 4794, root: '/w/gone', title: null, session: null, state: 'restarting', current: false, clients: 0 },
   ],
@@ -52,25 +52,30 @@ it('the trigger shows the project and the waiting count', async () => {
   expect(within(trigger).getByTitle(t('projWaitingTip', 1))).toBeInTheDocument();
 });
 
-it('the menu groups running windows by folder with provider and state; recent lists only what is not running', async () => {
+it('each running window is named by its session, with the folder, agent and state below; recent lists only what is not running', async () => {
   await openMenu();
-  const site = screen.getByRole('group', { name: 'site' });
-  expect(within(site).getByRole('button', { name: /Claude.*waits for you/ })).toBeInTheDocument();
-  expect(within(site).getByRole('button', { name: /Codex.*working/ })).toBeInTheDocument();
-  const notes = screen.getByRole('group', { name: 'notes' });
-  expect(within(notes).queryByRole('button')).toBeNull();
-  expect(within(notes).getByText(t('projThis'))).toBeInTheDocument();
+  const running = screen.getByRole('group', { name: t('projRunning') });
+  const titled = within(running).getByRole('button', { name: /^Fix the login form/ });
+  expect(titled).toHaveAccessibleName(`Fix the login form site · Claude · ${t('projWaiting')}`);
+  // a window with no session title yet is named by its folder
+  expect(within(running).getByRole('button', { name: `site site · Codex · ${t('projWorking')}` })).toBeInTheDocument();
+  expect(within(running).queryByRole('button', { name: /Weekly notes/ })).toBeNull();
+  expect(within(running).getByText('Weekly notes')).toBeInTheDocument();
+  expect(within(running).getByText(t('projThis'))).toBeInTheDocument();
   const recent = screen.getByRole('group', { name: t('projRecent') });
   expect(within(recent).getByText('old')).toBeInTheDocument();
   expect(within(recent).queryByText('site')).toBeNull();
 });
 
-it('search filters running and recent by folder name and path', async () => {
+it('search filters by session title, folder name and path', async () => {
   const search = await openMenu();
   fireEvent.change(search, { target: { value: 'sit' } });
-  expect(screen.getByRole('group', { name: 'site' })).toBeInTheDocument();
-  expect(screen.queryByRole('group', { name: 'notes' })).toBeNull();
+  expect(screen.getByRole('button', { name: /^Fix the login form/ })).toBeInTheDocument();
+  expect(screen.queryByText('Weekly notes')).toBeNull();
   expect(screen.queryByText('old')).toBeNull();
+  fireEvent.change(search, { target: { value: 'weekly' } });
+  expect(screen.getByText('Weekly notes')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Fix the login form/ })).toBeNull();
   fireEvent.change(search, { target: { value: 'zzz' } });
   expect(screen.getByText(t('projNone'))).toBeInTheDocument();
 });
@@ -92,9 +97,8 @@ it('a failed enter shows its reason and stays', async () => {
 
 it('a restarting window is shown with its state and no action', async () => {
   await openMenu();
-  const gone = screen.getByRole('group', { name: 'gone' });
-  expect(within(gone).getByText(new RegExp(t('projRestarting')))).toBeInTheDocument();
-  expect(within(gone).queryByRole('button')).toBeNull();
+  expect(screen.getByText(new RegExp(`gone · omp · ${t('projRestarting')}`))).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /gone/ })).toBeNull();
 });
 
 it('a list that is not a projects list renders as empty', async () => {
