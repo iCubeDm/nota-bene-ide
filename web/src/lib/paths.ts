@@ -52,3 +52,6 @@ export const folderName = (p: string): string =>
 
 /** `C:/Users/<name>` (either separator, any case) shortened to `~`; other paths as is (each view shortens its own POSIX homes). */
 export const shortWinHome = (p: string): string => (isDrivePath(p) ? toSlash(p).replace(/^[A-Z]:\/Users\/[^/]+/i, '~') : p);
+
+/** Any home folder as `~`: `C:/Users/<name>`, `/Users/<name>` (macOS), `/home/<name>` (Linux); other paths as is. */
+export const shortHome = (p: string): string => shortWinHome(p).replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, '~');

@@ -34,7 +34,7 @@ With the plugin installed (see the README), type in any Claude Code session:
 | `/nb new` | Opens the window on a fresh session. |
 | `/nb fork` | Continues the current Claude Code conversation in the browser as a separate branch. Messages sent here and there no longer see each other. |
 
-The window runs as a background task of that Claude Code session. It shows in the task list, its output is the window's log, and it stops when you stop the task, end the session, or press **Stop window** (⏻) in the window. The first `/nb` after installing or updating the plugin installs the npm package into the plugin's data folder (about 330 MB per plugin version) and takes a few minutes.
+The window runs as a background task of that Claude Code session. It shows in the task list, its output is the window's log, and it stops when you stop the task, end the session, or press **Stop Nota Bene** (⏻) in the window, which stops every window. The first `/nb` after installing or updating the plugin installs the npm package into the plugin's data folder (about 330 MB per plugin version) and takes a few minutes.
 
 If a window for the folder is already open, `/nb` brings it to the front instead of starting another.
 
@@ -111,14 +111,19 @@ A window also has one owner tab. Open the same address in a second browser tab a
 
 ## Projects: switching, opening, creating
 
-The project's name at the left of the header opens the project switcher (Alt+P). It lists every running window of every provider, grouped by folder, with its agent's state. An agent is *working*, *waits for you* (a permission, a question or a plan), or *idle*. A window can also be *restarting* or *not answering*. Next to the name, a count shows how many other windows wait for you. Type to filter by folder name or path.
+Under the name is the project's path, its home folder shown as `~` and its start cut off when it is long; a click copies the whole path. The git branch sits over the middle column, in line with the first tab.
 
-- **Choose a window** to move this tab to it, already logged in. The other window's own tab rule applies: if it is open in another tab, it offers **Work here**.
-- **Recent** lists folders opened before that are not running now. A click opens the folder in a window of the agent it was last opened with.
-- **Open folder…** browses folders from your home folder. You can also type a full path and press Enter. **Show hidden** lists folders whose names start with a dot. Pick the agent and press **Open**: the folder opens in a new window (or in its existing window for that agent), and this tab moves there.
-- **New project…** creates a folder inside the one being browsed, optionally as a git repository, and opens it the same way.
+The project's name at the left of the header opens the project switcher (Alt+P), a list of your projects in the manner of a chat app. Each running folder is one row, whatever agents work in it: its name, the time of the last message, that message on one line, and below it the window's session, its agent and its state. An agent is *working*, *waiting for you* (a permission, a question or a plan) or *idle*; a window can also be *restarting* or *not answering*. Type to filter by folder name, path or session title.
 
-The other windows keep running. Settings → Windows still lists the windows of this window's provider, with their restart and stop actions.
+One badge per row says what needs you: **!** when the project waits for you, otherwise the number of replies you have not seen. A reply counts as seen once its session was on screen in a focused tab; replies that came before a restart of that window or its agent count as seen. The header's project button shows one badge for all the other projects by the same rule, and so does the tab title, as `(!)` or `(3)` in front of it. Rows that wait come first, then those with unseen replies, then the rest, newest first.
+
+- **Choose a project** to move this tab to its window, already logged in (the one with the newest message when several agents work there). The other window's own tab rule applies: if it is open in another tab, it offers **Work here**.
+- **The arrow on a row** shows that project's sessions, of every agent with a window there, newest first. This project's are shown when the menu opens. A session of this window switches it in place, after the usual question; a session of another window moves the tab there and that window opens it. **+ New session** asks which agent: it starts a session in that agent's window there, or opens a window of that agent on the folder. Hover over a session of this window to rename it or move it to the archive.
+- **Recent** lists folders that are not running: those opened before, and the folders of this agent's earlier sessions. A click opens the folder in a window of its agent; the arrow lists its sessions, and choosing one opens the window on it. **✕** on a row (on hover) removes the folder from Recent; it comes back once you open it again.
+- **Open folder…** opens the folder dialog. On the left are places: your home folder, the Desktop, and the folders your recent projects live in. The path on top is a row of steps, each one a click away; the path field below completes a folder name with Tab and browses on Enter. Git repositories come first. A click selects a folder, a double click or Enter goes into it, and **Open** opens the selected folder, or the one being browsed when none is selected. **Show hidden** lists folders whose names start with a dot. Pick the agent first: the folder opens in a new window (or in its existing window for that agent), and this tab moves there.
+- **New folder here** in the same dialog (and **New project…** in the menu, which opens the dialog with it) creates a folder in the one being browsed, as a git repository unless you uncheck it, and opens it the same way. Names Windows refuses (`: * ? " < > |`, CON and the like, a trailing dot) are refused on every system, so a project can move.
+
+The other windows keep running. Settings → Windows still lists the windows of this window's provider, with their restart and stop actions. In the branch menu, a worktree row has **Open**: it opens that worktree's folder in its own window and moves there.
 
 ## Chat
 
@@ -372,7 +377,7 @@ Stopping the turn (the stop button, or a message sent with interrupt) ends only 
 
 ## Sessions and history
 
-The **Sessions** icon in the header opens a picker over the selected provider's sessions on the machine, grouped by folder, with the current project first and a filter box (title or folder). Each folder header shows its session count and opens or closes its group; only the current project's group starts open, and the menu remembers what you opened or closed. Typing in the filter opens every group with a match. Pick one to switch the window to it in place, without a reload. If the session is from another folder, the window moves to that project (tree, file access and the agent's working folder). The dialog warns you not to keep the same session open in another agent client at the same time: the history would get mixed up. **+ new session in this project** starts a fresh one. A new session can only start in the current folder or in a folder that already has sessions.
+The chat tab names the window's session; its **▾** opens a picker over this project's sessions of the window's agent, with a filter box (title). Pick one to switch the window to it in place, without a reload. Another project's sessions are in the projects menu: there they open in that project's window. The dialog warns you not to keep the same session open in another agent client at the same time: the history would get mixed up. **+ new session in this project** starts a fresh one.
 
 ✎ on a row renames that session, the open one or any other, without switching to it. The open session also has **Rename** in the chat tab's right-click menu. Enter saves, Esc cancels. The title is the agent's own, so Claude Code or Codex shows it too.
 
@@ -399,7 +404,7 @@ The mode pill under the message box, or Shift+Tab in the box, cycles through:
 
 The mode is saved per project folder. The model and effort pill in the header sets the model and the effort (Low, Medium, High, Extra high, Max). In the menu the effort is a stepped slider: **Auto** (the model's own default, no level) and one stop per level the model has; click a stop, drag, or step with Left, Right, Home and End. It shows the model's short name (for the default row: the name of the row for the same model (an alias row first), else the model's short name such as "Opus 5.5", else the row's name without its parenthetical), a small `1M` for the 1M-context variant and a tiny bar for the effort (nothing for Auto); the tooltip and the screen-reader name spell the effort out. In the menu, the model under the pointer or focus (else the current one) has its full description under the list, since the rows cut it short. A change applies from the next reply, and the pill warns when it makes the next reply re-read the whole context. A long list (a router such as OpenRouter offers dozens of models) has a search field at the top, scrolls inside the menu and is grouped by provider, the provider in use first.
 
-**Stop window** (⏻, the last button of the header, right of the gear) stops the agent and the window after a confirmation, which warns when a turn is running; the launcher exits with it (a `/nb` background task ends, a terminal gets its prompt back). The tab then says the window is stopped and does not reconnect; the session stays, and `/nb` or `nota-bene` opens it again.
+**Stop Nota Bene** (⏻, the last button of the header, right of the gear) stops every window and its agent after a confirmation, which warns when a turn is running in any of them; the other windows stop first, then this one, and each launcher exits with its window (a `/nb` background task ends, a terminal gets its prompt back). If another window does not stop, this one stays open and says so, so the rest can still be reached. The tab then says Nota Bene is stopped and does not reconnect; the sessions stay, and `/nb` or `nota-bene` opens a window again. To stop one project, open the project list and press ⏻ on its row (it shows on hover): its windows stop after a confirmation and the other projects go on. This window's own project has no ⏻ there: stopping it would leave the tab with nothing to show.
 
 ### Settings
 
@@ -816,6 +821,6 @@ Renaming a session other than the open one is refused; open it first.
 From omp, install the skill once (`ln -sfn "$PWD/omp/skills/nb" ~/.omp/agent/skills/nb`
 from a checkout), then `/skill:nb` opens or brings forward the window for the current
 folder, `/skill:nb new` starts a fresh conversation and `/skill:nb fork` continues the
-invoking omp conversation as a branch. The window runs detached; **Stop window** (⏻) in the window's header
+invoking omp conversation as a branch. The window runs detached; **Stop Nota Bene** (⏻) in the window's header
 ends it. Do not keep working in the same conversation from an omp terminal while the
 window owns it.

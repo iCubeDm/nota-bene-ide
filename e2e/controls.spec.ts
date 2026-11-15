@@ -57,13 +57,6 @@ async function setMode(page: Page, t: ReturnType<typeof track>, mode: Mode) {
 
 const modeSends = (t: ReturnType<typeof track>, from = 0) => t.sent.slice(from).filter((f) => f.type === 'mode');
 
-/** Opens every collapsed folder group of the open Sessions menu (only this project's starts open). */
-async function expandSessionGroups(page: Page) {
-  await expect(page.locator('[data-sess-group]').first()).toBeVisible();
-  const closed = page.locator('[data-sess-group][aria-expanded="false"]');
-  while (await closed.count()) await closed.first().click();
-}
-
 /**
  * Idempotent clean-up: every test leaves the shared server as the next one expects it, even when it failed half way.
  * Each step first checks whether there is anything to do, so a clean server costs one page load and no changes.
@@ -72,14 +65,13 @@ test.afterEach(async ({ page }) => {
   const t = track(page);
   await open(page);
   // the Alpha session first (comments and permissions belong to the session)
-  const root = page.locator('#root-path');
   await expect(page.locator('#conn')).toHaveText(''); // a switch still running finishes first
-  if (/\/other$/.test((await root.textContent()) ?? '')) {
+  const chatTab = page.locator('[data-tab="chat"]');
+  if (/Gamma session/.test((await chatTab.textContent()) ?? '')) {
     await page.locator('#sessBtn').click();
-    await expandSessionGroups(page);
     await page.locator('[data-sess-item]').filter({ hasText: 'Alpha session' }).click();
     await page.getByRole('dialog').getByRole('button', { name: en.switchBtn }).click();
-    await expect(root).not.toHaveText(/\/other$/);
+    await expect(chatTab).not.toContainText('Gamma session');
     await expect(page.locator('#conn')).toHaveText('');
   }
   // a turn still running (a failed test): stop it so the permission and the mode below can settle
@@ -297,10 +289,11 @@ test('background tasks: the indicator counts, the drawer row ticks, a finished t
   await expect(donesAfter(page, text).first()).toBeVisible();
 });
 
-test('switching sessions: the file tabs follow the root, sends wait and the draft stays @controls', async ({ page }) => {
+test('switching sessions: only this project\'s are offered, sends wait, the draft and the file tabs stay @controls', async ({ page }) => {
   const t = track(page);
   await open(page);
   const root = (p: Page) => p.locator('#root-path');
+  const rootWas = (await root(page).textContent()) ?? '';
 
   // a file tab of this root
   // the tree starts open (R-M6-3) unless an earlier test closed it
@@ -309,9 +302,14 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
   await expect(page.locator('[data-tab="file:notes.md"]')).toBeVisible();
   await page.locator('#toggleTree').click();
 
+  // another folder's session is the project switcher's, not this menu's
+  await page.locator('#sessBtn').click();
+  await expect(page.locator('[data-sess-item]').filter({ hasText: 'Alpha session' })).toBeVisible();
+  await expect(page.locator('[data-sess-item]').filter({ hasText: 'Beta session' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
   const pickSession = async (title: string) => {
     await page.locator('#sessBtn').click();
-    await expandSessionGroups(page);
     await page.locator('[data-sess-item]').filter({ hasText: title }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText(title);
@@ -321,16 +319,15 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
   // renamed from the menu without switching to it, and back: the next tests look for this title
   const rename = async (from: string, to: string) => {
     await page.locator('#sessBtn').click();
-    await expandSessionGroups(page);
     await page.getByRole('button', { name: `${en.renameSess}: ${from}` }).click({ force: true });
     await page.getByRole('textbox', { name: en.renameSess }).fill(to);
     await page.keyboard.press('Enter');
     await expect(page.locator('[data-sess-item]').filter({ hasText: to })).toBeVisible();
     await page.keyboard.press('Escape');
   };
-  await rename('Beta session', 'Beta renamed');
-  await rename('Beta renamed', 'Beta session');
-  await pickSession('Beta session');
+  await rename('Gamma session', 'Gamma renamed');
+  await rename('Gamma renamed', 'Gamma session');
+  await pickSession('Gamma session');
   // the fake delays the new session's history by 1.5 s: this is the switching window
   await expect(page.locator('#conn')).toHaveText(en.switching);
   await expect(composer(page)).toBeFocused(); // the confirm hands focus to the composer, the draft waits there
@@ -343,15 +340,13 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
   expect(t.sent.filter((f) => f.type === 'send').length).toBe(sentBefore);
   await expect(bubble(page, draft)).toHaveCount(0);
 
-  // the switch completes: Beta's replay, its root, no tab of the old root
+  // the switch completes: Gamma's replay, the same root and its tabs
   await expect(page.locator('#conn')).toHaveText('');
-  await expect(page.getByText('beta answer')).toBeVisible();
-  await expect(root(page)).toHaveText(/\/other$/);
-  await expect(page.locator('#proj')).toHaveText('other');
+  await expect(page.getByText('gamma answer')).toBeVisible();
+  await expect(root(page)).toHaveText(rootWas);
   await expect(composer(page)).toHaveValue(draft);
   expect(t.sent.filter((f) => f.type === 'send').length).toBe(sentBefore);
-  await expect(page.locator('[data-tab="file:notes.md"]')).toHaveCount(0);
-  await expect(page.locator('[role="tab"]')).toHaveCount(1); // only the chat
+  await expect(page.locator('[data-tab="file:notes.md"]')).toBeVisible();
 
   // and the open session from the chat tab's menu; the title is edited in the tab
   const chatTab = page.locator('[data-tab="chat"]');
@@ -371,23 +366,12 @@ test('switching sessions: the file tabs follow the root, sends wait and the draf
   await page.keyboard.press('Enter');
   await expect(chatTab).toHaveText(was);
 
-  // the new root has its own tabs
-  // the tree starts open (R-M6-3) unless an earlier test closed it
-  if (await page.locator('#tree-sheet').isHidden()) await page.locator('#toggleTree').click();
-  await page.locator('button[data-path="other.md"]').click();
-  await expect(page.locator('[data-tab="file:other.md"]')).toBeVisible();
-  await page.locator('#toggleTree').click();
-
-  // and back: the first root's tab returns, the other root's goes
+  // and back
   await pickSession('Alpha session');
   await expect(page.locator('#conn')).toHaveText(en.switching);
   await expect(page.locator('#conn')).toHaveText('');
-  await expect(root(page)).not.toHaveText(/\/other$/);
-  // the saved tabs of this root come back, with notes.md active: the chat is behind it
-  await expect(page.locator('[data-tab="file:notes.md"]')).toBeVisible();
   await page.locator('[data-tab="chat"]').click();
   await expect(page.getByText('alpha answer')).toBeVisible();
-  await expect(page.locator('[data-tab="file:other.md"]')).toHaveCount(0);
 });
 
 // B1b: the `/` menu and typed commands. The fixture's command list has a user command with a hint, three builtins on the

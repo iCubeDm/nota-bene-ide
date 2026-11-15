@@ -164,6 +164,17 @@ export function archiveRoute(o: { hub: EventHub; current: () => string | null; s
   });
 }
 
+/** POST /seen {session}: the page saw the open session (it is visible and focused); only the open one can be marked. */
+export function seenRoute(o: { hub: EventHub; current: () => string | null; mark: (id: string, at: number) => void; now?: () => number }): RequestListener {
+  return postRoute(o.hub, 'seen', ({ session: raw }) => {
+    if (!isSessionId(raw)) return [400, 'bad id'];
+    const id = raw.toLowerCase();
+    if (id !== o.current()?.toLowerCase()) return [409, 'not the open session'];
+    o.mark(id, (o.now ?? Date.now)());
+    return [200, 'ok'];
+  });
+}
+
 /**
  * POST /sessions/delete {id}: the agent deletes a stored session for good (`remove`; none: the agent cannot, 404). Never the
  * open session, nor any while a switch runs (its target may be the one asked for), nor one another live window has open.

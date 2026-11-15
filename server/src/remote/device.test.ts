@@ -119,7 +119,7 @@ describe('device channel', () => {
   it('a phone reaches no remote-access route: it would pair, revoke or switch access off unseen', () => {
     for (const p of ['/remote', '/remote/pair', '/remote/config', '/remote?x=1', '/REMOTE/revoke', '/control']) expect(goodPath(p)).toBe(false);
     // the project switcher's routes start windows and hand out other windows' logins: the desktop only, until phase 2
-    for (const p of ['/system/projects', '/system/projects/open', '/system/projects/create', '/system/projects/enter', '/system/folders', '/system/agents']) expect(goodPath(p)).toBe(false);
+    for (const p of ['/system/projects', '/system/projects/open', '/system/projects/create', '/system/projects/enter', '/system/projects/sessions', '/system/folders', '/system/agents']) expect(goodPath(p)).toBe(false);
     expect(goodPath('/system/windows')).toBe(true);
     for (const p of ['/remotely.md', '/file?path=remote/a.md', '/info']) expect(goodPath(p)).toBe(true);
   });
