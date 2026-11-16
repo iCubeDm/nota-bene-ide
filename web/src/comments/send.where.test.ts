@@ -25,3 +25,11 @@ it('a video / image comment (no camera) is unchanged; another source keeps its r
   expect(whereOf(model({ camera: undefined, time: 4.24 }))).toBe('models/car.glb @ 0:04.240 · 800×600');
   expect(whereOf(model({ source: { kind: 'file', path: 'm.glb', ref: 'feat' } }))).toMatch(/^m\.glb @ feat · 800×600 · camera /);
 });
+
+it('a cut comment names the edit and the time on the timeline (issue 430)', () => {
+  setLang('en');
+  const cut: Comment = { id: 'k', text: 'x', status: 'pending', createdAt: 1, anchor: { kind: 'cut', source: { kind: 'file', path: 'e.nbcut.json' }, time: 61.5 } };
+  expect(whereOf(cut)).toBe('e.nbcut.json · timeline 1:01.500');
+  setLang('ru');
+  expect(whereOf(cut)).toBe('e.nbcut.json · таймлайн 1:01.500');
+});

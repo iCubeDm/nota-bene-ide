@@ -1,4 +1,4 @@
-import { anchorSource, generatedImages, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef, type Voice } from '@nota-bene/shared';
+import { anchorSource, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef, type Voice } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
 import { getLang, t, tIn, type Lang } from '../i18n/index.ts';
 import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
@@ -11,6 +11,8 @@ import { createSelector } from '@reduxjs/toolkit';
 import { markSending, selectComments, selectPending, unmarkSending } from './slice.ts';
 import { selectFileVersion } from '../files/slice.ts';
 import { cameraLine } from '../model/pose.ts';
+import { cutWhere } from '../cut/quote.ts';
+import { clipGone } from '../cut/live.ts';
 import { mediaTime } from '../media/markup/geometry.ts';
 import { activate } from '../tabs/slice.ts';
 import { toast } from '../shell/toast.ts';
@@ -40,6 +42,7 @@ export function whereOf(
   const src = anchorSource(c.anchor);
   const a = c.anchor;
   if (isMediaAnchor(a)) return `${whereOfFile(a.source)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${a.width}×${a.height}${a.camera ? ` · ${cameraLine(a.camera, getLang())}` : ''}`;
+  if (isCutAnchor(a)) return cutWhere(a, whereOfFile(a.source), lang);
   if (isAttachmentAnchor(a)) return tIn(lang, 'srcAttachment', attNo?.(a.image) ?? 0, a.width, a.height);
   if (!src) return t('srcChat');
   if (src.kind === 'file') return whereOfFile(src);
@@ -110,9 +113,11 @@ const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean
     body, pending, lang, (c) => labelOf(c, lang),
     (c) => whereOf(c, st, (id) => { const k = own.findIndex((im) => im.id === id); return k < 0 ? undefined : k + 1; }),
     instructionOf, refs,
-    // "changed": only when the current version is known (a tab has it loaded) and differs from the one drawn on
+    // "changed": only when the current version is known (a tab has it loaded) and differs from the one drawn on; a cut
+    // comment: its clip is known gone (its tab shows the edit without it)
     (c) => {
       const a = c.anchor;
+      if (isCutAnchor(a)) return !!a.clip && clipGone(a.source.path, a.source.ref, a.clip.id) === true;
       if (!isMediaAnchor(a) || a.version === undefined) return false;
       const cur = selectFileVersion(st, a.source.path, a.source.ref);
       return cur !== undefined && cur !== a.version;

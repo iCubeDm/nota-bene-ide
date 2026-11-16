@@ -1022,5 +1022,14 @@ export const ru = {
   cutFit: "По размеру кадра",
   cutInvalid: "Здесь недопустимое значение",
   cutPlaceTip: "Перетащи, чтобы сдвинуть рамку клипа; потяни за угол, чтобы изменить размер (Shift — без сохранения пропорций)",
+  // comments on an edit's timeline (issue 430)
+  srcCut: (path: string, time: string) => `${path} · таймлайн ${time}`,
+  cutClipQ: (id: string, track: string, src: string, time: string) => `клип ${id} · дорожка ${track} · ${src} @ ${time} в исходнике`,
+  cutClipPhotoQ: (id: string, track: string, src: string) => `клип ${id} · дорожка ${track} · ${src} (фото)`,
+  cutMomentQ: "момент таймлайна, без клипа",
+  cutClipGone: "   (этого клипа больше нет в монтаже; время — там, где он был)",
+  cutComment: "Комментарий: к выбранному клипу (в точке указателя, если он на клипе, иначе в начале клипа) или к моменту под указателем",
+  cutCommentShort: "Комментарий",
+  cutGoneTag: "клипа больше нет в монтаже",
   cutIssue: (code: string) => ({ "type": "нет значения или неверный тип", "version": "версия должна быть 1", "number": "не число", "negative": "не может быть отрицательным", "positive": "должно быть больше 0", "frame-size": "должно быть целым числом от 16 до 8192", "fps": "должно быть от 1 до 120", "out-before-in": "out должно быть позже in", "kind": "дорожка бывает \"video\" или \"audio\"", "duplicate": "этот id встречается дважды", "unknown-track": "нет дорожки с таким id", "photo-in-out": "у фото задаётся dur, а не in или out", "photo-no-dur": "у фото должен быть dur", "media-no-out": "видео- или аудиоклипу нужен out", "media-dur": "у видео- или аудиоклипа задаются in и out, а не dur", "photo-audio": "фото не может стоять на звуковой дорожке", "fade": "затухания длиннее клипа", "place": "должно быть от 0 до 1, размер больше 0", "opacity": "должно быть от 0 до 1", "place-audio": "у звуковой дорожки нет картинки: place не нужен", "src": "нужен путь относительно проекта", "src-kind": "не видео, не звук и не фото (по расширению)", "photo-kind": "фото бывает png, jpg, webp, avif или bmp: gif и svg экспорт не читает", "audio-video": "звуковой файл не может стоять на видеодорожке", "overlap": "наезжает на предыдущий клип своей дорожки", "missing": "файла нет в проекте" } as Record<string, string>)[code] ?? code,
 };

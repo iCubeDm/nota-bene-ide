@@ -1005,5 +1005,14 @@ export const es: Dict = {
   cutFit: "Ajustar al cuadro",
   cutInvalid: "No es un valor válido aquí",
   cutPlaceTip: "Arrastra para mover el marco del clip; arrastra una esquina para cambiar su tamaño (Shift: proporciones libres)",
+  // comments on an edit's timeline (issue 430)
+  srcCut: (path: string, time: string) => `${path} · línea de tiempo ${time}`,
+  cutClipQ: (id: string, track: string, src: string, time: string) => `clip ${id} · pista ${track} · ${src} @ ${time} en el original`,
+  cutClipPhotoQ: (id: string, track: string, src: string) => `clip ${id} · pista ${track} · ${src} (una foto)`,
+  cutMomentQ: "un momento de la línea de tiempo, sin clip",
+  cutClipGone: "   (este clip ya no está en la edición; el tiempo es donde estaba)",
+  cutComment: "Comentar: el clip seleccionado (en el cabezal si está sobre el clip, si no en su inicio) o el momento del cabezal",
+  cutCommentShort: "Comentar",
+  cutGoneTag: "el clip ya no está en la edición",
   cutIssue: (code: string) => ({ "type": "falta o tiene un tipo incorrecto", "version": "la versión debe ser 1", "number": "no es un número", "negative": "no puede ser negativo", "positive": "debe ser mayor que 0", "frame-size": "debe ser un número entero de 16 a 8192", "fps": "debe estar entre 1 y 120", "out-before-in": "out debe ir después de in", "kind": "una pista es \"video\" o \"audio\"", "duplicate": "este id se usa dos veces", "unknown-track": "ninguna pista tiene este id", "photo-in-out": "una foto lleva dur, no in ni out", "photo-no-dur": "una foto necesita dur", "media-no-out": "un clip de vídeo o audio necesita out", "media-dur": "un clip de vídeo o audio lleva in y out, no dur", "photo-audio": "una foto no puede ir en una pista de audio", "fade": "los fundidos son más largos que el clip", "place": "debe estar entre 0 y 1, con tamaño mayor que 0", "opacity": "debe estar entre 0 y 1", "place-audio": "una pista de audio no tiene imagen: sin place", "src": "necesita una ruta relativa al proyecto", "src-kind": "no es un archivo de vídeo, sonido ni foto (por su extensión)", "photo-kind": "una foto es png, jpg, webp, avif o bmp: la exportación no lee gif ni svg", "audio-video": "un archivo de sonido no puede ir en una pista de vídeo", "overlap": "se solapa con el clip anterior de su pista", "missing": "el archivo no está en el proyecto" } as Record<string, string>)[code] ?? code,
 };
