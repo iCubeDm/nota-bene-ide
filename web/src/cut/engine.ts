@@ -3,7 +3,7 @@
 // <img> per video track. Every element's sound goes through Web Audio: element → clip gain (its dB × the fades as linear
 // ramps) → track gain (dB, mute, solo) → master. The sums are playback.ts's; this file only applies them.
 import { cutDuration, isPhotoSrc, type Cut, type CutClip, type CutTrack } from '@nota-bene/shared/cut';
-import { activeClips, clipEnd, clipLevel, fadeRamp, gainAt, lastFrame, nextClip, sourceTime, syncAction, trackLevel } from './playback.ts';
+import { activeClips, audible, clipEnd, clipLevel, fadeRamp, gainAt, lastFrame, nextClip, sourceTime, syncAction, trackLevel } from './playback.ts';
 
 /** What the controls draw: a new object on each change, so it can be a useSyncExternalStore snapshot. */
 export type PlayerState = { t: number; playing: boolean; duration: number; /** an edit to play (none while it has problems) */ ready: boolean; /** counts the seeks */ seeks: number };
@@ -28,6 +28,10 @@ type Slot = {
   pre?: HTMLImageElement;
   media: [Media, Media];
   gain?: GainNode;
+  /** it added neither picture nor sound at the last step */
+  silent?: boolean;
+  /** it became heard or seen while playing: its clip loads on the run, the clock does not wait for it */
+  joining?: boolean;
 };
 
 export type PlayerOptions = {
@@ -142,6 +146,7 @@ export class CutPlayer {
   play(): void {
     if (!this.live || this.playing || !this.cut || this.duration <= 0) return;
     if (this.base >= this.last() - 1e-6) this.base = 0;
+    this.settled();
     this.audio();
     this.started = this.now();
     this.playing = true;
@@ -156,6 +161,7 @@ export class CutPlayer {
     this.base = this.time();
     this.playing = false;
     this.holding = false;
+    this.settled();
     if (this.raf !== null) this.cancel(this.raf);
     this.raf = null;
     this.tick();
@@ -170,6 +176,7 @@ export class CutPlayer {
   seek(t: number): void {
     this.base = Math.max(0, Math.min(this.last(), t));
     this.seeks++;
+    this.settled();
     this.started = this.now();
     this.epoch++;
     this.tick();
@@ -263,17 +270,30 @@ export class CutPlayer {
   private dropSlots(): void {
     for (const s of this.slots) {
       for (const m of s.media) {
-        if (!m.el.paused) m.el.pause();
-        if (m.url !== null) {
-          m.el.removeAttribute('src'); // and load(): the element lets go of the file
-          m.el.load();
-        }
+        this.release(m);
         m.gain?.disconnect();
       }
       s.gain?.disconnect();
       s.layer?.remove();
     }
     this.slots = [];
+  }
+
+  // an element that plays nothing and lets go of its file (and its connection to the server)
+  private release(m: Media): void {
+    if (!m.el.paused) m.el.pause();
+    if (m.url !== null) {
+      m.el.removeAttribute('src'); // and load(): the element lets go of the file
+      m.el.load();
+    }
+    m.url = null;
+    m.clip = null;
+    m.ramp = null;
+  }
+
+  // a play, pause or seek: from here the clock may wait for every track in view again
+  private settled(): void {
+    for (const s of this.slots) s.joining = false;
   }
 
   // the layers in tracks order: a later one is drawn over an earlier one
@@ -307,6 +327,9 @@ export class CutPlayer {
       m.gain = ctx.createGain();
       m.gain.connect(s.gain);
       ctx.createMediaElementSource(m.el).connect(m.gain);
+      // the gain nodes carry the level from here on: a level the element got without them (follow, before the first
+      // play: 0 at a fade-in's start) would stay on top of them, and keep it silent (issue 429)
+      m.el.volume = 1;
       m.ramp = null;
     }
   }
@@ -329,17 +352,29 @@ export class CutPlayer {
     const plan = this.slots.map((s) => {
       const clip = on.get(s.track.id);
       const next = nextClip(cut, s.track.id, t);
+      // a track that adds neither picture nor sound (hidden and muted, or silenced by another's solo) loads nothing.
+      // While playing, one that turns silent keeps its elements and goes quiet through its gain (a release would cut
+      // the sound mid-ease), and lets go at the next pause; one heard again loads its clip on the run (issue 429)
+      const silent = !(s.track.kind === 'video' && !s.track.hidden) && !audible(cut, s.track);
+      if (this.playing && s.silent && !silent) s.joining = true;
+      s.silent = silent;
+      if (silent && !(this.playing && s.media.some((m) => m.url !== null))) {
+        for (const m of s.media) this.release(m);
+        return { s, clip, next: undefined, photo: undefined, media: undefined, cur: undefined };
+      }
       const photo = clip && isPhotoSrc(clip.src) ? clip : undefined;
       const media = clip && !photo ? clip : undefined;
       const nextMedia = next && !isPhotoSrc(next.src) ? next : undefined;
       const cur = media ? s.media.find((m) => m.clip === media.id) ?? s.media.find((m) => m.clip !== nextMedia?.id) ?? s.media[0] : undefined;
-      const spare = s.media.find((m) => m !== cur && (!cur || m.clip === nextMedia?.id)) ?? s.media.find((m) => m !== cur)!;
+      // the one already holding the next clip, else the other: never both loading one file
+      const spare = s.media.find((m) => m !== cur && m.clip === nextMedia?.id) ?? s.media.find((m) => m !== cur)!;
       if (nextMedia) this.load(spare, nextMedia, nextMedia.at);
       if (cur && media) this.load(cur, media, t);
       return { s, clip, next, photo, media, cur };
     });
     if (this.playing && !this.scrubbing) {
-      const waiting = plan.some(({ cur, media }) => cur && media && this.unready(cur.el, media, t));
+      // a track joining mid-play or a silent one does not stop the others
+      const waiting = plan.some(({ s, cur, media }) => cur && media && !s.joining && !s.silent && this.unready(cur.el, media, t));
       if (waiting && !this.holding) {
         this.base = this.time();
         this.holding = true;
@@ -360,7 +395,7 @@ export class CutPlayer {
         this.follow(cur, media, t, run);
         if (cur.el instanceof HTMLVideoElement) cur.el.style.visibility = 'visible';
       }
-      if (next && isPhotoSrc(next.src)) {
+      if (next && isPhotoSrc(next.src) && !s.track.hidden) {
         const url = this.opts.url(next.src);
         if ((s.pre ??= new Image()).getAttribute('src') !== url) s.pre.src = url;
       }
@@ -441,7 +476,7 @@ export class CutPlayer {
       const p = clip.place ?? { x: 0, y: 0, w: 1, h: 1 };
       Object.assign(layer.style, { left: `${p.x * 100}%`, top: `${p.y * 100}%`, width: `${p.w * 100}%`, height: `${p.h * 100}%`, opacity: String(p.opacity ?? 1) });
     }
-    if (photo) {
+    if (photo && shown) {
       const url = this.opts.url(photo.src);
       if (img.getAttribute('src') !== url) img.src = url;
     }
