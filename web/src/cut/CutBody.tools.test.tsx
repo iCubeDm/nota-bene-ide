@@ -605,3 +605,67 @@ it('several video clips: position, size and opacity for all of them, mixed where
   expect(screen.queryByRole('spinbutton', { name: 'X, %' })).toBeNull();
   expect(screen.queryByRole('spinbutton', { name: 'Opacity, %' })).toBeNull();
 });
+
+// the review of issue 442
+it('a rectangle from the track column on a scrolled timeline starts at the lanes in view, not under the headers', async () => {
+  // a clip at 0..1 s, scrolled out of view under the headers
+  const clips = [...fixture.clips.filter((c) => c.id !== 'c3'), { id: 'c3', track: 'a1', src: 'media/voice.wav', at: 0, out: 1 }, { id: 'c4', track: 'a1', src: 'media/voice.wav', at: 3, out: 2 }];
+  write(JSON.stringify({ ...fixture, clips }));
+  const { pps, container } = await show();
+  const p = pps();
+  stack(container);
+  // scrolled 2 s: the lanes in view start at 2 s, at x 144
+  const scroller = container.querySelector<HTMLElement>('[data-timeline-scroll]')!;
+  Object.defineProperty(scroller, 'scrollLeft', { configurable: true, value: 2 * p });
+  const ruler = container.querySelector<HTMLElement>('[data-ruler]')!;
+  const left = 144 - 2 * p;
+  ruler.getBoundingClientRect = () => ({ left, top: 0, width: 1000, height: 24, right: left + 1000, bottom: 24, x: left, y: 0, toJSON() {} });
+  const head = container.querySelector('[data-track-head="a1"]')!;
+  fireEvent.pointerDown(head, { clientX: 20, clientY: 70, button: 0, pointerId: 2 });
+  fireEvent.pointerMove(head, { clientX: 144 + 1.5 * p, clientY: 80, pointerId: 2 });
+  // the box starts where the lanes do in view (2 s from 0, plus the column)
+  expect(container.querySelector<HTMLElement>('[data-marquee]')!.style.left).toBe(`${144 + 2 * p}px`);
+  fireEvent.pointerUp(head, { clientX: 144 + 1.5 * p, clientY: 80, pointerId: 2 });
+  expect(selected(container)).toEqual(['c4']);
+});
+
+it('the refusal note goes when the same drag reaches a place that is allowed, and on undo and redo', async () => {
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c2' ? { ...c, at: 4 } : c.id === 'c3' ? { ...c, at: 2 } : c)) }));
+  const { clip, pps, container } = await show();
+  const p = pps();
+  const note = () => container.querySelector('[data-cut-tools] [role="status"]')?.textContent ?? '';
+  press(clip('c2'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  // left onto c1 (refused), then further right (allowed): the note goes while still dragging
+  fireEvent.pointerDown(clip('c2'), { clientX: 200, clientY: 0, button: 0, pointerId: 1, altKey: true });
+  fireEvent.pointerMove(clip('c2'), { clientX: 200 - p, clientY: 0, pointerId: 1, altKey: true });
+  expect(note()).toMatch(/would overlap/);
+  fireEvent.pointerMove(clip('c2'), { clientX: 200 + p, clientY: 0, pointerId: 1, altKey: true });
+  expect(note()).toBe('');
+  fireEvent.pointerUp(clip('c2'), { clientX: 200 + p, clientY: 0, pointerId: 1, altKey: true });
+  await saved(() => expect(clipOnDisk('c2')!.at).toBe(5));
+  // refused again, then undo: the note goes
+  press(clip('c1'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  key('ArrowRight', { shiftKey: true });
+  key('ArrowRight', { shiftKey: true });
+  key('ArrowRight', { shiftKey: true });
+  expect(note()).toMatch(/would overlap/);
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  expect(note()).toBe('');
+  await saved(() => expect(clipOnDisk('c1')!.at).toBe(0.4));
+  // a drag of 2 s onto c2 is refused and commits nothing: redo is still there, and takes the note away too
+  drag(clip('c1'), 100, 100 + 2 * p, { altKey: true });
+  expect(note()).toMatch(/would overlap/);
+  fireEvent.click(screen.getByRole('button', { name: /^Redo/ }));
+  expect(note()).toBe('');
+});
+
+it('frame values the same in percent are not mixed', async () => {
+  const clips = fixture.clips.map((c) => (c.id === 'c1' ? { ...c, place: { x: 0.333, y: 0, w: 0.5, h: 0.5 } } : c.id === 'c2' ? { ...c, place: { x: 0.33299999999999996, y: 0, w: 0.5, h: 0.5 } } : c));
+  write(JSON.stringify({ ...fixture, clips }));
+  const { clip } = await show();
+  press(clip('c1'), 10);
+  press(clip('c2'), 10, { shiftKey: true });
+  expect(screen.getByRole('spinbutton', { name: 'X, %' })).toHaveValue(33.3);
+});

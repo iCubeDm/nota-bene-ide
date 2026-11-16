@@ -87,8 +87,8 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   cutRef.current = cut;
   // the next edit shown is this window's own change (issue 430: only those move the comments)
   const own = useRef(false);
-  const undo = () => { if (doc.canUndo) { own.current = true; doc.undo(); } };
-  const redo = () => { if (doc.canRedo) { own.current = true; doc.redo(); } };
+  const undo = () => { if (doc.canUndo) { own.current = true; setNotice(null); doc.undo(); } };
+  const redo = () => { if (doc.canRedo) { own.current = true; setNotice(null); doc.redo(); } };
   // a draft belongs to the edit it was built on: another one (a commit, a reload) shows as it is
   useEffect(() => setDraft(null), [cut]);
   // the selected clips as the edit has them; `selected` the one when there is one alone
@@ -129,7 +129,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     if (r.ids.length) { commit(r.cut); setSel(r.ids); }
   };
   // a refused move of the selection says why (issue 442), until the next change
-  const refuse = (why: GroupRefusal) => setNotice(t(why === 'lane' ? 'cutGroupNoLane' : 'cutGroupOverlap'));
+  const refuse = (why: GroupRefusal | null) => setNotice(why && t(why === 'lane' ? 'cutGroupNoLane' : 'cutGroupOverlap'));
   // ← → on the selection: one clip to the nearest free place, several together or not at all
   const nudge = (frames: number) => {
     if (!cut) return;

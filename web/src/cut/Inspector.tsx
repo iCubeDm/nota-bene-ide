@@ -87,10 +87,8 @@ export function GroupInspector({ cut, clips, commit }: { cut: Cut; clips: CutCli
     if (next) commit(next);
     return next !== null;
   };
-  const placed = (k: keyof CutPlace, d = 0) => {
-    const v = same(video, (c) => (c.place ?? FULL)[k] ?? d) as number | null;
-    return v === null ? null : Math.round(v * 1000) / 10;
-  };
+  // compared as shown, in percent to a tenth: 0.333 and 0.33299999999999996 are the same 33.3
+  const placed = (k: keyof CutPlace, d = 0) => same(video, (c) => Math.round(((c.place ?? FULL)[k] ?? d) * 1000) / 10) as number | null;
   return (
     <aside data-cut-inspector aria-label={t('cutInspector')} className="flex w-52 flex-none flex-col gap-1 overflow-auto border-l border-border-soft bg-chrome p-2 text-xs">
       <p className="font-medium text-foreground">{t('cutClipsN', clips.length)}</p>

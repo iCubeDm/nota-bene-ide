@@ -199,9 +199,11 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
   const pressAside = (e: PointerEvent<HTMLElement>) => {
     if (!editing || editing.tool !== 'select' || e.button !== 0) return;
     if ((e.target as HTMLElement).closest('button, input, select, textarea, label, a, [data-track-name]')) return;
-    marquee(e, editing);
+    marquee(e, editing, true);
   };
-  const marquee = (e: PointerEvent<HTMLElement>, ed: Editing) => {
+  // `side`: pressed in the track column or below the lanes, the rectangle starts and stays within the lanes in view: the
+  // timeline scrolled under the sticky headers is not seen, nothing there is selected
+  const marquee = (e: PointerEvent<HTMLElement>, ed: Editing, side = false) => {
     e.preventDefault();
     const keep = e.shiftKey ? [...ed.sel] : [];
     if (!e.shiftKey) ed.select([]);
@@ -210,14 +212,16 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     const at = (x: number, y: number) => ({
       x: x - (ruler.current?.getBoundingClientRect().left ?? 0), y: y - (inner.current?.getBoundingClientRect().top ?? 0),
     });
+    const inView = (x: number) => (side ? Math.max(x, scroller.current?.scrollLeft ?? 0) : x);
     const p0 = at(e.clientX, e.clientY);
+    p0.x = inView(p0.x);
     let last = { x: e.clientX, y: e.clientY };
     let on = false;
     const update = () => {
       const p1 = at(last.x, last.y);
       if (!on && Math.max(Math.abs(p1.x - p0.x), Math.abs(p1.y - p0.y)) < DRAG_PX) return;
       on = true;
-      const [xa, xb] = [Math.min(p0.x, p1.x), Math.max(p0.x, p1.x)];
+      const [xa, xb] = [inView(Math.min(p0.x, p1.x)), inView(Math.max(p0.x, p1.x))];
       const [ya, yb] = [Math.min(p0.y, p1.y), Math.max(p0.y, p1.y)];
       setBox({ left: HEAD + xa, top: ya, width: xb - xa, height: yb - ya });
       const top = inner.current?.getBoundingClientRect().top ?? 0;
@@ -593,6 +597,8 @@ function useClipDrag(
         const at0 = c.at;
         const end0 = c.at + clipLength(c);
         let out: Cut | null = null;
+        // the group's move was refused at the last place (issue 442): the edit bar says why
+        let refused = false;
         // the edit changed under the drag (the agent's version reloaded): the drag is over, nothing of it is kept
         const stale = (cur: Editing | undefined): cur is undefined => !cur || cur.cut !== base;
         const move = (m: Pointer) => {
@@ -638,7 +644,9 @@ function useClipDrag(
             const r = shift ? groupMove(base, group, at - at0, shift) : 'lane';
             out = typeof r === 'string' ? null : r;
             // issue 442: the edit bar says why
-            if (typeof r === 'string') cur.refuse(r);
+            if (typeof r === 'string') { refused = true; cur.refuse(r); }
+            // a later place of the same drag that is allowed: the note goes
+            else if (refused) { refused = false; cur.refuse(null); }
             return cur.draft(out);
           }
           if (grip === 'fadeIn' || grip === 'fadeOut') {
