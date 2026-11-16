@@ -178,10 +178,9 @@ class _MarksPainter extends CustomPainter {
       final (sx, sy) = switch (sh) {
         MediaShapeRectOrEllipse(:final x, :final y) => (x, y),
         MediaShapeArrow(:final x1, :final y1) => (x1, y1),
-        MediaShapePen(:final points) when points.length >= 2 => (
-          points[0],
-          points[1],
-        ),
+        MediaShapePen(:final points) || MediaShapePolygon(:final points)
+            when points.length >= 2 =>
+          (points[0], points[1]),
         _ => (1.0, 1.0),
       };
       x = math.min(x, sx.toDouble());

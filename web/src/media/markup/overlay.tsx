@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { MediaShape } from '@nota-bene/shared';
 import { contentBox, shapePath } from './geometry.ts';
+import { POLYGON_FILL_OPACITY } from './render.ts';
 
 /** What the overlays over a media tab share: the drawing (MarkupLayer) and the marks of its comments (MediaMarks). */
 
@@ -95,7 +96,9 @@ export function shapeEls(shapes: MediaShape[], natW: number, natH: number) {
     const d = shapePath(s, natW, natH);
     return [
       <path key={`h${i}`} data-halo d={d} stroke={HALO} strokeWidth={HALO_PX} vectorEffect="non-scaling-stroke" />,
-      <path key={i} data-shape={s.kind} d={d} stroke={s.color} vectorEffect="non-scaling-stroke" />,
+      // a polygon (issue 447) is filled semi-transparent in its colour, as on the rendered frame
+      <path key={i} data-shape={s.kind} d={d} stroke={s.color} vectorEffect="non-scaling-stroke"
+        {...(s.kind === 'polygon' ? { fill: s.color, fillOpacity: POLYGON_FILL_OPACITY } : {})} />,
     ];
   });
 }

@@ -6,6 +6,7 @@ import { useT } from '@/i18n/index.ts';
 import { EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon, PauseIcon, PlayIcon } from '@/media/playerIcons.tsx';
 import { isMac, withKeys } from '@/shell/keymap.ts';
 import { PATH_MIME } from './drag.ts';
+import { flashStyle, type CutFlash } from './changes.ts';
 import type { Editing } from './editing.ts';
 import type { CutPlayer } from './engine.ts';
 import { Meter } from './Meter.tsx';
@@ -33,9 +34,10 @@ const STEP = 1.5; // one zoom button press
  * Tools and selections (issue 432): with Select, Shift- or ⌘/Ctrl-click adds or removes a clip and a rectangle dragged on
  * empty space selects what it touches (Shift: adds; issue 442: from the track column and the rows after the lanes too), a selection moves together; with Blade, a click cuts the clip under
  * it there, snapped as edges are (Shift: every track; the line shows where on hover). The new tracks' buttons end each
- * kind's lanes in the track column.
+ * kind's lanes in the track column. `flash` (issue 412): what a change of the file from outside did, shown for a moment
+ * (the caller clears it): the added and changed clips highlighted, a ghost where a removed one stood.
  */
-export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote }: {
+export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote, flash = null }: {
   player: CutPlayer;
   lanes: Lane[]; blocks: Block[]; end: number; frame: { width: number; height: number; fps: number } | null;
   problems: ReadonlyMap<number, string[]>; missing: ReadonlySet<string>; fileSrc: string; active: boolean;
@@ -44,8 +46,10 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
   editing?: Editing;
   notes?: CutNote[];
   onNote?: (n: CutNote) => void;
+  flash?: CutFlash | null;
 }) {
   const t = useT();
+  const lit = new Set(flash ? [...flash.added, ...flash.changed] : []);
   const scroller = useRef<HTMLDivElement>(null);
   const manual = useRef(false); // the user scrolled while playing: the view stops following the playhead
   const [zoomed, setPps] = useState(40);
@@ -295,8 +299,17 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
         {blocks.filter((b) => b.track === l.id).map((b) => (
           <Clip
             key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active}
-            selected={editing?.sel.includes(b.id)} drag={editing ? clipDrag : undefined} view={{ from: (view.left - seen) / pps, to: (view.left + 2 * seen) / pps }}
+            selected={editing?.sel.includes(b.id)} changed={lit.has(b.id) ? flash!.gen : undefined} drag={editing ? clipDrag : undefined} view={{ from: (view.left - seen) / pps, to: (view.left + 2 * seen) / pps }}
           />
+        ))}
+        {flash?.removed.filter((c) => c.track === l.id).map((c) => (
+          <div
+            key={`removed:${flash.gen}:${c.id}`} data-removed-clip={c.id} role="img" aria-label={t('cutRemovedClip', c.src)}
+            className="nb-cut-ghost pointer-events-none absolute inset-y-1 flex items-center overflow-hidden rounded border border-dashed border-warn text-xs text-muted-foreground"
+            style={{ ...flashStyle, left: c.at * pps, width: Math.max(2, clipLength(c) * pps) }}
+          >
+            <span className="min-w-0 truncate px-1 line-through">{basename(c.src)}</span>
+          </div>
         ))}
         {notes.filter((n) => laneOf(n) === l.id).map(tick)}
         {editing?.tool === 'blade' && cutLine && (cutLine.lane === null || cutLine.lane === l.id) && (
@@ -456,9 +469,13 @@ function usePoster(url: string | null, at: number): string | null {
 
 /** One clip: its file name, a thumbnail on a video track (the photo; a video's first used frame) once it is in view,
  *  its problems outlined; at least 2 px wide, however short. */
-function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, drag, view }: {
+function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, changed, drag, view }: {
   b: Block; lane: Lane; pps: number; frame: { width: number; height: number } | null; problems: string[] | undefined; gone: boolean;
-  fileSrc: string; active: boolean; selected?: boolean; drag?: ClipDrag;
+  fileSrc: string; active: boolean; selected?: boolean;
+  /** changed by an outside change of the file a moment ago (issue 412): that change's count; highlighted by a layer of
+   *  its own, fading (the selection ring stays), keyed by it so a new change starts the fade again */
+  changed?: number;
+  drag?: ClipDrag;
   /** the timeline's seconds around the view: the waveform is drawn there */
   view: { from: number; to: number };
 }) {
@@ -486,7 +503,7 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   const tint = lane.kind === 'video' ? 'border-link/60 bg-link/15' : 'border-success/60 bg-success/15';
   return (
     <div
-      ref={ref} data-clip={b.id} data-bad={bad || undefined} data-selected={selected || undefined} title={title}
+      ref={ref} data-clip={b.id} data-bad={bad || undefined} data-selected={selected || undefined} data-changed={changed !== undefined || undefined} title={title}
       className={`absolute inset-y-1 flex items-center gap-1 overflow-hidden rounded border text-xs ${tint} ${bad ? 'outline-2 outline-destructive' : ''} ${gone ? 'opacity-60' : ''} ${selected ? 'z-[1] ring-2 ring-primary' : ''} ${drag ? `touch-none select-none ${drag.blade ? 'cursor-crosshair [&_*]:pointer-events-none' : 'cursor-grab'}` : ''}`}
       style={{ left: b.at * pps, width: w }}
       {...(drag && drag.handlers(b.id, 'move'))}
@@ -506,6 +523,9 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
       ))}
       {shown && <img src={shown} alt="" draggable={false} className="h-full flex-none bg-black object-cover" style={frame ? { aspectRatio: `${frame.width} / ${frame.height}` } : undefined} />}
       <span className={`relative min-w-0 truncate px-1 ${gone ? 'line-through' : ''}`}>{basename(b.src)}</span>
+      {changed !== undefined && (
+        <span key={`${changed}:${b.id}`} data-changed-mark className="nb-cut-flash pointer-events-none absolute inset-0 z-[3] rounded" style={flashStyle} />
+      )}
     </div>
   );
 }

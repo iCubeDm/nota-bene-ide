@@ -127,6 +127,7 @@ String describeShape(MediaShape s, int natW, int natH) => switch (s) {
   MediaShapeArrow(:final x1, :final y1, :final x2, :final y2) =>
     'arrow (${_n(x1)},${_n(y1)})→(${_n(x2)},${_n(y2)}) (px ${_px(x1, natW)},${_px(y1, natH)}→${_px(x2, natW)},${_px(y2, natH)})',
   MediaShapePen(:final points) => _pen(points, natW, natH),
+  MediaShapePolygon(:final points) => _polygon(points, natW, natH),
   MediaShapeUnknown() => '',
 };
 
@@ -147,6 +148,18 @@ String _pen(List<num> p, int natW, int natH) {
   final w = maxX - minX, h = maxY - minY;
   return 'pen ${p.length ~/ 2} pts, bbox x=${_n(minX)} y=${_n(minY)} w=${_n(w)} h=${_n(h)} (px ${_px(minX, natW)},${_px(minY, natH)} ${_px(w, natW)}×${_px(h, natH)})';
 }
+
+// a polygon (issue 447): every point in px, so the agent can rebuild the mask
+String _polygon(List<num> p, int natW, int natH) {
+  final pts = [
+    for (var i = 0; i + 1 < p.length; i += 2)
+      '${_px(p[i], natW)},${_px(p[i + 1], natH)}',
+  ];
+  return 'polygon ${p.length ~/ 2} pts (px ${pts.join(' ')})';
+}
+
+/// How opaque a polygon's fill is (`POLYGON_FILL_OPACITY`).
+const polygonFillOpacity = 0.3;
 
 /// `m:ss.mmm`
 String mediaTime(double t) {
@@ -174,7 +187,8 @@ void paintShapes(
     final color = switch (s) {
       MediaShapeRectOrEllipse(:final color) ||
       MediaShapeArrow(:final color) ||
-      MediaShapePen(:final color) => color,
+      MediaShapePen(:final color) ||
+      MediaShapePolygon(:final color) => color,
       MediaShapeUnknown() => null,
     };
     if (color == null) continue;
@@ -212,6 +226,21 @@ void paintShapes(
           path.lineTo(points[i] * w, points[i + 1] * h);
         }
         // a dot (a tap) is a zero-length line: round caps draw it, as the desktop's canvas does
+        c.drawPath(path, paint);
+      case MediaShapePolygon(:final points):
+        // issue 447: filled semi-transparent in its colour, then its closed outline (the desktop's nonzero fill)
+        if (points.length < 6) break;
+        final path = Path()..moveTo(points[0] * w, points[1] * h);
+        for (var i = 2; i + 1 < points.length; i += 2) {
+          path.lineTo(points[i] * w, points[i + 1] * h);
+        }
+        path.close();
+        c.drawPath(
+          path,
+          Paint()
+            ..color = colorOf(color).withValues(alpha: polygonFillOpacity)
+            ..style = PaintingStyle.fill,
+        );
         c.drawPath(path, paint);
       case MediaShapeUnknown():
         break;

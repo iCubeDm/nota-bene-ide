@@ -45,7 +45,9 @@ export function composeBatch(
         if (refs[i].length > 1) tail += '\n' + tIn(lang, 'imgRef', refs[i].slice(1)); // pasted images after the shared one
       }
       else if (refs[i]?.length) tail += '\n' + tIn(lang, 'imgRefMedia', refs[i]);
-      tail += '\n' + tIn(lang, 'filesLine', [`${dir}/frame.jpg${sfx}`, `${dir}/layer.png${sfx}`]);
+      const masked = a.shapes.some((s) => s.kind === 'polygon'); // issue 447: the drawing's polygons as a mask
+      tail += '\n' + tIn(lang, 'filesLine', [`${dir}/frame.jpg${sfx}`, `${dir}/layer.png${sfx}`, ...(masked ? [`${dir}/mask.png${sfx}`] : [])]);
+      if (masked) tail += '\n' + tIn(lang, 'maskLine');
       if (staleOf(c)) tail += '\n' + tIn(lang, 'markStale');
     } else if (isCutAnchor(a)) {
       if (refs[i]?.length) tail += '\n' + tIn(lang, 'imgRef', refs[i]);

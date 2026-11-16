@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { MARK_COLORS, type MarkColor } from '@nota-bene/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
-import { isMac } from '@/shell/keymap.ts';
+import { isMac, withKeys } from '@/shell/keymap.ts';
 import type { Draft, MarkTool } from './slice.ts';
 
 const TOOL_ICONS: Record<MarkTool, ReactNode> = {
@@ -10,9 +10,11 @@ const TOOL_ICONS: Record<MarkTool, ReactNode> = {
   ellipse: <ellipse cx="12" cy="12" rx="8.5" ry="6.5" />,
   pen: <path d="M4 18c3-1 4-6 7-7s3 4 6 3 2-5 3-6" />,
   arrow: <><path d="M5 19 19 5" /><path d="M10 5h9v9" /></>,
+  polygon: <path d="M5 7l8-3 6 7-4 8-9-3z" fill="currentColor" fillOpacity="0.25" />,
 };
-const TOOLS: MarkTool[] = ['rect', 'ellipse', 'pen', 'arrow'];
-const TOOL_TIP = { rect: 'toolRect', ellipse: 'toolEllipse', pen: 'toolPen', arrow: 'toolArrow' } as const;
+const TOOLS: MarkTool[] = ['rect', 'ellipse', 'pen', 'arrow', 'polygon'];
+/** The Mask tool's key (issue 447): not one of the other tools', the colours' or a player's (K J L M F N, Space). */
+export const MASK_KEY = 'G';
 
 const Icon = ({ children }: { children: ReactNode }) => (
   <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width={15} height={15}>{children}</svg>
@@ -45,8 +47,9 @@ function Btn({ label, tip, pressed, disabled, onClick, className = '', children 
 const shell = 'pointer-events-auto flex max-w-full flex-wrap items-center justify-end gap-0.5 rounded-lg border border-border bg-chrome/90 p-0.5 shadow-[0_4px_16px_color-mix(in_oklch,var(--shade)_35%,transparent)] backdrop-blur';
 
 /** The media tab's top-right overlay: the "Mark up" toggle, or, while marking, tools, colours, undo, Comment, ✕ (all off while `disabled`: a drawing is being saved). */
-export function MarkupToolbar({ draft, disabled = false, onEnter, onTool, onColor, onUndo, onComment, onLeave }: {
-  draft: Draft; disabled?: boolean; onEnter: () => void; onTool: (t: MarkTool) => void; onColor: (c: MarkColor) => void;
+export function MarkupToolbar({ draft, disabled = false, mask = false, onEnter, onTool, onColor, onUndo, onComment, onLeave }: {
+  /** `mask`: the server takes polygons (MASK_PROTOCOL), so the Mask tool is offered */
+  draft: Draft; disabled?: boolean; mask?: boolean; onEnter: () => void; onTool: (t: MarkTool) => void; onColor: (c: MarkColor) => void;
   onUndo: () => void; onComment: () => void; onLeave: () => void;
 }) {
   const t = useT();
@@ -60,10 +63,19 @@ export function MarkupToolbar({ draft, disabled = false, onEnter, onTool, onColo
     );
   }
   const has = draft.shapes.length > 0;
+  const toolLabel = (tool: MarkTool): string => {
+    switch (tool) {
+      case 'rect': return t('toolRect');
+      case 'ellipse': return t('toolEllipse');
+      case 'pen': return t('toolPen');
+      case 'arrow': return t('toolArrow');
+      case 'polygon': return withKeys(t('toolMask'), MASK_KEY);
+    }
+  };
   return (
     <div role="toolbar" aria-label={t('markTools')} className={shell}>
-      {TOOLS.map((tool) => (
-        <Btn key={tool} label={t(TOOL_TIP[tool])} pressed={draft.tool === tool} disabled={disabled} onClick={() => onTool(tool)}>
+      {TOOLS.filter((tool) => mask || tool !== 'polygon').map((tool) => (
+        <Btn key={tool} label={toolLabel(tool)} tip={tool === 'polygon' ? `${toolLabel(tool)}: ${t('toolMaskHow')}` : undefined} pressed={draft.tool === tool} disabled={disabled} onClick={() => onTool(tool)}>
           <Icon>{TOOL_ICONS[tool]}</Icon>
         </Btn>
       ))}

@@ -120,7 +120,9 @@ Images are scaled to 1568 px on the long edge; a PNG over 3.5 MB becomes a JPEG.
 
 Images open in a viewer (a click toggles natural size). Video and audio get a player with seeking, speed, volume, picture in picture and fullscreen. Leaving its tab moves a playing video to picture in picture, and audio keeps playing; closing the tab stops it. Video comments are ticks on the timeline; a click seeks there. Video and audio in chat replies get the same player, and their ticks open the file's tab at that time.
 
-**Example.** Pause where the button looks wrong, press **Mark up** (N). Draw with Rectangle (R), Ellipse (E), Pen (P) or Arrow (A), colours 1–5 (red, yellow, green, blue, white), undo Cmd/Ctrl+Z. **Comment** (Enter), type `this button is misaligned`. Esc leaves (asking before dropping an uncommented drawing). The agent gets the frame with your marks; several comments on one frame make one image with numbered marks. Marks are saved under `.nota-bene/marks/` in the project, kept out of git.
+**Example.** Pause where the button looks wrong, press **Mark up** (N). Draw with Rectangle (R), Ellipse (E), Pen (P) or Arrow (A), colours 1–5 (red, yellow, green, blue, white), undo Cmd/Ctrl+Z. **Comment** (Enter), type `this button is misaligned`. Esc drops a shape you are still drawing; with nothing in progress it leaves (asking before dropping an uncommented drawing). The agent gets the frame with your marks; several comments on one frame make one image with numbered marks. Marks are saved under `.nota-bene/marks/` in the project, kept out of git.
+
+**Mask (G).** Outlines an exact area (an object, a region to change or inpaint) point by point. Each click adds a point and a line follows the pointer from the last one; click the first point, press Enter or double-click to close the shape. Backspace or Cmd/Ctrl+Z removes the last point, Esc drops the shape being drawn. A closed shape is filled half-transparent in the mark colour. With Mask selected, drag a point to adjust the shape or drag inside it to move it; Cmd/Ctrl+Z undoes one such drag at a time. A click inside a closed shape moves it; Alt-click starts a new shape there instead. A comment can hold several. The agent gets each shape's points in pixels of the original file and, next to `frame.jpg` and `layer.png`, a `mask.png` the size of `frame.jpg` (smaller than the original when the frame was scaled down to fit): white inside every shape of the comment, black outside. Overlapping shapes add up, and a shape that crosses itself is filled by the nonzero rule. On an image attached to a message there is no mask file; the points are in the text. Needs a server of protocol 24; the phone shows these shapes on the comments it receives but cannot draw them yet.
 
 | Player key | Action |
 |---|---|
@@ -202,7 +204,7 @@ A file named `<name>.nbcut.json` is an edit for the video editor (work in progre
 - The clip panel with several clips selected shows how many and the fields they share: gain and mute (on the clips with sound), the fades, and with video clips among them their frame (X, Y, width, height) and opacity, which apply to the video clips only, each keeping the rest of its own frame. A field whose values differ is empty, marked *mixed*; a value typed there is set on all of them at once as one step of undo, or on none if it does not fit one of them (a fade longer than a clip).
 - A selection that cannot move (a nudge or a drag would put a clip over another, or there is no track of its kind for each clip) stays where it was, and the edit bar says why.
 - The clip panel: start, in and out (a photo: duration), gain and mute of the clip's sound, its fades, and for a video track its frame and opacity in percent, with **Fit to frame** to fill the frame again. A value the format does not accept is marked and not applied.
-- The file is the only state. When it changes on disk (the agent wrote it) and nothing is unsaved, the editor reloads it, keeping the playhead; undo starts again from that version. An edit made against an older version asks first: overwrite it, or take the version on disk. An edit with problems, or a view of another branch or worktree, stays read-only.
+- The file is the only state. When it changes on disk (the agent wrote it) and nothing is unsaved, the editor reloads it, keeping the playhead; undo starts again from that version. For about two seconds the clips it added or changed (moved, trimmed, another gain, fade or frame) are ringed, and a dashed outline with the file's name, struck through, marks where a removed clip was; without motion (the system's reduced-motion setting) they hold still instead of fading. A selected clip keeps its selection ring. In a tab that is not shown, the highlight waits and plays when you switch to it; another write by the agent meanwhile starts it again. Your own edits and the edit as first opened are never highlighted. Taking the version on disk after a conflict highlights what it changes against what you had. An edit made against an older version asks first: overwrite it, or take the version on disk. An edit with problems, or a view of another branch or worktree, stays read-only.
 
 </details>
 
@@ -216,6 +218,8 @@ A file named `<name>.nbcut.json` is an edit for the video editor (work in progre
 - Comments are made on an edit of this folder, against a server of protocol 23 or newer. The phone lists them as text (the file, the clip and the time) and leaves them for the window to send.
 
 </details>
+
+**Working with the agent: a rough cut, then fixes.** Put the footage and the music in the project (say `media/`) and ask in the chat: `make a rough cut in edit.nbcut.json: cut these clips to media/music.mp3, 60 s`. The agent writes the file (the format is below) and it opens as a timeline; while its tab is open, each later write by the agent shows at once, with the clips it changed briefly highlighted. Then fix it yourself (drag, trim, Blade, gains and fades, all saved to the same file) or leave it to the agent: select a clip, or put the playhead on a moment, press M and write `start the street shot on the second beat` or `the music is too loud here`. Send the batch; the agent gets the file, the time, the clip and its source moment, edits the file again, and you see what it changed. Export when it is right.
 
 Problems are listed above the timeline by field (`clips[1].at: overlaps the clip before it on its track`), and the clips they concern are outlined. A source file that is not in the project is one of them; the rest of the edit is still drawn.
 
@@ -692,7 +696,7 @@ Everything is in `~/.nota-bene/` (`NOTA_BENE_HOME` to move it; `npm run dev` use
 | `remote/` | `host.key` (delete to unpair every phone), `devices.json`, `config.json`, `access-key` (all mode 600), `control.sock` (Windows: a named pipe and `control-secret`) |
 | `whisper/`, `whisper-host/` | the model; the shared process's socket (Windows: pipe and `host-secret`), lock and log |
 
-On Windows `~` is `%USERPROFILE%` and the folder must stay inside it ([Windows](#windows)). The only thing written into a project: `<project>/.nota-bene/marks/<comment id>/frame.jpg` and `layer.png`, with a `.nota-bene/.gitignore` of `*`.
+On Windows `~` is `%USERPROFILE%` and the folder must stay inside it ([Windows](#windows)). The only thing written into a project: `<project>/.nota-bene/marks/<comment id>/frame.jpg`, `layer.png` and, for a drawing with a mask, `mask.png`, with a `.nota-bene/.gitignore` of `*`.
 
 ## Windows
 

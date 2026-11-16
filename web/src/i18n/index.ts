@@ -87,7 +87,8 @@ export function resetUnsyncedLang(): void {
 
 /** Translate into an explicit language (for text that must not follow the UI language, e.g. a sent batch). */
 export function tIn(l: Lang, key: keyof typeof ru, ...args: unknown[]): string {
-  const v = DICTS[l][key] ?? DICTS.en[key] ?? key;
+  const k: string = key; // a plain string: the key union is too large for TypeScript to combine with unknown
+  const v = DICTS[l][k] ?? DICTS.en[k] ?? k;
   return typeof v === 'function' ? String(v(...args)) : String(v);
 }
 
