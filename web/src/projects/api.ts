@@ -87,6 +87,8 @@ function schedule(): void {
 }
 
 const onFocusChange = () => schedule();
+// issue 449: Back to a page this tab left for another window brings it from the back/forward cache with the list it had then
+const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) { inFlight = null; load(); } };
 let listening = false;
 function listen(on: boolean): void {
   if (on === listening) return;
@@ -94,6 +96,7 @@ function listen(on: boolean): void {
   const f = on ? window.addEventListener : window.removeEventListener;
   f.call(window, 'focus', onFocusChange);
   f.call(window, 'blur', onFocusChange);
+  f.call(window, 'pageshow', onPageShow as EventListener);
 }
 
 /** Nobody shows the list any more (checked after the commit: a part re-subscribing for another `active` keeps it). */

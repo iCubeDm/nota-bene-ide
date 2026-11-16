@@ -238,6 +238,19 @@ it('a click while a move is pending is ignored; a failed move reloads the list',
   expect(nav.go).not.toHaveBeenCalled();
 });
 
+// issue 449: a move leaves the page with its pending flag up; Back brings it from the back/forward cache as it was left
+it('a page restored by Back after a move switches again, with a fresh list', async () => {
+  await setup();
+  fireEvent.click(tile('/w/Blog'));
+  await waitFor(() => expect(nav.go).toHaveBeenCalledTimes(1));
+  const before = polls();
+  act(() => { window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); });
+  await waitFor(() => expect(polls()).toBe(before + 1));
+  fireEvent.click(tile('/x/blog'));
+  await waitFor(() => expect(nav.go).toHaveBeenCalledTimes(2));
+  expect(calls.filter((u) => u === 'POST /system/projects/enter')).toHaveLength(2);
+});
+
 it('a new window with nothing cached shows no rail until the server says, and none when it is off', async () => {
   let say!: (r: Response) => void;
   prefsGet = () => new Promise<Response>((res) => { say = res; });
