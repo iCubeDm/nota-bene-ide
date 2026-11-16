@@ -277,14 +277,16 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
 
   /** The feed of `id` in the root: emptied, then a resumed session's transcript with its `resumed` marker, then the
    * `session` event (with the title). At startup there are no sockets yet. */
-  async function load(id: string | null): Promise<void> {
+  // `start`: the server's own start (not a ↻ or a switch): only then can a mark of a cut turn be news
+  async function load(id: string | null, start = false): Promise<void> {
     hub.reset();
     who.forget(); // the history that held the last one is gone: always announce
     if (id) {
       const read = () => backend.history(id, who.root, attachments, (e) => report('attach', e));
       const events = await readHistory({ read, timeoutMs: o.historyTimeoutMs ?? HISTORY_TIMEOUT_MS, report });
       hub.reset(withVoices(events), { earlier: archive.earlier() });
-      hub.emit({ kind: 'resumed', id });
+      const cut = start && !o.fork && o.turnCut?.(id) === true;
+      hub.emit({ kind: 'resumed', id, ...(cut ? { cut: true as const } : {}) });
       await titles.load(id, who.root);
     }
     who.announce(); // header gets the root (and a resumed id) before the first turn's init
@@ -381,7 +383,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     return busy() && trackedCommand(text, cmds.commands) ? 'busy' : null;
   }
 
-  await load(who.id);
+  await load(who.id, true);
   slot.ensure();
   stats.start();
 

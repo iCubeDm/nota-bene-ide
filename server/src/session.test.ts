@@ -375,6 +375,18 @@ describe('session manager', () => {
     await until(() => agentOf(events, 'turn-end').length === 1);
   });
 
+  it('resume of a session whose turn a restart cut: the resumed marker says cut, at the start only (gh-422)', async () => {
+    const inner = fakeBackend([{ text: 'a' }]);
+    const backend: AgentBackend = { ...noSessions, start: inner.start, history: async () => [] };
+    const { hub, events } = setup(backend);
+    const asked: string[] = [];
+    const s = await createSessionManager({ hub, backend, cwd: os.tmpdir(), resume: 'old-session', turnCut: (id) => { asked.push(id); return true; } });
+    expect(events.find((e) => e.kind === 'resumed')).toEqual({ kind: 'resumed', id: 'old-session', cut: true });
+    await s.restart(); // ↻ is not a server restart: no note again, the mark is not asked for
+    expect(events.filter((e) => e.kind === 'resumed').at(-1)).toEqual({ kind: 'resumed', id: 'old-session' });
+    expect(asked).toEqual(['old-session']);
+  });
+
   it('resume: history, then exactly one resumed marker, then live events; one session per distinct id', async () => {
     const inner = fakeBackend([{ text: 'a' }]);
     const old: ServerEvent[] = [{ kind: 'user', id: 'h1', text: 'before', ts: 1, historic: true }];

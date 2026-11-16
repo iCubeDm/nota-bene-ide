@@ -436,6 +436,90 @@ describe('server', () => {
       await until(() => codes.length === 1);
       expect(codes).toEqual([75]);
     });
+
+    // gh-422: a restart while the agent works waits for the pause
+    const long = () => fakeBackend([{ text: 'x'.repeat(4000), chunk: 1, delayMs: 5 }, { text: 'again' }]);
+    const postJson = (url: string, p: string, body: unknown = {}) =>
+      fetch(`${url}${p}`, { method: 'POST', headers: { origin: url, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const working = async (codes: number[]) => {
+      supervise();
+      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: long(), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
+      closers.push(s.close);
+      const c = await connect(s.url);
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'work' }));
+      await until(() => c.events.some((e) => e.kind === 'agent' && e.e.t === 'message-chunk'));
+      return { s, c };
+    };
+    const info = async (url: string) => (await (await fetch(`${url}/info`)).json()) as { restartPending?: boolean };
+
+    it('busy: pending, told to the page; the exit waits for the turn and then for the page to ask in its pause', async () => {
+      const codes: number[] = [];
+      const { s, c } = await working(codes);
+      expect(c.events.filter((e) => e.kind === 'restart-pending')).toEqual([{ kind: 'restart-pending', pending: false }]); // on attach
+      const r = await post(s.url, s.url);
+      expect(r.status).toBe(200);
+      expect(await r.json()).toEqual({ ok: true, pending: true });
+      await until(() => c.events.some((e) => e.kind === 'restart-pending' && e.pending));
+      expect(await info(s.url)).toMatchObject({ restartPending: true });
+      expect((await postJson(s.url, '/restart-server/pause')).status).toBe(409); // still busy
+      await new Promise((r) => setTimeout(r, 300));
+      expect(codes).toEqual([]);
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => c.events.some(isResult));
+      await new Promise((r) => setTimeout(r, 1500)); // a page is open: the server does not go by itself
+      expect(codes).toEqual([]);
+      expect((await postJson(s.url, '/restart-server/pause')).status).toBe(200);
+      await until(() => codes.length === 1);
+      expect(codes).toEqual([75]);
+    });
+
+    it('busy with no page open: exits 75 by itself at the next pause', async () => {
+      const codes: number[] = [];
+      const { s, c } = await working(codes);
+      expect((await post(s.url, s.url)).status).toBe(200);
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => c.events.some(isResult));
+      c.ws.close();
+      await until(() => codes.length === 1, 4000);
+      expect(codes).toEqual([75]);
+    });
+
+    it('cancel: the pause does not restart', async () => {
+      const codes: number[] = [];
+      const { s, c } = await working(codes);
+      await post(s.url, s.url);
+      expect((await postJson(s.url, '/restart-server/cancel')).status).toBe(200);
+      await until(() => c.events.filter((e) => e.kind === 'restart-pending').at(-1)?.kind === 'restart-pending' && !(c.events.filter((e) => e.kind === 'restart-pending').at(-1) as { pending: boolean }).pending);
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => c.events.some(isResult));
+      expect((await postJson(s.url, '/restart-server/pause')).status).toBe(409);
+      c.ws.close();
+      await new Promise((r) => setTimeout(r, 1500));
+      expect(codes).toEqual([]);
+      expect(await info(s.url)).toMatchObject({ restartPending: false });
+    });
+
+    it('now: exits 75 at once mid-turn and leaves the mark of the cut turn', async () => {
+      const codes: number[] = [];
+      const { s } = await working(codes);
+      const id = ((await (await fetch(`${s.url}/info`)).json()) as { session: string | null }).session;
+      await until(() => fs.existsSync(path.join(home, 'turns-open')) && fs.readdirSync(path.join(home, 'turns-open')).length > 0);
+      const r = await postJson(s.url, '/restart-server', { now: true });
+      expect(r.status).toBe(200);
+      await until(() => codes.length === 1);
+      expect(codes).toEqual([75]);
+      await new Promise((r) => setTimeout(r, 500)); // the close ends the turn: the mark must stay
+      expect(fs.readdirSync(path.join(home, 'turns-open'))).toEqual([id]);
+    });
+
+    it('a turn that ends normally leaves no mark', async () => {
+      const codes: number[] = [];
+      const { c } = await working(codes);
+      await until(() => fs.existsSync(path.join(home, 'turns-open')) && fs.readdirSync(path.join(home, 'turns-open')).length > 0);
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => c.events.some(isResult));
+      await until(() => fs.readdirSync(path.join(home, 'turns-open')).length === 0);
+    });
   });
 
   describe('POST /stop', () => {

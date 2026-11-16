@@ -15,7 +15,10 @@ export class TurnMarks {
   private frozen = false;
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(private o: { dir: string; working: () => boolean; session: () => string | null }) {}
+  private o: { dir: string; working: () => boolean; session: () => string | null };
+  constructor(o: { dir: string; working: () => boolean; session: () => string | null }) {
+    this.o = o;
+  }
 
   private file(id: string): string | null {
     return ID.test(id) ? path.join(this.o.dir, id) : null;
