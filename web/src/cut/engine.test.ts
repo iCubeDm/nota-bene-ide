@@ -183,8 +183,10 @@ it('sound: element → clip gain with linear fade ramps → track gain (dB, mute
   expect(sources).toHaveLength(10); // every element of every track, once
   const voice = audios.find((s) => s.el.getAttribute('src') === '/file?path=media/voice.wav')!;
   expect(trackGain(voice.el).gain.value).toBeCloseTo(0.501, 3);
-  const music = audios.find((s) => s.el.getAttribute('src') === '/file?path=media/music.mp3')!;
-  expect(trackGain(music.el).gain.value).toBe(0);
+  // the muted music's elements load nothing (issue 429), their track gain is 0
+  const music = audios.filter((s) => !s.el.hasAttribute('src'));
+  expect(music).toHaveLength(2);
+  expect(trackGain(music[0]!.el).gain.value).toBe(0);
   expect(trackGain(box.querySelector('video')!).gain.value).toBe(1);
   // the voice (+6 dB) fades in over 1 s from its start and out over its last 2 s, on the audio clock
   const ramps = voice.to!.gain.ramps.map(([k, v, at]) => [k, +v.toFixed(3), +(at - 100).toFixed(3)]);
@@ -326,4 +328,54 @@ it('an edit that turns invalid while playing pauses; a hidden tab suspends the s
   const ctx = sources.length ? (p as unknown as { ctx: FakeContext }).ctx : null;
   p.setLive(false);
   expect(ctx?.state).toBe('suspended');
+});
+
+it('the first play hands the gain to Web Audio at full element volume: a fade-in at the playhead does not leave it silent (issue 429)', () => {
+  // before the first play there is no audio graph: a paused step sets the element's own volume to the fade's 0 at t = 0
+  const c: Cut = { version: 1, width: 1280, height: 720, fps: 25, tracks: [{ id: 'a1', kind: 'audio' }], clips: [{ id: 'm1', track: 'a1', src: 'media/music.mp3', at: 0, out: 9, gain: -14, fadeIn: 0.6 }] };
+  const { p } = setup(c);
+  const el = () => sources.find((s) => s.el.getAttribute('src') === '/file?path=media/music.mp3')!.el;
+  p.play();
+  expect(el().paused).toBe(false);
+  expect(el().volume).toBe(1); // the clip gain node carries the fade and the −14 dB, once
+  step(16);
+  expect(el().volume).toBe(1);
+});
+
+it('a track that adds nothing loads nothing: a hidden and muted video track, a muted audio track; unmuted, it loads (issue 429)', () => {
+  const c = cut();
+  c.tracks[2] = { id: 'v3', kind: 'video', hidden: true, mute: true };
+  const { p, layer } = setup(c);
+  const srcs = (id: string) => [...layer(id).querySelectorAll('video')].map((v) => v.getAttribute('src'));
+  p.seek(1.5);
+  p.play();
+  step(16);
+  expect(srcs('v3')).toEqual([null, null]);
+  const music = () => sources.filter((s) => s.el instanceof HTMLAudioElement && s.el.getAttribute('src') === '/file?path=media/music.mp3');
+  expect(music()).toHaveLength(0);
+  expect(srcs('v1')).toContain('/file?path=media/a.mp4');
+  // the music unmuted: its clip in view loads and plays
+  const on = cut();
+  on.tracks[2] = c.tracks[2]!;
+  on.tracks[4] = { id: 'a2', kind: 'audio' };
+  p.setCut(on);
+  step(16);
+  expect(music()).toHaveLength(1);
+  expect(music()[0]!.el.paused).toBe(false);
+  // muted again while playing: it stops and lets go of the file
+  p.setCut(c);
+  expect(music()).toHaveLength(0);
+});
+
+it('in a gap the element already holding the next clip keeps it: the other does not load the same file (issue 429)', () => {
+  const c: Cut = { version: 1, width: 1280, height: 720, fps: 25, tracks: [{ id: 'a1', kind: 'audio' }], clips: [
+    { id: 'x', track: 'a1', src: 'media/x.mp3', at: 0, out: 2 },
+    { id: 'y', track: 'a1', src: 'media/y.mp3', at: 5, out: 2 },
+  ] };
+  const { p } = setup(c);
+  p.seek(1);
+  p.seek(3);
+  p.play();
+  const els = sources.map((s) => s.el.getAttribute('src'));
+  expect(els.filter((x) => x === '/file?path=media/y.mp3')).toHaveLength(1);
 });
