@@ -579,8 +579,8 @@ Everything is in `~/.nota-bene/` (`NOTA_BENE_HOME` to move it; `npm run dev` use
 | `attachments/<sha256>.<ext>` | *per agent*: pasted images and recordings (`.wav`) |
 | `windows/<port>.json`, `locks/` | *per agent*: running windows, launch locks |
 | `history/<sessionId>.jsonl` | *per agent*: conversation before each compaction |
-| `cache/blend/` | converted `.blend` files (safe to delete) |
-| `trash/` | what Storage → Clean moved |
+| `cache/blend/` | *per agent*: converted `.blend` files (safe to delete) |
+| `trash/` | *per agent*: what Storage → Clean moved |
 | `agent-choice.json` | each folder's last agent |
 | `recent.json`, `recent-hidden.json` | the switcher's Recent folders, and those removed with ✕ |
 | `project-icons/` | project pictures set from the phone |
