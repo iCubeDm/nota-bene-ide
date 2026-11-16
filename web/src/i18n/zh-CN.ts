@@ -993,7 +993,7 @@ export const zhCN: Dict = {
   cutHideShort: "隐",
   cutInspector: "片段",
   // the timeline's tools and selections (issue 432)
-  cutToolSelect: "选择：单击片段，Shift 或 ⌘/Ctrl 单击选择更多，在空白处拖出矩形框选",
+  cutToolSelect: "选择：单击片段，Shift 或 ⌘/Ctrl 单击选择更多，在空白处拖出矩形框选；Shift 拖动片段会连同其轨道上之后的所有片段一起移动，Shift 拖动片段末端则后续片段随之平移",
   cutToolSelectShort: "选择",
   cutToolBlade: "刀片：单击在该处切开片段（Shift：所有轨道；Alt：不吸附）",
   cutToolBladeShort: "刀片",
