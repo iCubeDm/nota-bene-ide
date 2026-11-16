@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { basename } from '@nota-bene/shared/paths';
-import { fileUrl } from '@/files/kinds.ts';
+import { projectFileUrl } from '@/files/kinds.ts';
 import { useT } from '@/i18n/index.ts';
 import { isMac } from '@/shell/keymap.ts';
 import { fmtTime, rulerStep, type Block, type Lane } from './layout.ts';
@@ -134,7 +134,7 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc }: {
 }) {
   const w = b.len * pps;
   const bad = !!problems?.length;
-  const url = fileUrl(b.src, undefined, fileSrc);
+  const url = projectFileUrl(b.src, fileSrc);
   // a thumbnail only where it has room, and never for a file that is not there
   const thumb = lane.kind === 'video' && !gone && w >= 48;
   const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? [])].join('\n');

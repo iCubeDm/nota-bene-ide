@@ -112,6 +112,16 @@ it('lists problems readably and still draws what it can; a missing source is one
   expect(container.querySelector('[data-clip="c4"]')).toBeNull();
 });
 
+it('a source named with a literal %20 is looked up by that name, not decoded', async () => {
+  const c = structuredClone(fixture);
+  c.clips[3]!.src = 'media/50%20off.wav';
+  missing = ['media/50 off.wav']; // the decoded name is not the file
+  show(JSON.stringify(c));
+  await waitFor(() => expect(heads).toHaveLength(5));
+  expect(heads).toContain('/file?path=media%2F50%2520off.wav');
+  expect(screen.queryByText(/not in the project/)).toBeNull();
+});
+
 it('a file that is not JSON says so, no crash', () => {
   show('{ "version": 1, ');
   expect(screen.getByText(/The edit is not valid JSON/)).toBeInTheDocument();

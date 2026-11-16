@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fileUrl } from '@/files/kinds.ts';
+import { projectFileUrl } from '@/files/kinds.ts';
 import { useAppSelector } from '@/store/store.ts';
 import { selectRefreshSeq } from '@/tree/slice.ts';
 
@@ -16,7 +16,7 @@ export function useMissing(srcs: string[], fileSrc: string, active: boolean): Re
     if (!key) return void setMissing(new Set());
     const ac = new AbortController();
     const head = (s: string) =>
-      fetch(fileUrl(s, undefined, fileSrc), { method: 'HEAD', signal: ac.signal }).then((r) => (r.status === 404 ? s : null), () => null);
+      fetch(projectFileUrl(s, fileSrc), { method: 'HEAD', signal: ac.signal }).then((r) => (r.status === 404 ? s : null), () => null);
     void Promise.all(key.split('\n').map(head)).then((r) => {
       if (!ac.signal.aborted) setMissing(new Set(r.filter((s): s is string => s !== null)));
     });

@@ -70,8 +70,12 @@ export function fileUrl(p: string, baseDir?: string, src?: string): string {
     // keep raw
   }
   if (baseDir && !path.startsWith('/')) path = resolveIn(baseDir, path) ?? `${baseDir}/${path}`;
-  return `/file?path=${encodeURIComponent(path)}${src && src !== 'here' ? `&src=${encodeURIComponent(src)}` : ''}`;
+  return projectFileUrl(path, src);
 }
+
+/** URL of a project-relative path taken as it is, not as a link: `a%20b.mp4` is that file's name (an edit's sources). */
+export const projectFileUrl = (path: string, src?: string): string =>
+  `/file?path=${encodeURIComponent(path)}${src && src !== 'here' ? `&src=${encodeURIComponent(src)}` : ''}`;
 
 /** A project-relative path in agent text: never absolute (`/a`; on a Windows server also `C:\a`, `C:/a` or `\\host\share`),
  *  a URL or `~`. */
