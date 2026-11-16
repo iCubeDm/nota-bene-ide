@@ -367,6 +367,12 @@ When the agent leaves an image in a temporary folder, for example a screenshot s
 
 This is narrow on purpose. Only absolute paths inside the system temp folders (`/tmp`, `/private/tmp` and `os.tmpdir()`, checked after resolving symbolic links) are served, only image files (png, jpg, jpeg, gif, webp, avif, bmp, svg), up to 50 MB, one file at a time. There is no listing and no search of the temp folder, and nothing else outside the project is readable this way.
 
+### Exporting an edit
+
+An edit (`*.nbcut.json`) is exported by Export: pick video (MP4: H.264 and AAC at the edit's size and frame rate) or the sound mix alone (WAV or M4A). The file goes into the project as `exports/<name>.mp4` (`.wav`, `.m4a`), where `<name>` is the edit's file name without `.nbcut.json`; an earlier export of the same name is replaced only once the new one has finished. Progress shows while it runs, Cancel stops it, a failure shows ffmpeg's last lines, and the result is a link that opens the file in a tab. One export of an edit runs at a time. Every source of the edit and the output must be inside the project.
+
+Export needs ffmpeg on the machine: the path in `NOTA_BENE_FFMPEG`, else `ffmpeg` on `PATH`, else the usual places (Homebrew's `/opt/homebrew/bin` and `/usr/local/bin`, `/usr/bin`, `/snap/bin`; on Windows winget's, Scoop's and Chocolatey's folders, `Program Files\ffmpeg\bin` and `C:\ffmpeg\bin`). Without it the editor still works and Export says how to install it (`brew install ffmpeg`, `winget install ffmpeg`, `sudo apt install ffmpeg`); an ffmpeg installed later is found without a restart.
+
 ## Subagents and background tasks
 
 When the agent starts a subagent, the call in the chat is a card with the subagent's type, a description and its status (running, done, error, stopped). **Open** shows the subagent's conversation in its own tab, read-only, refreshed while it runs. Comments you make there go to the main session. The message box always talks to the main agent, whichever tab is open.
