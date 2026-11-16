@@ -29,11 +29,18 @@ export type MarkColor = (typeof MARK_COLORS)[number];
 export const MARK_MAX_BYTES = 25 * 1024 * 1024;
 /** the most values (x and y each count) a pen stroke may carry */
 export const PEN_MAX_VALUES = 20000;
-/** all coordinates are relative to the media's natural size, 0..1 */
+/** the most points (x, y pairs) a polygon may carry (issue 447); the fewest is 3 */
+export const POLYGON_MAX_POINTS = 500;
+/**
+ * All coordinates are relative to the media's natural size, 0..1. `polygon` (protocol 24, issue 447): a closed shape,
+ * `points` x, y pairs; a media comment with polygons also has `mask.png` beside its frame (white inside any polygon,
+ * nonzero rule, black outside).
+ */
 export type MediaShape =
   | { kind: 'rect' | 'ellipse'; color: MarkColor; x: number; y: number; w: number; h: number }
   | { kind: 'arrow'; color: MarkColor; x1: number; y1: number; x2: number; y2: number }
-  | { kind: 'pen'; color: MarkColor; points: number[] };
+  | { kind: 'pen'; color: MarkColor; points: number[] }
+  | { kind: 'polygon'; color: MarkColor; points: number[] };
 /** A 3D view's camera (protocol 9): where it is, what it looks at, its vertical field of view in degrees (0 < fov < 180). */
 export type ModelCamera = { position: [number, number, number]; target: [number, number, number]; fov: number };
 export type MediaAnchor = {
@@ -165,7 +172,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 21: relay access keys: `RemoteState.accessKey` (one is saved) and `POST /remote/config {accessKey}`; `lastError` may be a 4405 (the key's computer limit) while the connector retries.
 // 22: a server restart that waits for the agent (gh-422): the server's `restart-pending` event (on attach and when it changes) and `resumed.cut` (the resume after a restart that cut a turn); `POST /restart-server {now}`, `/restart-server/pause`, `/restart-server/cancel`, `/info.restartPending`. An older server restarts at once and sends neither.
 // 23: cut anchors (a comment on a clip or a moment of a video edit's timeline, issue 430); an `edit` op of a pending cut comment also takes its anchor when it is a cut anchor on the same file (the comment follows its clip). An older server would refuse the comment.
-export const PROTOCOL = 23;
+// 24: polygon media shapes (`MediaShape` kind `polygon`, issue 447) and `mask.png` beside a media comment's frame (`/marks`). An older server would refuse the comment, so the page offers the Mask tool only from 24.
+export const PROTOCOL = 24;
 
 /** A paired phone as the Remote tab lists it (protocol 20). */
 export type RemoteDevice = { id: string; name?: string; fingerprint: string; online: boolean; pairedAt: number };
@@ -474,6 +482,9 @@ function isMediaShape(v: unknown): v is MediaShape {
     case 'pen':
       return Array.isArray(v.points) && v.points.length >= 2 && v.points.length <= PEN_MAX_VALUES
         && v.points.length % 2 === 0 && v.points.every(isRel);
+    case 'polygon':
+      return Array.isArray(v.points) && v.points.length >= 6 && v.points.length <= 2 * POLYGON_MAX_POINTS
+        && v.points.length % 2 === 0 && v.points.every(isRel);
     default:
       return false;
   }
@@ -576,7 +587,8 @@ function toShape(s: MediaShape): MediaShape {
     case 'rect':
     case 'ellipse': return { kind: s.kind, color: s.color, x: s.x, y: s.y, w: s.w, h: s.h };
     case 'arrow': return { kind: 'arrow', color: s.color, x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2 };
-    case 'pen': return { kind: 'pen', color: s.color, points: [...s.points] };
+    case 'pen':
+    case 'polygon': return { kind: s.kind, color: s.color, points: [...s.points] };
   }
 }
 

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { generatedImages, isAttachmentAnchor, isCutAnchor, parseClientMessage, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
+import { generatedImages, isAttachmentAnchor, isCutAnchor, parseClientMessage, POLYGON_MAX_POINTS, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
 
 test('accepts a send', () => expect(parseClientMessage('{"type":"send","id":"u1","text":"hi"}')).toEqual({ type: 'send', id: 'u1', text: 'hi' }));
 test('rejects bad json', () => expect(parseClientMessage('{nope')).toHaveProperty('error'));
@@ -154,6 +154,7 @@ test('parses a comment with a media anchor (rect, ellipse, arrow, pen; time; ver
       { kind: 'ellipse', color: '#ffcc00', x: 0, y: 0, w: 1, h: 1 },
       { kind: 'arrow', color: '#0a84ff', x1: 0, y1: 0.5, x2: 1, y2: 0.5 },
       { kind: 'pen', color: '#ffffff', points: [0, 0, 0.5, 0.5, 1, 1] },
+      { kind: 'polygon', color: '#34c759', points: [0.1, 0.1, 0.9, 0.1, 0.5, 0.9] },
     ],
   });
   expect(parseMedia(a)).toEqual({ type: 'comments', sessionId: null, items: [comment({ anchor: a })] });
@@ -173,6 +174,11 @@ const rejectCases: [string, unknown][] = [
   ['pen odd count', mediaAnchor({ shapes: [{ kind: 'pen', color: '#ff3b30', points: [0, 0, 0.5] }] })],
   ['pen over 20000', mediaAnchor({ shapes: [{ kind: 'pen', color: '#ff3b30', points: new Array(20002).fill(0.5) }] })],
   ['pen value < 0', mediaAnchor({ shapes: [{ kind: 'pen', color: '#ff3b30', points: [0, 0, -0.5, 0.2] }] })],
+  ['polygon of 2 points (issue 447)', mediaAnchor({ shapes: [{ kind: 'polygon', color: '#ff3b30', points: [0, 0, 1, 1] }] })],
+  ['polygon odd count', mediaAnchor({ shapes: [{ kind: 'polygon', color: '#ff3b30', points: [0, 0, 1, 0, 1] }] })],
+  ['polygon value > 1', mediaAnchor({ shapes: [{ kind: 'polygon', color: '#ff3b30', points: [0, 0, 1.2, 0, 1, 1] }] })],
+  ['polygon over POLYGON_MAX_POINTS', mediaAnchor({ shapes: [{ kind: 'polygon', color: '#ff3b30', points: new Array(2 * POLYGON_MAX_POINTS + 2).fill(0.5) }] })],
+  ['polygon points not an array', mediaAnchor({ shapes: [{ kind: 'polygon', color: '#ff3b30', points: '0,0' }] })],
   ['unknown colour', mediaAnchor({ shapes: [{ ...rect, color: '#123456' }] })],
   ['unknown shape kind', mediaAnchor({ shapes: [{ ...rect, kind: 'star' }] })],
   ['shapes empty', mediaAnchor({ shapes: [] })],
@@ -303,6 +309,17 @@ test('a rect/ellipse may touch the far edge, with 4-decimal rounding slack (1e-4
       expect(parseMedia(mediaAnchor({ shapes: [{ kind, color: '#ff3b30', ...box }] }))).not.toHaveProperty('error');
     }
   }
+});
+
+test('a polygon (issue 447) takes 3 to POLYGON_MAX_POINTS points; toAnchor copies its points and drops unknown keys', () => {
+  const poly = (n: number) => ({ kind: 'polygon', color: '#ff3b30', points: Array.from({ length: 2 * n }, (_, i) => (i % 7) / 7) });
+  expect(parseMedia(mediaAnchor({ shapes: [poly(3)] }))).not.toHaveProperty('error');
+  expect(parseMedia(mediaAnchor({ shapes: [poly(POLYGON_MAX_POINTS)] }))).not.toHaveProperty('error');
+  expect(parseMedia(mediaAnchor({ shapes: [poly(POLYGON_MAX_POINTS + 1)] }))).toHaveProperty('error');
+  const input = mediaAnchor({ shapes: [{ ...poly(3), junk: 1 }] }) as unknown as MediaAnchor;
+  const out = toAnchor(input) as MediaAnchor;
+  expect(out.shapes).toEqual([poly(3)]);
+  expect((out.shapes[0] as { points: number[] }).points).not.toBe((input.shapes[0] as { points: number[] }).points);
 });
 
 test('toAnchor copies a media anchor deeply and drops unknown keys', () => {

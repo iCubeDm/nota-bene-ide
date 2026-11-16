@@ -156,4 +156,29 @@ void main() {
     final img = rec.endRecording().toImageSync(200, 100);
     expect(img.width, 200);
   });
+
+  test(
+    'a polygon is painted filled, semi-transparent, in its colour (issue 447)',
+    () async {
+      final rec = ui.PictureRecorder();
+      paintShapes(
+        Canvas(rec),
+        [
+          const MediaShapePolygon(
+            color: MarkColor.v_34c759,
+            points: [0.1, 0.1, 0.9, 0.1, 0.9, 0.9, 0.1, 0.9],
+          ),
+        ],
+        100,
+        100,
+      );
+      final img = rec.endRecording().toImageSync(100, 100);
+      final px = (await img.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+      int at(int x, int y, int k) => px.getUint8((y * 100 + x) * 4 + k);
+      // inside: green at about 0.3 alpha; outside: nothing
+      expect(at(50, 50, 1), greaterThan(0));
+      expect(at(50, 50, 3), inInclusiveRange(60, 100));
+      expect(at(2, 2, 3), 0);
+    },
+  );
 }

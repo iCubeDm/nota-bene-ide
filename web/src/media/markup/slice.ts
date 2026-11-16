@@ -3,7 +3,10 @@ import { MARK_COLORS, type MarkColor, type MediaShape } from '@nota-bene/shared'
 import type { RootState } from '../../store/store.ts';
 import { enterRoot } from '../../tabs/slice.ts';
 
-export type MarkTool = 'rect' | 'ellipse' | 'pen' | 'arrow';
+/** `polygon`: the Mask tool (issue 447, from MASK_PROTOCOL). */
+export type MarkTool = 'rect' | 'ellipse' | 'pen' | 'arrow' | 'polygon';
+/** The server that takes polygon shapes; an older one would refuse the comment. */
+export const MASK_PROTOCOL = 24;
 /** One media tab's unfinished drawing. In memory only: a page reload loses it, a tab or folder switch does not. */
 export type Draft = { on: boolean; tool: MarkTool; color: MarkColor; shapes: MediaShape[] };
 /** `drafts`: the current folder's, by tab id; `parked`: the other folders' (by root), put back on a switch back. */
@@ -31,6 +34,14 @@ export const markupSlice = createSlice({
     addShape: {
       reducer: (s, a: PayloadAction<{ tabId: string; shape: MediaShape }>) => void draftOf(s, a.payload.tabId).shapes.push(a.payload.shape),
       prepare: (tabId: string, shape: MediaShape) => ({ payload: { tabId, shape } }),
+    },
+    /** A drawn shape changed in place (a polygon's point dragged, or the polygon moved: issue 447). */
+    replaceShape: {
+      reducer: (s, a: PayloadAction<{ tabId: string; index: number; shape: MediaShape }>) => {
+        const d = s.drafts[a.payload.tabId];
+        if (d && a.payload.index >= 0 && a.payload.index < d.shapes.length) d.shapes[a.payload.index] = a.payload.shape;
+      },
+      prepare: (tabId: string, index: number, shape: MediaShape) => ({ payload: { tabId, index, shape } }),
     },
     undo: (s, a: PayloadAction<string>) => void s.drafts[a.payload]?.shapes.pop(),
     /**
@@ -70,6 +81,6 @@ export const markupSlice = createSlice({
   }),
 });
 
-export const { setMode, setTool, setColor, addShape, undo, clear, dropShapes } = markupSlice.actions;
+export const { setMode, setTool, setColor, addShape, replaceShape, undo, clear, dropShapes } = markupSlice.actions;
 
 export const selectDraft = (s: RootState, tabId: string): Draft => s.markup.drafts[tabId] ?? EMPTY;

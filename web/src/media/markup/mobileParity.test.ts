@@ -15,6 +15,9 @@ const shapes: MediaShape[] = [
   { kind: 'arrow', color: '#0a84ff', x1: 0, y1: 1, x2: 1, y2: 0 },
   { kind: 'pen', color: '#ff3b30', points: [0.1, 0.1, 0.12345, 0.2, 0.3, 0.25, 0.31, 0.9] },
   { kind: 'pen', color: '#ffffff', points: [0.5, 0.5, 0.5, 0.5] },
+  // issue 447
+  { kind: 'polygon', color: '#34c759', points: [0.1, 0.1, 0.12345, 0.2, 0.3, 0.25, 0.31, 0.9] },
+  { kind: 'polygon', color: '#ffcc00', points: [0, 0, 1, 0, 0.5, 1] },
 ];
 const sizes: [number, number][] = [[1920, 1080], [7, 3]];
 const times = [0, 0.0004, 0.0005, 1, 61.5, 3599.999, 3600];

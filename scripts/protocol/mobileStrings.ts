@@ -14,7 +14,7 @@ export const STRINGS_PATH = 'mobile/app/lib/comments/strings.g.dart';
 /** the app's language codes (its ARB files) to the web's dictionaries */
 const DICTS: [string, Record<string, unknown>][] = [['en', en], ['ru', ru], ['zh', zhCN], ['es', es], ['pt', ptBR], ['de', de]];
 /** the batch strings the phone's composeBatch uses */
-const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale', 'cutMomentQ'] as const;
+const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale', 'cutMomentQ', 'maskLine'] as const;
 /**
  * Web strings the phone shows as they are; `webString` reads them: the usage meters' words, the window sheet's
  * mode names and descriptions (every provider's modes, as ModePill.tsx shows them) and its clear/compact texts, and

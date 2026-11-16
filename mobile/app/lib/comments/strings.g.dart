@@ -1196,6 +1196,14 @@ const _json = r'''
    "pt": "um momento da linha do tempo, sem clipe",
    "de": "ein Moment der Zeitleiste, kein Clip"
   },
+  "maskLine": {
+   "en": "   mask.png: white inside the polygons, black outside, the size of frame.jpg",
+   "ru": "   mask.png: белое внутри многоугольников, чёрное снаружи, размер как у frame.jpg",
+   "zh": "   mask.png：多边形内为白色，外为黑色，尺寸与 frame.jpg 相同",
+   "es": "   mask.png: blanco dentro de los polígonos, negro fuera, del tamaño de frame.jpg",
+   "pt": "   mask.png: branco dentro dos polígonos, preto fora, do tamanho de frame.jpg",
+   "de": "   mask.png: weiß innerhalb der Polygone, schwarz außerhalb, so groß wie frame.jpg"
+  },
   "imgLabel": {
    "en": "[image {0}]",
    "ru": "[изображение {0}]",

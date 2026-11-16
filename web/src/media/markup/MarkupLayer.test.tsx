@@ -362,3 +362,121 @@ it('a 3D canvas is offered markup only from protocol 9 (an older server would dr
   expect(sh).toMatchObject({ kind: 'rect', x: 0.1, w: 0.2 });
   expect((sh as { y: number }).y).toBeCloseTo(0.1, 5); // the 1000x500 content box sits at y 250
 });
+
+it.each(['KeyR', 'KeyE', 'KeyA', 'KeyP'])('Esc mid-drag (%s) drops only the unfinished shape, no dialog; re-entering has no stale start point', (code) => {
+  const { draft } = setup();
+  fireEvent.click(toggle());
+  drag([[100, 300], [200, 400]]); // one finished shape stays
+  key({ key: 'x', code });
+  fireEvent.pointerDown(layer(), { button: 0, clientX: 300, clientY: 350, pointerId: 1, isPrimary: true });
+  fireEvent.pointerMove(layer(), { clientX: 500, clientY: 600, pointerId: 1 });
+  key({ key: 'Escape' });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(draft().on).toBe(true);
+  expect(draft().shapes).toHaveLength(1);
+  for (const el of pane.querySelectorAll('[data-live]')) expect(el.getAttribute('d') ?? el.getAttribute('points') ?? '').toBe('');
+  // a later move or release draws and adds nothing
+  fireEvent.pointerMove(layer(), { clientX: 700, clientY: 700, pointerId: 1 });
+  fireEvent.pointerUp(layer(), { clientX: 700, clientY: 700, pointerId: 1 });
+  expect(draft().shapes).toHaveLength(1);
+  // with nothing in progress, Esc still asks (there is a shape)
+  key({ key: 'Escape' });
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+});
+
+it('leaving the mode mid-drag keeps no half-drawn shape for the next time', () => {
+  const { store, draft } = setup();
+  fireEvent.click(toggle());
+  fireEvent.pointerDown(layer(), { button: 0, clientX: 300, clientY: 350, pointerId: 1, isPrimary: true });
+  fireEvent.pointerMove(layer(), { clientX: 500, clientY: 600, pointerId: 1 });
+  // the mode goes off from elsewhere (✕, the tab's own Esc): the svg is gone, no pointerup ever reaches it
+  act(() => void store.dispatch(setMode(TAB, false)));
+  fireEvent.click(toggle());
+  fireEvent.pointerMove(layer(), { clientX: 700, clientY: 700, pointerId: 1 });
+  for (const el of pane.querySelectorAll('[data-live]')) expect(el.getAttribute('d') ?? el.getAttribute('points') ?? '').toBe('');
+  fireEvent.pointerUp(layer(), { clientX: 700, clientY: 700, pointerId: 1 });
+  expect(draft().shapes).toEqual([]);
+});
+
+// ---- the Mask tool (issue 447) ----
+// the content box is (0,250) 1000×500: client (x, y) is relative (x/1000, (y-250)/500)
+const click = (x: number, y: number) => {
+  fireEvent.pointerDown(layer(), { button: 0, clientX: x, clientY: y, pointerId: 1, isPrimary: true });
+  fireEvent.pointerUp(layer(), { clientX: x, clientY: y, pointerId: 1 });
+};
+const maskOn = () => {
+  const s = setup(image(), 24);
+  fireEvent.click(toggle());
+  key({ key: 'g', code: 'KeyG' });
+  return s;
+};
+const tri = { kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.5, 0.2, 0.3, 0.8] };
+
+it('the Mask tool is offered from protocol 24, with its key in the tooltip', () => {
+  const { draft } = setup(image(), 23);
+  fireEvent.click(toggle());
+  expect(screen.queryByRole('button', { name: /mask/i })).toBeNull();
+  key({ key: 'g', code: 'KeyG' });
+  expect(draft().tool).toBe('rect');
+  cleanup();
+  maskOn();
+  expect(screen.getByRole('button', { name: 'Mask (G)' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+it('Mask: each click adds a point, a click on the first point closes the polygon', () => {
+  const { draft } = maskOn();
+  click(100, 350);
+  click(500, 350);
+  click(300, 650);
+  expect(draft().shapes).toEqual([]);
+  click(103, 352); // within reach of the first point
+  expect(draft().shapes).toEqual([tri]);
+  expect(pane.querySelector('[data-shape="polygon"]')).toHaveAttribute('fill', '#ff3b30');
+});
+
+it('Mask: Enter or a double-click closes; Enter with fewer than 3 points does nothing (and does not comment)', () => {
+  const { draft, onAdd } = maskOn();
+  click(100, 350);
+  click(500, 350);
+  key({ key: 'Enter' });
+  expect(draft().shapes).toEqual([]);
+  expect(onAdd).not.toHaveBeenCalled();
+  click(300, 650);
+  key({ key: 'Enter' });
+  expect(draft().shapes).toEqual([tri]);
+  // a double-click: its two presses add one point, then it closes
+  click(700, 300);
+  click(900, 300);
+  click(800, 500);
+  click(800, 500);
+  fireEvent.doubleClick(layer(), { clientX: 800, clientY: 500 });
+  expect(draft().shapes[1]).toEqual({ kind: 'polygon', color: '#ff3b30', points: [0.7, 0.1, 0.9, 0.1, 0.8, 0.5] });
+});
+
+it('Mask: a line follows the pointer from the last point; Backspace removes the last point; Esc drops the polygon, no dialog', () => {
+  const { draft } = maskOn();
+  click(100, 350);
+  click(500, 350);
+  fireEvent.pointerMove(layer(), { clientX: 600, clientY: 500, pointerId: 1 });
+  const live = pane.querySelector('path[data-live-poly]')!;
+  expect(live.getAttribute('d')).toBe('M0.1 0.2L0.5 0.2L0.6 0.5');
+  key({ key: 'Backspace' });
+  expect(live.getAttribute('d')).toBe('M0.1 0.2L0.6 0.5');
+  key({ key: 'Escape' });
+  expect(live.getAttribute('d')).toBe('');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(draft().on).toBe(true);
+  expect(draft().shapes).toEqual([]);
+  // the next click starts a new polygon
+  click(100, 350);
+  expect(live.getAttribute('d')).toBe('M0.1 0.2');
+});
+
+it('Mask: a closed polygon takes a vertex drag and a move of the whole shape', () => {
+  const { store, draft } = maskOn();
+  act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));
+  drag([[500, 350], [550, 360], [600, 400]]); // the second vertex → (0.6, 0.3)
+  expect(draft().shapes).toEqual([{ ...tri, points: [0.1, 0.2, 0.6, 0.3, 0.3, 0.8] }]);
+  drag([[300, 450], [350, 450], [400, 400]]); // inside: the whole shape by (+0.1, -0.1)
+  expect(draft().shapes).toEqual([{ ...tri, points: [0.2, 0.1, 0.7, 0.2, 0.4, 0.7] }]);
+});

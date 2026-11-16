@@ -9,15 +9,17 @@ import type { EventHub } from './hub.ts';
 import { renameRetry, samePath } from './platform.ts';
 
 /**
- * The server's only write into the project folder: `<root>/.nota-bene/marks/<comment id>/{frame.jpg,layer.png}`.
+ * The server's only write into the project folder: `<root>/.nota-bene/marks/<comment id>/{frame.jpg,layer.png,mask.png}`
+ * (`mask.png`: a drawing with polygons, issue 447).
  * Nothing from the client becomes a path except the id, which must match MARK_ID; the names are fixed.
  */
 export const MARK_ID = /^[0-9a-f-]{36}$/;
-export type MarkName = 'frame.jpg' | 'layer.png';
+export type MarkName = 'frame.jpg' | 'layer.png' | 'mask.png';
 
 const NAMES: Record<MarkName, { type: string; magic: readonly number[] }> = {
   'frame.jpg': { type: 'image/jpeg', magic: [0xff, 0xd8, 0xff] },
   'layer.png': { type: 'image/png', magic: [0x89, 0x50, 0x4e, 0x47] },
+  'mask.png': { type: 'image/png', magic: [0x89, 0x50, 0x4e, 0x47] },
 };
 
 export const isMarkName = (v: string): v is MarkName => Object.hasOwn(NAMES, v);
@@ -127,7 +129,7 @@ export class MarkFiles {
     if (samePath(fs.realpathSync.native(nb), state)) throw new Error(`the project's .nota-bene is the state folder: ${nb}`);
   }
 
-  /** Writes `frame.jpg` | `layer.png` for comment `id` (creates `.nota-bene/.gitignore` = "*\n" if missing). Throws on a bad id/name/type, a symlinked dir, or bytes > MARK_MAX_BYTES. */
+  /** Writes `frame.jpg` | `layer.png` | `mask.png` for comment `id` (creates `.nota-bene/.gitignore` = "*\n" if missing). Throws on a bad id/name/type, a symlinked dir, or bytes > MARK_MAX_BYTES. */
   write(id: string, name: MarkName, bytes: Buffer): void {
     checkId(id);
     if (!isMarkName(name)) throw new MarkError(404, `invalid mark name: ${JSON.stringify(name)}`);
@@ -198,7 +200,7 @@ function plain(res: ServerResponse, status: number, body: string, headers: Recor
 }
 
 /**
- * `POST /marks/<id>/<frame.jpg|layer.png>` (body = the bytes, Content-Type matching the name) and `DELETE /marks/<id>`,
+ * `POST /marks/<id>/<frame.jpg|layer.png|mask.png>` (body = the bytes, Content-Type matching the name) and `DELETE /marks/<id>`,
  * both 204. Host and Origin are checked by httpHandler (any non-GET needs an allowed Origin). The path is not decoded:
  * an encoded id fails MARK_ID.
  */

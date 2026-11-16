@@ -1093,9 +1093,32 @@
             "points"
           ],
           "type": "object"
+        },
+        {
+          "properties": {
+            "color": {
+              "$ref": "#/definitions/MarkColor"
+            },
+            "kind": {
+              "const": "polygon",
+              "type": "string"
+            },
+            "points": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "color",
+            "points"
+          ],
+          "type": "object"
         }
       ],
-      "description": "all coordinates are relative to the media's natural size, 0..1"
+      "description": "All coordinates are relative to the media's natural size, 0..1. `polygon` (protocol 24, issue 447): a closed shape, `points` x, y pairs; a media comment with polygons also has `mask.png` beside its frame (white inside any polygon, nonzero rule, black outside)."
     },
     "ModelCamera": {
       "description": "A 3D view's camera (protocol 9): where it is, what it looks at, its vertical field of view in degrees (0 < fov < 180).",
@@ -3353,5 +3376,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 23
+  "x-protocol": 24
 }

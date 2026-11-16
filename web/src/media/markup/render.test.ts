@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MediaShape } from '@nota-bene/shared';
-import { drawShapes, renderMarks } from './render';
+import { drawMask, drawShapes, renderMarks } from './render';
 
 function fakeCtx() {
   const calls: Array<[string, ...number[]]> = [];
   const ctx: Record<string, unknown> = { strokeStyle: '', lineWidth: 0, lineCap: '', lineJoin: '' };
-  for (const m of ['beginPath', 'moveTo', 'lineTo', 'stroke', 'strokeRect', 'ellipse', 'save', 'restore'])
+  for (const m of ['beginPath', 'moveTo', 'lineTo', 'stroke', 'strokeRect', 'ellipse', 'save', 'restore', 'closePath', 'fill', 'fillRect'])
     ctx[m] = (...a: number[]) => { calls.push([m, ...a]); };
   return { ctx: ctx as unknown as CanvasRenderingContext2D, raw: ctx, calls };
 }
@@ -42,6 +42,36 @@ describe('drawShapes', () => {
   });
 });
 
+describe('polygons (issue 447)', () => {
+  const poly: MediaShape = { kind: 'polygon', color: '#34c759', points: [0, 0, 0.5, 0, 0.5, 0.5] };
+  it('drawShapes fills a polygon semi-transparent in its colour, then strokes its closed outline', () => {
+    const { ctx, raw, calls } = fakeCtx();
+    const alphas: unknown[] = [];
+    raw.globalAlpha = 1;
+    raw.fill = () => { calls.push(['fill']); alphas.push(raw.globalAlpha); };
+    drawShapes(ctx, [poly], W, H);
+    const names = calls.map((c) => c[0]);
+    expect(calls.filter((c) => c[0] === 'lineTo')).toEqual([['lineTo', 960, 0], ['lineTo', 960, 540]]);
+    expect(names).toContain('closePath');
+    expect(names.indexOf('fill')).toBeLessThan(names.lastIndexOf('stroke'));
+    expect(alphas[0]).toBeGreaterThan(0);
+    expect(alphas[0]).toBeLessThan(1);
+    expect(raw.globalAlpha).toBe(1); // restored for the next shape
+    expect(raw.fillStyle).toBe('#34c759');
+  });
+  it('drawMask: black everywhere, white polygons filled by the nonzero rule; other shapes are not in it', () => {
+    const { ctx, raw, calls } = fakeCtx();
+    const fills: unknown[] = [];
+    raw.fill = (rule: unknown) => { calls.push(['fill']); fills.push([raw.fillStyle, rule]); };
+    raw.fillRect = (...a: number[]) => { calls.push(['fillRect', ...a]); fills.push([raw.fillStyle, 'rect']); };
+    drawMask(ctx, [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 1, h: 1 }, poly, { ...poly, points: [0.5, 0.5, 1, 0.5, 1, 1] }], 40, 30);
+    expect(calls[0]).toEqual(['fillRect', 0, 0, 40, 30]);
+    expect(fills).toEqual([['#000000', 'rect'], ['#ffffff', 'nonzero']]); // both polygons in one path, one fill
+    expect(calls.filter((c) => c[0] === 'moveTo')).toEqual([['moveTo', 0, 0], ['moveTo', 20, 15]]);
+    expect(calls.map((c) => c[0])).not.toContain('strokeRect');
+  });
+});
+
 describe('renderMarks', () => {
   afterEach(() => void vi.unstubAllGlobals());
   it('the frame is filled white before the source is drawn (an alpha source must not turn black in the JPEG); the layer stays transparent', async () => {
@@ -75,5 +105,30 @@ describe('renderMarks', () => {
     expect(frame!.fill).toEqual(['#ffffff']);
     expect(layer!.calls.map((c) => c[0])).not.toContain('fillRect');
     expect(layer!.calls.map((c) => c[0])).not.toContain('drawImage');
+  });
+});
+
+describe('renderMarks: mask.png (issue 447)', () => {
+  afterEach(() => void vi.unstubAllGlobals());
+  const sizes: number[][] = [];
+  class Canvas {
+    width: number; height: number;
+    constructor(w: number, h: number) { this.width = w; this.height = h; sizes.push([w, h]); }
+    getContext() {
+      const ctx: Record<string, unknown> = {};
+      for (const m of ['beginPath', 'moveTo', 'lineTo', 'stroke', 'strokeRect', 'ellipse', 'drawImage', 'fillRect', 'save', 'restore', 'closePath', 'fill'])
+        ctx[m] = () => {};
+      return ctx;
+    }
+    convertToBlob(o?: { type?: string }) { return Promise.resolve(new Blob(['x'], { type: o?.type ?? 'image/png' })); }
+  }
+  it('a drawing with a polygon has a mask the size of the frame; one without has none', async () => {
+    vi.stubGlobal('OffscreenCanvas', Canvas);
+    sizes.length = 0;
+    const out = await renderMarks({} as CanvasImageSource, 40, 30, [{ kind: 'polygon', color: '#ff3b30', points: [0, 0, 1, 0, 1, 1] }]);
+    expect(out.mask).toBeInstanceOf(Blob);
+    expect(sizes).toEqual([[40, 30], [40, 30], [40, 30]]);
+    const none = await renderMarks({} as CanvasImageSource, 40, 30, [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 1, h: 1 }]);
+    expect(none.mask).toBeUndefined();
   });
 });
