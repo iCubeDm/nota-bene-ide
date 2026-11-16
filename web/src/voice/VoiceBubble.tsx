@@ -30,7 +30,7 @@ export function Transcript({ text, error, onRetry }: { text?: string; error?: Vo
       </div>
     );
   }
-  return <div data-testid="transcript" className="mt-1 whitespace-pre-wrap text-[0.875rem]">{text}</div>;
+  return <div data-testid="transcript" className="mt-1 whitespace-pre-wrap break-words text-[0.875rem]">{text}</div>;
 }
 
 /**

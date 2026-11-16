@@ -184,11 +184,10 @@ test('a long word in plain text wraps inside the message; table cells stay whole
   const token = 'audio/intro/{' + Array.from({ length: 12 }, (_, i) => `city_wind_${i},alley_rain_${i}`).join(',') + '}.mp3';
   const cols = Array.from({ length: 8 }, () => 'internationalization');
   const table = `| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|\n| ${cols.join(' | ')} |`;
-  await composer(page).fill(`${text} ${token}\n\n- ${token}\n\n[${token}](https://example.com/)\n\n${table}`);
-  await composer(page).press('Enter');
+  await send(page, `${text} ${token}\n\n- ${token}\n\n# ${token}\n\n> ${token}\n\n[${token}](https://example.com/)\n\n${table}`);
   const b = bubble(page, text).last();
   await expect(b.locator('li')).toContainText('alley_rain_11');
-  for (const el of [b.locator('p').first(), b.locator('li')]) {
+  for (const el of [b.locator('p').first(), b.locator('li'), b.locator('h1'), b.locator('blockquote')]) {
     const [w, sw] = await el.evaluate((e) => [e.clientWidth, e.scrollWidth]);
     expect(sw).toBeLessThanOrEqual(w);
   }

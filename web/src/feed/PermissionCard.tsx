@@ -23,12 +23,12 @@ export function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'perm
     <div
       data-kind="permission"
       className={
-        'my-2.5 rounded-[10px] border bg-card px-3 py-2 text-[0.8125rem] ' +
+        'my-2.5 rounded-[10px] border bg-card px-3 py-2 text-[0.8125rem] break-words ' +
         (resolved || item.archived ? 'border-border-soft opacity-60' : 'border-warn')
       }
     >
       <b>{title ?? t('allowQ', item.toolName)}</b>
-      {Object.keys(item.input).length > 0 && <pre className="my-1.5 max-h-[200px] overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{body}</pre>}
+      {Object.keys(item.input).length > 0 && <pre className="my-1.5 max-h-[200px] overflow-auto whitespace-pre-wrap font-mono text-xs">{body}</pre>}
       {resolved ? (
         <span>{t(item.answer ? prompt?.fields ? 'answerSent' : 'allowed' : 'denied')}</span>
       ) : item.archived ? (
@@ -45,7 +45,7 @@ export function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'perm
             };
             return <div key={f.id} className="space-y-1">
               {f.header && <span className="inline-block rounded bg-muted px-1.5 text-xs font-medium">{f.header}</span>}
-              <label className="block whitespace-pre-wrap break-words">
+              <label className="block whitespace-pre-wrap">
                 <span id={qid}>{f.label}</span>
                 <input aria-label={f.label} type={f.secret ? 'password' : 'text'} autoComplete="off" value={values[f.id] ?? ''} onChange={(e) => { setValues({ ...values, [f.id]: e.target.value }); if (!f.multi && chosen.length) setPicks({ ...picks, [f.id]: [] }); }} className="mt-1 block w-full rounded border border-border-soft bg-transparent p-2" />
               </label>
