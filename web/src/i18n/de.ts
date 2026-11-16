@@ -994,6 +994,7 @@ export const de: Dict = {
   cutClipOn: "Übersteuert: die Mischung hat 0 dBFS erreicht. Klicken zum Zurücksetzen",
   cutClipOff: "Übersteuerungsanzeige: wird rot, wenn die Mischung 0 dBFS erreicht",
   cutTrackGain: "Spurpegel, dB: klicken, um einen Wert einzugeben",
+  cutDb: (v: string) => `${v} dB`,
   cutHideShort: "A",
   cutInspector: "Clip",
   // the timeline's tools and selections (issue 432)

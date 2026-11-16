@@ -994,6 +994,7 @@ export const es: Dict = {
   cutClipOn: "Saturación: la mezcla llegó a 0 dBFS. Haz clic para restablecer",
   cutClipOff: "Indicador de saturación: se pone rojo cuando la mezcla llega a 0 dBFS",
   cutTrackGain: "Ganancia de la pista, dB: haz clic para escribir un valor",
+  cutDb: (v: string) => `${v} dB`,
   cutHideShort: "O",
   cutInspector: "Clip",
   // the timeline's tools and selections (issue 432)

@@ -56,10 +56,21 @@ it('reads the player on animation frames only while playing; paused it rests at 
   expect(covers().map((w) => parseFloat(w))).toEqual([expect.closeTo(10.03, 1), expect.closeTo(30.1, 1)]);
   expect(document.querySelector('[data-meter-readout]')!.textContent).toBe('−6.0');
   expect(frames.size).toBe(1);
+  const marks = () => [...document.querySelectorAll<HTMLElement>('[data-meter-peak]')].map((e) => [e.style.left, e.style.display]);
+  const held = marks();
+  expect(held[0]![0]).not.toBe(held[1]![0]);
+  expect(held.map(([, d]) => d)).toEqual(['', '']);
   p.set(false);
   expect(frames.size).toBe(0);
+  // the bars drop; the peak's number and marks stay as they were until the next play
   expect(covers()).toEqual(['100%', '100%']);
-  expect(document.querySelector('[data-meter-readout]')!.textContent).toBe('−∞');
+  expect(document.querySelector('[data-meter-readout]')!.textContent).toBe('−6.0');
+  expect(marks()).toEqual(held);
+  p.peaks = [0.01, 0.01];
+  // the next play starts from the floor: the old peak is gone at once
+  p.set(true);
+  run(16);
+  expect(document.querySelector('[data-meter-readout]')!.textContent).toBe('−40.0');
 });
 
 it('a mix at full scale lights the clip until it is clicked, through a pause', () => {

@@ -338,11 +338,13 @@ export class CutPlayer {
       tap.connect(split);
       const an = [0, 1].map((i) => {
         const a = ctx.createAnalyser();
-        a.fftSize = 2048; // about 43 ms at 48 kHz: longer than a frame, so no sample between two reads is missed
+        // the most samples an analyser keeps: 0.34 s at 48 kHz, 0.17 s at 96 kHz, longer than a frame even at 30 Hz,
+        // so no burst between two reads is missed
+        a.fftSize = 16384;
         split.connect(a, i);
         return a;
       }) as [AnalyserNode, AnalyserNode];
-      this.meter = { an, buf: new Float32Array(2048) };
+      this.meter = { an, buf: new Float32Array(16384) };
     } catch {
       this.meter = null;
     }
@@ -350,11 +352,12 @@ export class CutPlayer {
 
   /**
    * The mix's sample peak on each side since about the last frame (1 is full scale, more is clipping); null before the
-   * first play (no audio graph yet: the meter makes none of its own) or without Web Audio.
+   * first play (no audio graph yet: the meter makes none of its own), without Web Audio, and while the context is not
+   * running (suspended in a hidden tab: its analysers hold their last samples).
    */
   meterPeaks(): [number, number] | null {
     const m = this.meter;
-    if (!m) return null;
+    if (!m || this.ctx?.state !== 'running') return null;
     return m.an.map((a) => {
       a.getFloatTimeDomainData(m.buf);
       return peakOf(m.buf);

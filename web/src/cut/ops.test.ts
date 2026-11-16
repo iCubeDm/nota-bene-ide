@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
 import {
   addClip, addTrack, deleteClips, dragGain, duplicateClip, freeAt, GAIN_MAX, GAIN_MIN, gainAtY, gainY, setFade, setGain, moveClip, moveTrack, movePlace, nudgeClip, removeTrack, renameTrack, resizePlace,
-  duplicateClips, moveClips, setClip, setClips, setTrackFlag, setTrackGain, snapMove, snapPoints, snapTime, splitAt, trimEnd, trimStart,
+  duplicateClips, moveClips, setClip, setClips, setTrackFlag, setTrackGain, fmtDb, snapMove, snapPoints, snapTime, splitAt, trimEnd, trimStart,
   moveForward, rippleTrimEnd, trackForward,
 } from './ops.ts';
 
@@ -181,6 +181,9 @@ describe('tracks', () => {
     expect(on.tracks[2]).toMatchObject({ mute: true });
     expect(setTrackFlag(on, 'a1', 'mute', false).tracks[2]).toEqual({ id: 'a1', kind: 'audio', name: 'Voice' });
     expect(setTrackFlag(base(), 'a1', 'hidden', true)).toEqual(base()); // an audio track has no picture
+  });
+  it('writes a gain as the timeline shows it (issue 410): a sign, at most one decimal, no trailing .0', () => {
+    expect([3, -4.5, 0, -0, -3.333333, -3.25, 12.04, -80, 0.04].map(fmtDb)).toEqual(['+3', '−4.5', '0', '0', '−3.3', '−3.3', '+12', '−80', '0']);
   });
   it('sets a track\'s gain (issue 410) in dB to the tenth, within the gain line\'s range; 0 leaves it out of the file', () => {
     const c = valid(setTrackGain(base(), 'a1', -6.04));

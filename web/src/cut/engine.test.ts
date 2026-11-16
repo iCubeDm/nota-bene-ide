@@ -495,7 +495,13 @@ it('the master meter (issue 410): no audio graph before the first play, then eac
   const tap = gains.find((g) => g.to === splitters[0]) as Gain & { channelCount?: number; channelInterpretation?: string };
   expect(gains[0]!.tos).toEqual([{ name: 'out' }, tap]);
   expect(tap.channelCount).toBe(2);
+  expect((tap as { channelCountMode?: string }).channelCountMode).toBe('explicit');
   expect(tap.channelInterpretation).toBe('speakers');
+  // 16384 samples: a third of a second at 48 kHz, longer than two frames at 30 Hz even at 96 kHz
+  expect(analysers.map((a) => a.fftSize)).toEqual([16384, 16384]);
   analysed = [[0.1, -0.5, 0.2], [1.25]];
   expect(p.meterPeaks()).toEqual([0.5, 1.25]);
+  // a suspended context (a hidden tab) holds its last samples: the meter reads nothing from it
+  p.setLive(false);
+  expect(p.meterPeaks()).toBeNull();
 });

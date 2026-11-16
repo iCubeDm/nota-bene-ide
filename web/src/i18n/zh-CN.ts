@@ -994,6 +994,7 @@ export const zhCN: Dict = {
   cutClipOn: "削波：混音达到了 0 dBFS。点击重置",
   cutClipOff: "削波指示：混音达到 0 dBFS 时变红",
   cutTrackGain: "轨道增益，dB：点击输入数值",
+  cutDb: (v: string) => `${v} dB`,
   cutHideShort: "隐",
   cutInspector: "片段",
   // the timeline's tools and selections (issue 432)

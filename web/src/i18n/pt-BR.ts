@@ -994,6 +994,7 @@ export const ptBR: Dict = {
   cutClipOn: "Saturação: a mixagem chegou a 0 dBFS. Clique para redefinir",
   cutClipOff: "Indicador de saturação: fica vermelho quando a mixagem chega a 0 dBFS",
   cutTrackGain: "Ganho da faixa, dB: clique para digitar um valor",
+  cutDb: (v: string) => `${v} dB`,
   cutHideShort: "O",
   cutInspector: "Clipe",
   // the timeline's tools and selections (issue 432)

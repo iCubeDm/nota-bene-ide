@@ -11,7 +11,7 @@ const fmt = (db: number) => (db <= METER_FLOOR ? '−∞' : `${db > 0 ? '+' : db
 /**
  * The preview's master level meter (issue 410): a bar per side in dBFS from −60 to 0, the peak held 1.5 s as a mark and
  * as a number, and a light that turns red once the mix reaches 0 dBFS and stays so until clicked. It reads the player
- * on each animation frame while playing and rests at the floor while paused; before the first play there is no audio
+ * on each animation frame while playing; paused, the bars rest at the floor and the peak stays until the next play. Before the first play there is no audio
  * graph to read, and it makes none.
  */
 export function Meter({ player }: { player: CutPlayer }) {
@@ -37,11 +37,13 @@ export function Meter({ player }: { player: CutPlayer }) {
       });
       if (readout.current) readout.current.textContent = fmt(Math.max(chans.current[0].peak, chans.current[1].peak));
     };
-    if (!playing) {
-      chans.current = chans.current.map((c) => ({ ...quiet(), clip: c.clip })) as [MeterChannel, MeterChannel];
+    // paused, the bars drop and the peaks stay as they were, to be read; a play starts them from the floor again
+    const rest = (keep: boolean) => {
+      chans.current = chans.current.map((c) => ({ ...quiet(), clip: c.clip, ...(keep && { peak: c.peak, peakAt: c.peakAt }) })) as [MeterChannel, MeterChannel];
       draw();
-      return;
-    }
+    };
+    if (!playing) return rest(true);
+    rest(false);
     let last = performance.now();
     let id = requestAnimationFrame(function frame(now) {
       const peaks = player.meterPeaks();

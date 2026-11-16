@@ -3,22 +3,31 @@ import type { Cut } from '@nota-bene/shared/cut';
 import { useT } from '@/i18n/index.ts';
 import type { Lane } from './layout.ts';
 import { dB } from './ClipSound.tsx';
-import { moveTrack, removeTrack, renameTrack, setTrackFlag, setTrackGain } from './ops.ts';
+import { moveTrack, parseDb, removeTrack, renameTrack, setTrackFlag, setTrackGain } from './ops.ts';
+
 const BTN = 'grid h-4 min-w-4 place-items-center rounded px-0.5 font-mono text-[0.625rem] leading-none hover:bg-muted hover:text-foreground';
 
 /**
  * An editable track's header (issue 409): its name (a double-click renames it), mute, solo and (a video track) hidden
- * as toggles, its gain in dB (issue 410: a click types a value, Enter or leaving applies it, Esc keeps the old one), up
- * and down among the tracks of its kind, and remove (with its clips; undo brings them back).
+ * as toggles, its gain in dB (issue 410: a click types a value, Enter or leaving applies it, Esc keeps the old one; a
+ * field left as it opened changes nothing, a value that is no number is marked and kept), up and down among the tracks of its kind, and remove (with its clips; undo brings them back).
  */
 export function TrackHead({ lane: l, cut, commit, width }: { lane: Lane; cut: Cut; commit: (c: Cut) => void; width: number }) {
   const t = useT();
   const [naming, setNaming] = useState<string | null>(null);
   const [gain, setGain] = useState<string | null>(null);
+  const [bad, setBad] = useState(false);
+  const was = l.gain ?? 0;
+  const openGain = () => { setGain(String(was)); setBad(false); };
   const setLevel = () => {
-    const v = gain === null || gain.trim() === '' ? NaN : Number(gain);
-    const next = setTrackGain(cut, l.id, v);
-    if (next !== cut) commit(next);
+    if (gain === null) return;
+    const v = parseDb(gain);
+    if (v === null) return setBad(true);
+    // only a value the user changed is rounded and held to the range: one left as it was (-80, -3.25) stays so
+    if (v !== was) {
+      const next = setTrackGain(cut, l.id, v);
+      if (next !== cut) commit(next);
+    }
     setGain(null);
   };
   const shown = l.name ?? t(l.kind === 'video' ? 'cutVideoN' : 'cutAudioN', l.n);
@@ -50,15 +59,17 @@ export function TrackHead({ lane: l, cut, commit, width }: { lane: Lane; cut: Cu
         )}
         {gain !== null ? (
           <input
-            type="number" step={0.5} aria-label={t('cutTrackGain')} value={gain} autoFocus onChange={(e) => setGain(e.target.value)} onBlur={setLevel}
+            type="text" inputMode="decimal" aria-label={t('cutTrackGain')} value={gain} autoFocus
+            aria-invalid={bad || undefined} title={bad ? t('cutInvalid') : undefined}
+            onChange={(e) => { setGain(e.target.value); setBad(false); }} onBlur={setLevel}
             onKeyDown={(e) => { if (e.key === 'Enter') setLevel(); else if (e.key === 'Escape') setGain(null); }}
-            className="h-4 w-12 min-w-0 flex-none rounded border border-input-focus-soft bg-background px-0.5 text-right font-mono text-[0.625rem] text-foreground outline-0"
+            className={`h-4 w-14 min-w-0 flex-none rounded border bg-background ${bad ? 'border-destructive' : 'border-input-focus-soft'} px-0.5 text-right font-mono text-[0.625rem] text-foreground outline-0`}
           />
         ) : (
           <button
-            type="button" data-track-gain aria-label={t('cutTrackGain')} title={t('cutTrackGain')} onClick={() => setGain(String(l.gain ?? 0))}
-            className={`${BTN} flex-none ${l.gain ? 'text-foreground' : 'text-muted-foreground'}`}
-          >{dB(l.gain ?? 0)}</button>
+            type="button" data-track-gain aria-label={t('cutTrackGain')} title={t('cutTrackGain')} onClick={openGain}
+            className={`${BTN} flex-none ${was ? 'text-foreground' : 'text-muted-foreground'}`}
+          >{dB(was, t)}</button>
         )}
       </span>
       <span className="flex items-center gap-0.5 text-muted-foreground">

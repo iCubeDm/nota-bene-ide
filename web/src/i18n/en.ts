@@ -1012,6 +1012,7 @@ export const en: Dict = {
   cutClipOn: "Clipping: the mix reached 0 dBFS. Click to reset",
   cutClipOff: "Clip light: turns red when the mix reaches 0 dBFS",
   cutTrackGain: "Track gain, dB: click to type a value",
+  cutDb: (v: string) => `${v} dB`,
   cutHideShort: "H",
   cutInspector: "Clip",
   // the timeline's tools and selections (issue 432)
