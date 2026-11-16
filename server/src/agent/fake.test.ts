@@ -267,6 +267,11 @@ describe('fake backend', () => {
         { kind: 'agent', e: { t: 'message', id: 'fake-h-1:0', text: 'a' }, ts: 0 },
       ]);
     });
+
+    it('a history entry with a time replays with it', async () => {
+      const b = fakeBackend([], { sessions: [{ id: 's1', cwd: '/x', history: [{ role: 'user', text: 'q', ts: 1000 }, { role: 'assistant', text: 'a', ts: 2000 }] }] });
+      expect((await b.history('s1', '/x', undefined as never, () => {})).map((e) => e.ts)).toEqual([1000, 2000]);
+    });
   });
 });
 

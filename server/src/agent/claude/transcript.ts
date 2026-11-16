@@ -3,6 +3,7 @@ import type { ImageRef, ServerEvent } from '@nota-bene/shared';
 import { isImageType } from '../../attachments.ts';
 import { splitBashBlocks } from '../../session/shellText.ts';
 import { isWire, mapSdk } from './map.ts';
+import { recordTime } from './times.ts';
 import type { AttachmentStore } from '../../attachments.ts';
 
 type Block = { type?: string; text?: string; content?: unknown; source?: { type?: string; media_type?: string; data?: string } };
@@ -10,8 +11,8 @@ type Block = { type?: string; text?: string; content?: unknown; source?: { type?
 // a label block is one bracketed line, like `[Comment 1]`; any other text before an image is prompt text
 const LABEL_RE = /^\[[^\]\n]{1,200}\]$/;
 
-// SessionMessage carries no timestamp, so replayed events get a deterministic ts of 0.
-const TS = 0;
+// SessionMessage carries no timestamp: `opts.times` (times.ts, from the transcript file) gives each record its time by
+// uuid; a record it has no time for gets ts 0, which the feed shows as no time at all
 
 // how the CLI records a slash command: the command line as tags, its output as another user record
 const COMMAND_NAME = /^\s*(?:<command-message>[^<]*<\/command-message>\s*)?<command-name>\s*(\/?[^<\s]+)\s*<\/command-name>/;
@@ -28,27 +29,29 @@ const stripHarness = (t: string): string => {
 };
 const COMMAND_OUT = /^\s*<local-command-stdout>([\s\S]*?)<\/local-command-stdout>\s*$/;
 
-function agent(out: ServerEvent[], frame: Record<string, unknown>): void {
-  for (const e of mapSdk(frame as unknown as SDKMessage).filter(isWire)) out.push({ kind: 'agent', e, ts: TS });
+function agent(out: ServerEvent[], frame: Record<string, unknown>, ts: number): void {
+  for (const e of mapSdk(frame as unknown as SDKMessage).filter(isWire)) out.push({ kind: 'agent', e, ts });
 }
 
 /** Ports the prototype's "rebuild the feed from the transcript" block; pasted images go into `attachments`. */
-export function transcriptToEvents(msgs: SessionMessage[], attachments: AttachmentStore, onError?: (e: unknown) => void, opts: { subagent?: boolean } = {}): ServerEvent[] {
+export function transcriptToEvents(msgs: SessionMessage[], attachments: AttachmentStore, onError?: (e: unknown) => void, opts: { subagent?: boolean; times?: ReadonlyMap<string, number> } = {}): ServerEvent[] {
   // A subagent's own file (getSubagentMessages) tags every message with the parent Agent call's id; that tag is what makes
   // the live mapper treat a frame as a nested one (no text). In its own view the messages are the conversation itself.
   const own = !!opts.subagent;
   let reported = false;
   const out: ServerEvent[] = [];
   for (const sm of msgs) {
+    // a later SDK may hand the record's own timestamp over: it wins over the file's
+    const ts = recordTime((sm as { timestamp?: unknown }).timestamp) || (opts.times?.get(sm.uuid) ?? 0);
     if (sm.type === 'assistant') {
       // through the live mapper, so a replayed message has the id and the shape the live one had
-      agent(out, { type: 'assistant', message: sm.message, parent_tool_use_id: own ? null : sm.parent_tool_use_id, uuid: sm.uuid });
+      agent(out, { type: 'assistant', message: sm.message, parent_tool_use_id: own ? null : sm.parent_tool_use_id, uuid: sm.uuid }, ts);
     } else if (sm.type === 'user' && (own || !sm.parent_tool_use_id)) {
       // subagent turns live in separate files (getSubagentMessages), so skipping parent_tool_use_id here is consistent
       const content = (sm.message as { content?: string | Block[] } | undefined)?.content;
       if (Array.isArray(content) && content.some((b) => b.type === 'tool_result')) {
         // not a bubble: tool-update events, which the feed attaches to their tool lines by id (images become [image])
-        agent(out, { type: 'user', message: { role: 'user', content }, parent_tool_use_id: null, uuid: sm.uuid });
+        agent(out, { type: 'user', message: { role: 'user', content }, parent_tool_use_id: null, uuid: sm.uuid }, ts);
         continue;
       }
       const blocks: Block[] = typeof content === 'string' ? [{ type: 'text', text: content }] : content ?? [];
@@ -74,7 +77,7 @@ export function transcriptToEvents(msgs: SessionMessage[], attachments: Attachme
         const bash = splitBashBlocks(text);
         bash.runs.forEach((r, i) => {
           const id = `${sm.uuid}:sh${i}`;
-          out.push({ kind: 'shell-start', id, cmd: r.cmd, ts: TS }, { kind: 'shell-end', id, cmd: r.cmd, output: r.output, truncated: false, code: null, ts: TS });
+          out.push({ kind: 'shell-start', id, cmd: r.cmd, ts }, { kind: 'shell-end', id, cmd: r.cmd, output: r.output, truncated: false, code: null, ts });
         });
         text = bash.rest;
       }
@@ -82,7 +85,7 @@ export function transcriptToEvents(msgs: SessionMessage[], attachments: Attachme
         if (CAVEAT.test(text) || HARNESS_NOTE.test(text)) continue;
         const printed = COMMAND_OUT.exec(text);
         if (printed) {
-          if (printed[1].trim()) out.push({ kind: 'agent', e: { t: 'message', id: `${sm.uuid}:out`, text: printed[1].trim() }, ts: TS });
+          if (printed[1].trim()) out.push({ kind: 'agent', e: { t: 'message', id: `${sm.uuid}:out`, text: printed[1].trim() }, ts });
           continue;
         }
         const name = COMMAND_NAME.exec(text);
@@ -92,7 +95,7 @@ export function transcriptToEvents(msgs: SessionMessage[], attachments: Attachme
         }
       }
       if (own && !images.length && text.trimStart().startsWith('<system-reminder>')) continue; // the harness's note to the subagent, not part of the talk
-      if (text.trim() || images.length) out.push({ kind: 'user', id: sm.uuid, text, historic: true, ts: TS, ...(images.length ? { images } : {}) });
+      if (text.trim() || images.length) out.push({ kind: 'user', id: sm.uuid, text, historic: true, ts, ...(images.length ? { images } : {}) });
     }
   }
   return out;

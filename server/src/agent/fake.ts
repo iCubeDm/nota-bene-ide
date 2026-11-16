@@ -59,7 +59,8 @@ export type FakeSessionScript = {
   firstPrompt?: string;
   lastModified?: number;
   fileSize?: number;
-  history?: { role: 'user' | 'assistant'; text: string }[];
+  /** `ts`: when the entry happened (epoch ms), as a real transcript record has it; absent = unknown (0) */
+  history?: { role: 'user' | 'assistant'; text: string; ts?: number }[];
 };
 
 /**
@@ -540,9 +541,9 @@ export function fakeBackend(
     history: async (id) => {
       await sleepFor(o.historyDelayMs ?? 0); // e2e: a switch that visibly takes time
       return (sessions.find((e) => e.id === id)?.history ?? []).flatMap((h, i): ServerEvent[] => (h.role === 'user'
-        ? [{ kind: 'user', id: `fake-h-${i}`, text: h.text, historic: true, ts: 0 }]
+        ? [{ kind: 'user', id: `fake-h-${i}`, text: h.text, historic: true, ts: h.ts ?? 0 }]
         : mapSdk(sdk({ type: 'assistant', uuid: `fake-h-${i}`, parent_tool_use_id: null, message: { role: 'assistant', content: [{ type: 'text', text: h.text }] } }))
-          .filter(isWire).map((e) => ({ kind: 'agent', e, ts: 0 }))));
+          .filter(isWire).map((e) => ({ kind: 'agent', e, ts: h.ts ?? 0 }))));
     },
   };
 }

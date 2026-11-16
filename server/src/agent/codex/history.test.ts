@@ -30,6 +30,25 @@ describe('Codex history', () => {
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
+  it('gives each item its recorded time, the turn\'s own time when the item has none, and 0 when neither is known', async () => {
+    const api = { async request() {
+      return { data: [
+        { id: 't1', startedAt: 1_700_000_000, completedAt: 1_700_000_090, items: [
+          { type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'Q' }] },
+          { type: 'agentMessage', id: 'm1', text: 'A', startedAtMs: 1_700_000_010_000, completedAtMs: 1_700_000_020_000 },
+          { type: 'agentMessage', id: 'm2', text: 'B' },
+        ] },
+        { id: 't2', items: [
+          { type: 'userMessage', id: 'u2', startedAtMs: 1_700_000_500_000, content: [{ type: 'text', text: 'Q2' }] },
+          { type: 'agentMessage', id: 'm3', text: 'C' },
+        ] },
+      ], nextCursor: null };
+    } };
+    const history = await loadCodexHistory(api, 'thread', new AttachmentStore({ dir: '/unused' }));
+    const at = (id: string) => history.find((e) => (e.kind === 'user' && e.id === itemId(id)) || (e.kind === 'agent' && e.e.t === 'message' && e.e.id === itemId(id)))?.ts;
+    expect([at('u1'), at('m1'), at('m2'), at('u2'), at('m3')]).toEqual([1_700_000_000_000, 1_700_000_020_000, 1_700_000_090_000, 1_700_000_500_000, 0]);
+  });
+
   it('rejects a repeating cursor rather than looping or silently dropping history', async () => {
     const api = { async request() { return { data: [], nextCursor: 'same' }; } };
     await expect(loadCodexHistory(api, 'thread', new AttachmentStore({ dir: '/unused' }))).rejects.toThrow(/cursor/);

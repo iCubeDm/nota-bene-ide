@@ -8,6 +8,7 @@ import { CommandTap, offered, pickCommands, toSlash } from './commands.ts';
 import { gitBashWarning } from './gitBash.ts';
 import { mapFrames } from './map.ts';
 import { transcriptToEvents } from './transcript.ts';
+import { transcriptTimes } from './times.ts';
 import { agentOfCall, findSubagentMeta, hitFresh, hitGet, hitSet, isRunning, noMetaAdd, noMetaHas, subagentModel } from './subagents.ts';
 import { defaultProjectsDir } from '../../sessions.ts';
 import { UsageUnavailableError, mapContextUsage, mapUsage } from '../../stats.ts';
@@ -229,7 +230,11 @@ export function sdkBackend(): AgentBackend {
     deleteSession: (id) => deleteSession(id).catch((e: unknown) => {
       throw e instanceof Error && /not found/i.test(e.message) ? new SessionNotFoundError(e.message) : e;
     }),
-    history: async (sessionId, cwd, attachments, onError) => transcriptToEvents(await getSessionMessages(sessionId, { dir: cwd }), attachments, onError),
+    // the SDK's messages carry no time: the transcript file's records do (times.ts)
+    history: async (sessionId, cwd, attachments, onError) => {
+      const [msgs, times] = await Promise.all([getSessionMessages(sessionId, { dir: cwd }), transcriptTimes(defaultProjectsDir(), sessionId)]);
+      return transcriptToEvents(msgs, attachments, onError, { times });
+    },
     subagent: async (sessionId, cwd, toolUseId, attachments, onError, call) => {
       const ids = await listSubagents(sessionId, { dir: cwd });
       const meta = findSubagentMeta(defaultProjectsDir(), sessionId, toolUseId);
@@ -254,7 +259,8 @@ export function sdkBackend(): AgentBackend {
         }
         ({ agentId, type, description, running } = hit);
       }
-      return { events: transcriptToEvents(await getSubagentMessages(sessionId, agentId, { dir: cwd }), attachments, onError, { subagent: true }), running, type, description };
+      const [msgs, times] = await Promise.all([getSubagentMessages(sessionId, agentId, { dir: cwd }), transcriptTimes(defaultProjectsDir(), sessionId, agentId)]);
+      return { events: transcriptToEvents(msgs, attachments, onError, { subagent: true, times }), running, type, description };
     },
   };
 }
