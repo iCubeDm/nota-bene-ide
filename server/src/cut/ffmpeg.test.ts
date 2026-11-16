@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ffmpegPlaces, findFfmpeg, probeSource } from './ffmpeg.ts';
+import { ffmpegPlaces, ffmpegVersion, findFfmpeg, isOldFfmpeg, probeSource } from './ffmpeg.ts';
 
 describe('findFfmpeg', () => {
   const yes = (...ok: string[]) => (p: string) => ok.includes(p);
@@ -46,5 +46,24 @@ At least one output file must be specified`;
     expect(probeSource("  Stream #0:0: Audio: mp3, 44100 Hz, stereo, fltp, 128 kb/s")).toEqual({ video: false, audio: true });
     // an unreadable file: ffmpeg names no stream
     expect(probeSource('a.mp4: Invalid data found when processing input')).toEqual({ video: false, audio: false });
+  });
+});
+
+describe('ffmpegVersion', () => {
+  it('reads the release from the first line of ffmpeg -version; a git build has none', () => {
+    expect(ffmpegVersion('ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers\nbuilt with clang')).toBe('9.0.2');
+    expect(ffmpegVersion('ffmpeg version n4.3.1 Copyright (c) 2000-2020')).toBe('4.3.1');
+    expect(ffmpegVersion('ffmpeg version 4.3.6-0+deb11u1 Copyright')).toBe('4.3.6');
+    expect(ffmpegVersion('ffmpeg version N-112233-gabcdef Copyright')).toBeNull();
+    expect(ffmpegVersion('')).toBeNull();
+  });
+
+  it('older than 4.4 is old (amix has no normalize there); unknown is not', () => {
+    expect(isOldFfmpeg('4.3.6')).toBe(true);
+    expect(isOldFfmpeg('3.4')).toBe(true);
+    expect(isOldFfmpeg('4.4')).toBe(false);
+    expect(isOldFfmpeg('5.0.1')).toBe(false);
+    expect(isOldFfmpeg('10.1')).toBe(false);
+    expect(isOldFfmpeg(null)).toBe(false);
   });
 });

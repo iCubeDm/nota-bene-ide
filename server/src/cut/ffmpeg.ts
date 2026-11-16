@@ -1,5 +1,5 @@
 // Finding ffmpeg for the video editor's export (epic 406) and asking it what a source holds.
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { HIDDEN } from '../platform.ts';
@@ -83,4 +83,25 @@ export function probe(ffmpeg: string, file: string): Promise<Probed> {
       resolve(probeSource(String(stderr)));
     });
   });
+}
+
+/** The release in the first line of `ffmpeg -version` (`9.0.2`, `n4.3.1`, `4.3.6-0+deb11u1`); null for a git build (`N-…`) or no answer. */
+export function ffmpegVersion(stdout: string): string | null {
+  return /^ffmpeg version n?(\d+\.\d+(?:\.\d+)?)/.exec(stdout.split('\n', 1)[0]!.trim())?.[1] ?? null;
+}
+
+/** The export needs ffmpeg 4.4 or newer (`amix normalize`). An unknown version is given the benefit of the doubt. */
+export function isOldFfmpeg(version: string | null): boolean {
+  if (!version) return false;
+  const [major = 0, minor = 0] = version.split('.').map(Number);
+  return major < 4 || (major === 4 && minor < 4);
+}
+
+/** Asks `ffmpeg -version` (5 s at most); null when it does not answer with a release. Synchronous: the caller caches it per binary. */
+export function readFfmpegVersion(ffmpeg: string): string | null {
+  try {
+    return ffmpegVersion(execFileSync(ffmpeg, ['-version'], { timeout: 5000, env: ffmpegEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 20, ...HIDDEN }));
+  } catch {
+    return null;
+  }
 }

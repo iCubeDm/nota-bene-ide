@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Cut } from '@nota-bene/shared/cut';
 import { CutExporter, CutExportError, type ExportJob } from './exporter.ts';
 import { findFfmpeg } from './ffmpeg.ts';
@@ -37,7 +37,7 @@ const until = async (cond: () => boolean, ms = 5000) => {
   }
 };
 const make = (o: Partial<ConstructorParameters<typeof CutExporter>[0]> = {}) => {
-  const e = new CutExporter({ root: () => root, ffmpeg: () => fake, probe: async () => ({ video: true, audio: true }), graceMs: 200, ...o });
+  const e = new CutExporter({ root: () => root, ffmpeg: () => fake, probe: async () => ({ video: true, audio: true }), version: () => null, graceMs: 200, ...o });
   exporters.push(e);
   return e;
 };
@@ -129,6 +129,121 @@ describe('CutExporter', () => {
     expect(err.split('\n').at(-1)).toBe('Error: boom');
     expect(err).not.toContain('line 1\n');
     expect(fs.readdirSync(path.join(root, 'exports'))).toEqual([]);
+  });
+
+  it('one running export per output: an edit of the same name in another folder is refused while the first runs', async () => {
+    media('a.mp4', 'HANG');
+    const e = make();
+    await e.start(edit('one/x.nbcut.json'), 'mp4');
+    expect(await refusal(e.start(edit('two/x.nbcut.json'), 'mp4'))).toMatchObject({ status: 409, code: 'output-busy', detail: 'exports/x.mp4' });
+    // another format is another file
+    await e.start(edit('two/x.nbcut.json'), 'wav');
+    expect(e.cancel('one/x.nbcut.json')).toBe(true);
+    await until(() => e.job('one/x.nbcut.json')?.phase === 'cancelled');
+    e.cancel('two/x.nbcut.json');
+    await until(() => e.job('two/x.nbcut.json')?.phase === 'cancelled');
+    media('a.mp4', 'OK');
+    await e.start('two/x.nbcut.json', 'mp4');
+    await until(() => e.job('two/x.nbcut.json')?.phase === 'done');
+  });
+
+  it('sources are probed at most 4 at a time; a sound file on a video track is told to be no picture', async () => {
+    let now = 0;
+    let most = 0;
+    const probe = async (_ff: string, file: string) => {
+      most = Math.max(most, ++now);
+      await new Promise((r) => setTimeout(r, 20));
+      now--;
+      return { video: !file.endsWith('.wav'), audio: true };
+    };
+    for (let i = 0; i < 9; i++) media(`s${i}.mp4`, 'OK');
+    media('voice.wav', 'OK');
+    const e = make({ probe });
+    const rel = edit('x.nbcut.json', 'media/voice.wav', (c) => {
+      for (let i = 0; i < 9; i++) c.clips.push({ id: `c${i}`, track: 'v', src: `media/s${i}.mp4`, at: 2 + i, out: 1 });
+    });
+    await e.start(rel, 'mp4');
+    expect(most).toBe(4);
+    await until(() => e.job(rel)?.phase !== 'running');
+    const g = spawns().at(-1)!.argv;
+    const graph = g[g.indexOf('-filter_complex') + 1]!;
+    // voice.wav is the first input: its sound is mixed, it is not drawn
+    expect(graph).toContain('[0:a]');
+    expect(graph).not.toContain('[0:v]');
+    expect(graph).toContain('[1:v]');
+  });
+
+  it('dispose never throws: the temp file goes after the child has exited, a failed removal is only logged', async () => {
+    media('a.mp4', 'HANG');
+    const removed: { file: string; alive: boolean }[] = [];
+    let pid = 0;
+    const warn = vi.fn();
+    const e = make({
+      rm: (file: string) => {
+        removed.push({ file, alive: alive(pid) });
+        throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' });
+      },
+      warn,
+    });
+    await e.start(edit('x.nbcut.json'), 'mp4');
+    await until(() => spawns().length > 0 && fs.readdirSync(path.join(root, 'exports')).length > 0);
+    pid = spawns().at(-1)!.pid;
+    expect(() => e.dispose()).not.toThrow();
+    expect(removed).toEqual([]);
+    await until(() => removed.length === 1);
+    expect(removed[0]!.alive).toBe(false);
+    expect(removed[0]!.file).toMatch(/\.part$/);
+    await until(() => warn.mock.calls.length === 1);
+    expect(e.job('x.nbcut.json')?.phase).toBe('cancelled');
+  });
+
+  it('dispose clears the pending kill timer; all exports share one process exit handler', async () => {
+    media('a.mp4', 'HANG');
+    const exits = process.listenerCount('exit');
+    const e = make({ graceMs: 60_000 });
+    const f = make({ graceMs: 60_000 });
+    await e.start(edit('x.nbcut.json'), 'mp4');
+    await e.start(edit('y.nbcut.json'), 'mp4');
+    await f.start(edit('z.nbcut.json'), 'mp4');
+    expect(process.listenerCount('exit')).toBeLessThanOrEqual(exits + 1);
+    await until(() => spawns().filter((s) => s.argv.at(-1)!.includes('.z.mp4.')).length > 0);
+    const timers = () => process.getActiveResourcesInfo().filter((x) => x === 'Timeout').length;
+    const before = timers();
+    e.cancel('x.nbcut.json');
+    expect(timers()).toBe(before + 1);
+    e.dispose();
+    expect(timers()).toBe(before);
+    f.dispose();
+    await until(() => e.job('y.nbcut.json')?.phase === 'cancelled' && f.job('z.nbcut.json')?.phase === 'cancelled');
+    expect(process.listenerCount('exit')).toBe(exits);
+  });
+
+  it('the first export of a project sweeps its stale temp files (an hour old, of our own pattern only)', async () => {
+    const ex = path.join(root, 'exports');
+    fs.mkdirSync(ex);
+    const old = new Date(Date.now() - 2 * 3600_000);
+    const files = ['.x.mp4.0123abcd.part', '.y.wav.89abcdef.part', '.fresh.mp4.00000000.part', '.notes.part', 'x.mp4.0123abcd.part', 'keep.mp4'];
+    for (const f of files) {
+      fs.writeFileSync(path.join(ex, f), 'old');
+      if (f !== '.fresh.mp4.00000000.part') fs.utimesSync(path.join(ex, f), old, old);
+    }
+    const e = make();
+    await e.start(edit('x.nbcut.json'), 'mp4');
+    await until(() => e.job('x.nbcut.json')?.phase === 'done');
+    await until(() => !fs.existsSync(path.join(ex, '.y.wav.89abcdef.part')));
+    expect(fs.readdirSync(ex).sort()).toEqual(['.fresh.mp4.00000000.part', '.notes.part', 'keep.mp4', 'x.mp4', 'x.mp4.0123abcd.part']);
+  });
+
+  it('an ffmpeg older than 4.4 is unusable, with its version; a newer one or an unknown build is usable', async () => {
+    let v: string | null = '4.3.2';
+    const e = make({ version: () => v });
+    expect(e.ffmpegState()).toEqual({ ok: false, reason: 'old-ffmpeg', version: '4.3.2' });
+    expect(e.available()).toBe(false);
+    expect(await refusal(e.start(edit('x.nbcut.json'), 'mp4'))).toMatchObject({ status: 501, code: 'old-ffmpeg', detail: '4.3.2' });
+    v = '4.4';
+    expect(make({ version: () => v }).ffmpegState()).toEqual({ ok: true });
+    expect(make({ version: () => null }).available()).toBe(true);
+    expect(make({ ffmpeg: () => null }).ffmpegState()).toEqual({ ok: false, reason: 'no-ffmpeg' });
   });
 
   it('no ffmpeg: 501, nothing spawned', async () => {

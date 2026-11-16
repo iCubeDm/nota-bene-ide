@@ -7,7 +7,7 @@ import { CUT_EXT, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota
 import { resolveInRoot } from '../files.ts';
 import { HIDDEN, renameRetry } from '../platform.ts';
 import { cutEnd, exportArgs, type ExportMode, type Sources } from './args.ts';
-import { ffmpegEnv, findFfmpeg, probe as probeWith, type Probed } from './ffmpeg.ts';
+import { ffmpegEnv, findFfmpeg, isOldFfmpeg, probe as probeWith, readFfmpegVersion, type Probed } from './ffmpeg.ts';
 
 const TAIL_BYTES = 16384;
 const TAIL_LINES = 12;
@@ -15,6 +15,29 @@ const TAIL_LINES = 12;
 export const EXPORTS = 'exports';
 /** how many issues an `invalid-edit` refusal names in its detail (all of them are in `issues`) */
 const DETAIL_ISSUES = 5;
+/** how many sources are asked of ffmpeg at once */
+const PROBES = 4;
+/** a temp file of ours (`.<name>.<ext>.<8 hex>.part`) older than this is left over from a crash, and swept */
+const STALE_MS = 3600_000;
+const TEMP = /^\..+\.(?:mp4|wav|m4a)\.[0-9a-f]{8}\.part$/;
+
+// every running ffmpeg of every exporter, killed when this process exits: one handler, there while any runs
+const live = new Set<ChildProcess>();
+const killLive = () => { for (const c of live) c.kill('SIGKILL'); };
+const track = (c: ChildProcess) => {
+  if (live.size === 0) process.on('exit', killLive);
+  live.add(c);
+};
+const untrack = (c: ChildProcess) => {
+  if (live.delete(c) && live.size === 0) process.off('exit', killLive);
+};
+
+/** `f` over `items`, at most `n` at a time. */
+async function pooled<T>(items: readonly T[], n: number, f: (x: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const lane = async () => { while (next < items.length) await f(items[next++]!); };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, lane));
+}
 
 export class CutExportError extends Error {
   status: number;
@@ -69,16 +92,26 @@ export type ExporterOptions = {
   ffmpeg?: () => string | null;
   /** which streams a source has (tests stub it); default: ask ffmpeg */
   probe?: (ffmpeg: string, file: string) => Promise<Probed>;
+  /** the release of an ffmpeg binary (tests stub it); default: `ffmpeg -version`, asked once per binary */
+  version?: (ffmpeg: string) => string | null;
   /** after SIGTERM, how long before SIGKILL */
   graceMs?: number;
+  /** removes a temp file (tests stub it); default: fs.rm, retried while Windows still holds the file */
+  rm?: (file: string) => Promise<void> | void;
+  /** where a failed removal is told; default: the console */
+  warn?: (e: unknown) => void;
 };
 
-type Running = { job: ExportJob; child: ChildProcess | null; cancelled: boolean; temp: string | null; kill?: NodeJS.Timeout };
+/** Whether the export can run here: ffmpeg is found, and new enough (4.4: `amix normalize`). */
+export type FfmpegState = { ok: true } | { ok: false; reason: 'no-ffmpeg' } | { ok: false; reason: 'old-ffmpeg'; version: string };
+
+type Running = { job: ExportJob; out: string; child: ChildProcess | null; cancelled: boolean; temp: string | null; kill?: NodeJS.Timeout };
 
 /**
- * Exports of edits, at most one running per edit. A start checks everything before ffmpeg runs: the edit and every source
+ * Exports of edits, at most one running per edit and one per output file. A start checks everything before ffmpeg runs: the edit and every source
  * resolve inside the project (resolveInRoot: no `..`, no absolute path, no symlink out), so does `exports/<name>.<ext>`;
- * ffmpeg then writes a dot-named temp file beside the output, renamed over it on success and removed otherwise. ffmpeg runs
+ * ffmpeg then writes a dot-named temp file beside the output, renamed over it on success and removed (once ffmpeg has exited,
+ * never throwing) otherwise; the first export into a folder sweeps the temp files a crash left there. ffmpeg runs
  * through spawn with an argument list, never a shell, with no secrets in its environment; cancel and close kill only it.
  * The last job of an edit stays readable (its phase, the output or the error) until the next start.
  */
@@ -86,14 +119,38 @@ export class CutExporter {
   private readonly o: Required<ExporterOptions>;
   private readonly jobs = new Map<string, Running>();
   private disposed = false;
-  private readonly onExit = () => { for (const r of this.jobs.values()) r.child?.kill('SIGKILL'); };
+  /** the release of each ffmpeg binary asked, by its stat: a replaced binary is asked again */
+  private readonly versions = new Map<string, { stamp: string; version: string | null }>();
+  /** the exports folders swept of stale temp files */
+  private readonly swept = new Set<string>();
 
   constructor(o: ExporterOptions) {
-    this.o = { root: o.root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()), probe: o.probe ?? probeWith, graceMs: o.graceMs ?? 3000 };
+    this.o = {
+      root: o.root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()), probe: o.probe ?? probeWith, version: o.version ?? readFfmpegVersion,
+      graceMs: o.graceMs ?? 3000, rm: o.rm ?? ((f) => fs.promises.rm(f, { force: true, maxRetries: 5, retryDelay: 200 })),
+      warn: o.warn ?? ((e) => console.error('[cut-export]', e)),
+    };
+  }
+
+  /** ffmpeg is looked up anew; its version is asked once per binary. */
+  ffmpegState(): FfmpegState {
+    const ffmpeg = this.o.ffmpeg();
+    if (!ffmpeg) return { ok: false, reason: 'no-ffmpeg' };
+    let stamp = '';
+    try {
+      const st = fs.statSync(ffmpeg);
+      stamp = `${st.mtimeMs}:${st.size}`;
+    } catch { /* a stub path: asked once */ }
+    let known = this.versions.get(ffmpeg);
+    if (!known || known.stamp !== stamp) {
+      known = { stamp, version: this.o.version(ffmpeg) };
+      this.versions.set(ffmpeg, known);
+    }
+    return known.version && isOldFfmpeg(known.version) ? { ok: false, reason: 'old-ffmpeg', version: known.version } : { ok: true };
   }
 
   available(): boolean {
-    return this.o.ffmpeg() !== null;
+    return this.ffmpegState().ok;
   }
 
   /** The edit's last export, or null. */
@@ -113,21 +170,27 @@ export class CutExporter {
     return true;
   }
 
-  /** Kills every running ffmpeg (SIGKILL) and removes the temp files; the server calls it on close. */
+  /** Kills every running ffmpeg (SIGKILL); each temp file goes once its ffmpeg has exited. The server calls it on close: it never throws. */
   dispose(): void {
     this.disposed = true;
     for (const r of this.jobs.values()) {
       r.cancelled = true;
-      r.child?.kill('SIGKILL');
-      if (r.temp) fs.rmSync(r.temp, { force: true });
+      clearTimeout(r.kill);
+      r.kill = undefined;
+      try {
+        r.child?.kill('SIGKILL');
+      } catch (e) {
+        this.o.warn(e);
+      }
     }
   }
 
   /** Starts an export of `edit` (project-relative). Resolves once ffmpeg runs; refusals are CutExportError. */
   async start(edit: string, mode: ExportMode): Promise<ExportJob> {
     if (this.disposed) throw new CutExportError(503, 'closing');
-    const ffmpeg = this.o.ffmpeg();
-    if (!ffmpeg) throw new CutExportError(501, 'no-ffmpeg');
+    const state = this.ffmpegState();
+    if (!state.ok) throw new CutExportError(501, state.reason, state.reason === 'old-ffmpeg' ? state.version : '');
+    const ffmpeg = this.o.ffmpeg()!;
     const root = this.o.root();
     const abs = resolveInRoot(root, edit);
     if (!abs) throw new CutExportError(403, 'outside-project', edit);
@@ -135,7 +198,12 @@ export class CutExporter {
     if (this.jobs.get(abs)?.job.phase === 'running') throw new CutExportError(409, 'running');
     const name = path.basename(abs).slice(0, -CUT_EXT.length);
     const output = `${EXPORTS}/${name}.${mode}`;
-    const r: Running = { job: { edit, mode, phase: 'running', progress: 0, output }, child: null, cancelled: false, temp: null };
+    // two edits of one name in different folders write the same file: one at a time
+    const outKey = path.resolve(root, output);
+    for (const other of this.jobs.values()) {
+      if (other.job.phase === 'running' && other.out === outKey) throw new CutExportError(409, 'output-busy', output);
+    }
+    const r: Running = { job: { edit, mode, phase: 'running', progress: 0, output }, out: outKey, child: null, cancelled: false, temp: null };
     this.jobs.set(abs, r); // taken before the first await: a second start of the edit is refused meanwhile
     try {
       const cut = await readCut(abs);
@@ -147,6 +215,7 @@ export class CutExporter {
       await fs.promises.mkdir(path.dirname(out), { recursive: true });
       // the folder may have been made just now; checked again before anything is written into it
       if (!resolveInRoot(root, output)) throw new CutExportError(403, 'outside-project', output);
+      this.sweep(path.dirname(out));
       if (r.cancelled) {
         r.job.phase = 'cancelled';
         return { ...r.job };
@@ -160,23 +229,43 @@ export class CutExporter {
     }
   }
 
-  /** Every clip's source, resolved inside the project and probed for sound (photos are not asked). */
+  /** Every clip's source, resolved inside the project and probed for a picture and sound, a few at a time (photos are not asked). */
   private async sources(ffmpeg: string, root: string, cut: Cut): Promise<Sources> {
-    const out = new Map<string, { file: string; audio: boolean }>();
+    const out = new Map<string, { file: string; video: boolean; audio: boolean }>();
     const srcs = [...new Set(cut.clips.map((c) => c.src))];
     for (const src of srcs) {
       const file = typeof src === 'string' ? resolveInRoot(root, src) : null;
       if (!file) throw new CutExportError(403, 'outside-project', String(src));
       const st = await fs.promises.stat(file).catch(() => null);
       if (!st?.isFile()) throw new CutExportError(422, 'missing-source', src);
-      out.set(src, { file, audio: false });
+      out.set(src, { file, video: isPhotoSrc(src), audio: false });
     }
-    await Promise.all(srcs.filter((s) => !isPhotoSrc(s)).map(async (src) => {
+    await pooled(srcs.filter((s) => !isPhotoSrc(s)), PROBES, async (src) => {
       const p = await this.o.probe(ffmpeg, out.get(src)!.file);
       if (!p.video && !p.audio) throw new CutExportError(422, 'unreadable-source', src);
-      out.get(src)!.audio = p.audio;
-    }));
+      Object.assign(out.get(src)!, { video: p.video, audio: p.audio });
+    });
     return out;
+  }
+
+  /** Removes a file without ever throwing (a close handler or the server's close calls it); a failure is told, not raised. */
+  private remove(file: string): void {
+    Promise.resolve().then(() => this.o.rm(file)).catch((e: unknown) => this.o.warn(e));
+  }
+
+  /** Once per folder: the temp files of ours that a crash left there, older than STALE_MS, except a running export's. */
+  private sweep(dir: string): void {
+    if (this.swept.has(dir)) return;
+    this.swept.add(dir);
+    const ours = new Set([...this.jobs.values()].map((r) => r.temp));
+    void (async () => {
+      for (const name of await fs.promises.readdir(dir)) {
+        const file = path.join(dir, name);
+        if (!TEMP.test(name) || ours.has(file)) continue;
+        const st = await fs.promises.lstat(file).catch(() => null);
+        if (st?.isFile() && Date.now() - st.mtimeMs > STALE_MS) this.remove(file);
+      }
+    })().catch((e: unknown) => this.o.warn(e));
   }
 
   private kill(r: Running): void {
@@ -194,10 +283,12 @@ export class CutExporter {
     try {
       child = spawn(ffmpeg, args, { cwd: path.dirname(out), env: ffmpegEnv(), stdio: ['ignore', 'pipe', 'pipe'], shell: false, ...HIDDEN });
     } catch (e) {
+      this.remove(r.temp!);
+      r.temp = null;
       return fail(e instanceof Error ? e.message : String(e));
     }
     r.child = child;
-    process.on('exit', this.onExit);
+    track(child);
     let tail = '';
     child.stderr!.on('data', (d: Buffer) => { tail = (tail + d.toString('utf8')).slice(-TAIL_BYTES); });
     // -progress: `key=value` lines; out_time_us is how far the output got
@@ -215,7 +306,8 @@ export class CutExporter {
       if (r.child !== child) return;
       r.child = null;
       clearTimeout(r.kill);
-      process.off('exit', this.onExit);
+      r.kill = undefined;
+      untrack(child);
       const temp = r.temp!;
       r.temp = null;
       if (code === 0 && !r.cancelled && !error) {
@@ -229,7 +321,7 @@ export class CutExporter {
         }
       } else if (r.cancelled) r.job.phase = 'cancelled';
       else fail(error?.message ?? (lastLines() || `ffmpeg exited with ${signal ?? code}`));
-      fs.rmSync(temp, { force: true });
+      this.remove(temp);
     };
     child.on('error', (e) => done(null, null, e));
     child.on('close', (code, signal) => done(code, signal));
