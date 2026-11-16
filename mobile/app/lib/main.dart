@@ -27,6 +27,7 @@ import 'store/voice_lang.dart';
 import 'store/theme_choice.dart';
 import 'store/vault.dart';
 import 'theme.dart';
+import 'ui/focus_across_away.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -301,11 +302,13 @@ class NbApp extends StatelessWidget {
     home: home ?? const Scaffold(),
     builder: (context, nav) {
       final child = nav ?? const SizedBox.shrink();
-      return VoiceLangScope(
-        choice: voiceLang,
-        child: SizesScope(
-          sizes: sizes,
-          child: lock == null ? child : lock!(child),
+      return FocusAcrossAway(
+        child: VoiceLangScope(
+          choice: voiceLang,
+          child: SizesScope(
+            sizes: sizes,
+            child: lock == null ? child : lock!(child),
+          ),
         ),
       );
     },
