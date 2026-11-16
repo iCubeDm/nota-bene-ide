@@ -1011,6 +1011,7 @@ export const zhCN: Dict = {
   cutClipPhotoQ: (id: string, track: string, src: string) => `片段 ${id} · 轨道 ${track} · ${src}（照片）`,
   cutMomentQ: "时间线上的一个时刻，无片段",
   cutClipGone: "   （此片段已不在剪辑中；时间为它原来的位置）",
+  cutTrimmedOut: "   （该时刻现已被裁出片段；时间为片段最近的一端）",
   cutComment: "评论：所选片段（播放头在片段上时为播放头处，否则为片段开头），或播放头所在的时刻",
   cutCommentShort: "评论",
   cutGoneTag: "片段已不在剪辑中",

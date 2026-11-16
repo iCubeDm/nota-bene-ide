@@ -4,8 +4,10 @@ import { isPhotoSrc } from '@nota-bene/shared/cut';
 import { tIn, type Lang } from '@/i18n/index.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
 
+/** One line of a field: a break or a tab (which the server refuses anyway) never leaves the batch's quote. */
+const flat = (s: string) => s.replace(/[\s\p{Cc}]+/gu, ' ');
 /** A track as the batch names it: its name with its id, or the id alone. */
-export const trackLabel = (c: CutAnchorClip): string => (c.trackName ? `${c.trackName} (${c.track})` : c.track);
+export const trackLabel = (c: CutAnchorClip): string => flat(c.trackName ? `${c.trackName} (${c.track})` : c.track);
 
 /** Where the comment is: the edit's file (`path @ ref` for another branch) and the time on its timeline. */
 export const cutWhere = (a: CutAnchor, file: string, lang: Lang): string => tIn(lang, 'srcCut', file, mediaTime(a.time));
@@ -17,7 +19,7 @@ export const cutWhere = (a: CutAnchor, file: string, lang: Lang): string => tIn(
 export function cutQuote(a: CutAnchor, lang: Lang): string {
   const c = a.clip;
   if (!c) return tIn(lang, 'cutMomentQ');
-  return isPhotoSrc(c.src) ? tIn(lang, 'cutClipPhotoQ', c.id, trackLabel(c), c.src) : tIn(lang, 'cutClipQ', c.id, trackLabel(c), c.src, mediaTime(c.srcTime));
+  return isPhotoSrc(c.src) ? tIn(lang, 'cutClipPhotoQ', flat(c.id), trackLabel(c), flat(c.src)) : tIn(lang, 'cutClipQ', flat(c.id), trackLabel(c), flat(c.src), mediaTime(c.srcTime));
 }
 
 /** The comment in one line, for its card, its popup and the sent message: the time on the timeline, then what it is on. */

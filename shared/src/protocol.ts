@@ -510,7 +510,8 @@ function isPageAnchorShape(v: Obj): boolean {
     && (v.near === undefined || isPageList(v.near));
 }
 
-const isStr = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
+// no control characters (a break, a tab): a cut anchor's fields go into one line of the batch's quote
+const isStr = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max && !/\p{Cc}/u.test(v);
 const isTime = (v: unknown): v is number => isNum(v) && v >= 0;
 
 function isCutAnchorShape(v: Obj): boolean {

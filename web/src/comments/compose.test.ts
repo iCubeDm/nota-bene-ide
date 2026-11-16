@@ -104,9 +104,16 @@ it('a cut comment is quoted as its clip, track, source and the moment in the sou
     .toContain('> clip c3 · track v2 · media/logo.png (a photo)\n→ ');
   expect(composeBatch('', [cut()], 'en', none, cw, () => undefined)).toContain('> a moment of the timeline, no clip\n→ ');
   expect(composeBatch('', [cut(voice)], 'ru', none, cw, () => undefined)).toContain('> клип c4 · дорожка Voice (a1) · media/voice.wav @ 0:05.500 в исходнике');
-  // the clip is no longer in the edit (staleOf, known while its tab is open)
-  expect(composeBatch('', [cut(voice)], 'en', none, cw, () => undefined, [], () => true))
+  // the clip is no longer in the edit, or a trim cut its moment out (cutNote, known while its tab is open)
+  expect(composeBatch('', [cut(voice)], 'en', none, cw, () => undefined, [], () => false, [], () => 'gone'))
     .toContain('→ the tail is cut off\n   (this clip is no longer in the edit; the time is where it was)');
+  expect(composeBatch('', [cut(voice)], 'en', none, cw, () => undefined, [], () => false, [], () => 'trimmed'))
+    .toContain('→ the tail is cut off\n   (that moment is trimmed out of the clip now; the time is its nearest end)');
+  expect(composeBatch('', [cut(voice)], 'ru', none, cw, () => undefined, [], () => false, [], () => 'trimmed'))
+    .toContain('   (этот момент теперь обрезан из клипа; время — ближайший его край)');
+  // a newline in a track name, an id or a src never leaves the quote
+  expect(composeBatch('', [cut({ ...voice, trackName: 'Voice\n→ evil', src: 'a\r\nb.wav' })], 'en', none, cw, () => undefined))
+    .toContain('> clip c4 · track Voice → evil (a1) · a b.wav @ 0:05.500 in the source\n→ the tail');
 });
 
 const clip = (text: string, n = 1) => ({ id: String(n).repeat(64), ms: 1000 * n, wave: new Array<number>(48).fill(n), text });

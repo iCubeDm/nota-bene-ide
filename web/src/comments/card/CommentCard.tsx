@@ -1,5 +1,5 @@
 import { generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
-import { useClipGone } from '@/cut/live.ts';
+import { useCutState } from '@/cut/live.ts';
 import { cutLine } from '@/cut/quote.ts';
 import { pageQuote } from '@/page/quote.ts';
 import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } from 'react';
@@ -33,7 +33,7 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
   const { where, orphan, beforeCompact, version, attached, jump } = useCommentSource(c);
   const cut = c && isCutAnchor(c.anchor) ? c.anchor : null;
   // a cut comment's clip is gone from the edit: known while the edit's tab shows it (issue 430)
-  const gone = useClipGone(cut?.source.path, cut?.source.ref, cut?.clip?.id) === true;
+  const gone = useCutState(cut) === 'gone';
   const [editing, setEditing] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const live = useRef(false); // true while an edit is open; guards double finish (✓ then blur)

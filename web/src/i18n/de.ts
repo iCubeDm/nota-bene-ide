@@ -1011,6 +1011,7 @@ export const de: Dict = {
   cutClipPhotoQ: (id: string, track: string, src: string) => `Clip ${id} · Spur ${track} · ${src} (ein Foto)`,
   cutMomentQ: "ein Moment der Zeitleiste, kein Clip",
   cutClipGone: "   (dieser Clip ist nicht mehr im Schnitt; die Zeit ist, wo er war)",
+  cutTrimmedOut: "   (dieser Moment ist jetzt aus dem Clip geschnitten; die Zeit ist sein nächstes Ende)",
   cutComment: "Kommentar: zum gewählten Clip (am Abspielkopf, wenn er auf dem Clip steht, sonst an seinem Anfang) oder zum Moment am Abspielkopf",
   cutCommentShort: "Kommentar",
   cutGoneTag: "Clip nicht mehr im Schnitt",

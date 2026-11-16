@@ -8,7 +8,7 @@ import { makeStore, serverEvent } from '@/store/store.ts';
 import { selectComments } from '@/comments/slice.ts';
 import { jumpToFileComment } from '@/files/slice.ts';
 import { CutBody } from './CutBody.tsx';
-import { clipGone } from './live.ts';
+import { liveCutState } from './live.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
@@ -121,7 +121,7 @@ it('ticks: on the clip and on the ruler, the note on hover; a click seeks there 
 it('a moved clip takes its comment along (an edit op with the new anchor); a clip that is gone is known gone', async () => {
   const k1 = note('k1', { time: 2, clip: { id: 'c3', track: 'a1', src: 'media/voice.wav', srcTime: 3 } });
   const { clip, pps, select, cuts, sent } = await show({ items: [k1] });
-  expect(clipGone('e.nbcut.json', undefined, 'c3')).toBe(false);
+  expect(liveCutState(k1.anchor as CutAnchor)).toBe('ok');
   const p = pps();
   fireEvent.pointerDown(clip('c3'), { clientX: 100, button: 0, pointerId: 1, altKey: true });
   fireEvent.pointerMove(clip('c3'), { clientX: 100 + 2 * p, clientY: 0, pointerId: 1, altKey: true });
@@ -131,7 +131,7 @@ it('a moved clip takes its comment along (an edit op with the new anchor); a cli
   await waitFor(() => expect(sent.some((m) => m.type === 'comment-op' && m.ops[0]!.op === 'edit')).toBe(true));
   select('c3');
   fireEvent.keyDown(document, { code: 'Delete', key: 'Delete' });
-  await waitFor(() => expect(clipGone('e.nbcut.json', undefined, 'c3')).toBe(true));
+  await waitFor(() => expect(liveCutState(k1.anchor as CutAnchor)).toBe('gone'));
   expect(cuts()[0]!.time).toBe(4); // it keeps its time
   await waitFor(() => expect(JSON.parse(disk.text).clips).toHaveLength(2), { timeout: SAVE_DELAY + 1500 });
 });

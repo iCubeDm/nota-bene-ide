@@ -1029,6 +1029,7 @@ export const en: Dict = {
   cutClipPhotoQ: (id: string, track: string, src: string) => `clip ${id} · track ${track} · ${src} (a photo)`,
   cutMomentQ: "a moment of the timeline, no clip",
   cutClipGone: "   (this clip is no longer in the edit; the time is where it was)",
+  cutTrimmedOut: "   (that moment is trimmed out of the clip now; the time is its nearest end)",
   cutComment: "Comment: on the selected clip (at the playhead when it is on the clip, else at its start), or on the playhead's moment",
   cutCommentShort: "Comment",
   cutGoneTag: "clip no longer in the edit",

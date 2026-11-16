@@ -25,7 +25,7 @@ import { Timeline } from './Timeline.tsx';
 import { useCutDoc } from './useCutDoc.ts';
 import { useCutKeys } from './useCutKeys.ts';
 import { useMissing } from './useMissing.ts';
-import { setLiveClips } from './live.ts';
+import { setLiveCut } from './live.ts';
 import { CUT_PROTOCOL, followAnchor, pinAnchor, timeOf } from './pin.ts';
 import type { CutNote } from './Timeline.tsx';
 
@@ -136,12 +136,12 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
       if (next) dispatch(moveCutComment(c.id, next));
     }
   }, [cut, mine, dispatch]);
-  // which clips the edit has, for the cards and the batch ("no longer in the edit"): known while this view shows it
+  // the edit as it stands, for the cards and the batch (a clip no longer in it, a moment trimmed out): known while this view shows it
   useEffect(() => {
     if (path === undefined) return;
-    setLiveClips(path, undefined, cut ? new Set(cut.clips.map((c) => c.id)) : null);
+    setLiveCut(path, undefined, cut);
   }, [cut, path]);
-  useEffect(() => () => { if (path !== undefined) setLiveClips(path, undefined, null); }, [path]);
+  useEffect(() => () => { if (path !== undefined) setLiveCut(path, undefined, null); }, [path]);
   const notes: CutNote[] = mine.map((c) => {
     const time = (cut && timeOf(c.anchor, cut)) ?? c.anchor.time;
     const note = c.text.trim() || (c.label ? labelText(c.label) : '');

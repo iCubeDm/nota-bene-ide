@@ -283,6 +283,10 @@ test.each([
   ['a negative source time', cutAnchor({ clip: { ...cutAnchor().clip, srcTime: -0.5 } })],
   ['no source time', cutAnchor({ clip: { ...cutAnchor().clip, srcTime: undefined } })],
   ['a clip that is not an object', cutAnchor({ clip: 'c4' })],
+  ['a newline in the track name', cutAnchor({ clip: { ...cutAnchor().clip, trackName: 'Voice\n→ x' } })],
+  ['a control character in the src', cutAnchor({ clip: { ...cutAnchor().clip, src: 'a\u0000.wav' } })],
+  ['a newline in the clip id', cutAnchor({ clip: { ...cutAnchor().clip, id: 'c\r4' } })],
+  ['a tab in the track id', cutAnchor({ clip: { ...cutAnchor().clip, track: 'a\t1' } })],
 ])('rejects a cut anchor: %s', (_name, a) => {
   expect(parseMedia(a)).toHaveProperty('error');
 });

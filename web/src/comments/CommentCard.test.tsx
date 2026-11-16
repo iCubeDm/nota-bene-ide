@@ -11,7 +11,8 @@ import { switchSession } from '@/controls/slice.ts';
 import { setFileLoad, setFileVersion } from '@/files/slice.ts';
 import { addImage, selectImages, selectMarking } from '@/composer/slice.ts';
 import { CommentCard, CommentCardPopover } from './CommentCard.tsx';
-import { setLiveClips } from '@/cut/live.ts';
+import { setLiveCut } from '@/cut/live.ts';
+import type { Cut } from '@nota-bene/shared/cut';
 
 beforeEach(() => setLang('ru'));
 afterEach(cleanup);
@@ -299,6 +300,7 @@ it('clicking the thumbnail jumps to the media tab', () => {
   expect(store.getState().files.jump).toMatchObject({ path: 'media/clip.mp4', id: 'c1' });
 });
 
+const cutEdit = (clips: Cut['clips']): Cut => ({ version: 1, width: 64, height: 64, fps: 25, tracks: [{ id: 'a1', kind: 'audio' }], clips });
 it('issue 430: a cut card shows the clip and the time, jumps to the edit, and says when its clip is gone', () => {
   setLang('en');
   const path = 'edits/demo.nbcut.json';
@@ -307,13 +309,13 @@ it('issue 430: a cut card shows the clip and the time, jumps to the edit, and sa
   const quote = view.container.querySelector<HTMLElement>('[data-cut-quote]')!;
   expect(quote.textContent).toBe('0:08.250 · clip c4 · track Voice (a1) · media/voice.wav @ 0:05.500 in the source');
   expect(screen.queryByText('clip no longer in the edit')).toBeNull(); // its tab is not open: no claim
-  act(() => setLiveClips(path, undefined, new Set(['c1'])));
+  act(() => setLiveCut(path, undefined, cutEdit([])));
   expect(screen.getByText('clip no longer in the edit')).toBeInTheDocument();
-  act(() => setLiveClips(path, undefined, new Set(['c4'])));
+  act(() => setLiveCut(path, undefined, cutEdit([{ id: 'c4', track: 'a1', src: 'media/voice.wav', at: 3, out: 9 }])));
   expect(screen.queryByText('clip no longer in the edit')).toBeNull();
   fireEvent.click(quote);
   expect(store.getState().files.jump).toMatchObject({ path, id: 'c1' });
-  act(() => setLiveClips(path, undefined, null));
+  act(() => setLiveCut(path, undefined, null));
 });
 
 it('issue 430: a cut card is never orphaned by the edit\'s Source view (its JSON text)', () => {

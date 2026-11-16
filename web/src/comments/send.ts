@@ -12,7 +12,7 @@ import { markSending, selectComments, selectPending, unmarkSending } from './sli
 import { selectFileVersion } from '../files/slice.ts';
 import { cameraLine } from '../model/pose.ts';
 import { cutWhere } from '../cut/quote.ts';
-import { clipGone } from '../cut/live.ts';
+import { liveCutState } from '../cut/live.ts';
 import { mediaTime } from '../media/markup/geometry.ts';
 import { activate } from '../tabs/slice.ts';
 import { toast } from '../shell/toast.ts';
@@ -113,16 +113,16 @@ const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean
     body, pending, lang, (c) => labelOf(c, lang),
     (c) => whereOf(c, st, (id) => { const k = own.findIndex((im) => im.id === id); return k < 0 ? undefined : k + 1; }),
     instructionOf, refs,
-    // "changed": only when the current version is known (a tab has it loaded) and differs from the one drawn on; a cut
-    // comment: its clip is known gone (its tab shows the edit without it)
+    // "changed": only when the current version is known (a tab has it loaded) and differs from the one drawn on
     (c) => {
       const a = c.anchor;
-      if (isCutAnchor(a)) return !!a.clip && clipGone(a.source.path, a.source.ref, a.clip.id) === true;
       if (!isMediaAnchor(a) || a.version === undefined) return false;
       const cur = selectFileVersion(st, a.source.path, a.source.ref);
       return cur !== undefined && cur !== a.version;
     },
     shared,
+    // a cut comment: its clip gone, or its moment trimmed out of it, as the edit's open tab shows it
+    (c) => { const s = isCutAnchor(c.anchor) ? liveCutState(c.anchor) : undefined; return s === 'ok' ? undefined : s; },
   );
   const id = voice?.id ?? crypto.randomUUID();
   if (!d(sendMessage(text, force, ids, images, id, voice?.voice))) return fail('offline');

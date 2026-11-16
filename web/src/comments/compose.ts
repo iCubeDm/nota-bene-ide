@@ -20,10 +20,12 @@ export function composeBatch(
   instructionOf: (c: Comment) => string | undefined,
   /** refs[i] = the global numbers of comment i's images; adds the `imgRef` line under that comment */
   refs: number[][] = [],
-  /** a media comment: the file has changed since the mark was drawn (known current version differs); a cut comment: its clip is no longer in the edit */
+  /** media comments only: the file has changed since the mark was drawn (known current version differs) */
   staleOf: (c: Comment) => boolean = () => false,
   /** shared[i] = for a comment whose image is a composite shared with others: that image's number and all the sharing comments' numbers */
   shared: ({ k: number; cs: number[] } | undefined)[] = [],
+  /** a cut comment (issue 430): its clip is no longer in the edit, or a trim cut its moment out (the time is the clip's nearest end) */
+  cutNote: (c: Comment) => 'gone' | 'trimmed' | undefined = () => undefined,
 ): string {
   if (!items.length) return general;
   const blocks = items.map((c, i) => {
@@ -47,7 +49,8 @@ export function composeBatch(
       if (staleOf(c)) tail += '\n' + tIn(lang, 'markStale');
     } else if (isCutAnchor(a)) {
       if (refs[i]?.length) tail += '\n' + tIn(lang, 'imgRef', refs[i]);
-      if (staleOf(c)) tail += '\n' + tIn(lang, 'cutClipGone'); // its clip is no longer in the edit
+      const note = cutNote(c);
+      if (note) tail += '\n' + tIn(lang, note === 'gone' ? 'cutClipGone' : 'cutTrimmedOut');
     } else if (refs[i]?.length) tail = '\n' + tIn(lang, isAttachmentAnchor(a) ? 'imgRefMedia' : 'imgRef', refs[i]); // an attachment's first image is its marked composite (no files on disk)
     // the recordings' transcripts follow what was typed, each on a line of its own (one line each: a transcript's breaks are spaces)
     const clips = (c.voice ?? []).map((v) => v.text.replace(/\s+/g, ' ').trim()).filter(Boolean);

@@ -1011,6 +1011,7 @@ export const ptBR: Dict = {
   cutClipPhotoQ: (id: string, track: string, src: string) => `clipe ${id} · faixa ${track} · ${src} (uma foto)`,
   cutMomentQ: "um momento da linha do tempo, sem clipe",
   cutClipGone: "   (este clipe não está mais na edição; o tempo é onde ele estava)",
+  cutTrimmedOut: "   (esse momento agora foi cortado do clipe; o tempo é a ponta mais próxima dele)",
   cutComment: "Comentar: o clipe selecionado (na agulha se ela estiver sobre o clipe, senão no início dele) ou o momento da agulha",
   cutCommentShort: "Comentar",
   cutGoneTag: "o clipe não está mais na edição",

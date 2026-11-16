@@ -201,7 +201,7 @@ A file named `<name>.nbcut.json` is an edit for the video editor (work in progre
 <details><summary>More: what the agent gets, and how a comment keeps to its clip</summary>
 
 - The batch line names the edit's file and the time on the timeline, then the clip's id, its track's name and id, its `src` and the same moment in that file (`in` plus the offset into the clip), e.g. `clip c4 · track Voice (a1) · media/voice.wav @ 0:05.500 in the source`, so the agent can open the right second of it. A photo has no moment of its own; a moment of the timeline says it has no clip.
-- A pending comment follows its clip by id: moved (to another track too) or trimmed, it keeps its moment in the source and its time on the timeline follows. A trim that cuts that moment away keeps the tick at the clip's nearest end. A sent comment stays where it was.
+- A pending comment follows its clip by id: moved (to another track too) or trimmed, it keeps its moment in the source and its time on the timeline follows. A split hands it to the part that holds that moment, and an undone split back to the whole clip (any clip of the same file on the same track that holds it). A trim that cuts that moment away keeps the tick at the clip's nearest end, and the batch says the moment is trimmed out. Only your own changes in the editor move a comment, never a reload of the file. A sent comment stays where it was.
 - A comment whose clip was deleted keeps its time; while the edit's tab is open its card says the clip is no longer in the edit, and so does the batch.
 - Comments are made on an edit of this folder, against a server of protocol 23 or newer. The phone lists them as text (the file, the clip and the time) and leaves them for the window to send.
 
