@@ -1,10 +1,13 @@
 // The edit's checks and the small sums the editor and the export share. Pure: a missing source file is the editor's
 // check (against the project), not this one's.
-import type { Cut, CutClip } from './cut.ts';
+import { CUT_EXT, type Cut, type CutClip } from './cut.ts';
 import { isAbsPath } from './paths.ts';
 
 /** Image files; a clip whose source is one is a photo. web/src/files/kinds.ts reuses it for the file view. */
 export const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
+
+/** An edit's file: `<name>.nbcut.json`, a name before the ending. */
+export const isCutPath = (p: string): boolean => p.length > CUT_EXT.length && p.toLowerCase().endsWith(CUT_EXT) && !p.endsWith(`/${CUT_EXT}`);
 
 export const isPhotoSrc = (src: string): boolean => IMAGE.test(src);
 

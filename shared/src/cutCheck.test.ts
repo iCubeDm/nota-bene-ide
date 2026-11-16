@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipLength, cutDuration, isPhotoSrc, validateCut, type CutIssue } from './cut.ts';
+import { clipLength, cutDuration, isCutPath, isPhotoSrc, validateCut, type CutIssue } from './cut.ts';
 
 // a valid edit: a main video, a photo over it, voice and music
 const base = () => ({
@@ -169,6 +169,13 @@ describe('validateCut', () => {
 });
 
 describe('helpers', () => {
+  it('isCutPath: the .nbcut.json ending, any case', () => {
+    expect(isCutPath('edits/trip.nbcut.json')).toBe(true);
+    expect(isCutPath('TRIP.NBCUT.JSON')).toBe(true);
+    expect(isCutPath('trip.json')).toBe(false);
+    expect(isCutPath('nbcut.json')).toBe(false);
+  });
+
   it('isPhotoSrc follows the image extensions', () => {
     for (const p of ['a.png', 'b/c.JPG', 'd.jpeg', 'e.gif', 'f.webp', 'g.avif', 'h.bmp', 'i.svg']) expect(isPhotoSrc(p)).toBe(true);
     for (const p of ['a.mp4', 'b.wav', 'c.png.mov', 'png']) expect(isPhotoSrc(p)).toBe(false);

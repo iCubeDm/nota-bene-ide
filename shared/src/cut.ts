@@ -65,4 +65,4 @@ export type CutClip = {
 /** The edit's file name ending. */
 export const CUT_EXT = '.nbcut.json';
 
-export { clipLength, cutDuration, IMAGE, isPhotoSrc, validateCut, type CutCheck, type CutIssue } from './cutCheck.ts';
+export { clipLength, cutDuration, IMAGE, isCutPath, isPhotoSrc, validateCut, type CutCheck, type CutIssue } from './cutCheck.ts';
