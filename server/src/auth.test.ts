@@ -346,6 +346,8 @@ const MATRIX: { method: string; path: string; cookie: 'open' | 'refused' }[] = [
   { method: 'POST', path: `/attach/${ID}`, cookie: 'refused' },
   { method: 'POST', path: '/file?path=a.txt', cookie: 'refused' },
   { method: 'POST', path: '/restart-server', cookie: 'refused' },
+  { method: 'POST', path: '/restart-server/pause', cookie: 'refused' },
+  { method: 'POST', path: '/restart-server/cancel', cookie: 'refused' },
   { method: 'POST', path: '/system/prefs', cookie: 'refused' },
   { method: 'POST', path: '/usage/reset', cookie: 'refused' },
   { method: 'POST', path: '/git-switch', cookie: 'refused' },

@@ -37,10 +37,17 @@ export type ControlsState = { mode: Mode | null; modeBeforePlan: Mode | null; re
   capabilities: Capabilities | null;
   /** the host's spoken language for dictation, from `hello` / Settings: `auto` or an ISO 639 code; undefined = none chosen (auto) */
   dictationLang?: string;
+  /** protocol 22: a server restart waits for the agent's pause (`restart-pending`; false on a dropped socket until the next one says) */
+  restartPending: boolean;
+  /**
+   * gh-422: this page's pause ask was accepted and the socket has not dropped since: a `restart-pending` now means the
+   * server did not go after all (declined at the reply: still pending; or cancelled), so the restarting phase ends
+   */
+  restartAsked: boolean;
 };
 
 /** The mode as the UI shows it: null until the server has told us (or the user picked one). */
-const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null };
+const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null, restartPending: false, restartAsked: false };
 
 /** Entering `plan` from X remembers X (prototype setModeUI). */
 function setMode(s: ControlsState, m: Mode): void {
@@ -69,6 +76,7 @@ export const controlsSlice = createSlice({
     /** the full-restart wait gave up (error answer or no reconnect): release the UI */
     switchCleared: (s) => void ((s.switching = null), (s.restarting = false)),
     switchStarted: (s, a: PayloadAction<boolean | undefined>) => void ((s.switching = 'asked'), (s.restarting = a.payload === true)),
+    restartAccepted: (s) => void (s.restartAsked = true),
   },
   extraReducers: (b) => {
     b.addCase(modeSet, (s, a) => setMode(s, a.payload));
@@ -80,7 +88,7 @@ export const controlsSlice = createSlice({
     b.addCase(dictationLangSet, (s, a) => void (s.dictationLang = a.payload));
     b.addCase(idleCompactSet, (s, a) => void (s.idleCompact && (s.idleCompact.on = a.payload)));
     // a dropped socket may come back to another server (a restart): until its hello, assume an old one
-    b.addCase(connState, (s, a) => void (a.payload === 'closed' && (s.protocol = 0)));
+    b.addCase(connState, (s, a) => void (a.payload === 'closed' && ((s.protocol = 0), (s.restartPending = false), (s.restartAsked = false))));
     b.addCase(serverEvent, (s, a) => {
       const ev = a.payload;
       if (ev.kind === 'hello') {
@@ -104,6 +112,11 @@ export const controlsSlice = createSlice({
       if (ev.kind === 'models') s.models = ev.models;
       if (ev.kind === 'commands') s.commands = ev.commands;
       if (ev.kind === 'idle-compact') s.idleCompact = ev.state;
+      if (ev.kind === 'restart-pending') {
+        s.restartPending = ev.pending;
+        if (s.restartAsked && s.restarting) { s.switching = null; s.restarting = false; }
+        s.restartAsked = false;
+      }
       // stale once the conversation moves on: a user turn (live or replayed), a reset, a replay, another session
       // plan-restore belongs to one conversation; a reconnect may have lost the sends still in flight
       if (ev.kind === 'replay') { s.modeBeforePlan = null; s.restoreAfterPlan = null; s.modeInFlight = []; }
@@ -133,7 +146,7 @@ export const controlsSlice = createSlice({
 });
 
 export const { planApproved } = controlsSlice.actions;
-const { restoreCleared, switchStarted, switchCleared } = controlsSlice.actions;
+const { restoreCleared, switchStarted, switchCleared, restartAccepted } = controlsSlice.actions;
 
 export const selectMode = (s: RootState): Mode | null => s.controls.mode;
 export const selectSuggestion = (s: RootState): string => s.controls.suggestion;
@@ -142,6 +155,7 @@ export const selectCapabilitiesKnown = (s: RootState): Capabilities | null => s.
 export const selectCapabilities = (s: RootState): Capabilities => s.controls.capabilities ?? CLAUDE_CAPABILITIES;
 export const selectSwitching = (s: RootState): boolean => s.controls.switching !== null;
 export const selectRestarting = (s: RootState): boolean => s.controls.restarting;
+export const selectRestartPending = (s: RootState): boolean => s.controls.restartPending;
 
 /** Optimistic: set locally, then send. The server answers every `mode` with one echo (to every socket). */
 export const pickMode = (mode: Mode): AppThunk => (dispatch, getState, { send }) => {
@@ -281,21 +295,57 @@ let serverRestartTimer: ReturnType<typeof setTimeout> | undefined;
  * same port and the socket reconnects by itself. It rides the `restarting` switch phases. The phase must NOT end on the
  * connection close (the old socket closes before the new server is up); it ends on the reconnect's replay carrying the
  * session, or, if the server never returns (no supervisor, crash loop), after 30 s with a `restartFail` toast.
+ * gh-422: while the agent works the server answers `pending` instead (it restarts at the next pause, `restart-pending`
+ * tells the header); `now` is Restart now, which cuts the running turn. An older server always restarts at once.
  */
-export const restartServer = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
+export const restartServer = (o: { now?: boolean } = {}): AppThunk<Promise<boolean>> => (dispatch) =>
+  dispatch(restartVia('/restart-server', o.now ? { now: true } : undefined));
+
+/** the page is in its pause too (as for the update's hand-over): the pending restart may go now */
+export const restartInPause = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
+  if (getState().controls.switching) return false;
+  // asked first, the restarting phase only once it is accepted: a 409 (the server still sees work) changes nothing here
+  const ok = await apiFetch('/restart-server/pause', { method: 'POST' }).then((r) => r.ok, () => false);
+  if (!ok || getState().controls.switching) return false;
+  dispatch(switchStarted(true));
+  dispatch(restartAccepted()); // a `restart-pending` before the socket drops ends the phase: the server stayed
+  clearTimeout(serverRestartTimer);
+  serverRestartTimer = setTimeout(() => {
+    if (!getState().controls.restarting) return;
+    dispatch(switchCleared());
+    toast(t('restartFail'), '');
+  }, SERVER_RESTART_TIMEOUT_MS);
+  return true;
+};
+
+/** drops the pending restart; the server's `restart-pending` updates every page */
+export const cancelRestart = (): AppThunk<Promise<boolean>> => async () => {
+  try {
+    const r = await apiFetch('/restart-server/cancel', { method: 'POST' });
+    if (!r.ok) { toast(t('restartFail'), (await r.text().catch(() => '')) || String(r.status)); return false; }
+    return true;
+  } catch (e) {
+    toast(t('restartFail'), e instanceof Error ? e.message : String(e));
+    return false;
+  }
+};
+
+const restartVia = (url: string, body: unknown): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const st = getState();
   if (st.controls.switching) return false;
   dispatch(switchStarted(true));
   clearTimeout(serverRestartTimer);
-  const giveUp = (msg: string) => {
+  const giveUp = (msg: string, toastIt = true) => {
     clearTimeout(serverRestartTimer);
     if (!getState().controls.restarting) return;
     dispatch(switchCleared());
-    toast(t('restartFail'), msg);
+    if (toastIt) toast(t('restartFail'), msg);
   };
   try {
-    const r = await apiFetch('/restart-server', { method: 'POST' });
+    const r = await apiFetch(url, { method: 'POST', ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) });
     if (!r.ok) { giveUp((await r.text().catch(() => '')) || String(r.status)); return false; }
+    const j = await r.json().catch(() => null) as { pending?: unknown } | null;
+    if (j?.pending === true) { giveUp('', false); return true; } // it waits for the pause: no restart yet
   } catch (e) {
     giveUp(e instanceof Error ? e.message : String(e));
     return false;

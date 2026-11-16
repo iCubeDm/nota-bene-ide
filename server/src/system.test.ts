@@ -375,8 +375,10 @@ describe('windows', () => {
     registerWindow(a.port, ((await (await af(`${a.url}/info`)).json()) as { root: string }).root, process.pid);
     registerWindow(b.port, bRoot.root, process.pid);
     registerWindow(1, '/gone', 999_999_999); // a dead pid
-    const rows = await (await af(`${a.url}/system/windows`)).json() as { port: number; state: string; current: boolean }[];
+    const rows = await (await af(`${a.url}/system/windows`)).json() as { port: number; state: string; current: boolean; restartPending?: boolean }[];
     expect(rows.map((r) => [r.port, r.state, r.current])).toEqual([[1, 'stale', false], ...[[a.port, 'live', true], [b.port, 'live', false]].sort((x, y) => (x[0] as number) - (y[0] as number))]);
+    // gh-422: a live window says whether a restart waits; a stale one says nothing
+    expect(rows.map((r) => r.restartPending)).toEqual([undefined, false, false]);
   });
 
   it('A stops B through B\'s /control with the token; A refuses to act on itself; a page never reaches /control', async () => {
@@ -402,6 +404,12 @@ describe('windows', () => {
     // restart-server on an unsupervised window: B says 409, A reports it
     const rs = await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'restart-server' }, { origin: a.origin });
     expect(await rs.json()).toEqual({ status: 409 });
+    expect(b.exits).toEqual([]);
+    // gh-422: restart now needs a launcher too; a cancel of nothing pending is fine
+    const rn = await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'restart-server-now' }, { origin: a.origin });
+    expect(await rn.json()).toEqual({ status: 409 });
+    const rc = await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'restart-server-cancel' }, { origin: a.origin });
+    expect(await rc.json()).toEqual({ status: 200 });
     expect(b.exits).toEqual([]);
     // the real thing: B exits with 0 (the launcher's "stop")
     const r = await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'stop' }, { origin: a.origin });

@@ -24,9 +24,11 @@ type WindowRow = {
   port: number; root: string; pid: number; startedAt: number; current: boolean;
   state: 'live' | 'restarting' | 'silent' | 'stale';
   session: string | null; title: string | null; supervised: boolean; busy: boolean; clients: number;
+  /** gh-422: a server restart waits for its agent; absent: a window of a version before that (its restart cuts the turn) */
+  restartPending?: boolean;
 };
 type About = { version: string; stateDir: string; logs: string[]; node: string; pid: number };
-type Action = 'restart-agent' | 'restart-server' | 'stop';
+type Action = 'restart-agent' | 'restart-server' | 'restart-server-now' | 'restart-server-cancel' | 'stop';
 
 // macOS and Linux home folders, and Windows' C:/Users/<name>
 const short = (d: string) => shortWinHome(d).replace(/^\/(Users|home)\/[^/]+/, '~');
@@ -139,7 +141,10 @@ export function SettingsView({ active }: { active: boolean }) {
     }
   };
   // every action on another window ends its running turn: ask first when it is working, and always for Stop
+  // a restart of a window that waits for its agent cuts nothing: it goes without asking (gh-422); Restart now always asks
   const confirmAct = (w: WindowRow, action: Action, label: string) => {
+    if (action === 'restart-server-cancel' || (action === 'restart-server' && w.restartPending !== undefined)) return void act(w, action)();
+    if (action === 'restart-server-now') return setAsk({ title: label, body: t('winRestartNowQ', w.port, short(w.root)), confirm: t('restartNowBtn'), run: act(w, action) });
     if (action !== 'stop' && !w.busy) return void act(w, action)();
     const body = action === 'stop' ? t('winStopQ', w.port, short(w.root)) : t('winBusyQ', label, w.port, short(w.root));
     setAsk({ title: label, body: w.busy && action === 'stop' ? `${body}\n${t('winBusyNote')}` : body, confirm: label, run: act(w, action) });
@@ -207,14 +212,20 @@ export function SettingsView({ active }: { active: boolean }) {
               </div>
               {w.state === 'live' && (
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  {[w.title, w.busy ? t('winBusy') : t('winIdle'), w.clients ? t('winTabs', w.clients) : t('winHeadless'), t('winUp', uptime(w.startedAt))].filter(Boolean).join(' · ')}
+                  {[w.title, w.busy ? t('winBusy') : t('winIdle'), w.restartPending ? t('winRestartPending') : null, w.clients ? t('winTabs', w.clients) : t('winHeadless'), t('winUp', uptime(w.startedAt))].filter(Boolean).join(' · ')}
                 </div>
               )}
               {!w.current && w.state === 'live' && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <Button asChild variant="outline" size="sm"><a href={`http://127.0.0.1:${w.port}/`} target="_blank" rel="noopener noreferrer">{t('winOpen')}</a></Button>
                   <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-agent', t('winRestartAgent'))}>{t('winRestartAgent')}</Button>
-                  {w.supervised && <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-server', t('winRestartServer'))}>{t('winRestartServer')}</Button>}
+                  {w.supervised && !w.restartPending && <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-server', t('winRestartServer'))}>{t('winRestartServer')}</Button>}
+                  {w.supervised && w.restartPending && (
+                    <>
+                      <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-server-now', t('restartServerNow'))}>{t('restartServerNow')}</Button>
+                      <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-server-cancel', t('restartCancel'))}>{t('restartCancel')}</Button>
+                    </>
+                  )}
                   <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'stop', t('winStop'))}>{t('winStop')}</Button>
                 </div>
               )}
