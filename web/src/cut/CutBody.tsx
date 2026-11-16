@@ -83,6 +83,10 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const cut = doc.cut;
   const cutRef = useRef(cut);
   cutRef.current = cut;
+  // the next edit shown is this window's own change (issue 430: only those move the comments)
+  const own = useRef(false);
+  const undo = () => { if (doc.canUndo) { own.current = true; doc.undo(); } };
+  const redo = () => { if (doc.canRedo) { own.current = true; doc.redo(); } };
   // a draft belongs to the edit it was built on: another one (a commit, a reload) shows as it is
   useEffect(() => setDraft(null), [cut]);
   const selected = cut?.clips.find((c) => c.id === sel) ?? null;
@@ -92,6 +96,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     setNotice(null);
     // every step stays a valid edit (the operations keep it so; this keeps a slip out of the file)
     if (!validateCut(next).ok || (cutRef.current && JSON.stringify(next) === JSON.stringify(cutRef.current))) return;
+    own.current = true;
     doc.apply(next);
   };
   const split = () => {
@@ -129,13 +134,18 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const mine = useMemo(() => (path === undefined ? [] : all.filter((c): c is Comment & { anchor: CutAnchor } =>
     isCutAnchor(c.anchor) && c.anchor.source.path === path && c.anchor.source.ref === undefined)), [all, path]);
   const [popup, setPopup] = useState<PendingComment | null>(null);
+  // a pending comment keeps to its clip after a change of this window's own (an edit, undo, redo): never after the edit as
+  // loaded, a reload of the file or an edit of the comment from elsewhere, so two windows never re-pin each other's echoes
+  const mineRef = useRef(mine);
+  mineRef.current = mine;
   useEffect(() => {
-    if (!cut) return;
-    for (const c of mine) {
+    if (!cut || !own.current) return;
+    own.current = false;
+    for (const c of mineRef.current) {
       const next = c.status === 'pending' ? followAnchor(c.anchor, cut) : null;
       if (next) dispatch(moveCutComment(c.id, next));
     }
-  }, [cut, mine, dispatch]);
+  }, [cut, dispatch]);
   // the edit as it stands, for the cards and the batch (a clip no longer in it, a moment trimmed out): known while this view shows it
   useEffect(() => {
     if (path === undefined) return;
@@ -184,8 +194,8 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     if (!cut) return false;
     const mod = e.metaKey || e.ctrlKey;
     if (mod && !e.altKey && e.code === 'KeyZ') {
-      if (e.shiftKey) doc.redo();
-      else doc.undo();
+      if (e.shiftKey) redo();
+      else undo();
       return true;
     }
     if (mod || e.altKey) return false;
@@ -267,7 +277,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
           )}
           {editing && (
             <EditBar
-              doc={doc} sel={!!selected} onSplit={split} onDuplicate={duplicate} onDelete={remove} notice={notice}
+              doc={{ ...doc, undo, redo }} sel={!!selected} onSplit={split} onDuplicate={duplicate} onDelete={remove} notice={notice}
               onComment={canComment ? comment : undefined}
               onAddTrack={(kind) => commit(addTrack(editing.cut, kind).cut)}
             />

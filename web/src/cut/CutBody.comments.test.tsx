@@ -67,7 +67,8 @@ async function show({ protocol = 23, items = [] as Comment[] } = {}) {
   };
   const time = () => r.container.querySelector('[data-cut-time]')!.textContent;
   const cuts = () => selectComments(store.getState()).map((c) => c.anchor as CutAnchor);
-  return { ...r, store, sent, pps, clip, seek, select, time, cuts };
+  const reload = (text: string) => r.rerender(<Provider store={store}><TooltipProvider><CutBody text={text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active /></TooltipProvider></Provider>);
+  return { ...r, store, sent, pps, clip, seek, select, time, cuts, reload };
 }
 const note = (id: string, anchor: Omit<CutAnchor, 'kind' | 'source'>, text = `note ${id}`): Comment =>
   ({ id, text, status: 'pending', createdAt: 1, anchor: { kind: 'cut', source, ...anchor } });
@@ -134,6 +135,23 @@ it('a moved clip takes its comment along (an edit op with the new anchor); a cli
   await waitFor(() => expect(liveCutState(k1.anchor as CutAnchor)).toBe('gone'));
   expect(cuts()[0]!.time).toBe(4); // it keeps its time
   await waitFor(() => expect(JSON.parse(disk.text).clips).toHaveLength(2), { timeout: SAVE_DELAY + 1500 });
+});
+
+it('only this window\'s own changes move a comment: never the edit as loaded, a reload of the file or an incoming edit of the comment', async () => {
+  const stale = note('k1', { time: 9, clip: { id: 'c3', track: 'a1', src: 'media/voice.wav', srcTime: 3 } }); // c3 puts it at 2
+  const { sent, reload, store, cuts, container } = await show({ items: [stale] });
+  const edits = () => sent.filter((m) => m.type === 'comment-op').length;
+  await new Promise((r) => setTimeout(r, 50));
+  expect(edits()).toBe(0);
+  // the tick is drawn where the clip puts it all the same
+  expect(container.querySelector<HTMLElement>('[data-cut-note="k1"]')!.title).toMatch(/^0:02\.000/);
+  disk = { text: JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c3' ? { ...c, at: 3 } : c)) }), base: 'b-agent' };
+  reload(disk.text);
+  await waitFor(() => expect(container.querySelector<HTMLElement>('[data-cut-note="k1"]')!.title).toMatch(/^0:04\.000/));
+  store.dispatch(serverEvent({ kind: 'comments', items: [{ ...stale, anchor: { ...stale.anchor, time: 7 } as CutAnchor }], rev: 2 } as never));
+  await new Promise((r) => setTimeout(r, 50));
+  expect(edits()).toBe(0);
+  expect(cuts()[0]!.time).toBe(7);
 });
 
 it('the card\'s jump seeks the timeline and selects the clip', async () => {
