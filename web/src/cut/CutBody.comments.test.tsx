@@ -12,6 +12,8 @@ import { liveCutState } from './live.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
+// the waveforms (peaks.ts) are their own tests' (CutBody.edit.test.tsx): here they ask nothing of the server
+vi.mock('./peaks.ts', () => ({ peaksOf: vi.fn(async () => null) }));
 vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async () => 4) }));
 
 // comments on an edit's timeline (issue 430)

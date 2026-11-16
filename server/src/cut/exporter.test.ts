@@ -414,6 +414,34 @@ describe.skipIf(!real || !fs.existsSync(ffprobe ?? ''))('a real export through f
     expect(loudest(out, 2.6, 0.3)).toBeGreaterThan(-40);
   }, 60_000);
 
+  it('a video clip\'s fades fade its picture (issue 431): from black on the lowest track, half transparent mid-fade on an upper one', async () => {
+    const m = path.join(root, 'media');
+    ff('-f', 'lavfi', '-i', 'color=c=blue:size=64x64:rate=10:duration=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(m, 'blue.mp4'));
+    ff('-f', 'lavfi', '-i', 'color=c=red:size=64x64', '-frames:v', '1', path.join(m, 'red.png'));
+    fs.writeFileSync(path.join(root, 'fade.nbcut.json'), JSON.stringify({
+      version: 1, width: 64, height: 64, fps: 10, tracks: [{ id: 'v1', kind: 'video' }, { id: 'v2', kind: 'video' }],
+      clips: [
+        { id: 'b', track: 'v1', src: 'media/blue.mp4', at: 0, out: 2, fadeIn: 1 },
+        { id: 'r', track: 'v2', src: 'media/red.png', at: 1, dur: 1, fadeIn: 1 },
+      ],
+    } satisfies Cut));
+    const e = make({ ffmpeg: () => real, probe: undefined, version: undefined });
+    await e.start('fade.nbcut.json', 'mp4');
+    await until(() => e.job('fade.nbcut.json')?.phase !== 'running', 60_000);
+    expect(e.job('fade.nbcut.json')).toMatchObject({ phase: 'done' });
+    const out = path.join(root, 'exports', 'fade.mp4');
+    expect(brightest(frame(out, 0))).toBeLessThan(30); // black at the start
+    const [, , half] = rgb(frame(out, 0.5), 64, 32, 32);
+    expect(half).toBeGreaterThan(80); // half way up from black
+    expect(half).toBeLessThan(180);
+    // the red photo half over the blue, not over black: both halves show
+    const [r, , b] = rgb(frame(out, 1.5), 64, 32, 32);
+    expect(r).toBeGreaterThan(90);
+    expect(r).toBeLessThan(170);
+    expect(b).toBeGreaterThan(90);
+    expect(b).toBeLessThan(170);
+  }, 60_000);
+
   it('stills in webp and avif are held for their length', async () => {
     const m = path.join(root, 'media');
     const stills: string[] = [];

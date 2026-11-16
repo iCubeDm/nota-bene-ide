@@ -59,12 +59,19 @@ export type CutClip = {
   gain?: number;
   /** the clip's own sound off */
   mute?: boolean;
-  /** the clip's sound fades, seconds from each end; the picture never fades (no transitions) */
+  /**
+   * fades, seconds from each end: the clip's sound, and on a video track its picture too (issue 431). The lowest video
+   * track (the first in `tracks`) fades from and to black, an upper one fades its opacity over the tracks under it; the
+   * same sum either way, since the frame under every track is black. No transitions between clips.
+   */
   fadeIn?: number;
   fadeOut?: number;
   /** a clip on a video track: its frame; the picture fits inside keeping its aspect ratio */
   place?: CutPlace;
 };
+
+/** A source's waveform (issue 431, `GET /cut/peaks`): this many peaks a second, each the loudest sample there as 0..255. */
+export const CUT_PEAKS_RATE = 100;
 
 /** The edit's file name ending. */
 export const CUT_EXT = '.nbcut.json';

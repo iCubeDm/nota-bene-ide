@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
 import {
-  addClip, addTrack, deleteClips, duplicateClip, freeAt, moveClip, moveTrack, movePlace, nudgeClip, removeTrack, renameTrack, resizePlace,
+  addClip, addTrack, deleteClips, dragGain, duplicateClip, freeAt, GAIN_MAX, GAIN_MIN, gainAtY, gainY, setFade, setGain, moveClip, moveTrack, movePlace, nudgeClip, removeTrack, renameTrack, resizePlace,
   setClip, setTrackFlag, snapMove, snapPoints, snapTime, splitAt, trimEnd, trimStart,
 } from './ops.ts';
 
@@ -272,5 +272,54 @@ describe('edges that must not overlap', () => {
     valid(moveClip(cut, 'm', 1));
     valid(trimStart(moveClip(cut, 'm', 3.0004), 'm', 2));
     valid(trimEnd({ ...cut, clips: [...cut.clips, { id: 'q', track: 'v1', src: 'q.mp4', at: 1.0004, out: 0.5 }] }, 'q', 5));
+  });
+});
+
+describe('the gain line and the fade handles (issue 431)', () => {
+  it('gainY / gainAtY: 0 dB halfway down, the top GAIN_MAX, the bottom GAIN_MIN; one the inverse of the other', () => {
+    expect(gainY(0)).toBeCloseTo(0.5, 1);
+    expect(gainY(GAIN_MAX)).toBe(0);
+    expect(gainY(GAIN_MIN)).toBeCloseTo(1, 9);
+    expect(gainY(-6)).toBeGreaterThan(0.5);
+    expect(gainY(6)).toBeLessThan(0.5);
+    for (const g of [-40, -12, -3, 0, 4.5, 12]) expect(gainAtY(gainY(g))).toBeCloseTo(g, 6);
+    // beyond the limits: the line stays on the clip
+    expect(gainY(30)).toBe(0);
+    expect(gainY(-200)).toBe(1);
+  });
+
+  it('dragGain: the line follows the pointer in 0.5 dB steps, Shift a tenth as far in 0.1 dB steps, within the limits', () => {
+    const h = 40;
+    expect(dragGain(0, 0, h, false)).toBe(0);
+    const up = dragGain(0, -4, h, false);
+    expect(up).toBeGreaterThan(0);
+    expect(Number.isInteger(up * 2)).toBe(true);
+    expect(dragGain(0, -4, h, false)).toBe(Math.round(gainAtY(gainY(0) - 4 / h) * 2) / 2);
+    const fine = dragGain(0, -4, h, true);
+    expect(fine).toBeCloseTo(Math.round(gainAtY(gainY(0) - 0.4 / h) * 10) / 10, 6);
+    expect(Math.abs(fine)).toBeLessThan(Math.abs(up));
+    expect(dragGain(0, -1000, h, false)).toBe(GAIN_MAX);
+    expect(dragGain(0, 1000, h, false)).toBe(GAIN_MIN);
+    // a gain the agent wrote outside the limits starts where the line is drawn, at the edge
+    expect(dragGain(-90, 0, h, false)).toBe(GAIN_MIN);
+  });
+
+  it('setGain: the clip\'s gain in dB to the tenth, within the limits; 0 leaves it out of the file', () => {
+    const c = valid(setGain(base(), 'c4', -3.04));
+    expect(clip(c, 'c4').gain).toBe(-3);
+    expect(clip(setGain(base(), 'c4', 40), 'c4').gain).toBe(GAIN_MAX);
+    expect('gain' in clip(setGain(c, 'c4', 0), 'c4')).toBe(false);
+    expect(setGain(base(), 'nope', 3)).toEqual(base());
+  });
+
+  it('setFade: a fade to the millisecond, at most what the other fade leaves of the clip; 0 leaves it out of the file', () => {
+    // c1: 5 s long, fades 1 and 1
+    expect(clip(valid(setFade(base(), 'c1', 'in', 2.5)), 'c1').fadeIn).toBe(2.5);
+    expect(clip(valid(setFade(base(), 'c1', 'in', 9)), 'c1').fadeIn).toBe(4);
+    expect(clip(valid(setFade(base(), 'c1', 'out', 9)), 'c1').fadeOut).toBe(4);
+    expect('fadeIn' in clip(setFade(base(), 'c1', 'in', -1), 'c1')).toBe(false);
+    expect(clip(valid(setFade(base(), 'c4', 'out', 1.23456)), 'c4').fadeOut).toBe(1.235);
+    // a photo fades too (its picture)
+    expect(clip(valid(setFade(base(), 'c3', 'in', 0.5)), 'c3').fadeIn).toBe(0.5);
   });
 });

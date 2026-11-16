@@ -7,6 +7,8 @@ import { CutBody } from './CutBody.tsx';
 
 // a thumbnail is a frame grabbed once into an image (thumbs.test.ts); here, a name for what was asked
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async (url: string, at: number) => `blob:${url}@${at}`) }));
+// the waveforms (peaks.ts) are their own tests' (CutBody.edit.test.tsx): here they ask nothing of the server
+vi.mock('./peaks.ts', () => ({ peaksOf: vi.fn(async () => null) }));
 
 // a main video with a photo over it, a voice and a music track
 const fixture = {

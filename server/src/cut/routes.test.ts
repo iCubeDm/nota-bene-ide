@@ -6,6 +6,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EventHub } from '../hub.ts';
 import { CutExportError, type CutExporter, type ExportJob } from './exporter.ts';
+import { PeaksError } from './peaks.ts';
 import { cutRoutes } from './routes.ts';
 
 let root: string;
@@ -27,8 +28,10 @@ const fake = (o: Partial<Fake> = {}): Fake => ({
   cancel: (e) => (calls.push(['cancel', e]), e === 'a.nbcut.json'),
   ...o,
 });
-async function serve(exporter: Fake): Promise<string> {
-  const routes = cutRoutes({ hub: new EventHub(), exporter });
+type Peaks = { get: (rel: string) => Promise<Buffer> };
+const noPeaks: Peaks = { get: async () => { throw new PeaksError(501, 'no-ffmpeg'); } };
+async function serve(exporter: Fake, peaks: Peaks = noPeaks): Promise<string> {
+  const routes = cutRoutes({ hub: new EventHub(), exporter, peaks });
   server = http.createServer(((req, res) => routes[req.url!.split('?')[0]!]!(req, res)) as RequestListener);
   await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -84,5 +87,30 @@ describe('cut export routes', () => {
     const base = await serve(fake());
     expect((await post(base, '/cut/export/cancel', { path: 'a.nbcut.json' })).status).toBe(200);
     expect((await post(base, '/cut/export/cancel', { path: 'b.nbcut.json' })).status).toBe(404);
+  });
+});
+
+describe('GET /cut/peaks (issue 431)', () => {
+  it('a source\'s peaks as bytes; a refusal keeps its status and code; only GET, only from the page itself', async () => {
+    const asked: string[] = [];
+    const base = await serve(fake(), {
+      get: async (rel) => {
+        asked.push(rel);
+        if (rel === 'media/a.wav') return Buffer.from([0, 128, 255]);
+        throw new PeaksError(422, 'no-audio');
+      },
+    });
+    const r = await fetch(`${base}/cut/peaks?path=media%2Fa.wav`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get('content-type')).toBe('application/octet-stream');
+    expect([...new Uint8Array(await r.arrayBuffer())]).toEqual([0, 128, 255]);
+    const no = await fetch(`${base}/cut/peaks?path=media%2Fsilent.mp4`);
+    expect(no.status).toBe(422);
+    expect(await no.json()).toEqual({ error: 'no-audio' });
+    expect((await fetch(`${base}/cut/peaks`)).status).toBe(400);
+    expect((await fetch(`${base}/cut/peaks?path=a.wav`, { method: 'POST' })).status).toBe(405);
+    // a GET that starts a process: never for another site's page
+    expect((await fetch(`${base}/cut/peaks?path=media%2Fa.wav`, { headers: { 'sec-fetch-site': 'cross-site' } })).status).toBe(403);
+    expect(asked).toEqual(['media/a.wav', 'media/silent.mp4']);
   });
 });

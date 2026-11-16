@@ -65,6 +65,13 @@ export function fadeAt(c: CutClip, t: number): number {
   return Math.max(0, Math.min(1, up, down));
 }
 
+/**
+ * A video track's layer at `t` (issue 431): its place's opacity times the clip's fades, so the picture fades in and out
+ * with its sound. Over the black frame that is a fade from and to black on the lowest track; on an upper one, to what is
+ * under it. The export renders the same (server/src/cut/args.ts).
+ */
+export const layerOpacity = (c: CutClip, t: number): number => (c.place?.opacity ?? 1) * fadeAt(c, t);
+
 /** Whether a track's sound is heard: not muted, and soloed if any track is. */
 export const audible = (cut: Cut, track: CutTrack): boolean => !track.mute && (track.solo === true || !cut.tracks.some((x) => x.solo));
 

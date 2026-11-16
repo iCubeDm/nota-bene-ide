@@ -150,6 +150,22 @@ it('stacks the tracks at their places: a photo with its opacity, a hidden track 
   expect(layer('v3').style.display).toBe('none');
 });
 
+it('a video clip\'s fades fade its layer (issue 431): from black on the lowest track, over the tracks below on an upper one', () => {
+  const c = cut();
+  c.clips[0]!.fadeIn = 1; // c1 on v1, 0..5
+  c.clips[2]!.fadeOut = 1; // p1 on v2, 1..4, opacity 0.5
+  const { p, layer } = setup(c);
+  p.seek(0);
+  expect(layer('v1').style.opacity).toBe('0');
+  p.seek(0.5);
+  expect(Number(layer('v1').style.opacity)).toBeCloseTo(0.5);
+  p.seek(2);
+  expect(layer('v1').style.opacity).toBe('1');
+  expect(layer('v2').style.opacity).toBe('0.5');
+  p.seek(3.5);
+  expect(Number(layer('v2').style.opacity)).toBeCloseTo(0.25);
+});
+
 it('nothing on any track is a black frame', () => {
   const late = cut();
   for (const c of late.clips) c.at += 2;

@@ -47,6 +47,8 @@ import { remoteRoutes } from './remote/routes.ts';
 import { voiceRoutes } from './voice/routes.ts';
 import { whisperPhase } from './dictation/install.ts';
 import { CutExporter } from './cut/exporter.ts';
+import { findFfmpeg } from './cut/ffmpeg.ts';
+import { CutPeaks } from './cut/peaks.ts';
 import { cutRoutes } from './cut/routes.ts';
 import { usageRoutes } from './usage/routes.ts';
 import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, keyCredential, loginCredential, newNonce, proofFor, sameSecret, sessionCookie } from './auth.ts';
@@ -244,6 +246,8 @@ export async function startServer(o: {
     const marks = new MarkFiles({ root, stateDir });
     // the video editor's export (epic 406): ffmpeg is looked up again at each connect and start, so one installed later is found
     const cutExporter = new CutExporter({ root, ...(o.ffmpeg ? { ffmpeg: o.ffmpeg } : {}) });
+    // the waveforms need any ffmpeg that decodes, not one new enough for the export
+    const cutPeaks = new CutPeaks({ root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()) });
     // a deleted session: Nota Bene's own data of it goes too, each part on its own (a failure is reported, the rest still goes)
     const forgetDeleted = (id: string) => {
       const parts: [string, () => void][] = [
@@ -426,7 +430,7 @@ export async function startServer(o: {
         },
         ...usageRoutes({ hub }),
         ...dictationRoutes({ hub }),
-        ...cutRoutes({ hub, exporter: cutExporter }),
+        ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks }),
         ...remoteRoutes({ hub, keeper: o.remote }),
         ...projectRoutes({ hub, port: () => ownPort, provider: parseProvider(process.env.NOTA_BENE_AGENT), repoDir }),
         ...systemRoutes({
@@ -892,6 +896,7 @@ export async function startServer(o: {
       const backendClose = o.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
       blend?.dispose();
       cutExporter.dispose();
+      cutPeaks.dispose();
       for (const c of wss.clients) c.terminate();
       wss.close(() => {
         server.close(() => { void Promise.resolve(backendClose).then(() => resolve()); });

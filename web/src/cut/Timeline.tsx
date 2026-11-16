@@ -8,7 +8,8 @@ import { isMac, withKeys } from '@/shell/keymap.ts';
 import { PATH_MIME } from './drag.ts';
 import type { Editing } from './editing.ts';
 import type { CutPlayer } from './engine.ts';
-import { moveClip, snapMove, snapPoints, snapTime, trimEnd, trimStart } from './ops.ts';
+import { dB, FadeHandle, FadeSlopes, GainLine, usePeaks, Wave } from './ClipSound.tsx';
+import { dragGain, moveClip, setFade, setGain, snapMove, snapPoints, snapTime, trimEnd, trimStart } from './ops.ts';
 import { TrackHead } from './TrackHead.tsx';
 import { drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn, type Block, type Lane } from './layout.ts';
 import { poster } from './thumbs.ts';
@@ -16,7 +17,6 @@ import { applyCutKey } from './useCutKeys.ts';
 
 const HEAD = 144; // the track headers' column, px
 const STEP = 1.5; // one zoom button press
-const dB = (g: number) => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`;
 
 /**
  * The edit's tracks read-only (issue 407): a ruler, the lanes with their clips placed by time, zoom (buttons, Ctrl/⌘+wheel
@@ -27,7 +27,8 @@ const dB = (g: number) => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`
  * trimmed by its edges, snapping to the playhead, 0 and the other clips' edges (Alt: no snapping); the track headers
  * rename, mute, solo, hide, reorder and remove; a project file dropped from the Files tree becomes a clip. `notes` (issue
  * 430): the comments, a tick on their clip (on the ruler for a moment of the timeline or a clip that is gone), the note on
- * hover; a click is `onNote`.
+ * hover; a click is `onNote`. A clip's sound (issue 431): the waveform of its used part where it is in view, and while
+ * editing its gain line (dragged up or down, Shift: fine) and its fades' handles at its top corners (dragged inward).
  */
 export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote }: {
   player: CutPlayer;
@@ -230,7 +231,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
                 {blocks.filter((b) => b.track === l.id).map((b) => (
                   <Clip
                     key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active}
-                    selected={editing?.sel === b.id} drag={editing ? clipDrag : undefined}
+                    selected={editing?.sel === b.id} drag={editing ? clipDrag : undefined} view={{ from: (view.left - seen) / pps, to: (view.left + 2 * seen) / pps }}
                   />
                 ))}
                 {notes.filter((n) => laneOf(n) === l.id).map(tick)}
@@ -334,9 +335,11 @@ function usePoster(url: string | null, at: number): string | null {
 
 /** One clip: its file name, a thumbnail on a video track (the photo; a video's first used frame) once it is in view,
  *  its problems outlined; at least 2 px wide, however short. */
-function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, drag }: {
+function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, drag, view }: {
   b: Block; lane: Lane; pps: number; frame: { width: number; height: number } | null; problems: string[] | undefined; gone: boolean;
   fileSrc: string; active: boolean; selected?: boolean; drag?: ClipDrag;
+  /** the timeline's seconds around the view: the waveform is drawn there */
+  view: { from: number; to: number };
 }) {
   const t = useT();
   const w = Math.max(2, b.len * pps);
@@ -345,9 +348,19 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   // a thumbnail only where it has room, and never for a file that is not there
   const thumb = lane.kind === 'video' && !gone && w >= 48;
   const ref = useRef<HTMLDivElement>(null);
-  const seen = useSeen(ref, active && thumb);
+  const sound = !b.photo;
+  // once in view, the thumbnail and the waveform load
+  const seen = useSeen(ref, active && (thumb || (sound && !gone)));
   const frameOf = usePoster(seen && thumb && !b.photo ? url : null, b.from || 0);
   const shown = seen && thumb ? (b.photo ? url : frameOf) : null;
+  // the sound (issue 431): the waveform drawn around the view, in steps of WAVE_STEP px so a scroll seldom redraws it
+  const wave = usePeaks(seen && sound && !gone ? b.src : null, fileSrc);
+  const peaks = wave && 'peaks' in wave ? wave.peaks : null;
+  // a source known to have no sound (a video without it) has no gain to set
+  const mute = !!wave && 'none' in wave && wave.none === 'no-audio';
+  const x0 = Math.max(0, Math.floor((view.from - b.at) * pps / WAVE_STEP) * WAVE_STEP);
+  const x1 = Math.min(w, Math.ceil((view.to - b.at) * pps / WAVE_STEP) * WAVE_STEP);
+  const handles = !!drag && w >= 24;
   const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? []), ...(drag ? [t('cutClipTip')] : [])].join('\n');
   const tint = lane.kind === 'video' ? 'border-link/60 bg-link/15' : 'border-success/60 bg-success/15';
   return (
@@ -357,6 +370,12 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
       style={{ left: b.at * pps, width: w }}
       {...(drag && drag.handlers(b.id, 'move'))}
     >
+      {peaks && <Wave b={b} peaks={peaks} pps={pps} x0={x0} x1={x1} band={lane.kind === 'video'} />}
+      <FadeSlopes b={b} pps={pps} w={w} />
+      {drag && sound && !mute && <GainLine gain={b.gain ?? 0} press={drag.handlers(b.id, 'gain')} value={drag.live?.id === b.id && drag.live.grip === 'gain'} />}
+      {handles && (['in', 'out'] as const).map((edge) => (
+        <FadeHandle key={edge} edge={edge} b={b} pps={pps} w={w} press={drag.handlers(b.id, edge === 'in' ? 'fadeIn' : 'fadeOut')} />
+      ))}
       {drag && (['start', 'end'] as const).map((edge) => (
         <span
           key={edge} data-trim={edge} title={t(edge === 'start' ? 'cutTrimStart' : 'cutTrimEnd')}
@@ -365,21 +384,29 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
         />
       ))}
       {shown && <img src={shown} alt="" draggable={false} className="h-full flex-none bg-black object-cover" style={frame ? { aspectRatio: `${frame.width} / ${frame.height}` } : undefined} />}
-      <span className={`min-w-0 truncate px-1 ${gone ? 'line-through' : ''}`}>{basename(b.src)}</span>
+      <span className={`relative min-w-0 truncate px-1 ${gone ? 'line-through' : ''}`}>{basename(b.src)}</span>
     </div>
   );
 }
 
-type Grip = 'move' | 'start' | 'end';
-type ClipDrag = { handlers: (id: string, grip: Grip) => { onPointerDown: (e: PointerEvent<HTMLElement>) => void } };
+type Grip = 'move' | 'start' | 'end' | 'gain' | 'fadeIn' | 'fadeOut';
+type ClipDrag = {
+  handlers: (id: string, grip: Grip) => { onPointerDown: (e: PointerEvent<HTMLElement>) => void };
+  /** the clip and grip being dragged, once it moved */
+  live: { id: string; grip: Grip } | null;
+};
 // px within which a dragged edge snaps; px a press must travel to be a drag rather than a click
 const SNAP_PX = 8;
 const DRAG_PX = 3;
-type Pointer = { clientX: number; clientY: number; altKey: boolean };
+// the waveform's drawn part grows and moves in steps this wide, px
+const WAVE_STEP = 512;
+type Pointer = { clientX: number; clientY: number; altKey: boolean; shiftKey: boolean };
 
 /**
  * A clip's drag: from the committed edit at the press, each move shows the result (`draft`), the release commits it.
- * The body moves the clip (the lane under the pointer takes it when it is of the clip's kind), an edge trims it. The
+ * The body moves the clip (the lane under the pointer takes it when it is of the clip's kind), an edge trims it, the gain
+ * line sets its gain (Shift: fine steps, from where it is when Shift changes; a drag from it that starts sideways moves
+ * the clip instead) and a fade's handle its fade. The
  * moves are the window's: a clip that changes lanes is a new element, and the drag must go on. An edit that changed
  * under the drag (a reload of the agent's version) ends it: a change built on the older edit is never committed.
  */
@@ -390,6 +417,7 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
   ppsRef.current = pps;
   const stop = useRef<(() => void) | null>(null);
   useEffect(() => () => stop.current?.(), []);
+  const [live, setLive] = useState<{ id: string; grip: Grip } | null>(null);
   const laneAt = (y: number): string | undefined => {
     for (const el of scroller.current?.querySelectorAll<HTMLElement>('[data-lane-body]') ?? []) {
       const r = el.getBoundingClientRect();
@@ -397,8 +425,10 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
     }
   };
   return {
-    handlers: (id, grip) => ({
+    live,
+    handlers: (id, grip0) => ({
       onPointerDown: (e) => {
+        let grip = grip0;
         const ed0 = edRef.current;
         if (!ed0 || e.button !== 0) return;
         e.stopPropagation();
@@ -409,6 +439,12 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
         stop.current?.();
         const base = ed0.cut;
         const x0 = e.clientX;
+        // the gain line: from the gain at the press, or where it was when Shift last changed
+        let g0 = c.gain ?? 0;
+        let y0 = e.clientY;
+        let fine = e.shiftKey;
+        const h = (e.currentTarget.closest('[data-clip]') ?? e.currentTarget).getBoundingClientRect().height;
+        const fade0 = grip === 'fadeIn' ? c.fadeIn ?? 0 : c.fadeOut ?? 0;
         const at0 = c.at;
         const end0 = c.at + clipLength(c);
         let out: Cut | null = null;
@@ -417,10 +453,33 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
         const move = (m: Pointer) => {
           const cur = edRef.current;
           if (stale(cur)) return void stop.current?.();
+          if (grip === 'gain' && !out) {
+            // the first movement decides: up or down sets the gain, sideways moves the clip
+            const dx = Math.abs(m.clientX - x0);
+            const dy = Math.abs(m.clientY - y0);
+            if (Math.max(dx, dy) < DRAG_PX) return;
+            if (dx > dy) grip = 'move';
+          }
+          if (grip === 'gain') {
+            if (m.shiftKey !== fine) {
+              g0 = out?.clips.find((x) => x.id === id)?.gain ?? g0;
+              y0 = m.clientY;
+              fine = m.shiftKey;
+            }
+            out = setGain(base, id, dragGain(g0, m.clientY - y0, h, fine));
+            setLive({ id, grip });
+            return cur.draft(out);
+          }
           const lane = grip === 'move' ? laneAt(m.clientY) ?? c.track : c.track;
           if (!out && Math.abs(m.clientX - x0) < DRAG_PX && lane === c.track) return;
           const p = ppsRef.current;
           const dt = (m.clientX - x0) / p;
+          if (grip === 'fadeIn' || grip === 'fadeOut') {
+            // inward: right for the fade-in, left for the fade-out
+            out = setFade(base, id, grip === 'fadeIn' ? 'in' : 'out', fade0 + (grip === 'fadeIn' ? dt : -dt));
+            setLive({ id, grip });
+            return cur.draft(out);
+          }
           const pts = m.altKey ? [] : snapPoints(base, player.time(), [id]);
           const tol = SNAP_PX / p;
           out = grip === 'move' ? moveClip(base, id, snapMove(at0 + dt, end0 - at0, pts, tol), lane)
@@ -443,6 +502,7 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
           window.removeEventListener('pointerup', up);
           window.removeEventListener('pointercancel', up);
           stop.current = null;
+          setLive(null);
         };
       },
     }),

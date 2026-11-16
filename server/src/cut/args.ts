@@ -28,7 +28,9 @@ const AUDIO_FMT = `aresample=${RATE},aformat=sample_fmts=fltp:channel_layouts=st
  * holds only numbers). One input per clip that is seen or heard, trimmed at the input (`-ss in -t len`; a photo loops for
  * its `dur`). The picture: a black frame of the edit's size and rate for the whole length, then every clip of a shown video
  * track overlaid, the tracks in their order in `tracks` (a later one covers an earlier one) and a track's clips by time,
- * a source without a picture adds only its sound; each picture scaled to fit its `place` (or the whole frame) keeping its aspect ratio, centred there, at its opacity, from its `at`.
+ * a source without a picture adds only its sound; each picture scaled to fit its `place` (or the whole frame) keeping its aspect ratio, centred there, at its opacity, from its `at`,
+ * fading with the clip's fades (issue 431): `fade` to black on the lowest video track (the first in `tracks`), the alpha
+ * (`alpha=1`) on an upper one, so it fades to what is under it. Over the black frame both are the preview's layer opacity.
  * The sound: silence of the whole length mixed (summed, not averaged) with every audible clip's sound, a video clip's own
  * included when its source has one: clip gain + track gain in dB, the fades, delayed to its `at`. A clip is audible unless
  * it or its track is muted, or another track has solo and its own has not. Gaps are black and silent.
@@ -43,6 +45,8 @@ export function exportArgs(cut: Cut, sources: Sources, output: string, mode: Exp
   const solo = cut.tracks.some((t) => t.solo);
   const audible = (t: CutTrack) => !t.mute && (!solo || t.solo === true);
   const order = new Map(cut.tracks.map((t, i) => [t.id, i]));
+  // the lowest video track's fades go to black; an upper one's fade its alpha over the tracks under it (issue 431)
+  const lowest = cut.tracks.find((t) => t.kind === 'video')?.id;
   // the stacking order: tracks as listed, a track's clips by time
   const clips = cut.clips
     .filter((c) => tracks.has(c.track))
@@ -74,9 +78,14 @@ export function exportArgs(cut: Cut, sources: Sources, output: string, mode: Exp
         ? { x: Math.round(p.x * W), y: Math.round(p.y * H), w: Math.round(p.w * W), h: Math.round(p.h * H) }
         : { x: 0, y: 0, w: W, h: H };
       const opacity = p?.opacity ?? 1;
+      const alpha = c.track === lowest ? '' : ':alpha=1';
+      const fades = [
+        ...((c.fadeIn ?? 0) > 0 ? [`,fade=t=in:st=${s(c.at)}:d=${s(c.fadeIn!)}${alpha}`] : []),
+        ...((c.fadeOut ?? 0) > 0 ? [`,fade=t=out:st=${s(Math.max(c.at, c.at + len - c.fadeOut!))}:d=${s(c.fadeOut!)}${alpha}`] : []),
+      ].join('');
       pictures.push(
         `[${k}:v]${isAvif(c.src) ? `fps=${fps},trim=duration=${s(len)},` : ''}scale=${box.w}:${box.h}:force_original_aspect_ratio=decrease,setsar=1,format=yuva420p` +
-          `${opacity < 1 ? `,colorchannelmixer=aa=${s(opacity)}` : ''},setpts=PTS-STARTPTS+${s(c.at)}/TB,fps=${fps}[p${n}]`,
+          `${opacity < 1 ? `,colorchannelmixer=aa=${s(opacity)}` : ''},setpts=PTS-STARTPTS+${s(c.at)}/TB,fps=${fps}${fades}[p${n}]`,
         `[${last}][p${n}]overlay=x=${box.x}+(${box.w}-w)/2:y=${box.y}+(${box.h}-h)/2:eof_action=pass[v${n}]`,
       );
       last = `v${n}`;

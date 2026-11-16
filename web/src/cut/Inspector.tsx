@@ -8,7 +8,7 @@ type Patch = Parameters<typeof setClip>[2];
 
 /**
  * The selected clip's numbers (issue 409): where it starts, the used part of its source (a photo: how long it shows),
- * its sound's gain and fades, and on a video track its frame (percent of the output frame) and opacity, with "Fit to
+ * its sound's gain, its fades (on a video track the picture's too, issue 431), and on a video track its frame (percent of the output frame) and opacity, with "Fit to
  * frame" to drop the frame. A value the format refuses is marked and not applied.
  */
 export function Inspector({ cut, clip: c, commit }: { cut: Cut; clip: CutClip; commit: (c: Cut) => void }) {
@@ -35,14 +35,15 @@ export function Inspector({ cut, clip: c, commit }: { cut: Cut; clip: CutClip; c
           <Num label={t('cutIn')} value={sec(c.in)} onSet={(v) => apply({ in: ms(v) || undefined })} />
           <Num label={t('cutOut')} value={sec(c.out)} onSet={(v) => apply({ out: ms(v) })} />
           <Num label={t('cutGain')} value={c.gain ?? 0} step={0.5} onSet={(v) => apply({ gain: v || undefined })} />
-          <Num label={t('cutFadeIn')} value={sec(c.fadeIn)} onSet={(v) => apply({ fadeIn: ms(v) || undefined })} />
-          <Num label={t('cutFadeOut')} value={sec(c.fadeOut)} onSet={(v) => apply({ fadeOut: ms(v) || undefined })} />
           <label className="flex items-center gap-1.5 text-muted-foreground">
             <input type="checkbox" checked={!!c.mute} onChange={(e) => apply({ mute: e.target.checked || undefined })} />
             {t('cutClipMute')}
           </label>
         </>
       )}
+      {/* a photo's fades fade its picture (issue 431) */}
+      <Num label={t('cutFadeIn')} value={sec(c.fadeIn)} onSet={(v) => apply({ fadeIn: ms(v) || undefined })} />
+      <Num label={t('cutFadeOut')} value={sec(c.fadeOut)} onSet={(v) => apply({ fadeOut: ms(v) || undefined })} />
       {video && (
         <>
           <Num label={t('cutPlaceX')} value={pct(p.x)} onSet={(v) => place('x', v / 100)} />

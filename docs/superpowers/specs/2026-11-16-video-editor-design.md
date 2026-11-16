@@ -28,7 +28,9 @@ code, weaker in Safari and Firefox, some sources unreadable).
   fractions of the frame, opacity) and its picture fits inside it keeping the aspect ratio. Absent: the whole frame.
 - A video clip's own sound belongs to the clip (gain, mute, fades). Audio tracks mix; `solo` on any track silences the
   others.
-- A clip's length: `out - in` for video and audio, `dur` for a photo. Fades act on sound only.
+- A clip's length: `out - in` for video and audio, `dur` for a photo. Fades act on the clip's sound, and on a video
+  track on its picture too (issue 431): from and to black on the lowest video track, over the tracks under it on an upper
+  one. No transitions between clips.
 - The file is the only state: saved as the user edits, undo and redo in the editor, an outside change (the agent's)
   reloads it.
 - Preview in the browser: one clock; per video track the clip in view follows it and the next one is preloaded; photos

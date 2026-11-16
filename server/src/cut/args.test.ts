@@ -55,7 +55,7 @@ describe('exportArgs', () => {
       '-ss', '10', '-t', '3.5', '-i', '/p/media/music.mp3',
       '-filter_complex', [
         'color=c=black:s=1280x720:r=30:d=3.5[v0]',
-        '[0:v]scale=1280:720:force_original_aspect_ratio=decrease,setsar=1,format=yuva420p,setpts=PTS-STARTPTS+1/TB,fps=30[p1]',
+        '[0:v]scale=1280:720:force_original_aspect_ratio=decrease,setsar=1,format=yuva420p,setpts=PTS-STARTPTS+1/TB,fps=30,fade=t=in:st=1:d=0.5[p1]',
         '[v0][p1]overlay=x=0+(1280-w)/2:y=0+(720-h)/2:eof_action=pass[v1]',
         '[1:v]scale=320:360:force_original_aspect_ratio=decrease,setsar=1,format=yuva420p,colorchannelmixer=aa=0.6,setpts=PTS-STARTPTS+1.5/TB,fps=30[p2]',
         '[v1][p2]overlay=x=640+(320-w)/2:y=180+(360-h)/2:eof_action=pass[v2]',
@@ -163,6 +163,26 @@ describe('exportArgs', () => {
     expect(g[1]).toContain('scale=426:240:');
     expect(g[1]).not.toContain('colorchannelmixer');
     expect(g[2]).toBe('[v0][p1]overlay=x=128+(426-w)/2:y=72+(240-h)/2:eof_action=pass[v1]');
+  });
+
+  it('a clip on a video track fades its picture with its fades (issue 431): to black on the lowest track, its alpha on an upper one', () => {
+    const c = cut((x) => {
+      x.clips[0]!.fadeOut = 0.25; // c1 on v1 (the lowest), 1..3, fadeIn 0.5
+      x.clips[1]!.fadeIn = 0.2; // the photo on v2, 1.5..2.5
+      x.clips[1]!.fadeOut = 0.3;
+    });
+    const g = graph(exportArgs(c, SOURCES, '/o', 'mp4'));
+    expect(g[1]).toMatch(/,fps=30,fade=t=in:st=1:d=0\.5,fade=t=out:st=2\.75:d=0\.25\[p1\]$/);
+    expect(g[3]).toMatch(/,fps=30,fade=t=in:st=1\.5:d=0\.2:alpha=1,fade=t=out:st=2\.2:d=0\.3:alpha=1\[p2\]$/);
+    // the sound fades as before
+    expect(g.find((f) => f.startsWith('[0:a]'))).toContain('afade=t=in:st=0:d=0.5,afade=t=out:st=1.75:d=0.25');
+    // the lowest video track is the first in `tracks`, also when it has no clip at that time: the photo's fade is alpha then
+    const swapped = graph(exportArgs(cut((x) => { x.clips[0]!.track = 'v2'; x.clips[1]!.track = 'v1'; x.clips[1]!.fadeIn = 0.2; }), SOURCES, '/o', 'mp4'));
+    // (inputs by track order: the photo on v1 first)
+    expect(swapped.find((f) => f.startsWith('[0:v]'))).toMatch(/fade=t=in:st=1\.5:d=0\.2\[p\d\]$/);
+    expect(swapped.find((f) => f.startsWith('[1:v]'))).toMatch(/fade=t=in:st=1:d=0\.5:alpha=1\[p\d\]$/);
+    // the sound alone has no picture to fade
+    expect(graph(exportArgs(c, SOURCES, '/o', 'wav')).some((f) => /(^|,)fade=/.test(f))).toBe(false);
   });
 
   it('an edit with nothing audible still has a silent sound track of its length', () => {
