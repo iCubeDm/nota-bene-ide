@@ -34,7 +34,7 @@ import { moveWindow } from './windows.ts';
 import { pidAlive } from './platform.ts';
 import { controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
 import { RESTART, restartGate } from './restartGate.ts';
-import { TurnMarks } from './turnMarks.ts';
+import { TurnMarks, changesWork } from './turnMarks.ts';
 import { projectRoutes } from './projectRoutes.ts';
 import { parseProvider } from './agent/provider.ts';
 import { updateCheck } from './update.ts';
@@ -167,7 +167,7 @@ export async function startServer(o: {
     // the web's prompt history: a new session's first prompts wait in memory for its id (as comments do); a /clear or a fork
     // keeps the history, so the new id gets a copy of the previous one's
     const prompts = new PromptStore({ dir: path.join(stateDir(), 'prompts'), report: (e) => reportError(hub, 'prompts', e) });
-    hub.tap(() => turnMarks.schedule());
+    hub.tap((ev) => { if (changesWork(ev)) turnMarks.schedule(); });
     manager.onSessionId((id, prev) => {
       turnMarks.schedule();
       if (prev === null) store.adopt(id);

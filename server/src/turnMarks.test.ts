@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { TurnMarks } from './turnMarks.ts';
+import { TurnMarks, changesWork } from './turnMarks.ts';
 
 let dir: string;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-turnmarks-')); });
@@ -72,5 +72,24 @@ describe('TurnMarks', () => {
     m.check();
     expect(fs.readdirSync(dir)).toEqual([]);
     expect(m.take('../x')).toBe(false);
+  });
+});
+
+describe('changesWork: only events that can start or end the work wake the check (streaming does not)', () => {
+  it('turn, task, permission and session events do; text, tools and state frames do not', () => {
+    const yes = [
+      { kind: 'user', id: 'u', text: 'x', ts: 1 }, { kind: 'agent', e: { t: 'turn-start' }, ts: 1 },
+      { kind: 'agent', e: { t: 'turn-end', stop: 'done', secs: 1, answers: 'all', queued: 0 }, ts: 1 },
+      { kind: 'agent', e: { t: 'task', id: 't', phase: 'done' }, ts: 1 }, { kind: 'agent', e: { t: 'cancelled', sendId: 'u' }, ts: 1 },
+      { kind: 'permission', id: 'p', toolName: 'Bash', input: {}, ts: 1 }, { kind: 'permission-done', id: 'p', allow: true, ts: 1 },
+      { kind: 'session', id: 's', root: '/r', title: null, model: null },
+    ];
+    const no = [
+      { kind: 'agent', e: { t: 'message-chunk', text: 'x' }, ts: 1 }, { kind: 'agent', e: { t: 'message', id: 'm', text: 'x' }, ts: 1 },
+      { kind: 'agent', e: { t: 'tool-call', id: 't', name: 'Read', input: {}, sub: false }, ts: 1 },
+      { kind: 'stats', stats: {} }, { kind: 'shell-out', id: 'x', text: '', truncated: false },
+    ];
+    expect(yes.map((e) => changesWork(e as never))).toEqual(yes.map(() => true));
+    expect(no.map((e) => changesWork(e as never))).toEqual(no.map(() => false));
   });
 });

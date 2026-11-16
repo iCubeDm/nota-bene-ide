@@ -5,10 +5,22 @@
 // start of the work, not at the exit: a crash runs no exit code.
 import fs from 'node:fs';
 import path from 'node:path';
+import type { ServerEvent } from '@nota-bene/shared';
 
 const ID = /^[0-9A-Za-z_-]{1,100}$/;
 /** how long after the last event the work state is looked at again (tasksRunning reads the whole history) */
 const SETTLE_MS = 300;
+
+const WORK_AGENT = new Set(['turn-start', 'turn-end', 'task', 'cancelled', 'reset']);
+/**
+ * Whether an event can start or end the agent's work (so the mark may change): a send, a turn's start or end, a task,
+ * a question and its answer, a new session. Streaming text, tool lines and state frames cannot, and each check reads
+ * the whole history for the running tasks, so they do not wake it.
+ */
+export function changesWork(ev: ServerEvent): boolean {
+  if (ev.kind === 'agent') return WORK_AGENT.has(ev.e.t);
+  return ev.kind === 'user' || ev.kind === 'permission' || ev.kind === 'permission-done' || ev.kind === 'session' || ev.kind === 'resumed';
+}
 
 export class TurnMarks {
   private written: string | null = null;
