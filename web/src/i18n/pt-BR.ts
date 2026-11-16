@@ -998,6 +998,7 @@ export const ptBR: Dict = {
   cutToolBlade: "Lâmina: um clique corta o clipe nesse ponto (Shift: todas as faixas; Alt: sem encaixe)",
   cutToolBladeShort: "Lâmina",
   cutBladeTip: "Clique para cortar aqui (Shift: todas as faixas; Alt: sem encaixe)",
+  cutRemovedClip: (src: string) => `Removido no arquivo: ${src}`,
   cutClipsN: (n: number) => `${n} clipes`,
   cutMixed: "variados",
   cutAt: "Início, s",

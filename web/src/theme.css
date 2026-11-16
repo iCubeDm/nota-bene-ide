@@ -931,6 +931,17 @@
 @keyframes nb-flash { from { background-color: var(--flash); } to { background-color: transparent; } }
 .nb-flash { animation: nb-flash 1.2s ease-out; }
 
+/* an edit's clips the agent just changed (issue 412): a ring that fades over FLASH_MS (changes.ts); a ghost where one was
+   removed. Without motion: the ring and the ghost hold still until the highlight ends. */
+@keyframes nb-cut-flash { from { box-shadow: 0 0 0 2px var(--color-warn), inset 0 0 0 999px color-mix(in oklch, var(--color-warn) 25%, transparent); } to { box-shadow: 0 0 0 2px transparent; } }
+@keyframes nb-cut-ghost { from { opacity: 0.9; } to { opacity: 0; } }
+.nb-cut-flash { z-index: 1; animation: nb-cut-flash 2s ease-out; }
+.nb-cut-ghost { animation: nb-cut-ghost 2s ease-in forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .nb-cut-flash { animation: none; box-shadow: 0 0 0 2px var(--color-warn); }
+  .nb-cut-ghost { animation: none; opacity: 0.6; }
+}
+
 /* the tasks drawer slides up over the feed */
 @keyframes nb-drawer { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 .nb-drawer { animation: nb-drawer 0.16s ease-out; }

@@ -78,6 +78,33 @@ it('an outside change with nothing unsaved reloads the edit', async () => {
   expect(posts.at(-1)!.base).toBe('b2');
 });
 
+it('an outside change reports what it changed in the clips (issue 412); the first read and our own saves do not', async () => {
+  const { result, rerender } = open();
+  await waitFor(() => expect(result.current.cut).not.toBeNull());
+  expect(result.current.changes).toBeNull();
+  // our own edit, saved and read back by the file view: no change from outside
+  act(() => result.current.apply(later(result.current.cut!, 1)));
+  await waitFor(() => expect(result.current.status).toBe('saved'), { timeout: SAVE_DELAY + 1000 });
+  rerender({ text: disk.text });
+  await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+  expect(result.current.changes).toBeNull();
+  // the agent moves c1 and adds c2
+  const next = later(cut0, 5);
+  write(JSON.stringify({ ...next, clips: [...next.clips, { id: 'c2', track: 'v1', src: 'b.mp4', at: 8, out: 1 }] }));
+  rerender({ text: disk.text });
+  await waitFor(() => expect(result.current.changes).not.toBeNull());
+  const first = result.current.changes!;
+  expect(first.added).toEqual(['c2']);
+  expect(first.changed).toEqual(['c1']);
+  expect(first.removed).toEqual([]);
+  // the next one is a new report, even if it looks the same
+  write(JSON.stringify(cut0));
+  rerender({ text: disk.text });
+  await waitFor(() => expect(result.current.changes).not.toBe(first));
+  expect(result.current.changes!.removed.map((c) => c.id)).toEqual(['c2']);
+  expect(result.current.changes!.changed).toEqual(['c1']);
+});
+
 it('an edit against an older file asks: nothing is overwritten until the user says so', async () => {
   const { result } = open();
   await waitFor(() => expect(result.current.cut).not.toBeNull());

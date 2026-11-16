@@ -6,6 +6,7 @@ import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/store/store.ts';
 import { CutBody } from './CutBody.tsx';
 import { PATH_MIME } from './drag.ts';
+import { FLASH_MS } from './changes.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
@@ -221,6 +222,37 @@ it('an outside change reloads the edit when nothing is unsaved', async () => {
   write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c2' ? { ...c, at: 9 } : c)) }));
   act(() => reload());
   await waitFor(() => expect(clip('c2').style.left).toBe(`${9 * Number(clip('c2').closest('[data-timeline]')!.getAttribute('data-pps'))}px`));
+});
+
+it('the agent\'s change is highlighted for a moment (issue 412): changed and added clips, a ghost where a removed one was', async () => {
+  const { container, clip, reload } = await show();
+  write(JSON.stringify({
+    ...fixture,
+    clips: [
+      { ...fixture.clips[0]!, out: 3 }, // trimmed
+      fixture.clips[2]!, // as it was
+      { id: 'c9', track: 'a1', src: 'media/music.wav', at: 8, out: 2 }, // added
+    ], // c2 removed
+  }));
+  act(() => reload());
+  await waitFor(() => expect(clip('c9')).toHaveAttribute('data-changed'));
+  expect(clip('c1')).toHaveAttribute('data-changed');
+  expect(clip('c3')).not.toHaveAttribute('data-changed');
+  const ghost = container.querySelector<HTMLElement>('[data-lane-body="v1"] [data-removed-clip="c2"]')!;
+  expect(ghost).not.toBeNull();
+  expect(ghost).toHaveAttribute('title', expect.stringContaining('media/street.webm'));
+  // it fades and is gone after a moment
+  await waitFor(() => expect(container.querySelector('[data-changed], [data-removed-clip]')).toBeNull(), { timeout: FLASH_MS + 1500 });
+});
+
+it('our own edit is not highlighted, nor the edit as first opened', async () => {
+  const { container, clip, pps, reload } = await show();
+  expect(container.querySelector('[data-changed]')).toBeNull();
+  drag(clip('c2'), 100, 100 + 1.5 * pps(), { altKey: true });
+  await saved(() => expect(clipOnDisk('c2')!.at).toBe(7.5));
+  act(() => reload()); // the file view reads our own save back
+  await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+  expect(container.querySelector('[data-changed], [data-removed-clip]')).toBeNull();
 });
 
 it('a drag that an outside change overtook is dropped: the agent\'s version stays', async () => {

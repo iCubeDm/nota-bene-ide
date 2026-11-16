@@ -22,6 +22,7 @@ import { addClip, addTrack, deleteClips, duplicateClip, duplicateClips, moveClip
 import { PlaceBox } from './PlaceBox.tsx';
 import { Preview } from './Preview.tsx';
 import { Timeline } from './Timeline.tsx';
+import { FLASH_MS, type CutChanges } from './changes.ts';
 import { useCutDoc } from './useCutDoc.ts';
 import { useCutKeys } from './useCutKeys.ts';
 import { useMissing } from './useMissing.ts';
@@ -63,6 +64,14 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const [sel, setSel] = useState<readonly string[]>([]);
   const [tool, setTool] = useState<Tool>('select');
   const [notice, setNotice] = useState<string | null>(null);
+  // the agent's change to the file (issue 412), highlighted on the timeline for a moment; this window's own never is
+  const [flash, setFlash] = useState<CutChanges | null>(null);
+  useEffect(() => {
+    if (!doc.changes) return;
+    setFlash(doc.changes);
+    const id = setTimeout(() => setFlash(null), FLASH_MS);
+    return () => clearTimeout(id);
+  }, [doc.changes]);
   const v = draft ?? doc.cut ?? ('v' in parsed ? parsed.v : undefined);
   const check = useMemo(() => validateCut(v), [v]);
   const draw = useMemo(() => drawable(v), [v]);
@@ -317,7 +326,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
             <Timeline
               player={player} lanes={draw.lanes} blocks={draw.blocks} end={draw.end} frame={frame} problems={problems} missing={missing} fileSrc={src} active={active}
               tools={path !== undefined && <ExportControl path={path} blocked={issues.length > 0 ? t('cutExportBlocked') : undefined} />}
-              editing={editing} notes={notes} onNote={(n) => goTo(n.id)}
+              editing={editing} notes={notes} onNote={(n) => goTo(n.id)} flash={flash}
             />
           )}
         </>
