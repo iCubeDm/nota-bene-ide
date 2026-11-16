@@ -28,6 +28,10 @@ type Slot = {
   pre?: HTMLImageElement;
   media: [Media, Media];
   gain?: GainNode;
+  /** it added neither picture nor sound at the last step */
+  silent?: boolean;
+  /** it became heard or seen while playing: its clip loads on the run, the clock does not wait for it */
+  joining?: boolean;
 };
 
 export type PlayerOptions = {
@@ -142,6 +146,7 @@ export class CutPlayer {
   play(): void {
     if (!this.live || this.playing || !this.cut || this.duration <= 0) return;
     if (this.base >= this.last() - 1e-6) this.base = 0;
+    this.settled();
     this.audio();
     this.started = this.now();
     this.playing = true;
@@ -156,6 +161,7 @@ export class CutPlayer {
     this.base = this.time();
     this.playing = false;
     this.holding = false;
+    this.settled();
     if (this.raf !== null) this.cancel(this.raf);
     this.raf = null;
     this.tick();
@@ -170,6 +176,7 @@ export class CutPlayer {
   seek(t: number): void {
     this.base = Math.max(0, Math.min(this.last(), t));
     this.seeks++;
+    this.settled();
     this.started = this.now();
     this.epoch++;
     this.tick();
@@ -284,6 +291,11 @@ export class CutPlayer {
     m.ramp = null;
   }
 
+  // a play, pause or seek: from here the clock may wait for every track in view again
+  private settled(): void {
+    for (const s of this.slots) s.joining = false;
+  }
+
   // the layers in tracks order: a later one is drawn over an earlier one
   private mount(): void {
     if (!this.box) return;
@@ -340,8 +352,13 @@ export class CutPlayer {
     const plan = this.slots.map((s) => {
       const clip = on.get(s.track.id);
       const next = nextClip(cut, s.track.id, t);
-      // a track that adds neither picture nor sound (hidden and muted, or silenced by another's solo) loads nothing
-      if (!(s.track.kind === 'video' && !s.track.hidden) && !audible(cut, s.track)) {
+      // a track that adds neither picture nor sound (hidden and muted, or silenced by another's solo) loads nothing.
+      // While playing, one that turns silent keeps its elements and goes quiet through its gain (a release would cut
+      // the sound mid-ease), and lets go at the next pause; one heard again loads its clip on the run (issue 429)
+      const silent = !(s.track.kind === 'video' && !s.track.hidden) && !audible(cut, s.track);
+      if (this.playing && s.silent && !silent) s.joining = true;
+      s.silent = silent;
+      if (silent && !(this.playing && s.media.some((m) => m.url !== null))) {
         for (const m of s.media) this.release(m);
         return { s, clip, next: undefined, photo: undefined, media: undefined, cur: undefined };
       }
@@ -356,7 +373,8 @@ export class CutPlayer {
       return { s, clip, next, photo, media, cur };
     });
     if (this.playing && !this.scrubbing) {
-      const waiting = plan.some(({ cur, media }) => cur && media && this.unready(cur.el, media, t));
+      // a track joining mid-play or a silent one does not stop the others
+      const waiting = plan.some(({ s, cur, media }) => cur && media && !s.joining && !s.silent && this.unready(cur.el, media, t));
       if (waiting && !this.holding) {
         this.base = this.time();
         this.holding = true;

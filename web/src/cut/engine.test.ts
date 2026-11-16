@@ -11,7 +11,7 @@ const fake = (el: HTMLMediaElement) => {
   return f;
 };
 const P = HTMLMediaElement.prototype;
-const saved = Object.fromEntries(['currentTime', 'paused', 'readyState', 'seeking', 'duration', 'ended', 'play', 'pause', 'load'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)]));
+const saved = Object.fromEntries(['currentTime', 'paused', 'readyState', 'seeking', 'duration', 'ended', 'play', 'pause', 'load', 'src'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)]));
 
 // the Web Audio graph as a record: each gain node's value and the ramps scheduled on it
 type Gain = { gain: { value: number; ramps: [string, number, number][] } & Record<string, unknown>; connect: (n: unknown) => void; disconnect: () => void; to?: unknown };
@@ -49,6 +49,8 @@ class FakeContext {
 }
 
 let now: number;
+let fresh: number;
+const loaded = (el: HTMLMediaElement) => { fake(el).ready = 4; };
 let frames: (() => void)[];
 const step = (ms: number) => { now += ms; const f = frames.splice(0); for (const x of f) x(); };
 
@@ -62,6 +64,10 @@ beforeEach(() => {
   P.play = vi.fn(function (this: HTMLMediaElement) { fake(this).paused = false; return Promise.resolve(); });
   P.pause = vi.fn(function (this: HTMLMediaElement) { fake(this).paused = true; });
   P.load = vi.fn();
+  // a new file: no data until `loaded` (readyState 0) when `fresh` is 0, at once by default
+  fresh = 4;
+  const src = saved.src!;
+  Object.defineProperty(P, 'src', { configurable: true, get(this: HTMLMediaElement) { return src.get!.call(this); }, set(this: HTMLMediaElement, v: string) { src.set!.call(this, v); fake(this).ready = fresh; } });
   gains = [];
   sources = [];
   ctxTime = 100;
@@ -342,7 +348,7 @@ it('the first play hands the gain to Web Audio at full element volume: a fade-in
   expect(el().volume).toBe(1);
 });
 
-it('a track that adds nothing loads nothing: a hidden and muted video track, a muted audio track; unmuted, it loads (issue 429)', () => {
+it('a track that adds nothing loads nothing: a hidden and muted video track, a muted audio track (issue 429)', () => {
   const c = cut();
   c.tracks[2] = { id: 'v3', kind: 'video', hidden: true, mute: true };
   const { p, layer } = setup(c);
@@ -351,20 +357,79 @@ it('a track that adds nothing loads nothing: a hidden and muted video track, a m
   p.play();
   step(16);
   expect(srcs('v3')).toEqual([null, null]);
-  const music = () => sources.filter((s) => s.el instanceof HTMLAudioElement && s.el.getAttribute('src') === '/file?path=media/music.mp3');
-  expect(music()).toHaveLength(0);
+  expect(sources.filter((s) => s.el instanceof HTMLAudioElement && s.el.getAttribute('src') === '/file?path=media/music.mp3')).toHaveLength(0);
   expect(srcs('v1')).toContain('/file?path=media/a.mp4');
-  // the music unmuted: its clip in view loads and plays
+});
+
+// the music a2 of cut() unmuted or soloed away, and its elements' state
+const music = () => sources.filter((s) => s.el instanceof HTMLAudioElement && s.el.getAttribute('src') === '/file?path=media/music.mp3').map((s) => s.el);
+const playingEls = () => sources.map((s) => s.el).filter((el) => el.hasAttribute('src') && !el.paused);
+
+it('unmuted while playing, a track loads its clip on the run: the clock and the other tracks do not wait for it (issue 429)', () => {
+  const { p } = setup();
+  p.seek(1.5);
+  p.play();
+  step(16);
+  const before = playingEls();
+  expect(before.length).toBeGreaterThan(0);
+  fresh = 0; // the music's file has no data yet
   const on = cut();
-  on.tracks[2] = c.tracks[2]!;
   on.tracks[4] = { id: 'a2', kind: 'audio' };
   p.setCut(on);
-  step(16);
+  const t = p.time();
+  step(100);
+  expect(p.time()).toBeCloseTo(t + 0.1, 3); // no hold
+  for (const el of before) expect(el.paused).toBe(false);
   expect(music()).toHaveLength(1);
-  expect(music()[0]!.el.paused).toBe(false);
-  // muted again while playing: it stops and lets go of the file
-  p.setCut(c);
+  expect(music()[0]!.readyState).toBe(0);
+  loaded(music()[0]!);
+  step(16);
+  expect(music()[0]!.paused).toBe(false);
+  // a play after a pause waits for every track again (the music is ready: no hold)
+  p.pause();
+  p.play();
+  step(100);
+  expect(p.state().playing).toBe(true);
+});
+
+it('a solo cleared while playing: the tracks it silenced since a pause join without holding the clock (issue 429)', () => {
+  const c = cut();
+  c.tracks[3] = { id: 'a1', kind: 'audio', solo: true };
+  c.tracks[4] = { id: 'a2', kind: 'audio' }; // silenced by a1's solo
+  const { p } = setup(c);
+  p.seek(1.5);
+  expect(music()).toHaveLength(0); // paused: a silent track lets go
+  p.play();
+  step(16);
+  const before = playingEls();
+  fresh = 0;
+  const off = structuredClone(c);
+  off.tracks[3] = { id: 'a1', kind: 'audio' };
+  p.setCut(off);
+  const t = p.time();
+  step(100);
+  expect(p.time()).toBeCloseTo(t + 0.1, 3);
+  for (const el of before) expect(el.paused).toBe(false);
+  expect(music()).toHaveLength(1);
+});
+
+it('muted while playing, a track goes quiet through its gain and keeps playing; it lets go of its file at the next pause (issue 429)', () => {
+  const on = cut();
+  on.tracks[4] = { id: 'a2', kind: 'audio' };
+  const { p } = setup(on);
+  p.seek(1.5);
+  p.play();
+  step(16);
+  const [el] = music();
+  expect(el!.paused).toBe(false);
+  p.setCut(cut()); // a2 muted again
+  step(16);
+  expect(el!.paused).toBe(false);
+  const trackGain = sources.find((s) => s.el === el)!.to!.to as Gain;
+  expect(trackGain.gain.ramps.at(-1)).toEqual(['target', 0, ctxTime]); // a 10 ms ease to silence, not a cut
+  p.pause();
   expect(music()).toHaveLength(0);
+  expect(el!.hasAttribute('src')).toBe(false);
 });
 
 it('in a gap the element already holding the next clip keeps it: the other does not load the same file (issue 429)', () => {
