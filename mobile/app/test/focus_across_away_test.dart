@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nb_app/ui/unfocus_when_away.dart';
+import 'package:nb_app/ui/focus_across_away.dart';
 
 // Android brings a focused field's keyboard back with a stale height when the app returns: the layout keeps the
 // keyboard's room with no keyboard on screen. Leaving the screen drops the focus, so there is nothing to bring back.
@@ -9,7 +9,7 @@ void main() {
     final node = FocusNode();
     addTearDown(node.dispose);
     await t.pumpWidget(
-      UnfocusWhenAway(
+      FocusAcrossAway(
         child: MaterialApp(
           home: Scaffold(body: TextField(focusNode: node)),
         ),

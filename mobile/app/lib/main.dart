@@ -27,7 +27,7 @@ import 'store/voice_lang.dart';
 import 'store/theme_choice.dart';
 import 'store/vault.dart';
 import 'theme.dart';
-import 'ui/unfocus_when_away.dart';
+import 'ui/focus_across_away.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,33 +82,7 @@ class AppRoot extends StatefulWidget {
   State<AppRoot> createState() => _AppRootState();
 }
 
-// DIAGNOSTIC gh-401, removed before the PR
-class _NbInsetsLog with WidgetsBindingObserver {
-  void log(String at) {
-    final v = WidgetsBinding.instance.platformDispatcher.views.first;
-    // ignore: avoid_print
-    print(
-      'NBInsets flutter $at viewInsets=${v.viewInsets.bottom} viewPadding=${v.viewPadding.bottom}',
-    );
-  }
-
-  @override
-  void didChangeMetrics() => log('metrics');
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState s) => log(
-    'life ${s.name} focus=${FocusManager.instance.primaryFocus?.context?.widget.runtimeType}',
-  );
-}
-
-final _nbInsetsLog = _NbInsetsLog();
-
 class _AppRootState extends State<AppRoot> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(_nbInsetsLog);
-  }
-
   final _visible = AppVisible();
   final _platform = ChannelBackground();
 
@@ -328,7 +302,7 @@ class NbApp extends StatelessWidget {
     home: home ?? const Scaffold(),
     builder: (context, nav) {
       final child = nav ?? const SizedBox.shrink();
-      return UnfocusWhenAway(
+      return FocusAcrossAway(
         child: VoiceLangScope(
           choice: voiceLang,
           child: SizesScope(

@@ -894,49 +894,31 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     // Flutter defers the keyboard's inset while the keyboard animates and applies it when the animation ends. Leaving the
-    // app while the keyboard hides can drop that end, and Flutter then swallows every later inset: the layout keeps
-    // room for a keyboard that is gone until the keyboard opens and closes again. Back in focus with no keyboard, the
-    // current insets go straight to the Flutter view.
+    // app while the keyboard hides can drop that end, or end it after the app is back with the old keyboard's inset: the
+    // layout keeps room for a keyboard that is gone. Back in focus, and at the end of every keyboard animation, with no
+    // keyboard on screen the current insets go straight to the Flutter view.
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        nbDiag("focus=$hasFocus")
         if (!hasFocus || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val decor = window.decorView
-        decor.postDelayed({ nbDiag("focus+300") }, 300)
-        decor.postDelayed({ nbDiag("focus+1000") }, 1000)
-        decor.post { reapplyInsets(decor, "post") }
-        if (!imeWatched) {
-            imeWatched = true
-            // the end of a keyboard animation is when Flutter applies its deferred inset, which may be the old keyboard's
-            ViewCompat.setWindowInsetsAnimationCallback(decor, object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
-                override fun onProgress(insets: WindowInsetsCompat, running: MutableList<WindowInsetsAnimationCompat>) = insets
-                override fun onEnd(animation: WindowInsetsAnimationCompat) {
-                    if (animation.typeMask and WindowInsetsCompat.Type.ime() == 0) return
-                    nbDiag("ime anim end")
-                    decor.post { reapplyInsets(decor, "anim end") }
-                }
-            })
-        }
+        decor.post { reapplyInsets(decor) }
+        if (imeWatched) return
+        imeWatched = true
+        ViewCompat.setWindowInsetsAnimationCallback(decor, object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
+            override fun onProgress(insets: WindowInsetsCompat, running: MutableList<WindowInsetsAnimationCompat>) = insets
+            override fun onEnd(animation: WindowInsetsAnimationCompat) {
+                if (animation.typeMask and WindowInsetsCompat.Type.ime() != 0) decor.post { reapplyInsets(decor) }
+            }
+        })
     }
 
     private var imeWatched = false
 
-    private fun reapplyInsets(decor: View, at: String) {
+    private fun reapplyInsets(decor: View) {
         val insets = decor.rootWindowInsets ?: return
-        if (WindowInsetsCompat.toWindowInsetsCompat(insets).isVisible(WindowInsetsCompat.Type.ime())) { nbDiag("$at: ime visible, skip"); return }
-        nbDiag("$at: apply, view=${flutterView(decor) != null}")
+        if (WindowInsetsCompat.toWindowInsetsCompat(insets).isVisible(WindowInsetsCompat.Type.ime())) return
         flutterView(decor)?.onApplyWindowInsets(insets)
     }
-
-    // DIAGNOSTIC gh-401, removed before the PR
-    private fun nbDiag(at: String) {
-        val raw = window.decorView.rootWindowInsets
-        val i = raw?.let { WindowInsetsCompat.toWindowInsetsCompat(it) }
-        android.util.Log.i("NBInsets", "$at ime=${i?.isVisible(WindowInsetsCompat.Type.ime())} imeBottom=${i?.getInsets(WindowInsetsCompat.Type.ime())?.bottom} navBottom=${i?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom}")
-    }
-
-    override fun onResume() { super.onResume(); nbDiag("resume") }
-    override fun onPause() { nbDiag("pause"); super.onPause() }
 
     private fun flutterView(v: View): FlutterView? {
         if (v is FlutterView) return v
