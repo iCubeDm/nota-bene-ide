@@ -328,6 +328,29 @@ export function setTrackFlag(cut: Cut, id: string, key: 'mute' | 'solo' | 'hidde
   return { ...cut, tracks: cut.tracks.map((x) => (x.id === id ? compact({ ...x, [key]: on || undefined }) : x)) };
 }
 
+/** A gain as the timeline writes it (issue 410): a sign, at most one decimal, no trailing `.0`: `+3`, `−3.3`, `0`. */
+export function fmtDb(g: number): string {
+  const r = (Math.sign(g) * Math.round(Math.abs(g) * 10)) / 10 || 0;
+  return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r)}`;
+}
+
+/** A typed gain: a comma or a typographic minus (U+2212) taken as `.` and `-`; null when it is no number. */
+export function parseDb(text: string): number | null {
+  const s = text.trim().replace(/,/g, '.').replace(/\u2212/g, '-');
+  const v = s === '' ? NaN : Number(s);
+  return Number.isFinite(v) ? v : null;
+}
+
+/**
+ * A track's gain (issue 410) at `db`, to the tenth and within the gain line's range (GAIN_MIN..GAIN_MAX): on an audio
+ * track its clips, on a video track its clips' own sound. 0 dB is the default, left out of the file.
+ */
+export function setTrackGain(cut: Cut, id: string, db: number): Cut {
+  if (!trackOf(cut, id) || !Number.isFinite(db)) return cut;
+  const g = Math.round(within(db, GAIN_MIN, GAIN_MAX) * 10) / 10 || 0;
+  return { ...cut, tracks: cut.tracks.map((x) => (x.id === id ? compact({ ...x, gain: g === 0 ? undefined : g }) : x)) };
+}
+
 /**
  * The track one place up (`-1`) or down (`1`) among the tracks of its kind as the timeline draws them: the video
  * tracks from the top of the picture (the last in `tracks`) down, then the audio tracks in file order.

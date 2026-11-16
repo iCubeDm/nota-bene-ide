@@ -12,6 +12,9 @@ import { clearJump, selectJump } from '@/files/slice.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { srcLength } from './durations.ts';
+import { appendMedia } from './assemble.ts';
+import { mediaLen, PHOTO_LEN } from './mediaLen.ts';
+import { registerEditTarget, touchEditTarget } from './targets.ts';
 import { EditBar } from './EditBar.tsx';
 import type { Editing, Tool } from './editing.ts';
 import { CutPlayer } from './engine.ts';
@@ -28,9 +31,6 @@ import { useMissing } from './useMissing.ts';
 import { setLiveCut } from './live.ts';
 import { CUT_PROTOCOL, followAnchor, pinAnchor, timeOf } from './pin.ts';
 import type { CutNote } from './Timeline.tsx';
-
-/** A photo dropped on the timeline shows this long, seconds; a source whose length the browser cannot read too. */
-const PHOTO_LEN = 5;
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const clipIndex = (path: string) => /^clips\[(\d+)\]/.exec(path)?.[1];
@@ -142,7 +142,8 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     const kind = AUDIO.test(file) ? 'audio' : 'video';
     const now = cutRef.current;
     if (!now || !takes(kind, file)) return setNotice(t('cutCannotAdd', basename(file)));
-    const len = isPhotoSrc(file) ? PHOTO_LEN : (await srcLength(projectFileUrl(file, src))) ?? PHOTO_LEN;
+    // a drop takes a length it cannot read as a photo's (issue 409); Add to edit (below) does not guess
+    const len = (await mediaLen(file, src)) ?? PHOTO_LEN;
     let base = cutRef.current ?? now;
     let on = track !== null && base.tracks.find((x) => x.id === track)?.kind === kind ? track : null;
     if (on === null) {
@@ -155,6 +156,27 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     commit(r.cut);
     setSel([r.id]);
   };
+  // Add to edit from the Files tree (issue 426): the files after the end of the first track of each one's kind, one step
+  const addFiles = async (files: readonly string[]) => {
+    const items = await Promise.all(files.map(async (f) => ({ src: f, len: await mediaLen(f, src) })));
+    const now = cutRef.current;
+    const r = now && appendMedia(now, items);
+    const skipped = r ? r.skipped : files;
+    setNotice(null);
+    if (r) {
+      commit(r.cut);
+      setSel(r.ids);
+    }
+    if (skipped.length) setNotice(t('cutCannotAdd', skipped.map((f) => basename(f)).join(', ')));
+  };
+  const addFilesRef = useRef(addFiles);
+  addFilesRef.current = addFiles;
+  const canAdd = cut !== null && path !== undefined;
+  useEffect(() => {
+    if (!canAdd || path === undefined) return;
+    return registerEditTarget({ path, add: (f) => addFilesRef.current(f) });
+  }, [canAdd, path]);
+  useEffect(() => { if (active && path !== undefined) touchEditTarget(path); }, [active, path]);
   // comments on this edit (issue 430): where each is now, its clip followed by id
   const dispatch = useAppDispatch();
   const protocol = useAppSelector((s) => s.controls.protocol);

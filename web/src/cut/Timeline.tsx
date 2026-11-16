@@ -8,6 +8,7 @@ import { isMac, withKeys } from '@/shell/keymap.ts';
 import { PATH_MIME } from './drag.ts';
 import type { Editing } from './editing.ts';
 import type { CutPlayer } from './engine.ts';
+import { Meter } from './Meter.tsx';
 import { dB, FadeHandle, FadeSlopes, GainLine, usePeaks, Wave } from './ClipSound.tsx';
 import { addTrack, dragGain, groupMove, laneShift, moveClip, moveForward, rippleTrimEnd, setFade, setGain, snapMove, snapPoints, snapTime, trackForward, trimEnd, trimStart } from './ops.ts';
 import { TrackHead } from './TrackHead.tsx';
@@ -278,7 +279,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
       <div data-track-head={l.id} className="sticky left-0 z-20 flex flex-none flex-col justify-center gap-0.5 border-r border-border-soft bg-chrome px-2 text-xs" style={{ width: HEAD }}>
         <span className="truncate text-foreground" title={l.name ?? l.id}>{l.name ?? t(l.kind === 'video' ? 'cutVideoN' : 'cutAudioN', l.n)}</span>
         <span className="flex gap-1 font-mono text-[0.625rem] text-muted-foreground">
-          {l.gain !== undefined && l.gain !== 0 && <span>{dB(l.gain)}</span>}
+          {l.gain !== undefined && l.gain !== 0 && <span>{dB(l.gain, t)}</span>}
           {l.mute && <span className="rounded bg-muted px-1">{t('cutMute')}</span>}
           {l.solo && <span className="rounded bg-muted px-1">{t('cutSolo')}</span>}
           {l.hidden && <span className="rounded bg-muted px-1">{t('cutHidden')}</span>}
@@ -314,6 +315,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
         <button type="button" aria-label={t('cutZoomFit')} title={t('cutZoomFit')} onClick={fit} className={btn}>↔</button>
         <Transport player={player} onKey={key} />
         <Clock player={player} end={end} />
+        <Meter player={player} />
         <span className="flex-1" />
         {frame && <span>{t('cutFrame', frame.width, frame.height, frame.fps)}</span>}
         {tools && <div className="font-sans text-foreground">{tools}</div>}
