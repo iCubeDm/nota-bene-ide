@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A server restart waits for the agent.** **Restart the server** (the ↻ menu, Restart server · code updated, Settings → Windows) no longer kills a running turn and its subagents: it waits for the agent to finish, and the header shows **Restart pending** with **Restart the server now** (asks first) and **Cancel**. When a restart did cut a turn (Restart now, a crash, a stop mid-turn), the resumed chat says so with **Continue**. ↻ Restart the agent is unchanged.
 - **Open projects in a rail on the left.** Every running project is a tile at the window's left edge, in a fixed order by name, with its state dot and badge (**!** when it waits for you, otherwise its unseen replies); a click switches to it, **+** opens a folder. Settings → Defaults → **Projects rail** turns it off for every window of this agent; narrow windows hide it. See [Projects](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#projects-switching-opening-creating).
 - **Video edits: the format and a read-only timeline.** A `*.nbcut.json` file (tracks of video, photos and sound; the format is in the guide) opens as a timeline with its tracks, clips and thumbnails, a ruler, zoom and a playhead. Problems in the file and missing sources are listed in the view.
 - **Video edits: preview.** The edit plays in a frame above its timeline as the export renders it (stacked video tracks, placement, the sound mix with fades, mute and solo). Scrub on the ruler or the playhead; Space/K play, `,`/`.` step a frame, ↑/↓ jump to clip edges, Home/End.

@@ -72,7 +72,7 @@ For a Codex or omp window, add `--agent codex` or `--agent omp` to `--url` and `
 
 <details><summary>More</summary>
 
-The launcher supervises the server. **Restart the server** relaunches it at once, rebuilding the page first if web sources changed (a failed build keeps the old page until a source changes). A crash is relaunched after 1 s; after five within a minute it gives up. Example: `nota-bene ~/work/app --port 4800 --no-open`, then `nota-bene --url 4800` prints `http://127.0.0.1:4800/#t=...`.
+The launcher supervises the server. **Restart the server** relaunches it at once when the agent is idle; while it works (a turn, a question, a `!` command, a running task) the restart waits for it to finish, and the header shows **Restart pending** with **Restart the server now** (it asks first: the running turn and its subagents are cut off) and **Cancel**. A new message before then is answered first. After a restart that cut a turn (Restart now, a crash, a stop mid-turn) the resumed chat says "The server restarted during a turn" with **Continue**, which asks the agent to go on; nothing is sent by itself. The relaunch rebuilds the page first if web sources changed (a failed build keeps the old page until a source changes). A crash is relaunched after 1 s; after five within a minute it gives up. Example: `nota-bene ~/work/app --port 4800 --no-open`, then `nota-bene --url 4800` prints `http://127.0.0.1:4800/#t=...`.
 
 </details>
 
@@ -405,7 +405,7 @@ The model pill in the header sets model and effort (**Auto**, Low … Max, as th
 
 The gear: language, theme, interface scale (− +; Alt+=, Alt+−, Alt+0 anywhere), **Usage**, **Remote access**, **All settings…**:
 
-- **Windows**: this agent's running windows (folder, port, state, tabs, uptime) with Open, Restart agent, Restart server, Stop.
+- **Windows**: this agent's running windows (folder, port, state, tabs, uptime) with Open, Restart agent, Restart server, Stop. A restart waiting for its agent shows *restart pending* with Restart the server now and Cancel.
 - **Storage**: disk use; **Clean unreferenced files** moves unused images and recordings over a day old, and history of deleted sessions, to `trash/` (nothing is deleted).
 - **Voice messages (Whisper)**: **Install Whisper** downloads the `whisper-small` model and its runtime from npm and Hugging Face (about 430 MB, 770 MB on disk) into the state folder after a confirmation naming the path; then no network is needed. A checkbox turns it on for every window of this agent, and their phones. **Spoken language**: detect automatically or pin one, also per agent. **Remove Whisper** keeps the recordings.
 - **Defaults**: language, scale (90–150 %), the start mode for new projects, **Sounds** (a tab you are not looking at needs you: on; a turn ended: off; **▶** previews), the update check, the audit log, the projects rail, and on Windows the `!` shell.
