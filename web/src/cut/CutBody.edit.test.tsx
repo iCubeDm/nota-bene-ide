@@ -252,3 +252,23 @@ it('a frame drag that an outside change overtook is dropped too', async () => {
   expect(clipOnDisk('c2')!.at).toBe(9);
   expect(clipOnDisk('c1')!).not.toHaveProperty('place');
 });
+
+it('Escape in the Files tree is the tree\'s, even with a clip selected', async () => {
+  const { clip } = await show();
+  const tree = document.createElement('aside');
+  tree.id = 'tree-sheet';
+  const row = document.createElement('button');
+  tree.append(row);
+  document.body.append(tree);
+  try {
+    fireEvent.pointerDown(clip('c2'), { clientX: 10, button: 0, pointerId: 1 });
+    fireEvent.pointerUp(clip('c2'), { clientX: 10, pointerId: 1 });
+    row.focus();
+    const ev = createEvent.keyDown(row, { key: 'Escape', code: 'Escape' });
+    fireEvent(row, ev);
+    expect(ev.defaultPrevented).toBe(false);
+    expect(clip('c2')).toHaveAttribute('data-selected');
+  } finally {
+    tree.remove();
+  }
+});

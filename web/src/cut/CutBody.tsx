@@ -139,7 +139,8 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
         commit(nudgeClip(cut, selected.id, (e.code === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1)));
         return true;
       case 'Escape':
-        if (!selected) return false;
+        // Esc in the Files tree closes the tree (FileTree.tsx)
+        if (!selected || document.activeElement?.closest('#tree-sheet')) return false;
         setSel(null);
         return true;
     }
