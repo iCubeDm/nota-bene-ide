@@ -25,7 +25,7 @@ const LITERAL = new RegExp(
 /**
  * Colours that are the same in every theme, by file and literal. The markup colours are what the agent sees on the
  * frame (the shared MARK_COLORS table, and the discs, halo and swatch ring drawn around them); the
- * favicon and the canvas fallback of the 3D view.
+ * favicon, the canvas fallback of the 3D view, and the black behind a video frame in the edit's timeline.
  */
 const ALLOWED: Record<string, string[] | '*'> = {
   'shell/Favicon.ts': '*',
@@ -34,6 +34,7 @@ const ALLOWED: Record<string, string[] | '*'> = {
   'media/markup/overlay.tsx': ['rgba('],
   'media/markup/MarkupToolbar.tsx': ['border-black'],
   'model/viewer.ts': ['#202020'],
+  'cut/Timeline.tsx': ['bg-black'],
 };
 
 function* sources(dir: string): Generator<string> {
