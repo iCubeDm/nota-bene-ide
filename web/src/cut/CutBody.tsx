@@ -13,7 +13,7 @@ const clipIndex = (path: string) => /^clips\[(\d+)\]/.exec(path)?.[1];
  * A `*.nbcut.json` file as its timeline (read-only, issue 407). Whatever is wrong in it (not JSON, a validation problem, a
  * source not in the project) is listed above the timeline, which still draws what it can; the header's Source shows the
  * JSON. `path` (the edit's, project-relative) is given for an edit of the session's project: the toolbar then has Export
- * (#411), disabled while anything is wrong in the edit, since the server would refuse it.
+ * (issue 411), disabled while anything is wrong in the edit, since the server would refuse it.
  */
 export function CutBody({ text, src, path, tabId, active }: { text: string; src: string; path?: string; tabId: string; active: boolean }) {
   const t = useT();

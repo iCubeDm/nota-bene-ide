@@ -58,7 +58,7 @@ export function exportArgs(cut: Cut, sources: Sources, output: string, mode: Exp
     const src = sources.get(c.src);
     if (!src) continue;
     const len = clipLength(c);
-    // a source without a picture (a sound file on a video track) contributes only its sound
+    // a source without a picture (a video file with no picture stream) contributes only its sound
     const seen = mode === 'mp4' && track.kind === 'video' && !track.hidden && src.video;
     const heard = !isPhotoSrc(c.src) && src.audio && !c.mute && audible(track);
     if (!seen && !heard) continue;

@@ -147,19 +147,19 @@ describe('CutExporter', () => {
     await until(() => e.job('two/x.nbcut.json')?.phase === 'done');
   });
 
-  it('sources are probed at most 4 at a time; a sound file on a video track is told to be no picture', async () => {
+  it('sources are probed at most 4 at a time; a video file without a picture stream is told to be no picture', async () => {
     let now = 0;
     let most = 0;
     const probe = async (_ff: string, file: string) => {
       most = Math.max(most, ++now);
       await new Promise((r) => setTimeout(r, 20));
       now--;
-      return { video: !file.endsWith('.wav'), audio: true };
+      return { video: !file.endsWith('voice.mp4'), audio: true };
     };
     for (let i = 0; i < 9; i++) media(`s${i}.mp4`, 'OK');
-    media('voice.wav', 'OK');
+    media('voice.mp4', 'OK');
     const e = make({ probe });
-    const rel = edit('x.nbcut.json', 'media/voice.wav', (c) => {
+    const rel = edit('x.nbcut.json', 'media/voice.mp4', (c) => {
       for (let i = 0; i < 9; i++) c.clips.push({ id: `c${i}`, track: 'v', src: `media/s${i}.mp4`, at: 2 + i, out: 1 });
     });
     await e.start(rel, 'mp4');
@@ -167,7 +167,7 @@ describe('CutExporter', () => {
     await until(() => e.job(rel)?.phase !== 'running');
     const g = spawns().at(-1)!.argv;
     const graph = g[g.indexOf('-filter_complex') + 1]!;
-    // voice.wav is the first input: its sound is mixed, it is not drawn
+    // voice.mp4 is the first input: its sound is mixed, it is not drawn
     expect(graph).toContain('[0:a]');
     expect(graph).not.toContain('[0:v]');
     expect(graph).toContain('[1:v]');
@@ -372,6 +372,7 @@ describe.skipIf(!real || !fs.existsSync(ffprobe ?? ''))('a real export through f
     ff('-f', 'lavfi', '-i', 'color=c=blue:size=320x240:rate=10:duration=3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(m, 'blue.mp4'));
     ff('-f', 'lavfi', '-i', 'color=c=red:size=200x200', '-frames:v', '1', path.join(m, 'red.png'));
     ff('-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', path.join(m, 'tone.wav'));
+    ff('-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', '-c:a', 'aac', path.join(m, 'tone.mp4'));
     ff('-f', 'lavfi', '-i', 'sine=frequency=880:duration=2', path.join(m, 'loud.wav'));
     const c: Cut = {
       version: 1, width: 320, height: 180, fps: 10,
@@ -380,8 +381,8 @@ describe.skipIf(!real || !fs.existsSync(ffprobe ?? ''))('a real export through f
         { id: 'b', track: 'v1', src: 'media/blue.mp4', at: 0.5, out: 2 },
         // the photo's box is x 160-320, y 0-90; the square image fits it as 90 x 90 at x 195-285
         { id: 'r', track: 'v2', src: 'media/red.png', at: 1, dur: 1, place: { x: 0.5, y: 0, w: 0.5, h: 0.5 } },
-        // a sound file on a video track: heard, not drawn
-        { id: 't', track: 'v1', src: 'media/tone.wav', at: 2.5, out: 0.5 },
+        // a video file with no picture stream on a video track: heard, not drawn
+        { id: 't', track: 'v1', src: 'media/tone.mp4', at: 2.5, out: 0.5 },
         { id: 's', track: 'a1', src: 'media/tone.wav', at: 1, out: 1 },
         { id: 'm', track: 'a2', src: 'media/loud.wav', at: 0, out: 1 },
       ],
@@ -404,7 +405,7 @@ describe.skipIf(!real || !fs.existsSync(ffprobe ?? ''))('a real export through f
     expect(isBlue(rgb(shown, 320, 170, 45))).toBe(true); // in the box, beside the image
     expect(isBlue(rgb(shown, 320, 80, 135))).toBe(true);
     expect(isBlue(rgb(frame(out, 2.2), 320, 240, 45))).toBe(true);
-    // the sound file on the video track is not drawn: black after the blue clip
+    // the picture-less video file is not drawn: black after the blue clip
     expect(brightest(frame(out, 2.75))).toBeLessThan(30);
 
     // the muted track is silent; the voice and the sound on the video track are heard
