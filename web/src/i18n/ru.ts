@@ -1010,7 +1010,7 @@ export const ru = {
   cutHideShort: "Скр",
   cutInspector: "Клип",
   // the timeline's tools and selections (issue 432)
-  cutToolSelect: "Выбор: щелчок по клипу, Shift- или ⌘/Ctrl-щелчок — ещё клипы, протяни по пустому месту — рамка",
+  cutToolSelect: "Выбор: щелчок по клипу, Shift- или ⌘/Ctrl-щелчок — ещё клипы, протяни по пустому месту — рамка; Shift-перетаскивание двигает клип вместе со всем, что идёт после него на дорожке, Shift за конец — сдвигает следующие вслед",
   cutToolSelectShort: "Выбор",
   cutToolBlade: "Лезвие: щелчок режет клип в этом месте (Shift — все дорожки; Alt — без прилипания)",
   cutToolBladeShort: "Лезвие",

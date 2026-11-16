@@ -993,7 +993,7 @@ export const es: Dict = {
   cutHideShort: "O",
   cutInspector: "Clip",
   // the timeline's tools and selections (issue 432)
-  cutToolSelect: "Selección: clic en un clip, Mayús o ⌘/Ctrl+clic para más, arrastra en un espacio vacío para un rectángulo",
+  cutToolSelect: "Selección: clic en un clip, Mayús o ⌘/Ctrl+clic para más, arrastra en un espacio vacío para un rectángulo; Mayús+arrastrar mueve un clip con todo lo que le sigue en su pista, Mayús+arrastrar su final desplaza los siguientes",
   cutToolSelectShort: "Selección",
   cutToolBlade: "Cuchilla: un clic corta el clip en ese punto (Mayús: todas las pistas; Alt: sin ajuste)",
   cutToolBladeShort: "Cuchilla",

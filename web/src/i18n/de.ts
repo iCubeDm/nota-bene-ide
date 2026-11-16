@@ -993,7 +993,7 @@ export const de: Dict = {
   cutHideShort: "A",
   cutInspector: "Clip",
   // the timeline's tools and selections (issue 432)
-  cutToolSelect: "Auswahl: Clip anklicken, Shift- oder ⌘/Strg-Klick für weitere, auf leerer Fläche ein Rechteck ziehen",
+  cutToolSelect: "Auswahl: Clip anklicken, Shift- oder ⌘/Strg-Klick für weitere, auf leerer Fläche ein Rechteck ziehen; Shift-Ziehen verschiebt einen Clip mit allem, was auf seiner Spur folgt, Shift-Ziehen am Ende verschiebt die folgenden mit",
   cutToolSelectShort: "Auswahl",
   cutToolBlade: "Klinge: ein Klick schneidet den Clip an dieser Stelle (Shift: alle Spuren; Alt: ohne Einrasten)",
   cutToolBladeShort: "Klinge",

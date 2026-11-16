@@ -1011,7 +1011,7 @@ export const en: Dict = {
   cutHideShort: "H",
   cutInspector: "Clip",
   // the timeline's tools and selections (issue 432)
-  cutToolSelect: "Select: click a clip, Shift- or ⌘/Ctrl-click for more, drag on empty space for a rectangle",
+  cutToolSelect: "Select: click a clip, Shift- or ⌘/Ctrl-click for more, drag on empty space for a rectangle; Shift-drag a clip to move it with everything after it on its track, Shift-drag its end to ripple",
   cutToolSelectShort: "Select",
   cutToolBlade: "Blade: a click cuts the clip there (Shift: every track; Alt: no snapping)",
   cutToolBladeShort: "Blade",

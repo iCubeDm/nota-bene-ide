@@ -187,6 +187,13 @@ const drawnOf = (cut: Cut, kind: CutTrack['kind']): CutTrack[] => {
   return kind === 'video' ? same.reverse() : same;
 };
 const overlaps = (a: CutClip, b: CutClip) => a.at < end(b) - EPS && end(a) > b.at + EPS;
+/** `d` to the millisecond unless that takes it below `lo`: clips moved together all move by the one amount. */
+const stepFrom = (d: number, lo: number) => (ms(d) >= lo - EPS ? ms(d) : d);
+/**
+ * `at` moved by `d`, to the millisecond when both are (issue 437): a clip off the millisecond, or a step that is, moves by
+ * exactly `d`, so clips that touched still touch and none runs into the next.
+ */
+const shiftAt = (at: number, d: number) => (ms(at) === at && ms(d) === d ? ms(at + d) : at + d);
 
 /**
  * A selection of clips moved together (issue 432): `dt` seconds later (the earliest stops at 0, the rest keep their distance),
@@ -196,7 +203,8 @@ const overlaps = (a: CutClip, b: CutClip) => a.at < end(b) - EPS && end(a) > b.a
 export function moveClips(cut: Cut, ids: readonly string[], dt: number, lanes?: { kind: CutTrack['kind']; by: number }): Cut | null {
   const group = cut.clips.filter((c) => ids.includes(c.id));
   if (!group.length) return null;
-  const d = ms(Math.max(dt, -Math.min(...group.map((c) => c.at))));
+  const lo = -Math.min(...group.map((c) => c.at));
+  const d = stepFrom(Math.max(dt, lo), lo);
   const moved = new Map<string, CutClip>();
   for (const c of group) {
     let track = c.track;
@@ -207,12 +215,46 @@ export function moveClips(cut: Cut, ids: readonly string[], dt: number, lanes?: 
       if (!to) return null;
       track = to.id;
     }
-    moved.set(c.id, { ...c, track, at: ms(Math.max(0, c.at + d)) });
+    moved.set(c.id, { ...c, track, at: Math.max(0, shiftAt(c.at, d)) });
   }
   for (const m of moved.values()) {
     if (cut.clips.some((o) => !moved.has(o.id) && o.track === m.track && overlaps(m, o))) return null;
   }
   return { ...cut, clips: cut.clips.map((c) => moved.get(c.id) ?? c) };
+}
+
+/** The clip `id` and the clips after it on its track, in time order (issue 437); none when it is not there. */
+export function trackForward(cut: Cut, id: string): string[] {
+  const c = cut.clips.find((x) => x.id === id);
+  if (!c) return [];
+  return [c, ...others(cut, c.track, [id]).filter((x) => x.at > c.at - EPS)].map((x) => x.id);
+}
+
+/**
+ * The clip `id` and every clip after it on its track `dt` seconds later (issue 437), their gaps kept, on their track:
+ * earlier, not before the end of the clip before it, nor before 0. The other clips stay.
+ */
+export function moveForward(cut: Cut, id: string, dt: number): Cut {
+  const c = cut.clips.find((x) => x.id === id);
+  if (!c) return cut;
+  const ids = trackForward(cut, id);
+  const prev = others(cut, c.track, ids).reduce((m, x) => Math.max(m, end(x)), 0);
+  const d = stepFrom(Math.max(dt, prev - c.at), prev - c.at);
+  return { ...cut, clips: cut.clips.map((x) => (ids.includes(x.id) ? { ...x, at: Math.max(0, shiftAt(x.at, d)) } : x)) };
+}
+
+/**
+ * The clip's end to `to` as trimEnd does it, the clips after it on its track moved by as much as the end did (issue 437):
+ * the gap after it neither opens nor closes, so the next clip's start is no limit.
+ */
+export function rippleTrimEnd(cut: Cut, id: string, to: number, srcLen?: number): Cut {
+  const c = cut.clips.find((x) => x.id === id);
+  if (!c) return cut;
+  const later = trackForward(cut, id).slice(1);
+  const trimmed = trimEnd({ ...cut, clips: cut.clips.filter((x) => !later.includes(x.id)) }, id, to, srcLen);
+  const d = end(trimmed.clips.find((x) => x.id === id)!) - end(c);
+  const moved = new Map(trimmed.clips.map((x) => [x.id, x]));
+  return { ...cut, clips: cut.clips.map((x) => moved.get(x.id) ?? { ...x, at: shiftAt(x.at, d) }) };
 }
 
 /** How far `to` is from `from` in the drawn order of their kind, for moveClips; null when they are of different kinds or not there. */
