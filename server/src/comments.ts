@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Comment, CommentOp, CommentRefusal } from '@nota-bene/shared';
+import { isCutAnchor } from '@nota-bene/shared';
 import { renameRetry } from './platform.ts';
 
 /** a session id that is safe as a file name (the fake backend's ids are no UUIDs) */
@@ -104,7 +105,8 @@ export class CommentStore {
 
   /**
    * Applies a client's ops (protocol 19), all or none. An add of a stored id changes nothing (a resent op), of a deleted
-   * one is refused `gone` unless it is a `restore`; it goes before `before` when that is stored; an edit replaces the comment's text, label, images, recordings and generated-image count, and is
+   * one is refused `gone` unless it is a `restore`; it goes before `before` when that is stored; an edit replaces the comment's text, label, images, recordings and generated-image count
+   * (and the anchor of a cut comment, when it is a cut anchor on the same file), and is
    * refused `gone` for a missing comment and `sent` for a sent one; a remove leaves the id deleted, is a no-op for a
    * missing one and is refused `sent` for a sent one. Returns the refusal, or null when the set is stored.
    */
@@ -130,6 +132,9 @@ export class CommentStore {
         if (cur.status === 'sent') return { reason: 'sent', id };
         const { text, label, images, voice, genImages } = o.comment;
         const { label: _l, images: _i, voice: _v, genImages: _g, ...base } = cur;
+        // a cut comment follows its clip (protocol 23): its anchor moves, on the same file only
+        const a = o.comment.anchor, was = cur.anchor;
+        if (isCutAnchor(a) && isCutAnchor(was) && a.source.path === was.source.path && a.source.ref === was.source.ref) base.anchor = a;
         items[at] = { ...base, text, ...(label === undefined ? {} : { label }), ...(images === undefined ? {} : { images }),
           ...(voice === undefined ? {} : { voice }), ...(genImages === undefined ? {} : { genImages }) };
       } else {

@@ -43,6 +43,9 @@
         },
         {
           "$ref": "#/definitions/AttachmentAnchor"
+        },
+        {
+          "$ref": "#/definitions/CutAnchor"
         }
       ]
     },
@@ -695,6 +698,57 @@
         "failed"
       ],
       "type": "string"
+    },
+    "CutAnchor": {
+      "description": "A place on a video edit's timeline (`*.nbcut.json`, protocol 23): a clip at a moment of it, or (no `clip`) a moment of the timeline. `time`: seconds on the timeline, ms precision. The editor keeps a pending comment on its clip by id: after a move or a trim it updates `time` (and the track and src) through an `edit` op, `srcTime` staying.",
+      "properties": {
+        "clip": {
+          "$ref": "#/definitions/CutAnchorClip"
+        },
+        "kind": {
+          "const": "cut",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/definitions/FileSource"
+        },
+        "time": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "source",
+        "time"
+      ],
+      "type": "object"
+    },
+    "CutAnchorClip": {
+      "description": "The clip a cut comment is pinned to (protocol 23), as it stood when last seen in the editor: its id, its track's id and name, its `src`, and `srcTime`, the comment's moment in the source in seconds (`in` + the offset into the clip; a photo: the offset into its showing).",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "src": {
+          "type": "string"
+        },
+        "srcTime": {
+          "type": "number"
+        },
+        "track": {
+          "type": "string"
+        },
+        "trackName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "track",
+        "src",
+        "srcTime"
+      ],
+      "type": "object"
     },
     "FileSource": {
       "properties": {
@@ -3299,5 +3353,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 22
+  "x-protocol": 23
 }
