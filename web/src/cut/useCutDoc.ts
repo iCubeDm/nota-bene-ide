@@ -27,6 +27,9 @@ export type CutDoc = {
   takeDisk: () => Promise<void>;
 };
 
+// the server writes a save with the file's own line ends (fileEdit.ts withLineEnds): a CRLF file comes back CRLF
+const lf = (text: string): string => text.replace(/\r\n/g, '\n');
+
 const parse = (text: string): Cut | null => {
   try {
     const r = validateCut(JSON.parse(text));
@@ -81,7 +84,7 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
       return; // no version, no editing: the view stays as it is
     }
     if (w !== writes.current) return;
-    if (!force && disk.current?.text === j.text) return void (disk.current.base = j.base);
+    if (!force && disk.current && lf(disk.current.text) === lf(j.text)) return void (disk.current.base = j.base);
     const { hist: h, saved: s } = live.current;
     if (!force && h !== null && h.now !== s) return setConflict(true);
     adopt(j.text, j.base);

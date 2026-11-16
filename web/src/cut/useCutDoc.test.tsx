@@ -112,3 +112,27 @@ it('without the file version (another source, an old server) the edit is not edi
   const none = renderHook(() => useCutDoc({ text: disk.text, path: undefined }));
   expect(none.result.current.cut).toBeNull();
 });
+
+it('a file with CRLF line ends: the server keeps them, and the next read is no outside change', async () => {
+  // as the server's withLineEnds: a file mostly CRLF is written CRLF
+  write(serialize(cut0).replace(/\n/g, '\r\n'));
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method !== 'POST') return Response.json(disk);
+    const b = JSON.parse(init.body as string) as { text: string; base: string | null };
+    if (b.base !== null && b.base !== disk.base) return Response.json({ error: 'changed' }, { status: 409 });
+    write(b.text.replace(/\r?\n/g, '\r\n'));
+    return Response.json({ base: disk.base });
+  }));
+  const { result, rerender } = open();
+  await waitFor(() => expect(result.current.cut).not.toBeNull());
+  act(() => result.current.apply(later(result.current.cut!, 1)));
+  await waitFor(() => expect(result.current.status).toBe('saved'), { timeout: SAVE_DELAY + 1000 });
+  expect(disk.text).toContain('\r\n');
+  rerender({ text: disk.text }); // the view reads the file again
+  await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+  expect(result.current.status).toBe('saved');
+  expect(result.current.canUndo).toBe(true); // not reloaded as if the agent had written it
+  // the next edit saves over the version the server wrote
+  act(() => result.current.apply(later(result.current.cut!, 2)));
+  await waitFor(() => expect(JSON.parse(disk.text).clips[0].at).toBe(2), { timeout: SAVE_DELAY + 1000 });
+});
