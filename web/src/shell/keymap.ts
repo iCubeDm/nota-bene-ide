@@ -153,8 +153,11 @@ export function installKeymap(store: AppStore): () => void {
 /** A control's label with its shortcut, for its tooltip: `Files (⌘⇧F)`. */
 export function withKey(label: string, id: Binding['id']): string {
   const b = BINDINGS.find((x) => x.id === id);
-  return b ? `${label} (${keysLabel(b)})` : label;
+  return b ? withKeys(label, keysLabel(b)) : label;
 }
+
+/** The same for a view's own keys (not in BINDINGS: they act only where the view has them, as a player's): `Play (Space, K)`. */
+export const withKeys = (label: string, keys: string): string => `${label} (${keys})`;
 
 /** The keys of a binding as the platform shows them, for the help. */
 export function keysLabel(b: Binding): string {

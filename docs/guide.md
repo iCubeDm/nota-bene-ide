@@ -172,7 +172,17 @@ Mermaid and SVG blocks in replies render as diagrams; **Open diagram** opens one
 
 ## Video edits (`.nbcut.json`)
 
-A file named `<name>.nbcut.json` is an edit for the video editor (work in progress): video, photos and sound on tracks. It opens as a read-only **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame). The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom; a click on the ruler moves the playhead. Playback and editing on the timeline come later.
+A file named `<name>.nbcut.json` is an edit for the video editor (work in progress): video, photos and sound on tracks. It opens as a read-only **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame). The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom. Editing on the timeline comes later.
+
+**Preview.** The frame above the timeline plays the edit as the export renders it: video tracks stacked (a later one on top), each clip at its `place`, sound mixed with gains, fades, mute and solo. Click or drag on the ruler, or drag the playhead, to scrub. An edit with problems does not play.
+
+<details><summary>More: preview keys and behaviour</summary>
+
+- Keys, with focus in the tab and not in a field: Space or K play/pause, J / L −10 / +10 s, ← / → the player's seek step, `,` / `.` one frame (pausing), ↑ / ↓ the previous or next clip edge on any track, Home / End the start and the last frame. The toolbar's buttons name their keys.
+- A hidden track is not drawn, but its sound plays. Sound is off while scrubbing. While playing, the timeline scrolls to keep the playhead in view.
+- Playback waits for a clip that is still loading or seeking; switching to another browser tab pauses it.
+
+</details>
 
 Problems are listed above the timeline by field (`clips[1].at: overlaps the clip before it on its track`), and the clips they concern are outlined. A source file that is not in the project is one of them; the rest of the edit is still drawn.
 

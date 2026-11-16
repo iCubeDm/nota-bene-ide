@@ -1,19 +1,24 @@
-import { useId, useMemo } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { validateCut, type CutIssue } from '@nota-bene/shared/cut';
+import { projectFileUrl } from '@/files/kinds.ts';
 import { useT } from '@/i18n/index.ts';
+import { CutPlayer } from './engine.ts';
 import { drawable } from './layout.ts';
 import { ExportControl } from './export/ExportControl.tsx';
+import { Preview } from './Preview.tsx';
 import { Timeline } from './Timeline.tsx';
+import { useCutKeys } from './useCutKeys.ts';
 import { useMissing } from './useMissing.ts';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const clipIndex = (path: string) => /^clips\[(\d+)\]/.exec(path)?.[1];
 
 /**
- * A `*.nbcut.json` file as its timeline (read-only, issue 407). Whatever is wrong in it (not JSON, a validation problem, a
+ * A `*.nbcut.json` file as its preview (issue 408) over its timeline (read-only, issue 407). Whatever is wrong in it (not JSON, a validation problem, a
  * source not in the project) is listed above the timeline, which still draws what it can; the header's Source shows the
  * JSON. `path` (the edit's, project-relative) is given for an edit of the session's project: the toolbar then has Export
- * (issue 411), disabled while anything is wrong in the edit, since the server would refuse it.
+ * (issue 411), disabled while anything is wrong in the edit, since the server would refuse it. The preview plays a valid
+ * edit (a missing source is black and silent); one with problems only moves the playhead.
  */
 export function CutBody({ text, src, path, tabId, active }: { text: string; src: string; path?: string; tabId: string; active: boolean }) {
   const t = useT();
@@ -33,6 +38,17 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const srcs = clips.flatMap((c: unknown) => (isObj(c) && typeof c.src === 'string' && c.src ? [c.src] : []));
   const missing = useMissing('v' in parsed ? srcs : [], src, active);
 
+  // one player for the tab's life; an edited file is handed to it, the playhead stays where it was
+  const srcRef = useRef(src);
+  srcRef.current = src;
+  const [player] = useState(() => new CutPlayer({ url: (s) => projectFileUrl(s, srcRef.current) }));
+  useEffect(() => () => player.dispose(), [player]);
+  const playable = check.ok ? check.cut : null;
+  useEffect(() => player.setCut(playable, draw.end), [player, playable, draw.end]);
+  useEffect(() => player.setLive(active), [player, active]);
+  const pane = useRef<HTMLDivElement>(null);
+  useCutKeys(player, active, pane);
+
   const issues: CutIssue[] = [...(check.ok ? [] : check.errors)];
   clips.forEach((c: unknown, i) => {
     if (isObj(c) && typeof c.src === 'string' && missing.has(c.src)) {
@@ -49,7 +65,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     : null;
 
   return (
-    <div data-pane={tabId} hidden={!active} className="relative min-h-0 flex-1 flex-col bg-background [&:not([hidden])]:flex">
+    <div ref={pane} data-pane={tabId} hidden={!active} className="relative min-h-0 flex-1 flex-col bg-background [&:not([hidden])]:flex">
       {'error' in parsed ? (
         <p className="p-4 text-sm text-destructive">{t('cutBadJson', parsed.error)}</p>
       ) : (
@@ -72,9 +88,10 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
           {draw.blocks.length === 0 && issues.length === 0 && (
             <p className="flex-none px-3 py-2 text-sm text-muted-foreground">{t('cutNoClips')}</p>
           )}
+          {draw.lanes.length > 0 && frame && <Preview player={player} frame={frame} blocked={check.ok ? undefined : t('cutPreviewBlocked')} />}
           {draw.lanes.length > 0 && (
             <Timeline
-              lanes={draw.lanes} blocks={draw.blocks} end={draw.end} frame={frame} problems={problems} missing={missing} fileSrc={src} active={active}
+              player={player} lanes={draw.lanes} blocks={draw.blocks} end={draw.end} frame={frame} problems={problems} missing={missing} fileSrc={src} active={active}
               tools={path !== undefined && <ExportControl path={path} blocked={issues.length > 0 ? t('cutExportBlocked') : undefined} />}
             />
           )}
