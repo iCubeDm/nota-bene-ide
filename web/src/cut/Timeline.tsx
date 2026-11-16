@@ -1,10 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type PointerEvent, type ReactNode, type RefObject } from 'react';
 import { basename } from '@nota-bene/shared/paths';
 import { projectFileUrl } from '@/files/kinds.ts';
 import { useT } from '@/i18n/index.ts';
-import { isMac } from '@/shell/keymap.ts';
+import { EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon, PauseIcon, PlayIcon } from '@/media/playerIcons.tsx';
+import { isMac, withKeys } from '@/shell/keymap.ts';
+import type { CutPlayer } from './engine.ts';
 import { drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn, type Block, type Lane } from './layout.ts';
 import { poster } from './thumbs.ts';
+import { applyCutKey } from './useCutKeys.ts';
 
 const HEAD = 144; // the track headers' column, px
 const STEP = 1.5; // one zoom button press
@@ -12,10 +15,13 @@ const dB = (g: number) => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`
 
 /**
  * The edit's tracks read-only (issue 407): a ruler, the lanes with their clips placed by time, zoom (buttons, Ctrl/⌘+wheel
- * around the pointer) and the playhead a click on the ruler sets. Playback comes with the preview (issue 408).
- * `problems`: the messages of a clip by its index in `clips`; such a clip is outlined.
+ * around the pointer), and the preview's transport (issue 408): play, the clip-edge and frame steps, the time, and the
+ * playhead that follows `player`, set by a click on the ruler or dragged there or by its line (scrubbing). While playing
+ * the view scrolls to keep the playhead in sight. `problems`: the messages of a clip by its index in `clips`; such a clip
+ * is outlined.
  */
-export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc, active, tools }: {
+export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools }: {
+  player: CutPlayer;
   lanes: Lane[]; blocks: Block[]; end: number; frame: { width: number; height: number; fps: number } | null;
   problems: ReadonlyMap<number, string[]>; missing: ReadonlySet<string>; fileSrc: string; active: boolean;
   /** the toolbar's right end, after the size and rate (the Export control) */
@@ -24,7 +30,6 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
   const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
   const [zoomed, setPps] = useState(40);
-  const [head, setHead] = useState(0);
   const span = drawnSpan(end);
   const range = ppsRange(span);
   const clamp = (p: number) => Math.min(range.max, Math.max(range.min, p));
@@ -103,13 +108,47 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
   const mod = isMac() ? '⌘' : 'Ctrl';
   const btn = 'rounded px-1.5 hover:bg-muted hover:text-foreground';
 
+  // scrubbing: a press on the ruler or the playhead's line, then the drag; playback holds and is silent meanwhile
+  const ruler = useRef<HTMLDivElement>(null);
+  const scrubbing = useRef(false);
+  const timeAt = (x: number) => Math.max(0, (x - (ruler.current?.getBoundingClientRect().left ?? 0)) / pps);
+  const stop = () => {
+    if (!scrubbing.current) return;
+    scrubbing.current = false;
+    player.scrub(false);
+  };
+  const drag = {
+    onPointerDown: (e: PointerEvent<HTMLElement>) => {
+      if (e.button !== 0) return;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      scrubbing.current = true;
+      player.scrub(true);
+      player.seek(timeAt(e.clientX));
+    },
+    onPointerMove: (e: PointerEvent<HTMLElement>) => { if (scrubbing.current) player.seek(timeAt(e.clientX)); },
+    onPointerUp: stop,
+    onPointerCancel: stop,
+  };
+
+  // while playing, a playhead about to leave the view turns the page: it comes back near the left edge
+  useEffect(() => player.subscribe(() => {
+    const s = player.state();
+    const el = scroller.current;
+    if (!s.playing || !el) return;
+    const w = el.clientWidth - HEAD;
+    const x = s.t * ppsRef.current;
+    if (w > 0 && (x < el.scrollLeft || x > el.scrollLeft + w - 24)) el.scrollLeft = Math.max(0, x - w * 0.1);
+  }), [player]);
+  const key = (code: string) => void applyCutKey(player, code);
+
   return (
-    <div data-timeline data-pps={pps} className="flex min-h-0 flex-1 flex-col">
+    <div data-timeline data-pps={pps} className="flex min-h-0 flex-[2_1_0%] flex-col">
       <div className="flex min-h-8 flex-none flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-soft bg-chrome px-3 py-0.5 font-mono text-[0.71875rem] text-muted-foreground">
         <button type="button" aria-label={t('cutZoomOut', mod)} title={t('cutZoomOut', mod)} onClick={() => zoom(1 / STEP)} className={btn}>−</button>
         <button type="button" aria-label={t('cutZoomIn', mod)} title={t('cutZoomIn', mod)} onClick={() => zoom(STEP)} className={btn}>+</button>
         <button type="button" aria-label={t('cutZoomFit')} title={t('cutZoomFit')} onClick={fit} className={btn}>↔</button>
-        <span className="text-foreground">{fmtTime(head, true)} / {fmtTime(end, true)}</span>
+        <Transport player={player} onKey={key} />
+        <Clock player={player} end={end} />
         <span className="flex-1" />
         {frame && <span>{t('cutFrame', frame.width, frame.height, frame.fps)}</span>}
         {tools && <div className="font-sans text-foreground">{tools}</div>}
@@ -118,19 +157,13 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
         <div className="relative min-w-full" style={{ width: HEAD + width }}>
           <div className="sticky top-0 z-30 flex h-6 border-b border-border-soft bg-chrome">
             <div className="sticky left-0 z-40 flex-none border-r border-border-soft bg-chrome" style={{ width: HEAD }} />
-            <div
-              data-ruler title={t('cutRulerTip')} className="relative flex-1 cursor-pointer select-none"
-              onPointerDown={(e) => {
-                if (e.button !== 0) return;
-                setHead(Math.max(0, (e.clientX - e.currentTarget.getBoundingClientRect().left) / pps));
-              }}
-            >
+            <div ref={ruler} data-ruler title={t('cutRulerTip')} className="relative flex-1 cursor-pointer touch-none select-none" {...drag}>
               {ticks.map((s) => (
                 <span key={s} data-tick className="absolute top-0 h-full border-l border-border-soft pl-1 font-mono text-[0.625rem] leading-6 text-muted-foreground" style={{ left: s * pps }}>
                   {fmtTime(s, step < 1)}
                 </span>
               ))}
-              <span className="pointer-events-none absolute bottom-0 -ml-1 h-0 w-0 border-x-4 border-t-[6px] border-x-transparent border-t-destructive" style={{ left: head * pps }} />
+              <Head player={player} pps={pps} className="pointer-events-none absolute bottom-0 -ml-1 h-0 w-0 border-x-4 border-t-[6px] border-x-transparent border-t-destructive" />
             </div>
           </div>
           {lanes.map((l) => (
@@ -152,11 +185,45 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
             </div>
           ))}
           <div className="pointer-events-none absolute inset-y-0 z-10" style={{ left: HEAD }}>
-            <div data-playhead className="absolute inset-y-0 w-px bg-destructive" style={{ left: head * pps }} />
+            <Head player={player} pps={pps} data-playhead className="absolute inset-y-0 w-px bg-destructive">
+              <div title={t('cutPlayheadTip')} className="pointer-events-auto absolute inset-y-0 -left-1 w-2 cursor-ew-resize touch-none" {...drag} />
+            </Head>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+// the parts that move with the clock re-render on their own, not the whole timeline on each frame
+const usePlayerState = (p: CutPlayer) => useSyncExternalStore(p.subscribe, p.state);
+
+function Head({ player, pps, children, ...rest }: { player: CutPlayer; pps: number; className: string; children?: ReactNode; 'data-playhead'?: boolean }) {
+  const { t } = usePlayerState(player);
+  return <div {...rest} style={{ left: t * pps }}>{children}</div>;
+}
+
+function Clock({ player, end }: { player: CutPlayer; end: number }) {
+  const { t } = usePlayerState(player);
+  return <span data-cut-time className="text-foreground tabular-nums">{fmtTime(t, true)} / {fmtTime(end, true)}</span>;
+}
+
+/** Play and pause, the clip edges and the frame steps: the keys' buttons (useCutKeys), each tooltip naming its key. */
+function Transport({ player, onKey }: { player: CutPlayer; onKey: (code: string) => void }) {
+  const t = useT();
+  const { playing, ready } = usePlayerState(player);
+  const b = 'grid size-6 place-items-center rounded hover:bg-muted hover:text-foreground disabled:opacity-40 [&>svg]:size-3.5';
+  const button = (label: string, code: string, icon: ReactNode) => (
+    <button type="button" aria-label={label} title={label} disabled={!ready} onClick={() => onKey(code)} className={b}>{icon}</button>
+  );
+  return (
+    <span className="flex items-center text-foreground">
+      {button(withKeys(t('cutPrevEdge'), '↑'), 'ArrowUp', <EdgeBackIcon />)}
+      {button(withKeys(t('cutFrameBack'), ','), 'Comma', <FrameBackIcon />)}
+      {button(withKeys(t(playing ? 'cutPause' : 'cutPlay'), 'Space, K'), 'Space', playing ? <PauseIcon /> : <PlayIcon />)}
+      {button(withKeys(t('cutFrameFwd'), '.'), 'Period', <FrameForwardIcon />)}
+      {button(withKeys(t('cutNextEdge'), '↓'), 'ArrowDown', <EdgeForwardIcon />)}
+    </span>
   );
 }
 
