@@ -232,7 +232,7 @@ export function sdkBackend(): AgentBackend {
     }),
     // the SDK's messages carry no time: the transcript file's records do (times.ts)
     history: async (sessionId, cwd, attachments, onError) => {
-      const [msgs, times] = await Promise.all([getSessionMessages(sessionId, { dir: cwd }), transcriptTimes(defaultProjectsDir(), sessionId)]);
+      const [msgs, times] = await Promise.all([getSessionMessages(sessionId, { dir: cwd }), transcriptTimes(defaultProjectsDir(), sessionId, { cwd })]);
       return transcriptToEvents(msgs, attachments, onError, { times });
     },
     subagent: async (sessionId, cwd, toolUseId, attachments, onError, call) => {
@@ -259,7 +259,7 @@ export function sdkBackend(): AgentBackend {
         }
         ({ agentId, type, description, running } = hit);
       }
-      const [msgs, times] = await Promise.all([getSubagentMessages(sessionId, agentId, { dir: cwd }), transcriptTimes(defaultProjectsDir(), sessionId, agentId)]);
+      const [msgs, times] = await Promise.all([getSubagentMessages(sessionId, agentId, { dir: cwd }), transcriptTimes(defaultProjectsDir(), sessionId, { agentId, cwd })]);
       return { events: transcriptToEvents(msgs, attachments, onError, { subagent: true, times }), running, type, description };
     },
   };
