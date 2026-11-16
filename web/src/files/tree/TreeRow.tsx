@@ -1,5 +1,5 @@
 import type { TreeEntry } from '@nota-bene/shared';
-import { AUDIO, PHOTO, VIDEO } from '@nota-bene/shared/cut';
+import { isEditMedia } from '@/cut/assemble.ts';
 import { PATH_MIME } from '@/cut/drag.ts';
 import { openFile } from '@/tabs/slice.ts';
 import { Svg } from '@/tabs/TabStrip.tsx';
@@ -11,7 +11,11 @@ import { join } from './useExpandAll.ts';
 export type RowsCtx = {
   entries: Record<string, TreeEntry[]>; dirs: string[]; f: string; counts: Record<string, number>;
   activePath: string | null; src: string; ref: string | undefined;
-  onToggle: (path: string) => void; onOpen: (a: { path: string; src: string; ref: string | undefined }) => void;
+  /** the picked files (issue 426), in the order they were picked */
+  sel: readonly string[];
+  onToggle: (path: string) => void;
+  /** a file row's click: Cmd/Ctrl (`add`) toggles it in the selection, Shift (`range`) picks the run to it, a plain one opens it */
+  onPick: (path: string, how: { add: boolean; range: boolean }) => void;
 };
 
 /** The rows of one folder (and, recursively, of its open subfolders). */
@@ -38,12 +42,13 @@ export function renderDir(c: RowsCtx, dir: string, depth: number): React.ReactNo
     if (f && !e.name.toLowerCase().includes(f)) return null;
     const n = counts[fileKey(p, ref)] ?? 0;
     // a video, sound or photo of this folder drags onto an edit's timeline (issue 409)
-    const media = src === 'here' && (VIDEO.test(p) || AUDIO.test(p) || PHOTO.test(p));
+    const media = src === 'here' && isEditMedia(p);
     return (
-      <button key={p} type="button" data-path={p} onClick={() => c.onOpen({ path: p, src, ref })} style={pad}
+      <button key={p} type="button" data-path={p} data-file data-selected={c.sel.includes(p) || undefined} style={pad}
+        onClick={(ev) => c.onPick(p, { add: ev.metaKey || ev.ctrlKey, range: ev.shiftKey })}
         draggable={media || undefined}
         onDragStart={media ? (e) => { e.dataTransfer.setData(PATH_MIME, p); e.dataTransfer.setData('text/plain', p); e.dataTransfer.effectAllowed = 'copy'; } : undefined}
-        className={`flex h-6 w-full items-center gap-1.5 rounded pr-2 text-left text-xs hover:bg-muted/50 hover:text-foreground${dot} ${activePath === p ? 'bg-primary/15 text-foreground' : 'text-foreground/85'}`}>
+        className={`flex h-6 w-full items-center gap-1.5 rounded pr-2 text-left text-xs hover:bg-muted/50 hover:text-foreground${dot} ${activePath === p ? 'bg-primary/15 text-foreground' : 'text-foreground/85'} data-[selected]:ring-1 data-[selected]:ring-inset data-[selected]:ring-primary/45`}>
         <span className="w-3 flex-none" />
         <FileIcon path={e.name} />
         <span className="min-w-0 flex-1 truncate">{e.name}</span>

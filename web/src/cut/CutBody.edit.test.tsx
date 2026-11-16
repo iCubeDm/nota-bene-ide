@@ -8,9 +8,10 @@ import { CutBody } from './CutBody.tsx';
 import { PATH_MIME } from './drag.ts';
 import { FLASH_MS } from './changes.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';
+import { currentEditTarget } from './targets.ts';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
-vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async () => 4) }));
+vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async (url: string) => (url.includes('unread') ? null : 4)) }));
 vi.mock('./peaks.ts', () => ({
   peaksOf: vi.fn(async (src: string) => (src === 'media/street.webm' ? { none: 'no-audio' } : { peaks: new Uint8Array(800).fill(128) })),
 }));
@@ -160,6 +161,19 @@ it('tracks: add, rename, mute, reorder, remove', async () => {
   await saved(() => expect(onDisk().tracks[2]).toMatchObject({ name: 'Logo' }));
   fireEvent.click(container.querySelector('[data-track-head="a1"] [aria-label="Mute the track"]')!);
   await saved(() => expect(onDisk().tracks[1]).toMatchObject({ mute: true }));
+  // the track's gain (issue 410): a click types it, Esc keeps the old one, Enter applies it
+  const level = () => container.querySelector<HTMLButtonElement>('[data-track-head="a1"] [data-track-gain]')!;
+  const field = () => screen.getByRole('textbox', { name: /^Track gain/ });
+  expect(level().textContent).toBe('0 dB');
+  fireEvent.click(level());
+  fireEvent.change(field(), { target: { value: '-4' } });
+  fireEvent.keyDown(field(), { key: 'Escape' });
+  expect(level().textContent).toBe('0 dB');
+  fireEvent.click(level());
+  fireEvent.change(field(), { target: { value: '-4.5' } });
+  fireEvent.keyDown(field(), { key: 'Enter' });
+  await saved(() => expect(onDisk().tracks[1]).toMatchObject({ gain: -4.5 }));
+  expect(level().textContent).toBe('−4.5 dB');
   // v1 down under v2 in the picture: before it in the file
   fireEvent.click(container.querySelector('[data-track-head="v2"] [aria-label="Move the track down"]')!);
   await saved(() => expect(onDisk().tracks.map((t) => t.id)).toEqual(['v2', 'a1', 'v1']));
@@ -167,6 +181,57 @@ it('tracks: add, rename, mute, reorder, remove', async () => {
   await saved(() => expect(onDisk().tracks.map((t) => t.id)).toEqual(['v2', 'v1']));
   expect(onDisk().clips.map((c) => c.id)).toEqual(['c1', 'c2']);
   valid();
+});
+
+it('the track gain field (issue 410): opened and left unchanged it changes nothing, even a gain the field would not take', async () => {
+  const tracks = [{ id: 'v1', kind: 'video', name: 'Main', gain: -80 }, { id: 'a1', kind: 'audio', name: 'Voice', gain: -3.25 }];
+  write(JSON.stringify({ ...fixture, tracks }));
+  const { container } = await show();
+  const level = (id: string) => container.querySelector<HTMLButtonElement>(`[data-track-head="${id}"] [data-track-gain]`)!;
+  expect(level('v1').textContent).toBe('−80 dB');
+  expect(level('a1').textContent).toBe('−3.3 dB');
+  for (const [id, shown] of [['v1', '-80'], ['a1', '-3.25']] as const) {
+    fireEvent.click(level(id));
+    const field = screen.getByRole('textbox', { name: /^Track gain/ });
+    expect(field).toHaveValue(shown);
+    fireEvent.blur(field);
+    expect(screen.queryByRole('textbox', { name: /^Track gain/ })).toBeNull();
+  }
+  // retyped to the same number, still nothing
+  fireEvent.click(level('a1'));
+  fireEvent.change(screen.getByRole('textbox', { name: /^Track gain/ }), { target: { value: '-3.250' } });
+  fireEvent.keyDown(screen.getByRole('textbox', { name: /^Track gain/ }), { key: 'Enter' });
+  await act(() => new Promise((r) => setTimeout(r, SAVE_DELAY + 200)));
+  expect(onDisk().tracks).toEqual(tracks);
+  expect(screen.getByRole('button', { name: /^Undo/ })).toBeDisabled();
+});
+
+it('the track gain field (issue 410): leaving it applies a typed value, with a comma or a minus sign; a bad one is marked and kept', async () => {
+  const { container } = await show();
+  const level = () => container.querySelector<HTMLButtonElement>('[data-track-head="a1"] [data-track-gain]')!;
+  const field = () => screen.getByRole('textbox', { name: /^Track gain/ });
+  fireEvent.click(level());
+  expect(field()).toHaveAttribute('inputmode', 'decimal');
+  fireEvent.change(field(), { target: { value: '−2,5' } });
+  fireEvent.blur(field());
+  await saved(() => expect(onDisk().tracks[1]).toMatchObject({ gain: -2.5 }));
+  expect(level().textContent).toBe('−2.5 dB');
+  // a value the user typed is still held to the range
+  fireEvent.click(level());
+  fireEvent.change(field(), { target: { value: '-90' } });
+  fireEvent.blur(field());
+  await saved(() => expect(onDisk().tracks[1]).toMatchObject({ gain: -60 }));
+  fireEvent.click(level());
+  for (const bad of ['abc', '', '1..2']) {
+    fireEvent.change(field(), { target: { value: bad } });
+    fireEvent.keyDown(field(), { key: 'Enter' });
+    expect(field()).toHaveAttribute('aria-invalid', 'true');
+    expect(field()).toHaveAttribute('title', 'Not a valid value here');
+  }
+  fireEvent.change(field(), { target: { value: '-1' } });
+  expect(field()).not.toHaveAttribute('aria-invalid');
+  fireEvent.keyDown(field(), { key: 'Escape' });
+  expect(level().textContent).toBe('−60 dB');
 });
 
 it('a file dropped from the tree becomes a clip of its whole length; a new track when dropped below', async () => {
@@ -184,6 +249,26 @@ it('a file dropped from the tree becomes a clip of its whole length; a new track
   fireEvent(zone, at(createEvent.drop(zone, { dataTransfer: dt('media/logo.png') }), 0));
   await saved(() => expect(onDisk().clips.find((c) => c.src === 'media/logo.png')).toMatchObject({ track: 'v2', dur: 5 }));
   valid();
+});
+
+it('Add to edit from the Files tree (issue 426): the edit is a target while shown; the files go after each kind\'s first track, one undo step', async () => {
+  const { container } = await show();
+  const target = currentEditTarget();
+  expect(target?.path).toBe('e.nbcut.json');
+  await act(async () => { await target!.add(['media/music.mp3', 'media/unread.mp4', 'media/logo.png', 'notes.txt']); });
+  await saved(() => expect(onDisk().clips.filter((c) => !['c1', 'c2', 'c3'].includes(c.id)).map((c) => [c.track, c.src, c.at])).toEqual([
+    ['a1', 'media/music.mp3', 8], ['v1', 'media/logo.png', 10],
+  ]));
+  expect(onDisk().clips.some((c) => c.src === 'media/unread.mp4')).toBe(false);
+  valid();
+  // what no track takes is said, and the added clips are selected
+  // a video whose length the browser cannot read is not guessed at: it is named with them
+  expect(screen.getByText(/unread\.mp4, notes\.txt cannot go into the edit/)).toBeInTheDocument();
+  expect(container.querySelectorAll('[data-clip][data-selected]')).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect(onDisk().clips).toHaveLength(3));
+  cleanup();
+  expect(currentEditTarget()).toBeNull();
 });
 
 it('the inspector edits the selected clip; a value the format refuses is marked, not saved', async () => {
