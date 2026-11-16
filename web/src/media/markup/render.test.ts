@@ -59,16 +59,54 @@ describe('polygons (issue 447)', () => {
     expect(raw.globalAlpha).toBe(1); // restored for the next shape
     expect(raw.fillStyle).toBe('#34c759');
   });
-  it('drawMask: black everywhere, white polygons filled by the nonzero rule; other shapes are not in it', () => {
+  it('drawMask: black everywhere, then each polygon filled white on its own (nonzero); other shapes are not in it', () => {
     const { ctx, raw, calls } = fakeCtx();
     const fills: unknown[] = [];
     raw.fill = (rule: unknown) => { calls.push(['fill']); fills.push([raw.fillStyle, rule]); };
     raw.fillRect = (...a: number[]) => { calls.push(['fillRect', ...a]); fills.push([raw.fillStyle, 'rect']); };
     drawMask(ctx, [{ kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 1, h: 1 }, poly, { ...poly, points: [0.5, 0.5, 1, 0.5, 1, 1] }], 40, 30);
     expect(calls[0]).toEqual(['fillRect', 0, 0, 40, 30]);
-    expect(fills).toEqual([['#000000', 'rect'], ['#ffffff', 'nonzero']]); // both polygons in one path, one fill
+    expect(fills).toEqual([['#000000', 'rect'], ['#ffffff', 'nonzero'], ['#ffffff', 'nonzero']]);
     expect(calls.filter((c) => c[0] === 'moveTo')).toEqual([['moveTo', 0, 0], ['moveTo', 20, 15]]);
     expect(calls.map((c) => c[0])).not.toContain('strokeRect');
+  });
+  it('drawMask: two overlapping polygons of opposite orientation are a union, no hole where they overlap', () => {
+    // a context that rasterizes as a canvas does: each fill() paints the current path (all its subpaths) by nonzero winding
+    const W2 = 10, H2 = 10;
+    const px: string[] = new Array(W2 * H2).fill('');
+    let subs: number[][] = [];
+    const st = { fillStyle: '' as unknown };
+    const wind = (x: number, y: number) => {
+      let w = 0;
+      for (const p of subs) {
+        for (let i = 0; i < p.length; i += 2) {
+          const x0 = p[i], y0 = p[i + 1], x1 = p[(i + 2) % p.length], y1 = p[(i + 3) % p.length];
+          const side = (x1 - x0) * (y - y0) - (x - x0) * (y1 - y0);
+          if (y0 <= y) { if (y1 > y && side > 0) w++; } else if (y1 <= y && side < 0) w--;
+        }
+      }
+      return w;
+    };
+    const ctx = {
+      set fillStyle(v: unknown) { st.fillStyle = v; }, get fillStyle() { return st.fillStyle; },
+      fillRect: () => void px.fill(String(st.fillStyle)),
+      beginPath: () => void (subs = []),
+      moveTo: (x: number, y: number) => void subs.push([x, y]),
+      lineTo: (x: number, y: number) => void subs.at(-1)!.push(x, y),
+      closePath: () => {},
+      fill: () => {
+        for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) if (wind(x + 0.5, y + 0.5) !== 0) px[y * W2 + x] = String(st.fillStyle);
+      },
+    } as unknown as CanvasRenderingContext2D;
+    const cw: MediaShape = { kind: 'polygon', color: '#ff3b30', points: [0.1, 0.1, 0.6, 0.1, 0.6, 0.6, 0.1, 0.6] };
+    const ccw: MediaShape = { kind: 'polygon', color: '#ff3b30', points: [0.4, 0.4, 0.4, 0.9, 0.9, 0.9, 0.9, 0.4] };
+    drawMask(ctx, [cw, ccw], W2, H2);
+    const at = (x: number, y: number) => px[y * W2 + x];
+    expect(at(5, 5)).toBe('#ffffff'); // in both: inside the union
+    expect(at(2, 2)).toBe('#ffffff');
+    expect(at(8, 8)).toBe('#ffffff');
+    expect(at(0, 9)).toBe('#000000');
+    expect(at(8, 1)).toBe('#000000');
   });
 });
 

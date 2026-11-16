@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { enterRoot } from '../../tabs/slice.ts';
-import { addShape, dropShapes, markupSlice, setMode, type MarkupState } from './slice.ts';
+import { addShape, commitEdit, dropShapes, markupSlice, replaceShape, setMode, undo, type MarkupState } from './slice.ts';
 
 const r = markupSlice.reducer;
 const shape = { kind: 'rect', color: '#ff3b30', x: 0.1, y: 0.1, w: 0.2, h: 0.2 } as const;
@@ -34,4 +34,20 @@ it('dropShapes removes only the submitted shapes (by value, once each); the mode
   expect(s.drafts.t).toMatchObject({ on: true, shapes: [other] });
   s = r(s, dropShapes('t', [other]));
   expect(s.drafts.t).toMatchObject({ on: true, shapes: [] });
+});
+
+it('undo (issue 447): an edit of a polygon is undone before the shape, in the order they were made', () => {
+  const tri = { kind: 'polygon' as const, color: '#ff3b30' as const, points: [0, 0, 1, 0, 1, 1] };
+  const rect = { kind: 'rect' as const, color: '#ff3b30' as const, x: 0, y: 0, w: 0.1, h: 0.1 };
+  let s = markupSlice.reducer(undefined, addShape('t', tri));
+  s = markupSlice.reducer(s, replaceShape('t', 0, { ...tri, points: [0.1, 0, 1, 0, 1, 1] }));
+  s = markupSlice.reducer(s, replaceShape('t', 0, { ...tri, points: [0.2, 0, 1, 0, 1, 1] })); // the same drag
+  s = markupSlice.reducer(s, commitEdit('t', 0, tri));
+  s = markupSlice.reducer(s, addShape('t', rect));
+  s = markupSlice.reducer(s, undo('t'));
+  expect(s.drafts.t.shapes).toEqual([{ ...tri, points: [0.2, 0, 1, 0, 1, 1] }]);
+  s = markupSlice.reducer(s, undo('t'));
+  expect(s.drafts.t.shapes).toEqual([tri]);
+  s = markupSlice.reducer(s, undo('t'));
+  expect(s.drafts.t.shapes).toEqual([]);
 });

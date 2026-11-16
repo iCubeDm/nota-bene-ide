@@ -71,20 +71,24 @@ export function drawShapes(ctx: Ctx, shapes: MediaShape[], w: number, h: number,
   }
 }
 
-/** `mask.png`'s picture (issue 447): black, and white inside any polygon of `shapes` (one path, nonzero rule). */
+/**
+ * `mask.png`'s picture (issue 447): black, and white inside any polygon of `shapes`. Each polygon is filled on its own
+ * (nonzero within it), so the mask is their union: in one shared path two overlapping polygons of opposite orientation
+ * would cancel out and leave a hole.
+ */
 export function drawMask(ctx: Ctx, shapes: MediaShape[], w: number, h: number): void {
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, w, h);
-  ctx.beginPath();
+  ctx.fillStyle = '#ffffff';
   for (const s of shapes) {
     if (s.kind !== 'polygon' || s.points.length < 6) continue;
     const p = s.points;
+    ctx.beginPath();
     ctx.moveTo(p[0] * w, p[1] * h);
     for (let i = 2; i + 1 < p.length; i += 2) ctx.lineTo(p[i] * w, p[i + 1] * h);
     ctx.closePath();
+    ctx.fill('nonzero');
   }
-  ctx.fillStyle = '#ffffff';
-  ctx.fill('nonzero');
 }
 
 /** Antialiased edges are grey: every pixel becomes pure black or white, so the mask is a clean 0/255 (a context without

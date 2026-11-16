@@ -480,3 +480,54 @@ it('Mask: a closed polygon takes a vertex drag and a move of the whole shape', (
   drag([[300, 450], [350, 450], [400, 400]]); // inside: the whole shape by (+0.1, -0.1)
   expect(draft().shapes).toEqual([{ ...tri, points: [0.2, 0.1, 0.7, 0.2, 0.4, 0.7] }]);
 });
+
+it('Mask: one drag of a point or of the shape is one undo step, which brings back the points before it', () => {
+  const { store, draft } = maskOn();
+  act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));
+  drag([[500, 350], [550, 360], [600, 400]]); // a point, several moves
+  drag([[300, 450], [350, 450], [400, 400]]); // the whole shape
+  const mod = { metaKey: true };
+  key({ key: 'z', code: 'KeyZ', ...mod });
+  expect(draft().shapes).toEqual([{ ...tri, points: [0.1, 0.2, 0.6, 0.3, 0.3, 0.8] }]);
+  fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+  expect(draft().shapes).toEqual([tri]);
+  key({ key: 'z', code: 'KeyZ', ...mod });
+  expect(draft().shapes).toEqual([]);
+});
+
+it('Mask: Cmd/Ctrl+Z while drawing removes the last point, as Backspace does, and leaves the drawn shapes', () => {
+  const { store, draft } = maskOn();
+  act(() => void store.dispatch(addShape(TAB, { kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 0.1, h: 0.1 })));
+  click(100, 350);
+  click(500, 350);
+  const mod = { metaKey: true };
+  key({ key: 'z', code: 'KeyZ', ...mod });
+  expect(pane.querySelector('path[data-live-dots]')!.getAttribute('d')).toBe('M0.1 0.2h0');
+  expect(draft().shapes).toHaveLength(1);
+});
+
+it('Mask: Alt-click inside a closed polygon starts a new one instead of moving it', () => {
+  const { store, draft } = maskOn();
+  act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));
+  fireEvent.pointerDown(layer(), { button: 0, clientX: 300, clientY: 450, pointerId: 1, isPrimary: true, altKey: true });
+  fireEvent.pointerMove(layer(), { clientX: 400, clientY: 400, pointerId: 1 });
+  fireEvent.pointerUp(layer(), { clientX: 400, clientY: 400, pointerId: 1 });
+  expect(draft().shapes).toEqual([tri]); // not moved
+  expect(pane.querySelector('path[data-live-poly]')!.getAttribute('d')).toMatch(/^M0.3 0.4/);
+});
+
+it('Mask: a double-click\'s second press adds no point even when the pointer moved; the first point with 2 points adds nothing', () => {
+  const { draft } = maskOn();
+  vi.spyOn(performance, 'now').mockReturnValue(1000);
+  click(100, 350);
+  click(500, 350);
+  const dots = () => pane.querySelector('path[data-live-dots]')!.getAttribute('d');
+  click(100, 350); // the first point, only 2 points: nothing
+  expect(dots()).toBe('M0.1 0.2h0M0.5 0.2h0');
+  vi.spyOn(performance, 'now').mockReturnValue(5000);
+  click(300, 650);
+  vi.spyOn(performance, 'now').mockReturnValue(5200); // 200 ms later, 20 px off: the double-click's second press
+  click(320, 650);
+  fireEvent.doubleClick(layer(), { clientX: 320, clientY: 650 });
+  expect(draft().shapes).toEqual([tri]);
+});

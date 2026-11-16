@@ -70,9 +70,9 @@ it('a media comment with a polygon (issue 447): its points in px, mask.png named
   const out = composeBatch('', [media('m1', 'remove this', { shapes: [poly], scale: 0.5 })], 'en', none, mwhere, () => undefined, [[1]]);
   expect(out).toContain('> polygon 3 pts (px 192,108 960,108 576,648)\n');
   expect(out).toContain('   files: .nota-bene/marks/m1/frame.jpg (scaled ×0.5), .nota-bene/marks/m1/layer.png (scaled ×0.5), .nota-bene/marks/m1/mask.png (scaled ×0.5)\n' +
-    '   mask.png: white inside the polygons, black outside, the size of frame.jpg');
+    '   mask.png: white inside the polygons, black outside, the size of frame.jpg; the polygon points above are in pixels of the original file');
   const ru = composeBatch('', [media('m1', 'x', { shapes: [poly] })], 'ru', none, mwhere, () => undefined, [[1]]);
-  expect(ru).toContain('/layer.png, .nota-bene/marks/m1/mask.png\n   mask.png: белое внутри многоугольников, чёрное снаружи, размер как у frame.jpg');
+  expect(ru).toContain('/layer.png, .nota-bene/marks/m1/mask.png\n   mask.png: белое внутри многоугольников, чёрное снаружи, размер как у frame.jpg; точки многоугольников выше — в пикселях исходного файла');
   // without a polygon: no mask
   expect(composeBatch('', [media('m2', 'x')], 'en', none, mwhere, () => undefined, [[1]])).not.toContain('mask.png');
 });

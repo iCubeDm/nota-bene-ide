@@ -7,7 +7,7 @@ import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { box as rectBox, hitPolygon, movePoints, rectFrom, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
 import { MarkupToolbar } from './MarkupToolbar.tsx';
 import { HALO, HALO_PX, shapeEls, STROKE_PX, useNatSize, useOverlayPlacement, type Media } from './overlay.tsx';
-import { addShape, clear, MASK_PROTOCOL, replaceShape, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
+import { addShape, clear, commitEdit, MASK_PROTOCOL, replaceShape, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
 import { keysInScope } from '@/lib/keyScope.ts';
 import { MODEL_MARKUP_PROTOCOL } from '@/model/pose.ts';
 
@@ -18,6 +18,9 @@ const TOOL_KEYS: Record<string, MarkTool> = { KeyR: 'rect', KeyE: 'ellipse', Key
 const HIT_PX = 8;
 /** The dots of a polygon's points (client px across): a round cap of a zero-length line, the same size at any zoom. */
 const DOT_PX = 9;
+/** A press this soon (ms) and this near (client px) after the one that added a point is a double-click's second press. */
+const DBL_MS = 500;
+const DBL_PX = 40;
 /** SVG path of dots at the points (x, y pairs). */
 const dotsPath = (pts: number[]): string => {
   let d = '';
@@ -93,7 +96,8 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   };
   const drag = useRef<Drag | null>(null);
   // the polygon being drawn (issue 447): its points so far, its colour, the content box when it began, the pointer's last place
-  type Poly = { pts: number[]; color: MediaShape['color']; box: DOMRect; at?: Pt };
+  // `last`: when and where (client px) the last point was added, to tell a double-click's second press
+  type Poly = { pts: number[]; color: MediaShape['color']; box: DOMRect; at?: Pt; last?: { t: number; x: number; y: number } };
   const poly = useRef<Poly | null>(null);
   const toolRef = useRef(draft);
   toolRef.current = draft;
@@ -138,6 +142,17 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     livePolyHalo.current?.setAttribute('d', d);
     livePolyDots.current?.setAttribute('d', p ? dotsPath(p.pts) : '');
   };
+  /** The polygon being drawn loses its last point (Backspace, Cmd/Ctrl+Z); none left: it is gone. */
+  const popPoint = () => {
+    const p = poly.current;
+    if (!p) return;
+    p.pts.splice(-2, 2);
+    p.last = undefined;
+    if (!p.pts.length) poly.current = null;
+    showPoly();
+  };
+  /** Undo: a point of the polygon being drawn, else the last step of the drawing (a shape, or a polygon's drag). */
+  const undoStep = () => (poly.current ? popPoint() : void dispatch(undo(tabId)));
   const closePoly = () => {
     const p = poly.current;
     if (!p || p.pts.length < 6) return;
@@ -185,22 +200,28 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     const tolX = HIT_PX / Math.max(1, at.width), tolY = HIT_PX / Math.max(1, at.height);
     const near = (x: number, y: number) => Math.abs(x - a.x) <= tolX && Math.abs(y - a.y) <= tolY;
     const p = poly.current;
+    const now = performance.now();
     if (p) {
       const n = p.pts.length / 2;
-      if (n >= 3 && near(p.pts[0], p.pts[1])) return closePoly();
-      if (near(p.pts[2 * n - 2], p.pts[2 * n - 1])) return; // a double-click's second press, or a jitter: no double point
+      if (near(p.pts[0], p.pts[1])) return n >= 3 ? closePoly() : undefined; // the first point closes, from 3 points
+      if (near(p.pts[2 * n - 2], p.pts[2 * n - 1])) return; // a jitter: no double point
+      // a double-click's second press (its dblclick closes the shape), even when the pointer moved a little
+      const l = p.last;
+      if (e.detail >= 2 || (l && now - l.t < DBL_MS && Math.hypot(e.clientX - l.x, e.clientY - l.y) <= DBL_PX)) return;
       if (n < POLYGON_MAX_POINTS) p.pts.push(a.x, a.y);
       p.at = a;
+      p.last = { t: now, x: e.clientX, y: e.clientY };
       return showPoly();
     }
-    const hit = hitPolygon(shapes, a, tolX, tolY);
+    // Alt: always a new polygon, also inside a drawn one (which a press would move)
+    const hit = e.altKey ? null : hitPolygon(shapes, a, tolX, tolY);
     if (hit) { // a drawn polygon: drag its point, or move it
       (e.target as Element).setPointerCapture?.(e.pointerId);
       const s = shapes[hit.index] as Extract<MediaShape, { kind: 'polygon' }>;
       drag.current = { id: e.pointerId, a, b: a, pen: [], ptsText: '', box: at, tool: 'polygon', color: s.color, edit: { index: hit.index, vertex: hit.vertex, points: s.points } };
       return;
     }
-    poly.current = { pts: [a.x, a.y], color, box: at };
+    poly.current = { pts: [a.x, a.y], color, box: at, last: { t: now, x: e.clientX, y: e.clientY } };
     showPoly();
   };
   const onDown = (e: RPointerEvent<SVGSVGElement>) => {
@@ -255,7 +276,13 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     const d = drag.current;
     if (!d || e.pointerId !== d.id) return;
     drag.current = null;
-    if (d.edit) return;
+    if (d.edit) { // one drag, one undo step back to the points before it
+      const s = shapes[d.edit.index];
+      if (s?.kind === 'polygon' && s.points.some((v, i) => v !== d.edit!.points[i])) {
+        dispatch(commitEdit(tabId, d.edit.index, { kind: 'polygon', color: d.color, points: d.edit.points }));
+      }
+      return;
+    }
     if (e.type === 'pointerup') d.b = relOf(e, d.box);
     for (const el of [live.current, liveHalo.current]) el?.setAttribute('d', '');
     for (const el of [livePen.current, livePenHalo.current]) el?.setAttribute('points', '');
@@ -294,7 +321,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
       // e.code, not e.key: R/E/P/A and the digits work on any keyboard layout
       if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyZ') {
         e.preventDefault();
-        dispatch(undo(tabId));
+        undoStep();
         return;
       }
       if (mod || e.altKey) return;
@@ -306,9 +333,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
         closePoly(); // fewer than 3 points: nothing yet
       } else if (e.key === 'Backspace' && poly.current) {
         e.preventDefault();
-        poly.current.pts.splice(-2, 2);
-        if (!poly.current.pts.length) poly.current = null;
-        showPoly();
+        popPoint();
       } else if (e.key === 'Enter') {
         if ((e.target as Element | null)?.closest?.('button') || !shapes.length) return; // a focused button takes its own Enter
         e.preventDefault();
@@ -343,7 +368,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
           onEnter={enter}
           onTool={(tool) => dispatch(setTool(tabId, tool))}
           onColor={(c) => dispatch(setColor(tabId, c))}
-          onUndo={() => dispatch(undo(tabId))}
+          onUndo={undoStep}
           onComment={comment}
           onLeave={leave}
         />
@@ -377,7 +402,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
           {handles}
           <path ref={livePolyHalo} d="" stroke={HALO} strokeWidth={HALO_PX} vectorEffect="non-scaling-stroke" />
           <path ref={livePoly} data-live data-live-poly d="" vectorEffect="non-scaling-stroke" />
-          <path ref={livePolyDots} data-live d="" strokeWidth={DOT_PX} vectorEffect="non-scaling-stroke" />
+          <path ref={livePolyDots} data-live data-live-dots d="" strokeWidth={DOT_PX} vectorEffect="non-scaling-stroke" />
         </svg>,
         pane,
       )}
