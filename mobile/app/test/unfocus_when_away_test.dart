@@ -33,6 +33,19 @@ void main() {
     t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
   });
 
+  testWidgets('back on screen, the field gets its focus and keyboard again', (
+    t,
+  ) async {
+    final node = await focused(t);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await t.pump();
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pump();
+    expect(node.hasFocus, isTrue);
+  });
+
   testWidgets(
     'a moment away from focus, such as the notification shade, keeps it',
     (t) async {
