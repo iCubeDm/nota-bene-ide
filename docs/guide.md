@@ -262,6 +262,7 @@ Click a file to open it in a tab:
 
 - Markdown renders and can be commented on. Code is highlighted and can be commented on. Alt+Z wraps long lines.
 - An HTML file opens as the page; **Source** shows its text (next section).
+- A video edit (`*.nbcut.json`) opens as its timeline; **Source** shows its JSON ([video edits](#video-edits-nbcutjson)).
 - Code blocks in replies and Markdown files wrap, with a number per source line, and a button on hover copies the block.
 - Images, video and audio open in a viewer (next section).
 - Files over 2 MB and binary files are not shown ("File is too large to show", "Binary file, not shown"). The **Open raw** icon (the arrow out of a box) in the file's header shows the file as the server sends it.
@@ -295,6 +296,46 @@ An `.html` file opens as the page itself, the way a browser shows it. **Page** a
 ```
 
 When the agent changes the page, a comment finds its element again by what it reads as; one whose element is gone is marked "fragment changed". Marking needs a server from this version; after an update, restart the server.
+
+### Video edits (`.nbcut.json`)
+
+A file named `<name>.nbcut.json` is an edit for the video editor (work in progress): video, photos and sound on tracks. It opens as a read-only **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame). The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom; a click on the ruler moves the playhead. Playback and editing on the timeline come later.
+
+Problems are listed above the timeline by field (`clips[1].at: overlaps the clip before it on its track`), and the clips they concern are outlined. A source file that is not in the project is one of them; the rest of the edit is still drawn.
+
+**The format, for writing an edit by hand or by the agent.** Times are seconds; `src` is a path relative to the project root, with `/`.
+
+- Top level: `version` (always `1`), the output frame `width` and `height` in pixels, `fps`, `tracks` and `clips`.
+- A track: `id` (unique), `kind` (`"video"` or `"audio"`), and optionally `name`, `gain` (dB, default 0), `mute`, `solo` (any solo track silences the tracks without it), `hidden` (a video track's picture is not shown; its clips' sound still plays). Video tracks stack in their order in `tracks`: a later one covers an earlier one.
+- A clip: `id` (unique), `track` (a track's id), `src`, `at` (where it starts on the timeline). A video or audio clip takes `out` and optionally `in` (the used part of the source, `in` defaults to 0): it lasts `out - in`. A photo (png, jpg, jpeg, gif, webp, avif, bmp, svg) takes `dur` instead. Optional: `gain` (dB) and `mute` for the clip's own sound, `fadeIn` and `fadeOut` (seconds of sound fade from each end; the picture never fades).
+- On a video track a clip may have `place`: `x`, `y`, `w`, `h` as fractions 0 to 1 of the frame (top-left origin) and `opacity` 0 to 1. The picture fits inside keeping its aspect ratio. Without `place` it fills the frame. A video file on an audio track contributes its sound only.
+- Clips on one track must not overlap; clips on different tracks may.
+
+A minimal edit: a video, a photo in the top-right corner for three seconds, a voice-over and quieter music.
+
+```json
+{
+  "version": 1,
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "tracks": [
+    { "id": "v1", "kind": "video", "name": "Main" },
+    { "id": "v2", "kind": "video", "name": "Logo" },
+    { "id": "a1", "kind": "audio", "name": "Voice" },
+    { "id": "a2", "kind": "audio", "name": "Music", "gain": -12 }
+  ],
+  "clips": [
+    { "id": "c1", "track": "v1", "src": "media/intro.mp4", "at": 0, "in": 2, "out": 8 },
+    { "id": "c2", "track": "v1", "src": "media/street.mov", "at": 6, "out": 4 },
+    { "id": "c3", "track": "v2", "src": "media/logo.png", "at": 1, "dur": 3, "place": { "x": 0.75, "y": 0.05, "w": 0.2, "h": 0.2, "opacity": 0.9 } },
+    { "id": "c4", "track": "a1", "src": "media/voice.wav", "at": 0.5, "out": 9 },
+    { "id": "c5", "track": "a2", "src": "media/music.mp3", "at": 0, "out": 10, "fadeIn": 1, "fadeOut": 2 }
+  ]
+}
+```
+
+The types are `Cut` in `shared/src/cut.ts`, and `validateCut` there is the check the timeline runs.
 
 ### Other branches and worktrees
 

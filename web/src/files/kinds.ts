@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from 'react';
+import { IMAGE } from '@nota-bene/shared/cut';
 import { serverSep } from '@/lib/paths.ts';
 
 // copied from the prototype
 export const VIDEO = /\.(mp4|mov|webm|m4v)$/i;
 export const AUDIO = /\.(mp3|wav|m4a|ogg)$/i;
-export const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
+export { IMAGE }; // shared: an edit's photo clips are these files
 export const MODEL = /\.(glb|gltf|blend)$/i;
 export const BLEND = /\.blend$/i;
 export const MD = /\.(md|markdown)$/i;
