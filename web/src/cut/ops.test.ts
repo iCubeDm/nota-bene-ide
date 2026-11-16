@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
 import {
   addClip, addTrack, deleteClips, dragGain, duplicateClip, freeAt, GAIN_MAX, GAIN_MIN, gainAtY, gainY, setFade, setGain, moveClip, moveTrack, movePlace, nudgeClip, removeTrack, renameTrack, resizePlace,
-  duplicateClips, moveClips, setClip, setClips, setTrackFlag, snapMove, snapPoints, snapTime, splitAt, trimEnd, trimStart,
+  duplicateClips, moveClips, setClip, setClips, setTrackFlag, setTrackGain, snapMove, snapPoints, snapTime, splitAt, trimEnd, trimStart,
   moveForward, rippleTrimEnd, trackForward,
 } from './ops.ts';
 
@@ -181,6 +181,16 @@ describe('tracks', () => {
     expect(on.tracks[2]).toMatchObject({ mute: true });
     expect(setTrackFlag(on, 'a1', 'mute', false).tracks[2]).toEqual({ id: 'a1', kind: 'audio', name: 'Voice' });
     expect(setTrackFlag(base(), 'a1', 'hidden', true)).toEqual(base()); // an audio track has no picture
+  });
+  it('sets a track\'s gain (issue 410) in dB to the tenth, within the gain line\'s range; 0 leaves it out of the file', () => {
+    const c = valid(setTrackGain(base(), 'a1', -6.04));
+    expect(c.tracks[2]).toEqual({ id: 'a1', kind: 'audio', name: 'Voice', gain: -6 });
+    expect(setTrackGain(base(), 'v1', 30).tracks[0]!.gain).toBe(GAIN_MAX); // a video track's gain is its clips' sound
+    expect(setTrackGain(base(), 'a1', -90).tracks[2]!.gain).toBe(GAIN_MIN);
+    expect(setTrackGain(c, 'a1', 0).tracks[2]).toEqual({ id: 'a1', kind: 'audio', name: 'Voice' });
+    const b = base();
+    expect(setTrackGain(b, 'nope', 3)).toBe(b);
+    expect(setTrackGain(b, 'a1', Number.NaN)).toBe(b);
   });
   it('reorders in the drawn order: up for a video track is over the picture', () => {
     // drawn: v2, v1, a1; v1 up goes over v2, that is after it in the file

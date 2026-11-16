@@ -149,6 +149,18 @@ it('tracks: add, rename, mute, reorder, remove', async () => {
   await saved(() => expect(onDisk().tracks[2]).toMatchObject({ name: 'Logo' }));
   fireEvent.click(container.querySelector('[data-track-head="a1"] [aria-label="Mute the track"]')!);
   await saved(() => expect(onDisk().tracks[1]).toMatchObject({ mute: true }));
+  // the track's gain (issue 410): a click types it, Esc keeps the old one, Enter applies it
+  const level = () => container.querySelector<HTMLButtonElement>('[data-track-head="a1"] [data-track-gain]')!;
+  expect(level().textContent).toBe('0 dB');
+  fireEvent.click(level());
+  fireEvent.change(screen.getByRole('spinbutton', { name: /^Track gain/ }), { target: { value: '-4' } });
+  fireEvent.keyDown(screen.getByRole('spinbutton', { name: /^Track gain/ }), { key: 'Escape' });
+  expect(level().textContent).toBe('0 dB');
+  fireEvent.click(level());
+  fireEvent.change(screen.getByRole('spinbutton', { name: /^Track gain/ }), { target: { value: '-4.5' } });
+  fireEvent.keyDown(screen.getByRole('spinbutton', { name: /^Track gain/ }), { key: 'Enter' });
+  await saved(() => expect(onDisk().tracks[1]).toMatchObject({ gain: -4.5 }));
+  expect(level().textContent).toBe('−4.5 dB');
   // v1 down under v2 in the picture: before it in the file
   fireEvent.click(container.querySelector('[data-track-head="v2"] [aria-label="Move the track down"]')!);
   await saved(() => expect(onDisk().tracks.map((t) => t.id)).toEqual(['v2', 'a1', 'v1']));

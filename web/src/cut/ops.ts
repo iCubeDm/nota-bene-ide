@@ -320,6 +320,16 @@ export function setTrackFlag(cut: Cut, id: string, key: 'mute' | 'solo' | 'hidde
 }
 
 /**
+ * A track's gain (issue 410) at `db`, to the tenth and within the gain line's range (GAIN_MIN..GAIN_MAX): on an audio
+ * track its clips, on a video track its clips' own sound. 0 dB is the default, left out of the file.
+ */
+export function setTrackGain(cut: Cut, id: string, db: number): Cut {
+  if (!trackOf(cut, id) || !Number.isFinite(db)) return cut;
+  const g = Math.round(within(db, GAIN_MIN, GAIN_MAX) * 10) / 10 || 0;
+  return { ...cut, tracks: cut.tracks.map((x) => (x.id === id ? compact({ ...x, gain: g === 0 ? undefined : g }) : x)) };
+}
+
+/**
  * The track one place up (`-1`) or down (`1`) among the tracks of its kind as the timeline draws them: the video
  * tracks from the top of the picture (the last in `tracks`) down, then the audio tracks in file order.
  */

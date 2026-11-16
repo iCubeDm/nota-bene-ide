@@ -14,11 +14,16 @@ const P = HTMLMediaElement.prototype;
 const saved = Object.fromEntries(['currentTime', 'paused', 'readyState', 'seeking', 'duration', 'ended', 'play', 'pause', 'load', 'src'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)]));
 
 // the Web Audio graph as a record: each gain node's value and the ramps scheduled on it
-type Gain = { gain: { value: number; ramps: [string, number, number][] } & Record<string, unknown>; connect: (n: unknown) => void; disconnect: () => void; to?: unknown };
+type Gain = { gain: { value: number; ramps: [string, number, number][] } & Record<string, unknown>; connect: (n: unknown) => void; disconnect: () => void; to?: unknown; tos?: unknown[] };
 let gains: Gain[];
 let sources: { el: HTMLMediaElement; to?: Gain }[];
 let ctxTime: number;
+let made: number;
+let splitters: { n: number; outs: unknown[] }[];
+let analysers: { fftSize: number }[];
+let analysed: number[][];
 class FakeContext {
+  constructor() { made++; }
   destination = { name: 'out' };
   get currentTime() { return ctxTime; }
   createGain(): Gain {
@@ -32,10 +37,22 @@ class FakeContext {
         setTargetAtTime: (v: number, at: number) => { ramps.push(['target', v, at]); g.gain.value = v; },
         linearRampToValueAtTime: (v: number, at: number) => void ramps.push(['ramp', v, at]),
       },
-      connect: (n) => void (g.to = n), disconnect: () => {},
+      connect: (n) => { g.to = n; (g.tos ??= []).push(n); }, disconnect: () => {},
     };
     gains.push(g);
     return g;
+  }
+  // the meter's tap (issue 410): a splitter into one analyser a channel, each giving back `analysed`'s samples
+  createChannelSplitter(n: number) {
+    const sp = { n, outs: [] as unknown[], connect: (a: unknown, i = 0) => void (sp.outs[i] = a), disconnect: () => {} };
+    splitters.push(sp);
+    return sp;
+  }
+  createAnalyser() {
+    const i = analysers.length;
+    const a = { fftSize: 0, connect: () => {}, disconnect: () => {}, getFloatTimeDomainData: (b: Float32Array) => { b.fill(0); b.set(analysed[i] ?? []); } };
+    analysers.push(a);
+    return a;
   }
   createMediaElementSource(el: HTMLMediaElement) {
     const s: { el: HTMLMediaElement; to?: Gain } = { el };
@@ -70,6 +87,10 @@ beforeEach(() => {
   Object.defineProperty(P, 'src', { configurable: true, get(this: HTMLMediaElement) { return src.get!.call(this); }, set(this: HTMLMediaElement, v: string) { src.set!.call(this, v); fake(this).ready = fresh; } });
   gains = [];
   sources = [];
+  splitters = [];
+  analysers = [];
+  analysed = [];
+  made = 0;
   ctxTime = 100;
   vi.stubGlobal('AudioContext', FakeContext);
   now = 0;
@@ -459,4 +480,22 @@ it('in a gap the element already holding the next clip keeps it: the other does 
   p.play();
   const els = sources.map((s) => s.el.getAttribute('src'));
   expect(els.filter((x) => x === '/file?path=media/y.mp3')).toHaveLength(1);
+});
+
+it('the master meter (issue 410): no audio graph before the first play, then each channel\'s sample peak after the master', () => {
+  const { p } = setup();
+  p.seek(1);
+  expect(p.meterPeaks()).toBeNull();
+  expect(made).toBe(0); // the meter makes no AudioContext of its own
+  p.play();
+  expect(made).toBe(1);
+  expect(splitters).toHaveLength(1);
+  expect(splitters[0]!.outs).toEqual(analysers);
+  // the tap hangs off the master: its input up-mixes a mono mix to both sides
+  const tap = gains.find((g) => g.to === splitters[0]) as Gain & { channelCount?: number; channelInterpretation?: string };
+  expect(gains[0]!.tos).toEqual([{ name: 'out' }, tap]);
+  expect(tap.channelCount).toBe(2);
+  expect(tap.channelInterpretation).toBe('speakers');
+  analysed = [[0.1, -0.5, 0.2], [1.25]];
+  expect(p.meterPeaks()).toEqual([0.5, 1.25]);
 });
