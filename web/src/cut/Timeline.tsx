@@ -351,7 +351,8 @@ type Pointer = { clientX: number; clientY: number; altKey: boolean };
 /**
  * A clip's drag: from the committed edit at the press, each move shows the result (`draft`), the release commits it.
  * The body moves the clip (the lane under the pointer takes it when it is of the clip's kind), an edge trims it. The
- * moves are the window's: a clip that changes lanes is a new element, and the drag must go on.
+ * moves are the window's: a clip that changes lanes is a new element, and the drag must go on. An edit that changed
+ * under the drag (a reload of the agent's version) ends it: a change built on the older edit is never committed.
  */
 function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, scroller: RefObject<HTMLElement | null>): ClipDrag {
   const edRef = useRef(ed);
@@ -382,9 +383,11 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
         const at0 = c.at;
         const end0 = c.at + clipLength(c);
         let out: Cut | null = null;
+        // the edit changed under the drag (the agent's version reloaded): the drag is over, nothing of it is kept
+        const stale = (cur: Editing | undefined): cur is undefined => !cur || cur.cut !== base;
         const move = (m: Pointer) => {
           const cur = edRef.current;
-          if (!cur) return;
+          if (stale(cur)) return void stop.current?.();
           const lane = grip === 'move' ? laneAt(m.clientY) ?? c.track : c.track;
           if (!out && Math.abs(m.clientX - x0) < DRAG_PX && lane === c.track) return;
           const p = ppsRef.current;
@@ -400,7 +403,7 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
           stop.current?.();
           const cur = edRef.current;
           if (!cur) return;
-          if (out) cur.commit(out);
+          if (out && !stale(cur)) cur.commit(out);
           cur.draft(null);
         };
         window.addEventListener('pointermove', move);

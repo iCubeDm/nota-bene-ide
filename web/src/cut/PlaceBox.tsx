@@ -15,6 +15,9 @@ export function PlaceBox({ cut, clip, draft, commit }: { cut: Cut; clip: CutClip
   const box = useRef<HTMLDivElement>(null);
   const stop = useRef<(() => void) | null>(null);
   useEffect(() => () => stop.current?.(), []);
+  // the edit as it is now: one that changed under the drag (the agent's version reloaded) ends it, nothing committed
+  const now = useRef(cut);
+  now.current = cut;
   const p = clip.place ?? FULL;
 
   const start = (e: PointerEvent<HTMLElement>, corner: Corner | null) => {
@@ -27,6 +30,7 @@ export function PlaceBox({ cut, clip, draft, commit }: { cut: Cut; clip: CutClip
     const x0 = e.clientX, y0 = e.clientY;
     let out: Cut | null = null;
     const move = (m: { clientX: number; clientY: number; shiftKey: boolean }) => {
+      if (now.current !== cut) return void stop.current?.();
       const dx = (m.clientX - x0) / frame.width, dy = (m.clientY - y0) / frame.height;
       const next: CutPlace = corner ? resizePlace(p, corner, dx, dy, !m.shiftKey) : movePlace(p, dx, dy);
       out = setClip(cut, clip.id, { place: next }) ?? out;
@@ -34,7 +38,7 @@ export function PlaceBox({ cut, clip, draft, commit }: { cut: Cut; clip: CutClip
     };
     const up = () => {
       stop.current?.();
-      if (out) commit(out);
+      if (out && now.current === cut) commit(out);
       draft(null);
     };
     window.addEventListener('pointermove', move);

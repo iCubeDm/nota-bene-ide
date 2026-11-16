@@ -219,3 +219,36 @@ it('an outside change reloads the edit when nothing is unsaved', async () => {
   act(() => reload());
   await waitFor(() => expect(clip('c2').style.left).toBe(`${9 * Number(clip('c2').closest('[data-timeline]')!.getAttribute('data-pps'))}px`));
 });
+
+it('a drag that an outside change overtook is dropped: the agent\'s version stays', async () => {
+  const { clip, pps, reload } = await show();
+  const p = pps();
+  fireEvent.pointerDown(clip('c2'), { clientX: 100, clientY: 0, button: 0, pointerId: 1, altKey: true });
+  fireEvent.pointerMove(clip('c2'), { clientX: 100 + p, clientY: 0, pointerId: 1, altKey: true });
+  // the agent moves c1 while the drag goes on; the view reads it
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c1' ? { ...c, at: 1 } : c)) }));
+  act(() => reload());
+  await waitFor(() => expect(clip('c1').style.left).toBe(`${1 * p}px`));
+  fireEvent.pointerUp(clip('c2'), { clientX: 100 + p, clientY: 0, pointerId: 1 });
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  expect(clipOnDisk('c1')!.at).toBe(1);
+  expect(clipOnDisk('c2')!.at).toBe(6);
+});
+
+it('a frame drag that an outside change overtook is dropped too', async () => {
+  const { container, clip, reload } = await show();
+  fireEvent.pointerDown(clip('c1'), { clientX: 10, button: 0, pointerId: 1 });
+  fireEvent.pointerUp(clip('c1'), { clientX: 10, pointerId: 1 });
+  const frame = container.querySelector<HTMLElement>('[data-cut-frame]')!;
+  frame.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1000, height: 500, right: 1000, bottom: 500, x: 0, y: 0, toJSON() {} });
+  const se = container.querySelector('[data-place-box] [data-corner="se"]')!;
+  fireEvent.pointerDown(se, { clientX: 1000, clientY: 500, button: 0, pointerId: 2 });
+  fireEvent.pointerMove(se, { clientX: 500, clientY: 400, pointerId: 2 });
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c2' ? { ...c, at: 9 } : c)) }));
+  act(() => reload());
+  await waitFor(() => expect(clip('c2').style.left).toContain(String(9 * Number(clip('c2').closest('[data-timeline]')!.getAttribute('data-pps')))));
+  fireEvent.pointerUp(se, { clientX: 500, clientY: 400, pointerId: 2 });
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  expect(clipOnDisk('c2')!.at).toBe(9);
+  expect(clipOnDisk('c1')!).not.toHaveProperty('place');
+});

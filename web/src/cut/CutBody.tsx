@@ -70,6 +70,8 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const cut = doc.cut;
   const cutRef = useRef(cut);
   cutRef.current = cut;
+  // a draft belongs to the edit it was built on: another one (a commit, a reload) shows as it is
+  useEffect(() => setDraft(null), [cut]);
   const selected = cut?.clips.find((c) => c.id === sel) ?? null;
   useEffect(() => { if (sel !== null && cut && !cut.clips.some((c) => c.id === sel)) setSel(null); }, [cut, sel]);
   const lens = useSrcLens(cut ? srcs : [], src);
