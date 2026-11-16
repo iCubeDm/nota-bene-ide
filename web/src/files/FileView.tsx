@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { PAGE_PROTOCOL } from '@/page/frame.ts';
 import { isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
+import { isCutPath } from '@nota-bene/shared/cut';
+import { CutBody } from '@/cut/CutBody.tsx';
 import { editable as isEditable } from '@/lib/editable.ts';
 import { scrollRangeIntoView } from '@/anchors/scroll.ts';
 import { rangeForAnchor } from '@/anchors/text.ts';
@@ -69,10 +71,12 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   // by hand: text of this checkout; a draft left by a closed tab or a reload opens again
   const editable = src === 'here' && !fixed && !tmp && (kind === 'md' || kind === 'text');
   const [editing, setEditing] = useState(() => editable && hasDraft(path));
-  // an .html file opens as the page; ‹Source› shows its text like any other file
+  // an .html file opens as the page, an edit (`*.nbcut.json`) as its timeline; ‹Source› shows its text like any other file
   const html = kind === 'text' && HTML.test(path);
+  const cut = kind === 'text' && isCutPath(path);
   const [pageView, setPageView] = useState(true);
   const page = html && pageView && !editing && data?.s === 'text';
+  const timeline = cut && pageView && !editing && data?.s === 'text';
   const [pageMarking, setPageMarking] = useState(false);
   const [scripts, setScripts] = useState(false);
   // an older server would refuse a comment on an element (PAGE_PROTOCOL): marking is offered from it on
@@ -107,6 +111,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
     if (kind === 'model' || jump?.path !== path || jump.src !== src || !active || !data) return;
     // a rendered page takes its own jump once it is on screen (HtmlBody); a place on the page shows the page
     if (page) return;
+    if (timeline) return void setPageView(false); // a comment on an edit is on its text
     const target = comments.find((x) => x.id === jump.id);
     if (html && target && isPageAnchor(target.anchor)) return void setPageView(true);
     const fresh = loadedRev.current?.path === path && loadedRev.current.rev === rev;
@@ -119,7 +124,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
     if (!range) return; // orphaned: the tab is open, nothing to point at
     scrollRangeIntoView(range, el);
     flashRange(el, range);
-  }, [kind, jump, active, data, rev, path, src, comments, dispatch, loadedRev, page, html]);
+  }, [kind, jump, active, data, rev, path, src, comments, dispatch, loadedRev, page, html, timeline]);
 
   // "jump to source" on a media tab: the tab is open and active; a video also seeks to the comment's time and pauses
   // (not while marking: the drawing belongs to the frame on screen)
@@ -141,11 +146,11 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
         {ref && <SourceChip name={ref} />}
         {large && <span>{t('noHighlight')}</span>}
         {page && scripts && <span title={t('pageScriptsOffTip')}>{t('pageScriptsOff')}</span>}
-        {html && !editing && (
-          <span role="group" aria-label={t('pageViewTip')} title={t('pageViewTip')} className="flex overflow-hidden rounded border border-border-soft">
+        {(html || cut) && !editing && (
+          <span role="group" aria-label={t(cut ? 'cutViewTip' : 'pageViewTip')} title={t(cut ? 'cutViewTip' : 'pageViewTip')} className="flex overflow-hidden rounded border border-border-soft">
             {([true, false] as const).map((v) => (
               <button key={String(v)} type="button" aria-pressed={pageView === v} onClick={() => setPageView(v)}
-                className={`px-1.5 hover:text-foreground ${pageView === v ? 'bg-muted text-foreground' : ''}`}>{t(v ? 'pageView' : 'sourceView')}</button>
+                className={`px-1.5 hover:text-foreground ${pageView === v ? 'bg-muted text-foreground' : ''}`}>{t(v ? (cut ? 'cutTimeline' : 'pageView') : 'sourceView')}</button>
             ))}
           </span>
         )}
@@ -153,7 +158,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
           <button type="button" aria-pressed={pageMarking} title={t('pageMarkTip')} onClick={() => setPageMarking((v) => !v)}
             className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${pageMarking ? 'bg-muted text-foreground' : ''}`}>{t('pageMark')}</button>
         )}
-        {kind === 'text' && !page && (
+        {kind === 'text' && !page && !timeline && (
           <button type="button" aria-label={t('wrapLines')} aria-pressed={wrap} title={`${t('wrapLines')} (Alt+Z)`} onClick={wrapLines.toggle}
             className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${wrap ? 'text-foreground' : ''}`}>↩</button>
         )}
@@ -173,6 +178,8 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
         />
       ) : page && data?.s === 'text' ? (
         <HtmlBody html={data.text} path={path} src={src} fileRef={ref} tabId={tabId} active={active} paneRef={pane} marking={marksPage} onScripts={setScripts} />
+      ) : timeline && data?.s === 'text' ? (
+        <CutBody text={data.text} src={src} tabId={tabId} active={active} />
       ) : editing ? (
         <FileEditor path={path} onClose={(saved) => { setEditing(false); if (saved) load.reloadClick(); }} />
       ) : (

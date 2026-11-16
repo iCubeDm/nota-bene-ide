@@ -170,6 +170,50 @@ Mermaid and SVG blocks in replies render as diagrams; **Open diagram** opens one
 → a road is missing here
 ```
 
+## Video edits (`.nbcut.json`)
+
+A file named `<name>.nbcut.json` is an edit for the video editor (work in progress): video, photos and sound on tracks. It opens as a read-only **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame). The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom; a click on the ruler moves the playhead. Playback and editing on the timeline come later.
+
+Problems are listed above the timeline by field (`clips[1].at: overlaps the clip before it on its track`), and the clips they concern are outlined. A source file that is not in the project is one of them; the rest of the edit is still drawn.
+
+<details><summary>More: the format, for writing an edit by hand or by the agent</summary>
+
+Times are seconds; `src` is a path relative to the project root, with `/`.
+
+- Top level: `version` (always `1`), the output frame `width` and `height` in whole pixels from 16 to 8192, `fps` from 1 to 120 (29.97 is fine), `tracks` and `clips`.
+- A track: `id` (unique), `kind` (`"video"` or `"audio"`), and optionally `name`, `gain` (dB, default 0), `mute`, `solo` (any solo track silences the tracks without it), `hidden` (a video track's picture is not shown; its clips' sound still plays). Video tracks stack in their order in `tracks`: a later one covers an earlier one.
+- A clip: `id` (unique), `track` (a track's id), `src`, `at` (where it starts on the timeline). A video or audio clip takes `out` and optionally `in` (the used part of the source, `in` defaults to 0): it lasts `out - in`. A photo (png, jpg, jpeg, webp, avif, bmp) takes `dur` instead; a gif or svg is a problem, since the export cannot read it as a still (convert it to png). A source is a video (mp4, mov, webm, m4v), a sound (mp3, wav, m4a, ogg) or a photo by its extension; any other file is a problem. A sound file goes on an audio track only, a photo on a video track only. Optional: `gain` (dB) and `mute` for the clip's own sound, `fadeIn` and `fadeOut` (seconds of sound fade from each end; the picture never fades).
+- On a video track a clip may have `place`: `x`, `y`, `w`, `h` as fractions 0 to 1 of the frame (top-left origin) and `opacity` 0 to 1. The picture fits inside keeping its aspect ratio. Without `place` it fills the frame. The box may run past the frame's right or bottom edge (`x + w` above 1): the part outside is cropped. A video file on an audio track contributes its sound only.
+- Clips on one track must not overlap; clips on different tracks may.
+
+A minimal edit: a video, a photo in the top-right corner for three seconds, a voice-over and quieter music.
+
+```json
+{
+  "version": 1,
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "tracks": [
+    { "id": "v1", "kind": "video", "name": "Main" },
+    { "id": "v2", "kind": "video", "name": "Logo" },
+    { "id": "a1", "kind": "audio", "name": "Voice" },
+    { "id": "a2", "kind": "audio", "name": "Music", "gain": -12 }
+  ],
+  "clips": [
+    { "id": "c1", "track": "v1", "src": "media/intro.mp4", "at": 0, "in": 2, "out": 8 },
+    { "id": "c2", "track": "v1", "src": "media/street.mov", "at": 6, "out": 4 },
+    { "id": "c3", "track": "v2", "src": "media/logo.png", "at": 1, "dur": 3, "place": { "x": 0.75, "y": 0.05, "w": 0.2, "h": 0.2, "opacity": 0.9 } },
+    { "id": "c4", "track": "a1", "src": "media/voice.wav", "at": 0.5, "out": 9 },
+    { "id": "c5", "track": "a2", "src": "media/music.mp3", "at": 0, "out": 10, "fadeIn": 1, "fadeOut": 2 }
+  ]
+}
+```
+
+The types are `Cut` in `shared/src/cut.ts`, and `validateCut` there is the check the timeline runs.
+
+</details>
+
 ## 3D models (experimental)
 
 `.glb`, `.gltf` and `.blend` open in a 3D viewer: orbit, zoom, reset view, animation clips, an info line. **Mark up** freezes the view to draw on; the comment keeps the camera pose, and its chip brings the camera back there. Off by default and not yet on Windows. Turn it on at server start (stop an open window on the folder first, or the variable is ignored):
@@ -263,6 +307,7 @@ A one-line draft starting with `!` is a shell command ("Shell · Enter runs", bu
 - Markdown renders and code is highlighted; both take comments. Alt+Z wraps. Code blocks have line numbers and a copy button.
 - **✎** edits a text file; Alt+S or Cmd/Ctrl+S saves. Unsaved text survives closing and reloads; a change on disk meanwhile is never overwritten without asking. Other branches are read-only.
 - Paths in `code` spans and links in the chat open files; missing ones are struck through.
+- A video edit (`*.nbcut.json`) opens as its timeline; **Source** shows its JSON ([video edits](#video-edits-nbcutjson)).
 - Files over 2 MB and binaries are not shown; **Open raw** serves the file as is.
 - Tab menu: Close, Close others, Close to the right, Close all, Copy path. Middle click closes; Alt+W closes, Alt+Shift+T reopens.
 

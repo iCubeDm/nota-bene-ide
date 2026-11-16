@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Video edits: the format and a read-only timeline.** A `*.nbcut.json` file (tracks of video, photos and sound; the format is in the guide) opens as a timeline with its tracks, clips and thumbnails, a ruler, zoom and a playhead. Problems in the file and missing sources are listed in the view.
 - **The phone keyboard after switching apps.** Leaving the app with the keyboard open and coming back no longer leaves the message line floating mid-screen or the attachment sheet's Send button under the navigation bar: the field gets its focus back with a fresh keyboard.
 
 ## 2.0.1 — 2026-11-15
