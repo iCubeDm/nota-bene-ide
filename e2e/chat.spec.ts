@@ -176,6 +176,33 @@ test('long inline code wraps inside the message @chat', async ({ page }) => {
   expect(codeBox!.x + codeBox!.width).toBeLessThanOrEqual(box!.x + box!.width + 0.5);
 });
 
+// gh-440: a long unbroken word in plain text (a paragraph, a list item, a link) breaks inside the message; a table's
+// words stay whole, so its columns keep their widths
+test('a long word in plain text wraps inside the message; table cells stay whole @chat', async ({ page }) => {
+  await open(page);
+  const text = uniq('plainwrap');
+  const token = 'audio/intro/{' + Array.from({ length: 12 }, (_, i) => `city_wind_${i},alley_rain_${i}`).join(',') + '}.mp3';
+  const cols = Array.from({ length: 8 }, () => 'internationalization');
+  const table = `| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|\n| ${cols.join(' | ')} |`;
+  await composer(page).fill(`${text} ${token}\n\n- ${token}\n\n[${token}](https://example.com/)\n\n${table}`);
+  await composer(page).press('Enter');
+  const b = bubble(page, text).last();
+  await expect(b.locator('li')).toContainText('alley_rain_11');
+  for (const el of [b.locator('p').first(), b.locator('li')]) {
+    const [w, sw] = await el.evaluate((e) => [e.clientWidth, e.scrollWidth]);
+    expect(sw).toBeLessThanOrEqual(w);
+  }
+  const [bubbleBox, linkBox] = [await b.boundingBox(), await b.locator('a').boundingBox()];
+  expect(linkBox!.x + linkBox!.width).toBeLessThanOrEqual(bubbleBox!.x + bubbleBox!.width + 0.5);
+  // each cell's word sits on one line: the table is laid out with whole words, not squeezed to fit the bubble
+  const lines = await b.locator('td').evaluateAll((tds) => tds.map((td) => {
+    const r = document.createRange();
+    r.selectNodeContents(td);
+    return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size;
+  }));
+  expect(lines).toEqual(cols.map(() => 1));
+});
+
 // M6-06: the user's message is markdown (and a single newline stays a line break)
 test('the language menu switches the placeholder @chat', async ({ page }) => {
   await open(page);
