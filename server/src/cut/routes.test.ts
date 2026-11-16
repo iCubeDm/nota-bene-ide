@@ -58,6 +58,11 @@ describe('cut export routes', () => {
     const no = await post(refusing, '/cut/export', { path: 'a.nbcut.json', mode: 'mp4' });
     expect(no.status).toBe(403);
     expect(await no.json()).toEqual({ error: 'outside-project', detail: '../x.mp4' });
+    const issues = [{ path: 'clips[0].out', code: 'out-before-in', clip: 'c' }];
+    const invalid = await serve(fake({ start: async () => { throw new CutExportError(422, 'invalid-edit', 'clips[0].out: out-before-in', issues); } }));
+    const bad = await post(invalid, '/cut/export', { path: 'a.nbcut.json', mode: 'mp4' });
+    expect(bad.status).toBe(422);
+    expect(await bad.json()).toEqual({ error: 'invalid-edit', detail: 'clips[0].out: out-before-in', issues });
   });
 
   it('POST /cut/export/cancel: 200 when one ran, 404 when none', async () => {

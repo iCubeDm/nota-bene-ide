@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CUT_EXT, type Cut } from '@nota-bene/shared/cut';
+import { CUT_EXT, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { resolveInRoot } from '../files.ts';
 import { HIDDEN, renameRetry } from '../platform.ts';
 import { cutEnd, exportArgs, type ExportMode, type Sources } from './args.ts';
@@ -13,24 +13,27 @@ const TAIL_BYTES = 16384;
 const TAIL_LINES = 12;
 /** the folder of the project the exports go to */
 export const EXPORTS = 'exports';
-// a photo by its extension, as in args.ts (TODO(#407): the shared isPhotoSrc)
-const PHOTO = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
+/** how many issues an `invalid-edit` refusal names in its detail (all of them are in `issues`) */
+const DETAIL_ISSUES = 5;
 
 export class CutExportError extends Error {
   status: number;
   code: string;
   detail: string;
-  constructor(status: number, code: string, detail = '') {
+  /** `invalid-edit`: what validateCut found */
+  issues?: CutIssue[];
+  constructor(status: number, code: string, detail = '', issues?: CutIssue[]) {
     super(`${code}${detail ? `: ${detail}` : ''}`);
     this.status = status;
     this.code = code;
     this.detail = detail;
+    if (issues) this.issues = issues;
   }
 }
 
 /**
- * The seam where the edit is read: the file's JSON as a Cut. TODO(#407): `validateCut` of shared/src/cut.ts plugs in
- * here (its errors become the `bad-edit` refusal); until then only the JSON and the shape the export reads are checked.
+ * The seam where the edit is read: the file's JSON as a Cut, checked by the shared validateCut (as the timeline shows it).
+ * Not JSON is `bad-edit`; an edit with problems is `invalid-edit` with the issues (the first few also in `detail`).
  */
 export async function readCut(file: string): Promise<Cut> {
   let v: unknown;
@@ -40,11 +43,13 @@ export async function readCut(file: string): Promise<Cut> {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw new CutExportError(404, 'no-edit');
     throw new CutExportError(422, 'bad-edit', e instanceof Error ? e.message : String(e));
   }
-  const c = v as Partial<Cut> | null;
-  if (!c || typeof c !== 'object' || !Array.isArray(c.tracks) || !Array.isArray(c.clips) || !(Number(c.width) > 0) || !(Number(c.height) > 0) || !(Number(c.fps) > 0)) {
-    throw new CutExportError(422, 'bad-edit', 'not an edit');
+  const check = validateCut(v);
+  if (!check.ok) {
+    const named = check.errors.slice(0, DETAIL_ISSUES).map((x) => (x.path ? `${x.path}: ${x.code}` : x.code));
+    const more = check.errors.length - named.length;
+    throw new CutExportError(422, 'invalid-edit', named.join('; ') + (more > 0 ? `; +${more}` : ''), check.errors);
   }
-  return c as Cut;
+  return check.cut;
 }
 
 /** What a page learns of an export. `edit` and `output` are project-relative; `progress` is 0..1. */
@@ -166,7 +171,7 @@ export class CutExporter {
       if (!st?.isFile()) throw new CutExportError(422, 'missing-source', src);
       out.set(src, { file, audio: false });
     }
-    await Promise.all(srcs.filter((s) => !PHOTO.test(s)).map(async (src) => {
+    await Promise.all(srcs.filter((s) => !isPhotoSrc(s)).map(async (src) => {
       const p = await this.o.probe(ffmpeg, out.get(src)!.file);
       if (!p.video && !p.audio) throw new CutExportError(422, 'unreadable-source', src);
       out.get(src)!.audio = p.audio;

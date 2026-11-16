@@ -24,7 +24,7 @@ const isPath = (v: unknown): v is string => typeof v === 'string' && v.length > 
 export function cutRoutes(o: { hub: EventHub; exporter: Pick<CutExporter, 'available' | 'job' | 'start' | 'cancel'> }): Record<string, RequestListener> {
   const failed = (req: IncomingMessage, res: ServerResponse) => (e: unknown): void => {
     if (e instanceof SyntaxError) return json(res, 400, { error: 'bad json' });
-    if (e instanceof CutExportError) return json(res, e.status, { error: e.code, detail: e.detail });
+    if (e instanceof CutExportError) return json(res, e.status, { error: e.code, detail: e.detail, ...(e.issues && { issues: e.issues }) });
     reportError(o.hub, req.url ?? '/cut/export', e);
     if (!res.headersSent) json(res, 500, { error: e instanceof Error ? e.message : String(e) });
   };

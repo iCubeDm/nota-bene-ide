@@ -1,5 +1,5 @@
 // The ffmpeg command of an export (epic 406): a pure function of the edit, its resolved sources and the output.
-import type { Cut, CutClip, CutTrack } from '@nota-bene/shared/cut';
+import { clipLength, isPhotoSrc, type Cut, type CutTrack } from '@nota-bene/shared/cut';
 
 export type ExportMode = 'mp4' | 'wav' | 'm4a';
 export const EXPORT_MODES: readonly ExportMode[] = ['mp4', 'wav', 'm4a'];
@@ -7,15 +7,8 @@ export const EXPORT_MODES: readonly ExportMode[] = ['mp4', 'wav', 'm4a'];
 /** A clip's `src` resolved: the absolute file, and whether it has a sound stream (asked of ffmpeg before the export). */
 export type Sources = ReadonlyMap<string, { file: string; audio: boolean }>;
 
-// TODO(#407): the shared isPhotoSrc and clipLength of shared/src/cut.ts replace these two once both are merged.
-// a photo by its extension, as IMAGE in web/src/files/kinds.ts
-const PHOTO = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
-const isPhoto = (c: CutClip): boolean => PHOTO.test(c.src);
-/** A clip's length on the timeline: `out - in` for video and sound, `dur` for a photo. */
-const lengthOf = (c: CutClip): number => (isPhoto(c) ? c.dur ?? 0 : (c.out ?? 0) - (c.in ?? 0));
-
 /** Where the edit ends: the end of its last clip (0 without clips). The export is this long. */
-export const cutEnd = (cut: Cut): number => num(Math.max(0, ...cut.clips.map((c) => c.at + lengthOf(c))));
+export const cutEnd = (cut: Cut): number => num(Math.max(0, ...cut.clips.map((c) => c.at + clipLength(c))));
 
 /** A number as ffmpeg reads it, without float noise (0.1 + 0.2 is 0.3). */
 const num = (n: number): number => Math.round(n * 1e6) / 1e6;
@@ -58,12 +51,12 @@ export function exportArgs(cut: Cut, sources: Sources, output: string, mode: Exp
     const track = tracks.get(c.track)!;
     const src = sources.get(c.src);
     if (!src) continue;
-    const len = lengthOf(c);
+    const len = clipLength(c);
     const seen = mode === 'mp4' && track.kind === 'video' && !track.hidden;
-    const heard = !isPhoto(c) && src.audio && !c.mute && audible(track);
+    const heard = !isPhotoSrc(c.src) && src.audio && !c.mute && audible(track);
     if (!seen && !heard) continue;
     const k = input++;
-    if (isPhoto(c)) args.push('-loop', '1', '-framerate', fps, '-t', s(len), '-i', src.file);
+    if (isPhotoSrc(c.src)) args.push('-loop', '1', '-framerate', fps, '-t', s(len), '-i', src.file);
     else args.push(...((c.in ?? 0) > 0 ? ['-ss', s(c.in!)] : []), '-t', s(len), '-i', src.file);
     if (seen) {
       const n = pictures.length / 2 + 1;

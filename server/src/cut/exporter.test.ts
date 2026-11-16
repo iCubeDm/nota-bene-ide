@@ -53,9 +53,9 @@ const media = (name: string, body: string) => {
   fs.mkdirSync(path.join(root, 'media'), { recursive: true });
   fs.writeFileSync(path.join(root, 'media', name), body);
 };
-const refusal = async (p: Promise<unknown>): Promise<{ status: number; code: string; detail: string }> => {
+const refusal = async (p: Promise<unknown>): Promise<{ status: number; code: string; detail: string; issues?: CutExportError['issues'] }> => {
   try { await p; } catch (e) {
-    if (e instanceof CutExportError) return { status: e.status, code: e.code, detail: e.detail };
+    if (e instanceof CutExportError) return { status: e.status, code: e.code, detail: e.detail, issues: e.issues };
     throw e;
   }
   throw new Error('not refused');
@@ -151,8 +151,9 @@ describe('CutExporter', () => {
       const e = make();
       const before = spawns().length;
       fs.writeFileSync(path.join(dir, 'secret.mp4'), 'OK');
-      expect(await refusal(e.start(edit('x.nbcut.json', '../secret.mp4'), 'mp4'))).toMatchObject({ status: 403, code: 'outside-project', detail: '../secret.mp4' });
-      expect(await refusal(e.start(edit('x.nbcut.json', path.join(dir, 'secret.mp4')), 'mp4'))).toMatchObject({ status: 403 });
+      // a `..` or absolute src is already an invalid edit; a symlink out is caught where the source resolves
+      expect(await refusal(e.start(edit('x.nbcut.json', '../secret.mp4'), 'mp4'))).toMatchObject({ status: 422, code: 'invalid-edit' });
+      expect(await refusal(e.start(edit('x.nbcut.json', path.join(dir, 'secret.mp4')), 'mp4'))).toMatchObject({ status: 422, code: 'invalid-edit' });
       fs.symlinkSync(path.join(dir, 'secret.mp4'), path.join(root, 'media', 'link.mp4'));
       expect(await refusal(e.start(edit('x.nbcut.json', 'media/link.mp4'), 'mp4'))).toMatchObject({ status: 403, detail: 'media/link.mp4' });
       expect(await refusal(e.start(edit('x.nbcut.json', 'media/gone.mp4'), 'mp4'))).toMatchObject({ status: 422, code: 'missing-source', detail: 'media/gone.mp4' });
@@ -178,6 +179,21 @@ describe('CutExporter', () => {
     fs.writeFileSync(path.join(root, 'bad.nbcut.json'), '{');
     expect(await refusal(e.start('bad.nbcut.json', 'mp4'))).toMatchObject({ status: 422, code: 'bad-edit' });
     expect(await refusal(e.start(edit('empty.nbcut.json', 'media/a.mp4', (c) => { c.clips = []; }), 'mp4'))).toMatchObject({ status: 422, code: 'empty' });
+  });
+
+  it('an edit that fails validation is refused with invalid-edit and its issues, before ffmpeg runs', async () => {
+    const e = make();
+    const before = spawns().length;
+    const rel = edit('broken.nbcut.json', 'media/a.mp4', (c) => { c.clips[0]!.in = 3; c.clips.push({ id: 'p', track: 'nope', src: 'media/a.mp4', at: 0, out: 1 }); });
+    const r = await refusal(e.start(rel, 'mp4'));
+    expect(r).toMatchObject({ status: 422, code: 'invalid-edit' });
+    expect(r.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'clips[0].out', code: 'out-before-in', clip: 'c' }),
+      expect.objectContaining({ path: 'clips[1].track', code: 'unknown-track', clip: 'p' }),
+    ]));
+    expect(r.detail).toContain('out-before-in');
+    expect(spawns().length).toBe(before);
+    expect(e.job(rel)).toBeNull();
   });
 });
 
