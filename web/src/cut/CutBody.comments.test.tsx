@@ -78,7 +78,7 @@ const addNote = (text: string) => {
 
 it('Comment, its key named in the tooltip: a selected clip under the playhead is pinned there, with the moment in its source', async () => {
   const { seek, select, cuts } = await show();
-  const btn = screen.getByRole('button', { name: /^Comment.*\(C\)$/ });
+  const btn = screen.getByRole('button', { name: /^Comment.*\(M\)$/ });
   seek(3.5);
   select('c3');
   fireEvent.click(btn);
@@ -86,16 +86,16 @@ it('Comment, its key named in the tooltip: a selected clip under the playhead is
   expect(cuts()).toEqual([{ kind: 'cut', source, time: 3.5, clip: { id: 'c3', track: 'a1', trackName: 'Voice', src: 'media/voice.wav', srcTime: 4.5 } }]);
 });
 
-it('C with the playhead off the selected clip pins it at its start; with nothing selected, the moment of the timeline', async () => {
+it('M with the playhead off the selected clip pins it at its start; with nothing selected, the moment of the timeline', async () => {
   const { seek, select, cuts } = await show();
   seek(5);
   select('c2');
-  fireEvent.keyDown(document, { code: 'KeyC', key: 'c' });
+  fireEvent.keyDown(document, { code: 'KeyM', key: 'm' });
   addNote('a');
   expect(cuts()[0]).toMatchObject({ time: 6, clip: { id: 'c2', srcTime: 0 } });
   fireEvent.keyDown(document, { code: 'Escape', key: 'Escape' });
   await waitFor(() => expect(document.querySelector('[data-selected]')).toBeNull());
-  fireEvent.keyDown(document, { code: 'KeyC', key: 'c' });
+  fireEvent.keyDown(document, { code: 'KeyM', key: 'm' });
   addNote('b');
   expect(cuts()[1]).toEqual({ kind: 'cut', source, time: 5 });
 });

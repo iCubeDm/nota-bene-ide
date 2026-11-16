@@ -43,7 +43,7 @@ const clipIndex = (path: string) => /^clips\[(\d+)\]/.exec(path)?.[1];
  * edit (a missing source is black and silent); one with problems only moves the playhead. A valid edit of the session's
  * project is edited in place (issue 409, useCutDoc): the timeline's clips and tracks, the inspector and the selected
  * clip's frame on the preview change it, each change saved to the file and undoable. Comments on it (issue 430): Comment
- * (C) pins one to the selected clip or the playhead's moment; their ticks and their cards seek there and select the clip,
+ * (M, for marker) pins one to the selected clip or the playhead's moment; their ticks and their cards seek there and select the clip,
  * and a pending one keeps to its clip as the clip moves or is trimmed.
  */
 export function CutBody({ text, src, path, tabId, active }: { text: string; src: string; path?: string; tabId: string; active: boolean }) {
@@ -202,7 +202,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
         if (!selected) return false;
         commit(nudgeClip(cut, selected.id, (e.code === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1)));
         return true;
-      case 'KeyC':
+      case 'KeyM':
         if (e.shiftKey || !canComment) return false;
         if (!e.repeat) comment();
         return true;

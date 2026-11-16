@@ -196,7 +196,7 @@ A file named `<name>.nbcut.json` is an edit for the video editor (work in progre
 
 </details>
 
-**Comments.** **Comment** in the edit bar (C) opens the usual comment editor: on the selected clip, at the playhead if it is on the clip and at the clip's start otherwise; with nothing selected, on the playhead's moment of the timeline. **Example.** Play the edit, hear the voice-over end too early, pause, click the voice clip and press C: `the tail of this audio clip is cut off`. The comment joins the Comments panel and goes with the batch; quick labels work as anywhere. It shows as a tick on its clip (a moment: on the ruler); hover shows the note, a click seeks there and selects the clip, and so does its card.
+**Comments.** **Comment** in the edit bar (M, for marker) opens the usual comment editor: on the selected clip, at the playhead if it is on the clip and at the clip's start otherwise; with nothing selected, on the playhead's moment of the timeline. **Example.** Play the edit, hear the voice-over end too early, pause, click the voice clip and press M: `the tail of this audio clip is cut off`. The comment joins the Comments panel and goes with the batch; quick labels work as anywhere. It shows as a tick on its clip (a moment: on the ruler); hover shows the note, a click seeks there and selects the clip, and so does its card.
 
 <details><summary>More: what the agent gets, and how a comment keeps to its clip</summary>
 

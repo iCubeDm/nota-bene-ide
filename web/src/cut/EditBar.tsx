@@ -36,7 +36,7 @@ export function EditBar({ doc, sel, onSplit, onDuplicate, onDelete, onAddTrack, 
       {b(t('cutAddVideo'), null, t('cutAddVideoShort'), () => onAddTrack('video'))}
       {b(t('cutAddAudio'), null, t('cutAddAudioShort'), () => onAddTrack('audio'))}
       {onComment && <span className="mx-1 h-4 border-l border-border-soft" />}
-      {onComment && b(t('cutComment'), 'C', t('cutCommentShort'), onComment)}
+      {onComment && b(t('cutComment'), 'M', t('cutCommentShort'), onComment)}
       <span className="flex-1" />
       {notice && <span role="status" className="text-warn">{notice}</span>}
       {status === 'conflict' ? (
