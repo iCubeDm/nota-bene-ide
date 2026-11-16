@@ -4,7 +4,7 @@ import { t } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { renderMarks } from './render.ts';
 
-async function putMark(id: string, name: 'frame.jpg' | 'layer.png', b: Blob): Promise<void> {
+async function putMark(id: string, name: 'frame.jpg' | 'layer.png' | 'mask.png', b: Blob): Promise<void> {
   const type = name === 'frame.jpg' ? 'image/jpeg' : 'image/png';
   const r = await apiFetch(`/marks/${id}/${name}`, { method: 'POST', headers: { 'content-type': type }, body: b });
   if (!r.ok) throw new Error(`${name} ${r.status}`);
@@ -50,7 +50,7 @@ function frameReady(v: HTMLVideoElement): Promise<void> {
 }
 
 /**
- * Renders, uploads the natural-size files to /marks/<id>/…, uploads the downscaled frame (not layer.png: the shapes are in the text) to /attach; returns its id and the anchor patch. On any failure deletes /marks/<id> and rejects. Sequential on purpose: a DELETE
+ * Renders, uploads the natural-size files to /marks/<id>/… (frame.jpg, layer.png and, with polygons, mask.png), uploads the downscaled frame (not layer.png: the shapes are in the text) to /attach; returns its id and the anchor patch. On any failure deletes /marks/<id> and rejects. Sequential on purpose: a DELETE
  * after a failure must not overtake a write still in flight.
  * - A video is paused, waited for until it has the current frame (FRAME_WAIT_MS, then an error), and its time read
  *   right before the frame is drawn (an OS media key may have resumed it).
@@ -69,10 +69,11 @@ export async function prepareMediaComment(
       patch.time = Math.round(source.currentTime * 1000) / 1000;
     }
     // no await between the time and the call: renderMarks draws the frame before its first await
-    const { frame, layer, scale } = await renderMarks(source, anchor.width, anchor.height, anchor.shapes);
+    const { frame, layer, mask, scale } = await renderMarks(source, anchor.width, anchor.height, anchor.shapes);
     if (scale < 1) patch.scale = scale;
     await putMark(id, 'frame.jpg', frame);
     await putMark(id, 'layer.png', layer);
+    if (mask) await putMark(id, 'mask.png', mask); // a drawing with polygons (issue 447)
     const f = await uploadImage(await prepareImage(frame));
     if (o.version) {
       let timer: ReturnType<typeof setTimeout> | undefined;

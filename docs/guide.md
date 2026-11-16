@@ -120,7 +120,9 @@ Images are scaled to 1568 px on the long edge; a PNG over 3.5 MB becomes a JPEG.
 
 Images open in a viewer (a click toggles natural size). Video and audio get a player with seeking, speed, volume, picture in picture and fullscreen. Leaving its tab moves a playing video to picture in picture, and audio keeps playing; closing the tab stops it. Video comments are ticks on the timeline; a click seeks there. Video and audio in chat replies get the same player, and their ticks open the file's tab at that time.
 
-**Example.** Pause where the button looks wrong, press **Mark up** (N). Draw with Rectangle (R), Ellipse (E), Pen (P) or Arrow (A), colours 1–5 (red, yellow, green, blue, white), undo Cmd/Ctrl+Z. **Comment** (Enter), type `this button is misaligned`. Esc leaves (asking before dropping an uncommented drawing). The agent gets the frame with your marks; several comments on one frame make one image with numbered marks. Marks are saved under `.nota-bene/marks/` in the project, kept out of git.
+**Example.** Pause where the button looks wrong, press **Mark up** (N). Draw with Rectangle (R), Ellipse (E), Pen (P) or Arrow (A), colours 1–5 (red, yellow, green, blue, white), undo Cmd/Ctrl+Z. **Comment** (Enter), type `this button is misaligned`. Esc drops a shape you are still drawing; with nothing in progress it leaves (asking before dropping an uncommented drawing). The agent gets the frame with your marks; several comments on one frame make one image with numbered marks. Marks are saved under `.nota-bene/marks/` in the project, kept out of git.
+
+**Mask (G).** Outlines an exact area (an object, a region to change or inpaint) point by point. Each click adds a point and a line follows the pointer from the last one; click the first point, press Enter or double-click to close the shape. Backspace or Cmd/Ctrl+Z removes the last point, Esc drops the shape being drawn. A closed shape is filled half-transparent in the mark colour. With Mask selected, drag a point to adjust the shape or drag inside it to move it; Cmd/Ctrl+Z undoes one such drag at a time. A click inside a closed shape moves it; Alt-click starts a new shape there instead. A comment can hold several. The agent gets each shape's points in pixels of the original file and, next to `frame.jpg` and `layer.png`, a `mask.png` the size of `frame.jpg` (smaller than the original when the frame was scaled down to fit): white inside every shape of the comment, black outside. Overlapping shapes add up, and a shape that crosses itself is filled by the nonzero rule. On an image attached to a message there is no mask file; the points are in the text. Needs a server of protocol 24; the phone shows these shapes on the comments it receives but cannot draw them yet.
 
 | Player key | Action |
 |---|---|
@@ -694,7 +696,7 @@ Everything is in `~/.nota-bene/` (`NOTA_BENE_HOME` to move it; `npm run dev` use
 | `remote/` | `host.key` (delete to unpair every phone), `devices.json`, `config.json`, `access-key` (all mode 600), `control.sock` (Windows: a named pipe and `control-secret`) |
 | `whisper/`, `whisper-host/` | the model; the shared process's socket (Windows: pipe and `host-secret`), lock and log |
 
-On Windows `~` is `%USERPROFILE%` and the folder must stay inside it ([Windows](#windows)). The only thing written into a project: `<project>/.nota-bene/marks/<comment id>/frame.jpg` and `layer.png`, with a `.nota-bene/.gitignore` of `*`.
+On Windows `~` is `%USERPROFILE%` and the folder must stay inside it ([Windows](#windows)). The only thing written into a project: `<project>/.nota-bene/marks/<comment id>/frame.jpg`, `layer.png` and, for a drawing with a mask, `mask.png`, with a `.nota-bene/.gitignore` of `*`.
 
 ## Windows
 

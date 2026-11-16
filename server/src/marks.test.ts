@@ -51,6 +51,20 @@ describe('MarkFiles', () => {
     expect(fs.readFileSync(path.join(root, '.nota-bene', '.gitignore'), 'utf8')).toBe('*\n!keep\n');
   });
 
+  it('mask.png (issue 447): a PNG beside the frame; JPEG bytes, an over-cap body and a symlinked folder are refused', () => {
+    const m = new MarkFiles({ root: () => root });
+    m.write(ID, 'mask.png', PNG);
+    expect(fs.readFileSync(path.join(marksDir(), ID, 'mask.png'))).toEqual(PNG);
+    expect(() => m.write(ID, 'mask.png', JPEG)).toThrow(/not a image\/png/);
+    const big = Buffer.alloc(MARK_MAX_BYTES + 1);
+    PNG.copy(big);
+    expect(() => m.write(ID, 'mask.png', big)).toThrow(/too large/);
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-mask-'));
+    fs.symlinkSync(elsewhere, path.join(marksDir(), ID2));
+    expect(() => m.write(ID2, 'mask.png', PNG)).toThrow();
+    expect(fs.readdirSync(elsewhere)).toEqual([]);
+  });
+
   it('write overwrites an existing file', () => {
     const m = new MarkFiles({ root: () => root });
     m.write(ID, 'frame.jpg', JPEG);
@@ -235,6 +249,8 @@ describe('mark routes', () => {
   it('POST writes the file (204), DELETE removes the folder (204)', async () => {
     expect((await post(`/marks/${ID}/frame.jpg`, JPEG, 'image/jpeg')).status).toBe(204);
     expect((await post(`/marks/${ID}/layer.png`, PNG, 'image/png')).status).toBe(204);
+    expect((await post(`/marks/${ID}/mask.png`, PNG, 'image/png')).status).toBe(204);
+    expect(fs.readFileSync(path.join(marksDir(), ID, 'mask.png'))).toEqual(PNG);
     expect(fs.readFileSync(path.join(marksDir(), ID, 'frame.jpg'))).toEqual(JPEG);
     const d = await fetch(`${base}/marks/${ID}`, { method: 'DELETE', headers: { origin: base } });
     expect(d.status).toBe(204);
@@ -245,6 +261,8 @@ describe('mark routes', () => {
     expect((await post(`/marks/${ID}/frame.jpg`, JPEG, 'image/png')).status).toBe(415);
     expect((await post(`/marks/${ID}/layer.png`, PNG, 'image/jpeg')).status).toBe(415);
     expect((await post(`/marks/${ID}/x.png`, PNG, 'image/png')).status).toBe(404);
+    expect((await post(`/marks/${ID}/mask.png`, PNG, 'image/jpeg')).status).toBe(415);
+    expect((await post(`/marks/${ID}/mask.png`, JPEG, 'image/png')).status).toBe(400);
     expect((await post(`/marks/..%2F..%2Fx/frame.jpg`, JPEG, 'image/jpeg')).status).toBe(404);
     expect((await post(`/marks/${ID}/frame.jpg/extra`, JPEG, 'image/jpeg')).status).toBe(404);
     expect((await post(`/marks/${ID}/frame.jpg`, PNG, 'image/jpeg')).status).toBe(400);

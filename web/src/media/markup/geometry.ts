@@ -68,6 +68,11 @@ export function describeShape(s: MediaShape, natW: number, natH: number): string
       const w = maxX - minX, h = maxY - minY;
       return `pen ${s.points.length / 2} pts, bbox x=${n(minX)} y=${n(minY)} w=${n(w)} h=${n(h)} (px ${px(minX, natW)},${px(minY, natH)} ${px(w, natW)}×${px(h, natH)})`;
     }
+    case 'polygon': { // issue 447: every point, so the agent can rebuild the mask
+      const pts: string[] = [];
+      for (let i = 0; i + 1 < s.points.length; i += 2) pts.push(`${px(s.points[i], natW)},${px(s.points[i + 1], natH)}`);
+      return `polygon ${s.points.length / 2} pts (px ${pts.join(' ')})`;
+    }
   }
 }
 
@@ -86,10 +91,11 @@ export function shapePath(s: MediaShape, natW: number, natH: number): string {
       const rx = f5(s.w / 2), ry = f5(s.h / 2), cy = f5(s.y + s.h / 2);
       return `M${f5(s.x)} ${cy}A${rx} ${ry} 0 1 0 ${f5(s.x + s.w)} ${cy}A${rx} ${ry} 0 1 0 ${f5(s.x)} ${cy}Z`;
     }
-    case 'pen': {
+    case 'pen':
+    case 'polygon': {
       let d = `M${f5(s.points[0])} ${f5(s.points[1])}`;
       for (let i = 2; i + 1 < s.points.length; i += 2) d += `L${f5(s.points[i])} ${f5(s.points[i + 1])}`;
-      return d;
+      return s.kind === 'polygon' ? d + 'Z' : d;
     }
     case 'arrow': {
       const W = natW > 0 ? natW : 1000, H = natH > 0 ? natH : 1000;
@@ -112,12 +118,66 @@ export function shapesBounds(shapes: MediaShape[]): { x: number; y: number; w: n
     y0 = Math.min(y0, y); y1 = Math.max(y1, y);
   };
   for (const s of shapes) {
-    if (s.kind === 'pen') for (let i = 0; i + 1 < s.points.length; i += 2) at(s.points[i], s.points[i + 1]);
+    if (s.kind === 'pen' || s.kind === 'polygon') for (let i = 0; i + 1 < s.points.length; i += 2) at(s.points[i], s.points[i + 1]);
     else if (s.kind === 'arrow') { at(s.x1, s.y1); at(s.x2, s.y2); }
     else { at(s.x, s.y); at(s.x + s.w, s.y + s.h); }
   }
   if (x0 > x1) return { x: 0, y: 0, w: 0, h: 0 };
   return { x: round4(x0), y: round4(y0), w: round4(x1 - x0), h: round4(y1 - y0) };
+}
+
+/** Whether (x, y) is inside the polygon of `points` (x, y pairs) by the nonzero winding rule, as the mask is filled (issue 447). */
+export function insidePolygon(points: number[], x: number, y: number): boolean {
+  let wind = 0;
+  const n = points.length / 2;
+  for (let i = 0; i < n; i++) {
+    const x0 = points[2 * i], y0 = points[2 * i + 1];
+    const j = (i + 1) % n;
+    const x1 = points[2 * j], y1 = points[2 * j + 1];
+    const side = (x1 - x0) * (y - y0) - (x - x0) * (y1 - y0); // > 0: the point is left of the edge
+    if (y0 <= y) {
+      if (y1 > y && side > 0) wind++;
+    } else if (y1 <= y && side < 0) wind--;
+  }
+  return wind !== 0;
+}
+
+/**
+ * The polygon under a point (relative), topmost (last drawn) first: a vertex within `tolX`/`tolY` of it, else its inside.
+ * Other kinds of shape are not hit (only polygons are edited after drawing).
+ */
+export function hitPolygon(shapes: MediaShape[], p: { x: number; y: number }, tolX: number, tolY: number): { index: number; vertex: number | null } | null {
+  for (let k = shapes.length - 1; k >= 0; k--) {
+    const s = shapes[k];
+    if (s.kind !== 'polygon') continue;
+    for (let i = 0; i + 1 < s.points.length; i += 2) {
+      if (Math.abs(s.points[i] - p.x) <= tolX && Math.abs(s.points[i + 1] - p.y) <= tolY) return { index: k, vertex: i / 2 };
+    }
+  }
+  for (let k = shapes.length - 1; k >= 0; k--) {
+    const s = shapes[k];
+    if (s.kind === 'polygon' && insidePolygon(s.points, p.x, p.y)) return { index: k, vertex: null };
+  }
+  return null;
+}
+
+/** `points` with vertex `i` at (x, y), clamped to the media, 4 decimals. */
+export function setVertex(points: number[], i: number, x: number, y: number): number[] {
+  const out = points.slice();
+  out[2 * i] = round4(clamp01(x));
+  out[2 * i + 1] = round4(clamp01(y));
+  return out;
+}
+
+/** `points` shifted by (dx, dy), the shift cut so that every point stays inside the media; 4 decimals. */
+export function movePoints(points: number[], dx: number, dy: number): number[] {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i + 1 < points.length; i += 2) {
+    minX = Math.min(minX, points[i]); maxX = Math.max(maxX, points[i]);
+    minY = Math.min(minY, points[i + 1]); maxY = Math.max(maxY, points[i + 1]);
+  }
+  const cx = Math.min(1 - maxX, Math.max(-minX, dx)), cy = Math.min(1 - maxY, Math.max(-minY, dy));
+  return points.map((v, i) => round4(clamp01(v + (i % 2 ? cy : cx))));
 }
 
 /** A video time as `m:ss.mmm` (what `ffmpeg -ss` takes), e.g. 4.24 → `0:04.240`. */

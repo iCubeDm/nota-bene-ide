@@ -65,6 +65,18 @@ it('a media comment: shape lines, image labels, files', () => {
   );
 });
 
+it('a media comment with a polygon (issue 447): its points in px, mask.png named after the layer and explained', () => {
+  const poly = { kind: 'polygon' as const, color: '#34c759' as const, points: [0.1, 0.1, 0.5, 0.1, 0.3, 0.6] };
+  const out = composeBatch('', [media('m1', 'remove this', { shapes: [poly], scale: 0.5 })], 'en', none, mwhere, () => undefined, [[1]]);
+  expect(out).toContain('> polygon 3 pts (px 192,108 960,108 576,648)\n');
+  expect(out).toContain('   files: .nota-bene/marks/m1/frame.jpg (scaled ×0.5), .nota-bene/marks/m1/layer.png (scaled ×0.5), .nota-bene/marks/m1/mask.png (scaled ×0.5)\n' +
+    '   mask.png: white inside the polygons, black outside, the size of frame.jpg; the polygon points above are in pixels of the original file');
+  const ru = composeBatch('', [media('m1', 'x', { shapes: [poly] })], 'ru', none, mwhere, () => undefined, [[1]]);
+  expect(ru).toContain('/layer.png, .nota-bene/marks/m1/mask.png\n   mask.png: белое внутри многоугольников, чёрное снаружи, размер как у frame.jpg; точки многоугольников выше — в пикселях исходного файла');
+  // without a polygon: no mask
+  expect(composeBatch('', [media('m2', 'x')], 'en', none, mwhere, () => undefined, [[1]])).not.toContain('mask.png');
+});
+
 it('media: scaled files, changed file line, pasted images after the labelled ones; ru keeps the format', () => {
   const out = composeBatch('', [media('m1', 'x', { scale: 0.75 })], 'en', none, mwhere, () => undefined, [[1, 2, 3]], () => true);
   expect(out).toContain('📎 images: 1 (frame with marks), 2, 3\n');

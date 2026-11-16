@@ -146,6 +146,48 @@
      }
     ]
    }
+  },
+  "mask": {
+   "status": "pending",
+   "createdAt": 1,
+   "id": "44444444-4444-4444-8444-444444444444",
+   "text": "inpaint this",
+   "images": [
+    "1111111111111111111111111111111111111111111111111111111111111111"
+   ],
+   "genImages": 1,
+   "anchor": {
+    "kind": "media",
+    "source": {
+     "kind": "file",
+     "path": "img/room.png"
+    },
+    "width": 1600,
+    "height": 900,
+    "scale": 0.5,
+    "shapes": [
+     {
+      "kind": "polygon",
+      "color": "#34c759",
+      "points": [
+       0.1,
+       0.1,
+       0.5,
+       0.12345,
+       0.3,
+       0.6
+      ]
+     },
+     {
+      "kind": "rect",
+      "color": "#ff3b30",
+      "x": 0.6,
+      "y": 0.6,
+      "w": 0.2,
+      "h": 0.2
+     }
+    ]
+   }
   }
  },
  "stale": [
@@ -486,6 +528,69 @@
    }
   },
   {
+   "name": "mask",
+   "general": "",
+   "items": [
+    "mask"
+   ],
+   "out": {
+    "en": {
+     "text": "Comments on fragments:\n\n1. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 images: 1 (frame with marks)\n   files: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (scaled ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (scaled ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (scaled ×0.5)\n   mask.png: white inside the polygons, black outside, the size of frame.jpg; the polygon points above are in pixels of the original file",
+     "images": [
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[image 1 · for comment 1]"
+      }
+     ]
+    },
+    "ru": {
+     "text": "Комментарии к фрагментам:\n\n1. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 картинки: 1 (кадр с разметкой)\n   файлы: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (уменьшен ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (уменьшен ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (уменьшен ×0.5)\n   mask.png: белое внутри многоугольников, чёрное снаружи, размер как у frame.jpg; точки многоугольников выше — в пикселях исходного файла",
+     "images": [
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[изображение 1 · к комментарию 1]"
+      }
+     ]
+    },
+    "zh": {
+     "text": "对片段的评论：\n\n1. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 图片：1（带标记的画面）\n   文件：.nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg（已缩放 ×0.5）, .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png（已缩放 ×0.5）, .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png（已缩放 ×0.5）\n   mask.png：多边形内为白色，外为黑色，尺寸与 frame.jpg 相同；上面的多边形点坐标是原始文件的像素",
+     "images": [
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[图片 1 · 用于评论 1]"
+      }
+     ]
+    },
+    "es": {
+     "text": "Comentarios sobre fragmentos:\n\n1. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 imágenes: 1 (fotograma con marcas)\n   archivos: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (escala ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (escala ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (escala ×0.5)\n   mask.png: blanco dentro de los polígonos, negro fuera, del tamaño de frame.jpg; los puntos de los polígonos de arriba están en píxeles del archivo original",
+     "images": [
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[imagen 1 · para el comentario 1]"
+      }
+     ]
+    },
+    "pt": {
+     "text": "Comentários sobre trechos:\n\n1. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 imagens: 1 (quadro com marcas)\n   arquivos: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (escala ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (escala ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (escala ×0.5)\n   mask.png: branco dentro dos polígonos, preto fora, do tamanho de frame.jpg; os pontos dos polígonos acima estão em pixels do arquivo original",
+     "images": [
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[imagem 1 · para o comentário 1]"
+      }
+     ]
+    },
+    "de": {
+     "text": "Kommentare zu Ausschnitten:\n\n1. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 Bilder: 1 (Frame mit Markierungen)\n   Dateien: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (skaliert ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (skaliert ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (skaliert ×0.5)\n   mask.png: weiß innerhalb der Polygone, schwarz außerhalb, so groß wie frame.jpg; die Polygonpunkte oben sind in Pixeln der Originaldatei",
+     "images": [
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[Bild 1 · zu Kommentar 1]"
+      }
+     ]
+    }
+   }
+  },
+  {
    "name": "all",
    "general": "Please look",
    "items": [
@@ -493,11 +598,12 @@
     "pasted",
     "image",
     "video",
-    "old"
+    "old",
+    "mask"
    ],
    "out": {
     "en": {
-     "text": "Please look\n\nComments on fragments:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Clarify this why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 images: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 Love it! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 images: 3 (frame with marks)\n   files: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 images: 4 (frame with marks), 5\n   files: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (scaled ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (scaled ×0.75)\n   (marked on an earlier version of the file; the frame shows it)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Looks good\n📎 images: 6 (frame with marks)\n   files: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png",
+     "text": "Please look\n\nComments on fragments:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Clarify this why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 images: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 Love it! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 images: 3 (frame with marks)\n   files: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 images: 4 (frame with marks), 5\n   files: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (scaled ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (scaled ×0.75)\n   (marked on an earlier version of the file; the frame shows it)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Looks good\n📎 images: 6 (frame with marks)\n   files: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png\n\n6. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 images: 7 (frame with marks)\n   files: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (scaled ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (scaled ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (scaled ×0.5)\n   mask.png: white inside the polygons, black outside, the size of frame.jpg; the polygon points above are in pixels of the original file",
      "images": [
       {
        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -522,11 +628,15 @@
       {
        "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
        "label": "[image 6 · for comment 5]"
+      },
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[image 7 · for comment 6]"
       }
      ]
     },
     "ru": {
-     "text": "Please look\n\nКомментарии к фрагментам:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Поясни why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 изображения: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 Огонь! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 картинки: 3 (кадр с разметкой)\n   файлы: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 картинки: 4 (кадр с разметкой), 5\n   файлы: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (уменьшен ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (уменьшен ×0.75)\n   (отмечено на более ранней версии файла; кадр это показывает)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Выглядит хорошо\n📎 картинки: 6 (кадр с разметкой)\n   файлы: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png",
+     "text": "Please look\n\nКомментарии к фрагментам:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Поясни why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 изображения: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 Огонь! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 картинки: 3 (кадр с разметкой)\n   файлы: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 картинки: 4 (кадр с разметкой), 5\n   файлы: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (уменьшен ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (уменьшен ×0.75)\n   (отмечено на более ранней версии файла; кадр это показывает)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Выглядит хорошо\n📎 картинки: 6 (кадр с разметкой)\n   файлы: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png\n\n6. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 картинки: 7 (кадр с разметкой)\n   файлы: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (уменьшен ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (уменьшен ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (уменьшен ×0.5)\n   mask.png: белое внутри многоугольников, чёрное снаружи, размер как у frame.jpg; точки многоугольников выше — в пикселях исходного файла",
      "images": [
       {
        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -551,11 +661,15 @@
       {
        "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
        "label": "[изображение 6 · к комментарию 5]"
+      },
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[изображение 7 · к комментарию 6]"
       }
      ]
     },
     "zh": {
-     "text": "Please look\n\n对片段的评论：\n\n1. [docs/plan.md]\n> the cache\n→ ❓ 请说明一下 why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 图片：1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 太棒了！ this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 图片：3（带标记的画面）\n   文件：.nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 图片：4（带标记的画面）, 5\n   文件：.nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg（已缩放 ×0.75）, .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png（已缩放 ×0.75）\n   （标记于文件的较早版本；画面中显示的即是该版本）\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 看起来不错\n📎 图片：6（带标记的画面）\n   文件：.nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png",
+     "text": "Please look\n\n对片段的评论：\n\n1. [docs/plan.md]\n> the cache\n→ ❓ 请说明一下 why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 图片：1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 太棒了！ this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 图片：3（带标记的画面）\n   文件：.nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 图片：4（带标记的画面）, 5\n   文件：.nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg（已缩放 ×0.75）, .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png（已缩放 ×0.75）\n   （标记于文件的较早版本；画面中显示的即是该版本）\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 看起来不错\n📎 图片：6（带标记的画面）\n   文件：.nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png\n\n6. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 图片：7（带标记的画面）\n   文件：.nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg（已缩放 ×0.5）, .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png（已缩放 ×0.5）, .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png（已缩放 ×0.5）\n   mask.png：多边形内为白色，外为黑色，尺寸与 frame.jpg 相同；上面的多边形点坐标是原始文件的像素",
      "images": [
       {
        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -580,11 +694,15 @@
       {
        "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
        "label": "[图片 6 · 用于评论 5]"
+      },
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[图片 7 · 用于评论 6]"
       }
      ]
     },
     "es": {
-     "text": "Please look\n\nComentarios sobre fragmentos:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Aclara esto why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 imágenes: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 ¡Genial! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 imágenes: 3 (fotograma con marcas)\n   archivos: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 imágenes: 4 (fotograma con marcas), 5\n   archivos: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (escala ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (escala ×0.75)\n   (marcada en una versión anterior del archivo; el fotograma lo muestra)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Se ve bien\n📎 imágenes: 6 (fotograma con marcas)\n   archivos: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png",
+     "text": "Please look\n\nComentarios sobre fragmentos:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Aclara esto why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 imágenes: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 ¡Genial! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 imágenes: 3 (fotograma con marcas)\n   archivos: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 imágenes: 4 (fotograma con marcas), 5\n   archivos: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (escala ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (escala ×0.75)\n   (marcada en una versión anterior del archivo; el fotograma lo muestra)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Se ve bien\n📎 imágenes: 6 (fotograma con marcas)\n   archivos: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png\n\n6. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 imágenes: 7 (fotograma con marcas)\n   archivos: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (escala ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (escala ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (escala ×0.5)\n   mask.png: blanco dentro de los polígonos, negro fuera, del tamaño de frame.jpg; los puntos de los polígonos de arriba están en píxeles del archivo original",
      "images": [
       {
        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -609,11 +727,15 @@
       {
        "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
        "label": "[imagen 6 · para el comentario 5]"
+      },
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[imagen 7 · para el comentario 6]"
       }
      ]
     },
     "pt": {
-     "text": "Please look\n\nComentários sobre trechos:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Esclareça isto why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 imagens: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 Adorei! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 imagens: 3 (quadro com marcas)\n   arquivos: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 imagens: 4 (quadro com marcas), 5\n   arquivos: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (escala ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (escala ×0.75)\n   (marcado em uma versão anterior do arquivo; o quadro mostra isso)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Parece bom\n📎 imagens: 6 (quadro com marcas)\n   arquivos: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png",
+     "text": "Please look\n\nComentários sobre trechos:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Esclareça isto why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 imagens: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 Adorei! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 imagens: 3 (quadro com marcas)\n   arquivos: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 imagens: 4 (quadro com marcas), 5\n   arquivos: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (escala ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (escala ×0.75)\n   (marcado em uma versão anterior do arquivo; o quadro mostra isso)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Parece bom\n📎 imagens: 6 (quadro com marcas)\n   arquivos: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png\n\n6. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 imagens: 7 (quadro com marcas)\n   arquivos: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (escala ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (escala ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (escala ×0.5)\n   mask.png: branco dentro dos polígonos, preto fora, do tamanho de frame.jpg; os pontos dos polígonos acima estão em pixels do arquivo original",
      "images": [
       {
        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -638,11 +760,15 @@
       {
        "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
        "label": "[imagem 6 · para o comentário 5]"
+      },
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[imagem 7 · para o comentário 6]"
       }
      ]
     },
     "de": {
-     "text": "Please look\n\nKommentare zu Ausschnitten:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Bitte klären why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 Bilder: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 Super! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 Bilder: 3 (Frame mit Markierungen)\n   Dateien: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 Bilder: 4 (Frame mit Markierungen), 5\n   Dateien: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (skaliert ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (skaliert ×0.75)\n   (auf einer früheren Version der Datei markiert; der Frame zeigt sie)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Sieht gut aus\n📎 Bilder: 6 (Frame mit Markierungen)\n   Dateien: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png",
+     "text": "Please look\n\nKommentare zu Ausschnitten:\n\n1. [docs/plan.md]\n> the cache\n→ ❓ Bitte klären why twice?\n\n2. [docs/plan.md @ main]\n> two\n> lines\n→ like these\n📎 Bilder: 1, 2\n\n3. [img/shot.png · 1920×1080]\n> rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)\n> arrow (0.9,0.1)→(0.5,0.55) (px 1728,108→960,594)\n→ 🔥 Super! this button\n   I really like this and had not thought of it myself. Ideas like this are welcome.\n📎 Bilder: 3 (Frame mit Markierungen)\n   Dateien: .nota-bene/marks/11111111-1111-4111-8111-111111111111/frame.jpg, .nota-bene/marks/11111111-1111-4111-8111-111111111111/layer.png\n\n4. [video/demo.mp4 @ feature @ 1:01.500 · 720×1280]\n> pen 3 pts, bbox x=0.1 y=0.1 w=0.15 h=0.8 (px 72,128 108×1024)\n→ jumps here\n📎 Bilder: 4 (Frame mit Markierungen), 5\n   Dateien: .nota-bene/marks/22222222-2222-4222-8222-222222222222/frame.jpg (skaliert ×0.75), .nota-bene/marks/22222222-2222-4222-8222-222222222222/layer.png (skaliert ×0.75)\n   (auf einer früheren Version der Datei markiert; der Frame zeigt sie)\n\n5. [img/old.jpg · 7×3]\n> ellipse cx=0.5 cy=0.5 rx=0.5 ry=0.5 (px 4,2 r 4×2)\n→ 👍 Sieht gut aus\n📎 Bilder: 6 (Frame mit Markierungen)\n   Dateien: .nota-bene/marks/33333333-3333-4333-8333-333333333333/frame.jpg, .nota-bene/marks/33333333-3333-4333-8333-333333333333/layer.png\n\n6. [img/room.png · 1600×900]\n> polygon 3 pts (px 160,90 800,111 480,540)\n> rect x=0.6 y=0.6 w=0.2 h=0.2 (px 960,540 320×180)\n→ inpaint this\n📎 Bilder: 7 (Frame mit Markierungen)\n   Dateien: .nota-bene/marks/44444444-4444-4444-8444-444444444444/frame.jpg (skaliert ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/layer.png (skaliert ×0.5), .nota-bene/marks/44444444-4444-4444-8444-444444444444/mask.png (skaliert ×0.5)\n   mask.png: weiß innerhalb der Polygone, schwarz außerhalb, so groß wie frame.jpg; die Polygonpunkte oben sind in Pixeln der Originaldatei",
      "images": [
       {
        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -667,6 +793,10 @@
       {
        "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
        "label": "[Bild 6 · zu Kommentar 5]"
+      },
+      {
+       "id": "1111111111111111111111111111111111111111111111111111111111111111",
+       "label": "[Bild 7 · zu Kommentar 6]"
       }
      ]
     }

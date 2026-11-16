@@ -437,8 +437,12 @@ int generatedImages(Comment c) =>
             tail +=
                 '\n${batchTemplate('imgRefMedia', lang, [refs.first])}${refs.skip(1).map((k) => ', $k').join()}';
           }
+          // a drawing with polygons has a mask beside its frame (issue 447)
+          final masked = a.shapes.any((s) => s is MediaShapePolygon);
+          final mask = masked ? ', $dir/mask.png$sfx' : '';
           tail +=
-              '\n${batchTemplate('filesLine', lang, ['$dir/frame.jpg$sfx, $dir/layer.png$sfx'])}';
+              '\n${batchTemplate('filesLine', lang, ['$dir/frame.jpg$sfx, $dir/layer.png$sfx$mask'])}';
+          if (masked) tail += '\n${batchString('maskLine', lang)}';
           if (staleOf?.call(c) ?? false) {
             tail += '\n${batchString('markStale', lang)}';
           }

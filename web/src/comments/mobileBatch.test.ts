@@ -42,6 +42,13 @@ const comments: Record<string, Comment> = {
       shapes: [{ kind: 'ellipse', color: '#ffcc00', x: 0, y: 0, w: 1, h: 1 }],
     },
   },
+  mask: { // issue 447: a polygon, so mask.png too
+    ...base, id: '44444444-4444-4444-8444-444444444444', text: 'inpaint this', images: [hex('1')], genImages: 1,
+    anchor: {
+      kind: 'media', source: { kind: 'file', path: 'img/room.png' }, width: 1600, height: 900, scale: 0.5,
+      shapes: [{ kind: 'polygon', color: '#34c759', points: [0.1, 0.1, 0.5, 0.12345, 0.3, 0.6] }, { kind: 'rect', color: '#ff3b30', x: 0.6, y: 0.6, w: 0.2, h: 0.2 }],
+    },
+  },
 };
 const cases: { name: string; general: string; items: string[] }[] = [
   ...Object.keys(comments).map((k) => ({ name: k, general: '', items: [k] })),

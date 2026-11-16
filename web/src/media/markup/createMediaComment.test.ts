@@ -52,6 +52,20 @@ it('prepare uploads frame and layer to /marks/<id>/ and only the frame copy to /
   expect(out).toEqual({ images: ['f'.repeat(64)], anchor: {} }); // unscaled, no video, no version
 });
 
+it('a drawing with a polygon also uploads mask.png (issue 447), after the layer; never to /attach', async () => {
+  const mask = new Blob([new Uint8Array(10)], { type: 'image/png' });
+  renderMarks.mockResolvedValueOnce({ frame, layer, mask, scale: 0.75 } as never);
+  const out = await prepareMediaComment(ID, src, { ...anchor, shapes: [{ kind: 'polygon', color: '#ff3b30', points: [0, 0, 1, 0, 1, 1] }] });
+  expect(calls.map((c) => `${c.method} ${c.url} ${c.type}`)).toEqual([
+    `POST /marks/${ID}/frame.jpg image/jpeg`,
+    `POST /marks/${ID}/layer.png image/png`,
+    `POST /marks/${ID}/mask.png image/png`,
+    'POST /attach image/jpeg',
+  ]);
+  expect(calls[2].body).toBe(mask);
+  expect(out.anchor).toEqual({ scale: 0.75 });
+});
+
 it('a failed upload deletes /marks/<id> and rejects', async () => {
   fail = (c) => (c.url === '/attach' ? new Response('no', { status: 500 }) : null);
   await expect(prepareMediaComment(ID, src, anchor)).rejects.toThrow();

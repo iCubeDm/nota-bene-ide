@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { contentBox, describeShape, mediaTime, rectFrom, round4, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { contentBox, describeShape, hitPolygon, insidePolygon, mediaTime, movePoints, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import type { MediaShape } from '@nota-bene/shared';
 
 const R = (x: number, y: number, w: number, h: number) =>
   ({ x, y, width: w, height: h, left: x, top: y, right: x + w, bottom: y + h }) as DOMRect;
@@ -85,4 +86,44 @@ it('mediaTime: m:ss.mmm, the batch and the popup quote alike', () => {
   expect(mediaTime(0)).toBe('0:00.000');
   expect(mediaTime(125.0006)).toBe('2:05.001');
   expect(mediaTime(59.9996)).toBe('1:00.000'); // rounding carries into the minute
+});
+
+// ---- polygons (issue 447) ----
+const square: MediaShape = { kind: 'polygon', color: '#ff3b30', points: [0.2, 0.2, 0.6, 0.2, 0.6, 0.6, 0.2, 0.6] };
+it('a polygon is described with every point in px of the natural size', () => {
+  expect(describeShape(square, 1000, 500)).toBe('polygon 4 pts (px 200,100 600,100 600,300 200,300)');
+});
+it('a polygon path is closed', () => {
+  expect(shapePath(square, 1000, 500)).toBe('M0.2 0.2L0.6 0.2L0.6 0.6L0.2 0.6Z');
+});
+it('shapesBounds takes a polygon by its points', () => {
+  expect(shapesBounds([square])).toEqual({ x: 0.2, y: 0.2, w: 0.4, h: 0.4 });
+});
+it('insidePolygon: nonzero winding, a self-crossing shape counts its overlap as inside', () => {
+  const pts = (square as { points: number[] }).points;
+  expect(insidePolygon(pts, 0.4, 0.4)).toBe(true);
+  expect(insidePolygon(pts, 0.1, 0.4)).toBe(false);
+  expect(insidePolygon(pts, 0.7, 0.7)).toBe(false);
+  // a star drawn as one pentagram: its centre is inside under nonzero (even-odd would call it outside)
+  const star: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i * 4 * Math.PI) / 5;
+    star.push(0.5 + 0.4 * Math.cos(a), 0.5 + 0.4 * Math.sin(a));
+  }
+  expect(insidePolygon(star, 0.5, 0.5)).toBe(true);
+});
+it('hitPolygon finds a vertex first, then the inside, topmost polygon first; other shapes are skipped', () => {
+  const other: MediaShape = { kind: 'polygon', color: '#0a84ff', points: [0.5, 0.5, 0.9, 0.5, 0.9, 0.9] };
+  const shapes: MediaShape[] = [square, { kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 1, h: 1 }, other];
+  expect(hitPolygon(shapes, { x: 0.601, y: 0.199 }, 0.01, 0.01)).toEqual({ index: 0, vertex: 1 });
+  expect(hitPolygon(shapes, { x: 0.3, y: 0.3 }, 0.01, 0.01)).toEqual({ index: 0, vertex: null });
+  expect(hitPolygon(shapes, { x: 0.58, y: 0.55 }, 0.01, 0.01)).toEqual({ index: 2, vertex: null }); // the later one is on top
+  expect(hitPolygon(shapes, { x: 0.05, y: 0.95 }, 0.01, 0.01)).toBeNull();
+});
+it('setVertex moves one point (clamped, 4 decimals); movePoints shifts all, kept inside the media', () => {
+  const pts = (square as { points: number[] }).points;
+  expect(setVertex(pts, 2, 0.712345, 1.3)).toEqual([0.2, 0.2, 0.6, 0.2, 0.7123, 1, 0.2, 0.6]);
+  expect(movePoints(pts, 0.1, -0.05)).toEqual([0.3, 0.15, 0.7, 0.15, 0.7, 0.55, 0.3, 0.55]);
+  expect(movePoints(pts, 0.9, -0.9)).toEqual([0.6, 0, 1, 0, 1, 0.4, 0.6, 0.4]); // stops at the edges
+  expect(pts).toEqual([0.2, 0.2, 0.6, 0.2, 0.6, 0.6, 0.2, 0.6]); // not mutated
 });

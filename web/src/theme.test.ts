@@ -31,7 +31,7 @@ const LITERAL = new RegExp(
 const ALLOWED: Record<string, string[] | '*'> = {
   'shell/Favicon.ts': '*',
   'media/markup/badges.ts': ['#ffffff', '#111111'],
-  'media/markup/render.ts': ['#ffffff'],
+  'media/markup/render.ts': ['#ffffff', '#000000'], // the frame's white under the source; mask.png's black and white (issue 447)
   'media/markup/overlay.tsx': ['rgba('],
   'media/markup/MarkupToolbar.tsx': ['border-black'],
   'model/viewer.ts': ['#202020'],
