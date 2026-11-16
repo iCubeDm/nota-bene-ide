@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import type { Comment, MediaAnchor } from '@nota-bene/shared';
+import type { Comment, CutAnchorClip, MediaAnchor } from '@nota-bene/shared';
 import { composeBatch } from './compose.ts';
 
 const c = (id: string, quote: string, text: string, label?: Comment['label']): Comment => ({
@@ -90,7 +90,7 @@ it('a page place is quoted as its trail, the area and what it covers, then its e
 });
 
 it('a cut comment is quoted as its clip, track, source and the moment in the source, or as a moment of the timeline (issue 430)', () => {
-  const cut = (clip?: object): Comment => ({
+  const cut = (clip?: CutAnchorClip): Comment => ({
     id: 'k', text: 'the tail is cut off', status: 'pending', createdAt: 1,
     anchor: { kind: 'cut', source: { kind: 'file', path: 'edits/demo.nbcut.json' }, time: 8.25, ...(clip ? { clip } : {}) },
   });
