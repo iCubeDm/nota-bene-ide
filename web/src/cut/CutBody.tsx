@@ -9,7 +9,7 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
 const clipIndex = (path: string) => /^clips\[(\d+)\]/.exec(path)?.[1];
 
 /**
- * A `*.nbcut.json` file as its timeline (read-only, #407). Whatever is wrong in it (not JSON, a validation problem, a
+ * A `*.nbcut.json` file as its timeline (read-only, issue 407). Whatever is wrong in it (not JSON, a validation problem, a
  * source not in the project) is listed above the timeline, which still draws what it can; the header's Source shows the
  * JSON.
  */

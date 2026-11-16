@@ -11,8 +11,8 @@ const STEP = 1.5; // one zoom button press
 const dB = (g: number) => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`;
 
 /**
- * The edit's tracks read-only (#407): a ruler, the lanes with their clips placed by time, zoom (buttons, Ctrl/⌘+wheel
- * around the pointer) and the playhead a click on the ruler sets. Playback comes with the preview (#408).
+ * The edit's tracks read-only (issue 407): a ruler, the lanes with their clips placed by time, zoom (buttons, Ctrl/⌘+wheel
+ * around the pointer) and the playhead a click on the ruler sets. Playback comes with the preview (issue 408).
  * `problems`: the messages of a clip by its index in `clips`; such a clip is outlined.
  */
 export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc, active }: {

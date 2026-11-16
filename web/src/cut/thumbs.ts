@@ -1,4 +1,4 @@
-// A video clip's thumbnail (#407): one frame of its source, grabbed once per file and time into a small image that every
+// A video clip's thumbnail (issue 407): one frame of its source, grabbed once per file and time into a small image that every
 // clip showing it shares. The timeline holds no media elements: a grab borrows one <video>, two at a time at most, and
 // lets it go.
 
