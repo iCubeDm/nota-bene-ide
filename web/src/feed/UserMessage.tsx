@@ -1,4 +1,5 @@
-import { BATCH_HEAD, isAttachmentAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
+import { BATCH_HEAD, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
+import { cutLine } from '@/cut/quote.ts';
 import { pageQuote } from '@/page/quote.ts';
 import { Attachments } from '@/attachments/Attachments.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
@@ -54,7 +55,7 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
             ? sent.map((c) => (
                 <div key={c.id} className="mt-1.5">
                   {/* the quote is text the user selected in rendered output: plain, never re-read as markdown */}
-                  <blockquote className="whitespace-pre-wrap border-l-2 border-nb-accent pl-2">{isMediaAnchor(c.anchor) ? `${c.anchor.source.path.slice(c.anchor.source.path.lastIndexOf('/') + 1)}${c.anchor.time !== undefined ? ` @ ${mediaTime(c.anchor.time)}` : ''} · ${t('markShapes', c.anchor.shapes.length)}` : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : isAttachmentAnchor(c.anchor) ? t('markShapes', c.anchor.shapes.length) : isTextAnchor(c.anchor) ? c.anchor.quote : ''}</blockquote>
+                  <blockquote className="whitespace-pre-wrap border-l-2 border-nb-accent pl-2">{isMediaAnchor(c.anchor) ? `${c.anchor.source.path.slice(c.anchor.source.path.lastIndexOf('/') + 1)}${c.anchor.time !== undefined ? ` @ ${mediaTime(c.anchor.time)}` : ''} · ${t('markShapes', c.anchor.shapes.length)}` : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : isCutAnchor(c.anchor) ? cutLine(c.anchor, getLang()) : isAttachmentAnchor(c.anchor) ? t('markShapes', c.anchor.shapes.length) : isTextAnchor(c.anchor) ? c.anchor.quote : ''}</blockquote>
                   <div className="md-tight flex items-baseline gap-1">
                     <span className="flex-none">→</span>
                     {c.label && <span className="flex-none rounded bg-muted px-1">{labelOf(c)}</span>}

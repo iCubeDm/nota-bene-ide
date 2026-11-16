@@ -1023,5 +1023,15 @@ export const en: Dict = {
   cutFit: "Fit to frame",
   cutInvalid: "Not a valid value here",
   cutPlaceTip: "Drag to move the clip's frame; drag a corner to resize it (Shift: free proportions)",
+  // comments on an edit's timeline (issue 430)
+  srcCut: (path: string, time: string) => `${path} · timeline ${time}`,
+  cutClipQ: (id: string, track: string, src: string, time: string) => `clip ${id} · track ${track} · ${src} @ ${time} in the source`,
+  cutClipPhotoQ: (id: string, track: string, src: string) => `clip ${id} · track ${track} · ${src} (a photo)`,
+  cutMomentQ: "a moment of the timeline, no clip",
+  cutClipGone: "   (this clip is no longer in the edit; the time is where it was)",
+  cutTrimmedOut: "   (that moment is trimmed out of the clip now; the time is its nearest end)",
+  cutComment: "Comment: on the selected clip (at the playhead when it is on the clip, else at its start), or on the playhead's moment",
+  cutCommentShort: "Comment",
+  cutGoneTag: "clip no longer in the edit",
   cutIssue: (code: string) => ({ "type": "missing or of the wrong type", "version": "the version must be 1", "number": "not a number", "negative": "must not be negative", "positive": "must be above 0", "frame-size": "must be a whole number from 16 to 8192", "fps": "must be from 1 to 120", "out-before-in": "out must come after in", "kind": "a track is \"video\" or \"audio\"", "duplicate": "this id is used twice", "unknown-track": "no track has this id", "photo-in-out": "a photo takes dur, not in or out", "photo-no-dur": "a photo needs dur", "media-no-out": "a video or audio clip needs out", "media-dur": "a video or audio clip takes in and out, not dur", "photo-audio": "a photo cannot be on an audio track", "fade": "the fades are longer than the clip", "place": "must be from 0 to 1, a size above 0", "opacity": "must be from 0 to 1", "place-audio": "an audio track has no picture: no place", "src": "needs a project-relative path", "src-kind": "not a video, sound or photo file (by its extension)", "photo-kind": "a photo is png, jpg, webp, avif or bmp: the export cannot read gif or svg", "audio-video": "a sound file cannot be on a video track", "overlap": "overlaps the clip before it on its track", "missing": "the file is not in the project" } as Record<string, string>)[code] ?? code,
 };

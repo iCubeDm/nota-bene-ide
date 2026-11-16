@@ -1188,6 +1188,14 @@ const _json = r'''
    "pt": "   (marcado em uma versão anterior do arquivo; o quadro mostra isso)",
    "de": "   (auf einer früheren Version der Datei markiert; der Frame zeigt sie)"
   },
+  "cutMomentQ": {
+   "en": "a moment of the timeline, no clip",
+   "ru": "момент таймлайна, без клипа",
+   "zh": "时间线上的一个时刻，无片段",
+   "es": "un momento de la línea de tiempo, sin clip",
+   "pt": "um momento da linha do tempo, sem clipe",
+   "de": "ein Moment der Zeitleiste, kein Clip"
+  },
   "imgLabel": {
    "en": "[image {0}]",
    "ru": "[изображение {0}]",
@@ -1259,6 +1267,30 @@ const _json = r'''
    "es": "{0} · subagente «{1}»",
    "pt": "{0} · subagente «{1}»",
    "de": "{0} · Subagent «{1}»"
+  },
+  "srcCut": {
+   "en": "{0} · timeline {1}",
+   "ru": "{0} · таймлайн {1}",
+   "zh": "{0} · 时间线 {1}",
+   "es": "{0} · línea de tiempo {1}",
+   "pt": "{0} · linha do tempo {1}",
+   "de": "{0} · Zeitleiste {1}"
+  },
+  "cutClipQ": {
+   "en": "clip {0} · track {1} · {2} @ {3} in the source",
+   "ru": "клип {0} · дорожка {1} · {2} @ {3} в исходнике",
+   "zh": "片段 {0} · 轨道 {1} · {2} @ {3}（源文件中）",
+   "es": "clip {0} · pista {1} · {2} @ {3} en el original",
+   "pt": "clipe {0} · faixa {1} · {2} @ {3} no original",
+   "de": "Clip {0} · Spur {1} · {2} @ {3} in der Quelle"
+  },
+  "cutClipPhotoQ": {
+   "en": "clip {0} · track {1} · {2} (a photo)",
+   "ru": "клип {0} · дорожка {1} · {2} (фото)",
+   "zh": "片段 {0} · 轨道 {1} · {2}（照片）",
+   "es": "clip {0} · pista {1} · {2} (una foto)",
+   "pt": "clipe {0} · faixa {1} · {2} (uma foto)",
+   "de": "Clip {0} · Spur {1} · {2} (ein Foto)"
   },
   "dictInstallQ": {
    "en": "Download Whisper (≈ {0} MB, ≈ {1} MB on disk) from npm and Hugging Face into {2}? Speech is then transcribed on this computer; recordings reach it end-to-end encrypted, and the audio of voice messages is kept beside the attachments.",

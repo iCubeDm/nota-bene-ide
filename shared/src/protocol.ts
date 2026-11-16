@@ -70,10 +70,27 @@ export type PageAnchor = {
  * MediaAnchor. Sent only in the message that carries that image.
  */
 export type AttachmentAnchor = { kind: 'attachment'; image: string; width: number; height: number; scale?: number; shapes: MediaShape[] };
-export type Anchor = TextAnchor | MediaAnchor | PageAnchor | AttachmentAnchor;
+/** the longest clip id and track id of a cut anchor, its track name, and its `src` */
+export const CUT_ID_MAX = 200;
+export const CUT_NAME_MAX = 300;
+export const CUT_SRC_MAX = 4096;
+/**
+ * The clip a cut comment is pinned to (protocol 23), as it stood when last seen in the editor: its id, its track's id and
+ * name, its `src`, and `srcTime`, the comment's moment in the source in seconds (`in` + the offset into the clip; a photo:
+ * the offset into its showing).
+ */
+export type CutAnchorClip = { id: string; track: string; trackName?: string; src: string; srcTime: number };
+/**
+ * A place on a video edit's timeline (`*.nbcut.json`, protocol 23): a clip at a moment of it, or (no `clip`) a moment of the
+ * timeline. `time`: seconds on the timeline, ms precision. The editor keeps a pending comment on its clip by id: after a
+ * move or a trim it updates `time` (and the track and src) through an `edit` op, `srcTime` staying.
+ */
+export type CutAnchor = { kind: 'cut'; source: FileSource; time: number; clip?: CutAnchorClip };
+export type Anchor = TextAnchor | MediaAnchor | PageAnchor | AttachmentAnchor | CutAnchor;
 export const isMediaAnchor = (a: Anchor): a is MediaAnchor => (a as MediaAnchor).kind === 'media';
 export const isPageAnchor = (a: Anchor): a is PageAnchor => (a as PageAnchor).kind === 'page';
 export const isAttachmentAnchor = (a: Anchor): a is AttachmentAnchor => (a as AttachmentAnchor).kind === 'attachment';
+export const isCutAnchor = (a: Anchor): a is CutAnchor => (a as CutAnchor).kind === 'cut';
 /** Where an anchor points in a file or message; none for an attachment anchor, which belongs to the unsent message. */
 export const anchorSource = (a: Anchor): AnchorSource | undefined => (isAttachmentAnchor(a) ? undefined : a.source);
 export const isTextAnchor = (a: Anchor): a is TextAnchor => !('kind' in a);
@@ -147,7 +164,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 20: remote access from the window: the server's `remote` (the connector's state) and `remote-pair` events and the `/remote` routes; an older server has neither, so the page shows no indicator and no Remote tab.
 // 21: relay access keys: `RemoteState.accessKey` (one is saved) and `POST /remote/config {accessKey}`; `lastError` may be a 4405 (the key's computer limit) while the connector retries.
 // 22: a server restart that waits for the agent (gh-422): the server's `restart-pending` event (on attach and when it changes) and `resumed.cut` (the resume after a restart that cut a turn); `POST /restart-server {now}`, `/restart-server/pause`, `/restart-server/cancel`, `/info.restartPending`. An older server restarts at once and sends neither.
-export const PROTOCOL = 22;
+// 23: cut anchors (a comment on a clip or a moment of a video edit's timeline, issue 430); an `edit` op of a pending cut comment also takes its anchor when it is a cut anchor on the same file (the comment follows its clip). An older server would refuse the comment.
+export const PROTOCOL = 23;
 
 /** A paired phone as the Remote tab lists it (protocol 20). */
 export type RemoteDevice = { id: string; name?: string; fingerprint: string; online: boolean; pairedAt: number };
@@ -492,11 +510,23 @@ function isPageAnchorShape(v: Obj): boolean {
     && (v.near === undefined || isPageList(v.near));
 }
 
+// no control characters (a break, a tab): a cut anchor's fields go into one line of the batch's quote
+const isStr = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max && !/\p{Cc}/u.test(v);
+const isTime = (v: unknown): v is number => isNum(v) && v >= 0;
+
+function isCutAnchorShape(v: Obj): boolean {
+  const c = v.clip;
+  return isObj(v.source) && isFileSource(v.source) && isTime(v.time)
+    && (c === undefined || (isObj(c) && isStr(c.id, CUT_ID_MAX) && isStr(c.track, CUT_ID_MAX) && isStr(c.src, CUT_SRC_MAX) && isTime(c.srcTime)
+      && (c.trackName === undefined || isStr(c.trackName, CUT_NAME_MAX))));
+}
+
 function isAnchor(v: unknown): v is Anchor {
   if (!isObj(v)) return false;
   if (v.kind === 'media') return isMediaAnchorShape(v);
   if (v.kind === 'page') return isPageAnchorShape(v);
   if (v.kind === 'attachment') return isAttachmentAnchorShape(v);
+  if (v.kind === 'cut') return isCutAnchorShape(v);
   if (v.kind !== undefined) return false;
   if (!isObj(v.source)) return false;
   const s = v.source;
@@ -576,6 +606,13 @@ export function toAnchor(a: Anchor): Anchor {
       kind: 'attachment', image: a.image, width: a.width, height: a.height,
       ...(a.scale === undefined ? {} : { scale: a.scale }),
       shapes: a.shapes.map(toShape),
+    };
+  }
+  if (isCutAnchor(a)) {
+    const c = a.clip;
+    return {
+      kind: 'cut', source: toSource(a.source) as FileSource, time: a.time,
+      ...(c === undefined ? {} : { clip: { id: c.id, track: c.track, ...(c.trackName === undefined ? {} : { trackName: c.trackName }), src: c.src, srcTime: c.srcTime } }),
     };
   }
   return { source: toSource(a.source), start: a.start, end: a.end, quote: a.quote, prefix: a.prefix, suffix: a.suffix };

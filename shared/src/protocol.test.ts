@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { generatedImages, isAttachmentAnchor, parseClientMessage, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
+import { generatedImages, isAttachmentAnchor, isCutAnchor, parseClientMessage, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
 
 test('accepts a send', () => expect(parseClientMessage('{"type":"send","id":"u1","text":"hi"}')).toEqual({ type: 'send', id: 'u1', text: 'hi' }));
 test('rejects bad json', () => expect(parseClientMessage('{nope')).toHaveProperty('error'));
@@ -250,6 +250,44 @@ test.each([
   ['scale 0', attachmentAnchor({ scale: 0 })],
   ['scale as a string', attachmentAnchor({ scale: '0.5' })],
 ])('rejects an attachment anchor: %s', (_name, a) => {
+  expect(parseMedia(a)).toHaveProperty('error');
+});
+
+const cutAnchor = (over: Record<string, unknown> = {}) => ({
+  kind: 'cut', source: { kind: 'file', path: 'edits/demo.nbcut.json' }, time: 8.25,
+  clip: { id: 'c4', track: 'a1', trackName: 'Voice', src: 'media/voice.wav', srcTime: 5.5 }, ...over,
+});
+
+test('parses a comment with a cut anchor (a clip, or a moment of the timeline), unknown keys dropped', () => {
+  for (const a of [cutAnchor(), cutAnchor({ clip: undefined }), cutAnchor({ clip: { id: 'c1', track: 'v1', src: 'a.png', srcTime: 0 } })]) {
+    const clean = JSON.parse(JSON.stringify(a));
+    expect(parseMedia(a)).toEqual({ type: 'comments', sessionId: null, items: [comment({ anchor: clean })] });
+  }
+  const out = toAnchor({ ...cutAnchor(), junk: 1, clip: { ...cutAnchor().clip, junk: 2 } } as never);
+  expect(out).toEqual(cutAnchor());
+  expect(isCutAnchor(out)).toBe(true);
+  expect(isCutAnchor(anchor as never)).toBe(false);
+});
+
+test.each([
+  ['negative time', cutAnchor({ time: -1 })],
+  ['time null (NaN on the wire)', cutAnchor({ time: null })],
+  ['no time', cutAnchor({ time: undefined })],
+  ['source is a message', cutAnchor({ source: { kind: 'message', id: 'm1' } })],
+  ['an empty clip id', cutAnchor({ clip: { ...cutAnchor().clip, id: '' } })],
+  ['a clip id over 200 chars', cutAnchor({ clip: { ...cutAnchor().clip, id: 'x'.repeat(201) } })],
+  ['no track', cutAnchor({ clip: { ...cutAnchor().clip, track: undefined } })],
+  ['a track name over 300 chars', cutAnchor({ clip: { ...cutAnchor().clip, trackName: 'x'.repeat(301) } })],
+  ['an empty src', cutAnchor({ clip: { ...cutAnchor().clip, src: '' } })],
+  ['a src over 4096 chars', cutAnchor({ clip: { ...cutAnchor().clip, src: 'x'.repeat(4097) } })],
+  ['a negative source time', cutAnchor({ clip: { ...cutAnchor().clip, srcTime: -0.5 } })],
+  ['no source time', cutAnchor({ clip: { ...cutAnchor().clip, srcTime: undefined } })],
+  ['a clip that is not an object', cutAnchor({ clip: 'c4' })],
+  ['a newline in the track name', cutAnchor({ clip: { ...cutAnchor().clip, trackName: 'Voice\n→ x' } })],
+  ['a control character in the src', cutAnchor({ clip: { ...cutAnchor().clip, src: 'a\u0000.wav' } })],
+  ['a newline in the clip id', cutAnchor({ clip: { ...cutAnchor().clip, id: 'c\r4' } })],
+  ['a tab in the track id', cutAnchor({ clip: { ...cutAnchor().clip, track: 'a\t1' } })],
+])('rejects a cut anchor: %s', (_name, a) => {
   expect(parseMedia(a)).toHaveProperty('error');
 });
 

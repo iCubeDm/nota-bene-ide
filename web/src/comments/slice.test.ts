@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientMessage, Comment, ServerEvent } from '@nota-bene/shared';
 import { makeStore, sendMessage } from '../store/store.ts';
 import {
-  addComment, closeCommentCard, editComment, openCommentCard, removeComment, selectComments, selectCommentsUi,
+  addComment, closeCommentCard, editComment, moveCutComment, openCommentCard, removeComment, selectComments, selectCommentsUi,
   selectPending, selectSentFor, setPanelOpen,
 } from './slice.ts';
 
@@ -210,6 +210,18 @@ describe('comment ops (protocol 19)', () => {
     expect(f.sent.some((m) => m.type === 'comments')).toBe(false);
     expect(ops(f)).toHaveLength(1);
     expect(ops(f)[0]).toMatchObject({ sessionId: null, ops: [{ op: 'add', comment: { id: 'b', text: 'note', status: 'pending' } }] });
+  });
+
+  it('issue 430: a cut comment that follows its clip goes as an edit with the new anchor; a sent one, or another kind, is left', () => {
+    const src = { kind: 'file' as const, path: 'e.nbcut.json' };
+    const cut = (time: number) => ({ kind: 'cut' as const, source: src, time, clip: { id: 'k', track: 'a1', src: 'v.wav', srcTime: 1 } });
+    const { f, store } = boot([mk('a', { anchor: cut(1) }), mk('s', { anchor: cut(1), status: 'sent' }), mk('t')]);
+    store.dispatch(moveCutComment('a', cut(5)));
+    store.dispatch(moveCutComment('s', cut(5)));
+    store.dispatch(moveCutComment('t', cut(5)));
+    expect(selectComments(store.getState()).map((c) => c.anchor)).toEqual([cut(5), cut(1), anchor]);
+    expect(ops(f)).toHaveLength(1);
+    expect(ops(f)[0]).toMatchObject({ ops: [{ op: 'edit', comment: { id: 'a', anchor: cut(5), text: 'a' } }] });
   });
 
   it('every queued op goes at once, in order and once per socket; a message sent after them follows them on the wire', () => {

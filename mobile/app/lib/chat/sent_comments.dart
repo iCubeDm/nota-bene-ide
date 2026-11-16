@@ -111,7 +111,7 @@ class _One extends StatelessWidget {
     return switch (x.anchor) {
       MediaAnchor(:final shapes) =>
         '${quoteOf(x)} · ${webCount('markShapes', lang, shapes.length)}',
-      _ => quoteOf(x),
+      _ => quoteOf(x, lang),
     };
   }
 

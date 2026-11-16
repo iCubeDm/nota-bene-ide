@@ -55,6 +55,9 @@ class _CommentsPaneState extends State<CommentsPane>
         openFile(context, tab, path);
       case MediaAnchor(:final source, :final time):
         openFile(context, tab, source.path, at: time?.toDouble());
+      // an edit opens as its file: the phone has no timeline (issue 430)
+      case CutAnchor(:final source):
+        openFile(context, tab, source.path);
       default:
     }
   }
@@ -80,7 +83,7 @@ class _CommentsPaneState extends State<CommentsPane>
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: c.mutedFg, fontSize: 11),
             ),
-            if (quoteOf(x).isNotEmpty)
+            if (quoteOf(x, lang).isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(top: 2),
                 padding: const EdgeInsets.only(left: 8),
@@ -88,7 +91,7 @@ class _CommentsPaneState extends State<CommentsPane>
                   border: Border(left: BorderSide(color: c.accent, width: 2)),
                 ),
                 child: Text(
-                  quoteOf(x),
+                  quoteOf(x, lang),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: c.mutedFg, fontSize: 13),

@@ -104,7 +104,8 @@ class Comments extends ChangeNotifier {
   void refresh() => notifyListeners();
 
   /// What the phone sends with a message: the pending text and media comments, their images with them. A page
-  /// comment or a 3D model one, made on the desktop, stays pending for it (the phone cannot write their batch lines).
+  /// comment, a 3D model one or one on an edit's timeline, made on the desktop, stays pending for it (the phone cannot
+  /// write their batch lines).
   List<Comment> get sendable {
     final away = held();
     return [
@@ -326,14 +327,37 @@ String whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
   ),
   TextAnchor(source: AnchorSourceMessage(:final id, :final agent)) =>
     whereOfChat(id, feed, lang, agent: agent),
+  CutAnchor(:final source, :final time) => batchTemplate('srcCut', lang, [
+    _file(source.path, source.ref),
+    mediaTime(time.toDouble()),
+  ]),
   _ => batchString('srcChat', lang),
 };
 
-/// What a comment is on, for the strip and the sheet: the quoted text, or a media file's name with the paused time.
-String quoteOf(Comment c) => switch (c.anchor) {
+/// A photo by its extension, as the edit's format reads it (shared/src/cutCheck.ts, IMAGE).
+final _photo = RegExp(
+  r'\.(png|jpe?g|webp|avif|bmp|gif|svg)$',
+  caseSensitive: false,
+);
+
+/// What a comment is on, for the strip and the sheet: the quoted text, a media file's name with the paused time, or the
+/// clip of an edit with its track and the moment in its source (as the desktop's cutQuote, in [lang]).
+String quoteOf(Comment c, [String lang = 'en']) => switch (c.anchor) {
   TextAnchor(:final quote) => quote,
   MediaAnchor(:final source, :final time) =>
     '${source.path.split('/').last}${time != null ? ' @ ${mediaTime(time.toDouble())}' : ''}',
+  CutAnchor(clip: null) => batchString('cutMomentQ', lang),
+  CutAnchor(clip: final CutAnchorClip k) => () {
+    final track = k.trackName != null ? '${k.trackName} (${k.track})' : k.track;
+    return _photo.hasMatch(k.src)
+        ? batchTemplate('cutClipPhotoQ', lang, [k.id, track, k.src])
+        : batchTemplate('cutClipQ', lang, [
+            k.id,
+            track,
+            k.src,
+            mediaTime(k.srcTime.toDouble()),
+          ]);
+  }(),
   _ => '',
 };
 

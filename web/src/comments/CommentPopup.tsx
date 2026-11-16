@@ -1,10 +1,11 @@
 import { useAutosize } from '@/composer/autosize.ts';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
-import { isAttachmentAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
+import { isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
 import { pageQuote } from '@/page/quote.ts';
+import { cutLine } from '@/cut/quote.ts';
 import { selectCapabilities, selectSwitching } from '@/controls/slice.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { dictationAsk } from '@/voice/lang.ts';
@@ -52,6 +53,7 @@ function quoteOf(a: Anchor, t: ReturnType<typeof useT>): string {
   return isMediaAnchor(a)
     ? `${baseName(a.source.path)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${t('markShapes', a.shapes.length)}`
     : isPageAnchor(a) ? pageQuote(a, getLang())
+    : isCutAnchor(a) ? cutLine(a, getLang())
     : isAttachmentAnchor(a) ? t('markShapes', a.shapes.length)
     : isTextAnchor(a) ? `«${a.quote.trim()}»`
     : '';

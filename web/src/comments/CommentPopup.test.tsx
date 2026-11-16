@@ -501,3 +501,8 @@ it('a new selection places a dragged popup at its anchor again', () => {
   r.rerender(ui({ ...pending, rect: { ...pending.rect, left: 300, bottom: 80 } as DOMRect }));
   expect([popup.style.left, popup.style.top]).toEqual(['300px', '86px']);
 });
+
+it('issue 430: a comment on an edit\'s timeline heads the popup with its time and clip', () => {
+  setup({ ...pending, anchor: { kind: 'cut', source: { kind: 'file', path: 'e.nbcut.json' }, time: 2, clip: { id: 'c3', track: 'a1', src: 'media/voice.wav', srcTime: 3 } } });
+  expect(screen.getByText('0:02.000 · clip c3 · track a1 · media/voice.wav @ 0:03.000 in the source')).toBeInTheDocument();
+});

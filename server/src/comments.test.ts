@@ -195,6 +195,22 @@ describe('CommentStore: ops and revisions (protocol 19)', () => {
     expect(s.get('k')[1]).toEqual(sent('s'));
   });
 
+  it('an edit of a cut comment takes its anchor when it is a cut anchor on the same file (the comment follows its clip, issue 430)', () => {
+    const s = new CommentStore({ dir });
+    const src = { kind: 'file', path: 'e.nbcut.json' } as const;
+    const cut = (id: string, time: number, path = 'e.nbcut.json'): Comment => ({
+      ...c(id), anchor: { kind: 'cut', source: { ...src, path }, time, clip: { id: 'k1', track: 'a1', src: 'v.wav', srcTime: 2 } },
+    });
+    s.set('k', [cut('a', 1), cut('b', 1), c('t')]);
+    expect(s.apply('k', [{ op: 'edit', comment: cut('a', 4) }])).toBeNull();
+    expect(s.get('k')[0]).toEqual(cut('a', 4));
+    // another file, another kind: the anchor stays the server's
+    s.apply('k', [{ op: 'edit', comment: cut('b', 4, 'other.nbcut.json') }]);
+    expect(s.get('k')[1]).toEqual(cut('b', 1));
+    s.apply('k', [{ op: 'edit', comment: { ...c('t'), anchor: cut('t', 4).anchor } }]);
+    expect(s.get('k')[2]).toEqual(c('t'));
+  });
+
   it('a refused batch stores nothing of it', () => {
     const s = new CommentStore({ dir });
     s.set('k', [sent('s')]);

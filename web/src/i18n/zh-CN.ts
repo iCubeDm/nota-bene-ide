@@ -1005,5 +1005,15 @@ export const zhCN: Dict = {
   cutFit: "适应画面",
   cutInvalid: "此处不是有效值",
   cutPlaceTip: "拖动以移动片段的画框；拖动一角以调整大小（Shift：自由比例）",
+  // comments on an edit's timeline (issue 430)
+  srcCut: (path: string, time: string) => `${path} · 时间线 ${time}`,
+  cutClipQ: (id: string, track: string, src: string, time: string) => `片段 ${id} · 轨道 ${track} · ${src} @ ${time}（源文件中）`,
+  cutClipPhotoQ: (id: string, track: string, src: string) => `片段 ${id} · 轨道 ${track} · ${src}（照片）`,
+  cutMomentQ: "时间线上的一个时刻，无片段",
+  cutClipGone: "   （此片段已不在剪辑中；时间为它原来的位置）",
+  cutTrimmedOut: "   （该时刻现已被裁出片段；时间为片段最近的一端）",
+  cutComment: "评论：所选片段（播放头在片段上时为播放头处，否则为片段开头），或播放头所在的时刻",
+  cutCommentShort: "评论",
+  cutGoneTag: "片段已不在剪辑中",
   cutIssue: (code: string) => ({ "type": "缺少或类型错误", "version": "版本必须为 1", "number": "不是数字", "negative": "不能为负数", "positive": "必须大于 0", "frame-size": "必须是 16 到 8192 之间的整数", "fps": "必须在 1 到 120 之间", "out-before-in": "out 必须在 in 之后", "kind": "轨道只能是 \"video\" 或 \"audio\"", "duplicate": "此 id 重复使用", "unknown-track": "没有此 id 的轨道", "photo-in-out": "照片使用 dur，而不是 in 或 out", "photo-no-dur": "照片需要 dur", "media-no-out": "视频或音频片段需要 out", "media-dur": "视频或音频片段使用 in 和 out，而不是 dur", "photo-audio": "照片不能放在音频轨道上", "fade": "淡入淡出比片段还长", "place": "必须在 0 到 1 之间，尺寸大于 0", "opacity": "必须在 0 到 1 之间", "place-audio": "音频轨道没有画面：不需要 place", "src": "需要相对于项目的路径", "src-kind": "不是视频、音频或照片文件（按扩展名）", "photo-kind": "照片须为 png、jpg、webp、avif 或 bmp：导出无法读取 gif 或 svg", "audio-video": "音频文件不能放在视频轨道上", "overlap": "与同一轨道上的前一个片段重叠", "missing": "项目中没有此文件" } as Record<string, string>)[code] ?? code,
 };

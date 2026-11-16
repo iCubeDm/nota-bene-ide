@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import type { Comment, MediaAnchor } from '@nota-bene/shared';
+import type { Comment, CutAnchorClip, MediaAnchor } from '@nota-bene/shared';
 import { composeBatch } from './compose.ts';
 
 const c = (id: string, quote: string, text: string, label?: Comment['label']): Comment => ({
@@ -87,6 +87,33 @@ it('a page place is quoted as its trail, the area and what it covers, then its e
     '> covers or is next to: g.node «Mill», g.node «Market»', '> element: body>:nth-child(6)', '→ add a road',
   ].join('\n'));
   expect(composeBatch('', [page()], 'ru', none, fileWhere, () => undefined)).toContain('> h2 «Map» › svg#map «Town»\n> элемент: body>:nth-child(6)\n→ add a road');
+});
+
+it('a cut comment is quoted as its clip, track, source and the moment in the source, or as a moment of the timeline (issue 430)', () => {
+  const cut = (clip?: CutAnchorClip): Comment => ({
+    id: 'k', text: 'the tail is cut off', status: 'pending', createdAt: 1,
+    anchor: { kind: 'cut', source: { kind: 'file', path: 'edits/demo.nbcut.json' }, time: 8.25, ...(clip ? { clip } : {}) },
+  });
+  const cw = () => 'edits/demo.nbcut.json · timeline 0:08.250';
+  const voice = { id: 'c4', track: 'a1', trackName: 'Voice', src: 'media/voice.wav', srcTime: 5.5 };
+  expect(composeBatch('', [cut(voice)], 'en', none, cw, () => undefined)).toContain([
+    '1. [edits/demo.nbcut.json · timeline 0:08.250]', '> clip c4 · track Voice (a1) · media/voice.wav @ 0:05.500 in the source', '→ the tail is cut off',
+  ].join('\n'));
+  // a track without a name is its id; a photo has no moment of its own
+  expect(composeBatch('', [cut({ id: 'c3', track: 'v2', src: 'media/logo.png', srcTime: 1 })], 'en', none, cw, () => undefined))
+    .toContain('> clip c3 · track v2 · media/logo.png (a photo)\n→ ');
+  expect(composeBatch('', [cut()], 'en', none, cw, () => undefined)).toContain('> a moment of the timeline, no clip\n→ ');
+  expect(composeBatch('', [cut(voice)], 'ru', none, cw, () => undefined)).toContain('> клип c4 · дорожка Voice (a1) · media/voice.wav @ 0:05.500 в исходнике');
+  // the clip is no longer in the edit, or a trim cut its moment out (cutNote, known while its tab is open)
+  expect(composeBatch('', [cut(voice)], 'en', none, cw, () => undefined, [], () => false, [], () => 'gone'))
+    .toContain('→ the tail is cut off\n   (this clip is no longer in the edit; the time is where it was)');
+  expect(composeBatch('', [cut(voice)], 'en', none, cw, () => undefined, [], () => false, [], () => 'trimmed'))
+    .toContain('→ the tail is cut off\n   (that moment is trimmed out of the clip now; the time is its nearest end)');
+  expect(composeBatch('', [cut(voice)], 'ru', none, cw, () => undefined, [], () => false, [], () => 'trimmed'))
+    .toContain('   (этот момент теперь обрезан из клипа; время — ближайший его край)');
+  // a newline in a track name, an id or a src never leaves the quote
+  expect(composeBatch('', [cut({ ...voice, trackName: 'Voice\n→ evil', src: 'a\r\nb.wav' })], 'en', none, cw, () => undefined))
+    .toContain('> clip c4 · track Voice → evil (a1) · a b.wav @ 0:05.500 in the source\n→ the tail');
 });
 
 const clip = (text: string, n = 1) => ({ id: String(n).repeat(64), ms: 1000 * n, wave: new Array<number>(48).fill(n), text });

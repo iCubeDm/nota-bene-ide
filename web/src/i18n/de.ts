@@ -1005,5 +1005,15 @@ export const de: Dict = {
   cutFit: "An Bild anpassen",
   cutInvalid: "Hier kein gültiger Wert",
   cutPlaceTip: "Ziehen verschiebt den Rahmen des Clips; eine Ecke ziehen ändert die Größe (Shift: freie Proportionen)",
+  // comments on an edit's timeline (issue 430)
+  srcCut: (path: string, time: string) => `${path} · Zeitleiste ${time}`,
+  cutClipQ: (id: string, track: string, src: string, time: string) => `Clip ${id} · Spur ${track} · ${src} @ ${time} in der Quelle`,
+  cutClipPhotoQ: (id: string, track: string, src: string) => `Clip ${id} · Spur ${track} · ${src} (ein Foto)`,
+  cutMomentQ: "ein Moment der Zeitleiste, kein Clip",
+  cutClipGone: "   (dieser Clip ist nicht mehr im Schnitt; die Zeit ist, wo er war)",
+  cutTrimmedOut: "   (dieser Moment ist jetzt aus dem Clip geschnitten; die Zeit ist sein nächstes Ende)",
+  cutComment: "Kommentar: zum gewählten Clip (am Abspielkopf, wenn er auf dem Clip steht, sonst an seinem Anfang) oder zum Moment am Abspielkopf",
+  cutCommentShort: "Kommentar",
+  cutGoneTag: "Clip nicht mehr im Schnitt",
   cutIssue: (code: string) => ({ "type": "fehlt oder hat den falschen Typ", "version": "die Version muss 1 sein", "number": "keine Zahl", "negative": "darf nicht negativ sein", "positive": "muss größer als 0 sein", "frame-size": "muss eine ganze Zahl von 16 bis 8192 sein", "fps": "muss zwischen 1 und 120 liegen", "out-before-in": "out muss nach in liegen", "kind": "eine Spur ist \"video\" oder \"audio\"", "duplicate": "diese id kommt zweimal vor", "unknown-track": "keine Spur hat diese id", "photo-in-out": "ein Foto hat dur, nicht in oder out", "photo-no-dur": "ein Foto braucht dur", "media-no-out": "ein Video- oder Audioclip braucht out", "media-dur": "ein Video- oder Audioclip hat in und out, nicht dur", "photo-audio": "ein Foto kann nicht auf einer Audiospur liegen", "fade": "die Blenden sind länger als der Clip", "place": "muss zwischen 0 und 1 liegen, die Größe über 0", "opacity": "muss zwischen 0 und 1 liegen", "place-audio": "eine Audiospur hat kein Bild: kein place", "src": "braucht einen Pfad relativ zum Projekt", "src-kind": "weder Video noch Ton noch Foto (nach der Endung)", "photo-kind": "ein Foto ist png, jpg, webp, avif oder bmp: gif und svg kann der Export nicht lesen", "audio-video": "eine Tondatei kann nicht auf einer Videospur liegen", "overlap": "überlappt den vorigen Clip seiner Spur", "missing": "die Datei ist nicht im Projekt" } as Record<string, string>)[code] ?? code,
 };

@@ -47,6 +47,64 @@ VoiceClip clip(String text) =>
     VoiceClip(text: text, id: 'a' * 64, ms: 2000, wave: List.filled(48, 3));
 
 void main() {
+  group('a comment on an edit\'s timeline (issue 430), as text', () {
+    Comment cut(Map<String, Object?>? clip) => Comment.fromJson({
+      'id': 'k',
+      'anchor': {
+        'kind': 'cut',
+        'source': {'kind': 'file', 'path': 'edits/demo.nbcut.json'},
+        'time': 8.25,
+        'clip': ?clip,
+      },
+      'text': 'the tail is cut off',
+      'status': 'pending',
+      'createdAt': 1,
+    });
+    final voice = {
+      'id': 'c4',
+      'track': 'a1',
+      'trackName': 'Voice',
+      'src': 'media/voice.wav',
+      'srcTime': 5.5,
+    };
+    test(
+      'the card names the file, the time, the clip, its track and the moment in its source',
+      () {
+        expect(
+          whereOf(cut(voice), Feed(), 'en'),
+          'edits/demo.nbcut.json · timeline 0:08.250',
+        );
+        expect(
+          quoteOf(cut(voice), 'en'),
+          'clip c4 · track Voice (a1) · media/voice.wav @ 0:05.500 in the source',
+        );
+        expect(
+          quoteOf(cut(voice), 'ru'),
+          'клип c4 · дорожка Voice (a1) · media/voice.wav @ 0:05.500 в исходнике',
+        );
+        expect(
+          quoteOf(
+            cut({
+              'id': 'c3',
+              'track': 'v2',
+              'src': 'media/logo.PNG',
+              'srcTime': 1,
+            }),
+            'en',
+          ),
+          'clip c3 · track v2 · media/logo.PNG (a photo)',
+        );
+        expect(quoteOf(cut(null), 'en'), 'a moment of the timeline, no clip');
+      },
+    );
+    test('it stays pending for the desktop', () {
+      final cs = Comments((_) => true, () => null);
+      cs.apply([cut(voice)]);
+      expect(cs.pending.map((x) => x.id), ['k']);
+      expect(cs.sendable, isEmpty);
+    });
+  });
+
   group('voice clips in a batch (web compose.ts)', () {
     test('the clips follow the typed text, each on a line of its own', () {
       final out = composeBatch('', [

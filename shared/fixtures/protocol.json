@@ -374,6 +374,42 @@
           "text": "from chat",
           "status": "pending",
           "createdAt": 1700000003000
+        },
+        {
+          "id": "c8",
+          "anchor": {
+            "kind": "cut",
+            "source": {
+              "kind": "file",
+              "path": "edits/demo.nbcut.json"
+            },
+            "time": 8.25,
+            "clip": {
+              "id": "c4",
+              "track": "a1",
+              "trackName": "Voice",
+              "src": "media/voice.wav",
+              "srcTime": 5.5
+            }
+          },
+          "text": "the tail is cut off",
+          "status": "pending",
+          "createdAt": 1700000005000
+        },
+        {
+          "id": "c9",
+          "anchor": {
+            "kind": "cut",
+            "source": {
+              "kind": "file",
+              "path": "edits/demo.nbcut.json"
+            },
+            "time": 2
+          },
+          "text": "",
+          "label": "clarify",
+          "status": "pending",
+          "createdAt": 1700000006000
         }
       ]
     },
@@ -1049,6 +1085,42 @@
           "text": "from chat",
           "status": "pending",
           "createdAt": 1700000003000
+        },
+        {
+          "id": "c8",
+          "anchor": {
+            "kind": "cut",
+            "source": {
+              "kind": "file",
+              "path": "edits/demo.nbcut.json"
+            },
+            "time": 8.25,
+            "clip": {
+              "id": "c4",
+              "track": "a1",
+              "trackName": "Voice",
+              "src": "media/voice.wav",
+              "srcTime": 5.5
+            }
+          },
+          "text": "the tail is cut off",
+          "status": "pending",
+          "createdAt": 1700000005000
+        },
+        {
+          "id": "c9",
+          "anchor": {
+            "kind": "cut",
+            "source": {
+              "kind": "file",
+              "path": "edits/demo.nbcut.json"
+            },
+            "time": 2
+          },
+          "text": "",
+          "label": "clarify",
+          "status": "pending",
+          "createdAt": 1700000006000
         }
       ]
     },
@@ -1341,8 +1413,19 @@
         "online": true,
         "relay": "wss://relay.example.com",
         "hostFingerprint": "abcd-efgh-ijkl-mnop",
-        "devices": [{ "id": "qrst", "name": "Test phone", "fingerprint": "qrst-uvwx-yz23-4567", "online": true, "pairedAt": 1700000000000 }],
-        "pairing": { "expiresAt": 1700000300000, "mine": true },
+        "devices": [
+          {
+            "id": "qrst",
+            "name": "Test phone",
+            "fingerprint": "qrst-uvwx-yz23-4567",
+            "online": true,
+            "pairedAt": 1700000000000
+          }
+        ],
+        "pairing": {
+          "expiresAt": 1700000300000,
+          "mine": true
+        },
         "legacy": false,
         "lastError": null,
         "startFailed": false,
@@ -1361,7 +1444,11 @@
         "devices": [],
         "pairing": null,
         "legacy": false,
-        "lastError": { "code": 4405, "message": "this access key is already used on the most computers allowed", "at": 1700000000000 },
+        "lastError": {
+          "code": 4405,
+          "message": "this access key is already used on the most computers allowed",
+          "at": 1700000000000
+        },
         "startFailed": false,
         "accessKey": false
       }
@@ -1369,7 +1456,12 @@
     {
       "kind": "remote-pair",
       "result": "paired",
-      "device": { "id": "qrst", "fingerprint": "qrst-uvwx-yz23-4567", "online": true, "pairedAt": 1700000000000 }
+      "device": {
+        "id": "qrst",
+        "fingerprint": "qrst-uvwx-yz23-4567",
+        "online": true,
+        "pairedAt": 1700000000000
+      }
     },
     {
       "kind": "remote-pair",

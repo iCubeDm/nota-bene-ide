@@ -1,4 +1,4 @@
-import { anchorSource, generatedImages, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef, type Voice } from '@nota-bene/shared';
+import { anchorSource, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef, type Voice } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
 import { getLang, t, tIn, type Lang } from '../i18n/index.ts';
 import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
@@ -11,6 +11,8 @@ import { createSelector } from '@reduxjs/toolkit';
 import { markSending, selectComments, selectPending, unmarkSending } from './slice.ts';
 import { selectFileVersion } from '../files/slice.ts';
 import { cameraLine } from '../model/pose.ts';
+import { cutWhere } from '../cut/quote.ts';
+import { liveCutState } from '../cut/live.ts';
 import { mediaTime } from '../media/markup/geometry.ts';
 import { activate } from '../tabs/slice.ts';
 import { toast } from '../shell/toast.ts';
@@ -40,6 +42,7 @@ export function whereOf(
   const src = anchorSource(c.anchor);
   const a = c.anchor;
   if (isMediaAnchor(a)) return `${whereOfFile(a.source)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${a.width}×${a.height}${a.camera ? ` · ${cameraLine(a.camera, getLang())}` : ''}`;
+  if (isCutAnchor(a)) return cutWhere(a, whereOfFile(a.source), lang);
   if (isAttachmentAnchor(a)) return tIn(lang, 'srcAttachment', attNo?.(a.image) ?? 0, a.width, a.height);
   if (!src) return t('srcChat');
   if (src.kind === 'file') return whereOfFile(src);
@@ -118,6 +121,8 @@ const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean
       return cur !== undefined && cur !== a.version;
     },
     shared,
+    // a cut comment: its clip gone, or its moment trimmed out of it, as the edit's open tab shows it
+    (c) => { const s = isCutAnchor(c.anchor) ? liveCutState(c.anchor) : undefined; return s === 'ok' ? undefined : s; },
   );
   const id = voice?.id ?? crypto.randomUUID();
   if (!d(sendMessage(text, force, ids, images, id, voice?.voice))) return fail('offline');
