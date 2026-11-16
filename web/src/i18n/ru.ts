@@ -1013,6 +1013,11 @@ export const ru = {
   cutTrackRemove: "Удалить дорожку с её клипами",
   cutMuteShort: "М",
   cutSoloShort: "С",
+  cutMeter: "Общий уровень, дБFS: пик держится 1,5 с",
+  cutClipOn: "Перегрузка: микс дошёл до 0 дБFS. Щёлкни, чтобы сбросить",
+  cutClipOff: "Индикатор перегрузки: краснеет, когда микс доходит до 0 дБFS",
+  cutTrackGain: "Громкость дорожки, дБ: щёлкни, чтобы ввести значение",
+  cutDb: (v: string) => `${v} дБ`,
   cutHideShort: "Скр",
   cutInspector: "Клип",
   // the timeline's tools and selections (issue 432)

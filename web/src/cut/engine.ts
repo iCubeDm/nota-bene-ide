@@ -1,8 +1,10 @@
 // The preview's player (issue 408): one clock, and per track two media elements that follow it, the clip in view and
 // the next one preloaded behind it, so a cut swaps to a frame already decoded instead of a black one. Photos are an
 // <img> per video track. Every element's sound goes through Web Audio: element → clip gain (its dB × the fades as linear
-// ramps) → track gain (dB, mute, solo) → master. The sums are playback.ts's; this file only applies them.
+// ramps) → track gain (dB, mute, solo) → master. The sums are playback.ts's; this file only applies them. The master
+// also feeds the level meter (issue 410): an analyser per channel, read by Meter.tsx while playing.
 import { cutDuration, isPhotoSrc, type Cut, type CutClip, type CutTrack } from '@nota-bene/shared/cut';
+import { peakOf } from './metering.ts';
 import { activeClips, audible, clipEnd, clipLevel, fadeRamp, gainAt, lastFrame, layerOpacity, nextClip, sourceTime, syncAction, trackLevel } from './playback.ts';
 
 /** What the controls draw: a new object on each change, so it can be a useSyncExternalStore snapshot. */
@@ -64,6 +66,7 @@ export class CutPlayer {
   private raf: number | null = null;
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private meter: { an: [AnalyserNode, AnalyserNode]; buf: Float32Array<ArrayBuffer> } | null = null;
   private snap: PlayerState = { t: 0, playing: false, duration: 0, ready: false, seeks: 0 };
   private seeks = 0;
   private subs = new Set<() => void>();
@@ -203,6 +206,7 @@ export class CutPlayer {
     this.dropSlots();
     void this.ctx?.close().catch(() => {});
     this.ctx = null;
+    this.meter = null;
     this.subs.clear();
   }
 
@@ -309,14 +313,55 @@ export class CutPlayer {
         this.ctx = new AudioContext();
         this.master = this.ctx.createGain();
         this.master.connect(this.ctx.destination);
+        this.tapMeter(this.ctx, this.master);
         for (const s of this.slots) this.wire(s);
         this.levels();
       } catch {
+        this.meter = null;
         this.ctx = null; // no Web Audio: the elements' own volume carries the gain (tick)
         this.master = null;
       }
     }
     void this.ctx?.resume().catch(() => {});
+  }
+
+  // the meter's analysers after the master (so the scrub's silence and every gain show), a mono mix up-mixed to both
+  // sides; a browser without them still plays, with no meter
+  private tapMeter(ctx: AudioContext, master: GainNode): void {
+    try {
+      const tap = ctx.createGain();
+      tap.channelCount = 2;
+      tap.channelCountMode = 'explicit';
+      tap.channelInterpretation = 'speakers';
+      master.connect(tap);
+      const split = ctx.createChannelSplitter(2);
+      tap.connect(split);
+      const an = [0, 1].map((i) => {
+        const a = ctx.createAnalyser();
+        // the most samples an analyser keeps: 0.34 s at 48 kHz, 0.17 s at 96 kHz, longer than a frame even at 30 Hz,
+        // so no burst between two reads is missed
+        a.fftSize = 16384;
+        split.connect(a, i);
+        return a;
+      }) as [AnalyserNode, AnalyserNode];
+      this.meter = { an, buf: new Float32Array(16384) };
+    } catch {
+      this.meter = null;
+    }
+  }
+
+  /**
+   * The mix's sample peak on each side since about the last frame (1 is full scale, more is clipping); null before the
+   * first play (no audio graph yet: the meter makes none of its own), without Web Audio, and while the context is not
+   * running (suspended in a hidden tab: its analysers hold their last samples).
+   */
+  meterPeaks(): [number, number] | null {
+    const m = this.meter;
+    if (!m || this.ctx?.state !== 'running') return null;
+    return m.an.map((a) => {
+      a.getFloatTimeDomainData(m.buf);
+      return peakOf(m.buf);
+    }) as [number, number];
   }
 
   private wire(s: Slot): void {
