@@ -95,7 +95,9 @@ class _NbInsetsLog with WidgetsBindingObserver {
   @override
   void didChangeMetrics() => log('metrics');
   @override
-  void didChangeAppLifecycleState(AppLifecycleState s) => log('life ${s.name}');
+  void didChangeAppLifecycleState(AppLifecycleState s) => log(
+    'life ${s.name} focus=${FocusManager.instance.primaryFocus?.context?.widget.runtimeType}',
+  );
 }
 
 final _nbInsetsLog = _NbInsetsLog();

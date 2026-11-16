@@ -40,6 +40,8 @@ import android.net.Uri
 import android.util.Size
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsAnimationCompat
 import androidx.core.view.WindowInsetsCompat
 import io.flutter.embedding.android.FlutterView
 import java.nio.ByteBuffer
@@ -902,12 +904,28 @@ class MainActivity : FlutterFragmentActivity() {
         val decor = window.decorView
         decor.postDelayed({ nbDiag("focus+300") }, 300)
         decor.postDelayed({ nbDiag("focus+1000") }, 1000)
-        decor.post {
-            val insets = decor.rootWindowInsets ?: return@post
-            if (WindowInsetsCompat.toWindowInsetsCompat(insets).isVisible(WindowInsetsCompat.Type.ime())) { nbDiag("post: ime visible, skip"); return@post }
-            nbDiag("post: apply, view=${flutterView(decor) != null}")
-            flutterView(decor)?.onApplyWindowInsets(insets)
+        decor.post { reapplyInsets(decor, "post") }
+        if (!imeWatched) {
+            imeWatched = true
+            // the end of a keyboard animation is when Flutter applies its deferred inset, which may be the old keyboard's
+            ViewCompat.setWindowInsetsAnimationCallback(decor, object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
+                override fun onProgress(insets: WindowInsetsCompat, running: MutableList<WindowInsetsAnimationCompat>) = insets
+                override fun onEnd(animation: WindowInsetsAnimationCompat) {
+                    if (animation.typeMask and WindowInsetsCompat.Type.ime() == 0) return
+                    nbDiag("ime anim end")
+                    decor.post { reapplyInsets(decor, "anim end") }
+                }
+            })
         }
+    }
+
+    private var imeWatched = false
+
+    private fun reapplyInsets(decor: View, at: String) {
+        val insets = decor.rootWindowInsets ?: return
+        if (WindowInsetsCompat.toWindowInsetsCompat(insets).isVisible(WindowInsetsCompat.Type.ime())) { nbDiag("$at: ime visible, skip"); return }
+        nbDiag("$at: apply, view=${flutterView(decor) != null}")
+        flutterView(decor)?.onApplyWindowInsets(insets)
     }
 
     // DIAGNOSTIC gh-401, removed before the PR
