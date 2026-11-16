@@ -979,6 +979,9 @@ export const zhCN: Dict = {
   cutUnsaved: "尚未保存",
   cutSaveFailed: (why: string) => `未保存：${why}`,
   cutCannotAdd: (name: string) => `${name} 无法加入剪辑：不是可读取的视频、声音或照片，或不适合这种轨道`,
+  // a refused move of the selected clips (issue 442)
+  cutGroupOverlap: "所选片段无法移到那里：会与其他片段重叠",
+  cutGroupNoLane: "所选片段无法移到那里：并非每个片段在那里都有同类轨道",
   cutDropNew: "将“文件”中的视频、声音或照片拖到这里新建轨道，或拖到某条轨道上",
   cutClipTip: "拖动以移动，也可移到同类的另一条轨道（Alt：不吸附）；Shift 或 ⌘/Ctrl 单击将其加入或移出选择；← →：一帧（Shift：十帧），Delete 删除，S 在播放头处分割",
   cutGainTip: "上下拖动以设置片段的增益（Shift：精细步进）",
