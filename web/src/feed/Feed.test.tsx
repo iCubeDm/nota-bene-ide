@@ -374,3 +374,25 @@ describe('message times and day separators', () => {
     expect(view.container.querySelector('[data-day]')).toHaveTextContent('Gestern');
   });
 });
+
+describe('a feed left open past midnight', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('re-renders at local midnight: Today becomes Yesterday and the times get their date', () => {
+    const evening = new Date(2026, 10, 16, 23, 0).getTime();
+    vi.useFakeTimers({ now: new Date(2026, 10, 16, 23, 58) });
+    const { store, view } = setup();
+    act(() => {
+      store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'q', ts: evening }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: evening, e: { t: 'message', id: 'a1:0', text: 'a' } }));
+    });
+    const sep = () => view.container.querySelector('[data-day]')!.textContent;
+    const time = (id: string) => view.container.querySelector(`[data-item-id="${id}"] time`)!.textContent;
+    expect(sep()).toBe('Today');
+    expect(time('a1:0')).toBe(clockTime(evening, 'en', evening));
+    act(() => { vi.advanceTimersByTime(3 * 60_000); });
+    expect(sep()).toBe('Yesterday');
+    expect(time('a1:0')).toBe(clockTime(evening, 'en', Date.now()));
+    expect(time('u1')).toMatch(/^Nov 16, /);
+  });
+});

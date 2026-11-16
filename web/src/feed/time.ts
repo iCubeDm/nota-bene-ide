@@ -50,3 +50,34 @@ export function dayStarts(items: readonly FeedItem[], skip: ReadonlySet<string> 
   });
   return out;
 }
+
+// The day the feed reads as today. One timer for every subscriber, set to the next local midnight: a feed left open
+// overnight then says Yesterday and dates its times. A wake from sleep past midnight fires it late, still right.
+let today = dayOf(Date.now());
+const daySubs = new Set<() => void>();
+let midnight: ReturnType<typeof setTimeout> | undefined;
+function armMidnight(): void {
+  const n = new Date();
+  const next = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1).getTime();
+  midnight = setTimeout(() => {
+    today = dayOf(Date.now());
+    for (const fn of daySubs) fn();
+    armMidnight();
+  }, next - n.getTime() + 50); // just past it, so the new day is surely here
+}
+
+/** For useSyncExternalStore: called again at each local midnight while anything listens. */
+export function subscribeDay(fn: () => void): () => void {
+  if (daySubs.size === 0) {
+    today = dayOf(Date.now()); // nobody listened for a while: the day may have changed meanwhile
+    armMidnight();
+  }
+  daySubs.add(fn);
+  return () => {
+    daySubs.delete(fn);
+    if (daySubs.size === 0) clearTimeout(midnight);
+  };
+}
+
+/** The current local day (its midnight, epoch ms), as of the last midnight tick. */
+export const currentDay = (): number => today;
