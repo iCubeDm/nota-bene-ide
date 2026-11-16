@@ -993,7 +993,7 @@ export const ptBR: Dict = {
   cutHideShort: "O",
   cutInspector: "Clipe",
   // the timeline's tools and selections (issue 432)
-  cutToolSelect: "Seleção: clique em um clipe, Shift ou ⌘/Ctrl+clique para mais, arraste num espaço vazio para um retângulo",
+  cutToolSelect: "Seleção: clique em um clipe, Shift ou ⌘/Ctrl+clique para mais, arraste num espaço vazio para um retângulo; Shift+arrastar move um clipe com tudo o que vem depois na faixa, Shift+arrastar o fim desloca os seguintes",
   cutToolSelectShort: "Seleção",
   cutToolBlade: "Lâmina: um clique corta o clipe nesse ponto (Shift: todas as faixas; Alt: sem encaixe)",
   cutToolBladeShort: "Lâmina",

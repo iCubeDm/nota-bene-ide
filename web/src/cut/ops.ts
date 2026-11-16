@@ -215,6 +215,40 @@ export function moveClips(cut: Cut, ids: readonly string[], dt: number, lanes?: 
   return { ...cut, clips: cut.clips.map((c) => moved.get(c.id) ?? c) };
 }
 
+/** The clip `id` and the clips after it on its track, in time order (issue 437); none when it is not there. */
+export function trackForward(cut: Cut, id: string): string[] {
+  const c = cut.clips.find((x) => x.id === id);
+  if (!c) return [];
+  return [c, ...others(cut, c.track, [id]).filter((x) => x.at > c.at - EPS)].map((x) => x.id);
+}
+
+/**
+ * The clip `id` and every clip after it on its track `dt` seconds later (issue 437), their gaps kept, on their track:
+ * earlier, not before the end of the clip before it, nor before 0. The other clips stay.
+ */
+export function moveForward(cut: Cut, id: string, dt: number): Cut {
+  const c = cut.clips.find((x) => x.id === id);
+  if (!c) return cut;
+  const ids = trackForward(cut, id);
+  const prev = others(cut, c.track, ids).reduce((m, x) => Math.max(m, end(x)), 0);
+  const d = Math.max(dt, prev - c.at);
+  return { ...cut, clips: cut.clips.map((x) => (ids.includes(x.id) ? { ...x, at: msWithin(x.at + d, prev, Infinity) } : x)) };
+}
+
+/**
+ * The clip's end to `to` as trimEnd does it, the clips after it on its track moved by as much as the end did (issue 437):
+ * the gap after it neither opens nor closes, so the next clip's start is no limit.
+ */
+export function rippleTrimEnd(cut: Cut, id: string, to: number, srcLen?: number): Cut {
+  const c = cut.clips.find((x) => x.id === id);
+  if (!c) return cut;
+  const later = trackForward(cut, id).slice(1);
+  const trimmed = trimEnd({ ...cut, clips: cut.clips.filter((x) => !later.includes(x.id)) }, id, to, srcLen);
+  const d = end(trimmed.clips.find((x) => x.id === id)!) - end(c);
+  const moved = new Map(trimmed.clips.map((x) => [x.id, x]));
+  return { ...cut, clips: cut.clips.map((x) => moved.get(x.id) ?? { ...x, at: ms(x.at + d) }) };
+}
+
 /** How far `to` is from `from` in the drawn order of their kind, for moveClips; null when they are of different kinds or not there. */
 export function laneShift(cut: Cut, from: string, to: string): { kind: CutTrack['kind']; by: number } | null {
   const a = trackOf(cut, from), b = trackOf(cut, to);

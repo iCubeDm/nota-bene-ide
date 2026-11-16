@@ -3,6 +3,7 @@ import { validateCut, type Cut } from '@nota-bene/shared/cut';
 import {
   addClip, addTrack, deleteClips, dragGain, duplicateClip, freeAt, GAIN_MAX, GAIN_MIN, gainAtY, gainY, setFade, setGain, moveClip, moveTrack, movePlace, nudgeClip, removeTrack, renameTrack, resizePlace,
   duplicateClips, moveClips, setClip, setClips, setTrackFlag, snapMove, snapPoints, snapTime, splitAt, trimEnd, trimStart,
+  moveForward, rippleTrimEnd, trackForward,
 } from './ops.ts';
 
 // a main video track with two clips and a gap, a photo over it, a voice track
@@ -372,5 +373,59 @@ describe('a selection of clips (issue 432)', () => {
     expect([clip(a, 'c2').gain, clip(a, 'c4').gain]).toEqual([-3, -3]);
     expect(setClips(cut, ['c2', 'c3'], { fadeIn: 3.5 })).toBeNull(); // c3 is 3 s long
     expect(clip(valid(setClips(cut, ['c1'], { fadeIn: undefined })!), 'c1')).not.toHaveProperty('fadeIn');
+  });
+});
+
+describe('a clip with everything after it on its track (issue 437)', () => {
+  // a third clip on the main track: c1 0..5, c2 8..12, c5 13..15
+  const three = (): Cut => {
+    const cut = base();
+    return { ...cut, clips: [...cut.clips, { id: 'c5', track: 'v1', src: 'media/b.mp4', at: 13, out: 2 }] };
+  };
+  it('trackForward: the clip and the later clips of its track, in time order; earlier ones and other tracks left out', () => {
+    const cut = three();
+    expect(trackForward(cut, 'c2')).toEqual(['c2', 'c5']);
+    expect(trackForward(cut, 'c1')).toEqual(['c1', 'c2', 'c5']);
+    expect(trackForward(cut, 'c4')).toEqual(['c4']);
+    expect(trackForward(cut, 'nope')).toEqual([]);
+  });
+  it('moveForward: they move together, keeping their gaps; left, they stop at the previous clip and at 0', () => {
+    const cut = three();
+    const later = valid(moveForward(cut, 'c2', 2));
+    expect([clip(later, 'c1').at, clip(later, 'c2').at, clip(later, 'c5').at]).toEqual([0, 10, 15]);
+    expect(clip(later, 'c3')).toEqual(clip(cut, 'c3'));
+    expect(clip(later, 'c4')).toEqual(clip(cut, 'c4'));
+    // 5 s left: c2 stops at the end of c1, c5 keeps its distance
+    const left = valid(moveForward(cut, 'c2', -5));
+    expect([clip(left, 'c2').at, clip(left, 'c5').at]).toEqual([5, 10]);
+    const zero = valid(moveForward(cut, 'c1', -1));
+    expect([clip(zero, 'c1').at, clip(zero, 'c2').at]).toEqual([0, 8]);
+    expect(clip(valid(moveForward(cut, 'c2', 0.0004)), 'c2').at).toBe(8);
+    expect(moveForward(cut, 'nope', 1)).toBe(cut);
+    expect(clip(cut, 'c2').at).toBe(8); // the given edit is left alone
+  });
+  it('rippleTrimEnd: the end trims and every later clip of the track moves by as much, the gap kept', () => {
+    const cut = three();
+    const longer = valid(rippleTrimEnd(cut, 'c1', 6, 20));
+    expect(clip(longer, 'c1').out).toBe(8);
+    expect([clip(longer, 'c2').at, clip(longer, 'c5').at]).toEqual([9, 14]);
+    // past where the next clip started: it moves on ahead
+    const past = valid(rippleTrimEnd(cut, 'c1', 10, 20));
+    expect([clip(past, 'c2').at, clip(past, 'c5').at]).toEqual([13, 18]);
+    // shorter: they follow it back
+    const shorter = valid(rippleTrimEnd(cut, 'c2', 10));
+    expect(clip(shorter, 'c2').out).toBe(2);
+    expect(clip(shorter, 'c5').at).toBe(11);
+    expect(clip(shorter, 'c4')).toEqual(clip(cut, 'c4'));
+  });
+  it('rippleTrimEnd: within the source and one frame of length, the later clips moving only as far as the end did', () => {
+    const cut = three();
+    const src = valid(rippleTrimEnd(cut, 'c1', 9, 8)); // the source ends 6 s into the edit (in 2)
+    expect(clip(src, 'c1').out).toBe(8);
+    expect(clip(src, 'c2').at).toBe(9);
+    const frame = valid(rippleTrimEnd(cut, 'c2', 0));
+    expect(clip(frame, 'c2').out).toBe(0.04);
+    expect(clip(frame, 'c5').at).toBe(9.04);
+    expect(rippleTrimEnd(cut, 'nope', 3)).toBe(cut);
   });
 });

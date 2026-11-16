@@ -298,11 +298,11 @@ it('a rectangle keeps its start in the timeline when the view scrolls under it',
   expect(container.querySelector('[data-marquee]')).toBeNull();
 });
 
-it('a Shift- or Cmd-press on a trim edge or a fade handle adds or removes the clip, and trims nothing', async () => {
-  const { clip, container, pps } = await show();
+it('a Shift-click or Cmd-press on a trim edge or a fade handle adds or removes the clip, and trims nothing', async () => {
+  const { clip, container } = await show();
   press(clip('c1'), 10);
   const part = (id: string, sel: string) => container.querySelector(`[data-clip="${id}"] ${sel}`)!;
-  drag(part('c3', '[data-trim="end"]'), 100, 100 - pps(), { shiftKey: true, altKey: true });
+  press(part('c3', '[data-trim="end"]'), 100, { shiftKey: true });
   expect(selected(container)).toEqual(['c1', 'c3']);
   press(part('c3', '[data-fade="in"]'), 10, { metaKey: true });
   expect(selected(container)).toEqual(['c1']);
@@ -364,4 +364,71 @@ it('mute on several clips: indeterminate while they differ, then on for all', as
   await saved(() => expect([clipOnDisk('c1')!.mute, clipOnDisk('c3')!.mute]).toEqual([true, true]));
   await waitFor(() => expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Mute its sound' }).indeterminate).toBe(false));
   expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Mute its sound' }).checked).toBe(true);
+});
+
+// Shift on a clip: it moves with everything after it on its track, its end edge ripples (issue 437)
+it('a Shift drag on a clip moves it and the later clips of its track as one step, the selection kept; left, it stops at the clip before', async () => {
+  const { clip, pps, container } = await show();
+  const p = pps();
+  press(clip('c3'), 10);
+  drag(clip('c1'), 100, 100 + p, { shiftKey: true, altKey: true });
+  expect(selected(container)).toEqual(['c3']);
+  await saved(() => expect(clipOnDisk('c1')!.at).toBe(1));
+  expect(clipOnDisk('c2')!.at).toBe(7);
+  expect(clipOnDisk('c3')).toMatchObject({ track: 'a1', at: 0 });
+  valid();
+  // c2 3 s left: it stops at the end of c1 (now 1..5); c1 stays
+  drag(clip('c2'), 100, 100 - 3 * p, { shiftKey: true, altKey: true });
+  await saved(() => expect(clipOnDisk('c2')!.at).toBe(5));
+  expect(clipOnDisk('c1')!.at).toBe(1);
+  // one undo per drag
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect(clipOnDisk('c2')!.at).toBe(7));
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect(clipOnDisk('c1')!.at).toBe(0));
+  expect(clipOnDisk('c2')!.at).toBe(6);
+});
+
+it('a Shift drag stays on its track, and the pressed clip snaps unless Alt is held', async () => {
+  const { clip, pps, container } = await show();
+  stack(container);
+  const p = pps();
+  // to the audio lane and 2 s on, 3 px short of c3's end (8 s): it snaps there, on v1
+  fireEvent.pointerDown(clip('c2'), { clientX: 100, clientY: 10, button: 0, pointerId: 1, shiftKey: true });
+  fireEvent.pointerMove(clip('c2'), { clientX: 100 + 2 * p - 3, clientY: 80, pointerId: 1, shiftKey: true });
+  fireEvent.pointerUp(clip('c2'), { clientX: 100 + 2 * p - 3, clientY: 80, pointerId: 1, shiftKey: true });
+  await saved(() => expect(clipOnDisk('c2')).toMatchObject({ track: 'v1', at: 8 }));
+  drag(clip('c2'), 100, 100 + 3, { shiftKey: true, altKey: true });
+  await saved(() => expect(clipOnDisk('c2')!.at).toBeCloseTo(8 + 3 / p, 3));
+});
+
+it('a Shift-click on a clip, no drag, adds or removes it on release', async () => {
+  const { clip, container } = await show();
+  press(clip('c1'), 10);
+  fireEvent.pointerDown(clip('c2'), { clientX: 10, clientY: 0, button: 0, pointerId: 1, shiftKey: true });
+  expect(selected(container)).toEqual(['c1']);
+  fireEvent.pointerUp(clip('c2'), { clientX: 10, clientY: 0, pointerId: 1, shiftKey: true });
+  expect(selected(container)).toEqual(['c1', 'c2']);
+  press(clip('c1'), 10, { shiftKey: true });
+  expect(selected(container)).toEqual(['c2']);
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  expect(onDisk()).toEqual(fixture); // nothing moved
+});
+
+it('a Shift drag on the end edge ripples the later clips of the track; on the start edge it is a plain trim', async () => {
+  const { clip, pps, container } = await show();
+  const p = pps();
+  const part = (id: string, sel: string) => container.querySelector(`[data-clip="${id}"] ${sel}`)!;
+  drag(part('c1', '[data-trim="end"]'), 100, 100 - p, { shiftKey: true, altKey: true });
+  await saved(() => expect(clipOnDisk('c1')!.out).toBe(3));
+  expect(clipOnDisk('c2')!.at).toBe(5); // the 2 s gap kept
+  expect(clipOnDisk('c3')!.at).toBe(0);
+  expect(selected(container)).toEqual([]);
+  valid();
+  drag(part('c1', '[data-trim="start"]'), 100, 100 + p, { shiftKey: true, altKey: true });
+  await saved(() => expect(clipOnDisk('c1')).toMatchObject({ at: 1, in: 1, out: 3 }));
+  expect(clipOnDisk('c2')!.at).toBe(5);
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect(onDisk()).toEqual(fixture));
 });

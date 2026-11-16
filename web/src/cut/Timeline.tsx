@@ -9,7 +9,7 @@ import { PATH_MIME } from './drag.ts';
 import type { Editing } from './editing.ts';
 import type { CutPlayer } from './engine.ts';
 import { dB, FadeHandle, FadeSlopes, GainLine, usePeaks, Wave } from './ClipSound.tsx';
-import { addTrack, dragGain, laneShift, moveClip, moveClips, setFade, setGain, snapMove, snapPoints, snapTime, trimEnd, trimStart } from './ops.ts';
+import { addTrack, dragGain, laneShift, moveClip, moveClips, moveForward, rippleTrimEnd, setFade, setGain, snapMove, snapPoints, snapTime, trackForward, trimEnd, trimStart } from './ops.ts';
 import { TrackHead } from './TrackHead.tsx';
 import { drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn, type Block, type Lane } from './layout.ts';
 import { poster } from './thumbs.ts';
@@ -517,6 +517,9 @@ type Pointer = { clientX: number; clientY: number; altKey: boolean; shiftKey: bo
  * several moves them all (moveClips: refused, shown back where they were, while any would overlap), a click on it alone
  * selects it alone; its edges, gain line and fade handles act on it alone, the selection kept. With the blade a press
  * cuts the clip there (`bladeAt`, Shift: every track).
+ * Issue 437: Shift alone on a clip's body or edge waits for the release: a click adds or takes out the clip; a drag on the
+ * body moves it with every later clip of its track (moveForward: on its track, the pressed clip snapping), on its end edge
+ * trims it with those clips following (rippleTrimEnd), on its start edge trims it alone. The selection is kept.
  */
 function useClipDrag(
   ed: Editing | undefined, pps: number, player: CutPlayer, scroller: RefObject<HTMLElement | null>,
@@ -547,16 +550,21 @@ function useClipDrag(
         e.preventDefault(); // no text selection, no native drag
         if (ed0.tool === 'blade') return ed0.blade(bladeAt(e.clientX, e.altKey, [id]), id, e.shiftKey);
         const mod = e.shiftKey || e.metaKey || e.ctrlKey;
+        // issue 437: Shift alone on the body or an edge decides on release: a drag moves the clip with what follows it on
+        // its track (the end edge ripples it, the start edge trims as it does), a click adds or takes out the clip
+        const forward = e.shiftKey && !e.metaKey && !e.ctrlKey && (grip0 === 'move' || grip0 === 'start' || grip0 === 'end');
         const toggle = (cur: Editing) => cur.select(cur.sel.includes(id) ? cur.sel.filter((x) => x !== id) : [...cur.sel, id]);
         // a modifier on the body, an edge or a fade handle adds or takes out the clip (the gain line decides on release)
-        if (grip0 !== 'gain' && mod) return toggle(ed0);
+        if (grip0 !== 'gain' && mod && !forward) return toggle(ed0);
         const c = ed0.cut.clips.find((x) => x.id === id);
         if (!c) return;
         const base = ed0.cut;
         // a press on a clip of the selection keeps it: the body moves them all, the other grips act on this one
-        const group = ed0.sel.includes(id) ? ed0.sel.filter((x) => base.clips.some((k) => k.id === x)) : [id];
+        const group = forward ? [id] : ed0.sel.includes(id) ? ed0.sel.filter((x) => base.clips.some((k) => k.id === x)) : [id];
+        // the clip and what follows it on its track: they move together, nothing of them is a snap point
+        const after = forward ? trackForward(base, id) : [id];
         // the gain line runs across the clip's middle: with a modifier, a click on it (no drag) is a click on the clip
-        if (!ed0.sel.includes(id) && !(grip0 === 'gain' && mod)) ed0.select([id]);
+        if (!ed0.sel.includes(id) && !mod) ed0.select([id]);
         stop.current?.();
         let moved = false;
         const x0 = e.clientX;
@@ -591,7 +599,7 @@ function useClipDrag(
             setLive({ id, grip });
             return cur.draft(out);
           }
-          const lane = grip === 'move' ? laneAt(m.clientY) ?? c.track : c.track;
+          const lane = grip === 'move' && !forward ? laneAt(m.clientY) ?? c.track : c.track;
           if (!moved && Math.abs(m.clientX - x0) < DRAG_PX && lane === c.track) return;
           moved = true;
           const p = ppsRef.current;
@@ -610,11 +618,12 @@ function useClipDrag(
             setLive({ id, grip });
             return cur.draft(out);
           }
-          const pts = m.altKey ? [] : snapPoints(base, player.time(), [id]);
+          const pts = m.altKey ? [] : snapPoints(base, player.time(), after);
           const tol = SNAP_PX / p;
-          out = grip === 'move' ? moveClip(base, id, snapMove(at0 + dt, end0 - at0, pts, tol), lane)
+          out = grip === 'move' ? forward ? moveForward(base, id, snapMove(at0 + dt, end0 - at0, pts, tol) - at0)
+            : moveClip(base, id, snapMove(at0 + dt, end0 - at0, pts, tol), lane)
             : grip === 'start' ? trimStart(base, id, snapTime(at0 + dt, pts, tol))
-            : trimEnd(base, id, snapTime(end0 + dt, pts, tol), cur.lenOf(c.src));
+            : (forward ? rippleTrimEnd : trimEnd)(base, id, snapTime(end0 + dt, pts, tol), cur.lenOf(c.src));
           cur.draft(out);
         };
         const up = () => {
@@ -622,9 +631,10 @@ function useClipDrag(
           const cur = edRef.current;
           if (!cur) return;
           if (out && !stale(cur)) cur.commit(out);
-          // a click on a clip (its body or its gain line), no drag: added or taken out with a modifier, else that clip alone
-          else if (!out && !moved && (grip0 === 'move' || grip0 === 'gain') && !stale(cur)) {
-            if (grip0 === 'gain' && mod) toggle(cur);
+          // a click on a clip (its body or its gain line; with Shift an edge too), no drag: added or taken out with a
+          // modifier, else that clip alone
+          else if (!out && !moved && (grip0 === 'move' || grip0 === 'gain' || forward) && !stale(cur)) {
+            if (mod) toggle(cur);
             else if (group.length > 1) cur.select([id]);
           }
           cur.draft(null);
