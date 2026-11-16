@@ -40,15 +40,21 @@ export function applyCutKey(p: CutPlayer, code: string): boolean {
 /**
  * The keys while the edit's tab is shown, focus is in it (or nowhere) and not in a field. Capture phase with
  * preventDefault and stopPropagation as usePlayerKeys does: Space never presses a focused button nor scrolls, arrows
- * never scroll the timeline.
+ * never scroll the timeline. `edit`: the editor's keys, true for one it took.
  */
-export function useCutKeys(player: CutPlayer, active: boolean, pane: RefObject<HTMLElement | null>): void {
+export function useCutKeys(player: CutPlayer, active: boolean, pane: RefObject<HTMLElement | null>, edit?: RefObject<((e: KeyboardEvent) => boolean) | null>): void {
   useEffect(() => {
     if (!active) return;
     let swallowKeyup = false;
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || !pane.current || !keysInScope(e, pane.current, inPlayerScope)) return;
-      if (!CODES.has(e.code)) return;
+      if (!pane.current || !keysInScope(e, pane.current, inPlayerScope)) return;
+      // the editor's keys first (issue 409): they take what they handle, the preview the rest
+      if (edit?.current?.(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || !CODES.has(e.code)) return;
       // a held key repeats the seeks and steps only, as in the player
       if (!(e.repeat && ONCE(e.code))) applyCutKey(player, e.code);
       e.preventDefault();
@@ -64,5 +70,5 @@ export function useCutKeys(player: CutPlayer, active: boolean, pane: RefObject<H
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('keyup', onUp, true);
     };
-  }, [player, active, pane]);
+  }, [player, active, pane, edit]);
 }

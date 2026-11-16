@@ -1,10 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type PointerEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type DragEvent, type PointerEvent, type ReactNode, type RefObject } from 'react';
+import { clipLength, type Cut } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
 import { projectFileUrl } from '@/files/kinds.ts';
 import { useT } from '@/i18n/index.ts';
 import { EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon, PauseIcon, PlayIcon } from '@/media/playerIcons.tsx';
 import { isMac, withKeys } from '@/shell/keymap.ts';
+import { PATH_MIME } from './drag.ts';
+import type { Editing } from './editing.ts';
 import type { CutPlayer } from './engine.ts';
+import { moveClip, snapMove, snapPoints, snapTime, trimEnd, trimStart } from './ops.ts';
+import { TrackHead } from './TrackHead.tsx';
 import { drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn, type Block, type Lane } from './layout.ts';
 import { poster } from './thumbs.ts';
 import { applyCutKey } from './useCutKeys.ts';
@@ -18,14 +23,17 @@ const dB = (g: number) => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`
  * around the pointer), and the preview's transport (issue 408): play, the clip-edge and frame steps, the time, and the
  * playhead that follows `player`, set by a click on the ruler or dragged there or by its line (scrubbing). While playing
  * the view scrolls to keep the playhead in sight. `problems`: the messages of a clip by its index in `clips`; such a clip
- * is outlined.
+ * is outlined. `editing` (issue 409): a clip is selected by a click, moved by a drag (to another track of its kind too),
+ * trimmed by its edges, snapping to the playhead, 0 and the other clips' edges (Alt: no snapping); the track headers
+ * rename, mute, solo, hide, reorder and remove; a project file dropped from the Files tree becomes a clip.
  */
-export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools }: {
+export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing }: {
   player: CutPlayer;
   lanes: Lane[]; blocks: Block[]; end: number; frame: { width: number; height: number; fps: number } | null;
   problems: ReadonlyMap<number, string[]>; missing: ReadonlySet<string>; fileSrc: string; active: boolean;
   /** the toolbar's right end, after the size and rate (the Export control) */
   tools?: ReactNode;
+  editing?: Editing;
 }) {
   const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
@@ -148,6 +156,21 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     if (w > 0 && (x < el.scrollLeft || x > el.scrollLeft + w - 24)) el.scrollLeft = Math.max(0, x - w * 0.1);
   }), [player]);
   const key = (code: string) => void applyCutKey(player, code);
+  const clipDrag = useClipDrag(editing, pps, player, scroller);
+  // a project file from the tree: on a lane at the time under the pointer, below the lanes onto a new track
+  const dropOver = (e: DragEvent<HTMLElement>) => {
+    if (!editing || ![...e.dataTransfer.types].includes(PATH_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const drop = (e: DragEvent<HTMLElement>, track: string | null) => {
+    const path = editing && e.dataTransfer.getData(PATH_MIME);
+    if (!path) return;
+    e.preventDefault();
+    const left = track === null ? (ruler.current?.getBoundingClientRect().left ?? 0) : e.currentTarget.getBoundingClientRect().left;
+    const at = (e.clientX - left) / pps;
+    editing.addFile(path, track, Number.isFinite(at) ? Math.max(0, at) : 0);
+  };
 
   return (
     <div data-timeline data-pps={pps} className="flex min-h-0 flex-[2_1_0%] flex-col">
@@ -178,6 +201,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
           </div>
           {lanes.map((l) => (
             <div key={l.id} data-lane={l.id} className={`flex border-b border-border-soft ${l.kind === 'video' ? 'h-14' : 'h-10'}`}>
+              {editing ? <TrackHead lane={l} cut={editing.cut} commit={editing.commit} width={HEAD} /> : (
               <div data-track-head={l.id} className="sticky left-0 z-20 flex flex-none flex-col justify-center gap-0.5 border-r border-border-soft bg-chrome px-2 text-xs" style={{ width: HEAD }}>
                 <span className="truncate text-foreground" title={l.name ?? l.id}>{l.name ?? t(l.kind === 'video' ? 'cutVideoN' : 'cutAudioN', l.n)}</span>
                 <span className="flex gap-1 font-mono text-[0.625rem] text-muted-foreground">
@@ -187,13 +211,26 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
                   {l.hidden && <span className="rounded bg-muted px-1">{t('cutHidden')}</span>}
                 </span>
               </div>
-              <div className="relative flex-1">
+              )}
+              <div
+                data-lane-body={l.id} className="relative flex-1"
+                onPointerDown={(e) => { if (editing && e.target === e.currentTarget && e.button === 0) editing.select(null); }}
+                onDragOver={dropOver} onDrop={(e) => drop(e, l.id)}
+              >
                 {blocks.filter((b) => b.track === l.id).map((b) => (
-                  <Clip key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active} />
+                  <Clip
+                    key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active}
+                    selected={editing?.sel === b.id} drag={editing ? clipDrag : undefined}
+                  />
                 ))}
               </div>
             </div>
           ))}
+          {editing && (
+            <div data-cut-drop onDragOver={dropOver} onDrop={(e) => drop(e, null)} className="flex h-10 items-center border-b border-dashed border-border-soft text-xs text-muted-foreground">
+              <span className="sticky left-0 px-3">{t('cutDropNew')}</span>
+            </div>
+          )}
           <div className="pointer-events-none absolute inset-y-0 z-10" style={{ left: HEAD }}>
             <Head player={player} pps={pps} data-playhead className="absolute inset-y-0 w-px bg-destructive">
               <div title={t('cutPlayheadTip')} className="pointer-events-auto absolute inset-y-0 -left-1 w-2 cursor-ew-resize touch-none" {...drag} />
@@ -268,10 +305,11 @@ function usePoster(url: string | null, at: number): string | null {
 
 /** One clip: its file name, a thumbnail on a video track (the photo; a video's first used frame) once it is in view,
  *  its problems outlined; at least 2 px wide, however short. */
-function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active }: {
+function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, drag }: {
   b: Block; lane: Lane; pps: number; frame: { width: number; height: number } | null; problems: string[] | undefined; gone: boolean;
-  fileSrc: string; active: boolean;
+  fileSrc: string; active: boolean; selected?: boolean; drag?: ClipDrag;
 }) {
+  const t = useT();
   const w = Math.max(2, b.len * pps);
   const bad = !!problems?.length;
   const url = projectFileUrl(b.src, fileSrc);
@@ -281,16 +319,103 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active }: {
   const seen = useSeen(ref, active && thumb);
   const frameOf = usePoster(seen && thumb && !b.photo ? url : null, b.from || 0);
   const shown = seen && thumb ? (b.photo ? url : frameOf) : null;
-  const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? [])].join('\n');
+  const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? []), ...(drag ? [t('cutClipTip')] : [])].join('\n');
   const tint = lane.kind === 'video' ? 'border-link/60 bg-link/15' : 'border-success/60 bg-success/15';
   return (
     <div
-      ref={ref} data-clip={b.id} data-bad={bad || undefined} title={title}
-      className={`absolute inset-y-1 flex items-center gap-1 overflow-hidden rounded border text-xs ${tint} ${bad ? 'outline-2 outline-destructive' : ''} ${gone ? 'opacity-60' : ''}`}
+      ref={ref} data-clip={b.id} data-bad={bad || undefined} data-selected={selected || undefined} title={title}
+      className={`absolute inset-y-1 flex items-center gap-1 overflow-hidden rounded border text-xs ${tint} ${bad ? 'outline-2 outline-destructive' : ''} ${gone ? 'opacity-60' : ''} ${selected ? 'z-[1] ring-2 ring-primary' : ''} ${drag ? 'cursor-grab touch-none select-none' : ''}`}
       style={{ left: b.at * pps, width: w }}
+      {...(drag && drag.handlers(b.id, 'move'))}
     >
+      {drag && (['start', 'end'] as const).map((edge) => (
+        <span
+          key={edge} data-trim={edge} title={t(edge === 'start' ? 'cutTrimStart' : 'cutTrimEnd')}
+          className={`absolute inset-y-0 z-[2] w-1.5 cursor-ew-resize hover:bg-primary/40 ${edge === 'start' ? 'left-0' : 'right-0'}`}
+          {...drag.handlers(b.id, edge)}
+        />
+      ))}
       {shown && <img src={shown} alt="" draggable={false} className="h-full flex-none bg-black object-cover" style={frame ? { aspectRatio: `${frame.width} / ${frame.height}` } : undefined} />}
       <span className={`min-w-0 truncate px-1 ${gone ? 'line-through' : ''}`}>{basename(b.src)}</span>
     </div>
   );
+}
+
+type Grip = 'move' | 'start' | 'end';
+type ClipDrag = { handlers: (id: string, grip: Grip) => { onPointerDown: (e: PointerEvent<HTMLElement>) => void } };
+// px within which a dragged edge snaps; px a press must travel to be a drag rather than a click
+const SNAP_PX = 8;
+const DRAG_PX = 3;
+type Pointer = { clientX: number; clientY: number; altKey: boolean };
+
+/**
+ * A clip's drag: from the committed edit at the press, each move shows the result (`draft`), the release commits it.
+ * The body moves the clip (the lane under the pointer takes it when it is of the clip's kind), an edge trims it. The
+ * moves are the window's: a clip that changes lanes is a new element, and the drag must go on. An edit that changed
+ * under the drag (a reload of the agent's version) ends it: a change built on the older edit is never committed.
+ */
+function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, scroller: RefObject<HTMLElement | null>): ClipDrag {
+  const edRef = useRef(ed);
+  edRef.current = ed;
+  const ppsRef = useRef(pps);
+  ppsRef.current = pps;
+  const stop = useRef<(() => void) | null>(null);
+  useEffect(() => () => stop.current?.(), []);
+  const laneAt = (y: number): string | undefined => {
+    for (const el of scroller.current?.querySelectorAll<HTMLElement>('[data-lane-body]') ?? []) {
+      const r = el.getBoundingClientRect();
+      if (r.height > 0 && y >= r.top && y < r.bottom) return el.dataset.laneBody;
+    }
+  };
+  return {
+    handlers: (id, grip) => ({
+      onPointerDown: (e) => {
+        const ed0 = edRef.current;
+        if (!ed0 || e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault(); // no text selection, no native drag
+        ed0.select(id);
+        const c = ed0.cut.clips.find((x) => x.id === id);
+        if (!c) return;
+        stop.current?.();
+        const base = ed0.cut;
+        const x0 = e.clientX;
+        const at0 = c.at;
+        const end0 = c.at + clipLength(c);
+        let out: Cut | null = null;
+        // the edit changed under the drag (the agent's version reloaded): the drag is over, nothing of it is kept
+        const stale = (cur: Editing | undefined): cur is undefined => !cur || cur.cut !== base;
+        const move = (m: Pointer) => {
+          const cur = edRef.current;
+          if (stale(cur)) return void stop.current?.();
+          const lane = grip === 'move' ? laneAt(m.clientY) ?? c.track : c.track;
+          if (!out && Math.abs(m.clientX - x0) < DRAG_PX && lane === c.track) return;
+          const p = ppsRef.current;
+          const dt = (m.clientX - x0) / p;
+          const pts = m.altKey ? [] : snapPoints(base, player.time(), [id]);
+          const tol = SNAP_PX / p;
+          out = grip === 'move' ? moveClip(base, id, snapMove(at0 + dt, end0 - at0, pts, tol), lane)
+            : grip === 'start' ? trimStart(base, id, snapTime(at0 + dt, pts, tol))
+            : trimEnd(base, id, snapTime(end0 + dt, pts, tol), cur.lenOf(c.src));
+          cur.draft(out);
+        };
+        const up = () => {
+          stop.current?.();
+          const cur = edRef.current;
+          if (!cur) return;
+          if (out && !stale(cur)) cur.commit(out);
+          cur.draft(null);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+        window.addEventListener('pointercancel', up);
+        stop.current = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+          window.removeEventListener('pointercancel', up);
+          stop.current = null;
+        };
+      },
+    }),
+  };
 }

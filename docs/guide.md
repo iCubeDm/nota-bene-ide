@@ -172,7 +172,7 @@ Mermaid and SVG blocks in replies render as diagrams; **Open diagram** opens one
 
 ## Video edits (`.nbcut.json`)
 
-A file named `<name>.nbcut.json` is an edit for the video editor (work in progress): video, photos and sound on tracks. It opens as a read-only **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame). The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom. Editing on the timeline comes later.
+A file named `<name>.nbcut.json` is an edit for the video editor (work in progress): video, photos and sound on tracks. It opens as a **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame). The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom.
 
 **Preview.** The frame above the timeline plays the edit as the export renders it: video tracks stacked (a later one on top), each clip at its `place`, sound mixed with gains, fades, mute and solo. Click or drag on the ruler, or drag the playhead, to scrub. An edit with problems does not play.
 
@@ -181,6 +181,18 @@ A file named `<name>.nbcut.json` is an edit for the video editor (work in progre
 - Keys, with focus in the tab and not in a field: Space or K play/pause, J / L −10 / +10 s, ← / → the player's seek step, `,` / `.` one frame (pausing), ↑ / ↓ the previous or next clip edge on any track, Home / End the start and the last frame. The toolbar's buttons name their keys.
 - A hidden track is not drawn, but its sound plays. Sound is off while scrubbing. While playing, the timeline scrolls to keep the playhead in view.
 - Playback waits for a clip that is still loading or seeking; switching to another browser tab pauses it.
+
+</details>
+
+**Editing.** A valid edit of this folder is edited in place and saved to its file as you go (the bar above the timeline says *Saved*). Click a clip to select it; drag it to move it (also onto another track of its kind), drag an edge to trim it. Edges snap to the playhead, 0 and other clips' edges; hold Alt for none. Drag a video, sound or photo from Files onto a track, or below the tracks for a new one: the clip takes the whole file (a photo 5 s). The selected video clip's frame shows on the preview: drag it to move, a corner to resize (Shift: free proportions). The clip panel beside the preview has its numbers. **Undo** and **Redo** (⌘/Ctrl+Z, ⇧⌘/Ctrl+Shift+Z) step through your edits.
+
+<details><summary>More: editing keys and rules</summary>
+
+- Keys, with focus in the tab and not in a field: Delete or Backspace deletes the selected clip, S splits at the playhead (the selected clip, or every clip under the playhead), ← / → nudge the selected clip one frame (Shift: ten; with nothing selected they seek), Esc lets it go.
+- Clips on a track never overlap: a moved, added or duplicated clip lands in the nearest free place on its track that holds it (after the last clip if no gap does); a trim stops at the neighbour, at the source's ends and at one frame of length. A split keeps the fade-in on the left part and the fade-out on the right.
+- A track header renames on a double-click, and has M (mute), S (solo), H (hide the picture, video tracks), ↑ / ↓ (order among the tracks of its kind; up on a video track is over the picture) and × (remove with its clips).
+- The clip panel: start, in and out (a photo: duration), gain, fades and mute of the clip's sound, and for a video track its frame and opacity in percent, with **Fit to frame** to fill the frame again. A value the format does not accept is marked and not applied.
+- The file is the only state. When it changes on disk (the agent wrote it) and nothing is unsaved, the editor reloads it, keeping the playhead; undo starts again from that version. An edit made against an older version asks first: overwrite it, or take the version on disk. An edit with problems, or a view of another branch or worktree, stays read-only.
 
 </details>
 
