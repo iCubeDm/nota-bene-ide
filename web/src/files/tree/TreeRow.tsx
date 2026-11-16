@@ -1,4 +1,6 @@
 import type { TreeEntry } from '@nota-bene/shared';
+import { AUDIO, PHOTO, VIDEO } from '@nota-bene/shared/cut';
+import { PATH_MIME } from '@/cut/drag.ts';
 import { openFile } from '@/tabs/slice.ts';
 import { Svg } from '@/tabs/TabStrip.tsx';
 import { FileIcon } from '../FileIcon.tsx';
@@ -35,8 +37,12 @@ export function renderDir(c: RowsCtx, dir: string, depth: number): React.ReactNo
     }
     if (f && !e.name.toLowerCase().includes(f)) return null;
     const n = counts[fileKey(p, ref)] ?? 0;
+    // a video, sound or photo of this folder drags onto an edit's timeline (issue 409)
+    const media = src === 'here' && (VIDEO.test(p) || AUDIO.test(p) || PHOTO.test(p));
     return (
       <button key={p} type="button" data-path={p} onClick={() => c.onOpen({ path: p, src, ref })} style={pad}
+        draggable={media || undefined}
+        onDragStart={media ? (e) => { e.dataTransfer.setData(PATH_MIME, p); e.dataTransfer.setData('text/plain', p); e.dataTransfer.effectAllowed = 'copy'; } : undefined}
         className={`flex h-6 w-full items-center gap-1.5 rounded pr-2 text-left text-xs hover:bg-muted/50 hover:text-foreground${dot} ${activePath === p ? 'bg-primary/15 text-foreground' : 'text-foreground/85'}`}>
         <span className="w-3 flex-none" />
         <FileIcon path={e.name} />

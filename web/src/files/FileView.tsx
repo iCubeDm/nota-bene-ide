@@ -149,7 +149,9 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
         {(html || cut) && !editing && (
           <span role="group" aria-label={t(cut ? 'cutViewTip' : 'pageViewTip')} title={t(cut ? 'cutViewTip' : 'pageViewTip')} className="flex overflow-hidden rounded border border-border-soft">
             {([true, false] as const).map((v) => (
-              <button key={String(v)} type="button" aria-pressed={pageView === v} onClick={() => setPageView(v)}
+              <button key={String(v)} type="button" aria-pressed={pageView === v}
+                // the timeline saves as it edits: its JSON is read again
+                onClick={() => { if (cut && !v && pageView) load.reloadClick(); setPageView(v); }}
                 className={`px-1.5 hover:text-foreground ${pageView === v ? 'bg-muted text-foreground' : ''}`}>{t(v ? (cut ? 'cutTimeline' : 'pageView') : 'sourceView')}</button>
             ))}
           </span>
