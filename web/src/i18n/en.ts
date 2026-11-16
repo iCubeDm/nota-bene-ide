@@ -991,6 +991,9 @@ export const en: Dict = {
   cutUnsaved: "Not saved yet",
   cutSaveFailed: (why: string) => `Not saved: ${why}`,
   cutCannotAdd: (name: string) => `${name} cannot go into the edit: not a video, sound or photo it reads, or not on this kind of track`,
+  // a refused move of the selected clips (issue 442)
+  cutGroupOverlap: "The selected clips cannot move there: they would overlap other clips",
+  cutGroupNoLane: "The selected clips cannot move there: there is no track of their kind for each of them",
   cutDropNew: "Drop a video, sound or photo from Files here for a new track, or onto a track",
   cutClipTip: "Drag to move, onto another track of its kind too (Alt: no snapping); Shift- or ⌘/Ctrl-click adds or removes it from the selection; ← →: one frame (Shift: ten), Delete deletes, S splits at the playhead",
   cutGainTip: "Drag up or down to set the clip's gain (Shift: fine steps)",

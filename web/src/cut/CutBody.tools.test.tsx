@@ -488,3 +488,120 @@ it('a Cmd- or Ctrl-press on the body or an edge still adds or removes the clip o
   fireEvent.pointerUp(container.querySelector('[data-clip="c1"] [data-trim="end"]')!, { clientX: 10, clientY: 0, pointerId: 1, ctrlKey: true });
   expect(selected(container)).toEqual(['c2']);
 });
+
+// leftovers from the review of issue 432 (issue 442)
+it('a rectangle can start in the track column and on the add-track rows; the header controls still act, no rectangle', async () => {
+  const { pps, container } = await show();
+  const p = pps();
+  stack(container);
+  // the lanes start after the 144 px track column
+  const ruler = container.querySelector<HTMLElement>('[data-ruler]')!;
+  ruler.getBoundingClientRect = () => ({ left: 144, top: 0, width: 1000, height: 24, right: 1144, bottom: 24, x: 144, y: 0, toJSON() {} });
+  // from the audio track's header into its lane: the voice clip only
+  const head = container.querySelector('[data-track-head="a1"]')!;
+  fireEvent.pointerDown(head, { clientX: 60, clientY: 70, button: 0, pointerId: 2 });
+  fireEvent.pointerMove(head, { clientX: 144 + p, clientY: 80, pointerId: 2 });
+  expect(container.querySelector('[data-marquee]')).not.toBeNull();
+  fireEvent.pointerUp(head, { clientX: 144 + p, clientY: 80, pointerId: 2 });
+  expect(selected(container)).toEqual(['c3']);
+  // from the "+ Video" row (below the video lane) up over both clips of the video track
+  const add = container.querySelector('[data-track-add="video"]')!;
+  fireEvent.pointerDown(add, { clientX: 300, clientY: 100, button: 0, pointerId: 2 });
+  fireEvent.pointerMove(add, { clientX: 144 + 7 * p, clientY: 20, pointerId: 2 });
+  fireEvent.pointerUp(add, { clientX: 144 + 7 * p, clientY: 20, pointerId: 2 });
+  expect(selected(container)).toEqual(['c1', 'c2', 'c3']);
+  // the row for a new track by a drop, too (Shift adds nothing new here: all are in)
+  const dropRow = container.querySelector('[data-cut-drop]')!;
+  fireEvent.pointerDown(dropRow, { clientX: 300, clientY: 140, button: 0, pointerId: 2, shiftKey: true });
+  fireEvent.pointerMove(dropRow, { clientX: 320, clientY: 60, pointerId: 2, shiftKey: true });
+  expect(container.querySelector('[data-marquee]')).not.toBeNull();
+  fireEvent.pointerUp(dropRow, { clientX: 320, clientY: 60, pointerId: 2, shiftKey: true });
+  expect(selected(container)).toEqual(['c1', 'c2', 'c3']);
+  // a press on a header's control, its name or an add-track button starts no rectangle, and the selection stays
+  const controls = [
+    screen.getAllByRole('button', { name: 'Mute the track' })[0]!, screen.getAllByRole('button', { name: 'Move the track up' })[0]!,
+    container.querySelector('[data-track-name]')!, screen.getByRole('button', { name: 'Add a video track' }),
+  ];
+  for (const el of controls) {
+    fireEvent.pointerDown(el, { clientX: 60, clientY: 10, button: 0, pointerId: 2 });
+    fireEvent.pointerMove(el, { clientX: 144 + 3 * p, clientY: 80, pointerId: 2 });
+    expect(container.querySelector('[data-marquee]')).toBeNull();
+    fireEvent.pointerUp(el, { clientX: 144 + 3 * p, clientY: 80, pointerId: 2 });
+  }
+  expect(selected(container)).toEqual(['c1', 'c2', 'c3']);
+  // and they still act: mute, rename
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mute the track' })[0]!);
+  await saved(() => expect(onDisk().tracks.find((x) => x.id === 'v1')!.mute).toBe(true));
+  fireEvent.doubleClick(container.querySelector('[data-track-name]')!);
+  expect(screen.getByRole('textbox', { name: 'Track name' })).toBeInTheDocument();
+});
+
+it('a refused group nudge or drag says why in the edit bar; the next change clears it', async () => {
+  // c1 ends where c2 starts: c1 cannot go later
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c2' ? { ...c, at: 4 } : c)) }));
+  const { clip, pps, container } = await show();
+  const p = pps();
+  const note = () => container.querySelector('[data-cut-tools] [role="status"]')?.textContent ?? '';
+  press(clip('c1'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  key('ArrowRight');
+  expect(note()).toMatch(/would overlap/);
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  expect(clipOnDisk('c1')!.at).toBe(0);
+  // a move that goes through takes the note away
+  press(clip('c2'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  key('ArrowRight');
+  expect(note()).toBe('');
+  await saved(() => expect(clipOnDisk('c2')!.at).toBe(4.04));
+  // a group drag onto c2: refused, the note says so
+  press(clip('c1'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  drag(clip('c1'), 100, 100 + 2 * p, { altKey: true });
+  expect(note()).toMatch(/would overlap/);
+  expect(clipOnDisk('c1')!.at).toBe(0);
+  // dragged onto a track of the other kind: there is none of their kind there
+  stack(container);
+  fireEvent.pointerDown(clip('c1'), { clientX: 100, clientY: 10, button: 0, pointerId: 1, altKey: true });
+  fireEvent.pointerMove(clip('c1'), { clientX: 100, clientY: 80, pointerId: 1, altKey: true });
+  fireEvent.pointerUp(clip('c1'), { clientX: 100, clientY: 80, pointerId: 1, altKey: true });
+  expect(note()).toMatch(/no track of their kind/);
+});
+
+it('several video clips: position, size and opacity for all of them, mixed where they differ, one undo step; audio ignored', async () => {
+  const half = { x: 0.5, y: 0, w: 0.5, h: 0.5, opacity: 0.5 };
+  const clips = [...fixture.clips.map((c) => (c.id === 'c2' ? { ...c, place: half } : c)), { id: 'c4', track: 'a1', src: 'media/voice.wav', at: 9, out: 2 }];
+  write(JSON.stringify({ ...fixture, clips }));
+  const { clip } = await show();
+  press(clip('c1'), 10);
+  press(clip('c2'), 10, { shiftKey: true });
+  press(clip('c3'), 10, { shiftKey: true });
+  const field = (name: string) => screen.getByRole('spinbutton', { name });
+  expect(field('X, %')).toHaveValue(null);
+  expect(field('X, %')).toHaveAttribute('placeholder', 'mixed');
+  expect(field('Y, %')).toHaveValue(0);
+  expect(field('Width, %')).toHaveAttribute('placeholder', 'mixed');
+  expect(field('Opacity, %')).toHaveAttribute('placeholder', 'mixed');
+  fireEvent.change(field('X, %'), { target: { value: '10' } });
+  fireEvent.blur(field('X, %'));
+  await saved(() => expect([clipOnDisk('c1')!.place?.x, clipOnDisk('c2')!.place?.x]).toEqual([0.1, 0.1]));
+  // each keeps the rest of its own frame; the audio clip has none
+  expect(clipOnDisk('c2')!.place).toEqual({ ...half, x: 0.1 });
+  expect(clipOnDisk('c1')!.place).toMatchObject({ x: 0.1, y: 0, w: 1, h: 1 });
+  expect(clipOnDisk('c3')).not.toHaveProperty('place');
+  valid();
+  // a value the format refuses for any of them is applied to none
+  fireEvent.change(field('Width, %'), { target: { value: '0' } });
+  fireEvent.blur(field('Width, %'));
+  expect(field('Width, %')).toHaveAttribute('aria-invalid', 'true');
+  // one undo takes the X back on both
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect(clipOnDisk('c2')!.place).toEqual(half));
+  expect(clipOnDisk('c1')).not.toHaveProperty('place');
+  // no video clip in the selection: no frame fields
+  press(clip('c3'), 10);
+  press(clip('c4'), 10, { shiftKey: true });
+  expect(screen.getByRole('spinbutton', { name: 'Gain, dB' })).toBeInTheDocument();
+  expect(screen.queryByRole('spinbutton', { name: 'X, %' })).toBeNull();
+  expect(screen.queryByRole('spinbutton', { name: 'Opacity, %' })).toBeNull();
+});

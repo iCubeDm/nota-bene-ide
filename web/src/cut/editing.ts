@@ -1,4 +1,5 @@
 import type { Cut } from '@nota-bene/shared/cut';
+import type { GroupRefusal } from './ops.ts';
 
 /** The timeline's tool (issue 432): Select (V) picks and drags clips, Blade (C) cuts the clip under a click. */
 export type Tool = 'select' | 'blade';
@@ -17,6 +18,8 @@ export type Editing = {
   draft: (c: Cut | null) => void;
   /** a finished change: a step of the history, saved */
   commit: (c: Cut) => void;
+  /** a move of the selection was refused (issue 442): the edit bar says why until the next change */
+  refuse: (why: GroupRefusal) => void;
   /** a source's length in seconds, once known */
   lenOf: (src: string) => number | undefined;
   /** a project file dropped on a track (null: below the tracks, a new one) at `at` seconds */
