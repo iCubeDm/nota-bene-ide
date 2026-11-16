@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import type { Cut } from '@nota-bene/shared/cut';
 import {
-  activeClips, audible, clipEdges, lastFrame, clipLevel, dbGain, edgeStep, fadeAt, fadeRamp, frameStep, gainAt, nextClip, sourceTime,
+  activeClips, audible, clipEdges, lastFrame, clipLevel, dbGain, edgeStep, fadeAt, fadeRamp, frameStep, gainAt, layerOpacity, nextClip, sourceTime,
   syncAction, trackLevel, videoLayers,
 } from './playback.ts';
 
@@ -116,6 +116,19 @@ it('gainAt: clip gain × fade × track gain, with the clip mute, solo and a phot
   c.tracks[4]!.solo = true;
   expect(gainAt(c, c.clips[6]!, 3)).toBe(1);
   expect(gainAt(c, s1, 3)).toBe(0);
+});
+
+it('layerOpacity: a video clip\'s picture fades with its fades (issue 431), times its place\'s opacity', () => {
+  const c = cut();
+  const fading = { ...c.clips[0]!, fadeIn: 1, fadeOut: 2 }; // 0..5
+  expect(layerOpacity(fading, 0)).toBe(0); // from black
+  expect(layerOpacity(fading, 0.5)).toBeCloseTo(0.5);
+  expect(layerOpacity(fading, 2)).toBe(1);
+  expect(layerOpacity(fading, 4)).toBeCloseTo(0.5);
+  expect(layerOpacity(c.clips[0]!, 0)).toBe(1); // no fades: whole from the first frame
+  const photo = { ...c.clips[2]!, fadeIn: 1 }; // at 1, opacity 0.5
+  expect(layerOpacity(photo, 1.5)).toBeCloseTo(0.25);
+  expect(layerOpacity(c.clips[2]!, 2)).toBe(0.5);
 });
 
 it('fadeRamp: the fade envelope from a time to the clip end as points for linear ramps', () => {

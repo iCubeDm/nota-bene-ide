@@ -3,7 +3,7 @@
 // <img> per video track. Every element's sound goes through Web Audio: element → clip gain (its dB × the fades as linear
 // ramps) → track gain (dB, mute, solo) → master. The sums are playback.ts's; this file only applies them.
 import { cutDuration, isPhotoSrc, type Cut, type CutClip, type CutTrack } from '@nota-bene/shared/cut';
-import { activeClips, audible, clipEnd, clipLevel, fadeRamp, gainAt, lastFrame, nextClip, sourceTime, syncAction, trackLevel } from './playback.ts';
+import { activeClips, audible, clipEnd, clipLevel, fadeRamp, gainAt, lastFrame, layerOpacity, nextClip, sourceTime, syncAction, trackLevel } from './playback.ts';
 
 /** What the controls draw: a new object on each change, so it can be a useSyncExternalStore snapshot. */
 export type PlayerState = { t: number; playing: boolean; duration: number; /** an edit to play (none while it has problems) */ ready: boolean; /** counts the seeks */ seeks: number };
@@ -399,7 +399,7 @@ export class CutPlayer {
         const url = this.opts.url(next.src);
         if ((s.pre ??= new Image()).getAttribute('src') !== url) s.pre.src = url;
       }
-      this.draw(s, clip, photo);
+      this.draw(s, clip, photo, t);
     }
   }
 
@@ -466,15 +466,15 @@ export class CutPlayer {
     }
   }
 
-  // a video track's box at the clip's place (fractions of the frame), its photo shown in it or not
-  private draw(s: Slot, clip: CutClip | undefined, photo: CutClip | undefined): void {
+  // a video track's box at the clip's place (fractions of the frame) at its opacity and fades, its photo shown in it or not
+  private draw(s: Slot, clip: CutClip | undefined, photo: CutClip | undefined, t: number): void {
     const { layer, img } = s;
     if (!layer || !img) return;
     const shown = !!clip && !s.track.hidden;
     layer.style.display = shown ? '' : 'none';
     if (shown) {
       const p = clip.place ?? { x: 0, y: 0, w: 1, h: 1 };
-      Object.assign(layer.style, { left: `${p.x * 100}%`, top: `${p.y * 100}%`, width: `${p.w * 100}%`, height: `${p.h * 100}%`, opacity: String(p.opacity ?? 1) });
+      Object.assign(layer.style, { left: `${p.x * 100}%`, top: `${p.y * 100}%`, width: `${p.w * 100}%`, height: `${p.h * 100}%`, opacity: String(layerOpacity(clip, t)) });
     }
     if (photo && shown) {
       const url = this.opts.url(photo.src);
