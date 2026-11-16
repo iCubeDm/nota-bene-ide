@@ -6,14 +6,14 @@ import { useT } from '@/i18n/index.ts';
 import type { Block } from './layout.ts';
 import { gainY } from './ops.ts';
 import { dbGain } from './playback.ts';
-import { peaksOf } from './peaks.ts';
+import { peaksOf, type Wave as Waveform } from './peaks.ts';
 
 /** Decibels as the timeline writes them: `+3 dB`, `−4.5 dB`, `0 dB`. */
 export const dB = (g: number): string => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`;
 
-/** A source's peaks once loaded (peaks.ts); null meanwhile, and for one without sound. `src` null: none asked. */
-export function usePeaks(src: string | null, fileSrc: string): Uint8Array | null {
-  const [got, setGot] = useState<{ key: string; peaks: Uint8Array | null } | null>(null);
+/** A source's waveform once loaded (peaks.ts), or why it has none; null meanwhile or unknown. `src` null: none asked. */
+export function usePeaks(src: string | null, fileSrc: string): Waveform | null {
+  const [got, setGot] = useState<{ key: string; peaks: Waveform | null } | null>(null);
   const key = `${fileSrc}\n${src}`;
   useEffect(() => {
     if (src === null) return;
@@ -116,11 +116,14 @@ export function GainLine({ gain, press, value }: { gain: number; press: Press; v
   );
 }
 
+/** The trim edges' width, px (Timeline.tsx's `w-1.5`): a fade handle stays inside them, the very edge is the trim's. */
+const TRIM_PX = 6;
+
 /** A fade's handle at the clip's top corner, where its fade ends: dragged inward, the fade grows. */
 export function FadeHandle({ edge, b, pps, w, press }: { edge: 'in' | 'out'; b: Block; pps: number; w: number; press: Press }) {
   const t = useT();
   const size = 8;
-  const at = Math.max(0, Math.min(w - size, ((edge === 'in' ? b.fadeIn : b.fadeOut) ?? 0) * pps - size / 2));
+  const at = Math.max(TRIM_PX, Math.min(w - size - TRIM_PX, ((edge === 'in' ? b.fadeIn : b.fadeOut) ?? 0) * pps - size / 2));
   return (
     <span
       data-fade={edge} title={t(edge === 'in' ? 'cutFadeInTip' : 'cutFadeOutTip')}

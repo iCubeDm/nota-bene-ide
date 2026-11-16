@@ -354,7 +354,10 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   const frameOf = usePoster(seen && thumb && !b.photo ? url : null, b.from || 0);
   const shown = seen && thumb ? (b.photo ? url : frameOf) : null;
   // the sound (issue 431): the waveform drawn around the view, in steps of WAVE_STEP px so a scroll seldom redraws it
-  const peaks = usePeaks(seen && sound && !gone ? b.src : null, fileSrc);
+  const wave = usePeaks(seen && sound && !gone ? b.src : null, fileSrc);
+  const peaks = wave && 'peaks' in wave ? wave.peaks : null;
+  // a source known to have no sound (a video without it) has no gain to set
+  const mute = !!wave && 'none' in wave && wave.none === 'no-audio';
   const x0 = Math.max(0, Math.floor((view.from - b.at) * pps / WAVE_STEP) * WAVE_STEP);
   const x1 = Math.min(w, Math.ceil((view.to - b.at) * pps / WAVE_STEP) * WAVE_STEP);
   const handles = !!drag && w >= 24;
@@ -369,7 +372,7 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
     >
       {peaks && <Wave b={b} peaks={peaks} pps={pps} x0={x0} x1={x1} band={lane.kind === 'video'} />}
       <FadeSlopes b={b} pps={pps} w={w} />
-      {drag && sound && <GainLine gain={b.gain ?? 0} press={drag.handlers(b.id, 'gain')} value={drag.live?.id === b.id && drag.live.grip === 'gain'} />}
+      {drag && sound && !mute && <GainLine gain={b.gain ?? 0} press={drag.handlers(b.id, 'gain')} value={drag.live?.id === b.id && drag.live.grip === 'gain'} />}
       {handles && (['in', 'out'] as const).map((edge) => (
         <FadeHandle key={edge} edge={edge} b={b} pps={pps} w={w} press={drag.handlers(b.id, edge === 'in' ? 'fadeIn' : 'fadeOut')} />
       ))}
@@ -402,7 +405,8 @@ type Pointer = { clientX: number; clientY: number; altKey: boolean; shiftKey: bo
 /**
  * A clip's drag: from the committed edit at the press, each move shows the result (`draft`), the release commits it.
  * The body moves the clip (the lane under the pointer takes it when it is of the clip's kind), an edge trims it, the gain
- * line sets its gain (Shift: fine steps, from where it is when Shift changes) and a fade's handle its fade. The
+ * line sets its gain (Shift: fine steps, from where it is when Shift changes; a drag from it that starts sideways moves
+ * the clip instead) and a fade's handle its fade. The
  * moves are the window's: a clip that changes lanes is a new element, and the drag must go on. An edit that changed
  * under the drag (a reload of the agent's version) ends it: a change built on the older edit is never committed.
  */
@@ -422,8 +426,9 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
   };
   return {
     live,
-    handlers: (id, grip) => ({
+    handlers: (id, grip0) => ({
       onPointerDown: (e) => {
+        let grip = grip0;
         const ed0 = edRef.current;
         if (!ed0 || e.button !== 0) return;
         e.stopPropagation();
@@ -448,8 +453,14 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
         const move = (m: Pointer) => {
           const cur = edRef.current;
           if (stale(cur)) return void stop.current?.();
+          if (grip === 'gain' && !out) {
+            // the first movement decides: up or down sets the gain, sideways moves the clip
+            const dx = Math.abs(m.clientX - x0);
+            const dy = Math.abs(m.clientY - y0);
+            if (Math.max(dx, dy) < DRAG_PX) return;
+            if (dx > dy) grip = 'move';
+          }
           if (grip === 'gain') {
-            if (!out && Math.abs(m.clientY - y0) < DRAG_PX) return;
             if (m.shiftKey !== fine) {
               g0 = out?.clips.find((x) => x.id === id)?.gain ?? g0;
               y0 = m.clientY;

@@ -10,7 +10,9 @@ import { SAVE_DELAY } from './useCutDoc.ts';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
 vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async () => 4) }));
-vi.mock('./peaks.ts', () => ({ peaksOf: vi.fn(async () => new Uint8Array(800).fill(128)) }));
+vi.mock('./peaks.ts', () => ({
+  peaksOf: vi.fn(async (src: string) => (src === 'media/street.webm' ? { none: 'no-audio' } : { peaks: new Uint8Array(800).fill(128) })),
+}));
 
 const fixture = {
   version: 1, width: 1280, height: 720, fps: 25,
@@ -373,4 +375,25 @@ it('a clip with sound draws its waveform once in view; a photo has no gain line'
   } finally {
     getContext.mockRestore();
   }
+});
+
+it('a video without sound has no gain line once that is known; a sideways drag from the gain line moves the clip', async () => {
+  vi.stubGlobal('IntersectionObserver', undefined);
+  const { container, clip, pps } = await show();
+  const p = pps();
+  await waitFor(() => expect(container.querySelector('[data-clip="c2"] [data-gain]')).toBeNull());
+  expect(container.querySelector('[data-clip="c1"] [data-gain]')).not.toBeNull();
+  tall(clip('c3'), 40);
+  // the first movement is sideways: a move, not a gain
+  drag(container.querySelector('[data-clip="c3"] [data-gain]')!, 100, 100 + 1.5 * p, { altKey: true });
+  await saved(() => expect(clipOnDisk('c3')!.at).toBe(1.5));
+  expect(clipOnDisk('c3')).not.toHaveProperty('gain');
+});
+
+it('a fade handle with no fade sits inside the trim edge: both stay grabbable', async () => {
+  const { container } = await show();
+  const fin = container.querySelector<HTMLElement>('[data-clip="c3"] [data-fade="in"]')!;
+  const fout = container.querySelector<HTMLElement>('[data-clip="c3"] [data-fade="out"]')!;
+  expect(fin.style.left).toBe('6px');
+  expect(fout.style.right).toBe('6px');
 });
