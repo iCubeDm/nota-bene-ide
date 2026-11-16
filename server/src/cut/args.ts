@@ -4,8 +4,14 @@ import { clipLength, isPhotoSrc, type Cut, type CutTrack } from '@nota-bene/shar
 export type ExportMode = 'mp4' | 'wav' | 'm4a';
 export const EXPORT_MODES: readonly ExportMode[] = ['mp4', 'wav', 'm4a'];
 
-/** A clip's `src` resolved: the absolute file, and whether it has a sound stream (asked of ffmpeg before the export). */
-export type Sources = ReadonlyMap<string, { file: string; audio: boolean }>;
+/** A clip's `src` resolved: the absolute file, and whether it has a picture and a sound stream (asked of ffmpeg before the export; a photo is a picture). */
+export type Sources = ReadonlyMap<string, { file: string; video: boolean; audio: boolean }>;
+
+/** ffmpeg reads AVIF through its mp4/mov reader, not image2: no `-loop` there, so the still is looped as a stream and cut in the graph. */
+const isAvif = (src: string): boolean => /\.avif$/i.test(src);
+
+/** A frame side as H.264 in yuv420p takes it: an even integer, 2 at least. */
+const even = (n: number): number => Math.max(2, Math.round(n / 2) * 2);
 
 /** Where the edit ends: the end of its last clip (0 without clips). The export is this long. */
 export const cutEnd = (cut: Cut): number => num(Math.max(0, ...cut.clips.map((c) => c.at + clipLength(c))));
@@ -22,15 +28,15 @@ const AUDIO_FMT = `aresample=${RATE},aformat=sample_fmts=fltp:channel_layouts=st
  * holds only numbers). One input per clip that is seen or heard, trimmed at the input (`-ss in -t len`; a photo loops for
  * its `dur`). The picture: a black frame of the edit's size and rate for the whole length, then every clip of a shown video
  * track overlaid, the tracks in their order in `tracks` (a later one covers an earlier one) and a track's clips by time,
- * each scaled to fit its `place` (or the whole frame) keeping its aspect ratio, centred there, at its opacity, from its `at`.
+ * a source without a picture adds only its sound; each picture scaled to fit its `place` (or the whole frame) keeping its aspect ratio, centred there, at its opacity, from its `at`.
  * The sound: silence of the whole length mixed (summed, not averaged) with every audible clip's sound, a video clip's own
  * included when its source has one: clip gain + track gain in dB, the fades, delayed to its `at`. A clip is audible unless
  * it or its track is muted, or another track has solo and its own has not. Gaps are black and silent.
  * mp4: H.264 (yuv420p) and AAC; wav: 16-bit PCM; m4a: AAC. `-progress pipe:1` reports on stdout; errors go to stderr.
  */
 export function exportArgs(cut: Cut, sources: Sources, output: string, mode: ExportMode): string[] {
-  const W = Math.round(cut.width);
-  const H = Math.round(cut.height);
+  const W = even(cut.width);
+  const H = even(cut.height);
   const fps = s(cut.fps);
   const end = s(cutEnd(cut));
   const tracks = new Map(cut.tracks.map((t) => [t.id, t]));
@@ -52,11 +58,14 @@ export function exportArgs(cut: Cut, sources: Sources, output: string, mode: Exp
     const src = sources.get(c.src);
     if (!src) continue;
     const len = clipLength(c);
-    const seen = mode === 'mp4' && track.kind === 'video' && !track.hidden;
+    // a source without a picture (a sound file on a video track) contributes only its sound
+    const seen = mode === 'mp4' && track.kind === 'video' && !track.hidden && src.video;
     const heard = !isPhotoSrc(c.src) && src.audio && !c.mute && audible(track);
     if (!seen && !heard) continue;
     const k = input++;
-    if (isPhotoSrc(c.src)) args.push('-loop', '1', '-framerate', fps, '-t', s(len), '-i', src.file);
+    // a photo is one image: image2 without patterns, so a `%d` in its name is no numbered sequence
+    if (isAvif(c.src)) args.push('-stream_loop', '-1', '-t', s(len), '-i', src.file);
+    else if (isPhotoSrc(c.src)) args.push('-f', 'image2', '-pattern_type', 'none', '-loop', '1', '-framerate', fps, '-t', s(len), '-i', src.file);
     else args.push(...((c.in ?? 0) > 0 ? ['-ss', s(c.in!)] : []), '-t', s(len), '-i', src.file);
     if (seen) {
       const n = pictures.length / 2 + 1;
@@ -66,7 +75,7 @@ export function exportArgs(cut: Cut, sources: Sources, output: string, mode: Exp
         : { x: 0, y: 0, w: W, h: H };
       const opacity = p?.opacity ?? 1;
       pictures.push(
-        `[${k}:v]scale=${box.w}:${box.h}:force_original_aspect_ratio=decrease,setsar=1,format=yuva420p` +
+        `[${k}:v]${isAvif(c.src) ? `fps=${fps},trim=duration=${s(len)},` : ''}scale=${box.w}:${box.h}:force_original_aspect_ratio=decrease,setsar=1,format=yuva420p` +
           `${opacity < 1 ? `,colorchannelmixer=aa=${s(opacity)}` : ''},setpts=PTS-STARTPTS+${s(c.at)}/TB,fps=${fps}[p${n}]`,
         `[${last}][p${n}]overlay=x=${box.x}+(${box.w}-w)/2:y=${box.y}+(${box.h}-h)/2:eof_action=pass[v${n}]`,
       );

@@ -26,10 +26,10 @@ const CUT: Cut = {
   ],
 };
 const SOURCES: Sources = new Map([
-  ['media/a.mp4', { file: '/p/media/a.mp4', audio: true }],
-  ['media/b.png', { file: '/p/media/b.png', audio: false }],
-  ['media/voice.wav', { file: '/p/media/voice.wav', audio: true }],
-  ['media/music.mp3', { file: '/p/media/music.mp3', audio: true }],
+  ['media/a.mp4', { file: '/p/media/a.mp4', video: true, audio: true }],
+  ['media/b.png', { file: '/p/media/b.png', video: true, audio: false }],
+  ['media/voice.wav', { file: '/p/media/voice.wav', video: false, audio: true }],
+  ['media/music.mp3', { file: '/p/media/music.mp3', video: false, audio: true }],
 ]);
 const cut = (patch: (c: Cut) => void): Cut => {
   const c = structuredClone(CUT);
@@ -50,7 +50,7 @@ describe('exportArgs', () => {
     expect(exportArgs(CUT, SOURCES, '/p/exports/.x.part', 'mp4')).toEqual([
       '-hide_banner', '-nostdin', '-y', '-loglevel', 'error', '-nostats', '-progress', 'pipe:1',
       '-ss', '2.5', '-t', '2', '-i', '/p/media/a.mp4',
-      '-loop', '1', '-framerate', '30', '-t', '1', '-i', '/p/media/b.png',
+      '-f', 'image2', '-pattern_type', 'none', '-loop', '1', '-framerate', '30', '-t', '1', '-i', '/p/media/b.png',
       '-t', '2', '-i', '/p/media/voice.wav',
       '-ss', '10', '-t', '3.5', '-i', '/p/media/music.mp3',
       '-filter_complex', [
@@ -95,10 +95,48 @@ describe('exportArgs', () => {
 
   it('a video clip of a source without sound adds no sound', () => {
     const silent = new Map(SOURCES);
-    silent.set('media/a.mp4', { file: '/p/media/a.mp4', audio: false });
+    silent.set('media/a.mp4', { file: '/p/media/a.mp4', video: true, audio: false });
     const g = graph(exportArgs(CUT, silent, '/o', 'mp4'));
     expect(g.some((f) => f.startsWith('[0:a]'))).toBe(false);
     expect(g.some((f) => f.startsWith('[0:v]'))).toBe(true);
+  });
+
+  it('a sound-only source on a video track adds only its sound: no picture of it, the graph stays whole', () => {
+    const c = cut((x) => { x.clips[0]!.src = 'media/voice.wav'; });
+    const args = exportArgs(c, SOURCES, '/o', 'mp4');
+    const g = graph(args);
+    expect(inputs(args)[0]).toBe('/p/media/voice.wav');
+    expect(g.some((f) => f.startsWith('[0:v]'))).toBe(false);
+    expect(g.some((f) => f.startsWith('[0:a]'))).toBe(true);
+    // the photo is the only picture
+    expect(g).toContain('[v0][p1]overlay=x=640+(320-w)/2:y=180+(360-h)/2:eof_action=pass[v1]');
+    // muted, it is no input at all
+    expect(inputs(exportArgs(cut((x) => { x.clips[0]!.src = 'media/voice.wav'; x.clips[0]!.mute = true; }), SOURCES, '/o', 'mp4'))).toEqual(['/p/media/b.png', '/p/media/voice.wav', '/p/media/music.mp3']);
+  });
+
+  it('an odd or fractional frame size is rounded to an even one (H.264 yuv420p needs it), 2 at least', () => {
+    const g = graph(exportArgs(cut((c) => { c.width = 1281; c.height = 719.4; }), SOURCES, '/o', 'mp4'));
+    expect(g[0]).toBe('color=c=black:s=1282x720:r=30:d=3.5[v0]');
+    expect(g[1]).toContain('scale=1282:720:');
+    expect(graph(exportArgs(cut((c) => { c.width = 1; c.height = 0.4; }), SOURCES, '/o', 'mp4'))[0]).toBe('color=c=black:s=2x2:r=30:d=3.5[v0]');
+  });
+
+  it('a photo is read as one image: a name with %d is no sequence pattern', () => {
+    const named = new Map(SOURCES);
+    named.set('media/b.png', { file: '/p/media/shot%d.png', video: true, audio: false });
+    const args = exportArgs(CUT, named, '/o', 'mp4');
+    const i = args.indexOf('/p/media/shot%d.png');
+    expect(args.slice(i - 11, i + 1)).toEqual(['-f', 'image2', '-pattern_type', 'none', '-loop', '1', '-framerate', '30', '-t', '1', '-i', '/p/media/shot%d.png']);
+  });
+
+  it('an AVIF photo (read by the mp4 reader, no -loop there) loops as a stream, cut to its length in the graph', () => {
+    const c = cut((x) => { x.clips[1]!.src = 'media/b.avif'; });
+    const avif = new Map(SOURCES);
+    avif.set('media/b.avif', { file: '/p/media/b.avif', video: true, audio: false });
+    const args = exportArgs(c, avif, '/o', 'mp4');
+    const i = args.indexOf('/p/media/b.avif');
+    expect(args.slice(i - 5, i + 1)).toEqual(['-stream_loop', '-1', '-t', '1', '-i', '/p/media/b.avif']);
+    expect(graph(args)[3]).toMatch(/^\[1:v\]fps=30,trim=duration=1,scale=320:360:/);
   });
 
   it('a hidden video track is not drawn, its clips still sound; a clip with neither is no input at all', () => {
