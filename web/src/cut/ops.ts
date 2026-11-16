@@ -9,6 +9,11 @@ const EPS = 1e-6;
 /** Times in the file are kept to the millisecond. */
 export const ms = (x: number): number => Math.round(x * 1000) / 1000;
 const end = (c: CutClip) => c.at + clipLength(c);
+/** `x` to the millisecond when that stays within `lo..hi`; else `x` as it is (a neighbour's edge off the millisecond). */
+const msWithin = (x: number, lo: number, hi: number): number => {
+  const r = ms(x);
+  return r >= lo - EPS && r <= hi + EPS ? r : x;
+};
 const frame = (cut: Cut) => 1 / cut.fps;
 const trackOf = (cut: Cut, id: string) => cut.tracks.find((t) => t.id === id);
 const others = (cut: Cut, track: string, except: readonly string[]) =>
@@ -61,10 +66,10 @@ export function freeAt(cut: Cut, track: string, at: number, len: number, except:
   gaps.push([from, Infinity]);
   for (const [a, b] of gaps) {
     if (b - a < len - EPS) continue;
-    const x = Math.min(Math.max(want, a), b - len);
+    const x = msWithin(Math.min(Math.max(want, a), b - len), a, b - len);
     if (Math.abs(x - want) < Math.abs(best - want)) best = x;
   }
-  return ms(best);
+  return best;
 }
 
 /** The clip at `at` (to the nearest free place), on `track` when given and of the same kind as its own; else unchanged. */
@@ -92,10 +97,13 @@ export function trimStart(cut: Cut, id: string, at: number): Cut {
   const e = end(c);
   const photo = isPhotoSrc(c.src);
   const prev = others(cut, c.track, [id]).filter((x) => x.at < c.at + EPS).reduce((m, x) => Math.max(m, end(x)), 0);
-  const low = Math.max(prev, photo ? 0 : c.at - (c.in ?? 0));
-  const t = ms(Math.min(e - frame(cut), Math.max(low, at)));
-  if (photo) return withClip(cut, id, (x) => fitFades({ ...x, at: t, dur: ms(e - t) }));
-  return withClip(cut, id, (x) => fitFades({ ...x, at: t, in: ms((x.in ?? 0) + t - x.at) }));
+  const low = Math.min(c.at, Math.max(prev, photo ? 0 : c.at - (c.in ?? 0)));
+  // a frame at least, unless the clip is shorter than that already: then it may only grow
+  const high = Math.max(c.at, e - frame(cut));
+  const t = msWithin(Math.min(high, Math.max(low, at)), low, high);
+  if (photo) return withClip(cut, id, (x) => fitFades({ ...x, at: t, dur: msWithin(e - t, 0, e - t) }));
+  // the end stays where it was: `in` moves by what `at` moved
+  return withClip(cut, id, (x) => fitFades({ ...x, at: t, in: msWithin((x.in ?? 0) + t - x.at, (x.in ?? 0) + t - x.at, Infinity) }));
 }
 
 /**
@@ -108,9 +116,10 @@ export function trimEnd(cut: Cut, id: string, to: number, srcLen?: number): Cut 
   const photo = isPhotoSrc(c.src);
   const next = others(cut, c.track, [id]).filter((x) => x.at > c.at - EPS).reduce((m, x) => Math.min(m, x.at), Infinity);
   const high = Math.min(next, photo || srcLen === undefined ? Infinity : c.at + srcLen - (c.in ?? 0));
-  const e = Math.max(c.at + frame(cut), Math.min(high, to));
-  if (photo) return withClip(cut, id, (x) => fitFades({ ...x, dur: ms(e - x.at) }));
-  return withClip(cut, id, (x) => fitFades({ ...x, out: ms((x.in ?? 0) + e - x.at) }));
+  // a frame at least, never into the next clip (a clip shorter than a frame before it may only shrink to what is there)
+  const e = Math.min(next, Math.max(Math.min(c.at + frame(cut), end(c)), Math.min(high, to)));
+  if (photo) return withClip(cut, id, (x) => fitFades({ ...x, dur: msWithin(e - x.at, 0, next - x.at) }));
+  return withClip(cut, id, (x) => fitFades({ ...x, out: msWithin((x.in ?? 0) + e - x.at, 0, (x.in ?? 0) + next - x.at) }));
 }
 
 /**

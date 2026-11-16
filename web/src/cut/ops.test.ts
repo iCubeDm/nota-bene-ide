@@ -239,3 +239,38 @@ describe('placement', () => {
     expect(r).toEqual({ x: 0.5, y: 0, w: 0.5, h: 0.75 });
   });
 });
+
+describe('edges that must not overlap', () => {
+  // a clip shorter than a frame (an agent's file may have one) between two neighbours that touch it
+  const tight = (): Cut => ({
+    version: 1, width: 640, height: 360, fps: 25,
+    tracks: [{ id: 'v1', kind: 'video' }],
+    clips: [
+      { id: 'a', track: 'v1', src: 'a.mp4', at: 0, out: 1 },
+      { id: 'b', track: 'v1', src: 'b.mp4', at: 1, out: 0.02 },
+      { id: 'c', track: 'v1', src: 'c.mp4', at: 1.02, out: 1 },
+    ],
+  });
+  it('trimming a clip shorter than a frame never runs into its neighbours', () => {
+    valid(trimStart(tight(), 'b', 0.5));
+    valid(trimEnd(tight(), 'b', 0.5));
+    valid(trimStart(tight(), 'b', 3));
+    valid(trimEnd(tight(), 'b', 3));
+  });
+  it('rounding to the millisecond never pushes a clip into a neighbour', () => {
+    const cut: Cut = {
+      version: 1, width: 640, height: 360, fps: 25,
+      tracks: [{ id: 'v1', kind: 'video' }],
+      clips: [
+        { id: 'a', track: 'v1', src: 'a.mp4', at: 0, out: 1.0004 },
+        { id: 'z', track: 'v1', src: 'z.mp4', at: 2.0004, out: 1 },
+        { id: 'm', track: 'v1', src: 'm.mp4', at: 5, out: 1 },
+      ],
+    };
+    const at = freeAt(cut, 'v1', 1, 1, ['m']);
+    expect(at).toBeGreaterThanOrEqual(1.0004 - 1e-6);
+    valid(moveClip(cut, 'm', 1));
+    valid(trimStart(moveClip(cut, 'm', 3.0004), 'm', 2));
+    valid(trimEnd({ ...cut, clips: [...cut.clips, { id: 'q', track: 'v1', src: 'q.mp4', at: 1.0004, out: 0.5 }] }, 'q', 5));
+  });
+});
