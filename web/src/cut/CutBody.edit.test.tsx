@@ -7,9 +7,10 @@ import { makeStore } from '@/store/store.ts';
 import { CutBody } from './CutBody.tsx';
 import { PATH_MIME } from './drag.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';
+import { currentEditTarget } from './targets.ts';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
-vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async () => 4) }));
+vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async (url: string) => (url.includes('unread') ? null : 4)) }));
 vi.mock('./peaks.ts', () => ({
   peaksOf: vi.fn(async (src: string) => (src === 'media/street.webm' ? { none: 'no-audio' } : { peaks: new Uint8Array(800).fill(128) })),
 }));
@@ -237,6 +238,26 @@ it('a file dropped from the tree becomes a clip of its whole length; a new track
   fireEvent(zone, at(createEvent.drop(zone, { dataTransfer: dt('media/logo.png') }), 0));
   await saved(() => expect(onDisk().clips.find((c) => c.src === 'media/logo.png')).toMatchObject({ track: 'v2', dur: 5 }));
   valid();
+});
+
+it('Add to edit from the Files tree (issue 426): the edit is a target while shown; the files go after each kind\'s first track, one undo step', async () => {
+  const { container } = await show();
+  const target = currentEditTarget();
+  expect(target?.path).toBe('e.nbcut.json');
+  await act(async () => { await target!.add(['media/music.mp3', 'media/unread.mp4', 'media/logo.png', 'notes.txt']); });
+  await saved(() => expect(onDisk().clips.filter((c) => !['c1', 'c2', 'c3'].includes(c.id)).map((c) => [c.track, c.src, c.at])).toEqual([
+    ['a1', 'media/music.mp3', 8], ['v1', 'media/logo.png', 10],
+  ]));
+  expect(onDisk().clips.some((c) => c.src === 'media/unread.mp4')).toBe(false);
+  valid();
+  // what no track takes is said, and the added clips are selected
+  // a video whose length the browser cannot read is not guessed at: it is named with them
+  expect(screen.getByText(/unread\.mp4, notes\.txt cannot go into the edit/)).toBeInTheDocument();
+  expect(container.querySelectorAll('[data-clip][data-selected]')).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect(onDisk().clips).toHaveLength(3));
+  cleanup();
+  expect(currentEditTarget()).toBeNull();
 });
 
 it('the inspector edits the selected clip; a value the format refuses is marked, not saved', async () => {

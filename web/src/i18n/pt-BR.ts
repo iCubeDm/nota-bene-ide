@@ -53,6 +53,12 @@ export const ptBR: Dict = {
   codeCopied: 'Copiado',
   codeCopyFail: 'Não foi possível copiar',
   copyPath: 'Copiar caminho',
+  // o menu de um vídeo, som ou foto na árvore de arquivos (issue 426)
+  treeAddToEdit: (n: number, edit: string) => (n === 1 ? `Adicionar a ${edit}` : `Adicionar ${n} arquivos a ${edit}`),
+  treeAddToEditNone: 'Adicionar à edição (abra uma edição antes)',
+  treeNewEdit: (n: number) => (n === 1 ? 'Nova edição com este arquivo' : `Nova edição com ${n} arquivos`),
+  treeNewEditFailed: 'Não foi possível criar a edição',
+  treeNewEditBusy: 'Criando a edição…',
   comments: 'Comentários',
   commentsN: (n) => `Comentários · ${n}`,
   emptyComments: 'Selecione um texto no chat ou em um arquivo aberto e clique em “Comentar”.\nOs comentários se acumulam aqui e vão para o agente em um único lote.',

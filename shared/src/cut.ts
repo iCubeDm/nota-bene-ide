@@ -77,3 +77,15 @@ export const CUT_PEAKS_RATE = 100;
 export const CUT_EXT = '.nbcut.json';
 
 export { AUDIO, clipLength, cutDuration, IMAGE, isCutPath, isPhotoSrc, PHOTO, validateCut, VIDEO, type CutCheck, type CutIssue } from './cutCheck.ts';
+
+/**
+ * A new edit's file name in a folder that has `names` (issue 426): `edit.nbcut.json`, else `edit 2.nbcut.json` and on, the
+ * first free one; compared without case, since a folder on macOS or Windows takes `Edit` for `edit`.
+ */
+export function uniqueCutName(names: Iterable<string>): string {
+  const have = new Set([...names].map((n) => n.toLowerCase()));
+  for (let n = 1; ; n++) {
+    const name = `edit${n === 1 ? '' : ` ${n}`}${CUT_EXT}`;
+    if (!have.has(name)) return name;
+  }
+}

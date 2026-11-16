@@ -53,6 +53,12 @@ export const en: Dict = {
   codeCopied: 'Copied',
   codeCopyFail: 'Could not copy',
   copyPath: 'Copy path',
+  // the Files tree's menu on a video, sound or photo (issue 426)
+  treeAddToEdit: (n: number, edit: string) => (n === 1 ? `Add to ${edit}` : `Add ${n} files to ${edit}`),
+  treeAddToEditNone: 'Add to edit (open an edit first)',
+  treeNewEdit: (n: number) => (n === 1 ? 'New edit from this file' : `New edit from ${n} files`),
+  treeNewEditFailed: 'Could not create the edit',
+  treeNewEditBusy: 'Creating the edit…',
   comments: 'Comments',
   commentsN: (n) => `Comments · ${n}`,
   emptyComments: 'Select text in the chat or an open file and press “Comment”.\nComments collect here and go to the agent as one batch.',

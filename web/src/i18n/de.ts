@@ -53,6 +53,12 @@ export const de: Dict = {
   codeCopied: 'Kopiert',
   codeCopyFail: 'Kopieren fehlgeschlagen',
   copyPath: 'Pfad kopieren',
+  // das Menü eines Videos, Tons oder Fotos im Dateibaum (issue 426)
+  treeAddToEdit: (n: number, edit: string) => (n === 1 ? `Zu ${edit} hinzufügen` : `${n} Dateien zu ${edit} hinzufügen`),
+  treeAddToEditNone: 'Zum Schnitt hinzufügen (zuerst einen Schnitt öffnen)',
+  treeNewEdit: (n: number) => (n === 1 ? 'Neuer Schnitt aus dieser Datei' : `Neuer Schnitt aus ${n} Dateien`),
+  treeNewEditFailed: 'Der Schnitt konnte nicht angelegt werden',
+  treeNewEditBusy: 'Schnitt wird angelegt…',
   comments: 'Kommentare',
   commentsN: (n) => `Kommentare · ${n}`,
   emptyComments: 'Markiere Text im Chat oder in einer offenen Datei und klicke auf „Kommentar“.\nKommentare sammeln sich hier und gehen als ein Stapel an den Agenten.',

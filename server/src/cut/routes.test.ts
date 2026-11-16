@@ -31,7 +31,7 @@ const fake = (o: Partial<Fake> = {}): Fake => ({
 type Peaks = { get: (rel: string) => Promise<Buffer> };
 const noPeaks: Peaks = { get: async () => { throw new PeaksError(501, 'no-ffmpeg'); } };
 async function serve(exporter: Fake, peaks: Peaks = noPeaks): Promise<string> {
-  const routes = cutRoutes({ hub: new EventHub(), exporter, peaks });
+  const routes = cutRoutes({ hub: new EventHub(), exporter, peaks, root: () => root });
   server = http.createServer(((req, res) => routes[req.url!.split('?')[0]!]!(req, res)) as RequestListener);
   await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -87,6 +87,21 @@ describe('cut export routes', () => {
     const base = await serve(fake());
     expect((await post(base, '/cut/export/cancel', { path: 'a.nbcut.json' })).status).toBe(200);
     expect((await post(base, '/cut/export/cancel', { path: 'b.nbcut.json' })).status).toBe(404);
+  });
+});
+
+describe('POST /cut/new (issue 426)', () => {
+  it('writes the edit in the folder and answers its path; a bad body is 400, a bad edit 422; only POST', async () => {
+    fs.mkdirSync(path.join(root, 'clips'));
+    const base = await serve(fake());
+    const cut = { version: 1, width: 640, height: 360, fps: 25, tracks: [{ id: 'a1', kind: 'audio' }], clips: [{ id: 'c1', track: 'a1', src: 'clips/m.wav', at: 0, out: 2 }] };
+    const r = await post(base, '/cut/new', { dir: 'clips', cut });
+    expect(r.status).toBe(201);
+    expect(await r.json()).toEqual({ path: 'clips/edit.nbcut.json' });
+    expect(fs.existsSync(path.join(root, 'clips/edit.nbcut.json'))).toBe(true);
+    expect((await post(base, '/cut/new', { cut })).status).toBe(400);
+    expect((await post(base, '/cut/new', { dir: 'clips', cut: { ...cut, version: 2 } })).status).toBe(422);
+    expect((await fetch(`${base}/cut/new`)).status).toBe(405);
   });
 });
 
