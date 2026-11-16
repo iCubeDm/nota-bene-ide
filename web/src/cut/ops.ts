@@ -181,6 +181,70 @@ export function addClip(cut: Cut, a: { track: string; src: string; at: number; l
   return { cut: { ...cut, clips: [...cut.clips, c] }, id };
 }
 
+/** The tracks of `kind` as the timeline draws them: the video ones from the top of the picture (the last in `tracks`) down, the audio ones in file order. */
+const drawnOf = (cut: Cut, kind: CutTrack['kind']): CutTrack[] => {
+  const same = cut.tracks.filter((x) => x.kind === kind);
+  return kind === 'video' ? same.reverse() : same;
+};
+const overlaps = (a: CutClip, b: CutClip) => a.at < end(b) - EPS && end(a) > b.at + EPS;
+
+/**
+ * A selection of clips moved together (issue 432): `dt` seconds later (the earliest stops at 0, the rest keep their distance),
+ * and with `lanes` the clips of that kind `by` lanes down in the drawn order (up when negative), the others on their own
+ * tracks. null when the move is refused: a clip would overlap one outside the selection, or a lane is not there.
+ */
+export function moveClips(cut: Cut, ids: readonly string[], dt: number, lanes?: { kind: CutTrack['kind']; by: number }): Cut | null {
+  const group = cut.clips.filter((c) => ids.includes(c.id));
+  if (!group.length) return null;
+  const d = ms(Math.max(dt, -Math.min(...group.map((c) => c.at))));
+  const moved = new Map<string, CutClip>();
+  for (const c of group) {
+    let track = c.track;
+    const kind = trackOf(cut, c.track)?.kind;
+    if (lanes && lanes.by !== 0 && kind === lanes.kind) {
+      const order = drawnOf(cut, kind);
+      const to = order[order.findIndex((x) => x.id === c.track) + lanes.by];
+      if (!to) return null;
+      track = to.id;
+    }
+    moved.set(c.id, { ...c, track, at: ms(Math.max(0, c.at + d)) });
+  }
+  for (const m of moved.values()) {
+    if (cut.clips.some((o) => !moved.has(o.id) && o.track === m.track && overlaps(m, o))) return null;
+  }
+  return { ...cut, clips: cut.clips.map((c) => moved.get(c.id) ?? c) };
+}
+
+/**
+ * Copies of the clips with new ids, keeping their tracks and their spacing (issue 432): from the end of the selection on,
+ * later still while any copy would overlap a clip on its track. `ids` in the answer: the copies, in the order of `clips`.
+ */
+export function duplicateClips(cut: Cut, ids: readonly string[]): { cut: Cut; ids: string[] } {
+  const group = cut.clips.filter((c) => ids.includes(c.id));
+  if (!group.length) return { cut, ids: [] };
+  const from = Math.min(...group.map((c) => c.at));
+  let off = Math.max(...group.map(end)) - from;
+  for (let busy = true; busy;) {
+    busy = false;
+    for (const c of group) {
+      const copy = { ...c, at: c.at + off };
+      for (const o of cut.clips) {
+        if (o.track === c.track && overlaps(copy, o)) { off = end(o) - c.at; busy = true; }
+      }
+    }
+  }
+  const used = cut.clips.map((c) => c.id);
+  const out: string[] = [];
+  const clips = [...cut.clips];
+  for (const c of group) {
+    const id = freshId('c', used);
+    used.push(id);
+    out.push(id);
+    clips.splice(clips.indexOf(c) + 1, 0, { ...c, id, at: ms(c.at + off) });
+  }
+  return { cut: { ...cut, clips }, ids: out };
+}
+
 /** A new empty track: `v<n>` or `a<n>`; a video one goes last in `tracks`, so over the picture of the others. */
 export function addTrack(cut: Cut, kind: CutTrack['kind']): { cut: Cut; id: string } {
   const id = freshId(kind === 'video' ? 'v' : 'a', cut.tracks.map((t) => t.id));
@@ -212,8 +276,7 @@ export function setTrackFlag(cut: Cut, id: string, key: 'mute' | 'solo' | 'hidde
 export function moveTrack(cut: Cut, id: string, dir: -1 | 1): Cut {
   const t = trackOf(cut, id);
   if (!t) return cut;
-  const same = cut.tracks.filter((x) => x.kind === t.kind);
-  const drawn = t.kind === 'video' ? [...same].reverse() : same;
+  const drawn = drawnOf(cut, t.kind);
   const i = drawn.indexOf(t);
   const j = i + dir;
   if (j < 0 || j >= drawn.length) return cut;
@@ -227,6 +290,13 @@ export function moveTrack(cut: Cut, id: string, dir: -1 | 1): Cut {
 export function setClip(cut: Cut, id: string, patch: Partial<Omit<CutClip, 'id' | 'track' | 'src'>>): Cut | null {
   if (!cut.clips.some((c) => c.id === id)) return null;
   const next = withClip(cut, id, (c) => compact({ ...c, ...patch }));
+  return validateCut(next).ok ? next : null;
+}
+
+/** The clip panel's change to several clips at once (issue 432); null when any would not be valid. */
+export function setClips(cut: Cut, ids: readonly string[], patch: Partial<Omit<CutClip, 'id' | 'track' | 'src'>>): Cut | null {
+  if (!cut.clips.some((c) => ids.includes(c.id))) return null;
+  const next = { ...cut, clips: cut.clips.map((c) => (ids.includes(c.id) ? compact({ ...c, ...patch }) : c)) };
   return validateCut(next).ok ? next : null;
 }
 
