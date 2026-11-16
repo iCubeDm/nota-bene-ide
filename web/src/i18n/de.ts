@@ -982,6 +982,9 @@ export const de: Dict = {
   cutUnsaved: "Noch nicht gespeichert",
   cutSaveFailed: (why: string) => `Nicht gespeichert: ${why}`,
   cutCannotAdd: (name: string) => `${name} passt nicht in den Schnitt: kein lesbares Video, kein Ton oder Foto, oder nicht auf dieser Art Spur`,
+  // a refused move of the selected clips (issue 442)
+  cutGroupOverlap: "Die ausgewählten Clips können nicht dorthin: Sie würden andere Clips überlappen",
+  cutGroupNoLane: "Die ausgewählten Clips können nicht dorthin: Nicht für jeden gibt es dort eine Spur seiner Art",
   cutDropNew: "Video, Ton oder Foto aus „Dateien“ hierher ziehen für eine neue Spur, oder auf eine Spur",
   cutClipTip: "Ziehen zum Verschieben, auch auf eine andere Spur derselben Art (Alt: ohne Einrasten); Shift- oder ⌘/Strg-Klick nimmt ihn in die Auswahl auf oder heraus; ← →: ein Bild (Shift: zehn), Entf löscht, S teilt am Abspielkopf",
   cutGainTip: "Nach oben oder unten ziehen, um den Pegel des Clips einzustellen (Shift: feine Schritte)",
@@ -1012,6 +1015,7 @@ export const de: Dict = {
   cutToolBlade: "Klinge: ein Klick schneidet den Clip an dieser Stelle (Shift: alle Spuren; Alt: ohne Einrasten)",
   cutToolBladeShort: "Klinge",
   cutBladeTip: "Klicken, um hier zu schneiden (Shift: alle Spuren; Alt: ohne Einrasten)",
+  cutRemovedClip: (src: string) => `In der Datei entfernt: ${src}`,
   cutClipsN: (n: number) => `${n} Clips`,
   cutMixed: "gemischt",
   cutAt: "Start, s",

@@ -21,10 +21,11 @@ import { CutPlayer } from './engine.ts';
 import { drawable } from './layout.ts';
 import { ExportControl } from './export/ExportControl.tsx';
 import { GroupInspector, Inspector } from './Inspector.tsx';
-import { addClip, addTrack, deleteClips, duplicateClip, duplicateClips, moveClips, nudgeClip, splitAt, takes } from './ops.ts';
+import { addClip, addTrack, deleteClips, duplicateClip, duplicateClips, groupMove, nudgeClip, splitAt, takes, type GroupRefusal } from './ops.ts';
 import { PlaceBox } from './PlaceBox.tsx';
 import { Preview } from './Preview.tsx';
 import { Timeline } from './Timeline.tsx';
+import { FLASH_MS, type CutFlash } from './changes.ts';
 import { useCutDoc } from './useCutDoc.ts';
 import { useCutKeys } from './useCutKeys.ts';
 import { useMissing } from './useMissing.ts';
@@ -63,6 +64,16 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const [sel, setSel] = useState<readonly string[]>([]);
   const [tool, setTool] = useState<Tool>('select');
   const [notice, setNotice] = useState<string | null>(null);
+  // the agent's change to the file (issue 412), highlighted on the timeline for a moment; this window's own never is.
+  // A tab not shown keeps it: its moment (and its fade, mounted then) starts once the tab is shown.
+  const [flash, setFlash] = useState<CutFlash | null>(null);
+  const flashes = useRef(0);
+  useEffect(() => { if (doc.changes) setFlash({ ...doc.changes, gen: ++flashes.current }); }, [doc.changes]);
+  useEffect(() => {
+    if (!flash || !active) return;
+    const id = setTimeout(() => setFlash(null), FLASH_MS);
+    return () => clearTimeout(id);
+  }, [flash, active]);
   const v = draft ?? doc.cut ?? ('v' in parsed ? parsed.v : undefined);
   const check = useMemo(() => validateCut(v), [v]);
   const draw = useMemo(() => drawable(v), [v]);
@@ -87,8 +98,8 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   cutRef.current = cut;
   // the next edit shown is this window's own change (issue 430: only those move the comments)
   const own = useRef(false);
-  const undo = () => { if (doc.canUndo) { own.current = true; doc.undo(); } };
-  const redo = () => { if (doc.canRedo) { own.current = true; doc.redo(); } };
+  const undo = () => { if (doc.canUndo) { own.current = true; setNotice(null); doc.undo(); } };
+  const redo = () => { if (doc.canRedo) { own.current = true; setNotice(null); doc.redo(); } };
   // a draft belongs to the edit it was built on: another one (a commit, a reload) shows as it is
   useEffect(() => setDraft(null), [cut]);
   // the selected clips as the edit has them; `selected` the one when there is one alone
@@ -128,12 +139,15 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     const r = duplicateClips(cut, ids);
     if (r.ids.length) { commit(r.cut); setSel(r.ids); }
   };
+  // a refused move of the selection says why (issue 442), until the next change
+  const refuse = (why: GroupRefusal | null) => setNotice(why && t(why === 'lane' ? 'cutGroupNoLane' : 'cutGroupOverlap'));
   // ← → on the selection: one clip to the nearest free place, several together or not at all
   const nudge = (frames: number) => {
     if (!cut) return;
     if (selected) return commit(nudgeClip(cut, selected.id, frames));
-    const next = moveClips(cut, ids, frames / cut.fps);
-    if (next) commit(next);
+    const next = groupMove(cut, ids, frames / cut.fps);
+    if (typeof next === 'string') refuse(next);
+    else if (next) commit(next);
   };
   const addFile = async (file: string, track: string | null, at: number) => {
     const kind = AUDIO.test(file) ? 'audio' : 'video';
@@ -231,7 +245,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   };
 
   const editing: Editing | undefined = cut ? {
-    cut, sel, select: setSel, tool, blade, draft: setDraft, commit, lenOf: (s) => lens.get(s), addFile: (f, tr, at) => void addFile(f, tr, at),
+    cut, sel, select: setSel, tool, blade, draft: setDraft, commit, refuse, lenOf: (s) => lens.get(s), addFile: (f, tr, at) => void addFile(f, tr, at),
   } : undefined;
 
   // the editor's keys: Delete/Backspace, S splits, ← → nudge the selection a frame (Shift: ten), V and C the tools, Esc back
@@ -339,7 +353,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
             <Timeline
               player={player} lanes={draw.lanes} blocks={draw.blocks} end={draw.end} frame={frame} problems={problems} missing={missing} fileSrc={src} active={active}
               tools={path !== undefined && <ExportControl path={path} blocked={issues.length > 0 ? t('cutExportBlocked') : undefined} />}
-              editing={editing} notes={notes} onNote={(n) => goTo(n.id)}
+              editing={editing} notes={notes} onNote={(n) => goTo(n.id)} flash={active ? flash : null}
             />
           )}
         </>

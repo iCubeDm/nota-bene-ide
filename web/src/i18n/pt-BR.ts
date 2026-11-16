@@ -982,6 +982,9 @@ export const ptBR: Dict = {
   cutUnsaved: "Ainda não salvo",
   cutSaveFailed: (why: string) => `Não salvo: ${why}`,
   cutCannotAdd: (name: string) => `${name} não pode entrar na edição: não é um vídeo, som ou foto que ela lê, ou não neste tipo de faixa`,
+  // a refused move of the selected clips (issue 442)
+  cutGroupOverlap: "Os clipes selecionados não podem ir para lá: ficariam sobre outros clipes",
+  cutGroupNoLane: "Os clipes selecionados não podem ir para lá: não há uma faixa do tipo deles para cada um",
   cutDropNew: "Solte aqui um vídeo, som ou foto de Arquivos para uma nova faixa, ou sobre uma faixa",
   cutClipTip: "Arraste para mover, também para outra faixa do mesmo tipo (Alt: sem encaixe); Shift ou ⌘/Ctrl+clique o adiciona à seleção ou o remove; ← →: um quadro (Shift: dez), Delete exclui, S divide na agulha",
   cutGainTip: "Arraste para cima ou para baixo para ajustar o ganho do clipe (Shift: passos finos)",
@@ -1012,6 +1015,7 @@ export const ptBR: Dict = {
   cutToolBlade: "Lâmina: um clique corta o clipe nesse ponto (Shift: todas as faixas; Alt: sem encaixe)",
   cutToolBladeShort: "Lâmina",
   cutBladeTip: "Clique para cortar aqui (Shift: todas as faixas; Alt: sem encaixe)",
+  cutRemovedClip: (src: string) => `Removido no arquivo: ${src}`,
   cutClipsN: (n: number) => `${n} clipes`,
   cutMixed: "variados",
   cutAt: "Início, s",

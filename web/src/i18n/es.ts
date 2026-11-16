@@ -982,6 +982,9 @@ export const es: Dict = {
   cutUnsaved: "Aún sin guardar",
   cutSaveFailed: (why: string) => `No se guardó: ${why}`,
   cutCannotAdd: (name: string) => `${name} no puede ir en la edición: no es un vídeo, sonido o foto que lea, o no en este tipo de pista`,
+  // a refused move of the selected clips (issue 442)
+  cutGroupOverlap: "Los clips seleccionados no pueden ir ahí: se superpondrían a otros clips",
+  cutGroupNoLane: "Los clips seleccionados no pueden ir ahí: no hay una pista de su tipo para cada uno",
   cutDropNew: "Suelta aquí un vídeo, sonido o foto de Archivos para una pista nueva, o sobre una pista",
   cutClipTip: "Arrastra para mover, también a otra pista del mismo tipo (Alt: sin ajuste); Mayús o ⌘/Ctrl+clic lo añade a la selección o lo quita; ← →: un fotograma (Shift: diez), Supr elimina, S divide en el cabezal",
   cutGainTip: "Arrastra arriba o abajo para ajustar la ganancia del clip (Shift: pasos finos)",
@@ -1012,6 +1015,7 @@ export const es: Dict = {
   cutToolBlade: "Cuchilla: un clic corta el clip en ese punto (Mayús: todas las pistas; Alt: sin ajuste)",
   cutToolBladeShort: "Cuchilla",
   cutBladeTip: "Haz clic para cortar aquí (Mayús: todas las pistas; Alt: sin ajuste)",
+  cutRemovedClip: (src: string) => `Eliminado en el archivo: ${src}`,
   cutClipsN: (n: number) => `${n} clips`,
   cutMixed: "varios",
   cutAt: "Inicio, s",

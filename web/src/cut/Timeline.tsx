@@ -6,11 +6,12 @@ import { useT } from '@/i18n/index.ts';
 import { EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon, PauseIcon, PlayIcon } from '@/media/playerIcons.tsx';
 import { isMac, withKeys } from '@/shell/keymap.ts';
 import { PATH_MIME } from './drag.ts';
+import { flashStyle, type CutFlash } from './changes.ts';
 import type { Editing } from './editing.ts';
 import type { CutPlayer } from './engine.ts';
 import { Meter } from './Meter.tsx';
 import { dB, FadeHandle, FadeSlopes, GainLine, usePeaks, Wave } from './ClipSound.tsx';
-import { addTrack, dragGain, laneShift, moveClip, moveClips, moveForward, rippleTrimEnd, setFade, setGain, snapMove, snapPoints, snapTime, trackForward, trimEnd, trimStart } from './ops.ts';
+import { addTrack, dragGain, groupMove, laneShift, moveClip, moveForward, rippleTrimEnd, setFade, setGain, snapMove, snapPoints, snapTime, trackForward, trimEnd, trimStart } from './ops.ts';
 import { TrackHead } from './TrackHead.tsx';
 import { drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn, type Block, type Lane } from './layout.ts';
 import { poster } from './thumbs.ts';
@@ -31,11 +32,12 @@ const STEP = 1.5; // one zoom button press
  * hover; a click is `onNote`. A clip's sound (issue 431): the waveform of its used part where it is in view, and while
  * editing its gain line (dragged up or down, Shift: fine) and its fades' handles at its top corners (dragged inward).
  * Tools and selections (issue 432): with Select, Shift- or ⌘/Ctrl-click adds or removes a clip and a rectangle dragged on
- * empty space selects what it touches (Shift: adds), a selection moves together; with Blade, a click cuts the clip under
+ * empty space selects what it touches (Shift: adds; issue 442: from the track column and the rows after the lanes too), a selection moves together; with Blade, a click cuts the clip under
  * it there, snapped as edges are (Shift: every track; the line shows where on hover). The new tracks' buttons end each
- * kind's lanes in the track column.
+ * kind's lanes in the track column. `flash` (issue 412): what a change of the file from outside did, shown for a moment
+ * (the caller clears it): the added and changed clips highlighted, a ghost where a removed one stood.
  */
-export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote }: {
+export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote, flash = null }: {
   player: CutPlayer;
   lanes: Lane[]; blocks: Block[]; end: number; frame: { width: number; height: number; fps: number } | null;
   problems: ReadonlyMap<number, string[]>; missing: ReadonlySet<string>; fileSrc: string; active: boolean;
@@ -44,8 +46,10 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
   editing?: Editing;
   notes?: CutNote[];
   onNote?: (n: CutNote) => void;
+  flash?: CutFlash | null;
 }) {
   const t = useT();
+  const lit = new Set(flash ? [...flash.added, ...flash.changed] : []);
   const scroller = useRef<HTMLDivElement>(null);
   const manual = useRef(false); // the user scrolled while playing: the view stops following the playhead
   const [zoomed, setPps] = useState(40);
@@ -194,8 +198,18 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
       if (e.shiftKey) editing.blade(bladeAt(e.clientX, e.altKey, []), null, true);
       return;
     }
+    marquee(e, editing);
+  };
+  // issue 442: a rectangle starts in the track column and on the rows after the lanes too, never from a control there
+  const pressAside = (e: PointerEvent<HTMLElement>) => {
+    if (!editing || editing.tool !== 'select' || e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('button, input, select, textarea, label, a, [data-track-name]')) return;
+    marquee(e, editing, true);
+  };
+  // `side`: pressed in the track column or below the lanes, the rectangle starts and stays within the lanes in view: the
+  // timeline scrolled under the sticky headers is not seen, nothing there is selected
+  const marquee = (e: PointerEvent<HTMLElement>, ed: Editing, side = false) => {
     e.preventDefault();
-    const ed = editing;
     const keep = e.shiftKey ? [...ed.sel] : [];
     if (!e.shiftKey) ed.select([]);
     // the rectangle in the timeline's own coordinates (px from the lanes' left, from the content's top), so a scroll
@@ -203,14 +217,16 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     const at = (x: number, y: number) => ({
       x: x - (ruler.current?.getBoundingClientRect().left ?? 0), y: y - (inner.current?.getBoundingClientRect().top ?? 0),
     });
+    const inView = (x: number) => (side ? Math.max(x, scroller.current?.scrollLeft ?? 0) : x);
     const p0 = at(e.clientX, e.clientY);
+    p0.x = inView(p0.x);
     let last = { x: e.clientX, y: e.clientY };
     let on = false;
     const update = () => {
       const p1 = at(last.x, last.y);
       if (!on && Math.max(Math.abs(p1.x - p0.x), Math.abs(p1.y - p0.y)) < DRAG_PX) return;
       on = true;
-      const [xa, xb] = [Math.min(p0.x, p1.x), Math.max(p0.x, p1.x)];
+      const [xa, xb] = [inView(Math.min(p0.x, p1.x)), inView(Math.max(p0.x, p1.x))];
       const [ya, yb] = [Math.min(p0.y, p1.y), Math.max(p0.y, p1.y)];
       setBox({ left: HEAD + xa, top: ya, width: xb - xa, height: yb - ya });
       const top = inner.current?.getBoundingClientRect().top ?? 0;
@@ -259,7 +275,10 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
   const laneOf = (n: CutNote) => (n.clip === undefined ? undefined : blocks.find((b) => b.id === n.clip)?.track);
   const tick = (n: CutNote) => <NoteTick key={n.id} n={n} pps={pps} onNote={onNote} />;
   const lane = (l: Lane) => (
-    <div key={l.id} data-lane={l.id} className={`flex border-b border-border-soft ${l.kind === 'video' ? 'h-14' : 'h-10'}`}>
+    <div
+      key={l.id} data-lane={l.id} className={`flex border-b border-border-soft ${l.kind === 'video' ? 'h-14' : 'h-10'}`}
+      onPointerDown={(e) => { if ((e.target as HTMLElement).closest('[data-track-head]')) pressAside(e); }}
+    >
       {editing ? <TrackHead lane={l} cut={editing.cut} commit={editing.commit} width={HEAD} /> : (
       <div data-track-head={l.id} className="sticky left-0 z-20 flex flex-none flex-col justify-center gap-0.5 border-r border-border-soft bg-chrome px-2 text-xs" style={{ width: HEAD }}>
         <span className="truncate text-foreground" title={l.name ?? l.id}>{l.name ?? t(l.kind === 'video' ? 'cutVideoN' : 'cutAudioN', l.n)}</span>
@@ -280,8 +299,17 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
         {blocks.filter((b) => b.track === l.id).map((b) => (
           <Clip
             key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active}
-            selected={editing?.sel.includes(b.id)} drag={editing ? clipDrag : undefined} view={{ from: (view.left - seen) / pps, to: (view.left + 2 * seen) / pps }}
+            selected={editing?.sel.includes(b.id)} changed={lit.has(b.id) ? flash!.gen : undefined} drag={editing ? clipDrag : undefined} view={{ from: (view.left - seen) / pps, to: (view.left + 2 * seen) / pps }}
           />
+        ))}
+        {flash?.removed.filter((c) => c.track === l.id).map((c) => (
+          <div
+            key={`removed:${flash.gen}:${c.id}`} data-removed-clip={c.id} role="img" aria-label={t('cutRemovedClip', c.src)}
+            className="nb-cut-ghost pointer-events-none absolute inset-y-1 flex items-center overflow-hidden rounded border border-dashed border-warn text-xs text-muted-foreground"
+            style={{ ...flashStyle, left: c.at * pps, width: Math.max(2, clipLength(c) * pps) }}
+          >
+            <span className="min-w-0 truncate px-1 line-through">{basename(c.src)}</span>
+          </div>
         ))}
         {notes.filter((n) => laneOf(n) === l.id).map(tick)}
         {editing?.tool === 'blade' && cutLine && (cutLine.lane === null || cutLine.lane === l.id) && (
@@ -322,11 +350,11 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
             </div>
           </div>
           {lanes.filter((l) => l.kind === 'video').map(lane)}
-          {editing && <AddTrack kind="video" editing={editing} width={HEAD} />}
+          {editing && <AddTrack kind="video" editing={editing} width={HEAD} onPress={pressAside} />}
           {lanes.filter((l) => l.kind === 'audio').map(lane)}
-          {editing && <AddTrack kind="audio" editing={editing} width={HEAD} />}
+          {editing && <AddTrack kind="audio" editing={editing} width={HEAD} onPress={pressAside} />}
           {editing && (
-            <div data-cut-drop onDragOver={dropOver} onDrop={(e) => drop(e, null)} className="flex h-10 items-center border-b border-dashed border-border-soft text-xs text-muted-foreground">
+            <div data-cut-drop onPointerDown={pressAside} onDragOver={dropOver} onDrop={(e) => drop(e, null)} className="flex h-10 items-center border-b border-dashed border-border-soft text-xs text-muted-foreground">
               <span className="sticky left-0 px-3">{t('cutDropNew')}</span>
             </div>
           )}
@@ -343,11 +371,13 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
 }
 
 /** A new track's button (issue 432), in the track column at the end of its kind's lanes. */
-function AddTrack({ kind, editing, width }: { kind: 'video' | 'audio'; editing: Editing; width: number }) {
+function AddTrack({ kind, editing, width, onPress }: {
+  kind: 'video' | 'audio'; editing: Editing; width: number; onPress: (e: PointerEvent<HTMLElement>) => void;
+}) {
   const t = useT();
   const label = t(kind === 'video' ? 'cutAddVideo' : 'cutAddAudio');
   return (
-    <div data-track-add={kind} className="flex h-6 border-b border-border-soft">
+    <div data-track-add={kind} onPointerDown={onPress} className="flex h-6 border-b border-border-soft">
       <div className="sticky left-0 z-20 flex flex-none items-center border-r border-border-soft bg-chrome px-1" style={{ width }}>
         <button
           type="button" aria-label={label} title={label} onClick={() => editing.commit(addTrack(editing.cut, kind).cut)}
@@ -439,9 +469,13 @@ function usePoster(url: string | null, at: number): string | null {
 
 /** One clip: its file name, a thumbnail on a video track (the photo; a video's first used frame) once it is in view,
  *  its problems outlined; at least 2 px wide, however short. */
-function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, drag, view }: {
+function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, changed, drag, view }: {
   b: Block; lane: Lane; pps: number; frame: { width: number; height: number } | null; problems: string[] | undefined; gone: boolean;
-  fileSrc: string; active: boolean; selected?: boolean; drag?: ClipDrag;
+  fileSrc: string; active: boolean; selected?: boolean;
+  /** changed by an outside change of the file a moment ago (issue 412): that change's count; highlighted by a layer of
+   *  its own, fading (the selection ring stays), keyed by it so a new change starts the fade again */
+  changed?: number;
+  drag?: ClipDrag;
   /** the timeline's seconds around the view: the waveform is drawn there */
   view: { from: number; to: number };
 }) {
@@ -469,7 +503,7 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   const tint = lane.kind === 'video' ? 'border-link/60 bg-link/15' : 'border-success/60 bg-success/15';
   return (
     <div
-      ref={ref} data-clip={b.id} data-bad={bad || undefined} data-selected={selected || undefined} title={title}
+      ref={ref} data-clip={b.id} data-bad={bad || undefined} data-selected={selected || undefined} data-changed={changed !== undefined || undefined} title={title}
       className={`absolute inset-y-1 flex items-center gap-1 overflow-hidden rounded border text-xs ${tint} ${bad ? 'outline-2 outline-destructive' : ''} ${gone ? 'opacity-60' : ''} ${selected ? 'z-[1] ring-2 ring-primary' : ''} ${drag ? `touch-none select-none ${drag.blade ? 'cursor-crosshair [&_*]:pointer-events-none' : 'cursor-grab'}` : ''}`}
       style={{ left: b.at * pps, width: w }}
       {...(drag && drag.handlers(b.id, 'move'))}
@@ -489,6 +523,9 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
       ))}
       {shown && <img src={shown} alt="" draggable={false} className="h-full flex-none bg-black object-cover" style={frame ? { aspectRatio: `${frame.width} / ${frame.height}` } : undefined} />}
       <span className={`relative min-w-0 truncate px-1 ${gone ? 'line-through' : ''}`}>{basename(b.src)}</span>
+      {changed !== undefined && (
+        <span key={`${changed}:${b.id}`} data-changed-mark className="nb-cut-flash pointer-events-none absolute inset-0 z-[3] rounded" style={flashStyle} />
+      )}
     </div>
   );
 }
@@ -516,7 +553,7 @@ type Pointer = { clientX: number; clientY: number; altKey: boolean; shiftKey: bo
  * moves are the window's: a clip that changes lanes is a new element, and the drag must go on. An edit that changed
  * under the drag (a reload of the agent's version) ends it: a change built on the older edit is never committed.
  * Issue 432: Shift- or ⌘/Ctrl-press on a clip's body, edge or fade handle (on its gain line: a click, no drag) adds it to the selection or takes it out; a clip of a selection of
- * several moves them all (moveClips: refused, shown back where they were, while any would overlap), a click on it alone
+ * several moves them all (moveClips: refused, shown back where they were, while any would overlap; the edit bar says why, issue 442), a click on it alone
  * selects it alone; its edges, gain line and fade handles act on it alone, the selection kept. With the blade a press
  * cuts the clip there (`bladeAt`, Shift: every track).
  * Issue 437: Shift alone on a clip's body or edge waits for the release: a click adds or takes out the clip; a drag on the
@@ -582,6 +619,8 @@ function useClipDrag(
         const at0 = c.at;
         const end0 = c.at + clipLength(c);
         let out: Cut | null = null;
+        // the group's move was refused at the last place (issue 442): the edit bar says why
+        let refused = false;
         // the edit changed under the drag (the agent's version reloaded): the drag is over, nothing of it is kept
         const stale = (cur: Editing | undefined): cur is undefined => !cur || cur.cut !== base;
         const move = (m: Pointer) => {
@@ -624,7 +663,12 @@ function useClipDrag(
             const pts = m.altKey ? [] : snapPoints(base, player.time(), group);
             const at = snapMove(at0 + dt, end0 - at0, pts, SNAP_PX / p);
             const shift = laneShift(base, c.track, lane);
-            out = shift && moveClips(base, group, at - at0, shift);
+            const r = shift ? groupMove(base, group, at - at0, shift) : 'lane';
+            out = typeof r === 'string' ? null : r;
+            // issue 442: the edit bar says why
+            if (typeof r === 'string') { refused = true; cur.refuse(r); }
+            // a later place of the same drag that is allowed: the note goes
+            else if (refused) { refused = false; cur.refuse(null); }
             return cur.draft(out);
           }
           if (grip === 'fadeIn' || grip === 'fadeOut') {
