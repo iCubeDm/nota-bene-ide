@@ -79,3 +79,77 @@ describe('CutPeaks', () => {
     expect(await refused(p.get('mute.mp4'))).toEqual([422, 'no-audio']);
   }, 30_000);
 });
+
+// a stand-in ffmpeg: logs its pid, then by the input's text hangs (HANG), finds no sound (MUTE) or writes `PCM <n>` samples
+const FAKE = `#!/usr/bin/env node
+const fs = require('fs'); const path = require('path');
+const a = process.argv.slice(2);
+fs.appendFileSync(path.join(__dirname, 'spawns.log'), process.pid + '\\n');
+const body = fs.readFileSync(a[a.indexOf('-i') + 1], 'utf8');
+if (body.startsWith('HANG')) setInterval(() => {}, 1000);
+else if (body.startsWith('MUTE')) process.exit(1);
+else { const n = Number(body.split(' ')[1]); const b = Buffer.alloc(2 * n); for (let i = 0; i < n; i++) b.writeInt16LE(16384, 2 * i); process.stdout.write(b, () => process.exit(0)); }
+`;
+
+describe('CutPeaks with a stand-in ffmpeg', () => {
+  let bin: string;
+  const pids = () => { try { return fs.readFileSync(path.join(path.dirname(bin), 'spawns.log'), 'utf8').split('\n').filter(Boolean).map(Number); } catch { return []; } };
+  const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  const until = async (cond: () => boolean, ms = 5000) => {
+    const end = Date.now() + ms;
+    while (!cond()) {
+      if (Date.now() > end) throw new Error('timeout');
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  };
+  const media = (name: string, body: string) => fs.writeFileSync(path.join(root, name), body);
+  beforeEach(() => {
+    bin = path.join(root, 'bin', 'ffmpeg');
+    fs.mkdirSync(path.dirname(bin));
+    fs.writeFileSync(bin, FAKE, { mode: 0o755 });
+  });
+
+  it('decodes two at a time, the rest wait their turn; dispose() kills the running ones and refuses the waiting', async () => {
+    for (const n of ['a', 'b', 'c']) media(`${n}.wav`, 'HANG');
+    const p = make({ ffmpeg: () => bin });
+    const asks = ['a', 'b', 'c'].map((n) => refused(p.get(`${n}.wav`)));
+    await until(() => pids().length === 2);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(pids()).toHaveLength(2); // the third waits
+    const running = pids();
+    p.dispose();
+    expect(await Promise.all(asks)).toEqual([[503, 'closing'], [503, 'closing'], [503, 'closing']]);
+    await until(() => running.every((pid) => !alive(pid)));
+    expect(pids()).toHaveLength(2); // the waiting one never started
+  });
+
+  it('a decode that takes too long is stopped and answers timeout, remembered for that file version as no sound is', async () => {
+    media('slow.wav', 'HANG');
+    media('mute.mp4', 'MUTE');
+    const p = make({ ffmpeg: () => bin, timeoutMs: 200 });
+    expect(await refused(p.get('slow.wav'))).toEqual([504, 'timeout']);
+    await until(() => !alive(pids()[0]!));
+    expect(await refused(p.get('slow.wav'))).toEqual([504, 'timeout']);
+    expect(await refused(p.get('mute.mp4'))).toEqual([422, 'no-audio']);
+    expect(await refused(p.get('mute.mp4'))).toEqual([422, 'no-audio']);
+    expect(pids()).toHaveLength(2);
+    // a new version is read again
+    media('mute.mp4', 'PCM 8000');
+    const t = new Date(Date.now() + 5000);
+    fs.utimesSync(path.join(root, 'mute.mp4'), t, t);
+    expect((await p.get('mute.mp4')).length).toBe(CUT_PEAKS_RATE);
+    expect(pids()).toHaveLength(3);
+  });
+
+  it('keeps the newest peaks up to keepBytes: the oldest is read again when asked', async () => {
+    for (const n of ['a', 'b', 'c']) media(`${n}.wav`, 'PCM 8000'); // 100 peaks each
+    const p = make({ ffmpeg: () => bin, keepBytes: 250 });
+    for (const n of ['a', 'b', 'c']) await p.get(`${n}.wav`);
+    expect(pids()).toHaveLength(3);
+    await p.get('c.wav');
+    await p.get('b.wav');
+    expect(pids()).toHaveLength(3);
+    await p.get('a.wav'); // dropped for c
+    expect(pids()).toHaveLength(4);
+  });
+});

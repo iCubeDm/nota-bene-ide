@@ -12,10 +12,15 @@ const SAMPLE_RATE = 8000;
 const PER = SAMPLE_RATE / CUT_PEAKS_RATE;
 /** files read at once; the rest wait their turn */
 const AT_ONCE = 2;
-/** a decode that takes longer is stopped (a stalled or endless input) */
+/**
+ * a decode that takes longer is stopped (a stalled or endless input): sound alone at 8 kHz decodes hundreds of times
+ * faster than it plays, so this is many hours of media
+ */
 const TIMEOUT_MS = 5 * 60_000;
 /** what the cache keeps, bytes of peaks (about 9 hours of sound) */
 const KEEP_BYTES = 32 << 20;
+/** at most this many answers kept, the remembered refusals (no sound, timeout) included */
+const KEEP_ENTRIES = 512;
 
 export class PeaksError extends Error {
   status: number;
@@ -73,9 +78,16 @@ export type PeaksOptions = {
   ffmpeg: () => string | null;
   /** told on each ffmpeg started (tests count them) */
   spawned?: () => void;
+  /** ms before a decode is stopped; TIMEOUT_MS by default */
+  timeoutMs?: number;
+  /** bytes of peaks kept; KEEP_BYTES by default */
+  keepBytes?: number;
 };
 
-/** The waveforms of the project's sources: one decode per file version, a few at a time, the newest kept. */
+/**
+ * The waveforms of the project's sources: one decode per file version, a few at a time, the newest kept. A version without
+ * sound (422) or whose decode timed out (504) is remembered as such: it is not decoded again until the file changes.
+ */
 export class CutPeaks {
   private readonly cache = new Map<string, Promise<Buffer>>();
   private readonly sizes = new Map<string, number>();
@@ -88,7 +100,7 @@ export class CutPeaks {
     this.o = o;
   }
 
-  /** The peaks of `rel` (project-relative). Refusals are PeaksError: 403 outside-project, 400 not-media, 404, 501 no-ffmpeg, 422 no-audio. */
+  /** The peaks of `rel` (project-relative). Refusals are PeaksError: 403 outside-project, 400 not-media, 404, 501 no-ffmpeg, 422 no-audio, 504 timeout. */
   async get(rel: string): Promise<Buffer> {
     if (this.disposed) throw new PeaksError(503, 'closing');
     const abs = resolveInRoot(this.o.root(), rel);
@@ -110,7 +122,14 @@ export class CutPeaks {
     p.then((b) => {
       this.sizes.set(key, b.length);
       this.trim();
-    }, () => { if (this.cache.get(key) === p) this.cache.delete(key); });
+    }, (e: unknown) => {
+      if (this.cache.get(key) !== p) return;
+      // what the file is stays known for its version; anything else (closing, a spawn failure) is asked again
+      if (e instanceof PeaksError && (e.code === 'no-audio' || e.code === 'timeout')) {
+        this.sizes.set(key, 0);
+        this.trim();
+      } else this.cache.delete(key);
+    });
     return p;
   }
 
@@ -123,7 +142,7 @@ export class CutPeaks {
   private trim(): void {
     let total = [...this.sizes.values()].reduce((a, b) => a + b, 0);
     for (const k of this.cache.keys()) {
-      if (total <= KEEP_BYTES) break;
+      if (total <= (this.o.keepBytes ?? KEEP_BYTES) && this.cache.size <= KEEP_ENTRIES) break;
       const size = this.sizes.get(k);
       if (size === undefined) continue; // still decoding
       this.cache.delete(k);
@@ -134,6 +153,10 @@ export class CutPeaks {
 
   private async turn<T>(f: () => Promise<T>): Promise<T> {
     if (this.running >= AT_ONCE) await new Promise<void>((r) => this.queue.push(r));
+    if (this.disposed) {
+      this.queue.shift()?.();
+      throw new PeaksError(503, 'closing');
+    }
     this.running++;
     try {
       return await f();
@@ -157,12 +180,18 @@ export class CutPeaks {
       this.o.spawned?.();
       this.live.add(child);
       const sink = peakSink(PER);
-      const timer = setTimeout(() => child.kill('SIGKILL'), TIMEOUT_MS);
+      let late = false;
+      const timer = setTimeout(() => {
+        late = true;
+        child.kill('SIGKILL');
+      }, this.o.timeoutMs ?? TIMEOUT_MS);
       child.stdout!.on('data', (d: Buffer) => sink.push(d));
       const done = (code: number | null, e?: Error) => {
         clearTimeout(timer);
         if (!this.live.delete(child)) return;
         if (e) return reject(e);
+        if (this.disposed) return reject(new PeaksError(503, 'closing'));
+        if (late) return reject(new PeaksError(504, 'timeout'));
         // no sound stream to map: a video without sound, a file that is not media after all
         if (code !== 0) return reject(new PeaksError(422, 'no-audio'));
         resolve(sink.end());
