@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Dates and times on messages.** Your messages show their time in the header and the agent's replies on hover, with the date when it is not today and the full date and time in a tooltip; a line marks each new day (Today, Yesterday, the date). Loaded history keeps its times now (Claude and Codex); an old record without one shows none. In the UI language.
 - **Video edits: the format and a read-only timeline.** A `*.nbcut.json` file (tracks of video, photos and sound; the format is in the guide) opens as a timeline with its tracks, clips and thumbnails, a ruler, zoom and a playhead. Problems in the file and missing sources are listed in the view.
 - **Video edits: preview.** The edit plays in a frame above its timeline as the export renders it (stacked video tracks, placement, the sound mix with fades, mute and solo). Scrub on the ruler or the playhead; Space/K play, `,`/`.` step a frame, ↑/↓ jump to clip edges, Home/End.
 - **Video edits: export.** **Export** on the edit's timeline renders it with ffmpeg on the machine into `exports/<name>.mp4` (H.264/AAC at the edit's size and frame rate) or the sound mix alone (`.wav`, `.m4a`), with progress and cancel. Without ffmpeg the editor still works and Export says how to install it.
