@@ -17,7 +17,7 @@ export function DoneLine({ item }: { item: Extract<FeedItem, { kind: 'done' }> }
   return (
     <div data-kind="done" className={LINE}>
       {t(item.status)} · {item.secs}{t('secondsSuffix')}{item.ts > 0 && <> · <MsgTime ts={item.ts} /></>}
-      {item.error ? <span className="whitespace-pre-wrap text-destructive"> · {item.error}</span> : null}
+      {item.error ? <span className="whitespace-pre-wrap break-words text-destructive"> · {item.error}</span> : null}
     </div>
   );
 }
@@ -63,7 +63,7 @@ export function MarkerLine({ item }: { item: Extract<FeedItem, { kind: 'marker' 
   const t = useT();
   const at = item.ts === 0 ? '' : timeOf(item.ts);
   return (
-    <div data-kind="marker" className={item.what === 'compactFailed' ? `${BASE} whitespace-pre-wrap text-destructive` : LINE}>
+    <div data-kind="marker" className={item.what === 'compactFailed' ? `${BASE} whitespace-pre-wrap break-words text-destructive` : LINE}>
       {item.what === 'compacted' ? item.pre === undefined ? t('compactedUnknown') : t('compacted', fmtK(item.pre), at, item.ms ? mmss(item.ms) : '')
         : item.what === 'compactFailed' ? t('compactFailed', item.error ?? '', at)
         : t('cleared', at)}

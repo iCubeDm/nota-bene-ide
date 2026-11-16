@@ -23,7 +23,7 @@ export function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'perm
     <div
       data-kind="permission"
       className={
-        'my-2.5 rounded-[10px] border bg-card px-3 py-2 text-[0.8125rem] ' +
+        'my-2.5 rounded-[10px] border bg-card px-3 py-2 text-[0.8125rem] break-words ' +
         (resolved || item.archived ? 'border-border-soft opacity-60' : 'border-warn')
       }
     >

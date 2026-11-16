@@ -1,4 +1,6 @@
-.md { color: color-mix(in oklch, var(--foreground) 90%, transparent); font-size: 0.9375rem; line-height: 1.625; }
+.md { color: color-mix(in oklch, var(--foreground) 90%, transparent); font-size: 0.9375rem; line-height: 1.625; overflow-wrap: break-word; }
+/* break-word above: a long word (a path, a URL) breaks only when its line has no other room. Unlike `anywhere` it leaves
+   min-content alone, so a table still sizes its columns to whole words */
 .md p { margin: 0.5em 0; }
 .md h1, .md h2, .md h3 { line-height: 1.3; margin: 1em 0 0.4em; }
 /* Tailwind preflight strips list markers and heading sizes */
