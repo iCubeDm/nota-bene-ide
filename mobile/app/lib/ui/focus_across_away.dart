@@ -1,10 +1,10 @@
 import 'package:flutter/widgets.dart';
 
-/// Takes the focus away while the app is off the screen and gives it back on return. Android hides the keyboard while the app is away and, when it comes
-/// back with a field still focused, restores that keyboard with its old height and no keyboard on screen: the layout
-/// keeps the keyboard's room (the composer floats mid-screen, a sheet's bottom slips under the navigation bar).
-/// Nothing focused, nothing is restored; back on screen the field takes the focus again and opens a fresh keyboard. A
-/// moment of `inactive` (the notification shade) keeps the focus.
+/// Takes the focus away while the app is off the screen and gives it back on return. Android hides the keyboard while
+/// the app is away and, when it comes back with a field still focused, restores that keyboard with its old height and no
+/// keyboard on screen: the layout keeps the keyboard's room (the composer floats mid-screen, a sheet's bottom slips under
+/// the navigation bar). Nothing focused, nothing is restored; back on screen the field takes the focus again and opens a
+/// fresh keyboard. A moment of `inactive` (the notification shade) keeps the focus.
 class FocusAcrossAway extends StatefulWidget {
   const FocusAcrossAway({super.key, required this.child});
   final Widget child;
