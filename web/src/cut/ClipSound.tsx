@@ -46,7 +46,7 @@ export function Wave({ b, peaks, pps, x0, x1, band }: { b: Block; peaks: Uint8Ar
     c.height = Math.max(1, Math.round(h * dpr));
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.clearRect(0, 0, c.width, c.height);
-    g.fillStyle = getComputedStyle(c).color || '#888';
+    g.fillStyle = getComputedStyle(c).color; // the canvas's text colour (its class)
     const level = dbGain(b.gain ?? 0);
     const H = c.height;
     for (let px = 0; px < c.width; px++) {
