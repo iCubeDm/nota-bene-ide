@@ -231,7 +231,8 @@ export async function startServer(o: {
     // gh-422: "Restart the server" while the agent works waits for the next pause (exit 75 then)
     const restart = restartGate({
       busy: notPaused,
-      tabs: () => hub.clients(),
+      // only a page that will ask in its pause holds the server's own rule back: the phone and an older bundle never ask
+      tabs: () => askers.size,
       exit: exitWith,
       changed: (pending) => hub.emit({ kind: 'restart-pending', pending }, { store: false }),
     });
@@ -503,7 +504,11 @@ export async function startServer(o: {
     const attachOwner = (ws: WebSocket, tab: string | null) => {
       const hubDetach = hub.attach({ send: (d) => ws.send(d), buffered: () => ws.bufferedAmount });
       let detached = false;
-      const detach = () => { if (!detached) { detached = true; hubDetach(); } };
+      if (asksInPause.has(ws)) {
+        askers.add(ws);
+        ws.on('close', () => askers.delete(ws));
+      }
+      const detach = () => { if (!detached) { detached = true; hubDetach(); askers.delete(ws); } };
       detachers.set(ws, detach);
       if (oneTab) {
         const me = { ws, alive: true, tab };
@@ -748,6 +753,10 @@ export async function startServer(o: {
       role.set(ws, 'owner');
     };
     const role = new WeakMap<WebSocket, 'pending' | 'occupied' | 'owner'>();
+    // gh-422: sockets of a page (protocol 22+, `?pause=1`) that asks for a pending restart in its own pause; while one
+    // is attached the server leaves that moment to it, otherwise its own pause rule restarts
+    const asksInPause = new WeakSet<WebSocket>();
+    const askers = new Set<WebSocket>();
 
     let conns = 0;
     wss.on('connection', (ws, req) => {
@@ -757,6 +766,7 @@ export async function startServer(o: {
       // a page that is occupied or taken reconnects passive: with no owner it must not win the window by being first
       // (a restart drops both tabs); it is told `occupied` and takes over only on the user's click
       const passive = params.get('passive') === '1';
+      if (params.get('pause') === '1') asksInPause.add(ws);
       const conn = ++conns;
       audit?.write('ws-open', { conn, tab, passive });
       ws.on('close', (code) => audit?.write('ws-close', { conn, code }));

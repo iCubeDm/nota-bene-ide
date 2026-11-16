@@ -37,8 +37,8 @@ async function boot(extra: { experimental3d?: boolean; ffmpeg?: () => string | n
 }
 
 type Client = { ws: WebSocket; events: ServerEvent[] };
-async function connect(url: string): Promise<Client> {
-  const ws = new WebSocket(url.replace('http', 'ws') + '/ws');
+async function connect(url: string, query = ''): Promise<Client> {
+  const ws = new WebSocket(url.replace('http', 'ws') + '/ws' + query);
   const events: ServerEvent[] = [];
   ws.on('message', (d) => events.push(JSON.parse(String(d)) as ServerEvent));
   await new Promise<void>((res, rej) => { ws.once('open', () => res()); ws.once('error', rej); });
@@ -441,11 +441,12 @@ describe('server', () => {
     const long = () => fakeBackend([{ text: 'x'.repeat(4000), chunk: 1, delayMs: 5 }, { text: 'again' }]);
     const postJson = (url: string, p: string, body: unknown = {}) =>
       fetch(`${url}${p}`, { method: 'POST', headers: { origin: url, 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    const working = async (codes: number[]) => {
+    // `pause=1`: a page of protocol 22+ that asks for the restart in its own pause (the phone and an older page do not)
+    const working = async (codes: number[], query = '?pause=1') => {
       supervise();
       const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: long(), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
       closers.push(s.close);
-      const c = await connect(s.url);
+      const c = await connect(s.url, query);
       c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'work' }));
       await until(() => c.events.some((e) => e.kind === 'agent' && e.e.t === 'message-chunk'));
       return { s, c };
@@ -482,6 +483,33 @@ describe('server', () => {
       c.ws.close();
       await until(() => codes.length === 1, 4000);
       expect(codes).toEqual([75]);
+    });
+
+    for (const [who, query] of [['the phone (no pause logic)', ''], ['a page of an older bundle', '?tab=old']] as const) {
+      it(`busy with only ${who} attached: the server's own pause rule restarts, it waits for nobody's ask`, async () => {
+        const codes: number[] = [];
+        const { s, c } = await working(codes, query);
+        expect(await (await post(s.url, s.url)).json()).toEqual({ ok: true, pending: true });
+        c.ws.send(JSON.stringify({ type: 'interrupt' }));
+        await until(() => c.events.some(isResult));
+        await until(() => codes.length === 1, 4000);
+        expect(codes).toEqual([75]);
+      });
+    }
+
+    it('the asking page leaves: the server goes by its own rule from then on, though the phone is still attached', async () => {
+      const codes: number[] = [];
+      const { s, c } = await working(codes);
+      const phone = await connect(s.url);
+      await post(s.url, s.url);
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => c.events.some(isResult));
+      await new Promise((r) => setTimeout(r, 1500));
+      expect(codes).toEqual([]); // the page will ask
+      c.ws.close();
+      await until(() => codes.length === 1, 4000);
+      expect(codes).toEqual([75]);
+      void phone; // attached throughout: it never held the restart
     });
 
     it('cancel: the pause does not restart', async () => {
