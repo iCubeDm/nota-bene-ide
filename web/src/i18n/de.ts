@@ -1012,6 +1012,7 @@ export const de: Dict = {
   cutToolBlade: "Klinge: ein Klick schneidet den Clip an dieser Stelle (Shift: alle Spuren; Alt: ohne Einrasten)",
   cutToolBladeShort: "Klinge",
   cutBladeTip: "Klicken, um hier zu schneiden (Shift: alle Spuren; Alt: ohne Einrasten)",
+  cutRemovedClip: (src: string) => `In der Datei entfernt: ${src}`,
   cutClipsN: (n: number) => `${n} Clips`,
   cutMixed: "gemischt",
   cutAt: "Start, s",

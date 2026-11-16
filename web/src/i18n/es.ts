@@ -1012,6 +1012,7 @@ export const es: Dict = {
   cutToolBlade: "Cuchilla: un clic corta el clip en ese punto (Mayús: todas las pistas; Alt: sin ajuste)",
   cutToolBladeShort: "Cuchilla",
   cutBladeTip: "Haz clic para cortar aquí (Mayús: todas las pistas; Alt: sin ajuste)",
+  cutRemovedClip: (src: string) => `Eliminado en el archivo: ${src}`,
   cutClipsN: (n: number) => `${n} clips`,
   cutMixed: "varios",
   cutAt: "Inicio, s",

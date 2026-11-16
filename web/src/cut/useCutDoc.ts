@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
 import { apiFetch } from '@/net/auth.ts';
+import { cutChanges, isNoChange, type CutChanges } from './changes.ts';
 import { commit, redo as redoStep, start, undo as undoStep, type History } from './history.ts';
 
 /** ms after the last edit before it is written. */
@@ -25,6 +26,9 @@ export type CutDoc = {
   overwrite: () => Promise<void>;
   /** in a conflict: drop the unsaved edits and take the file's version */
   takeDisk: () => Promise<void>;
+  /** what the last reload from the file changed against the edit shown before it (issue 412): a new object for each
+   *  reload that changed a clip; null until one did. Never the first read, nor this editor's own saves read back. */
+  changes: CutChanges | null;
 };
 
 // the server writes a save with the file's own line ends (fileEdit.ts withLineEnds): a CRLF file comes back CRLF
@@ -54,6 +58,7 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
   const [conflict, setConflict] = useState(false);
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [changes, setChanges] = useState<CutChanges | null>(null);
   // the file as last read or written, with its version
   const disk = useRef<{ text: string; base: string } | null>(null);
   // counts writes started and ended: a read that overlapped one may hold the older text
@@ -62,9 +67,15 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
   live.current = { hist, saved, conflict };
   const dirty = hist !== null && hist.now !== saved;
 
+  // a read of the file that is not what this editor wrote: against the edit shown, what it changed in the clips
   const adopt = useCallback((t: string, base: string) => {
     disk.current = { text: t, base };
     const cut = parse(t);
+    const shown = live.current.hist?.now;
+    if (shown && cut) {
+      const d = cutChanges(shown, cut);
+      if (!isNoChange(d)) setChanges(d);
+    }
     setHist(cut ? start(cut) : null);
     setSaved(cut);
     setConflict(false);
@@ -171,5 +182,6 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
     apply, undo, redo,
     overwrite: () => save(true),
     takeDisk: () => readDisk(true),
+    changes,
   };
 }

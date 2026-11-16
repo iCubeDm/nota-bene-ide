@@ -1029,6 +1029,7 @@ export const ru = {
   cutToolBlade: "Лезвие: щелчок режет клип в этом месте (Shift — все дорожки; Alt — без прилипания)",
   cutToolBladeShort: "Лезвие",
   cutBladeTip: "Щёлкни, чтобы разрезать здесь (Shift — все дорожки; Alt — без прилипания)",
+  cutRemovedClip: (src: string) => `Удалён в файле: ${src}`,
   cutClipsN: (n: number) => `Выбрано клипов: ${n}`,
   cutMixed: "разные",
   cutAt: "Начало, с",

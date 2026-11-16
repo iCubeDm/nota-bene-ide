@@ -1012,6 +1012,7 @@ export const zhCN: Dict = {
   cutToolBlade: "刀片：单击在该处切开片段（Shift：所有轨道；Alt：不吸附）",
   cutToolBladeShort: "刀片",
   cutBladeTip: "单击在此处切开（Shift：所有轨道；Alt：不吸附）",
+  cutRemovedClip: (src: string) => `已在文件中删除：${src}`,
   cutClipsN: (n: number) => `${n} 个片段`,
   cutMixed: "不一",
   cutAt: "开始，秒",
