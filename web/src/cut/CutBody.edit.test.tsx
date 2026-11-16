@@ -50,14 +50,24 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth; });
 
-async function show() {
+async function show(active = true) {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
-  const ui = (text: string) => <Provider store={store}><CutBody text={text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active /></Provider>;
+  let on = active;
+  const ui = (text: string) => <Provider store={store}><CutBody text={text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active={on} /></Provider>;
   const r = render(ui(disk.text));
   await waitFor(() => expect(r.container.querySelector('[data-cut-tools]')).not.toBeNull());
   const pps = () => Number(r.container.querySelector('[data-timeline]')!.getAttribute('data-pps'));
   const clip = (id: string) => r.container.querySelector<HTMLElement>(`[data-clip="${id}"]`)!;
-  return { ...r, pps, clip, reload: () => r.rerender(ui(disk.text)) };
+  const gets = () => vi.mocked(fetch).mock.calls.filter(([u, i]) => String(u).startsWith('/edit') && i?.method !== 'POST').length;
+  // the file view reads the file again; resolved once the editor's read of its version is answered and handled
+  const reread = async () => {
+    const n = gets();
+    act(() => r.rerender(ui(disk.text)));
+    await waitFor(() => expect(gets()).toBeGreaterThan(n));
+    await act(() => new Promise<void>((done) => setTimeout(done, 0)));
+  };
+  const setActive = (a: boolean) => { on = a; act(() => r.rerender(ui(disk.text))); };
+  return { ...r, pps, clip, reload: () => r.rerender(ui(disk.text)), reread, setActive };
 }
 const saved = (f: () => void) => waitFor(f, { timeout: SAVE_DELAY + 1500 });
 const valid = () => expect(validateCut(onDisk()).ok).toBe(true);
@@ -224,35 +234,78 @@ it('an outside change reloads the edit when nothing is unsaved', async () => {
   await waitFor(() => expect(clip('c2').style.left).toBe(`${9 * Number(clip('c2').closest('[data-timeline]')!.getAttribute('data-pps'))}px`));
 });
 
+const agentEdit = (out: number) => write(JSON.stringify({
+  ...fixture,
+  clips: [
+    { ...fixture.clips[0]!, out }, // trimmed
+    fixture.clips[2]!, // as it was
+    { id: 'c9', track: 'a1', src: 'media/music.wav', at: 8, out: 2 }, // added
+  ], // c2 removed
+}));
+const mark = (el: Element) => el.querySelector<HTMLElement>(':scope > [data-changed-mark]');
+
 it('the agent\'s change is highlighted for a moment (issue 412): changed and added clips, a ghost where a removed one was', async () => {
   const { container, clip, reload } = await show();
-  write(JSON.stringify({
-    ...fixture,
-    clips: [
-      { ...fixture.clips[0]!, out: 3 }, // trimmed
-      fixture.clips[2]!, // as it was
-      { id: 'c9', track: 'a1', src: 'media/music.wav', at: 8, out: 2 }, // added
-    ], // c2 removed
-  }));
+  // c1 selected: its selection ring stays while it is highlighted, the highlight is a layer of its own
+  fireEvent.pointerDown(clip('c1'), { clientX: 10, button: 0, pointerId: 1 });
+  fireEvent.pointerUp(clip('c1'), { clientX: 10, pointerId: 1 });
+  agentEdit(3);
   act(() => reload());
   await waitFor(() => expect(clip('c9')).toHaveAttribute('data-changed'));
   expect(clip('c1')).toHaveAttribute('data-changed');
   expect(clip('c3')).not.toHaveAttribute('data-changed');
+  expect(mark(clip('c3'))).toBeNull();
+  const m = mark(clip('c1'))!;
+  expect(m.className).toMatch(/\bnb-cut-flash\b/);
+  expect(m.className).toMatch(/\bpointer-events-none\b/);
+  expect(m.style.getPropertyValue('--nb-flash-ms')).toBe(`${FLASH_MS}ms`);
+  expect(clip('c1').className).not.toMatch(/nb-cut-flash/);
+  expect(clip('c1').className).toMatch(/\bring-2\b/);
   const ghost = container.querySelector<HTMLElement>('[data-lane-body="v1"] [data-removed-clip="c2"]')!;
   expect(ghost).not.toBeNull();
-  expect(ghost).toHaveAttribute('title', expect.stringContaining('media/street.webm'));
+  expect(ghost).toHaveTextContent('street.webm'); // shown in it: a pointer never reaches it for a tooltip
+  expect(ghost).toHaveAttribute('aria-label', expect.stringContaining('media/street.webm'));
+  expect(ghost.style.getPropertyValue('--nb-flash-ms')).toBe(`${FLASH_MS}ms`);
   // it fades and is gone after a moment
-  await waitFor(() => expect(container.querySelector('[data-changed], [data-removed-clip]')).toBeNull(), { timeout: FLASH_MS + 1500 });
+  await waitFor(() => expect(container.querySelector('[data-changed], [data-changed-mark], [data-removed-clip]')).toBeNull(), { timeout: FLASH_MS + 1500 });
 });
 
-it('our own edit is not highlighted, nor the edit as first opened', async () => {
-  const { container, clip, pps, reload } = await show();
+it('another write by the agent within the highlight starts its fade again, the clip itself stays', async () => {
+  const { clip, reload } = await show();
+  agentEdit(3);
+  act(() => reload());
+  await waitFor(() => expect(mark(clip('c1'))).not.toBeNull());
+  const [el, m] = [clip('c1'), mark(clip('c1'))];
+  agentEdit(2);
+  act(() => reload());
+  await waitFor(() => expect(mark(clip('c1'))).not.toBe(m));
+  expect(mark(clip('c1'))).not.toBeNull();
+  expect(clip('c1')).toBe(el); // its poster and waveform are not loaded again
+});
+
+it('in a tab not shown the highlight waits: its moment starts when the tab is shown', async () => {
+  const { container, clip, reload, setActive } = await show();
+  setActive(false);
+  agentEdit(3);
+  act(() => reload());
+  await waitFor(() => expect(clip('c1').style.width).toBe(`${3 * Number(clip('c1').closest('[data-timeline]')!.getAttribute('data-pps'))}px`));
+  expect(container.querySelector('[data-changed-mark], [data-removed-clip]')).toBeNull();
+  await act(() => new Promise<void>((done) => setTimeout(done, FLASH_MS + 200)));
+  setActive(true);
+  expect(mark(clip('c1'))).not.toBeNull();
+  expect(container.querySelector('[data-removed-clip="c2"]')).not.toBeNull();
+  await waitFor(() => expect(container.querySelector('[data-changed-mark], [data-removed-clip]')).toBeNull(), { timeout: FLASH_MS + 1500 });
+});
+
+it('our own edit is not highlighted, nor the edit as first opened: its save read back is no reload', async () => {
+  const { container, clip, pps, reread } = await show();
   expect(container.querySelector('[data-changed]')).toBeNull();
   drag(clip('c2'), 100, 100 + 1.5 * pps(), { altKey: true });
   await saved(() => expect(clipOnDisk('c2')!.at).toBe(7.5));
-  act(() => reload()); // the file view reads our own save back
-  await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
-  expect(container.querySelector('[data-changed], [data-removed-clip]')).toBeNull();
+  await reread(); // the file view reads our own save back
+  expect(container.querySelector('[data-changed], [data-changed-mark], [data-removed-clip]')).toBeNull();
+  // not reloaded as if from outside: the undo history is still there
+  expect(screen.getByRole('button', { name: /^Undo/ })).toBeEnabled();
 });
 
 it('a drag that an outside change overtook is dropped: the agent\'s version stays', async () => {

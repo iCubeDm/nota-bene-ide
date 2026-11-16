@@ -85,9 +85,16 @@ it('an outside change reports what it changed in the clips (issue 412); the firs
   // our own edit, saved and read back by the file view: no change from outside
   act(() => result.current.apply(later(result.current.cut!, 1)));
   await waitFor(() => expect(result.current.status).toBe('saved'), { timeout: SAVE_DELAY + 1000 });
+  const gets = () => vi.mocked(fetch).mock.calls.filter(([, i]) => i?.method !== 'POST').length;
+  const n = gets();
+  const shown = result.current.cut;
   rerender({ text: disk.text });
-  await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+  await waitFor(() => expect(gets()).toBeGreaterThan(n));
+  await act(() => new Promise<void>((done) => setTimeout(done, 0))); // its answer handled
   expect(result.current.changes).toBeNull();
+  // the echo was not taken as a reload: the same edit object, and the undo history kept
+  expect(result.current.cut).toBe(shown);
+  expect(result.current.canUndo).toBe(true);
   // the agent moves c1 and adds c2
   const next = later(cut0, 5);
   write(JSON.stringify({ ...next, clips: [...next.clips, { id: 'c2', track: 'v1', src: 'b.mp4', at: 8, out: 1 }] }));

@@ -1,9 +1,13 @@
 // What a change to the edit's file from outside (the agent) did to its clips (issue 412), by clip id: the timeline
 // highlights the added and changed clips for a moment and shows a ghost where a removed one was.
+import type { CSSProperties } from 'react';
 import type { Cut, CutClip } from '@nota-bene/shared/cut';
 
 /** How long the highlight of an outside change lasts, ms. */
 export const FLASH_MS = 2000;
+
+/** The highlight's length as the CSS variable its animations read (theme.css, nb-cut-flash). */
+export const flashStyle = { '--nb-flash-ms': `${FLASH_MS}ms` } as CSSProperties;
 
 export type CutChanges = {
   /** clips with an id the edit had not: in the new edit's order */
@@ -13,6 +17,9 @@ export type CutChanges = {
   /** clips whose id is gone, as they were (where they stood) */
   removed: CutClip[];
 };
+
+/** A change being shown: `gen` counts them, so a new one starts its fade again. */
+export type CutFlash = CutChanges & { gen: number };
 
 // a value as JSON with its object keys sorted: a file written with the keys in another order is the same clip;
 // an undefined field is not in the file, as JSON drops it
