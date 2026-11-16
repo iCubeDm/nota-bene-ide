@@ -53,6 +53,11 @@ export const zhCN: Dict = {
   codeCopied: '已复制',
   codeCopyFail: '无法复制',
   copyPath: '复制路径',
+  // 文件树中视频、声音或照片的菜单（issue 426）
+  treeAddToEdit: (n: number, edit: string) => (n === 1 ? `添加到 ${edit}` : `将 ${n} 个文件添加到 ${edit}`),
+  treeAddToEditNone: '添加到剪辑（请先打开一个剪辑）',
+  treeNewEdit: (n: number) => (n === 1 ? '用此文件新建剪辑' : `用 ${n} 个文件新建剪辑`),
+  treeNewEditFailed: '无法创建剪辑',
   comments: '评论',
   commentsN: (n) => `评论 · ${n}`,
   emptyComments: '在对话或已打开的文件中选中文本，然后点击“评论”。\n评论会汇集在这里，并作为一批发送给代理。',

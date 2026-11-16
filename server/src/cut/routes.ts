@@ -1,12 +1,14 @@
 // `GET /cut/export?path=`, `POST /cut/export {path, mode}`, `POST /cut/export/cancel {path}`: the video editor's export.
 // A long job polled over HTTP, as the Whisper install is: the start answers 202, the page asks for the state until it ends.
 // `GET /cut/peaks?path=<source>`: a source's waveform for the timeline (issue 431), peaks.ts.
+// `POST /cut/new {dir, cut}`: a new edit beside the files it was made from (issue 426), newEdit.ts.
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import { readCapped } from '../attachments.ts';
 import type { EventHub } from '../hub.ts';
 import { reportError } from '../errors.ts';
 import { EXPORT_MODES, type ExportMode } from './args.ts';
 import { CutExportError, type CutExporter } from './exporter.ts';
+import { createEdit } from './newEdit.ts';
 import { PeaksError, type CutPeaks } from './peaks.ts';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -16,11 +18,13 @@ function json(res: ServerResponse, status: number, body: unknown): void {
 
 /** a start or cancel body is a path and a mode: far below this */
 const MAX_BODY = 64 * 1024;
+/** a new edit's body carries the edit: as large as a file the editor saves (fileEdit.ts EDIT_MAX) */
+const MAX_NEW = 2 * 1024 * 1024;
 
 class TooLarge extends Error {}
 
-async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const bytes = await readCapped(req, MAX_BODY);
+async function readBody(req: IncomingMessage, max = MAX_BODY): Promise<Record<string, unknown>> {
+  const bytes = await readCapped(req, max);
   if (bytes === null) throw new TooLarge();
   const v: unknown = JSON.parse(bytes.toString('utf8') || '{}');
   return v && typeof v === 'object' ? v as Record<string, unknown> : {};
@@ -29,7 +33,9 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
 const isMode = (v: unknown): v is ExportMode => EXPORT_MODES.includes(v as ExportMode);
 const isPath = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 4096;
 
-export function cutRoutes(o: { hub: EventHub; exporter: Pick<CutExporter, 'ffmpegState' | 'job' | 'start' | 'cancel'>; peaks: Pick<CutPeaks, 'get'> }): Record<string, RequestListener> {
+export function cutRoutes(o: {
+  hub: EventHub; exporter: Pick<CutExporter, 'ffmpegState' | 'job' | 'start' | 'cancel'>; peaks: Pick<CutPeaks, 'get'>; root: () => string;
+}): Record<string, RequestListener> {
   const failed = (req: IncomingMessage, res: ServerResponse) => (e: unknown): void => {
     if (e instanceof TooLarge) {
       // what is left of the body is drained, then the connection dropped if it never ends (as refuseTooLarge does)
@@ -42,9 +48,9 @@ export function cutRoutes(o: { hub: EventHub; exporter: Pick<CutExporter, 'ffmpe
     reportError(o.hub, req.url ?? '/cut/export', e);
     if (!res.headersSent) json(res, 500, { error: 'internal', detail: e instanceof Error ? e.message : String(e) });
   };
-  const post = (h: (body: Record<string, unknown>, res: ServerResponse) => void | Promise<void>): RequestListener => (req, res) => {
+  const post = (h: (body: Record<string, unknown>, res: ServerResponse) => void | Promise<void>, max = MAX_BODY): RequestListener => (req, res) => {
     if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
-    readBody(req).then((b) => h(b, res)).catch(failed(req, res));
+    readBody(req, max).then((b) => h(b, res)).catch(failed(req, res));
   };
   return {
     '/cut/export': (req, res) => {
@@ -77,6 +83,11 @@ export function cutRoutes(o: { hub: EventHub; exporter: Pick<CutExporter, 'ffmpe
         failed(req, res)(e);
       });
     },
+    '/cut/new': post(async (b, res) => {
+      if (typeof b.dir !== 'string' || b.dir.length > 4096 || b.cut === undefined) return json(res, 400, { error: 'dir and cut are needed' });
+      const a = await createEdit(o.root(), b.dir, b.cut);
+      json(res, a.status, a.body);
+    }, MAX_NEW),
     '/cut/export/cancel': post((b, res) => {
       if (!isPath(b.path)) return json(res, 400, { error: 'path must be an edit' });
       if (!o.exporter.cancel(b.path)) return json(res, 404, { error: 'not running' });
