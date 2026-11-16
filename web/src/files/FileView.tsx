@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { PAGE_PROTOCOL } from '@/page/frame.ts';
-import { isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
+import { isCutAnchor, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
 import { isCutPath } from '@nota-bene/shared/cut';
 import { CutBody } from '@/cut/CutBody.tsx';
 import { editable as isEditable } from '@/lib/editable.ts';
@@ -111,8 +111,10 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
     if (kind === 'model' || jump?.path !== path || jump.src !== src || !active || !data) return;
     // a rendered page takes its own jump once it is on screen (HtmlBody); a place on the page shows the page
     if (page) return;
-    if (timeline) return void setPageView(false); // a comment on an edit is on its text
     const target = comments.find((x) => x.id === jump.id);
+    // a comment on an edit's timeline (issue 430) is the timeline's (CutBody); any other on an edit is on its text
+    if (cut && target && isCutAnchor(target.anchor)) return void (pageView || setPageView(true));
+    if (timeline) return void setPageView(false);
     if (html && target && isPageAnchor(target.anchor)) return void setPageView(true);
     const fresh = loadedRev.current?.path === path && loadedRev.current.rev === rev;
     if (!fresh) return; // a stale view reloads on activation: wait for that load
@@ -124,7 +126,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
     if (!range) return; // orphaned: the tab is open, nothing to point at
     scrollRangeIntoView(range, el);
     flashRange(el, range);
-  }, [kind, jump, active, data, rev, path, src, comments, dispatch, loadedRev, page, html, timeline]);
+  }, [kind, jump, active, data, rev, path, src, comments, dispatch, loadedRev, page, html, timeline, cut, pageView]);
 
   // "jump to source" on a media tab: the tab is open and active; a video also seeks to the comment's time and pauses
   // (not while marking: the drawing belongs to the frame on screen)

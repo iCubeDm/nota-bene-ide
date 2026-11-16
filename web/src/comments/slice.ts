@@ -1,5 +1,5 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { anchorSource, isMediaAnchor, type Comment, type CommentOp, type MediaAnchor } from '@nota-bene/shared';
+import { anchorSource, isCutAnchor, isMediaAnchor, type Comment, type CommentOp, type CutAnchor, type MediaAnchor } from '@nota-bene/shared';
 import { fileKey } from '../files/sources.ts';
 // store.ts imports this file for the reducer; every use of serverEvent below is lazy (inside callbacks), so the cycle is safe.
 import { connState, serverEvent, type AppThunk, type RootState } from '../store/store.ts';
@@ -178,6 +178,14 @@ export const editComment = (id: string, text: string): AppThunk => (d, getState)
   const items = selectComments(getState()).map((c) => (c.id === id ? { ...c, text } : c));
   const edited = items.find((c) => c.id === id);
   if (edited) d(change({ op: 'edit', comment: edited }, items));
+};
+
+/** A pending cut comment follows its clip (issue 430, protocol 23): an edit with its new anchor; anything else is left. */
+export const moveCutComment = (id: string, anchor: CutAnchor): AppThunk => (d, getState) => {
+  const cur = selectComments(getState()).find((c) => c.id === id);
+  if (!cur || cur.status !== 'pending' || !isCutAnchor(cur.anchor)) return;
+  const edited = { ...cur, anchor };
+  d(change({ op: 'edit', comment: edited }, selectComments(getState()).map((c) => (c.id === id ? edited : c))));
 };
 
 export const removeComment = (id: string): AppThunk => (d, getState) => {

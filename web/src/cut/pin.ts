@@ -48,3 +48,6 @@ export function followAnchor(a: CutAnchor, cut: Cut): CutAnchor | null {
   const next: CutAnchor = { ...a, time, clip: clipOf(cut, c, a.clip.srcTime) };
   return JSON.stringify(next) === JSON.stringify(a) ? null : next;
 }
+
+/** The server that takes cut anchors (protocol 23); an older one would refuse the comment. */
+export const CUT_PROTOCOL = 23;

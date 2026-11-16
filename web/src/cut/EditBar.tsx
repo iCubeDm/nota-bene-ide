@@ -8,12 +8,13 @@ const CHOICE = 'rounded px-2 py-0.5 text-foreground hover:bg-muted';
 
 /**
  * The editor's tools (issue 409), each tooltip naming its key: undo and redo, split at the playhead, duplicate and
- * delete the selected clip, a new video or audio track, and how the file stands (saved, saving, a conflict with a
+ * delete the selected clip, a new video or audio track, a comment on the clip or the playhead's moment (issue 430; absent
+ * `onComment`: the server would refuse it), and how the file stands (saved, saving, a conflict with a
  * version written meanwhile, as the file editor offers it: overwrite, or take the file's version).
  */
-export function EditBar({ doc, sel, onSplit, onDuplicate, onDelete, onAddTrack, notice }: {
+export function EditBar({ doc, sel, onSplit, onDuplicate, onDelete, onAddTrack, onComment, notice }: {
   doc: CutDoc; sel: boolean; onSplit: () => void; onDuplicate: () => void; onDelete: () => void;
-  onAddTrack: (kind: 'video' | 'audio') => void; notice: string | null;
+  onAddTrack: (kind: 'video' | 'audio') => void; onComment?: () => void; notice: string | null;
 }) {
   const t = useT();
   const mod = isMac() ? '⌘' : 'Ctrl+';
@@ -34,6 +35,8 @@ export function EditBar({ doc, sel, onSplit, onDuplicate, onDelete, onAddTrack, 
       <span className="mx-1 h-4 border-l border-border-soft" />
       {b(t('cutAddVideo'), null, t('cutAddVideoShort'), () => onAddTrack('video'))}
       {b(t('cutAddAudio'), null, t('cutAddAudioShort'), () => onAddTrack('audio'))}
+      {onComment && <span className="mx-1 h-4 border-l border-border-soft" />}
+      {onComment && b(t('cutComment'), 'C', t('cutCommentShort'), onComment)}
       <span className="flex-1" />
       {notice && <span role="status" className="text-warn">{notice}</span>}
       {status === 'conflict' ? (

@@ -25,15 +25,19 @@ const dB = (g: number) => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`
  * the view scrolls to keep the playhead in sight. `problems`: the messages of a clip by its index in `clips`; such a clip
  * is outlined. `editing` (issue 409): a clip is selected by a click, moved by a drag (to another track of its kind too),
  * trimmed by its edges, snapping to the playhead, 0 and the other clips' edges (Alt: no snapping); the track headers
- * rename, mute, solo, hide, reorder and remove; a project file dropped from the Files tree becomes a clip.
+ * rename, mute, solo, hide, reorder and remove; a project file dropped from the Files tree becomes a clip. `notes` (issue
+ * 430): the comments, a tick on their clip (on the ruler for a moment of the timeline or a clip that is gone), the note on
+ * hover; a click is `onNote`.
  */
-export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing }: {
+export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote }: {
   player: CutPlayer;
   lanes: Lane[]; blocks: Block[]; end: number; frame: { width: number; height: number; fps: number } | null;
   problems: ReadonlyMap<number, string[]>; missing: ReadonlySet<string>; fileSrc: string; active: boolean;
   /** the toolbar's right end, after the size and rate (the Export control) */
   tools?: ReactNode;
   editing?: Editing;
+  notes?: CutNote[];
+  onNote?: (n: CutNote) => void;
 }) {
   const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
@@ -142,15 +146,17 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
   // a timeline gone mid-drag must not leave the player held and silent
   useEffect(() => () => { if (scrubbing.current) player.scrub(false); }, [player]);
 
-  // while playing, a playhead about to leave the view turns the page: it comes back near the left edge. A scroll of the
+  // while playing (and on a seek while paused), a playhead about to leave the view turns the page: it comes back near the left edge. A scroll of the
   // user's own (wheel, the scrollbar: a press on the scroller itself) stops that until the next play or seek
   const last = useRef(player.state());
   useEffect(() => player.subscribe(() => {
     const s = player.state();
-    if (s.seeks !== last.current.seeks || (s.playing && !last.current.playing)) manual.current = false;
+    const sought = s.seeks !== last.current.seeks;
+    if (sought || (s.playing && !last.current.playing)) manual.current = false;
     last.current = s;
     const el = scroller.current;
-    if (!s.playing || !el || manual.current) return;
+    // paused, a seek that left the view (a comment's tick or card, a key) brings the playhead back into it; a scrub stays in it
+    if (!el || manual.current || (!s.playing && (!sought || scrubbing.current))) return;
     const w = el.clientWidth - HEAD;
     const x = s.t * ppsRef.current;
     if (w > 0 && (x < el.scrollLeft || x > el.scrollLeft + w - 24)) el.scrollLeft = Math.max(0, x - w * 0.1);
@@ -171,6 +177,9 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     const at = (e.clientX - left) / pps;
     editing.addFile(path, track, Number.isFinite(at) ? Math.max(0, at) : 0);
   };
+  // a comment's tick: in its clip's lane, or on the ruler (a moment, or a clip no longer drawn)
+  const laneOf = (n: CutNote) => (n.clip === undefined ? undefined : blocks.find((b) => b.id === n.clip)?.track);
+  const tick = (n: CutNote) => <NoteTick key={n.id} n={n} pps={pps} onNote={onNote} />;
 
   return (
     <div data-timeline data-pps={pps} className="flex min-h-0 flex-[2_1_0%] flex-col">
@@ -196,6 +205,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
                   {fmtTime(s, step < 1)}
                 </span>
               ))}
+              {notes.filter((n) => laneOf(n) === undefined).map(tick)}
               <Head player={player} pps={pps} className="pointer-events-none absolute bottom-0 -ml-1 h-0 w-0 border-x-4 border-t-[6px] border-x-transparent border-t-destructive" />
             </div>
           </div>
@@ -223,6 +233,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
                     selected={editing?.sel === b.id} drag={editing ? clipDrag : undefined}
                   />
                 ))}
+                {notes.filter((n) => laneOf(n) === l.id).map(tick)}
               </div>
             </div>
           ))}
@@ -239,6 +250,24 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
         </div>
       </div>
     </div>
+  );
+}
+
+/** A comment on the timeline (issue 430): where it is now, its clip (absent: a moment of the timeline), its hover text. */
+export type CutNote = { id: string; time: number; clip?: string; title: string; sent: boolean };
+
+/** A comment's tick: the note on hover, a click is `onNote` (seek there, select the clip); a press never scrubs or drags. */
+function NoteTick({ n, pps, onNote }: { n: CutNote; pps: number; onNote?: (n: CutNote) => void }) {
+  return (
+    <button
+      type="button" data-cut-note={n.id} title={n.title} aria-label={n.title}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onNote?.(n); }}
+      className="absolute inset-y-0 z-[3] flex w-2 -translate-x-1/2 cursor-pointer items-start justify-center"
+      style={{ left: n.time * pps }}
+    >
+      <span className="mt-0.5 h-3 w-[3px] rounded-sm bg-[var(--nb-accent)]" style={{ opacity: n.sent ? 0.45 : 1 }} />
+    </button>
   );
 }
 

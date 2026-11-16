@@ -1,8 +1,16 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
 import { AUDIO, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
 import { projectFileUrl } from '@/files/kinds.ts';
 import { useT } from '@/i18n/index.ts';
+import { CommentPopup, type PendingComment } from '@/comments/CommentPopup.tsx';
+import { labelText } from '@/comments/labels.ts';
+import { moveCutComment, selectComments } from '@/comments/slice.ts';
+import { clearJump, selectJump } from '@/files/slice.ts';
+import { mediaTime } from '@/media/markup/geometry.ts';
+import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { srcLength } from './durations.ts';
 import { EditBar } from './EditBar.tsx';
 import type { Editing } from './editing.ts';
@@ -17,6 +25,9 @@ import { Timeline } from './Timeline.tsx';
 import { useCutDoc } from './useCutDoc.ts';
 import { useCutKeys } from './useCutKeys.ts';
 import { useMissing } from './useMissing.ts';
+import { setLiveClips } from './live.ts';
+import { CUT_PROTOCOL, followAnchor, pinAnchor, timeOf } from './pin.ts';
+import type { CutNote } from './Timeline.tsx';
 
 /** A photo dropped on the timeline shows this long, seconds; a source whose length the browser cannot read too. */
 const PHOTO_LEN = 5;
@@ -31,7 +42,9 @@ const clipIndex = (path: string) => /^clips\[(\d+)\]/.exec(path)?.[1];
  * (issue 411), disabled while anything is wrong in the edit, since the server would refuse it. The preview plays a valid
  * edit (a missing source is black and silent); one with problems only moves the playhead. A valid edit of the session's
  * project is edited in place (issue 409, useCutDoc): the timeline's clips and tracks, the inspector and the selected
- * clip's frame on the preview change it, each change saved to the file and undoable.
+ * clip's frame on the preview change it, each change saved to the file and undoable. Comments on it (issue 430): Comment
+ * (C) pins one to the selected clip or the playhead's moment; their ticks and their cards seek there and select the clip,
+ * and a pending one keeps to its clip as the clip moves or is trimmed.
  */
 export function CutBody({ text, src, path, tabId, active }: { text: string; src: string; path?: string; tabId: string; active: boolean }) {
   const t = useT();
@@ -109,6 +122,57 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     commit(r.cut);
     setSel(r.id);
   };
+  // comments on this edit (issue 430): where each is now, its clip followed by id
+  const dispatch = useAppDispatch();
+  const protocol = useAppSelector((s) => s.controls.protocol);
+  const all = useAppSelector(selectComments);
+  const mine = useMemo(() => (path === undefined ? [] : all.filter((c): c is Comment & { anchor: CutAnchor } =>
+    isCutAnchor(c.anchor) && c.anchor.source.path === path && c.anchor.source.ref === undefined)), [all, path]);
+  const [popup, setPopup] = useState<PendingComment | null>(null);
+  useEffect(() => {
+    if (!cut) return;
+    for (const c of mine) {
+      const next = c.status === 'pending' ? followAnchor(c.anchor, cut) : null;
+      if (next) dispatch(moveCutComment(c.id, next));
+    }
+  }, [cut, mine, dispatch]);
+  // which clips the edit has, for the cards and the batch ("no longer in the edit"): known while this view shows it
+  useEffect(() => {
+    if (path === undefined) return;
+    setLiveClips(path, undefined, cut ? new Set(cut.clips.map((c) => c.id)) : null);
+  }, [cut, path]);
+  useEffect(() => () => { if (path !== undefined) setLiveClips(path, undefined, null); }, [path]);
+  const notes: CutNote[] = mine.map((c) => {
+    const time = (cut && timeOf(c.anchor, cut)) ?? c.anchor.time;
+    const note = c.text.trim() || (c.label ? labelText(c.label) : '');
+    return { id: c.id, time, ...(c.anchor.clip ? { clip: c.anchor.clip.id } : {}), title: `${mediaTime(time)} · ${note}`, sent: c.status === 'sent' };
+  });
+  const goTo = (id: string) => {
+    const c = mine.find((x) => x.id === id);
+    if (!c) return;
+    player.pause();
+    player.seek((cut && timeOf(c.anchor, cut)) ?? c.anchor.time);
+    const k = c.anchor.clip?.id;
+    if (k !== undefined && cut?.clips.some((x) => x.id === k)) setSel(k);
+  };
+  // the card's "jump to source" (FileView leaves a comment on the timeline to this view)
+  const jump = useAppSelector(selectJump);
+  useEffect(() => {
+    if (!active || path === undefined || jump?.path !== path || jump.src !== src || jump.ref !== undefined) return;
+    if (!mine.some((c) => c.id === jump.id)) return;
+    dispatch(clearJump());
+    goTo(jump.id);
+  });
+  const canComment = protocol >= CUT_PROTOCOL && path !== undefined;
+  const comment = () => {
+    if (!cut || path === undefined) return;
+    const anchor = pinAnchor(cut, { kind: 'file', path }, player.time(), sel);
+    // the popup opens by the clip, or by the playhead for a moment of the timeline
+    const el = pane.current?.querySelector(anchor.clip ? `[data-clip="${CSS.escape(anchor.clip.id)}"]` : '[data-playhead]');
+    const r = (el ?? pane.current)?.getBoundingClientRect() ?? new DOMRect();
+    setPopup({ anchor, rect: new DOMRect(r.x, r.y, r.width, r.height) });
+  };
+
   const editing: Editing | undefined = cut ? {
     cut, sel, select: setSel, draft: setDraft, commit, lenOf: (s) => lens.get(s), addFile: (f, tr, at) => void addFile(f, tr, at),
   } : undefined;
@@ -137,6 +201,10 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
       case 'ArrowLeft': case 'ArrowRight':
         if (!selected) return false;
         commit(nudgeClip(cut, selected.id, (e.code === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1)));
+        return true;
+      case 'KeyC':
+        if (e.shiftKey || !canComment) return false;
+        if (!e.repeat) comment();
         return true;
       case 'Escape':
         // Esc in the Files tree closes the tree (FileTree.tsx)
@@ -200,6 +268,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
           {editing && (
             <EditBar
               doc={doc} sel={!!selected} onSplit={split} onDuplicate={duplicate} onDelete={remove} notice={notice}
+              onComment={canComment ? comment : undefined}
               onAddTrack={(kind) => commit(addTrack(editing.cut, kind).cut)}
             />
           )}
@@ -207,10 +276,16 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
             <Timeline
               player={player} lanes={draw.lanes} blocks={draw.blocks} end={draw.end} frame={frame} problems={problems} missing={missing} fileSrc={src} active={active}
               tools={path !== undefined && <ExportControl path={path} blocked={issues.length > 0 ? t('cutExportBlocked') : undefined} />}
-              editing={editing}
+              editing={editing} notes={notes} onNote={(n) => goTo(n.id)}
             />
           )}
         </>
+      )}
+      {popup && createPortal(
+        <div className="relative z-30" hidden={!active}>
+          <CommentPopup key={`${popup.rect.x}:${popup.rect.y}`} pending={popup} onClose={() => setPopup(null)} hidden={!active} />
+        </div>,
+        document.body,
       )}
     </div>
   );
