@@ -1157,6 +1157,15 @@
       "id": "0b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8"
     },
     {
+      "kind": "resumed",
+      "id": "0b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8",
+      "cut": true
+    },
+    {
+      "kind": "restart-pending",
+      "pending": true
+    },
+    {
       "kind": "server-error",
       "where": "send",
       "message": "bad"
