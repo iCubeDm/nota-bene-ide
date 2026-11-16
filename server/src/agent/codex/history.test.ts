@@ -49,6 +49,19 @@ describe('Codex history', () => {
     expect([at('u1'), at('m1'), at('m2'), at('u2'), at('m3')]).toEqual([1_700_000_000_000, 1_700_000_020_000, 1_700_000_090_000, 1_700_000_500_000, 0]);
   });
 
+  it('a turn still running (completedAt null): its prompt has the turn\'s start, a reply without its own time has none', async () => {
+    const api = { async request() {
+      return { data: [{ id: 't1', status: 'inProgress', startedAt: 1_700_000_000, completedAt: null, items: [
+        { type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'Q' }] },
+        { type: 'agentMessage', id: 'm1', text: 'partial' },
+        { type: 'agentMessage', id: 'm2', text: 'done part', startedAtMs: 1_700_000_005_000, completedAtMs: null },
+      ] }], nextCursor: null };
+    } };
+    const history = await loadCodexHistory(api, 'thread', new AttachmentStore({ dir: '/unused' }));
+    const at = (id: string) => (history.find((e) => (e.kind === 'user' && e.id === itemId(id)) || (e.kind === 'agent' && e.e.t === 'message' && e.e.id === itemId(id))) as { ts?: number } | undefined)?.ts;
+    expect([at('u1'), at('m1'), at('m2')]).toEqual([1_700_000_000_000, 0, 1_700_000_005_000]);
+  });
+
   it('rejects a repeating cursor rather than looping or silently dropping history', async () => {
     const api = { async request() { return { data: [], nextCursor: 'same' }; } };
     await expect(loadCodexHistory(api, 'thread', new AttachmentStore({ dir: '/unused' }))).rejects.toThrow(/cursor/);
