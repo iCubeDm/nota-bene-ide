@@ -41,9 +41,9 @@ export function TrackHead({ lane: l, cut, commit, width }: { lane: Lane; cut: Cu
         <span data-track-name className="cursor-text truncate text-foreground" title={t('cutRenameTip')} onDoubleClick={() => setNaming(l.name ?? '')}>{shown}</span>
       )}
       <span className="flex items-center gap-0.5 text-muted-foreground">
-        {flag('mute', t('cutTrackMute'), 'M')}
-        {flag('solo', t('cutTrackSolo'), 'S')}
-        {l.kind === 'video' && flag('hidden', t('cutTrackHide'), 'H')}
+        {flag('mute', t('cutTrackMute'), t('cutMuteShort'))}
+        {flag('solo', t('cutTrackSolo'), t('cutSoloShort'))}
+        {l.kind === 'video' && flag('hidden', t('cutTrackHide'), t('cutHideShort'))}
         {l.gain !== undefined && l.gain !== 0 && <span className="font-mono text-[0.625rem]">{dB(l.gain)}</span>}
         <span className="flex-1" />
         {act(t('cutTrackUp'), '↑', () => moveTrack(cut, l.id, -1))}

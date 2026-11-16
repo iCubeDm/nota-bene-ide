@@ -50,7 +50,7 @@ async function show() {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   const ui = (text: string) => <Provider store={store}><CutBody text={text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active /></Provider>;
   const r = render(ui(disk.text));
-  await screen.findByRole('button', { name: /^Undo/ });
+  await waitFor(() => expect(r.container.querySelector('[data-cut-tools]')).not.toBeNull());
   const pps = () => Number(r.container.querySelector('[data-timeline]')!.getAttribute('data-pps'));
   const clip = (id: string) => r.container.querySelector<HTMLElement>(`[data-clip="${id}"]`)!;
   return { ...r, pps, clip, reload: () => r.rerender(ui(disk.text)) };
@@ -271,4 +271,14 @@ it('Escape in the Files tree is the tree\'s, even with a clip selected', async (
   } finally {
     tree.remove();
   }
+});
+
+it('the track toggles are in the UI language', async () => {
+  setLang('ru');
+  const { container } = await show();
+  const head = container.querySelector('[data-track-head="v1"]')!;
+  const label = (name: string) => head.querySelector(`[aria-label="${name}"]`)!.textContent;
+  expect(label('Выключить звук дорожки')).toBe('М');
+  expect(label('Соло: звучат только дорожки соло')).toBe('С');
+  expect(label('Скрыть изображение дорожки')).toBe('Скр');
 });
