@@ -27,8 +27,11 @@ export type FeedItem =
    * came before) and how it ended. `code` null with no `stop`/`error` is a block restored from the transcript (no exit code kept).
    */
   | { kind: 'shell'; id: string; cmd: string; output: string; truncated: boolean; running: boolean; code: number | null; stop?: ShellStop; error?: string; ts: number }
-  /** `text`: the resumed session id; translated at render. (Server errors are toasts, not feed items: R-M4-5.) */
-  | { kind: 'notice'; key: string; text: string };
+  /**
+   * `text`: the resumed session id; translated at render. (Server errors are toasts, not feed items: R-M4-5.) `cut`
+   * (protocol 22): the server stopped during a turn of this session, the line offers Continue
+   */
+  | { kind: 'notice'; key: string; text: string; cut?: true };
 
 export type FeedState = {
   items: FeedItem[];
@@ -313,7 +316,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'resumed':
     {
       const { key, lineN } = lineKey(s);
-      return { ...s, lineN, items: [...s.items, { kind: 'notice', key, text: ev.id.slice(0, 8) }] };
+      return { ...s, lineN, items: [...s.items, { kind: 'notice', key, text: ev.id.slice(0, 8), ...(ev.cut ? { cut: true as const } : {}) }] };
     }
     case 'comments': // handled by the comments store, not the feed
     case 'comment-ack': // protocol 19: answers to the comments store's ops
@@ -332,6 +335,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'server-error': // a toast (store.ts), live only, never swallowed (M0 error policy)
     case 'remote': // protocol 20: the remote slice
     case 'remote-pair':
+    case 'restart-pending': // protocol 22: the controls slice
       return s;
     default: {
       // as above: a protocol-4 server still sends `{kind:'sdk'}`

@@ -396,3 +396,39 @@ describe('a feed left open past midnight', () => {
     expect(time('u1')).toMatch(/^Nov 16, /);
   });
 });
+
+describe('a resume after a restart that cut a turn (gh-422)', () => {
+  function open() {
+    const sent: ClientMessage[] = [];
+    const connect = ((_u: unknown, _e: unknown, s: (x: 'open') => void) => { s('open'); return { send: (m: ClientMessage) => (sent.push(m), true), close() {} }; }) as never;
+    const store = makeStore({ url: 'ws://x', connect });
+    const view = render(<Provider store={store}><Feed /></Provider>);
+    return { sent, store, view };
+  }
+
+  it('says so with Continue, which sends a short continue message once; nothing goes by itself', () => {
+    const { store, sent } = open();
+    act(() => { store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij', cut: true }] })); });
+    expect(screen.getByText('The server restarted during a turn')).toBeInTheDocument();
+    expect(sent.filter((m) => m.type === 'send')).toEqual([]);
+    const btn = screen.getByRole('button', { name: 'Continue' });
+    expect(btn).toHaveAttribute('title', 'Ask the agent to continue the cut-off turn');
+    fireEvent.click(btn);
+    expect(sent.filter((m) => m.type === 'send')).toMatchObject([{ type: 'send', text: 'The server restarted during your last turn and cut it off. Please continue where you stopped.' }]);
+  });
+
+  it('once the user has sent something after it, the note stays and Continue goes', () => {
+    const { store } = open();
+    act(() => {
+      store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij', cut: true }, { kind: 'user', id: 'u1', text: 'go on', ts: 1, historic: true }] }));
+    });
+    expect(screen.getByText('The server restarted during a turn')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  });
+
+  it('a plain resume has no such note', () => {
+    const { store } = open();
+    act(() => { store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij' }] })); });
+    expect(screen.queryByText('The server restarted during a turn')).toBeNull();
+  });
+});

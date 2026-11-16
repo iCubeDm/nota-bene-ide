@@ -1823,6 +1823,10 @@
         },
         {
           "properties": {
+            "cut": {
+              "const": true,
+              "type": "boolean"
+            },
             "id": {
               "type": "string"
             },
@@ -1834,6 +1838,22 @@
           "required": [
             "kind",
             "id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "restart-pending",
+              "type": "string"
+            },
+            "pending": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "pending"
           ],
           "type": "object"
         },
@@ -3279,5 +3299,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 21
+  "x-protocol": 22
 }

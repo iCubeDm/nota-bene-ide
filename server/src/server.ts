@@ -32,7 +32,9 @@ import { forgetSession, stateBaseDir, stateDir } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { moveWindow } from './windows.ts';
 import { pidAlive } from './platform.ts';
-import { controlToken, describeVersion, listWindows, systemRoutes } from './system.ts';
+import { controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
+import { RESTART, restartGate } from './restartGate.ts';
+import { TurnMarks, changesWork } from './turnMarks.ts';
 import { projectRoutes } from './projectRoutes.ts';
 import { parseProvider } from './agent/provider.ts';
 import { updateCheck } from './update.ts';
@@ -129,8 +131,16 @@ export async function startServer(o: {
     // a picture per project folder, shared by every provider's windows of it: the base state folder, never the project
     const projectIcons = new ProjectIconStore({ dir: path.join(stateBaseDir(), 'project-icons') });
     const archive = new HistoryArchive({ dir: path.join(stateDir(), 'history'), report: (e) => reportError(hub, 'archive', e) });
+    // gh-422: the mark of a turn the server is in the middle of, so the start after a cut one can say so
+    const turnMarks = new TurnMarks({
+      dir: path.join(stateDir(), 'turns-open'),
+      // the agent's work (not a switch, whose ↻ ends its own turn): a turn, a question or approval, a running task
+      working: () => (manager.busy() && !manager.switching()) || hub.tasksRunning() > 0,
+      session: () => manager.info().id,
+    });
     const manager = await createSessionManager({
       hub,
+      turnCut: (id) => turnMarks.take(id),
       attachments,
       archive,
       backend: o.backend,
@@ -157,7 +167,9 @@ export async function startServer(o: {
     // the web's prompt history: a new session's first prompts wait in memory for its id (as comments do); a /clear or a fork
     // keeps the history, so the new id gets a copy of the previous one's
     const prompts = new PromptStore({ dir: path.join(stateDir(), 'prompts'), report: (e) => reportError(hub, 'prompts', e) });
+    hub.tap((ev) => { if (changesWork(ev)) turnMarks.schedule(); });
     manager.onSessionId((id, prev) => {
+      turnMarks.schedule();
       if (prev === null) store.adopt(id);
       broadcastComments();
       try {
@@ -193,6 +205,7 @@ export async function startServer(o: {
     const exitWith = (code: number) => {
       if (exiting) return; // the first exit wins
       exiting = true;
+      turnMarks.freeze(); // a turn this exit cuts stays marked: the close below ends it
       audit?.write('server-exit', { code });
       void Promise.race([close(), new Promise<void>((r) => setTimeout(r, 2000))]).then(() => {
         setTimeout(() => (o.exit ?? process.exit)(code), 100);
@@ -202,17 +215,29 @@ export async function startServer(o: {
     const repoDir = o.repoDir ?? path.resolve(import.meta.dirname, '..', '..');
     const newer = updateCheck();
     const real = (p: string) => { try { return fs.realpathSync(p); } catch { return p; } };
+    // not a pause: a turn, a waiting question or approval, a switch, a `! cmd` run or a task of the agent still running.
+    // The update's hand-over (77) and a pending restart (75) wait for the same pause
+    const notPaused = () => manager.busy() || manager.shellRunning() || hub.tasksRunning() > 0;
     const win = updater({
       version: () => describeVersion(repoDir),
       canUpdate: process.env.NOTA_BENE_HANDOVER === '1',
-      // not a pause: a turn, a waiting question or approval, a switch, a `! cmd` run or a task of the agent still running
-      busy: () => manager.busy() || manager.shellRunning() || hub.tasksRunning() > 0,
+      busy: notPaused,
       tabs: () => hub.clients(),
       exit: exitWith,
       newer,
       fromRuntime: real(repoDir).startsWith(real(runtimeDir()) + path.sep),
       updatedFrom: process.env.NOTA_BENE_UPDATED_FROM,
     });
+    // gh-422: "Restart the server" while the agent works waits for the next pause (exit 75 then)
+    const restart = restartGate({
+      busy: notPaused,
+      // only a page that will ask in its pause holds the server's own rule back: the phone and an older bundle never ask
+      tabs: () => askers.size,
+      exit: exitWith,
+      changed: (pending) => hub.emit({ kind: 'restart-pending', pending }, { store: false }),
+    });
+    /** a request to restart: at once in a pause (true), else pending (false) */
+    const requestRestart = () => restart.request() === 'now';
     // experimental 3D is off unless asked for: no converter means /model is a plain 404 and Blender is never looked up
     const model3d = o.experimental3d ?? process.env.NOTA_BENE_EXPERIMENTAL_3D === '1';
     const blend = model3d ? new BlendConverter({ stateDir }) : undefined;
@@ -346,9 +371,43 @@ export async function startServer(o: {
             res.end(exiting ? 'exiting' : 'not supervised');
             return;
           }
-          // answer first: the exit must not cut the reply; 75 tells the launcher to relaunch with --continue
+          // `{now: true}`: Restart now, the running turn is cut. Otherwise at once in a pause, else pending
+          void readJson(req).then((b) => {
+            const now = (b as { now?: unknown }).now === true || requestRestart();
+            res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+            // answer first: the exit must not cut the reply; 75 tells the launcher to relaunch with --continue
+            if (now) res.end('{"ok":true}', () => exitWith(RESTART));
+            else res.end('{"ok":true,"pending":true}');
+          }, () => {
+            res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+            res.end('bad request');
+          });
+        },
+        // the page's ask once it is in a pause too (as for the update); the exit checks the pause again after the reply
+        '/restart-server/pause': (req, res) => {
+          if (req.method !== 'POST') {
+            res.writeHead(405, { allow: 'POST', 'content-type': 'text/plain; charset=utf-8' });
+            res.end('method not allowed');
+            return;
+          }
+          const r = restart.pause();
+          if (r !== 'ok') {
+            res.writeHead(409, { 'content-type': 'text/plain; charset=utf-8' });
+            res.end(r);
+            return;
+          }
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-          res.end('{"ok":true}', () => exitWith(75));
+          res.end('{"ok":true}', () => restart.replied());
+        },
+        '/restart-server/cancel': (req, res) => {
+          if (req.method !== 'POST') {
+            res.writeHead(405, { allow: 'POST', 'content-type': 'text/plain; charset=utf-8' });
+            res.end('method not allowed');
+            return;
+          }
+          restart.cancel();
+          res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+          res.end('{"ok":true,"pending":false}');
         },
         // the header's Stop window (⏻), as Settings → Windows stops another one: 0 tells a launcher to unregister and exit
         '/stop': (req, res) => {
@@ -377,7 +436,9 @@ export async function startServer(o: {
             supervised,
             exiting: () => exiting,
             restartAgent: () => void manager.restart().catch(switchFailed),
-            restartServer: () => exitWith(75),
+            restartServer: () => { if (requestRestart()) exitWith(RESTART); },
+            restartServerNow: () => exitWith(RESTART),
+            cancelRestart: () => void restart.cancel(),
             stop: () => exitWith(0), // the launcher treats 0 as "stop" and unregisters the window
           },
         }),
@@ -387,7 +448,7 @@ export async function startServer(o: {
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), pending: manager.pending(), ...hub.summary(id ? readSeen()[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), blender: blend?.available() ?? false, icon: projectIcons.versionOrNull(root) };
+        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen()[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), blender: blend?.available() ?? false, icon: projectIcons.versionOrNull(root) };
       },
     }));
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
@@ -443,7 +504,11 @@ export async function startServer(o: {
     const attachOwner = (ws: WebSocket, tab: string | null) => {
       const hubDetach = hub.attach({ send: (d) => ws.send(d), buffered: () => ws.bufferedAmount });
       let detached = false;
-      const detach = () => { if (!detached) { detached = true; hubDetach(); } };
+      if (asksInPause.has(ws)) {
+        askers.add(ws);
+        ws.on('close', () => askers.delete(ws));
+      }
+      const detach = () => { if (!detached) { detached = true; hubDetach(); askers.delete(ws); } };
       detachers.set(ws, detach);
       if (oneTab) {
         const me = { ws, alive: true, tab };
@@ -462,6 +527,11 @@ export async function startServer(o: {
         } catch (e) {
           reportError(hub, 'remote', e);
         }
+      }
+      try {
+        ws.send(JSON.stringify({ kind: 'restart-pending', pending: restart.pending() }));
+      } catch (e) {
+        reportError(hub, 'restart', e);
       }
       try {
         ws.send(JSON.stringify({ kind: 'mode', mode: manager.mode() }));
@@ -683,6 +753,10 @@ export async function startServer(o: {
       role.set(ws, 'owner');
     };
     const role = new WeakMap<WebSocket, 'pending' | 'occupied' | 'owner'>();
+    // gh-422: sockets of a page (protocol 22+, `?pause=1`) that asks for a pending restart in its own pause; while one
+    // is attached the server leaves that moment to it, otherwise its own pause rule restarts
+    const asksInPause = new WeakSet<WebSocket>();
+    const askers = new Set<WebSocket>();
 
     let conns = 0;
     wss.on('connection', (ws, req) => {
@@ -692,6 +766,7 @@ export async function startServer(o: {
       // a page that is occupied or taken reconnects passive: with no owner it must not win the window by being first
       // (a restart drops both tabs); it is told `occupied` and takes over only on the user's click
       const passive = params.get('passive') === '1';
+      if (params.get('pause') === '1') asksInPause.add(ws);
       const conn = ++conns;
       audit?.write('ws-open', { conn, tab, passive });
       ws.on('close', (code) => audit?.write('ws-close', { conn, code }));
@@ -804,6 +879,8 @@ export async function startServer(o: {
       hubs.delete(hub);
       if (heartbeat) clearInterval(heartbeat);
       win.stop();
+      restart.stop();
+      turnMarks.freeze(); // a stop (SIGTERM, ⏻) during a turn keeps its mark: the close ends the turn
       manager.close();
       hostClient.close(); // the Whisper host drops this window's jobs
       if (keeper) {

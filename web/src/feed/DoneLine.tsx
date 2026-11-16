@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { fmtK } from '@/lib/format.ts';
 import { useT } from '@/i18n/index.ts';
 import type { FeedItem } from '@/store/feed.ts';
-import { useAppSelector } from '@/store/store.ts';
+import { selectConn, sendMessage, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { selectIdleCompact } from '@/controls/slice.ts';
 import { archiveSession } from '@/controls/sessionsApi.ts';
 import { compactProgress, expectedCompactMs, mmss } from './compactTiming.ts';
@@ -27,6 +27,34 @@ export function NoticeLine({ item }: { item: Extract<FeedItem, { kind: 'notice' 
   return (
     <div data-kind="notice" className={LINE}>
       {t('resumed', item.text)}
+      {item.cut ? <TurnCut noticeKey={item.key} /> : null}
+    </div>
+  );
+}
+
+/**
+ * gh-422: the server stopped during a turn of this session (a forced restart, a stop, a crash). Continue sends the
+ * agent a short message to go on; nothing is sent by itself. Gone once the user has sent anything after the note.
+ */
+function TurnCut({ noticeKey }: { noticeKey: string }) {
+  const t = useT();
+  const d = useAppDispatch();
+  const [sent, setSent] = useState(false);
+  const offer = useAppSelector((s) => {
+    const i = s.feed.items.findIndex((it) => it.kind === 'notice' && it.key === noticeKey);
+    return i >= 0 && !s.feed.items.slice(i + 1).some((it) => it.kind === 'user') && !s.feed.busy && selectConn(s) === 'open';
+  });
+  return (
+    <div data-kind="turn-cut" className="text-warn">
+      <span>{t('turnCut')}</span>
+      {offer && !sent ? (
+        <>
+          {' · '}
+          <button type="button" title={t('turnCutContinueTip')} onClick={() => { if (d(sendMessage(t('turnCutMessage'), false))) setSent(true); }} className="text-link hover:underline">
+            {t('turnCutContinue')}
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }

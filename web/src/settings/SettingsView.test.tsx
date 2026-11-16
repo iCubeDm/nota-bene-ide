@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
 import { CLAUDE_CAPABILITIES } from '@nota-bene/shared';
@@ -385,4 +385,34 @@ it('Dictation: a language another window chose is picked up by the sends, and on
   await waitFor(() => expect(store.getState().controls.dictationLang).toBe('uk'));
   expect(sel).toHaveValue('uk');
   expect(within(sel).getByRole('option', { name: 'Ukrainian' })).toBeInTheDocument();
+});
+
+describe('Windows: a restart that waits for the agent (gh-422)', () => {
+  const b = WINDOWS[1]! as (typeof WINDOWS)[number] & { restartPending?: boolean };
+  afterEach(() => { delete b.restartPending; });
+  const row = () => ({ port: 4778, root: '/Users/me/b', pid: 2, startedAt: b.startedAt });
+
+  it('a working window of this version: Restart server asks nothing, it waits for the agent there', async () => {
+    b.restartPending = false;
+    setup();
+    fireEvent.click(within(await win(4778)).getByRole('button', { name: 'Restart server' }));
+    await waitFor(() => expect(posts).toContainEqual({ url: '/system/windows/action', body: { ...row(), action: 'restart-server' } }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('a pending one says so, offers Restart now (asks first) and Cancel', async () => {
+    b.restartPending = true;
+    setup();
+    const other = await win(4778);
+    expect(other).toHaveTextContent('restart pending, after its agent finishes');
+    expect(within(other).queryByRole('button', { name: 'Restart server' })).toBeNull();
+    fireEvent.click(within(other).getByRole('button', { name: 'Cancel the server restart' }));
+    await waitFor(() => expect(posts).toContainEqual({ url: '/system/windows/action', body: { ...row(), action: 'restart-server-cancel' } }));
+    await waitFor(() => expect(within(other).getByRole('button', { name: 'Restart the server now' })).toBeEnabled(), { timeout: 3000 });
+    fireEvent.click(within(other).getByRole('button', { name: 'Restart the server now' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Restart the server on port 4778 (~/b) now? Its running turn and subagents will be cut off.');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Restart now' }));
+    await waitFor(() => expect(posts).toContainEqual({ url: '/system/windows/action', body: { ...row(), action: 'restart-server-now' } }));
+  });
 });
