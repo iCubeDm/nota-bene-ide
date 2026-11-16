@@ -30,7 +30,7 @@ export type SessionOptions = {
   voices?: import('../voice/index.ts').VoiceIndex;
   /** a stored recording to text (tests stub it); default: the host's Whisper, VoiceFailure 'off' while it is off */
   speech?: (id: string, lang: string, alive: () => boolean, detect: boolean) => Promise<string | { text: string; lang: string }>;
-  /** gh-422: the server stopped during a turn of `id` (a mark it left, read once); asked at the start's resume only */
+  /** gh-422: the server stopped during a turn of `id` (a mark it left, read once); taken at every load, a note only at the start's */
   turnCut?: (id: string) => boolean;
   /** `"idleCompaction": false` in Claude Code's settings (tests stub it) */
   idleOffInSettings?: () => boolean;

@@ -382,9 +382,9 @@ describe('session manager', () => {
     const asked: string[] = [];
     const s = await createSessionManager({ hub, backend, cwd: os.tmpdir(), resume: 'old-session', turnCut: (id) => { asked.push(id); return true; } });
     expect(events.find((e) => e.kind === 'resumed')).toEqual({ kind: 'resumed', id: 'old-session', cut: true });
-    await s.restart(); // ↻ is not a server restart: no note again, the mark is not asked for
+    await s.restart(); // ↻ is not a server restart: no note again, but a mark is dropped all the same (no stale note later)
     expect(events.filter((e) => e.kind === 'resumed').at(-1)).toEqual({ kind: 'resumed', id: 'old-session' });
-    expect(asked).toEqual(['old-session']);
+    expect(asked).toEqual(['old-session', 'old-session']);
   });
 
   it('resume: history, then exactly one resumed marker, then live events; one session per distinct id', async () => {

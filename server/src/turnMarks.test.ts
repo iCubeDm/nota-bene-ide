@@ -34,6 +34,15 @@ describe('TurnMarks', () => {
     expect(m.take('other')).toBe(false);
   });
 
+  it('take of a mark this process keeps: the next check writes it again while the work goes on', () => {
+    const { m, st } = make();
+    st.working = true;
+    m.check();
+    expect(m.take('s1')).toBe(true);
+    m.check();
+    expect(fs.existsSync(path.join(dir, 's1'))).toBe(true);
+  });
+
   it('freeze keeps the mark of a turn cut by the exit', () => {
     const { m, st } = make();
     st.working = true;

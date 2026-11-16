@@ -285,7 +285,10 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
       const read = () => backend.history(id, who.root, attachments, (e) => report('attach', e));
       const events = await readHistory({ read, timeoutMs: o.historyTimeoutMs ?? HISTORY_TIMEOUT_MS, report });
       hub.reset(withVoices(events), { earlier: archive.earlier() });
-      const cut = start && !o.fork && o.turnCut?.(id) === true;
+      // every load of the session takes its mark (a switch, a ↻ too), so a stale one cannot say "cut" later;
+      // only the server's own start can be news of a cut turn
+      const marked = !o.fork && o.turnCut?.(id) === true;
+      const cut = start && marked;
       hub.emit({ kind: 'resumed', id, ...(cut ? { cut: true as const } : {}) });
       await titles.load(id, who.root);
     }

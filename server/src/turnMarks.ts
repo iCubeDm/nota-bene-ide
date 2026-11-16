@@ -28,6 +28,7 @@ export class TurnMarks {
   take(id: string): boolean {
     const f = this.file(id);
     if (!f) return false;
+    if (this.written === id) this.written = null; // ours: the next check writes it again while the work goes on
     try {
       fs.unlinkSync(f);
       return true;
