@@ -49,8 +49,12 @@ function Rail() {
   const move = async (w: RunningRow) => {
     if (moving) return;
     setMoving(true);
-    // on success the page leaves; a refusal (the window just went) shows the list as it is now
-    if (!(await enterProject(w))) { setMoving(false); reload(); }
+    // a refusal (the window just went) shows the list as it is now. On success the page is leaving, but `moving` is cleared
+    // too (issue 449): it guards only the request; a page brought back by Back, or a navigation cancelled before it
+    // left, must take the next click
+    const ok = await enterProject(w);
+    setMoving(false);
+    if (!ok) reload();
   };
   const rows = foldRows(data?.running ?? []).sort(byName);
   return (

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog.tsx';
 import { useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
-import { isAbsolute, openFolder, postJson, PROVIDER_LABEL, reasonOf, reasonText, setStarter, validName, type Provider } from './api.ts';
+import { isAbsolute, onPageRestore, openFolder, postJson, PROVIDER_LABEL, reasonOf, reasonText, setStarter, validName, type Provider } from './api.ts';
 
 type Dir = { name: string; git: boolean };
 type Place = { path: string; kind: 'home' | 'desktop' | 'recent' };
@@ -50,6 +50,8 @@ export function Starter() {
   const [running, setRunning] = useState(false);
   const seq = useRef(0);
   const last = useRef<string | undefined>(undefined);
+  // issue 449: a page brought back by Back after opening a folder comes with the dialog still open
+  useEffect(() => onPageRestore(() => { setRunning(false); setMode(null); }), []);
 
   const fetchListing = async (path: string | undefined, withHidden: boolean): Promise<Listing | string> => {
     try {

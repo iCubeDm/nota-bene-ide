@@ -175,6 +175,13 @@ it('a server refusal is shown in the dialog; a slow launch says it is still star
   expect(nav.go).not.toHaveBeenCalled();
 });
 
+// issue 449: Back to this page after opening a folder brings it from the back/forward cache with the dialog still open
+it('a page restored by Back has the dialog closed', async () => {
+  await start();
+  act(() => { window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+});
+
 it('validName mirrors the server: no Windows-reserved names or characters', () => {
   for (const n of ['a:b', 'a*', 'a?', 'a"b', 'a<b', 'a>b', 'a|b', 'CON', 'nul.txt', 'com1', 'name.', ' a', 'a/b', '']) expect(validName(n), n).toBe(false);
   for (const n of ['console', 'a.b', 'my project', 'проект']) expect(validName(n), n).toBe(true);

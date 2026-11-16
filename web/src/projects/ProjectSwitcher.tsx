@@ -15,7 +15,7 @@ import { toast } from '@/shell/toast.ts';
 import { withKey } from '@/shell/keymap.ts';
 import { selectSession, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { enterProject, forgetRecent, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider } from './api.ts';
+import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, titlePrefix, type ProjectRow } from './rows.ts';
 import { BadgeView, folderOf, LIVE, rowBadge, STATE_KEY, Tile } from './Tile.tsx';
@@ -50,6 +50,8 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
   const running = data?.running ?? [];
   const badge = badgeOf(running);
   useEffect(() => { document.title = titlePrefix(badge) + windowTitle; }, [badge, windowTitle]);
+  // issue 449: a page brought back by Back after a move from the menu (Recent) comes with it still open
+  useEffect(() => onPageRestore(() => { projectsMenu.close(); setQ(''); }), []);
   const own = running.find((r) => r.current);
   const myProvider: Provider = own?.provider ?? 'claude';
 
