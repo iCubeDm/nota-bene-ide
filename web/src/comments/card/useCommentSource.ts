@@ -1,4 +1,4 @@
-import { anchorSource, isAttachmentAnchor, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
+import { anchorSource, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { scrollRangeIntoView } from '@/anchors/scroll.ts';
@@ -118,6 +118,7 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
     const src = anchorSrc;
     if (!c || src?.kind !== 'file') return;
     if (isMediaAnchor(c.anchor)) return setOrphan(false); // a media mark is drawn from relative coordinates: never orphaned
+    if (isCutAnchor(c.anchor)) return setOrphan(false); // a place on an edit's timeline (issue 430): its clip, not its text; a gone clip is the card's own note
     if (!fileLoad || fileLoad.s === 'loading') return setOrphan(false);
     if (fileLoad.s === 'gone') return setOrphan(true);
     const pane = fileRoot(src.path, src.ref);

@@ -8,7 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
 import { switchSession } from '@/controls/slice.ts';
-import { setFileVersion } from '@/files/slice.ts';
+import { setFileLoad, setFileVersion } from '@/files/slice.ts';
 import { addImage, selectImages, selectMarking } from '@/composer/slice.ts';
 import { CommentCard, CommentCardPopover } from './CommentCard.tsx';
 import { setLiveClips } from '@/cut/live.ts';
@@ -314,6 +314,20 @@ it('issue 430: a cut card shows the clip and the time, jumps to the edit, and sa
   fireEvent.click(quote);
   expect(store.getState().files.jump).toMatchObject({ path, id: 'c1' });
   act(() => setLiveClips(path, undefined, null));
+});
+
+it('issue 430: a cut card is never orphaned by the edit\'s Source view (its JSON text)', () => {
+  setLang('en');
+  const path = 'edits/demo.nbcut.json';
+  const { store } = setup(comment({ anchor: { kind: 'cut', source: { kind: 'file', path }, time: 1 } }), false, false);
+  const pane = document.createElement('div');
+  pane.dataset.pane = 'file:x';
+  pane.dataset.filePath = path;
+  pane.innerHTML = '<pre>{ "version": 1 }</pre>';
+  document.body.appendChild(pane);
+  act(() => void store.dispatch(setFileLoad({ path, s: 'loaded' })));
+  expect(screen.queryByText(/fragment changed/)).toBeNull();
+  pane.remove();
 });
 
 describe('a comment whose source went into the archive (R-M7-4)', () => {
