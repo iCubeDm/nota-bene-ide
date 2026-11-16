@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Video edits: the format and a read-only timeline.** A `*.nbcut.json` file (tracks of video, photos and sound; the format is in the guide) opens as a timeline with its tracks, clips and thumbnails, a ruler, zoom and a playhead. Problems in the file and missing sources are listed in the view.
+
 ## 2.0.1 — 2026-11-15
 
 - **Usage: tokens per 1% as a table.** The two lines with arrows are one table: a column per weekly window (the last 8), headed by its dates, and the rows avg 1% 5h and avg 1% weekly (web and phone).
