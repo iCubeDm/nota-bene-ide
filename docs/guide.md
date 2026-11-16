@@ -37,7 +37,7 @@ Contents
 
 ## Starting a window
 
-Every install needs Node.js 22+. macOS is tested and used daily; Linux passes unit tests in CI; Windows runs natively (no WSL or Docker) from 1.9.0, with CI unit tests and no 3D models yet ([Windows](#windows)). The interface is in English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German. An open window owns its conversation: don't write to it from another client meanwhile; use `fork` to carry one over.
+**Requirements:** Node.js 22+. macOS is used daily, Linux passes CI, Windows runs natively from 1.9.0 ([Windows](#windows)). Six interface [languages](#languages).
 
 ### From Claude Code: `/nb`
 
@@ -78,11 +78,11 @@ The launcher supervises the server. **Restart the server** relaunches it at once
 
 ### Which agent
 
-Without `--agent` in a terminal, the launcher finds the agents that can start: Claude Code (`claude` on `PATH` or its config folder), Codex CLI 0.166.0+ and omp 18.16.0+ (by `--version`; `NOTA_BENE_CODEX` and `NOTA_BENE_OMP` name other executables). It never reads their login files. With several, it asks `Which agent for this folder?`: Enter takes the folder's last one (else Claude), a number or name picks another, Ctrl+C or Ctrl+D cancels. Too old an agent is listed with the reason. Without a terminal (a script, `/nb`, `$nb`, `/skill:nb`) Claude starts unless `--agent` says otherwise. The choice is kept in `agent-choice.json`.
+Without `--agent` in a terminal, the launcher finds the agents that can start: Claude Code (`claude` on `PATH` or its config folder), Codex CLI 0.166.0+ and omp 18.16.0+ (by `--version`; `NOTA_BENE_CODEX` and `NOTA_BENE_OMP` name other executables). It never reads their login files. With several, it asks `Which agent for this folder?`: Enter takes the folder's last one (else Claude), a number or name picks another, Ctrl+C or Ctrl+D cancels. An agent below its minimum version is listed with the reason and not offered. Without a terminal (a script, `/nb`, `$nb`, `/skill:nb`) Claude starts unless `--agent` says otherwise. The choice is kept in `agent-choice.json`.
 
 ## One window per folder, one tab per window
 
-A folder has at most one window per agent (Claude, Codex and omp can each have one). Launching again brings it to the front, waiting up to 10 s if it is restarting. A window has one owner tab: a second tab says "The window is already open in another tab", and **Work here** takes it over. A quick reload is not a second tab.
+A folder has at most one window per agent (Claude, Codex and omp can each have one). Launching again brings it to the front, waiting up to 10 s if it is restarting. A window has one owner tab: a second tab says "The window is already open in another tab", and **Work here** takes it over: the first tab shows "Open in another tab" and stops. A quick reload is not a second tab.
 
 ## Margin comments and the batch send
 
@@ -118,7 +118,7 @@ Images are scaled to 1568 px on the long edge; a PNG over 3.5 MB becomes a JPEG.
 
 ### Viewing and marking up images and video
 
-Images open in a viewer (a click toggles natural size). Video and audio get a player with seeking, speed, volume, picture in picture and fullscreen. Leaving its tab moves a playing video to picture in picture, and audio keeps playing; closing the tab stops it. Video comments are ticks on the timeline; a click seeks there.
+Images open in a viewer (a click toggles natural size). Video and audio get a player with seeking, speed, volume, picture in picture and fullscreen. Leaving its tab moves a playing video to picture in picture, and audio keeps playing; closing the tab stops it. Video comments are ticks on the timeline; a click seeks there. Video and audio in chat replies get the same player, and their ticks open the file's tab at that time.
 
 **Example.** Pause where the button looks wrong, press **Mark up** (N). Draw with Rectangle (R), Ellipse (E), Pen (P) or Arrow (A), colours 1–5 (red, yellow, green, blue, white), undo Cmd/Ctrl+Z. **Comment** (Enter), type `this button is misaligned`. Esc leaves (asking before dropping an uncommented drawing). The agent gets the frame with your marks; several comments on one frame make one image with numbered marks. Marks are saved under `.nota-bene/marks/` in the project, kept out of git.
 
@@ -203,7 +203,7 @@ With Whisper on ([Settings](#settings)), an empty message field shows a micropho
 - **Click** it (or Alt+R): **Cancel** (Esc), **Stop** to listen first, **Send** (Enter or Alt+R). **Press and hold** (over 0.3 s) to record while held and send on release.
 - It is its own message: the draft and images stay; pending comments go with it. It waits for a running turn. Recording stops and sends at 10 minutes.
 - Your computer transcribes it; the agent gets only text. The bubble has play, a seekable wave, the transcript (**Aa** folds it) and, on failure, the reason and **Retry**. A badge such as FR marks another language.
-- Without Whisper the microphone opens its settings. A denied microphone is reported under the field.
+- Without Whisper the microphone opens its settings. A denied microphone is reported under the field: allow it for the page in the browser.
 
 <details><summary>More</summary>
 
@@ -228,7 +228,7 @@ The field remembers this conversation's messages, `!` commands and voice transcr
 
 <details><summary>More</summary>
 
-Comment-only sends and the compact/clear buttons are not recorded; images are not recalled. Editing a recalled prompt ends the walk. A multi-line draft keeps normal arrows; in a multi-line recalled prompt the arrows step history only from the first or last line. An open `/` or `@` list keeps the arrows. A recalled `/command` does not open the menu.
+Comment-only sends and the compact/clear buttons are not recorded; images are not recalled. Editing a recalled prompt ends the walk. A multi-line draft keeps normal arrows; in a multi-line recalled prompt the arrows step history only from the first or last line. An open `/` or `@` list keeps the arrows. A recalled `/command` does not open the menu. A typed draft comes back with Alt+↓ past the newest; the draft a prompt from the Alt+H list replaced comes back with ↓ (unless you edit the prompt).
 
 </details>
 
@@ -268,13 +268,17 @@ A one-line draft starting with `!` is a shell command ("Shell · Enter runs", bu
 
 ### Other branches and worktrees
 
-The header's branch button lists this folder, other worktrees and local branches, with search; rows show `↑N` commits, `✗` uncommitted work and a pulsing dot when a Nota Bene agent works there. Picking one shows it in the tree, Changes and log ("viewing", in orange) while the window and agent stay put; its files open read-only and comments remember the ref. A worktree's **Open** opens it in its own window.
+The header's branch button lists this folder, other worktrees and local branches, with search; rows show `↑N` commits, `✗` uncommitted work and a pulsing dot when a Nota Bene agent works there. Picking one shows it in the tree, Changes and log ("viewing", in orange) while the window and agent stay put; its files open read-only and comments remember the ref. A worktree's **Open** opens it in its own window. An absolute path the agent prints inside another worktree opens from that worktree.
 
-**Switch** on a branch row moves the folder to that branch after a confirmation, carrying non-conflicting changes; git's refusals are shown, and it is refused mid-turn. Tabs reload; the agent is not told. If Nota Bene runs from this folder, restart the server.
+**Switch** on a branch row moves the folder to that branch after a confirmation, carrying non-conflicting changes; git's refusals are shown, and it is refused mid-turn. Worktree rows have no Switch: git keeps a branch to one worktree. Tabs reload; the agent is not told. If Nota Bene runs from this folder, restart the server.
 
 ### Changes and the Git log
 
-Read-only: nothing commits, stages or reverts. **Changes** shows one file at a time (`‹ ›`, one or two columns). **Show**: **Uncommitted** (default), **Whole branch from X** (X is the branch it was created from, else `origin/HEAD`, `main` or `master`), or any local branch. Flat list or **Tree**; remembered per project and branch. **Git log**: the commit graph (latest 400), filter by text, author or hash; a commit shows its message, files and diffs. Select diff text to comment (`src/queue.ts @ feature/retry`); a commit comment opens it in the log.
+Both views only read: nothing commits, stages or reverts.
+
+- **Changes** shows one changed file at a time (`‹ ›` between files, one or two columns), as a flat list or a **Tree**.
+- **Show** picks the comparison: **Uncommitted** (default), **Whole branch from X** (X is the branch it was created from, else `origin/HEAD`, `main` or `master`) or any local branch; remembered per project and branch.
+- **Git log** is the commit graph of all branches or the branch shown (latest 400), filtered by text, author or hash; a branch chip switches the view to that branch. A commit shows its message, files and diffs. Select diff text to comment (`src/queue.ts @ feature/retry`); a comment on a commit opens it in the log.
 
 <details><summary>More</summary>
 
@@ -292,11 +296,11 @@ Stopping a Claude turn leaves background tasks running (stop them here); a call 
 
 ## Sessions and history
 
-The chat tab's **▾** lists this project's sessions with a filter; pick one to switch in place, or **+ new session in this project**. Don't keep a session open in another client at once: the history gets mixed.
+The chat tab's **▾** lists this project's sessions with a filter; pick one to switch in place, or **+ new session in this project**. An open window owns its conversation: don't write to it from another client meanwhile (the history gets mixed); use `fork` to carry one over.
 
 - ✎ (or **Rename** in the tab's menu) renames, with the agent's own title.
 - Archive hides a session from the list only; **Show archive (N)** → **Restore**.
-- ✕ deletes for good, after a confirmation, where the agent can (Claude Code, Codex; not omp), never the open session or one open elsewhere.
+- ✕ deletes for good, after a confirmation: the agent's own data (Claude Code: the transcript and its subagents' transcripts; Codex: the thread; not offered for omp) and what Nota Bene kept (history, sent prompts, comments). Never the open session or one open elsewhere.
 - `/nb fork` or `--resume ID --fork` branches a conversation.
 - **Show before compaction** loads history Claude Code no longer replays (`history/<sessionId>.jsonl`).
 - **Restart the agent** (↻) keeps the session and works mid-turn, for a stuck turn. Its menu has **Restart the server** under the launcher. **Restart server · code updated** is for developing Nota Bene.
@@ -307,7 +311,7 @@ The project name in the header (Alt+P) opens the switcher, a chat-style list: on
 
 A badge says what needs you: **!** when it waits (a permission, question or plan), else unseen replies (seen once on screen in a focused tab). The header button and tab title (`(!)`, `(3)`) sum the other projects. Waiting rows come first.
 
-- Choose a project to move this tab to its window, logged in. The arrow lists its sessions of every agent; **+ New session** asks which agent.
+- Choose a project to move this tab to its window, logged in. The arrow lists its sessions of every agent; **+ New session** asks which agent. Hover a session of this window to rename or archive it.
 - **⏻** on a row stops that project's windows (not this one's).
 - **Recent**: folders not running; **✕** removes one.
 - **Open folder…**: a folder dialog (places, a clickable path, Tab completion, repositories first, **Show hidden**); pick the agent and **Open**.
@@ -328,15 +332,15 @@ The mode pill under the box, or Shift+Tab, cycles (saved per project; Codex and 
 
 The model pill in the header sets model and effort (**Auto**, Low … Max, as the model offers; arrows, Home, End step it), with `1M` for the 1M-context variant. Changes apply from the next reply; it warns when that re-reads the whole context. Long lists (OpenRouter) get search, grouped by provider.
 
-**Stop Nota Bene** (⏻, right of the gear) stops every window after a confirmation that warns about running turns. Sessions stay.
+**Stop Nota Bene** (⏻, right of the gear) stops every window after a confirmation that warns about running turns. The tab then stays stopped and does not reconnect; sessions stay, and `/nb` or `nota-bene` opens a window again.
 
 ### Settings
 
 The gear: language, theme, interface scale (− +; Alt+=, Alt+−, Alt+0 anywhere), **Usage**, **Remote access**, **All settings…**:
 
-- **Windows**: running windows (folder, port, state, tabs, uptime) with Open, Restart agent, Restart server, Stop.
+- **Windows**: this agent's running windows (folder, port, state, tabs, uptime) with Open, Restart agent, Restart server, Stop.
 - **Storage**: disk use; **Clean unreferenced files** moves unused images and recordings over a day old, and history of deleted sessions, to `trash/` (nothing is deleted).
-- **Voice messages (Whisper)**: **Install Whisper** downloads `whisper-small` (about 430 MB, 770 MB on disk) into the state folder after a confirmation; then no network is needed. A checkbox turns it on for this window and the phone. **Spoken language**: detect automatically or pin one, per computer. **Remove Whisper** keeps the recordings.
+- **Voice messages (Whisper)**: **Install Whisper** downloads the `whisper-small` model and its runtime from npm and Hugging Face (about 430 MB, 770 MB on disk) into the state folder after a confirmation naming the path; then no network is needed. A checkbox turns it on for every window of this agent, and their phones. **Spoken language**: detect automatically or pin one, also per agent. **Remove Whisper** keeps the recordings.
 - **Defaults**: language, scale (90–150 %), the start mode for new projects, **Sounds** (a tab you are not looking at needs you: on; a turn ended: off; **▶** previews), the update check, the audit log, and on Windows the `!` shell.
 - **Themes**, and **About** (version, state folder, logs, Node).
 
@@ -350,11 +354,11 @@ Whisper runs in one background process shared by every window, loading at the fi
 
 ### Themes
 
-**Darcula** (default), **Plannotator**, **Solarized Dark**; **IntelliJ Light**, **GitHub Light**, **Solarized Light**. Set in the gear menu or Settings → Themes, for all windows (`prefs.json`); a light theme stays light in a dark OS. Code, Mermaid and the logo follow it. Inline colour codes (`#ff8980`, `oklch(0.7 0.2 60)`) show a swatch.
+**Darcula** (default), **Plannotator**, **Solarized Dark**; **IntelliJ Light**, **GitHub Light**, **Solarized Light**. Set in the gear menu or Settings → Themes, for all windows of this agent (`prefs.json`); a light theme stays light in a dark OS. Code, Mermaid and the logo follow it. Inline colour codes (`#ff8980`, `oklch(0.7 0.2 60)`) show a swatch.
 
 ### Languages
 
-English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German, from the gear menu, for all windows. English is the default whatever the browser says.
+English, Russian, Simplified Chinese, Spanish, Brazilian Portuguese and German, from the gear menu, for all windows of this agent. English is the default whatever the browser says.
 
 ## Hotkeys
 
@@ -392,8 +396,9 @@ Player and markup keys: [Images and video](#viewing-and-marking-up-images-and-vi
 
 - Separate **Claude** and **Codex** counters; **Reset** starts anew (**All time** keeps the rest).
 - **Weighted tokens**: input ×1, cache write ×1.25, cache read ×0.1, output ×5. A yardstick, not a price; hover for raw counts.
-- **Limit hits**: 5-hour windows over weeks (red at a hit), with what each hit consumed (click for tasks); **tokens per 1%** by weekly window (last 8), rows avg 1% 5h and weekly: a falling row means 100 % buys less. Orange is extra usage, with its cost.
-- **Where it went**: the costliest **Tasks** (a message and all the agent did for it) and **Projects**.
+- **Limit hits**: charts of 5-hour windows over the weeks, red where a limit was hit, and a table listing each hit with what was spent in the 5 hours (or the week) before it; click a row for the tasks.
+- **Tokens per 1%**: a table with one column per weekly window (the last 8) and rows avg 1% 5h and avg 1% weekly; a falling row means 100 % buys fewer tokens. Orange marks extra usage, with its tokens and cost.
+- **Where it went**: the costliest **Tasks** (a message and all the agent did for it) and **Projects**; click a task for its subagents and costliest calls.
 
 <details><summary>More</summary>
 
@@ -431,7 +436,7 @@ Nota Bene gives a web page the power to read your project and run an agent, so i
 - **Login.** The launcher opens a mode-600 page in `<state>/open/` that redirects to `http://127.0.0.1:PORT/#t=LOGIN` (a keyed hash of token, port and a per-launch value). The page trades it once for an HttpOnly, SameSite=Strict cookie `nb_<port>` and a key in local storage. The cookie alone opens only `GET /file` and `/attach/<id>`; the rest needs the key.
 - **One launch.** The login dies with the launcher; a crash relaunch opens a fresh login page. **Restart the server** keeps it.
 - **Another browser:** `nota-bene --url PORT`, which first checks the port is really your window.
-- **Rotating:** delete `<state>/token` and restart; reopen old windows (`--find` no longer recognises them).
+- **Rotating:** delete `<state>/token` and restart, then reopen old windows: `--find` no longer recognises them, so until you do, `/nb` or a new launch on that folder starts a second window.
 - **The state folder is never served**, even inside a project.
 
 Residual risk:
@@ -497,30 +502,37 @@ Run the Mobile workflow by hand (Actions → Mobile → Run workflow), download 
 - **Unlock** by the phone's biometrics, PIN or pattern; again after 5 minutes away. No screen lock, no app.
 - **Pair**: `nota-bene remote pair` or the Remote tab, then *Pair a host* (or *Paste the code instead* with the `nbremote://` text); compare fingerprints.
 - **Sessions**: one group per host, messenger-style rows with time, last message, a badge (unread or !) and a working dot. Pull to refresh; offline hosts show when last seen; a revoked phone can *Forget*; long-press renames a host locally. The last chat reopens.
-- **Chat** as on the desktop (Markdown, code, formulas, zoomable Mermaid). Tool calls fold into "N actions". Long-press a message: labels, *Comment*, *Copy*, *Reply*, *Select text*. Messages wait for the turn, or *Send now* interrupts; *Stop*. The header pill opens model, effort, mode, *Restart agent*; the context ring opens tokens, limits, cost, idle compaction, *Compact*, *Clear*, *Stats*. Permissions are sheets, questions are cards. Offline, history stays readable.
-- **Panes**: Files, Chat, Comments by tabs or swipe (side by side when wide). Markdown, images and video open full screen, other text up to 2 MiB read-only; git *Changes* and *Log* show diffs.
 - **One tab**: the phone is a tab of the window; *Work here* takes it, the computer can take it back.
-- **Comments**: tap a paragraph, heading, list item, quote or table for labels (the chevron shows all eleven), *Comment* (text, images, voice clips) or *Copy*; select text in files and diffs; mark up images and video frames. "N comments to send" opens the pane: long-press edits, swipe left deletes (*Undo*), *Send*. Typed and voice messages carry them. The desktop shows them too. HTML-page, 3D and desktop-attached-image comments stay on the desktop.
-- **Images**: pinch or double-tap zoom; the paperclip offers *Gallery*, *File*, *Camera* and recent photos (up to ten). Videos play in the app.
-- **Voice** (Whisper on at the computer): hold to record, slide left to cancel, up to lock (*Stop* → *Delete* or *Send*), release to send. Up to 10 minutes, transcribed on the computer; same for comment clips. Language: **Automatic** or pinned in Settings.
-- **Project icons**: long-press a session or use the window sheet → *Set icon* (camera or gallery, 256 px square) or *Remove icon*. Stored by Nota Bene on the computer, never in the project; every phone shows it.
-- **Notifications** for finished replies and waits; a tap opens the chat. Not for the chat on screen; the lock screen says only "New reply in <project>". While an agent works or waits, and 5 minutes after, the app stays connected (a quiet notification, dismissable on Android 13+); otherwise it checks every 15 minutes. Settings → **Notifications** turns it off. Closing from recents disconnects. No Google push.
-- **Settings**: the six themes, language, text size (85–150 %), interface size (90–130 %), voice language, notifications, paired hosts; all on the phone.
+- **Notifications** for finished replies and waits; a tap opens the chat. Not for the chat on screen; the lock screen says only "New reply in <project>". While an agent works or waits, and 5 minutes after, the app stays connected (a quiet notification, dismissable on Android 13+); otherwise it checks every 15 minutes. Android asks for the permission once, the first time an agent works; Settings → **Notifications** turns it off. Closing from recents disconnects, but the 15-minute check goes on. No Google push.
+
+<details><summary>More: what the app does</summary>
+
+- **Chat** as on the desktop (Markdown, code, formulas, zoomable Mermaid), with tool calls folded into "N actions"; long-press a message for labels, *Comment*, *Copy*, *Reply* or *Select text*.
+- Messages wait for the turn, or *Send now* interrupts; *Stop* ends it. The header pill opens model, effort, mode and *Restart agent*; the context ring opens tokens, limits, cost, idle compaction, *Compact*, *Clear* and *Stats*. Permissions are sheets, questions cards; offline, history stays readable.
+- **Panes** Files, Chat and Comments switch by tabs or swipe (side by side when wide); Markdown, images and video open full screen, other text up to 2 MiB read-only, and git *Changes* and *Log* show diffs.
+- **Comments**: tap a paragraph, heading, list item, quote or table for the labels (a chevron shows all eleven), *Comment* (text, images, voice clips) or *Copy*; select text in files and diffs, or mark up images and video frames.
+- "N comments to send" opens the Comments pane, where long-press edits, a left swipe deletes (*Undo*) and *Send* sends; typed and voice messages carry pending comments, and the desktop shows them too. Comments on HTML pages, 3D models and desktop-attached images stay on the desktop.
+- **Images** zoom with a pinch or double tap; the paperclip offers *Gallery*, *File*, *Camera* and recent photos (up to ten). Videos play in the app.
+- **Voice** (Whisper on at the computer): hold to record, slide left to cancel, slide up to lock (*Stop* → *Delete* or *Send*), release to send; up to 10 minutes, transcribed on the computer, the same for comment clips, in the **Automatic** or a pinned language.
+- **Project icons**: long-press a session or open the window sheet for *Set icon* (camera or gallery, a 256 px square) or *Remove icon*; kept by Nota Bene on the computer, never in the project, and shown on every phone.
+- **Settings**: the six themes, language, text size (85–150 %), interface size (90–130 %), voice language, notifications and paired hosts, all kept on the phone.
+
+</details>
 
 ## Codex and omp: what is supported
 
-Choose the agent at launch (`--agent codex`, `--agent omp`, or [Which agent](#which-agent)). Each has separate state (`providers/codex`, `providers/omp`): secrets, settings, windows, comments, archives. Nothing is converted between agents.
+Choose the agent at launch (`--agent codex`, `--agent omp`, or [Which agent](#which-agent)). Each keeps its own secrets, settings, windows, sessions and comments (under `providers/codex`, `providers/omp`; see [State on disk](#state-on-disk)). Nothing is converted between agents.
 
 | Feature | Claude Code | Codex | omp |
 |---|---|---|---|
 | New, resume, fork, list, switch sessions | yes | yes | yes |
 | Streamed replies, tool rows, comments, images | yes | yes | yes |
 | `@` file search | yes | yes | no |
-| `/` menu | commands and skills | skills | omp's commands |
+| `/` menu | commands and skills | skills, `/compact`, `/clear` | omp's commands |
 | Permission and question cards | yes | yes, incl. MCP forms | shell, writes, `ask` |
 | Model and effort | yes | yes | yes, by provider |
 | Join a running turn; Stop | yes | yes | yes |
-| `/compact`, idle compaction | yes | yes | no compaction events |
+| `/compact`, idle compaction | yes | yes | no idle compaction; `/compact` only as omp's own command |
 | `/clear` | yes | yes | yes |
 | Meters | context, limits, cost | context, account limits | context, cost |
 | Subagent tabs | yes | yes (child conversations) | no (progress text) |
@@ -530,7 +542,7 @@ Choose the agent at launch (`--agent codex`, `--agent omp`, or [Which agent](#wh
 
 ### Codex support
 
-Needs Codex CLI 0.166.0+ (`NOTA_BENE_CODEX` picks the binary); an older one says so and starts nothing. Codex handles sign-in; the window offers sign-in or retry. Models and permission profiles apply from the next turn: **configured** inherits Codex's own settings; **read-only**, **workspace** and **full access** are explicit, and full access turns off sandbox and approvals.
+Needs Codex CLI 0.166.0+ (`NOTA_BENE_CODEX` picks the binary); an older one says so and starts nothing. Codex handles sign-in; the window offers sign-in or retry. Models and permission profiles apply from the next turn: **Codex config** inherits Codex's own settings; **Read only**, **Workspace** and **Full access** are explicit, and Full access turns off sandbox and approvals.
 
 Gaps: no API to push a foreground tool into the background; no native next-prompt suggestions (none are invented); terminal tasks have no output tab; MCP device verification fails explicitly (form and URL requests work). No USD cost on ChatGPT, an empty context meter until Codex reports tokens, no invented pre-compaction count.
 
@@ -555,26 +567,28 @@ Modes are omp's approval levels: **Yolo** (default: only restricted folders and 
 
 ## State on disk
 
-Everything is in `~/.nota-bene/` (`NOTA_BENE_HOME` to move it; `npm run dev` uses `~/.nota-bene-dev`), except media marks.
+Everything is in `~/.nota-bene/` (`NOTA_BENE_HOME` to move it; `npm run dev` uses `~/.nota-bene-dev`), except media marks. Rows marked *per agent* are Claude's at the root and Codex's and omp's under `providers/codex/` and `providers/omp/`; the rest is shared by every agent.
 
 | Path | Holds |
 |---|---|
-| `token`, `control-token` | the access token (delete to rotate) and the secret for controls between windows |
-| `open/` | short-lived login pages |
-| `sessions.json`, `agent-choice.json` | each folder's last session and agent |
-| `prefs.json` | mode per project, language, theme |
-| `comments/<sessionId>.json` | comments |
-| `attachments/<sha256>.<ext>` | pasted images and recordings (`.wav`) |
-| `windows/<port>.json`, `locks/` | running windows, launch locks |
-| `history/<sessionId>.jsonl` | conversation before each compaction |
+| `token`, `control-token` | *per agent*: the access token (delete to rotate) and the secret for controls between windows |
+| `open/` | *per agent*: short-lived login pages |
+| `sessions.json` | *per agent*: each folder's last session |
+| `prefs.json` | *per agent*: mode per project, language, theme, Whisper on and spoken language |
+| `comments/<sessionId>.json` | *per agent*: comments |
+| `attachments/<sha256>.<ext>` | *per agent*: pasted images and recordings (`.wav`) |
+| `windows/<port>.json`, `locks/` | *per agent*: running windows, launch locks |
+| `history/<sessionId>.jsonl` | *per agent*: conversation before each compaction |
 | `cache/blend/` | converted `.blend` files (safe to delete) |
 | `trash/` | what Storage → Clean moved |
+| `agent-choice.json` | each folder's last agent |
+| `recent.json`, `recent-hidden.json` | the switcher's Recent folders, and those removed with ✕ |
+| `project-icons/` | project pictures set from the phone |
 | `update-check.json`, `runtime/` | the newest npm version; [updates](#updates) installed, with state and log |
 | `audit/YYYY-MM-DD.jsonl` | the [audit log](#audit-log) |
 | `usage/` | Usage counts and short labels (64 characters of a prompt, a subagent's description) |
 | `remote/` | `host.key` (delete to unpair every phone), `devices.json`, `config.json`, `access-key` (all mode 600), `control.sock` (Windows: a named pipe and `control-secret`) |
 | `whisper/`, `whisper-host/` | the model; the shared process's socket (Windows: pipe and `host-secret`), lock and log |
-| `providers/codex`, `providers/omp` | the same for Codex and omp windows |
 
 On Windows `~` is `%USERPROFILE%` and the folder must stay inside it ([Windows](#windows)). The only thing written into a project: `<project>/.nota-bene/marks/<comment id>/frame.jpg` and `layer.png`, with a `.nota-bene/.gitignore` of `*`.
 

@@ -87,7 +87,7 @@ codex plugin marketplace add iCubeDm/nota-bene-ide --ref main
 codex plugin add nota-bene@nota-bene
 ```
 
-Reload skills or restart Codex, then use `$nb`, `$nb new` or `$nb fork` (or pick nb in the Desktop skill picker). The first use downloads about 70 MB. A window started from Desktop keeps running after the turn; **Stop window** (⏻) shuts it down.
+Reload skills or restart Codex, then use `$nb`, `$nb new` or `$nb fork` (or pick nb in the Desktop skill picker). The first use downloads about 70 MB. A window started from Desktop keeps running after the turn; **Stop Nota Bene** (⏻) shuts it down.
 
 Without the plugin: `npm i -g nota-bene-ide` (`--omit=optional` if you only use Codex), then ask Codex:
 
