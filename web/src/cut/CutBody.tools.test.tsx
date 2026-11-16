@@ -432,3 +432,59 @@ it('a Shift drag on the end edge ripples the later clips of the track; on the st
   fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
   await saved(() => expect(onDisk()).toEqual(fixture));
 });
+
+it('a Shift drag sideways from the gain line moves the clip with what follows it, the selection kept', async () => {
+  const { clip, pps, container } = await show();
+  const p = pps();
+  press(clip('c3'), 10);
+  drag(container.querySelector('[data-clip="c1"] [data-gain]')!, 100, 100 + p, { shiftKey: true, altKey: true });
+  expect(selected(container)).toEqual(['c3']);
+  await saved(() => expect(clipOnDisk('c1')!.at).toBe(1));
+  expect(clipOnDisk('c2')!.at).toBe(7);
+  expect(clipOnDisk('c3')!.at).toBe(0);
+});
+
+it('a Shift drag up or down on a clip is a drag: it moves nothing and leaves the selection as it was', async () => {
+  const { clip, container } = await show();
+  press(clip('c3'), 10);
+  fireEvent.pointerDown(clip('c1'), { clientX: 100, clientY: 0, button: 0, pointerId: 1, shiftKey: true });
+  fireEvent.pointerMove(clip('c1'), { clientX: 100, clientY: 20, pointerId: 1, shiftKey: true });
+  fireEvent.pointerUp(clip('c1'), { clientX: 100, clientY: 20, pointerId: 1, shiftKey: true });
+  expect(selected(container)).toEqual(['c3']);
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  expect(onDisk()).toEqual(fixture);
+});
+
+it('a Shift drag does not snap to the old edges of the clips that move with it', async () => {
+  const { clip, pps } = await show();
+  const p = pps();
+  // c1's end 3 px short of c2's start (6 s): c2 moves too, so nothing is there to snap to
+  drag(clip('c1'), 100, 100 + 2 * p - 3, { shiftKey: true });
+  await saved(() => expect(clipOnDisk('c1')!.at).toBeCloseTo(2 - 3 / p, 3));
+  expect(clipOnDisk('c2')!.at).toBeCloseTo(8 - 3 / p, 3);
+});
+
+it('a Shift drag on a clip of a selection moves it and the clips after it alone; the selection stays', async () => {
+  const { clip, pps, container } = await show();
+  const p = pps();
+  press(clip('c1'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  expect(selected(container)).toEqual(['c1', 'c3']);
+  drag(clip('c1'), 100, 100 + p, { shiftKey: true, altKey: true });
+  await saved(() => expect(clipOnDisk('c1')!.at).toBe(1));
+  expect(clipOnDisk('c2')!.at).toBe(7);
+  expect(clipOnDisk('c3')!.at).toBe(0);
+  expect(selected(container)).toEqual(['c1', 'c3']);
+});
+
+it('a Cmd- or Ctrl-press on the body or an edge still adds or removes the clip on the press', async () => {
+  const { clip, container } = await show();
+  press(clip('c1'), 10);
+  fireEvent.pointerDown(clip('c2'), { clientX: 10, clientY: 0, button: 0, pointerId: 1, metaKey: true });
+  expect(selected(container)).toEqual(['c1', 'c2']);
+  fireEvent.pointerUp(clip('c2'), { clientX: 10, clientY: 0, pointerId: 1, metaKey: true });
+  fireEvent.pointerDown(container.querySelector('[data-clip="c1"] [data-trim="end"]')!, { clientX: 10, clientY: 0, button: 0, pointerId: 1, ctrlKey: true });
+  expect(selected(container)).toEqual(['c2']);
+  fireEvent.pointerUp(container.querySelector('[data-clip="c1"] [data-trim="end"]')!, { clientX: 10, clientY: 0, pointerId: 1, ctrlKey: true });
+  expect(selected(container)).toEqual(['c2']);
+});

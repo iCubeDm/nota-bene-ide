@@ -418,6 +418,21 @@ describe('a clip with everything after it on its track (issue 437)', () => {
     expect(clip(shorter, 'c5').at).toBe(11);
     expect(clip(shorter, 'c4')).toEqual(clip(cut, 'c4'));
   });
+  it('clips that touch off the millisecond still touch after a move: every clip shifts by the same amount', () => {
+    const cut: Cut = { ...base(), clips: [
+      { id: 'a', track: 'v1', src: 'media/a.mp4', at: 0, out: 1.0004 },
+      { id: 'b', track: 'v1', src: 'media/b.mp4', at: 1.0004, out: 1 },
+    ] };
+    const fwd = valid(moveForward(cut, 'a', 0.5));
+    expect(clip(fwd, 'b').at - clip(fwd, 'a').at).toBeCloseTo(1.0004, 6);
+    const sel = valid(moveClips(cut, ['a', 'b'], 0.5)!);
+    expect(clip(sel, 'b').at - clip(sel, 'a').at).toBeCloseTo(1.0004, 6);
+    // stopped at a previous clip whose end is off the millisecond: the moved ones touch it, not overlap
+    const after: Cut = { ...cut, clips: [...cut.clips, { id: 'c', track: 'v1', src: 'media/c.mp4', at: 3, out: 1 }] };
+    const left = valid(moveForward(after, 'c', -5));
+    expect(clip(left, 'c').at).toBeCloseTo(2.0004, 6);
+    valid(rippleTrimEnd(cut, 'a', 2));
+  });
   it('rippleTrimEnd: within the source and one frame of length, the later clips moving only as far as the end did', () => {
     const cut = three();
     const src = valid(rippleTrimEnd(cut, 'c1', 9, 8)); // the source ends 6 s into the edit (in 2)

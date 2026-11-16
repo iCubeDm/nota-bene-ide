@@ -551,8 +551,10 @@ function useClipDrag(
         if (ed0.tool === 'blade') return ed0.blade(bladeAt(e.clientX, e.altKey, [id]), id, e.shiftKey);
         const mod = e.shiftKey || e.metaKey || e.ctrlKey;
         // issue 437: Shift alone on the body or an edge decides on release: a drag moves the clip with what follows it on
-        // its track (the end edge ripples it, the start edge trims as it does), a click adds or takes out the clip
-        const forward = e.shiftKey && !e.metaKey && !e.ctrlKey && (grip0 === 'move' || grip0 === 'start' || grip0 === 'end');
+        // its track (the end edge ripples it, the start edge trims as it does), a click adds or takes out the clip. Shift
+        // counts as it was at the press; on the gain line it decides once a drag there turns sideways
+        const shiftOnly = e.shiftKey && !e.metaKey && !e.ctrlKey;
+        let forward = shiftOnly && (grip0 === 'move' || grip0 === 'start' || grip0 === 'end');
         const toggle = (cur: Editing) => cur.select(cur.sel.includes(id) ? cur.sel.filter((x) => x !== id) : [...cur.sel, id]);
         // a modifier on the body, an edge or a fade handle adds or takes out the clip (the gain line decides on release)
         if (grip0 !== 'gain' && mod && !forward) return toggle(ed0);
@@ -560,9 +562,9 @@ function useClipDrag(
         if (!c) return;
         const base = ed0.cut;
         // a press on a clip of the selection keeps it: the body moves them all, the other grips act on this one
-        const group = forward ? [id] : ed0.sel.includes(id) ? ed0.sel.filter((x) => base.clips.some((k) => k.id === x)) : [id];
+        let group = forward ? [id] : ed0.sel.includes(id) ? ed0.sel.filter((x) => base.clips.some((k) => k.id === x)) : [id];
         // the clip and what follows it on its track: they move together, nothing of them is a snap point
-        const after = forward ? trackForward(base, id) : [id];
+        let after = forward ? trackForward(base, id) : [id];
         // the gain line runs across the clip's middle: with a modifier, a click on it (no drag) is a click on the clip
         if (!ed0.sel.includes(id) && !mod) ed0.select([id]);
         stop.current?.();
@@ -570,7 +572,8 @@ function useClipDrag(
         const x0 = e.clientX;
         // the gain line: from the gain at the press, or where it was when Shift last changed
         let g0 = c.gain ?? 0;
-        let y0 = e.clientY;
+        const yPress = e.clientY;
+        let y0 = yPress;
         let fine = e.shiftKey;
         const h = (e.currentTarget.closest('[data-clip]') ?? e.currentTarget).getBoundingClientRect().height;
         const fade0 = grip === 'fadeIn' ? c.fadeIn ?? 0 : c.fadeOut ?? 0;
@@ -587,7 +590,15 @@ function useClipDrag(
             const dx = Math.abs(m.clientX - x0);
             const dy = Math.abs(m.clientY - y0);
             if (Math.max(dx, dy) < DRAG_PX) return;
-            if (dx > dy) grip = 'move';
+            if (dx > dy) {
+              grip = 'move';
+              // Shift held at the press: the clip moves with what follows it on its track, as from its body
+              if (shiftOnly) {
+                forward = true;
+                group = [id];
+                after = trackForward(base, id);
+              }
+            }
           }
           if (grip === 'gain') {
             if (m.shiftKey !== fine) {
@@ -600,7 +611,9 @@ function useClipDrag(
             return cur.draft(out);
           }
           const lane = grip === 'move' && !forward ? laneAt(m.clientY) ?? c.track : c.track;
-          if (!moved && Math.abs(m.clientX - x0) < DRAG_PX && lane === c.track) return;
+          // with Shift the lane stays: a drag any way is a drag, not a click, even when it moves nothing
+          const far = forward ? Math.hypot(m.clientX - x0, m.clientY - yPress) >= DRAG_PX : Math.abs(m.clientX - x0) >= DRAG_PX;
+          if (!moved && !far && lane === c.track) return;
           moved = true;
           const p = ppsRef.current;
           const dt = (m.clientX - x0) / p;
