@@ -163,3 +163,14 @@ it('the card\'s jump seeks the timeline and selects the clip', async () => {
   expect(clip('c1')).toHaveAttribute('data-selected');
   expect(store.getState().files.jump).toBeNull();
 });
+
+it('a blade cut takes a comment on the right part along to it, as S does (issue 432)', async () => {
+  const k1 = note('k1', { time: 5, clip: { id: 'c3', track: 'a1', src: 'media/voice.wav', srcTime: 6 } });
+  const { clip, pps, cuts } = await show({ items: [k1] });
+  fireEvent.keyDown(document, { code: 'KeyC', key: 'c' });
+  fireEvent.pointerDown(clip('c3'), { clientX: 3 * pps(), clientY: 0, button: 0, pointerId: 1 });
+  fireEvent.pointerUp(clip('c3'), { clientX: 3 * pps(), clientY: 0, pointerId: 1 });
+  await waitFor(() => expect(cuts()[0]!.clip!.id).not.toBe('c3'));
+  expect(cuts()[0]).toMatchObject({ time: 5, clip: { src: 'media/voice.wav', srcTime: 6 } });
+  await waitFor(() => expect(JSON.parse(disk.text).clips).toHaveLength(4), { timeout: SAVE_DELAY + 1500 });
+});

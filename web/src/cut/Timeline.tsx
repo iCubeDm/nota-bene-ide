@@ -9,7 +9,7 @@ import { PATH_MIME } from './drag.ts';
 import type { Editing } from './editing.ts';
 import type { CutPlayer } from './engine.ts';
 import { dB, FadeHandle, FadeSlopes, GainLine, usePeaks, Wave } from './ClipSound.tsx';
-import { dragGain, moveClip, setFade, setGain, snapMove, snapPoints, snapTime, trimEnd, trimStart } from './ops.ts';
+import { addTrack, dragGain, laneShift, moveClip, moveClips, setFade, setGain, snapMove, snapPoints, snapTime, trimEnd, trimStart } from './ops.ts';
 import { TrackHead } from './TrackHead.tsx';
 import { drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn, type Block, type Lane } from './layout.ts';
 import { poster } from './thumbs.ts';
@@ -29,6 +29,10 @@ const STEP = 1.5; // one zoom button press
  * 430): the comments, a tick on their clip (on the ruler for a moment of the timeline or a clip that is gone), the note on
  * hover; a click is `onNote`. A clip's sound (issue 431): the waveform of its used part where it is in view, and while
  * editing its gain line (dragged up or down, Shift: fine) and its fades' handles at its top corners (dragged inward).
+ * Tools and selections (issue 432): with Select, Shift- or ⌘/Ctrl-click adds or removes a clip and a rectangle dragged on
+ * empty space selects what it touches (Shift: adds), a selection moves together; with Blade, a click cuts the clip under
+ * it there, snapped as edges are (Shift: every track; the line shows where on hover). The new tracks' buttons end each
+ * kind's lanes in the track column.
  */
 export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote }: {
   player: CutPlayer;
@@ -163,7 +167,79 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     if (w > 0 && (x < el.scrollLeft || x > el.scrollLeft + w - 24)) el.scrollLeft = Math.max(0, x - w * 0.1);
   }), [player]);
   const key = (code: string) => void applyCutKey(player, code);
-  const clipDrag = useClipDrag(editing, pps, player, scroller);
+  // the blade's time under the pointer: snapped as an edge is to 0, the playhead and the clips' edges but `except`'s (Alt: not)
+  const bladeAt = (x: number, alt: boolean, except: readonly string[]) => {
+    const at = timeAt(x);
+    return alt || !editing ? at : snapTime(at, snapPoints(editing.cut, player.time(), except), SNAP_PX / pps);
+  };
+  const clipDrag = useClipDrag(editing, pps, player, scroller, bladeAt);
+  // the blade's line on hover (issue 432): in the clip's lane, in every lane with Shift
+  const [cutLine, setCutLine] = useState<{ lane: string | null; t: number } | null>(null);
+  const hoverBlade = (e: PointerEvent<HTMLElement>, lane: string) => {
+    if (editing?.tool !== 'blade') return;
+    const id = (e.target as HTMLElement).closest('[data-clip]')?.getAttribute('data-clip') ?? null;
+    if (id === null && !e.shiftKey) return setCutLine(null);
+    setCutLine({ lane: e.shiftKey ? null : lane, t: bladeAt(e.clientX, e.altKey, id === null ? [] : [id]) });
+  };
+  // a press on a lane's empty space: with the blade and Shift, a cut across the tracks; with Select a rectangle that
+  // selects every clip it touches (Shift: added to the selection); a click alone lets the selection go
+  const inner = useRef<HTMLDivElement>(null);
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
+  const [box, setBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const pressLane = (e: PointerEvent<HTMLElement>) => {
+    if (!editing || e.target !== e.currentTarget || e.button !== 0) return;
+    if (editing.tool === 'blade') {
+      if (e.shiftKey) editing.blade(bladeAt(e.clientX, e.altKey, []), null, true);
+      return;
+    }
+    e.preventDefault();
+    const ed = editing;
+    const keep = e.shiftKey ? [...ed.sel] : [];
+    if (!e.shiftKey) ed.select([]);
+    // the rectangle in the timeline's own coordinates (px from the lanes' left, from the content's top), so a scroll
+    // mid-drag never moves its start; recomputed on a pointer move and on a scroll
+    const at = (x: number, y: number) => ({
+      x: x - (ruler.current?.getBoundingClientRect().left ?? 0), y: y - (inner.current?.getBoundingClientRect().top ?? 0),
+    });
+    const p0 = at(e.clientX, e.clientY);
+    let last = { x: e.clientX, y: e.clientY };
+    let on = false;
+    const update = () => {
+      const p1 = at(last.x, last.y);
+      if (!on && Math.max(Math.abs(p1.x - p0.x), Math.abs(p1.y - p0.y)) < DRAG_PX) return;
+      on = true;
+      const [xa, xb] = [Math.min(p0.x, p1.x), Math.max(p0.x, p1.x)];
+      const [ya, yb] = [Math.min(p0.y, p1.y), Math.max(p0.y, p1.y)];
+      setBox({ left: HEAD + xa, top: ya, width: xb - xa, height: yb - ya });
+      const top = inner.current?.getBoundingClientRect().top ?? 0;
+      const hit = new Set<string>();
+      for (const el of scroller.current?.querySelectorAll<HTMLElement>('[data-lane-body]') ?? []) {
+        const lr = el.getBoundingClientRect();
+        if (lr.height > 0 && lr.top - top < yb && lr.bottom - top > ya && el.dataset.laneBody) hit.add(el.dataset.laneBody);
+      }
+      const p = ppsRef.current;
+      const t0 = Math.max(0, xa / p), t1 = Math.max(0, xb / p);
+      const got = blocksRef.current.filter((b) => hit.has(b.track) && b.at <= t1 && b.at + b.len >= t0).map((b) => b.id);
+      ed.select([...keep, ...got.filter((id) => !keep.includes(id))]);
+    };
+    const move = (m: globalThis.PointerEvent) => {
+      last = { x: m.clientX, y: m.clientY };
+      update();
+    };
+    const sc = scroller.current;
+    sc?.addEventListener('scroll', update);
+    const up = () => {
+      sc?.removeEventListener('scroll', update);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      setBox(null);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
   // a project file from the tree: on a lane at the time under the pointer, below the lanes onto a new track
   const dropOver = (e: DragEvent<HTMLElement>) => {
     if (!editing || ![...e.dataTransfer.types].includes(PATH_MIME)) return;
@@ -181,6 +257,39 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
   // a comment's tick: in its clip's lane, or on the ruler (a moment, or a clip no longer drawn)
   const laneOf = (n: CutNote) => (n.clip === undefined ? undefined : blocks.find((b) => b.id === n.clip)?.track);
   const tick = (n: CutNote) => <NoteTick key={n.id} n={n} pps={pps} onNote={onNote} />;
+  const lane = (l: Lane) => (
+    <div key={l.id} data-lane={l.id} className={`flex border-b border-border-soft ${l.kind === 'video' ? 'h-14' : 'h-10'}`}>
+      {editing ? <TrackHead lane={l} cut={editing.cut} commit={editing.commit} width={HEAD} /> : (
+      <div data-track-head={l.id} className="sticky left-0 z-20 flex flex-none flex-col justify-center gap-0.5 border-r border-border-soft bg-chrome px-2 text-xs" style={{ width: HEAD }}>
+        <span className="truncate text-foreground" title={l.name ?? l.id}>{l.name ?? t(l.kind === 'video' ? 'cutVideoN' : 'cutAudioN', l.n)}</span>
+        <span className="flex gap-1 font-mono text-[0.625rem] text-muted-foreground">
+          {l.gain !== undefined && l.gain !== 0 && <span>{dB(l.gain)}</span>}
+          {l.mute && <span className="rounded bg-muted px-1">{t('cutMute')}</span>}
+          {l.solo && <span className="rounded bg-muted px-1">{t('cutSolo')}</span>}
+          {l.hidden && <span className="rounded bg-muted px-1">{t('cutHidden')}</span>}
+        </span>
+      </div>
+      )}
+      <div
+        data-lane-body={l.id} className="relative flex-1"
+        onPointerDown={pressLane}
+        onPointerMove={(e) => hoverBlade(e, l.id)} onPointerLeave={() => setCutLine(null)}
+        onDragOver={dropOver} onDrop={(e) => drop(e, l.id)}
+      >
+        {blocks.filter((b) => b.track === l.id).map((b) => (
+          <Clip
+            key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active}
+            selected={editing?.sel.includes(b.id)} drag={editing ? clipDrag : undefined} view={{ from: (view.left - seen) / pps, to: (view.left + 2 * seen) / pps }}
+          />
+        ))}
+        {notes.filter((n) => laneOf(n) === l.id).map(tick)}
+        {editing?.tool === 'blade' && cutLine && (cutLine.lane === null || cutLine.lane === l.id) && (
+          <div data-blade-line className="pointer-events-none absolute inset-y-0 z-[4] w-px bg-warn" style={{ left: cutLine.t * pps }} />
+        )}
+      </div>
+    </div>
+  );
+
 
   return (
     <div data-timeline data-pps={pps} className="flex min-h-0 flex-[2_1_0%] flex-col">
@@ -197,7 +306,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
       <div
         ref={scroller} data-timeline-scroll onScroll={onScroll}
         onPointerDown={(e) => { if (e.target === e.currentTarget) manual.current = true; }} className="relative min-h-0 flex-1 overflow-auto bg-background">
-        <div className="relative min-w-full" style={{ width: HEAD + width }}>
+        <div ref={inner} className="relative min-w-full" style={{ width: HEAD + width }}>
           <div className="sticky top-0 z-30 flex h-6 border-b border-border-soft bg-chrome">
             <div className="sticky left-0 z-40 flex-none border-r border-border-soft bg-chrome" style={{ width: HEAD }} />
             <div ref={ruler} data-ruler title={t('cutRulerTip')} className="relative flex-1 cursor-pointer touch-none select-none" {...drag}>
@@ -210,45 +319,38 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
               <Head player={player} pps={pps} className="pointer-events-none absolute bottom-0 -ml-1 h-0 w-0 border-x-4 border-t-[6px] border-x-transparent border-t-destructive" />
             </div>
           </div>
-          {lanes.map((l) => (
-            <div key={l.id} data-lane={l.id} className={`flex border-b border-border-soft ${l.kind === 'video' ? 'h-14' : 'h-10'}`}>
-              {editing ? <TrackHead lane={l} cut={editing.cut} commit={editing.commit} width={HEAD} /> : (
-              <div data-track-head={l.id} className="sticky left-0 z-20 flex flex-none flex-col justify-center gap-0.5 border-r border-border-soft bg-chrome px-2 text-xs" style={{ width: HEAD }}>
-                <span className="truncate text-foreground" title={l.name ?? l.id}>{l.name ?? t(l.kind === 'video' ? 'cutVideoN' : 'cutAudioN', l.n)}</span>
-                <span className="flex gap-1 font-mono text-[0.625rem] text-muted-foreground">
-                  {l.gain !== undefined && l.gain !== 0 && <span>{dB(l.gain)}</span>}
-                  {l.mute && <span className="rounded bg-muted px-1">{t('cutMute')}</span>}
-                  {l.solo && <span className="rounded bg-muted px-1">{t('cutSolo')}</span>}
-                  {l.hidden && <span className="rounded bg-muted px-1">{t('cutHidden')}</span>}
-                </span>
-              </div>
-              )}
-              <div
-                data-lane-body={l.id} className="relative flex-1"
-                onPointerDown={(e) => { if (editing && e.target === e.currentTarget && e.button === 0) editing.select(null); }}
-                onDragOver={dropOver} onDrop={(e) => drop(e, l.id)}
-              >
-                {blocks.filter((b) => b.track === l.id).map((b) => (
-                  <Clip
-                    key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active}
-                    selected={editing?.sel === b.id} drag={editing ? clipDrag : undefined} view={{ from: (view.left - seen) / pps, to: (view.left + 2 * seen) / pps }}
-                  />
-                ))}
-                {notes.filter((n) => laneOf(n) === l.id).map(tick)}
-              </div>
-            </div>
-          ))}
+          {lanes.filter((l) => l.kind === 'video').map(lane)}
+          {editing && <AddTrack kind="video" editing={editing} width={HEAD} />}
+          {lanes.filter((l) => l.kind === 'audio').map(lane)}
+          {editing && <AddTrack kind="audio" editing={editing} width={HEAD} />}
           {editing && (
             <div data-cut-drop onDragOver={dropOver} onDrop={(e) => drop(e, null)} className="flex h-10 items-center border-b border-dashed border-border-soft text-xs text-muted-foreground">
               <span className="sticky left-0 px-3">{t('cutDropNew')}</span>
             </div>
           )}
+          {box && <div data-marquee className="pointer-events-none absolute z-40 border border-primary bg-primary/10" style={box} />}
           <div className="pointer-events-none absolute inset-y-0 z-10" style={{ left: HEAD }}>
             <Head player={player} pps={pps} data-playhead className="absolute inset-y-0 w-px bg-destructive">
               <div title={t('cutPlayheadTip')} className="pointer-events-auto absolute inset-y-0 -left-1 w-2 cursor-ew-resize touch-none" {...drag} />
             </Head>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** A new track's button (issue 432), in the track column at the end of its kind's lanes. */
+function AddTrack({ kind, editing, width }: { kind: 'video' | 'audio'; editing: Editing; width: number }) {
+  const t = useT();
+  const label = t(kind === 'video' ? 'cutAddVideo' : 'cutAddAudio');
+  return (
+    <div data-track-add={kind} className="flex h-6 border-b border-border-soft">
+      <div className="sticky left-0 z-20 flex flex-none items-center border-r border-border-soft bg-chrome px-1" style={{ width }}>
+        <button
+          type="button" aria-label={label} title={label} onClick={() => editing.commit(addTrack(editing.cut, kind).cut)}
+          className="rounded px-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+        >{t(kind === 'video' ? 'cutAddVideoShort' : 'cutAddAudioShort')}</button>
       </div>
     </div>
   );
@@ -361,12 +463,12 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   const x0 = Math.max(0, Math.floor((view.from - b.at) * pps / WAVE_STEP) * WAVE_STEP);
   const x1 = Math.min(w, Math.ceil((view.to - b.at) * pps / WAVE_STEP) * WAVE_STEP);
   const handles = !!drag && w >= 24;
-  const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? []), ...(drag ? [t('cutClipTip')] : [])].join('\n');
+  const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? []), ...(drag ? [t(drag.blade ? 'cutBladeTip' : 'cutClipTip')] : [])].join('\n');
   const tint = lane.kind === 'video' ? 'border-link/60 bg-link/15' : 'border-success/60 bg-success/15';
   return (
     <div
       ref={ref} data-clip={b.id} data-bad={bad || undefined} data-selected={selected || undefined} title={title}
-      className={`absolute inset-y-1 flex items-center gap-1 overflow-hidden rounded border text-xs ${tint} ${bad ? 'outline-2 outline-destructive' : ''} ${gone ? 'opacity-60' : ''} ${selected ? 'z-[1] ring-2 ring-primary' : ''} ${drag ? 'cursor-grab touch-none select-none' : ''}`}
+      className={`absolute inset-y-1 flex items-center gap-1 overflow-hidden rounded border text-xs ${tint} ${bad ? 'outline-2 outline-destructive' : ''} ${gone ? 'opacity-60' : ''} ${selected ? 'z-[1] ring-2 ring-primary' : ''} ${drag ? `touch-none select-none ${drag.blade ? 'cursor-crosshair [&_*]:pointer-events-none' : 'cursor-grab'}` : ''}`}
       style={{ left: b.at * pps, width: w }}
       {...(drag && drag.handlers(b.id, 'move'))}
     >
@@ -392,6 +494,8 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
 type Grip = 'move' | 'start' | 'end' | 'gain' | 'fadeIn' | 'fadeOut';
 type ClipDrag = {
   handlers: (id: string, grip: Grip) => { onPointerDown: (e: PointerEvent<HTMLElement>) => void };
+  /** the blade is the tool: a press cuts, the clip's grips are not there for the pointer */
+  blade: boolean;
   /** the clip and grip being dragged, once it moved */
   live: { id: string; grip: Grip } | null;
 };
@@ -409,8 +513,15 @@ type Pointer = { clientX: number; clientY: number; altKey: boolean; shiftKey: bo
  * the clip instead) and a fade's handle its fade. The
  * moves are the window's: a clip that changes lanes is a new element, and the drag must go on. An edit that changed
  * under the drag (a reload of the agent's version) ends it: a change built on the older edit is never committed.
+ * Issue 432: Shift- or ⌘/Ctrl-press on a clip's body, edge or fade handle (on its gain line: a click, no drag) adds it to the selection or takes it out; a clip of a selection of
+ * several moves them all (moveClips: refused, shown back where they were, while any would overlap), a click on it alone
+ * selects it alone; its edges, gain line and fade handles act on it alone, the selection kept. With the blade a press
+ * cuts the clip there (`bladeAt`, Shift: every track).
  */
-function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, scroller: RefObject<HTMLElement | null>): ClipDrag {
+function useClipDrag(
+  ed: Editing | undefined, pps: number, player: CutPlayer, scroller: RefObject<HTMLElement | null>,
+  bladeAt: (x: number, alt: boolean, except: readonly string[]) => number,
+): ClipDrag {
   const edRef = useRef(ed);
   edRef.current = ed;
   const ppsRef = useRef(pps);
@@ -426,6 +537,7 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
   };
   return {
     live,
+    blade: ed?.tool === 'blade',
     handlers: (id, grip0) => ({
       onPointerDown: (e) => {
         let grip = grip0;
@@ -433,11 +545,20 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
         if (!ed0 || e.button !== 0) return;
         e.stopPropagation();
         e.preventDefault(); // no text selection, no native drag
-        ed0.select(id);
+        if (ed0.tool === 'blade') return ed0.blade(bladeAt(e.clientX, e.altKey, [id]), id, e.shiftKey);
+        const mod = e.shiftKey || e.metaKey || e.ctrlKey;
+        const toggle = (cur: Editing) => cur.select(cur.sel.includes(id) ? cur.sel.filter((x) => x !== id) : [...cur.sel, id]);
+        // a modifier on the body, an edge or a fade handle adds or takes out the clip (the gain line decides on release)
+        if (grip0 !== 'gain' && mod) return toggle(ed0);
         const c = ed0.cut.clips.find((x) => x.id === id);
         if (!c) return;
-        stop.current?.();
         const base = ed0.cut;
+        // a press on a clip of the selection keeps it: the body moves them all, the other grips act on this one
+        const group = ed0.sel.includes(id) ? ed0.sel.filter((x) => base.clips.some((k) => k.id === x)) : [id];
+        // the gain line runs across the clip's middle: with a modifier, a click on it (no drag) is a click on the clip
+        if (!ed0.sel.includes(id) && !(grip0 === 'gain' && mod)) ed0.select([id]);
+        stop.current?.();
+        let moved = false;
         const x0 = e.clientX;
         // the gain line: from the gain at the press, or where it was when Shift last changed
         let g0 = c.gain ?? 0;
@@ -471,9 +592,18 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
             return cur.draft(out);
           }
           const lane = grip === 'move' ? laneAt(m.clientY) ?? c.track : c.track;
-          if (!out && Math.abs(m.clientX - x0) < DRAG_PX && lane === c.track) return;
+          if (!moved && Math.abs(m.clientX - x0) < DRAG_PX && lane === c.track) return;
+          moved = true;
           const p = ppsRef.current;
           const dt = (m.clientX - x0) / p;
+          if (grip === 'move' && group.length > 1) {
+            // the pressed clip snaps; the rest keep their distance from it. Refused: the committed edit shows, nothing moved
+            const pts = m.altKey ? [] : snapPoints(base, player.time(), group);
+            const at = snapMove(at0 + dt, end0 - at0, pts, SNAP_PX / p);
+            const shift = laneShift(base, c.track, lane);
+            out = shift && moveClips(base, group, at - at0, shift);
+            return cur.draft(out);
+          }
           if (grip === 'fadeIn' || grip === 'fadeOut') {
             // inward: right for the fade-in, left for the fade-out
             out = setFade(base, id, grip === 'fadeIn' ? 'in' : 'out', fade0 + (grip === 'fadeIn' ? dt : -dt));
@@ -492,6 +622,11 @@ function useClipDrag(ed: Editing | undefined, pps: number, player: CutPlayer, sc
           const cur = edRef.current;
           if (!cur) return;
           if (out && !stale(cur)) cur.commit(out);
+          // a click on a clip (its body or its gain line), no drag: added or taken out with a modifier, else that clip alone
+          else if (!out && !moved && (grip0 === 'move' || grip0 === 'gain') && !stale(cur)) {
+            if (grip0 === 'gain' && mod) toggle(cur);
+            else if (group.length > 1) cur.select([id]);
+          }
           cur.draft(null);
         };
         window.addEventListener('pointermove', move);
