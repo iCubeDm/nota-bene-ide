@@ -18,10 +18,10 @@ afterEach(async () => {
 });
 
 const JOB: ExportJob = { edit: 'a.nbcut.json', mode: 'mp4', phase: 'running', progress: 0.5, output: 'exports/a.mp4' };
-type Fake = Pick<CutExporter, 'available' | 'job' | 'start' | 'cancel'>;
+type Fake = Pick<CutExporter, 'ffmpegState' | 'job' | 'start' | 'cancel'>;
 const calls: unknown[][] = [];
 const fake = (o: Partial<Fake> = {}): Fake => ({
-  available: () => true,
+  ffmpegState: () => ({ ok: true }),
   job: (e) => (calls.push(['job', e]), e === 'a.nbcut.json' ? JOB : null),
   start: async (e, m) => (calls.push(['start', e, m]), { ...JOB, mode: m }),
   cancel: (e) => (calls.push(['cancel', e]), e === 'a.nbcut.json'),
@@ -40,8 +40,11 @@ describe('cut export routes', () => {
     const base = await serve(fake());
     expect(await (await fetch(`${base}/cut/export?path=a.nbcut.json`)).json()).toEqual({ ffmpeg: true, job: JOB });
     expect(await (await fetch(`${base}/cut/export?path=b.nbcut.json`)).json()).toEqual({ ffmpeg: true, job: null });
-    const none = await serve(fake({ available: () => false }));
+    const none = await serve(fake({ ffmpegState: () => ({ ok: false, reason: 'no-ffmpeg' }) }));
     expect(await (await fetch(`${none}/cut/export?path=b.nbcut.json`)).json()).toEqual({ ffmpeg: false, job: null });
+    // too old an ffmpeg: unusable, and why
+    const old = await serve(fake({ ffmpegState: () => ({ ok: false, reason: 'old-ffmpeg', version: '4.3.1' }) }));
+    expect(await (await fetch(`${old}/cut/export?path=b.nbcut.json`)).json()).toEqual({ ffmpeg: false, ffmpegProblem: 'old', ffmpegVersion: '4.3.1', job: null });
     expect((await fetch(`${base}/cut/export`)).status).toBe(400);
     expect((await fetch(`${base}/cut/export/cancel?path=a.nbcut.json`)).status).toBe(405);
   });
@@ -63,6 +66,18 @@ describe('cut export routes', () => {
     const bad = await post(invalid, '/cut/export', { path: 'a.nbcut.json', mode: 'mp4' });
     expect(bad.status).toBe(422);
     expect(await bad.json()).toEqual({ error: 'invalid-edit', detail: 'clips[0].out: out-before-in', issues });
+  });
+
+  it('a POST body over the cap is 413; an unexpected failure is 500 with the code internal and the message as detail', async () => {
+    const base = await serve(fake());
+    const big = await fetch(`${base}/cut/export`, { method: 'POST', body: JSON.stringify({ path: 'a.nbcut.json', mode: 'mp4', pad: 'x'.repeat(100_000) }) });
+    expect(big.status).toBe(413);
+    expect(await big.json()).toEqual({ error: 'too-large' });
+    expect((await fetch(`${base}/cut/export/cancel`, { method: 'POST', body: 'x'.repeat(100_000) })).status).toBe(413);
+    const broken = await serve(fake({ start: async () => { throw new Error('disk on fire'); } }));
+    const r = await post(broken, '/cut/export', { path: 'a.nbcut.json', mode: 'mp4' });
+    expect(r.status).toBe(500);
+    expect(await r.json()).toEqual({ error: 'internal', detail: 'disk on fire' });
   });
 
   it('POST /cut/export/cancel: 200 when one ran, 404 when none', async () => {
