@@ -220,6 +220,16 @@ describe('defaults and about', () => {
     expect(readPrefs().sounds).toEqual({ ask: false, done: true });
   });
 
+  it('the projects rail is on until turned off, for every window', async () => {
+    const s = await boot();
+    const read = async () => ((await fetch(`${s.url}/system/prefs`)).json() as Promise<{ projectRail: unknown }>).then((p) => p.projectRail);
+    expect(await read()).toBe(true);
+    expect((await post(`${s.url}/system/prefs`, { projectRail: 'no' }, { origin: s.origin })).status).toBe(400);
+    expect((await post(`${s.url}/system/prefs`, { projectRail: false }, { origin: s.origin })).status).toBe(200);
+    expect(await read()).toBe(false);
+    expect(readPrefs().projectRail).toBe(false);
+  });
+
   it('the audit log is on until turned off; prefs name its folder', async () => {
     const s = await boot();
     const read = async () => (await fetch(`${s.url}/system/prefs`)).json() as Promise<{ audit: boolean; auditDir: string }>;

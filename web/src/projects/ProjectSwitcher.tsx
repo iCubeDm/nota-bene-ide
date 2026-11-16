@@ -15,41 +15,14 @@ import { toast } from '@/shell/toast.ts';
 import { withKey } from '@/shell/keymap.ts';
 import { selectSession, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { enterProject, forgetRecent, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider, type ProjectState } from './api.ts';
+import { enterProject, forgetRecent, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
-import { badgeOf, foldRows, titlePrefix, type Badge, type ProjectRow } from './rows.ts';
+import { badgeOf, foldRows, titlePrefix, type ProjectRow } from './rows.ts';
+import { BadgeView, folderOf, LIVE, rowBadge, STATE_KEY, Tile } from './Tile.tsx';
 
-export const folderOf = (root: string) => root.split(/[\\/]/).filter(Boolean).pop() ?? root;
 const short = shortHome;
-const DOT: Record<ProjectState, string> = {
-  working: 'bg-primary', waiting: 'bg-warn', idle: 'bg-success', restarting: 'bg-muted-foreground/30', silent: 'bg-destructive/60',
-};
-const STATE_KEY = { working: 'projWorking', waiting: 'projWaiting', idle: 'projIdle', restarting: 'projRestarting', silent: 'projSilent' } as const;
-const LIVE = new Set<ProjectState>(['working', 'waiting', 'idle']);
 const RECENT_SHOWN = 10;
 const sectionCls = 'px-2.5 pt-1.5 pb-0.5 text-[0.6875rem] uppercase tracking-wide text-muted-foreground';
-
-// the theme's accents, tinted: readable in every theme
-const TILES = ['bg-accent-agent/20 text-accent-agent', 'bg-accent-model/20 text-accent-model', 'bg-accent-sessions/20 text-accent-sessions',
-  'bg-accent-usage/20 text-accent-usage', 'bg-primary/20 text-primary', 'bg-success/20 text-success', 'bg-warn/20 text-warn'];
-
-/** Two letters of the folder on a colour picked by its path: the same project looks the same everywhere. */
-function Tile({ root, state }: { root: string; state?: ProjectState }) {
-  let h = 0;
-  for (const c of root) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const letters = (folderOf(root).match(/[\p{L}\p{N}]/gu) ?? ['?']).slice(0, 2).join('').toUpperCase();
-  return (
-    <span aria-hidden className={`relative flex size-8 flex-none items-center justify-center rounded-lg text-[0.6875rem] font-bold ${TILES[h % TILES.length]}`}>
-      {letters}
-      {state && <span className={`absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-popover ${DOT[state]}`} />}
-    </span>
-  );
-}
-
-function BadgeView({ b }: { b: Badge }) {
-  if (b === null) return null;
-  return <span className={`min-w-4 rounded-full px-1.5 text-center text-[0.625rem] font-semibold leading-4 ${b === '!' ? 'bg-warn text-background' : 'bg-primary text-primary-foreground'}`}>{b}</span>;
-}
 
 function Chevron({ open, label, onClick }: { open: boolean; label: string; onClick: () => void }) {
   return (
@@ -164,7 +137,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                 const top = r.windows[0]!;
                 const folder = folderOf(r.root);
                 const detail = [top.title || (top.session ? t('untitled') : null), PROVIDER_LABEL[top.provider], r.state === 'idle' ? null : t(STATE_KEY[r.state]), r.current ? t('projThis') : null].filter(Boolean).join(' · ');
-                const b: Badge = r.state === 'waiting' ? '!' : r.unseen > 0 ? r.unseen : null;
+                const b = rowBadge(r);
                 const isOpen = expanded.has(r.root);
                 return (
                   <div key={r.root}>
