@@ -2,14 +2,14 @@
 // handles at the clip's top corners. The drags themselves are the timeline's (useClipDrag in Timeline.tsx).
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { CUT_PEAKS_RATE } from '@nota-bene/shared/cut';
-import { useT } from '@/i18n/index.ts';
+import { useT, type t as T } from '@/i18n/index.ts';
 import type { Block } from './layout.ts';
-import { gainY } from './ops.ts';
+import { fmtDb, gainY } from './ops.ts';
 import { dbGain } from './playback.ts';
 import { peaksOf, type Wave as Waveform } from './peaks.ts';
 
-/** Decibels as the timeline writes them: `+3 dB`, `−4.5 dB`, `0 dB`. */
-export const dB = (g: number): string => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`;
+/** Decibels as the timeline writes them, in the UI language (issue 410): `+3 dB`, `−4.5 dB`, `0 dB`, at most one decimal. */
+export const dB = (g: number, t: typeof T): string => t('cutDb', fmtDb(g));
 
 /** A source's waveform once loaded (peaks.ts), or why it has none; null meanwhile or unknown. `src` null: none asked. */
 export function usePeaks(src: string | null, fileSrc: string): Waveform | null {
@@ -109,7 +109,7 @@ export function GainLine({ gain, press, value }: { gain: number; press: Press; v
       </div>
       {value && (
         <span data-gain-value className="pointer-events-none absolute right-2 z-[4] -translate-y-full rounded bg-background/90 px-1 font-mono text-[0.625rem] text-foreground" style={{ top }}>
-          {dB(gain)}
+          {dB(gain, t)}
         </span>
       )}
     </>

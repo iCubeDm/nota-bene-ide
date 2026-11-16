@@ -430,7 +430,7 @@ export async function startServer(o: {
         },
         ...usageRoutes({ hub }),
         ...dictationRoutes({ hub }),
-        ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks }),
+        ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, root }),
         ...remoteRoutes({ hub, keeper: o.remote }),
         ...projectRoutes({ hub, port: () => ownPort, provider: parseProvider(process.env.NOTA_BENE_AGENT), repoDir }),
         ...systemRoutes({

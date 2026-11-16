@@ -6,7 +6,7 @@ import { renderDir, type RowsCtx } from './TreeRow.tsx';
 afterEach(cleanup);
 const ctx = (src: string): RowsCtx => ({
   entries: { '': [{ name: 'clip.mp4', dir: false }, { name: 'notes.md', dir: false }] } as RowsCtx['entries'],
-  dirs: [], f: '', counts: {}, activePath: null, src, ref: undefined, onToggle: () => {}, onOpen: () => {},
+  dirs: [], f: '', counts: {}, activePath: null, src, ref: undefined, sel: [], onToggle: () => {}, onPick: () => {},
 });
 
 it('a media file of this folder drags its path onto an edit; other files and other sources do not', () => {
