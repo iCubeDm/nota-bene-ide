@@ -27,7 +27,11 @@ export type CutTrack = {
   hidden?: boolean;
 };
 
-/** Where a clip sits in the frame: fractions of the output frame, top-left origin. Absent: the whole frame. */
+/**
+ * Where a clip sits in the frame: fractions of the output frame, top-left origin. Absent: the whole frame. `x`, `y` are
+ * 0..1 and `w`, `h` above 0 up to 1, but the box may run past the frame's right or bottom edge (`x + w > 1`): the part
+ * outside is cropped.
+ */
 export type CutPlace = {
   x: number;
   y: number;
@@ -42,7 +46,7 @@ export type CutClip = {
   id: string;
   /** a track id */
   track: string;
-  /** a project-relative path, `/` separated; a photo by its extension (IMAGE in web/src/files/kinds.ts) */
+  /** a project-relative path, `/` separated; a video (VIDEO), sound (AUDIO) or photo (IMAGE) file by its extension */
   src: string;
   /** where the clip starts on the timeline */
   at: number;
@@ -65,4 +69,4 @@ export type CutClip = {
 /** The edit's file name ending. */
 export const CUT_EXT = '.nbcut.json';
 
-export { clipLength, cutDuration, IMAGE, isCutPath, isPhotoSrc, validateCut, type CutCheck, type CutIssue } from './cutCheck.ts';
+export { AUDIO, clipLength, cutDuration, IMAGE, isCutPath, isPhotoSrc, validateCut, VIDEO, type CutCheck, type CutIssue } from './cutCheck.ts';

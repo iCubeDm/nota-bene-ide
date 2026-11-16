@@ -161,6 +161,15 @@ describe('validateCut', () => {
     }))).toEqual(['clips[0].src src', 'clips[1].src src', 'clips[3].src src']);
   });
 
+  it('refuses a source that is not video, audio or a photo, and a sound file on a video track', () => {
+    expect(issues(edit((c) => { clip(c, 'c1').src = 'media/notes.txt'; clip(c, 'c2').src = 'media/voice.wav'; }))).toEqual([
+      { path: 'clips[0].src', code: 'src-kind', clip: 'c1' },
+      { path: 'clips[1].track', code: 'audio-video', clip: 'c2' },
+    ]);
+    // a video file on an audio track gives its sound: fine; the extension in any case
+    expect(validateCut(edit((c) => { clip(c, 'c4').src = 'media/talk.MP4'; clip(c, 'c1').src = 'media/intro.WebM'; })).ok).toBe(true);
+  });
+
   it('refuses a clip without an id, and a non-boolean flag', () => {
     expect(codes(edit((c) => { delete clip(c, 'c1').id; (c.tracks[0] as Record<string, unknown>).mute = 'yes'; }))).toEqual([
       'tracks[0].mute type', 'clips[0].id type',

@@ -129,3 +129,12 @@ it('a hello that lands while the POST is still in flight does not undo the choic
     vi.unstubAllGlobals();
   }
 });
+
+// an edit's issue codes: every language words each code English words (a missing one would show the bare code)
+it.each(Object.entries({ ru, 'zh-CN': zhCN, es, 'pt-BR': ptBR, de }))('%s words every edit issue code', (_, dict) => {
+  const codes = [...String(en.cutIssue).matchAll(/"([a-z-]+)":/g)].map((m) => m[1]!);
+  expect(codes).toContain('src-kind');
+  expect(codes).toContain('audio-video');
+  const issue = (dict as typeof en).cutIssue;
+  expect(codes.filter((c) => issue(c) === c)).toEqual([]);
+});
