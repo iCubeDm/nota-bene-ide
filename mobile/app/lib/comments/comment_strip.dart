@@ -13,7 +13,7 @@ import 'comments.dart';
 Future<void> editComment(BuildContext context, WindowTab tab, Comment x) async {
   final res = await showCommentSheet(
     context,
-    quote: quoteOf(x),
+    quote: quoteOf(x, Localizations.localeOf(context).languageCode),
     editing: x,
     tab: tab,
   );

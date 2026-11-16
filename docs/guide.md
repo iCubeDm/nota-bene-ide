@@ -90,7 +90,7 @@ The core of the tool: review first, then send everything at once.
 
 **Example.** The agent replies with a plan. Select "retry three times", click **Comment**, type `make this configurable`, press Cmd/Ctrl+Enter (Esc cancels): the fragment turns yellow and a card joins the **Comments** panel (Cmd/Ctrl+Shift+C). Select a line of another reply and click the quick label **Verify this**. Open `src/queue.ts` and comment on a function. Press **Send (3)** in the panel, or **Send** in the composer, which takes your typed text along. The agent gets one message, "Comments on fragments:", with each fragment, its source and your note. Sent comments are dimmed and tagged "sent".
 
-- Comment on replies, your own messages, tool lines, subagent replies (sent to the main session), files, diffs, images, video frames, HTML pages and 3D models.
+- Comment on replies, your own messages, tool lines, subagent replies (sent to the main session), files, diffs, images, video frames, HTML pages, 3D models and the clips and moments of a video edit.
 - Quick labels: Looks good, Love it!, Clarify this, Verify this, Give me an example, Missing overview, Match existing patterns, Consider alternatives, Ensure no regression, Out of scope, Needs tests. Most add an instruction for the agent.
 - Emoji from the menu or a shortcode (`:+1:`); `@` works in the popup.
 - Click a highlight to open its card; edit or delete there or in the panel. Popups drag by their header. Cards jump to the source; tabs and tree rows show counts.
@@ -193,6 +193,17 @@ A file named `<name>.nbcut.json` is an edit for the video editor (work in progre
 - A track header renames on a double-click, and has M (mute), S (solo), H (hide the picture, video tracks), ↑ / ↓ (order among the tracks of its kind; up on a video track is over the picture) and × (remove with its clips).
 - The clip panel: start, in and out (a photo: duration), gain, fades and mute of the clip's sound, and for a video track its frame and opacity in percent, with **Fit to frame** to fill the frame again. A value the format does not accept is marked and not applied.
 - The file is the only state. When it changes on disk (the agent wrote it) and nothing is unsaved, the editor reloads it, keeping the playhead; undo starts again from that version. An edit made against an older version asks first: overwrite it, or take the version on disk. An edit with problems, or a view of another branch or worktree, stays read-only.
+
+</details>
+
+**Comments.** **Comment** in the edit bar (C) opens the usual comment editor: on the selected clip, at the playhead if it is on the clip and at the clip's start otherwise; with nothing selected, on the playhead's moment of the timeline. **Example.** Play the edit, hear the voice-over end too early, pause, click the voice clip and press C: `the tail of this audio clip is cut off`. The comment joins the Comments panel and goes with the batch; quick labels work as anywhere. It shows as a tick on its clip (a moment: on the ruler); hover shows the note, a click seeks there and selects the clip, and so does its card.
+
+<details><summary>More: what the agent gets, and how a comment keeps to its clip</summary>
+
+- The batch line names the edit's file and the time on the timeline, then the clip's id, its track's name and id, its `src` and the same moment in that file (`in` plus the offset into the clip), e.g. `clip c4 · track Voice (a1) · media/voice.wav @ 0:05.500 in the source`, so the agent can open the right second of it. A photo has no moment of its own; a moment of the timeline says it has no clip.
+- A pending comment follows its clip by id: moved (to another track too) or trimmed, it keeps its moment in the source and its time on the timeline follows. A trim that cuts that moment away keeps the tick at the clip's nearest end. A sent comment stays where it was.
+- A comment whose clip was deleted keeps its time; while the edit's tab is open its card says the clip is no longer in the edit, and so does the batch.
+- Comments are made on an edit of this folder, against a server of protocol 23 or newer. The phone lists them as text (the file, the clip and the time) and leaves them for the window to send.
 
 </details>
 

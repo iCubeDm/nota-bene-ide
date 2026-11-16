@@ -14,7 +14,7 @@ export const STRINGS_PATH = 'mobile/app/lib/comments/strings.g.dart';
 /** the app's language codes (its ARB files) to the web's dictionaries */
 const DICTS: [string, Record<string, unknown>][] = [['en', en], ['ru', ru], ['zh', zhCN], ['es', es], ['pt', ptBR], ['de', de]];
 /** the batch strings the phone's composeBatch uses */
-const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale'] as const;
+const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale', 'cutMomentQ'] as const;
 /**
  * Web strings the phone shows as they are; `webString` reads them: the usage meters' words, the window sheet's
  * mode names and descriptions (every provider's modes, as ModePill.tsx shows them) and its clear/compact texts, and
@@ -56,6 +56,8 @@ const counted = (d: Record<string, unknown>, key: string): Record<string, string
 const TEMPLATE_KEYS: Record<string, ('n' | 'list')[]> = {
   imgLabel: ['n'], imgLabelC: ['n', 'n'], imgRef: ['list'], imgRefMedia: ['list'], filesLine: ['list'], scaledSfx: ['n'],
   srcTool: ['n', 'n'], srcAgentReply: ['n'], srcAgentTool: ['n', 'n'],
+  // a comment on an edit's timeline (issue 430): the card shows it as text
+  srcCut: ['n', 'n'], cutClipQ: ['n', 'n', 'n', 'n'], cutClipPhotoQ: ['n', 'n', 'n'],
   // the mic's Whisper sheet (Settings → Dictation's question): sizes and the folder
   dictInstallQ: ['n', 'n', 'n'],
   // the git views: a large diff, the base line of the changes
