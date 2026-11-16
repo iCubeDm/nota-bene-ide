@@ -58,6 +58,7 @@ export const zhCN: Dict = {
   treeAddToEditNone: '添加到剪辑（请先打开一个剪辑）',
   treeNewEdit: (n: number) => (n === 1 ? '用此文件新建剪辑' : `用 ${n} 个文件新建剪辑`),
   treeNewEditFailed: '无法创建剪辑',
+  treeNewEditBusy: '正在创建剪辑…',
   comments: '评论',
   commentsN: (n) => `评论 · ${n}`,
   emptyComments: '在对话或已打开的文件中选中文本，然后点击“评论”。\n评论会汇集在这里，并作为一批发送给代理。',

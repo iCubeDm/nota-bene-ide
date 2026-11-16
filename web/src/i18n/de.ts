@@ -58,6 +58,7 @@ export const de: Dict = {
   treeAddToEditNone: 'Zum Schnitt hinzufügen (zuerst einen Schnitt öffnen)',
   treeNewEdit: (n: number) => (n === 1 ? 'Neuer Schnitt aus dieser Datei' : `Neuer Schnitt aus ${n} Dateien`),
   treeNewEditFailed: 'Der Schnitt konnte nicht angelegt werden',
+  treeNewEditBusy: 'Schnitt wird angelegt…',
   comments: 'Kommentare',
   commentsN: (n) => `Kommentare · ${n}`,
   emptyComments: 'Markiere Text im Chat oder in einer offenen Datei und klicke auf „Kommentar“.\nKommentare sammeln sich hier und gehen als ein Stapel an den Agenten.',

@@ -13,7 +13,7 @@ import { mediaTime } from '@/media/markup/geometry.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { srcLength } from './durations.ts';
 import { appendMedia } from './assemble.ts';
-import { mediaLen } from './mediaLen.ts';
+import { mediaLen, PHOTO_LEN } from './mediaLen.ts';
 import { registerEditTarget, touchEditTarget } from './targets.ts';
 import { EditBar } from './EditBar.tsx';
 import type { Editing, Tool } from './editing.ts';
@@ -139,7 +139,8 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     const kind = AUDIO.test(file) ? 'audio' : 'video';
     const now = cutRef.current;
     if (!now || !takes(kind, file)) return setNotice(t('cutCannotAdd', basename(file)));
-    const len = await mediaLen(file, src);
+    // a drop takes a length it cannot read as a photo's (issue 409); Add to edit (below) does not guess
+    const len = (await mediaLen(file, src)) ?? PHOTO_LEN;
     let base = cutRef.current ?? now;
     let on = track !== null && base.tracks.find((x) => x.id === track)?.kind === kind ? track : null;
     if (on === null) {

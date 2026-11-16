@@ -3,8 +3,8 @@
 import { AUDIO, clipLength, PHOTO, VIDEO, type Cut, type CutTrack } from '@nota-bene/shared/cut';
 import { addClip, addTrack, takes } from './ops.ts';
 
-/** A file to add, and how long its clip is (a photo's duration, a video's or sound's whole length), seconds. */
-export type MediaItem = { src: string; len: number };
+/** A file to add, and how long its clip is (a photo's duration, a video's or sound's whole length), seconds; null unknown. */
+export type MediaItem = { src: string; len: number | null };
 
 /** A new edit's frame: Full HD at 30 frames a second, the size most cameras and phones record. */
 export const NEW_CUT: Cut = { version: 1, width: 1920, height: 1080, fps: 30, tracks: [], clips: [] };
@@ -18,7 +18,7 @@ export const kindOf = (src: string): CutTrack['kind'] => (AUDIO.test(src) ? 'aud
 /**
  * `items` in their order, each after the last clip of the first track of its kind (a video or photo on the first video
  * track, the lowest in the picture; a sound on the first audio track), a track of that kind added when there is none.
- * `skipped`: the files no track takes (a gif, a text file) or without a length. Null when nothing was added.
+ * `skipped`: the files no track takes (a gif, a text file) or without a known length. Null when nothing was added.
  */
 export function appendMedia(cut: Cut, items: readonly MediaItem[]): { cut: Cut; ids: string[]; skipped: string[] } | null {
   let next = cut;
@@ -26,7 +26,7 @@ export function appendMedia(cut: Cut, items: readonly MediaItem[]): { cut: Cut; 
   const skipped: string[] = [];
   for (const it of items) {
     const kind = kindOf(it.src);
-    if (!takes(kind, it.src) || !(it.len > 0)) {
+    if (!takes(kind, it.src) || it.len === null || !(it.len > 0)) {
       skipped.push(it.src);
       continue;
     }
@@ -48,8 +48,13 @@ export function appendMedia(cut: Cut, items: readonly MediaItem[]): { cut: Cut; 
   return ids.length ? { cut: next, ids, skipped } : null;
 }
 
-/** A new edit (NEW_CUT's frame) of `items` back to back from 0 in their order, a video track and an audio track as needed. */
-export function newCutOf(items: readonly MediaItem[]): { cut: Cut; skipped: string[] } | null {
-  const r = appendMedia(NEW_CUT, items);
+const side = (n: number) => Math.min(8192, Math.max(16, Math.round(n)));
+
+/**
+ * A new edit of `items` back to back from 0 in their order, a video track and an audio track as needed; its frame `frame`
+ * (the first video's picture, whole and within 16..8192) or NEW_CUT's, at NEW_CUT's 30 fps.
+ */
+export function newCutOf(items: readonly MediaItem[], frame?: { width: number; height: number } | null): { cut: Cut; skipped: string[] } | null {
+  const r = appendMedia(frame ? { ...NEW_CUT, width: side(frame.width), height: side(frame.height) } : NEW_CUT, items);
   return r && { cut: r.cut, skipped: r.skipped };
 }

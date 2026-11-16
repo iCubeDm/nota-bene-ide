@@ -49,3 +49,11 @@ export const currentEditTarget = (): EditTarget | null => current;
 const subscribe = (f: () => void) => (subs.add(f), () => void subs.delete(f));
 /** currentEditTarget, re-rendered when it changes. */
 export const useEditTarget = (): EditTarget | null => useSyncExternalStore(subscribe, currentEditTarget);
+
+const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
+/** How the menu names the edit at `path`: its file name, or its project path while another open edit has that name too. */
+export function editTargetName(path: string): string {
+  const name = base(path);
+  for (const t of targets.keys()) if (t !== path && base(t).toLowerCase() === name.toLowerCase()) return path;
+  return name;
+}

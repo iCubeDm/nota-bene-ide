@@ -8,6 +8,13 @@ import { resolveInRoot } from '../files.ts';
 
 export type NewEditAnswer = { status: number; body: Record<string, unknown> };
 
+/** What the disk refused, said by its code alone: the answer never carries an absolute path. */
+const WRITE_CODES: Record<string, number> = { EACCES: 403, EPERM: 403, EROFS: 403, ENOSPC: 507, EDQUOT: 507 };
+const refused = (e: unknown): NewEditAnswer | null => {
+  const code = (e as NodeJS.ErrnoException | null)?.code;
+  return code && code in WRITE_CODES ? { status: WRITE_CODES[code]!, body: { error: 'cannot-write', code } } : null;
+};
+
 /** How many taken names a create tries past before it gives up (a folder of thousands of edits named so). */
 const TRIES = 1000;
 
@@ -21,14 +28,27 @@ export async function createEdit(root: string, dir: string, cut: unknown): Promi
   if (!st?.isDirectory()) return { status: 404, body: { error: 'not-found' } };
   // the editor's own form of the file (useCutDoc serialize)
   const text = `${JSON.stringify(check.cut, null, 2)}\n`;
-  const names = await fs.promises.readdir(abs);
+  let names: string[];
+  try {
+    names = await fs.promises.readdir(abs);
+  } catch (e) {
+    const no = refused(e);
+    if (no) return no;
+    throw e;
+  }
   for (let i = 0; i < TRIES; i++) {
     const name = uniqueCutName(names);
+    const file = path.join(abs, name);
     try {
-      await fs.promises.writeFile(path.join(abs, name), text, { flag: 'wx' });
-      return { status: 201, body: { path: dir === '' ? name : `${dir.replace(/\/+$/, '')}/${name}` } };
+      await fs.promises.writeFile(file, text, { flag: 'wx' });
+      // the project-relative path as the page names files: `/` between the parts
+      return { status: 201, body: { path: path.relative(path.resolve(root), file).split(path.sep).join('/') } };
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') {
+        const no = refused(e);
+        if (no) return no;
+        throw e;
+      }
       names.push(name);
     }
   }

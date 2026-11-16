@@ -11,7 +11,12 @@ import { registerEditTarget, touchEditTarget } from '@/cut/targets.ts';
 import { FileTree } from './FileTree.tsx';
 
 // the browser reads a source's length from its metadata; jsdom has no media
-vi.mock('@/cut/durations.ts', () => ({ srcLength: async (url: string) => (url.includes('long') ? 12 : 3) }));
+// (slow.mp4 waits for `gate`, to see a second New edit refused while the first one reads)
+let gate: Promise<void> = Promise.resolve();
+vi.mock('@/cut/durations.ts', () => ({
+  srcLength: async (url: string) => (url.includes('slow') ? gate.then(() => 2) : url.includes('long') ? 12 : 3),
+  srcSize: async (url: string) => (url.includes('a.mp4') ? { width: 1280, height: 720 } : null),
+}));
 
 let fs: Record<string, TreeEntry[]>;
 let posts: { url: string; body: unknown }[];
@@ -23,8 +28,9 @@ beforeEach(() => {
   undo = [];
   fs = {
     '': [{ name: 'media', dir: true }, { name: 'notes.md', dir: false }],
-    media: [{ name: 'a.mp4', dir: false }, { name: 'b.png', dir: false }, { name: 'long.wav', dir: false }, { name: 'readme.txt', dir: false }],
+    media: [{ name: 'a.mp4', dir: false }, { name: 'b.png', dir: false }, { name: 'long.wav', dir: false }, { name: 'readme.txt', dir: false }, { name: 'slow.mp4', dir: false }],
   };
+  gate = Promise.resolve();
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') {
       posts.push({ url, body: JSON.parse(String(init.body)) });
@@ -111,5 +117,52 @@ it('New edit from selection writes an edit of the picked media back to back besi
   expect(posts[0]!.url).toBe('/cut/new');
   const { dir, cut } = posts[0]!.body as { dir: string; cut: Cut };
   expect(dir).toBe('media');
+  // the frame of the first video that has one
+  expect([cut.width, cut.height, cut.fps]).toEqual([1280, 720, 30]);
   expect(cut.clips.map((c) => [c.src, c.at, c.dur ?? c.out])).toEqual([['media/b.png', 0, 5], ['media/a.mp4', 5, 3], ['media/long.wav', 0, 12]]);
+});
+
+it('two open edits of the same name are told apart by their paths in the menu', async () => {
+  await setup();
+  undo.push(registerEditTarget({ path: 'one/edit.nbcut.json', add: () => {} }));
+  undo.push(registerEditTarget({ path: 'two/edit.nbcut.json', add: () => {} }));
+  touchEditTarget('two/edit.nbcut.json');
+  menu('a.mp4');
+  expect(screen.getByRole('menuitem', { name: 'Add to two/edit.nbcut.json' })).toBeInTheDocument();
+});
+
+it('New edit runs once at a time: while it reads the lengths the item says so and is off', async () => {
+  let open!: () => void;
+  gate = new Promise<void>((r) => { open = r; });
+  const store = await setup();
+  menu('slow.mp4');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'New edit from this file' }));
+  menu('slow.mp4');
+  const busy = screen.getByRole('menuitem', { name: 'Creating the edit…' });
+  expect(busy).toHaveAttribute('data-disabled');
+  fireEvent.click(busy);
+  open();
+  await waitFor(() => expect(selectTabs(store.getState()).active).toBe('file:media/edit.nbcut.json'));
+  expect(posts).toHaveLength(1);
+});
+
+it('a long press (touch) opens the menu of the row pressed', async () => {
+  await setup();
+  undo.push(registerEditTarget({ path: 'e.nbcut.json', add: () => {} }));
+  fireEvent.click(row('a.mp4'));
+  fireEvent.pointerDown(row('long.wav'), { pointerType: 'touch', button: 0, pointerId: 1 });
+  await screen.findByRole('menu', {}, { timeout: 2000 });
+  expect(selected()).toEqual(['media/long.wav']);
+  expect(screen.getByRole('menuitem', { name: 'Add to e.nbcut.json' })).toBeInTheDocument();
+});
+
+it('the selection lets go of files the filter hides or that are gone', async () => {
+  await setup();
+  fireEvent.click(row('a.mp4'));
+  fireEvent.click(row('b.png'), { metaKey: true });
+  fireEvent.click(row('long.wav'), { metaKey: true });
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: '.wav' } });
+  await waitFor(() => expect(selected()).toEqual(['media/long.wav']));
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
+  expect(selected()).toEqual(['media/long.wav']);
 });

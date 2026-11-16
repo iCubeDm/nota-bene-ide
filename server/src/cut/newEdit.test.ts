@@ -40,4 +40,32 @@ describe('createEdit (issue 426): a new edit beside the files', () => {
     expect((await createEdit(root, 'file.txt', cut)).status).toBe(404);
     expect(fs.readdirSync(path.join(root, 'media'))).toEqual([]);
   });
+
+  it('a folder that is a symlink out of the project is refused (403), nothing is written there', async () => {
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-cut-out-'));
+    try {
+      fs.symlinkSync(out, path.join(root, 'link'));
+      expect((await createEdit(root, 'link', cut)).status).toBe(403);
+      expect((await createEdit(root, 'link/', cut)).status).toBe(403);
+      expect(fs.readdirSync(out)).toEqual([]);
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  });
+
+  it('the path answered is relative to the project with / (a dir given with ./ or a trailing slash)', async () => {
+    fs.mkdirSync(path.join(root, 'media/sub'));
+    expect((await createEdit(root, './media//sub/', cut)).body).toEqual({ path: 'media/sub/edit.nbcut.json' });
+  });
+
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('a folder it cannot write to answers the code, never an absolute path', async () => {
+    fs.chmodSync(path.join(root, 'media'), 0o555);
+    try {
+      const a = await createEdit(root, 'media', cut);
+      expect(a).toEqual({ status: 403, body: { error: 'cannot-write', code: 'EACCES' } });
+      expect(JSON.stringify(a)).not.toContain(root);
+    } finally {
+      fs.chmodSync(path.join(root, 'media'), 0o755);
+    }
+  });
 });

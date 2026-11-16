@@ -46,9 +46,9 @@ describe('appendMedia (issue 426): files after the end of the first track of the
     expect(r.cut.clips.map((c) => [c.track, c.at, c.out])).toEqual([[a, 0, 4], [a, 4, 1.5]]);
   });
 
-  it('skips what no track takes (a gif, a text file) and lengths that are not above 0; nothing taken is null', () => {
-    const r = appendMedia(base(), [{ src: 'x.gif', len: 5 }, { src: 'notes.txt', len: 5 }, { src: 'c.mp4', len: 0 }, { src: 'd.mp4', len: 1 }])!;
-    expect(r.skipped).toEqual(['x.gif', 'notes.txt', 'c.mp4']);
+  it('skips what no track takes (a gif, a text file), lengths that are not above 0 and unknown ones (null); nothing taken is null', () => {
+    const r = appendMedia(base(), [{ src: 'x.gif', len: 5 }, { src: 'notes.txt', len: 5 }, { src: 'c.mp4', len: 0 }, { src: 'unread.mp4', len: null }, { src: 'd.mp4', len: 1 }])!;
+    expect(r.skipped).toEqual(['x.gif', 'notes.txt', 'c.mp4', 'unread.mp4']);
     expect(r.ids).toHaveLength(1);
     expect(appendMedia(base(), [{ src: 'x.gif', len: 5 }])).toBeNull();
   });
@@ -61,6 +61,14 @@ describe('newCutOf (issue 426): an edit of the files back to back in their order
     expect({ ...r.cut, tracks: [], clips: [] }).toEqual({ ...NEW_CUT, tracks: [], clips: [] });
     expect(r.cut.tracks.map((t) => t.kind)).toEqual(['video', 'audio']);
     expect(r.cut.clips.map((c) => [c.src, c.at])).toEqual([['clips/a.mp4', 0], ['clips/b.png', 3], ['clips/m.wav', 0], ['clips/c.mov', 8]]);
+  });
+
+  it('takes the frame it is given (the first video\'s size), whole and within the format\'s 16..8192; 30 fps', () => {
+    const r = newCutOf([{ src: 'a.mp4', len: 1 }], { width: 1080, height: 1920 })!;
+    expect([r.cut.width, r.cut.height, r.cut.fps]).toEqual([1080, 1920, 30]);
+    valid(r.cut);
+    const odd = newCutOf([{ src: 'a.mp4', len: 1 }], { width: 9000.4, height: 10.2 })!;
+    expect([odd.cut.width, odd.cut.height]).toEqual([8192, 16]);
   });
 
   it('nothing it can take: null', () => {

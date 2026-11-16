@@ -58,6 +58,7 @@ export const es: Dict = {
   treeAddToEditNone: 'Añadir a la edición (abre antes una edición)',
   treeNewEdit: (n: number) => (n === 1 ? 'Nueva edición con este archivo' : `Nueva edición con ${n} archivos`),
   treeNewEditFailed: 'No se pudo crear la edición',
+  treeNewEditBusy: 'Creando la edición…',
   comments: 'Comentarios',
   commentsN: (n) => `Comentarios · ${n}`,
   emptyComments: 'Selecciona texto en el chat o en un archivo abierto y pulsa «Comentar».\nLos comentarios se acumulan aquí y van al agente en un solo lote.',

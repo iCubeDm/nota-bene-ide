@@ -58,6 +58,7 @@ export const en: Dict = {
   treeAddToEditNone: 'Add to edit (open an edit first)',
   treeNewEdit: (n: number) => (n === 1 ? 'New edit from this file' : `New edit from ${n} files`),
   treeNewEditFailed: 'Could not create the edit',
+  treeNewEditBusy: 'Creating the edit…',
   comments: 'Comments',
   commentsN: (n) => `Comments · ${n}`,
   emptyComments: 'Select text in the chat or an open file and press “Comment”.\nComments collect here and go to the agent as one batch.',

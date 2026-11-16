@@ -10,7 +10,7 @@ import { SAVE_DELAY } from './useCutDoc.ts';
 import { currentEditTarget } from './targets.ts';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
-vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async () => 4) }));
+vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async (url: string) => (url.includes('unread') ? null : 4)) }));
 vi.mock('./peaks.ts', () => ({
   peaksOf: vi.fn(async (src: string) => (src === 'media/street.webm' ? { none: 'no-audio' } : { peaks: new Uint8Array(800).fill(128) })),
 }));
@@ -180,13 +180,15 @@ it('Add to edit from the Files tree (issue 426): the edit is a target while show
   const { container } = await show();
   const target = currentEditTarget();
   expect(target?.path).toBe('e.nbcut.json');
-  await act(async () => { await target!.add(['media/music.mp3', 'media/logo.png', 'notes.txt']); });
+  await act(async () => { await target!.add(['media/music.mp3', 'media/unread.mp4', 'media/logo.png', 'notes.txt']); });
   await saved(() => expect(onDisk().clips.filter((c) => !['c1', 'c2', 'c3'].includes(c.id)).map((c) => [c.track, c.src, c.at])).toEqual([
     ['a1', 'media/music.mp3', 8], ['v1', 'media/logo.png', 10],
   ]));
+  expect(onDisk().clips.some((c) => c.src === 'media/unread.mp4')).toBe(false);
   valid();
   // what no track takes is said, and the added clips are selected
-  expect(screen.getByText(/notes\.txt cannot go into the edit/)).toBeInTheDocument();
+  // a video whose length the browser cannot read is not guessed at: it is named with them
+  expect(screen.getByText(/unread\.mp4, notes\.txt cannot go into the edit/)).toBeInTheDocument();
   expect(container.querySelectorAll('[data-clip][data-selected]')).toHaveLength(2);
   fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
   await saved(() => expect(onDisk().clips).toHaveLength(3));
