@@ -10,6 +10,7 @@ import { SAVE_DELAY } from './useCutDoc.ts';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
 vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async () => 4) }));
+vi.mock('./peaks.ts', () => ({ peaksOf: vi.fn(async () => new Uint8Array(800).fill(128)) }));
 
 const fixture = {
   version: 1, width: 1280, height: 720, fps: 25,
@@ -281,4 +282,95 @@ it('the track toggles are in the UI language', async () => {
   expect(label('Выключить звук дорожки')).toBe('М');
   expect(label('Соло: звучат только дорожки соло')).toBe('С');
   expect(label('Скрыть изображение дорожки')).toBe('Скр');
+});
+
+// the clip's sound on the timeline (issue 431): the gain line, the fade handles, the waveform
+const tall = (el: HTMLElement, h: number) => {
+  el.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: h, right: 400, bottom: h, x: 0, y: 0, toJSON() {} });
+};
+const vdrag = (el: Element, from: number, to: number, opts: Record<string, unknown> = {}) => {
+  fireEvent.pointerDown(el, { clientX: 0, clientY: from, button: 0, pointerId: 1, ...opts });
+  fireEvent.pointerMove(el, { clientX: 0, clientY: to, pointerId: 1, ...opts });
+  fireEvent.pointerUp(el, { clientX: 0, clientY: to, pointerId: 1, ...opts });
+};
+
+it('the gain line: dragged up the clip is louder, the dB shows meanwhile; Shift moves it in fine steps; an undo takes it back', async () => {
+  const { clip, container } = await show();
+  tall(clip('c3'), 40);
+  const line = container.querySelector('[data-clip="c3"] [data-gain]')!;
+  expect(line).toHaveAttribute('title', expect.stringMatching(/gain/i));
+  fireEvent.pointerDown(line, { clientX: 0, clientY: 100, button: 0, pointerId: 1 });
+  fireEvent.pointerMove(line, { clientX: 0, clientY: 96, pointerId: 1 });
+  const shown = container.querySelector('[data-clip="c3"] [data-gain-value]')!;
+  expect(shown.textContent).toMatch(/^\+\d+(\.5)? dB$/);
+  fireEvent.pointerUp(line, { clientX: 0, clientY: 96, pointerId: 1 });
+  expect(container.querySelector('[data-gain-value]')).toBeNull();
+  await saved(() => expect(clipOnDisk('c3')!.gain).toBeGreaterThan(0));
+  const coarse = clipOnDisk('c3')!.gain!;
+  expect(Number.isInteger(coarse * 2)).toBe(true);
+  valid();
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect(clipOnDisk('c3')).not.toHaveProperty('gain'));
+  vdrag(container.querySelector('[data-clip="c3"] [data-gain]')!, 100, 96, { shiftKey: true });
+  await saved(() => expect(clipOnDisk('c3')!.gain).toBeGreaterThan(0));
+  expect(clipOnDisk('c3')!.gain!).toBeLessThan(coarse);
+  // down by a lot: the line's floor
+  vdrag(container.querySelector('[data-clip="c3"] [data-gain]')!, 0, 400);
+  await saved(() => expect(clipOnDisk('c3')!.gain).toBe(-60));
+  valid();
+});
+
+it('the fade handles at the top corners: dragged inward they set the fades, which never add up past the clip', async () => {
+  const { container, pps } = await show();
+  const p = pps();
+  const handle = (edge: string) => container.querySelector(`[data-clip="c3"] [data-fade="${edge}"]`)!;
+  expect(handle('in')).toHaveAttribute('title', expect.stringMatching(/fade/i));
+  drag(handle('in'), 100, 100 + 1.5 * p);
+  await saved(() => expect(clipOnDisk('c3')!.fadeIn).toBe(1.5));
+  drag(handle('out'), 100, 100 - 2 * p);
+  await saved(() => expect(clipOnDisk('c3')!.fadeOut).toBe(2));
+  // the slopes are drawn
+  expect(container.querySelectorAll('[data-clip="c3"] [data-fade-slope]')).toHaveLength(2);
+  drag(handle('in'), 100, 100 + 50 * p); // 8 s long, 2 s of fade-out
+  await saved(() => expect(clipOnDisk('c3')!.fadeIn).toBe(6));
+  drag(handle('in'), 100, 100 - 50 * p);
+  await saved(() => expect(clipOnDisk('c3')).not.toHaveProperty('fadeIn'));
+  valid();
+  // a video clip's fades too (they fade its picture)
+  drag(container.querySelector('[data-clip="c1"] [data-fade="in"]')!, 100, 100 + p);
+  await saved(() => expect(clipOnDisk('c1')!.fadeIn).toBe(1));
+});
+
+it('a gain or fade drag that an outside change overtook is dropped: the agent\'s version stays', async () => {
+  const { clip, container, reload } = await show();
+  tall(clip('c3'), 40);
+  const line = container.querySelector('[data-clip="c3"] [data-gain]')!;
+  fireEvent.pointerDown(line, { clientX: 0, clientY: 100, button: 0, pointerId: 1 });
+  fireEvent.pointerMove(line, { clientX: 0, clientY: 90, pointerId: 1 });
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c1' ? { ...c, at: 1 } : c)) }));
+  act(() => reload());
+  await waitFor(() => expect(clip('c1').style.left).not.toBe('0px'));
+  fireEvent.pointerUp(line, { clientX: 0, clientY: 90, pointerId: 1 });
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  expect(clipOnDisk('c1')!.at).toBe(1);
+  expect(clipOnDisk('c3')).not.toHaveProperty('gain');
+});
+
+it('a clip with sound draws its waveform once in view; a photo has no gain line', async () => {
+  vi.stubGlobal('IntersectionObserver', undefined);
+  const drawn: number[] = [];
+  const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+    return { clearRect() {}, fillRect: (_x: number, _y: number, _w: number, h: number) => void drawn.push(h), set fillStyle(_v: string) {}, setTransform() {} } as unknown as CanvasRenderingContext2D;
+  } as never);
+  try {
+    write(JSON.stringify({ ...fixture, tracks: [...fixture.tracks, { id: 'v2', kind: 'video' }], clips: [...fixture.clips, { id: 'p', track: 'v2', src: 'media/logo.png', at: 0, dur: 2 }] }));
+    const { container } = await show();
+    await waitFor(() => expect(container.querySelector('[data-clip="c3"] canvas[data-wave]')).not.toBeNull());
+    expect(drawn.length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-clip="p"] [data-gain]')).toBeNull();
+    expect(container.querySelector('[data-clip="p"] canvas[data-wave]')).toBeNull();
+    expect(container.querySelector('[data-clip="p"] [data-fade="in"]')).not.toBeNull();
+  } finally {
+    getContext.mockRestore();
+  }
 });

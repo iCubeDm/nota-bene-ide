@@ -3,8 +3,14 @@
 import { isPhotoSrc } from '@nota-bene/shared/cut';
 
 export type Lane = { id: string; kind: 'video' | 'audio'; name?: string; n: number; gain?: number; mute?: boolean; solo?: boolean; hidden?: boolean };
-/** A clip as drawn: `i` its index in `clips` (issue paths name it), `from` where it starts in its source. */
-export type Block = { i: number; id: string; track: string; src: string; at: number; len: number; from: number; photo: boolean };
+/**
+ * A clip as drawn: `i` its index in `clips` (issue paths name it), `from` where it starts in its source; its sound's
+ * gain (dB) and mute and its fades (issue 431), when the file has them.
+ */
+export type Block = {
+  i: number; id: string; track: string; src: string; at: number; len: number; from: number; photo: boolean;
+  gain?: number; mute?: boolean; fadeIn?: number; fadeOut?: number;
+};
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -38,7 +44,11 @@ export function drawable(v: unknown): { lanes: Lane[]; blocks: Block[]; end: num
     const from = fin(c.in) ? c.in : 0;
     const len = photo ? c.dur : fin(c.out) ? c.out - from : NaN;
     if (!fin(len) || len <= 0) return;
-    blocks.push({ i, id: typeof c.id === 'string' ? c.id : '', track: c.track, src: c.src, at: c.at, len, from: photo ? 0 : from, photo });
+    blocks.push({
+      i, id: typeof c.id === 'string' ? c.id : '', track: c.track, src: c.src, at: c.at, len, from: photo ? 0 : from, photo,
+      ...(fin(c.gain) && { gain: c.gain }), ...(c.mute === true && { mute: true }),
+      ...(fin(c.fadeIn) && c.fadeIn > 0 && { fadeIn: c.fadeIn }), ...(fin(c.fadeOut) && c.fadeOut > 0 && { fadeOut: c.fadeOut }),
+    });
     end = Math.max(end, c.at + len);
   });
   return { lanes: order, blocks, end };
