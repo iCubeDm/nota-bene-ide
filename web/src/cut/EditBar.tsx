@@ -25,8 +25,8 @@ export function EditBar({ doc, sel, onSplit, onDuplicate, onDelete, onAddTrack, 
   const status = doc.status;
   return (
     <div data-cut-tools className="flex min-h-7 flex-none flex-wrap items-center gap-x-1 gap-y-0.5 border-b border-border-soft bg-chrome px-3 py-0.5 text-xs text-muted-foreground">
-      {b(t('cutUndo'), `${mod}Z`, '↶', doc.undo, !doc.canUndo)}
-      {b(t('cutRedo'), `${shift}${mod}Z`, '↷', doc.redo, !doc.canRedo)}
+      {b(t('cutUndo'), `${mod}Z`, <span className="text-sm leading-none">↶</span>, doc.undo, !doc.canUndo)}
+      {b(t('cutRedo'), `${shift}${mod}Z`, <span className="text-sm leading-none">↷</span>, doc.redo, !doc.canRedo)}
       <span className="mx-1 h-4 border-l border-border-soft" />
       {b(t('cutSplit'), 'S', t('cutSplitShort'), onSplit)}
       {b(t('cutDuplicate'), null, t('cutDuplicateShort'), onDuplicate, !sel)}
