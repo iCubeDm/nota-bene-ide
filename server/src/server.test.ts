@@ -30,8 +30,8 @@ afterEach(async () => {
   fs.rmSync(dist, { recursive: true, force: true });
 });
 
-async function boot(extra: { experimental3d?: boolean } = {}) {
-  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ...extra });
+async function boot(extra: { experimental3d?: boolean; ffmpeg?: () => string | null } = {}) {
+  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ffmpeg: () => null, ...extra });
   closers.push(s.close);
   return s;
 }
@@ -173,7 +173,7 @@ describe('server', () => {
     const a = await connect(s.url);
     await until(() => a.events.some((e) => e.kind === 'hello'));
     const kinds = a.events.map((e) => e.kind);
-    expect(a.events.find((e) => e.kind === 'hello')).toEqual({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...CLAUDE_CAPABILITIES, model3d: false }, tmpDirs: tmpDirNames() });
+    expect(a.events.find((e) => e.kind === 'hello')).toEqual({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...CLAUDE_CAPABILITIES, model3d: false, ffmpeg: false }, tmpDirs: tmpDirNames() });
     expect(kinds.indexOf('hello')).toBeGreaterThan(kinds.indexOf('stats'));
   });
 
@@ -285,6 +285,20 @@ describe('server', () => {
     } finally {
       if (prev === undefined) delete process.env.NOTA_BENE_BLENDER; else process.env.NOTA_BENE_BLENDER = prev;
     }
+  });
+
+  it('hello says whether ffmpeg is found (asked on every connect), and /cut/export is served', async () => {
+    let bin: string | null = null;
+    const s = await boot({ ffmpeg: () => bin });
+    const ffmpegOf = async () => {
+      const c = await connect(s.url);
+      await until(() => c.events.some((e) => e.kind === 'hello'));
+      return (c.events.find((e) => e.kind === 'hello') as { capabilities: Capabilities }).capabilities.ffmpeg;
+    };
+    expect(await ffmpegOf()).toBe(false);
+    bin = '/usr/bin/ffmpeg';
+    expect(await ffmpegOf()).toBe(true);
+    expect(await (await fetch(`${s.url}/cut/export?path=a.nbcut.json`)).json()).toEqual({ ffmpeg: true, job: null });
   });
 
   describe('experimental 3D flag', () => {

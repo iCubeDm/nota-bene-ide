@@ -230,6 +230,7 @@ final class Capabilities implements _Json {
     this.taskOutput,
     this.suggestions,
     this.deleteSession,
+    this.ffmpeg,
   });
 
   factory Capabilities.fromJson(Map<String, Object?> json) {
@@ -253,6 +254,7 @@ final class Capabilities implements _Json {
       taskOutput: json['taskOutput'] as bool?,
       suggestions: json['suggestions'] as bool?,
       deleteSession: json['deleteSession'] as bool?,
+      ffmpeg: json['ffmpeg'] as bool?,
     );
   }
 
@@ -272,6 +274,7 @@ final class Capabilities implements _Json {
   final bool? taskOutput;
   final bool? suggestions;
   final bool? deleteSession;
+  final bool? ffmpeg;
 
   @override
   Map<String, Object?> toJson() {
@@ -293,6 +296,7 @@ final class Capabilities implements _Json {
       if (taskOutput != null) 'taskOutput': taskOutput,
       if (suggestions != null) 'suggestions': suggestions,
       if (deleteSession != null) 'deleteSession': deleteSession,
+      if (ffmpeg != null) 'ffmpeg': ffmpeg,
     };
   }
 }
