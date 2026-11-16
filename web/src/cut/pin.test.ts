@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Cut } from '@nota-bene/shared/cut';
-import { followAnchor, pinAnchor, timeOf } from './pin.ts';
-import { moveClip, trimStart } from './ops.ts';
+import { cutState, followAnchor, pinAnchor, timeOf } from './pin.ts';
+import { deleteClips, duplicateClip, moveClip, splitAt, trimEnd, trimStart } from './ops.ts';
 
 const base = (): Cut => ({
   version: 1, width: 1280, height: 720, fps: 25,
@@ -63,5 +63,47 @@ describe('followAnchor: the comment keeps to its clip by id (issue 430)', () => 
     expect(timeOf(pinned, moveClip(base(), 'c1', 10))).toBe(13);
     expect(timeOf({ kind: 'cut', source, time: 7 }, base())).toBe(7);
     expect(timeOf(pinned, { ...base(), clips: [] })).toBeUndefined();
+  });
+});
+
+describe('a split, or another clip of the same source on the track, takes the comment where its moment is (issue 430)', () => {
+  const late = pinAnchor(base(), source, 5.5, 'c4'); // voice, 5 s into the source
+  it('split before the moment: the right part (a new id) takes it, at the same place', () => {
+    const r = splitAt(base(), 3, ['c4']);
+    const right = r.ids[0]!;
+    const a = followAnchor(late, r.cut)!;
+    expect(a).toEqual({ ...late, clip: { ...late.clip!, id: right } });
+    expect(timeOf(late, r.cut)).toBe(5.5);
+    expect(followAnchor(a, r.cut)).toBeNull();
+  });
+  it('split after the moment: it stays on the left part', () => {
+    expect(followAnchor(late, splitAt(base(), 6, ['c4']).cut)).toBeNull();
+  });
+  it('the split undone: the whole clip takes it back from the right part\'s gone id', () => {
+    const r = splitAt(base(), 3, ['c4']);
+    const onRight = followAnchor(late, r.cut)!;
+    expect(followAnchor(onRight, base())).toEqual(late);
+  });
+  it('a clip of the same source on another track, or of another source, does not take it', () => {
+    const cut = base();
+    const other = { ...cut, clips: [...cut.clips.filter((c) => c.id !== 'c4'), { id: 'x', track: 'a1', src: 'media/other.wav', at: 0.5, out: 6 }] };
+    expect(followAnchor(late, other)).toBeNull();
+    expect(timeOf(late, other)).toBeUndefined();
+  });
+});
+
+describe('cutState: whether the comment\'s moment is still in its clip (issue 430)', () => {
+  const late = pinAnchor(base(), source, 5.5, 'c4');
+  it('ok, trimmed out (the time clamps, the moment in the source stays), gone', () => {
+    expect(cutState(late, base())).toBe('ok');
+    const trimmed = trimEnd(base(), 'c4', 3);
+    expect(cutState(late, trimmed)).toBe('trimmed');
+    expect(followAnchor(late, trimmed)).toEqual({ ...late, time: 3 });
+    expect(cutState(late, deleteClips(base(), ['c4']))).toBe('gone');
+    expect(cutState({ kind: 'cut', source, time: 1 }, base())).toBe('ok');
+  });
+  it('a duplicate elsewhere does not steal a comment whose clip is still there', () => {
+    const d = duplicateClip(base(), 'c4');
+    expect(followAnchor(late, d.cut)).toBeNull();
   });
 });
