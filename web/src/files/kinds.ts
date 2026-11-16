@@ -1,11 +1,8 @@
 import { useSyncExternalStore } from 'react';
-import { IMAGE } from '@nota-bene/shared/cut';
+import { AUDIO, IMAGE, VIDEO } from '@nota-bene/shared/cut';
 import { serverSep } from '@/lib/paths.ts';
 
-// copied from the prototype
-export const VIDEO = /\.(mp4|mov|webm|m4v)$/i;
-export const AUDIO = /\.(mp3|wav|m4a|ogg)$/i;
-export { IMAGE }; // shared: an edit's photo clips are these files
+export { AUDIO, IMAGE, VIDEO }; // shared: an edit's sources are these files
 export const MODEL = /\.(glb|gltf|blend)$/i;
 export const BLEND = /\.blend$/i;
 export const MD = /\.(md|markdown)$/i;
@@ -73,8 +70,12 @@ export function fileUrl(p: string, baseDir?: string, src?: string): string {
     // keep raw
   }
   if (baseDir && !path.startsWith('/')) path = resolveIn(baseDir, path) ?? `${baseDir}/${path}`;
-  return `/file?path=${encodeURIComponent(path)}${src && src !== 'here' ? `&src=${encodeURIComponent(src)}` : ''}`;
+  return projectFileUrl(path, src);
 }
+
+/** URL of a project-relative path taken as it is, not as a link: `a%20b.mp4` is that file's name (an edit's sources). */
+export const projectFileUrl = (path: string, src?: string): string =>
+  `/file?path=${encodeURIComponent(path)}${src && src !== 'here' ? `&src=${encodeURIComponent(src)}` : ''}`;
 
 /** A project-relative path in agent text: never absolute (`/a`; on a Windows server also `C:\a`, `C:/a` or `\\host\share`),
  *  a URL or `~`. */

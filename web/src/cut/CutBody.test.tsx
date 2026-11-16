@@ -1,9 +1,12 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/store/store.ts';
 import { CutBody } from './CutBody.tsx';
+
+// a thumbnail is a frame grabbed once into an image (thumbs.test.ts); here, a name for what was asked
+vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async (url: string, at: number) => `blob:${url}@${at}`) }));
 
 // a main video with a photo over it, a voice and a music track
 const fixture = {
@@ -25,8 +28,27 @@ const fixture = {
 
 let missing: string[];
 let heads: string[];
+// jsdom lays nothing out: the timeline's scroller gets a width, and IntersectionObserver is played by the test
+let viewW: number;
+let observers: { cb: IntersectionObserverCallback; els: Element[] }[];
+const seeAll = () => act(() => {
+  for (const o of observers) o.cb(o.els.map((target) => ({ target, isIntersecting: true }) as IntersectionObserverEntry), {} as IntersectionObserver);
+});
 beforeEach(() => {
   setLang('en');
+  viewW = 0;
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+    configurable: true, get(this: HTMLElement) { return this.hasAttribute('data-timeline-scroll') ? viewW : 0; },
+  });
+  observers = [];
+  vi.stubGlobal('IntersectionObserver', class {
+    o: { cb: IntersectionObserverCallback; els: Element[] };
+    constructor(cb: IntersectionObserverCallback) { this.o = { cb, els: [] }; observers.push(this.o); }
+    observe(el: Element) { this.o.els.push(el); }
+    disconnect() { this.o.els = []; }
+    unobserve() {}
+    takeRecords() { return []; }
+  });
   missing = [];
   heads = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -36,11 +58,11 @@ beforeEach(() => {
     return new Response(null, { status: missing.includes(path) ? 404 : 200 });
   }));
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth; });
 
-function show(text: string, path?: string) {
+function show(text: string, { path, active = true }: { path?: string; active?: boolean } = {}) {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
-  return render(<Provider store={store}><CutBody text={text} src="here" path={path} tabId="file:e.nbcut.json" active /></Provider>);
+  return render(<Provider store={store}><CutBody text={text} src="here" path={path} tabId="file:e.nbcut.json" active={active} /></Provider>);
 }
 const lanes = (c: HTMLElement) => [...c.querySelectorAll('[data-lane]')].map((l) => l.getAttribute('data-lane'));
 
@@ -62,10 +84,13 @@ it('draws the tracks top-down, their state, and the clips by time with names and
   const pps = Number(container.querySelector('[data-timeline]')!.getAttribute('data-pps'));
   expect(clip('c2').style.left).toBe(`${5 * pps}px`);
   expect(clip('c2').style.width).toBe(`${4 * pps}px`);
-  // thumbnails: the photo itself, a video's first used frame; none for sound
+  // thumbnails once in sight: the photo itself, a video's first used frame as an image; none for sound
+  expect(container.querySelector('img')).toBeNull();
+  seeAll();
   expect(clip('c3').querySelector('img')?.getAttribute('src')).toBe('/file?path=media%2Flogo.png');
-  expect(clip('c1').querySelector('video')?.getAttribute('src')).toBe('/file?path=media%2Fintro.mp4#t=2');
-  expect(clip('c4').querySelector('img, video')).toBeNull();
+  await waitFor(() => expect(clip('c1').querySelector('img')?.getAttribute('src')).toBe('blob:/file?path=media%2Fintro.mp4@2'));
+  expect(clip('c4').querySelector('img')).toBeNull();
+  expect(container.querySelector('video')).toBeNull();
   await waitFor(() => expect(heads).toHaveLength(5)); // each source checked once
   expect(screen.queryByText(/problem/)).toBeNull();
 });
@@ -113,6 +138,75 @@ it('lists problems readably and still draws what it can; a missing source is one
   expect(container.querySelector('[data-clip="c4"]')).toBeNull();
 });
 
+it('loads no thumbnail while the tab is not shown', () => {
+  const { container } = show(JSON.stringify(fixture), { active: false });
+  seeAll();
+  expect(container.querySelector('img, video')).toBeNull();
+});
+
+const hour = () => ({ ...structuredClone(fixture), clips: [{ id: 'c1', track: 'v1', src: 'media/talk.mp4', at: 0, out: 3600 }] });
+const inner = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-timeline-scroll] > div')!;
+const scroller = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-timeline-scroll]')!;
+const ppsOf = (c: HTMLElement) => Number(c.querySelector('[data-timeline]')!.getAttribute('data-pps'));
+
+it('fit shows the whole edit without a horizontal scrollbar', () => {
+  viewW = 1000;
+  const { container } = show(JSON.stringify(fixture));
+  expect(parseFloat(inner(container).style.width)).toBeLessThanOrEqual(1000);
+  fireEvent.click(screen.getByRole('button', { name: /^Zoom in/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Fit the whole edit' }));
+  expect(parseFloat(inner(container).style.width)).toBeLessThanOrEqual(1000);
+});
+
+it('a very short clip is still drawn 2 px wide', () => {
+  const c = structuredClone(fixture);
+  c.clips[3] = { id: 'c4', track: 'a1', src: 'media/voice.wav', at: 0.5, out: 0.001 };
+  const { container } = show(JSON.stringify(c));
+  expect(container.querySelector<HTMLElement>('[data-clip="c4"]')!.style.width).toBe('2px');
+});
+
+it('an hour-long edit at the closest zoom: a bounded width, and only the ruler ticks in sight', () => {
+  viewW = 1000;
+  const { container } = show(JSON.stringify(hour()));
+  for (let i = 0; i < 40; i++) fireEvent.wheel(scroller(container), { deltaY: -1000, ctrlKey: true, clientX: 500 });
+  expect(parseFloat(inner(container).style.width)).toBeLessThanOrEqual(2_000_000 + 144);
+  const ticks = () => [...container.querySelectorAll<HTMLElement>('[data-ruler] > [data-tick]')].map((e) => parseFloat(e.style.left));
+  expect(ticks().length).toBeGreaterThan(5);
+  expect(ticks().length).toBeLessThan(100);
+  scroller(container).scrollLeft = 1_000_000;
+  fireEvent.scroll(scroller(container));
+  expect(ticks().length).toBeLessThan(100);
+  expect(ticks().some((x) => x >= 1_000_000 && x <= 1_001_000)).toBe(true);
+  expect(ticks().every((x) => x >= 1_000_000 - 2000 && x <= 1_001_000 + 2000)).toBe(true);
+});
+
+it('the zoom buttons keep the middle of the view in place, also after Ctrl+wheel at the limit', () => {
+  viewW = 1000;
+  const { container } = show(JSON.stringify(hour()));
+  const el = scroller(container);
+  const half = (1000 - 144) / 2;
+  const middle = () => (el.scrollLeft + half) / ppsOf(container);
+  for (let i = 0; i < 40; i++) fireEvent.wheel(el, { deltaY: -1000, ctrlKey: true, clientX: 500 });
+  el.scrollLeft = 77_777;
+  fireEvent.wheel(el, { deltaY: -1000, ctrlKey: true, clientX: 900 }); // at the limit: nothing changes
+  expect(el.scrollLeft).toBe(77_777);
+  const m = middle();
+  fireEvent.click(screen.getByRole('button', { name: /^Zoom out/ }));
+  expect(middle()).toBeCloseTo(m, 3);
+  fireEvent.click(screen.getByRole('button', { name: /^Zoom in/ }));
+  expect(middle()).toBeCloseTo(m, 3);
+});
+
+it('a source named with a literal %20 is looked up by that name, not decoded', async () => {
+  const c = structuredClone(fixture);
+  c.clips[3]!.src = 'media/50%20off.wav';
+  missing = ['media/50 off.wav']; // the decoded name is not the file
+  show(JSON.stringify(c));
+  await waitFor(() => expect(heads).toHaveLength(5));
+  expect(heads).toContain('/file?path=media%2F50%2520off.wav');
+  expect(screen.queryByText(/not in the project/)).toBeNull();
+});
+
 it('a file that is not JSON says so, no crash', () => {
   show('{ "version": 1, ');
   expect(screen.getByText(/The edit is not valid JSON/)).toBeInTheDocument();
@@ -125,7 +219,7 @@ it('an empty edit says it has no clips', () => {
 });
 
 it('a valid edit of the project has the Export control in the timeline toolbar', async () => {
-  const { container } = show(JSON.stringify(fixture), 'cuts/demo.nbcut.json');
+  const { container } = show(JSON.stringify(fixture), { path: 'cuts/demo.nbcut.json' });
   const button = screen.getByRole('button', { name: 'Export' });
   expect(container.querySelector('[data-timeline] [data-cut-export]')).not.toBeNull();
   await waitFor(() => expect(button).toBeEnabled());
@@ -135,7 +229,7 @@ it('a valid edit of the project has the Export control in the timeline toolbar',
 it('an edit with problems shows Export disabled, saying why', async () => {
   const bad = structuredClone(fixture) as typeof fixture & { clips: Record<string, unknown>[] };
   bad.clips[1]!.at = 4; // over c1
-  show(JSON.stringify(bad), 'cuts/demo.nbcut.json');
+  show(JSON.stringify(bad), { path: 'cuts/demo.nbcut.json' });
   await screen.findByText('1 problem in the edit');
   const button = screen.getByRole('button', { name: 'Export' });
   expect(button).toBeDisabled();

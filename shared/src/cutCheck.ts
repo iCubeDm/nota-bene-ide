@@ -5,6 +5,11 @@ import { isAbsPath } from './paths.ts';
 
 /** Image files; a clip whose source is one is a photo. web/src/files/kinds.ts reuses it for the file view. */
 export const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
+/** The photos an edit takes: the images the export reads as a still (not gif or svg). */
+export const PHOTO = /\.(png|jpe?g|webp|avif|bmp)$/i;
+/** Video and sound files: an edit's other sources, and the file view's players (web/src/files/kinds.ts). */
+export const VIDEO = /\.(mp4|mov|webm|m4v)$/i;
+export const AUDIO = /\.(mp3|wav|m4a|ogg)$/i;
 
 /** An edit's file: `<name>.nbcut.json`, a name before the ending. */
 export const isCutPath = (p: string): boolean => p.length > CUT_EXT.length && p.toLowerCase().endsWith(CUT_EXT) && !p.endsWith(`/${CUT_EXT}`);
@@ -20,10 +25,11 @@ export const cutDuration = (cut: Cut): number => cut.clips.reduce((m, c) => Math
 /**
  * What is wrong in an edit: `path` names the field (`clips[2].out`), `clip`/`track` the id it belongs to. Codes:
  * `type` (missing or of the wrong type), `version`, `number` (not a finite number), `negative`, `positive` (must be
- * above 0), `out-before-in`, `kind` (a track is not video or audio), `duplicate` (an id used twice), `unknown-track`,
+ * above 0), `frame-size` (width or height not a whole number from 16 to 8192), `fps` (not from 1 to 120), `out-before-in`, `kind` (a track is not video or audio), `duplicate` (an id used twice), `unknown-track`,
  * `photo-in-out`, `photo-no-dur`, `media-no-out`, `media-dur`, `photo-audio` (a photo on an audio track), `fade` (the
  * fades are longer than the clip), `place` (outside 0..1, or no size), `opacity` (outside 0..1), `place-audio` (a
- * place on an audio track), `src` (not a project-relative path), `overlap` (with the clip before it on its track).
+ * place on an audio track), `src` (not a project-relative path), `src-kind` (not a video, sound or photo file by its
+ * extension), `photo-kind` (an image the export cannot read as a still: gif, svg), `audio-video` (a sound file on a video track), `overlap` (with the clip before it on its track).
  */
 export type CutIssue = { path: string; code: string; clip?: string; track?: string };
 
@@ -58,9 +64,12 @@ export function validateCut(v: unknown): CutCheck {
   };
 
   if (v.version !== 1) fail('version', 'version');
-  num(v, '', 'width', 'positive');
-  num(v, '', 'height', 'positive');
-  num(v, '', 'fps', 'positive');
+  for (const k of ['width', 'height']) {
+    const x = num(v, '', k, 'any');
+    if (x !== undefined && (!Number.isInteger(x) || x < 16 || x > 8192)) fail(k, 'frame-size');
+  }
+  const fps = num(v, '', 'fps', 'any');
+  if (fps !== undefined && (fps < 1 || fps > 120)) fail('fps', 'fps');
 
   const kinds = new Map<string, unknown>(); // track id -> its kind ('video', 'audio', or whatever wrong value it has)
   if (!Array.isArray(v.tracks)) fail('tracks', 'type');
@@ -101,7 +110,11 @@ export function validateCut(v: unknown): CutCheck {
     const src = typeof c.src === 'string' ? c.src : undefined;
     if (src === undefined || !src || isAbsPath(src) || src.includes('\\') || src.split('/').includes('..')) fail(`${at}.src`, 'src');
     const photo = src !== undefined && isPhotoSrc(src);
+    const sound = src !== undefined && AUDIO.test(src);
+    if (src && !photo && !sound && !VIDEO.test(src)) fail(`${at}.src`, 'src-kind');
+    if (photo && !PHOTO.test(src)) fail(`${at}.src`, 'photo-kind');
     if (photo && kind === 'audio') fail(`${at}.track`, 'photo-audio');
+    if (sound && kind === 'video') fail(`${at}.track`, 'audio-video');
     const start = num(c, at, 'at', 'min0');
     let len: number | undefined;
     if (photo) {

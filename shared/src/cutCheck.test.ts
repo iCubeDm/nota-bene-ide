@@ -57,8 +57,16 @@ describe('validateCut', () => {
 
   it('refuses a bad frame', () => {
     expect(codes(edit((c) => { c.width = 0; c.height = Number.NaN; c.fps = -1; }))).toEqual([
-      'width positive', 'height number', 'fps positive',
+      'width frame-size', 'height number', 'fps fps',
     ]);
+  });
+
+  it('a frame is whole pixels from 16 to 8192, at 1 to 120 fps', () => {
+    expect(codes(edit((c) => { c.width = 0.3; c.height = 8193; c.fps = 121; }))).toEqual(['width frame-size', 'height frame-size', 'fps fps']);
+    expect(codes(edit((c) => { c.width = 15; c.height = 1080.5; c.fps = 0.5; }))).toEqual(['width frame-size', 'height frame-size', 'fps fps']);
+    expect(validateCut(edit((c) => { c.width = 16; c.height = 8192; c.fps = 29.97; })).ok).toBe(true);
+    expect(validateCut(edit((c) => { c.fps = 120; })).ok).toBe(true);
+    expect(validateCut(edit((c) => { c.fps = 1; })).ok).toBe(true);
   });
 
   it('refuses tracks and clips that are not lists', () => {
@@ -159,6 +167,21 @@ describe('validateCut', () => {
       clip(c, 'c2').src = '../outside.mov';
       clip(c, 'c4').src = '';
     }))).toEqual(['clips[0].src src', 'clips[1].src src', 'clips[3].src src']);
+  });
+
+  it('refuses a source that is not video, audio or a photo, and a sound file on a video track', () => {
+    expect(issues(edit((c) => { clip(c, 'c1').src = 'media/notes.txt'; clip(c, 'c2').src = 'media/voice.wav'; }))).toEqual([
+      { path: 'clips[0].src', code: 'src-kind', clip: 'c1' },
+      { path: 'clips[1].track', code: 'audio-video', clip: 'c2' },
+    ]);
+    // a video file on an audio track gives its sound: fine; the extension in any case
+    expect(validateCut(edit((c) => { clip(c, 'c4').src = 'media/talk.MP4'; clip(c, 'c1').src = 'media/intro.WebM'; })).ok).toBe(true);
+  });
+
+  it('refuses a gif or svg photo: the export cannot read it as a still; webp, avif and bmp are fine', () => {
+    expect(issues(edit((c) => { clip(c, 'c3').src = 'media/logo.gif'; }))).toEqual([{ path: 'clips[2].src', code: 'photo-kind', clip: 'c3' }]);
+    expect(codes(edit((c) => { clip(c, 'c3').src = 'media/logo.SVG'; }))).toEqual(['clips[2].src photo-kind']);
+    for (const ext of ['webp', 'avif', 'bmp', 'jpeg', 'JPG']) expect(validateCut(edit((c) => { clip(c, 'c3').src = `media/logo.${ext}`; })).ok).toBe(true);
   });
 
   it('refuses a clip without an id, and a non-boolean flag', () => {
