@@ -277,3 +277,91 @@ it('the add-track buttons sit in the track column: "+ Video" after the video tra
   await waitFor(() => expect([...container.querySelectorAll('[data-lane], [data-track-add]')].map((e) => e.getAttribute('data-lane') ?? `+${e.getAttribute('data-track-add')}`))
     .toEqual(['v2', 'v1', '+video', 'a1', 'a2', '+audio']));
 });
+
+// review follow-ups (issue 432)
+it('a rectangle keeps its start in the timeline when the view scrolls under it', async () => {
+  const { pps, container } = await show();
+  const p = pps();
+  stack(container);
+  const ruler = container.querySelector<HTMLElement>('[data-ruler]')!;
+  const at = (left: number) => { ruler.getBoundingClientRect = () => ({ left, top: 0, width: 1000, height: 24, right: left + 1000, bottom: 24, x: left, y: 0, toJSON() {} }); };
+  at(0);
+  const body = container.querySelector('[data-lane-body="v1"]')!;
+  fireEvent.pointerDown(body, { clientX: 4.5 * p, clientY: 10, button: 0, pointerId: 2 });
+  fireEvent.pointerMove(body, { clientX: 5.5 * p, clientY: 80, pointerId: 2 });
+  expect(selected(container)).toEqual(['c3']);
+  // the view scrolls 2 s to the right with the pointer still: it is over 7.5 s now, the start stays at 4.5 s
+  at(-2 * p);
+  fireEvent.scroll(container.querySelector('[data-timeline-scroll]')!);
+  expect(selected(container)).toEqual(['c2', 'c3']);
+  fireEvent.pointerUp(body, { clientX: 5.5 * p, clientY: 80, pointerId: 2 });
+  expect(container.querySelector('[data-marquee]')).toBeNull();
+});
+
+it('a Shift- or Cmd-press on a trim edge or a fade handle adds or removes the clip, and trims nothing', async () => {
+  const { clip, container, pps } = await show();
+  press(clip('c1'), 10);
+  const part = (id: string, sel: string) => container.querySelector(`[data-clip="${id}"] ${sel}`)!;
+  drag(part('c3', '[data-trim="end"]'), 100, 100 - pps(), { shiftKey: true, altKey: true });
+  expect(selected(container)).toEqual(['c1', 'c3']);
+  press(part('c3', '[data-fade="in"]'), 10, { metaKey: true });
+  expect(selected(container)).toEqual(['c1']);
+  press(part('c2', '[data-trim="start"]'), 10, { ctrlKey: true });
+  expect(selected(container)).toEqual(['c1', 'c2']);
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  expect(onDisk()).toEqual(fixture); // nothing trimmed
+});
+
+it('ids gone from the edit leave the selection: after an undo and after an outside reload', async () => {
+  const { clip, container, reload } = await show();
+  press(clip('c2'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  fireEvent.click(screen.getByRole('button', { name: /^Duplicate/ }));
+  await saved(() => expect(onDisk().clips).toHaveLength(5));
+  const copies = selected(container);
+  expect(copies).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect(onDisk().clips).toHaveLength(3));
+  // redo brings the same ids back: they are no longer selected
+  fireEvent.click(screen.getByRole('button', { name: /^Redo/ }));
+  await saved(() => expect(onDisk().clips).toHaveLength(5));
+  expect(selected(container)).toEqual([]);
+  // an outside version without c2, then with it again
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  press(clip('c1'), 10);
+  press(clip('c2'), 10, { shiftKey: true });
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.filter((c) => c.id !== 'c2') }));
+  act(() => reload());
+  await waitFor(() => expect(container.querySelector('[data-clip="c2"]')).toBeNull());
+  write(JSON.stringify(fixture));
+  act(() => reload());
+  await waitFor(() => expect(container.querySelector('[data-clip="c2"]')).not.toBeNull());
+  expect(selected(container)).toEqual(['c1']);
+});
+
+it('V, C and Delete typed into a field of the clip panel stay in the field', async () => {
+  const { clip, container } = await show();
+  press(clip('c1'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  const gain = screen.getByRole('spinbutton', { name: 'Gain, dB' });
+  gain.focus();
+  for (const code of ['KeyC', 'KeyV', 'Delete', 'Backspace']) fireEvent.keyDown(gain, { code, key: code });
+  expect(screen.getByRole('button', { name: /^Select/ })).toHaveAttribute('aria-pressed', 'true');
+  expect(selected(container)).toEqual(['c1', 'c3']);
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  expect(onDisk().clips).toHaveLength(3);
+});
+
+it('mute on several clips: indeterminate while they differ, then on for all', async () => {
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c1' ? { ...c, mute: true } : c)) }));
+  const { clip } = await show();
+  press(clip('c1'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  const mute = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Mute its sound' });
+  expect(mute.indeterminate).toBe(true);
+  expect(mute.checked).toBe(false);
+  fireEvent.click(mute);
+  await saved(() => expect([clipOnDisk('c1')!.mute, clipOnDisk('c3')!.mute]).toEqual([true, true]));
+  await waitFor(() => expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Mute its sound' }).indeterminate).toBe(false));
+  expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Mute its sound' }).checked).toBe(true);
+});

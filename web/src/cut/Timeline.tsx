@@ -197,25 +197,40 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     const ed = editing;
     const keep = e.shiftKey ? [...ed.sel] : [];
     if (!e.shiftKey) ed.select([]);
-    const x0 = e.clientX, y0 = e.clientY;
+    // the rectangle in the timeline's own coordinates (px from the lanes' left, from the content's top), so a scroll
+    // mid-drag never moves its start; recomputed on a pointer move and on a scroll
+    const at = (x: number, y: number) => ({
+      x: x - (ruler.current?.getBoundingClientRect().left ?? 0), y: y - (inner.current?.getBoundingClientRect().top ?? 0),
+    });
+    const p0 = at(e.clientX, e.clientY);
+    let last = { x: e.clientX, y: e.clientY };
     let on = false;
-    const move = (m: globalThis.PointerEvent) => {
-      if (!on && Math.max(Math.abs(m.clientX - x0), Math.abs(m.clientY - y0)) < DRAG_PX) return;
+    const update = () => {
+      const p1 = at(last.x, last.y);
+      if (!on && Math.max(Math.abs(p1.x - p0.x), Math.abs(p1.y - p0.y)) < DRAG_PX) return;
       on = true;
-      const [xa, xb] = [Math.min(x0, m.clientX), Math.max(x0, m.clientX)];
-      const [ya, yb] = [Math.min(y0, m.clientY), Math.max(y0, m.clientY)];
-      const r = inner.current?.getBoundingClientRect();
-      setBox({ left: xa - (r?.left ?? 0), top: ya - (r?.top ?? 0), width: xb - xa, height: yb - ya });
+      const [xa, xb] = [Math.min(p0.x, p1.x), Math.max(p0.x, p1.x)];
+      const [ya, yb] = [Math.min(p0.y, p1.y), Math.max(p0.y, p1.y)];
+      setBox({ left: HEAD + xa, top: ya, width: xb - xa, height: yb - ya });
+      const top = inner.current?.getBoundingClientRect().top ?? 0;
       const hit = new Set<string>();
       for (const el of scroller.current?.querySelectorAll<HTMLElement>('[data-lane-body]') ?? []) {
         const lr = el.getBoundingClientRect();
-        if (lr.height > 0 && lr.top < yb && lr.bottom > ya && el.dataset.laneBody) hit.add(el.dataset.laneBody);
+        if (lr.height > 0 && lr.top - top < yb && lr.bottom - top > ya && el.dataset.laneBody) hit.add(el.dataset.laneBody);
       }
-      const t0 = timeAt(xa), t1 = timeAt(xb);
+      const p = ppsRef.current;
+      const t0 = Math.max(0, xa / p), t1 = Math.max(0, xb / p);
       const got = blocksRef.current.filter((b) => hit.has(b.track) && b.at <= t1 && b.at + b.len >= t0).map((b) => b.id);
       ed.select([...keep, ...got.filter((id) => !keep.includes(id))]);
     };
+    const move = (m: globalThis.PointerEvent) => {
+      last = { x: m.clientX, y: m.clientY };
+      update();
+    };
+    const sc = scroller.current;
+    sc?.addEventListener('scroll', update);
     const up = () => {
+      sc?.removeEventListener('scroll', update);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
@@ -498,7 +513,7 @@ type Pointer = { clientX: number; clientY: number; altKey: boolean; shiftKey: bo
  * the clip instead) and a fade's handle its fade. The
  * moves are the window's: a clip that changes lanes is a new element, and the drag must go on. An edit that changed
  * under the drag (a reload of the agent's version) ends it: a change built on the older edit is never committed.
- * Issue 432: Shift- or ⌘/Ctrl-press on a clip's body adds it to the selection or takes it out; a clip of a selection of
+ * Issue 432: Shift- or ⌘/Ctrl-press on a clip's body, edge or fade handle (on its gain line: a click, no drag) adds it to the selection or takes it out; a clip of a selection of
  * several moves them all (moveClips: refused, shown back where they were, while any would overlap), a click on it alone
  * selects it alone; its edges, gain line and fade handles act on it alone, the selection kept. With the blade a press
  * cuts the clip there (`bladeAt`, Shift: every track).
@@ -533,7 +548,8 @@ function useClipDrag(
         if (ed0.tool === 'blade') return ed0.blade(bladeAt(e.clientX, e.altKey, [id]), id, e.shiftKey);
         const mod = e.shiftKey || e.metaKey || e.ctrlKey;
         const toggle = (cur: Editing) => cur.select(cur.sel.includes(id) ? cur.sel.filter((x) => x !== id) : [...cur.sel, id]);
-        if (grip0 === 'move' && mod) return toggle(ed0);
+        // a modifier on the body, an edge or a fade handle adds or takes out the clip (the gain line decides on release)
+        if (grip0 !== 'gain' && mod) return toggle(ed0);
         const c = ed0.cut.clips.find((x) => x.id === id);
         if (!c) return;
         const base = ed0.cut;
