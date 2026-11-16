@@ -135,6 +135,7 @@ it.each(Object.entries({ ru, 'zh-CN': zhCN, es, 'pt-BR': ptBR, de }))('%s words 
   const codes = [...String(en.cutIssue).matchAll(/"([a-z-]+)":/g)].map((m) => m[1]!);
   expect(codes).toContain('src-kind');
   expect(codes).toContain('audio-video');
+  for (const c of ['frame-size', 'fps', 'photo-kind']) expect(codes).toContain(c);
   const issue = (dict as typeof en).cutIssue;
   expect(codes.filter((c) => issue(c) === c)).toEqual([]);
 });

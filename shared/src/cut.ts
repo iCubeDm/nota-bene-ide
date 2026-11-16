@@ -4,7 +4,7 @@
  */
 export type Cut = {
   version: 1;
-  /** the output frame */
+  /** the output frame: whole pixels from 16 to 8192, 1 to 120 frames a second */
   width: number;
   height: number;
   fps: number;
@@ -46,7 +46,7 @@ export type CutClip = {
   id: string;
   /** a track id */
   track: string;
-  /** a project-relative path, `/` separated; a video (VIDEO), sound (AUDIO) or photo (IMAGE) file by its extension */
+  /** a project-relative path, `/` separated; a video (VIDEO), sound (AUDIO) or photo (PHOTO; IMAGE is drawn as one) file by its extension */
   src: string;
   /** where the clip starts on the timeline */
   at: number;
@@ -69,4 +69,4 @@ export type CutClip = {
 /** The edit's file name ending. */
 export const CUT_EXT = '.nbcut.json';
 
-export { AUDIO, clipLength, cutDuration, IMAGE, isCutPath, isPhotoSrc, validateCut, VIDEO, type CutCheck, type CutIssue } from './cutCheck.ts';
+export { AUDIO, clipLength, cutDuration, IMAGE, isCutPath, isPhotoSrc, PHOTO, validateCut, VIDEO, type CutCheck, type CutIssue } from './cutCheck.ts';
