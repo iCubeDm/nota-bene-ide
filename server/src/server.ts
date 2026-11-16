@@ -44,6 +44,8 @@ import type { PairOutcome, RemoteKeeper } from './remote/keeper.ts';
 import { remoteRoutes } from './remote/routes.ts';
 import { voiceRoutes } from './voice/routes.ts';
 import { whisperPhase } from './dictation/install.ts';
+import { CutExporter } from './cut/exporter.ts';
+import { cutRoutes } from './cut/routes.ts';
 import { usageRoutes } from './usage/routes.ts';
 import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, keyCredential, loginCredential, newNonce, proofFor, sameSecret, sessionCookie } from './auth.ts';
 
@@ -80,6 +82,8 @@ export async function startServer(o: {
   webDist: string;
   /** the experimental 3D model viewer (/model, Blender); default: env NOTA_BENE_EXPERIMENTAL_3D=1 */
   experimental3d?: boolean;
+  /** the ffmpeg binary of the video editor's export, looked up at each use (tests stub it); default: findFfmpeg */
+  ffmpeg?: () => string | null;
   allowedOrigins?: string[];
   /** idle compaction timing and the settings.json check (tests shorten / stub them) */
   idle?: IdleConfig;
@@ -213,6 +217,8 @@ export async function startServer(o: {
     const model3d = o.experimental3d ?? process.env.NOTA_BENE_EXPERIMENTAL_3D === '1';
     const blend = model3d ? new BlendConverter({ stateDir }) : undefined;
     const marks = new MarkFiles({ root, stateDir });
+    // the video editor's export (epic 406): ffmpeg is looked up again at each connect and start, so one installed later is found
+    const cutExporter = new CutExporter({ root, ...(o.ffmpeg ? { ffmpeg: o.ffmpeg } : {}) });
     // a deleted session: Nota Bene's own data of it goes too, each part on its own (a failure is reported, the rest still goes)
     const forgetDeleted = (id: string) => {
       const parts: [string, () => void][] = [
@@ -361,6 +367,7 @@ export async function startServer(o: {
         },
         ...usageRoutes({ hub }),
         ...dictationRoutes({ hub }),
+        ...cutRoutes({ hub, exporter: cutExporter }),
         ...remoteRoutes({ hub, keeper: o.remote }),
         ...projectRoutes({ hub, port: () => ownPort, provider: parseProvider(process.env.NOTA_BENE_AGENT), repoDir }),
         ...systemRoutes({
@@ -426,7 +433,7 @@ export async function startServer(o: {
     const sendHello = (ws: WebSocket) => {
       try {
         const { lang, uiScale, theme, whisper, dictationLang } = readPrefs(); // the user's UI language, scale and theme, shared by every window; absent until chosen
-        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d, ...(whisper === true && whisperPhase() === 'ready' ? { dictation: 'whisper' as const } : {}) }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), ...(dictationLang ? { dictationLang } : {}), tmpDirs: tmpDirNames() }));
+        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d, ffmpeg: cutExporter.available(), ...(whisper === true && whisperPhase() === 'ready' ? { dictation: 'whisper' as const } : {}) }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), ...(dictationLang ? { dictationLang } : {}), tmpDirs: tmpDirNames() }));
       } catch (e) {
         reportError(hub, 'hello', e);
       }
@@ -807,6 +814,7 @@ export async function startServer(o: {
       }
       const backendClose = o.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
       blend?.dispose();
+      cutExporter.dispose();
       for (const c of wss.clients) c.terminate();
       wss.close(() => {
         server.close(() => { void Promise.resolve(backendClose).then(() => resolve()); });

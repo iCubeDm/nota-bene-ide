@@ -214,6 +214,16 @@ The types are `Cut` in `shared/src/cut.ts`, and `validateCut` there is the check
 
 </details>
 
+### Exporting an edit
+
+An edit (`*.nbcut.json`) is exported by Export: pick video (MP4: H.264 and AAC at the edit's size and frame rate) or the sound mix alone (WAV or M4A). The file goes into the project as `exports/<name>.mp4` (`.wav`, `.m4a`), where `<name>` is the edit's file name without `.nbcut.json`; an earlier export of the same name is replaced only once the new one has finished. Progress shows while it runs, Cancel stops it, a failure shows ffmpeg's last lines, and the result is a link that opens the file in a tab. One export of an edit runs at a time. Every source of the edit and the output must be inside the project. Export sits at the right of the timeline's toolbar, for an edit of the session's project (not of another worktree or a revision); it is disabled while the edit has problems listed above the timeline, and the server refuses such an edit too (`validateCut`, the same check).
+
+<details><summary>More: ffmpeg</summary>
+
+Export needs ffmpeg on the machine: the path in `NOTA_BENE_FFMPEG`, else `ffmpeg` on `PATH`, else the usual places (Homebrew's `/opt/homebrew/bin` and `/usr/local/bin`, `/usr/bin`, `/snap/bin`; on Windows winget's, Scoop's and Chocolatey's folders, `Program Files\ffmpeg\bin` and `C:\ffmpeg\bin`). Without it the editor still works and Export says how to install it (`brew install ffmpeg`, `winget install ffmpeg`, `sudo apt install ffmpeg`); an ffmpeg installed later is found without a restart.
+
+</details>
+
 ## 3D models (experimental)
 
 `.glb`, `.gltf` and `.blend` open in a 3D viewer: orbit, zoom, reset view, animation clips, an info line. **Mark up** freezes the view to draw on; the comment keeps the camera pose, and its chip brings the camera back there. Off by default and not yet on Windows. Turn it on at server start (stop an open window on the folder first, or the variable is ignored):

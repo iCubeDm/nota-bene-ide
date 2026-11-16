@@ -142,6 +142,10 @@
           "description": "speech to text runs on the host (Whisper installed, ready and switched on); absent: not offered. Set by the server, not by the agent.",
           "type": "string"
         },
+        "ffmpeg": {
+          "description": "the video editor's export: true = ffmpeg was found on the host (`/cut/export` renders an edit), false = this server can export but found no ffmpeg (the page explains how to install it); absent: a server without the export routes. Set by the server, not by the agent.",
+          "type": "boolean"
+        },
         "fileSuggestions": {
           "type": "boolean"
         },
