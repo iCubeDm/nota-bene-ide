@@ -6,7 +6,8 @@ export type FeedItem =
   | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; duringWork?: boolean; images?: ImageRef[]; idle?: boolean;
       /** a voice message (protocol 14): `text` is '' until the `voice-text` event puts the transcript in `voiceText`, or says why there is none in `voiceError` */
       voice?: Voice; voiceText?: string; voiceError?: VoiceError; /** the language the transcript was made in (protocol 18) */ voiceLang?: string }
-  | { kind: 'assistant'; id: string; text: string; final: boolean } // `${uuid}:${blockIndex}`; while streaming `stream:${n}`
+  // `${uuid}:${blockIndex}`; while streaming `stream:${n}`. `ts`: when it began (its stream's start); 0 = not known
+  | { kind: 'assistant'; id: string; text: string; final: boolean; ts: number }
   | {
       kind: 'tool'; id: string; name: string; arg: string; sub: boolean; toolKind?: Extract<WireAgentEvent, { t: 'tool-call' }>['toolKind']; childSessionId?: string;
       /** the full tool input; the one-line `arg` is only its summary */
@@ -179,7 +180,7 @@ function reduceAgent(s: FeedState, e: WireAgentEvent, ts: number): FeedState {
       };
     }
     case 'message-start': {
-      const item: FeedItem = { kind: 'assistant', id: `stream:${s.streamN}`, text: '', final: false };
+      const item: FeedItem = { kind: 'assistant', id: `stream:${s.streamN}`, text: '', final: false, ts };
       return { ...s, items: [...s.items, item], streamN: s.streamN + 1 };
     }
     case 'message-chunk': {
@@ -189,8 +190,9 @@ function reduceAgent(s: FeedState, e: WireAgentEvent, ts: number): FeedState {
       return { ...s, items: replaceAt(s.items, i, { ...cur, text: cur.text + e.text }) };
     }
     case 'message': {
-      const final: FeedItem = { kind: 'assistant', id: e.id, text: e.text, final: true };
       const i = firstOpenIndex(s.items); // k-th text block takes the k-th open stream
+      const open = s.items[i];
+      const final: FeedItem = { kind: 'assistant', id: e.id, text: e.text, final: true, ts: open?.kind === 'assistant' && open.ts ? open.ts : ts };
       return { ...s, items: i >= 0 ? replaceAt(s.items, i, final) : [...s.items, final] };
     }
     case 'tool-call':

@@ -29,6 +29,9 @@ export const ru = {
   gitBashTitle: 'Рекомендуется Git Bash',
   gitBashMissing: 'Git Bash не найден, поэтому Claude Code выполняет команды оболочки в PowerShell, без инструмента Bash. Чтобы он появился, установите Git for Windows (или укажите путь к его bash.exe в CLAUDE_CODE_GIT_BASH_PATH) и перезапустите Nota Bene.',
   you: 'ты',
+  /** a day separator in the chat */
+  today: 'Сегодня',
+  yesterday: 'Вчера',
   youBusy: ' · во время работы',
   youForced: ' · прервал агента',
   replyPlain: 'ответ',

@@ -5,6 +5,8 @@ import { getLang, useT } from '@/i18n/index.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
 import { useContext } from 'react';
 import { Markdown } from './Markdown.tsx';
+import { MsgTime } from './MsgTime.tsx';
+import { clockTime } from './time.ts';
 import { FeedScope } from './scope.ts';
 import { escapeMentions } from '@/refs/refs.ts';
 import { labelOf } from '@/comments/labels.ts';
@@ -14,15 +16,13 @@ import { useAppSelector } from '@/store/store.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { VoiceBubble } from '@/voice/VoiceBubble.tsx';
 
-export const timeOf = (ts: number): string =>
-  new Date(ts).toLocaleTimeString(getLang(), { hour: '2-digit', minute: '2-digit' });
+/** A line's time in the UI language: `14:32` today, with its date on another day (see time.ts); '' for ts 0. */
+export const timeOf = (ts: number): string => (ts > 0 ? clockTime(ts, getLang()) : '');
 
 export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }> }) {
   const t = useT();
   const inAgent = !!useContext(FeedScope).agent; // a subagent's tab: the first message is the prompt it was given, not the user's
   const sent = useAppSelector((s) => selectSentFor(s, item.id));
-  // replayed transcript events carry ts 0: historic bubbles show no time
-  const time = item.ts === 0 ? '' : ' · ' + timeOf(item.ts);
   const mode = item.force ? t('youForced') : item.duringWork ? t('youBusy') : '';
   const m = BATCH_HEAD.exec(item.text);
   // a voice message: `text` is '' until the host's transcript arrives (a replayed history has it there at once)
@@ -36,7 +36,8 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
     >
       <div data-anchor-skip className="mb-0.5 font-mono text-[0.65625rem] text-muted-foreground">
         {inAgent ? t('agentPrompt') : t('you')}
-        {time}
+        {/* an old replay may know no time (ts 0): then none rather than a wrong one */}
+        {item.ts > 0 && <> · <MsgTime ts={item.ts} /></>}
         {mode}
       </div>
       {item.voice && <VoiceBubble voice={item.voice} text={item.voiceText ?? ((m ? item.text.slice(0, m.index) : item.text) || undefined)} error={item.voiceError} lang={item.voiceLang} />}
