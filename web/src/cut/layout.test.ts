@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { drawable, fmtTime, rulerStep } from './layout.ts';
+import { drawable, drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn } from './layout.ts';
 
 it('drawable: video tracks top-down from the one on top of the picture, then the audio tracks in order', () => {
   const d = drawable({
@@ -58,4 +58,25 @@ it('fmtTime: minutes and seconds, tenths when asked', () => {
   expect(fmtTime(65)).toBe('1:05');
   expect(fmtTime(5.25, true)).toBe('0:05.2');
   expect(fmtTime(3725)).toBe('1:02:05');
+});
+
+it('drawnSpan: the edit and a little room after it, in proportion', () => {
+  expect(drawnSpan(100)).toBeCloseTo(103);
+  expect(drawnSpan(3600)).toBeCloseTo(3708);
+  expect(drawnSpan(0)).toBeCloseTo(1.03); // an empty edit still has a second to draw
+});
+
+it('ppsRange: the zoom keeps a long edit well below the width a browser can draw', () => {
+  expect(ppsRange(10)).toEqual({ min: 0.5, max: 1000 });
+  const long = ppsRange(drawnSpan(3600));
+  expect(long.max * drawnSpan(3600)).toBeLessThanOrEqual(2_000_000);
+  const huge = ppsRange(1e7);
+  expect(huge.min).toBeLessThanOrEqual(huge.max);
+});
+
+it('ticksIn: only the ticks within the seen range, on the step', () => {
+  expect(ticksIn(1, 100, 10.5, 13.2)).toEqual([10, 11, 12, 13, 14]); // a tick before and after the range
+  expect(ticksIn(0.1, 5, 0, 0.3)).toEqual([0, 0.1, 0.2, 0.3, 0.4]);
+  expect(ticksIn(60, 100, 0, 1000)).toEqual([0, 60]); // never past the span
+  expect(ticksIn(0.1, 3708, 1800, 1810)).toHaveLength(102);
 });

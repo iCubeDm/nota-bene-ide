@@ -57,3 +57,26 @@ export function fmtTime(sec: number, tenths = false): string {
   const body = s >= 3600 ? `${Math.floor(s / 3600)}:${ms}` : `${Math.floor(s / 60)}:${pad(s % 60)}`;
   return tenths ? `${body}.${d % 10}` : body;
 }
+
+/** Seconds the timeline draws: the edit and room after it in proportion, so a fitted edit leaves no scrollbar. */
+export const drawnSpan = (end: number): number => Math.max(end, 1) * 1.03;
+
+// the widest the lanes get, px: browsers stop drawing (or placing) elements somewhere above 10M px
+const MAX_WIDTH = 2_000_000;
+/** The zoom's limits in pixels a second for `span` seconds drawn: 1000 at most, and never wider than MAX_WIDTH. */
+export function ppsRange(span: number): { min: number; max: number } {
+  const max = Math.min(1000, MAX_WIDTH / span);
+  return { min: Math.min(0.5, max), max };
+}
+
+/** The ruler's ticks every `step` seconds from the one at or before `from` to the one after `to`, within `span`. */
+export function ticksIn(step: number, span: number, from: number, to: number): number[] {
+  const out: number[] = [];
+  const last = Math.floor(Math.min(to, span) / step + 1e-9) + 1;
+  for (let k = Math.max(0, Math.floor(from / step + 1e-9)); k <= last; k++) {
+    const s = Math.round(k * step * 1000) / 1000;
+    if (s > span + 1e-9) break;
+    out.push(s);
+  }
+  return out;
+}

@@ -1,15 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { basename } from '@nota-bene/shared/paths';
 import { projectFileUrl } from '@/files/kinds.ts';
 import { useT } from '@/i18n/index.ts';
 import { isMac } from '@/shell/keymap.ts';
-import { fmtTime, rulerStep, type Block, type Lane } from './layout.ts';
+import { drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn, type Block, type Lane } from './layout.ts';
+import { poster } from './thumbs.ts';
 
 const HEAD = 144; // the track headers' column, px
-const MIN_PPS = 0.5;
-const MAX_PPS = 1000;
 const STEP = 1.5; // one zoom button press
-const clamp = (pps: number) => Math.min(MAX_PPS, Math.max(MIN_PPS, pps));
 const dB = (g: number) => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`;
 
 /**
@@ -23,16 +21,21 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
 }) {
   const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
-  const [pps, setPps] = useState(40);
+  const [zoomed, setPps] = useState(40);
   const [head, setHead] = useState(0);
-  const span = Math.max(end, 1) + 2; // seconds drawn: the edit and a little room after it
+  const span = drawnSpan(end);
+  const range = ppsRange(span);
+  const clamp = (p: number) => Math.min(range.max, Math.max(range.min, p));
+  const pps = clamp(zoomed); // an edit that grew may narrow the zoom's limits
   const width = span * pps;
+  // the lanes' width in view (the scroller less the headers): what fits, what the buttons zoom around
+  const lanesWidth = () => (scroller.current?.clientWidth ?? 0) - HEAD;
 
-  // the first time the timeline has a size, the whole edit fits
+  // the first time the timeline has a size, the whole edit fits (16 px: room for a vertical scrollbar)
   const fitted = useRef(false);
   const fit = () => {
-    const w = (scroller.current?.clientWidth ?? 0) - HEAD - 16;
-    if (w > 0) setPps(clamp(w / Math.max(end, 1)));
+    const w = lanesWidth() - 16;
+    if (w > 0) setPps(clamp(w / span));
     return w > 0;
   };
   useLayoutEffect(() => {
@@ -42,6 +45,8 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
   // Ctrl/⌘+wheel zooms around the pointer: the time under it stays under it (React's wheel listener is passive)
   const ppsRef = useRef(pps);
   ppsRef.current = pps;
+  const rangeRef = useRef(range);
+  rangeRef.current = range;
   const keepLeft = useRef<number | null>(null);
   useEffect(() => {
     const el = scroller.current;
@@ -51,7 +56,9 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
       e.preventDefault();
       const x = e.clientX - el.getBoundingClientRect().left - HEAD; // pointer over the lanes
       const at = (el.scrollLeft + x) / ppsRef.current;
-      const next = clamp(ppsRef.current * Math.exp(-e.deltaY * 0.002));
+      const { min, max } = rangeRef.current;
+      const next = Math.min(max, Math.max(min, ppsRef.current * Math.exp(-e.deltaY * 0.002)));
+      if (next === ppsRef.current) return; // at the limit: no render would take a scroll position
       keepLeft.current = Math.max(0, at * next - x);
       fitted.current = true;
       setPps(next);
@@ -64,11 +71,33 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
     scroller.current.scrollLeft = keepLeft.current;
     keepLeft.current = null;
   }, [pps]);
-  const zoom = (f: number) => { fitted.current = true; setPps((p) => clamp(p * f)); };
+  // the buttons zoom around the middle of the view
+  const zoom = (f: number) => {
+    fitted.current = true;
+    const next = clamp(pps * f);
+    if (next === pps) return;
+    const half = Math.max(0, lanesWidth()) / 2;
+    keepLeft.current = Math.max(0, ((scroller.current?.scrollLeft ?? 0) + half) / pps * next - half);
+    setPps(next);
+  };
 
+  // the ruler draws the ticks in view and a view's width either side: an hour at the closest zoom is thousands
+  const [view, setView] = useState({ left: 0, width: 0 });
+  const onScroll = () => {
+    const el = scroller.current;
+    if (el) setView({ left: el.scrollLeft, width: el.clientWidth });
+  };
+  useLayoutEffect(onScroll, [pps, active]);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(onScroll);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const seen = Math.max(view.width, 1000);
   const step = rulerStep(pps);
-  const ticks: number[] = [];
-  for (let s = 0; s <= span + 1e-9; s += step) ticks.push(Math.round(s * 1000) / 1000);
+  const ticks = ticksIn(step, span, (view.left - seen) / pps, (view.left + 2 * seen) / pps);
   const mod = isMac() ? '⌘' : 'Ctrl';
   const btn = 'rounded px-1.5 hover:bg-muted hover:text-foreground';
 
@@ -82,7 +111,7 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
         <span className="flex-1" />
         {frame && <span>{t('cutFrame', frame.width, frame.height, frame.fps)}</span>}
       </div>
-      <div ref={scroller} data-timeline-scroll className="relative min-h-0 flex-1 overflow-auto bg-background">
+      <div ref={scroller} data-timeline-scroll onScroll={onScroll} className="relative min-h-0 flex-1 overflow-auto bg-background">
         <div className="relative min-w-full" style={{ width: HEAD + width }}>
           <div className="sticky top-0 z-30 flex h-6 border-b border-border-soft bg-chrome">
             <div className="sticky left-0 z-40 flex-none border-r border-border-soft bg-chrome" style={{ width: HEAD }} />
@@ -94,7 +123,7 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
               }}
             >
               {ticks.map((s) => (
-                <span key={s} className="absolute top-0 h-full border-l border-border-soft pl-1 font-mono text-[0.625rem] leading-6 text-muted-foreground" style={{ left: s * pps }}>
+                <span key={s} data-tick className="absolute top-0 h-full border-l border-border-soft pl-1 font-mono text-[0.625rem] leading-6 text-muted-foreground" style={{ left: s * pps }}>
                   {fmtTime(s, step < 1)}
                 </span>
               ))}
@@ -114,7 +143,7 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
               </div>
               <div className="relative flex-1">
                 {blocks.filter((b) => b.track === l.id).map((b) => (
-                  <Clip key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} />
+                  <Clip key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active} />
                 ))}
               </div>
             </div>
@@ -128,27 +157,59 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
   );
 }
 
-/** One clip: its file name, a thumbnail on a video track (the photo; a video's first used frame), its problems outlined. */
-function Clip({ b, lane, pps, frame, problems, gone, fileSrc }: {
-  b: Block; lane: Lane; pps: number; frame: { width: number; height: number } | null; problems: string[] | undefined; gone: boolean; fileSrc: string;
+/** Whether `ref` has come into the timeline's view while `on` (the tab shown): once in, it stays in. */
+function useSeen(ref: RefObject<HTMLElement | null>, on: boolean): boolean {
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!on || seen || !el) return;
+    if (typeof IntersectionObserver === 'undefined') return void setSeen(true);
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setSeen(true); }, {
+      root: el.closest('[data-timeline-scroll]'), rootMargin: '0px 50%',
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref, on, seen]);
+  return seen;
+}
+
+/** A video's frame at `at` as an image URL (shared, thumbs.ts) once `url` is given; null until then. */
+function usePoster(url: string | null, at: number): string | null {
+  const [got, setGot] = useState<{ key: string; src: string | null } | null>(null);
+  const key = `${at}\n${url}`;
+  useEffect(() => {
+    if (url === null) return;
+    let live = true;
+    void poster(url, at).then((src) => { if (live) setGot({ key, src }); });
+    return () => { live = false; };
+  }, [url, at, key]);
+  return got?.key === key ? got.src : null;
+}
+
+/** One clip: its file name, a thumbnail on a video track (the photo; a video's first used frame) once it is in view,
+ *  its problems outlined; at least 2 px wide, however short. */
+function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active }: {
+  b: Block; lane: Lane; pps: number; frame: { width: number; height: number } | null; problems: string[] | undefined; gone: boolean;
+  fileSrc: string; active: boolean;
 }) {
-  const w = b.len * pps;
+  const w = Math.max(2, b.len * pps);
   const bad = !!problems?.length;
   const url = projectFileUrl(b.src, fileSrc);
   // a thumbnail only where it has room, and never for a file that is not there
   const thumb = lane.kind === 'video' && !gone && w >= 48;
+  const ref = useRef<HTMLDivElement>(null);
+  const seen = useSeen(ref, active && thumb);
+  const frameOf = usePoster(seen && thumb && !b.photo ? url : null, b.from || 0);
+  const shown = seen && thumb ? (b.photo ? url : frameOf) : null;
   const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? [])].join('\n');
   const tint = lane.kind === 'video' ? 'border-link/60 bg-link/15' : 'border-success/60 bg-success/15';
   return (
     <div
-      data-clip={b.id} data-bad={bad || undefined} title={title}
+      ref={ref} data-clip={b.id} data-bad={bad || undefined} title={title}
       className={`absolute inset-y-1 flex items-center gap-1 overflow-hidden rounded border text-xs ${tint} ${bad ? 'outline-2 outline-destructive' : ''} ${gone ? 'opacity-60' : ''}`}
       style={{ left: b.at * pps, width: w }}
     >
-      {thumb && (b.photo
-        ? <img src={url} alt="" loading="lazy" draggable={false} className="h-full flex-none bg-black object-cover" style={frame ? { aspectRatio: `${frame.width} / ${frame.height}` } : undefined} />
-        // the first frame only: no sound, no download beyond what the browser needs for that frame
-        : <video src={`${url}#t=${b.from || 0.001}`} preload="metadata" muted playsInline tabIndex={-1} className="pointer-events-none h-full flex-none bg-black object-cover" style={frame ? { aspectRatio: `${frame.width} / ${frame.height}` } : undefined} />)}
+      {shown && <img src={shown} alt="" draggable={false} className="h-full flex-none bg-black object-cover" style={frame ? { aspectRatio: `${frame.width} / ${frame.height}` } : undefined} />}
       <span className={`min-w-0 truncate px-1 ${gone ? 'line-through' : ''}`}>{basename(b.src)}</span>
     </div>
   );
