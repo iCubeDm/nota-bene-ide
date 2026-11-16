@@ -7,6 +7,16 @@ import { array, CodexMapper, itemId, record, string } from './map.ts';
 
 type HistoryRpc = { request(method: string, params: unknown): Promise<unknown> };
 
+const ms = (v: unknown, scale = 1): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v * scale : 0);
+
+/**
+ * When a replayed item happened: its own recorded time (`startedAtMs` for a prompt, `completedAtMs` for the rest),
+ * else its turn's (`startedAt` / `completedAt`, in seconds); 0 when the thread recorded neither (no time shown).
+ */
+const timeOf = (item: Record<string, unknown>, turn: Record<string, unknown>): number => item.type === 'userMessage'
+  ? ms(item.startedAtMs) || ms(turn.startedAt, 1000)
+  : ms(item.completedAtMs) || ms(item.startedAtMs) || ms(turn.completedAt, 1000);
+
 /** Native pages are chronological; all item ids use the same transform as live events. */
 export async function loadCodexHistory(rpc: HistoryRpc, threadId: string, attachments: AttachmentStore, onError?: (e: unknown) => void): Promise<ServerEvent[]> {
   const out: ServerEvent[] = [];
@@ -58,11 +68,12 @@ export async function loadCodexHistory(rpc: HistoryRpc, threadId: string, attach
               }
             }
           }
-          out.push({ kind: 'user', id: string(item.clientId) || itemId(string(item.id)), text: texts.join('\n'), ts: 0, historic: true, ...(images.length ? { images } : {}) });
+          out.push({ kind: 'user', id: string(item.clientId) || itemId(string(item.id)), text: texts.join('\n'), ts: timeOf(item, turn), historic: true, ...(images.length ? { images } : {}) });
         } else {
+          const ts = timeOf(item, turn);
           for (const event of mapper.item(item, true)) {
             // This mapper produces wire events only; keep the check explicit as the shared union evolves.
-            if (!['init', 'rate-limit', 'commands'].includes(event.t)) out.push({ kind: 'agent', e: event as Exclude<AgentEvent, { t: 'init' | 'rate-limit' | 'commands' }>, ts: 0 });
+            if (!['init', 'rate-limit', 'commands'].includes(event.t)) out.push({ kind: 'agent', e: event as Exclude<AgentEvent, { t: 'init' | 'rate-limit' | 'commands' }>, ts });
           }
         }
       }

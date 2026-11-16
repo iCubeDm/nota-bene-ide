@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { refClick } from '@/refs/refs.ts';
 import { selectFeed, useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -14,6 +14,8 @@ import { ShellBlock } from './ShellBlock.tsx';
 import { ToolGroup } from './ToolGroup.tsx';
 import { ToolLine } from './ToolLine.tsx';
 import { UserMessage } from './UserMessage.tsx';
+import { DaySeparator, MsgTime } from './MsgTime.tsx';
+import { dayStarts } from './time.ts';
 
 /** Farther from the end than this, the "jump to the latest" button shows. */
 const AWAY_PX = 200;
@@ -36,6 +38,7 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
   const { items, compacting, epoch, earlier } = (feed ?? main)!;
   const busy = agent ? !!running : main!.busy;
   const hidden = useMemo(() => retriedVoice(items), [items]);
+  const days = useMemo(() => dayStarts(items, hidden), [items, hidden]); // where a day separator goes
   const scope = useMemo(() => ({ agent, busy: agent ? !!running : undefined }), [agent, running]);
   const t = useT();
   const dispatch = useAppDispatch();
@@ -138,6 +141,44 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
     p.scrollTo({ top: p.scrollHeight, behavior: 'smooth' });
   };
 
+  /** One feed item's element; null when the item before it draws it (a run of actions) or it is hidden. */
+  function item(it: FeedState['items'][number], i: number): ReactElement | null {
+    if (it.kind === 'tool') {
+      // a run of consecutive actions is drawn once, by its first item; one action alone stays a plain line
+      // a subagent's call is a card of its own: it never folds into a run of actions
+      if (isAgentTool(it.name, it.toolKind)) return <ToolLine key={`tool:${it.id}`} item={it} />;
+      if (items[i - 1]?.kind === 'tool' && !isAgentCall(items[i - 1]!)) return null;
+      let end = i + 1;
+      while (items[end]?.kind === 'tool' && !isAgentCall(items[end]!)) end++;
+      if (end - i === 1) return <ToolLine key={`tool:${it.id}`} item={it} />;
+      const run = items.slice(i, end) as Extract<typeof it, { kind: 'tool' }>[];
+      return <ToolGroup key={`group:${it.id}`} items={run} live={busy && end === items.length} />;
+    }
+    switch (it.kind) {
+      case 'user':
+        if (hidden.has(it.id)) return null; // a failed voice message the user has sent again
+        return it.idle ? <IdleCompactLine key={it.id} item={it} /> : <UserMessage key={it.id} item={it} />;
+      case 'assistant':
+        return (
+          <div key={it.id} data-kind="assistant" data-item-id={it.id} data-final={String(it.final)} className="group/reply relative my-2.5">
+            {/* in the gap above the reply, shown on hover: a reply has no header line of its own to carry it */}
+            <MsgTime ts={it.ts} anchorSkip className="absolute -top-2.5 right-0 select-none font-mono text-[0.625rem] leading-none text-muted-foreground opacity-0 transition-opacity group-hover/reply:opacity-100" />
+            <Markdown text={it.text} final={it.final} />
+          </div>
+        );
+      case 'done':
+        return <DoneLine key={it.key} item={it} />;
+      case 'permission':
+        return it.toolName === 'ExitPlanMode' && typeof it.input.plan === 'string' ? <PlanCard key={it.id} item={it} /> : <PermissionCard key={it.id} item={it} />;
+      case 'shell':
+        return <ShellBlock key={`shell:${it.id}`} item={it} />;
+      case 'marker':
+        return <MarkerLine key={it.key} item={it} />;
+      case 'notice':
+        return <NoticeLine key={it.key} item={it} />;
+    }
+  }
+
   return (
     <FeedScope.Provider value={scope}>
     <div ref={root} onClick={(e) => refClick(e, dispatch)}>
@@ -149,38 +190,10 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
         </div>
       )}
       {items.map((it, i) => {
-        if (it.kind === 'tool') {
-          // a run of consecutive actions is drawn once, by its first item; one action alone stays a plain line
-          // a subagent's call is a card of its own: it never folds into a run of actions
-          if (isAgentTool(it.name, it.toolKind)) return <ToolLine key={`tool:${it.id}`} item={it} />;
-          if (items[i - 1]?.kind === 'tool' && !isAgentCall(items[i - 1]!)) return null;
-          let end = i + 1;
-          while (items[end]?.kind === 'tool' && !isAgentCall(items[end]!)) end++;
-          if (end - i === 1) return <ToolLine key={`tool:${it.id}`} item={it} />;
-          const run = items.slice(i, end) as Extract<typeof it, { kind: 'tool' }>[];
-          return <ToolGroup key={`group:${it.id}`} items={run} live={busy && end === items.length} />;
-        }
-        switch (it.kind) {
-          case 'user':
-            if (hidden.has(it.id)) return null; // a failed voice message the user has sent again
-            return it.idle ? <IdleCompactLine key={it.id} item={it} /> : <UserMessage key={it.id} item={it} />;
-          case 'assistant':
-            return (
-              <div key={it.id} data-kind="assistant" data-item-id={it.id} data-final={String(it.final)} className="my-2.5">
-                <Markdown text={it.text} final={it.final} />
-              </div>
-            );
-          case 'done':
-            return <DoneLine key={it.key} item={it} />;
-          case 'permission':
-            return it.toolName === 'ExitPlanMode' && typeof it.input.plan === 'string' ? <PlanCard key={it.id} item={it} /> : <PermissionCard key={it.id} item={it} />;
-          case 'shell':
-            return <ShellBlock key={`shell:${it.id}`} item={it} />;
-          case 'marker':
-            return <MarkerLine key={it.key} item={it} />;
-          case 'notice':
-            return <NoticeLine key={it.key} item={it} />;
-        }
+        const el = item(it, i);
+        const day = days.get(i);
+        // always wrapped, so an item never remounts when a separator comes or goes before it
+        return el && <Fragment key={el.key}>{day !== undefined && <DaySeparator ts={day} />}{el}</Fragment>;
       })}
       {compacting !== null && <CompactingLine since={compacting} />}
       {away && (

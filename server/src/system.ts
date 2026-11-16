@@ -28,7 +28,8 @@ import { wirePath } from './wirePath.ts';
 import { pidAlive, readWindows } from './windows.ts';
 
 export const CONTROL_HEADER = 'x-nota-bene-control';
-export const CONTROL_ACTIONS = ['restart-agent', 'restart-server', 'stop'] as const;
+/** gh-422: `restart-server` waits for the agent's pause; `-now` cuts the turn, `-cancel` drops a pending one */
+export const CONTROL_ACTIONS = ['restart-agent', 'restart-server', 'restart-server-now', 'restart-server-cancel', 'stop'] as const;
 export type ControlAction = (typeof CONTROL_ACTIONS)[number];
 /** An attachment younger than this is kept by "clean": an open draft may hold it (the server cannot see drafts). */
 export const CLEAN_MIN_AGE_MS = 24 * 3600_000;
@@ -188,12 +189,14 @@ function moveToTrash(kind: 'attachments' | 'history', files: string[], now: numb
   return { moved, bytes, trash, errors };
 }
 
-export type WindowInfo = { root: string; session?: string | null; title?: string | null; supervised?: boolean; busy?: boolean; clients?: number };
+export type WindowInfo = { root: string; session?: string | null; title?: string | null; supervised?: boolean; busy?: boolean; clients?: number; restartPending?: boolean };
 export type WindowRow = {
   port: number; root: string; pid: number; startedAt: number; current: boolean;
   /** live: answers with its root; restarting: in a relaunch gap; silent: pid alive, no answer; stale: gone */
   state: 'live' | 'restarting' | 'silent' | 'stale';
   session: string | null; title: string | null; supervised: boolean; busy: boolean; clients: number;
+  /** gh-422: a server restart waits for its pause; absent: a window of a version before that (its restart cuts the turn) */
+  restartPending?: boolean;
 };
 
 export async function probeWindow(port: number, timeoutMs = 700): Promise<WindowInfo | null> {
@@ -224,6 +227,7 @@ export async function listWindows(own: number, probe = probeWindow): Promise<Win
       port, root: wirePath(w.root), pid: w.pid, startedAt: w.startedAt, current: port === own, state,
       session: live ? info.session ?? null : null, title: live ? info.title ?? null : null,
       supervised: live ? !!info.supervised : false, busy: live ? !!info.busy : false, clients: live ? info.clients ?? 0 : 0,
+      ...(live && typeof info.restartPending === 'boolean' ? { restartPending: info.restartPending } : {}),
     };
   }));
   return rows.sort((a, b) => a.port - b.port);
@@ -296,7 +300,7 @@ export function systemRoutes(o: {
   /** the CHANGELOG sections between two versions, or null (tests stub it) */
   changes?: (current: string, latest: string) => Promise<string | null>;
   /** run after the reply is out; `supervised` says whether restart-server can be caught by a launcher */
-  control: { supervised(): boolean; exiting(): boolean; restartAgent(): void; restartServer(): void; stop(): void };
+  control: { supervised(): boolean; exiting(): boolean; restartAgent(): void; restartServer(): void; restartServerNow?(): void; cancelRestart?(): void; stop(): void };
   probe?: (port: number) => Promise<WindowInfo | null>;
   relay?: (port: number, action: ControlAction, token: string) => Promise<number>;
 }): Record<string, RequestListener> {
@@ -474,12 +478,14 @@ export function systemRoutes(o: {
       const action = (req.url ?? '').split('?')[0]!.slice('/control/'.length) as ControlAction;
       if (!CONTROL_ACTIONS.includes(action)) return text(res, 404, 'not found');
       if (o.control.exiting()) return text(res, 409, 'exiting'); // a stop or restart is already under way
-      if (action === 'restart-server' && !o.control.supervised()) return text(res, 409, 'not supervised');
+      if ((action === 'restart-server' || action === 'restart-server-now') && !o.control.supervised()) return text(res, 409, 'not supervised');
       // answer first: a restart or stop must not cut the reply
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
       res.end('{"ok":true}', () => {
         if (action === 'restart-agent') o.control.restartAgent();
         else if (action === 'restart-server') o.control.restartServer();
+        else if (action === 'restart-server-now') (o.control.restartServerNow ?? o.control.restartServer)();
+        else if (action === 'restart-server-cancel') o.control.cancelRestart?.();
         else o.control.stop();
       });
     },

@@ -3,10 +3,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
-import { selectBuilding, selectDraft, selectImages, selectUploading } from '@/composer/slice.ts';
-import { selectShellRunning } from '@/composer/shellMode.ts';
-import { selectRunningCount } from '@/tasks/slice.ts';
-import { selectConn, selectFeed, useAppSelector } from '@/store/store.ts';
+import { selectConn, useAppSelector } from '@/store/store.ts';
+import { selectPagePause } from './pagePause.ts';
 import { reloadPage } from './reloadPage.ts';
 
 const SEEN_KEY = 'nb.updateSeen';
@@ -111,18 +109,8 @@ export function UpdateNotice() {
   const [seen, setSeen] = useState(() => localStorage.getItem(SEEN_KEY));
   // what the newer version changes, by version: asked when the popover first opens for it
   const [changes, setChanges] = useState<{ v: string; text: string } | null>(null);
-  // the pause the server cannot see: a draft, an upload, a send on its way or a waiting question is this page's to
-  // know (the server also counts its `! cmd` run and the agent's tasks; the page does at once)
-  const draft = useAppSelector(selectDraft);
-  const images = useAppSelector(selectImages);
-  const uploading = useAppSelector(selectUploading);
-  const building = useAppSelector(selectBuilding);
-  const sending = useAppSelector((s) => s.composer.unconfirmed !== null || s.composer.shellUnconfirmed !== null);
-  const shellRunning = useAppSelector(selectShellRunning) !== null;
-  const tasks = useAppSelector(selectRunningCount);
-  const feed = useAppSelector(selectFeed);
-  const idle = draft.trim() === '' && images.length === 0 && uploading === 0 && !building && !sending && !shellRunning && tasks === 0
-    && !feed.busy && !feed.items.some((it) => it.kind === 'permission' && it.answer === undefined && !it.archived);
+  // the pause the server cannot see (pagePause.ts): a draft counts, the update's reload would lose it
+  const idle = useAppSelector((st) => selectPagePause(st, { draft: true }));
   const restartedAt = useRef(0);
   // the server version this page's code came with: another one after a reconnect means a handover happened
   const loadedWith = useRef<string | null>(null);

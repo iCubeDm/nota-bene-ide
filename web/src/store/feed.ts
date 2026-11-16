@@ -6,7 +6,8 @@ export type FeedItem =
   | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; duringWork?: boolean; images?: ImageRef[]; idle?: boolean;
       /** a voice message (protocol 14): `text` is '' until the `voice-text` event puts the transcript in `voiceText`, or says why there is none in `voiceError` */
       voice?: Voice; voiceText?: string; voiceError?: VoiceError; /** the language the transcript was made in (protocol 18) */ voiceLang?: string }
-  | { kind: 'assistant'; id: string; text: string; final: boolean } // `${uuid}:${blockIndex}`; while streaming `stream:${n}`
+  // `${uuid}:${blockIndex}`; while streaming `stream:${n}`. `ts`: when it began (its stream's start); 0 = not known
+  | { kind: 'assistant'; id: string; text: string; final: boolean; ts: number }
   | {
       kind: 'tool'; id: string; name: string; arg: string; sub: boolean; toolKind?: Extract<WireAgentEvent, { t: 'tool-call' }>['toolKind']; childSessionId?: string;
       /** the full tool input; the one-line `arg` is only its summary */
@@ -26,8 +27,11 @@ export type FeedItem =
    * came before) and how it ended. `code` null with no `stop`/`error` is a block restored from the transcript (no exit code kept).
    */
   | { kind: 'shell'; id: string; cmd: string; output: string; truncated: boolean; running: boolean; code: number | null; stop?: ShellStop; error?: string; ts: number }
-  /** `text`: the resumed session id; translated at render. (Server errors are toasts, not feed items: R-M4-5.) */
-  | { kind: 'notice'; key: string; text: string };
+  /**
+   * `text`: the resumed session id; translated at render. (Server errors are toasts, not feed items: R-M4-5.) `cut`
+   * (protocol 22): the server stopped during a turn of this session, the line offers Continue
+   */
+  | { kind: 'notice'; key: string; text: string; cut?: true };
 
 export type FeedState = {
   items: FeedItem[];
@@ -179,7 +183,7 @@ function reduceAgent(s: FeedState, e: WireAgentEvent, ts: number): FeedState {
       };
     }
     case 'message-start': {
-      const item: FeedItem = { kind: 'assistant', id: `stream:${s.streamN}`, text: '', final: false };
+      const item: FeedItem = { kind: 'assistant', id: `stream:${s.streamN}`, text: '', final: false, ts };
       return { ...s, items: [...s.items, item], streamN: s.streamN + 1 };
     }
     case 'message-chunk': {
@@ -189,8 +193,9 @@ function reduceAgent(s: FeedState, e: WireAgentEvent, ts: number): FeedState {
       return { ...s, items: replaceAt(s.items, i, { ...cur, text: cur.text + e.text }) };
     }
     case 'message': {
-      const final: FeedItem = { kind: 'assistant', id: e.id, text: e.text, final: true };
       const i = firstOpenIndex(s.items); // k-th text block takes the k-th open stream
+      const open = s.items[i];
+      const final: FeedItem = { kind: 'assistant', id: e.id, text: e.text, final: true, ts: open?.kind === 'assistant' && open.ts ? open.ts : ts };
       return { ...s, items: i >= 0 ? replaceAt(s.items, i, final) : [...s.items, final] };
     }
     case 'tool-call':
@@ -311,7 +316,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'resumed':
     {
       const { key, lineN } = lineKey(s);
-      return { ...s, lineN, items: [...s.items, { kind: 'notice', key, text: ev.id.slice(0, 8) }] };
+      return { ...s, lineN, items: [...s.items, { kind: 'notice', key, text: ev.id.slice(0, 8), ...(ev.cut ? { cut: true as const } : {}) }] };
     }
     case 'comments': // handled by the comments store, not the feed
     case 'comment-ack': // protocol 19: answers to the comments store's ops
@@ -330,6 +335,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'server-error': // a toast (store.ts), live only, never swallowed (M0 error policy)
     case 'remote': // protocol 20: the remote slice
     case 'remote-pair':
+    case 'restart-pending': // protocol 22: the controls slice
       return s;
     default: {
       // as above: a protocol-4 server still sends `{kind:'sdk'}`

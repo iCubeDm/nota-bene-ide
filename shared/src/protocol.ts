@@ -146,7 +146,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 19: comment ops: the client's `comment-op` (add / edit / remove, idempotent) answered by `comments.ack` or, for a session the window does not show, `comment-ack`, or by `comment-refused`; `comments.rev`. An older server gets whole sets (`comments`) as before.
 // 20: remote access from the window: the server's `remote` (the connector's state) and `remote-pair` events and the `/remote` routes; an older server has neither, so the page shows no indicator and no Remote tab.
 // 21: relay access keys: `RemoteState.accessKey` (one is saved) and `POST /remote/config {accessKey}`; `lastError` may be a 4405 (the key's computer limit) while the connector retries.
-export const PROTOCOL = 21;
+// 22: a server restart that waits for the agent (gh-422): the server's `restart-pending` event (on attach and when it changes) and `resumed.cut` (the resume after a restart that cut a turn); `POST /restart-server {now}`, `/restart-server/pause`, `/restart-server/cancel`, `/info.restartPending`. An older server restarts at once and sends neither.
+export const PROTOCOL = 22;
 
 /** A paired phone as the Remote tab lists it (protocol 20). */
 export type RemoteDevice = { id: string; name?: string; fingerprint: string; online: boolean; pairedAt: number };
@@ -353,7 +354,10 @@ export type ServerEvent =
   /** never stored in history */
   | { kind: 'idle-compact'; state: IdleCompact }
   /** stored once after the replayed transcript of a resumed session; the only source of the "resumed" notice */
-  | { kind: 'resumed'; id: string }
+  /** protocol 22, `cut`: the server stopped during a turn of this session (a forced restart, a stop, a crash); the page offers Continue */
+  | { kind: 'resumed'; id: string; cut?: true }
+  /** protocol 22, never stored: a server restart is waiting for the next pause (on attach and when it changes) */
+  | { kind: 'restart-pending'; pending: boolean }
   | { kind: 'server-error'; where: string; message: string }
   /** to the asking socket only, never stored: a `send` the server did not take (the web side clears its pending state) */
   | { kind: 'send-refused'; id: string; reason: 'busy' | 'switching' | 'detached' }

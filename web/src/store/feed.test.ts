@@ -17,15 +17,22 @@ const fold = (evs: ServerEvent[], from: FeedState = emptyFeed) => evs.reduce(red
 
 test('deltas build one streaming item, assistant finalises it in place', () => {
   const mid = fold([start(), delta('hello '), delta('world')]);
-  expect(mid.items).toEqual([{ kind: 'assistant', id: 'stream:0', text: 'hello world', final: false }]);
+  expect(mid.items).toEqual([{ kind: 'assistant', id: 'stream:0', text: 'hello world', final: false, ts: 1 }]);
   const s = reduce(mid, message('a1:0', 'hello world'));
-  expect(s.items).toEqual([{ kind: 'assistant', id: 'a1:0', text: 'hello world', final: true }]);
+  expect(s.items).toEqual([{ kind: 'assistant', id: 'a1:0', text: 'hello world', final: true, ts: 1 }]);
+});
+
+test('a reply carries its time: a streamed one from its first chunk, a replayed one from its event', () => {
+  const live = fold([agent({ t: 'message-start' }, 100), agent({ t: 'message-chunk', text: 'x' }, 150), agent({ t: 'message', id: 'a1:0', text: 'x' }, 200)]);
+  expect(live.items).toEqual([{ kind: 'assistant', id: 'a1:0', text: 'x', final: true, ts: 100 }]);
+  expect(fold([agent({ t: 'message', id: 'a2:0', text: 'y' }, 300)]).items).toEqual([{ kind: 'assistant', id: 'a2:0', text: 'y', final: true, ts: 300 }]);
+  expect(fold([agent({ t: 'message', id: 'a3:0', text: 'z' }, 0)]).items).toEqual([{ kind: 'assistant', id: 'a3:0', text: 'z', final: true, ts: 0 }]);
 });
 
 test('replay mid-stream then live deltas continue the same item', () => {
   const replayed = reduce(emptyFeed, { kind: 'replay', events: [start(), delta('hel')] });
   const s = fold([delta('lo')], replayed);
-  expect(s.items).toEqual([{ kind: 'assistant', id: 'stream:0', text: 'hello', final: false }]);
+  expect(s.items).toEqual([{ kind: 'assistant', id: 'stream:0', text: 'hello', final: false, ts: 1 }]);
 });
 
 test('user while busy is marked duringWork', () => {
@@ -157,8 +164,8 @@ test('interrupted stream is closed at result; a later assistant without a start 
   ]);
   const asst = s.items.filter((i) => i.kind === 'assistant');
   expect(asst).toEqual([
-    { kind: 'assistant', id: 'stream:0', text: 'part', final: true },
-    { kind: 'assistant', id: 'a9:0', text: 'fresh', final: true },
+    { kind: 'assistant', id: 'stream:0', text: 'part', final: true, ts: 1 },
+    { kind: 'assistant', id: 'a9:0', text: 'fresh', final: true, ts: 1 },
   ]);
   expect(s.items.findIndex((i) => i.kind === 'user' && i.id === 'u2')).toBeGreaterThan(s.items.findIndex((i) => i.kind === 'assistant'));
   const empty = fold([user(), start(), result()]);
@@ -171,8 +178,8 @@ test('two streamed text blocks are finalised in content order', () => {
     message('a3:0', 'one'), message('a3:1', 'two'),
   ]);
   expect(s.items).toEqual([
-    { kind: 'assistant', id: 'a3:0', text: 'one', final: true },
-    { kind: 'assistant', id: 'a3:1', text: 'two', final: true },
+    { kind: 'assistant', id: 'a3:0', text: 'one', final: true, ts: 1 },
+    { kind: 'assistant', id: 'a3:1', text: 'two', final: true, ts: 1 },
   ]);
 });
 

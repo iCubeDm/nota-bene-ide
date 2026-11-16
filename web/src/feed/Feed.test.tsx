@@ -7,6 +7,7 @@ import { historyPrepended } from '@/store/feed.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
 import { Feed } from './Feed.tsx';
 import { inputText } from './ToolLine.tsx';
+import { clockTime, fullTime } from './time.ts';
 
 beforeEach(() => setLang('en'));
 afterEach(cleanup);
@@ -335,4 +336,99 @@ it('native completion upgrades the original tool to an agent card without duplic
     store.dispatch(serverEvent({ kind: 'agent', ts: 2, e: { t: 'tool-update', id: 'codex-spawn', toolKind: 'agent', childSessionId: 'child', text: '', isError: false } }));
   });
   expect(store.getState().feed.items.filter((e) => e.kind === 'tool' && e.id === 'codex-spawn')).toEqual([expect.objectContaining({ toolKind: 'agent', childSessionId: 'child', input: { prompt: 'Investigate' } })]);
+});
+
+describe('message times and day separators', () => {
+  const today = new Date(new Date().setHours(9, 5, 0, 0)).getTime();
+  const yesterday = new Date(new Date(today).setDate(new Date(today).getDate() - 1)).setHours(22, 40);
+
+  it('a separator where the day changes, none for undated items; replies show their time, the full date on hover', () => {
+    const { store, view } = setup();
+    act(() => {
+      store.dispatch(serverEvent({ kind: 'user', id: 'u0', text: 'old', ts: 0, historic: true }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: 0, e: { t: 'message', id: 'a0:0', text: 'old reply' } }));
+      store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'q', ts: yesterday, historic: true }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: yesterday, e: { t: 'message', id: 'a1:0', text: 'a' } }));
+      store.dispatch(serverEvent({ kind: 'user', id: 'u2', text: 'q2', ts: today }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: today, e: { t: 'message', id: 'a2:0', text: 'b' } }));
+    });
+    const seps = [...view.container.querySelectorAll('[data-day]')];
+    expect(seps.map((s) => s.textContent)).toEqual(['Yesterday', 'Today']);
+    // each sits right before the item that starts its day
+    expect(seps[0]!.nextElementSibling).toHaveAttribute('data-item-id', 'u1');
+    expect(seps[1]!.nextElementSibling).toHaveAttribute('data-item-id', 'u2');
+    const time = (id: string) => view.container.querySelector(`[data-item-id="${id}"] time`);
+    expect(time('a0:0')).toBeNull();
+    expect(time('a2:0')).toHaveTextContent(clockTime(today, 'en'));
+    expect(time('a2:0')).toHaveAttribute('title', fullTime(today, 'en'));
+    expect(time('a1:0')).toHaveTextContent(clockTime(yesterday, 'en')); // with its date: it is not today
+    expect(time('u1')).toHaveTextContent(clockTime(yesterday, 'en'));
+    expect(time('u1')).toHaveAttribute('title', fullTime(yesterday, 'en'));
+    expect(time('u0')).toBeNull();
+  });
+
+  it('in the UI language', () => {
+    setLang('de');
+    const { store, view } = setup();
+    act(() => { store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'q', ts: yesterday })); });
+    expect(view.container.querySelector('[data-day]')).toHaveTextContent('Gestern');
+  });
+});
+
+describe('a feed left open past midnight', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('re-renders at local midnight: Today becomes Yesterday and the times get their date', () => {
+    const evening = new Date(2026, 10, 16, 23, 0).getTime();
+    vi.useFakeTimers({ now: new Date(2026, 10, 16, 23, 58) });
+    const { store, view } = setup();
+    act(() => {
+      store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'q', ts: evening }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: evening, e: { t: 'message', id: 'a1:0', text: 'a' } }));
+    });
+    const sep = () => view.container.querySelector('[data-day]')!.textContent;
+    const time = (id: string) => view.container.querySelector(`[data-item-id="${id}"] time`)!.textContent;
+    expect(sep()).toBe('Today');
+    expect(time('a1:0')).toBe(clockTime(evening, 'en', evening));
+    act(() => { vi.advanceTimersByTime(3 * 60_000); });
+    expect(sep()).toBe('Yesterday');
+    expect(time('a1:0')).toBe(clockTime(evening, 'en', Date.now()));
+    expect(time('u1')).toMatch(/^Nov 16, /);
+  });
+});
+
+describe('a resume after a restart that cut a turn (gh-422)', () => {
+  function open() {
+    const sent: ClientMessage[] = [];
+    const connect = ((_u: unknown, _e: unknown, s: (x: 'open') => void) => { s('open'); return { send: (m: ClientMessage) => (sent.push(m), true), close() {} }; }) as never;
+    const store = makeStore({ url: 'ws://x', connect });
+    const view = render(<Provider store={store}><Feed /></Provider>);
+    return { sent, store, view };
+  }
+
+  it('says so with Continue, which sends a short continue message once; nothing goes by itself', () => {
+    const { store, sent } = open();
+    act(() => { store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij', cut: true }] })); });
+    expect(screen.getByText('The server restarted during a turn')).toBeInTheDocument();
+    expect(sent.filter((m) => m.type === 'send')).toEqual([]);
+    const btn = screen.getByRole('button', { name: 'Continue' });
+    expect(btn).toHaveAttribute('title', 'Ask the agent to continue the cut-off turn');
+    fireEvent.click(btn);
+    expect(sent.filter((m) => m.type === 'send')).toMatchObject([{ type: 'send', text: 'The server restarted during your last turn and cut it off. Please continue where you stopped.' }]);
+  });
+
+  it('once the user has sent something after it, the note stays and Continue goes', () => {
+    const { store } = open();
+    act(() => {
+      store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij', cut: true }, { kind: 'user', id: 'u1', text: 'go on', ts: 1, historic: true }] }));
+    });
+    expect(screen.getByText('The server restarted during a turn')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  });
+
+  it('a plain resume has no such note', () => {
+    const { store } = open();
+    act(() => { store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij' }] })); });
+    expect(screen.queryByText('The server restarted during a turn')).toBeNull();
+  });
 });
