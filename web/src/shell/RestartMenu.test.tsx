@@ -235,3 +235,62 @@ describe('a restart that waits for the agent (gh-422)', () => {
     await waitFor(() => expect(document.getElementById('conn')).toHaveTextContent('restarting…'));
   });
 });
+
+describe('the pause ask accepted, then not carried out (gh-422)', () => {
+  function mockPause() {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/info') return new Response(JSON.stringify({ supervised: true, codeChanged: false }));
+      if (url.startsWith('/restart-server')) { calls.push(url); return new Response('{"ok":true}'); }
+      return new Response('');
+    }));
+    return calls;
+  }
+  const idle = (ev: (e: ServerEvent) => void) => ev({ kind: 'replay', events: [SESSION] } as ServerEvent);
+
+  it('the server says it is still pending: restarting… ends without a toast, and the page asks again in its next pause', async () => {
+    const calls = mockPause();
+    const { ev } = setup();
+    idle(ev);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    ev({ kind: 'restart-pending', pending: true });
+    await waitFor(() => expect(document.getElementById('conn')).toHaveTextContent('restarting…'));
+    ev({ kind: 'user', id: 'u9', text: 'from the phone', ts: 3 } as ServerEvent); // a send from elsewhere: busy again
+    ev({ kind: 'restart-pending', pending: true }); // declined at the reply
+    expect(document.getElementById('conn')).toHaveTextContent('');
+    expect(screen.getByRole('button', { name: 'Restart pending' })).toBeInTheDocument();
+    const asked = calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(SERVER_RESTART_TIMEOUT_MS + 10); });
+    expect(getToasts()).toEqual([]); // the first ask's wait is over: nothing to report
+    expect(calls).toHaveLength(asked); // busy: no ask
+    ev({ kind: 'agent', e: { t: 'turn-end', stop: 'done', secs: 1, answers: 'all', queued: 0 }, ts: 4 } as ServerEvent);
+    await waitFor(() => expect(calls.length).toBeGreaterThan(asked));
+  });
+
+  it('another page cancels: restarting… ends, no toast, no chip', async () => {
+    mockPause();
+    const { ev } = setup();
+    idle(ev);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    ev({ kind: 'restart-pending', pending: true });
+    await waitFor(() => expect(document.getElementById('conn')).toHaveTextContent('restarting…'));
+    ev({ kind: 'restart-pending', pending: false });
+    expect(document.getElementById('conn')).toHaveTextContent('');
+    expect(screen.queryByRole('button', { name: 'Restart pending' })).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(SERVER_RESTART_TIMEOUT_MS + 10); });
+    expect(getToasts()).toEqual([]);
+  });
+
+  it('the socket drops after the accepted ask (the real restart): the reconnect\'s state does not end the phase early', async () => {
+    mockPause();
+    const { ev, state } = setup();
+    idle(ev);
+    ev({ kind: 'restart-pending', pending: true });
+    await waitFor(() => expect(document.getElementById('conn')).toHaveTextContent('restarting…'));
+    state('closed');
+    state('open');
+    ev({ kind: 'replay', events: [] } as ServerEvent); // the new server, still loading its session
+    ev({ kind: 'restart-pending', pending: false });
+    expect(document.getElementById('conn')).toHaveTextContent('restarting…');
+  });
+});

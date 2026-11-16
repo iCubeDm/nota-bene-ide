@@ -15,13 +15,14 @@ const PENDING_EVERY_MS = 1_000;
  * the reply (`replied()`, or REPLY_LIMIT_MS) and checks the pause again then: a send that came meanwhile is not cut off.
  * `exit` may still decline (it re-checks its own conditions).
  */
-export function pauseExit(o: { busy: () => boolean; exit: () => void; limitMs?: number }) {
+export function pauseExit(o: { busy: () => boolean; exit: () => void; limitMs?: number; /** the pause ended before the reply was out: no exit */ declined?: () => void }) {
   let accepted: NodeJS.Timeout | null = null;
   function replied(): void {
     if (!accepted) return;
     clearTimeout(accepted);
     accepted = null;
     if (!o.busy()) o.exit();
+    else o.declined?.();
   }
   return {
     accept(): boolean {
@@ -70,7 +71,8 @@ export function restartGate(o: {
     clear();
     o.exit(RESTART);
   };
-  const ask = pauseExit({ busy: o.busy, exit: go });
+  // declined at the reply: still pending, said again so the page that asked leaves its restarting state and waits
+  const ask = pauseExit({ busy: o.busy, exit: go, declined: () => { if (pending) o.changed(true); } });
   return {
     pending: () => pending,
     request() {

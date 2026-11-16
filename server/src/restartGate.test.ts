@@ -56,14 +56,16 @@ describe('restartGate', () => {
   });
 
   it('a send between the accepted ask and its reply keeps the restart pending for the next pause', () => {
-    const { g, st, exit } = make({ busy: true, tabs: 1 });
+    const { g, st, exit, changed } = make({ busy: true, tabs: 1 });
     g.request();
     st.busy = false;
     expect(g.pause()).toBe('ok');
     st.busy = true;
+    changed.mockClear();
     g.replied();
     expect(exit).not.toHaveBeenCalled();
     expect(g.pending()).toBe(true);
+    expect(changed).toHaveBeenCalledWith(true); // told again: the asking page leaves its restarting state
     st.busy = false;
     expect(g.pause()).toBe('ok');
     g.replied();

@@ -39,10 +39,15 @@ export type ControlsState = { mode: Mode | null; modeBeforePlan: Mode | null; re
   dictationLang?: string;
   /** protocol 22: a server restart waits for the agent's pause (`restart-pending`; false on a dropped socket until the next one says) */
   restartPending: boolean;
+  /**
+   * gh-422: this page's pause ask was accepted and the socket has not dropped since: a `restart-pending` now means the
+   * server did not go after all (declined at the reply: still pending; or cancelled), so the restarting phase ends
+   */
+  restartAsked: boolean;
 };
 
 /** The mode as the UI shows it: null until the server has told us (or the user picked one). */
-const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null, restartPending: false };
+const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null, restartPending: false, restartAsked: false };
 
 /** Entering `plan` from X remembers X (prototype setModeUI). */
 function setMode(s: ControlsState, m: Mode): void {
@@ -71,6 +76,7 @@ export const controlsSlice = createSlice({
     /** the full-restart wait gave up (error answer or no reconnect): release the UI */
     switchCleared: (s) => void ((s.switching = null), (s.restarting = false)),
     switchStarted: (s, a: PayloadAction<boolean | undefined>) => void ((s.switching = 'asked'), (s.restarting = a.payload === true)),
+    restartAccepted: (s) => void (s.restartAsked = true),
   },
   extraReducers: (b) => {
     b.addCase(modeSet, (s, a) => setMode(s, a.payload));
@@ -82,7 +88,7 @@ export const controlsSlice = createSlice({
     b.addCase(dictationLangSet, (s, a) => void (s.dictationLang = a.payload));
     b.addCase(idleCompactSet, (s, a) => void (s.idleCompact && (s.idleCompact.on = a.payload)));
     // a dropped socket may come back to another server (a restart): until its hello, assume an old one
-    b.addCase(connState, (s, a) => void (a.payload === 'closed' && ((s.protocol = 0), (s.restartPending = false))));
+    b.addCase(connState, (s, a) => void (a.payload === 'closed' && ((s.protocol = 0), (s.restartPending = false), (s.restartAsked = false))));
     b.addCase(serverEvent, (s, a) => {
       const ev = a.payload;
       if (ev.kind === 'hello') {
@@ -106,7 +112,11 @@ export const controlsSlice = createSlice({
       if (ev.kind === 'models') s.models = ev.models;
       if (ev.kind === 'commands') s.commands = ev.commands;
       if (ev.kind === 'idle-compact') s.idleCompact = ev.state;
-      if (ev.kind === 'restart-pending') s.restartPending = ev.pending;
+      if (ev.kind === 'restart-pending') {
+        s.restartPending = ev.pending;
+        if (s.restartAsked && s.restarting) { s.switching = null; s.restarting = false; }
+        s.restartAsked = false;
+      }
       // stale once the conversation moves on: a user turn (live or replayed), a reset, a replay, another session
       // plan-restore belongs to one conversation; a reconnect may have lost the sends still in flight
       if (ev.kind === 'replay') { s.modeBeforePlan = null; s.restoreAfterPlan = null; s.modeInFlight = []; }
@@ -136,7 +146,7 @@ export const controlsSlice = createSlice({
 });
 
 export const { planApproved } = controlsSlice.actions;
-const { restoreCleared, switchStarted, switchCleared } = controlsSlice.actions;
+const { restoreCleared, switchStarted, switchCleared, restartAccepted } = controlsSlice.actions;
 
 export const selectMode = (s: RootState): Mode | null => s.controls.mode;
 export const selectSuggestion = (s: RootState): string => s.controls.suggestion;
@@ -298,6 +308,7 @@ export const restartInPause = (): AppThunk<Promise<boolean>> => async (dispatch,
   const ok = await apiFetch('/restart-server/pause', { method: 'POST' }).then((r) => r.ok, () => false);
   if (!ok || getState().controls.switching) return false;
   dispatch(switchStarted(true));
+  dispatch(restartAccepted()); // a `restart-pending` before the socket drops ends the phase: the server stayed
   clearTimeout(serverRestartTimer);
   serverRestartTimer = setTimeout(() => {
     if (!getState().controls.restarting) return;
