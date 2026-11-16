@@ -230,6 +230,57 @@ export function setClip(cut: Cut, id: string, patch: Partial<Omit<CutClip, 'id' 
   return validateCut(next).ok ? next : null;
 }
 
+/** The gain line's range (issue 431), dB: the format takes any gain, a drag stays within these. */
+export const GAIN_MIN = -60;
+export const GAIN_MAX = 12;
+const lin = (db: number) => 10 ** (db / 20);
+// a fader's law: the square root of the amplitude against the top's, stretched so GAIN_MIN is the bottom; 0 dB sits about halfway
+const ROOT_MIN = Math.sqrt(lin(GAIN_MIN) / lin(GAIN_MAX));
+
+/** Where the gain line of a clip at `db` is drawn: a fraction of the clip's height from its top, 0..1. */
+export function gainY(db: number): number {
+  const r = Math.sqrt(lin(within(db, GAIN_MIN, GAIN_MAX)) / lin(GAIN_MAX));
+  return within((1 - r) / (1 - ROOT_MIN), 0, 1);
+}
+
+/** The gain at a fraction `y` of the clip's height from its top: gainY's inverse. */
+export function gainAtY(y: number): number {
+  const r = 1 - within(y, 0, 1) * (1 - ROOT_MIN);
+  return within(20 * Math.log10(lin(GAIN_MAX) * r * r), GAIN_MIN, GAIN_MAX);
+}
+
+/**
+ * The gain after dragging the line `dy` px on a clip `h` px high from `db`: the line follows the pointer in 0.5 dB steps;
+ * `fine` (Shift) moves it a tenth as far, in 0.1 dB steps. Within GAIN_MIN..GAIN_MAX.
+ */
+export function dragGain(db: number, dy: number, h: number, fine: boolean): number {
+  const y = gainY(db) + (fine ? dy / 10 : dy) / Math.max(1, h);
+  const step = fine ? 10 : 2;
+  return within(Math.round(gainAtY(y) * step) / step, GAIN_MIN, GAIN_MAX) || 0;
+}
+
+/** The clip's sound at `db` (to the tenth, within the gain line's range); 0 dB is the default, left out of the file. */
+export function setGain(cut: Cut, id: string, db: number): Cut {
+  if (!cut.clips.some((c) => c.id === id)) return cut;
+  const g = Math.round(within(db, GAIN_MIN, GAIN_MAX) * 10) / 10 || 0;
+  return withClip(cut, id, (c) => compact({ ...c, gain: g === 0 ? undefined : g }));
+}
+
+/**
+ * A fade of the clip (`in` from its start, `out` to its end) to `sec`, to the millisecond: never below 0 nor longer than
+ * what the other fade leaves of the clip. 0 is no fade, left out of the file.
+ */
+export function setFade(cut: Cut, id: string, edge: 'in' | 'out', sec: number): Cut {
+  const c = cut.clips.find((x) => x.id === id);
+  if (!c) return cut;
+  const other = (edge === 'in' ? c.fadeOut : c.fadeIn) ?? 0;
+  const room = Math.max(0, clipLength(c) - other);
+  // to the millisecond, and never past the room left (rounding up could)
+  let v = ms(within(sec, 0, room));
+  if (v > room + EPS) v = Math.floor(room * 1000) / 1000;
+  return withClip(cut, id, (x) => compact({ ...x, [edge === 'in' ? 'fadeIn' : 'fadeOut']: v > 0 ? v : undefined }));
+}
+
 /** Where a moved or trimmed edge may snap: 0, the playhead and the edges of every clip but `except`, sorted. */
 export function snapPoints(cut: Cut, playhead: number, except: readonly string[]): number[] {
   const pts = new Set<number>([0, ms(playhead)]);
