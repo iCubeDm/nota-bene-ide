@@ -136,3 +136,34 @@ it('a file with CRLF line ends: the server keeps them, and the next read is no o
   act(() => result.current.apply(later(result.current.cut!, 2)));
   await waitFor(() => expect(JSON.parse(disk.text).clips[0].at).toBe(2), { timeout: SAVE_DELAY + 1000 });
 });
+
+it('closed while a save is in flight: the last edit is written after it, over its new version', async () => {
+  let release!: () => void;
+  let held = true;
+  const real = fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST' && held) { held = false; await new Promise<void>((r) => { release = r; }); }
+    return real(url, init);
+  }));
+  const { result, unmount } = open();
+  await waitFor(() => expect(result.current.cut).not.toBeNull());
+  act(() => result.current.apply(later(result.current.cut!, 1)));
+  await waitFor(() => expect(result.current.status).toBe('saving'), { timeout: SAVE_DELAY + 1000 });
+  act(() => result.current.apply(later(result.current.cut!, 2)));
+  unmount();
+  release();
+  await waitFor(() => expect(JSON.parse(disk.text).clips[0].at).toBe(2));
+  expect(posts.map((p) => p.base)).toEqual(['b1', 'b2']);
+});
+
+it('a page closed or reloaded within the pause still writes the last edit', async () => {
+  const { result } = open();
+  await waitFor(() => expect(result.current.cut).not.toBeNull());
+  act(() => result.current.apply(later(result.current.cut!, 3)));
+  window.dispatchEvent(new Event('pagehide'));
+  await waitFor(() => expect(JSON.parse(disk.text).clips[0].at).toBe(3));
+  const init = vi.mocked(fetch).mock.calls.find(([, i]) => i?.method === 'POST')![1]!;
+  expect(init.keepalive).toBe(true);
+  await new Promise((r) => setTimeout(r, SAVE_DELAY + 200));
+  expect(posts).toHaveLength(1); // the pause's save found it written
+});

@@ -91,34 +91,43 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
   }, [path, adopt]);
   useEffect(() => { void readDisk(false); }, [text, readDisk]);
 
-  const save = useCallback(async (overwrite: boolean) => {
-    const h = live.current.hist;
-    if (path === undefined || !h || !disk.current) return;
-    const now = h.now;
-    const body = serialize(now);
-    writes.current++;
-    setSaving(true);
-    try {
-      const r = await apiFetch('/edit', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path, text: body, base: overwrite ? null : disk.current.base }),
-      });
-      if (r.status === 409) return setConflict(true);
-      if (!r.ok) {
-        const error = (await r.json().catch(() => null) as { error?: string } | null)?.error;
-        return setProblem(error ?? `${r.status} ${r.statusText}`.trim());
-      }
-      const j = await r.json() as { base: string };
-      disk.current = { text: body, base: j.base };
-      setSaved(now);
-      setConflict(false);
-      setProblem(null);
-    } catch (e) {
-      setProblem(e instanceof Error ? e.message : String(e));
-    } finally {
+  // one save at a time: each one starts after the one before it, from the version that one wrote
+  const inflight = useRef<Promise<void> | null>(null);
+  const save = useCallback((overwrite: boolean, keepalive = false): Promise<void> => {
+    const run = async () => {
+      const h = live.current.hist;
+      if (path === undefined || !h || !disk.current) return;
+      const now = h.now;
+      const body = serialize(now);
+      if (!overwrite && lf(disk.current.text) === lf(body)) return void setSaved(now); // written already (a flush)
       writes.current++;
-      setSaving(false);
-    }
+      setSaving(true);
+      try {
+        const r = await apiFetch('/edit', {
+          method: 'POST', keepalive, headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ path, text: body, base: overwrite ? null : disk.current.base }),
+        });
+        if (r.status === 409) return setConflict(true);
+        if (!r.ok) {
+          const error = (await r.json().catch(() => null) as { error?: string } | null)?.error;
+          return setProblem(error ?? `${r.status} ${r.statusText}`.trim());
+        }
+        const j = await r.json() as { base: string };
+        disk.current = { text: body, base: j.base };
+        setSaved(now);
+        setConflict(false);
+        setProblem(null);
+      } catch (e) {
+        setProblem(e instanceof Error ? e.message : String(e));
+      } finally {
+        writes.current++;
+        setSaving(false);
+      }
+    };
+    const p = (inflight.current ?? Promise.resolve()).then(run);
+    inflight.current = p;
+    void p.finally(() => { if (inflight.current === p) inflight.current = null; });
+    return p;
   }, [path]);
 
   // a pause after the last edit writes it; not while in conflict, nor again after a failure until the next edit
@@ -128,17 +137,22 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
     return () => clearTimeout(id);
   }, [hist, dirty, conflict, saving, problem, save]);
 
-  // the tab closed within the pause: the last edit is still written (over its own version only)
+  // the tab closed, or the page left (reload, window closed: nothing unmounts then), within the pause: the last edit
+  // is still written, after a save in flight and over the version it wrote; never over a conflict
   const flush = useRef<() => void>(() => {});
   flush.current = () => {
     const { hist: h, saved: s, conflict: c } = live.current;
-    if (path === undefined || !h || h.now === s || c || !disk.current) return;
-    void apiFetch('/edit', {
-      method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path, text: serialize(h.now), base: disk.current.base }),
-    }).catch(() => {});
+    if (path === undefined || !h || h.now === s || c) return;
+    void save(false, true);
   };
-  useEffect(() => () => flush.current(), []);
+  useEffect(() => {
+    const onHide = () => flush.current();
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      flush.current();
+    };
+  }, []);
 
   const apply = useCallback((next: Cut) => {
     setProblem(null);
