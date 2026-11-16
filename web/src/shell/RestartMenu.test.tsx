@@ -63,7 +63,7 @@ it('the server item POSTs /restart-server and shows restarting…; close, open, 
   const { ev, state } = setup();
   await userEvent.click(screen.getByRole('button', { name: 'Restart menu' }));
   const item = await screen.findByText('Restart the server');
-  expect(item.closest('[role=menuitem]')).toHaveAttribute('title', 'picks up server code changes; the window reconnects by itself');
+  expect(item.closest('[role=menuitem]')).toHaveAttribute('title', 'picks up server code changes; waits for the agent to finish, then the window reconnects by itself');
   await userEvent.click(item);
   await waitFor(() => expect(calls.find((c) => c.url === '/restart-server')?.init).toMatchObject({ method: 'POST' }));
   expect(document.getElementById('conn')).toHaveTextContent('restarting…');
@@ -161,5 +161,77 @@ describe('the "code updated" button', () => {
     changed = true;
     act(() => { window.dispatchEvent(new Event('focus')); });
     expect(await screen.findByRole('button', { name: label })).toBeInTheDocument();
+  });
+});
+
+describe('a restart that waits for the agent (gh-422)', () => {
+  function mockServer() {
+    const calls: { url: string; body?: unknown }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/info') return new Response(JSON.stringify({ supervised: true, codeChanged: true }));
+      if (url.startsWith('/restart-server')) {
+        calls.push({ url, ...(init?.body ? { body: JSON.parse(String(init.body)) as unknown } : {}) });
+        return new Response(url === '/restart-server' && !init?.body?.toString().includes('now') ? '{"ok":true,"pending":true}' : '{"ok":true}', { status: 200 });
+      }
+      return new Response('');
+    }));
+    return calls;
+  }
+  const busy = (ev: (e: ServerEvent) => void) => ev({ kind: 'replay', events: [SESSION, { kind: 'user', id: 'u1', text: 'work', ts: 1 }] } as ServerEvent);
+
+  it('busy: the request becomes pending, not a restart; the header says so and offers Restart now and Cancel', async () => {
+    const calls = mockServer();
+    const { ev } = setup();
+    busy(ev);
+    await userEvent.click(screen.getByRole('button', { name: 'Restart menu' }));
+    await userEvent.click(await screen.findByText('Restart the server'));
+    await waitFor(() => expect(calls.map((c) => c.url)).toEqual(['/restart-server']));
+    expect(document.getElementById('conn')).toHaveTextContent(''); // not restarting yet
+    ev({ kind: 'restart-pending', pending: true });
+    const chip = screen.getByRole('button', { name: 'Restart pending' });
+    expect(chip).toHaveAttribute('title', 'The server restarts after the agent finishes');
+    expect(screen.queryByRole('button', { name: 'Restart server · code updated' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Restart menu' }));
+    expect(await screen.findByText('Restart the server now')).toBeInTheDocument();
+    expect(screen.getByText('Cancel the server restart')).toBeInTheDocument();
+    expect(screen.queryByText('Restart the server')).toBeNull();
+  });
+
+  it('Restart now asks first, then POSTs now and shows restarting…', async () => {
+    const calls = mockServer();
+    const { ev } = setup();
+    busy(ev);
+    ev({ kind: 'restart-pending', pending: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Restart pending' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restart the server now' }));
+    expect(await screen.findByText(/subagents will be cut off/)).toBeInTheDocument();
+    expect(calls).toEqual([]);
+    await userEvent.click(screen.getByRole('button', { name: 'Restart now' }));
+    await waitFor(() => expect(calls).toEqual([{ url: '/restart-server', body: { now: true } }]));
+    expect(document.getElementById('conn')).toHaveTextContent('restarting…');
+  });
+
+  it('Cancel POSTs the cancel', async () => {
+    const calls = mockServer();
+    const { ev } = setup();
+    busy(ev);
+    ev({ kind: 'restart-pending', pending: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Restart pending' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel the server restart' }));
+    await waitFor(() => expect(calls.map((c) => c.url)).toEqual(['/restart-server/cancel']));
+    ev({ kind: 'restart-pending', pending: false });
+    expect(screen.queryByRole('button', { name: 'Restart pending' })).toBeNull();
+  });
+
+  it('pending: the page asks for the restart once the turn ends (a draft does not hold it: the page is kept)', async () => {
+    const calls = mockServer();
+    const { ev } = setup();
+    busy(ev);
+    ev({ kind: 'restart-pending', pending: true });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls).toEqual([]); // the agent works
+    ev({ kind: 'agent', e: { t: 'turn-end', stop: 'done', secs: 1, answers: 'all', queued: 0 }, ts: 2 } as ServerEvent);
+    await waitFor(() => expect(calls.map((c) => c.url)).toEqual(['/restart-server/pause']));
+    await waitFor(() => expect(document.getElementById('conn')).toHaveTextContent('restarting…'));
   });
 });
