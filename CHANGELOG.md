@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Video edits: the format and a read-only timeline.** A `*.nbcut.json` file (tracks of video, photos and sound; the format is in the guide) opens as a timeline with its tracks, clips and thumbnails, a ruler, zoom and a playhead. Problems in the file and missing sources are listed in the view.
+- **Video edits: export.** **Export** on the edit's timeline renders it with ffmpeg on the machine into `exports/<name>.mp4` (H.264/AAC at the edit's size and frame rate) or the sound mix alone (`.wav`, `.m4a`), with progress and cancel. Without ffmpeg the editor still works and Export says how to install it.
 - **The phone keyboard after switching apps.** Leaving the app with the keyboard open and coming back no longer leaves the message line floating mid-screen or the attachment sheet's Send button under the navigation bar: the field gets its focus back with a fresh keyboard.
 
 ## 2.0.1 — 2026-11-15
