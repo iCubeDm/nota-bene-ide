@@ -70,6 +70,9 @@ export type CutClip = {
   place?: CutPlace;
 };
 
+/** A source's waveform (issue 431, `GET /cut/peaks`): this many peaks a second, each the loudest sample there as 0..255. */
+export const CUT_PEAKS_RATE = 100;
+
 /** The edit's file name ending. */
 export const CUT_EXT = '.nbcut.json';
 
