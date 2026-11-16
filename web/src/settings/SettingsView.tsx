@@ -14,6 +14,7 @@ import { uiScale, useUiScale } from '@/shell/uiScale.ts';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '@/shell/theme.ts';
 import { playCue, type Sounds } from '@/shell/sounds.ts';
 import { folderName, shortWinHome } from '@/lib/paths.ts';
+import { railPref, useRailPref } from '@/projects/railPref.ts';
 import { SHELL_NAMES, WIN_SHELLS, type ShellChoice, type WinShell } from './shells.ts';
 
 type Size = { bytes: number; files: number };
@@ -106,6 +107,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const t = useT();
   const scale = useUiScale();
   const themeId = useTheme();
+  const rail = useRailPref();
   const windows = useLoad<WindowRow[]>('/system/windows', active);
   const storage = useLoad<Storage>('/system/storage', active);
   const about = useLoad<About>('/system/about', active);
@@ -335,6 +337,13 @@ export function SettingsView({ active }: { active: boolean }) {
               {prefs.data.auditDir && <span className="text-xs text-muted-foreground">{t('defAuditHint', prefs.data.auditDir)}</span>}
             </span>
           )}
+        </Row>
+        <Row label={t('defRail')}>
+          <span className="flex flex-col gap-1">
+            <input type="checkbox" aria-label={t('defRail')} checked={rail !== false} onChange={(e) => railPref.choose(e.target.checked)}
+              className="size-3.5 accent-primary" />
+            <span className="text-xs text-muted-foreground">{t('defRailHint')}</span>
+          </span>
         </Row>
         <Row label={t('defSounds')}>
           {prefs.data?.sounds && (
