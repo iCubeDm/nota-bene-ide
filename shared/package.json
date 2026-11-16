@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/protocol.ts",
-    "./paths": "./src/paths.ts"
+    "./paths": "./src/paths.ts",
+    "./cut": "./src/cut.ts"
   }
 }
