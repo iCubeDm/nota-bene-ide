@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Open projects in a rail on the left.** Every running project is a tile at the window's left edge, in a fixed order by name, with its state dot and badge (**!** when it waits for you, otherwise its unseen replies); a click switches to it, **+** opens a folder. Settings → Defaults → **Projects rail** turns it off for every window; narrow windows hide it. See [Projects](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#projects-switching-opening-creating).
 - **The phone keyboard after switching apps.** Leaving the app with the keyboard open and coming back no longer leaves the message line floating mid-screen or the attachment sheet's Send button under the navigation bar: the field gets its focus back with a fresh keyboard.
 
 ## 2.0.1 — 2026-11-15

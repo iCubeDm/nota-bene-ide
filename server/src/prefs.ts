@@ -20,7 +20,7 @@ export const isSounds = (v: unknown): v is Sounds => {
   return !!s && typeof s === 'object' && typeof s.ask === 'boolean' && typeof s.done === 'boolean';
 };
 
-export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; uiScale?: UiScale; theme?: ThemeId; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean; audit?: boolean; sounds?: Sounds; whisper?: boolean; dictationLang?: string; shell?: ShellChoice };
+export type Prefs = { modes: Record<string, Mode>; models: Record<string, ModelChoice>; lang?: UiLang; uiScale?: UiScale; theme?: ThemeId; idleCompact: Record<string, boolean>; defaultMode?: Mode; updateCheck?: boolean; audit?: boolean; sounds?: Sounds; whisper?: boolean; dictationLang?: string; shell?: ShellChoice; /** the open projects in a rail on the left (absent = on) */ projectRail?: boolean };
 
 /** The choices for the shell of `! cmd` on Windows: `auto` takes Git Bash, else PowerShell 7, else Windows PowerShell 5.1. */
 export const SHELL_CHOICES = ['auto', 'git-bash', 'pwsh', 'powershell', 'cmd'] as const;
@@ -57,7 +57,7 @@ export function readPrefs(): Prefs {
   try {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('prefs.json is not an object');
-    const { modes, models, lang, uiScale, theme, idleCompact, defaultMode, updateCheck, audit, sounds, whisper, dictationLang, shell } = data as { modes?: unknown; models?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown; audit?: unknown; sounds?: unknown; whisper?: unknown; dictationLang?: unknown; shell?: unknown };
+    const { modes, models, lang, uiScale, theme, idleCompact, defaultMode, updateCheck, audit, sounds, whisper, dictationLang, shell, projectRail } = data as { modes?: unknown; models?: unknown; lang?: unknown; uiScale?: unknown; theme?: unknown; idleCompact?: unknown; defaultMode?: unknown; updateCheck?: unknown; audit?: unknown; sounds?: unknown; whisper?: unknown; dictationLang?: unknown; shell?: unknown; projectRail?: unknown };
     const out: Prefs = { modes: {}, models: {}, idleCompact: {} };
     if (modes && typeof modes === 'object' && !Array.isArray(modes)) {
       for (const [k, v] of Object.entries(modes)) if (isMode(v)) out.modes[k] = v;
@@ -83,6 +83,7 @@ export function readPrefs(): Prefs {
     if (isSounds(sounds)) out.sounds = { ask: sounds.ask, done: sounds.done };
     if (typeof whisper === 'boolean') out.whisper = whisper;
     if (isShellChoice(shell)) out.shell = shell;
+    if (typeof projectRail === 'boolean') out.projectRail = projectRail;
     return out;
   } catch (e) {
     if (!reported) {
@@ -182,6 +183,11 @@ export function setShellPref(shell: ShellChoice): void {
 /** Settings → Defaults: the sounds, one for every window of this provider. */
 export function setSoundsPref(sounds: Sounds): void {
   updateRawPrefs((raw) => void (raw.sounds = { ask: sounds.ask, done: sounds.done }));
+}
+
+/** Settings → Defaults: the open projects in a rail on the left, one for every window. */
+export function setProjectRailPref(on: boolean): void {
+  updateRawPrefs((raw) => void (raw.projectRail = on));
 }
 
 /** Settings → Defaults: the audit log, one for every window of this provider. */

@@ -1,6 +1,6 @@
 // The project switcher's and the starter's client side: the server routes of server/src/projectRoutes.ts, their answer
 // types (mirrored: the web does not import from server/), the polling hook, and the move of this tab to another window.
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { t } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { toast } from '@/shell/toast.ts';
@@ -37,24 +37,63 @@ export const projectsMenu = {
 const isList = (v: unknown): v is ProjectsList =>
   !!v && typeof v === 'object' && Array.isArray((v as ProjectsList).running) && Array.isArray((v as ProjectsList).recent);
 
-/** GET /system/projects: every 3 s while `active` (the menu is open), every 10 s otherwise; only while the page is visible. */
+// GET /system/projects, one fetch loop for the page however many parts show it (the header's switcher, the rail): every
+// 3 s while any of them is `active` (the menu is open, the rail shows), every 10 s otherwise; only while the page is
+// visible. The last one gone stops it and drops the list.
+let list: ProjectsList | null = null;
+const listSubs = new Set<() => void>();
+const demand = new Map<symbol, boolean>();
+let period = 0;
+let timer: ReturnType<typeof setInterval> | undefined;
+let inFlight = false;
+let gen = 0;
+
+function load(): void {
+  if (inFlight || document.visibilityState === 'hidden') return;
+  inFlight = true;
+  const g = gen;
+  apiFetch('/system/projects')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j: unknown) => {
+      if (g !== gen) return;
+      list = isList(j) ? j : { running: [], recent: [] };
+      for (const f of listSubs) f();
+    })
+    .catch(() => { /* the next poll tries again; the header's own line says when the server is gone */ })
+    .finally(() => { if (g === gen) inFlight = false; });
+}
+
+function schedule(): void {
+  const want = demand.size === 0 ? 0 : [...demand.values()].some(Boolean) ? 3000 : 10_000;
+  if (want === period) return;
+  clearInterval(timer);
+  timer = undefined;
+  period = want;
+  if (want) timer = setInterval(load, want);
+}
+
+/** Nobody shows the list any more (checked after the commit: a part re-subscribing for another `active` keeps it). */
+function dropIfUnused(): void {
+  if (demand.size > 0) return;
+  gen++;
+  inFlight = false;
+  list = null;
+}
+
+const subscribeList = (f: () => void) => { listSubs.add(f); return () => void listSubs.delete(f); };
+const getList = () => list;
+
+/** The projects list, shared: `active` asks for the 3 s poll while it holds; a change of it loads at once. */
 export function useProjects(active: boolean): { data: ProjectsList | null; reload(): void } {
-  const [data, setData] = useState<ProjectsList | null>(null);
-  const [tick, setTick] = useState(0);
+  const data = useSyncExternalStore(subscribeList, getList);
   useEffect(() => {
-    let gone = false;
-    const load = () => {
-      if (document.visibilityState === 'hidden') return;
-      apiFetch('/system/projects')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j: unknown) => { if (!gone) setData(isList(j) ? j : { running: [], recent: [] }); })
-        .catch(() => { /* the next poll tries again; the header's own line says when the server is gone */ });
-    };
+    const id = Symbol('projects');
+    demand.set(id, active);
+    schedule();
     load();
-    const timer = setInterval(load, active ? 3000 : 10_000);
-    return () => { gone = true; clearInterval(timer); };
-  }, [active, tick]);
-  return { data, reload: () => setTick((n) => n + 1) };
+    return () => { demand.delete(id); schedule(); queueMicrotask(dropIfUnused); };
+  }, [active]);
+  return { data, reload: () => { inFlight = false; gen++; load(); } };
 }
 
 export const postJson = (url: string, body: unknown): Promise<Response> =>
