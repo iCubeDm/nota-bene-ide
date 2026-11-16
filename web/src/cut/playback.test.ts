@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import type { Cut } from '@nota-bene/shared/cut';
 import {
-  activeClips, audible, clipEdges, clipLevel, dbGain, edgeStep, fadeAt, fadeRamp, frameStep, gainAt, nextClip, sourceTime,
+  activeClips, audible, clipEdges, lastFrame, clipLevel, dbGain, edgeStep, fadeAt, fadeRamp, frameStep, gainAt, nextClip, sourceTime,
   syncAction, trackLevel, videoLayers,
 } from './playback.ts';
 
@@ -136,12 +136,20 @@ it('frameStep: one frame back or forward on the frame grid, within the edit', ()
   expect(frameStep(0.13, 25, -1, 10)).toBeCloseTo(0.12);
   expect(frameStep(0.12, 25, -1, 10)).toBeCloseTo(0.08);
   expect(frameStep(0, 25, -1, 10)).toBe(0);
-  expect(frameStep(10, 25, 1, 10)).toBe(10);
+  expect(frameStep(10, 25, 1, 10)).toBeCloseTo(9.96); // the last frame: the end itself shows nothing
+  expect(frameStep(9.96, 25, 1, 10)).toBeCloseTo(9.96);
   // 3 frames forward and back land where they started
   let t = 1;
   for (let i = 0; i < 3; i++) t = frameStep(t, 30, 1, 10);
   for (let i = 0; i < 3; i++) t = frameStep(t, 30, -1, 10);
   expect(t).toBeCloseTo(1, 9);
+});
+
+it('lastFrame: where the last frame of the edit starts', () => {
+  expect(lastFrame(10, 25)).toBeCloseTo(9.96);
+  expect(lastFrame(9.97, 25)).toBeCloseTo(9.96);
+  expect(lastFrame(0.01, 25)).toBe(0);
+  expect(lastFrame(0, 25)).toBe(0);
 });
 
 it('clipEdges and edgeStep: the previous or next clip start or end on any track', () => {

@@ -96,11 +96,14 @@ export function fadeRamp(c: CutClip, from: number): { t: number; v: number }[] {
   return pts;
 }
 
-/** One frame back (`dir` −1) or forward on the edit's frame grid, within `0..end`. */
+/** Where the edit's last frame starts: the playhead's furthest stop, since at `end` itself no clip shows (black). */
+export const lastFrame = (end: number, fps: number): number => Math.max(0, Math.ceil(end * fps - EPS) - 1) / fps;
+
+/** One frame back (`dir` −1) or forward on the edit's frame grid, from 0 to the last frame. */
 export function frameStep(t: number, fps: number, dir: 1 | -1, end: number): number {
   const f = t * fps;
   const n = dir > 0 ? Math.floor(f + EPS) + 1 : Math.ceil(f - EPS) - 1;
-  return Math.max(0, Math.min(end, n / fps));
+  return Math.max(0, Math.min(lastFrame(end, fps), n / fps));
 }
 
 /** Every clip start and end, and 0, in order: where the edge keys stop. */

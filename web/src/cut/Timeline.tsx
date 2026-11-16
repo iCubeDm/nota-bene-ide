@@ -29,6 +29,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
 }) {
   const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
+  const manual = useRef(false); // the user scrolled while playing: the view stops following the playhead
   const [zoomed, setPps] = useState(40);
   const span = drawnSpan(end);
   const range = ppsRange(span);
@@ -59,7 +60,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     const el = scroller.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
+      if (!e.ctrlKey && !e.metaKey) return void (manual.current = true);
       e.preventDefault();
       const x = e.clientX - el.getBoundingClientRect().left - HEAD; // pointer over the lanes
       const at = (el.scrollLeft + x) / ppsRef.current;
@@ -128,13 +129,20 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     onPointerMove: (e: PointerEvent<HTMLElement>) => { if (scrubbing.current) player.seek(timeAt(e.clientX)); },
     onPointerUp: stop,
     onPointerCancel: stop,
+    onLostPointerCapture: stop,
   };
+  // a timeline gone mid-drag must not leave the player held and silent
+  useEffect(() => () => { if (scrubbing.current) player.scrub(false); }, [player]);
 
-  // while playing, a playhead about to leave the view turns the page: it comes back near the left edge
+  // while playing, a playhead about to leave the view turns the page: it comes back near the left edge. A scroll of the
+  // user's own (wheel, the scrollbar: a press on the scroller itself) stops that until the next play or seek
+  const last = useRef(player.state());
   useEffect(() => player.subscribe(() => {
     const s = player.state();
+    if (s.seeks !== last.current.seeks || (s.playing && !last.current.playing)) manual.current = false;
+    last.current = s;
     const el = scroller.current;
-    if (!s.playing || !el) return;
+    if (!s.playing || !el || manual.current) return;
     const w = el.clientWidth - HEAD;
     const x = s.t * ppsRef.current;
     if (w > 0 && (x < el.scrollLeft || x > el.scrollLeft + w - 24)) el.scrollLeft = Math.max(0, x - w * 0.1);
@@ -153,7 +161,9 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
         {frame && <span>{t('cutFrame', frame.width, frame.height, frame.fps)}</span>}
         {tools && <div className="font-sans text-foreground">{tools}</div>}
       </div>
-      <div ref={scroller} data-timeline-scroll onScroll={onScroll} className="relative min-h-0 flex-1 overflow-auto bg-background">
+      <div
+        ref={scroller} data-timeline-scroll onScroll={onScroll}
+        onPointerDown={(e) => { if (e.target === e.currentTarget) manual.current = true; }} className="relative min-h-0 flex-1 overflow-auto bg-background">
         <div className="relative min-w-full" style={{ width: HEAD + width }}>
           <div className="sticky top-0 z-30 flex h-6 border-b border-border-soft bg-chrome">
             <div className="sticky left-0 z-40 flex-none border-r border-border-soft bg-chrome" style={{ width: HEAD }} />

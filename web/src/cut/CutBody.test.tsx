@@ -247,11 +247,12 @@ it('an edit not of this project (another worktree, a revision) has no Export con
 // the preview's controls (issue 408): jsdom plays nothing, so play/pause/load only flip a flag; the clock runs on fake time
 describe('the preview', () => {
   const P = HTMLMediaElement.prototype;
-  const saved = ['paused', 'play', 'pause', 'load'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)] as const);
+  const saved = ['paused', 'readyState', 'play', 'pause', 'load'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)] as const);
   const paused = new WeakMap<HTMLMediaElement, boolean>();
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
     Object.defineProperty(P, 'paused', { configurable: true, get(this: HTMLMediaElement) { return paused.get(this) ?? true; } });
+    Object.defineProperty(P, 'readyState', { configurable: true, get: () => 4 }); // a frame at hand: the clock need not wait
     P.play = vi.fn(function (this: HTMLMediaElement) { paused.set(this, false); return Promise.resolve(); });
     P.pause = vi.fn(function (this: HTMLMediaElement) { paused.set(this, true); });
     P.load = vi.fn();
@@ -294,7 +295,7 @@ describe('the preview', () => {
   it('the player keys: J/L ten seconds, ← → the seek step, Home/End, `,` `.` a frame, ↑ ↓ the clip edges', () => {
     const { container } = show(JSON.stringify(fixture));
     key('KeyL');
-    expect(time(container)).toBe('0:09.0 / 0:09.0'); // within the edit
+    expect(time(container)).toBe('0:08.9 / 0:09.0'); // within the edit: on its last frame (8.96 s at 25 fps)
     key('KeyJ');
     expect(time(container)).toBe('0:00.0 / 0:09.0');
     key('ArrowRight');
@@ -313,7 +314,7 @@ describe('the preview', () => {
     key('ArrowUp');
     expect(headAt(container)).toBeCloseTo(0.5);
     key('End');
-    expect(headAt(container)).toBeCloseTo(9);
+    expect(headAt(container)).toBeCloseTo(8.96);
     // a frame step pauses playback
     key('Home');
     key('Space');
@@ -370,5 +371,49 @@ describe('the preview', () => {
     expect(container.querySelector('[data-cut-frame] video')).toBeNull();
     key('ArrowRight');
     expect(headAt(container)).toBeCloseTo(5);
+  });
+});
+
+describe('the preview, scrolling and capture', () => {
+  const P = HTMLMediaElement.prototype;
+  const saved = ['paused', 'readyState', 'play', 'pause', 'load'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)] as const);
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+    Object.defineProperty(P, 'readyState', { configurable: true, get: () => 4 });
+    P.play = vi.fn(() => Promise.resolve());
+    P.pause = vi.fn();
+    P.load = vi.fn();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    for (const [k, d] of saved) if (d) Object.defineProperty(P, k, d);
+  });
+
+  it('a lost pointer capture ends the scrub: playback goes on', () => {
+    const { container } = show(JSON.stringify(fixture));
+    const ruler = container.querySelector('[data-ruler]')!;
+    fireEvent.keyDown(document, { code: 'Space' });
+    fireEvent.pointerDown(ruler, { clientX: 10, button: 0, pointerId: 1 });
+    expect(screen.getByRole('button', { name: 'Play (Space, K)' })).toBeInTheDocument();
+    fireEvent.lostPointerCapture(ruler, { pointerId: 1 });
+    expect(screen.getByRole('button', { name: 'Pause (Space, K)' })).toBeInTheDocument();
+  });
+
+  it('the view follows the playhead until the user scrolls it, then again from the next seek', () => {
+    viewW = 1000;
+    const { container } = show(JSON.stringify(hour()));
+    const el = scroller(container);
+    for (let i = 0; i < 10; i++) fireEvent.wheel(el, { deltaY: -1000, ctrlKey: true, clientX: 500 });
+    el.scrollLeft = 0;
+    fireEvent.keyDown(document, { code: 'Space' });
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(el.scrollLeft).toBeGreaterThan(0);
+    fireEvent.wheel(el, { deltaX: -500 }); // the user looks elsewhere
+    el.scrollLeft = 0;
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(el.scrollLeft).toBe(0);
+    fireEvent.keyDown(document, { code: 'ArrowRight' });
+    act(() => { vi.advanceTimersByTime(100); });
+    expect(el.scrollLeft).toBeGreaterThan(0);
   });
 });

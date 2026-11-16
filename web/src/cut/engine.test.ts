@@ -3,15 +3,15 @@ import type { Cut } from '@nota-bene/shared/cut';
 import { CutPlayer } from './engine.ts';
 
 // jsdom plays no media: an element keeps its own time, paused flag, rate and readiness, and play/pause flip them
-type Fake = { t: number; paused: boolean; ready: number; seeking: boolean };
+type Fake = { t: number; paused: boolean; ready: number; seeking: boolean; seeks: number; duration: number; ended: boolean };
 const fakes = new WeakMap<HTMLMediaElement, Fake>();
 const fake = (el: HTMLMediaElement) => {
   let f = fakes.get(el);
-  if (!f) fakes.set(el, (f = { t: 0, paused: true, ready: 4, seeking: false }));
+  if (!f) fakes.set(el, (f = { t: 0, paused: true, ready: 4, seeking: false, seeks: 0, duration: NaN, ended: false }));
   return f;
 };
 const P = HTMLMediaElement.prototype;
-const saved = Object.fromEntries(['currentTime', 'paused', 'readyState', 'seeking', 'play', 'pause', 'load'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)]));
+const saved = Object.fromEntries(['currentTime', 'paused', 'readyState', 'seeking', 'duration', 'ended', 'play', 'pause', 'load'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)]));
 
 // the Web Audio graph as a record: each gain node's value and the ramps scheduled on it
 type Gain = { gain: { value: number; ramps: [string, number, number][] } & Record<string, unknown>; connect: (n: unknown) => void; disconnect: () => void; to?: unknown };
@@ -28,6 +28,8 @@ class FakeContext {
         value: 1, ramps,
         cancelScheduledValues: () => void ramps.splice(0),
         setValueAtTime: (v: number, at: number) => void ramps.push(['set', v, at]),
+        // a smooth change, taken as done at once
+        setTargetAtTime: (v: number, at: number) => { ramps.push(['target', v, at]); g.gain.value = v; },
         linearRampToValueAtTime: (v: number, at: number) => void ramps.push(['ramp', v, at]),
       },
       connect: (n) => void (g.to = n), disconnect: () => {},
@@ -40,7 +42,9 @@ class FakeContext {
     sources.push(s);
     return { connect: (n: Gain) => void (s.to = n) };
   }
-  resume() { return Promise.resolve(); }
+  state = 'running';
+  resume() { this.state = 'running'; return Promise.resolve(); }
+  suspend() { this.state = 'suspended'; return Promise.resolve(); }
   close() { return Promise.resolve(); }
 }
 
@@ -49,7 +53,9 @@ let frames: (() => void)[];
 const step = (ms: number) => { now += ms; const f = frames.splice(0); for (const x of f) x(); };
 
 beforeEach(() => {
-  Object.defineProperty(P, 'currentTime', { configurable: true, get(this: HTMLMediaElement) { return fake(this).t; }, set(this: HTMLMediaElement, v: number) { fake(this).t = v; } });
+  Object.defineProperty(P, 'currentTime', { configurable: true, get(this: HTMLMediaElement) { return fake(this).t; }, set(this: HTMLMediaElement, v: number) { fake(this).t = v; fake(this).seeks++; } });
+  Object.defineProperty(P, 'duration', { configurable: true, get(this: HTMLMediaElement) { return fake(this).duration; } });
+  Object.defineProperty(P, 'ended', { configurable: true, get(this: HTMLMediaElement) { return fake(this).ended; } });
   Object.defineProperty(P, 'paused', { configurable: true, get(this: HTMLMediaElement) { return fake(this).paused; } });
   Object.defineProperty(P, 'readyState', { configurable: true, get(this: HTMLMediaElement) { return fake(this).ready; } });
   Object.defineProperty(P, 'seeking', { configurable: true, get(this: HTMLMediaElement) { return fake(this).seeking; } });
@@ -136,7 +142,13 @@ it('stacks the tracks at their places: a photo with its opacity, a hidden track 
   expect(l2.querySelector('img')!.style.display).toBe('');
   expect(layer('v1').style.width).toBe('100%'); // no place: the whole frame
   expect(layer('v3').style.display).toBe('none');
-  p.seek(9.5);
+});
+
+it('nothing on any track is a black frame', () => {
+  const late = cut();
+  for (const c of late.clips) c.at += 2;
+  const { p, box } = setup(late);
+  p.seek(1);
   expect([...box.children].every((e) => (e as HTMLElement).style.display === 'none')).toBe(true);
 });
 
@@ -157,7 +169,7 @@ it('plays on one clock: elements follow it, small drift nudges the rate, a big o
   expect(v.currentTime).toBeCloseTo(2 + p.time(), 6); // a seek lands on the clock's source time (c1 starts at in 2)
   expect(v.playbackRate).toBe(1);
   step(20_000);
-  expect(p.state()).toMatchObject({ playing: false, t: 9 });
+  expect(p.state()).toMatchObject({ playing: false, t: 8.96 }); // on the last frame, not past the end (black)
   expect(v.paused).toBe(true);
 });
 
@@ -177,7 +189,10 @@ it('sound: element → clip gain with linear fade ramps → track gain (dB, mute
   // the voice (+6 dB) fades in over 1 s from its start and out over its last 2 s, on the audio clock
   const ramps = voice.to!.gain.ramps.map(([k, v, at]) => [k, +v.toFixed(3), +(at - 100).toFixed(3)]);
   const l = +(10 ** (6 / 20)).toFixed(3);
-  expect(ramps).toEqual([['set', 0, 0], ['ramp', l, 1], ['ramp', l, 3.5], ['ramp', 0, 5.5]]);
+  // from where the gain was, 10 ms to the fade's level (no click), the fades, and silence from the clip's end on
+  expect(ramps).toEqual([['set', 1, 0], ['ramp', 0, 0.01], ['ramp', l, 1], ['ramp', l, 3.5], ['ramp', 0, 5.5], ['set', 0, 5.5]]);
+  // track levels change smoothly too
+  expect(trackGain(voice.el).gain.ramps[0]![0]).toBe('target');
 });
 
 it('scrubbing holds playback with the sound off, then resumes', () => {
@@ -215,8 +230,100 @@ it('an invalid edit: no elements, the clock still seeks over the drawn length', 
   p.attach(box);
   p.setLive(true);
   p.seek(20);
-  expect(p.state()).toMatchObject({ t: 12, playing: false, duration: 12, ready: false });
+  expect(p.state()).toMatchObject({ playing: false, duration: 12, ready: false });
+  expect(p.time()).toBeCloseTo(12 - 1 / 30); // the last frame
   p.play();
   expect(p.state().playing).toBe(false);
   expect(box.children).toHaveLength(0);
+});
+
+it('a paused frame catches up once a seek finishes: a fast scrub does not leave a stale picture', () => {
+  const { p, shown } = setup();
+  p.seek(1);
+  const v = shown('v1')[0]!;
+  fake(v).seeking = true; // still on its way to 3
+  p.seek(2);
+  expect(v.currentTime).toBe(3);
+  fake(v).seeking = false;
+  v.dispatchEvent(new Event('seeked'));
+  expect(v.currentTime).toBe(4);
+});
+
+it('an edit of the file while playing keeps the elements: no reload, no seek, no swap', () => {
+  const { p, shown } = setup();
+  p.seek(2);
+  p.play();
+  step(500);
+  const v = shown('v1')[0]!;
+  v.currentTime = 2 + p.time(); // on time
+  const seeks = fake(v).seeks;
+  const edited = cut();
+  edited.clips[4]!.fadeOut = 1; // the voice's fade, nothing about the picture
+  p.setCut(edited);
+  step(16);
+  expect(shown('v1')).toEqual([v]);
+  expect(v.getAttribute('src')).toBe('/file?path=media/a.mp4');
+  expect(fake(v).seeks).toBe(seeks);
+  // a clip whose source part moved is looked up again
+  const moved = cut();
+  moved.clips[0]!.in = 1;
+  p.setCut(moved);
+  expect(v.currentTime).toBeCloseTo(1 + p.time(), 6);
+});
+
+it('a clip whose out runs past the end of its file holds the last frame, never restarting it from 0', () => {
+  const { p, shown } = setup();
+  p.seek(1);
+  const v = shown('v1')[0]!;
+  fake(v).duration = 4; // the file is 4 s; c1 asks for 2..7
+  p.play();
+  step(2500); // the clock wants 5.5
+  fake(v).paused = true;
+  fake(v).ended = true;
+  fake(v).t = 4;
+  const plays = (P.play as ReturnType<typeof vi.fn>).mock.calls.length;
+  step(16);
+  step(16);
+  expect(v.paused).toBe(true);
+  expect(v.currentTime).toBe(4);
+  expect((P.play as ReturnType<typeof vi.fn>).mock.calls.length).toBe(plays);
+});
+
+it('the clock holds while the clip in view is seeking, and runs on when it is ready', () => {
+  const { p, shown } = setup();
+  p.seek(1);
+  p.play();
+  step(16);
+  const v = shown('v1')[0]!;
+  fake(v).seeking = true;
+  step(16);
+  const held = p.time();
+  step(1000);
+  expect(p.time()).toBe(held);
+  expect(p.state().playing).toBe(true);
+  fake(v).seeking = false;
+  step(16);
+  step(500);
+  expect(p.time()).toBeCloseTo(held + 0.5, 2);
+});
+
+it('a hidden browser tab pauses playback (no frames run there, the elements would play past their clips)', () => {
+  const { p } = setup();
+  p.play();
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+  document.dispatchEvent(new Event('visibilitychange'));
+  delete (document as { hidden?: boolean }).hidden;
+  expect(p.state().playing).toBe(false);
+});
+
+it('an edit that turns invalid while playing pauses; a hidden tab suspends the sound', () => {
+  const { p } = setup();
+  p.play();
+  p.setCut(null, 9);
+  expect(p.state().playing).toBe(false);
+  p.setCut(cut());
+  p.play();
+  const ctx = sources.length ? (p as unknown as { ctx: FakeContext }).ctx : null;
+  p.setLive(false);
+  expect(ctx?.state).toBe('suspended');
 });
