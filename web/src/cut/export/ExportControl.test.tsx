@@ -10,6 +10,7 @@ import { ExportControl } from './ExportControl.tsx';
 const EDIT = 'cuts/demo.nbcut.json';
 let job: ExportJob | null;
 let ffmpeg: boolean;
+let old: string | null;
 let posts: { url: string; body: unknown }[];
 let refuse: { status: number; error: string; detail: string } | null;
 
@@ -18,6 +19,7 @@ beforeEach(() => {
   posts = [];
   job = null;
   ffmpeg = true;
+  old = null;
   refuse = null;
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') {
@@ -33,7 +35,7 @@ beforeEach(() => {
         return Response.json({ ok: true });
       }
     }
-    if (url === `/cut/export?path=${encodeURIComponent(EDIT)}`) return Response.json({ ffmpeg, job });
+    if (url === `/cut/export?path=${encodeURIComponent(EDIT)}`) return Response.json({ ffmpeg, ...(old && { ffmpegProblem: 'old', ffmpegVersion: old }), job });
     return new Response('not found', { status: 404 });
   }));
 });
@@ -106,3 +108,32 @@ it('an invalid edit refused by the server says so in words', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Export failed: The edit has problems: fix them, then export again (clips[0].out: out-before-in)');
 });
 
+
+it('too old an ffmpeg: no Export, the version needed and the one found', async () => {
+  ffmpeg = false;
+  old = '4.3.1';
+  setup(false);
+  expect(await screen.findByText('Export needs ffmpeg 4.4 or newer; this computer has 4.3.1. Update it, then export again:')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Export' })).toBeNull();
+});
+
+it('every refusal is worded, an unexpected server failure too', async () => {
+  setup();
+  const button = await screen.findByRole('button', { name: 'Export' });
+  await waitFor(() => expect(button).toBeEnabled());
+  const cases: [number, string, string, string][] = [
+    [422, 'unreadable-source', 'media/x.mp4', 'ffmpeg cannot read the source file: media/x.mp4'],
+    [400, 'not-an-edit', 'a.txt', 'Not an edit file: a.txt'],
+    [422, 'empty', '', 'The edit has no clips: there is nothing to export'],
+    [422, 'bad-edit', 'Unexpected token', 'The edit file is damaged (Unexpected token)'],
+    [404, 'no-edit', '', 'The edit file is gone'],
+    [503, 'closing', '', 'The server is shutting down'],
+    [409, 'output-busy', 'exports/demo.mp4', 'Another edit is exporting to exports/demo.mp4 now'],
+    [500, 'internal', 'disk on fire', 'The server could not export: disk on fire'],
+  ];
+  for (const [status, error, detail, text] of cases) {
+    refuse = { status, error, detail };
+    fireEvent.click(button);
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(`Export failed: ${text}`));
+  }
+});

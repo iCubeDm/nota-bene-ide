@@ -24,6 +24,7 @@ export function ExportControl({ path, blocked, pollMs = POLL_MS }: { path: strin
   const dispatch = useAppDispatch();
   const capability = useAppSelector(selectCapabilitiesKnown)?.ffmpeg;
   const [live, setLive] = useState<boolean | null | undefined>(undefined); // null: a server without the routes
+  const [oldVersion, setOldVersion] = useState<string | null>(null); // the ffmpeg found is older than 4.4
   const [job, setJob] = useState<ExportJob | null>(null);
   const [mode, setMode] = useState<ExportMode>('mp4');
   const [refusal, setRefusal] = useState('');
@@ -35,6 +36,7 @@ export function ExportControl({ path, blocked, pollMs = POLL_MS }: { path: strin
     (s) => {
       if (!alive.current) return;
       setLive(s === null ? null : s.ffmpeg);
+      setOldVersion(s?.ffmpegProblem === 'old' ? s.ffmpegVersion ?? '?' : null);
       if (s) setJob(s.job);
     },
     () => {}, // a failed look keeps what is shown; the next one may answer
@@ -54,7 +56,19 @@ export function ExportControl({ path, blocked, pollMs = POLL_MS }: { path: strin
     if (e.code === 'outside-project') return t('cutExportOutside', e.detail);
     if (e.code === 'missing-source') return t('cutExportMissing', e.detail);
     if (e.code === 'invalid-edit') return t('cutExportInvalid', e.detail);
+    if (e.code === 'unreadable-source') return t('cutExportUnreadable', e.detail);
+    if (e.code === 'not-an-edit') return t('cutExportNotEdit', e.detail);
+    if (e.code === 'empty') return t('cutExportEmpty');
+    if (e.code === 'bad-edit') return t('cutExportBadEdit', e.detail);
+    if (e.code === 'no-edit') return t('cutExportNoEdit');
+    if (e.code === 'closing') return t('cutExportClosing');
+    if (e.code === 'output-busy') return t('cutExportOutputBusy', e.detail);
+    if (e.code === 'internal') return t('cutExportServer', e.detail);
     if (e.code === 'no-ffmpeg') setLive(false);
+    if (e.code === 'old-ffmpeg') {
+      setLive(false);
+      setOldVersion(e.detail || '?');
+    }
     return e.message;
   };
   const start = async () => {
@@ -77,7 +91,7 @@ export function ExportControl({ path, blocked, pollMs = POLL_MS }: { path: strin
   if (ffmpeg === false) {
     return (
       <div data-cut-export className="flex flex-col gap-1.5 text-[0.8125rem]">
-        <p className="text-muted-foreground">{t('cutExportNoFfmpeg')}</p>
+        <p className="text-muted-foreground">{oldVersion ? t('cutExportOldFfmpeg', oldVersion) : t('cutExportNoFfmpeg')}</p>
         <ul className="flex flex-col gap-0.5">
           {INSTALL.map(([os, cmd]) => <li key={os}>{os}: <code className="select-all rounded bg-muted px-1 font-mono">{cmd}</code></li>)}
         </ul>
