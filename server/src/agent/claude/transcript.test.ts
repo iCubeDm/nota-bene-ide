@@ -244,3 +244,20 @@ describe('transcriptToEvents: the `! cmd` runs in front of a message', () => {
   });
 });
 
+
+describe('transcriptToEvents times', () => {
+  it('gives each replayed event the time of its record; a record without one keeps 0', () => {
+    const times = new Map([['u1', 1_700_000_000_000], ['a1', 1_700_000_060_000]]);
+    const events = transcriptToEvents(msgs, store(), undefined, { times });
+    expect(events.find((e) => e.kind === 'user' && e.id === 'u1')).toMatchObject({ ts: 1_700_000_000_000 });
+    expect(events.find((e) => e.kind === 'agent' && e.e.t === 'message' && e.e.id === 'a1:0')).toMatchObject({ ts: 1_700_000_060_000 });
+    expect(events.find((e) => e.kind === 'agent' && e.e.t === 'message' && e.e.id === 'a2:0')).toMatchObject({ ts: 0 });
+  });
+
+  it('a timestamp on the SDK message itself wins over the file map', () => {
+    const [first] = msgs;
+    const own = [{ ...first!, timestamp: '2026-11-15T09:30:00.000Z' } as SessionMessage];
+    const events = transcriptToEvents(own, store(), undefined, { times: new Map([['u1', 5]]) });
+    expect(events[0]).toMatchObject({ kind: 'user', ts: Date.parse('2026-11-15T09:30:00.000Z') });
+  });
+});

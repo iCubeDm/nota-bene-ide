@@ -29,6 +29,9 @@ export const ptBR: Dict = {
   gitBashTitle: 'Git Bash recomendado',
   gitBashMissing: 'O Git Bash não foi encontrado, então o Claude Code executa comandos de shell no PowerShell, sem a ferramenta Bash. Para tê-la, instale o Git for Windows (ou defina CLAUDE_CODE_GIT_BASH_PATH com o caminho do bash.exe dele) e reinicie o Nota Bene.',
   you: 'você',
+  /** a day separator in the chat */
+  today: 'Hoje',
+  yesterday: 'Ontem',
   youBusy: ' · durante o trabalho',
   youForced: ' · interrompeu o agente',
   replyPlain: 'resposta',

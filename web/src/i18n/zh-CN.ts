@@ -29,6 +29,9 @@ export const zhCN: Dict = {
   gitBashTitle: '建议安装 Git Bash',
   gitBashMissing: '未找到 Git Bash，因此 Claude Code 在 PowerShell 中运行 shell 命令，没有 Bash 工具。如需 Bash 工具，请安装 Git for Windows（或将 CLAUDE_CODE_GIT_BASH_PATH 设为其 bash.exe 的路径），然后重启 Nota Bene。',
   you: '你',
+  /** a day separator in the chat */
+  today: '今天',
+  yesterday: '昨天',
   youBusy: ' · 工作期间',
   youForced: ' · 打断了代理',
   replyPlain: '回复',

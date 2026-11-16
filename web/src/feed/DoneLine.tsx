@@ -6,6 +6,7 @@ import { selectConn, sendMessage, useAppDispatch, useAppSelector } from '@/store
 import { selectIdleCompact } from '@/controls/slice.ts';
 import { archiveSession } from '@/controls/sessionsApi.ts';
 import { compactProgress, expectedCompactMs, mmss } from './compactTiming.ts';
+import { MsgTime } from './MsgTime.tsx';
 import { timeOf } from './UserMessage.tsx';
 
 const BASE = 'mt-4 border-t border-dashed border-border-soft pt-1 font-mono text-[0.65625rem]';
@@ -13,10 +14,9 @@ const LINE = `${BASE} text-muted-foreground`;
 
 export function DoneLine({ item }: { item: Extract<FeedItem, { kind: 'done' }> }) {
   const t = useT();
-  const time = item.ts === 0 ? '' : ` · ${timeOf(item.ts)}`;
   return (
     <div data-kind="done" className={LINE}>
-      {t(item.status)} · {item.secs}{t('secondsSuffix')}{time}
+      {t(item.status)} · {item.secs}{t('secondsSuffix')}{item.ts > 0 && <> · <MsgTime ts={item.ts} /></>}
       {item.error ? <span className="whitespace-pre-wrap text-destructive"> · {item.error}</span> : null}
     </div>
   );

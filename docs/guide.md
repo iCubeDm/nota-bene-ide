@@ -254,6 +254,7 @@ Enter sends, Shift+Enter is a new line. The chat tab cannot be closed.
 
 - A message sent while the agent works joins the running turn. Cmd/Ctrl+Enter interrupts and sends; while the agent works it asks first (Cmd/Ctrl+Enter again or **Interrupt and send**; Esc or **Cancel**; plain Enter joins the turn).
 - The stop button stops the agent; Esc never does.
+- Each message has its time: in your message's header, on hover over a reply (with the date when it is not today; the tooltip has the full date). A line marks each new day (Today, Yesterday, the date), loaded history included; an old record without a time shows none.
 - Tool lines (`Read`, `Bash`…) open their full input and output; errors are red.
 - Permission requests are cards (**Allow**, **Deny**). A plan is a card: **Approve** returns to the previous mode, **Keep planning** stays.
 - Agent questions are cards with options (radio or checkboxes) and a free-text answer: **Send answers** or **Cancel**.
