@@ -377,6 +377,8 @@ The project name in the header (Alt+P) opens the switcher, a chat-style list: on
 
 A badge says what needs you: **!** when it waits (a permission, question or plan), else unseen replies (seen once on screen in a focused tab). The header button and tab title (`(!)`, `(3)`) sum the other projects. Waiting rows come first.
 
+The **projects rail** on the window's left edge shows the same running folders as tiles, sorted by name so they stay put, each with its state dot and badge. Click one to switch; this project's is outlined, a dimmed one has no live window (its state is in the tooltip). **+** opens a folder. Turn it off in Settings → Defaults → **Projects rail** (for every window of this agent); narrow windows hide it.
+
 - Choose a project to move this tab to its window, logged in. The arrow lists its sessions of every agent; **+ New session** asks which agent. Hover a session of this window to rename or archive it.
 - **⏻** on a row stops that project's windows (not this one's).
 - **Recent**: folders not running; **✕** removes one.
@@ -407,7 +409,7 @@ The gear: language, theme, interface scale (− +; Alt+=, Alt+−, Alt+0 anywher
 - **Windows**: this agent's running windows (folder, port, state, tabs, uptime) with Open, Restart agent, Restart server, Stop.
 - **Storage**: disk use; **Clean unreferenced files** moves unused images and recordings over a day old, and history of deleted sessions, to `trash/` (nothing is deleted).
 - **Voice messages (Whisper)**: **Install Whisper** downloads the `whisper-small` model and its runtime from npm and Hugging Face (about 430 MB, 770 MB on disk) into the state folder after a confirmation naming the path; then no network is needed. A checkbox turns it on for every window of this agent, and their phones. **Spoken language**: detect automatically or pin one, also per agent. **Remove Whisper** keeps the recordings.
-- **Defaults**: language, scale (90–150 %), the start mode for new projects, **Sounds** (a tab you are not looking at needs you: on; a turn ended: off; **▶** previews), the update check, the audit log, and on Windows the `!` shell.
+- **Defaults**: language, scale (90–150 %), the start mode for new projects, **Sounds** (a tab you are not looking at needs you: on; a turn ended: off; **▶** previews), the update check, the audit log, the projects rail, and on Windows the `!` shell.
 - **Themes**, and **About** (version, state folder, logs, Node).
 
 Icon buttons name themselves and their key in a tooltip.

@@ -1,6 +1,6 @@
 // The project switcher's and the starter's client side: the server routes of server/src/projectRoutes.ts, their answer
 // types (mirrored: the web does not import from server/), the polling hook, and the move of this tab to another window.
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { t } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { toast } from '@/shell/toast.ts';
@@ -37,24 +37,89 @@ export const projectsMenu = {
 const isList = (v: unknown): v is ProjectsList =>
   !!v && typeof v === 'object' && Array.isArray((v as ProjectsList).running) && Array.isArray((v as ProjectsList).recent);
 
-/** GET /system/projects: every 3 s while `active` (the menu is open), every 10 s otherwise; only while the page is visible. */
+// GET /system/projects, one fetch loop for the page however many parts show it (the header's switcher, the rail): every
+// 3 s while any of them is `active` (the menu is open, the rail shows) and the window has the focus, every 10 s otherwise;
+// never while the page is hidden. A request that does not answer in 8 s is given up. The last part gone stops it and
+// drops the list.
+let list: ProjectsList | null = null;
+const listSubs = new Set<() => void>();
+const demand = new Map<symbol, boolean>();
+let period = 0;
+let timer: ReturnType<typeof setInterval> | undefined;
+/** the request on its way (its start), or null: one at a time, and one older than a period no longer holds the next back */
+let inFlight: { at: number; id: number } | null = null;
+let reqs = 0;
+let gen = 0;
+const TIMEOUT_MS = 8000;
+
+const timeoutSignal = (): AbortSignal | undefined => (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? AbortSignal.timeout(TIMEOUT_MS) : undefined);
+
+function load(): void {
+  if (document.visibilityState === 'hidden') return;
+  if (inFlight && Date.now() - inFlight.at < (period || TIMEOUT_MS)) return;
+  const me = { at: Date.now(), id: ++reqs };
+  inFlight = me;
+  const g = gen;
+  const signal = timeoutSignal();
+  apiFetch('/system/projects', signal ? { signal } : undefined)
+    .then((r) => (r.ok ? r.json() : undefined))
+    .then((j: unknown) => {
+      if (g !== gen || inFlight !== me) return;
+      // a refusal keeps the last list; a malformed answer is an empty one
+      if (j === undefined) { if (list) return; list = { running: [], recent: [] }; } else list = isList(j) ? j : { running: [], recent: [] };
+      for (const f of listSubs) f();
+    })
+    .catch(() => { /* the next poll tries again; the header's own line says when the server is gone */ })
+    .finally(() => { if (inFlight === me) inFlight = null; });
+}
+
+const focused = () => typeof document.hasFocus !== 'function' || document.hasFocus();
+
+function schedule(): void {
+  const want = demand.size === 0 ? 0 : [...demand.values()].some(Boolean) && focused() ? 3000 : 10_000;
+  if (want === period) return;
+  const wasSlow = period === 10_000;
+  clearInterval(timer);
+  timer = undefined;
+  period = want;
+  if (want) timer = setInterval(load, want);
+  if (want === 3000 && wasSlow) load();
+}
+
+const onFocusChange = () => schedule();
+let listening = false;
+function listen(on: boolean): void {
+  if (on === listening) return;
+  listening = on;
+  const f = on ? window.addEventListener : window.removeEventListener;
+  f.call(window, 'focus', onFocusChange);
+  f.call(window, 'blur', onFocusChange);
+}
+
+/** Nobody shows the list any more (checked after the commit: a part re-subscribing for another `active` keeps it). */
+function dropIfUnused(): void {
+  if (demand.size > 0) return;
+  listen(false);
+  gen++;
+  inFlight = null;
+  list = null;
+}
+
+const subscribeList = (f: () => void) => { listSubs.add(f); return () => void listSubs.delete(f); };
+const getList = () => list;
+
+/** The projects list, shared: `active` asks for the 3 s poll while it holds; a change of it loads at once. */
 export function useProjects(active: boolean): { data: ProjectsList | null; reload(): void } {
-  const [data, setData] = useState<ProjectsList | null>(null);
-  const [tick, setTick] = useState(0);
+  const data = useSyncExternalStore(subscribeList, getList);
   useEffect(() => {
-    let gone = false;
-    const load = () => {
-      if (document.visibilityState === 'hidden') return;
-      apiFetch('/system/projects')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j: unknown) => { if (!gone) setData(isList(j) ? j : { running: [], recent: [] }); })
-        .catch(() => { /* the next poll tries again; the header's own line says when the server is gone */ });
-    };
+    const id = Symbol('projects');
+    demand.set(id, active);
+    listen(true);
+    schedule();
     load();
-    const timer = setInterval(load, active ? 3000 : 10_000);
-    return () => { gone = true; clearInterval(timer); };
-  }, [active, tick]);
-  return { data, reload: () => setTick((n) => n + 1) };
+    return () => { demand.delete(id); schedule(); void Promise.resolve().then(dropIfUnused); };
+  }, [active]);
+  return { data, reload: () => { inFlight = null; load(); } };
 }
 
 export const postJson = (url: string, body: unknown): Promise<Response> =>
@@ -81,16 +146,18 @@ export async function forgetRecent(root: string): Promise<string | null> {
   }
 }
 
-/** Moves this tab to the window of `row`, logged in (that window opens `session` when given); a refusal is a toast and the tab stays. */
-export async function enterProject(row: RunningRow, session?: string): Promise<void> {
+/** Moves this tab to the window of `row`, logged in (that window opens `session` when given); a refusal is a toast and the tab stays (false). */
+export async function enterProject(row: RunningRow, session?: string): Promise<boolean> {
   try {
     const r = await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
-    if (!r.ok) return toast(t('projEnterFailed', reasonText(await reasonOf(r))), row.root);
+    if (!r.ok) { toast(t('projEnterFailed', reasonText(await reasonOf(r))), row.root); return false; }
     const { url } = (await r.json()) as { url?: unknown };
-    if (typeof url !== 'string') return toast(t('projEnterFailed', reasonText('bad answer')), row.root);
+    if (typeof url !== 'string') { toast(t('projEnterFailed', reasonText('bad answer')), row.root); return false; }
     nav.go(url);
+    return true;
   } catch (e) {
     toast(t('projEnterFailed', e instanceof Error ? e.message : String(e)), row.root);
+    return false;
   }
 }
 

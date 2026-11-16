@@ -28,6 +28,7 @@ import { useSeen } from './projects/seen.ts';
 import { useSounds } from './shell/sounds.ts';
 import { RecentFiles } from '@/files/RecentFiles.tsx';
 import { Starter } from '@/projects/Starter.tsx';
+import { ProjectRail } from '@/projects/ProjectRail.tsx';
 import { installKeymap } from './shell/keymap.ts';
 
 export function App() {
@@ -55,6 +56,8 @@ export function App() {
         docked and narrows the middle column (tabs, panes, composer) instead of covering it.
       */}
       <div className="flex min-h-0 flex-1">
+        {/* the open projects, outermost: a stopgap before one server for every project (issue 419) */}
+        <ProjectRail />
         <LeftStrip />
         <FileTree key={rootGen} />
         <ChangesPanel />
