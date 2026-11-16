@@ -215,6 +215,14 @@ export function moveClips(cut: Cut, ids: readonly string[], dt: number, lanes?: 
   return { ...cut, clips: cut.clips.map((c) => moved.get(c.id) ?? c) };
 }
 
+/** How far `to` is from `from` in the drawn order of their kind, for moveClips; null when they are of different kinds or not there. */
+export function laneShift(cut: Cut, from: string, to: string): { kind: CutTrack['kind']; by: number } | null {
+  const a = trackOf(cut, from), b = trackOf(cut, to);
+  if (!a || !b || a.kind !== b.kind) return null;
+  const order = drawnOf(cut, a.kind);
+  return { kind: a.kind, by: order.indexOf(b) - order.indexOf(a) };
+}
+
 /**
  * Copies of the clips with new ids, keeping their tracks and their spacing (issue 432): from the end of the selection on,
  * later still while any copy would overlap a clip on its track. `ids` in the answer: the copies, in the order of `clips`.

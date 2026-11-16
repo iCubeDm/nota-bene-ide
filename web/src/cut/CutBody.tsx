@@ -13,12 +13,12 @@ import { mediaTime } from '@/media/markup/geometry.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { srcLength } from './durations.ts';
 import { EditBar } from './EditBar.tsx';
-import type { Editing } from './editing.ts';
+import type { Editing, Tool } from './editing.ts';
 import { CutPlayer } from './engine.ts';
 import { drawable } from './layout.ts';
 import { ExportControl } from './export/ExportControl.tsx';
-import { Inspector } from './Inspector.tsx';
-import { addClip, addTrack, deleteClips, duplicateClip, nudgeClip, splitAt, takes } from './ops.ts';
+import { GroupInspector, Inspector } from './Inspector.tsx';
+import { addClip, addTrack, deleteClips, duplicateClip, duplicateClips, moveClips, nudgeClip, splitAt, takes } from './ops.ts';
 import { PlaceBox } from './PlaceBox.tsx';
 import { Preview } from './Preview.tsx';
 import { Timeline } from './Timeline.tsx';
@@ -44,7 +44,8 @@ const clipIndex = (path: string) => /^clips\[(\d+)\]/.exec(path)?.[1];
  * project is edited in place (issue 409, useCutDoc): the timeline's clips and tracks, the inspector and the selected
  * clip's frame on the preview change it, each change saved to the file and undoable. Comments on it (issue 430): Comment
  * (M, for marker) pins one to the selected clip or the playhead's moment; their ticks and their cards seek there and select the clip,
- * and a pending one keeps to its clip as the clip moves or is trimmed.
+ * and a pending one keeps to its clip as the clip moves or is trimmed. Tools and selections (issue 432): Select (V) and Blade
+ * (C, cuts the clip under a click); any number of clips selected, moved, nudged, duplicated and deleted together.
  */
 export function CutBody({ text, src, path, tabId, active }: { text: string; src: string; path?: string; tabId: string; active: boolean }) {
   const t = useT();
@@ -59,7 +60,8 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const doc = useCutDoc({ text, path });
   // what a drag shows before it is committed
   const [draft, setDraft] = useState<Cut | null>(null);
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSel] = useState<readonly string[]>([]);
+  const [tool, setTool] = useState<Tool>('select');
   const [notice, setNotice] = useState<string | null>(null);
   const v = draft ?? doc.cut ?? ('v' in parsed ? parsed.v : undefined);
   const check = useMemo(() => validateCut(v), [v]);
@@ -89,8 +91,13 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const redo = () => { if (doc.canRedo) { own.current = true; doc.redo(); } };
   // a draft belongs to the edit it was built on: another one (a commit, a reload) shows as it is
   useEffect(() => setDraft(null), [cut]);
-  const selected = cut?.clips.find((c) => c.id === sel) ?? null;
-  useEffect(() => { if (sel !== null && cut && !cut.clips.some((c) => c.id === sel)) setSel(null); }, [cut, sel]);
+  // the selected clips as the edit has them; `selected` the one when there is one alone
+  const chosen = cut ? cut.clips.filter((c) => sel.includes(c.id)) : [];
+  const selected = chosen.length === 1 ? chosen[0]! : null;
+  useEffect(() => {
+    if (cut && sel.some((id) => !cut.clips.some((c) => c.id === id))) setSel(sel.filter((id) => cut.clips.some((c) => c.id === id)));
+  }, [cut, sel]);
+  const ids = chosen.map((c) => c.id);
   const lens = useSrcLens(cut ? srcs : [], src);
   const commit = (next: Cut) => {
     setNotice(null);
@@ -101,14 +108,32 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   };
   const split = () => {
     if (!cut) return;
-    const r = splitAt(cut, player.time(), selected ? [selected.id] : []);
+    const r = splitAt(cut, player.time(), ids);
     if (r.ids.length) commit(r.cut);
   };
-  const remove = () => { if (cut && selected) commit(deleteClips(cut, [selected.id])); };
+  // the blade (issue 432): the clip under the click, or every clip under that time
+  const blade = (t: number, clip: string | null, all: boolean) => {
+    if (!cut || (!all && clip === null)) return;
+    const r = splitAt(cut, t, all ? [] : [clip!]);
+    if (r.ids.length) commit(r.cut);
+  };
+  const remove = () => { if (cut && ids.length) commit(deleteClips(cut, ids)); };
   const duplicate = () => {
-    if (!cut || !selected) return;
-    const r = duplicateClip(cut, selected.id);
-    if (r.id) { commit(r.cut); setSel(r.id); }
+    if (!cut || !ids.length) return;
+    if (selected) {
+      const r = duplicateClip(cut, selected.id);
+      if (r.id) { commit(r.cut); setSel([r.id]); }
+      return;
+    }
+    const r = duplicateClips(cut, ids);
+    if (r.ids.length) { commit(r.cut); setSel(r.ids); }
+  };
+  // ← → on the selection: one clip to the nearest free place, several together or not at all
+  const nudge = (frames: number) => {
+    if (!cut) return;
+    if (selected) return commit(nudgeClip(cut, selected.id, frames));
+    const next = moveClips(cut, ids, frames / cut.fps);
+    if (next) commit(next);
   };
   const addFile = async (file: string, track: string | null, at: number) => {
     const kind = AUDIO.test(file) ? 'audio' : 'video';
@@ -125,7 +150,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     const r = addClip(base, { track: on, src: file, at, len });
     if (!r) return setNotice(t('cutCannotAdd', basename(file)));
     commit(r.cut);
-    setSel(r.id);
+    setSel([r.id]);
   };
   // comments on this edit (issue 430): where each is now, its clip followed by id
   const dispatch = useAppDispatch();
@@ -163,7 +188,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     player.pause();
     player.seek((cut && timeOf(c.anchor, cut)) ?? c.anchor.time);
     const k = c.anchor.clip?.id;
-    if (k !== undefined && cut?.clips.some((x) => x.id === k)) setSel(k);
+    if (k !== undefined && cut?.clips.some((x) => x.id === k)) setSel([k]);
   };
   // the card's "jump to source" (FileView leaves a comment on the timeline to this view)
   const jump = useAppSelector(selectJump);
@@ -176,7 +201,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const canComment = protocol >= CUT_PROTOCOL && path !== undefined;
   const comment = () => {
     if (!cut || path === undefined) return;
-    const anchor = pinAnchor(cut, { kind: 'file', path }, player.time(), sel);
+    const anchor = pinAnchor(cut, { kind: 'file', path }, player.time(), selected?.id ?? null);
     // the popup opens by the clip, or by the playhead for a moment of the timeline
     const el = pane.current?.querySelector(anchor.clip ? `[data-clip="${CSS.escape(anchor.clip.id)}"]` : '[data-playhead]');
     const r = (el ?? pane.current)?.getBoundingClientRect() ?? new DOMRect();
@@ -184,11 +209,11 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   };
 
   const editing: Editing | undefined = cut ? {
-    cut, sel, select: setSel, draft: setDraft, commit, lenOf: (s) => lens.get(s), addFile: (f, tr, at) => void addFile(f, tr, at),
+    cut, sel, select: setSel, tool, blade, draft: setDraft, commit, lenOf: (s) => lens.get(s), addFile: (f, tr, at) => void addFile(f, tr, at),
   } : undefined;
 
-  // the editor's keys: Delete/Backspace, S splits, ← → nudge the selected clip a frame (Shift: ten), Esc lets it go,
-  // ⌘/Ctrl+Z undoes, ⇧⌘/Ctrl+Shift+Z redoes
+  // the editor's keys: Delete/Backspace, S splits, ← → nudge the selection a frame (Shift: ten), V and C the tools, Esc back
+  // to Select or (with Select) lets the selection go, ⌘/Ctrl+Z undoes, ⇧⌘/Ctrl+Shift+Z redoes
   const editKey = useRef<((e: KeyboardEvent) => boolean) | null>(null);
   editKey.current = (e) => {
     if (!cut) return false;
@@ -201,7 +226,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     if (mod || e.altKey) return false;
     switch (e.code) {
       case 'Delete': case 'Backspace':
-        if (!selected) return false;
+        if (!ids.length) return false;
         remove();
         return true;
       case 'KeyS':
@@ -209,8 +234,12 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
         if (!e.repeat) split();
         return true;
       case 'ArrowLeft': case 'ArrowRight':
-        if (!selected) return false;
-        commit(nudgeClip(cut, selected.id, (e.code === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1)));
+        if (!ids.length) return false;
+        nudge((e.code === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1));
+        return true;
+      case 'KeyV': case 'KeyC':
+        if (e.shiftKey) return false;
+        setTool(e.code === 'KeyV' ? 'select' : 'blade');
         return true;
       case 'KeyM':
         if (e.shiftKey || !canComment) return false;
@@ -218,8 +247,10 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
         return true;
       case 'Escape':
         // Esc in the Files tree closes the tree (FileTree.tsx)
-        if (!selected || document.activeElement?.closest('#tree-sheet')) return false;
-        setSel(null);
+        if (document.activeElement?.closest('#tree-sheet')) return false;
+        if (tool !== 'select') { setTool('select'); return true; }
+        if (!ids.length) return false;
+        setSel([]);
         return true;
     }
     return false;
@@ -273,13 +304,13 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
                 )}
               </Preview>
               {editing && selected && <Inspector key={selected.id} cut={editing.cut} clip={selected} commit={commit} />}
+              {editing && chosen.length > 1 && <GroupInspector key={ids.join('\n')} cut={editing.cut} clips={chosen} commit={commit} />}
             </div>
           )}
           {editing && (
             <EditBar
-              doc={{ ...doc, undo, redo }} sel={!!selected} onSplit={split} onDuplicate={duplicate} onDelete={remove} notice={notice}
-              onComment={canComment ? comment : undefined}
-              onAddTrack={(kind) => commit(addTrack(editing.cut, kind).cut)}
+              doc={{ ...doc, undo, redo }} sel={ids.length > 0} onSplit={split} onDuplicate={duplicate} onDelete={remove} notice={notice}
+              onComment={canComment ? comment : undefined} tool={tool} onTool={setTool}
             />
           )}
           {(draw.lanes.length > 0 || editing) && (

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { isPhotoSrc, type Cut, type CutClip, type CutPlace } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
 import { useT } from '@/i18n/index.ts';
-import { FULL, ms, setClip } from './ops.ts';
+import { FULL, ms, setClip, setClips } from './ops.ts';
 
 type Patch = Parameters<typeof setClip>[2];
 
@@ -60,14 +60,57 @@ export function Inspector({ cut, clip: c, commit }: { cut: Cut; clip: CutClip; c
   );
 }
 
-/** A number applied on Enter or leaving the field; one the edit refuses stays shown, marked, until changed. */
-function Num({ label, value, onSet, step = 0.1 }: { label: string; value: number; onSet: (v: number) => boolean; step?: number }) {
+/**
+ * Several selected clips (issue 432): how many, and the fields they share, each set on all of them at once: the sound's
+ * gain and mute (on the clips with sound) and the fades. A field whose values differ shows empty, "mixed"; a value the
+ * format refuses for any of them is marked and applied to none.
+ */
+export function GroupInspector({ cut, clips, commit }: { cut: Cut; clips: CutClip[]; commit: (c: Cut) => void }) {
   const t = useT();
-  const [text, setText] = useState(String(value));
+  const sound = clips.filter((c) => !isPhotoSrc(c.src));
+  const apply = (on: CutClip[], patch: Patch): boolean => {
+    const next = setClips(cut, on.map((c) => c.id), patch);
+    if (next) commit(next);
+    return next !== null;
+  };
+  const same = (on: CutClip[], f: (c: CutClip) => number | boolean) => {
+    const v = on.map(f);
+    return v.every((x) => x === v[0]) ? v[0]! : null;
+  };
+  const muted = same(sound, (c) => !!c.mute);
+  return (
+    <aside data-cut-inspector aria-label={t('cutInspector')} className="flex w-52 flex-none flex-col gap-1 overflow-auto border-l border-border-soft bg-chrome p-2 text-xs">
+      <p className="font-medium text-foreground">{t('cutClipsN', clips.length)}</p>
+      {sound.length > 0 && (
+        <>
+          <Num label={t('cutGain')} value={same(sound, (c) => c.gain ?? 0) as number | null} step={0.5} onSet={(v) => apply(sound, { gain: v || undefined })} />
+          <label className="flex items-center gap-1.5 text-muted-foreground">
+            <input
+              type="checkbox" checked={muted === true} ref={(el) => { if (el) el.indeterminate = muted === null; }}
+              onChange={() => apply(sound, { mute: muted === true ? undefined : true })}
+            />
+            {t('cutClipMute')}
+          </label>
+        </>
+      )}
+      <Num label={t('cutFadeIn')} value={same(clips, (c) => c.fadeIn ?? 0) as number | null} onSet={(v) => apply(clips, { fadeIn: ms(v) || undefined })} />
+      <Num label={t('cutFadeOut')} value={same(clips, (c) => c.fadeOut ?? 0) as number | null} onSet={(v) => apply(clips, { fadeOut: ms(v) || undefined })} />
+    </aside>
+  );
+}
+
+/**
+ * A number applied on Enter or leaving the field; one the edit refuses stays shown, marked, until changed. null: the
+ * selected clips differ (issue 432), the field empty, "mixed", until a value is typed.
+ */
+function Num({ label, value, onSet, step = 0.1 }: { label: string; value: number | null; onSet: (v: number) => boolean; step?: number }) {
+  const t = useT();
+  const [text, setText] = useState(value === null ? '' : String(value));
   const [bad, setBad] = useState(false);
-  useEffect(() => { setText(String(value)); setBad(false); }, [value]);
+  useEffect(() => { setText(value === null ? '' : String(value)); setBad(false); }, [value]);
   const done = () => {
     const v = Number(text);
+    if (value === null && text.trim() === '') return setBad(false);
     if (text.trim() === '' || !Number.isFinite(v)) return setBad(true);
     if (v === value) return setBad(false);
     setBad(!onSet(v));
@@ -76,7 +119,7 @@ function Num({ label, value, onSet, step = 0.1 }: { label: string; value: number
     <label className="flex items-center justify-between gap-2 text-muted-foreground">
       <span className="truncate">{label}</span>
       <input
-        type="number" step={step} aria-label={label} value={text} aria-invalid={bad || undefined} title={bad ? t('cutInvalid') : undefined}
+        type="number" step={step} aria-label={label} value={text} placeholder={value === null ? t('cutMixed') : undefined} aria-invalid={bad || undefined} title={bad ? t('cutInvalid') : undefined}
         onChange={(e) => setText(e.target.value)} onBlur={done} onKeyDown={(e) => { if (e.key === 'Enter') done(); }}
         className={`h-5 w-20 rounded border bg-background px-1 text-right font-mono text-foreground outline-0 ${bad ? 'border-destructive' : 'border-border-soft'}`}
       />

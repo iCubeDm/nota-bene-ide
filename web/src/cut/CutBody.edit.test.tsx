@@ -134,7 +134,7 @@ it('keys: S splits at the playhead, Delete deletes, arrows nudge, ⌘Z and ⇧�
 it('the tools say their keys', async () => {
   await show();
   expect(screen.getByRole('button', { name: /^Split at the playhead.*\(S\)$/ })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /^Delete the clip \(Delete\)/ })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Delete the selected clips \(Delete\)/ })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /^Undo \(/ }).getAttribute('title')).toMatch(/Z/);
 });
 
