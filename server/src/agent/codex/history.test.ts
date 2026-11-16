@@ -45,7 +45,7 @@ describe('Codex history', () => {
       ], nextCursor: null };
     } };
     const history = await loadCodexHistory(api, 'thread', new AttachmentStore({ dir: '/unused' }));
-    const at = (id: string) => history.find((e) => (e.kind === 'user' && e.id === itemId(id)) || (e.kind === 'agent' && e.e.t === 'message' && e.e.id === itemId(id)))?.ts;
+    const at = (id: string) => (history.find((e) => (e.kind === 'user' && e.id === itemId(id)) || (e.kind === 'agent' && e.e.t === 'message' && e.e.id === itemId(id))) as { ts?: number } | undefined)?.ts;
     expect([at('u1'), at('m1'), at('m2'), at('u2'), at('m3')]).toEqual([1_700_000_000_000, 1_700_000_020_000, 1_700_000_090_000, 1_700_000_500_000, 0]);
   });
 
