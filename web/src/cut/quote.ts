@@ -19,3 +19,6 @@ export function cutQuote(a: CutAnchor, lang: Lang): string {
   if (!c) return tIn(lang, 'cutMomentQ');
   return isPhotoSrc(c.src) ? tIn(lang, 'cutClipPhotoQ', c.id, trackLabel(c), c.src) : tIn(lang, 'cutClipQ', c.id, trackLabel(c), c.src, mediaTime(c.srcTime));
 }
+
+/** The comment in one line, for its card, its popup and the sent message: the time on the timeline, then what it is on. */
+export const cutLine = (a: CutAnchor, lang: Lang): string => `${mediaTime(a.time)} · ${cutQuote(a, lang)}`;

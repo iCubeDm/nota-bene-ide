@@ -11,6 +11,7 @@ import { switchSession } from '@/controls/slice.ts';
 import { setFileVersion } from '@/files/slice.ts';
 import { addImage, selectImages, selectMarking } from '@/composer/slice.ts';
 import { CommentCard, CommentCardPopover } from './CommentCard.tsx';
+import { setLiveClips } from '@/cut/live.ts';
 
 beforeEach(() => setLang('ru'));
 afterEach(cleanup);
@@ -296,6 +297,23 @@ it('clicking the thumbnail jumps to the media tab', () => {
   fireEvent.click(view.container.querySelector('[data-media-thumb]')!);
   expect(store.getState().tabs.active).toBe('file:media/clip.mp4');
   expect(store.getState().files.jump).toMatchObject({ path: 'media/clip.mp4', id: 'c1' });
+});
+
+it('issue 430: a cut card shows the clip and the time, jumps to the edit, and says when its clip is gone', () => {
+  setLang('en');
+  const path = 'edits/demo.nbcut.json';
+  const cut = comment({ anchor: { kind: 'cut', source: { kind: 'file', path }, time: 8.25, clip: { id: 'c4', track: 'a1', trackName: 'Voice', src: 'media/voice.wav', srcTime: 5.5 } } });
+  const { store, view } = setup(cut, false, false);
+  const quote = view.container.querySelector<HTMLElement>('[data-cut-quote]')!;
+  expect(quote.textContent).toBe('0:08.250 · clip c4 · track Voice (a1) · media/voice.wav @ 0:05.500 in the source');
+  expect(screen.queryByText('clip no longer in the edit')).toBeNull(); // its tab is not open: no claim
+  act(() => setLiveClips(path, undefined, new Set(['c1'])));
+  expect(screen.getByText('clip no longer in the edit')).toBeInTheDocument();
+  act(() => setLiveClips(path, undefined, new Set(['c4'])));
+  expect(screen.queryByText('clip no longer in the edit')).toBeNull();
+  fireEvent.click(quote);
+  expect(store.getState().files.jump).toMatchObject({ path, id: 'c1' });
+  act(() => setLiveClips(path, undefined, null));
 });
 
 describe('a comment whose source went into the archive (R-M7-4)', () => {

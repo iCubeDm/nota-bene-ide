@@ -1,4 +1,6 @@
-import { generatedImages, isAttachmentAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
+import { generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
+import { useClipGone } from '@/cut/live.ts';
+import { cutLine } from '@/cut/quote.ts';
 import { pageQuote } from '@/page/quote.ts';
 import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } from 'react';
 import { Attachments } from '@/attachments/Attachments.tsx';
@@ -29,6 +31,9 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
   const switching = useAppSelector(selectSwitching);
   const c = useAppSelector(selectComments).find((x) => x.id === id);
   const { where, orphan, beforeCompact, version, attached, jump } = useCommentSource(c);
+  const cut = c && isCutAnchor(c.anchor) ? c.anchor : null;
+  // a cut comment's clip is gone from the edit: known while the edit's tab shows it (issue 430)
+  const gone = useClipGone(cut?.source.path, cut?.source.ref, cut?.clip?.id) === true;
   const [editing, setEditing] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const live = useRef(false); // true while an edit is open; guards double finish (✓ then blur)
@@ -118,6 +123,14 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
             </span>
           )}
         </div>
+      ) : cut ? (
+        <div
+          data-cut-quote
+          onClick={popover ? undefined : jump}
+          className={`line-clamp-3 border-l-2 border-nb-accent pl-2 font-mono text-[0.6875rem] text-muted-foreground ${popover ? '' : 'cursor-pointer'}`}
+        >
+          {cutLine(cut, getLang())}
+        </div>
       ) : (
         <div
           onClick={popover || beforeCompact ? undefined : jump}
@@ -127,6 +140,7 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
         </div>
       )}
       {orphan && <div className="mt-1 text-[0.6875rem] text-destructive">({t('orphaned')})</div>}
+      {gone && <div data-cut-gone className="mt-1 text-[0.6875rem] text-warn">{t('cutGoneTag')}</div>}
       {changed && <div className="mt-1 text-[0.6875rem] text-warn">{t('fileChanged')}</div>}
       <div
         key={String(editing)}
