@@ -296,3 +296,11 @@ it('another project stops from its row after a confirm, each live window of it; 
   ]));
   await waitFor(() => expect(getToasts().some((x) => x.title === 'Could not stop: the window is not answering')).toBe(true));
 });
+
+// issue 449: Back to this page after a move from Recent brings it from the back/forward cache with the menu still open
+it('a page restored by Back has the menu closed', async () => {
+  await openMenu();
+  expect(projectsMenu.get()).toBe(true);
+  act(() => { window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); });
+  expect(projectsMenu.get()).toBe(false);
+});

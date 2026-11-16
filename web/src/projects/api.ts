@@ -22,6 +22,16 @@ export const PROVIDER_LABEL: Record<Provider, string> = { claude: 'Claude', code
 /** The move to another window: the login URL is used here and nowhere else. A seam for the tests (jsdom cannot navigate). */
 export const nav = { go: (url: string): void => location.assign(url) };
 
+/**
+ * Calls `f` when Back (or Forward) brings this page from the back/forward cache, as it was when the tab left it for
+ * another window (issue 449); returns the unsubscribe.
+ */
+export function onPageRestore(f: () => void): () => void {
+  const h = (e: PageTransitionEvent) => { if (e.persisted) f(); };
+  window.addEventListener('pageshow', h);
+  return () => window.removeEventListener('pageshow', h);
+}
+
 let isOpen = false;
 const subs = new Set<() => void>();
 const emit = () => { for (const f of subs) f(); };
@@ -87,8 +97,21 @@ function schedule(): void {
 }
 
 const onFocusChange = () => schedule();
-// issue 449: Back to a page this tab left for another window brings it from the back/forward cache with the list it had then
-const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) { inFlight = null; load(); } };
+// issue 449: Back to a page this tab left for another window brings it from the back/forward cache with the list it had then.
+// Whether it is visible yet at pageshow depends on the browser: a hidden one loads when it shows.
+let restored = false;
+const onPageShow = (e: PageTransitionEvent) => {
+  if (!e.persisted) return;
+  inFlight = null;
+  if (document.visibilityState === 'hidden') restored = true;
+  else load();
+};
+const onVisible = () => {
+  if (!restored || document.visibilityState === 'hidden') return;
+  restored = false;
+  inFlight = null;
+  load();
+};
 let listening = false;
 function listen(on: boolean): void {
   if (on === listening) return;
@@ -97,6 +120,8 @@ function listen(on: boolean): void {
   f.call(window, 'focus', onFocusChange);
   f.call(window, 'blur', onFocusChange);
   f.call(window, 'pageshow', onPageShow as EventListener);
+  (on ? document.addEventListener : document.removeEventListener).call(document, 'visibilitychange', onVisible);
+  if (!on) restored = false;
 }
 
 /** Nobody shows the list any more (checked after the commit: a part re-subscribing for another `active` keeps it). */

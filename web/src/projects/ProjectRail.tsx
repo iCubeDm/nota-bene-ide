@@ -2,7 +2,7 @@
 // per folder running in any window, in a fixed order by name so nothing moves under the pointer, with its state dot and
 // badge. A click moves this tab to that project the way the switcher does; + opens a folder. Settings can turn it off; a
 // narrow window has no room for it.
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { enterProject, openStarter, PROVIDER_LABEL, useProjects, type RunningRow } from './api.ts';
@@ -49,16 +49,13 @@ function Rail() {
   const move = async (w: RunningRow) => {
     if (moving) return;
     setMoving(true);
-    // on success the page leaves; a refusal (the window just went) shows the list as it is now
-    if (!(await enterProject(w))) { setMoving(false); reload(); }
+    // a refusal (the window just went) shows the list as it is now. On success the page is leaving, but `moving` is cleared
+    // too (issue 449): it guards only the request; a page brought back by Back, or a navigation cancelled before it
+    // left, must take the next click
+    const ok = await enterProject(w);
+    setMoving(false);
+    if (!ok) reload();
   };
-  // issue 449: a move that succeeded never clears `moving` (the page left); Back restores the page from the back/forward
-  // cache as it was, so every click would be taken for the pending one
-  useEffect(() => {
-    const onShow = (e: PageTransitionEvent) => { if (e.persisted) setMoving(false); };
-    window.addEventListener('pageshow', onShow);
-    return () => window.removeEventListener('pageshow', onShow);
-  }, []);
   const rows = foldRows(data?.running ?? []).sort(byName);
   return (
     <nav aria-label={t('projRail')} data-rail className="flex w-11 flex-none flex-col items-center gap-1.5 overflow-y-auto border-r border-border-soft bg-chrome py-2">

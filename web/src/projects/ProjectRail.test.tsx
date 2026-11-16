@@ -251,6 +251,31 @@ it('a page restored by Back after a move switches again, with a fresh list', asy
   expect(calls.filter((u) => u === 'POST /system/projects/enter')).toHaveLength(2);
 });
 
+// issue 449: a navigation cancelled before the page leaves (Esc, Stop on a slow window) must not hold the rail
+it('a move whose page never leaves does not block the next click', async () => {
+  await setup();
+  fireEvent.click(tile('/w/Blog'));
+  await waitFor(() => expect(nav.go).toHaveBeenCalledTimes(1));
+  fireEvent.click(tile('/x/blog'));
+  await waitFor(() => expect(nav.go).toHaveBeenCalledTimes(2));
+});
+
+// issue 449: whether a restored page is visible at pageshow depends on the browser; a hidden one loads once it shows
+it('a page restored while still hidden refreshes the list once it is visible', async () => {
+  await setup();
+  const before = polls();
+  const vis = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  act(() => { window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); });
+  await act(async () => { await Promise.resolve(); });
+  expect(polls()).toBe(before);
+  vis.mockReturnValue('visible');
+  act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+  await waitFor(() => expect(polls()).toBe(before + 1));
+  act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+  await act(async () => { await Promise.resolve(); });
+  expect(polls()).toBe(before + 1);
+});
+
 it('a new window with nothing cached shows no rail until the server says, and none when it is off', async () => {
   let say!: (r: Response) => void;
   prefsGet = () => new Promise<Response>((res) => { say = res; });
