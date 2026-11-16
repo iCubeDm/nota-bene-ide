@@ -311,7 +311,7 @@ The project name in the header (Alt+P) opens the switcher, a chat-style list: on
 
 A badge says what needs you: **!** when it waits (a permission, question or plan), else unseen replies (seen once on screen in a focused tab). The header button and tab title (`(!)`, `(3)`) sum the other projects. Waiting rows come first.
 
-The **projects rail** on the window's left edge shows the same running folders as tiles, sorted by name so they stay put, each with its state dot and badge. Click one to switch; this project's is outlined, a dimmed one has no live window (its state is in the tooltip). **+** opens a folder. Turn it off in Settings → Defaults → **Projects rail** (for every window); narrow windows hide it.
+The **projects rail** on the window's left edge shows the same running folders as tiles, sorted by name so they stay put, each with its state dot and badge. Click one to switch; this project's is outlined, a dimmed one has no live window (its state is in the tooltip). **+** opens a folder. Turn it off in Settings → Defaults → **Projects rail** (for every window of this agent); narrow windows hide it.
 
 - Choose a project to move this tab to its window, logged in. The arrow lists its sessions of every agent; **+ New session** asks which agent. Hover a session of this window to rename or archive it.
 - **⏻** on a row stops that project's windows (not this one's).

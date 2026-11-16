@@ -340,7 +340,7 @@ export function SettingsView({ active }: { active: boolean }) {
         </Row>
         <Row label={t('defRail')}>
           <span className="flex flex-col gap-1">
-            <input type="checkbox" aria-label={t('defRail')} checked={rail} onChange={(e) => railPref.choose(e.target.checked)}
+            <input type="checkbox" aria-label={t('defRail')} checked={rail !== false} onChange={(e) => railPref.choose(e.target.checked)}
               className="size-3.5 accent-primary" />
             <span className="text-xs text-muted-foreground">{t('defRailHint')}</span>
           </span>

@@ -185,7 +185,7 @@ export function setSoundsPref(sounds: Sounds): void {
   updateRawPrefs((raw) => void (raw.sounds = { ask: sounds.ask, done: sounds.done }));
 }
 
-/** Settings → Defaults: the open projects in a rail on the left, one for every window. */
+/** Settings → Defaults: the open projects in a rail on the left, one for every window of this provider. */
 export function setProjectRailPref(on: boolean): void {
   updateRawPrefs((raw) => void (raw.projectRail = on));
 }
