@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { basename } from '@nota-bene/shared/paths';
 import { fileUrl } from '@/files/kinds.ts';
 import { useT } from '@/i18n/index.ts';
@@ -17,9 +17,11 @@ const dB = (g: number) => `${g > 0 ? '+' : g < 0 ? '−' : ''}${Math.abs(g)} dB`
  * around the pointer) and the playhead a click on the ruler sets. Playback comes with the preview (#408).
  * `problems`: the messages of a clip by its index in `clips`; such a clip is outlined.
  */
-export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc, active }: {
+export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc, active, tools }: {
   lanes: Lane[]; blocks: Block[]; end: number; frame: { width: number; height: number; fps: number } | null;
   problems: ReadonlyMap<number, string[]>; missing: ReadonlySet<string>; fileSrc: string; active: boolean;
+  /** the toolbar's right end, after the size and rate (the Export control) */
+  tools?: ReactNode;
 }) {
   const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
@@ -74,13 +76,14 @@ export function Timeline({ lanes, blocks, end, frame, problems, missing, fileSrc
 
   return (
     <div data-timeline data-pps={pps} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-8 flex-none items-center gap-2 border-b border-border-soft bg-chrome px-3 font-mono text-[0.71875rem] text-muted-foreground">
+      <div className="flex min-h-8 flex-none flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-soft bg-chrome px-3 py-0.5 font-mono text-[0.71875rem] text-muted-foreground">
         <button type="button" aria-label={t('cutZoomOut', mod)} title={t('cutZoomOut', mod)} onClick={() => zoom(1 / STEP)} className={btn}>−</button>
         <button type="button" aria-label={t('cutZoomIn', mod)} title={t('cutZoomIn', mod)} onClick={() => zoom(STEP)} className={btn}>+</button>
         <button type="button" aria-label={t('cutZoomFit')} title={t('cutZoomFit')} onClick={fit} className={btn}>↔</button>
         <span className="text-foreground">{fmtTime(head, true)} / {fmtTime(end, true)}</span>
         <span className="flex-1" />
         {frame && <span>{t('cutFrame', frame.width, frame.height, frame.fps)}</span>}
+        {tools && <div className="font-sans text-foreground">{tools}</div>}
       </div>
       <div ref={scroller} data-timeline-scroll className="relative min-h-0 flex-1 overflow-auto bg-background">
         <div className="relative min-w-full" style={{ width: HEAD + width }}>

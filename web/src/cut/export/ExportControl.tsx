@@ -16,9 +16,10 @@ const INSTALL = [['macOS', 'brew install ffmpeg'], ['Windows', 'winget install f
  * The Export control of an edit: a format (video, or the sound mix alone), Export, the progress with Cancel while it runs,
  * then the result as a link that opens the file in a tab, or what went wrong. Without ffmpeg on the host it says how to
  * install it. The server's live answer (`GET /cut/export`) wins over `hello.capabilities.ffmpeg`, so an ffmpeg installed
- * after the server started is found without a reconnect. Standalone: the timeline mounts it with the edit's path.
+ * after the server started is found without a reconnect. Standalone: the timeline mounts it with the edit's path, and
+ * `blocked` (why, as a tooltip) while the edit has problems: the format and Export are disabled then.
  */
-export function ExportControl({ path, pollMs = POLL_MS }: { path: string; pollMs?: number }) {
+export function ExportControl({ path, blocked, pollMs = POLL_MS }: { path: string; blocked?: string; pollMs?: number }) {
   const t = useT();
   const dispatch = useAppDispatch();
   const capability = useAppSelector(selectCapabilitiesKnown)?.ffmpeg;
@@ -52,6 +53,7 @@ export function ExportControl({ path, pollMs = POLL_MS }: { path: string; pollMs
     if (e.code === 'running') return t('cutExportBusy');
     if (e.code === 'outside-project') return t('cutExportOutside', e.detail);
     if (e.code === 'missing-source') return t('cutExportMissing', e.detail);
+    if (e.code === 'invalid-edit') return t('cutExportInvalid', e.detail);
     if (e.code === 'no-ffmpeg') setLive(false);
     return e.message;
   };
@@ -86,17 +88,17 @@ export function ExportControl({ path, pollMs = POLL_MS }: { path: string; pollMs
   const label: Record<ExportMode, string> = { mp4: t('cutExportMp4'), wav: t('cutExportWav'), m4a: t('cutExportM4a') };
   return (
     <div data-cut-export className="flex flex-col gap-2 text-[0.8125rem]">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" title={running ? undefined : blocked}>
         <select
           aria-label={t('cutExportFormat')}
           className="h-8 rounded-md border border-input bg-background px-2"
           value={mode}
-          disabled={running}
+          disabled={running || blocked !== undefined}
           onChange={(e) => setMode(e.target.value as ExportMode)}
         >
           {EXPORT_MODES.map((m) => <option key={m} value={m}>{label[m]}</option>)}
         </select>
-        <Button type="button" size="sm" disabled={running || busy || ffmpeg !== true} onClick={() => void start()}>{t('cutExport')}</Button>
+        <Button type="button" size="sm" disabled={running || busy || ffmpeg !== true || blocked !== undefined} onClick={() => void start()}>{t('cutExport')}</Button>
         {running && <Button type="button" size="sm" variant="outline" onClick={() => void cancel()}>{t('cutExportCancel')}</Button>}
       </div>
       {running && (

@@ -32,14 +32,15 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'HEAD') heads.push(url);
     const path = new URL(url, 'http://x').searchParams.get('path') ?? '';
+    if (url.startsWith('/cut/export?')) return Response.json({ ffmpeg: true, job: null });
     return new Response(null, { status: missing.includes(path) ? 404 : 200 });
   }));
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-function show(text: string) {
+function show(text: string, path?: string) {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
-  return render(<Provider store={store}><CutBody text={text} src="here" tabId="file:e.nbcut.json" active /></Provider>);
+  return render(<Provider store={store}><CutBody text={text} src="here" path={path} tabId="file:e.nbcut.json" active /></Provider>);
 }
 const lanes = (c: HTMLElement) => [...c.querySelectorAll('[data-lane]')].map((l) => l.getAttribute('data-lane'));
 
@@ -121,4 +122,28 @@ it('an empty edit says it has no clips', () => {
   show(JSON.stringify({ version: 1, width: 640, height: 360, fps: 30, tracks: [{ id: 'v1', kind: 'video' }], clips: [] }));
   expect(screen.getByText('No clips yet')).toBeInTheDocument();
   expect(screen.getByText('Video 1')).toBeInTheDocument();
+});
+
+it('a valid edit of the project has the Export control in the timeline toolbar', async () => {
+  const { container } = show(JSON.stringify(fixture), 'cuts/demo.nbcut.json');
+  const button = screen.getByRole('button', { name: 'Export' });
+  expect(container.querySelector('[data-timeline] [data-cut-export]')).not.toBeNull();
+  await waitFor(() => expect(button).toBeEnabled());
+  expect(screen.getByRole('combobox', { name: 'Export format' })).toBeEnabled();
+});
+
+it('an edit with problems shows Export disabled, saying why', async () => {
+  const bad = structuredClone(fixture) as typeof fixture & { clips: Record<string, unknown>[] };
+  bad.clips[1]!.at = 4; // over c1
+  show(JSON.stringify(bad), 'cuts/demo.nbcut.json');
+  await screen.findByText('1 problem in the edit');
+  const button = screen.getByRole('button', { name: 'Export' });
+  expect(button).toBeDisabled();
+  expect(screen.getByRole('combobox', { name: 'Export format' })).toBeDisabled();
+  expect(button.closest('[title]')!.getAttribute('title')).toBe('Fix the problems in the edit to export it');
+});
+
+it('an edit not of this project (another worktree, a revision) has no Export control', () => {
+  show(JSON.stringify(fixture));
+  expect(screen.queryByRole('button', { name: 'Export' })).toBeNull();
 });

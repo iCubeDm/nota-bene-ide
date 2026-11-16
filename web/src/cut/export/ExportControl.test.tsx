@@ -97,3 +97,12 @@ it('a server without the export routes asks for a restart', async () => {
   expect(await screen.findByText('This server cannot export yet: restart the server')).toBeInTheDocument();
 });
 
+it('an invalid edit refused by the server says so in words', async () => {
+  setup();
+  refuse = { status: 422, error: 'invalid-edit', detail: 'clips[0].out: out-before-in' };
+  const button = await screen.findByRole('button', { name: 'Export' });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Export failed: The edit has problems: fix them, then export again (clips[0].out: out-before-in)');
+});
+

@@ -914,6 +914,8 @@ export const ru = {
   cutExportMissing: (path: string) => `Исходный файл не найден: ${path}`,
   cutExportNoFfmpeg: "Для экспорта на этом компьютере нужен ffmpeg. Установи его и запусти экспорт снова:",
   cutExportOld: "Этот сервер ещё не умеет экспортировать: перезапусти сервер",
+  cutExportInvalid: (why: string) => `В монтаже есть ошибки: исправь их и экспортируй снова (${why})`,
+  cutExportBlocked: "Исправь ошибки в монтаже, чтобы его экспортировать",
   cutTimeline: "Монтаж",
   cutViewTip: "Показать монтажный стол или исходный JSON",
   cutZoomIn: (mod: string) => `Крупнее (${mod} + колесо)`,

@@ -897,6 +897,8 @@ export const ptBR: Dict = {
   cutExportMissing: (path: string) => `Arquivo de origem não encontrado: ${path}`,
   cutExportNoFfmpeg: "Para exportar, é preciso o ffmpeg neste computador. Instale-o e exporte de novo:",
   cutExportOld: "Este servidor ainda não exporta: reinicie o servidor",
+  cutExportInvalid: (why: string) => `A edição tem problemas: corrija-os e exporte de novo (${why})`,
+  cutExportBlocked: "Corrija os problemas da edição para exportá-la",
   cutTimeline: "Linha do tempo",
   cutViewTip: "Mostrar a linha do tempo ou o JSON",
   cutZoomIn: (mod: string) => `Aproximar (${mod} + roda)`,

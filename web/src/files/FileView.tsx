@@ -179,7 +179,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
       ) : page && data?.s === 'text' ? (
         <HtmlBody html={data.text} path={path} src={src} fileRef={ref} tabId={tabId} active={active} paneRef={pane} marking={marksPage} onScripts={setScripts} />
       ) : timeline && data?.s === 'text' ? (
-        <CutBody text={data.text} src={src} tabId={tabId} active={active} />
+        <CutBody text={data.text} src={src} path={src === 'here' ? path : undefined} tabId={tabId} active={active} />
       ) : editing ? (
         <FileEditor path={path} onClose={(saved) => { setEditing(false); if (saved) load.reloadClick(); }} />
       ) : (

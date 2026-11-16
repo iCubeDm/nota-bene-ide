@@ -897,6 +897,8 @@ export const zhCN: Dict = {
   cutExportMissing: (path: string) => `找不到源文件：${path}`,
   cutExportNoFfmpeg: "导出需要在这台电脑上安装 ffmpeg。安装后再次导出：",
   cutExportOld: "此服务器还不能导出：请重启服务器",
+  cutExportInvalid: (why: string) => `剪辑有问题：请修正后再导出（${why}）`,
+  cutExportBlocked: "请先修正剪辑中的问题再导出",
   cutTimeline: "时间线",
   cutViewTip: "显示时间线或 JSON 源码",
   cutZoomIn: (mod: string) => `放大（${mod} + 滚轮）`,
