@@ -233,6 +233,21 @@ it('the clip panel with several clips: the count, a shared field set on all, a m
   valid();
 });
 
+it('a Shift- or Cmd-click on the gain line (the middle of a clip) adds or removes the clip; a Shift drag there is still fine gain', async () => {
+  const { clip, container } = await show();
+  press(clip('c1'), 10);
+  const line = (id: string) => container.querySelector(`[data-clip="${id}"] [data-gain]`)!;
+  press(line('c3'), 10, { shiftKey: true });
+  expect(selected(container)).toEqual(['c1', 'c3']);
+  press(line('c1'), 10, { metaKey: true });
+  expect(selected(container)).toEqual(['c3']);
+  press(line('c1'), 10, { shiftKey: true });
+  expect(selected(container)).toEqual(['c1', 'c3']);
+  // a plain click on the line of one of them: that clip alone, as on its body
+  press(line('c3'), 10);
+  expect(selected(container)).toEqual(['c3']);
+});
+
 it('the gain line acts on the clip under the pointer, the selection stays', async () => {
   const { clip, container } = await show();
   press(clip('c1'), 10);

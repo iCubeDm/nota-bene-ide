@@ -531,15 +531,16 @@ function useClipDrag(
         e.stopPropagation();
         e.preventDefault(); // no text selection, no native drag
         if (ed0.tool === 'blade') return ed0.blade(bladeAt(e.clientX, e.altKey, [id]), id, e.shiftKey);
-        if (grip0 === 'move' && (e.shiftKey || e.metaKey || e.ctrlKey)) {
-          return ed0.select(ed0.sel.includes(id) ? ed0.sel.filter((x) => x !== id) : [...ed0.sel, id]);
-        }
+        const mod = e.shiftKey || e.metaKey || e.ctrlKey;
+        const toggle = (cur: Editing) => cur.select(cur.sel.includes(id) ? cur.sel.filter((x) => x !== id) : [...cur.sel, id]);
+        if (grip0 === 'move' && mod) return toggle(ed0);
         const c = ed0.cut.clips.find((x) => x.id === id);
         if (!c) return;
         const base = ed0.cut;
         // a press on a clip of the selection keeps it: the body moves them all, the other grips act on this one
         const group = ed0.sel.includes(id) ? ed0.sel.filter((x) => base.clips.some((k) => k.id === x)) : [id];
-        if (!ed0.sel.includes(id)) ed0.select([id]);
+        // the gain line runs across the clip's middle: with a modifier, a click on it (no drag) is a click on the clip
+        if (!ed0.sel.includes(id) && !(grip0 === 'gain' && mod)) ed0.select([id]);
         stop.current?.();
         let moved = false;
         const x0 = e.clientX;
@@ -605,8 +606,11 @@ function useClipDrag(
           const cur = edRef.current;
           if (!cur) return;
           if (out && !stale(cur)) cur.commit(out);
-          // a click on a clip of a selection, no drag: that clip alone
-          else if (!moved && grip0 === 'move' && group.length > 1 && !stale(cur)) cur.select([id]);
+          // a click on a clip (its body or its gain line), no drag: added or taken out with a modifier, else that clip alone
+          else if (!out && !moved && (grip0 === 'move' || grip0 === 'gain') && !stale(cur)) {
+            if (grip0 === 'gain' && mod) toggle(cur);
+            else if (group.length > 1) cur.select([id]);
+          }
           cur.draft(null);
         };
         window.addEventListener('pointermove', move);
