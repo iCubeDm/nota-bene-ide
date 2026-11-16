@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -352,5 +352,97 @@ describe.skipIf(!real || !fs.existsSync(ffprobe ?? ''))('a real export through f
     const wav = probeJson(path.join(root, 'exports', 'demo.wav'));
     expect(Number(wav.format.duration)).toBeCloseTo(2.5, 1);
     expect(wav.streams.map((s) => s.codec_type)).toEqual(['audio']);
+  }, 60_000);
+  /** The picture at `t` s of `file` as rgb24 bytes, `w` x `h`. */
+  const frame = (file: string, t: number) => execFileSync(real!, ['-hide_banner', '-loglevel', 'error', '-ss', String(t), '-i', file, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1']);
+  const rgb = (f: Buffer, w: number, x: number, y: number) => [...f.subarray((y * w + x) * 3, (y * w + x) * 3 + 3)];
+  const brightest = (f: Buffer) => f.reduce((a, b) => Math.max(a, b), 0);
+  const isRed = ([r, g, b]: number[]) => r! > 180 && g! < 80 && b! < 80;
+  const isBlue = ([r, g, b]: number[]) => b! > 180 && r! < 80 && g! < 80;
+  /** The loudest sample of `file` between `from` and `from + dur` s, in dB (pure silence is about -91). */
+  const loudest = (file: string, from: number, dur: number) => {
+    const r = spawnSync(real!, ['-hide_banner', '-nostats', '-ss', String(from), '-t', String(dur), '-i', file, '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8' });
+    const m = /max_volume: (-?[\d.]+|-inf) dB/.exec(r.stderr);
+    if (!m) throw new Error(r.stderr);
+    return m[1] === '-inf' ? -Infinity : Number(m[1]);
+  };
+
+  it('renders what the edit says: black gaps, the photo in its place while it is shown, sound only from audible clips', async () => {
+    const m = path.join(root, 'media');
+    ff('-f', 'lavfi', '-i', 'color=c=blue:size=320x240:rate=10:duration=3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(m, 'blue.mp4'));
+    ff('-f', 'lavfi', '-i', 'color=c=red:size=200x200', '-frames:v', '1', path.join(m, 'red.png'));
+    ff('-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', path.join(m, 'tone.wav'));
+    ff('-f', 'lavfi', '-i', 'sine=frequency=880:duration=2', path.join(m, 'loud.wav'));
+    const c: Cut = {
+      version: 1, width: 320, height: 180, fps: 10,
+      tracks: [{ id: 'v1', kind: 'video' }, { id: 'v2', kind: 'video' }, { id: 'a1', kind: 'audio' }, { id: 'a2', kind: 'audio', mute: true }],
+      clips: [
+        { id: 'b', track: 'v1', src: 'media/blue.mp4', at: 0.5, out: 2 },
+        // the photo's box is x 160-320, y 0-90; the square image fits it as 90 x 90 at x 195-285
+        { id: 'r', track: 'v2', src: 'media/red.png', at: 1, dur: 1, place: { x: 0.5, y: 0, w: 0.5, h: 0.5 } },
+        // a sound file on a video track: heard, not drawn
+        { id: 't', track: 'v1', src: 'media/tone.wav', at: 2.5, out: 0.5 },
+        { id: 's', track: 'a1', src: 'media/tone.wav', at: 1, out: 1 },
+        { id: 'm', track: 'a2', src: 'media/loud.wav', at: 0, out: 1 },
+      ],
+    };
+    fs.writeFileSync(path.join(root, 'look.nbcut.json'), JSON.stringify(c));
+    const e = make({ ffmpeg: () => real, probe: undefined, version: undefined });
+    await e.start('look.nbcut.json', 'mp4');
+    await until(() => e.job('look.nbcut.json')?.phase !== 'running', 60_000);
+    expect(e.job('look.nbcut.json')).toMatchObject({ phase: 'done' });
+    const out = path.join(root, 'exports', 'look.mp4');
+    expect(Number(probeJson(out).format.duration)).toBeCloseTo(3, 1);
+
+    const gap = frame(out, 0.25);
+    expect(gap.length).toBe(320 * 180 * 3);
+    expect(brightest(gap)).toBeLessThan(30);
+    const before = frame(out, 0.75);
+    expect(isBlue(rgb(before, 320, 240, 45))).toBe(true);
+    const shown = frame(out, 1.5);
+    expect(isRed(rgb(shown, 320, 240, 45))).toBe(true);
+    expect(isBlue(rgb(shown, 320, 170, 45))).toBe(true); // in the box, beside the image
+    expect(isBlue(rgb(shown, 320, 80, 135))).toBe(true);
+    expect(isBlue(rgb(frame(out, 2.2), 320, 240, 45))).toBe(true);
+    // the sound file on the video track is not drawn: black after the blue clip
+    expect(brightest(frame(out, 2.75))).toBeLessThan(30);
+
+    // the muted track is silent; the voice and the sound on the video track are heard
+    expect(loudest(out, 0, 0.9)).toBeLessThan(-60);
+    expect(loudest(out, 1.1, 0.8)).toBeGreaterThan(-40);
+    expect(loudest(out, 2.6, 0.3)).toBeGreaterThan(-40);
+  }, 60_000);
+
+  it('stills in webp and avif are held for their length', async () => {
+    const m = path.join(root, 'media');
+    const stills: string[] = [];
+    ff('-f', 'lavfi', '-i', 'color=c=red:size=64x64', '-frames:v', '1', path.join(m, 'red.png'));
+    try {
+      ff('-f', 'lavfi', '-i', 'color=c=red:size=64x64', '-frames:v', '1', path.join(m, 'red.avif'));
+      stills.push('media/red.avif');
+    } catch { /* this ffmpeg cannot encode AVIF */ }
+    if (spawnSync('cwebp', ['-quiet', path.join(m, 'red.png'), '-o', path.join(m, 'red.webp')]).status === 0) stills.push('media/red.webp');
+    else {
+      try {
+        ff('-i', path.join(m, 'red.png'), path.join(m, 'red.webp'));
+        stills.push('media/red.webp');
+      } catch { /* nor WebP */ }
+    }
+    const e = make({ ffmpeg: () => real, probe: undefined, version: undefined });
+    for (const src of stills) {
+      const name = `still-${path.extname(src).slice(1)}`;
+      fs.writeFileSync(path.join(root, `${name}.nbcut.json`), JSON.stringify({
+        version: 1, width: 64, height: 64, fps: 10, tracks: [{ id: 'v', kind: 'video' }],
+        clips: [{ id: 'p', track: 'v', src, at: 0.5, dur: 1 }, { id: 'q', track: 'v', src: 'media/red.png', at: 2, dur: 0.5 }],
+      } satisfies Cut));
+      await e.start(`${name}.nbcut.json`, 'mp4');
+      await until(() => e.job(`${name}.nbcut.json`)?.phase !== 'running', 60_000);
+      expect(e.job(`${name}.nbcut.json`), src).toMatchObject({ phase: 'done' });
+      const out = path.join(root, 'exports', `${name}.mp4`);
+      expect(isRed(rgb(frame(out, 0.6), 64, 32, 32)), src).toBe(true);
+      expect(isRed(rgb(frame(out, 1.4), 64, 32, 32)), src).toBe(true);
+      // held for its dur only: black again after 1.5 s
+      expect(brightest(frame(out, 1.75)), src).toBeLessThan(30);
+    }
   }, 60_000);
 });
