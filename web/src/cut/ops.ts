@@ -201,6 +201,15 @@ const shiftAt = (at: number, d: number) => (ms(at) === at && ms(d) === d ? ms(at
  * tracks. null when the move is refused: a clip would overlap one outside the selection, or a lane is not there.
  */
 export function moveClips(cut: Cut, ids: readonly string[], dt: number, lanes?: { kind: CutTrack['kind']; by: number }): Cut | null {
+  const r = groupMove(cut, ids, dt, lanes);
+  return typeof r === 'string' ? null : r;
+}
+
+/** Why a selection cannot move (issue 442): a clip would overlap one outside it, or a lane is not there. */
+export type GroupRefusal = 'overlap' | 'lane';
+
+/** moveClips, with why a refused move is refused; null when none of `ids` is in the edit. */
+export function groupMove(cut: Cut, ids: readonly string[], dt: number, lanes?: { kind: CutTrack['kind']; by: number }): Cut | GroupRefusal | null {
   const group = cut.clips.filter((c) => ids.includes(c.id));
   if (!group.length) return null;
   const lo = -Math.min(...group.map((c) => c.at));
@@ -212,13 +221,13 @@ export function moveClips(cut: Cut, ids: readonly string[], dt: number, lanes?: 
     if (lanes && lanes.by !== 0 && kind === lanes.kind) {
       const order = drawnOf(cut, kind);
       const to = order[order.findIndex((x) => x.id === c.track) + lanes.by];
-      if (!to) return null;
+      if (!to) return 'lane';
       track = to.id;
     }
     moved.set(c.id, { ...c, track, at: Math.max(0, shiftAt(c.at, d)) });
   }
   for (const m of moved.values()) {
-    if (cut.clips.some((o) => !moved.has(o.id) && o.track === m.track && overlaps(m, o))) return null;
+    if (cut.clips.some((o) => !moved.has(o.id) && o.track === m.track && overlaps(m, o))) return 'overlap';
   }
   return { ...cut, clips: cut.clips.map((c) => moved.get(c.id) ?? c) };
 }

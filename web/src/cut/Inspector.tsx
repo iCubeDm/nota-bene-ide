@@ -62,8 +62,9 @@ export function Inspector({ cut, clip: c, commit }: { cut: Cut; clip: CutClip; c
 
 /**
  * Several selected clips (issue 432): how many, and the fields they share, each set on all of them at once: the sound's
- * gain and mute (on the clips with sound) and the fades. A field whose values differ shows empty, "mixed"; a value the
- * format refuses for any of them is marked and applied to none.
+ * gain and mute (on the clips with sound) and the fades; issue 442: on the video tracks' clips their frame and opacity, each
+ * clip keeping the rest of its own frame. A field whose values differ shows empty, "mixed"; a value the format refuses for any
+ * of them is marked and applied to none.
  */
 export function GroupInspector({ cut, clips, commit }: { cut: Cut; clips: CutClip[]; commit: (c: Cut) => void }) {
   const t = useT();
@@ -78,6 +79,16 @@ export function GroupInspector({ cut, clips, commit }: { cut: Cut; clips: CutCli
     return v.every((x) => x === v[0]) ? v[0]! : null;
   };
   const muted = same(sound, (c) => !!c.mute);
+  // the frame's field `k` set on every selected clip of a video track, as one step
+  const video = clips.filter((c) => cut.tracks.find((x) => x.id === c.track)?.kind === 'video');
+  const placeAll = (k: keyof CutPlace, v: number): boolean => {
+    let next: Cut | null = cut;
+    for (const c of video) next = next && setClip(next, c.id, { place: { ...(c.place ?? FULL), [k]: v } });
+    if (next) commit(next);
+    return next !== null;
+  };
+  // compared as shown, in percent to a tenth: 0.333 and 0.33299999999999996 are the same 33.3
+  const placed = (k: keyof CutPlace, d = 0) => same(video, (c) => Math.round(((c.place ?? FULL)[k] ?? d) * 1000) / 10) as number | null;
   return (
     <aside data-cut-inspector aria-label={t('cutInspector')} className="flex w-52 flex-none flex-col gap-1 overflow-auto border-l border-border-soft bg-chrome p-2 text-xs">
       <p className="font-medium text-foreground">{t('cutClipsN', clips.length)}</p>
@@ -95,6 +106,15 @@ export function GroupInspector({ cut, clips, commit }: { cut: Cut; clips: CutCli
       )}
       <Num label={t('cutFadeIn')} value={same(clips, (c) => c.fadeIn ?? 0) as number | null} onSet={(v) => apply(clips, { fadeIn: ms(v) || undefined })} />
       <Num label={t('cutFadeOut')} value={same(clips, (c) => c.fadeOut ?? 0) as number | null} onSet={(v) => apply(clips, { fadeOut: ms(v) || undefined })} />
+      {video.length > 0 && (
+        <>
+          <Num label={t('cutPlaceX')} value={placed('x')} onSet={(v) => placeAll('x', v / 100)} />
+          <Num label={t('cutPlaceY')} value={placed('y')} onSet={(v) => placeAll('y', v / 100)} />
+          <Num label={t('cutPlaceW')} value={placed('w')} onSet={(v) => placeAll('w', v / 100)} />
+          <Num label={t('cutPlaceH')} value={placed('h')} onSet={(v) => placeAll('h', v / 100)} />
+          <Num label={t('cutOpacity')} value={placed('opacity', 1)} onSet={(v) => placeAll('opacity', v / 100)} />
+        </>
+      )}
     </aside>
   );
 }
