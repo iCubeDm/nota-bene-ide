@@ -333,13 +333,16 @@ describe('nota-bene launcher', () => {
     expect(alive(r.p.pid!)).toBe(true);
   }, 15000);
 
-  it('5 fast crashes give up with the crash code', async () => {
-    const t0 = Date.now();
-    const r = launch(['--port', '4794'], { NOTA_BENE_TEST_CRASH: '1' });
+  it('5 fast crashes give up with the crash code, the crash pause between each', async () => {
+    const pause = 600; // longer than a crashing server's start (~0.2 s): each gap below is the pause plus that start
+    const r = launch(['--port', '4794'], { NOTA_BENE_TEST_CRASH: '1', NOTA_BENE_TEST_CRASH_PAUSE_MS: String(pause) });
+    const told: number[] = []; // when each "relaunching" line arrives
+    r.p.stderr!.on('data', (d) => { for (const _ of String(d).matchAll(/relaunching/g)) told.push(Date.now()); });
     expect(await r.exited).toBe(1);
     expect(r.err().match(/relaunching/g)).toHaveLength(4);
     expect(r.err()).toMatch(/giving up/);
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(400); // the crash pause (100 ms in env()) between crashes
+    const gaps = told.slice(1).map((t, i) => t - told[i]!);
+    for (const g of gaps) expect(g).toBeGreaterThanOrEqual(pause);
     expect(windows()['4794']).toBeUndefined();
   }, 15000);
 
@@ -1490,9 +1493,9 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       const login = await loginAt(4793);
       await fetch('http://127.0.0.1:4793/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       await waitFor(() => windows()['4793']?.building);
-      const second = launch([], { NOTA_BENE_TEST_RESTART_WAIT_MS: '300' }); // the same folder, in the gap; 10 s for real
+      const second = launch([], { NOTA_BENE_TEST_RESTART_WAIT_MS: '1000' }); // the same folder, in the gap; 10 s for real
       await waitFor(() => /waiting for a rebuild/.test(second.err()));
-      await new Promise((r) => setTimeout(r, 1000)); // longer than the 300 ms a restart gap is waited for
+      await new Promise((r) => setTimeout(r, 1500)); // longer than the 1 s a restart gap is waited for
       expect(second.p.exitCode).toBeNull(); // still waiting, not a second window
       fs.writeFileSync(gate, '');
       expect(await second.exited, second.err()).toBe(0);

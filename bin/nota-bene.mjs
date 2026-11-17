@@ -85,14 +85,16 @@ const STOP_MESSAGE = 'nota-bene:stop'; // server/src/main.ts STOP_MESSAGE
 const MAX_CRASHES = 5;
 const MAX_RESTARTS = 10;
 const GUARD_WINDOW_MS = 60_000;
-// the pause before a crashed server is relaunched; TEST-ONLY: NOTA_BENE_TEST_CRASH_PAUSE_MS shortens it (issue 472)
+// the pause before a crashed server is relaunched; TEST-ONLY: NOTA_BENE_TEST_CRASH_PAUSE_MS shortens it (issue 472).
+// Never set it otherwise.
 const CRASH_PAUSE_MS = Number(process.env.NOTA_BENE_TEST_CRASH_PAUSE_MS) || 1000;
 // test only: NOTA_BENE_DETACH_WAIT_MS shortens the wait, to reach the timeout path
 const DETACH_WAIT_MS = Number(process.env.NOTA_BENE_DETACH_WAIT_MS) || 20_000;
 const LOCK_STALE_MS = 60_000;
 const LOCK_WAIT_MS = 30_000;
 const REBUILD_WAIT_MAX_MS = 5 * 60_000; // the most a launch or --find waits in total for a window that is rebuilding web/dist
-// how long a launch waits for a restarting window of its folder to come back; TEST-ONLY: NOTA_BENE_TEST_RESTART_WAIT_MS
+// how long a launch waits for a restarting window of its folder to come back; TEST-ONLY: NOTA_BENE_TEST_RESTART_WAIT_MS.
+// Never set it otherwise.
 const RESTART_WAIT_MS = Number(process.env.NOTA_BENE_TEST_RESTART_WAIT_MS) || 10_000;
 
 /** This package's version (the checkout's root package.json says the same). */
