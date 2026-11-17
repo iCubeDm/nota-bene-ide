@@ -26,12 +26,8 @@ export function RemoteMenuItem({ className }: { className: string }) {
   if (!supported) return null;
   const ind = indicator(state);
   const phones = state?.devices.filter((x) => x.online).length ?? 0;
-  const tip = ind === 'off' ? t('remoteTipOff')
-    : ind === 'connecting' ? t('remoteTipConnecting')
-      : ind === 'online' ? t('remoteTipOnline', phones)
-        : t('remoteTipTrouble', troubleWhy(state, t));
   return (
-    <DropdownMenuItem id="remoteMenu" data-state={ind} title={tip} onSelect={() => d(openRemote())} className={className}>
+    <DropdownMenuItem id="remoteMenu" data-state={ind} onSelect={() => d(openRemote())} className={className}>
       <Svg size={15}>{ICONS.remote}</Svg>
       <span className="flex-1">{t('remoteMenu')}</span>
       <span className={`flex items-center gap-1.5 ${TONE[ind]}`}>

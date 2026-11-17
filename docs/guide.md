@@ -373,6 +373,7 @@ A one-line draft starting with `!` is a shell command ("Shell · Enter runs", bu
 - Paths in `code` spans and links in the chat open files; missing ones are struck through.
 - A video edit (`*.nbcut.json`) opens as its timeline; **Source** shows its JSON ([video edits](#video-edits-nbcutjson)).
 - Files over 2 MB and binaries are not shown; **Open raw** serves the file as is.
+- A file tab shows the file's name; open files that share a name show as much of their folder as tells them apart (`src/app.ts`, `lib/app.ts`).
 - Tab menu: Close, Close others, Close to the right, Close all, Copy path. Middle click closes; Alt+W closes, Alt+Shift+T reopens.
 - In the tree, a click opens a file; ⌘-click (Ctrl-click on Windows/Linux) picks files one by one and Shift-click picks the run from the last one clicked, without opening them (Esc lets them go). A file's right-click menu has Copy path, **Download** (every picked file), and for videos, sounds and photos **Add to** the open edit and **New edit** ([video edits](#video-edits-nbcutjson)).
 
@@ -423,7 +424,7 @@ The chat tab's **▾** lists this project's sessions with a filter; pick one to 
 
 ## Projects: switching, opening, creating
 
-The project name in the header (Alt+P) opens the switcher, a chat-style list: one row per running folder with the last message, session, agent and state (*working*, *waiting for you*, *idle*, *restarting*, *not answering*). Type to filter. The path under the name copies on click.
+The project name in the header (Alt+P) opens the switcher, a chat-style list: one row per running folder with the last message, session, agent and state (*working*, *waiting for you*, *idle*, *restarting*, *not answering*). Type to filter. The copy icon beside the path under the name copies it.
 
 A badge says what needs you: **!** when it waits (a permission, question or plan), else unseen replies (seen once on screen in a focused tab). The header button and tab title (`(!)`, `(3)`) sum the other projects. Waiting rows come first.
 
@@ -572,7 +573,7 @@ A paired phone reaches this computer's windows through a relay you run (`relay/`
 
 ### From a window
 
-A dot on the gear shows remote access: none (off), amber (connecting), green (online), red (failing; the **Remote access** row's tooltip says why). The row opens the **Remote** tab:
+A dot on the gear shows remote access: none (off), amber (connecting), green (online), red (failing; the **Remote** tab says why). The row opens the **Remote** tab:
 
 - **Access**: relay address, [access key](#access-key), the switch that lets phones in, state, the computer's fingerprint.
 - **Pair a phone**: a QR code (or text, Copy), time left, fingerprint. A code pairs one phone; another is refused and named.

@@ -127,25 +127,27 @@ it('the path stands under the project name, in one block with it', () => {
   expect(block!.className).toMatch(/flex-col/);
 });
 
-it('a long path does not widen the block (the git branch stays put): it fits the name, its end shown, the whole in the tooltip', () => {
+it('a long path does not widen the block (the git branch stays put): it fits the name, its end shown, no tooltip', () => {
   const { ev } = setup();
   ev({ kind: 'session', id: null, root: '/Users/me/very/long/path/to/proj', title: null, model: null });
   const p = document.getElementById('root-path')!;
-  expect(p.className).toMatch(/\bw-0\b/);
-  expect(p.className).toMatch(/\bmin-w-full\b/);
+  expect(p.parentElement!.className).toMatch(/\bw-0\b/);
+  expect(p.parentElement!.className).toMatch(/\bmin-w-full\b/);
+  expect(p.className).toMatch(/\btruncate\b/);
   expect(p).toHaveAttribute('dir', 'rtl');
-  expect(p.title).toMatch(/^\/Users\/me\/very\/long\/path\/to\/proj/);
+  expect(p).not.toHaveAttribute('title');
 });
 
-it('the path shows the home folder as ~ and a click copies the whole path', async () => {
+it('the path shows the home folder as ~ and its copy icon copies the whole path', async () => {
   const writeText = vi.fn(async () => {});
   vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+  setLang('en');
   const { ev } = setup();
+  expect(document.getElementById('copy-root')).toBeNull();
   ev({ kind: 'session', id: null, root: '/Users/me/proj', title: null, model: null });
-  const p = document.getElementById('root-path')!;
-  expect(p).toHaveTextContent(/^~\/proj$/);
-  expect(p.tagName).toBe('BUTTON');
-  p.click();
+  expect(document.getElementById('root-path')).toHaveTextContent(/^~\/proj$/);
+  const copy = screen.getByRole('button', { name: 'Copy path' });
+  copy.click();
   await waitFor(() => expect(writeText).toHaveBeenCalledWith('/Users/me/proj'));
   vi.unstubAllGlobals();
 });

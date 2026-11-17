@@ -78,10 +78,11 @@ function setup() {
 }
 const btn = () => screen.getByRole('button', { name: 'Sessions' });
 const menu = () => screen.getByRole('dialog', { name: 'Sessions' });
-it('the Sessions trigger is a ▾ (the chat tab names the session); the tooltip says what it opens', () => {
+it('the Sessions trigger is a ▾ (the chat tab names the session), named but with no tooltip (issue 463)', () => {
   setup();
   expect(btn().textContent).toBe('');
-  expect(btn().title).toBe('Claude Code sessions');
+  expect(btn()).toHaveAccessibleName('Sessions');
+  expect(btn().title).toBe('');
 });
 
 async function openPicker() {

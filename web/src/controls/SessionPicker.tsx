@@ -173,7 +173,6 @@ export function SessionPicker() {
             type="button"
             id="sessBtn"
             aria-label={t('sessions')}
-            title={t(provider === 'codex' ? 'sessTipCodex' : provider === 'omp' ? 'sessTipOmp' : 'sessTip')}
             disabled={off}
             // ▾ on the chat tab, which names the session: it opens the Sessions menu
             onClick={(e) => e.stopPropagation()}

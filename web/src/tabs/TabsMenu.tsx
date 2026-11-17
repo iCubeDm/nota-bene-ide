@@ -63,7 +63,7 @@ export function TabsMenu({ strip }: { strip: RefObject<HTMLElement | null> }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <button ref={trigger} type="button" aria-label={t('tabsAll')} title={t('tabsAll')}
+        <button ref={trigger} type="button" aria-label={t('tabsAll')}
           className="grid size-7 flex-none place-items-center rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground">
           <Svg><path d="m6 9 6 6 6-6" /></Svg>
         </button>

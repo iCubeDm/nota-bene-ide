@@ -68,20 +68,25 @@ describe('settings menu: Remote access and Usage', () => {
   });
 
   it.each([
-    ['off', OFF, /Remote access: off/],
-    ['connecting', { ...ONLINE, online: false, devices: [] }, /connecting to the relay/],
-    ['online', { ...ONLINE, devices: [] }, /^Remote access: online$/],
-    ['trouble', { ...ONLINE, online: false, running: false, lastError: { code: 4401, message: 'the relay refused the host key proof', at: 1 } }, /not working: the relay refused the host key proof/],
-    ['trouble', { ...ONLINE, online: false, running: false, lastError: { code: 4402, message: 'x', at: 1 } }, /not working: the relay does not admit this computer: enter the access key/],
+    ['off', OFF, null],
+    ['connecting', { ...ONLINE, online: false, devices: [] }, null],
+    ['online', { ...ONLINE, devices: [] }, null],
+    ['trouble', { ...ONLINE, online: false, running: false, lastError: { code: 4401, message: 'the relay refused the host key proof', at: 1 } }, /the relay refused the host key proof/],
+    ['trouble', { ...ONLINE, online: false, running: false, lastError: { code: 4402, message: 'x', at: 1 } }, /the relay does not admit this computer: enter the access key/],
     ['trouble', { ...ONLINE, online: false, lastError: { code: 4405, message: 'x', at: 1 } }, /used on the most computers allowed/],
     ['trouble', { ...ONLINE, online: false, running: false, startFailed: true }, /connector\.log/],
-  ] as [string, RemoteState, RegExp][])('%s', (want, state, tip) => {
+  ] as [string, RemoteState, RegExp | null][])('%s', (want, state, why) => {
     setup({ state });
     if (want === 'off') expect(dot()).toBeNull();
     else expect(dot()!.dataset.state).toBe(want);
     menu();
     expect(row()!.dataset.state).toBe(want);
-    expect(row()!.title).toMatch(tip);
+    // the row has no tooltip (issue 463): its state word says it; the Remote tab says why it is not working
+    expect(row()!.title).toBe('');
+    if (why) {
+      fireEvent.click(row()!);
+      expect(document.getElementById('remoteWhy')).toHaveTextContent(why);
+    }
   });
 
   it('off when access is turned off, even with a relay saved', () => {
@@ -95,7 +100,6 @@ describe('settings menu: Remote access and Usage', () => {
     const store = setup({ state: ONLINE });
     menu();
     expect(row()!.querySelector('[data-phones]')!.textContent).toBe('· 2');
-    expect(row()!.title).toMatch(/phones connected: 2/);
     fireEvent.click(row()!);
     open();
     expect(selectTabs(store.getState()).active).toBe('remote');

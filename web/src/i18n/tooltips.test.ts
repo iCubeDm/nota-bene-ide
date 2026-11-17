@@ -26,8 +26,8 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const INDIRECT = [
   'cutToolSelect', 'cutToolBlade', 'cutUndo', 'cutRedo', 'cutSplit', 'cutDuplicate', 'cutDelete', 'cutComment',
   'cutTrackMute', 'cutTrackSolo', 'cutTrackHide', 'cutTrackUp', 'cutTrackDown', 'cutTrackRemove', 'cutClipOn', 'cutClipOff',
-  'idleBlocked', 'cutExportBlocked', 'cutTrimStart', 'cutTrimEnd', 'toolRect', 'toolEllipse', 'toolPen', 'toolArrow', 'toolMask',
-  'remoteTipConnecting', 'remoteTipTrouble', 'remoteTipOnline', 'h5Tip', 'weekTip', 'pb_mute', 'pb_unmute',
+  'idleBlocked', 'cutExportBlocked', 'toolRect', 'toolEllipse', 'toolPen', 'toolArrow', 'toolMask',
+  'h5Tip', 'weekTip', 'pb_mute', 'pb_unmute',
 ];
 
 /** Keys the scan finds that are no tooltip, each with what it is. */
@@ -63,7 +63,6 @@ const SAMPLES: Record<string, (lang: string) => unknown[][]> = {
   vcsSwitchTip: () => [['feature/login']],
   vcsOpenTreeTip: () => [['feature/login']],
   updateTitle: () => [['2.10.1']],
-  vcsViewingTip: () => [['feature/login', 'main']],
   commentsN: () => [[12]],
   updateReloadTip: () => [['2.10.1']],
   updatedTo: () => [['2.10.1']],
@@ -72,8 +71,6 @@ const SAMPLES: Record<string, (lang: string) => unknown[][]> = {
   usageTotalsTip: (l) => [l === 'ru' ? ['9.9 млрд', '9.9 млн'] : ['9.9B', '9.9M']],
   usageModelTip: (l) => [l === 'ru' ? ['1234', '9.9 млн', '9.9 млн', '9.9 млрд'] : ['1234', '9.9M', '9.9M', '9.9B']],
   voiceLangDetected: () => [['Português']],
-  remoteTipOnline: () => [[0], [3]],
-  remoteTipTrouble: () => [['connector offline']],
   idleTip: () => [[true, 50], [false, 50]],
   voiceSendTip: () => [['Alt+R'], ['⌥R']],
   voiceSendBusyTip: () => [['Alt+R', 'Ctrl+Enter'], ['⌥R', '⌘Enter']],
@@ -141,7 +138,7 @@ const shown = (lang: string, k: string): string[] => {
 
 it('the scan finds the tooltips it should (a sanity check of the scan itself)', () => {
   const keys = tooltipKeys();
-  for (const k of ['compactTip', 'clearTip', 'restartTip', 'sessTip', 'ctxTip', 'cutToolSelect', 'attach', 'modelTip', 'openRawTip']) expect(keys).toContain(k);
+  for (const k of ['compactTip', 'clearTip', 'restartTip', 'vcsTip', 'ctxTip', 'cutToolSelect', 'attach', 'modelTip', 'openRawTip']) expect(keys).toContain(k);
   for (const k of Object.keys(ALLOW)) expect(keys).toContain(k);
 });
 

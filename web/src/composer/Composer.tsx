@@ -437,44 +437,33 @@ export function Composer() {
               testId="mic"
               anchor={micBox}
               disabled={switching}
-              label={whisper ? t('voiceMic') : t('voiceMicSetup')}
-              tip={withKey(whisper ? t('voiceMic') : t('voiceMicSetup'), 'hk_voice')}
+              label={t('voiceMic')}
+              tip={withKey(t('voiceMic'), 'hk_voice')}
               onPointerDown={micDown}
               onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : setSetup((o) => !o))}
             />
           ) : undefined}
+          // Send and Stop have no tooltip (issue 463): their icons say it; a disabled Send still says why it waits
           send={
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
-                  <Button ref={sendBtn} type="button" className="relative h-10 px-3" disabled={!canSend || uploading || switching} aria-label={sendLabel} onClick={() => submit(false)}>
-                    <SendIcon count={shellMode ? 0 : nPending} run={shellMode} />
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>{sendLabel}</TooltipContent>
-            </Tooltip>
+            <span className="inline-flex" title={switching ? t('switching') : building ? t('buildingImage') : uploading ? t('uploadWait') : undefined}>
+              <Button ref={sendBtn} type="button" className="relative h-10 px-3" disabled={!canSend || uploading || switching} aria-label={sendLabel} onClick={() => submit(false)}>
+                <SendIcon count={shellMode ? 0 : nPending} run={shellMode} />
+              </Button>
+            </span>
           }
           trailing={
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={!busy}
-                  aria-label={t('stopTip')}
-                  onClick={() => dispatch(interrupt())}
-                  className="h-10 bg-muted px-2.5 enabled:bg-destructive/15 enabled:text-destructive enabled:hover:bg-destructive/25 disabled:opacity-35"
-                >
-                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
-                    <rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" />
-                  </svg>
-                </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="whitespace-pre-line">{t('stopTip')}</TooltipContent>
-            </Tooltip>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!busy}
+              aria-label={t('stopTip')}
+              onClick={() => dispatch(interrupt())}
+              className="h-10 bg-muted px-2.5 enabled:bg-destructive/15 enabled:text-destructive enabled:hover:bg-destructive/25 disabled:opacity-35"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
+                <rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" />
+              </svg>
+            </Button>
           }
         >
           <MentionPicker target={ref} shell={() => shellModeRef.current} />
@@ -508,16 +497,11 @@ export function Composer() {
           <TooltipContent className="whitespace-pre-line">{`${t('keysTip', modKey())}\n\n${t('hkTitle')}\n${BINDINGS.map((b) => `${keysLabel(b)} — ${t(b.id)}`).join('\n')}\n\n${t('pkTitle')}\n${PLAYER_HELP.map(([k, id]) => `${k} — ${t(id, seekStep)}`).join('\n')}`}</TooltipContent>
         </Tooltip>
         <ModePill />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('attach', modKey())} onClick={() => fileIn.current?.click()}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
-              </svg>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent className="whitespace-pre-line">{t('attach', modKey())}</TooltipContent>
-        </Tooltip>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={t('attach', modKey())} onClick={() => fileIn.current?.click()}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
+          </svg>
+        </Button>
         <span className="grow" />
         <AgentAccount /><Meters />
         <CompactClear />

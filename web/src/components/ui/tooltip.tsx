@@ -21,10 +21,21 @@ function Tooltip({
   return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
 }
 
+/**
+ * A disabled control gets no pointer events, so it would never open its tooltip (issue 463): with `asChild` the
+ * trigger is then a span around it, which does.
+ */
 function TooltipTrigger({
+  asChild,
+  children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  const off = !!asChild && React.isValidElement<{ disabled?: boolean }>(children) && !!children.props.disabled
+  return (
+    <TooltipPrimitive.Trigger data-slot="tooltip-trigger" asChild={asChild} {...props}>
+      {off ? <span className="inline-flex">{children}</span> : children}
+    </TooltipPrimitive.Trigger>
+  )
 }
 
 function TooltipContent({

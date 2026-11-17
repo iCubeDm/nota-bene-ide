@@ -25,7 +25,7 @@ export const HELP_ENTRIES = {
   idleCompaction: { area: 'chat', guide: 'chat', tips: ['idleTip', 'idleBlocked'] },
   contextMeter: { area: 'chat', guide: 'chat', tips: ['ctxTip'] },
   attach: { area: 'chat', guide: 'attaching-any-other-file', tips: ['attach'] },
-  sessions: { area: 'chat', guide: 'sessions-and-history', tips: ['sessTip', 'sessTipCodex', 'sessTipOmp'] },
+  sessions: { area: 'chat', guide: 'sessions-and-history', tips: [] },
   model: { area: 'chat', guide: 'chat', tips: ['modelTip'] },
   mode: { area: 'chat', guide: 'agent-permission-modes', tips: ['modeTip'] },
   restartAgent: { area: 'chat', guide: 'sessions-and-history', tips: ['restartTip'] },

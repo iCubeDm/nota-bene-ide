@@ -113,7 +113,7 @@ export function LogView({ active }: { active: boolean }) {
               <Lanes r={rows[i]!} width={width} />
               {c.refs.filter((x) => !x.endsWith('/HEAD')).map((x) => {
                 const id = srcOfRef(refName(x));
-                return <span key={x} role={id ? 'link' : undefined} title={id ? t('vcsViewBranch') : x} onClick={id ? (e) => { e.stopPropagation(); d(pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[0.65625rem] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-link'}`}>{refName(x)}</span>;
+                return <span key={x} role={id ? 'link' : undefined} title={id ? undefined : x} onClick={id ? (e) => { e.stopPropagation(); d(pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[0.65625rem] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-link'}`}>{refName(x)}</span>;
               })}
               <span className={`min-w-0 flex-1 truncate ${c.sha === log.tip ? 'font-semibold text-foreground' : 'text-foreground/85'}`}>{c.subject}</span>
               <span className="flex-none text-[0.6875rem] text-muted-foreground">{c.author}</span>

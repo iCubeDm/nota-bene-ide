@@ -606,14 +606,6 @@ const _json = r'''
    "pt": "Tarefas",
    "de": "Aufgaben"
   },
-  "usageTip": {
-   "en": "Token usage across projects",
-   "ru": "Расход токенов по всем проектам",
-   "zh": "各项目的令牌用量",
-   "es": "Uso de tokens en todos los proyectos",
-   "pt": "Uso de tokens entre projetos",
-   "de": "Token-Nutzung über alle Projekte"
-  },
   "usageTokens": {
    "en": "tokens",
    "ru": "токенов",

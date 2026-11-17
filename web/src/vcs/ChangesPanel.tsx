@@ -40,7 +40,7 @@ export function ChangesPanel() {
   const value = picked === 'BASE' || (picked && repo?.candidates.includes(picked)) ? picked : ''; // a stored branch may be gone
   const how = value === 'BASE' && repo?.how === 'reflog' ? t('vcsHowReflog') : value === 'BASE' && repo?.how === 'default' ? t('vcsHowDefault') : '';
   const fileRow = (f: (typeof files)[number], depth?: number) => (
-    <button key={f.path} type="button" title={f.path} onClick={() => { d(openChanges()); focusFile(f.path); }} style={depth === undefined ? undefined : { paddingLeft: 6 + depth * 14 }} className={`flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[0.78125rem] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
+    <button key={f.path} type="button" onClick={() => { d(openChanges()); focusFile(f.path); }} style={depth === undefined ? undefined : { paddingLeft: 6 + depth * 14 }} className={`flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[0.78125rem] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
       <StatusMark s={f.status} />
       <span className="flex-none truncate text-foreground">{base(f.path)}</span>
       {depth === undefined && <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">{dir(f.path)}</span>}
@@ -100,7 +100,7 @@ function Folder<F extends { path: string }>({ d, depth, shut, toggle, row }: { d
   return (
     <>
       {d.path && (
-        <button type="button" aria-expanded={open} title={d.path} onClick={() => toggle(d.path)} style={{ paddingLeft: 6 + depth * 14 }} className="flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[0.78125rem] text-muted-foreground hover:bg-muted">
+        <button type="button" aria-expanded={open} onClick={() => toggle(d.path)} style={{ paddingLeft: 6 + depth * 14 }} className="flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[0.78125rem] text-muted-foreground hover:bg-muted">
           <span aria-hidden className="w-3 flex-none text-[0.625rem]">{open ? '▾' : '▸'}</span>
           <span className="min-w-0 truncate">{d.name}</span>
         </button>

@@ -146,12 +146,12 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   return (
     <div data-file-view hidden={!active} className="min-h-0 flex-1 flex-col [&:not([hidden])]:flex">
       <div data-anchor-skip className="flex h-8 flex-none items-center gap-2 border-b border-border-soft bg-chrome px-3 font-mono text-[0.71875rem] text-muted-foreground">
-        <span className="min-w-0 flex-1 truncate" title={ref ? `${path} @ ${ref}` : path}>{path}</span>
+        <span className="min-w-0 flex-1 truncate">{path}</span>
         {ref && <SourceChip name={ref} />}
         {large && <span>{t('noHighlight')}</span>}
         {page && scripts && <span title={t('pageScriptsOffTip')}>{t('pageScriptsOff')}</span>}
         {(html || cut) && !editing && (
-          <span role="group" aria-label={t(cut ? 'cutViewTip' : 'pageViewTip')} title={t(cut ? 'cutViewTip' : 'pageViewTip')} className="flex overflow-hidden rounded border border-border-soft">
+          <span role="group" aria-label={t(cut ? 'cutViewTip' : 'pageViewTip')} className="flex overflow-hidden rounded border border-border-soft">
             {([true, false] as const).map((v) => (
               <button key={String(v)} type="button" aria-pressed={pageView === v}
                 // the timeline saves as it edits: its JSON is read again

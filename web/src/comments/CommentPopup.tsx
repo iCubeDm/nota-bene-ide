@@ -298,8 +298,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
             <MicButton
               testId="popup-mic"
               anchor={micAnchor}
-              label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}
-              tip={!whisper ? t('voiceMicSetup') : clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
+              label={t('voiceClipAdd')}
+              tip={whisper && clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
               disabled={switching || recording || busy || (whisper && clips.length >= VOICE_MAX_CLIPS)}
               onClick={() => (whisper ? rec.start(false) : setSetup((o) => !o))}
             />
