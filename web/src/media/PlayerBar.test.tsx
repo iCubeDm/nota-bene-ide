@@ -195,6 +195,29 @@ it('audio: the same bar without annotate, PiP, fullscreen or ticks, always shown
   expect(screen.getByRole('button', { name: 'Play (K)' })).toBeTruthy();
 });
 
+// issue 453: the narrow-place layout is CSS (a container query on the bar); here, that its pieces are in place
+it('audio: a size container with a min width; time and chips never wrap; chips and the volume slider shed by width', () => {
+  setup({ tag: 'audio' });
+  const bar = document.querySelector<HTMLElement>('[data-player-bar]')!;
+  expect(bar.className).toMatch(/(^| )@container( |$)/);
+  expect(bar.className).toContain('min-w-64');
+  expect(screen.getByText(/^\d+:\d\d\.\d{3} \/ /).className).toContain('whitespace-nowrap');
+  const step = screen.getByRole('button', { name: 'Seek step ← →' });
+  const speed = screen.getByRole('button', { name: 'Playback speed' });
+  for (const b of [step, speed]) {
+    expect(b.className).toContain('whitespace-nowrap');
+    expect(b.parentElement!.hasAttribute('data-pb-extra')).toBe(true);
+  }
+  expect(step.parentElement!.className).toContain('@max-[26rem]:hidden');
+  expect(speed.parentElement!.className).toContain('@max-[22rem]:hidden');
+  expect(screen.getByRole('slider', { name: 'Volume' }).parentElement!.className).toContain('@max-[18rem]:hidden');
+});
+
+it('a video bar is no size container: its chips follow BAR_MIN_PX', () => {
+  setup();
+  expect(document.querySelector<HTMLElement>('[data-player-bar]')!.className).not.toMatch(/(^| )@container( |$)/);
+});
+
 it('a video bar hides after 2.5 s of playing without the pointer, shows on movement, stays while paused', () => {
   vi.useFakeTimers();
   try {

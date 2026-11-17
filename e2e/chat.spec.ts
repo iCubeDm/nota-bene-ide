@@ -202,6 +202,54 @@ test('a long word in plain text wraps inside the message; table cells stay whole
   expect(lines).toEqual(cols.map(() => 1));
 });
 
+// issue 453: a reply's tables of sounds (the `table of takes` turn of chat.json) stay within the reply, scrolling sideways
+// when wider; a player in a cell keeps its controls on one line inside its frame; short row labels do not wrap
+test('a table of audio players scrolls inside the reply; its players and labels do not wrap @chat', async ({ page }) => {
+  await open(page);
+  const text = uniq('table of takes');
+  await send(page, text);
+  await expect(donesAfter(page, text).first()).toHaveText(DONE);
+  const r = bubble(page, text).locator('xpath=following-sibling::*[@data-kind="assistant"]').first();
+  const bars = r.locator('[data-player-bar]');
+  await expect(bars).toHaveCount(16);
+  // nothing runs past the reply: a wide table, with media or without, scrolls in its own box
+  const [w, sw] = await r.locator('.md').evaluate((e) => [e.clientWidth, e.scrollWidth]);
+  expect(sw).toBeLessThanOrEqual(w);
+  const tables = r.locator('table');
+  await expect(tables).toHaveCount(3);
+  const replyBox = (await r.boundingBox())!;
+  for (const i of [0, 2]) {
+    const scroller = await tables.nth(i).evaluate((t) => {
+      const p = t.parentElement!;
+      return { right: p.getBoundingClientRect().right, scrolls: p.scrollWidth > p.clientWidth, overflow: getComputedStyle(p).overflowX };
+    });
+    expect(scroller.right).toBeLessThanOrEqual(replyBox.x + replyBox.width + 0.5);
+    expect(scroller).toMatchObject({ scrolls: true, overflow: 'auto' });
+  }
+  const lines = (els: Element[]) => els.map((el) => {
+    const rg = document.createRange();
+    rg.selectNodeContents(el);
+    return new Set([...rg.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top))).size;
+  });
+  // each player's time and visible chips sit on one line, and every control inside the player's frame
+  for (let i = 0; i < 16; i++) {
+    const bar = bars.nth(i);
+    expect(await bar.getByText(/^\d+:\d\d\.\d{3} \/ \d+:\d\d\.\d{3}$/).evaluateAll(lines)).toEqual([1]);
+    expect(new Set(await bar.locator('button:visible').evaluateAll(lines))).toEqual(new Set([1]));
+    const fits = await bar.evaluate((b) => {
+      const o = b.getBoundingClientRect();
+      return [...b.querySelectorAll('button, span')].every((c) => {
+        const x = c.getBoundingClientRect();
+        return x.width === 0 || (x.left >= o.left - 0.5 && x.right <= o.right + 0.5);
+      });
+    });
+    expect(fits).toBe(true);
+  }
+  // short row labels stay whole
+  expect(await tables.nth(0).locator('tbody td:first-child').evaluateAll(lines)).toEqual([1, 1, 1]);
+  expect(await tables.nth(1).locator('tbody td:first-child').evaluateAll(lines)).toEqual([1, 1]);
+});
+
 // M6-06: the user's message is markdown (and a single newline stays a line break)
 test('the language menu switches the placeholder @chat', async ({ page }) => {
   await open(page);

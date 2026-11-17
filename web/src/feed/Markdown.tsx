@@ -132,7 +132,29 @@ function markColours(root: HTMLElement) {
   });
 }
 
+/** Cell text up to this long (a row label, a heading) does not wrap. */
+const SHORT_CELL = 24;
+
+/**
+ * Each table goes into a box that scrolls sideways when the table is wider than the message (issue 453), and its short
+ * text cells are marked to stay on one line. Once per table: a wrapped one is skipped.
+ */
+function wrapTables(root: HTMLElement) {
+  root.querySelectorAll<HTMLTableElement>('table').forEach((tb) => {
+    if (tb.parentElement?.classList.contains('md-table')) return;
+    const box = document.createElement('div');
+    box.className = 'md-table';
+    tb.replaceWith(box);
+    box.appendChild(tb);
+    tb.querySelectorAll<HTMLElement>('td, th').forEach((c) => {
+      const s = c.textContent?.trim() ?? '';
+      if (s && s.length <= SHORT_CELL && !c.querySelector('img, video, audio, pre')) c.classList.add('md-cell-short');
+    });
+  });
+}
+
 function postProcess(root: HTMLElement, final: boolean) {
+  wrapTables(root);
   if (final) addMediaButtons(root);
   markColours(root);
   root.querySelectorAll<HTMLElement>('pre code').forEach((c) => {

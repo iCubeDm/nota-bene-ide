@@ -54,6 +54,15 @@ function useBarVisible(box: MutableRefObject<HTMLElement | null>, paused: boolea
   return show;
 }
 
+/**
+ * An audio bar is a size container (issue 453): in a narrow place (a table cell, a thin column) it sheds controls instead
+ * of wrapping them, first the seek-step chip, then speed, then the volume slider (VolumeControl), down to its min width
+ * (play, mute, time). `data-pb-extra` marks the chips a table of players drops anyway (markdown.css): a table scrolls
+ * sideways, and its scroll box would clip their menus. A video bar is no container: it has its own BAR_MIN_PX rule.
+ */
+const STEP_FITS = '@max-[26rem]:hidden';
+const SPEED_FITS = '@max-[22rem]:hidden';
+
 /** `document.fullscreenElement` is the player container. */
 function useIsFullscreen(box: MutableRefObject<HTMLElement | null>): boolean {
   const [fs, setFs] = useState(false);
@@ -115,17 +124,17 @@ export function PlayerBar({ media, box, tabId, path = '', refName, flash, onTick
       style={video && place ? { left: place.left, width: place.width, bottom: place.bottom } : undefined}
       className={video
         ? `pointer-events-none absolute ${place ? '' : 'inset-x-0 bottom-0 '}z-20 bg-gradient-to-t from-scrim/75 to-transparent px-3 pt-10 pb-1.5 text-on-scrim transition-opacity duration-200 ${show ? 'opacity-100' : 'opacity-0'}`
-        : 'w-full max-w-[min(36rem,calc(100%-2rem))] rounded-lg border border-border bg-card px-3 pt-1.5 pb-1 text-foreground'}
+        : '@container w-full max-w-[min(36rem,calc(100%-2rem))] min-w-64 rounded-lg border border-border bg-card px-3 pt-1.5 pb-1 text-foreground'}
     >
       <div className={video ? 'pointer-events-auto' : ''}>
         <Timeline media={media} state={state} items={items} onScrub={setScrub} onTick={onTick} />
         <div className="flex items-center gap-1">
           <BarButton label={t(label)} onClick={() => key('KeyK')}><Play /></BarButton>
           <VolumeControl media={media} state={state} onMute={() => key('KeyM')} />
-          <span className="ml-1 text-[0.8125rem] tabular-nums opacity-90">{formatTime(state.time)} / {formatTime(state.duration)}</span>
+          <span className="ml-1 text-[0.8125rem] whitespace-nowrap tabular-nums opacity-90">{formatTime(state.time)} / {formatTime(state.duration)}</span>
           <span className="flex-1" />
-          {!compact && <ChoiceMenu label={t('pb_seekStep')} options={SEEK_STEPS} value={step} text={(v) => `±${v} ${unit}`} item={(v) => `${v} ${unit}`} onPick={(v) => seekStep.set(v as SeekStepValue)} onOpen={setMenu} />}
-          {!compact && <ChoiceMenu label={t('pb_speed')} options={SPEEDS} value={state.rate} text={(r) => `${r}×`} onPick={(r) => void (media.playbackRate = r)} onOpen={setMenu} />}
+          {!compact && <ChoiceMenu className={STEP_FITS} label={t('pb_seekStep')} options={SEEK_STEPS} value={step} text={(v) => `±${v} ${unit}`} item={(v) => `${v} ${unit}`} onPick={(v) => seekStep.set(v as SeekStepValue)} onOpen={setMenu} />}
+          {!compact && <ChoiceMenu className={SPEED_FITS} label={t('pb_speed')} options={SPEEDS} value={state.rate} text={(r) => `${r}×`} onPick={(r) => void (media.playbackRate = r)} onOpen={setMenu} />}
           {video && offered && tabId && <BarButton label={t('pb_annotate')} onClick={() => startAnnotate(dispatch, tabId, media)}><PencilIcon /></BarButton>}
           {pip && <BarButton label={t('pb_pip')} onClick={() => void ctl.togglePip(media)}><PipIcon /></BarButton>}
           {video && <BarButton label={t(fs ? 'pb_exitFullscreen' : 'pb_fullscreen')} onClick={() => key('KeyF')}>{fs ? <ExitFullscreenIcon /> : <EnterFullscreenIcon />}</BarButton>}

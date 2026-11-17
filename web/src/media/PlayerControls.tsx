@@ -40,7 +40,8 @@ export function VolumeControl({ media, state, onMute }: { media: HTMLMediaElemen
   return (
     <div className="group/vol flex items-center">
       <BarButton label={t(state.muted || state.volume === 0 ? 'pb_unmute' : 'pb_mute')} onClick={onMute}><Icon /></BarButton>
-      <div className="w-0 overflow-hidden transition-[width] group-focus-within/vol:w-[68px] group-hover/vol:w-[68px]">
+      {/* in an audio bar narrower than 18rem the slider would push the row past the bar: mute only (PlayerBar) */}
+      <div className="w-0 overflow-hidden transition-[width] group-focus-within/vol:w-[68px] group-hover/vol:w-[68px] @max-[18rem]:hidden">
         <div
           ref={track}
           role="slider"
@@ -78,9 +79,9 @@ export const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2] as const;
  * A bar chip with a menu of choices (radio items, the current one checked and focused on open); speed and the seek step
  * use it. `onOpen` tells the bar to stay visible while the menu is open. Esc and an outside press close it.
  */
-export function ChoiceMenu({ label, options, value, text, item = text, onPick, onOpen }: {
-  /** `text`: the chip; `item`: a menu row (the chip's text unless given). */
-  label: string; options: readonly number[]; value: number; text: (v: number) => string; item?: (v: number) => string; onPick: (v: number) => void; onOpen: (open: boolean) => void;
+export function ChoiceMenu({ label, options, value, text, item = text, onPick, onOpen, className = '' }: {
+  /** `text`: the chip; `item`: a menu row (the chip's text unless given). `className`: the chip's wrapper (PlayerBar). */
+  className?: string; label: string; options: readonly number[]; value: number; text: (v: number) => string; item?: (v: number) => string; onPick: (v: number) => void; onOpen: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -107,7 +108,7 @@ export function ChoiceMenu({ label, options, value, text, item = text, onPick, o
   }, [open]);
   useEffect(() => () => onOpen(false), [onOpen]);
   return (
-    <div ref={root} className="relative">
+    <div ref={root} data-pb-extra className={`relative ${className}`}>
       <button
         ref={btn}
         type="button"
@@ -116,7 +117,7 @@ export function ChoiceMenu({ label, options, value, text, item = text, onPick, o
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => toggle(!open)}
-        className="h-8 min-w-9 cursor-pointer rounded-full px-2 text-[0.8125rem] font-medium text-on-scrim/90 tabular-nums outline-none hover:bg-on-scrim/15 hover:text-on-scrim focus-visible:ring-2 focus-visible:ring-primary"
+        className="h-8 min-w-9 cursor-pointer rounded-full px-2 text-[0.8125rem] font-medium whitespace-nowrap text-on-scrim/90 tabular-nums outline-none hover:bg-on-scrim/15 hover:text-on-scrim focus-visible:ring-2 focus-visible:ring-primary"
       >
         {text(value)}
       </button>
