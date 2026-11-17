@@ -98,6 +98,7 @@ const env = (extra: Record<string, string> = {}) => ({
   CLAUDE_CONFIG_DIR: path.join(tmp, 'claude'),
   NOTA_BENE_PORT_RANGE: '4791-4795', // a picked port never lands on a live window's or the dev server's
   TMPDIR: tmp, // the --detach log and the build lock stay out of the real TMPDIR
+  NOTA_BENE_TEST_CRASH_PAUSE_MS: '100', // not the real 1 s before a crash relaunch (issue 472)
   ...(WIN ? { TEMP: tmp, TMP: tmp } : {}), // os.tmpdir() there
   ...extra,
 });
@@ -338,7 +339,7 @@ describe('nota-bene launcher', () => {
     expect(await r.exited).toBe(1);
     expect(r.err().match(/relaunching/g)).toHaveLength(4);
     expect(r.err()).toMatch(/giving up/);
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(4000); // 1 s between crashes
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(400); // the crash pause (100 ms in env()) between crashes
     expect(windows()['4794']).toBeUndefined();
   }, 15000);
 
@@ -512,10 +513,10 @@ describe('nota-bene launcher', () => {
   }, 20000);
 
   it('a relaunch that finds its port taken gives up at once, not after 5 crashes', async () => {
-    const r = launch(['--port', '4793']);
+    const r = launch(['--port', '4793'], { NOTA_BENE_TEST_CRASH_PAUSE_MS: '1000' });
     const first = await waitFor(() => windows()['4793']);
     process.kill(first.pid, 'SIGKILL');
-    // take the port inside the 1 s crash pause (retry while the dead server's socket is being released)
+    // take the port inside the real 1 s crash pause (retry while the dead server's socket is being released)
     await waitFor(() => new Promise<boolean>((res) => {
       const s = net.createServer((sock) => {
         sock.on('error', () => {});
@@ -1482,15 +1483,16 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       expect(windows()['4792']).toBeUndefined();
     }, 40000);
 
-    it('another launch on the folder keeps waiting past the usual 10 s while the restarting window builds', async () => {
+    it('another launch on the folder keeps waiting past the usual restart wait while the restarting window builds', async () => {
       const gate = path.join(tmp, 'go');
       launch(['--port', '4793'], setup(`${lines(1)} || { while [ ! -e '${gate}' ]; do sleep 0.1; done; }`));
       await waitFor(() => windows()['4793']);
       const login = await loginAt(4793);
       await fetch('http://127.0.0.1:4793/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       await waitFor(() => windows()['4793']?.building);
-      const second = launch([]); // the same folder, in the gap
-      await new Promise((r) => setTimeout(r, 11_000)); // longer than the 10 s a restart gap is waited for
+      const second = launch([], { NOTA_BENE_TEST_RESTART_WAIT_MS: '300' }); // the same folder, in the gap; 10 s for real
+      await waitFor(() => /waiting for a rebuild/.test(second.err()));
+      await new Promise((r) => setTimeout(r, 1000)); // longer than the 300 ms a restart gap is waited for
       expect(second.p.exitCode).toBeNull(); // still waiting, not a second window
       fs.writeFileSync(gate, '');
       expect(await second.exited, second.err()).toBe(0);
