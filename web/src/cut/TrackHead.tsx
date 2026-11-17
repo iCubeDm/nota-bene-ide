@@ -55,7 +55,7 @@ export function TrackHead({ lane: l, cut, commit, width }: { lane: Lane; cut: Cu
             className="h-5 min-w-0 flex-1 rounded border border-input-focus-soft bg-background px-1 text-xs text-foreground outline-0"
           />
         ) : (
-          <span data-track-name className="min-w-0 flex-1 cursor-text truncate text-foreground" title={t('cutRenameTip')} onDoubleClick={() => setNaming(l.name ?? '')}>{shown}</span>
+          <span data-track-name className="min-w-0 flex-1 cursor-text truncate text-foreground" onDoubleClick={() => setNaming(l.name ?? '')}>{shown}</span>
         )}
         {gain !== null ? (
           <input

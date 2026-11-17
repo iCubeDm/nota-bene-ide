@@ -259,7 +259,7 @@ describe('actions', () => {
     fireEvent.click(indicator()!);
     const stop = () => document.querySelector<HTMLElement>('[data-task-group="msg_1"] [data-task-stop]');
     expect(stop()).toHaveTextContent('Stop all');
-    expect(stop()).toHaveAttribute('title', 'Stop every running agent of the group (a second click confirms)');
+    expect(stop()).toHaveAttribute('title', 'Stop every agent of the group');
     fireEvent.click(stop()!);
     expect(stop()).toHaveTextContent('Stop all?');
     expect(sent.filter((m) => m.type === 'task-stop')).toEqual([]);

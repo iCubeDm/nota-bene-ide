@@ -9,6 +9,7 @@ import { selectSession, useAppDispatch, useAppSelector, useMedia } from '@/store
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu.tsx';
 import { toast } from '@/shell/toast.ts';
 import { activate, closeAll, closeOthers, closeRight, closeTab, selectTabs, type Tab } from './slice.ts';
+import { fileLabels } from './fileLabels.ts';
 import { TabsMenu } from './TabsMenu.tsx';
 import { SessionPicker } from '@/controls/SessionPicker.tsx';
 
@@ -88,7 +89,8 @@ function RenameInput({ ref, id, title, done }: { ref: Ref<HTMLInputElement>; id:
   );
 }
 
-function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; last: boolean; playing: boolean }) {
+/** A tab, no tooltip (issue 463): its label says it; a file tab's `fileLabel` is from fileLabels. */
+function TabItem({ tab, active, last, playing, fileLabel }: { tab: Tab; active: boolean; last: boolean; playing: boolean; fileLabel?: string }) {
   const t = useT();
   const d = useAppDispatch();
   const badge = useAppSelector((s) => (tab.kind === 'file' ? selectPendingCountByPath(s)[fileKey(tab.path, tab.ref)] ?? 0 : 0));
@@ -96,7 +98,7 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
   const session = useAppSelector((s) => selectSession(s)?.id ?? null);
   const [renaming, setRenaming] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const label = tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'remote' ? t('remote') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : basename(tab.path);
+  const label = tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'remote' ? t('remote') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : fileLabel ?? basename(tab.path);
   const isChat = tab.kind === 'chat';
   return (
     <ContextMenu>
@@ -108,7 +110,6 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
           aria-selected={active}
           data-tab={tab.id}
           data-playing={playing || undefined}
-          title={tab.kind === 'file' ? (tab.ref ? `${tab.path} @ ${tab.ref}` : tab.path) : tab.kind === 'diagram' ? `${t('diagramTab')}: ${tab.title}` : tab.kind === 'agent' ? `${t('agentTab')}: ${tab.title}` : tab.kind === 'shell' ? `${t('shellTab')}: ${tab.title}` : title ?? t('chatTip')}
           onClick={() => d(activate(tab.id))}
           onAuxClick={(e) => {
             if (e.button === 1 && !isChat) { e.preventDefault(); d(closeTab(tab.id)); }
@@ -130,7 +131,6 @@ function TabItem({ tab, active, last, playing }: { tab: Tab; active: boolean; la
             <button
               type="button"
               aria-label={t('close')}
-              title={t('close')}
               onClick={(e) => { e.stopPropagation(); d(closeTab(tab.id)); }}
               className="grid size-[18px] place-items-center rounded-[5px] opacity-50 hover:bg-muted hover:opacity-100"
             >
@@ -171,6 +171,7 @@ export function TabStrip() {
   const media = useMedia();
   const playing = useSyncExternalStore(media.subscribe, () => media.playing());
   const strip = useRef<HTMLDivElement>(null);
+  const labels = fileLabels(open.flatMap((tab) => (tab.kind === 'file' ? [tab.path] : [])));
   // after a switch, an open or a close (not on a resize: that would undo the user's own scroll of the strip)
   useEffect(() => {
     [...(strip.current?.querySelectorAll<HTMLElement>('[data-tab]') ?? [])].find((n) => n.dataset.tab === active)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
@@ -189,7 +190,7 @@ export function TabStrip() {
       >
         {open.map((tab, i) => (
           // the dot marks a background tab that still plays; the active tab shows its own player
-          <TabItem key={tab.id} tab={tab} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />
+          <TabItem key={tab.id} tab={tab} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} fileLabel={tab.kind === 'file' ? labels.get(tab.path) : undefined} />
         ))}
       </div>
       <TabsMenu strip={strip} />

@@ -10,6 +10,7 @@ import { rangeForAnchor } from '@/anchors/text.ts';
 import { flashRange } from '@/comments/HighlightLayer.tsx';
 import { selectComments } from '@/comments/slice.ts';
 import { useT } from '@/i18n/index.ts';
+import { withKey } from '@/shell/keymap.ts';
 import { seekAndPause } from '@/media/mediaController.ts';
 import { selectDraft } from '@/media/markup/slice.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -145,12 +146,12 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   return (
     <div data-file-view hidden={!active} className="min-h-0 flex-1 flex-col [&:not([hidden])]:flex">
       <div data-anchor-skip className="flex h-8 flex-none items-center gap-2 border-b border-border-soft bg-chrome px-3 font-mono text-[0.71875rem] text-muted-foreground">
-        <span className="min-w-0 flex-1 truncate" title={ref ? `${path} @ ${ref}` : path}>{path}</span>
+        <span className="min-w-0 flex-1 truncate">{path}</span>
         {ref && <SourceChip name={ref} />}
         {large && <span>{t('noHighlight')}</span>}
         {page && scripts && <span title={t('pageScriptsOffTip')}>{t('pageScriptsOff')}</span>}
         {(html || cut) && !editing && (
-          <span role="group" aria-label={t(cut ? 'cutViewTip' : 'pageViewTip')} title={t(cut ? 'cutViewTip' : 'pageViewTip')} className="flex overflow-hidden rounded border border-border-soft">
+          <span role="group" aria-label={t(cut ? 'cutViewTip' : 'pageViewTip')} className="flex overflow-hidden rounded border border-border-soft">
             {([true, false] as const).map((v) => (
               <button key={String(v)} type="button" aria-pressed={pageView === v}
                 // the timeline saves as it edits: its JSON is read again
@@ -164,7 +165,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
             className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${pageMarking ? 'bg-muted text-foreground' : ''}`}>{t('pageMark')}</button>
         )}
         {kind === 'text' && !page && !timeline && (
-          <button type="button" aria-label={t('wrapLines')} aria-pressed={wrap} title={`${t('wrapLines')} (Alt+Z)`} onClick={wrapLines.toggle}
+          <button type="button" aria-label={t('wrapLines')} aria-pressed={wrap} title={withKey(t('wrapLines'), 'hk_wrap')} onClick={wrapLines.toggle}
             className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${wrap ? 'text-foreground' : ''}`}>↩</button>
         )}
         {editable && !editing && data?.s === 'text' && (

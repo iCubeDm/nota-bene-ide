@@ -139,10 +139,11 @@ it('Copy path writes the project-relative path; Reveal is not in the menu (it is
   expect(within(menu(tab('x.ts'))).queryByRole('menuitem', { name: /reveal/i })).toBeNull();
 });
 
-it('labels are basenames with the full path in title; aria-selected follows the active tab', () => {
+it('labels are basenames, no tooltip (issue 463); aria-selected follows the active tab', () => {
   setup(['src/a/x.ts']);
   expect(tab('x.ts').querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('ts'); // M6-11
-  expect(tab('x.ts')).toHaveAttribute('title', 'src/a/x.ts');
+  expect(tab('x.ts')).not.toHaveAttribute('title');
+  expect(within(tab('x.ts')).getByRole('button', { name: 'Close' })).not.toHaveAttribute('title');
   expect(tab('x.ts')).toHaveAttribute('aria-selected', 'true');
   expect(tab('Chat')).toHaveAttribute('aria-selected', 'false');
 });
@@ -163,13 +164,21 @@ it('the chat pane is the same element across tab switches, only hidden', () => {
   expect(document.querySelector('[data-pane="file:a.ts"]')).toHaveAttribute('hidden');
 });
 
-it('the chat tab shows the session title and tooltip; without one, Chat and the chatTip', () => {
+it('the chat tab shows the session title, else Chat; no tooltip', () => {
   const store = setup();
   const chat = screen.getByRole('tab', { name: /Chat/ });
-  expect(chat).toHaveAttribute('title', 'Chat with the agent');
+  expect(chat).not.toHaveAttribute('title');
   act(() => void store.dispatch(serverEvent({ kind: 'session', id: 'abcdefgh', root: '/p', title: 'Fix login', model: null })));
   const titled = screen.getByRole('tab', { name: /Fix login/ });
-  expect(titled).toHaveAttribute('title', 'Fix login');
+  expect(titled).not.toHaveAttribute('title');
+});
+
+it('file tabs that share a name show enough of their folder to tell them apart', () => {
+  setup(['src/app.ts', 'lib/app.ts', 'notes.md']);
+  const files = screen.getAllByRole('tab').filter((el) => el.dataset.tab?.startsWith('file:'));
+  expect(files.map((el) => [el.dataset.tab, el.textContent])).toEqual([
+    ['file:src/app.ts', 'src/app.ts'], ['file:lib/app.ts', 'lib/app.ts'], ['file:notes.md', 'notes.md'],
+  ]);
 });
 
 it('the Sessions menu opens from ▾ on the chat tab, also while a file tab is in front; no line above the chat', () => {

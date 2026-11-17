@@ -108,7 +108,7 @@ export function RestartMenu() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onSelect={() => d(restartAgent())}>{t('restartAgent')}</DropdownMenuItem>
             {supervised && !pending && (
-              <DropdownMenuItem title={t('restartServerTip')} onSelect={() => void d(restartServer())}>{t('restartServer')}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void d(restartServer())}>{t('restartServer')}</DropdownMenuItem>
             )}
             {pending && <DropdownMenuItem onSelect={() => setAskNow(true)}>{t('restartServerNow')}</DropdownMenuItem>}
             {pending && <DropdownMenuItem onSelect={() => void d(cancelRestart())}>{t('restartCancel')}</DropdownMenuItem>}

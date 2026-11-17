@@ -174,7 +174,7 @@ export function ModelPill() {
             <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
           </span>
         </TooltipTrigger>
-        <TooltipContent className="whitespace-pre-line">{`${summary}\n${t('modelTip')}`}</TooltipContent>
+        <TooltipContent>{t('modelTip')}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent
         side="bottom"

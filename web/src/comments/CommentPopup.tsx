@@ -298,8 +298,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
             <MicButton
               testId="popup-mic"
               anchor={micAnchor}
-              label={!whisper ? t('voiceMicSetup') : t('voiceClipAdd')}
-              tip={!whisper ? t('voiceMicSetup') : clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
+              label={t('voiceClipAdd')}
+              tip={whisper && clips.length >= VOICE_MAX_CLIPS ? t('voiceClipsMax') : t('voiceClipAdd')}
               disabled={switching || recording || busy || (whisper && clips.length >= VOICE_MAX_CLIPS)}
               onClick={() => (whisper ? rec.start(false) : setSetup((o) => !o))}
             />
@@ -333,17 +333,15 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         {labelsFor(protocol).map((l) => (
           <Tooltip key={l.id}>
             <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <button
-                  type="button"
-                  aria-label={labelText(l.id)}
-                  disabled={off}
-                  onClick={() => void add(l.id)}
-                  className="inline-flex min-h-7 min-w-7 items-center justify-center rounded-full border border-border-soft px-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
-                >
-                  {l.emoji}
-                </button>
-              </span>
+              <button
+                type="button"
+                aria-label={labelText(l.id)}
+                disabled={off}
+                onClick={() => void add(l.id)}
+                className="inline-flex min-h-7 min-w-7 items-center justify-center rounded-full border border-border-soft px-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              >
+                {l.emoji}
+              </button>
             </TooltipTrigger>
             <LabelTip id={l.id} note={switching ? t('switching') : undefined} />
           </Tooltip>

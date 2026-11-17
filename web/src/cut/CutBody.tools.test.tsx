@@ -84,8 +84,14 @@ const selected = (container: HTMLElement) => [...container.querySelectorAll('[da
 // the timeline's tools and selections (issue 432)
 it('Select (V) and Blade (C): the toolbar shows the active one, the tooltips name the keys, Esc returns to Select', async () => {
   await show();
-  const sel = screen.getByRole('button', { name: /^Select.*\(V\)$/ });
-  const blade = screen.getByRole('button', { name: /^Blade.*\(C\)$/ });
+  // icons (issue 463): the short name and the key are the tooltip and the accessible name
+  const sel = screen.getByRole('button', { name: 'Select (V)' });
+  const blade = screen.getByRole('button', { name: 'Blade (C)' });
+  for (const b of [sel, blade]) {
+    expect(b.querySelector('svg')).not.toBeNull();
+    expect(b.textContent).toBe('');
+    expect(b.title).toBe(b.getAttribute('aria-label'));
+  }
   expect(sel).toHaveAttribute('aria-pressed', 'true');
   expect(blade).toHaveAttribute('aria-pressed', 'false');
   key('KeyC');
@@ -519,7 +525,7 @@ it('a rectangle can start in the track column and on the add-track rows; the hea
   expect(selected(container)).toEqual(['c1', 'c2', 'c3']);
   // a press on a header's control, its name or an add-track button starts no rectangle, and the selection stays
   const controls = [
-    screen.getAllByRole('button', { name: 'Mute the track' })[0]!, screen.getAllByRole('button', { name: 'Move the track up' })[0]!,
+    screen.getAllByRole('button', { name: 'Mute' })[0]!, screen.getAllByRole('button', { name: 'Move the track up' })[0]!,
     container.querySelector('[data-track-name]')!, screen.getByRole('button', { name: 'Add a video track' }),
   ];
   for (const el of controls) {
@@ -530,7 +536,7 @@ it('a rectangle can start in the track column and on the add-track rows; the hea
   }
   expect(selected(container)).toEqual(['c1', 'c2', 'c3']);
   // and they still act: mute, rename
-  fireEvent.click(screen.getAllByRole('button', { name: 'Mute the track' })[0]!);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mute' })[0]!);
   await saved(() => expect(onDisk().tracks.find((x) => x.id === 'v1')!.mute).toBe(true));
   fireEvent.doubleClick(container.querySelector('[data-track-name]')!);
   expect(screen.getByRole('textbox', { name: 'Track name' })).toBeInTheDocument();

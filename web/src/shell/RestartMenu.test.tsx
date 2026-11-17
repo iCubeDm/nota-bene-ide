@@ -63,7 +63,7 @@ it('the server item POSTs /restart-server and shows restarting…; close, open, 
   const { ev, state } = setup();
   await userEvent.click(screen.getByRole('button', { name: 'Restart menu' }));
   const item = await screen.findByText('Restart the server');
-  expect(item.closest('[role=menuitem]')).toHaveAttribute('title', 'picks up server code changes; waits for the agent to finish, then the window reconnects by itself');
+  expect(item.closest('[role=menuitem]')).not.toHaveAttribute('title'); // the item names itself (issue 463)
   await userEvent.click(item);
   await waitFor(() => expect(calls.find((c) => c.url === '/restart-server')?.init).toMatchObject({ method: 'POST' }));
   expect(document.getElementById('conn')).toHaveTextContent('restarting…');
@@ -128,7 +128,7 @@ describe('the "code updated" button', () => {
     const calls = mockInfo(() => ({ supervised: true, codeChanged: true }));
     setup();
     const btn = await screen.findByRole('button', { name: label });
-    expect(btn).toHaveAttribute('title', "the server's code changed after it started; the session resumes");
+    expect(btn).toHaveAttribute('title', 'Restart the server to load the new code');
     expect(btn).not.toBeDisabled();
     await userEvent.click(btn);
     await waitFor(() => expect(calls).toContain('/restart-server'));

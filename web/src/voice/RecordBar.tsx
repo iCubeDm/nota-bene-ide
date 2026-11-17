@@ -10,13 +10,11 @@ import { VoiceView } from './VoiceView.tsx';
 /** Cmd or Ctrl: Send with it forces, as the typed Enter does (the composer takes either on every platform). */
 const forcing = (e: { metaKey: boolean; ctrlKey: boolean }) => e.metaKey || e.ctrlKey;
 
-/** The Send button's tooltip: its keys, and while the agent works what queues and what interrupts. */
+/** The Send button's tooltip: its keys; while the agent works, that they queue and which key interrupts (issue 463: one line). */
 function useSendTip(busy: boolean): string {
   const t = useT();
   const alt = keysLabel(BINDINGS.find((b) => b.id === 'hk_voice')!);
-  const mod = modKey();
-  const tip = t('voiceSendTip', alt);
-  return busy ? `${tip}\n${t('voiceSendBusyTip', `${mod}Enter`, `${mod}${alt}`)}` : tip;
+  return busy ? t('voiceSendBusyTip', alt, `${modKey()}Enter`) : t('voiceSendTip', alt);
 }
 
 /** The bars that are mounted, oldest first: a key nobody has focus for (the page body) belongs to the newest only. */
