@@ -22,16 +22,18 @@ vi.mock('mermaid', () => ({
 const MERMAID = '```mermaid\ngraph TD; A-->B\n```';
 
 describe('Markdown', () => {
-  it('a table goes into a sideways-scrolling box once; short text cells stay on one line (issue 453)', () => {
+  it('a table goes into a sideways-scrolling box once; its short row labels stay on one line (issue 453)', () => {
     const long = 'a cell with a long sentence that may wrap freely';
-    const text = `| | take 1 |\n|---|---|\n| take 1, 6,8 s | ![](a.mp3) |\n| ${long} | x |`;
+    const flags = '🇫🇷🇩🇪🇮🇹🇪🇸🇵🇹🇳🇱🇧🇪🇦🇹🇨🇭🇸🇪 take'; // 10 flags of 4 UTF-16 units each: 15 graphemes
+    const text = `| | take 1 |\n|---|---|\n| take 1, 6,8 s | ![](a.mp3) |\n| ${long} | x |\n| ${flags} | y |\n| 東京の録音 | z |`;
     const { container, rerender } = render(<Markdown text={text} final={false} />);
     rerender(<Markdown text={text} final />);
     const boxes = container.querySelectorAll('.md-table');
     expect(boxes).toHaveLength(1);
     expect(boxes[0]!.firstElementChild!.tagName).toBe('TABLE');
-    const short = [...container.querySelectorAll('td, th')].map((c) => c.classList.contains('md-cell-short'));
-    expect(short).toEqual([false, true, true, false, false, true]); // the empty corner, the player's cell and the long one wrap
+    const marked = [...container.querySelectorAll('tr')].map((r) => [...r.children].map((c) => c.classList.contains('md-cell-short')));
+    // the first column only: the empty corner, a long sentence and CJK (no phrase to keep whole) wrap as before
+    expect(marked).toEqual([[false, false], [true, false], [false, false], [true, false], [false, false]]);
   });
 
   it('a colour in inline code gets a swatch of it, its text untouched', () => {

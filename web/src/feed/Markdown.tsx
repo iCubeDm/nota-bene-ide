@@ -132,12 +132,16 @@ function markColours(root: HTMLElement) {
   });
 }
 
-/** Cell text up to this long (a row label, a heading) does not wrap. */
+/** A row label up to this many characters (graphemes) does not wrap. */
 const SHORT_CELL = 24;
+/** Text written without spaces between words (CJK): wrapping there is between any characters, no phrase to keep whole. */
+const NO_SPACES = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u;
+const graphemes = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter() : null;
+const length = (s: string) => (graphemes ? [...graphemes.segment(s)].length : [...s].length);
 
 /**
- * Each table goes into a box that scrolls sideways when the table is wider than the message (issue 453), and its short
- * text cells are marked to stay on one line. Once per table: a wrapped one is skipped.
+ * Each table goes into a box that scrolls sideways when the table is wider than the message (issue 453), and the short
+ * row labels of its first column are marked to stay on one line. Once per table: a wrapped one is skipped.
  */
 function wrapTables(root: HTMLElement) {
   root.querySelectorAll<HTMLTableElement>('table').forEach((tb) => {
@@ -146,10 +150,11 @@ function wrapTables(root: HTMLElement) {
     box.className = 'md-table';
     tb.replaceWith(box);
     box.appendChild(tb);
-    tb.querySelectorAll<HTMLElement>('td, th').forEach((c) => {
-      const s = c.textContent?.trim() ?? '';
-      if (s && s.length <= SHORT_CELL && !c.querySelector('img, video, audio, pre')) c.classList.add('md-cell-short');
-    });
+    for (const row of tb.rows) {
+      const c = row.cells[0];
+      const s = c?.textContent?.trim() ?? '';
+      if (c && s && length(s) <= SHORT_CELL && !NO_SPACES.test(s) && !c.querySelector('img, video, audio, pre')) c.classList.add('md-cell-short');
+    }
   });
 }
 
