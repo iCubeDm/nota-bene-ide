@@ -4,15 +4,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { launcherInCommandLine, parentPluginVersion, pluginInstallVersion } from './pluginOrigin.ts';
+import { launcherInCommandLine, parentPluginVersion, pluginInstallVersion, procCmdline } from './pluginOrigin.ts';
 
 let tmp: string;
 beforeEach(() => { tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-plugin origin-'))); });
 afterEach(() => { fs.rmSync(tmp, { recursive: true, force: true }); });
 
 /** the plugin's install of the package: <data>/<ver>/node_modules/nota-bene-ide with <data>/<ver>/.nb-installed (plugin/skills/nb/open.mjs) */
-function pluginInstall(ver: string, stamp = `${ver}\n`): string {
-  const prefix = path.join(tmp, 'plugins', 'data', 'nota-bene-nota-bene', ver);
+function pluginInstall(ver: string, stamp = `${ver}\n`, base = tmp): string {
+  const prefix = path.join(base, 'plugins', 'data', 'nota-bene-nota-bene', ver);
   const root = path.join(prefix, 'node_modules', 'nota-bene-ide');
   fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
   fs.writeFileSync(path.join(root, 'bin', 'nota-bene.mjs'), '');
@@ -53,6 +53,13 @@ describe('launcherInCommandLine', () => {
   });
 });
 
+describe('procCmdline', () => {
+  it('joins the NUL-separated arguments of /proc/<pid>/cmdline with spaces', () => {
+    expect(procCmdline('/usr/bin/node\0/a b/node_modules/nota-bene-ide/bin/nota-bene.mjs\0/dir\0')).toBe('/usr/bin/node /a b/node_modules/nota-bene-ide/bin/nota-bene.mjs /dir');
+    expect(procCmdline('')).toBe('');
+  });
+});
+
 describe('parentPluginVersion', () => {
   it.skipIf(process.platform === 'win32')('reads the plugin version of a live launcher process by its pid', async () => {
     const root = pluginInstall('1.7.1');
@@ -66,5 +73,24 @@ describe('parentPluginVersion', () => {
       c.kill();
     }
     expect(parentPluginVersion(process.pid)).toBeNull(); // vitest itself is no launcher
+  });
+  // `ps` in the C locale prints a non-ASCII path as M-PM^T…: the lookup asks for UTF-8 itself
+  it.skipIf(process.platform !== 'darwin')('reads a path with non-ASCII letters under the C locale', async () => {
+    const base = path.join(tmp, 'Проект');
+    const root = pluginInstall('1.7.1', '1.7.1\n', base);
+    const bin = path.join(root, 'bin', 'nota-bene.mjs');
+    fs.writeFileSync(bin, 'setTimeout(() => {}, 10000);\n');
+    const c = spawn(process.execPath, [bin, tmp], { stdio: 'ignore' });
+    const saved = { LANG: process.env.LANG, LC_ALL: process.env.LC_ALL, LC_CTYPE: process.env.LC_CTYPE };
+    try {
+      await new Promise((r) => setTimeout(r, 200));
+      process.env.LC_ALL = 'C';
+      process.env.LANG = 'C';
+      delete process.env.LC_CTYPE;
+      expect(parentPluginVersion(c.pid!)).toBe('1.7.1');
+    } finally {
+      for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+      c.kill();
+    }
   });
 });

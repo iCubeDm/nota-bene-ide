@@ -199,13 +199,13 @@ export function serverEnv(base, launcherPid, { handover = false, updatedFrom } =
 
 /**
  * Issue 457: NOTA_BENE_PLUGIN_VERSION, the /nb plugin version that opened the window (server/src/pluginOrigin.ts). An outer
- * launcher sets it from its own install (`own`: a plugin's install, or null) and drops one it inherited; an inner launcher (a
- * handover) keeps the one its outer part passed on, and asks `parent` only when that outer part is too old to pass it.
+ * launcher sets it from its own install (`own`: a plugin's install, or null), over one it inherited: '' says "not a plugin's", so
+ * an inner launcher (a handover) keeps what its outer part passed on and asks `parent` only when that outer part is too old to
+ * pass anything. The server's updater ignores ''.
  */
 export function pluginOriginEnv(env, { inner, own, parent }) {
   if (!inner) {
-    if (own) env.NOTA_BENE_PLUGIN_VERSION = own;
-    else delete env.NOTA_BENE_PLUGIN_VERSION;
+    env.NOTA_BENE_PLUGIN_VERSION = own ?? '';
     return;
   }
   if (env.NOTA_BENE_PLUGIN_VERSION !== undefined) return;

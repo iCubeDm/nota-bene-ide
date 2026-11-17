@@ -89,7 +89,7 @@ Claude Code does not update a third-party marketplace by itself, so turn auto-up
 }
 ```
 
-Claude Code then updates the plugin in the background a few minutes into a session; the next session runs the new version.
+Claude Code then updates the marketplace after the first message of a session, after a random delay of up to 10 minutes; `/reload-plugins` applies the update in the current session. `DISABLE_AUTOUPDATER`, `DISABLE_UPDATES` or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` turn this off (unless `FORCE_AUTOUPDATE_PLUGINS=1`).
 
 </details>
 

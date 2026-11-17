@@ -1070,12 +1070,17 @@ describe('a build lock of a dead owner (gh-275)', () => {
 // issue 457: the /nb plugin version that opened the window reaches its server, across a handover too
 describe('pluginOriginEnv', () => {
   const parentNever = () => { throw new Error('asked the parent'); };
-  it('an outer launcher from a plugin install says its version; any other drops an inherited one', () => {
+  it('an outer launcher from a plugin install says its version; any other says none, over an inherited one', () => {
     const env: Record<string, string> = {};
     pluginOriginEnv(env, { inner: false, own: '1.7.1', parent: parentNever });
     expect(env.NOTA_BENE_PLUGIN_VERSION).toBe('1.7.1');
     pluginOriginEnv(env, { inner: false, own: null, parent: parentNever });
-    expect('NOTA_BENE_PLUGIN_VERSION' in env).toBe(false);
+    expect(env.NOTA_BENE_PLUGIN_VERSION).toBe('');
+  });
+  it('an inner launcher whose outer part said none does not look the parent up', () => {
+    const env: Record<string, string> = { NOTA_BENE_PLUGIN_VERSION: '' };
+    pluginOriginEnv(env, { inner: true, own: null, parent: parentNever });
+    expect(env.NOTA_BENE_PLUGIN_VERSION).toBe('');
   });
   it('an inner launcher keeps what its outer part passed on', () => {
     const env: Record<string, string> = { NOTA_BENE_PLUGIN_VERSION: '2.0.1' };

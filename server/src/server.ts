@@ -104,6 +104,8 @@ export async function startServer(o: {
   insecureNoAuth?: boolean;
   /** this launch's nonce (public; auth.ts): the launcher makes it so a relaunch keeps it. Default: a fresh one */
   nonce?: string;
+  /** issue 457: the /nb plugin version whose launcher opened this window (main.ts takePluginVersion) */
+  pluginVersion?: string;
   /** the audit log of system events (audit.ts); absent = none (tests). `dir` / `enabled`: tests */
   audit?: { dir?: string; enabled?: () => boolean };
   /** one tab at a time (R-M7-5); default true. Tests that need several live sockets pass false */
@@ -229,7 +231,7 @@ export async function startServer(o: {
       newer,
       fromRuntime: real(repoDir).startsWith(real(runtimeDir()) + path.sep),
       updatedFrom: process.env.NOTA_BENE_UPDATED_FROM,
-      pluginVersion: process.env.NOTA_BENE_PLUGIN_VERSION,
+      pluginVersion: o.pluginVersion,
     });
     // gh-422: "Restart the server" while the agent works waits for the next pause (exit 75 then)
     const restart = restartGate({

@@ -49,7 +49,7 @@ Contents
 
 The window is a background task of the Claude Code session: its output is the window's log; it stops with the task, the session, or **Stop Nota Bene** (⏻). The first `/nb` after installing or updating the plugin installs the npm package (about 330 MB per plugin version) and takes a few minutes.
 
-Claude Code does not update the plugin by itself: turn on auto-update for the nota-bene marketplace (`/plugin` → **Marketplaces** → **nota-bene** → **Enable auto-update**, or `"autoUpdate": true` on its `extraKnownMarketplaces` entry in `~/.claude/settings.json`; see [Install](../README.md#install)).
+Claude Code does not update the plugin by itself: turn on auto-update for the nota-bene marketplace (`/plugin` → **Marketplaces** → **nota-bene** → **Enable auto-update**, or `"autoUpdate": true` on its `extraKnownMarketplaces` entry in `~/.claude/settings.json`; see [Install](../README.md#install)). The update runs after the first message of a session, after a random delay of up to 10 minutes; `/reload-plugins` applies it in the current session. `DISABLE_AUTOUPDATER`, `DISABLE_UPDATES` or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` turn it off (unless `FORCE_AUTOUPDATE_PLUGINS=1`).
 
 ### From a terminal: `nota-bene`
 

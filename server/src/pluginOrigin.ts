@@ -41,14 +41,35 @@ export function launcherInCommandLine(line: string): string | null {
   return null;
 }
 
+/** A /proc/<pid>/cmdline (its arguments, each ended by a NUL) as one line, the arguments joined with spaces like `ps` shows them. */
+export function procCmdline(raw: string): string {
+  return raw.split('\0').filter((a) => a !== '').join(' ');
+}
+
+/**
+ * A process's command line: /proc/<pid>/cmdline on Linux, else `ps` (-ww: never cut to the terminal's width; a UTF-8 locale: in
+ * the C locale macOS `ps` prints a non-ASCII path as M-PM^T…), or null.
+ */
+function commandLine(pid: number): string | null {
+  if (process.platform === 'linux') {
+    try {
+      return procCmdline(fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8'));
+    } catch {
+      // no procfs mounted: ask ps
+    }
+  }
+  const env = process.platform === 'darwin' ? { ...process.env, LC_ALL: 'en_US.UTF-8' } : process.env;
+  const r = spawnSync('ps', ['-ww', '-o', 'args=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'], env });
+  return r.status === 0 && r.stdout ? r.stdout.trim() : null;
+}
+
 /**
  * The plugin version of the outer launcher that handed this window over (our parent, `pid`), when that launcher is older
  * than this change and so does not pass NOTA_BENE_PLUGIN_VERSION on. Read from its command line; not on Windows (null).
  */
 export function parentPluginVersion(pid: number): string | null {
   if (isWindows() || !Number.isInteger(pid) || pid <= 1) return null;
-  const r = spawnSync('ps', ['-o', 'args=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] });
-  if (r.status !== 0 || !r.stdout) return null;
-  const root = launcherInCommandLine(r.stdout.trim());
+  const line = commandLine(pid);
+  const root = line ? launcherInCommandLine(line) : null;
   return root ? pluginInstallVersion(root) : null;
 }
