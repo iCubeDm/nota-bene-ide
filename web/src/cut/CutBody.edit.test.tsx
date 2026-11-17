@@ -159,7 +159,7 @@ it('tracks: add, rename, mute, reorder, remove', async () => {
   fireEvent.change(input, { target: { value: 'Logo' } });
   fireEvent.keyDown(input, { key: 'Enter' });
   await saved(() => expect(onDisk().tracks[2]).toMatchObject({ name: 'Logo' }));
-  fireEvent.click(container.querySelector('[data-track-head="a1"] [aria-label="Mute the track"]')!);
+  fireEvent.click(container.querySelector('[data-track-head="a1"] [aria-label="Mute"]')!);
   await saved(() => expect(onDisk().tracks[1]).toMatchObject({ mute: true }));
   // the track's gain (issue 410): a click types it, Esc keeps the old one, Enter applies it
   const level = () => container.querySelector<HTMLButtonElement>('[data-track-head="a1"] [data-track-gain]')!;
@@ -177,7 +177,7 @@ it('tracks: add, rename, mute, reorder, remove', async () => {
   // v1 down under v2 in the picture: before it in the file
   fireEvent.click(container.querySelector('[data-track-head="v2"] [aria-label="Move the track down"]')!);
   await saved(() => expect(onDisk().tracks.map((t) => t.id)).toEqual(['v2', 'a1', 'v1']));
-  fireEvent.click(container.querySelector('[data-track-head="a1"] [aria-label="Remove the track and its clips"]')!);
+  fireEvent.click(container.querySelector('[data-track-head="a1"] [aria-label="Delete track"]')!);
   await saved(() => expect(onDisk().tracks.map((t) => t.id)).toEqual(['v2', 'v1']));
   expect(onDisk().clips.map((c) => c.id)).toEqual(['c1', 'c2']);
   valid();
@@ -451,8 +451,8 @@ it('the track toggles are in the UI language', async () => {
   const { container } = await show();
   const head = container.querySelector('[data-track-head="v1"]')!;
   const label = (name: string) => head.querySelector(`[aria-label="${name}"]`)!.textContent;
-  expect(label('Выключить звук дорожки')).toBe('М');
-  expect(label('Соло: звучат только дорожки соло')).toBe('С');
+  expect(label('Заглушить')).toBe('М');
+  expect(label('Соло')).toBe('С');
   expect(label('Скрыть изображение дорожки')).toBe('Скр');
 });
 

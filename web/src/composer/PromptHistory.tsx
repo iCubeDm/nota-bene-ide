@@ -49,23 +49,21 @@ export function PromptHistory({ onPick, onClosed, anchor }: { onPick: (text: str
         <span className="inline-flex">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  data-testid="prompt-history"
-                  disabled={!items.length}
-                  aria-label={t('promptHistory')}
-                  aria-expanded={open}
-                  onClick={() => (open ? promptHistoryModal.close() : promptHistoryModal.open())}
-                  className="h-8 bg-transparent px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-                    <path d="M3 3v5h5M12 7v5l3 2" />
-                  </svg>
-                </Button>
-              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                data-testid="prompt-history"
+                disabled={!items.length}
+                aria-label={t('promptHistory')}
+                aria-expanded={open}
+                onClick={() => (open ? promptHistoryModal.close() : promptHistoryModal.open())}
+                className="h-8 bg-transparent px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                  <path d="M3 3v5h5M12 7v5l3 2" />
+                </svg>
+              </Button>
             </TooltipTrigger>
             <TooltipContent className="whitespace-pre-line">{withKey(t('promptHistory'), 'hk_promptHistory')}</TooltipContent>
           </Tooltip>

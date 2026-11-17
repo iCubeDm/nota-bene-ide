@@ -50,13 +50,21 @@ export function Header() {
       {/* the project's name opens the switcher: every window of every provider, recent folders, open or create one */}
       {/* the path under the name, one block; pr-6 keeps room for the badge right of the ▾. The name alone sets the width
           (w-0 min-w-full: the path adds none, so the git branch never moves for a long one); the path shows its end, cut on
-          the left (dir rtl over an ltr run keeps its slashes in order), and the whole of it in the tooltip; the home folder is ~, a click copies the whole path. A floor of 14rem
+          the left (dir rtl over an ltr run keeps its slashes in order); the home folder is ~, the copy icon beside it copies the whole path. A floor of 14rem
           keeps a short name from cutting the path to nothing; the branch moves only for a name longer than that */}
       <div ref={blockRef} data-proj-block className="flex min-w-[min(14rem,30vw)] flex-col items-start pr-6">
         <ProjectSwitcher project={project} windowTitle={windowTitle} />
-        <button type="button" id="root-path" dir="rtl" title={session?.root ? `${session.root} · ${t('copyPath')}` : undefined} disabled={!session?.root}
-          onClick={() => { if (session?.root) void navigator.clipboard?.writeText(session.root).then(() => toast(t('codeCopied'), shortHome(session.root))); }}
-          className="w-0 min-w-full cursor-pointer truncate rounded px-1 text-left font-mono text-[0.625rem] leading-3 opacity-70 hover:opacity-100 disabled:cursor-default"><span dir="ltr">{session?.root ? shortHome(session.root) : ''}</span></button>
+        <div className="group flex w-0 min-w-full items-center gap-0.5">
+          <span id="root-path" dir="rtl" className="min-w-0 truncate px-1 text-left font-mono text-[0.625rem] leading-3 opacity-70 group-hover:opacity-100"><span dir="ltr">{session?.root ? shortHome(session.root) : ''}</span></span>
+          {/* the copy icon shows on hover of the path (issue 463) */}
+          {session?.root && (
+            <button type="button" id="copy-root" aria-label={t('copyPath')} title={t('copyPath')}
+              onClick={() => void navigator.clipboard?.writeText(session.root).then(() => toast(t('codeCopied'), shortHome(session.root)))}
+              className="grid size-3.5 flex-none cursor-pointer place-items-center rounded opacity-0 hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100">
+              <Svg size={10}><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></Svg>
+            </button>
+          )}
+        </div>
       </div>
       {/* over the middle column, its left edge on the first tab's (tabAlign.ts); out of the flow, so nothing else moves */}
       <div data-git-slot className="absolute inset-y-0 flex items-center" style={{ left: gitLeft ?? undefined, visibility: gitLeft === null ? 'hidden' : undefined }}>
@@ -76,7 +84,7 @@ export function Header() {
             type="button"
             id="settingsBtn"
             aria-label={t('settings')}
-            title={t('settingsTip')}
+            title={t('settings')}
             className="relative grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Svg size={15}>{ICONS.settings}</Svg>
@@ -100,7 +108,7 @@ export function Header() {
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger id="themeMenu" title={t('themeTip')} className={row}>
+            <DropdownMenuSubTrigger id="themeMenu" className={row}>
               <Svg size={15}>{ICONS.palette}</Svg>
               <span className="flex-1">{t('theme')}</span>
               <span className="text-muted-foreground">{THEME_NAMES[themeId]}</span>
@@ -134,7 +142,7 @@ export function Header() {
             </span>
           </div>
           <RemoteMenuItem className={row} />
-          <DropdownMenuItem id="usageMenu" title={t('usageTip')} onSelect={() => d(openUsage())} className={`${row} [&>svg]:text-accent-usage`}>
+          <DropdownMenuItem id="usageMenu" onSelect={() => d(openUsage())} className={`${row} [&>svg]:text-accent-usage`}>
             <Svg size={15}>{ICONS.usage}</Svg>
             <span className="flex-1">{t('usage')}</span>
           </DropdownMenuItem>

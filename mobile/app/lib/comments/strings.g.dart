@@ -319,12 +319,12 @@ const _json = r'''
    "de": "Dieser Abrechnungszeitraum: {0} von {1}."
   },
   "usageExtraTip": {
-   "en": "Tokens from a hit the work went past to the reset. The sum is the vendor's own, read while a window is open.",
-   "ru": "Токены от упора, после которого работа продолжилась, до сброса лимита. Сумма от вендора, снимается, пока открыто окно.",
-   "zh": "触顶后继续工作直到重置所消耗的令牌。金额由供应商给出，在窗口开启期间读取。",
-   "es": "Tokens de un tope que el trabajo superó hasta el reinicio. La suma es la del propio proveedor, leída mientras hay una ventana abierta.",
-   "pt": "Tokens de um estouro que o trabalho ultrapassou até o reset. O valor é o do próprio fornecedor, lido enquanto uma janela está aberta.",
-   "de": "Tokens ab einem erreichten Limit, mit denen die Arbeit bis zum Reset weiterlief. Der Betrag stammt vom Anbieter selbst und wird gelesen, solange ein Fenster offen ist."
+   "en": "Tokens past a hit limit, until the reset",
+   "ru": "Токены после упора в лимит, до сброса",
+   "zh": "触顶后直到重置所用的令牌",
+   "es": "Tokens tras alcanzar el tope, hasta el reinicio",
+   "pt": "Tokens após atingir o limite, até o reset",
+   "de": "Tokens nach erreichtem Limit bis zum Reset"
   },
   "usageH5": {
    "en": "5 hours",
@@ -567,12 +567,12 @@ const _json = r'''
    "de": "Ø 1 % 5 Std."
   },
   "usageTank5hTip": {
-   "en": "Tokens per 1% of the 5-hour limit, averaged over the 5-hour windows from the column's week up to the current one. A dash: no 5-hour readings that week.",
-   "ru": "Токены на 1% 5-часового лимита, среднее по 5-часовым окнам от недели этого столбца до текущей. Прочерк: в ту неделю 5-часовых показаний нет.",
-   "zh": "5 小时限额每 1% 的 token，按从该列所在周到本周的 5 小时窗口取平均。短横线：该周没有 5 小时读数。",
-   "es": "Tokens por 1 % del límite de 5 horas, promediados sobre las ventanas de 5 horas desde la semana de la columna hasta la actual. Un guion: esa semana no hay lecturas de 5 horas.",
-   "pt": "Tokens por 1% do limite de 5 horas, em média nas janelas de 5 horas da semana da coluna até a atual. Um traço: sem leituras de 5 horas nessa semana.",
-   "de": "Tokens pro 1 % des 5-Stunden-Limits, gemittelt über die 5-Stunden-Fenster von der Woche der Spalte bis zur aktuellen. Ein Strich: in dieser Woche keine 5-Stunden-Werte."
+   "en": "Tokens per 1% of the 5-hour limit",
+   "ru": "Токены на 1% 5-часового лимита",
+   "zh": "5 小时限额每 1% 的令牌",
+   "es": "Tokens por 1 % del límite de 5 horas",
+   "pt": "Tokens por 1% do limite de 5 horas",
+   "de": "Tokens pro 1 % des 5-Stunden-Limits"
   },
   "usageTankTable": {
    "en": "Tokens per 1% of the limit",
@@ -583,12 +583,12 @@ const _json = r'''
    "de": "Tokens pro 1 % des Limits"
   },
   "usageTankTip": {
-   "en": "Tokens per 1% of the weekly limit, averaged from the column's window up to the current one; the last column is the current window alone. A falling row means the same 100% buys fewer tokens.",
-   "ru": "Токены на 1% недельного лимита, среднее от окна этого столбца до текущего; последний столбец — только текущее окно. Падение значит, что те же 100% дают меньше токенов.",
-   "zh": "每周限额每 1% 的 token，从该列的窗口到当前窗口取平均；最后一列只算当前窗口。数值下降意味着同样的 100% 换来更少的 token。",
-   "es": "Tokens por 1 % del límite semanal, promediados desde la ventana de la columna hasta la actual; la última columna es solo la ventana actual. Si la fila baja, el mismo 100 % da menos tokens.",
-   "pt": "Tokens por 1% do limite semanal, em média da janela da coluna até a atual; a última coluna é só a janela atual. Se a linha cai, os mesmos 100% rendem menos tokens.",
-   "de": "Tokens pro 1 % des Wochenlimits, gemittelt vom Fenster der Spalte bis zum aktuellen; die letzte Spalte ist nur das aktuelle Fenster. Fällt die Zeile, ergeben dieselben 100 % weniger Tokens."
+   "en": "Tokens per 1% of the weekly limit",
+   "ru": "Токены на 1% недельного лимита",
+   "zh": "每周限额每 1% 的令牌",
+   "es": "Tokens por 1 % del límite semanal",
+   "pt": "Tokens por 1% do limite semanal",
+   "de": "Tokens pro 1 % des Wochenlimits"
   },
   "usageTaskLine": {
    "en": "Calls: {0}, subagents {1}, {2}",
@@ -605,14 +605,6 @@ const _json = r'''
    "es": "Tareas",
    "pt": "Tarefas",
    "de": "Aufgaben"
-  },
-  "usageTip": {
-   "en": "Token usage across projects",
-   "ru": "Расход токенов по всем проектам",
-   "zh": "各项目的令牌用量",
-   "es": "Uso de tokens en todos los proyectos",
-   "pt": "Uso de tokens entre projetos",
-   "de": "Token-Nutzung über alle Projekte"
   },
   "usageTokens": {
    "en": "tokens",
@@ -639,12 +631,12 @@ const _json = r'''
    "de": "Teuerste Aufrufe"
   },
   "usageTotalsTip": {
-   "en": "Weighted tokens, a yardstick, not a price: input ×1, cache write ×1.25, cache read ×0.1, output ×5, the same for every model.\nRaw counts: cache read {0}, output {1}.",
-   "ru": "Взвешенные токены, мерка, а не цена: ввод ×1, запись кэша ×1.25, чтение кэша ×0.1, вывод ×5, одинаково для всех моделей.\nСырые счётчики: чтение кэша {0}, вывод {1}.",
-   "zh": "加权令牌，只是一把尺子，不是价格：输入 ×1，缓存写入 ×1.25，缓存读取 ×0.1，输出 ×5，所有模型相同。\n原始计数：缓存读取 {0}，输出 {1}。",
-   "es": "Tokens ponderados, una vara de medir, no un precio: entrada ×1, escritura de caché ×1,25, lectura de caché ×0,1, salida ×5, igual para todos los modelos.\nCifras sin ponderar: lectura de caché {0}, salida {1}.",
-   "pt": "Tokens ponderados, uma medida de referência, não um preço: entrada ×1, escrita em cache ×1,25, leitura de cache ×0,1, saída ×5, igual para todos os modelos.\nContagens brutas: leitura de cache {0}, saída {1}.",
-   "de": "Gewichtete Tokens, ein Maßstab, kein Preis: Input ×1, Cache-Write ×1,25, Cache-Read ×0,1, Output ×5, für jedes Modell gleich.\nRohwerte: Cache-Read {0}, Output {1}."
+   "en": "Weighted tokens; raw cache read {0}, output {1}",
+   "ru": "Взвешенные токены; кэш {0}, вывод {1}",
+   "zh": "加权令牌；原始缓存读取 {0}，输出 {1}",
+   "es": "Tokens ponderados; caché leída {0}, salida {1}",
+   "pt": "Tokens ponderados; cache lido {0}, saída {1}",
+   "de": "Gewichtete Tokens; Cache-Read {0}, Output {1}"
   },
   "usageWeek": {
    "en": "week",
@@ -873,12 +865,12 @@ const _json = r'''
    "de": "Nur lesende Planung; Schreiben fragt"
   },
   "modeTip": {
-   "en": "Agent mode · Shift+Tab in the message field — next",
-   "ru": "Режим работы агента · Shift+Tab в поле ввода — следующий",
-   "zh": "代理模式 · 在消息框中按 Shift+Tab 切换到下一个",
-   "es": "Modo del agente · Shift+Tab en el campo de mensaje — siguiente",
-   "pt": "Modo do agente · Shift+Tab no campo de mensagem — próximo",
-   "de": "Agent-Modus · Shift+Tab im Nachrichtenfeld — nächster"
+   "en": "Agent mode",
+   "ru": "Режим агента",
+   "zh": "代理模式",
+   "es": "Modo del agente",
+   "pt": "Modo do agente",
+   "de": "Agent-Modus"
   },
   "clearTitle": {
    "en": "Clear context",
@@ -905,20 +897,20 @@ const _json = r'''
    "de": "Leeren"
   },
   "compactTip": {
-   "en": "Compact context — the agent summarizes the conversation and continues from the summary (/compact)",
-   "ru": "Сжать контекст — агент кратко перескажет разговор и продолжит с пересказа (/compact)",
-   "zh": "压缩上下文 — 代理会总结对话并从摘要继续 (/compact)",
-   "es": "Compactar contexto — el agente resume la conversación y continúa desde el resumen (/compact)",
-   "pt": "Compactar contexto — o agente resume a conversa e continua a partir do resumo (/compact)",
-   "de": "Kontext komprimieren — der Agent fasst die Unterhaltung zusammen und macht mit der Zusammenfassung weiter (/compact)"
+   "en": "Compact context (/compact)",
+   "ru": "Сжать контекст (/compact)",
+   "zh": "压缩上下文 (/compact)",
+   "es": "Compactar contexto (/compact)",
+   "pt": "Compactar contexto (/compact)",
+   "de": "Kontext komprimieren (/compact)"
   },
   "clearTip": {
-   "en": "Clear context — start a fresh conversation (/clear). The current session stays in the chat tab’s ▾ menu",
-   "ru": "Очистить контекст — новый разговор с нуля (/clear). Текущая сессия останется в меню ▾ на вкладке чата",
-   "zh": "清空上下文 — 开始全新的对话 (/clear)。当前会话保留在聊天标签页的 ▾ 菜单中",
-   "es": "Limpiar contexto — empezar una conversación nueva (/clear). La sesión actual queda en el menú ▾ de la pestaña del chat",
-   "pt": "Limpar contexto — começar uma conversa nova (/clear). A sessão atual fica no menu ▾ da aba do chat",
-   "de": "Kontext leeren — eine neue Unterhaltung beginnen (/clear). Die aktuelle Sitzung bleibt im Menü ▾ des Chat-Tabs"
+   "en": "Clear context (/clear)",
+   "ru": "Очистить контекст (/clear)",
+   "zh": "清空上下文 (/clear)",
+   "es": "Limpiar contexto (/clear)",
+   "pt": "Limpar contexto (/clear)",
+   "de": "Kontext leeren (/clear)"
   },
   "clearFail": {
    "en": "Could not clear: ",

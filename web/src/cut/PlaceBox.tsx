@@ -1,6 +1,5 @@
 import { useEffect, useRef, type PointerEvent } from 'react';
 import type { Cut, CutClip, CutPlace } from '@nota-bene/shared/cut';
-import { useT } from '@/i18n/index.ts';
 import { FULL, movePlace, resizePlace, setClip, type Corner } from './ops.ts';
 
 const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se'];
@@ -11,7 +10,6 @@ const AT: Record<Corner, string> = { nw: 'left-0 top-0 cursor-nwse-resize', ne: 
  * proportions (Shift: free), always inside the output frame. Each move shows the result (`draft`), the release commits.
  */
 export function PlaceBox({ cut, clip, draft, commit }: { cut: Cut; clip: CutClip; draft: (c: Cut | null) => void; commit: (c: Cut) => void }) {
-  const t = useT();
   const box = useRef<HTMLDivElement>(null);
   const stop = useRef<(() => void) | null>(null);
   useEffect(() => () => stop.current?.(), []);
@@ -54,7 +52,7 @@ export function PlaceBox({ cut, clip, draft, commit }: { cut: Cut; clip: CutClip
 
   return (
     <div
-      ref={box} data-place-box title={t('cutPlaceTip')} onPointerDown={(e) => start(e, null)}
+      ref={box} data-place-box onPointerDown={(e) => start(e, null)}
       className="absolute z-10 cursor-move touch-none outline-2 outline-primary outline-dashed"
       style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, width: `${p.w * 100}%`, height: `${p.h * 100}%` }}
     >

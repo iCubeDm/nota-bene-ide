@@ -99,7 +99,7 @@ it('a server error no longer lands in the feed', () => {
 it('restart sends once, shows restarting… until the next session, and is disabled meanwhile', () => {
   const { sent, ev } = setup();
   const btn = screen.getByRole('button', { name: 'Restart the agent' });
-  expect(btn).toHaveAttribute('title', 'Restart the agent and continue the same session');
+  expect(btn).toHaveAttribute('title', 'Restart the agent (same session)');
   fireEvent.click(btn);
   expect(sent.filter((m) => m.type === 'restart')).toHaveLength(1);
   expect(document.getElementById('conn')).toHaveTextContent('restarting…');

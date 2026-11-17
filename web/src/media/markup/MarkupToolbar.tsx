@@ -75,7 +75,7 @@ export function MarkupToolbar({ draft, disabled = false, mask = false, onEnter, 
   return (
     <div role="toolbar" aria-label={t('markTools')} className={shell}>
       {TOOLS.filter((tool) => mask || tool !== 'polygon').map((tool) => (
-        <Btn key={tool} label={toolLabel(tool)} tip={tool === 'polygon' ? `${toolLabel(tool)}: ${t('toolMaskHow')}` : undefined} pressed={draft.tool === tool} disabled={disabled} onClick={() => onTool(tool)}>
+        <Btn key={tool} label={toolLabel(tool)} pressed={draft.tool === tool} disabled={disabled} onClick={() => onTool(tool)}>
           <Icon>{TOOL_ICONS[tool]}</Icon>
         </Btn>
       ))}

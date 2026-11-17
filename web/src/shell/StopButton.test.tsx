@@ -38,7 +38,7 @@ describe('Stop Nota Bene', () => {
   }
   const openItem = async () => {
     const b = screen.getByRole('button', { name: 'Stop Nota Bene' });
-    expect(b).toHaveAttribute('title', 'Stop Nota Bene: stops every window and its agent; the sessions stay and can be resumed');
+    expect(b).toHaveAttribute('title', 'Stop Nota Bene');
     await userEvent.click(b);
   };
 

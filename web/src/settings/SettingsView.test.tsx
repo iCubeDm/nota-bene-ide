@@ -192,7 +192,7 @@ it('Defaults: the audit log is on by default, names its folder and is switched o
   setup();
   const box = await screen.findByRole('checkbox', { name: 'Write an audit log of system events' });
   expect(box).toBeChecked();
-  expect(screen.getByText(/to \/home\/u\/\.nota-bene\/audit, one file a day/)).toBeInTheDocument();
+  expect(screen.getByText(/To \/home\/u\/\.nota-bene\/audit, one file a day/)).toBeInTheDocument();
   prefs = { defaultMode: 'auto', audit: false, auditDir: '/home/u/.nota-bene/audit' };
   fireEvent.click(box);
   await waitFor(() => expect(posts).toContainEqual({ url: '/system/prefs', body: { audit: false } }));

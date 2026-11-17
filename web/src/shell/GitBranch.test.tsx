@@ -58,23 +58,26 @@ async function setup() {
   return { store, ev, wait, el: () => document.getElementById('git-branch') };
 }
 
-it('shows branch ✔ when clean, with a tooltip; nothing before a root is known', async () => {
+it('shows branch ✔ when clean, its tooltip VCS (issue 463); nothing before a root is known', async () => {
   const { ev, el } = await setup();
   expect(el()).toBeNull();
   await ev(session('/p/proj'));
   expect(el()).toHaveTextContent('main✔');
-  expect(el()).toHaveAttribute('title', 'git branch · clean');
+  expect(el()).toHaveAttribute('title', 'VCS');
+  expect(el()).toHaveAccessibleName(/^main\s*No changes/); // the mark is named, not tooltipped
   expect(el()!.querySelector('[data-dirty]')).toBeNull();
 });
 
-it('shows ✗ and the uncommitted tooltip when dirty, in ru as well', async () => {
+it('shows ✗ when dirty, the tooltip still VCS, in ru as well', async () => {
   answer = { branch: 'feature/x', detached: false, dirty: true };
   setLang('ru');
   const { ev, el } = await setup();
   await ev(session('/p/proj'));
   expect(el()).toHaveTextContent('feature/x✗');
-  expect(el()).toHaveAttribute('title', 'ветка git · есть незакоммиченные изменения или новые файлы');
+  expect(el()).toHaveAttribute('title', 'VCS');
+  expect(el()).toHaveAccessibleName(/^feature\/x\s*Есть изменения/);
   expect(el()!.querySelector('[data-dirty]')).not.toBeNull();
+  expect(el()!.querySelector('[data-dirty]')).not.toHaveAttribute('title');
 });
 
 it('detached HEAD shows detached ✔/✗; a non-repo shows nothing', async () => {
@@ -140,6 +143,7 @@ describe('the picker', () => {
     const row = screen.getByRole('button', { name: /^agent\/one/ });
     expect(row).toHaveTextContent('↑2');
     expect(row).toHaveTextContent('✗');
+    expect(row).toHaveAccessibleName(/Has changes/);
     expect(row.querySelector('[data-agent-dot]')).toHaveAttribute('title', 'An agent is working here');
     expect(screen.getByRole('button', { name: /^old/ }).querySelector('[data-agent-dot]')).toBeNull();
   });
@@ -149,7 +153,7 @@ describe('the picker', () => {
     fireEvent.click(screen.getByRole('button', { name: /^agent\/one/ }));
     expect(selectTree(store.getState()).src).toBe('ref:agent/one');
     expect(el()).toHaveTextContent('viewing');
-    expect(el()).toHaveAttribute('title', 'Viewing agent/one; the window and the agent stay on main');
+    expect(el()).toHaveAttribute('title', 'VCS');
     expect(vi.mocked(fetch).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
   });
 

@@ -39,7 +39,7 @@ export function StopButton() {
         type="button"
         id="stopWindowBtn"
         aria-label={t('stopWindow')}
-        title={`${t('stopWindow')}: ${t('stopWindowTip')}`}
+        title={t('stopWindow')}
         disabled={switching}
         onClick={open}
         className="grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive disabled:cursor-default disabled:opacity-50"

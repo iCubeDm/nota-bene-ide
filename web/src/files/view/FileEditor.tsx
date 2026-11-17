@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useT } from '@/i18n/index.ts';
+import { modKey, withKeys } from '@/shell/keymap.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { useWrapLines } from '../wrap.ts';
 
@@ -120,7 +121,7 @@ export function FileEditor({ path, onClose }: { path: string; onClose: (saved: b
   return (
     <div data-file-editor data-anchor-skip className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-none flex-wrap items-center gap-2 border-b border-border-soft bg-chrome px-3 py-1 text-xs">
-        <button type="button" title={`${t('editSave')} (Alt+S)`} disabled={!dirty || busy} onClick={() => void save(false)} className={PRIMARY}>{t('editSave')}</button>
+        <button type="button" title={withKeys(t('editSave'), `${modKey()}S`)} disabled={!dirty || busy} onClick={() => void save(false)} className={PRIMARY}>{t('editSave')}</button>
         <button type="button" onClick={() => (dirty ? setAsking(true) : onClose(false))} className={CHOICE}>{t('editCancel')}</button>
         {asking && (
           <span className="flex items-center gap-1 text-muted-foreground">

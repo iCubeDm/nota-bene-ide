@@ -281,7 +281,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     >
       {editing ? <TrackHead lane={l} cut={editing.cut} commit={editing.commit} width={HEAD} /> : (
       <div data-track-head={l.id} className="sticky left-0 z-20 flex flex-none flex-col justify-center gap-0.5 border-r border-border-soft bg-chrome px-2 text-xs" style={{ width: HEAD }}>
-        <span className="truncate text-foreground" title={l.name ?? l.id}>{l.name ?? t(l.kind === 'video' ? 'cutVideoN' : 'cutAudioN', l.n)}</span>
+        <span className="truncate text-foreground">{l.name ?? t(l.kind === 'video' ? 'cutVideoN' : 'cutAudioN', l.n)}</span>
         <span className="flex gap-1 font-mono text-[0.625rem] text-muted-foreground">
           {l.gain !== undefined && l.gain !== 0 && <span>{dB(l.gain, t)}</span>}
           {l.mute && <span className="rounded bg-muted px-1">{t('cutMute')}</span>}
@@ -339,7 +339,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
         <div ref={inner} className="relative min-w-full" style={{ width: HEAD + width }}>
           <div className="sticky top-0 z-30 flex h-6 border-b border-border-soft bg-chrome">
             <div className="sticky left-0 z-40 flex-none border-r border-border-soft bg-chrome" style={{ width: HEAD }} />
-            <div ref={ruler} data-ruler title={t('cutRulerTip')} className="relative flex-1 cursor-pointer touch-none select-none" {...drag}>
+            <div ref={ruler} data-ruler className="relative flex-1 cursor-pointer touch-none select-none" {...drag}>
               {ticks.map((s) => (
                 <span key={s} data-tick className="absolute top-0 h-full border-l border-border-soft pl-1 font-mono text-[0.625rem] leading-6 text-muted-foreground" style={{ left: s * pps }}>
                   {fmtTime(s, step < 1)}
@@ -361,7 +361,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
           {box && <div data-marquee className="pointer-events-none absolute z-40 border border-primary bg-primary/10" style={box} />}
           <div className="pointer-events-none absolute inset-y-0 z-10" style={{ left: HEAD }}>
             <Head player={player} pps={pps} data-playhead className="absolute inset-y-0 w-px bg-destructive">
-              <div title={t('cutPlayheadTip')} className="pointer-events-auto absolute inset-y-0 -left-1 w-2 cursor-ew-resize touch-none" {...drag} />
+              <div className="pointer-events-auto absolute inset-y-0 -left-1 w-2 cursor-ew-resize touch-none" {...drag} />
             </Head>
           </div>
         </div>
@@ -380,7 +380,7 @@ function AddTrack({ kind, editing, width, onPress }: {
     <div data-track-add={kind} onPointerDown={onPress} className="flex h-6 border-b border-border-soft">
       <div className="sticky left-0 z-20 flex flex-none items-center border-r border-border-soft bg-chrome px-1" style={{ width }}>
         <button
-          type="button" aria-label={label} title={label} onClick={() => editing.commit(addTrack(editing.cut, kind).cut)}
+          type="button" aria-label={label} onClick={() => editing.commit(addTrack(editing.cut, kind).cut)}
           className="rounded px-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         >{t(kind === 'video' ? 'cutAddVideoShort' : 'cutAddAudioShort')}</button>
       </div>
@@ -499,7 +499,7 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   const x0 = Math.max(0, Math.floor((view.from - b.at) * pps / WAVE_STEP) * WAVE_STEP);
   const x1 = Math.min(w, Math.ceil((view.to - b.at) * pps / WAVE_STEP) * WAVE_STEP);
   const handles = !!drag && w >= 24;
-  const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? []), ...(drag ? [t(drag.blade ? 'cutBladeTip' : 'cutClipTip')] : [])].join('\n');
+  const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? [])].join('\n');
   const tint = lane.kind === 'video' ? 'border-link/60 bg-link/15' : 'border-success/60 bg-success/15';
   return (
     <div
@@ -516,7 +516,7 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
       ))}
       {drag && (['start', 'end'] as const).map((edge) => (
         <span
-          key={edge} data-trim={edge} title={t(edge === 'start' ? 'cutTrimStart' : 'cutTrimEnd')}
+          key={edge} data-trim={edge}
           className={`absolute inset-y-0 z-[2] w-1.5 cursor-ew-resize hover:bg-primary/40 ${edge === 'start' ? 'left-0' : 'right-0'}`}
           {...drag.handlers(b.id, edge)}
         />

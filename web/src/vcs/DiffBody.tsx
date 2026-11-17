@@ -72,7 +72,7 @@ export const FileDiff = memo(function FileDiff({ f, split, src, gitRef, canOpen 
       <header className="sticky top-0 z-[2] flex h-8 items-center gap-2 rounded-t-lg border-b border-border-soft bg-chrome px-2 text-xs">
         <button type="button" aria-label={t(shut ? 'vcsExpand' : 'vcsCollapse')} onClick={() => setShut(!shut)} className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-muted">{shut ? '▸' : '▾'}</button>
         <StatusMark s={f.status} />
-        <span className="min-w-0 truncate font-mono text-[0.75rem] text-foreground" title={f.path}>{f.old ? `${f.old} → ${f.path}` : f.path}</span>
+        <span className="min-w-0 truncate font-mono text-[0.75rem] text-foreground">{f.old ? `${f.old} → ${f.path}` : f.path}</span>
         <span className="flex-none font-mono text-[0.6875rem] text-success">+{f.add ?? 0}</span>
         <span className="flex-none font-mono text-[0.6875rem] text-destructive">−{f.del ?? 0}</span>
         <span className="flex-1" />

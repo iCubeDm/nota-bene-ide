@@ -171,7 +171,7 @@ export function GitBranch() {
         <span className="min-w-0 flex-1 truncate font-mono text-foreground">{s.id === 'here' ? here : s.label}</span>
         {i?.busy && <span data-agent-dot role="img" aria-label={t('vcsAgentHere')} title={t('vcsAgentHere')} className="size-2 flex-none animate-pulse rounded-full bg-nb-accent" />}
         {i?.base && <span title={t('vcsAgainst', i.base)} className="flex-none font-mono text-[0.6875rem] text-muted-foreground">↑{i.ahead}</span>}
-        {i?.dirty && <span title={t('vcsHasUncommitted')} className="flex-none text-[0.6875rem] text-nb-accent">✗</span>}
+        {i?.dirty && <span role="img" aria-label={t('vcsDirtyMark')} className="flex-none text-[0.6875rem] text-nb-accent">✗</span>}
       </button>
     );
   };
@@ -213,11 +213,12 @@ export function GitBranch() {
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setQ(''); confirm(null); setOpenErr(null); } }}>
       <PopoverTrigger asChild>
-        <button type="button" id="git-branch" title={viewing ? t('vcsViewingTip', shown ?? '', here ?? '') : `${t('gitBranch')} · ${st.dirty ? t('gitDirty') : t('gitClean')}`} className={`flex h-7 flex-none items-center gap-1.5 rounded-md px-2 font-mono text-[0.71875rem] whitespace-nowrap hover:bg-muted ${viewing ? 'bg-nb-accent/15 text-nb-accent' : 'text-foreground/85'}`}>
+        <button type="button" id="git-branch" title={t('vcsTip')} className={`flex h-7 flex-none items-center gap-1.5 rounded-md px-2 font-mono text-[0.71875rem] whitespace-nowrap hover:bg-muted ${viewing ? 'bg-nb-accent/15 text-nb-accent' : 'text-foreground/85'}`}>
           <Svg size={13}>{ICONS.log}</Svg>
           {viewing && <span className="font-sans text-[0.65625rem] opacity-80">{t('vcsViewing')}</span>}
           {shown}
-          {dirty ? <span data-dirty className="text-nb-accent/80">✗</span> : dirty === false && <span className="text-success/80">✔</span>}
+          {/* the marks are named for a screen reader, with no tooltip (issue 463) */}
+          {dirty ? <span data-dirty role="img" aria-label={t('vcsDirtyMark')} className="text-nb-accent/80">✗</span> : dirty === false && <span role="img" aria-label={t('vcsCleanMark')} className="text-success/80">✔</span>}
           <span className="opacity-60">▾</span>
         </button>
       </PopoverTrigger>

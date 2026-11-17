@@ -76,10 +76,10 @@ it('reads the player on animation frames only while playing; paused it rests at 
 it('a mix at full scale lights the clip until it is clicked, through a pause', () => {
   const p = stub([0.3, 1.02]);
   render(<Meter player={p as unknown as CutPlayer} />);
-  expect(clipLight().title).toMatch(/turns red when the mix reaches 0 dBFS/);
+  expect(clipLight().title).toMatch(/^Clip light \(0 dBFS\)$/);
   p.set(true);
   run(16);
-  expect(clipLight().title).toMatch(/^Clipping.*Click to reset/);
+  expect(clipLight().title).toMatch(/^Clipping: click to reset$/);
   p.peaks = [0.1, 0.1];
   run(16);
   p.set(false);
