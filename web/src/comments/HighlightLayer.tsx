@@ -35,6 +35,29 @@ function lineRects(range: Range): DOMRect[] {
   );
 }
 
+/**
+ * The part of each rect not clipped by a scroll box between the range and the pane (a wide table's `.md-table`, a
+ * diagram's box): text scrolled out of its box gets no mark outside it (issue 453). The pane itself scrolls the layer.
+ */
+function clipRects(rects: DOMRect[], node: Node, pane: HTMLElement): DOMRect[] {
+  let out = rects;
+  for (let e = node instanceof Element ? node : node.parentElement; e && e !== pane && out.length; e = e.parentElement) {
+    const st = getComputedStyle(e);
+    if (st.overflowX === 'visible' && st.overflowY === 'visible') continue;
+    const b = e.getBoundingClientRect();
+    const left = b.left + e.clientLeft, top = b.top + e.clientTop;
+    const right = left + e.clientWidth, bottom = top + e.clientHeight;
+    out = out.flatMap((r) => {
+      const l = Math.max(r.left, left), t = Math.max(r.top, top), w = Math.min(r.right, right) - l, h = Math.min(r.bottom, bottom) - t;
+      return w > 1 && h > 1 ? [new DOMRect(l, t, w, h)] : [];
+    });
+  }
+  return out;
+}
+
+/** The line rects of a range as they show in the pane: clipped to the scroll boxes they sit in. */
+const shownRects = (range: Range, pane: HTMLElement): DOMRect[] => clipRects(lineRects(range), range.commonAncestorContainer, pane);
+
 /** What a paint drew for one comment: a text range (one box per line), or the outline of a page element or area. */
 type Drawn = { id: string; range: Range; place?: undefined } | { id: string; range?: undefined; place: () => DOMRect | null };
 type Cached = { c: Comment; root: HTMLElement; range: Range };
@@ -126,7 +149,7 @@ function placeBoxes(rects: DOMRect[], pane: HTMLElement, className: string, data
 
 /** One box per line of `range`, placed in the pane's layer. */
 const boxes = (range: Range, pane: HTMLElement, className: string, data?: Record<string, string>): HTMLElement[] =>
-  placeBoxes(lineRects(range), pane, className, data);
+  placeBoxes(shownRects(range, pane), pane, className, data);
 
 /** A one-off flash over a fragment (jump to source in a file): drawn in the pane's layer, apart from the marks it repaints. */
 export function flashRange(pane: HTMLElement, range: Range) {
@@ -237,6 +260,10 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
     if (items) observe(items);
     const onLoad = () => paint.current(); // images / video change layout once loaded
     pane.addEventListener('load', onLoad, true);
+    // a box scrolling inside the pane (a wide table) moves its text but not the layer: repaint (the pane's own scroll
+    // carries the layer with it)
+    const onScroll = (e: Event) => { if (e.target !== pane) paint.current(); };
+    pane.addEventListener('scroll', onScroll, true);
     void document.fonts?.ready.then(() => paint.current());
 
     const onClick = (e: MouseEvent) => {
@@ -244,7 +271,7 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
       for (let i = drawn.current.length - 1; i >= 0; i--) {
         const d = drawn.current[i];
         const place = d.place?.();
-        const hit = d.range ? lineRects(d.range).find(
+        const hit = d.range ? shownRects(d.range, pane).find(
           (r) => e.clientX >= r.left - PAD_X && e.clientX <= r.right + PAD_X && e.clientY >= r.top - PAD_Y && e.clientY <= r.bottom + PAD_Y,
         ) : place && onOutline(place, e.clientX, e.clientY) ? place : undefined;
         if (!hit) continue;
@@ -260,6 +287,7 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
       if (raf) cancelAnimationFrame(raf);
       ro?.disconnect();
       pane.removeEventListener('load', onLoad, true);
+      pane.removeEventListener('scroll', onScroll, true);
       pane.removeEventListener('click', onClick, true);
       paint.current = () => {};
     };

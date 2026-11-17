@@ -132,7 +132,34 @@ function markColours(root: HTMLElement) {
   });
 }
 
+/** A row label up to this many characters (graphemes) does not wrap. */
+const SHORT_CELL = 24;
+/** Text written without spaces between words (CJK): wrapping there is between any characters, no phrase to keep whole. */
+const NO_SPACES = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u;
+const graphemes = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter() : null;
+const length = (s: string) => (graphemes ? [...graphemes.segment(s)].length : [...s].length);
+
+/**
+ * Each table goes into a box that scrolls sideways when the table is wider than the message (issue 453), and the short
+ * row labels of its first column are marked to stay on one line. Once per table: a wrapped one is skipped.
+ */
+function wrapTables(root: HTMLElement) {
+  root.querySelectorAll<HTMLTableElement>('table').forEach((tb) => {
+    if (tb.parentElement?.classList.contains('md-table')) return;
+    const box = document.createElement('div');
+    box.className = 'md-table';
+    tb.replaceWith(box);
+    box.appendChild(tb);
+    for (const row of tb.rows) {
+      const c = row.cells[0];
+      const s = c?.textContent?.trim() ?? '';
+      if (c && s && length(s) <= SHORT_CELL && !NO_SPACES.test(s) && !c.querySelector('img, video, audio, pre')) c.classList.add('md-cell-short');
+    }
+  });
+}
+
 function postProcess(root: HTMLElement, final: boolean) {
+  wrapTables(root);
   if (final) addMediaButtons(root);
   markColours(root);
   root.querySelectorAll<HTMLElement>('pre code').forEach((c) => {

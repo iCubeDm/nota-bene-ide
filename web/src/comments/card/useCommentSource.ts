@@ -1,7 +1,7 @@
 import { anchorSource, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { scrollRangeIntoView } from '@/anchors/scroll.ts';
+import { revealRangeSideways, scrollRangeIntoView } from '@/anchors/scroll.ts';
 import { rangeForAnchor } from '@/anchors/text.ts';
 import { jumpToFileComment, selectFileLoad, selectFileVersion } from '@/files/slice.ts';
 import { markAttachment, selectImages } from '@/composer/slice.ts';
@@ -23,6 +23,7 @@ function showAt(root: HTMLElement, c: Comment): void {
   // a panel's command and output scroll inside their own box: bring the fragment into it first
   const box = range?.startContainer.parentElement?.closest('pre');
   if (range && box && root.contains(box) && box.scrollHeight > box.clientHeight) scrollRangeIntoView(range, box, 'instant');
+  if (range) revealRangeSideways(range, root); // a cell of a wide table: its box scrolls sideways
   const scroller = root.closest<HTMLElement>('[data-chat-pane]');
   if (range && scroller) scrollRangeIntoView(range, scroller); // the fragment itself, not the whole message
   else root.scrollIntoView({ behavior: 'smooth', block: 'center' }); // orphan: the message
