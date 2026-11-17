@@ -6,7 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventHub } from './hub.ts';
 import { httpHandler } from './http.ts';
-import { fromThisMachine, openRefused, osCommand, osFileRoutes, safeName } from './osFiles.ts';
+import { fromThisMachine, openAllowed, osCommand, osFileRoutes, safeName, UPLOAD_PREFIX } from './osFiles.ts';
+import { listDir } from './files.ts';
 
 let dir: string;
 let root: string;
@@ -15,6 +16,8 @@ let server: http.Server;
 let port: number;
 let origin: string;
 const spawned: { cmd: string; args: string[] }[] = [];
+// the hard link the upload settles with: a test swaps it for a file system without links
+let link: (from: string, to: string) => void = (a, b) => fs.linkSync(a, b);
 const allowedHosts: string[] = [];
 const allowedOrigins: string[] = [];
 
@@ -28,12 +31,16 @@ beforeAll(async () => {
   fs.writeFileSync(path.join(root, 'tool'), 'x');
   fs.chmodSync(path.join(root, 'tool'), 0o755);
   fs.mkdirSync(path.join(root, 'Some.app'));
+  fs.writeFileSync(path.join(root, 'payload.terminal'), 'x');
+  fs.symlinkSync('payload.terminal', path.join(root, 'README.pdf'));
+  fs.writeFileSync(path.join(root, 'page.html'), '<script></script>');
+  fs.writeFileSync(path.join(root, 'report.pdf'), '%PDF');
   fs.mkdirSync(path.join(dir, 'outside'));
   fs.writeFileSync(path.join(dir, 'outside', 'secret.txt'), 's');
   fs.symlinkSync(path.join(dir, 'outside'), path.join(root, 'escape'));
   server = http.createServer(httpHandler({
     hub: new EventHub(), webDist: dir, allowedHosts, allowedOrigins, info: () => ({}),
-    extra: osFileRoutes({ root: () => rootNow, hub: new EventHub(), platform: 'darwin', spawn: (cmd, args) => void spawned.push({ cmd, args }), maxBytes: 64 }),
+    extra: osFileRoutes({ root: () => rootNow, hub: new EventHub(), platform: 'darwin', spawn: (cmd, args) => void spawned.push({ cmd, args }), maxBytes: 64, link: (a, b) => link(a, b) }),
   }));
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   port = (server.address() as AddressInfo).port;
@@ -47,7 +54,8 @@ afterAll(async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-beforeEach(() => { spawned.length = 0; });
+beforeEach(() => { spawned.length = 0; link = (a, b) => fs.linkSync(a, b); });
+const temps = () => fs.readdirSync(path.join(root, 'attachments')).filter((n) => n.startsWith(UPLOAD_PREFIX));
 
 async function call(p: string, body: string | Uint8Array, headers: Record<string, string> = {}) {
   const r = await fetch(`${origin}${p}`, { method: 'POST', headers: { origin, ...headers }, body: body as BodyInit });
@@ -98,6 +106,58 @@ describe('POST /attach-file: any file, streamed into <project>/attachments/', ()
     expect(fs.readdirSync(path.join(root, 'attachments')).sort()).toEqual(before);
   });
 
+  it('an upload the page aborts mid-body leaves no temp file behind (the write stream is closed and removed)', async () => {
+    const before = fs.readdirSync(path.join(root, 'attachments')).sort();
+    await new Promise<void>((resolve) => {
+      const r = http.request({ host: '127.0.0.1', port, method: 'POST', path: '/attach-file?name=cut.bin', headers: { origin, 'content-length': '60' } });
+      r.on('error', () => resolve());
+      r.write(Buffer.alloc(20));
+      setTimeout(() => { r.destroy(); resolve(); }, 50);
+    });
+    await expect.poll(() => fs.readdirSync(path.join(root, 'attachments')).sort(), { timeout: 2000 }).toEqual(before);
+  });
+
+  it('two uploads of one name at once get two names', async () => {
+    const [a, b] = await Promise.all([call('/attach-file?name=twin.txt', 'a'), call('/attach-file?name=twin.txt', 'b')]);
+    expect(new Set([a.json?.path, b.json?.path])).toEqual(new Set(['attachments/twin.txt', 'attachments/twin (2).txt']));
+  });
+
+  it('without hard links (FAT/exFAT answers EISDIR): a name is reserved exclusively, then the upload renamed over it', async () => {
+    link = () => { throw Object.assign(new Error('EISDIR'), { code: 'EISDIR' }); };
+    const [a, b] = await Promise.all([call('/attach-file?name=fat.txt', 'one'), call('/attach-file?name=fat.txt', 'two')]);
+    expect(new Set([a.json?.path, b.json?.path])).toEqual(new Set(['attachments/fat.txt', 'attachments/fat (2).txt']));
+    const got = [fs.readFileSync(path.join(root, 'attachments', 'fat.txt'), 'utf8'), fs.readFileSync(path.join(root, 'attachments', 'fat (2).txt'), 'utf8')];
+    expect(got.sort()).toEqual(['one', 'two']);
+    expect(temps()).toEqual([]);
+  });
+
+  it('a temp file is not listed in the tree; a stale one (over an hour old) is swept by the next upload', async () => {
+    const stale = path.join(root, 'attachments', `${UPLOAD_PREFIX}old`);
+    const fresh = path.join(root, 'attachments', `${UPLOAD_PREFIX}new`);
+    fs.writeFileSync(stale, 'x');
+    fs.writeFileSync(fresh, 'x');
+    const old = new Date(Date.now() - 2 * 3600_000);
+    fs.utimesSync(stale, old, old);
+    expect((await listDir(path.join(root, 'attachments'), root)).map((e) => e.name).filter((n) => n.startsWith(UPLOAD_PREFIX))).toEqual([]);
+    await call('/attach-file?name=sweep.txt', 'x');
+    expect(temps()).toEqual([`${UPLOAD_PREFIX}new`]);
+    fs.rmSync(fresh);
+  });
+
+  it('a file named attachments: 409 with its own code', async () => {
+    const other = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-osfiles-root-')));
+    fs.writeFileSync(path.join(other, 'attachments'), 'x');
+    rootNow = other;
+    try {
+      const r = await call('/attach-file?name=x.txt', 'x');
+      expect(r.status).toBe(409);
+      expect(r.json?.error).toBe('attachments-not-folder');
+    } finally {
+      rootNow = root;
+      fs.rmSync(other, { recursive: true, force: true });
+    }
+  });
+
   it('an attachments folder that is a symlink out of the project is refused', async () => {
     const other = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-osfiles-root-')));
     fs.symlinkSync(path.join(dir, 'outside'), path.join(other, 'attachments'));
@@ -122,16 +182,26 @@ describe('POST /os/reveal and /os/open', () => {
     ]);
   });
 
-  it('open: a document opens in its default app; executables, scripts and bundles are refused (reveal still works)', async () => {
+  it('open: a document opens in its default app; anything not on the list of document kinds is refused (reveal still works)', async () => {
     expect((await post('/os/open', 'docs/notes.md')).status).toBe(200);
     expect(spawned).toEqual([{ cmd: 'open', args: [path.join(root, 'docs', 'notes.md')] }]);
-    for (const p of ['run.sh', 'tool', 'Some.app', 'docs']) {
+    for (const p of ['run.sh', 'tool', 'Some.app', 'docs', 'page.html', 'payload.terminal']) {
       const r = await post('/os/open', p);
       expect(r.status, p).toBe(403);
       expect(r.json?.error, p).toBe('refused');
     }
     expect(spawned).toHaveLength(1);
     expect((await post('/os/reveal', 'run.sh')).status).toBe(200);
+  });
+
+  it('open: a symlink is judged and opened by what it points at (README.pdf -> payload.terminal is refused)', async () => {
+    const r = await post('/os/open', 'README.pdf');
+    expect(r.status).toBe(403);
+    expect(r.json?.error).toBe('refused');
+    expect(spawned).toEqual([]);
+    fs.symlinkSync('report.pdf', path.join(root, 'alias.pdf'));
+    expect((await post('/os/open', 'alias.pdf')).status).toBe(200);
+    expect(spawned).toEqual([{ cmd: 'open', args: [path.join(root, 'report.pdf')] }]);
   });
 
   it('confined to the project like /file: outside, through a symlink, absolute, missing', async () => {
@@ -170,16 +240,29 @@ describe('helpers', () => {
     expect(osCommand('darwin', 'open', '/p/a.txt', false)).toEqual({ cmd: 'open', args: ['/p/a.txt'] });
     expect(osCommand('win32', 'reveal', 'C:\\p\\a.txt', false)).toEqual({ cmd: 'explorer.exe', args: ['/select,C:\\p\\a.txt'] });
     expect(osCommand('win32', 'open', 'C:\\p\\a.txt', false)).toEqual({ cmd: 'explorer.exe', args: ['C:\\p\\a.txt'] });
+    // explorer splits `/select,` at a comma: such a path opens its folder instead
+    expect(osCommand('win32', 'reveal', 'C:\\p,q\\a.txt', false)).toEqual({ cmd: 'explorer.exe', args: ['C:\\p,q'] });
+    expect(osCommand('win32', 'reveal', 'C:\\p\\a,b', true)).toEqual({ cmd: 'explorer.exe', args: ['C:\\p'] });
     expect(osCommand('linux', 'reveal', '/p/a.txt', false)).toEqual({ cmd: 'xdg-open', args: ['/p'] });
     expect(osCommand('linux', 'reveal', '/p/dir', true)).toEqual({ cmd: 'xdg-open', args: ['/p/dir'] });
     expect(osCommand('linux', 'open', '/p/a.txt', false)).toEqual({ cmd: 'xdg-open', args: ['/p/a.txt'] });
   });
 
-  it('openRefused: executables, scripts, bundles, links; documents and media pass', () => {
-    for (const n of ['a.app', 'a.command', 'a.sh', 'a.exe', 'a.bat', 'a.cmd', 'a.ps1', 'a.msi', 'a.jar', 'a.py', 'a.scpt', 'a.workflow', 'a.webloc', 'a.desktop', 'A.EXE', 'a.lnk', 'a.vbs', 'a.js']) {
-      expect(openRefused(n), n).toBe(true);
+  it('openAllowed: documents and media only; programs, scripts, pages that run script, unknown kinds refused', () => {
+    for (const n of ['a.md', 'a.pdf', 'a.mp4', 'a.png', 'a.txt', 'a.json', 'a.csv', 'a.docx', 'a.xlsx', 'a.pptx', 'a.odt', 'a.rtf', 'a.pages', 'a.key', 'a.mp3', 'a.ts', 'A.PDF']) {
+      expect(openAllowed(n, 'darwin'), n).toBe(true);
     }
-    for (const n of ['a.md', 'a.pdf', 'a.mp4', 'a.png', 'a.zip', 'a.txt', 'a.json', 'Makefile']) expect(openRefused(n), n).toBe(false);
+    for (const n of ['a.app', 'a.command', 'a.sh', 'a.exe', 'a.bat', 'a.ps1', 'a.jar', 'a.py', 'a.js', 'a.terminal', 'a.html', 'a.svg', 'a.zip', 'a.docm', 'Makefile', 'a.weird']) {
+      expect(openAllowed(n, 'darwin'), n).toBe(false);
+    }
+  });
+
+  it('openAllowed on Windows: trailing dots and spaces are dropped first, and a colon (a stream) is refused', () => {
+    expect(openAllowed('evil.exe.', 'win32')).toBe(false);
+    expect(openAllowed('evil.exe. . ', 'win32')).toBe(false);
+    expect(openAllowed('note.txt.', 'win32')).toBe(true);
+    expect(openAllowed('note.txt:evil.exe', 'win32')).toBe(false);
+    expect(openAllowed('C:\\p\\note.txt', 'win32')).toBe(true);
   });
 
   it('safeName: the last part, no control or reserved characters, never empty or a dot name', () => {
@@ -189,7 +272,14 @@ describe('helpers', () => {
     expect(safeName('')).toBe('file');
     expect(safeName('x\u0000y:z?.txt')).toBe('x_y_z_.txt');
     expect(safeName('.env')).toBe('.env');
-    expect(safeName('a'.repeat(300) + '.txt').length).toBeLessThanOrEqual(200);
-    expect(safeName('a'.repeat(300) + '.txt').endsWith('.txt')).toBe(true);
+    const bytes = (x: string) => Buffer.byteLength(x);
+    for (const ch of ['a', 'Я', '文', '😀']) {
+      const n = safeName(ch.repeat(300) + '.txt');
+      expect(bytes(n), ch).toBeLessThanOrEqual(240);
+      expect(n.endsWith('.txt'), ch).toBe(true);
+      expect(n.isWellFormed(), ch).toBe(true);
+      expect(n.startsWith(ch.repeat(10)), ch).toBe(true);
+    }
+    expect(safeName('a\ud800b.txt')).toBe('a\ufffdb.txt');
   });
 });

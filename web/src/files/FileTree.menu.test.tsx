@@ -201,6 +201,23 @@ it('Show in Finder and Open post the row to the server; a refused Open says why'
   expect(posts[1]).toEqual({ url: '/os/open', body: { path: 'media/readme.txt' } });
 });
 
+it.each([
+  [404, 'not found', 'The file is no longer there'],
+  [403, 'local-only', 'Only the window on the computer it runs on can do this'],
+  [403, 'outside project', 'The file is outside the project'],
+  [500, 'EACCES: boom', 'It did not work; try again'],
+])('a refused Show in Finder says why in words, never the raw code (%s %s)', async (status, error, msg) => {
+  resetToasts();
+  onPlatform('MacIntel');
+  await setup();
+  const base = fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) =>
+    (url === '/os/reveal' ? new Response(JSON.stringify({ error }), { status }) : base(url, init))));
+  menu('readme.txt');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Show in Finder' }));
+  await waitFor(() => expect(getToasts().at(-1)).toMatchObject({ title: 'Could not open readme.txt', msg }));
+});
+
 it.each([['Win32', 'Show in Explorer'], ['Linux x86_64', 'Open containing folder']])('the reveal item is named for the system: %s', async (platform, name) => {
   onPlatform(platform);
   await setup();

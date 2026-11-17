@@ -120,7 +120,7 @@ Images are scaled to 1568 px on the long edge; a PNG over 3.5 MB becomes a JPEG.
 
 ### Attaching any other file
 
-Paste, drop or pick a file that is not an image (a sound, a video, a PDF, an archive, anything) in the composer or a comment popup: it is copied into the project's `attachments/` folder (made when first needed; a name already there gets ` (2)`, ` (3)`, ...) and its path goes into the text at the caret. A sound or video goes in as an embed (`![](attachments/take.mp3)`) and plays in the feed; anything else as `code`, a path that opens the file. The agent gets the path and reads the file itself. Send waits until the upload is done; a file can be up to 8 GB.
+Paste, drop or pick a file that is not an image (a sound, a video, a PDF, an archive, anything) in the composer or a comment popup: it is copied into the project's `attachments/` folder (made when first needed; a name already there gets ` (2)`, ` (3)`, ...) and its path goes into the text at the caret. A sound or video goes in as an embed (`![](attachments/take.mp3)`) and plays in the feed; anything else as `code`, a path that opens the file. The agent gets the path and reads the file itself. Send waits until the upload is done; the × on the file's chip cancels it. A file can be up to 8 GB; from a page on another computer, through the relay, up to 32 MB. A file of the project named `attachments` stops uploads until it is renamed. If you do not want the uploads committed, add `attachments/` to the project's `.gitignore`.
 
 ### Viewing and marking up images and video
 
@@ -380,7 +380,7 @@ A one-line draft starting with `!` is a shell command ("Shell · Enter runs", bu
 
 - **Into a message**: drag a file (or the picked files) from the tree onto the composer to put their paths at the caret, in the same form as [an attached file](#attaching-any-other-file). A file from Finder or Explorer goes into `attachments/` first.
 - **Out to the desktop**: drag a file from the tree onto Finder, Explorer or the desktop to copy it there (Chrome and Edge; other browsers do nothing). **Download** in its menu works in every browser.
-- **Show in Finder** (**Show in Explorer** on Windows, **Open containing folder** on Linux) and **Open in default app** are in a file's menu for this folder's files. They work only in the window on the computer it runs on, never from the phone or another machine. Open refuses programs and scripts (`.app`, `.command`, `.sh`, `.exe`, `.bat`, `.py`, an executable file, ...); Show in Finder works for any file.
+- **Show in Finder** (**Show in Explorer** on Windows, **Open containing folder** on Linux) and **Open in default app** are in a file's menu for this folder's files, in the window on the computer it runs on (a page reached from another computer does not show them). The server refuses them for requests through the phone relay and for helpers and scripts (any request with an `Authorization` header). Open opens documents and media only (pictures, sound, video, PDF, text and code, office documents, ...), judged by what a symlink points at; programs, scripts, HTML and SVG pages, and anything else are refused: use Show in Finder, which works for any file. On Windows a path with a comma opens its folder instead of selecting the file (Explorer splits its argument at commas).
 
 ### Other branches and worktrees
 

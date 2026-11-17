@@ -24,6 +24,9 @@ vi.mock('./file.ts', async (orig) => ({
   uploadFile: async (f: File) => (files.push(f), `attachments/${f.name}`),
 }));
 
+const localPage = vi.hoisted(() => ({ on: true }));
+vi.mock('@/net/local.ts', () => ({ isLocalPage: () => localPage.on }));
+
 const A = 'a'.padEnd(64, '0'), B = 'b'.padEnd(64, '0');
 beforeEach(() => {
   setLang('en');
@@ -31,6 +34,7 @@ beforeEach(() => {
   URL.revokeObjectURL = vi.fn();
   uploads.length = 0;
   files.length = 0;
+  localPage.on = true;
 });
 afterEach(cleanup);
 
@@ -81,6 +85,42 @@ it('Send waits while a file uploads', async () => {
   await act(async () => done('attachments/b.zip'));
   expect(box.value).toBe('`attachments/b.zip`');
   expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+});
+
+it('the × on an uploading file cancels it: nothing is inserted and nothing is said', async () => {
+  const mod = await import('./file.ts');
+  let seen: AbortSignal | undefined;
+  vi.spyOn(mod, 'uploadFile').mockImplementationOnce((_f, signal) => new Promise((_r, reject) => {
+    seen = signal;
+    signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+  }));
+  const { box } = setup();
+  paste(box, [new File(['x'], 'big.mov', { type: 'video/quicktime' })]);
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel the upload of big.mov' }));
+  expect(seen?.aborted).toBe(true);
+  await waitFor(() => expect(document.querySelector('[data-pending-file]')).toBeNull());
+  expect(box.value).toBe('');
+  expect(screen.queryByText(/Could not upload/)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled(); // nothing to send, and not stuck uploading
+});
+
+it('refusals say why: a file named attachments, too large, too large for the relay', async () => {
+  const mod = await import('./file.ts');
+  const { box } = setup();
+  vi.spyOn(mod, 'uploadFile').mockRejectedValueOnce(new mod.UploadError(409, 'attachments-not-folder'));
+  paste(box, [new File(['x'], 'a.zip', { type: 'application/zip' })]);
+  expect(await screen.findByText(/a file named attachments/)).toBeInTheDocument();
+  vi.spyOn(mod, 'uploadFile').mockRejectedValueOnce(new mod.UploadError(413, 'file too large'));
+  paste(box, [new File(['x'], 'b.zip', { type: 'application/zip' })]);
+  expect(await screen.findByText('b.zip is too large (up to 8 GB)')).toBeInTheDocument();
+  // a page on another computer reaches this one through the relay, which takes 32 MB at most: said before sending
+  localPage.on = false;
+  const big = new File(['x'], 'c.zip', { type: 'application/zip' });
+  Object.defineProperty(big, 'size', { value: 33 * 1024 * 1024 });
+  const before = files.length;
+  paste(box, [big]);
+  expect(await screen.findByText('c.zip is too large to send through the relay (up to 32 MB)')).toBeInTheDocument();
+  expect(files.length).toBe(before);
 });
 
 it('files dragged from the tree drop onto the composer as their paths (issue 461)', async () => {

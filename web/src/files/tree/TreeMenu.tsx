@@ -40,6 +40,11 @@ function download(files: readonly string[], src: string): void {
   }
 }
 
+/** The server's refusals of /os/reveal and /os/open (osFiles.ts), in words; anything else is the generic failure. */
+const OS_REASONS: Record<string, 'treeOpenRefused' | 'treeOsLocalOnly' | 'treeOsOutside' | 'treeOsMissing'> = {
+  refused: 'treeOpenRefused', 'local-only': 'treeOsLocalOnly', 'outside project': 'treeOsOutside', 'not found': 'treeOsMissing',
+};
+
 /** The reveal item's name on the system the page runs on (it is the server's: Reveal is offered on this computer only). */
 const revealLabel = (): 'treeRevealMac' | 'treeRevealWin' | 'treeRevealLinux' =>
   isMac() ? 'treeRevealMac' : /Win/.test(navigator.platform || navigator.userAgent) ? 'treeRevealWin' : 'treeRevealLinux';
@@ -89,15 +94,15 @@ export function TreeMenu({ row, picked, src, creating, setCreating }: {
     }
   };
 
-  // the server answers 403 `refused` for a program or script, `local-only` for a request not from this computer
+  // the server's refusal codes become words (OS_REASONS)
   const os = async (action: 'reveal' | 'open') => {
     try {
       const r = await apiFetch(`/os/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: row }) });
       if (r.ok) return;
       const j = (await r.json().catch(() => null)) as { error?: string } | null;
-      toast(t('treeOsFail', basename(row)), j?.error === 'refused' ? t('treeOpenRefused') : j?.error ?? `${r.status} ${r.statusText}`.trim());
-    } catch (e) {
-      toast(t('treeOsFail', basename(row)), e instanceof Error ? e.message : String(e));
+      toast(t('treeOsFail', basename(row)), t(OS_REASONS[j?.error ?? ''] ?? 'treeOsOther'));
+    } catch {
+      toast(t('treeOsFail', basename(row)), t('treeOsOther'));
     }
   };
   const desktop = src === 'here' && isLocalPage();

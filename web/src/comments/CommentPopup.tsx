@@ -311,6 +311,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         data-testid="popup-thumbs"
         ids={images.map((i) => i.id)}
         pending={intake.pending}
+        onCancel={intake.cancel}
         onRemove={(id) => setImages((l) => l.filter((x) => x.id !== id))}
       />
       {clips.length > 0 && (

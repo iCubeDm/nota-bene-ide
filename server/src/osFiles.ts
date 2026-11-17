@@ -2,11 +2,11 @@
 //   POST /attach-file?name=<file name>   any file, streamed into `<project>/attachments/` (made on demand; a clash gets
 //                                        ` (2)`); answers `{path}`, the project-relative path the composer inserts
 //   POST /os/reveal {path}               shows a project file or folder in Finder / Explorer / the folder on Linux
-//   POST /os/open {path}                 opens a project file in its default app; executables, scripts and bundles refused
+//   POST /os/open {path}                 opens a project file in its default app: document and media kinds only
 // All three are key tier (auth.ts: every route is unless `cookieRoute` says otherwise). Reveal and Open act on this
-// computer's desktop, so they are honoured only for the page on this machine: a loopback peer without a Bearer. The phone
-// relay always sends the window's helper Bearer (remote/device.ts), and its `goodPath` does not forward `/os/` at all.
-// Commands are spawned without a shell, the path as one argument.
+// computer's desktop, so they are honoured only for a loopback peer without an Authorization header (the page). The phone
+// relay always sends the window's helper Bearer (remote/device.ts), and its `goodPath` does not forward `/os/` at all;
+// a helper or script with a Bearer is refused too. Commands are spawned without a shell, the real path as one argument.
 import { spawn as nodeSpawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
@@ -16,7 +16,10 @@ import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import type { EventHub } from './hub.ts';
 import { reportError } from './errors.ts';
-import { resolveInRoot } from './files.ts';
+import { resolveInRoot, UPLOAD_PREFIX } from './files.ts';
+import { underState } from './stateGuard.ts';
+
+export { UPLOAD_PREFIX };
 import { renameRetry } from './platform.ts';
 
 /** a generous cap for one file (a long video): the body is streamed to disk, never held */
@@ -41,37 +44,70 @@ export function fromThisMachine(req: Pick<IncomingMessage, 'headers'> & { socket
   return LOOPBACK.has(req.socket.remoteAddress ?? '') && req.headers.authorization === undefined;
 }
 
-// what a double click would run rather than show: programs, scripts, installers, bundles, shortcuts that point elsewhere
-const RUNS = new Set([
-  'app', 'command', 'tool', 'terminal', 'workflow', 'action', 'scpt', 'scptd', 'applescript', 'osax', 'prefpane', 'pkg', 'mpkg', 'kext',
-  'sh', 'bash', 'zsh', 'csh', 'tcsh', 'ksh', 'fish', 'py', 'pyw', 'pyc', 'pl', 'rb', 'php', 'jar', 'js', 'jse', 'mjs', 'cjs',
-  'exe', 'com', 'bat', 'cmd', 'msi', 'msp', 'ps1', 'psm1', 'vbs', 'vbe', 'wsf', 'wsh', 'scr', 'pif', 'cpl', 'hta', 'reg', 'lnk', 'url', 'inf',
-  'webloc', 'inetloc', 'fileloc', 'desktop', 'appimage', 'run', 'bin', 'out',
+// what Open may hand to the default app: documents and media whose app shows them rather than runs them. Not html or svg
+// (a browser runs their script as file://), not code a launcher would run (js, py, sh, ...), not macro documents (docm, ...)
+const DOCUMENTS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'heic', 'heif', 'avif', 'ico', 'psd',
+  'mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'oga', 'opus', 'aif', 'aiff', 'mid', 'midi',
+  'mp4', 'm4v', 'mov', 'webm', 'mkv', 'avi', 'mpg', 'mpeg',
+  'pdf', 'txt', 'text', 'md', 'markdown', 'csv', 'tsv', 'log', 'json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf',
+  'ts', 'tsx', 'c', 'h', 'cc', 'cpp', 'hpp', 'rs', 'go', 'java', 'kt', 'swift', 'css', 'scss', 'sql', 'diff', 'patch',
+  'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'pages', 'numbers', 'key', 'epub',
+  'glb', 'gltf', 'obj', 'stl', 'blend',
 ]);
 
-/** Open refuses this name: its extension runs something. */
-export function openRefused(name: string): boolean {
-  const ext = path.extname(name).slice(1).toLowerCase();
-  return RUNS.has(ext);
+/**
+ * Open may hand this file to its default app: its kind is on the document list. On Windows trailing dots and spaces are
+ * dropped first (the system drops them: `evil.exe.` is `evil.exe`) and a colon (an alternate data stream) is refused.
+ */
+export function openAllowed(file: string, platform: NodeJS.Platform): boolean {
+  let name = (platform === 'win32' ? path.win32 : path.posix).basename(file);
+  if (platform === 'win32') {
+    name = name.replace(/[. ]+$/, '');
+    if (name.includes(':')) return false;
+  }
+  const dot = name.lastIndexOf('.');
+  return dot > 0 && DOCUMENTS.has(name.slice(dot + 1).toLowerCase());
 }
 
 /** The command that reveals or opens `abs` on `platform` (no shell: `cmd` and its arguments). */
 export function osCommand(platform: NodeJS.Platform, action: 'reveal' | 'open', abs: string, isDir: boolean): { cmd: string; args: string[] } {
   if (platform === 'darwin') return { cmd: 'open', args: action === 'reveal' ? ['-R', abs] : [abs] };
   // explorer takes `/select,<path>` as one argument
-  if (platform === 'win32') return { cmd: 'explorer.exe', args: [action === 'reveal' ? `/select,${abs}` : abs] };
+  if (platform === 'win32') {
+    // explorer takes `/select,<path>` as one argument, but splits it at a comma: such a path opens its folder instead
+    // (a comma in a folder above it can still confuse explorer; accepted)
+    if (action === 'reveal') return { cmd: 'explorer.exe', args: [abs.includes(',') ? path.win32.dirname(abs) : `/select,${abs}`] };
+    return { cmd: 'explorer.exe', args: [abs] };
+  }
   // Linux has no common "select this file": the folder that holds it
   return { cmd: 'xdg-open', args: [action === 'reveal' && !isDir ? path.dirname(abs) : abs] };
 }
 
-/** A file name to store an upload under: its last part, no control or reserved characters, at most 200 characters. */
+/** the longest stored name in UTF-8 bytes: under the 255 of most file systems, with room for ` (9999)` */
+const NAME_BYTES = 240;
+
+/** The first code points of `s` that fit in `max` UTF-8 bytes (never half a character). */
+function fitBytes(s: string, max: number): string {
+  let out = '';
+  let used = 0;
+  for (const ch of s) {
+    const b = Buffer.byteLength(ch);
+    if (used + b > max) break;
+    out += ch;
+    used += b;
+  }
+  return out;
+}
+
+/** A file name to store an upload under: its last part, no control or reserved characters, at most 240 UTF-8 bytes. */
 export function safeName(raw: string): string {
-  let n = raw.split(/[\\/]/).pop() ?? '';
+  let n = (raw.split(/[\\/]/).pop() ?? '').toWellFormed(); // a lone surrogate becomes U+FFFD
   n = n.replace(/[\u0000-\u001f\u007f<>:"|?*]/g, '_').trim();
   if (n === '' || n === '.' || n === '..') return 'file';
-  if (n.length > 200) {
-    const ext = path.extname(n).slice(0, 20);
-    n = n.slice(0, 200 - ext.length) + ext;
+  if (Buffer.byteLength(n) > NAME_BYTES) {
+    const ext = fitBytes(path.extname(n), 20);
+    n = fitBytes(n.slice(0, n.length - path.extname(n).length), NAME_BYTES - Buffer.byteLength(ext)) + ext;
   }
   return n;
 }
@@ -84,27 +120,65 @@ function candidate(name: string, n: number): string {
   return `${stem} (${n})${ext && ext !== name ? ext : ''}`;
 }
 
-const NO_LINKS = new Set(['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'ENOSYS']);
+type Link = (from: string, to: string) => void;
 
-/** Moves the finished `tmp` to a free name in `dir`: a hard link refuses a taken name atomically; without links, a check and a rename. */
-function settle(tmp: string, dir: string, name: string): string {
+/**
+ * Moves the finished `tmp` to a free name in `dir`. A hard link refuses a taken name atomically. Any other link error
+ * (FAT/exFAT answer EISDIR, some shares EPERM) while `tmp` is still there means no hard links: the name is then reserved
+ * with an exclusive create and `tmp` renamed over it, so two uploads of one name still get two names.
+ */
+function settle(tmp: string, dir: string, name: string, link: Link): string {
+  let links = true;
   for (let n = 1; n < 10_000; n++) {
     const want = candidate(name, n);
     const to = path.join(dir, want);
-    try {
-      fs.linkSync(tmp, to);
-      fs.rmSync(tmp, { force: true });
-      return want;
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code ?? '';
-      if (code === 'EEXIST') continue;
-      if (!NO_LINKS.has(code)) throw e;
-      if (fs.existsSync(to)) continue;
-      renameRetry(tmp, to);
-      return want;
+    if (links) {
+      try {
+        link(tmp, to);
+        fs.rmSync(tmp, { force: true });
+        return want;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'EEXIST') continue;
+        if (!fs.existsSync(tmp)) throw e;
+        links = false;
+      }
     }
+    let fd: number;
+    try {
+      fd = fs.openSync(to, 'wx');
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') continue;
+      throw e;
+    }
+    fs.closeSync(fd);
+    try {
+      renameRetry(tmp, to);
+    } catch (e) {
+      fs.rmSync(to, { force: true });
+      throw e;
+    }
+    return want;
   }
   throw new Error('no free name');
+}
+
+const STALE_MS = 3600_000;
+
+/** Temp files of uploads that never finished (a crash): removed once they are an hour old. */
+function sweep(dir: string): void {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).filter((n) => n.startsWith(UPLOAD_PREFIX));
+  } catch {
+    return;
+  }
+  const before = Date.now() - STALE_MS;
+  for (const n of names) {
+    try {
+      const f = path.join(dir, n);
+      if (fs.lstatSync(f).mtimeMs < before) fs.rmSync(f, { force: true });
+    } catch { /* gone meanwhile */ }
+  }
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -137,7 +211,10 @@ export function osFileRoutes(o: {
   platform?: NodeJS.Platform;
   spawn?: Spawner;
   maxBytes?: number;
+  /** tests: the hard link uploads settle with (a file system without links) */
+  link?: Link;
 }): Record<string, RequestListener> {
+  const link: Link = o.link ?? ((a, b) => fs.linkSync(a, b));
   const platform = o.platform ?? process.platform;
   const max = o.maxBytes ?? MAX_FILE_BYTES;
   const run = o.spawn ?? defaultSpawn((e) => reportError(o.hub, 'os', e));
@@ -159,17 +236,24 @@ export function osFileRoutes(o: {
         if (!b || typeof b.path !== 'string' || !b.path) return json(res, 400, { error: 'bad request' });
         const abs = resolveInRoot(o.root(), b.path);
         if (abs === null) return json(res, 403, { error: 'outside project' });
+        // the real path, once: a symlink is judged, checked and opened as what it points at (README.pdf -> x.terminal)
+        let real: string;
         let st: fs.Stats;
         try {
-          st = fs.statSync(abs);
+          real = fs.realpathSync.native(abs);
+          st = fs.statSync(real);
         } catch {
           return json(res, 404, { error: 'not found' });
         }
-        // a folder (an .app bundle among them) or an executable file would run or browse rather than open a document
-        if (action === 'open' && (!st.isFile() || openRefused(abs) || (platform !== 'win32' && (st.mode & 0o111) !== 0))) {
+        const realRoot = fs.realpathSync.native(o.root());
+        if ((real !== realRoot && !real.startsWith(realRoot.endsWith(path.sep) ? realRoot : realRoot + path.sep)) || underState(real)) {
+          return json(res, 403, { error: 'outside project' });
+        }
+        // a folder (an .app bundle among them), an executable file or a kind not on the document list is not opened
+        if (action === 'open' && (!st.isFile() || !openAllowed(real, platform) || (platform !== 'win32' && (st.mode & 0o111) !== 0))) {
           return json(res, 403, { error: 'refused' });
         }
-        const { cmd, args } = osCommand(platform, action, abs, st.isDirectory());
+        const { cmd, args } = osCommand(platform, action, real, st.isDirectory());
         run(cmd, args);
         json(res, 200, { ok: true });
       } catch (e) {
@@ -199,13 +283,23 @@ export function osFileRoutes(o: {
       void (async () => {
         let tmp: string | null = null;
         try {
-          fs.mkdirSync(dir, { recursive: true });
+          try {
+            fs.mkdirSync(dir, { recursive: true });
+          } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== 'EEXIST' && (e as NodeJS.ErrnoException).code !== 'ENOTDIR') throw e;
+          }
+          if (!fs.statSync(dir).isDirectory()) {
+            req.resume();
+            return json(res, 409, { error: 'attachments-not-folder' });
+          }
           // made now: the realpath check again, so a folder swapped for a symlink after the first one is still refused
-          if (resolveInRoot(o.root(), ATTACH_DIR) === null || !fs.statSync(dir).isDirectory()) {
+          if (resolveInRoot(o.root(), ATTACH_DIR) === null) {
             req.resume();
             return json(res, 403, { error: 'outside project' });
           }
-          tmp = path.join(dir, `.nb-upload-${randomBytes(6).toString('hex')}`);
+          sweep(dir);
+          // beside its final name (one file system, so the link or rename is a move); its prefix keeps it out of the tree
+          tmp = path.join(dir, `${UPLOAD_PREFIX}${randomBytes(6).toString('hex')}`);
           let size = 0;
           const cap = new Transform({
             transform(chunk: Buffer, _enc, done) {
@@ -213,18 +307,25 @@ export function osFileRoutes(o: {
               done(size > max ? new TooLarge() : null, chunk);
             },
           });
+          const out = fs.createWriteStream(tmp, { flags: 'wx', mode: 0o644 });
+          const shut = new Promise<void>((r) => out.once('close', () => r()));
+          // the page went away mid-body: destroying `cap` settles the pipeline and closes the file
+          const onClose = () => { if (!req.complete) cap.destroy(Object.assign(new Error('aborted'), { code: 'ERR_STREAM_PREMATURE_CLOSE' })); };
+          req.once('close', onClose);
           // the request is piped in by hand: a refusal mid-body unpipes it and drains the rest, so the 413 can still be read
-          const closed = new Promise<never>((_, reject) => req.once('aborted', () => reject(Object.assign(new Error('aborted'), { code: 'ERR_STREAM_PREMATURE_CLOSE' }))));
-          closed.catch(() => {});
           req.pipe(cap);
           try {
-            await Promise.race([pipeline(cap, fs.createWriteStream(tmp, { flags: 'wx', mode: 0o644 })), closed]);
+            await pipeline(cap, out);
           } catch (e) {
             req.unpipe(cap);
             req.resume();
+            out.destroy();
+            await shut; // the fd is closed before the temp file is removed
             throw e;
+          } finally {
+            req.off('close', onClose);
           }
-          const name = settle(tmp, dir, safeName(raw));
+          const name = settle(tmp, dir, safeName(raw), link);
           tmp = null;
           json(res, 200, { path: `${ATTACH_DIR}/${name}` });
         } catch (e) {

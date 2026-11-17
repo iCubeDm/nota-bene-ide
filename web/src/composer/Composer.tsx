@@ -399,7 +399,7 @@ export function Composer() {
           </Button>
         </div>
       )}
-      <ComposerAttachments pending={intake.pending} />
+      <ComposerAttachments pending={intake.pending} onCancel={intake.cancel} />
       <div data-record-scope data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
         <MessageInput
           textareaRef={ref}
