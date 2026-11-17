@@ -15,8 +15,16 @@ const icon = (children: ReactNode) => (
 );
 /** Select: the pointer arrow */
 const SelectIcon = () => icon(<path d="M4.04 4.69a.5.5 0 0 1 .65-.65l16 6.5a.5.5 0 0 1-.06.95l-6.13 1.58a2 2 0 0 0-1.43 1.43l-1.58 6.13a.5.5 0 0 1-.95.06z" />);
-/** Blade: scissors (a razor blade does not read at 14 px) */
-const BladeIcon = () => icon(<><circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12" /><path d="M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" /></>);
+/**
+ * Blade: a double-edged razor blade running top-left to bottom-right, notched at its ends, its slot with the round hole
+ * (filled: an outline of it does not read at 14 px)
+ */
+const BladeIcon = () => icon(
+  <path
+    transform="rotate(40 12 12)" fill="currentColor" stroke="none" fillRule="evenodd"
+    d="M3.5 7H20.5A1.5 1.5 0 0 1 22 8.5V10.5A1.5 1.5 0 0 0 22 13.5V15.5A1.5 1.5 0 0 1 20.5 17H3.5A1.5 1.5 0 0 1 2 15.5V13.5A1.5 1.5 0 0 0 2 10.5V8.5A1.5 1.5 0 0 1 3.5 7ZM7 11.1H10.1A2.3 2.3 0 0 1 13.9 11.1H17A0.9 0.9 0 0 1 17 12.9H13.9A2.3 2.3 0 0 1 10.1 12.9H7A0.9 0.9 0 0 1 7 11.1Z"
+  />,
+);
 
 /**
  * The editor's tools (issue 409), each tooltip naming its key: the timeline's tool (issue 432: Select or Blade, the active

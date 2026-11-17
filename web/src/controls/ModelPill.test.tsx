@@ -508,7 +508,7 @@ it('an effort that is not among the row\'s levels shows no bar and is not claime
   expect(effortBar()).toBeNull();
   expect(pill()).not.toHaveAccessibleName(/Low/);
   await userEvent.hover(pill());
-  expect((await screen.findAllByText(/Model and effort/)).some((e) => e.getAttribute('data-slot') === 'tooltip-content' && e.textContent === 'Opus 5\nModel and effort')).toBe(true);
+  expect((await screen.findAllByText(/Model and effort/)).some((e) => e.getAttribute('data-slot') === 'tooltip-content' && e.textContent === 'Model and effort')).toBe(true); // no effort claimed there either
 });
 
 it('other rows show their own name', () => {
@@ -541,11 +541,12 @@ it('the accessible name carries the model name, the 1M tag and the effort name, 
   expect(pill()).toHaveTextContent(/^Opus 5\.5\s*1M$/);
 });
 
-it('the tooltip repeats the full name and effort above the tip', async () => {
+it('the tooltip only names the control (issue 463): it does not repeat the pill\'s label; the accessible name keeps the model and effort', async () => {
   withDefault([{ value: 'opus', name: 'Opus 5.5', description: 'o', resolved: 'claude-opus-5-5' }], 'default', 'xhigh');
+  expect(pill()).toHaveAccessibleName(/Extra high/);
   await userEvent.hover(pill());
-  const tip = await screen.findAllByText(/Extra high/);
-  expect(tip.some((e) => e.getAttribute('data-slot') === 'tooltip-content' && e.textContent === 'Opus 5.5 · Extra high\nModel and effort')).toBe(true);
+  const tip = (await screen.findAllByText('Model and effort')).filter((e) => e.getAttribute('data-slot') === 'tooltip-content');
+  expect(tip.map((e) => e.textContent)).toEqual(['Model and effort']);
 });
 
 it('Russian: the 1M tag and the effort name', () => {
