@@ -11,6 +11,8 @@ import '../theme.dart';
 import '../files/file_markdown.dart' show codeMarksAttr;
 import 'audio_clip.dart';
 import 'code.dart';
+import 'embed.dart';
+import 'files.dart' show FileKind, fileKindOf;
 import 'mermaid.dart';
 
 /// `$tex$`: no space just inside the dollars, no digit right after the closing one (so `$5 and $6` stays text).
@@ -56,9 +58,10 @@ class _BlockMath extends md.BlockSyntax {
   }
 }
 
-/// `![](clips/take.mp3)`: a project's sound embedded as an image is an `nbaudio` element (a player, as on the desktop);
-/// any other image, and a sound on the web, stays an image.
-class _SoundSyntax extends md.ImageSyntax {
+/// `![](clips/take.mp3)`, `![](design/shot.png)`, `![](media/clip.mp4)`: a project's sound, image or video embedded
+/// as an image is an `nbaudio`, `nbimage` or `nbvideo` element (a player, a preview, a tile, as on the desktop; issues
+/// 452, 459); any other image, and anything on the web, stays an image.
+class _EmbedSyntax extends md.ImageSyntax {
   @override
   md.Element createNode(
     String destination,
@@ -67,22 +70,31 @@ class _SoundSyntax extends md.ImageSyntax {
   }) {
     final img = super.createNode(destination, title, getChildren: getChildren);
     final src = img.attributes['src']!;
-    if (!soundPath.hasMatch(src) ||
-        RegExp(r'^[a-z][a-z0-9+.-]*:', caseSensitive: false).hasMatch(src)) {
+    if (RegExp(r'^[a-z][a-z0-9+.-]*:', caseSensitive: false).hasMatch(src)) {
       return img;
     }
-    return md.Element.empty('nbaudio')..attributes['src'] = src;
+    final tag = soundPath.hasMatch(src)
+        ? 'nbaudio'
+        : switch (fileKindOf(src)) {
+            FileKind.image => 'nbimage',
+            FileKind.video => 'nbvideo',
+            _ => null,
+          };
+    return tag == null ? img : (md.Element.empty(tag)..attributes['src'] = src);
   }
 }
 
-class _SoundBuilder extends MarkdownElementBuilder {
+class _EmbedBuilder extends MarkdownElementBuilder {
+  _EmbedBuilder(this.build);
+  final Widget Function(String src) build;
+
   @override
   Widget? visitElementAfterWithContext(
     BuildContext context,
     md.Element e,
     TextStyle? preferred,
     TextStyle? parent,
-  ) => AudioClip(e.attributes['src']!);
+  ) => build(e.attributes['src']!);
 }
 
 /// Raw HTML as the desktop shows it after DOMPurify: a tag or a comment shows nothing, `<br>` breaks the line.
@@ -222,7 +234,7 @@ final nbBlockSyntaxes = <md.BlockSyntax>[
 final nbInlineSyntaxes = <md.InlineSyntax>[
   _InlineMath(),
   _InlineHtml(),
-  _SoundSyntax(),
+  _EmbedSyntax(),
 ];
 
 /// [text] parsed as [NbMarkdown] parses it (flutter_markdown_plus: GitHub-flavoured, HTML not encoded).
@@ -240,7 +252,9 @@ Map<String, MarkdownElementBuilder> markdownBuilders({
   'pre': _PreBuilder(onMark),
   'math': _MathBuilder(display: false),
   'mathblock': _MathBuilder(display: true),
-  'nbaudio': _SoundBuilder(),
+  'nbaudio': _EmbedBuilder(AudioClip.new),
+  'nbimage': _EmbedBuilder((s) => EmbeddedMedia(s, video: false)),
+  'nbvideo': _EmbedBuilder((s) => EmbeddedMedia(s, video: true)),
 };
 
 /// The chat's Markdown look in the current theme.

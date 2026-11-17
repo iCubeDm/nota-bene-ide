@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectionStatus;
 import 'package:nb_protocol/nb_protocol.dart';
 
-import '../chat/audio_clip.dart' show SoundScope;
+import '../chat/embed.dart' show EmbedScope;
 import '../chat/window_tab.dart';
 import '../comments/anchor.dart';
 import '../comments/comment_sheet.dart';
@@ -197,8 +197,8 @@ class _FileScreenState extends State<FileScreen> {
             )
           : text == null
           ? const Center(child: CircularProgressIndicator())
-          // the sounds of the file play from its folder, as on the desktop (issue 452)
-          : SoundScope(
+          // the sounds, images and videos of the file are read from its folder, as on the desktop (issues 452, 459)
+          : EmbedScope(
               tab: widget.tab,
               base: widget.path.contains('/')
                   ? widget.path.substring(0, widget.path.lastIndexOf('/'))
