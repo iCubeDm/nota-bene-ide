@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../theme.dart';
 import '../files/file_markdown.dart' show codeMarksAttr;
+import 'audio_clip.dart';
 import 'code.dart';
 import 'mermaid.dart';
 
@@ -53,6 +54,35 @@ class _BlockMath extends md.BlockSyntax {
     }
     return md.Element.text('mathblock', lines.join('\n').trim());
   }
+}
+
+/// `![](clips/take.mp3)`: a project's sound embedded as an image is an `nbaudio` element (a player, as on the desktop);
+/// any other image, and a sound on the web, stays an image.
+class _SoundSyntax extends md.ImageSyntax {
+  @override
+  md.Element createNode(
+    String destination,
+    String? title, {
+    required List<md.Node> Function() getChildren,
+  }) {
+    final img = super.createNode(destination, title, getChildren: getChildren);
+    final src = img.attributes['src']!;
+    if (!soundPath.hasMatch(src) ||
+        RegExp(r'^[a-z][a-z0-9+.-]*:', caseSensitive: false).hasMatch(src)) {
+      return img;
+    }
+    return md.Element.empty('nbaudio')..attributes['src'] = src;
+  }
+}
+
+class _SoundBuilder extends MarkdownElementBuilder {
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element e,
+    TextStyle? preferred,
+    TextStyle? parent,
+  ) => AudioClip(e.attributes['src']!);
 }
 
 /// Raw HTML as the desktop shows it after DOMPurify: a tag or a comment shows nothing, `<br>` breaks the line.
@@ -189,7 +219,11 @@ final nbBlockSyntaxes = <md.BlockSyntax>[
   _HtmlBlock(),
   ...nbCodeSyntaxes,
 ];
-final nbInlineSyntaxes = <md.InlineSyntax>[_InlineMath(), _InlineHtml()];
+final nbInlineSyntaxes = <md.InlineSyntax>[
+  _InlineMath(),
+  _InlineHtml(),
+  _SoundSyntax(),
+];
 
 /// [text] parsed as [NbMarkdown] parses it (flutter_markdown_plus: GitHub-flavoured, HTML not encoded).
 List<md.Node> parseMarkdown(String text) => md.Document(
@@ -206,6 +240,7 @@ Map<String, MarkdownElementBuilder> markdownBuilders({
   'pre': _PreBuilder(onMark),
   'math': _MathBuilder(display: false),
   'mathblock': _MathBuilder(display: true),
+  'nbaudio': _SoundBuilder(),
 };
 
 /// The chat's Markdown look in the current theme.
