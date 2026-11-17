@@ -990,9 +990,12 @@ describe('the package lookup (plugin install)', () => {
     }
   });
 
-  it('SKILL.md allowed-tools pins the two patterns that survive a quoted (spaced or non-ASCII) path', () => {
+  it('SKILL.md allowed-tools pins the patterns that survive a quoted (spaced or non-ASCII) path', () => {
     const md = fs.readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
-    expect(/^allowed-tools: (.*)$/m.exec(md)?.[1]).toBe('Bash(node */nb/open.mjs* *), Bash(node */bin/nota-bene.mjs* *)');
+    // issue 457: first the exact rule for the skill's own `!` command, as it is written below (Claude Code substitutes
+    // ${CLAUDE_SKILL_DIR} in both); a rule with no wildcard before the script is the kind auto mode never suspends
+    expect(/^allowed-tools: (.*)$/m.exec(md)?.[1]).toBe('Bash(node "${CLAUDE_SKILL_DIR}/open.mjs" *), Bash(node */nb/open.mjs* *), Bash(node */bin/nota-bene.mjs* *)');
+    expect(md).toContain('!`node "${CLAUDE_SKILL_DIR}/open.mjs" --data ');
   });
 
   it('a second --run during an install waits for it instead of installing twice', async () => {

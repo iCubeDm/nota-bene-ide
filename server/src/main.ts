@@ -106,6 +106,7 @@ export function dropInheritedLauncherEnv(env: NodeJS.ProcessEnv, ppid: number): 
   delete env.NOTA_BENE_NONCE; // that launcher's launch, not ours
   delete env.NOTA_BENE_HANDOVER; // nobody would hand us over
   delete env.NOTA_BENE_UPDATED_FROM;
+  delete env.NOTA_BENE_PLUGIN_VERSION; // issue 457: that launcher's plugin, not ours
   return true;
 }
 

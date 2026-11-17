@@ -48,6 +48,7 @@ import { transcriptExists } from '../server/src/sessions.ts';
 import { lastSession, stateBaseDir, stateDir } from '../server/src/state.ts';
 import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgent } from '../server/src/agent/choice.ts';
 import { recordRecent } from '../server/src/recent.ts';
+import { parentPluginVersion, pluginInstallVersion } from '../server/src/pluginOrigin.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
 import {
@@ -194,6 +195,22 @@ export function serverEnv(base, launcherPid, { handover = false, updatedFrom } =
     env[key] = parts.slice(i).join(path.delimiter);
   }
   return env;
+}
+
+/**
+ * Issue 457: NOTA_BENE_PLUGIN_VERSION, the /nb plugin version that opened the window (server/src/pluginOrigin.ts). An outer
+ * launcher sets it from its own install (`own`: a plugin's install, or null) and drops one it inherited; an inner launcher (a
+ * handover) keeps the one its outer part passed on, and asks `parent` only when that outer part is too old to pass it.
+ */
+export function pluginOriginEnv(env, { inner, own, parent }) {
+  if (!inner) {
+    if (own) env.NOTA_BENE_PLUGIN_VERSION = own;
+    else delete env.NOTA_BENE_PLUGIN_VERSION;
+    return;
+  }
+  if (env.NOTA_BENE_PLUGIN_VERSION !== undefined) return;
+  const v = parent();
+  if (v) env.NOTA_BENE_PLUGIN_VERSION = v;
 }
 
 // --- ports -----------------------------------------------------------------------------------------------------
@@ -1190,6 +1207,7 @@ async function launch(o, argv, buildOutput, release) {
       return 1;
     }
   }
+  pluginOriginEnv(process.env, { inner: INNER, own: pluginInstallVersion(REPO), parent: () => parentPluginVersion(process.ppid) });
   if (o.detach) return detach(o, argv, picked, buildOutput);
   if (INNER) {
     const from = process.env.NOTA_BENE_UPDATED_FROM;

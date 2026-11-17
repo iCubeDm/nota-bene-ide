@@ -229,6 +229,7 @@ export async function startServer(o: {
       newer,
       fromRuntime: real(repoDir).startsWith(real(runtimeDir()) + path.sep),
       updatedFrom: process.env.NOTA_BENE_UPDATED_FROM,
+      pluginVersion: process.env.NOTA_BENE_PLUGIN_VERSION,
     });
     // gh-422: "Restart the server" while the agent works waits for the next pause (exit 75 then)
     const restart = restartGate({

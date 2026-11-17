@@ -113,7 +113,7 @@ describe('dropInheritedLauncherEnv', () => {
     expect(env).toEqual({ NOTA_BENE_LAUNCHER_PID: '100', NOTA_BENE_SUPERVISED: '1' });
   });
   it('drops env inherited from a window (a server started from a shell inside it)', () => {
-    const env: NodeJS.ProcessEnv = { NOTA_BENE_LAUNCHER_PID: '100', NOTA_BENE_SUPERVISED: '1', OTHER: 'x' };
+    const env: NodeJS.ProcessEnv = { NOTA_BENE_LAUNCHER_PID: '100', NOTA_BENE_SUPERVISED: '1', NOTA_BENE_PLUGIN_VERSION: '1.0.0', OTHER: 'x' };
     expect(dropInheritedLauncherEnv(env, 555)).toBe(true);
     expect(env).toEqual({ OTHER: 'x' });
   });

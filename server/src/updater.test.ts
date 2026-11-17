@@ -243,6 +243,15 @@ describe('updater', () => {
     expect((await make({ updatedFrom: 'junk' }).u.status()).updatedFrom).toBeUndefined();
   });
 
+  // issue 457: the window was opened by /nb from a Claude Code plugin older than the version now running
+  it('pluginVersion is reported only for an older release', async () => {
+    expect((await make({ pluginVersion: '1.6.0' }).u.status()).plugin).toBe('1.6.0');
+    expect((await make({ pluginVersion: '1.7.0' }).u.status()).plugin).toBeUndefined();
+    expect((await make({ pluginVersion: '1.8.0' }).u.status()).plugin).toBeUndefined();
+    expect((await make({ pluginVersion: 'junk' }).u.status()).plugin).toBeUndefined();
+    expect((await make({ version: 'v1.7.0-3-gabc123', pluginVersion: '1.6.0' }).u.status()).plugin).toBeUndefined();
+  });
+
   it('the log is the update log in the runtime folder', async () => {
     const { u } = make();
     expect((await u.status()).log).toBe(path.join(home, 'runtime', 'update.log'));

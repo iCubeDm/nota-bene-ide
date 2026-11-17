@@ -154,7 +154,7 @@ it('projects lists running and recent', async () => {
 });
 
 it('launchEnv drops the launch-state variables and keeps the rest', () => {
-  const env = launchEnv({ NOTA_BENE_HOME: '/h', NOTA_BENE_PORT_RANGE: '4791-4795', NOTA_BENE_SUPERVISED: '1', NOTA_BENE_LAUNCHER_PID: '1', NOTA_BENE_NONCE: 'n', NOTA_BENE_AGENT: 'codex', NOTA_BENE_INNER: '1', NOTA_BENE_LOCKED: '1', NOTA_BENE_AUTOPORT: '1', NOTA_BENE_HANDOVER: '1', NOTA_BENE_HANDOVER_NONCE: 'n', NOTA_BENE_UPDATED_FROM: '1.0.0', PATH: '/bin' });
+  const env = launchEnv({ NOTA_BENE_HOME: '/h', NOTA_BENE_PORT_RANGE: '4791-4795', NOTA_BENE_SUPERVISED: '1', NOTA_BENE_LAUNCHER_PID: '1', NOTA_BENE_NONCE: 'n', NOTA_BENE_AGENT: 'codex', NOTA_BENE_INNER: '1', NOTA_BENE_LOCKED: '1', NOTA_BENE_AUTOPORT: '1', NOTA_BENE_HANDOVER: '1', NOTA_BENE_HANDOVER_NONCE: 'n', NOTA_BENE_UPDATED_FROM: '1.0.0', NOTA_BENE_PLUGIN_VERSION: '1.0.0', PATH: '/bin' });
   expect(env).toEqual({ NOTA_BENE_HOME: '/h', NOTA_BENE_PORT_RANGE: '4791-4795', PATH: '/bin' });
 });
 

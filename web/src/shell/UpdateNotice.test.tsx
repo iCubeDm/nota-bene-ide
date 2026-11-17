@@ -236,6 +236,34 @@ it('Updated to shows once per window and version', async () => {
   expect(again.container).toBeEmptyDOMElement();
 });
 
+// issue 457: a window opened by /nb from a Claude Code plugin older than the version it now runs
+it('an outdated /nb plugin: the notice gives the update commands and goes away for that plugin version', async () => {
+  answer = { ...status, current: '2.0.1', latest: null, phase: 'none', canUpdate: true, plugin: '1.7.1' };
+  const { unmount } = render(<UpdateNotice />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Update the /nb plugin' }));
+  expect(screen.getByText(/plugin 1\.7\.1/)).toBeInTheDocument();
+  expect(screen.getByText(/claude plugin marketplace update nota-bene/)).toBeInTheDocument();
+  expect(screen.getByText(/claude plugin update nota-bene@nota-bene/)).toBeInTheDocument();
+  expect(screen.getByText(/restart Claude Code/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Got it' }));
+  expect(screen.queryByRole('button', { name: 'Update the /nb plugin' })).toBeNull();
+  unmount();
+  const again = render(<UpdateNotice />);
+  await vi.waitFor(() => expect(asks('/system/update')).toBeGreaterThanOrEqual(2));
+  expect(again.container).toBeEmptyDOMElement();
+  cleanup();
+  answer = { ...status, current: '2.1.0', latest: null, phase: 'none', canUpdate: true, plugin: '2.0.1' }; // a newer plugin, still behind
+  render(<UpdateNotice />);
+  expect(await screen.findByRole('button', { name: 'Update the /nb plugin' })).toBeInTheDocument();
+});
+
+it('an outdated /nb plugin shows beside a newer version on offer', async () => {
+  answer = { ...status, plugin: '1.1.0' };
+  render(<UpdateNotice />);
+  expect(await button()).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Update the /nb plugin' })).toBeInTheDocument();
+});
+
 it('after a handover the page reloads itself once it reconnects to the new version, when idle', async () => {
   answer = { ...status, latest: null, phase: 'none', canUpdate: true };
   act(() => void store.dispatch(connState('open')));

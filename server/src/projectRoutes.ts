@@ -29,7 +29,8 @@ const STILL_STARTING = 'still starting';
 const MAX_DIRS = 500;
 /** What a launcher this server started must not inherit: they describe this server's own launch. */
 const LAUNCH_STATE = ['NOTA_BENE_SUPERVISED', 'NOTA_BENE_LAUNCHER_PID', 'NOTA_BENE_NONCE', 'NOTA_BENE_AGENT', 'NOTA_BENE_INNER', 'NOTA_BENE_LOCKED',
-  'NOTA_BENE_AUTOPORT', 'NOTA_BENE_HANDOVER', 'NOTA_BENE_HANDOVER_NONCE', 'NOTA_BENE_UPDATED_FROM'];
+  'NOTA_BENE_AUTOPORT', 'NOTA_BENE_HANDOVER', 'NOTA_BENE_HANDOVER_NONCE', 'NOTA_BENE_UPDATED_FROM',
+  'NOTA_BENE_PLUGIN_VERSION']; // issue 457: a window opened from the projects rail was not opened by /nb
 const OPENED = /^(?:opened|already-open) (http:\/\/127\.0\.0\.1:\d+\/#t=[0-9a-f]{64})$/;
 
 export function launchEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
