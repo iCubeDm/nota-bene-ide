@@ -81,6 +81,16 @@ Node.js 22 or newer. Runs on macOS, Linux and Windows ([platforms](https://githu
 
 Then type `/nb` in a project (`/nb new` for a fresh session, `/nb fork` to carry the conversation over; `/nota-bene:nb` if another skill is called `nb`). The first `/nb` installs the npm package (about 330 MB) into the plugin's data folder.
 
+Claude Code does not update a third-party marketplace by itself, so turn auto-update on for this one: run `/plugin`, open **Marketplaces**, select **nota-bene** and choose **Enable auto-update**. Or set `"autoUpdate": true` on the `nota-bene` entry that `/plugin marketplace add` wrote under `extraKnownMarketplaces` in `~/.claude/settings.json`:
+
+```json
+"extraKnownMarketplaces": {
+  "nota-bene": { "source": { "source": "github", "repo": "iCubeDm/nota-bene-ide" }, "autoUpdate": true }
+}
+```
+
+Claude Code then updates the marketplace after the first message of a session, after a random delay of up to 10 minutes; `/reload-plugins` applies the update in the current session. `DISABLE_AUTOUPDATER`, `DISABLE_UPDATES` or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` turn this off (unless `FORCE_AUTOUPDATE_PLUGINS=1`).
+
 </details>
 
 <details>
@@ -147,6 +157,13 @@ An Android app (a prototype) drives your windows from a phone: chat, files, Git 
 ## Updating
 
 From 1.7.0 on, a window updates itself: the header shows `↑ <version>`, **Update** installs it and the window restarts in a pause with the same session; **Update automatically** does it for every release. See [Updates](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#updates).
+
+The window's update does not update the Claude Code plugin. An older plugin's `/nb` still opens the newest version, but a window it opened says **Update the /nb plugin** until you run the commands below (or turn on [auto-update](#install) for the marketplace):
+
+```sh
+claude plugin marketplace update nota-bene
+claude plugin update nota-bene@nota-bene       # then restart Claude Code
+```
 
 <details>
 <summary>Versions up to 1.6.0: update once by hand</summary>

@@ -62,7 +62,7 @@ describe('Tail', () => {
 
 describe('shellEnv', () => {
   it('drops the launcher variables and keeps the rest', () => {
-    const e = shellEnv({ PATH: '/usr/bin', HOME: '/h', NOTA_BENE_SUPERVISED: '1', NOTA_BENE_LAUNCHER_PID: '7', NOTA_BENE_LOCKED: '1', NOTA_BENE_AUTOPORT: '1', NOTA_BENE_HOME: '/state' });
+    const e = shellEnv({ PATH: '/usr/bin', HOME: '/h', NOTA_BENE_SUPERVISED: '1', NOTA_BENE_LAUNCHER_PID: '7', NOTA_BENE_LOCKED: '1', NOTA_BENE_AUTOPORT: '1', NOTA_BENE_PLUGIN_VERSION: '1.0.0', NOTA_BENE_HOME: '/state' });
     expect(e).toEqual({ PATH: '/usr/bin', HOME: '/h', NOTA_BENE_HOME: '/state' });
   });
   it('strips what npm leaked: the npm_* variables, INIT_CWD and npm’s PATH prefix', () => {

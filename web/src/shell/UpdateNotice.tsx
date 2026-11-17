@@ -29,6 +29,8 @@ type Status = {
   failed?: string;
   rolledBack?: string;
   updatedFrom?: string;
+  /** issue 457: the /nb Claude Code plugin version that opened this window, older than `current` */
+  plugin?: string;
 };
 
 /** The switch in Settings changed: the notice follows at once, not on the next focus. */
@@ -97,6 +99,41 @@ function UpdatedTo({ v, from, stale }: { v: string; from: string; stale: boolean
   );
 }
 
+/** issue 457: the commands that update the /nb plugin; Claude Code does not update a third-party marketplace by itself */
+const PLUGIN_UPDATE = 'claude plugin marketplace update nota-bene\nclaude plugin update nota-bene@nota-bene';
+
+/**
+ * Issue 457: the window was opened by /nb from a Claude Code plugin older than the version it now runs (an in-app update
+ * moved the window on, the plugin stayed). The popover gives the commands; Got it hides it until the next plugin version.
+ */
+function PluginOutdated({ plugin, current }: { plugin: string; current: string }) {
+  const t = useT();
+  const key = `nb.pluginSeen.${plugin}`;
+  const [gone, setGone] = useState(() => localStorage.getItem(key) !== null);
+  if (gone) return null;
+  const dismiss = () => {
+    localStorage.setItem(key, '1');
+    setGone(true);
+  };
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" id="pluginOutdatedBtn" className={chip}>{t('pluginOld')}</button>
+      </PopoverTrigger>
+      <PopoverContent aria-label={t('pluginOld')} collisionPadding={8} className={popoverStyle}>
+        <b className="text-[0.8125rem] font-semibold text-foreground">{t('pluginOld')}</b>
+        <span className="text-muted-foreground">{t('pluginOldWhy', plugin, current)}</span>
+        <code className="whitespace-pre rounded bg-muted px-2 py-1 font-mono text-[0.6875rem] text-foreground select-all">{PLUGIN_UPDATE}</code>
+        <span className="text-muted-foreground">{t('pluginOldRestart')}</span>
+        <span className="text-muted-foreground">{t('pluginOldAuto')}</span>
+        <span className="flex justify-end pt-1">
+          <button type="button" onClick={dismiss} className={quiet}>{t('pluginOldDismiss')}</button>
+        </span>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /**
  * The header's update notice. While a newer version is on npm: "↑ 1.3.0" (Update and the automatic switch where the
  * window can update, the npm command where it cannot; Later hides it until the next version). Then "Updating to…",
@@ -162,9 +199,15 @@ export function UpdateNotice() {
   }, [stale, idle, serverBusy]);
 
   if (!update) return null;
-  const updated = update.updatedFrom
-    ? <UpdatedTo key={update.current} v={update.current} from={update.updatedFrom} stale={stale} />
-    : stale ? <Reload v={update.current} /> : null;
+  const plugin = update.plugin ? <PluginOutdated key={update.plugin} plugin={update.plugin} current={update.current} /> : null;
+  const updated = (
+    <>
+      {plugin}
+      {update.updatedFrom
+        ? <UpdatedTo key={update.current} v={update.current} from={update.updatedFrom} stale={stale} />
+        : stale ? <Reload v={update.current} /> : null}
+    </>
+  );
   const install = () => {
     void post('/system/update/install')
       .then(async (r) => (r.ok ? ((await r.json()) as Status) : null))

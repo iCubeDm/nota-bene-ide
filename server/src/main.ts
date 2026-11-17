@@ -106,7 +106,18 @@ export function dropInheritedLauncherEnv(env: NodeJS.ProcessEnv, ppid: number): 
   delete env.NOTA_BENE_NONCE; // that launcher's launch, not ours
   delete env.NOTA_BENE_HANDOVER; // nobody would hand us over
   delete env.NOTA_BENE_UPDATED_FROM;
+  delete env.NOTA_BENE_PLUGIN_VERSION; // issue 457: that launcher's plugin, not ours
   return true;
+}
+
+/**
+ * Issue 457: the /nb plugin version the launcher passed (bin/nota-bene.mjs pluginOriginEnv; '' is "not a plugin's"), taken out of
+ * `env`: the agent and the `! cmd` runs spawned with this process's environment would otherwise pass it to a launcher they start.
+ */
+export function takePluginVersion(env: NodeJS.ProcessEnv): string | undefined {
+  const v = env.NOTA_BENE_PLUGIN_VERSION;
+  delete env.NOTA_BENE_PLUGIN_VERSION;
+  return v || undefined;
 }
 
 async function main(): Promise<void> {
@@ -126,6 +137,7 @@ async function main(): Promise<void> {
   // the launcher's launch nonce (public, but it stays out of the agent's and the `!` commands' environment all the same)
   const nonce = isNonce(process.env.NOTA_BENE_NONCE) ? process.env.NOTA_BENE_NONCE : undefined;
   delete process.env.NOTA_BENE_NONCE;
+  const pluginVersion = takePluginVersion(process.env);
   const webDist = fileURLToPath(new URL('../../web/dist', import.meta.url));
   let started: Awaited<ReturnType<typeof startServer>>;
   try {
@@ -138,6 +150,7 @@ async function main(): Promise<void> {
       allowedOrigins: args.allowOrigins,
       ...(!native && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),
       ...(nonce ? { nonce } : {}),
+      ...(pluginVersion ? { pluginVersion } : {}),
       audit: {},
       // only a launcher's window is in the registry the connector serves: one outside it (npm run dev, a test server) would
       // start a connector that finds no window and exits within a minute, again and again

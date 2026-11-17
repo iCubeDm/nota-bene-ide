@@ -13,7 +13,7 @@ import WS from 'ws';
 import { killTree, pidAlive } from '../server/src/platform.ts';
 import { shellEnv } from '../server/src/session/shellText.ts';
 // @ts-expect-error plain ESM, no types
-import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, ensureBuildAsync, handoverTarget, needsBuild, portFree, serverEnv } from './nota-bene.mjs';
+import { acquireLaunchLock, buildLock, candidatePorts, ensureBuild, ensureBuildAsync, handoverTarget, needsBuild, pluginOriginEnv, portFree, serverEnv } from './nota-bene.mjs';
 
 const BIN = fileURLToPath(new URL('./nota-bene.mjs', import.meta.url));
 const DEV_BIN = fileURLToPath(new URL('./nota-bene-dev.mjs', import.meta.url));
@@ -1064,6 +1064,36 @@ describe('a build lock of a dead owner (gh-275)', () => {
     } finally {
       fs.rmSync(lock, { recursive: true, force: true });
     }
+  });
+});
+
+// issue 457: the /nb plugin version that opened the window reaches its server, across a handover too
+describe('pluginOriginEnv', () => {
+  const parentNever = () => { throw new Error('asked the parent'); };
+  it('an outer launcher from a plugin install says its version; any other says none, over an inherited one', () => {
+    const env: Record<string, string> = {};
+    pluginOriginEnv(env, { inner: false, own: '1.7.1', parent: parentNever });
+    expect(env.NOTA_BENE_PLUGIN_VERSION).toBe('1.7.1');
+    pluginOriginEnv(env, { inner: false, own: null, parent: parentNever });
+    expect(env.NOTA_BENE_PLUGIN_VERSION).toBe('');
+  });
+  it('an inner launcher whose outer part said none does not look the parent up', () => {
+    const env: Record<string, string> = { NOTA_BENE_PLUGIN_VERSION: '' };
+    pluginOriginEnv(env, { inner: true, own: null, parent: parentNever });
+    expect(env.NOTA_BENE_PLUGIN_VERSION).toBe('');
+  });
+  it('an inner launcher keeps what its outer part passed on', () => {
+    const env: Record<string, string> = { NOTA_BENE_PLUGIN_VERSION: '2.0.1' };
+    pluginOriginEnv(env, { inner: true, own: null, parent: parentNever });
+    expect(env.NOTA_BENE_PLUGIN_VERSION).toBe('2.0.1');
+  });
+  it('an inner launcher under an outer part too old to pass it on asks that parent', () => {
+    const env: Record<string, string> = {};
+    pluginOriginEnv(env, { inner: true, own: null, parent: () => '1.7.1' });
+    expect(env.NOTA_BENE_PLUGIN_VERSION).toBe('1.7.1');
+    const none: Record<string, string> = {};
+    pluginOriginEnv(none, { inner: true, own: null, parent: () => null });
+    expect('NOTA_BENE_PLUGIN_VERSION' in none).toBe(false);
   });
 });
 

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STOP_MESSAGE, dropInheritedLauncherEnv, invocationCwd, launchTarget, parseArgs, stateLine, watchLauncher } from './main.ts';
+import { STOP_MESSAGE, dropInheritedLauncherEnv, invocationCwd, launchTarget, parseArgs, stateLine, takePluginVersion, watchLauncher } from './main.ts';
 import { saveSession } from './state.ts';
 
 const cwd = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-main-')));
@@ -106,6 +106,21 @@ describe('stateLine', () => {
   });
 });
 
+// issue 457: the server keeps the /nb plugin version for itself; the agent and `! cmd` runs it spawns do not inherit it
+describe('takePluginVersion', () => {
+  it('returns the version and takes it out of the environment', () => {
+    const env: NodeJS.ProcessEnv = { NOTA_BENE_PLUGIN_VERSION: '1.7.1', OTHER: 'x' };
+    expect(takePluginVersion(env)).toBe('1.7.1');
+    expect(env).toEqual({ OTHER: 'x' });
+  });
+  it('undefined when the launcher said none or nothing', () => {
+    const env: NodeJS.ProcessEnv = { NOTA_BENE_PLUGIN_VERSION: '' };
+    expect(takePluginVersion(env)).toBeUndefined();
+    expect(env).toEqual({});
+    expect(takePluginVersion({})).toBeUndefined();
+  });
+});
+
 describe('dropInheritedLauncherEnv', () => {
   it('keeps the launcher env when the launcher is our parent', () => {
     const env = { NOTA_BENE_LAUNCHER_PID: '100', NOTA_BENE_SUPERVISED: '1' };
@@ -113,7 +128,7 @@ describe('dropInheritedLauncherEnv', () => {
     expect(env).toEqual({ NOTA_BENE_LAUNCHER_PID: '100', NOTA_BENE_SUPERVISED: '1' });
   });
   it('drops env inherited from a window (a server started from a shell inside it)', () => {
-    const env: NodeJS.ProcessEnv = { NOTA_BENE_LAUNCHER_PID: '100', NOTA_BENE_SUPERVISED: '1', OTHER: 'x' };
+    const env: NodeJS.ProcessEnv = { NOTA_BENE_LAUNCHER_PID: '100', NOTA_BENE_SUPERVISED: '1', NOTA_BENE_PLUGIN_VERSION: '1.0.0', OTHER: 'x' };
     expect(dropInheritedLauncherEnv(env, 555)).toBe(true);
     expect(env).toEqual({ OTHER: 'x' });
   });

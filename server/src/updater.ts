@@ -25,6 +25,8 @@ export type UpdateStatus = {
   failed?: string;
   rolledBack?: string;
   updatedFrom?: string;
+  /** issue 457: the Claude Code plugin version that opened this window, when older than this one (the plugin needs an update) */
+  plugin?: string;
 };
 export type Updater = {
   status(): Promise<UpdateStatus>;
@@ -57,6 +59,8 @@ export function updater(o: {
   everyMs?: number;
   fromRuntime?: boolean;
   updatedFrom?: string;
+  /** issue 457: NOTA_BENE_PLUGIN_VERSION, the /nb plugin version whose launcher opened the window */
+  pluginVersion?: string;
 }): Updater {
   const install = o.install ?? installRelease;
   let own: Promise<string> | null = null;
@@ -95,6 +99,7 @@ export function updater(o: {
       ...(ok && st.failed && st.failed.version === latest ? { failed: st.failed.reason } : {}),
       ...(ok && st.rolledBack ? { rolledBack: st.rolledBack.version } : {}),
       ...(o.updatedFrom && RELEASE.test(o.updatedFrom) && RELEASE.test(v) && isNewer(v, o.updatedFrom) ? { updatedFrom: o.updatedFrom } : {}),
+      ...(o.pluginVersion && RELEASE.test(o.pluginVersion) && RELEASE.test(v) && isNewer(v, o.pluginVersion) ? { plugin: o.pluginVersion } : {}),
     };
   }
 

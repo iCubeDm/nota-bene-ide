@@ -49,6 +49,8 @@ Contents
 
 The window is a background task of the Claude Code session: its output is the window's log; it stops with the task, the session, or **Stop Nota Bene** (⏻). The first `/nb` after installing or updating the plugin installs the npm package (about 330 MB per plugin version) and takes a few minutes.
 
+Claude Code does not update the plugin by itself: turn on auto-update for the nota-bene marketplace (`/plugin` → **Marketplaces** → **nota-bene** → **Enable auto-update**, or `"autoUpdate": true` on its `extraKnownMarketplaces` entry in `~/.claude/settings.json`; see [Install](../README.md#install)). The update runs after the first message of a session, after a random delay of up to 10 minutes; `/reload-plugins` applies it in the current session. `DISABLE_AUTOUPDATER`, `DISABLE_UPDATES` or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` turn it off (unless `FORCE_AUTOUPDATE_PLUGINS=1`).
+
 ### From a terminal: `nota-bene`
 
 ```sh
@@ -520,6 +522,7 @@ An installed window checks npm (at most once a minute per machine, and on return
 - **Update automatically** (off by default, per machine) does this for every release.
 - A failed install, no answer in 20 s or an exit in the first minute rolls back and shows `runtime/update.log`.
 - Source checkouts never update; versions up to 1.6.0 update once by hand ([Updating](../README.md#updating)).
+- The Claude Code plugin is not part of this update. A window opened by `/nb` from an older plugin shows **Update the /nb plugin** with the commands (`claude plugin marketplace update nota-bene`, then `claude plugin update nota-bene@nota-bene`, then restart Claude Code); **Got it** hides it until the next plugin version. On Windows it shows only for plugins from this version on.
 
 Turn the check off in Settings → Defaults (per agent) or with `NOTA_BENE_NO_UPDATE_CHECK=1`.
 
@@ -716,6 +719,7 @@ Native, no WSL or Docker. Differences:
 
 - **`/nb` fails with an apostrophe in the path** (`/Users/o'brien`): use `npm i -g nota-bene-ide` and `nota-bene`.
 - **"cannot write to the plugin data dir ... sandbox mode"**: allow writes to that folder in Claude Code's sandbox settings, or turn the sandbox off for `/nb`.
+- **`/nb` fails with *Shell command permission check failed* on its `open.sh` or `open.mjs` command** (often with *the auto mode classifier gave no verdict*): Claude Code did not let the skill's own command through its pre-approval and auto mode had no answer. Run `/nb` again (a missing verdict is often brief); update the plugin (`claude plugin marketplace update nota-bene`, `claude plugin update nota-bene@nota-bene`, restart Claude Code), whose `/nb` pre-approves its exact command; or add an allow rule to `permissions.allow` in `~/.claude/settings.json` with the quoted path from the message, as written there: `Bash("<path>/skills/nb/open.sh" *)` for a plugin up to 1.8, `Bash(node "<path>/skills/nb/open.mjs" *)` from 1.9.
 - **"port N is in use"**: another `--port`, or none. "no free port": stop a window in Settings → Windows.
 - **`nota-bene . &` stops with its shell**: use `nota-bene . --detach`.
 - **"This window is not logged in"** (a bookmark, an old tab, after a crash relaunch): run `nota-bene` or `/nb` again, or `nota-bene --front PORT`; `--url PORT` prints a URL.
