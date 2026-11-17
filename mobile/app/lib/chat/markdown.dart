@@ -73,9 +73,11 @@ class _EmbedSyntax extends md.ImageSyntax {
     if (RegExp(r'^[a-z][a-z0-9+.-]*:', caseSensitive: false).hasMatch(src)) {
       return img;
     }
-    final tag = soundPath.hasMatch(src)
+    // classified by the path alone: `shot.png?v=2` is an image (issue 459)
+    final path = embedPath(src);
+    final tag = soundPath.hasMatch(path)
         ? 'nbaudio'
-        : switch (fileKindOf(src)) {
+        : switch (fileKindOf(path)) {
             FileKind.image => 'nbimage',
             FileKind.video => 'nbvideo',
             _ => null,

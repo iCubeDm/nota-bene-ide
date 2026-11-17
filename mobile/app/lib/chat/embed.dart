@@ -14,7 +14,7 @@ import 'window_tab.dart';
 /// The project file [src] (as the text wrote it) names in [root], relative to [base] (a folder of the project, `''`
 /// for its root), or null when it is none (outside the project included).
 String? embedFile(String root, String src, {String base = ''}) {
-  final p = decodedName(src);
+  final p = decodedName(embedPath(src));
   if (p.startsWith('/')) return projectPath(root, p);
   final out = <String>[];
   for (final seg in [...base.split('/'), ...p.split('/')]) {
@@ -28,6 +28,12 @@ String? embedFile(String root, String src, {String base = ''}) {
   }
   return projectPath(root, out.join('/'));
 }
+
+/// [src] without its `?query` or `#fragment` (`shot.png?v=2` is `shot.png`; issue 459).
+String embedPath(String src) => src.split(RegExp(r'[?#]')).first;
+
+/// The file name [src] shows: its last segment, decoded.
+String embedName(String src) => decodedName(embedPath(src).split('/').last);
 
 /// [s] with its `%xx` decoded, or as written when it is not valid.
 String decodedName(String s) {
@@ -71,25 +77,6 @@ class EmbedScope extends InheritedWidget {
 const embedMaxHeight = 240.0;
 const embedMaxWidth = 360.0;
 
-/// Whether [rel] of [tab]'s window can be read, asking for its first byte only (a video is not fetched to show its
-/// tile). Never throws.
-Future<FetchFail?> probeFile(WindowTab tab, String rel) async {
-  final ch = tab.link.channel;
-  if (ch == null) return FetchFail.unreadable;
-  try {
-    final r = await ch.httpStream(
-      tab.port,
-      'GET',
-      '/file?path=${Uri.encodeQueryComponent(rel)}',
-      headers: const {'range': 'bytes=0-0'},
-    );
-    r.cancel();
-    return r.status == 206 ? null : fetchFailOf(r.status);
-  } on Object {
-    return FetchFail.unreadable;
-  }
-}
-
 /// An image or a video of the project embedded in the text: an image as a preview (its aspect kept, at most
 /// [embedMaxHeight] tall), a video as a tile with a play mark and its name. A tap opens it full screen; a file that
 /// cannot be shown is a row saying why.
@@ -110,6 +97,9 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
   Future<Fetched>? _image;
   Future<FetchFail?>? _probe;
 
+  // the preview's hold on its read in the tab's cache: let go when it goes, which stops a read still under way
+  void Function()? _release;
+
   // a picture that came but does not decode
   bool _undecodable = false;
 
@@ -118,20 +108,36 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
     if (key == _key) return;
     _key = key;
     _undecodable = false;
-    // a file is read by each preview that shows it, as the tool lines' cards read theirs: it changes or goes
+    _release?.call();
+    _release = null;
+    final url = '/file?path=${Uri.encodeQueryComponent(rel)}';
     if (widget.video) {
-      _probe = probeFile(tab, rel);
+      // asked whether it is there; nothing of the video is read until it plays
+      _probe = headMedia(tab, url).then((h) => h.fail);
       _image = null;
     } else {
-      _image = cachedMedia(tab, '/file?path=${Uri.encodeQueryComponent(rel)}');
+      // kept in the tab, so a preview shown again is not read again; the viewer checks it is still the file
+      final h = tab.mediaCache.hold(
+        url,
+        (abandoned) =>
+            fetchMedia(tab, url, max: previewMaxBytes, abandoned: abandoned),
+      );
+      _release = h.release;
+      _image = h.got;
       _probe = null;
     }
   }
 
   @override
+  void dispose() {
+    _release?.call();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final (:tab, :rel) = embedTarget(context, widget.src);
-    final name = decodedName(widget.src.split('/').last);
+    final name = embedName(widget.src);
     if (tab == null) return _row(context, name, null);
     if (rel == null) return _row(context, name, FetchFail.outside);
     _read(tab, rel);
@@ -152,7 +158,14 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
         final got = s.data;
         if (got == null) return _loading(context);
         if (got.bytes == null || _undecodable) {
-          return _row(context, name, got.fail, undecodable: _undecodable);
+          return _row(
+            context,
+            name,
+            got.fail,
+            undecodable: _undecodable,
+            // too large to preview, not to view
+            onTap: got.fail == FetchFail.tooLarge ? open : null,
+          );
         }
         return _picture(context, name, got.bytes!, open);
       },
@@ -184,77 +197,89 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
     String name,
     Uint8List bytes,
     VoidCallback open,
-  ) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Semantics(
-      button: true,
-      label: name,
-      child: GestureDetector(
-        onTap: open,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: embedMaxWidth,
-              maxHeight: embedMaxHeight,
-            ),
-            // decoded no wider than drawn; a small picture stays its size
-            child: Image.memory(
-              bytes,
-              fit: BoxFit.contain,
-              cacheWidth:
-                  (embedMaxWidth * MediaQuery.devicePixelRatioOf(context))
-                      .round(),
-              gaplessPlayback: true,
-              errorBuilder: (_, _, _) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted && !_undecodable) {
-                    setState(() => _undecodable = true);
-                  }
-                });
-                return const SizedBox.shrink();
-              },
+  ) {
+    // decoded within the box it is drawn in, both ways: a long screenshot is not decoded whole (issue 459)
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Semantics(
+        button: true,
+        label: name,
+        child: GestureDetector(
+          onTap: open,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: embedMaxWidth,
+                maxHeight: embedMaxHeight,
+              ),
+              // decoded no wider than drawn; a small picture stays its size
+              child: Image(
+                image: ResizeImage(
+                  MemoryImage(bytes),
+                  width: (embedMaxWidth * dpr).round(),
+                  height: (embedMaxHeight * dpr).round(),
+                  policy: ResizeImagePolicy.fit,
+                ),
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted && !_undecodable) {
+                      setState(() => _undecodable = true);
+                    }
+                  });
+                  return const SizedBox.shrink();
+                },
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _videoTile(BuildContext context, String name, VoidCallback? open) {
     final c = Theme.of(context).extension<NbColors>()!;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: GestureDetector(
-        onTap: open,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            width: 240,
-            color: c.codeBg,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  height: 135,
-                  child: Center(
-                    child: Icon(Icons.play_arrow, size: 40, color: c.mutedFg),
+      child: Semantics(
+        key: const ValueKey('embed-video'),
+        button: true,
+        label: name,
+        excludeSemantics: true,
+        child: GestureDetector(
+          onTap: open,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: 240,
+              color: c.codeBg,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: 135,
+                    child: Center(
+                      child: Icon(Icons.play_arrow, size: 40, color: c.mutedFg),
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: c.mutedFg, fontSize: 12),
+                    ),
                   ),
-                  child: Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: c.mutedFg, fontSize: 12),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -268,6 +293,7 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
     String name,
     FetchFail? fail, {
     bool undecodable = false,
+    VoidCallback? onTap,
   }) {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
@@ -276,11 +302,12 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
         : switch (fail) {
             FetchFail.notFound => t.fileNotFound,
             FetchFail.outside => t.fileOutside,
-            FetchFail.tooLarge => t.imageTooLarge,
+            FetchFail.tooLarge =>
+              widget.video ? t.videoTooLarge : t.previewTooLarge,
             FetchFail.unreadable => t.fileUnreadable,
             null => null,
           };
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -310,5 +337,11 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
         ],
       ),
     );
+    return onTap == null
+        ? row
+        : Semantics(
+            button: true,
+            child: GestureDetector(onTap: onTap, child: row),
+          );
   }
 }

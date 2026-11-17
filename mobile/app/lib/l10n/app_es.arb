@@ -142,6 +142,8 @@
   "videoPlay": "Reproducir",
   "videoPause": "Pausa",
   "videoUnplayable": "No se pudo reproducir el vídeo. Inténtalo de nuevo cuando el host esté en línea.",
+  "previewTooLarge": "Demasiado grande para la vista previa. Toca para abrirla a pantalla completa.",
+  "videoTooLarge": "El vídeo es demasiado grande para el teléfono. Ábrelo en el ordenador.",
   "frameFailed": "No se pudo tomar el fotograma del vídeo. Inténtalo de nuevo.",
   "dictationDenied": "El acceso al micrófono está desactivado para Nota Bene",
   "voiceHold": "Mantén pulsado para grabar",

@@ -142,6 +142,8 @@
   "videoPlay": "Abspielen",
   "videoPause": "Pause",
   "videoUnplayable": "Das Video konnte nicht abgespielt werden. Versuche es erneut, wenn der Host online ist.",
+  "previewTooLarge": "Zu groß für die Vorschau. Tippe, um es im Vollbild zu öffnen.",
+  "videoTooLarge": "Das Video ist zu groß für das Telefon. Öffne es am Computer.",
   "frameFailed": "Das Frame konnte nicht aus dem Video genommen werden. Versuche es erneut.",
   "dictationDenied": "Der Mikrofonzugriff ist für Nota Bene deaktiviert",
   "voiceHold": "Zum Aufnehmen halten",

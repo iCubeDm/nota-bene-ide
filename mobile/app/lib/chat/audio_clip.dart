@@ -183,7 +183,7 @@ class _AudioClipState extends State<AudioClip> {
     final c = Theme.of(context).extension<NbColors>()!;
     final p = widget.player ?? VoicePlayer.shared;
     final (:tab, :rel) = embedTarget(context, widget.src);
-    final shownName = decodedName(widget.src.split('/').last);
+    final shownName = embedName(widget.src);
     final id = tab == null || rel == null
         ? null
         : 'clip|${tab.link.host.id}|${tab.port}|$rel';
