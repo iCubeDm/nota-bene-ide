@@ -92,7 +92,7 @@ it('shows context, 5h and week in the same order for both provider formats', () 
   ] });
   expect(labels()).toEqual(['context 42%', '5h 30%', 'week 10%']);
   act(() => setLang('ru'));
-  expect(labels()).toEqual(['контекст 42%', '5ч 30%', 'неделя 10%']);
+  expect(labels()).toEqual(['контекст 42\u00a0%', '5ч 30\u00a0%', 'неделя 10\u00a0%']);
 });
 
 it('keeps nonstandard and unknown native windows after standard windows, including zero usage', () => {
@@ -111,7 +111,7 @@ it('labels follow the language', () => {
   stats({ ...none, context: ctx(10) });
   expect(screen.getByRole('meter')).toHaveAttribute('aria-label', 'context 10%');
   act(() => setLang('ru'));
-  expect(screen.getByRole('meter')).toHaveAttribute('aria-label', 'контекст 10%');
+  expect(screen.getByRole('meter')).toHaveAttribute('aria-label', 'контекст 10\u00a0%');
 });
 
 it('the meters sit in the composer tools row, left of the compact and clear buttons (prototype footer)', async () => {

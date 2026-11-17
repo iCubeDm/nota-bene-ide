@@ -4,13 +4,12 @@
 // clear send what the desktop's do, under the same conditions (web/src/controls/CompactClear.tsx): off while the agent
 // works, absent when the agent cannot.
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
-import '../usage/format.dart' show fmtTokens;
+import '../usage/format.dart' show fmtTokens, money;
 import '../usage/usage_screen.dart';
 import '../comments/strings.g.dart';
 import 'window_sheet.dart';
@@ -129,10 +128,7 @@ class ContextSheet extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      NumberFormat.simpleCurrency(
-                        locale: lang,
-                        name: 'USD',
-                      ).format(cost),
+                      money(cost * 100, 'USD', lang),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,

@@ -3,7 +3,7 @@ import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, typ
 import { useAppSelector } from '@/store/store.ts';
 import { getLang, useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
-import { compact, compactParts, money, num } from '@/lib/format.ts';
+import { compact, compactParts, money, num, percent } from '@/lib/format.ts';
 
 const POLL_MS = 2000;
 const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, WEEKS_SHOWN = 16, WINDOWS_SHOWN = 32, TANKS_SHOWN = 8;
@@ -13,9 +13,9 @@ const PERIOD_KEY = { trip: 'usagePeriodTrip', '7d': 'usagePeriod7d', '30d': 'usa
 const MODEL_COLOR = ['bg-primary', 'bg-nb-accent'];
 const REST_COLOR = 'bg-muted-foreground';
 
-export const pct = (a: number, b: number): string => (b > 0 ? `${Math.round(a / b * 100)}%` : '0%');
+export const pct = (a: number, b: number): string => percent(b > 0 ? a / b : 0);
 /** A part of the whole: a tiny one never reads as nothing. */
-export const part = (a: number, b: number): string => (a / b < 0.01 ? '<1%' : pct(a, b));
+export const part = (a: number, b: number): string => (a / b < 0.01 ? `<${percent(0.01)}` : pct(a, b));
 const when = (ts: number): string => new Date(ts).toLocaleString(getLang(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const shortTime = (ts: number): string => new Date(ts).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
 /** A week's Monday, `plus` days on. */

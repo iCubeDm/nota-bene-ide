@@ -1,6 +1,6 @@
 import type { Limit } from '@nota-bene/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { compact, money } from '@/lib/format.ts';
+import { compact, money, percent } from '@/lib/format.ts';
 import { getLang, useT } from '@/i18n/index.ts';
 import { selectCapabilitiesKnown } from '@/controls/slice.ts';
 import { useAppSelector } from '@/store/store.ts';
@@ -20,7 +20,7 @@ function Meter({ label, pct, tip }: { label: string; pct: number; tip: string })
         <span
           role="meter"
           tabIndex={0}
-          aria-label={`${label} ${shown}%`}
+          aria-label={`${label} ${percent(shown / 100)}`}
           aria-valuenow={shown}
           aria-valuemin={0}
           aria-valuemax={100}
@@ -31,7 +31,7 @@ function Meter({ label, pct, tip }: { label: string; pct: number; tip: string })
           <span className="block h-1 w-11 overflow-hidden rounded-sm outline outline-1 outline-meter-line bg-meter-track">
             <i className={`block h-full ${FILL[level]}`} style={{ width: `${Math.min(100, pct)}%` }} />
           </span>
-          {shown}%
+          {percent(shown / 100)}
         </span>
       </TooltipTrigger>
       <TooltipContent>{tip}</TooltipContent>

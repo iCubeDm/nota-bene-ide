@@ -205,7 +205,7 @@ void main() {
       await t.tap(find.text('zeta.txt'));
       await t.pumpAndSettle();
       expect(find.byType(CodeScreen), findsNothing);
-      expect(find.textContaining('binary file, 3 B'), findsOneWidget);
+      expect(find.textContaining('binary file, 3 byte'), findsOneWidget);
     });
 
     testWidgets('an empty file is an empty text, not an error', (t) async {
@@ -235,7 +235,7 @@ void main() {
       );
       await t.tap(find.text('zeta.txt'));
       await t.pumpAndSettle();
-      expect(find.textContaining('5.0 MB'), findsOneWidget);
+      expect(find.textContaining('5.2 MB'), findsOneWidget);
     });
 
     testWidgets('a failed folder says so and Retry asks again', (t) async {

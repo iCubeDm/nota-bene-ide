@@ -7,10 +7,10 @@ import { MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-be
 import { Button } from '@/components/ui/button.tsx';
 import { apiFetch } from '@/net/auth.ts';
 import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
-import { byteSize } from '@/lib/format.ts';
+import { byteSize, percent } from '@/lib/format.ts';
 import { getLang, chooseLang, LANGS, t as tNow, useT, type Lang } from '@/i18n/index.ts';
 import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
-import { scaleLabel, uiScale, useUiScale } from '@/shell/uiScale.ts';
+import { uiScale, useUiScale } from '@/shell/uiScale.ts';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '@/shell/theme.ts';
 import { playCue, type Sounds } from '@/shell/sounds.ts';
 import { folderName, shortWinHome } from '@/lib/paths.ts';
@@ -306,7 +306,7 @@ export function SettingsView({ active }: { active: boolean }) {
         <Row label={t('defScale')}>
           <select aria-label={t('defScale')} value={scale} onChange={(e) => uiScale.choose(Number(e.target.value) as UiScale)}
             className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[0.8125rem] text-foreground">
-            {UI_SCALES.map((v) => <option key={v} value={v}>{scaleLabel(v, getLang())}</option>)}
+            {UI_SCALES.map((v) => <option key={v} value={v}>{percent(v)}</option>)}
           </select>
         </Row>
         <Row label={t('defMode')}>

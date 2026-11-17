@@ -9,8 +9,9 @@ import { activate, closeTab, reopenClosed } from '@/tabs/slice.ts';
 import { toggleDrawer } from '@/tasks/slice.ts';
 import { revealFile, setTreeOpen } from '@/tree/slice.ts';
 import { editable } from '@/lib/editable.ts';
-import { getLang, t } from '@/i18n/index.ts';
-import { scaleLabel, uiScale } from './uiScale.ts';
+import { t } from '@/i18n/index.ts';
+import { uiScale } from './uiScale.ts';
+import { percent } from '@/lib/format.ts';
 import { toast } from './toast.ts';
 
 /**
@@ -61,7 +62,7 @@ const step = (store: AppStore, by: number) => {
   return open[(i + by + open.length) % open.length]?.id;
 };
 /** a key changed the scale: say where it is now (there is no other sign of the step on screen) */
-const scaled = (v: number) => toast(t('defScale'), scaleLabel(v, getLang()));
+const scaled = (v: number) => toast(t('defScale'), percent(v));
 const focusComposer = () => (document.getElementById('composer-input') as HTMLTextAreaElement | null)?.focus();
 
 export const BINDINGS: Binding[] = [

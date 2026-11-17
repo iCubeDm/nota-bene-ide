@@ -66,6 +66,20 @@ it('the settings menu\'s Usage row opens one Usage tab', async () => {
   expect(gets[0]).toBe('/usage?provider=claude&period=trip');
 });
 
+it('the trip meter: digits on wheels, the fraction lit, separators and the unit in the language (issue 469)', async () => {
+  const wheels = (name: string) => [...screen.getByRole('img', { name }).children].map((c) => [c.textContent, c.className.includes('bg-primary')]);
+  reply = () => ({ ...REPORT, total: { ...REPORT.total, w: 2_500_000 } });
+  setup();
+  await screen.findByText('Review the parser');
+  expect(wheels('2.5M')).toEqual([['2', false], ['.', false], ['5', true]]);
+  expect(screen.getByText('M')).toBeTruthy();
+  cleanup();
+  setLang('de');
+  reply = () => ({ ...REPORT, total: { ...REPORT.total, w: 45_678 } });
+  setup();
+  await waitFor(() => expect(wheels('45.678')).toEqual([['4', false], ['5', false], ['.', false], ['6', false], ['7', false], ['8', false]]));
+});
+
 it('shows the meter, the model mix, the hits and the tank', async () => {
   setup();
   await screen.findByText('Review the parser');

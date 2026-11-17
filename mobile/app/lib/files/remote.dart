@@ -120,10 +120,3 @@ Future<FileRead> readTextFile(WindowTab tab, String path) async {
   if (bad > 8 && bad * 100 > text.length) return FileBinary(size);
   return FileText(text);
 }
-
-/// A size for a person: `812 B`, `3.4 KB`, `12 MB`.
-String sizeText(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
-}

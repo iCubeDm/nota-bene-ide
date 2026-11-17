@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../chat/code_screen.dart';
 import '../chat/window_tab.dart';
 import '../l10n/app_localizations.dart';
+import '../usage/format.dart' show byteSize;
 import 'remote.dart';
 
 /// highlight.js on a file of 200 kB or more freezes the screen (the desktop's HIGHLIGHT_MAX)
@@ -61,6 +62,7 @@ class _TextFileScreenState extends State<TextFileScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
+    final lang = Localizations.localeOf(context).languageCode;
     final name = widget.path.split('/').last;
     final read = _read;
     if (read is FileText) {
@@ -79,11 +81,11 @@ class _TextFileScreenState extends State<TextFileScreen> {
           padding: const EdgeInsets.all(24),
           child: switch ((read, _error)) {
             (FileBinary(:final size), _) => Text(
-              t.fileBinary(sizeText(size)),
+              t.fileBinary(byteSize(size, lang)),
               textAlign: TextAlign.center,
             ),
             (FileTooLarge(:final size), _) => Text(
-              t.fileTooLargeSize(sizeText(size)),
+              t.fileTooLargeSize(byteSize(size, lang)),
               textAlign: TextAlign.center,
             ),
             (_, final FilesError e) => ErrorRetry(

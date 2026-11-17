@@ -1195,7 +1195,7 @@ for (const [file, name] of [['models/cube.glb', 'a .glb with an animation clip']
     await openFromTree(page, file);
     const pane = modelPane(page, file);
     await expect(pane).toHaveAttribute('data-model-ready', 'true');
-    await expect(pane.locator('[data-model-info]')).toContainText(/KB · 1 mesh · 12 triangles · 1 material · 1 animation$/);
+    await expect(pane.locator('[data-model-info]')).toContainText(/kB · 1 mesh · 12 triangles · 1 material · 1 animation$/);
     if (file.endsWith('.gltf')) expect(served).toEqual(expect.arrayContaining(['models/ext/box.gltf', 'models/ext/box.bin', 'models/ext/tex.png']));
 
     // the canvas is drawn: more than one flat colour, and the model covers a real part of it
