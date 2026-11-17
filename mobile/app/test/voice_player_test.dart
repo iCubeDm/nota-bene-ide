@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/voice/player.dart';
 import 'package:nb_app/voice/recorder.dart';
@@ -117,5 +117,76 @@ void main() {
     await p.toggle('a', load);
     expect(native.calls, isEmpty);
     expect(p.id, isNull);
+  });
+
+  test(
+    'a sound plays from the file it opens each start, and keeps its length',
+    () async {
+      var opened = 0;
+      Future<String?> open(Future<void> abandoned) async {
+        opened++;
+        return '/cache/clips/x.mp3';
+      }
+
+      native.answer = (c) => c.method == 'play' ? 61000 : null;
+      expect(p.lengthOf('s'), isNull);
+      await p.toggleSound('s', open);
+      expect(native.calls.single.arguments, {
+        'path': '/cache/clips/x.mp3',
+        'from': 0,
+        'music': true,
+      });
+      expect(files.saved, isEmpty);
+      expect(p.lengthOf('s'), const Duration(seconds: 61));
+      // paused and resumed: the same file; played to its end and again: opened again (it may have changed)
+      await p.toggleSound('s', open);
+      await p.toggleSound('s', open);
+      expect(opened, 1);
+      await native.call('done');
+      await p.toggleSound('s', open);
+      expect(opened, 2);
+      expect(p.lengthOf('s'), const Duration(seconds: 61));
+    },
+  );
+
+  test('a sound with no file is not playing', () async {
+    await p.toggleSound('s', (_) async => null);
+    expect(native.calls, isEmpty);
+    expect(p.id, isNull);
+  });
+
+  test('a sound left while it opens is told so and reported as left', () async {
+    final gate = Completer<String?>();
+    var left = false;
+    final a = p.toggleSound('a', (abandoned) {
+      abandoned.then((_) => left = true);
+      return gate.future;
+    });
+    final b = await p.toggleSound('b', (_) async => '/cache/clips/b.mp3');
+    await Future<void>.delayed(Duration.zero);
+    expect(left, isTrue);
+    gate.complete('/cache/clips/a.mp3');
+    expect(await a, SoundStart.left);
+    expect(b, SoundStart.playing);
+    expect(native.names, ['stop', 'play']);
+    expect(p.isCurrent('b'), isTrue);
+  });
+
+  test('a start says why a sound does not play', () async {
+    expect(await p.toggleSound('a', (_) async => null), SoundStart.noFile);
+    native.answer = (c) =>
+        c.method == 'play' ? throw PlatformException(code: 'failed') : null;
+    expect(
+      await p.toggleSound('a', (_) async => '/cache/clips/a.ogg'),
+      SoundStart.unplayable,
+    );
+    expect(p.id, isNull);
+  });
+
+  test('a clip plays as music, a voice as speech', () async {
+    await p.toggleSound('s', (_) async => '/cache/clips/s.mp3');
+    expect((native.calls.last.arguments as Map)['music'], isTrue);
+    await p.toggle('v', load);
+    expect((native.calls.last.arguments as Map).containsKey('music'), isFalse);
   });
 }
