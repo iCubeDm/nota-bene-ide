@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react';
 import type { ImageEntry } from '@/composer/slice.ts';
 import { t } from '@/i18n/index.ts';
+import { uploadFile } from './file.ts';
 import { prepareImage, uploadImage } from './image.ts';
 import type { PendingThumb } from './Attachments.tsx';
 
@@ -8,10 +9,14 @@ const isImage = (f: File) => f.type.startsWith('image/');
 export const hasFiles = (e: { dataTransfer: DataTransfer | null }): boolean => [...(e.dataTransfer?.types ?? [])].includes('Files');
 
 /**
- * Paste / drop / pick → prepare → upload at once. Pending uploads are local (object URL thumbnails); a finished one goes
- * to `onUploaded`. `notify` gets onlyImages / imgFail. `onBusy(±1)` lets the owner block its send while uploads run.
+ * Paste / drop / pick → prepare → upload at once. Pending uploads are local (object URL thumbnails, a name chip for a
+ * file); a finished image goes to `onUploaded`. Any other file (issue 461) is streamed into the project's `attachments/`
+ * and its path goes to `onFilePath`. `notify` gets imgFail / fileFail. `onBusy(±1)` lets the owner block its send while
+ * uploads run.
  */
-export function useImageIntake(o: { onUploaded: (e: ImageEntry) => void; notify: (msg: string) => void; onBusy?: (d: 1 | -1) => void }) {
+export function useImageIntake(o: {
+  onUploaded: (e: ImageEntry) => void; onFilePath: (path: string) => void; notify: (msg: string) => void; onBusy?: (d: 1 | -1) => void;
+}) {
   const [pending, setPending] = useState<PendingThumb[]>([]);
   const urls = useRef(new Set<string>());
   const live = useRef(o);
@@ -23,24 +28,24 @@ export function useImageIntake(o: { onUploaded: (e: ImageEntry) => void; notify:
 
   const add = useCallback((files: Iterable<File>): boolean => {
     const all = [...files];
-    const imgs = all.filter(isImage);
-    if (!imgs.length) {
-      if (all.length) live.current.notify(t('onlyImages'));
-      return false;
-    }
-    for (const f of imgs) {
-      const thumb = { key: crypto.randomUUID(), url: URL.createObjectURL(f) };
-      urls.current.add(thumb.url);
+    if (!all.length) return false;
+    for (const f of all) {
+      const image = isImage(f);
+      const thumb: PendingThumb = image ? { key: crypto.randomUUID(), url: URL.createObjectURL(f) } : { key: crypto.randomUUID(), name: f.name };
+      if (thumb.url) urls.current.add(thumb.url);
       setPending((p) => [...p, thumb]);
       live.current.onBusy?.(1);
       void (async () => {
         try {
-          live.current.onUploaded(await uploadImage(await prepareImage(f)));
+          if (image) live.current.onUploaded(await uploadImage(await prepareImage(f)));
+          else live.current.onFilePath(await uploadFile(f));
         } catch {
-          live.current.notify(t('imgFail'));
+          live.current.notify(image ? t('imgFail') : t('fileFail', f.name));
         } finally {
-          urls.current.delete(thumb.url);
-          URL.revokeObjectURL(thumb.url);
+          if (thumb.url) {
+            urls.current.delete(thumb.url);
+            URL.revokeObjectURL(thumb.url);
+          }
           setPending((p) => p.filter((x) => x.key !== thumb.key));
           live.current.onBusy?.(-1);
         }

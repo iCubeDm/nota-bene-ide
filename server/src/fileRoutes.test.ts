@@ -142,6 +142,14 @@ describe('/file', () => {
     expect((await req('GET', '/file?path=pic.png')).headers['content-type']).toBe('image/png');
     expect((await req('GET', '/file?path=' + encodeURIComponent('Отчёт #1.md'))).body).toBe('ru');
   });
+  it('download=1 asks the browser to save it under its name (issue 461); without it, nothing changes', async () => {
+    const r = await req('GET', '/file?path=' + encodeURIComponent('Отчёт #1.md') + '&download=1');
+    expect(r.status).toBe(200);
+    expect(r.headers['content-disposition']).toBe(`attachment; filename="_____ _1.md"; filename*=UTF-8''${encodeURIComponent('Отчёт #1.md')}`);
+    expect((await req('GET', '/file?path=hello.md')).headers['content-disposition']).toBeUndefined();
+    expect((await req('HEAD', '/file?path=hello.md&download=1')).headers['content-disposition']).toBe(`attachment; filename="hello.md"; filename*=UTF-8''hello.md`);
+  });
+
   it('a directory is 404', async () => {
     expect((await req('GET', '/file?path=sub')).status).toBe(404);
   });

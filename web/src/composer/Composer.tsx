@@ -20,7 +20,9 @@ import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
 import { CtxNudge } from '@/stats/CtxNudge.tsx';
 import { ComposerAttachments } from '@/attachments/ComposerAttachments.tsx';
+import { insertPaths } from '@/attachments/file.ts';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
+import { draggedPaths } from '@/files/drag.ts';
 import { addImage, removeImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { BINDINGS, keysLabel, modKey, VOICE_KEY, withKey } from '@/shell/keymap.ts';
@@ -103,7 +105,7 @@ export function Composer() {
   const micBox = useRef<HTMLSpanElement>(null);
   useEffect(() => { if (whisper) setSetup(false); }, [whisper]);
   const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  // the same status spot as "offline": a short-lived note (onlyImages / imgFail)
+  // the same status spot as "offline": a short-lived note (imgFail / fileFail)
   const flash = (msg: string) => {
     setNote(msg);
     clearTimeout(noteTimer.current);
@@ -178,6 +180,8 @@ export function Composer() {
   };
   const intake = useImageIntake({
     onUploaded: (im) => void dispatch(addImage(im)),
+    // any other file (issue 461): its path in the project's attachments/, at the caret
+    onFilePath: (p) => { if (ref.current) insertPaths(ref.current, [p]); },
     notify: flash,
     onBusy: (d) => void dispatch(d > 0 ? uploadStarted() : uploadFinished()),
   });
@@ -352,8 +356,26 @@ export function Composer() {
     submit(force);
   };
 
+  // files dragged from the Files tree (issue 461): their paths at the caret
+  const treeOver = (e: React.DragEvent) => {
+    if (!draggedPaths(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDropping(true);
+  };
+  const treeDrop = (e: React.DragEvent) => {
+    const paths = draggedPaths(e.dataTransfer);
+    if (!paths) return;
+    e.preventDefault();
+    setDropping(false);
+    if (ref.current) {
+      insertPaths(ref.current, paths);
+      ref.current.focus({ preventScroll: true });
+    }
+  };
+
   return (
-    <div>
+    <div onDragOver={treeOver} onDrop={treeDrop}>
       <div className="flex min-h-0 items-center gap-2.5 pt-2 text-xs text-muted-foreground">
         {busy && (
           <>
@@ -465,7 +487,6 @@ export function Composer() {
         <input
           ref={fileIn}
           type="file"
-          accept="image/*"
           multiple
           hidden
           data-testid="file-input"

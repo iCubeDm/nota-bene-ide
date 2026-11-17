@@ -1,6 +1,7 @@
 import type { TreeEntry } from '@nota-bene/shared';
 import { isEditMedia } from '@/cut/assemble.ts';
 import { PATH_MIME } from '@/cut/drag.ts';
+import { downloadUrl, PATHS_MIME } from '@/files/drag.ts';
 import { openFile } from '@/tabs/slice.ts';
 import { Svg } from '@/tabs/TabStrip.tsx';
 import { FileIcon } from '../FileIcon.tsx';
@@ -43,11 +44,20 @@ export function renderDir(c: RowsCtx, dir: string, depth: number): React.ReactNo
     const n = counts[fileKey(p, ref)] ?? 0;
     // a video, sound or photo of this folder drags onto an edit's timeline (issue 409)
     const media = src === 'here' && isEditMedia(p);
+    // issue 461: every file drags: its path (with the rest of the selection) onto the composer, and out of the browser as a
+    // download (Chrome/Edge DownloadURL, the cookie-tier /file: no token or key in it)
+    const dragStart = (ev: React.DragEvent) => {
+      const dt = ev.dataTransfer;
+      if (media) dt.setData(PATH_MIME, p);
+      if (src === 'here') dt.setData(PATHS_MIME, JSON.stringify(c.sel.includes(p) ? c.sel : [p]));
+      dt.setData('DownloadURL', downloadUrl(p, src));
+      dt.setData('text/plain', p);
+      dt.effectAllowed = 'copy';
+    };
     return (
       <button key={p} type="button" data-path={p} data-file data-selected={c.sel.includes(p) || undefined} style={pad}
         onClick={(ev) => c.onPick(p, { add: ev.metaKey || ev.ctrlKey, range: ev.shiftKey })}
-        draggable={media || undefined}
-        onDragStart={media ? (e) => { e.dataTransfer.setData(PATH_MIME, p); e.dataTransfer.setData('text/plain', p); e.dataTransfer.effectAllowed = 'copy'; } : undefined}
+        draggable onDragStart={dragStart}
         className={`flex h-6 w-full items-center gap-1.5 rounded pr-2 text-left text-xs hover:bg-muted/50 hover:text-foreground${dot} ${activePath === p ? 'bg-primary/15 text-foreground' : 'text-foreground/85'} data-[selected]:ring-1 data-[selected]:ring-inset data-[selected]:ring-primary/45`}>
         <span className="w-3 flex-none" />
         <FileIcon path={e.name} />

@@ -18,6 +18,7 @@ import { CommentStore } from './comments.ts';
 import { PromptStore, promptRoutes } from './prompts.ts';
 import { EventHub } from './hub.ts';
 import { complete, fileRoutes } from './fileRoutes.ts';
+import { osFileRoutes } from './osFiles.ts';
 import { tmpDirNames } from './tmpImage.ts';
 import { BlendConverter } from './blend.ts';
 import { readPrefs } from './prefs.ts';
@@ -333,6 +334,8 @@ export async function startServer(o: {
           selfBusy: () => manager.busy(), ...(audit ? { audit: (ev, f) => audit.write(ev, f) } : {}),
         }),
         ...attachmentRoutes(attachments, hub),
+        // issue 461: any file into the project's attachments/, and Show in Finder / Open (this machine's page only)
+        ...osFileRoutes({ root, hub }),
         ...voiceRoutes({ hub, store: attachments }),
         // the project folder's picture, set from the phone (protocol 15)
         ...projectIconRoutes({ store: projectIcons, root, hub }),

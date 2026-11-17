@@ -29,7 +29,8 @@ export function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-export type PendingThumb = { key: string; url: string };
+/** an upload in flight: an image's object URL thumbnail, or a file's name (issue 461) */
+export type PendingThumb = { key: string; url?: string; name?: string };
 
 /**
  * A strip of thumbnails. `ids` are the uploaded images (lazy `/attach/<id>`), `pending` are uploads in flight (object URLs,
@@ -91,8 +92,9 @@ export function Attachments({ ids, pending = [], onRemove, onMark, counts, ...re
           )}
         </div>
       ))}
-      {pending.map((p) => (
-        <img key={p.key} src={p.url} alt="" data-pending className="size-14 animate-pulse rounded-md border border-border-soft object-cover opacity-50" />
+      {pending.map((p) => (p.url !== undefined
+        ? <img key={p.key} src={p.url} alt="" data-pending className="size-14 animate-pulse rounded-md border border-border-soft object-cover opacity-50" />
+        : <span key={p.key} data-pending-file title={p.name} className="flex h-14 max-w-48 animate-pulse items-center truncate rounded-md border border-border-soft px-2 text-xs text-muted-foreground">{p.name}</span>
       ))}
       {open && <Lightbox id={open} onClose={() => setOpen(null)} />}
     </div>

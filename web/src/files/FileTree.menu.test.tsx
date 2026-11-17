@@ -8,6 +8,7 @@ import { makeStore } from '@/store/store.ts';
 import { setTreeOpen } from '@/tree/slice.ts';
 import { selectTabs } from '@/tabs/slice.ts';
 import { registerEditTarget, touchEditTarget } from '@/cut/targets.ts';
+import { getToasts, resetToasts } from '@/shell/toast.ts';
 import { FileTree } from './FileTree.tsx';
 
 // the browser reads a source's length from its metadata; jsdom has no media
@@ -17,6 +18,10 @@ vi.mock('@/cut/durations.ts', () => ({
   srcLength: async (url: string) => (url.includes('slow') ? gate.then(() => 2) : url.includes('long') ? 12 : 3),
   srcSize: async (url: string) => (url.includes('a.mp4') ? { width: 1280, height: 720 } : null),
 }));
+
+// the page's own host: jsdom's is localhost; a test flips it to a page reached through a relay
+const localPage = vi.hoisted(() => ({ on: true }));
+vi.mock('@/net/local.ts', () => ({ isLocalPage: () => localPage.on }));
 
 let fs: Record<string, TreeEntry[]>;
 let posts: { url: string; body: unknown }[];
@@ -165,4 +170,69 @@ it('the selection lets go of files the filter hides or that are gone', async () 
   await waitFor(() => expect(selected()).toEqual(['media/long.wav']));
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
   expect(selected()).toEqual(['media/long.wav']);
+});
+
+// issue 461: Download everywhere; Show in Finder and Open only on the computer the window runs on
+const platformWas = navigator.platform;
+const onPlatform = (p: string) => {
+  Object.defineProperty(navigator, 'platform', { value: p, configurable: true });
+  undo.push(() => Object.defineProperty(navigator, 'platform', { value: platformWas, configurable: true }));
+};
+
+it('Show in Finder and Open post the row to the server; a refused Open says why', async () => {
+  resetToasts();
+  onPlatform('MacIntel');
+  await setup();
+  const answers: Record<string, Response> = { '/os/open': new Response(JSON.stringify({ error: 'refused' }), { status: 403 }) };
+  const base = fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST' && url.startsWith('/os/')) {
+      posts.push({ url, body: JSON.parse(String(init.body)) });
+      return answers[url] ?? new Response('{"ok":true}', { status: 200 });
+    }
+    return base(url, init);
+  }));
+  menu('readme.txt');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Show in Finder' }));
+  await waitFor(() => expect(posts).toEqual([{ url: '/os/reveal', body: { path: 'media/readme.txt' } }]));
+  menu('readme.txt');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Open in default app' }));
+  await waitFor(() => expect(getToasts().at(-1)).toMatchObject({ title: 'Could not open readme.txt', msg: expect.stringMatching(/^Programs and scripts are not opened from here/) }));
+  expect(posts[1]).toEqual({ url: '/os/open', body: { path: 'media/readme.txt' } });
+});
+
+it.each([['Win32', 'Show in Explorer'], ['Linux x86_64', 'Open containing folder']])('the reveal item is named for the system: %s', async (platform, name) => {
+  onPlatform(platform);
+  await setup();
+  menu('readme.txt');
+  expect(screen.getByRole('menuitem', { name })).toBeInTheDocument();
+});
+
+it('Download saves each picked file through /file (cookie only: no token or key in the link)', async () => {
+  await setup();
+  const links: { href: string; download: string }[] = [];
+  const spy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    links.push({ href: this.getAttribute('href')!, download: this.download });
+  });
+  undo.push(() => spy.mockRestore());
+  fireEvent.click(row('readme.txt'), { metaKey: true });
+  fireEvent.click(row('b.png'), { metaKey: true });
+  menu('b.png');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Download' }));
+  expect(links).toEqual([
+    { href: '/file?path=media%2Freadme.txt&download=1', download: 'readme.txt' },
+    { href: '/file?path=media%2Fb.png&download=1', download: 'b.png' },
+  ]);
+  expect(document.querySelectorAll('a[download]')).toHaveLength(0); // each link is gone again
+});
+
+it('a page not on this computer (through a relay) has Download but no Show in Finder or Open', async () => {
+  localPage.on = false;
+  undo.push(() => void (localPage.on = true));
+  onPlatform('MacIntel');
+  await setup();
+  menu('readme.txt');
+  expect(screen.getByRole('menuitem', { name: 'Download' })).toBeInTheDocument();
+  expect(screen.queryByRole('menuitem', { name: 'Show in Finder' })).toBeNull();
+  expect(screen.queryByRole('menuitem', { name: 'Open in default app' })).toBeNull();
 });
