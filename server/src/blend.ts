@@ -100,12 +100,14 @@ export type BlendInput = { file: string; base: string } | { bytes: Buffer };
 const TAIL_BYTES = 16384;
 const TAIL_LINES = 12;
 
-// the child gets no secrets from our environment (API keys, tokens): only what a program needs to start
+// the child gets no secrets from our environment (API keys, tokens): only what a program needs to start. A conversion's
+// HOME and TMPDIR are its work dir, the only place the sandbox lets it write (and nothing of the real home leaks in)
 const childEnv = (work?: string): NodeJS.ProcessEnv => {
   const out: NodeJS.ProcessEnv = {};
   for (const k of ['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'USER', 'DISPLAY', 'XDG_RUNTIME_DIR']) {
     if (process.env[k] !== undefined) out[k] = process.env[k];
   }
+  if (work) { out.HOME = work; out.TMPDIR = work; }
   return out;
 };
 

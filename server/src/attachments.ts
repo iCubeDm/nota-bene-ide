@@ -147,6 +147,14 @@ export function readCapped(req: IncomingMessage, max: number): Promise<Buffer | 
   });
 }
 
+/** A small JSON object body (`max` bytes at most); null once it is larger, `{}` when empty; bad JSON throws a SyntaxError. */
+export async function readSmallJson(req: IncomingMessage, max = 4096): Promise<Record<string, unknown> | null> {
+  const raw = await readCapped(req, max);
+  if (!raw) return null;
+  const v: unknown = JSON.parse(raw.toString('utf8') || '{}');
+  return v && typeof v === 'object' ? v as Record<string, unknown> : {};
+}
+
 /** 413 after readCapped gave up: nothing is buffered any more; drain the rest briefly, then drop the connection only if the body is still unfinished (no `connection: close`: it resets the client mid-upload before it can read the 413) */
 export function refuseTooLarge(req: IncomingMessage, res: ServerResponse, body: string): void {
   req.resume();

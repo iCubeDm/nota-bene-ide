@@ -1,6 +1,7 @@
 // `GET /usage`, `POST /usage/reset`: the Usage tab's server side. Both are in the key tier (auth.ts).
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import { USAGE_PERIODS, type Stats, type UsagePeriod, type UsageProvider, type UsageReport } from '@nota-bene/shared';
+import { readSmallJson, refuseTooLarge } from '../attachments.ts';
 import { reportError } from '../errors.ts';
 import type { EventHub } from '../hub.ts';
 import type { RateLimitInfo } from '../stats.ts';
@@ -92,13 +93,6 @@ export function hitRecorder(store: UsageStore, now: () => number = Date.now): (i
   };
 }
 
-async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const c of req as AsyncIterable<Buffer>) chunks.push(c);
-  const v: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-  return v && typeof v === 'object' ? v as Record<string, unknown> : {};
-}
-
 export function usageRoutes(o: { hub: EventHub; service?: (p: UsageProvider) => UsageService }): Record<string, RequestListener> {
   const services = new Map<UsageProvider, UsageService>();
   const service = o.service ?? ((p: UsageProvider) => {
@@ -120,7 +114,8 @@ export function usageRoutes(o: { hub: EventHub; service?: (p: UsageProvider) => 
     },
     '/usage/reset': (req, res) => {
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
-      readBody(req).then((b) => {
+      readSmallJson(req).then((b) => {
+        if (!b) return refuseTooLarge(req, res, 'body too large');
         if (!isProvider(b.provider)) return json(res, 400, { error: 'bad provider' });
         service(b.provider).reset();
         json(res, 200, { ok: true });

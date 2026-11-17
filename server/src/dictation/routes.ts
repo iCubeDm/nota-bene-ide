@@ -7,6 +7,7 @@ import { hostClient, WhisperBusy, WhisperOff, type HostClient } from './hostClie
 import { queued, resetTranscriber, spokenOf, transcribeWith as defaultTranscribe, type SpokenOrText } from './transcribe.ts';
 import { pcmFromWav, WavError } from './wav.ts';
 import { MAX_AUDIO, WHISPER_DISK_MB, WHISPER_DOWNLOAD_MB, WHISPER_MODEL } from './whisper.ts';
+import { readCapped, readSmallJson, refuseTooLarge } from '../attachments.ts';
 import { reportError } from '../errors.ts';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -14,30 +15,11 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const c of req as AsyncIterable<Buffer>) chunks.push(c);
-  const v: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-  return v && typeof v === 'object' ? v as Record<string, unknown> : {};
-}
-
 /** An ISO 639 language code, as Whisper takes it (en, ru, yue). */
 export const LANG = /^[a-z]{2,3}$/;
 
 /** Whisper is installed, ready and switched on. */
 export const whisperOn = (): boolean => readPrefs().whisper === true && whisperPhase() === 'ready';
-
-/** The body up to `max` bytes; null once it is larger (the rest is dropped, not buffered). */
-async function readAudio(req: IncomingMessage, max: number): Promise<Buffer | null> {
-  const chunks: Buffer[] = [];
-  let n = 0;
-  for await (const c of req as AsyncIterable<Buffer>) {
-    n += c.length;
-    if (n > max) return null;
-    chunks.push(c);
-  }
-  return Buffer.concat(chunks);
-}
 
 /** What a page learns of the Whisper host: it is loaded (has the model in memory), how many jobs wait, whether one runs. */
 export type HostState = { loaded: boolean; queued: number; running: boolean };
@@ -78,14 +60,16 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
       json(res, 202, { ok: true });
     }),
     '/dictation/on': post(async (req, res) => {
-      const b = await readBody(req);
+      const b = await readSmallJson(req);
+      if (!b) return refuseTooLarge(req, res, 'body too large');
       if (typeof b.on !== 'boolean') return json(res, 400, { error: 'on must be a boolean' });
       if (b.on && whisperPhase() !== 'ready') return json(res, 409, { error: 'not installed' });
       setWhisperPref(b.on);
       json(res, 200, { ok: true });
     }),
     '/dictation/lang': post(async (req, res) => {
-      const b = await readBody(req);
+      const b = await readSmallJson(req);
+      if (!b) return refuseTooLarge(req, res, 'body too large');
       if (!isDictationLang(b.lang)) return json(res, 400, { error: 'lang must be auto or a language code' });
       setDictationLangPref(b.lang);
       json(res, 200, { ok: true });
@@ -113,8 +97,7 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
       // the client left before the answer (a closed tab, a dropped phone): its job is cancelled, not transcribed for nobody
       const gone = new AbortController();
       res.on('close', () => { if (!res.writableFinished) gone.abort(); });
-      const declared = Number(req.headers['content-length']);
-      const body = declared > MAX_AUDIO ? null : await readAudio(req, MAX_AUDIO);
+      const body = await readCapped(req, MAX_AUDIO);
       if (!body) return json(res, 413, { error: 'audio too long' });
       let pcm: Float32Array;
       try { pcm = pcmFromWav(body); } catch (e) {

@@ -20,7 +20,7 @@ if (a[0] === '--version') { console.log('Blender 9.9.9\\n\\tbuild date: x'); pro
 const log = path.join(__dirname, 'spawns.log');
 const input = a.find((x) => x.endsWith('.blend'));
 const body = fs.readFileSync(input, 'utf8');
-fs.appendFileSync(log, JSON.stringify({ argv: a, cwd: process.cwd(), env: Object.keys(process.env), pid: process.pid }) + '\\n');
+fs.appendFileSync(log, JSON.stringify({ argv: a, cwd: process.cwd(), env: Object.keys(process.env), home: process.env.HOME, tmp: process.env.TMPDIR, pid: process.pid }) + '\\n');
 const out = a[a.indexOf('--') + 1];
 if (body.startsWith('REFUSE')) { console.log('noise\\nNB-REFUSED ["/etc/passwd","G: GeometryNodeImportText"]\\nBlender quit'); process.exit(3); }
 if (body.startsWith('FAIL')) { console.error('line1\\nError: boom ' + body); process.exit(1); }
@@ -35,7 +35,7 @@ let dir: string;
 let fake: string;
 let state: string;
 const spawns = () => {
-  try { return fs.readFileSync(path.join(path.dirname(fake), 'spawns.log'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { argv: string[]; cwd: string; env: string[]; pid: number }); } catch { return []; }
+  try { return fs.readFileSync(path.join(path.dirname(fake), 'spawns.log'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { argv: string[]; cwd: string; env: string[]; home?: string; tmp?: string; pid: number }); } catch { return []; }
 };
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -50,6 +50,18 @@ beforeAll(() => {
   state = path.join(dir, 'state');
 });
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+// issue 468: not skipped with the rest, the sandbox profile lets Blender write in its work dir only
+it('Blender gets its HOME and TMPDIR inside its own work dir, never the real ones', async () => {
+  const file = path.join(dir, 'home.blend');
+  fs.writeFileSync(file, 'home');
+  const before = spawns().length;
+  await conv().convert({ file, base: dir });
+  const s = spawns().slice(before)[0]!;
+  expect(s.home).toBe(s.cwd);
+  expect(s.tmp).toBe(s.cwd);
+  expect(s.cwd).not.toBe(fs.realpathSync(os.homedir()));
+});
 
 describe.skip('findBlender', () => {
   const yes = (...ok: string[]) => (p: string) => ok.includes(p);
