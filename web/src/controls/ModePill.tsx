@@ -2,6 +2,7 @@ import type { AgentMode as Mode } from '@nota-bene/shared';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
+import { isMac, withKeys } from '@/shell/keymap.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { pickMode, selectCapabilitiesKnown, selectMode, selectSwitching } from './slice.ts';
 
@@ -15,6 +16,7 @@ const TONE: Partial<Record<Mode, string>> = {
 
 export function ModePill() {
   const t = useT();
+  const tip = withKeys(t('modeTip'), isMac() ? '⇧Tab' : 'Shift+Tab');
   const dispatch = useAppDispatch();
   const mode = useAppSelector(selectMode);
   const switching = useAppSelector(selectSwitching); // the switch announces the new session's mode
@@ -32,7 +34,7 @@ export function ModePill() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={t('modeTip')}
+              aria-label={tip}
               disabled={switching}
               className={`inline-flex h-[26px] items-center gap-1.5 rounded-full border bg-transparent px-2.5 text-xs font-medium enabled:hover:bg-muted enabled:hover:text-foreground disabled:opacity-50 ${TONE[mode] ?? TONE.default}`}
             >
@@ -42,7 +44,7 @@ export function ModePill() {
           </DropdownMenuTrigger>
           </span>
         </TooltipTrigger>
-        <TooltipContent className="whitespace-pre-line">{t('modeTip')}</TooltipContent>
+        <TooltipContent className="whitespace-pre-line">{tip}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent side="top" align="start" className="w-[340px]">
         {modes.map((m) => (

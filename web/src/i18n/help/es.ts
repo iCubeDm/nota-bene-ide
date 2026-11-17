@@ -1,14 +1,14 @@
-import type { HelpKey } from './index.ts';
+import type { HelpDict } from './index.ts';
 
 /** The help dictionary in Spanish (issue 463): what each feature does, for the in-app reference (issue 464). */
-export const helpEs: Record<HelpKey, string> = {
+export const helpEs: HelpDict = {
   compact: 'Compactar contexto — el agente resume la conversación y continúa desde el resumen (/compact)',
   compactEstimate: 'Estimado a partir de compactaciones anteriores: el SDK no informa de cuánto falta',
   clear: 'Limpiar contexto — empezar una conversación nueva (/clear). La sesión actual queda en el menú ▾ de la pestaña del chat',
   idleCompaction: 'Compactación en reposo: unos minutos después del turno del agente, si la ventana no tuvo actividad, se compacta un contexto grande mientras la caché del prompt sigue caliente (como hace Claude Code en la terminal). El botón del reloj la activa o desactiva en este proyecto; "idleCompaction": false en ~/.claude/settings.json la desactiva en todas partes.',
   contextMeter: 'Contexto: los tokens usados del límite — compactación automática después.',
-  attach: 'Adjuntar un archivo. O pegar desde el portapapeles ⌘/Ctrl+V / soltar en la ventana',
-  sessions: 'Sesiones de Claude Code de este proyecto: abrir, renombrar, archivar (como claude --resume)',
+  attach: (mod: string) => `Adjuntar un archivo. O pegar desde el portapapeles ${mod}V / soltar en la ventana`,
+  sessions: 'Sesiones del agente en este proyecto: abrir, renombrar, archivar (como claude --resume en la terminal)',
   model: 'Modelo y esfuerzo · un cambio se aplica desde la siguiente respuesta',
   mode: 'Modo del agente · Shift+Tab en el campo de mensaje — siguiente',
   restartAgent: 'Reiniciar el agente y continuar la misma sesión',
@@ -19,7 +19,7 @@ export const helpEs: Record<HelpKey, string> = {
   taskStopAll: 'Detener todos los agentes en curso del grupo (un segundo clic lo confirma)',
   pageScripts: 'Los scripts de la página no se ejecutan aquí: se muestra como se ve sin ellos',
   markupMask: 'Máscara: haz clic para añadir puntos; cierra en el primer punto, con Enter o doble clic; Retroceso o Cmd/Ctrl+Z quita el último punto, Esc descarta la forma. Arrastra un punto o la forma para ajustarla; Alt+clic empieza una forma nueva, incluso dentro de otra',
-  voiceSend: 'El agente está trabajando: Enviar pone el mensaje en cola. ⌘/Ctrl+Enter o ⌘/Ctrl+Alt+R interrumpe al agente y envía.',
+  voiceSend: (force: string, forceAlt: string) => `El agente está trabajando: Enviar pone el mensaje en cola. ${force} o ${forceAlt} interrumpe al agente y envía.`,
   cutSelect: 'Selección: clic en un clip, Mayús o ⌘/Ctrl+clic para más, arrastra en un espacio vacío para un rectángulo; Mayús+arrastrar mueve un clip con todo lo que le sigue en su pista, Mayús+arrastrar su final desplaza los siguientes',
   cutBlade: 'Cuchilla: un clic corta el clip en ese punto (Mayús: todas las pistas; Alt: sin ajuste)',
   cutClip: 'Arrastra para mover, también a otra pista del mismo tipo (Alt: sin ajuste); Mayús o ⌘/Ctrl+clic lo añade a la selección o lo quita; ← →: un fotograma (Shift: diez), Supr elimina, S divide en el cabezal',
@@ -35,5 +35,5 @@ export const helpEs: Record<HelpKey, string> = {
   usageTank5h: 'Tokens por 1 % del límite de 5 horas, promediados sobre las ventanas de 5 horas desde la semana de la columna hasta la actual. Un guion: esa semana no hay lecturas de 5 horas.',
   projectRail: 'Los proyectos abiertos a la izquierda: un clic cambia a uno, su insignia indica que te espera o tiene respuestas nuevas. Un ajuste para todas las ventanas de este agente.',
   sounds: 'Solo mientras no miras la pestaña, una pestaña por ventana. El navegador solo deja sonar a una página después de que hayas hecho clic o escrito en ella una vez.',
-  auditLog: 'Las ventanas registran lo que pasa (turnos, paradas, errores, conexiones) en ~/.nota-bene/audit: un archivo por día, guardado 14 días. Nunca el texto de mensajes, comentarios o comandos.',
+  auditLog: (dir: string) => `Las ventanas registran lo que pasa (turnos, paradas, errores, conexiones) en ${dir}: un archivo por día, guardado 14 días. Nunca el texto de mensajes, comentarios o comandos.`,
 };

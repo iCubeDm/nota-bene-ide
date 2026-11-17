@@ -15,8 +15,8 @@ const icon = (children: ReactNode) => (
 );
 /** Select: the pointer arrow */
 const SelectIcon = () => icon(<path d="M4.04 4.69a.5.5 0 0 1 .65-.65l16 6.5a.5.5 0 0 1-.06.95l-6.13 1.58a2 2 0 0 0-1.43 1.43l-1.58 6.13a.5.5 0 0 1-.95.06z" />);
-/** Blade: a razor blade at a slant, its slot and the notches at its ends */
-const BladeIcon = () => icon(<g transform="rotate(-35 12 12)"><rect x="3" y="8.5" width="18" height="7" rx="1" /><path d="M3 12h2.5M21 12h-2.5" /><path d="M9 12h6" /></g>);
+/** Blade: scissors (a razor blade does not read at 14 px) */
+const BladeIcon = () => icon(<><circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12" /><path d="M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" /></>);
 
 /**
  * The editor's tools (issue 409), each tooltip naming its key: the timeline's tool (issue 432: Select or Blade, the active
@@ -40,7 +40,7 @@ export function EditBar({ doc, sel, onSplit, onDuplicate, onDelete, onComment, n
     const tip = withKeys(label, key);
     return (
       <button type="button" aria-label={tip} title={tip} aria-pressed={tool === which} onClick={() => onTool(which)}
-        className={`${BTN} ${tool === which ? 'bg-primary/25' : ''}`}>{glyph}</button>
+        className={`${BTN} ${tool === which ? 'bg-nb-accent/20 text-nb-accent hover:bg-nb-accent/20' : ''}`}>{glyph}</button>
     );
   };
   const status = doc.status;

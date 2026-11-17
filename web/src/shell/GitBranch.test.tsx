@@ -149,7 +149,7 @@ describe('the picker', () => {
     fireEvent.click(screen.getByRole('button', { name: /^agent\/one/ }));
     expect(selectTree(store.getState()).src).toBe('ref:agent/one');
     expect(el()).toHaveTextContent('viewing');
-    expect(el()).toHaveAttribute('title', 'Viewing agent/one; the window and the agent stay on main');
+    expect(el()).toHaveAttribute('title', 'Viewing agent/one; the agent stays on main');
     expect(vi.mocked(fetch).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
   });
 

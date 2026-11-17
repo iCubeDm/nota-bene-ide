@@ -1,14 +1,14 @@
-import type { HelpKey } from './index.ts';
+import type { HelpDict } from './index.ts';
 
 /** The help dictionary in Brazilian Portuguese (issue 463): what each feature does, for the in-app reference (issue 464). */
-export const helpPtBR: Record<HelpKey, string> = {
+export const helpPtBR: HelpDict = {
   compact: 'Compactar contexto — o agente resume a conversa e continua a partir do resumo (/compact)',
   compactEstimate: 'Estimado a partir de compactações anteriores: o SDK não informa quanto falta',
   clear: 'Limpar contexto — começar uma conversa nova (/clear). A sessão atual fica no menu ▾ da aba do chat',
   idleCompaction: 'Compactação em inatividade: alguns minutos após o turno do agente, se a janela ficou sem atividade, um contexto grande é compactado enquanto o cache do prompt ainda está quente (como o Claude Code no terminal). O botão do relógio a ativa ou desativa neste projeto; "idleCompaction": false em ~/.claude/settings.json a desativa em todos.',
   contextMeter: 'Contexto: os tokens usados do limite — compactação automática depois disso.',
-  attach: 'Anexar um arquivo. Ou colar da área de transferência ⌘/Ctrl+V / soltar na janela',
-  sessions: 'Sessões do Claude Code deste projeto: abrir, renomear, arquivar (como claude --resume)',
+  attach: (mod: string) => `Anexar um arquivo. Ou colar da área de transferência ${mod}V / soltar na janela`,
+  sessions: 'Sessões do agente neste projeto: abrir, renomear, arquivar (como claude --resume no terminal)',
   model: 'Modelo e esforço · a mudança vale a partir da próxima resposta',
   mode: 'Modo do agente · Shift+Tab no campo de mensagem — próximo',
   restartAgent: 'Reiniciar o agente e continuar a mesma sessão',
@@ -19,7 +19,7 @@ export const helpPtBR: Record<HelpKey, string> = {
   taskStopAll: 'Parar todos os agentes em execução do grupo (um segundo clique confirma)',
   pageScripts: 'Os scripts da página não rodam aqui: ela é mostrada como fica sem eles',
   markupMask: 'Máscara: clique para adicionar pontos; feche no primeiro ponto, com Enter ou clique duplo; Backspace ou Cmd/Ctrl+Z remove o último ponto, Esc descarta a forma. Arraste um ponto ou a forma para ajustar; Alt+clique começa uma forma nova, mesmo dentro de outra',
-  voiceSend: 'O agente está trabalhando: Enviar coloca a mensagem na fila. ⌘/Ctrl+Enter ou ⌘/Ctrl+Alt+R interrompe o agente e envia.',
+  voiceSend: (force: string, forceAlt: string) => `O agente está trabalhando: Enviar coloca a mensagem na fila. ${force} ou ${forceAlt} interrompe o agente e envia.`,
   cutSelect: 'Seleção: clique em um clipe, Shift ou ⌘/Ctrl+clique para mais, arraste num espaço vazio para um retângulo; Shift+arrastar move um clipe com tudo o que vem depois na faixa, Shift+arrastar o fim desloca os seguintes',
   cutBlade: 'Lâmina: um clique corta o clipe nesse ponto (Shift: todas as faixas; Alt: sem encaixe)',
   cutClip: 'Arraste para mover, também para outra faixa do mesmo tipo (Alt: sem encaixe); Shift ou ⌘/Ctrl+clique o adiciona à seleção ou o remove; ← →: um quadro (Shift: dez), Delete exclui, S divide na agulha',
@@ -35,5 +35,5 @@ export const helpPtBR: Record<HelpKey, string> = {
   usageTank5h: 'Tokens por 1% do limite de 5 horas, em média nas janelas de 5 horas da semana da coluna até a atual. Um traço: sem leituras de 5 horas nessa semana.',
   projectRail: 'Os projetos abertos à esquerda: um clique muda para um deles, o selo mostra que ele espera por você ou tem respostas novas. Uma configuração para todas as janelas deste agente.',
   sounds: 'Só enquanto você não está olhando a aba, uma aba por janela. O navegador só deixa uma página tocar som depois que você clicou ou digitou nela uma vez.',
-  auditLog: 'As janelas registram o que acontece (turnos, paradas, erros, conexões) em ~/.nota-bene/audit: um arquivo por dia, mantido por 14 dias. Nunca o texto de mensagens, comentários ou comandos.',
+  auditLog: (dir: string) => `As janelas registram o que acontece (turnos, paradas, erros, conexões) em ${dir}: um arquivo por dia, mantido por 14 dias. Nunca o texto de mensagens, comentários ou comandos.`,
 };

@@ -569,7 +569,7 @@ const _json = r'''
   "usageTank5hTip": {
    "en": "Tokens per 1% of the 5-hour limit",
    "ru": "Токены на 1% 5-часового лимита",
-   "zh": "5 小时限额每 1% 的 token",
+   "zh": "5 小时限额每 1% 的令牌",
    "es": "Tokens por 1 % del límite de 5 horas",
    "pt": "Tokens por 1% do limite de 5 horas",
    "de": "Tokens pro 1 % des 5-Stunden-Limits"
@@ -585,7 +585,7 @@ const _json = r'''
   "usageTankTip": {
    "en": "Tokens per 1% of the weekly limit",
    "ru": "Токены на 1% недельного лимита",
-   "zh": "每周限额每 1% 的 token",
+   "zh": "每周限额每 1% 的令牌",
    "es": "Tokens por 1 % del límite semanal",
    "pt": "Tokens por 1% do limite semanal",
    "de": "Tokens pro 1 % des Wochenlimits"
@@ -639,12 +639,12 @@ const _json = r'''
    "de": "Teuerste Aufrufe"
   },
   "usageTotalsTip": {
-   "en": "Weighted. Raw: cache read {0}, output {1}",
-   "ru": "Взвешенные. Сырые: чтение кэша {0}, вывод {1}",
-   "zh": "加权令牌。原始：缓存读取 {0}，输出 {1}",
-   "es": "Ponderados. Brutos: lectura caché {0}, salida {1}",
-   "pt": "Ponderados. Brutos: leitura de cache {0}, saída {1}",
-   "de": "Gewichtet. Roh: Cache-Read {0}, Output {1}"
+   "en": "Weighted tokens; raw cache read {0}, output {1}",
+   "ru": "Взвешенные токены; кэш {0}, вывод {1}",
+   "zh": "加权令牌；原始缓存读取 {0}，输出 {1}",
+   "es": "Tokens ponderados; caché leída {0}, salida {1}",
+   "pt": "Tokens ponderados; cache lido {0}, saída {1}",
+   "de": "Gewichtete Tokens; Cache-Read {0}, Output {1}"
   },
   "usageWeek": {
    "en": "week",
@@ -873,12 +873,12 @@ const _json = r'''
    "de": "Nur lesende Planung; Schreiben fragt"
   },
   "modeTip": {
-   "en": "Agent mode (Shift+Tab)",
-   "ru": "Режим агента (Shift+Tab)",
-   "zh": "代理模式 (Shift+Tab)",
-   "es": "Modo del agente (Shift+Tab)",
-   "pt": "Modo do agente (Shift+Tab)",
-   "de": "Agent-Modus (Shift+Tab)"
+   "en": "Agent mode",
+   "ru": "Режим агента",
+   "zh": "代理模式",
+   "es": "Modo del agente",
+   "pt": "Modo do agente",
+   "de": "Agent-Modus"
   },
   "clearTitle": {
    "en": "Clear context",

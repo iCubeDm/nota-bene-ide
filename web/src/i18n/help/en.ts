@@ -1,14 +1,14 @@
-import type { HelpKey } from './index.ts';
+import type { HelpDict } from './index.ts';
 
 /** The help dictionary in English (issue 463): what each feature does, for the in-app reference (issue 464). */
-export const helpEn: Record<HelpKey, string> = {
+export const helpEn: HelpDict = {
   compact: 'Compact context — the agent summarizes the conversation and continues from the summary (/compact)',
   compactEstimate: 'Estimated from past compactions: the SDK does not report how much is left',
   clear: 'Clear context — start a fresh conversation (/clear). The current session stays in the chat tab’s ▾ menu',
   idleCompaction: 'Idle compaction: some minutes after the agent\'s turn, if the window saw no activity, a large context is compacted while the prompt cache is still warm (as the terminal Claude Code does). The clock button turns it on or off for this project; "idleCompaction": false in ~/.claude/settings.json turns it off everywhere.',
   contextMeter: 'Context: the tokens used of the limit — auto-compact after that.',
-  attach: 'Attach a file. Or paste from the clipboard ⌘/Ctrl+V / drop into the window',
-  sessions: 'This project\'s Claude Code sessions: open, rename, archive (like claude --resume)',
+  attach: (mod: string) => `Attach a file. Or paste from the clipboard ${mod}V / drop into the window`,
+  sessions: "This project's agent sessions: open, rename, archive (as claude --resume does in a terminal)",
   model: 'Model and effort · a change applies from the next reply',
   mode: 'Agent mode · Shift+Tab in the message field — next',
   restartAgent: 'Restart the agent and continue the same session',
@@ -19,7 +19,7 @@ export const helpEn: Record<HelpKey, string> = {
   taskStopAll: 'Stop every running agent of the group (a second click confirms)',
   pageScripts: 'The page\'s scripts do not run here: it is shown as it looks without them',
   markupMask: 'Mask: click to add points; close on the first point, Enter or a double-click; Backspace or Cmd/Ctrl+Z removes the last point, Esc drops the shape. Drag a point or the shape to adjust it; Alt-click starts a new shape even inside one',
-  voiceSend: 'The agent is working: Send queues the message. ⌘/Ctrl+Enter or ⌘/Ctrl+Alt+R interrupts the agent and sends.',
+  voiceSend: (force: string, forceAlt: string) => `The agent is working: Send queues the message. ${force} or ${forceAlt} interrupts the agent and sends.`,
   cutSelect: 'Select: click a clip, Shift- or ⌘/Ctrl-click for more, drag on empty space for a rectangle; Shift-drag a clip to move it with everything after it on its track, Shift-drag its end to ripple',
   cutBlade: 'Blade: a click cuts the clip there (Shift: every track; Alt: no snapping)',
   cutClip: 'Drag to move, onto another track of its kind too (Alt: no snapping); Shift- or ⌘/Ctrl-click adds or removes it from the selection; ← →: one frame (Shift: ten), Delete deletes, S splits at the playhead',
@@ -35,5 +35,5 @@ export const helpEn: Record<HelpKey, string> = {
   usageTank5h: 'Tokens per 1% of the 5-hour limit, averaged over the 5-hour windows from the column\'s week up to the current one. A dash: no 5-hour readings that week.',
   projectRail: 'The open projects on the left: a click switches to one, its badge shows it waits for you or has new replies. One setting for every window of this agent.',
   sounds: 'Only while you are not looking at the tab, one tab per window. The browser lets a page play sound only after you have clicked or typed in it once.',
-  auditLog: 'Windows record what happens (turns, stops, errors, connections) to ~/.nota-bene/audit, one file a day, kept 14 days. Never the text of messages, comments or commands.',
+  auditLog: (dir: string) => `Windows record what happens (turns, stops, errors, connections) to ${dir}, one file a day, kept 14 days. Never the text of messages, comments or commands.`,
 };

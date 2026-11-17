@@ -10,6 +10,7 @@ import { rangeForAnchor } from '@/anchors/text.ts';
 import { flashRange } from '@/comments/HighlightLayer.tsx';
 import { selectComments } from '@/comments/slice.ts';
 import { useT } from '@/i18n/index.ts';
+import { withKey } from '@/shell/keymap.ts';
 import { seekAndPause } from '@/media/mediaController.ts';
 import { selectDraft } from '@/media/markup/slice.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -164,7 +165,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
             className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${pageMarking ? 'bg-muted text-foreground' : ''}`}>{t('pageMark')}</button>
         )}
         {kind === 'text' && !page && !timeline && (
-          <button type="button" aria-label={t('wrapLines')} aria-pressed={wrap} title={`${t('wrapLines')} (Alt+Z)`} onClick={wrapLines.toggle}
+          <button type="button" aria-label={t('wrapLines')} aria-pressed={wrap} title={withKey(t('wrapLines'), 'hk_wrap')} onClick={wrapLines.toggle}
             className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${wrap ? 'text-foreground' : ''}`}>↩</button>
         )}
         {editable && !editing && data?.s === 'text' && (
