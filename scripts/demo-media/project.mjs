@@ -170,8 +170,9 @@ export const TEXT = {
   imgReply:
     'The layout is clear: one input, one action, and the result right below. I would only check the contrast of the button and the space around the result card on a narrow screen.',
   imgC: 'Make this button at least 48 px tall.',
+  maskC: 'Give the result card a soft accent background.',
   imgAnswer:
-    'Agreed. The button is now 48 px tall, with the accent colour and a 16 px label.',
+    'Agreed. The button is now 48 px tall, with the accent colour and a 16 px label, and the result card has a pale accent background with a matching border.',
   // video
   vidAsk: 'I recorded the flow: `media/flow.mp4`. Anything to improve?',
   vidReply:
@@ -179,7 +180,42 @@ export const TEXT = {
   vidC: 'Show "Copied" here.',
   vidAnswer:
     'Done. After the click the new link is copied to the clipboard and a small "Copied" label fades in beside the code for two seconds (`src/ui/result.ts`).',
+  // the video edit
+  cutC: 'The music is too loud under the voice.',
+  cutAnswer:
+    'Turned the music down to -10 dB and gave it a one-second fade-in and a longer fade-out, so the voice-over stays clear. The rest of `media/promo.nbcut.json` is as it was.',
+  // voice message (synthetic speech, transcribed by Whisper; the fake answers on a word of it)
+  voice: 'Also keep the links across a restart, and add a test for it.',
+  voiceAnswer:
+    'Done. `src/store.ts` now writes the links to `data/links.json` on every save and reads them back at startup, and `src/store.test.ts` checks that a saved link is still there after a restart.',
 };
+
+export const CUT_PATH = 'media/promo.nbcut.json';
+
+/** The video edit the scene opens: a title card and the screen recording, the logo over them, a voice-over and music. */
+export function cutDoc(voiceLen) {
+  return {
+    version: 1, width: 1600, height: 1000, fps: 20,
+    tracks: [
+      { id: 'v1', kind: 'video', name: 'Screen' },
+      { id: 'v2', kind: 'video', name: 'Logo' },
+      { id: 'a1', kind: 'audio', name: 'Voice' },
+      { id: 'a2', kind: 'audio', name: 'Music' },
+    ],
+    clips: [
+      { id: 'c1', track: 'v1', src: 'media/title.mp4', at: 0, out: 3 },
+      { id: 'c2', track: 'v1', src: 'media/flow.mp4', at: 3, out: 6, fadeOut: 0.5 },
+      { id: 'c3', track: 'v2', src: 'media/logo.png', at: 3.5, dur: 5, place: { x: 0.74, y: 0.83, w: 0.22, h: 0.12 } },
+      { id: 'c4', track: 'a1', src: 'media/voice-over.wav', at: 3, out: Math.round(voiceLen) },
+      { id: 'c5', track: 'a2', src: 'media/music.wav', at: 0, out: 9, fadeOut: 1 },
+    ],
+  };
+}
+
+/** What the agent writes in answer to TEXT.cutC: the music clip turned down, with longer fades. */
+export function agentCut(cut) {
+  return { ...cut, clips: cut.clips.map((c) => (c.id === 'c5' ? { ...c, gain: -10, fadeIn: 1, fadeOut: 2 } : c)) };
+}
 
 export const COMMANDS = [
   { name: 'review', description: 'Review the pending changes for bugs and style', argumentHint: '[path]' },
@@ -230,6 +266,21 @@ export function fakeScript() {
         text: TEXT.vidAnswer,
         ...stream,
         tools: [edit('src/ui/result.ts', 'show(code);', 'show(code);\n  await navigator.clipboard.writeText(url);\n  flash("Copied", 2000);')],
+      },
+      {
+        match: 'too loud under the voice',
+        text: TEXT.cutAnswer,
+        ...stream,
+        tools: [edit(CUT_PATH, '{ "id": "c5", "track": "a2", "src": "media/music.wav", "at": 0, "out": 9, "fadeOut": 1 }', '{ "id": "c5", "track": "a2", "src": "media/music.wav", "at": 0, "out": 9, "gain": -10, "fadeIn": 1, "fadeOut": 2 }')],
+      },
+      {
+        match: 'restart',
+        text: TEXT.voiceAnswer,
+        ...stream,
+        tools: [
+          edit('src/store.ts', 'const links = new Map<string, Link>();', 'const links = loadLinks();'),
+          edit('src/store.test.ts', '', "test('a saved link survives a restart', () => { /* … */ });"),
+        ],
       },
       // the plain-question turns come after the batch turns: a batch quotes the file path its comment is on
       { match: 'design/landing.png', text: TEXT.imgReply, ...stream },

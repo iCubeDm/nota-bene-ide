@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { isCutPath } from '@nota-bene/shared/cut';
 import { AUDIO, IMAGE, isModelFile, useModel3d, VIDEO } from './kinds.ts';
 
 /**
@@ -8,7 +9,7 @@ import { AUDIO, IMAGE, isModelFile, useModel3d, VIDEO } from './kinds.ts';
  */
 export type IconId =
   | 'ts' | 'js' | 'json' | 'md' | 'css' | 'html' | 'py' | 'sh' | 'yml' | 'toml'
-  | 'image' | 'video' | 'audio' | 'model' | 'npm' | 'readme' | 'git' | 'docker' | 'dir' | 'dirOpen' | 'file';
+  | 'image' | 'video' | 'audio' | 'cut' | 'model' | 'npm' | 'readme' | 'git' | 'docker' | 'dir' | 'dirOpen' | 'file';
 
 type Mark = { text: string; color: string } | { glyph: ReactNode; color: string };
 
@@ -38,6 +39,8 @@ const MARKS: Record<IconId, Mark> = {
   image: { glyph: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="m21 16-5-5-9 9" /></>, color: C.green },
   video: { glyph: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m10 9 5 3-5 3z" /></>, color: C.purple },
   audio: { glyph: <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>, color: C.orange },
+  // a video edit (*.nbcut.json): a frame over three timeline tracks
+  cut: { glyph: <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 10h18M6 14h7M9 17.5h9" /></>, color: C.purple },
   model: { text: '3D', color: C.teal },
   npm: { glyph: <><path d="M12 2 3 7v10l9 5 9-5V7z" /><path d="m3 7 9 5 9-5M12 12v10" /></>, color: C.red },
   readme: { glyph: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.5" /></>, color: C.blue },
@@ -68,6 +71,7 @@ export function iconOf(path: string): IconId {
   if (/^readme(\.|$)/.test(name)) return 'readme';
   if (name === '.gitignore' || name === '.gitattributes' || name === '.gitmodules') return 'git';
   if (name === 'dockerfile' || name.startsWith('dockerfile.') || name.endsWith('.dockerfile') || name === '.dockerignore') return 'docker';
+  if (isCutPath(name)) return 'cut';
   if (IMAGE.test(name)) return 'image';
   if (VIDEO.test(name)) return 'video';
   if (AUDIO.test(name)) return 'audio';
