@@ -1,7 +1,8 @@
 // Plays voice messages through MainActivity's `nb/play`: `play {path, from}` (from ms; a paused file of that path
 // resumes), `pause`, `seek {ms}`, `stop`, and `dir` (the folder of the cached files). The phone calls back
-// `position {ms}` about every 100 ms while playing, and `done` at the end. One voice sounds at a time, across the
-// bubbles and the clips; the player is the one all of them listen to.
+// `position {ms}` about every 100 ms while playing, and `done` at the end; `play` answers the file's length in ms.
+// One sound plays at a time, across the voice bubbles, the recorder's clips and the sounds embedded in replies; the
+// player is the one all of them listen to.
 import 'dart:async';
 import 'dart:io';
 
@@ -14,6 +15,9 @@ const playChannel = MethodChannel('nb/play');
 
 /// The bytes of a voice, fetched when it is not cached yet.
 typedef LoadVoice = Future<Uint8List?> Function();
+
+/// The file on the phone a sound plays from, had when it starts; null when it cannot be had.
+typedef OpenSound = Future<String?> Function();
 
 /// The WAVs the player has, by voice id.
 abstract class VoiceFiles {
@@ -68,14 +72,32 @@ class VoicePlayer extends ChangeNotifier {
   bool _loaded = false;
   int _turn = 0;
 
+  // the file of the sound that has the speaker: a resume plays it again, not a fresh one
+  String? _path;
+
   // where a drag over a voice that is still loading wants to play from
   Duration? _target;
 
+  // the lengths the player told, by sound
+  final _lengths = <String, Duration>{};
+
   bool isCurrent(String voice) => id == voice;
+
+  /// [sound]'s length, once it has played; null before (or when the player could not tell).
+  Duration? lengthOf(String sound) => _lengths[sound];
+
+  // a voice: its cached WAV, fetched and kept when it is not there
+  OpenSound _cached(String voice, LoadVoice load) => () async {
+    final path = await files.find(voice);
+    if (path != null) return path;
+    final bytes = await load();
+    return bytes == null ? null : files.save(voice, bytes);
+  };
 
   void _reset() {
     id = null;
     playing = loading = _loaded = false;
+    _path = null;
     position = Duration.zero;
     playChannel.setMethodCallHandler(null);
   }
@@ -92,43 +114,52 @@ class VoicePlayer extends ChangeNotifier {
   }
 
   /// Play [voice] from its start, or pause/resume it when it already has the speaker.
-  Future<void> toggle(String voice, LoadVoice load) async {
+  Future<void> toggle(String voice, LoadVoice load) =>
+      toggleSound(voice, _cached(voice, load));
+
+  /// Play [voice] from [to], or move to it when it has the speaker.
+  Future<void> seek(String voice, LoadVoice load, Duration to) =>
+      seekSound(voice, _cached(voice, load), to);
+
+  /// [toggle] of a sound whose file [open] has (a project's sound, fetched again each time it starts).
+  Future<void> toggleSound(String sound, OpenSound open) async {
     // a second tap while it loads changes nothing
-    if (id == voice && loading) return;
-    if (id == voice && _loaded) {
+    if (id == sound && loading) return;
+    if (id == sound && _loaded) {
       if (playing) {
         playing = false;
         notifyListeners();
         return _call('pause');
       }
-      return _start(voice, load, position);
+      return _start(sound, open, position);
     }
-    return _start(voice, load, Duration.zero);
+    return _start(sound, open, Duration.zero);
   }
 
-  /// Play [voice] from [to], or move to it when it has the speaker.
-  Future<void> seek(String voice, LoadVoice load, Duration to) async {
+  /// [seek] of a sound whose file [open] has.
+  Future<void> seekSound(String sound, OpenSound open, Duration to) async {
     // dragging over a voice that is still being fetched only moves where it will start
-    if (id == voice && loading) {
+    if (id == sound && loading) {
       position = _target = to;
       notifyListeners();
       return;
     }
-    if (id == voice && _loaded) {
+    if (id == sound && _loaded) {
       position = to;
       notifyListeners();
       return _call('seek', {'ms': to.inMilliseconds});
     }
-    return _start(voice, load, to);
+    return _start(sound, open, to);
   }
 
-  Future<void> _start(String voice, LoadVoice load, Duration from) async {
+  Future<void> _start(String voice, OpenSound open, Duration from) async {
     // the microphone would hear it, and a recording is not interrupted by a bubble
     if (Microphone.hot.value) return;
     _target = null;
     final turn = ++_turn;
     final other = id != null && id != voice;
     if (other) await _call('stop');
+    final resumed = _loaded && !other ? _path : null;
     if (!_loaded || other) {
       id = voice;
       position = from;
@@ -138,21 +169,21 @@ class VoicePlayer extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      var path = await files.find(voice);
-      if (path == null) {
-        final bytes = await load();
-        if (bytes == null) throw StateError('no audio');
-        path = await files.save(voice, bytes);
-      }
+      final path = resumed ?? await open();
+      if (path == null) throw StateError('no audio');
       // another voice, or a stop, came while this one was fetched
       if (turn != _turn) return;
+      _path = path;
       final start = _target ?? from;
       _target = null;
       playChannel.setMethodCallHandler(_onCall);
-      await playChannel.invokeMethod<void>('play', {
+      final length = await playChannel.invokeMethod<Object?>('play', {
         'path': path,
         'from': start.inMilliseconds,
       });
+      if (length is num && length > 0) {
+        _lengths[voice] = Duration(milliseconds: length.round());
+      }
       if (turn != _turn) return;
       loading = false;
       _loaded = true;

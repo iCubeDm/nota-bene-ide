@@ -118,4 +118,39 @@ void main() {
     expect(native.calls, isEmpty);
     expect(p.id, isNull);
   });
+
+  test(
+    'a sound plays from the file it opens each start, and keeps its length',
+    () async {
+      var opened = 0;
+      Future<String?> open() async {
+        opened++;
+        return '/cache/clips/x.mp3';
+      }
+
+      native.answer = (c) => c.method == 'play' ? 61000 : null;
+      expect(p.lengthOf('s'), isNull);
+      await p.toggleSound('s', open);
+      expect(native.calls.single.arguments, {
+        'path': '/cache/clips/x.mp3',
+        'from': 0,
+      });
+      expect(files.saved, isEmpty);
+      expect(p.lengthOf('s'), const Duration(seconds: 61));
+      // paused and resumed: the same file; played to its end and again: opened again (it may have changed)
+      await p.toggleSound('s', open);
+      await p.toggleSound('s', open);
+      expect(opened, 1);
+      await native.call('done');
+      await p.toggleSound('s', open);
+      expect(opened, 2);
+      expect(p.lengthOf('s'), const Duration(seconds: 61));
+    },
+  );
+
+  test('a sound with no file is not playing', () async {
+    await p.toggleSound('s', () async => null);
+    expect(native.calls, isEmpty);
+    expect(p.id, isNull);
+  });
 }

@@ -58,8 +58,9 @@ class MainActivity : FlutterFragmentActivity() {
     private val frameExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Playing voice messages (`nb/play`): one MediaPlayer on a cached WAV at a time. `dir` answers the folder of the
-    // cached files; `play {path, from}` starts the file (a paused one of the same path resumes) at `from` ms;
+    // Playing voice messages and the sounds of replies (`nb/play`): one MediaPlayer on a cached file at a time (a WAV, or
+    // a reply's mp3/m4a/ogg/wav). `dir` answers the folder of the cached files; `play {path, from}` starts the file (a
+    // paused one of the same path resumes) at `from` ms and answers its length in ms (null when the player cannot tell);
     // `pause`, `seek {ms}` and `stop` do what they say. The phone calls back `position {ms}` about every 100 ms while
     // playing, `done` at the end, and `paused` when the app leaves the screen.
     private var playChannel: MethodChannel? = null
@@ -92,7 +93,12 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     try {
                         playFile(path, from)
-                        result.success(null)
+                        val length = try {
+                            player?.duration?.takeIf { it > 0 }
+                        } catch (_: IllegalStateException) {
+                            null
+                        }
+                        result.success(length)
                     } catch (e: Exception) {
                         releasePlayer()
                         result.error("failed", e.message, null)

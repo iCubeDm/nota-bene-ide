@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/chat/audio_clip.dart';
 import 'package:nb_app/comments/queue.dart';
 import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_app/voice/player.dart';
@@ -59,6 +60,9 @@ class MemoryVoiceFiles implements VoiceFiles {
 class Player {
   final calls = <MethodCall>[];
 
+  /// What the player answers a call with (a `play`'s length in ms, say); none: null.
+  Object? Function(MethodCall call)? answer;
+
   List<String> get names => [for (final c in calls) c.method];
 
   void install() => TestDefaultBinaryMessengerBinding
@@ -66,7 +70,7 @@ class Player {
       .defaultBinaryMessenger
       .setMockMethodCallHandler(playChannel, (call) async {
         calls.add(call);
-        return null;
+        return answer?.call(call);
       });
 
   void uninstall() => TestDefaultBinaryMessengerBinding
@@ -151,4 +155,20 @@ class MemoryQueueFile implements QueueFile {
 
   @override
   Future<void> write(String json) async => this.json = json;
+}
+
+/// The clips' files, in memory: name -> bytes.
+class MemoryClipFiles implements ClipFiles {
+  final files = <String, List<int>>{};
+
+  @override
+  Future<String?> write(String name, Stream<List<int>> body, int max) async {
+    final all = <int>[];
+    await for (final c in body) {
+      all.addAll(c);
+      if (all.length > max) return null;
+    }
+    files[name] = all;
+    return '/cache/clips/$name';
+  }
 }

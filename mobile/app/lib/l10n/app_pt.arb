@@ -137,6 +137,8 @@
   "markFailed": "Não foi possível salvar a marcação. Verifique a conexão e tente de novo.",
   "imageTooLarge": "A imagem é grande demais para o celular (mais de 32 MB). Abra no computador.",
   "imageUnreadable": "Não foi possível mostrar a imagem.",
+  "soundTooLarge": "O áudio é grande demais para o celular (mais de 64 MB). Abra no computador.",
+  "soundUnplayable": "Não foi possível reproduzir o áudio. Tente de novo quando o host estiver online.",
   "videoPlay": "Reproduzir",
   "videoPause": "Pausar",
   "videoUnplayable": "Não foi possível reproduzir o vídeo. Tente de novo quando o host estiver online.",
