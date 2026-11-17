@@ -11,6 +11,15 @@ enum FetchFail { notFound, outside, tooLarge, unreadable }
 
 typedef Fetched = ({Uint8List? bytes, String? etag, FetchFail? fail});
 
+/// What a window's answer [status] means for a read: null when it is the file.
+FetchFail? fetchFailOf(int status) => switch (status) {
+  200 => null,
+  404 => FetchFail.notFound,
+  403 => FetchFail.outside,
+  413 => FetchFail.tooLarge,
+  _ => FetchFail.unreadable,
+};
+
 /// GET [url] from [tab]'s window. Never throws: a failure is the answer.
 Future<Fetched> fetchMedia(WindowTab tab, String url) async {
   Fetched failed(FetchFail f) => (bytes: null, etag: null, fail: f);
@@ -19,13 +28,7 @@ Future<Fetched> fetchMedia(WindowTab tab, String url) async {
   try {
     final r = await ch.httpStream(tab.port, 'GET', url);
     final length = int.tryParse(r.headers['content-length'] ?? '');
-    final bad = switch (r.status) {
-      200 => null,
-      404 => FetchFail.notFound,
-      403 => FetchFail.outside,
-      413 => FetchFail.tooLarge,
-      _ => FetchFail.unreadable,
-    };
+    final bad = fetchFailOf(r.status);
     if (bad != null) {
       r.cancel();
       return failed(bad);

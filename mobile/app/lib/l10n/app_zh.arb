@@ -137,6 +137,8 @@
   "markFailed": "无法保存标记。请检查连接后重试。",
   "imageTooLarge": "图片太大，无法在手机上打开（超过 32 MB）。请在电脑上打开。",
   "imageUnreadable": "无法显示这张图片。",
+  "soundTooLarge": "音频太大，无法在手机上打开（超过 64 MB）。请在电脑上打开。",
+  "soundUnplayable": "无法播放此音频。请在主机在线时重试。",
   "videoPlay": "播放",
   "videoPause": "暂停",
   "videoUnplayable": "无法播放此视频。请在主机在线时重试。",
