@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Video edits: a file icon of their own.** A `*.nbcut.json` shows a timeline icon in the Files tree, tabs and pickers instead of the JSON braces.
 - **Media markup: a Mask tool.** **Mask** (G) in the markup toolbar outlines an exact area point by point: a click adds a point, a click on the first point, Enter or a double-click closes it, Backspace removes the last point and Esc drops the shape. Closed shapes are filled half-transparent in the mark colour; drag a point to adjust one or drag inside it to move it (Cmd/Ctrl+Z undoes a drag; Alt-click starts a new shape inside one), several per comment. The agent gets every point in pixels and a `mask.png` beside the frame (white inside the shapes, black outside, the frame's size), ready for inpainting. The phone shows these shapes on comments it receives. Protocol 24.
 - **Fix: Esc while drawing a shape.** Esc during a drag (any tool) now drops only that unfinished shape, with no question; with nothing in progress it leaves markup as before. Leaving markup mid-drag no longer brings the shape's start point back, with a grey shape following the pointer, the next time markup is opened.
 - **Dates and times on messages.** Your messages show their time in the header and the agent's replies on hover, with the date when it is not today and the full date and time in a tooltip; a line marks each new day (Today, Yesterday, the date). Loaded history keeps its times now (Claude and Codex); an old record without one shows none. In the UI language.

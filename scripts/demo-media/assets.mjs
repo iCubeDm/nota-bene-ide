@@ -73,8 +73,8 @@ export function flowHtml() {
     </script>`);
 }
 
-/** Writes design/landing.png and media/flow.mp4 into `dir` (a project root). Needs a Playwright `chromium` and ffmpeg. */
-export async function makeAssets(chromium, dir) {
+/** Writes design/landing.png and media/flow.mp4 into `dir` (a project root), frames in `work`. Needs a Playwright `chromium` and ffmpeg. */
+export async function makeAssets(chromium, dir, work = os.tmpdir()) {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     fs.mkdirSync(path.join(dir, 'design'), { recursive: true });
@@ -85,7 +85,7 @@ export async function makeAssets(chromium, dir) {
     await img.close();
 
     const fps = 20, secs = 6;
-    const frames = fs.mkdtempSync(path.join(os.tmpdir(), 'demo-flow-'));
+    const frames = fs.mkdtempSync(path.join(work, 'demo-flow-'));
     const vp = await browser.newPage({ viewport: { width: 800, height: 500 }, deviceScaleFactor: 1 });
     await vp.setContent(flowHtml());
     for (let i = 0; i < fps * secs; i++) {
@@ -155,7 +155,7 @@ function music(out, secs) {
 export const VOICE_OVER = 'Paste a long link and press Shorten. Your short link is ready to share.';
 
 /** Writes media/title.mp4, media/logo.png, media/voice-over.wav and media/music.wav into `dir` (the edit's sources). */
-export async function makeEditAssets(chromium, dir) {
+export async function makeEditAssets(chromium, dir, work = os.tmpdir()) {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const badge = await browser.newPage({ viewport: { width: 480, height: 160 }, deviceScaleFactor: 1 });
@@ -163,7 +163,7 @@ export async function makeEditAssets(chromium, dir) {
     await badge.screenshot({ path: path.join(dir, 'media/logo.png'), omitBackground: true });
     await badge.close();
     const fps = 20, secs = 3;
-    const frames = fs.mkdtempSync(path.join(os.tmpdir(), 'demo-title-'));
+    const frames = fs.mkdtempSync(path.join(work, 'demo-title-'));
     const vp = await browser.newPage({ viewport: { width: 800, height: 500 }, deviceScaleFactor: 1 });
     await vp.setContent(titleHtml());
     for (let i = 0; i < fps * secs; i++) {

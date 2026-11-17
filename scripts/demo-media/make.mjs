@@ -3,12 +3,15 @@
 //   node scripts/demo-media/make.mjs [--only annotate-text,overview,...] [--out docs/media]
 //
 // Needs: Node >= 23.6, system Chrome (Playwright drives it, nothing is downloaded), ffmpeg and ffprobe on PATH,
-// `npm install` done, and `npm run build -w web` (done here when web/dist is missing or older than web/src).
+// `npm install` done. It runs `npm run build -w web` first when web/dist is missing or older than web/src (that writes
+// web/dist of this checkout).
 // It starts the server on port 4790 with the fake backend (--fake, scripted replies), a temp state dir and a temp journal
-// vault, and a demo project it creates at /Users/Shared/demo-project (removed at the end) (a tiny URL shortener, with a
-// generated image, a screen recording and a video edit of them). Two more folders beside it, /Users/Shared/docs-site and
-// /Users/Shared/mobile-app, get servers of their own on 4791 and 4792, so the projects rail shows three projects.
-// If a port is busy it waits and retries. Nothing outside /tmp, those folders and the output folder is touched.
+// vault, all in a work dir /tmp/nbdm-* (os.tmpdir() on Windows; short, for a Whisper host's socket path). The demo
+// folders go in /Users/Shared/nb-demo, marked with .nb-demo-media when made: demo-project (a tiny URL shortener, with a
+// generated image, a screen recording and a video edit of them), and docs-site and mobile-app with servers of their own on
+// 4791 and 4792, so the projects rail shows three projects. A run refuses an nb-demo folder without the mark, and removes
+// its own and the work dir at the end, also on Ctrl+C (which stops the servers it started). If a port is busy it waits.
+// Nothing else outside the work dir, nb-demo, web/dist and the output folder is written.
 //
 // Scenes: annotate-text.gif (hero), annotate-code.gif, annotate-image.gif (a rectangle and a mask), annotate-video.gif,
 // video-editor.gif (an edit with video, a photo, a voice-over and music: gain, playing the preview, a comment, the agent's
@@ -24,7 +27,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
-import { CURSOR_INIT, PROJECT, REPO, URL_BASE, LOGIN_URL, cleanup, clickAt, glide, glideTo, prepare, sleep, startServer, framesToGif, typeSlow, warmWhisper } from './lib.mjs';
+import { CURSOR_INIT, PROJECT, REPO, URL_BASE, LOGIN_URL, cleanup, stopAll, clickAt, glide, glideTo, prepare, sleep, startServer, framesToGif, typeSlow, warmWhisper } from './lib.mjs';
 import { CUT_PATH, TEXT, agentCut } from './project.mjs';
 import { flowHtml, landingHtml } from './assets.mjs';
 
@@ -157,7 +160,7 @@ async function sendBatch(page) {
  * Records a scene as a CDP screencast (Playwright's own video needs a separate ffmpeg download, which is not used here).
  * `setupThenPlay(page, start)` calls `start()` when the viewer's part begins; it returns when the final state is on screen.
  */
-async function recordGif(browser, name, setupThenPlay) {
+async function recordGif(browser, name, setupThenPlay, gifOpts) {
   const { ctx, page } = await openPage(browser, { record: true });
   const cdp = await ctx.newCDPSession(page);
   const dir = fs.mkdtempSync(path.join(work, `frames-${name}-`));
@@ -176,7 +179,7 @@ async function recordGif(browser, name, setupThenPlay) {
   await page.close();
   await ctx.close();
   const gif = path.join(OUT, `${name}.gif`);
-  const dur = framesToGif(frames, marks, gif, dir);
+  const dur = framesToGif(frames, marks, gif, dir, gifOpts);
   console.log(`${name}.gif  ${dur.toFixed(1)} s  ${(fs.statSync(gif).size / 1e6).toFixed(2)} MB`);
 }
 
@@ -253,13 +256,15 @@ const scenes = {
       await clickAt(page, page.getByRole('toolbar', { name: /./ }).getByRole('button', { name: /^Mask/ }), 600);
       const card = await naturalBox(browser, landingHtml(), 800, 540, '.result', 5);
       const [x0, y0, x1, y1] = [b.x + card.x * k, b.y + card.y * k, b.x + (card.x + card.width) * k, b.y + (card.y + card.height) * k];
-      const r = 14 * k; // the card's rounded corners, cut off
-      const pts = [[x0 + r, y0], [x1 - r, y0], [x1, y0 + r], [x1, y1 - r], [x1 - r, y1], [x0 + r, y1], [x0, y1 - r], [x0, y0 + r], [x0 + r, y0]];
+      // a tag-like outline, then the first point again to close it. Points well apart: two clicks within 40 px and 0.5 s
+      // are a double-click to the tool (it closes the shape there)
+      const mid = (y0 + y1) / 2;
+      const pts = [[x0, y0], [x1 - 40, y0], [x1 + 16, mid], [x1 - 40, y1], [x0, y1], [x0, y0]];
       for (const [x, y] of pts) {
-        await glide(page, x, y, 260);
+        await glide(page, x, y, 420);
         await page.mouse.down();
         await page.mouse.up();
-        await sleep(70);
+        await sleep(120);
       }
       await sleep(250);
       await commentOnMark(page, TEXT.maskC);
@@ -368,8 +373,10 @@ const scenes = {
       fs.writeFileSync(file, JSON.stringify(agentCut(JSON.parse(fs.readFileSync(file, 'utf8'))), null, 2) + '\n');
       await sleep(600);
       await clickAt(page, page.locator(`[data-tab="file:${CUT_PATH}"]`), 600);
-      await sleep(2300);
-    });
+      // the highlight of what the agent changed plays for about two seconds: the GIF ends near its brightest and holds it
+      await pane.locator('[data-changed-mark]').first().waitFor();
+      await sleep(300);
+    }, { hold: 3 });
   },
 
   async 'voice-message'(browser, assets) {
@@ -498,13 +505,27 @@ function ensureBuilt() {
 }
 
 ensureBuilt();
-const assets = await prepare(chromium, work);
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
 // a Whisper install to copy for the voice message (never the running host: the scene's server starts its own in the temp state dir)
 const whisper = process.env.DEMO_WHISPER ?? path.join(os.homedir(), '.nota-bene/whisper');
 const haveWhisper = fs.existsSync(path.join(whisper, 'ready.json'));
+let browser = null;
+// Ctrl+C or a kill: stop the servers this run started (only those), then remove the demo folders and the work dir
+let interrupted = false;
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, async () => {
+    if (interrupted) return;
+    interrupted = true;
+    console.error(`${sig}: stopping the demo servers and cleaning up`);
+    await stopAll();
+    await browser?.close().catch(() => {});
+    cleanup(work);
+    process.exit(130);
+  });
+}
 let failed = false;
 try {
+  const assets = await prepare(chromium, work);
+  browser = await chromium.launch({ channel: 'chrome', headless: true });
   for (const [name, run] of Object.entries(scenes)) {
     if (only && !only.includes(name)) continue;
     if (name === 'voice-message' && !(haveWhisper && assets.voice)) {
@@ -512,19 +533,23 @@ try {
       continue;
     }
     const opts = name === 'codex' ? { codex: path.join(REPO, 'scripts/demo-media/codex-app-server.mjs') } : name === 'voice-message' ? { whisper } : {};
-    const srv = await startServer(work, assets.script, name, opts); // fresh state per scene
+    let srv = null;
     try {
+      srv = await startServer(work, assets.script, name, opts); // fresh state per scene
       await run(browser, assets);
     } catch (e) {
       failed = true;
       console.error(`${name} failed:`, e);
     } finally {
-      await srv.stop();
+      if (srv) await srv.stop();
+      else await stopAll(); // a start that failed half-way
     }
   }
+} catch (e) {
+  failed = true;
+  console.error(e);
 } finally {
-  await browser.close();
-  fs.rmSync(work, { recursive: true, force: true });
-  cleanup();
+  await browser?.close();
+  cleanup(work);
 }
 if (failed) process.exit(1);

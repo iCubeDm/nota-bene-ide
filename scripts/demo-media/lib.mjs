@@ -15,28 +15,41 @@ export const URL_BASE = `http://127.0.0.1:${PORT}`;
 const TOKEN = randomBytes(32).toString("hex");
 const NONCE = randomBytes(16).toString("hex");
 export const LOGIN_URL = `${URL_BASE}/#t=${createHmac("sha256", TOKEN).update(`nota-bene:login:${PORT}:${NONCE}`).digest("hex")}`;
-/** A neutral path with no user name in it: it is what the window shows as the project. Removed again at the end of a run. */
-export const PROJECT = '/Users/Shared/demo-project';
+/**
+ * The demo folders live in one parent of their own, marked with MARKER when this script creates it: a run removes that
+ * parent only when it carries the mark, and never touches a folder it did not make. Neutral paths with no user name in
+ * them: they are what the window shows as the project.
+ */
+export const DEMO_ROOT = '/Users/Shared/nb-demo';
+export const MARKER = '.nb-demo-media';
+export const PROJECT = path.join(DEMO_ROOT, 'demo-project');
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Removes the demo project and its siblings. */
-export function cleanup() {
-  for (const dir of [PROJECT, ...SIBLINGS.map((s) => s.root)]) fs.rmSync(dir, { recursive: true, force: true });
+const ours = (dir) => fs.existsSync(path.join(dir, MARKER));
+
+/** Removes the demo folders (the marked parent), and `work` when given. A parent without the mark is left alone. */
+export function cleanup(work) {
+  if (work) fs.rmSync(work, { recursive: true, force: true });
+  if (fs.existsSync(DEMO_ROOT) && ours(DEMO_ROOT)) fs.rmSync(DEMO_ROOT, { recursive: true, force: true });
 }
 
-/** Creates the demo project and its siblings (fresh each time) and a temp state dir; returns both. Assets are generated once per run. */
+/** Creates the demo project and its siblings (fresh each time) under the marked parent; assets are generated once per run. */
 export async function prepare(chromium, work) {
-  fs.rmSync(PROJECT, { recursive: true, force: true });
-  fs.mkdirSync(PROJECT, { recursive: true });
+  if (fs.existsSync(DEMO_ROOT)) {
+    if (!ours(DEMO_ROOT)) throw new Error(`${DEMO_ROOT} exists and was not made by this script (no ${MARKER} in it): move it away first`);
+    fs.rmSync(DEMO_ROOT, { recursive: true, force: true });
+  }
+  fs.mkdirSync(DEMO_ROOT, { recursive: true });
+  fs.writeFileSync(path.join(DEMO_ROOT, MARKER), 'Made by scripts/demo-media/make.mjs; removed at the end of its run.\n');
+  fs.mkdirSync(PROJECT);
   writeProject(PROJECT);
   for (const s of SIBLINGS) {
-    fs.rmSync(s.root, { recursive: true, force: true });
-    fs.mkdirSync(s.root, { recursive: true });
+    fs.mkdirSync(s.root);
     fs.writeFileSync(path.join(s.root, 'README.md'), s.readme);
   }
-  await makeAssets(chromium, PROJECT);
-  await makeEditAssets(chromium, PROJECT);
+  await makeAssets(chromium, PROJECT, work);
+  await makeEditAssets(chromium, PROJECT, work);
   const voiceLen = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(PROJECT, 'media/voice-over.wav')], { encoding: 'utf8' }));
   fs.writeFileSync(path.join(PROJECT, CUT_PATH), JSON.stringify(cutDoc(voiceLen), null, 2) + '\n');
   // the voice message the fake microphone plays (Chrome's fake capture), and the same words at 16 kHz to load Whisper first
@@ -50,9 +63,17 @@ export async function prepare(chromium, work) {
 
 /** Folders of other demo projects, open in windows of their own beside the demo one: they fill the projects rail. */
 export const SIBLINGS = [
-  { root: '/Users/Shared/docs-site', port: PORT + 1, readme: '# docs-site\n\nThe user guide of shortly, built with a static site generator.\n' },
-  { root: '/Users/Shared/mobile-app', port: PORT + 2, readme: '# mobile-app\n\nA small companion app for shortly: paste a link, share the short one.\n' },
+  { root: path.join(DEMO_ROOT, 'docs-site'), port: PORT + 1, readme: '# docs-site\n\nThe user guide of shortly, built with a static site generator.\n' },
+  { root: path.join(DEMO_ROOT, 'mobile-app'), port: PORT + 2, readme: '# mobile-app\n\nA small companion app for shortly: paste a link, share the short one.\n' },
 ];
+
+/** The servers this run started and that are still running: an interrupted run stops them (stopAll). */
+const live = new Set();
+
+/** SIGTERM to every server this run started (only those), and a wait of up to 3 s for them to exit. */
+export async function stopAll() {
+  await Promise.all([...live].map((c) => new Promise((r) => { c.on('exit', r); c.kill('SIGTERM'); setTimeout(r, 3000).unref(); })));
+}
 
 /** Strips everything a launcher this script may run under passes on (a Nota Bene window's terminal): demo servers are unsupervised. */
 const cleanEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('NOTA_BENE_')));
@@ -90,7 +111,8 @@ export async function startServer(work, script, name, { codex, whisper } = {}) {
     const c = spawn(process.execPath, [path.join(REPO, 'server/src/main.ts'), root, '--port', String(port), ...args], {
       cwd: REPO, env: { ...env, ...extra }, stdio: ['ignore', 'ignore', 'inherit'],
     });
-    c.on('exit', (code, sig) => { if (!stopping) console.error(`server on ${port} exited: ${code ?? sig}`); });
+    live.add(c);
+    c.on('exit', (code, sig) => { live.delete(c); if (!stopping) console.error(`server on ${port} exited: ${code ?? sig}`); });
     return c;
   };
   const children = [spawnOne(PROJECT, PORT, codex ? ['--agent', 'codex'] : ['--fake', script], codex ? { NOTA_BENE_CODEX: codex } : {})];
