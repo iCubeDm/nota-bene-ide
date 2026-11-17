@@ -13,7 +13,7 @@ import '../theme.dart';
 import '../ui/nb_icon.dart';
 import '../voice/player.dart';
 import '../voice/voice_view.dart' show clock;
-import 'files.dart';
+import 'embed.dart';
 import 'window_tab.dart';
 
 /// The sounds a reply embeds (the desktop's own list, `AUDIO` of shared/src/cutCheck.ts).
@@ -160,48 +160,6 @@ Future<Written> fetchSound(
   }
 }
 
-/// The project file [src] (as the text wrote it) names in [root], relative to [base] (a folder of the project, `''`
-/// for its root), or null when it is none (outside the project included).
-String? soundFile(String root, String src, {String base = ''}) {
-  var p = src;
-  try {
-    p = Uri.decodeFull(src);
-  } on ArgumentError {
-    // kept as written
-  }
-  if (p.startsWith('/')) return projectPath(root, p);
-  final out = <String>[];
-  for (final seg in [...base.split('/'), ...p.split('/')]) {
-    if (seg.isEmpty || seg == '.') continue;
-    if (seg == '..') {
-      if (out.isEmpty) return null;
-      out.removeLast();
-    } else {
-      out.add(seg);
-    }
-  }
-  return projectPath(root, out.join('/'));
-}
-
-/// Where the sounds below play from: the window, and the folder their paths are relative to (a Markdown file's own;
-/// the chat has none, its paths are the project's).
-class SoundScope extends InheritedWidget {
-  const SoundScope({
-    super.key,
-    required this.tab,
-    required this.base,
-    required super.child,
-  });
-  final WindowTab tab;
-  final String base;
-
-  static SoundScope? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<SoundScope>();
-
-  @override
-  bool updateShouldNotify(SoundScope old) => old.tab != tab || old.base != base;
-}
-
 class AudioClip extends StatefulWidget {
   const AudioClip(this.src, {super.key, this.player});
 
@@ -224,19 +182,8 @@ class _AudioClipState extends State<AudioClip> {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final p = widget.player ?? VoicePlayer.shared;
-    final scope = SoundScope.of(context);
-    final tab = scope?.tab ?? FileOpener.of(context);
-    final rel = tab == null
-        ? null
-        : soundFile(tab.root, widget.src, base: scope?.base ?? '');
-    final name = widget.src.split('/').last;
-    final shownName = (() {
-      try {
-        return Uri.decodeFull(name);
-      } on ArgumentError {
-        return name;
-      }
-    })();
+    final (:tab, :rel) = embedTarget(context, widget.src);
+    final shownName = embedName(widget.src);
     final id = tab == null || rel == null
         ? null
         : 'clip|${tab.link.host.id}|${tab.port}|$rel';

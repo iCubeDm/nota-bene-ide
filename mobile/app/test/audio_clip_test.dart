@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:nb_app/chat/audio_clip.dart';
+import 'package:nb_app/chat/embed.dart';
 import 'package:nb_app/chat/markdown.dart';
 import 'package:nb_app/files/file_screen.dart';
 import 'package:nb_app/voice/player.dart';
@@ -39,7 +40,7 @@ void main() {
       );
       expect(clip?.attributes['src'], '.shots/voice/clip_D.mp3');
       expect(firstElement(parseMarkdown('![](a/b.png)'), 'nbaudio'), isNull);
-      expect(firstElement(parseMarkdown('![](a/b.png)'), 'img'), isNotNull);
+      expect(firstElement(parseMarkdown('![](a/b.svg)'), 'img'), isNotNull);
       expect(
         firstElement(parseMarkdown('![](https://x.org/a.mp3)'), 'nbaudio'),
         isNull,
@@ -55,11 +56,11 @@ void main() {
   );
 
   test('a sound path resolves in its folder and never above the project', () {
-    expect(soundFile('/r', 'a.mp3', base: 'docs'), 'docs/a.mp3');
-    expect(soundFile('/r', './x/../a.mp3', base: 'docs/sub'), 'docs/sub/a.mp3');
-    expect(soundFile('/r', '../../a.mp3', base: 'docs'), isNull);
-    expect(soundFile('/r', '/r/s/a.mp3', base: 'docs'), 's/a.mp3');
-    expect(soundFile('/r', '/elsewhere/a.mp3'), isNull);
+    expect(embedFile('/r', 'a.mp3', base: 'docs'), 'docs/a.mp3');
+    expect(embedFile('/r', './x/../a.mp3', base: 'docs/sub'), 'docs/sub/a.mp3');
+    expect(embedFile('/r', '../../a.mp3', base: 'docs'), isNull);
+    expect(embedFile('/r', '/r/s/a.mp3', base: 'docs'), 's/a.mp3');
+    expect(embedFile('/r', '/elsewhere/a.mp3'), isNull);
   });
 
   group('in the feed', () {

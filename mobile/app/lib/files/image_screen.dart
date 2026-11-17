@@ -17,7 +17,7 @@ import '../media/picker.dart';
 import '../media/shapes.dart';
 import '../ui/nb_icon.dart';
 
-export '../media/fetch.dart' show imageMaxBytes;
+export '../media/fetch.dart' show imageMaxBytes, previewMaxBytes;
 
 /// The window's own requests for a tab, through its channel; null while the host is offline.
 WindowHttp? windowHttp(WindowTab tab) => tab.http;
@@ -216,7 +216,10 @@ class _ImageScreenState extends State<ImageScreen>
     final item = widget.items[i];
     final got = item.attachId != null
         ? await cachedMedia(widget.tab, item.url)
-        : await fetchMedia(widget.tab, item.url);
+        : item.path!.startsWith('/')
+        ? await fetchMedia(widget.tab, item.url)
+        // a preview's bytes when the file is unchanged (issue 459)
+        : await viewedFile(widget.tab, item.url);
     ui.Image? image;
     _Fail? fail = switch (got.fail) {
       FetchFail.notFound => _Fail.notFound,
