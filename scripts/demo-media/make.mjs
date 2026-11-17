@@ -48,6 +48,9 @@ const commentBox = (p) => p.getByPlaceholder('Comment…');
 const addBtn = (p) => p.getByRole('button', { name: /^Add$/ });
 const doneLines = (p) => p.locator('[data-kind="done"]');
 
+/** Playwright leaves SIGINT/SIGTERM to this script's handler (below), which stops the servers and cleans up first. */
+const OWN_SIGNALS = { handleSIGINT: false, handleSIGTERM: false };
+
 /** Hides what looks like a test artifact: the (fake) session id in the header. */
 const HIDE = '#session { visibility: hidden }';
 
@@ -382,7 +385,7 @@ const scenes = {
   async 'voice-message'(browser, assets) {
     // a browser of its own: its fake microphone plays the generated voice once
     const b = await chromium.launch({
-      channel: 'chrome', headless: true,
+      channel: 'chrome', headless: true, ...OWN_SIGNALS,
       args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${assets.voice}%noloop`],
     });
     try {
@@ -511,21 +514,26 @@ const haveWhisper = fs.existsSync(path.join(whisper, 'ready.json'));
 let browser = null;
 // Ctrl+C or a kill: stop the servers this run started (only those), then remove the demo folders and the work dir
 let interrupted = false;
+// Playwright's own handlers would exit at once (130) and skip this cleanup
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, async () => {
     if (interrupted) return;
     interrupted = true;
     console.error(`${sig}: stopping the demo servers and cleaning up`);
-    await stopAll();
-    await browser?.close().catch(() => {});
-    cleanup(work);
+    try {
+      await stopAll();
+      await Promise.race([browser?.close().catch(() => {}), sleep(3000)]);
+      cleanup(work);
+    } catch (e) {
+      console.error('cleanup failed:', e);
+    }
     process.exit(130);
   });
 }
 let failed = false;
 try {
   const assets = await prepare(chromium, work);
-  browser = await chromium.launch({ channel: 'chrome', headless: true });
+  browser = await chromium.launch({ channel: 'chrome', headless: true, ...OWN_SIGNALS });
   for (const [name, run] of Object.entries(scenes)) {
     if (only && !only.includes(name)) continue;
     if (name === 'voice-message' && !(haveWhisper && assets.voice)) {
@@ -549,7 +557,10 @@ try {
   failed = true;
   console.error(e);
 } finally {
-  await browser?.close();
-  cleanup(work);
+  // after a signal its handler stops the servers and cleans up; doing it here as well would race it
+  if (!interrupted) {
+    await browser?.close();
+    cleanup(work);
+  }
 }
-if (failed) process.exit(1);
+if (failed && !interrupted) process.exit(1);

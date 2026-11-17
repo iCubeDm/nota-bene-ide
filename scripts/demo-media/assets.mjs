@@ -75,7 +75,7 @@ export function flowHtml() {
 
 /** Writes design/landing.png and media/flow.mp4 into `dir` (a project root), frames in `work`. Needs a Playwright `chromium` and ffmpeg. */
 export async function makeAssets(chromium, dir, work = os.tmpdir()) {
-  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const browser = await chromium.launch({ channel: 'chrome', headless: true, handleSIGINT: false, handleSIGTERM: false }); // make.mjs handles signals
   try {
     fs.mkdirSync(path.join(dir, 'design'), { recursive: true });
     fs.mkdirSync(path.join(dir, 'media'), { recursive: true });
@@ -156,7 +156,7 @@ export const VOICE_OVER = 'Paste a long link and press Shorten. Your short link 
 
 /** Writes media/title.mp4, media/logo.png, media/voice-over.wav and media/music.wav into `dir` (the edit's sources). */
 export async function makeEditAssets(chromium, dir, work = os.tmpdir()) {
-  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const browser = await chromium.launch({ channel: 'chrome', headless: true, handleSIGINT: false, handleSIGTERM: false }); // make.mjs handles signals
   try {
     const badge = await browser.newPage({ viewport: { width: 480, height: 160 }, deviceScaleFactor: 1 });
     await badge.setContent(badgeHtml());

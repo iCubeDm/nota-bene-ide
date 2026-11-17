@@ -30,8 +30,12 @@ const ours = (dir) => fs.existsSync(path.join(dir, MARKER));
 
 /** Removes the demo folders (the marked parent), and `work` when given. A parent without the mark is left alone. */
 export function cleanup(work) {
-  if (work) fs.rmSync(work, { recursive: true, force: true });
-  if (fs.existsSync(DEMO_ROOT) && ours(DEMO_ROOT)) fs.rmSync(DEMO_ROOT, { recursive: true, force: true });
+  const rm = (p) => fs.rmSync(p, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  if (work) rm(work);
+  if (!fs.existsSync(DEMO_ROOT) || !ours(DEMO_ROOT)) return;
+  // the mark goes last: a removal cut short leaves a folder the next run still recognises as its own
+  for (const name of fs.readdirSync(DEMO_ROOT)) if (name !== MARKER) rm(path.join(DEMO_ROOT, name));
+  rm(DEMO_ROOT);
 }
 
 /** Creates the demo project and its siblings (fresh each time) under the marked parent; assets are generated once per run. */
