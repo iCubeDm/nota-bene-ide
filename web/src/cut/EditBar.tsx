@@ -7,6 +7,17 @@ import type { CutDoc } from './useCutDoc.ts';
 const BTN = 'rounded px-1.5 py-0.5 text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent';
 const CHOICE = 'rounded px-2 py-0.5 text-foreground hover:bg-muted';
 
+/** The tools' icons (issue 463): 24×24 outlines in the lucide style, as the player's and the markup bar's. */
+const icon = (children: ReactNode) => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="block">
+    {children}
+  </svg>
+);
+/** Select: the pointer arrow */
+const SelectIcon = () => icon(<path d="M4.04 4.69a.5.5 0 0 1 .65-.65l16 6.5a.5.5 0 0 1-.06.95l-6.13 1.58a2 2 0 0 0-1.43 1.43l-1.58 6.13a.5.5 0 0 1-.95.06z" />);
+/** Blade: a razor blade at a slant, its slot and the notches at its ends */
+const BladeIcon = () => icon(<g transform="rotate(-35 12 12)"><rect x="3" y="8.5" width="18" height="7" rx="1" /><path d="M3 12h2.5M21 12h-2.5" /><path d="M9 12h6" /></g>);
+
 /**
  * The editor's tools (issue 409), each tooltip naming its key: the timeline's tool (issue 432: Select or Blade, the active
  * one pressed), undo and redo, split at the playhead, duplicate and delete the selected clips (the new tracks are in the
@@ -25,7 +36,7 @@ export function EditBar({ doc, sel, onSplit, onDuplicate, onDelete, onComment, n
     const tip = keys ? withKeys(label, keys) : label;
     return <button type="button" aria-label={tip} title={tip} disabled={disabled} onClick={onClick} className={BTN}>{glyph}</button>;
   };
-  const pick = (which: Tool, label: string, key: string, glyph: string) => {
+  const pick = (which: Tool, label: string, key: string, glyph: ReactNode) => {
     const tip = withKeys(label, key);
     return (
       <button type="button" aria-label={tip} title={tip} aria-pressed={tool === which} onClick={() => onTool(which)}
@@ -35,8 +46,8 @@ export function EditBar({ doc, sel, onSplit, onDuplicate, onDelete, onComment, n
   const status = doc.status;
   return (
     <div data-cut-tools className="flex min-h-7 flex-none flex-wrap items-center gap-x-1 gap-y-0.5 border-b border-border-soft bg-chrome px-3 py-0.5 text-xs text-muted-foreground">
-      {pick('select', t('cutToolSelect'), 'V', t('cutToolSelectShort'))}
-      {pick('blade', t('cutToolBlade'), 'C', t('cutToolBladeShort'))}
+      {pick('select', t('cutToolSelect'), 'V', <SelectIcon />)}
+      {pick('blade', t('cutToolBlade'), 'C', <BladeIcon />)}
       <span className="mx-1 h-4 border-l border-border-soft" />
       {b(t('cutUndo'), `${mod}Z`, <span className="text-sm leading-none">↶</span>, doc.undo, !doc.canUndo)}
       {b(t('cutRedo'), `${shift}${mod}Z`, <span className="text-sm leading-none">↷</span>, doc.redo, !doc.canRedo)}

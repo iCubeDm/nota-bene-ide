@@ -499,7 +499,7 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   const x0 = Math.max(0, Math.floor((view.from - b.at) * pps / WAVE_STEP) * WAVE_STEP);
   const x1 = Math.min(w, Math.ceil((view.to - b.at) * pps / WAVE_STEP) * WAVE_STEP);
   const handles = !!drag && w >= 24;
-  const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? []), ...(drag ? [t(drag.blade ? 'cutBladeTip' : 'cutClipTip')] : [])].join('\n');
+  const title = [b.src, `${fmtTime(b.at, true)} – ${fmtTime(b.at + b.len, true)}`, ...(problems ?? [])].join('\n');
   const tint = lane.kind === 'video' ? 'border-link/60 bg-link/15' : 'border-success/60 bg-success/15';
   return (
     <div

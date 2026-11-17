@@ -68,7 +68,7 @@ describe('settings menu: Remote access and Usage', () => {
   });
 
   it.each([
-    ['off', OFF, /Remote access is off/],
+    ['off', OFF, /Remote access: off/],
     ['connecting', { ...ONLINE, online: false, devices: [] }, /connecting to the relay/],
     ['online', { ...ONLINE, devices: [] }, /^Remote access: online$/],
     ['trouble', { ...ONLINE, online: false, running: false, lastError: { code: 4401, message: 'the relay refused the host key proof', at: 1 } }, /not working: the relay refused the host key proof/],

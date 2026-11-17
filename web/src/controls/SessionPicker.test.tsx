@@ -81,7 +81,7 @@ const menu = () => screen.getByRole('dialog', { name: 'Sessions' });
 it('the Sessions trigger is a ▾ (the chat tab names the session); the tooltip says what it opens', () => {
   setup();
   expect(btn().textContent).toBe('');
-  expect(btn().title).toMatch(/^This project's Claude Code sessions/);
+  expect(btn().title).toBe('Claude Code sessions');
 });
 
 async function openPicker() {

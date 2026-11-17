@@ -503,12 +503,12 @@ it('an effort that is not among the row\'s levels shows no bar and is not claime
   const s = setup();
   s.emit({ kind: 'hello', protocol: 6 }, { kind: 'models', models: MODELS }, { kind: 'model', model: 'claude-haiku-5', effort: 'high' }); // Haiku has no levels
   expect(effortBar()).toBeNull();
-  expect(pill()).toHaveAttribute('aria-label', 'Haiku 5 · Model and effort · a change applies from the next reply');
+  expect(pill()).toHaveAttribute('aria-label', 'Haiku 5 · Model and effort');
   s.emit({ kind: 'model', model: 'claude-opus-5', effort: 'low' }); // Opus: High, Max
   expect(effortBar()).toBeNull();
   expect(pill()).not.toHaveAccessibleName(/Low/);
   await userEvent.hover(pill());
-  expect((await screen.findAllByText(/Model and effort/)).some((e) => e.getAttribute('data-slot') === 'tooltip-content' && e.textContent === 'Opus 5\nModel and effort · a change applies from the next reply')).toBe(true);
+  expect((await screen.findAllByText(/Model and effort/)).some((e) => e.getAttribute('data-slot') === 'tooltip-content' && e.textContent === 'Opus 5\nModel and effort')).toBe(true);
 });
 
 it('other rows show their own name', () => {
@@ -537,7 +537,7 @@ it('the effort is a mini bar whose fill is the level among the model\'s levels; 
 
 it('the accessible name carries the model name, the 1M tag and the effort name, then the tip', () => {
   withDefault([{ value: 'opus', name: 'Opus 5.5', description: 'o', resolved: 'claude-opus-5-5' }], 'claude-opus-5-5[1m]', 'xhigh');
-  expect(pill()).toHaveAttribute('aria-label', 'Opus 5.5 1M · Extra high · Model and effort · a change applies from the next reply');
+  expect(pill()).toHaveAttribute('aria-label', 'Opus 5.5 1M · Extra high · Model and effort');
   expect(pill()).toHaveTextContent(/^Opus 5\.5\s*1M$/);
 });
 
@@ -545,7 +545,7 @@ it('the tooltip repeats the full name and effort above the tip', async () => {
   withDefault([{ value: 'opus', name: 'Opus 5.5', description: 'o', resolved: 'claude-opus-5-5' }], 'default', 'xhigh');
   await userEvent.hover(pill());
   const tip = await screen.findAllByText(/Extra high/);
-  expect(tip.some((e) => e.getAttribute('data-slot') === 'tooltip-content' && e.textContent === 'Opus 5.5 · Extra high\nModel and effort · a change applies from the next reply')).toBe(true);
+  expect(tip.some((e) => e.getAttribute('data-slot') === 'tooltip-content' && e.textContent === 'Opus 5.5 · Extra high\nModel and effort')).toBe(true);
 });
 
 it('Russian: the 1M tag and the effort name', () => {

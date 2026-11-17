@@ -378,5 +378,5 @@ it('the Send tooltip names Enter, Alt+R and, while busy, the forcing keys', asyn
   expect(send.getAttribute('title')).toMatch(/Alt\+R|⌥R/);
   expect(send.getAttribute('title')).not.toMatch(/interrupt/i);
   busyNow(store);
-  expect(screen.getByRole('button', { name: /Send the voice message/ }).getAttribute('title')).toMatch(/queue[\s\S]*(Ctrl\+Enter|⌘Enter)[\s\S]*interrupt/i);
+  expect(screen.getByRole('button', { name: /Send the voice message/ }).getAttribute('title')).toMatch(/(Ctrl\+Enter|⌘Enter)[\s\S]*interrupt/i);
 });

@@ -76,7 +76,7 @@ export function Header() {
             type="button"
             id="settingsBtn"
             aria-label={t('settings')}
-            title={t('settingsTip')}
+            title={t('settings')}
             className="relative grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Svg size={15}>{ICONS.settings}</Svg>

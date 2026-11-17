@@ -4,7 +4,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useT } from '@/i18n/index.ts';
 import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
-import { fmtK } from '@/lib/format.ts';
 import { runCommand, selectCapabilities, selectCapabilitiesKnown, selectIdleCompact, selectSwitching, toggleIdleCompact } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
 
@@ -22,7 +21,7 @@ export function CompactClear() {
   const known = useAppSelector(selectCapabilitiesKnown);
   const idle = useAppSelector(selectIdleCompact);
   const idleOn = !!idle && idle.on && !idle.blocked;
-  const idleTip = !idle ? '' : idle.blocked ? t('idleBlocked') : t('idleTip', idle.on, idle.minutes, idle.awayMinutes, fmtK(idle.minTokens));
+  const idleTip = !idle ? '' : idle.blocked ? t('idleBlocked') : t('idleTip', idle.on, idle.minutes);
   return (
     <>
       {caps.compact && <Tooltip>

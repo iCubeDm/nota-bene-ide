@@ -141,7 +141,7 @@ it('the idle-compaction toggle appears once the server tells its state, flips op
   emit(idleState(true));
   const btn = screen.getByTestId('idle-compact');
   expect(btn).toHaveAttribute('aria-pressed', 'true');
-  expect(btn.getAttribute('aria-label')).toMatch(/Idle compaction: on.*50 min.*15 min.*200k/s);
+  expect(btn.getAttribute('aria-label')).toBe('Idle compaction: on, after 50 min');
   await userEvent.click(btn);
   expect(btn).toHaveAttribute('aria-pressed', 'false');
   expect(sent.filter((m) => m.type === 'idle-compact')).toEqual([{ type: 'idle-compact', on: false }]);

@@ -84,8 +84,14 @@ const selected = (container: HTMLElement) => [...container.querySelectorAll('[da
 // the timeline's tools and selections (issue 432)
 it('Select (V) and Blade (C): the toolbar shows the active one, the tooltips name the keys, Esc returns to Select', async () => {
   await show();
-  const sel = screen.getByRole('button', { name: /^Select.*\(V\)$/ });
-  const blade = screen.getByRole('button', { name: /^Blade.*\(C\)$/ });
+  // icons (issue 463): the short name and the key are the tooltip and the accessible name
+  const sel = screen.getByRole('button', { name: 'Select (V)' });
+  const blade = screen.getByRole('button', { name: 'Blade (C)' });
+  for (const b of [sel, blade]) {
+    expect(b.querySelector('svg')).not.toBeNull();
+    expect(b.textContent).toBe('');
+    expect(b.title).toBe(b.getAttribute('aria-label'));
+  }
   expect(sel).toHaveAttribute('aria-pressed', 'true');
   expect(blade).toHaveAttribute('aria-pressed', 'false');
   key('KeyC');
