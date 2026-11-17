@@ -73,9 +73,9 @@ export function flowHtml() {
     </script>`);
 }
 
-/** Writes design/landing.png and media/flow.mp4 into `dir` (a project root). Needs a Playwright `chromium` and ffmpeg. */
-export async function makeAssets(chromium, dir) {
-  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+/** Writes design/landing.png and media/flow.mp4 into `dir` (a project root), frames in `work`. Needs a Playwright `chromium` and ffmpeg. */
+export async function makeAssets(chromium, dir, work = os.tmpdir()) {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true, handleSIGINT: false, handleSIGTERM: false }); // make.mjs handles signals
   try {
     fs.mkdirSync(path.join(dir, 'design'), { recursive: true });
     fs.mkdirSync(path.join(dir, 'media'), { recursive: true });
@@ -85,7 +85,7 @@ export async function makeAssets(chromium, dir) {
     await img.close();
 
     const fps = 20, secs = 6;
-    const frames = fs.mkdtempSync(path.join(os.tmpdir(), 'demo-flow-'));
+    const frames = fs.mkdtempSync(path.join(work, 'demo-flow-'));
     const vp = await browser.newPage({ viewport: { width: 800, height: 500 }, deviceScaleFactor: 1 });
     await vp.setContent(flowHtml());
     for (let i = 0; i < fps * secs; i++) {
@@ -98,4 +98,94 @@ export async function makeAssets(chromium, dir) {
   } finally {
     await browser.close();
   }
+}
+
+// ---- the video edit's sources: a title card, a logo badge, a voice-over and a music bed ---------------------------------
+
+function titleHtml() {
+  return `<!doctype html><meta charset=utf-8><style>${CSS}
+    body { --w: 800px; --h: 500px; background: radial-gradient(120% 90% at 30% 20%, #4f46e5 0%, #312e81 55%, #1e1b4b 100%); color: #fff;
+      display: grid; place-items: center; text-align: center; }
+    .t { font-size: 64px; font-weight: 800; letter-spacing: -.03em; display: flex; align-items: center; gap: 18px; justify-content: center; }
+    .t i { width: 58px; height: 58px; border-radius: 16px; background: #fff; display: block; position: relative; }
+    .t i::after { content: ""; position: absolute; left: 15px; top: 26px; width: 28px; height: 7px; border-radius: 4px; background: #4338ca; }
+    .s { margin-top: 14px; font-size: 24px; opacity: .85; }
+  </style><div><div class="t" id="t"><i></i>shortly</div><div class="s" id="s">Short links, made simple.</div></div>
+  <script>
+    window.render = (t) => {
+      const e = (x) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
+      const a = e(t / 0.8), b = e((t - 0.5) / 0.8);
+      document.getElementById('t').style.cssText = 'opacity:' + a + ';transform:translateY(' + (1 - a) * 24 + 'px) scale(' + (0.96 + 0.04 * a) + ')';
+      document.getElementById('s').style.cssText = 'opacity:' + b * 0.85 + ';transform:translateY(' + (1 - b) * 16 + 'px)';
+    };
+  </script>`;
+}
+
+function badgeHtml() {
+  return `<!doctype html><meta charset=utf-8><style>${CSS}
+    html, body { --w: 480px; --h: 160px; background: transparent; }
+    .b { margin: 10px; height: 140px; border-radius: 28px; background: #fff; display: flex; align-items: center; justify-content: center; gap: 22px;
+      font-size: 58px; font-weight: 800; letter-spacing: -.03em; color: #1f2430; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+    .b i { width: 64px; height: 64px; border-radius: 18px; background: linear-gradient(135deg, #6d63f5, #4338ca); display: block; position: relative; }
+    .b i::after { content: ""; position: absolute; left: 17px; top: 29px; width: 30px; height: 7px; border-radius: 4px; background: #fff; }
+  </style><div class="b"><i></i>shortly</div>`;
+}
+
+/** Synthetic speech (macOS `say`) as a mono WAV, `lead` seconds of silence first. False where there is no `say`. */
+export function speak(text, out, { rate = 44100, lead = 0, volume = 1 } = {}) {
+  const aiff = `${out}.aiff`;
+  try {
+    execFileSync('say', ['-r', '175', '-o', aiff, text]);
+  } catch {
+    return false;
+  }
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', aiff, '-af', `adelay=${Math.round(lead * 1000)}:all=1,apad=pad_dur=0.3,volume=${volume}`, '-ac', '1', '-ar', String(rate), '-c:a', 'pcm_s16le', out]);
+  fs.rmSync(aiff, { force: true });
+  return true;
+}
+
+/** A short music bed, generated: a plucked arpeggio over a soft bass and a kick on every beat (120 bpm). */
+function music(out, secs) {
+  const step = 'mod(floor(4*t),8)';
+  const f = `220*if(eq(${step},0),1,if(eq(${step},1),1.2599,if(eq(${step},2),1.4983,if(eq(${step},3),2,if(eq(${step},4),1.4983,if(eq(${step},5),1.2599,if(eq(${step},6),1.3348,1.1225)))))))`;
+  const expr = `0.28*sin(2*PI*${f}*t)*exp(-6*mod(t,0.25))+0.10*sin(2*PI*110*t)+0.45*sin(2*PI*(50+90*exp(-30*mod(t,0.5)))*t)*exp(-12*mod(t,0.5))`;
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `aevalsrc='${expr}':s=44100:d=${secs}`, '-af', 'volume=0.35', '-ac', '1', '-c:a', 'pcm_s16le', out]);
+}
+
+export const VOICE_OVER = 'Paste a long link and press Shorten. Your short link is ready to share.';
+
+/** Writes media/title.mp4, media/logo.png, media/voice-over.wav and media/music.wav into `dir` (the edit's sources). */
+export async function makeEditAssets(chromium, dir, work = os.tmpdir()) {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true, handleSIGINT: false, handleSIGTERM: false }); // make.mjs handles signals
+  try {
+    const badge = await browser.newPage({ viewport: { width: 480, height: 160 }, deviceScaleFactor: 1 });
+    await badge.setContent(badgeHtml());
+    await badge.screenshot({ path: path.join(dir, 'media/logo.png'), omitBackground: true });
+    await badge.close();
+    const fps = 20, secs = 3;
+    const frames = fs.mkdtempSync(path.join(work, 'demo-title-'));
+    const vp = await browser.newPage({ viewport: { width: 800, height: 500 }, deviceScaleFactor: 1 });
+    await vp.setContent(titleHtml());
+    for (let i = 0; i < fps * secs; i++) {
+      await vp.evaluate((t) => window.render(t), i / fps);
+      await vp.screenshot({ path: path.join(frames, `f${String(i).padStart(4, '0')}.png`) });
+    }
+    await vp.close();
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-framerate', String(fps), '-i', path.join(frames, 'f%04d.png'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-movflags', '+faststart', path.join(dir, 'media/title.mp4')]);
+    fs.rmSync(frames, { recursive: true, force: true });
+  } finally {
+    await browser.close();
+  }
+  const vo = path.join(dir, 'media/voice-over.wav');
+  if (speak(VOICE_OVER, `${vo}.raw.wav`, { volume: 0.5 })) {
+    // padded to whole seconds: the clip's numbers in the editor's panel stay whole (a number field shows the system's
+    // decimal separator, whatever the page's language)
+    const len = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', `${vo}.raw.wav`], { encoding: 'utf8' }));
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', `${vo}.raw.wav`, '-af', `apad=whole_dur=${Math.ceil(len)}`, '-c:a', 'pcm_s16le', vo]);
+    fs.rmSync(`${vo}.raw.wav`, { force: true });
+  } else {
+    // no speech synthesis here: a tone with a speech-like rhythm keeps the timeline's shape
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', "aevalsrc='0.5*sin(2*PI*180*t)*abs(sin(2*PI*1.7*t))':s=44100:d=5", '-c:a', 'pcm_s16le', vo]);
+  }
+  music(path.join(dir, 'media/music.wav'), 10);
 }

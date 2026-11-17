@@ -29,8 +29,13 @@
 .md-copy-code:hover { background: var(--muted); color: var(--foreground); }
 .md img, .md video { max-width: 100%; max-height: 380px; border-radius: 8px; display: block; margin: 8px 0; }
 .md audio { width: 100%; }
+/* a table wider than the message scrolls sideways in its own box (Markdown.tsx wraps it) instead of running past the
+   message; its columns keep their whole words (issue 440) */
+.md-table { max-width: 100%; overflow-x: auto; margin: 0.5em 0; }
 .md table { border-collapse: collapse; }
 .md td, .md th { border: 1px solid var(--border); padding: 4px 8px; }
+/* a short row label ("take 1, 6,8 s") stays on one line rather than give its width to a wide neighbour */
+.md .md-cell-short { white-space: nowrap; }
 .md a { color: var(--link); }
 .md blockquote { border-left: 2px solid var(--border); margin: 0.5em 0; padding-left: 12px; color: var(--muted-fg); }
 .mermaid-out, .svg-out { position: relative; background: var(--svg-bg); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 8px 0; }
@@ -61,6 +66,8 @@
 .md-media:hover > .md-open-media, .md-open-media:focus-visible { opacity: 1; }
 .md-open-media:hover { background: var(--muted); }
 .md-media:has(> audio) { width: 100%; }
+/* in a table cell: the audio bar's min width (PlayerBar) and the room it leaves on its right for ⤢ */
+.md-table .md-media:has(> audio) { min-width: 18rem; }
 
 /* our player bar (media/ChatPlayer.tsx) lives in the wrapper: focus ring off, fullscreen fills the screen with the video */
 .md-media:focus { outline: none; }

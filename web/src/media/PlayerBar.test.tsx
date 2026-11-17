@@ -195,6 +195,34 @@ it('audio: the same bar without annotate, PiP, fullscreen or ticks, always shown
   expect(screen.getByRole('button', { name: 'Play (K)' })).toBeTruthy();
 });
 
+// issue 453: the menu is not clipped by a box around the bar (a wide table's scroll box): a fixed layer in the page
+it('a chip menu opens as a fixed layer outside the bar, below the chip when there is no room above; it follows a scroll', () => {
+  const s = setup({ tag: 'audio' });
+  // the chip at the top of the window (rect(1000): top 0, bottom 20), so no room above
+  fireEvent.click(screen.getByRole('button', { name: 'Playback speed' }));
+  const menu = screen.getByRole('menu', { name: 'Playback speed' });
+  expect(s.box.current!.contains(menu)).toBe(false);
+  expect(document.querySelector('[data-player-bar]')!.contains(menu)).toBe(false);
+  expect(menu.className).toContain('fixed');
+  expect([menu.style.top, menu.style.bottom]).toEqual(['28px', '']);
+  expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: '1×' }));
+  fireEvent.click(screen.getByRole('menuitemradio', { name: '1.5×' }));
+  expect(s.st.rate).toBe(1.5);
+  // a scroll moves the chip: the menu follows it (now with room above)
+  fireEvent.click(screen.getByRole('button', { name: 'Playback speed' }));
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ ...rect(1000), top: 600, bottom: 620, y: 600 }) as DOMRect);
+  fireEvent.scroll(document.body);
+  expect([screen.getByRole('menu').style.top, screen.getByRole('menu').style.bottom]).toEqual(['', `${window.innerHeight - 600 + 8}px`]);
+});
+
+it('a chip menu opens above the chip when there is room', () => {
+  setup({ tag: 'audio' });
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ ...rect(1000), top: 600, bottom: 620, y: 600 }) as DOMRect);
+  fireEvent.click(screen.getByRole('button', { name: 'Seek step ← →' }));
+  const menu = screen.getByRole('menu');
+  expect([menu.style.top, menu.style.bottom]).toEqual(['', `${window.innerHeight - 600 + 8}px`]);
+});
+
 it('a video bar hides after 2.5 s of playing without the pointer, shows on movement, stays while paused', () => {
   vi.useFakeTimers();
   try {

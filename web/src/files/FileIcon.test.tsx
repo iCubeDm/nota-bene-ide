@@ -11,6 +11,7 @@ it('maps the plan\'s extensions, media and well-known names (M6-11)', () => {
     ['docs/A.MD', 'md'], ['theme.css', 'css'], ['index.html', 'html'], ['tool.py', 'py'], ['run.sh', 'sh'],
     ['ci.yml', 'yml'], ['ci.yaml', 'yml'], ['Cargo.toml', 'toml'],
     ['scene_v6.png', 'image'], ['a.JPG', 'image'], ['icon.svg', 'image'], ['clip_вход.mp4', 'video'], ['x.mov', 'video'], ['v.mp3', 'audio'],
+    ['media/promo.nbcut.json', 'cut'], ['Edit 2.NBCUT.JSON', 'cut'], ['cut.json', 'json'],
     ['web/package.json', 'npm'], ['README.md', 'readme'], ['readme', 'readme'], ['.gitignore', 'git'], ['Dockerfile', 'docker'], ['dockerfile.dev', 'docker'],
     ['LICENSE', 'file'], ['.env', 'file'], ['notes.txt', 'file'], ['archive.tar.gz', 'file'],
   ];

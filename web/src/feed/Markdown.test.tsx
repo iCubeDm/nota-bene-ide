@@ -22,6 +22,20 @@ vi.mock('mermaid', () => ({
 const MERMAID = '```mermaid\ngraph TD; A-->B\n```';
 
 describe('Markdown', () => {
+  it('a table goes into a sideways-scrolling box once; its short row labels stay on one line (issue 453)', () => {
+    const long = 'a cell with a long sentence that may wrap freely';
+    const flags = '🇫🇷🇩🇪🇮🇹🇪🇸🇵🇹🇳🇱🇧🇪🇦🇹🇨🇭🇸🇪 take'; // 10 flags of 4 UTF-16 units each: 15 graphemes
+    const text = `| | take 1 |\n|---|---|\n| take 1, 6,8 s | ![](a.mp3) |\n| ${long} | x |\n| ${flags} | y |\n| 東京の録音 | z |`;
+    const { container, rerender } = render(<Markdown text={text} final={false} />);
+    rerender(<Markdown text={text} final />);
+    const boxes = container.querySelectorAll('.md-table');
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]!.firstElementChild!.tagName).toBe('TABLE');
+    const marked = [...container.querySelectorAll('tr')].map((r) => [...r.children].map((c) => c.classList.contains('md-cell-short')));
+    // the first column only: the empty corner, a long sentence and CJK (no phrase to keep whole) wrap as before
+    expect(marked).toEqual([[false, false], [true, false], [false, false], [true, false], [false, false]]);
+  });
+
   it('a colour in inline code gets a swatch of it, its text untouched', () => {
     const { container } = render(<Markdown text={'`#ff8980`, `rgb(60 63 65 / .9)`, `#12` and `npm test`'} final />);
     const codes = [...container.querySelectorAll<HTMLElement>(':not(pre) > code')];
@@ -128,7 +142,11 @@ describe('Markdown', () => {
       '| a | b |\n|---|:-:|\n| 1 | 2 |\n\n[ext](https://x.y/z) [rel](docs/a.md) ![pic](p.png) ![v](m.mp4)\n\n---\n\n<details><summary>s</summary>t</details>\n';
     const { container } = render(<Markdown text={doc} final={false} />);
     const before = DOMPurify.sanitize(marked.parse(doc, { async: false }) as string, { ADD_TAGS: ['video', 'audio'], ADD_ATTR: ['controls', 'preload'] });
-    expect(container.querySelector('.md')!.innerHTML).toBe(before);
+    // ours on top (issue 453): the table's scroll box and its short cells' mark
+    const md = container.querySelector('.md')!.cloneNode(true) as HTMLElement;
+    md.querySelectorAll('.md-table').forEach((b) => b.replaceWith(...b.childNodes));
+    md.querySelectorAll('.md-cell-short').forEach((c) => { c.classList.remove('md-cell-short'); if (!c.classList.length) c.removeAttribute('class'); });
+    expect(md.innerHTML).toBe(before);
   });
 
   it('a task list keeps its boxes without an <input>', () => {

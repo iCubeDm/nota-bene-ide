@@ -14,3 +14,19 @@ export function scrollRectIntoView(r: DOMRect, scroller: HTMLElement, behavior: 
   const top = scroller.scrollTop + r.top - b.top - scroller.clientHeight / 2 + r.height / 2;
   scroller.scrollTo({ top: Math.max(0, top), behavior });
 }
+
+/**
+ * Brings a range into view sideways inside the boxes that scroll it horizontally between it and `root` (a wide table's
+ * `.md-table`, issue 453), innermost first, centring it where it is cut off. Vertical scrolling stays with the caller.
+ */
+export function revealRangeSideways(range: Range, root: HTMLElement) {
+  const start = range.startContainer;
+  for (let e = start instanceof Element ? start : start.parentElement; e && e !== root && root.contains(e); e = e.parentElement) {
+    if (e.scrollWidth <= e.clientWidth) continue;
+    const ox = getComputedStyle(e).overflowX;
+    if (ox !== 'auto' && ox !== 'scroll') continue;
+    const r = rangeRect(range), b = e.getBoundingClientRect();
+    if (r.left >= b.left && r.right <= b.right) continue;
+    e.scrollLeft += r.left - b.left - e.clientWidth / 2 + r.width / 2;
+  }
+}

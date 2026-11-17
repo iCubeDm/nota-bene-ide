@@ -296,6 +296,59 @@ test('a second window takes over: the comment follows through the server, the fi
   await ctx.close();
 });
 
+// issue 453: a comment on a cell of a wide table (the `table of takes` turn of chat.json) is marked only where its text
+// shows: over the text, following the table's scroll, never outside its box; a jump from the card scrolls the table to it
+test('a comment in a wide table: its mark stays in the reply and follows the table; a jump scrolls the table to it @chat', async ({ page }) => {
+  await open(page);
+  await clearPending(page);
+  const text = await turn(page, 'table of takes');
+  const r = reply(page, text);
+  const cell = r.locator('table').nth(2).locator('td').last();
+  const scroller = r.locator('.md-table').nth(2);
+  const word = 'localization';
+  const cellBox = () => cell.evaluate((el, w) => {
+    const node = [...el.childNodes].find((n) => n.nodeType === 3) as Text;
+    const range = document.createRange();
+    const at = node.data.indexOf(w);
+    range.setStart(node, at);
+    range.setEnd(node, at + w.length);
+    const b = range.getBoundingClientRect();
+    return { x: b.x, y: b.y, width: b.width, height: b.height };
+  }, word);
+  const mark = marks(page, 'pending');
+  const covered = async () => (await mark.count()) > 0 && overlaps((await mark.first().boundingBox())!, await cellBox());
+  // the table scrolled to its right end: comment the last cell; the mark is drawn over its text
+  await scroller.evaluate((e) => { e.scrollLeft = e.scrollWidth; });
+  await cell.evaluate((el, w) => {
+    const node = [...el.childNodes].find((n) => n.nodeType === 3) as Text;
+    const range = document.createRange();
+    const at = node.data.indexOf(w);
+    range.setStart(node, at);
+    range.setEnd(node, at + w.length);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  }, word);
+  await page.getByRole('button', { name: /^💬/ }).click();
+  await commentBox(page).fill('this take');
+  await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
+  await expect(cards(page)).toHaveCount(1);
+  await expect.poll(covered).toBe(true);
+  // scrolled back to the left: the cell is out of the table's box, and so is its mark (none left where the text was,
+  // none drawn outside the reply)
+  await scroller.evaluate((e) => { e.scrollLeft = 0; });
+  await expect.poll(() => mark.count()).toBe(0);
+  // a jump from the card brings the cell into view inside its box
+  await openPanel(page);
+  await cards(page).first().getByText(word).click();
+  await expect.poll(async () => scroller.evaluate((e) => e.scrollLeft)).toBeGreaterThan(0);
+  const [sb, cb] = [(await scroller.boundingBox())!, await cellBox()];
+  expect(cb.x).toBeGreaterThanOrEqual(sb.x);
+  expect(cb.x + cb.width).toBeLessThanOrEqual(sb.x + sb.width);
+  await expect.poll(covered).toBe(true);
+  await clearPending(page);
+});
+
 test('selecting right after a reload shows the button and keeps it @chat', async ({ page }) => {
   await open(page);
   await clearPending(page);

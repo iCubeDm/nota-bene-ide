@@ -22,9 +22,9 @@ Nota Bene opens the agent you already have (its own login, models and sessions) 
 
 ## What you can do
 
-**Images.** Open an image from the project, a screenshot the agent left in `/tmp`, or one you pasted into the message. Draw a rectangle, ellipse, arrow or freehand line on it and comment; the agent receives the picture with your marks drawn on it.
+**Images.** Open an image from the project, a screenshot the agent left in `/tmp`, or one you pasted into the message. Draw a rectangle, ellipse, arrow or freehand line on it, or (in `main`, coming in 2.1.0) outline an exact area point by point with a mask, and comment; the agent receives the picture with your marks drawn on it (and a mask as `mask.png`).
 
-![Marking up an image](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/annotate-image.gif)
+![Marking up an image: a rectangle and a mask, each with a comment](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/annotate-image.gif)
 
 **Video and audio.** A player with frame stepping, speed, picture in picture and keyboard control. Pause on a frame, mark it up and comment: the comment keeps its moment and shows as a tick on the timeline. Audio files play and seek in the same player.
 
@@ -36,11 +36,15 @@ Nota Bene opens the agent you already have (its own login, models and sessions) 
 
 ![Commenting on a line of code](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/annotate-code.gif)
 
-**Steering the agent.** A message sent mid-turn joins it; permission requests, plans and questions are cards you answer in the window. Subagents get their own tabs, background tasks a drawer. Voice messages and voice comments are transcribed on your computer with Whisper (optional). Sessions, archives and the history from before each compaction; a Usage tab for tokens and plan limits across projects; updates in one click.
+**Steering the agent.** A message sent mid-turn joins it; permission requests, plans and questions are cards you answer in the window. Subagents get their own tabs, background tasks a drawer. Voice messages and voice comments are transcribed on your computer with Whisper (optional). Open projects sit in a rail on the left, one click apart (in `main`, coming in 2.1.0). Sessions, archives and the history from before each compaction; a Usage tab for tokens and plan limits across projects; updates in one click.
 
-**Video editor (upcoming).** A timeline for placing video and photos on tracks and mixing sound (gain, fades, mute and solo), exported with ffmpeg; the agent can write the edit as JSON. Not released yet.
+![Recording a voice message: it is transcribed on the computer and the agent answers the text](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/voice-message.gif)
 
-![The window: chat, file tree and comments panel](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/overview.png)
+**Video editor (coming in 2.1.0, in `main` now; 2.0.1 does not have it).** An edit (`*.nbcut.json`) opens as a timeline: video and photos on stacked tracks, sound with its waveform, gain and fades, mute and solo, and a preview with a level meter. Comment a clip or a moment like anything else; the agent writes the edit as JSON, and what it changed is highlighted on the timeline. Export renders MP4, WAV or M4A with ffmpeg. See [Video edits](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#video-edits-nbcutjson).
+
+![Editing a video: the voice-over turned up, the preview played, a comment on the music, and the agent's change to it highlighted](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/video-editor.gif)
+
+![The window: projects rail, chat, file tree and comments panel](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/overview.png)
 
 <details>
 <summary>More screenshots</summary>

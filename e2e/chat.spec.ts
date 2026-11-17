@@ -202,6 +202,107 @@ test('a long word in plain text wraps inside the message; table cells stay whole
   expect(lines).toEqual(cols.map(() => 1));
 });
 
+// issue 453: a reply's tables of sounds (the `table of takes` turn of chat.json) stay within the reply, scrolling sideways
+// when wider; a player in a cell keeps its controls on one line inside its frame; short row labels do not wrap
+test('a table of audio players scrolls inside the reply; its players and labels do not wrap @chat', async ({ page }) => {
+  await open(page);
+  const text = uniq('table of takes');
+  await send(page, text);
+  await expect(donesAfter(page, text).first()).toHaveText(DONE);
+  const r = bubble(page, text).locator('xpath=following-sibling::*[@data-kind="assistant"]').first();
+  const bars = r.locator('[data-player-bar]');
+  await expect(bars).toHaveCount(17); // 16 in tables, the scene's below them
+  // nothing runs past the reply: a wide table, with media or without, scrolls in its own box
+  const [w, sw] = await r.locator('.md').evaluate((e) => [e.clientWidth, e.scrollWidth]);
+  expect(sw).toBeLessThanOrEqual(w);
+  const tables = r.locator('table');
+  await expect(tables).toHaveCount(3);
+  const replyBox = (await r.boundingBox())!;
+  for (const i of [0, 2]) {
+    const scroller = await tables.nth(i).evaluate((t) => {
+      const p = t.parentElement!;
+      return { right: p.getBoundingClientRect().right, scrolls: p.scrollWidth > p.clientWidth, overflow: getComputedStyle(p).overflowX };
+    });
+    expect(scroller.right).toBeLessThanOrEqual(replyBox.x + replyBox.width + 0.5);
+    expect(scroller).toMatchObject({ scrolls: true, overflow: 'auto' });
+  }
+  const lines = (els: Element[]) => els.map((el) => {
+    const rg = document.createRange();
+    rg.selectNodeContents(el);
+    return new Set([...rg.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top))).size;
+  });
+  // each player's time and visible chips sit on one line, and every control inside the player's frame
+  for (let i = 0; i < 17; i++) {
+    const bar = bars.nth(i);
+    expect(await bar.getByText(/^\d+:\d\d\.\d{3} \/ \d+:\d\d\.\d{3}$/).evaluateAll(lines)).toEqual([1]);
+    expect(new Set(await bar.locator('button:visible').evaluateAll(lines))).toEqual(new Set([1]));
+    const fits = await bar.evaluate((b) => {
+      const o = b.getBoundingClientRect();
+      return [...b.querySelectorAll('*')].every((c) => {
+        const x = c.getBoundingClientRect();
+        return x.width === 0 || (x.left >= o.left - 0.5 && x.right <= o.right + 0.5);
+      });
+    });
+    expect(fits).toBe(true);
+  }
+  // short row labels stay whole
+  expect(await tables.nth(0).locator('tbody td:first-child').evaluateAll(lines)).toEqual([1, 1, 1]);
+  expect(await tables.nth(1).locator('tbody td:first-child').evaluateAll(lines)).toEqual([1, 1]);
+});
+
+// issue 453: an audio bar sheds the seek-step chip, then speed, only when they no longer fit; the volume slider never
+// pushes the row past the bar; a chip's menu in a table's scroll box is not cut off by it
+const STEP = /^(Seek step|Шаг перемотки)/;
+const SPEED = /^(Playback speed|Скорость)/;
+test('an audio bar keeps its chips while they fit and never overflows; a chip menu in a table is not clipped @chat', async ({ page }) => {
+  await open(page);
+  const text = uniq('table of takes');
+  await send(page, text);
+  await expect(donesAfter(page, text).first()).toHaveText(DONE);
+  const r = bubble(page, text).locator('xpath=following-sibling::*[@data-kind="assistant"]').first();
+  const bars = r.locator('[data-player-bar]');
+  await expect(bars).toHaveCount(17);
+  // the scene's bar, outside a table, at the reply's width: both chips
+  const scene = bars.last();
+  await expect(scene.getByRole('button', { name: STEP })).toBeVisible();
+  await expect(scene.getByRole('button', { name: SPEED })).toBeVisible();
+  // every width from the min up, the volume slider open: nothing past the frame; a chip once shown stays shown wider
+  const seen: [number, boolean, boolean][] = [];
+  for (let w = 256; w <= 448; w += 16) {
+    await scene.evaluate((b, w) => { b.style.width = b.style.maxWidth = `${w}px`; }, w);
+    await scene.getByRole('button', { name: /^(Mute|Unmute|Выключить звук|Включить звук)/ }).hover();
+    await page.waitForTimeout(200);
+    const m = await scene.evaluate((b) => {
+      const o = b.getBoundingClientRect();
+      const out = [...b.querySelectorAll('*')].some((c) => { const x = c.getBoundingClientRect(); return x.width > 0 && x.right > o.right - 12.5; });
+      return { out, width: o.width };
+    });
+    expect(m).toEqual({ out: false, width: w });
+    seen.push([w, await scene.getByRole('button', { name: STEP }).isVisible(), await scene.getByRole('button', { name: SPEED }).isVisible()]);
+  }
+  for (let i = 1; i < seen.length; i++) for (const k of [1, 2] as const) if (seen[i - 1]![k]) expect(seen[i]![k]).toBe(true);
+  // a 0:00 sound fits both chips from 356 px (a narrow chat column's bar), speed alone from 300 px
+  expect(seen.filter(([w]) => w >= 356).every(([, a, b]) => a && b)).toBe(true);
+  expect(seen.filter(([w]) => w >= 304).every(([, , b]) => b)).toBe(true);
+  // a wide player in a table: its speed menu opens whole, above the table's scroll box
+  const inTable = r.locator('table').nth(1).locator('[data-player-bar]').first();
+  await inTable.evaluate((b) => { b.style.minWidth = '420px'; });
+  await page.mouse.move(0, 0);
+  const speed = inTable.getByRole('button', { name: SPEED });
+  await speed.click();
+  const menu = page.getByRole('menu', { name: SPEED });
+  await expect(menu).toBeVisible();
+  const whole = await menu.evaluate((m) => {
+    const b = m.getBoundingClientRect();
+    const corners = [[b.left + 10, b.top + 10], [b.right - 10, b.top + 10], [b.left + 10, b.bottom - 10], [b.right - 10, b.bottom - 10]];
+    return { inTable: !!m.closest('.md-table'), shown: corners.every(([x, y]) => m.contains(document.elementFromPoint(x!, y!))) };
+  });
+  expect(whole).toEqual({ inTable: false, shown: true });
+  await menu.getByRole('menuitemradio', { name: '1.5×' }).click();
+  await expect(menu).toBeHidden();
+  expect(await inTable.evaluate((b) => (b.parentElement!.querySelector('audio') as HTMLAudioElement).playbackRate)).toBe(1.5);
+});
+
 // M6-06: the user's message is markdown (and a single newline stays a line break)
 test('the language menu switches the placeholder @chat', async ({ page }) => {
   await open(page);

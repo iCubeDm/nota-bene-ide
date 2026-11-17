@@ -5,7 +5,7 @@ import { isCutAnchor, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
 import { isCutPath } from '@nota-bene/shared/cut';
 import { CutBody } from '@/cut/CutBody.tsx';
 import { editable as isEditable } from '@/lib/editable.ts';
-import { scrollRangeIntoView } from '@/anchors/scroll.ts';
+import { revealRangeSideways, scrollRangeIntoView } from '@/anchors/scroll.ts';
 import { rangeForAnchor } from '@/anchors/text.ts';
 import { flashRange } from '@/comments/HighlightLayer.tsx';
 import { selectComments } from '@/comments/slice.ts';
@@ -124,6 +124,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
     if (!c || !el || data.s !== 'text') return;
     const range = rangeForAnchor(el, c.anchor);
     if (!range) return; // orphaned: the tab is open, nothing to point at
+    revealRangeSideways(range, el);
     scrollRangeIntoView(range, el);
     flashRange(el, range);
   }, [kind, jump, active, data, rev, path, src, comments, dispatch, loadedRev, page, html, timeline, cut, pageView]);

@@ -176,7 +176,7 @@ Mermaid and SVG blocks in replies render as diagrams; **Open diagram** opens one
 
 ## Video edits (`.nbcut.json`)
 
-A file named `<name>.nbcut.json` is an edit for the video editor (work in progress): video, photos and sound on tracks. It opens as a **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame); a clip with sound draws the waveform of the part it uses, scaled by its gain and fades, and its fades as slopes. The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom.
+A file named `<name>.nbcut.json` is an edit for the video editor (coming in 2.1.0, in `main` now): video, photos and sound on tracks. It opens as a **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame); a clip with sound draws the waveform of the part it uses, scaled by its gain and fades, and its fades as slopes. The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom.
 
 **Preview.** The frame above the timeline plays the edit as the export renders it: video tracks stacked (a later one on top), each clip at its `place`, sound mixed with gains, fades, mute and solo. Click or drag on the ruler, or drag the playhead, to scrub. An edit with problems does not play.
 
