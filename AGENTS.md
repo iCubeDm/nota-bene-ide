@@ -16,7 +16,6 @@ result does not need.
 
 - `shared/`: browser/server protocol and normalized agent events.
 - `mobile/protocol/`: Dart types generated from `shared/`; after a protocol change run `npm run gen:protocol` (CI fails on stale output).
-  Likewise `npm run gen:notices` after a change of web or server dependencies.
 - `server/`: Node server, SessionManager, agent backends, files/auth/persistence.
 - `web/`: React/Redux UI. `bin/`: launcher. `plugin/`: Claude Code `/nb` plugin.
 - Architecture: [docs/architecture.md](docs/architecture.md).

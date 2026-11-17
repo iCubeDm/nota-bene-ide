@@ -61,7 +61,7 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
     }),
     '/dictation/on': post(async (req, res) => {
       const b = await readSmallJson(req);
-      if (!b) return refuseTooLarge(req, res, 'body too large');
+      if (!b) return refuseTooLarge(req, res, { error: 'body too large' });
       if (typeof b.on !== 'boolean') return json(res, 400, { error: 'on must be a boolean' });
       if (b.on && whisperPhase() !== 'ready') return json(res, 409, { error: 'not installed' });
       setWhisperPref(b.on);
@@ -69,7 +69,7 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
     }),
     '/dictation/lang': post(async (req, res) => {
       const b = await readSmallJson(req);
-      if (!b) return refuseTooLarge(req, res, 'body too large');
+      if (!b) return refuseTooLarge(req, res, { error: 'body too large' });
       if (!isDictationLang(b.lang)) return json(res, 400, { error: 'lang must be auto or a language code' });
       setDictationLangPref(b.lang);
       json(res, 200, { ok: true });
@@ -98,7 +98,7 @@ export function dictationRoutes(o: { hub: EventHub; install?: Parameters<typeof 
       const gone = new AbortController();
       res.on('close', () => { if (!res.writableFinished) gone.abort(); });
       const body = await readCapped(req, MAX_AUDIO);
-      if (!body) return json(res, 413, { error: 'audio too long' });
+      if (!body) return refuseTooLarge(req, res, { error: 'audio too long' });
       let pcm: Float32Array;
       try { pcm = pcmFromWav(body); } catch (e) {
         if (e instanceof WavError) return json(res, 400, { error: e.message });

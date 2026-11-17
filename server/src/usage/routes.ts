@@ -115,7 +115,7 @@ export function usageRoutes(o: { hub: EventHub; service?: (p: UsageProvider) => 
     '/usage/reset': (req, res) => {
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       readSmallJson(req).then((b) => {
-        if (!b) return refuseTooLarge(req, res, 'body too large');
+        if (!b) return refuseTooLarge(req, res, { error: 'body too large' });
         if (!isProvider(b.provider)) return json(res, 400, { error: 'bad provider' });
         service(b.provider).reset();
         json(res, 200, { ok: true });

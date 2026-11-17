@@ -36,8 +36,42 @@ function closure(lock, workspace) {
     const key = resolve(workspace, name);
     if (key) visit(key);
   }
-  return [...found].map(([key, e]) => ({ key, name: key.slice(key.lastIndexOf('node_modules/') + 13), version: e.version, license: e.license ?? 'UNKNOWN' }))
-    .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0); // not localeCompare: the order must not depend on ICU
+  return [...found].map(([key, e]) => ({ key, name: key.slice(key.lastIndexOf('node_modules/') + 13), version: e.version, license: e.license ?? ownJson(key).license ?? 'UNKNOWN' }))
+    .sort((a, b) => cmp(a.name, b.name) || cmp(a.version, b.version));
+}
+
+/** The installed package's own package.json ({} when it is not installed). */
+function ownJson(key) {
+  try { return JSON.parse(fs.readFileSync(path.join(ROOT, key, 'package.json'), 'utf8')); } catch { return {}; }
+}
+
+/** The standard MIT text for a package that says MIT but ships no license file, with its author from its package.json. */
+function mitText(key) {
+  const a = ownJson(key).author;
+  const author = typeof a === 'string' ? a : a?.name;
+  if (!author) throw new Error(`${key}: MIT without a license file or an author`);
+  return `MIT License
+
+Copyright (c) ${author}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`;
 }
 
 /** The license and notice files a package ships, joined; '' when it ships none. */
@@ -55,7 +89,12 @@ export function notices() {
   // one block per distinct license text: most MIT texts differ only in their copyright line, so they stay apart
   const byText = new Map();
   for (const p of web) {
-    const text = licenseText(p.key) || `${p.license} (the package ships no license file)`;
+    let text = licenseText(p.key);
+    if (!text && p.license === 'MIT') text = mitText(p.key);
+    else if (!text) throw new Error(`${p.name} ${p.version}: ${p.license} and no license file`);
+    // a package that names no license anywhere (khroma) but ships the MIT text
+    if (p.license === 'UNKNOWN' && /^(The )?MIT License\b/.test(text)) p.license = 'MIT';
+    if (p.license === 'UNKNOWN') throw new Error(`${p.name} ${p.version}: no license named`);
     byText.set(text, [...(byText.get(text) ?? []), p]);
   }
   const out = [

@@ -2476,7 +2476,7 @@ SOFTWARE.
 
 ### khroma 2.1.0
 
-License: UNKNOWN
+License: MIT
 
 ````
 The MIT License (MIT)
@@ -2664,12 +2664,60 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### mermaid 10.9.8, micromark 3.2.0, micromark-core-commonmark 1.1.0, micromark-factory-destination 1.1.0, micromark-factory-label 1.1.0, micromark-factory-space 1.1.0, micromark-factory-title 1.1.0, micromark-factory-whitespace 1.1.0, micromark-util-character 1.2.0, micromark-util-chunked 1.1.0, micromark-util-classify-character 1.1.0, micromark-util-combine-extensions 1.1.0, micromark-util-decode-numeric-character-reference 1.1.0, micromark-util-decode-string 1.1.0, micromark-util-encode 1.1.0, micromark-util-html-tag-name 1.2.0, micromark-util-normalize-identifier 1.1.0, micromark-util-resolve-all 1.1.0, micromark-util-sanitize-uri 1.2.0, micromark-util-subtokenize 1.1.0, micromark-util-symbol 1.1.0, micromark-util-types 1.1.0, react-remove-scroll-bar 2.3.8
+### mermaid 10.9.8
 
 License: MIT
 
 ````
-MIT (the package ships no license file)
+MIT License
+
+Copyright (c) Knut Sveidqvist
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+````
+
+### micromark 3.2.0, micromark-core-commonmark 1.1.0, micromark-factory-destination 1.1.0, micromark-factory-label 1.1.0, micromark-factory-space 1.1.0, micromark-factory-title 1.1.0, micromark-factory-whitespace 1.1.0, micromark-util-character 1.2.0, micromark-util-chunked 1.1.0, micromark-util-classify-character 1.1.0, micromark-util-combine-extensions 1.1.0, micromark-util-decode-numeric-character-reference 1.1.0, micromark-util-decode-string 1.1.0, micromark-util-encode 1.1.0, micromark-util-html-tag-name 1.2.0, micromark-util-normalize-identifier 1.1.0, micromark-util-resolve-all 1.1.0, micromark-util-sanitize-uri 1.2.0, micromark-util-subtokenize 1.1.0, micromark-util-symbol 1.1.0, micromark-util-types 1.1.0
+
+License: MIT
+
+````
+MIT License
+
+Copyright (c) Titus Wormer <tituswormer@gmail.com> (https://wooorm.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ````
 
 ### ms 2.1.3
@@ -2764,6 +2812,34 @@ License: MIT
 The MIT License (MIT)
 
 Copyright (c) 2015-present Dan Abramov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+````
+
+### react-remove-scroll-bar 2.3.8
+
+License: MIT
+
+````
+MIT License
+
+Copyright (c) Anton Korzunov <thekashey@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

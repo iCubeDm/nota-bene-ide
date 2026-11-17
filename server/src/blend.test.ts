@@ -52,7 +52,7 @@ beforeAll(() => {
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 // issue 468: not skipped with the rest, the sandbox profile lets Blender write in its work dir only
-it('Blender gets its HOME and TMPDIR inside its own work dir, never the real ones', async () => {
+it.skipIf(process.platform === 'win32')('Blender gets its HOME and TMPDIR inside its own work dir, never the real ones', async () => {
   const file = path.join(dir, 'home.blend');
   fs.writeFileSync(file, 'home');
   const before = spawns().length;

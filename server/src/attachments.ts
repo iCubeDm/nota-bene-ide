@@ -155,11 +155,13 @@ export async function readSmallJson(req: IncomingMessage, max = 4096): Promise<R
   return v && typeof v === 'object' ? v as Record<string, unknown> : {};
 }
 
-/** 413 after readCapped gave up: nothing is buffered any more; drain the rest briefly, then drop the connection only if the body is still unfinished (no `connection: close`: it resets the client mid-upload before it can read the 413) */
-export function refuseTooLarge(req: IncomingMessage, res: ServerResponse, body: string): void {
+/** 413 after readCapped gave up (`body` an object: as JSON, for the JSON routes): nothing is buffered any more; drain the rest briefly, then drop the connection only if the body is still unfinished (no `connection: close`: it resets the client mid-upload before it can read the 413) */
+export function refuseTooLarge(req: IncomingMessage, res: ServerResponse, body: string | { error: string }): void {
   req.resume();
   setTimeout(() => { if (!req.complete) req.destroy(); }, 2000).unref();
-  plain(res, 413, body);
+  if (typeof body === 'string') return plain(res, 413, body);
+  res.writeHead(413, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  res.end(JSON.stringify(body));
 }
 
 export function attachmentRoutes(store: AttachmentStore, hub?: EventHub): Record<string, RequestListener> {
