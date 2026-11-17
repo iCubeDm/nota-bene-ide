@@ -5,8 +5,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fakeScript, writeProject } from './project.mjs';
-import { makeAssets } from './assets.mjs';
+import { CUT_PATH, TEXT, cutDoc, fakeScript, writeProject } from './project.mjs';
+import { makeAssets, makeEditAssets, speak } from './assets.mjs';
 
 export const REPO = fileURLToPath(new URL('../..', import.meta.url));
 export const PORT = 4790;
@@ -20,52 +20,127 @@ export const PROJECT = '/Users/Shared/demo-project';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Creates the demo project (fresh each time) and a temp state dir; returns both. Assets are generated once per run. */
+/** Removes the demo project and its siblings. */
+export function cleanup() {
+  for (const dir of [PROJECT, ...SIBLINGS.map((s) => s.root)]) fs.rmSync(dir, { recursive: true, force: true });
+}
+
+/** Creates the demo project and its siblings (fresh each time) and a temp state dir; returns both. Assets are generated once per run. */
 export async function prepare(chromium, work) {
   fs.rmSync(PROJECT, { recursive: true, force: true });
   fs.mkdirSync(PROJECT, { recursive: true });
   writeProject(PROJECT);
+  for (const s of SIBLINGS) {
+    fs.rmSync(s.root, { recursive: true, force: true });
+    fs.mkdirSync(s.root, { recursive: true });
+    fs.writeFileSync(path.join(s.root, 'README.md'), s.readme);
+  }
   await makeAssets(chromium, PROJECT);
+  await makeEditAssets(chromium, PROJECT);
+  const voiceLen = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(PROJECT, 'media/voice-over.wav')], { encoding: 'utf8' }));
+  fs.writeFileSync(path.join(PROJECT, CUT_PATH), JSON.stringify(cutDoc(voiceLen), null, 2) + '\n');
+  // the voice message the fake microphone plays (Chrome's fake capture), and the same words at 16 kHz to load Whisper first
+  const voice = path.join(work, 'voice.wav');
+  const voice16 = path.join(work, 'voice16.wav');
+  const spoken = speak(TEXT.voice, voice, { rate: 48000, lead: 0.5 }) && speak(TEXT.voice, voice16, { rate: 16000 });
   const script = path.join(work, 'fake.json');
   fs.writeFileSync(script, JSON.stringify(fakeScript()));
-  return { script };
+  return { script, voice: spoken ? voice : null, voice16: spoken ? voice16 : null };
 }
 
-/** Starts a server on 4790 (waits while another agent holds the port) with a fresh state dir. Returns { stop(), home }. */
-export async function startServer(work, script, name, { codex } = {}) {
+/** Folders of other demo projects, open in windows of their own beside the demo one: they fill the projects rail. */
+export const SIBLINGS = [
+  { root: '/Users/Shared/docs-site', port: PORT + 1, readme: '# docs-site\n\nThe user guide of shortly, built with a static site generator.\n' },
+  { root: '/Users/Shared/mobile-app', port: PORT + 2, readme: '# mobile-app\n\nA small companion app for shortly: paste a link, share the short one.\n' },
+];
+
+/** Strips everything a launcher this script may run under passes on (a Nota Bene window's terminal): demo servers are unsupervised. */
+const cleanEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('NOTA_BENE_')));
+
+/**
+ * Starts a server on 4790 (waits while another agent holds the port) with a fresh state dir, and the sibling projects'
+ * servers on the next ports, registered as windows so the rail shows them. `whisper`: a Whisper install to clone into the
+ * state dir (voice messages), with Whisper turned on; its host lives in this temp state dir and idles out soon after.
+ * Returns { stop(), home }.
+ */
+export async function startServer(work, script, name, { codex, whisper } = {}) {
   fs.rmSync(path.join(PROJECT, '.nota-bene'), { recursive: true, force: true }); // marks of an earlier scene
   const home = fs.mkdtempSync(path.join(work, `home-${name}-`));
   const vault = fs.mkdtempSync(path.join(work, `vault-${name}-`));
-  for (let attempt = 0; ; attempt++) {
-    if (!(await portBusy())) break;
-    if (attempt > 60) throw new Error(`port ${PORT} stays busy`);
-    console.log(`port ${PORT} busy, waiting…`);
-    await sleep(5000);
+  for (const port of [PORT, ...SIBLINGS.map((s) => s.port)]) {
+    for (let attempt = 0; ; attempt++) {
+      if (!(await portBusy(port))) break;
+      if (attempt > 60) throw new Error(`port ${port} stays busy`);
+      console.log(`port ${port} busy, waiting…`);
+      await sleep(5000);
+    }
   }
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(path.join(home, 'token'), TOKEN, { mode: 0o600 });
   const state = codex ? path.join(home, 'providers/codex') : home;
   fs.mkdirSync(state, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(path.join(state, "token"), TOKEN, { mode: 0o600 });
-  const child = spawn(process.execPath, [path.join(REPO, 'server/src/main.ts'), PROJECT, '--port', String(PORT), ...(codex ? ['--agent', 'codex'] : ['--fake', script])], {
-    cwd: REPO,
-    env: { ...process.env, NOTA_BENE_HOME: home, NOTA_BENE_NONCE: NONCE, CLAUDE_JOURNAL_VAULT: vault, NOTA_BENE_EXPERIMENTAL_3D: '0', ...(codex ? { NOTA_BENE_CODEX: codex } : {}) },
-    stdio: ['ignore', 'ignore', 'inherit'],
-  });
-  for (let i = 0; i < 100; i++) {
-    if (await portBusy()) break;
-    await sleep(100);
+  fs.writeFileSync(path.join(state, 'token'), TOKEN, { mode: 0o600 });
+  if (whisper) {
+    try { execFileSync('cp', ['-cR', whisper, path.join(home, 'whisper')]); } catch { fs.cpSync(whisper, path.join(home, 'whisper'), { recursive: true }); }
+    fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ whisper: true, dictationLang: 'en' }));
+  }
+  const env = { ...cleanEnv(), NOTA_BENE_HOME: home, NOTA_BENE_NONCE: NONCE, CLAUDE_JOURNAL_VAULT: vault, NOTA_BENE_EXPERIMENTAL_3D: '0', NOTA_BENE_TEST_WHISPER_IDLE_MS: '8000' };
+  let stopping = false;
+  const spawnOne = (root, port, args, extra = {}) => {
+    const c = spawn(process.execPath, [path.join(REPO, 'server/src/main.ts'), root, '--port', String(port), ...args], {
+      cwd: REPO, env: { ...env, ...extra }, stdio: ['ignore', 'ignore', 'inherit'],
+    });
+    c.on('exit', (code, sig) => { if (!stopping) console.error(`server on ${port} exited: ${code ?? sig}`); });
+    return c;
+  };
+  const children = [spawnOne(PROJECT, PORT, codex ? ['--agent', 'codex'] : ['--fake', script], codex ? { NOTA_BENE_CODEX: codex } : {})];
+  for (const s of SIBLINGS) children.push(spawnOne(s.root, s.port, ['--fake', script]));
+  const register = (dir, port, root, pid) => {
+    fs.mkdirSync(path.join(dir, 'windows'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'windows', `${port}.json`), JSON.stringify({ root, pid, startedAt: Date.now() }));
+  };
+  register(state, PORT, PROJECT, children[0].pid);
+  SIBLINGS.forEach((s, i) => register(home, s.port, s.root, children[i + 1].pid));
+  for (const port of [PORT, ...SIBLINGS.map((s) => s.port)]) {
+    for (let i = 0; i < 100; i++) {
+      if (await portBusy(port)) break;
+      await sleep(100);
+    }
   }
   return {
     home,
     async stop() {
-      child.kill('SIGTERM');
-      await new Promise((r) => { child.on('exit', r); setTimeout(r, 3000).unref(); });
+      stopping = true;
+      await Promise.all(children.map((child) => {
+        child.kill('SIGTERM');
+        return new Promise((r) => { child.on('exit', r); setTimeout(r, 3000).unref(); });
+      }));
+      await stopWhisperHost(home);
     },
   };
 }
 
-async function portBusy() {
+/** Transcribes `wav` (16 kHz mono) once, off camera, so the model is loaded before the scene's voice message. */
+export async function warmWhisper(wav) {
+  const r = await fetch(`${URL_BASE}/dictation/transcribe?lang=en`, { method: 'POST', headers: { authorization: `Bearer ${TOKEN}`, origin: URL_BASE, 'content-type': 'audio/wav' }, body: fs.readFileSync(wav) });
+  return r.ok ? (await r.json()).text : `HTTP ${r.status} ${await r.text()}`;
+}
+
+/** Waits for the Whisper host of this temp state dir to idle out; one that does not is stopped by the pid holding its socket. */
+async function stopWhisperHost(home) {
+  const dir = path.join(home, 'whisper-host');
+  const socks = () => { try { return fs.readdirSync(dir).filter((f) => f.endsWith('.sock')).map((f) => path.join(dir, f)); } catch { return []; } };
+  for (let i = 0; i < 60 && socks().length; i++) await sleep(500);
+  for (const sock of socks()) {
+    let pids = '';
+    try { pids = execFileSync('lsof', ['-t', sock], { encoding: 'utf8' }).trim(); } catch {}
+    for (const pid of pids.split(/\s+/).filter(Boolean)) { try { process.kill(Number(pid), 'SIGTERM'); } catch {} }
+  }
+}
+
+async function portBusy(port = PORT) {
   try {
-    const r = await fetch(`${URL_BASE}/info`);
+    const r = await fetch(`http://127.0.0.1:${port}/info`);
     return r.ok || true;
   } catch {
     return false;
@@ -135,10 +210,10 @@ export async function typeSlow(locator, text, ms = 55) {
 
 /**
  * Screencast frames ({file, t} in epoch seconds, a frame is held until the next) to a looping GIF: the part between
- * marks.from and marks.to, plus `hold` seconds on the last frame, 3200 px wide (no downscale of the 3200 px capture), 12 fps, one palette for the whole clip, a short
- * fade from and to the window's background colour so the loop does not jump. Returns the duration in seconds.
+ * marks.from and marks.to, plus `hold` seconds on the last frame, 1600 px wide (the screencast's frames come at the
+ * viewport's CSS size), 12 fps, one palette for the whole clip, a short fade from and to the window's background colour so the loop does not jump. Returns the duration in seconds.
  */
-export function framesToGif(frames, marks, gif, dir, { hold = 1.5, width = 3200, fps = 12, bg = '0x0b0e17' } = {}) {
+export function framesToGif(frames, marks, gif, dir, { hold = 1.5, width = 1600, fps = 12, bg = '0x0b0e17' } = {}) {
   const inRange = frames.filter((f) => f.t < marks.to);
   let start = 0;
   while (start + 1 < inRange.length && inRange[start + 1].t <= marks.from) start++;
@@ -159,8 +234,12 @@ export function framesToGif(frames, marks, gif, dir, { hold = 1.5, width = 3200,
     `fade=t=in:st=0:d=0.3:color=${bg}`,
     `fade=t=out:st=${(dur - 0.35).toFixed(2)}:d=0.35:color=${bg}`,
   ].join(',');
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', list, '-t', dur.toFixed(2), '-filter_complex',
-    `[0:v]${vf},split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`, '-loop', '0', gif]);
+  // two passes: the frames to a lossless 12 fps clip, then the GIF with one palette (palettegen and paletteuse over the
+  // concat input directly lose frames in newer ffmpeg, and the GIF then plays too fast)
+  const mid = path.join(dir, 'mid.mkv');
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', list, '-t', dur.toFixed(2), '-vf', vf, '-c:v', 'ffv1', mid]);
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', mid, '-filter_complex',
+    'split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle', '-loop', '0', gif]);
   return dur;
 }
 

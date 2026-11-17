@@ -2,21 +2,30 @@
 //
 //   node scripts/demo-media/make.mjs [--only annotate-text,overview,...] [--out docs/media]
 //
-// Needs: Node >= 23.6, system Chrome (Playwright drives it, nothing is downloaded), ffmpeg on PATH, `npm install` done,
-// and `npm run build -w web` (done here when web/dist is missing or older than web/src).
+// Needs: Node >= 23.6, system Chrome (Playwright drives it, nothing is downloaded), ffmpeg and ffprobe on PATH,
+// `npm install` done, and `npm run build -w web` (done here when web/dist is missing or older than web/src).
 // It starts the server on port 4790 with the fake backend (--fake, scripted replies), a temp state dir and a temp journal
-// vault, and a demo project it creates at /Users/Shared/demo-project (removed at the end) (a tiny URL shortener, with a generated image and video).
-// If 4790 is busy it waits and retries. Nothing outside /tmp and the output folder is touched.
+// vault, and a demo project it creates at /Users/Shared/demo-project (removed at the end) (a tiny URL shortener, with a
+// generated image, a screen recording and a video edit of them). Two more folders beside it, /Users/Shared/docs-site and
+// /Users/Shared/mobile-app, get servers of their own on 4791 and 4792, so the projects rail shows three projects.
+// If a port is busy it waits and retries. Nothing outside /tmp, those folders and the output folder is touched.
 //
-// Scenes: annotate-text.gif (hero), annotate-code.gif, annotate-image.gif, annotate-video.gif, overview.png, slash-menu.png,
-// codex.png (a Codex window on the scripted app-server codex-app-server.mjs).
+// Scenes: annotate-text.gif (hero), annotate-code.gif, annotate-image.gif (a rectangle and a mask), annotate-video.gif,
+// video-editor.gif (an edit with video, a photo, a voice-over and music: gain, playing the preview, a comment, the agent's
+// change highlighted; the fake agent writes nothing, so the scene writes the edit for it), voice-message.gif, overview.png,
+// slash-menu.png, codex.png (a Codex window on the scripted app-server codex-app-server.mjs).
+//
+// voice-message needs macOS `say` (the spoken message, played by Chrome's fake microphone) and a Whisper install to copy
+// into the scene's temp state dir: DEMO_WHISPER, else ~/.nota-bene/whisper (only read; its running host, if any, is left
+// alone: the scene's server starts its own in the temp state dir, which idles out right after). Without them it is skipped.
+// The edit's voice-over is `say` too, or a tone without it. DEMO_DEBUG=1 logs the page and leaves screenshots in /tmp/nbx.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
-import { CURSOR_INIT, PROJECT, REPO, URL_BASE, LOGIN_URL, clickAt, glide, glideTo, prepare, sleep, startServer, framesToGif, typeSlow } from './lib.mjs';
-import { TEXT } from './project.mjs';
+import { CURSOR_INIT, PROJECT, REPO, URL_BASE, LOGIN_URL, cleanup, clickAt, glide, glideTo, prepare, sleep, startServer, framesToGif, typeSlow, warmWhisper } from './lib.mjs';
+import { CUT_PATH, TEXT, agentCut } from './project.mjs';
 import { flowHtml, landingHtml } from './assets.mjs';
 
 const args = process.argv.slice(2);
@@ -25,7 +34,8 @@ const only = opt('--only')?.split(',');
 const OUT = path.resolve(REPO, opt('--out') ?? 'docs/media');
 fs.mkdirSync(OUT, { recursive: true });
 const T0 = Date.now();
-const work = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-demo-media-'));
+// short: a Whisper host's socket under a state dir in here must fit sun_path (about 104 bytes)
+const work = fs.mkdtempSync(process.platform === 'win32' ? path.join(os.tmpdir(), 'nbdm-') : '/tmp/nbdm-');
 
 // ---- the page ----------------------------------------------------------------------------------------------------
 const composer = (p) => p.getByPlaceholder(/Message the agent/);
@@ -38,6 +48,10 @@ const doneLines = (p) => p.locator('[data-kind="done"]');
 /** Hides what looks like a test artifact: the (fake) session id in the header. */
 const HIDE = '#session { visibility: hidden }';
 
+/** DEMO_DEBUG=1: a screenshot at a step of a scene, in /tmp/nbx. */
+if (process.env.DEMO_DEBUG) fs.mkdirSync('/tmp/nbx', { recursive: true });
+const snap = (page, tag) => (process.env.DEMO_DEBUG ? page.screenshot({ path: `/tmp/nbx/step-${tag}.png` }) : undefined);
+
 async function openPage(browser, { record = false } = {}) {
   const ctx = await browser.newContext({
     viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2, locale: 'en-US', colorScheme: 'dark',
@@ -45,6 +59,11 @@ async function openPage(browser, { record = false } = {}) {
   await ctx.addInitScript(CURSOR_INIT);
   await ctx.addInitScript(() => { try { localStorage.setItem('lang', 'en'); } catch {} });
   const page = await ctx.newPage();
+  if (process.env.DEMO_DEBUG) {
+    page.on('console', (m) => console.log('  [console]', m.type(), m.text().slice(0, 300)));
+    page.on('response', async (r) => { if (r.status() >= 400) console.log('  [http]', r.status(), r.request().method(), r.url().slice(0, 80), (await r.text().catch(() => '')).slice(0, 200)); });
+    page.on('websocket', (ws) => { console.log('  [ws open]', ws.url().slice(0, 60)); ws.on('close', () => console.log('  [ws close]')); });
+  }
   const t0 = Date.now();
   await page.goto(LOGIN_URL);
   await page.addStyleTag({ content: HIDE });
@@ -230,6 +249,20 @@ const scenes = {
       const k = b.width / 800;
       await drawRect(page, b.x + box.x * k, b.y + box.y * k, box.width * k, box.height * k);
       await commentOnMark(page, TEXT.imgC);
+      // and the result card outlined point by point with the Mask tool
+      await clickAt(page, page.getByRole('toolbar', { name: /./ }).getByRole('button', { name: /^Mask/ }), 600);
+      const card = await naturalBox(browser, landingHtml(), 800, 540, '.result', 5);
+      const [x0, y0, x1, y1] = [b.x + card.x * k, b.y + card.y * k, b.x + (card.x + card.width) * k, b.y + (card.y + card.height) * k];
+      const r = 14 * k; // the card's rounded corners, cut off
+      const pts = [[x0 + r, y0], [x1 - r, y0], [x1, y0 + r], [x1, y1 - r], [x1 - r, y1], [x0 + r, y1], [x0, y1 - r], [x0, y0 + r], [x0 + r, y0]];
+      for (const [x, y] of pts) {
+        await glide(page, x, y, 260);
+        await page.mouse.down();
+        await page.mouse.up();
+        await sleep(70);
+      }
+      await sleep(250);
+      await commentOnMark(page, TEXT.maskC);
       await page.keyboard.press('Escape');
       await sleep(250);
       await sendBatch(page);
@@ -272,6 +305,100 @@ const scenes = {
       await waitDone(page, 1);
       await sleep(200);
     });
+  },
+
+  async 'video-editor'(browser) {
+    await recordGif(browser, 'video-editor', async (page, start) => {
+      await expand(page, 'media');
+      await page.mouse.move(300, 600);
+      start();
+      await sleep(300);
+      await openFile(page, CUT_PATH);
+      await closeTree(page);
+      const pane = page.locator(`[data-pane="file:${CUT_PATH}"]`);
+      const clip = (id) => pane.locator(`[data-clip="${id}"]`);
+      await page.waitForFunction(() => document.querySelectorAll('[data-wave]').length >= 2, null, { timeout: 30000 });
+      await sleep(700);
+      // the playhead into the title card, then the voice a little louder: drag its gain line up
+      const ruler = await pane.locator('[data-ruler]').boundingBox();
+      const pps = Number(await pane.locator('[data-timeline]').getAttribute('data-pps'));
+      await glide(page, ruler.x + 1.5 * pps, ruler.y + ruler.height / 2, 550);
+      await page.mouse.down();
+      await page.mouse.up();
+      await sleep(400);
+      const g = await clip('c4').locator('[data-gain]').boundingBox();
+      await glide(page, g.x + g.width * 0.6, g.y + g.height / 2, 650);
+      await sleep(120);
+      await page.mouse.down();
+      await page.mouse.move(g.x + g.width * 0.6, g.y + g.height / 2 - 4, { steps: 12 });
+      await sleep(500);
+      await snap(page, 'cut-gain');
+      await page.mouse.up();
+      await sleep(300);
+      // play: the title, the screen recording with the logo over it, the level meter moving
+      await clickAt(page, pane.getByRole('button', { name: /^Play/ }), 500);
+      await sleep(4600);
+      await clickAt(page, pane.getByRole('button', { name: /^Pause/ }), 400);
+      await sleep(250);
+      // a comment on the music clip, sent to the agent
+      const m = await clip('c5').boundingBox();
+      await glide(page, m.x + m.width * 0.3, m.y + m.height * 0.75, 550);
+      await page.mouse.down();
+      await page.mouse.up();
+      await sleep(300);
+      await page.keyboard.press('m');
+      await commentBox(page).waitFor();
+      await sleep(250);
+      await typeSlow(commentBox(page), TEXT.cutC, 24);
+      await sleep(200);
+      await snap(page, 'cut-typed');
+      await page.keyboard.press('ControlOrMeta+Enter'); // a click on Add here would land on the timeline under the popup first
+      await sleep(350);
+      await snap(page, 'cut-added');
+      // a click on the timeline's empty space lets the selection go, so the agent's change shows on its own
+      const lane = await clip('c5').boundingBox();
+      await glide(page, lane.x + lane.width + 120, lane.y + lane.height / 2, 500);
+      await page.mouse.down();
+      await page.mouse.up();
+      await sleep(250);
+      await sendBatch(page);
+      await waitDone(page, 1);
+      // the agent's write of the edit (a fake agent writes nothing itself)
+      const file = path.join(PROJECT, CUT_PATH);
+      fs.writeFileSync(file, JSON.stringify(agentCut(JSON.parse(fs.readFileSync(file, 'utf8'))), null, 2) + '\n');
+      await sleep(600);
+      await clickAt(page, page.locator(`[data-tab="file:${CUT_PATH}"]`), 600);
+      await sleep(2300);
+    });
+  },
+
+  async 'voice-message'(browser, assets) {
+    // a browser of its own: its fake microphone plays the generated voice once
+    const b = await chromium.launch({
+      channel: 'chrome', headless: true,
+      args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${assets.voice}%noloop`],
+    });
+    try {
+      console.log('  whisper warm-up:', await warmWhisper(assets.voice16));
+      await recordGif(b, 'voice-message', async (page, start) => {
+        await ask(page, TEXT.intro);
+        await ask(page, TEXT.ask);
+        await page.mouse.move(900, 700);
+        await sleep(300);
+        start();
+        await sleep(500);
+        await clickAt(page, page.getByTestId('mic'), 650);
+        await page.getByTestId('record-bar').waitFor();
+        await sleep(4300);
+        await clickAt(page, page.getByRole('button', { name: 'Send the voice message' }), 450);
+        // a click while the bar's wave still grows can miss: Enter sends too
+        if (!(await page.getByTestId('record-bar').waitFor({ state: 'hidden', timeout: 1500 }).then(() => true, () => false))) await page.keyboard.press('Enter');
+        await waitDone(page, 3);
+        await sleep(400);
+      });
+    } finally {
+      await b.close();
+    }
   },
 
   async overview(browser) {
@@ -371,15 +498,23 @@ function ensureBuilt() {
 }
 
 ensureBuilt();
-const { script } = await prepare(chromium, work);
+const assets = await prepare(chromium, work);
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
+// a Whisper install to copy for the voice message (never the running host: the scene's server starts its own in the temp state dir)
+const whisper = process.env.DEMO_WHISPER ?? path.join(os.homedir(), '.nota-bene/whisper');
+const haveWhisper = fs.existsSync(path.join(whisper, 'ready.json'));
 let failed = false;
 try {
   for (const [name, run] of Object.entries(scenes)) {
     if (only && !only.includes(name)) continue;
-    const srv = await startServer(work, script, name, name === 'codex' ? { codex: path.join(REPO, 'scripts/demo-media/codex-app-server.mjs') } : {}); // fresh state per scene
+    if (name === 'voice-message' && !(haveWhisper && assets.voice)) {
+      console.log(`${name}: skipped (needs a Whisper install, DEMO_WHISPER or ~/.nota-bene/whisper, and macOS \`say\`)`);
+      continue;
+    }
+    const opts = name === 'codex' ? { codex: path.join(REPO, 'scripts/demo-media/codex-app-server.mjs') } : name === 'voice-message' ? { whisper } : {};
+    const srv = await startServer(work, assets.script, name, opts); // fresh state per scene
     try {
-      await run(browser);
+      await run(browser, assets);
     } catch (e) {
       failed = true;
       console.error(`${name} failed:`, e);
@@ -390,6 +525,6 @@ try {
 } finally {
   await browser.close();
   fs.rmSync(work, { recursive: true, force: true });
-  fs.rmSync(PROJECT, { recursive: true, force: true });
+  cleanup();
 }
 if (failed) process.exit(1);
