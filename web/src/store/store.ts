@@ -29,6 +29,7 @@ import { theme } from '../shell/theme.ts';
 import { setModel3d } from '../files/kinds.ts';
 import { setTmpDirs } from '../files/tmpImages.ts';
 import { learnServerSep } from '../lib/paths.ts';
+import { coalesceChunks } from './chunks.ts';
 import { persistListeners, type PersistState } from './persist.ts';
 import { emptyFeed, historyPrepended, prependHistory, reduce, type FeedState } from './feed.ts';
 
@@ -178,7 +179,7 @@ export function makeStore(o: {
   mediaByStore.set(store, media);
   conn = connectFn(
     url,
-    (ev) => {
+    coalesceChunks((ev) => {
       if (ev.kind === 'occupied') {
         if (takeoverWanted) {
           takeoverWanted = false;
@@ -199,7 +200,7 @@ export function makeStore(o: {
       if (ev.kind === 'comment-refused' && ev.reason !== 'failed') toast(t('commentChangedElsewhere'), '');
       // the next queued comment change goes once the server is known (hello) and the previous one is answered
       if (ev.kind === 'hello' || ev.kind === 'comments' || ev.kind === 'comment-ack' || ev.kind === 'comment-refused') store.dispatch(flushComments());
-    },
+    }),
     (s) => {
       if (store.getState().conn.state === 'stopped') return;
       store.dispatch(connState(s));

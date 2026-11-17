@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { refClick } from '@/refs/refs.ts';
 import { selectFeed, useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -159,13 +159,7 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
         if (hidden.has(it.id)) return null; // a failed voice message the user has sent again
         return it.idle ? <IdleCompactLine key={it.id} item={it} /> : <UserMessage key={it.id} item={it} />;
       case 'assistant':
-        return (
-          <div key={it.id} data-kind="assistant" data-item-id={it.id} data-final={String(it.final)} className="group/reply relative my-2.5">
-            {/* in the gap above the reply, shown on hover: a reply has no header line of its own to carry it */}
-            <MsgTime ts={it.ts} anchorSkip className="absolute -top-2.5 right-0 select-none font-mono text-[0.625rem] leading-none text-muted-foreground opacity-0 transition-opacity group-hover/reply:opacity-100" />
-            <Markdown text={it.text} final={it.final} />
-          </div>
-        );
+        return <Reply key={it.id} item={it} />;
       case 'done':
         return <DoneLine key={it.key} item={it} />;
       case 'permission':
@@ -216,5 +210,16 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
     </FeedScope.Provider>
   );
 }
+
+/** An agent reply; like every feed item's element, memoized: a streamed token re-renders only the reply it extends (issue 471). */
+const Reply = memo(function Reply({ item: it }: { item: Extract<FeedState['items'][number], { kind: 'assistant' }> }) {
+  return (
+    <div data-kind="assistant" data-item-id={it.id} data-final={String(it.final)} className="group/reply relative my-2.5">
+      {/* in the gap above the reply, shown on hover: a reply has no header line of its own to carry it */}
+      <MsgTime ts={it.ts} anchorSkip className="absolute -top-2.5 right-0 select-none font-mono text-[0.625rem] leading-none text-muted-foreground opacity-0 transition-opacity group-hover/reply:opacity-100" />
+      <Markdown text={it.text} final={it.final} />
+    </div>
+  );
+});
 
 const isAgentCall = (it: FeedState['items'][number]): boolean => it.kind === 'tool' && isAgentTool(it.name, it.toolKind);

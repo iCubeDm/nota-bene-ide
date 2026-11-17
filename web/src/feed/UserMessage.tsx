@@ -4,7 +4,7 @@ import { pageQuote } from '@/page/quote.ts';
 import { Attachments } from '@/attachments/Attachments.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
-import { useContext } from 'react';
+import { memo, useContext } from 'react';
 import { Markdown } from './Markdown.tsx';
 import { MsgTime } from './MsgTime.tsx';
 import { clockTime } from './time.ts';
@@ -20,7 +20,7 @@ import { VoiceBubble } from '@/voice/VoiceBubble.tsx';
 /** A line's time in the UI language: `14:32` today, with its date on another day (see time.ts); '' for ts 0. */
 export const timeOf = (ts: number): string => (ts > 0 ? clockTime(ts, getLang()) : '');
 
-export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }> }) {
+export const UserMessage = memo(function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }> }) {
   const t = useT();
   const inAgent = !!useContext(FeedScope).agent; // a subagent's tab: the first message is the prompt it was given, not the user's
   const sent = useAppSelector((s) => selectSentFor(s, item.id));
@@ -69,4 +69,4 @@ export function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }
       )}
     </div>
   );
-}
+});

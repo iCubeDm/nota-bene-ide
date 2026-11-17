@@ -49,7 +49,10 @@ export class CodexSession implements AgentSession {
     });
     this.ready = this.open(o.resume, o.fork).then(() => {
       if (this.ended) return;
-      this.timer = setInterval(() => { void this.pollTerminals(); }, 3000); this.timer.unref();
+      // issue 471: a terminal starts only in a turn and outlives it, so the list is asked once now (a resumed thread may
+      // have some), then only during a turn or while one is known; a turn's end asks once more (settle)
+      void this.pollTerminals();
+      this.timer = setInterval(() => { if (this.active || this.terminals.size) void this.pollTerminals(); }, 3000); this.timer.unref();
     });
     void this.ready.catch((e) => this.fail(e));
     void rpc.closed.then(() => { if (!this.ended) this.fail(new Error('Codex disconnected. Restart the session to retry.')); });

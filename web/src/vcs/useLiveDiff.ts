@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { selectSession, useAppSelector } from '@/store/store.ts';
 import { selectRefreshSeq, selectTree } from '@/tree/slice.ts';
-import { baseOf, loadDiff, useDiffData, useVcsUi } from './store.ts';
+import { baseOf, useDiffData, useVcsUi, watchDiff } from './store.ts';
 
-/** Refreshes while shown: other agents' worktrees change without any turn of this window, so it polls. */
+/** Refreshes while shown: other agents' worktrees change without any turn of this window, so it polls (one poll however many views show it). */
 export function useLiveDiff(on: boolean) {
   const src = useAppSelector(selectTree).src;
   const root = useAppSelector(selectSession)?.root ?? '';
@@ -11,9 +11,7 @@ export function useLiveDiff(on: boolean) {
   const base = baseOf(useVcsUi().bases, root, src);
   useEffect(() => {
     if (!on || !root) return;
-    void loadDiff(root, src, base);
-    const id = setInterval(() => { if (document.visibilityState === 'visible') void loadDiff(root, src, base); }, 4_000);
-    return () => clearInterval(id);
+    return watchDiff(root, src, base);
   }, [on, root, src, base, turn]);
   return { root, src, base, data: useDiffData(root, src, base) };
 }

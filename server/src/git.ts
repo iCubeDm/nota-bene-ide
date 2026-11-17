@@ -250,29 +250,26 @@ export type GitStatus = { branch: string | null; detached: boolean; dirty: boole
 const STATUS_TTL = 3_000;
 const STATUS_TIMEOUT = 3_000;
 
-/** null: not a repo (or no git). Throws when git did not answer in time: the caller keeps what it showed. */
+/**
+ * null: not a repo (or no git). Throws when git did not answer in time: the caller keeps what it showed. One `git status`
+ * says it all (issue 471): its `# branch.head` header names the branch, `(detached)` when there is none, and an entry
+ * line is a change.
+ */
 async function readStatus(root: string): Promise<GitStatus | null> {
-  const run = async (args: string[]) => (await git(root, ['-c', 'core.fsmonitor=false', ...args], 1 << 20, STATUS_TIMEOUT)).toString('utf8');
-  try {
-    await run(['rev-parse', '--is-inside-work-tree']);
-  } catch {
-    return null;
-  }
-  let branch: string | null;
-  let detached = false;
-  try {
-    const head = (await run(['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
-    detached = head === 'HEAD';
-    branch = detached ? null : head;
-  } catch {
-    // a repo without commits has no HEAD to resolve, but its branch name is known
-    branch = (await run(['symbolic-ref', '--short', '-q', 'HEAD'])).trim() || null;
-  }
   // new files the agent made count too (not the ignored ones); a huge untracked tree that times out falls back to
   // the tracked files only, so the header still shows something
-  const status = (u: string) => run(['status', '--porcelain=v1', u, '--ignore-submodules']).then((o) => o.trim() !== '');
-  const dirty = await status('-unormal').catch(() => status('-uno'));
-  return { branch, detached, dirty };
+  const run = (u: string) => git(root, ['-c', 'core.fsmonitor=false', 'status', '--porcelain=v2', '--branch', '--no-ahead-behind', u, '--ignore-submodules'], 16 << 20, STATUS_TIMEOUT);
+  let out: string;
+  try {
+    out = (await run('-unormal').catch(() => run('-uno'))).toString('utf8');
+  } catch (e) {
+    if ((e as { killed?: boolean }).killed) throw e; // timed out
+    return null; // not a repo, no such directory, no git
+  }
+  const lines = out.split('\n');
+  const head = lines.find((l) => l.startsWith('# branch.head '))?.slice('# branch.head '.length).trim() ?? '';
+  const detached = head === '(detached)';
+  return { branch: detached || !head ? null : head, detached, dirty: lines.some((l) => l !== '' && !l.startsWith('#')) };
 }
 
 const statusCache = new Map<string, { at: number; p: Promise<GitStatus | null> }>();

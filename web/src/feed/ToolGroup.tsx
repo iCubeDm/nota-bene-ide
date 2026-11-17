@@ -2,7 +2,7 @@ import { useT } from '@/i18n/index.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { ToolLine } from './ToolLine.tsx';
-import { useContext } from 'react';
+import { memo, useContext } from 'react';
 import { FeedScope } from './scope.ts';
 import { scopedId, selectGroupOpen, selectToolCommentCounts, toggleGroup } from './uiSlice.ts';
 
@@ -14,7 +14,7 @@ type Tool = Extract<FeedItem, { kind: 'tool' }>;
  * While the turn still runs and this is the last thing in the feed, the latest action shows under the head. Open state
  * lives in `feedUi`, keyed by the first action's id; folded, the head counts the comments on its actions (R-M7-20).
  */
-export function ToolGroup({ items, live }: { items: Tool[]; live: boolean }) {
+export const ToolGroup = memo(function ToolGroup({ items, live }: { items: Tool[]; live: boolean }) {
   const t = useT();
   const dispatch = useAppDispatch();
   const agent = useContext(FeedScope).agent;
@@ -45,4 +45,4 @@ export function ToolGroup({ items, live }: { items: Tool[]; live: boolean }) {
       )}
     </div>
   );
-}
+}, (a, b) => a.live === b.live && a.items.length === b.items.length && a.items.every((it, i) => it === b.items[i]));

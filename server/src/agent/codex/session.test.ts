@@ -34,6 +34,33 @@ function setup(rpc = new Script(), extra = {}) {
 const send = (session: CodexSession, uuid: string, priority: 'next' | 'now' = 'next') => session.send({ uuid, text: uuid, priority });
 
 describe('Codex session ownership', () => {
+  it('asks for background terminals at the start, during a turn and while one is known, not while idle (issue 471)', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const s = setup(); await s.session.ready; await flush();
+      const lists = () => s.rpc.calls.filter((c) => c.method === 'thread/backgroundTerminals/list').length;
+      expect(lists()).toBe(1);
+      vi.advanceTimersByTime(9000); await flush();
+      expect(lists()).toBe(1); // idle, none known
+      send(s.session, 'a'); await flush();
+      const base = s.rpc.reply;
+      s.rpc.reply = async (m, p) => m === 'thread/backgroundTerminals/list' ? { data: [{ processId: '7', itemId: 'i', command: 'sleep 99' }] } : base(m, p);
+      vi.advanceTimersByTime(3000); await flush();
+      expect(lists()).toBe(2); // in the turn
+      s.rpc.emit('turn/completed', { turn: { id: 't1', status: 'completed' } }); await flush();
+      expect(lists()).toBe(3); // the turn's end
+      vi.advanceTimersByTime(3000); await flush();
+      expect(lists()).toBe(4); // a terminal is known: its end is watched
+      s.rpc.reply = base;
+      vi.advanceTimersByTime(3000); await flush();
+      expect(s.events).toContainEqual(expect.objectContaining({ t: 'task', phase: 'done' }));
+      vi.advanceTimersByTime(9000); await flush();
+      expect(lists()).toBe(5); // none left: idle again
+      await s.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('holds completion until a steering acknowledgement and settles only accepted sends once', async () => {
     const s = setup(); await s.session.ready;
     send(s.session, 'a'); await flush();
