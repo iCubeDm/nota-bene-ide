@@ -252,7 +252,7 @@ describe('helpers', () => {
     for (const n of ['a.md', 'a.pdf', 'a.mp4', 'a.png', 'a.txt', 'a.json', 'a.csv', 'a.docx', 'a.xlsx', 'a.pptx', 'a.odt', 'a.rtf', 'a.pages', 'a.key', 'a.mp3', 'a.ts', 'A.PDF']) {
       expect(openAllowed(n, 'darwin'), n).toBe(true);
     }
-    for (const n of ['a.app', 'a.command', 'a.sh', 'a.exe', 'a.bat', 'a.ps1', 'a.jar', 'a.py', 'a.js', 'a.terminal', 'a.html', 'a.svg', 'a.zip', 'a.docm', 'Makefile', 'a.weird']) {
+    for (const n of ['a.app', 'a.command', 'a.sh', 'a.exe', 'a.bat', 'a.ps1', 'a.jar', 'a.py', 'a.js', 'a.terminal', 'a.html', 'a.svg', 'a.zip', 'a.docm', 'Makefile', 'a.weird', 'a.blend', 'a.doc', 'a.xls', 'a.ppt']) {
       expect(openAllowed(n, 'darwin'), n).toBe(false);
     }
   });

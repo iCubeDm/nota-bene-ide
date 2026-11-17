@@ -45,15 +45,15 @@ export function fromThisMachine(req: Pick<IncomingMessage, 'headers'> & { socket
 }
 
 // what Open may hand to the default app: documents and media whose app shows them rather than runs them. Not html or svg
-// (a browser runs their script as file://), not code a launcher would run (js, py, sh, ...), not macro documents (docm, ...)
+// (a browser runs their script as file://), not code a launcher would run (js, py, sh, ...), not macro-capable documents (docm, the legacy doc/xls/ppt), not .blend (Blender may auto-run its Python)
 const DOCUMENTS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'heic', 'heif', 'avif', 'ico', 'psd',
   'mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'oga', 'opus', 'aif', 'aiff', 'mid', 'midi',
   'mp4', 'm4v', 'mov', 'webm', 'mkv', 'avi', 'mpg', 'mpeg',
   'pdf', 'txt', 'text', 'md', 'markdown', 'csv', 'tsv', 'log', 'json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf',
   'ts', 'tsx', 'c', 'h', 'cc', 'cpp', 'hpp', 'rs', 'go', 'java', 'kt', 'swift', 'css', 'scss', 'sql', 'diff', 'patch',
-  'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'pages', 'numbers', 'key', 'epub',
-  'glb', 'gltf', 'obj', 'stl', 'blend',
+  'docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'pages', 'numbers', 'key', 'epub',
+  'glb', 'gltf', 'obj', 'stl',
 ]);
 
 /**
