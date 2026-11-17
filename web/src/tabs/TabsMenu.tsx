@@ -3,7 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useT } from '@/i18n/index.ts';
 import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { activate, selectTabs, type Tab } from './slice.ts';
-import { Svg, TabIcon, focusTab } from './TabStrip.tsx';
+import { Svg, TabIcon, focusTab, tabLabel } from './TabStrip.tsx';
 
 /** The ids of the tabs not fully inside the strip's visible width (a 1 px slack for subpixel layouts). */
 export function hiddenTabs(strip: HTMLElement): Set<string> {
@@ -19,10 +19,11 @@ export function hiddenTabs(strip: HTMLElement): Set<string> {
 const dirOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
 
 /**
- * "▾" at the strip's right end (M6-12, IntelliJ): the hidden tabs first, then every tab, with a filter by path.
- * ↑↓ move, Enter opens, Esc closes. The hidden set is read from the layout when the menu opens.
+ * "▾" at the strip's right end (M6-12, IntelliJ): the hidden tabs first, then every tab, with a filter by path, each
+ * labelled as in the strip (`labels`, issue 469). ↑↓ move, Enter opens, Esc closes. The hidden set is read from the layout
+ * when the menu opens.
  */
-export function TabsMenu({ strip }: { strip: RefObject<HTMLElement | null> }) {
+export function TabsMenu({ strip, labels }: { strip: RefObject<HTMLElement | null>; labels: Map<string, string> }) {
   const t = useT();
   const d = useAppDispatch();
   const { open: tabs, active } = useAppSelector(selectTabs);
@@ -34,7 +35,7 @@ export function TabsMenu({ strip }: { strip: RefObject<HTMLElement | null> }) {
   const input = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
-  const label = (tab: Tab) => (tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'remote' ? t('remote') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : tab.path.split('/').pop() || tab.path);
+  const label = (tab: Tab) => tabLabel(tab, t, title, labels);
   const needle = q.trim().toLowerCase();
   const match = (tab: Tab) => !needle || (tab.kind === 'file' ? tab.path : label(tab)).toLowerCase().includes(needle);
   // no query: the hidden ones, then all; a query: every match once

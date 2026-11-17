@@ -23,10 +23,6 @@ Color contextColor(NbColors c, num pct) => pct >= 90
     ? c.accent
     : c.primary;
 
-/// A token count the short way (`68k`, `1.2M`); a whole unit loses its `.0`.
-String _tokens(num n, String lang) =>
-    fmtTokens(n, lang).replaceFirst(RegExp(r'\.0(?=\D|$)'), '');
-
 Future<void> showContextSheet(BuildContext context, WindowTab tab) {
   final c = Theme.of(context).extension<NbColors>()!;
   return showModalBottomSheet<void>(
@@ -108,8 +104,8 @@ class ContextSheet extends StatelessWidget {
                 Text(
                   t.contextTokens(
                     ctx.pct.clamp(0, 100).round().toString(),
-                    _tokens(ctx.used, lang),
-                    _tokens(ctx.max, lang),
+                    fmtTokens(ctx.used, lang),
+                    fmtTokens(ctx.max, lang),
                   ),
                   style: TextStyle(fontSize: 13, color: c.foreground),
                 ),

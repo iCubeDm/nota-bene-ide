@@ -6,6 +6,7 @@ import { ConfirmDialog } from './ConfirmDialog.tsx';
 import { selectSwitching, switchSession } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
 import { apiFetch } from '@/net/auth.ts';
+import { byteSize } from '@/lib/format.ts';
 import { archiveSession, brief, deleteSession, renameSession } from './sessionsApi.ts';
 
 /** GET /sessions (server/src/sessions.ts SessionsView). */
@@ -23,8 +24,6 @@ export const ago = (at: number, now = Date.now()): string => {
   return m < 1 ? tNow('justNow') : m < 60 ? tNow('minAgo', m) : m < 1440 ? tNow('hAgo', Math.round(m / 60))
     : new Date(at).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
 };
-/** Prototype `kb`: MB above 1e6 bytes, whole KB below. */
-export const kb = (n: number): string => (n > 1e6 ? `${(n / 1e6).toFixed(1)} ${tNow('mb')}` : `${Math.round(n / 1e3)} ${tNow('kb')}`);
 
 const matches = (x: Item, needle: string) => !needle || x.title.toLowerCase().includes(needle);
 
@@ -246,7 +245,7 @@ export function SessionPicker() {
                   >
                     <span data-t className="block truncate text-[0.8125rem] text-foreground">{title}</span>
                     <span className="block font-mono text-[0.65625rem] text-muted-foreground">
-                      {x.id.slice(0, 8)} · {ago(x.at)} · {kb(x.size)}{cur ? t('openNow') : ''}
+                      {x.id.slice(0, 8)} · {ago(x.at)} · {byteSize(x.size)}{cur ? t('openNow') : ''}
                     </span>
                   </button>
                   <div className="absolute top-1.5 right-1.5 flex gap-0.5">
@@ -296,7 +295,7 @@ export function SessionPicker() {
                   >
                     <span className="block truncate text-[0.8125rem] text-foreground">{title}</span>
                     <span className="block truncate font-mono text-[0.65625rem] text-muted-foreground">
-                      {x.id.slice(0, 8)} · {ago(x.at)} · {kb(x.size)}
+                      {x.id.slice(0, 8)} · {ago(x.at)} · {byteSize(x.size)}
                     </span>
                   </button>
                   <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5">

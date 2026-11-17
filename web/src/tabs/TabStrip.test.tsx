@@ -214,6 +214,14 @@ it('▾ lists the hidden tabs first, then all; the filter matches paths; ↓ Ent
   expect(screen.queryByRole('listbox')).toBeNull();
 });
 
+it('▾ labels same-name files as the strip does (issue 469)', async () => {
+  setup(['src/app.ts', 'lib/app.ts', 'docs/c.md']);
+  fireEvent.click(screen.getByRole('button', { name: 'All tabs' }));
+  const list = await screen.findByRole('listbox', { name: 'All tabs' });
+  const label = (id: string) => list.querySelector(`[data-tab-item="${id}"] span.truncate`)?.textContent;
+  expect([label('file:src/app.ts'), label('file:lib/app.ts'), label('file:docs/c.md')]).toEqual(['src/app.ts', 'lib/app.ts', 'c.md']);
+});
+
 it('the wheel scrolls the strip sideways (M6-12)', () => {
   setup(['a.ts']);
   const strip = screen.getByRole('tablist');

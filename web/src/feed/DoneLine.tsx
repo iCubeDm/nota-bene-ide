@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fmtK } from '@/lib/format.ts';
+import { compact } from '@/lib/format.ts';
 import { useT } from '@/i18n/index.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { selectConn, sendMessage, useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -64,7 +64,7 @@ export function MarkerLine({ item }: { item: Extract<FeedItem, { kind: 'marker' 
   const at = item.ts === 0 ? '' : timeOf(item.ts);
   return (
     <div data-kind="marker" className={item.what === 'compactFailed' ? `${BASE} whitespace-pre-wrap break-words text-destructive` : LINE}>
-      {item.what === 'compacted' ? item.pre === undefined ? t('compactedUnknown') : t('compacted', fmtK(item.pre), at, item.ms ? mmss(item.ms) : '')
+      {item.what === 'compacted' ? item.pre === undefined ? t('compactedUnknown') : t('compacted', compact(item.pre), at, item.ms ? mmss(item.ms) : '')
         : item.what === 'compactFailed' ? t('compactFailed', item.error ?? '', at)
         : t('cleared', at)}
       {item.what === 'cleared' && item.prev ? <ArchivePrev id={item.prev} /> : null}

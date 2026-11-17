@@ -7,6 +7,7 @@ import { plainOutput } from './ansi.ts';
 import { selectTaskControls, TASKS_PROTOCOL } from './slice.ts';
 import { StopButton } from './TaskButtons.tsx';
 import { apiFetch } from '@/net/auth.ts';
+import { byteSize } from '@/lib/format.ts';
 
 /** How often a running task's output is read again while its tab is the visible one. */
 export const SHELL_POLL_MS = 1000;
@@ -21,7 +22,7 @@ function isView(v: unknown): v is TaskOutputView {
   return !!o && typeof o.output === 'string' && typeof o.totalBytes === 'number' && typeof o.truncated === 'boolean' && typeof o.running === 'boolean';
 }
 
-const bytes = (s: string) => new TextEncoder().encode(s).length;
+const byteLength = (s: string) => new TextEncoder().encode(s).length;
 
 /**
  * A background shell task's output in its own tab, as plain text in a monospace pre (escape sequences are removed, never
@@ -89,7 +90,7 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [text]);
 
-  const earlierKb = out.truncated ? Math.max(1, Math.round((out.totalBytes - bytes(out.output)) / 1024)) : 0;
+  const earlier = out.truncated ? out.totalBytes - byteLength(out.output) : 0;
   const status = info?.status ?? (out.status === 'ok' && !out.running ? 'done' : 'running');
   const running = info ? info.status === 'running' : out.running;
   return (
@@ -119,7 +120,7 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
           <>
             {out.error && out.status !== 'ok' ? <div role="alert" className="mb-2 text-sm text-destructive">{t('shellFailed', out.error)}</div> : null}
             {out.error && out.status === 'ok' ? <div data-shell-stale className="mb-2 text-[0.6875rem] text-destructive">{t('shellStale', out.error)}</div> : null}
-            {earlierKb > 0 && <div data-shell-truncated className="mb-1 font-mono text-[0.6875rem] text-muted-foreground">{t('shellEarlier', earlierKb)}</div>}
+            {earlier > 0 && <div data-shell-truncated className="mb-1 font-mono text-[0.6875rem] text-muted-foreground">{t('shellEarlier', byteSize(earlier))}</div>}
             <pre data-shell-output className="font-mono text-[0.75rem] leading-[1.45] break-words whitespace-pre-wrap text-foreground/90">{text || (out.status === 'ok' ? t('shellEmpty') : '')}</pre>
           </>
         )}

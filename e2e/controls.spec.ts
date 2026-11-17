@@ -243,7 +243,7 @@ test('compact adds its boundary line; clear asks first, empties the feed, gets a
   // the fake compacts for 1.5 s: the live line with its bar shows, then gives way to the boundary line with the time
   await expect(page.locator('[data-kind="compacting"]')).toContainText('compacting the context');
   await expect(page.locator('[data-kind="compacting"]').getByRole('progressbar')).toBeVisible();
-  await expect(page.locator('[data-kind="marker"]').filter({ hasText: /context compacted · was 12k tokens · took 0:02/ })).toBeVisible();
+  await expect(page.locator('[data-kind="marker"]').filter({ hasText: /context compacted · was 12K tokens · took 0:02/ })).toBeVisible();
   await expect(page.locator('[data-kind="compacting"]')).toHaveCount(0);
   await expect(compact).toBeEnabled(); // /compact is a turn: the buttons come back when it ends
 
@@ -282,8 +282,8 @@ test('background tasks: the indicator counts, the drawer row ticks, a finished t
   const row = page.locator('[data-task="t-e2e"]');
   await expect(row).toContainText('Explore the repo');
   await expect(row).toContainText('Grep');
-  await expect(row).toContainText('5k tok'); // fmtK rounds 4500 to 5k
-  await expect(row).toContainText(/[12]s · 5k tok/); // the elapsed time moves on by itself
+  await expect(row).toContainText('4.5K tok');
+  await expect(row).toContainText(/[12]s · 4.5K tok/); // the elapsed time moves on by itself
   await expect(row).toHaveAttribute('data-status', 'done'); // task_notification ends it while the turn may still run
   await expect(ind).not.toContainText('task');
   await expect(donesAfter(page, text).first()).toBeVisible();

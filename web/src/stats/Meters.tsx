@@ -1,6 +1,6 @@
 import type { Limit } from '@nota-bene/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { fmtK } from '@/lib/format.ts';
+import { compact, money } from '@/lib/format.ts';
 import { getLang, useT } from '@/i18n/index.ts';
 import { selectCapabilitiesKnown } from '@/controls/slice.ts';
 import { useAppSelector } from '@/store/store.ts';
@@ -51,7 +51,7 @@ export function Meters() {
   const fiveHour = L?.five_hour ?? windows.find((w) => w.minutes === 300);
   const week = L?.seven_day ?? windows.find((w) => w.minutes === 10080);
   const parts = [
-    st.context && <Meter key="ctx" label={t('ctx')} pct={st.context.pct} tip={t('ctxTip', fmtK(st.context.used), fmtK(st.context.max))} />,
+    st.context && <Meter key="ctx" label={t('ctx')} pct={st.context.pct} tip={t('ctxTip', compact(st.context.used), compact(st.context.max))} />,
     fiveHour && <Meter key="h5" label={t('h5')} pct={fiveHour.utilization} tip={`${t('h5Tip')}${resets(fiveHour)}`} />,
     week && <Meter key="week" label={t('week')} pct={week.utilization} tip={`${t('weekTip')}${resets(week)}`} />,
     ...windows.filter((w) => w.minutes !== 300 && w.minutes !== 10080).map((w, i) => <Meter key={`native-${i}`} label={w.minutes == null ? w.label : `${w.minutes % 60 === 0 ? w.minutes / 60 + 'h' : w.minutes + 'm'}`} pct={w.utilization} tip={`${w.label}${resets(w)}`} />),
@@ -59,7 +59,7 @@ export function Meters() {
     st.cost != null && (
       <Tooltip key="cost">
         <TooltipTrigger asChild>
-          <span tabIndex={0} aria-label={t(L ? 'costPlanTip' : 'costTip')} className="cursor-default">${st.cost.toFixed(2)}</span>
+          <span tabIndex={0} aria-label={t(L ? 'costPlanTip' : 'costTip')} className="cursor-default">{money(st.cost * 100, 'USD')}</span>
         </TooltipTrigger>
         <TooltipContent>{t(L ? 'costPlanTip' : 'costTip')}</TooltipContent>
       </Tooltip>

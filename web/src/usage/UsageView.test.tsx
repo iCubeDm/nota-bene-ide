@@ -6,7 +6,7 @@ import { App } from '@/App.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/store/store.ts';
 import { selectTabs } from '@/tabs/slice.ts';
-import { fmtTokens } from './UsageView.tsx';
+import { compact } from '@/lib/format.ts';
 
 const row = (o: Partial<UsageRow> = {}): UsageRow => ({ in: 10, out: 2_000_000, write: 5, read: 3_000_000_000, calls: 1200, w: 300_000_000, sub: 100_000_000, ...o });
 const REPORT: UsageReport = {
@@ -69,7 +69,7 @@ it('the settings menu\'s Usage row opens one Usage tab', async () => {
 it('shows the meter, the model mix, the hits and the tank', async () => {
   setup();
   await screen.findByText('Review the parser');
-  expect(screen.getByRole('img', { name: '300.0M' })).toBeTruthy();
+  expect(screen.getByRole('img', { name: '300M' })).toBeTruthy();
   expect(screen.getByText('Calls: 1,200, subagents 33%')).toBeTruthy();
   expect(screen.getByText('Opus 5.5')).toBeTruthy();
   expect(screen.getByText('app 78%, film 22%')).toBeTruthy();
@@ -91,8 +91,8 @@ it('tokens per 1% are a table: a column per weekly window headed by its dates, o
   const rows = within(table).getAllByRole('row').map((r) => Array.from(r.children).map((c) => c.textContent));
   expect(rows).toEqual([
     ['', 'Nov 1 – Nov 7', 'Nov 8 – Nov 14', 'Nov 15'],
-    ['avg 1% 5h', '—', fmtTokens(900_000), fmtTokens(800_000)],
-    ['avg 1% weekly', fmtTokens(3_800_000), fmtTokens(3_700_000), fmtTokens(3_500_000)],
+    ['avg 1% 5h', '—', compact(900_000), compact(800_000)],
+    ['avg 1% weekly', compact(3_800_000), compact(3_700_000), compact(3_500_000)],
   ]);
 });
 
@@ -102,7 +102,7 @@ it('the table shows the last 8 weekly windows', async () => {
   setup();
   const table = await screen.findByRole('table', { name: 'Tokens per 1% of the limit' });
   const weekly = within(table).getByRole('row', { name: /avg 1% weekly/ });
-  expect(Array.from(weekly.children).slice(1).map((c) => c.textContent)).toEqual(Array.from({ length: 8 }, (_, i) => fmtTokens(1000 * (i + 7))));
+  expect(Array.from(weekly.children).slice(1).map((c) => c.textContent)).toEqual(Array.from({ length: 8 }, (_, i) => compact(1000 * (i + 7))));
 });
 
 it('without five-hour readings the table has no 5-hour row', async () => {
@@ -117,7 +117,7 @@ it('a bar says its tokens under the pointer, the low one too, and whether it was
   const bars = weeks.querySelectorAll('[data-bar]');
   const chart = within(weeks.parentElement!);
   fireEvent.mouseEnter(bars[0]!);
-  expect(chart.getByRole('status').textContent).toBe('Oct 5 – Oct 11total1.0k');
+  expect(chart.getByRole('status').textContent).toBe('Oct 5 – Oct 11total1K');
   fireEvent.mouseEnter(bars[1]!);
   expect(chart.getByRole('status').textContent).toBe('Oct 12 – Oct 18total2.5Mlimit hit');
   fireEvent.mouseLeave(weeks.parentElement!);
@@ -138,9 +138,9 @@ it('extra usage: its tokens and dollars, the month, and the share of a hit', asy
   const hit = { ...REPORT.hits[0]!, extra: { calls: 5, w: 4_000_000, spent: 1250 } };
   reply = () => ({ ...REPORT, hits: [hit], extra: { calls: 5, w: 4_000_000, spent: 1250, month: 1800, limit: 10_000, currency: 'USD' } });
   setup();
-  expect((await screen.findByText(/^Extra usage:/)).textContent).toBe('Extra usage: 4.0M tokens, $12.50. This billing period: $18.00 of $100.00.');
+  expect((await screen.findByText(/^Extra usage:/)).textContent).toBe('Extra usage: 4M tokens, $12.50. This billing period: $18.00 of $100.00.');
   fireEvent.click(screen.getByText('app 78%, film 22%'));
-  expect(screen.getByText('On extra usage after this hit: 4.0M tokens, $12.50')).toBeTruthy();
+  expect(screen.getByText('On extra usage after this hit: 4M tokens, $12.50')).toBeTruthy();
 });
 
 it('a bar carries its extra usage on top, says it under the pointer, and the legend names it', async () => {
@@ -151,7 +151,7 @@ it('a bar carries its extra usage on top, says it under the pointer, and the leg
   expect((weeks.querySelector('[data-extra]') as HTMLElement).style.height).toBe('25%');
   screen.getByText('red: ended on a limit hit, orange: extra usage');
   fireEvent.mouseEnter(weeks.querySelectorAll('[data-bar]')[1]!);
-  expect(within(weeks.parentElement!).getByRole('status').textContent).toMatch(/total4\.0Mwithin limits3\.0Mextra usage1\.0Mlimit hit$/);
+  expect(within(weeks.parentElement!).getByRole('status').textContent).toMatch(/total4Mwithin limits3Mextra usage1Mlimit hit$/);
 });
 
 it('a bar that went wholly on extra usage has no empty line for the limit', async () => {
@@ -159,13 +159,13 @@ it('a bar that went wholly on extra usage has no empty line for the limit', asyn
   setup();
   const weeks = await screen.findByRole('img', { name: 'Weeks' });
   fireEvent.mouseEnter(weeks.querySelectorAll('[data-bar]')[1]!);
-  expect(within(weeks.parentElement!).getByRole('status').textContent).toMatch(/total2\.0Mextra usage2\.0M$/);
+  expect(within(weeks.parentElement!).getByRole('status').textContent).toMatch(/total2Mextra usage2M$/);
 });
 
 it('extra usage with no reading says the sum is unknown', async () => {
   reply = () => ({ ...REPORT, extra: { calls: 5, w: 4_000_000, spent: null, month: null, limit: null, currency: null } });
   setup();
-  expect((await screen.findByText(/^Extra usage:/)).textContent).toBe('Extra usage: 4.0M tokens, sum unknown.');
+  expect((await screen.findByText(/^Extra usage:/)).textContent).toBe('Extra usage: 4M tokens, sum unknown.');
 });
 
 it('what a period has nothing for is not there', async () => {
@@ -198,11 +198,11 @@ it('a project row says its share of everything spent; its subagents are in the t
   setup();
   fireEvent.click(await screen.findByRole('button', { name: 'Projects' }));
   const line = (name: string) => screen.getByText(name).parentElement!;
-  expect(line('app').textContent).toBe('app61%610.0M');
+  expect(line('app').textContent).toBe('app61%610M');
   expect(line('app').title).toBe('Subagents 49%');
-  expect(line('film').textContent).toBe('film39%385.0M');
+  expect(line('film').textContent).toBe('film39%385M');
   expect(line('film').title).toBe('');
-  expect(line('note').textContent).toBe('note<1%5.0M');
+  expect(line('note').textContent).toBe('note<1%5M');
 });
 
 it('a task opens to its subagents and costliest calls', async () => {
@@ -253,11 +253,3 @@ it('an empty period says so; a failure shows in the tab', async () => {
   expect((await screen.findByText(/Could not load the report/)).textContent).toContain('500');
 });
 
-it('fmtTokens: the unit that reads best, in the language', () => {
-  expect(fmtTokens(999)).toBe('999');
-  expect(fmtTokens(1500)).toBe('1.5k');
-  expect(fmtTokens(2_500_000)).toBe('2.5M');
-  expect(fmtTokens(3_000_000_000)).toBe('3.0B');
-  setLang('ru');
-  expect(fmtTokens(2_500_000)).toBe('2.5 млн');
-});

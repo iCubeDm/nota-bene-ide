@@ -6,6 +6,7 @@ import { RefusedResource, resolveModelUrl } from '@/model/resolve.ts';
 import { BLEND, fileUrl, modelUrl } from '../kinds.ts';
 import { ModelMarkup } from './ModelMarkup.tsx';
 import { apiFetch } from '@/net/auth.ts';
+import { byteSize } from '@/lib/format.ts';
 
 /** Above this a model is not fetched at all: the whole file lives in memory twice (bytes, then the parsed scene). */
 export const MODEL_MAX_BYTES = 256 * 1024 * 1024;
@@ -22,13 +23,6 @@ type Status =
   | { s: 'outside'; paths: string[] }
   | { s: 'error'; message: string };
 
-type Tr = ReturnType<typeof useT>;
-export function fmtSize(n: number, t: Tr): string {
-  if (n < 1024) return `${n} ${t('sizeB')}`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} ${t('sizeKB')}`;
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} ${t('sizeMB')}`;
-  return `${(n / (1024 * 1024 * 1024)).toFixed(1)} ${t('sizeGB')}`;
-}
 
 /** A hidden model tab gives its WebGL context back after this long (browsers allow about 16 contexts per page). */
 export const RELEASE_AFTER_MS = 20_000;
@@ -310,7 +304,7 @@ export function ModelBody({ path, src, fileRef, tabId, active, reloadKey, releas
       <div ref={host} data-model-host style={{ bottom: ready ? barH : 0 }} className="absolute inset-x-0 top-0 bg-background" onDoubleClick={() => marking || viewer?.resetView()} />
       {status.s === 'loading' && note(blend && status.pct === null ? t('modelConverting') : t('modelLoading', status.pct))}
       {status.s === 'gone' && note(t('fileGone'))}
-      {status.s === 'tooBig' && note(t('modelTooBig', fmtSize(status.size, t)))}
+      {status.s === 'tooBig' && note(t('modelTooBig', byteSize(status.size)))}
       {status.s === 'error' && note(t('modelFailed', status.message), true)}
       {status.s === 'lost' && note(t('modelLost'), true)}
       {status.s === 'noGl' && note(t('modelNoWebgl'), true)}
@@ -325,7 +319,7 @@ export function ModelBody({ path, src, fileRef, tabId, active, reloadKey, releas
         <div ref={bar} data-anchor-skip className="absolute inset-x-0 bottom-0 border-t border-border-soft bg-chrome px-3 py-1 font-mono text-[0.71875rem] text-muted-foreground backdrop-blur">
          <div className="flex flex-wrap items-center gap-2">
           <span data-model-info className="min-w-0 flex-1 truncate">
-            {t('modelInfo', fmtSize(ready.size, t), ready.stats.meshes, ready.stats.triangles, ready.stats.materials, ready.stats.clips.length)}
+            {t('modelInfo', byteSize(ready.size), ready.stats.meshes, ready.stats.triangles, ready.stats.materials, ready.stats.clips.length)}
             {ready.stats.refused ? ` · ${t('modelRefusedN', ready.stats.refused)}` : ''}
           </span>
           {ready.stats.clips.length > 0 && (

@@ -5,11 +5,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, expect, it } from 'vitest';
 import { getLang, setLang, type Lang } from '@/i18n/index.ts';
-import { fmtTokens, modelName, money, num, part, pct } from './UsageView.tsx';
+import { compact, money, num } from '@/lib/format.ts';
+import { modelName, part, pct } from './UsageView.tsx';
 
 const LANGS: [string, Lang][] = [['en', 'en'], ['ru', 'ru'], ['zh', 'zh-CN'], ['es', 'es'], ['pt', 'pt-BR'], ['de', 'de']];
 const PAIRS: [number, number][] = [[1, 3], [1, 2], [0, 5], [5, 0], [7, 7], [1, 1000], [2, 3]];
-const TOKENS = [0, 999, 1500, 2.5e6, 3.2e9];
+const TOKENS = [0, 999, 1500, 12_345, 123_456, 2.5e6, 3.2e9];
 const CURRENCIES = ['EUR', 'GBP', 'CAD', 'AUD', 'CNY'];
 const MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'gpt-5.5'];
 const first = getLang();
@@ -22,7 +23,7 @@ it('the desktop side of the usage formatter fixtures', () => {
     return [app, {
       pct: PAIRS.map(([a, b]) => pct(a, b)),
       part: PAIRS.filter(([, b]) => b > 0).map(([a, b]) => part(a, b)),
-      fmtTokens: TOKENS.map((n) => fmtTokens(n)),
+      fmtTokens: TOKENS.map((n) => compact(n)),
       modelName: MODELS.map(modelName),
       num: num(1234567),
       money: [money(12345, 'USD'), money(500, 'JPY')],

@@ -117,12 +117,12 @@ it('picking an effort of the current model sends model + effort; the current cho
   expect(sent.at(-1)).toMatchObject({ type: 'model', model: 'sonnet', effort: 'high' });
 });
 
-it('the cache warning: ONE line at the bottom, in tokens/1000, once the session has had a turn', async () => {
+it('the cache warning: ONE line at the bottom, in the short token count, once the session has had a turn', async () => {
   const { ready } = setup();
   ready(123_400);
   const menu = await open();
   expect(within(menu).getAllByTestId('cache-warn')).toHaveLength(1);
-  expect(within(menu).getByTestId('cache-warn')).toHaveTextContent('The next reply re-reads the context: ~123k tokens');
+  expect(within(menu).getByTestId('cache-warn')).toHaveTextContent('The next reply re-reads the context: ~123K tokens');
   expect(within(menu).getByTestId('cache-warn').closest('[role="group"]')).toBeNull();
 });
 
@@ -134,7 +134,7 @@ it('no warning before the first turn, even with a context baseline (the meter sh
   await userEvent.keyboard('{Escape}');
   emit({ kind: 'user', id: 'u1', text: 'hi', ts: 1 });
   menu = await open();
-  expect(within(menu).getByTestId('cache-warn')).toHaveTextContent('~28k');
+  expect(within(menu).getByTestId('cache-warn')).toHaveTextContent('~28K');
 });
 
 it('no warning with an empty context; the Russian text', async () => {

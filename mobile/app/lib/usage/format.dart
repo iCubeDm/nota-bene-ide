@@ -13,18 +13,12 @@ String part(num a, num b) => a / b < 0.01 ? '<1%' : pct(a, b);
 String fmtNum(num n, String lang) =>
     NumberFormat.decimalPattern(lang).format(n);
 
-/// Large counts in the unit that reads best.
-String fmtTokens(num n, String lang) {
-  String unit(double v, String ru, String en) =>
-      '${v.toStringAsFixed(1)}${lang == 'ru' ? ' $ru' : en}';
-  return n >= 1e9
-      ? unit(n / 1e9, 'млрд', 'B')
-      : n >= 1e6
-      ? unit(n / 1e6, 'млн', 'M')
-      : n >= 1e3
-      ? unit(n / 1e3, 'тыс', 'k')
-      : '${n.round()}';
-}
+final _compact = <String, NumberFormat>{};
+
+/// A large count the short way, in the language's own units (`1.5K`, `2,5 млн`, `250万`), as the desktop's one
+/// formatter writes it (web/src/lib/format.ts, issue 469).
+String fmtTokens(num n, String lang) =>
+    (_compact[lang] ??= NumberFormat.compact(locale: lang)).format(n);
 
 /// Symbols `intl` shares between currencies (`$` is a dozen of them); the desktop's ICU tells these apart.
 const _shared = {'\$', '¥', '£', 'kr'};

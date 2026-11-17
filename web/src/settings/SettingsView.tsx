@@ -7,10 +7,10 @@ import { MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-be
 import { Button } from '@/components/ui/button.tsx';
 import { apiFetch } from '@/net/auth.ts';
 import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
-import { kb } from '@/controls/SessionPicker.tsx';
+import { byteSize } from '@/lib/format.ts';
 import { getLang, chooseLang, LANGS, t as tNow, useT, type Lang } from '@/i18n/index.ts';
 import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
-import { uiScale, useUiScale } from '@/shell/uiScale.ts';
+import { scaleLabel, uiScale, useUiScale } from '@/shell/uiScale.ts';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '@/shell/theme.ts';
 import { playCue, type Sounds } from '@/shell/sounds.ts';
 import { folderName, shortWinHome } from '@/lib/paths.ts';
@@ -154,7 +154,7 @@ export function SettingsView({ active }: { active: boolean }) {
       const r = await postJson('/system/storage/clean', {});
       if (!r.ok) throw new Error(`${r.status}`);
       const j = (await r.json()) as { moved: number; bytes: number; trash: string; errors?: string[] };
-      setNote(t('stCleaned', j.moved, kb(j.bytes), short(j.trash)) + (j.errors?.length ? ` · ${t('stErrors', j.errors.length, j.errors[0]!)}` : ''));
+      setNote(t('stCleaned', j.moved, byteSize(j.bytes), short(j.trash)) + (j.errors?.length ? ` · ${t('stErrors', j.errors.length, j.errors[0]!)}` : ''));
     } catch (e) {
       setNote(t('setLoadFail', e instanceof Error ? e.message : String(e)));
     }
@@ -238,15 +238,15 @@ export function SettingsView({ active }: { active: boolean }) {
         {fail(storage.error)}
         {storage.data && (
           <>
-            <Row label={t('stAttachments')}>{kb(storage.data.attachments.bytes)} · {t('stFiles', storage.data.attachments.files)}</Row>
-            <Row label={t('stComments')}>{kb(storage.data.comments.bytes)} · {t('stFiles', storage.data.comments.files)}</Row>
-            {storage.data.history && <Row label={t('stHistory')}>{kb(storage.data.history.bytes)} · {t('stFiles', storage.data.history.files)}</Row>}
-            <Row label={t('stMarks')}>{kb(storage.data.marks.bytes)} · {t('stFiles', storage.data.marks.files)}</Row>
-            <Row label={t('stTrash')}>{kb(storage.data.trash.bytes)} · {t('stFiles', storage.data.trash.files)}</Row>
+            <Row label={t('stAttachments')}>{byteSize(storage.data.attachments.bytes)} · {t('stFiles', storage.data.attachments.files)}</Row>
+            <Row label={t('stComments')}>{byteSize(storage.data.comments.bytes)} · {t('stFiles', storage.data.comments.files)}</Row>
+            {storage.data.history && <Row label={t('stHistory')}>{byteSize(storage.data.history.bytes)} · {t('stFiles', storage.data.history.files)}</Row>}
+            <Row label={t('stMarks')}>{byteSize(storage.data.marks.bytes)} · {t('stFiles', storage.data.marks.files)}</Row>
+            <Row label={t('stTrash')}>{byteSize(storage.data.trash.bytes)} · {t('stFiles', storage.data.trash.files)}</Row>
             <div className="mt-3">
               {storage.data.unreferenced.files ? (
                 <Button type="button" variant="outline" size="sm"
-                  onClick={() => setAsk({ title: t('stClean'), body: t('stCleanQ', storage.data!.unreferenced.files, kb(storage.data!.unreferenced.bytes)), confirm: t('stClean'), run: clean })}>
+                  onClick={() => setAsk({ title: t('stClean'), body: t('stCleanQ', storage.data!.unreferenced.files, byteSize(storage.data!.unreferenced.bytes)), confirm: t('stClean'), run: clean })}>
                   {t('stClean')} · {storage.data.unreferenced.files}
                 </Button>
               ) : <span className="text-xs text-muted-foreground">{t('stNothing')}</span>}
@@ -306,7 +306,7 @@ export function SettingsView({ active }: { active: boolean }) {
         <Row label={t('defScale')}>
           <select aria-label={t('defScale')} value={scale} onChange={(e) => uiScale.choose(Number(e.target.value) as UiScale)}
             className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[0.8125rem] text-foreground">
-            {UI_SCALES.map((v) => <option key={v} value={v}>{new Intl.NumberFormat(getLang(), { style: 'percent' }).format(v)}</option>)}
+            {UI_SCALES.map((v) => <option key={v} value={v}>{scaleLabel(v, getLang())}</option>)}
           </select>
         </Row>
         <Row label={t('defMode')}>

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { shortModel } from '@nota-bene/shared';
-import { fmtK } from '@/lib/format.ts';
+import { compact } from '@/lib/format.ts';
 import { useT } from '@/i18n/index.ts';
 import { AGENT_PROTOCOL } from '@/subagent/slice.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -91,7 +91,7 @@ export function TasksDrawer() {
                   <span aria-label={t(icon.key)} title={t(icon.key)} data-task-status className={`w-3 flex-none text-center ${icon.cls}`}>{icon.glyph}</span>
                   <span className="min-w-0 flex-[0_1_40%] truncate font-medium text-foreground/90">{t('taskGroup', group.total)}</span>
                   <span className="flex-none font-mono text-[0.65625rem] text-muted-foreground" data-task-meta>
-                    {[fmtElapsed((group.end ?? now) - group.start), group.tokens ? `${fmtK(group.tokens)} tok` : ''].filter(Boolean).join(' · ')}
+                    {[fmtElapsed((group.end ?? now) - group.start), group.tokens ? t('taskTokens', compact(group.tokens)) : ''].filter(Boolean).join(' · ')}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[0.6875rem] text-muted-foreground" data-task-summary>
                     {[t('taskGroupDone', group.done, group.total), ...ended].join(', ')}
@@ -101,7 +101,7 @@ export function TasksDrawer() {
               );
             }
             const icon = ICON[task.status];
-            const meta = [task.workflow ? t('taskWorkflow', task.workflow) : task.type, task.model ? shortModel(task.model) : '', fmtElapsed((task.end ?? now) - task.start), task.tokens ? `${fmtK(task.tokens)} tok` : '', task.tool].filter(Boolean).join(' · ');
+            const meta = [task.workflow ? t('taskWorkflow', task.workflow) : task.type, task.model ? shortModel(task.model) : '', fmtElapsed((task.end ?? now) - task.start), task.tokens ? t('taskTokens', compact(task.tokens)) : '', task.tool].filter(Boolean).join(' · ');
             const canOpen = (task.kind === 'agent' && task.type !== 'remote_agent' && !!task.call && protocol >= AGENT_PROTOCOL) || (task.kind === 'shell' && protocol >= TASKS_PROTOCOL && capabilities?.taskOutput !== false);
             return (
               <li

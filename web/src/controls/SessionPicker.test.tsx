@@ -10,7 +10,7 @@ import { setDraft } from '@/composer/slice.ts';
 import { setLang } from '@/i18n/index.ts';
 import { Header } from '@/shell/Header.tsx';
 import { makeStore } from '@/store/store.ts';
-import { ago, kb, menuItems, SessionPicker, type SessionsView } from './SessionPicker.tsx';
+import { ago, menuItems, SessionPicker, type SessionsView } from './SessionPicker.tsx';
 import { brief } from './sessionsApi.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
@@ -98,8 +98,8 @@ it('only this project\'s sessions: new first, then its sessions; other folders a
   expect(screen.queryByText('other one')).toBeNull();
   expect(screen.queryByText('third folder')).toBeNull();
   const cur = screen.getByText('current talk').closest('button')!;
-  expect(cur).toHaveTextContent('11111111 · just now · 12 KB · open now');
-  expect(screen.getByText('(untitled)', { selector: '[data-t]' }).closest('button')).toHaveTextContent('33333333 · 3 h ago · 1 KB');
+  expect(cur).toHaveTextContent('11111111 · just now · 12 kB · open now');
+  expect(screen.getByText('(untitled)', { selector: '[data-t]' }).closest('button')).toHaveTextContent('33333333 · 3 h ago · 0.8 kB');
   expect(menu().className).toContain('w-[460px]');
 });
 
@@ -284,13 +284,11 @@ it('a failed /sessions load says so in one short line, never an HTML body', asyn
   expect(brief(500, '  cannot\n list   sessions ')).toBe('cannot list sessions');
 });
 
-it('formatting: ago and kb as in the prototype', () => {
+it('formatting: ago as in the prototype', () => {
   setLang('ru');
   expect(ago(NOW - 20_000, NOW)).toBe('только что');
   expect(ago(NOW - 59 * 60_000, NOW)).toBe('59 мин назад');
   expect(ago(NOW - 90 * 60_000, NOW)).toBe('2 ч назад');
-  expect(kb(1_500_000)).toBe('1.5 МБ');
-  expect(kb(1_000_000)).toBe('1000 КБ');
   setLang('en');
   expect(ago(NOW - 3 * 86400_000, NOW)).toBe(new Date(NOW - 3 * 86400_000).toLocaleDateString('en', { day: 'numeric', month: 'short' }));
 });

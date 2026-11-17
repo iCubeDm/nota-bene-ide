@@ -74,7 +74,7 @@ it('loads: progress, then ready with the info line; the url carries the src', as
   const { container } = render(ui({ src: 'wt-1' }));
   expect(screen.getByText(/Loading/)).toBeTruthy();
   await waitFor(() => expect(ready(container)).toBeTruthy());
-  expect(screen.getByText('2.0 KB · 3 meshes · 12 triangles · 2 materials · 0 animations')).toBeTruthy();
+  expect(screen.getByText('2 kB · 3 meshes · 12 triangles · 2 materials · 0 animations')).toBeTruthy();
   expect(fetched).toEqual(['/file?path=models%2Fcar%2Fcar.glb&src=wt-1']);
   expect(calls).toEqual(['visible:true', 'clear', 'load']);
   expect(loadArgs[0]!.keepView).toBe(false);
@@ -104,7 +104,7 @@ it('a failed request and a missing file say so', async () => {
 it('a file over 256 MiB is a note with its size and is not loaded', async () => {
   fetchSpec = { size: 300 * 1024 * 1024, bytes: 16 };
   render(ui());
-  await waitFor(() => expect(screen.getByText(/too large/).textContent).toContain('300.0 MB'));
+  await waitFor(() => expect(screen.getByText(/too large/).textContent).toContain('314.6 MB'));
   expect(calls).not.toContain('load');
 });
 
@@ -272,7 +272,7 @@ it('sizes follow the language', async () => {
   setLang('ru');
   const { container } = render(ui());
   await waitFor(() => expect(ready(container)).toBeTruthy());
-  expect(screen.getByText(/^2,0 КБ|^2\.0 КБ/)).toBeTruthy();
+  expect(screen.getByText(/^2 кБ/)).toBeTruthy();
 });
 
 it('animations: a clip select and a play button; nothing plays by default', async () => {
