@@ -808,7 +808,7 @@ export const en: Dict = {
   shellCouldNot: (msg: string) => `could not run: ${msg}`,
   shellMissing: (name: string) => `${name} is not installed (Settings → Defaults → Shell for ! commands)`,
   shellCmdOneLine: 'cmd runs a single line: join the commands with &',
-  shellCut: (size) => `earlier output cut · the last ${size}`,
+  shellCut: (n) => `earlier output cut · the last ${n} characters`,
   shellNoOutput: '(no output)',
   clearWithComments: 'Not sent: /clear would drop the pending comments. Send or remove them first.',
   sessFail: 'Could not load sessions: ',

@@ -26,9 +26,10 @@ export function money(minor: number, currency: string | null): string {
   return f.format(minor / 10 ** (f.resolvedOptions().maximumFractionDigits ?? 2));
 }
 const BYTES = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const;
-/** A size in the unit that reads best: 3 byte, 1.5 MB, 2 ГБ (999 999 bytes are 1 MB, not 1000 kB). */
+/** A size in the unit that reads best: 3 B, 1.5 MB, 2 ГБ (999 999 bytes are 1 MB, not 1000 kB). */
 export function byteSize(n: number): string {
   let i = 0;
   while (i < BYTES.length - 1 && n / 1000 ** i >= 999.95) i++;
+  if (i === 0 && getLang() === 'en') return `${num(n)} B`; // CLDR's English "3 byte" reads oddly
   return nf(`bytes ${i}`, { style: 'unit', unit: BYTES[i], maximumFractionDigits: 1 }).format(n / 1000 ** i);
 }

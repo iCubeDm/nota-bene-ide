@@ -99,7 +99,7 @@ it('only this project\'s sessions: new first, then its sessions; other folders a
   expect(screen.queryByText('third folder')).toBeNull();
   const cur = screen.getByText('current talk').closest('button')!;
   expect(cur).toHaveTextContent('11111111 · just now · 12 kB · open now');
-  expect(screen.getByText('(untitled)', { selector: '[data-t]' }).closest('button')).toHaveTextContent('33333333 · 3 h ago · 800 byte');
+  expect(screen.getByText('(untitled)', { selector: '[data-t]' }).closest('button')).toHaveTextContent('33333333 · 3 h ago · 800 B');
   expect(menu().className).toContain('w-[460px]');
 });
 

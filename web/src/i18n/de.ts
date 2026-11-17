@@ -790,7 +790,7 @@ export const de: Dict = {
   shellCouldNot: (msg: string) => `konnte nicht ausgeführt werden: ${msg}`,
   shellMissing: (name: string) => `${name} ist nicht installiert (Einstellungen → Standardwerte → Shell für !-Befehle)`,
   shellCmdOneLine: 'cmd führt nur eine Zeile aus: Befehle mit & verbinden',
-  shellCut: (size) => `frühere Ausgabe gekürzt · die letzten ${size}`,
+  shellCut: (n) => `frühere Ausgabe gekürzt · die letzten ${n} Zeichen`,
   shellNoOutput: '(keine Ausgabe)',
   clearWithComments: 'Nicht gesendet: /clear würde die ausstehenden Kommentare verwerfen. Sende oder entferne sie zuerst.',
   sessFail: 'Sitzungen konnten nicht geladen werden: ',

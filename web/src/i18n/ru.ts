@@ -807,7 +807,7 @@ export const ru = {
   shellCouldNot: (msg: string) => `не удалось запустить: ${msg}`,
   shellMissing: (name: string) => `${name} не установлен (Настройки → По умолчанию → Оболочка для команд !)`,
   shellCmdOneLine: 'cmd выполняет одну строку: объедините команды через &',
-  shellCut: (size: string) => `начало вывода отрезано · последние ${size}`,
+  shellCut: (n: string) => `начало вывода отрезано · последние ${n} символов`,
   shellNoOutput: '(нет вывода)',
   clearWithComments: 'Не отправлено: /clear сотрёт неотправленные комментарии. Сначала отправьте или удалите их.',
   sessFail: 'Не удалось загрузить сессии: ',

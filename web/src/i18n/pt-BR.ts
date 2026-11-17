@@ -790,7 +790,7 @@ export const ptBR: Dict = {
   shellCouldNot: (msg: string) => `não foi possível executar: ${msg}`,
   shellMissing: (name: string) => `${name} não está instalado (Configurações → Padrões → Shell dos comandos !)`,
   shellCmdOneLine: 'o cmd executa uma única linha: junte os comandos com &',
-  shellCut: (size) => `saída anterior cortada · últimos ${size}`,
+  shellCut: (n) => `saída anterior cortada · últimos ${n} caracteres`,
   shellNoOutput: '(sem saída)',
   clearWithComments: 'Não enviado: /clear descartaria os comentários pendentes. Envie-os ou remova-os primeiro.',
   sessFail: 'Não foi possível carregar as sessões: ',

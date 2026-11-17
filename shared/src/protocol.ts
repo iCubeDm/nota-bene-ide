@@ -8,8 +8,8 @@ export const TOOL_USE_ID = /^[A-Za-z0-9_-]{1,128}$/;
 export const TASK_ID = /^[A-Za-z0-9_-]{1,128}$/;
 /** A `! cmd` run's id (`shell-run`, `shell-stop`, the `shell-*` events): the client's uuid. */
 export const SHELL_ID = /^[A-Za-z0-9_-]{1,128}$/;
-/** The longest `cmd` of `shell-run` the server takes, in bytes. */
-export const SHELL_CMD_MAX = 32 * 1024;
+/** The longest `cmd` of `shell-run` the server takes, in bytes (decimal: the UI says 32 kB, issue 469). */
+export const SHELL_CMD_MAX = 32_000;
 /** The last `cap` characters of `s`, never starting inside a surrogate pair. */
 export function cutTail(s: string, cap: number): string {
   if (s.length <= cap) return s;
@@ -17,8 +17,8 @@ export function cutTail(s: string, cap: number): string {
   const c = t.charCodeAt(0);
   return c >= 0xdc00 && c <= 0xdfff ? t.slice(1) : t;
 }
-/** What a `! cmd` run keeps of its output (in the feed, and for the agent): the last 64 K characters, the cut marked `truncated`. */
-export const SHELL_OUTPUT_CAP = 64 * 1024;
+/** What a `! cmd` run keeps of its output (in the feed, and for the agent): the last 64 000 characters, the cut marked `truncated`. */
+export const SHELL_OUTPUT_CAP = 64_000;
 
 /** `ref`: the branch a file comes from when it is not this window's checkout (a branch, or a worktree's branch). */
 export type AnchorSource = { kind: 'message'; id: string; /** the toolUseId of the subagent whose conversation holds the item (protocol 7); absent: the main chat */ agent?: string } | { kind: 'file'; path: string; ref?: string };

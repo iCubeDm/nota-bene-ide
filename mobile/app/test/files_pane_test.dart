@@ -205,7 +205,7 @@ void main() {
       await t.tap(find.text('zeta.txt'));
       await t.pumpAndSettle();
       expect(find.byType(CodeScreen), findsNothing);
-      expect(find.textContaining('binary file, 3 byte'), findsOneWidget);
+      expect(find.textContaining('binary file, 3 B'), findsOneWidget);
     });
 
     testWidgets('an empty file is an empty text, not an error', (t) async {

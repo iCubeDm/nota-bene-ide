@@ -790,7 +790,7 @@ export const zhCN: Dict = {
   shellCouldNot: (msg: string) => `无法运行：${msg}`,
   shellMissing: (name: string) => `${name} 未安装（设置 → 默认值 → ! 命令使用的 Shell）`,
   shellCmdOneLine: 'cmd 只执行一行：请用 & 连接多个命令',
-  shellCut: (size) => `较早的输出已截断 · 仅保留最后 ${size}`,
+  shellCut: (n) => `较早的输出已截断 · 仅保留最后 ${n} 个字符`,
   shellNoOutput: '（无输出）',
   clearWithComments: '未发送：/clear 会丢弃待处理的评论。请先发送或移除它们。',
   sessFail: '无法加载会话：',

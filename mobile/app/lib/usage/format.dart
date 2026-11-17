@@ -30,7 +30,7 @@ String fmtTokens(num n, String lang) {
 
 /// ICU's short unit names, byte to terabyte.
 const _bytes = {
-  'en': ['byte', 'kB', 'MB', 'GB', 'TB'],
+  'en': ['B', 'kB', 'MB', 'GB', 'TB'], // CLDR's "3 byte" reads oddly
   'ru': ['Б', 'кБ', 'МБ', 'ГБ', 'ТБ'],
   'zh': ['B', 'kB', 'MB', 'GB', 'TB'],
   'es': ['B', 'kB', 'MB', 'GB', 'TB'],
@@ -38,7 +38,7 @@ const _bytes = {
   'de': ['Byte', 'kB', 'MB', 'GB', 'TB'],
 };
 
-/// A size in the unit that reads best: `3 byte`, `1.5 MB`, `2 ГБ` (999 999 bytes are 1 MB, not 1000 kB).
+/// A size in the unit that reads best: `3 B`, `1.5 MB`, `2 ГБ` (999 999 bytes are 1 MB, not 1000 kB).
 String byteSize(num n, String lang) {
   final units = _bytes[lang] ?? _bytes['en']!;
   var i = 0;

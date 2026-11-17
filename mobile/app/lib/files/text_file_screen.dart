@@ -7,6 +7,7 @@ import '../chat/code_screen.dart';
 import '../chat/window_tab.dart';
 import '../l10n/app_localizations.dart';
 import '../usage/format.dart' show byteSize;
+import 'file_screen.dart' show fileMaxBytes;
 import 'remote.dart';
 
 /// highlight.js on a file of 200 kB or more freezes the screen (the desktop's HIGHLIGHT_MAX)
@@ -85,7 +86,10 @@ class _TextFileScreenState extends State<TextFileScreen> {
               textAlign: TextAlign.center,
             ),
             (FileTooLarge(:final size), _) => Text(
-              t.fileTooLargeSize(byteSize(size, lang)),
+              t.fileTooLargeSize(
+                byteSize(size, lang),
+                byteSize(fileMaxBytes, lang),
+              ),
               textAlign: TextAlign.center,
             ),
             (_, final FilesError e) => ErrorRetry(

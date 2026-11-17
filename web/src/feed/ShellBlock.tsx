@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { SHELL_OUTPUT_CAP } from '@nota-bene/shared';
 import { useT } from '@/i18n/index.ts';
-import { byteSize } from '@/lib/format.ts';
+import { num } from '@/lib/format.ts';
 import { stopShell } from '@/composer/shellMode.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { useAppDispatch } from '@/store/store.ts';
@@ -48,7 +48,7 @@ export function ShellBlock({ item }: { item: Extract<FeedItem, { kind: 'shell' }
       </div>
       {(item.output || item.truncated) && (
         <>
-          {item.truncated && <div className="border-t border-border-soft px-3 py-0.5 text-[0.65625rem] text-muted-foreground">{t('shellCut', byteSize(SHELL_OUTPUT_CAP))}</div>}
+          {item.truncated && <div className="border-t border-border-soft px-3 py-0.5 text-[0.65625rem] text-muted-foreground">{t('shellCut', num(SHELL_OUTPUT_CAP))}</div>}
           <pre
             ref={pre}
             data-testid="shell-output"

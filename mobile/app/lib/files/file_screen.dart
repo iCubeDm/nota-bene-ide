@@ -12,10 +12,11 @@ import '../comments/anchor.dart';
 import '../comments/comment_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../ui/insets.dart';
+import '../usage/format.dart' show byteSize;
 import 'file_markdown.dart';
 
 /// The largest file the phone opens.
-const fileMaxBytes = 2 * 1024 * 1024;
+const fileMaxBytes = 2000000;
 
 bool isMarkdownPath(String path) =>
     RegExp(r'\.(md|markdown)$', caseSensitive: false).hasMatch(path);
@@ -177,7 +178,9 @@ class _FileScreenState extends State<FileScreen> {
     _Fail.notMarkdown => t.fileNotMarkdown,
     _Fail.notFound => t.fileNotFound,
     _Fail.outside => t.fileOutside,
-    _Fail.tooLarge => t.fileTooLarge,
+    _Fail.tooLarge => t.fileTooLarge(
+      byteSize(fileMaxBytes, Localizations.localeOf(context).languageCode),
+    ),
     _Fail.unreadable => t.fileUnreadable,
   };
 

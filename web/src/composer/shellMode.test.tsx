@@ -163,7 +163,7 @@ it('a command over the limit is refused with a note', async () => {
   act(() => void store.dispatch(setDraft(`!${'x'.repeat(SHELL_CMD_MAX + 1)}`)));
   await userEvent.type(box, '{Enter}');
   expect(sent).toHaveLength(0);
-  expect(titles()).toContain('Not run: the command is longer than 32.8 kB.');
+  expect(titles()).toContain('Not run: the command is longer than 32 kB.');
 });
 
 it('offline: nothing goes out and the draft stays', async () => {

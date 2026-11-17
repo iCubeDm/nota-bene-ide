@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../media/fetch.dart';
 import '../theme.dart';
+import '../usage/format.dart' show byteSize;
 import '../ui/nb_icon.dart';
 import '../voice/player.dart';
 import '../voice/voice_view.dart' show clock;
@@ -20,7 +21,7 @@ import 'window_tab.dart';
 final soundPath = RegExp(r'\.(mp3|wav|m4a|ogg)$', caseSensitive: false);
 
 /// The largest sound the phone reads.
-const soundMaxBytes = 64 * 1024 * 1024;
+const soundMaxBytes = 64000000;
 
 typedef Written = ({String? path, FetchFail? fail});
 
@@ -295,7 +296,12 @@ class _AudioClipState extends State<AudioClip> {
                       Text(switch (fail) {
                         FetchFail.notFound => t.fileNotFound,
                         FetchFail.outside => t.fileOutside,
-                        FetchFail.tooLarge => t.soundTooLarge,
+                        FetchFail.tooLarge => t.soundTooLarge(
+                          byteSize(
+                            soundMaxBytes,
+                            Localizations.localeOf(context).languageCode,
+                          ),
+                        ),
                         FetchFail.unreadable => t.soundUnplayable,
                       }, style: TextStyle(color: c.mutedFg, fontSize: 12))
                     else if (time != null)

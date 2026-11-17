@@ -16,6 +16,7 @@ import '../media/media_comment.dart';
 import '../media/picker.dart';
 import '../media/shapes.dart';
 import '../ui/nb_icon.dart';
+import '../usage/format.dart' show byteSize;
 
 export '../media/fetch.dart' show imageMaxBytes, previewMaxBytes;
 
@@ -421,7 +422,9 @@ class _ImageScreenState extends State<ImageScreen>
   String _failText(AppLocalizations t, _Fail f) => switch (f) {
     _Fail.notFound => t.fileNotFound,
     _Fail.outside => t.fileOutside,
-    _Fail.tooLarge => t.imageTooLarge,
+    _Fail.tooLarge => t.imageTooLarge(
+      byteSize(imageMaxBytes, Localizations.localeOf(context).languageCode),
+    ),
     _Fail.unreadable => t.fileUnreadable,
     _Fail.undecodable => t.imageUnreadable,
   };

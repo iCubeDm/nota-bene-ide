@@ -359,7 +359,7 @@ A one-line draft starting with `!` is a shell command ("Shell · Enter runs", bu
 <details><summary>More</summary>
 
 - macOS and Linux: `$SHELL -lc` for sh, bash, zsh, dash or ksh, else `/bin/sh`. Nota Bene's and Claude Code's own variables are not passed. Stop sends TERM to the group, KILL after 3 s; background jobs end with it.
-- Limits: 32 KB command; the block shows the last 64 KB without ANSI colours; the agent gets the last 32 KB of stdout and stderr. Up to 10 runs wait (64 KB in all, newest kept, with a note). A `/command` message does not take them; a session switch or `/clear` drops them.
+- Limits: 32 kB command; the block shows the last 64,000 characters without ANSI colours; the agent gets the last 32 KB of stdout and stderr. Up to 10 runs wait (64 KB in all, newest kept, with a note). A `/command` message does not take them; a session switch or `/clear` drops them.
 - Windows: Settings → Defaults → **Shell for ! commands**: **Auto** (Git Bash, else PowerShell 7, else Windows PowerShell 5.1), **Git Bash**, **PowerShell 7**, **Windows PowerShell**, **cmd**. Git Bash comes from `CLAUDE_CODE_GIT_BASH_PATH` or the Git for Windows of `git` on `PATH`, never WSL. A missing chosen shell is refused, not swapped. Git Bash runs `bash -lc`, PowerShell `-NoProfile`, `cmd` one line (join with `&`). The block names the shell; the agent is told when it was not Git Bash. Stop ends at once; a background process from PowerShell or `cmd` may survive. OEM code pages are decoded.
 
 </details>
