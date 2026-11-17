@@ -259,12 +259,15 @@ async function readStatus(root: string): Promise<GitStatus | null> {
   // new files the agent made count too (not the ignored ones); a huge untracked tree that times out falls back to
   // the tracked files only, so the header still shows something
   const run = (u: string) => git(root, ['-c', 'core.fsmonitor=false', 'status', '--porcelain=v2', '--branch', '--no-ahead-behind', u, '--ignore-submodules'], 16 << 20, STATUS_TIMEOUT);
+  // git exited with a code (not a repo), or there is no such directory or no git: anything else (a timeout, an answer
+  // too large) rejects, and the header keeps what it showed
+  const notRepo = (e: unknown) => { const code = (e as { code?: unknown }).code; return typeof code === 'number' || code === 'ENOENT'; };
   let out: string;
   try {
-    out = (await run('-unormal').catch(() => run('-uno'))).toString('utf8');
+    out = (await run('-unormal').catch((e: unknown) => (notRepo(e) ? Promise.reject(e) : run('-uno')))).toString('utf8');
   } catch (e) {
-    if ((e as { killed?: boolean }).killed) throw e; // timed out
-    return null; // not a repo, no such directory, no git
+    if (notRepo(e)) return null;
+    throw e;
   }
   const lines = out.split('\n');
   const head = lines.find((l) => l.startsWith('# branch.head '))?.slice('# branch.head '.length).trim() ?? '';

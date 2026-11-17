@@ -106,3 +106,27 @@ describe('gitStatus', () => {
     current = repo;
   });
 });
+
+describe('gitStatus with a git that misbehaves (issue 471)', () => {
+  const fake = (body: string) => {
+    const bin = fs.mkdtempSync(path.join(dir, 'bin-'));
+    fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\necho x >> "${bin}/calls"\n${body}\n`, { mode: 0o755 });
+    const was = process.env.PATH;
+    process.env.PATH = `${bin}${path.delimiter}${was}`;
+    clearStatusCache();
+    return { calls: () => fs.readFileSync(path.join(bin, 'calls'), 'utf8').split('\n').filter(Boolean).length, done: () => { process.env.PATH = was; } };
+  };
+  it('outside a repo git runs once', async () => {
+    const g = fake('echo "fatal: not a git repository" >&2; exit 128');
+    try {
+      expect(await gitStatus(plain)).toBeNull();
+      expect(g.calls()).toBe(1);
+    } finally { g.done(); }
+  });
+  it('an answer too large is not "not a repo": it rejects, so the header keeps what it showed', async () => {
+    const g = fake('head -c 17000000 /dev/zero');
+    try {
+      await expect(gitStatus(repo)).rejects.toBeTruthy();
+    } finally { g.done(); }
+  });
+});
