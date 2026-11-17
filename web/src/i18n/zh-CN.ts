@@ -517,6 +517,8 @@ export const zhCN: Dict = {
   vcsNoCommits: '还没有提交',
   vcsViewing: '查看中',
   vcsTip: 'VCS',
+  vcsDirtyMark: '有更改',
+  vcsCleanMark: '无更改',
   vcsFindBranch: '查找分支',
   vcsThisFolder: '此文件夹',
   vcsWorktrees: '工作树',

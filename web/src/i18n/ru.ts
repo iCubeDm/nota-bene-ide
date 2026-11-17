@@ -526,6 +526,8 @@ export const ru = {
   vcsNoCommits: 'Коммитов пока нет',
   vcsViewing: 'смотрю',
   vcsTip: 'VCS',
+  vcsDirtyMark: 'Есть изменения',
+  vcsCleanMark: 'Без изменений',
   vcsFindBranch: 'Найти ветку',
   vcsThisFolder: 'Эта папка',
   vcsWorktrees: 'Worktree',

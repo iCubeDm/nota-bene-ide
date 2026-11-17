@@ -526,6 +526,8 @@ export const en: Dict = {
   vcsNoCommits: 'No commits yet',
   vcsViewing: 'viewing',
   vcsTip: 'VCS',
+  vcsDirtyMark: 'Has changes',
+  vcsCleanMark: 'No changes',
   vcsFindBranch: 'Find a branch',
   vcsThisFolder: 'This folder',
   vcsWorktrees: 'Worktrees',

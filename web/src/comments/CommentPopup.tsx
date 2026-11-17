@@ -333,17 +333,15 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         {labelsFor(protocol).map((l) => (
           <Tooltip key={l.id}>
             <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <button
-                  type="button"
-                  aria-label={labelText(l.id)}
-                  disabled={off}
-                  onClick={() => void add(l.id)}
-                  className="inline-flex min-h-7 min-w-7 items-center justify-center rounded-full border border-border-soft px-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
-                >
-                  {l.emoji}
-                </button>
-              </span>
+              <button
+                type="button"
+                aria-label={labelText(l.id)}
+                disabled={off}
+                onClick={() => void add(l.id)}
+                className="inline-flex min-h-7 min-w-7 items-center justify-center rounded-full border border-border-soft px-1.5 text-sm leading-none hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              >
+                {l.emoji}
+              </button>
             </TooltipTrigger>
             <LabelTip id={l.id} note={switching ? t('switching') : undefined} />
           </Tooltip>

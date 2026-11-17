@@ -175,7 +175,10 @@ it('the chat tab shows the session title, else Chat; no tooltip', () => {
 
 it('file tabs that share a name show enough of their folder to tell them apart', () => {
   setup(['src/app.ts', 'lib/app.ts', 'notes.md']);
-  expect(screen.getAllByRole('tab').map((el) => el.textContent)).toEqual(expect.arrayContaining(['src/app.ts', 'lib/app.ts', 'notes.md']));
+  const files = screen.getAllByRole('tab').filter((el) => el.dataset.tab?.startsWith('file:'));
+  expect(files.map((el) => [el.dataset.tab, el.textContent])).toEqual([
+    ['file:src/app.ts', 'src/app.ts'], ['file:lib/app.ts', 'lib/app.ts'], ['file:notes.md', 'notes.md'],
+  ]);
 });
 
 it('the Sessions menu opens from ▾ on the chat tab, also while a file tab is in front; no line above the chat', () => {

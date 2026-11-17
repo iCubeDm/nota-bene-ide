@@ -517,6 +517,8 @@ export const ptBR: Dict = {
   vcsNoCommits: 'Ainda não há commits',
   vcsViewing: 'vendo',
   vcsTip: 'VCS',
+  vcsDirtyMark: 'Com alterações',
+  vcsCleanMark: 'Sem alterações',
   vcsFindBranch: 'Encontrar um branch',
   vcsThisFolder: 'Esta pasta',
   vcsWorktrees: 'Worktrees',

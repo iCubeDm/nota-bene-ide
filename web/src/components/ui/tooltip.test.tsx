@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tool
 
 afterEach(cleanup);
 
-const show = (disabled: boolean) => render(
+const bar = (disabled: boolean) => (
   <TooltipProvider>
     <Tooltip>
       <TooltipTrigger asChild>
@@ -13,8 +13,9 @@ const show = (disabled: boolean) => render(
       </TooltipTrigger>
       <TooltipContent>Undo (⌘Z)</TooltipContent>
     </Tooltip>
-  </TooltipProvider>,
+  </TooltipProvider>
 );
+const show = (disabled: boolean) => render(bar(disabled));
 
 it('a disabled button still shows its tooltip on hover: the trigger is a span around it (issue 463)', async () => {
   show(true);
@@ -24,10 +25,29 @@ it('a disabled button still shows its tooltip on hover: the trigger is a span ar
   expect(await screen.findByRole('tooltip')).toHaveTextContent('Undo (⌘Z)');
 });
 
-it('an enabled button is the trigger itself', async () => {
-  show(false);
+it('the button stays the same element, focus kept, as it is disabled and enabled again (the wrapper is there whenever it can be disabled)', () => {
+  const { rerender } = show(false);
   const btn = screen.getByRole('button', { name: 'Undo' });
+  btn.focus();
+  rerender(bar(true));
+  rerender(bar(false));
+  expect(screen.getByRole('button', { name: 'Undo' })).toBe(btn);
+  expect(document.activeElement).toBe(btn);
+  rerender(bar(true));
+  expect(screen.getByRole('button', { name: 'Undo' })).toBe(btn);
+});
+
+it('a button with no disabled prop is the trigger itself', async () => {
+  render(
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild><button type="button">Redo</button></TooltipTrigger>
+        <TooltipContent>Redo</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>,
+  );
+  const btn = screen.getByRole('button', { name: 'Redo' });
   expect(btn.parentElement!.tagName).not.toBe('SPAN');
   await userEvent.hover(btn);
-  expect(await screen.findByRole('tooltip')).toHaveTextContent('Undo (⌘Z)');
+  expect(await screen.findByRole('tooltip')).toHaveTextContent('Redo');
 });

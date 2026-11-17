@@ -64,6 +64,7 @@ it('shows branch ✔ when clean, its tooltip VCS (issue 463); nothing before a r
   await ev(session('/p/proj'));
   expect(el()).toHaveTextContent('main✔');
   expect(el()).toHaveAttribute('title', 'VCS');
+  expect(el()).toHaveAccessibleName(/^main\s*No changes/); // the mark is named, not tooltipped
   expect(el()!.querySelector('[data-dirty]')).toBeNull();
 });
 
@@ -74,7 +75,9 @@ it('shows ✗ when dirty, the tooltip still VCS, in ru as well', async () => {
   await ev(session('/p/proj'));
   expect(el()).toHaveTextContent('feature/x✗');
   expect(el()).toHaveAttribute('title', 'VCS');
+  expect(el()).toHaveAccessibleName(/^feature\/x\s*Есть изменения/);
   expect(el()!.querySelector('[data-dirty]')).not.toBeNull();
+  expect(el()!.querySelector('[data-dirty]')).not.toHaveAttribute('title');
 });
 
 it('detached HEAD shows detached ✔/✗; a non-repo shows nothing', async () => {
@@ -140,6 +143,7 @@ describe('the picker', () => {
     const row = screen.getByRole('button', { name: /^agent\/one/ });
     expect(row).toHaveTextContent('↑2');
     expect(row).toHaveTextContent('✗');
+    expect(row).toHaveAccessibleName(/Has changes/);
     expect(row.querySelector('[data-agent-dot]')).toHaveAttribute('title', 'An agent is working here');
     expect(screen.getByRole('button', { name: /^old/ }).querySelector('[data-agent-dot]')).toBeNull();
   });

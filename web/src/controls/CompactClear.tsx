@@ -26,45 +26,38 @@ export function CompactClear() {
     <>
       {caps.compact && <Tooltip>
         <TooltipTrigger asChild>
-          <span className="inline-flex">
-            <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('compactTip')} onClick={() => dispatch(runCommand('compact'))}>
-              <svg {...ICON}><path d="M4 14h6v6" /><path d="M20 10h-6V4" /><path d="m14 10 7-7" /><path d="m3 21 7-7" /></svg>
-            </Button>
-          </span>
+          <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('compactTip')} onClick={() => dispatch(runCommand('compact'))}>
+            <svg {...ICON}><path d="M4 14h6v6" /><path d="M20 10h-6V4" /><path d="m14 10 7-7" /><path d="m3 21 7-7" /></svg>
+          </Button>
         </TooltipTrigger>
         <TooltipContent className="max-w-[300px] whitespace-pre-line">{t('compactTip')}</TooltipContent>
       </Tooltip>}
       {idle && known?.idleCompact && known.compact && (
         <Tooltip>
           <TooltipTrigger asChild>
-            {/* a span keeps the tooltip on a disabled (blocked) button */}
-            <span className="inline-flex">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                data-testid="idle-compact"
-                aria-pressed={idleOn}
-                disabled={idle.blocked}
-                aria-label={idleTip}
-                className={idleOn ? 'text-nb-accent' : 'text-muted-foreground/60'}
-                onClick={() => dispatch(toggleIdleCompact())}
-              >
-                {/* a clock with the compact chevron */}
-                <svg {...ICON}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 1.5" /></svg>
-              </Button>
-            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              data-testid="idle-compact"
+              aria-pressed={idleOn}
+              disabled={idle.blocked}
+              aria-label={idleTip}
+              className={idleOn ? 'text-nb-accent' : 'text-muted-foreground/60'}
+              onClick={() => dispatch(toggleIdleCompact())}
+            >
+              {/* a clock with the compact chevron */}
+              <svg {...ICON}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 1.5" /></svg>
+            </Button>
           </TooltipTrigger>
           <TooltipContent className="max-w-[320px] whitespace-pre-line">{idleTip}</TooltipContent>
         </Tooltip>
       )}
       {caps.clear && <Tooltip>
         <TooltipTrigger asChild>
-          <span className="inline-flex">
-            <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('clearTip')} onClick={() => setAsking(true)}>
-              <svg {...ICON}><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" /><path d="M22 21H7" /><path d="m5 11 9 9" /></svg>
-            </Button>
-          </span>
+          <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('clearTip')} onClick={() => setAsking(true)}>
+            <svg {...ICON}><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" /><path d="M22 21H7" /><path d="m5 11 9 9" /></svg>
+          </Button>
         </TooltipTrigger>
         <TooltipContent className="max-w-[300px] whitespace-pre-line">{t('clearTip')}</TooltipContent>
       </Tooltip>}

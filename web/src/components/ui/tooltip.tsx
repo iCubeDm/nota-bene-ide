@@ -22,18 +22,19 @@ function Tooltip({
 }
 
 /**
- * A disabled control gets no pointer events, so it would never open its tooltip (issue 463): with `asChild` the
- * trigger is then a span around it, which does.
+ * A disabled control gets no pointer events, so it would never open its tooltip (issue 463): with `asChild`, a child
+ * that has a `disabled` prop at all is wrapped in a span, which does. On the prop's presence, not its value, so the
+ * control is not remounted (and its focus lost) when it is disabled or enabled.
  */
 function TooltipTrigger({
   asChild,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  const off = !!asChild && React.isValidElement<{ disabled?: boolean }>(children) && !!children.props.disabled
+  const wrap = !!asChild && React.isValidElement<object>(children) && 'disabled' in children.props
   return (
     <TooltipPrimitive.Trigger data-slot="tooltip-trigger" asChild={asChild} {...props}>
-      {off ? <span className="inline-flex">{children}</span> : children}
+      {wrap ? <span className="inline-flex">{children}</span> : children}
     </TooltipPrimitive.Trigger>
   )
 }
