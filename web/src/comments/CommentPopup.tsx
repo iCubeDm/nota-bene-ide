@@ -24,6 +24,7 @@ import { MentionPicker } from '@/composer/MentionPicker.tsx';
 import { ShortcodePicker } from './ShortcodePicker.tsx';
 import { release } from '@/voice/player.ts';
 import { Attachments } from '@/attachments/Attachments.tsx';
+import { insertPaths } from '@/attachments/file.ts';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import type { ImageEntry } from '@/composer/slice.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
@@ -110,6 +111,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   };
   const intake = useImageIntake({
     onUploaded: (im) => setImages((l) => (l.some((x) => x.id === im.id) ? l : [...l, im])),
+    // any other file (issue 461): its path in the project's attachments/, at the caret
+    onFilePath: (p) => { if (area.current) insertPaths(area.current, [p]); },
     notify,
   });
   // voice clips: each is uploaded when recording stops, then transcribed; Add waits for every transcript
@@ -308,6 +311,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         data-testid="popup-thumbs"
         ids={images.map((i) => i.id)}
         pending={intake.pending}
+        onCancel={intake.cancel}
         onRemove={(id) => setImages((l) => l.filter((x) => x.id !== id))}
       />
       {clips.length > 0 && (
@@ -351,7 +355,6 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           <input
             ref={fileIn}
             type="file"
-            accept="image/*"
             multiple
             hidden
             data-testid="popup-file-input"

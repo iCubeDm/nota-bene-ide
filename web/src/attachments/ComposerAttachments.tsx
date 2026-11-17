@@ -15,7 +15,7 @@ export const ATTACHMENT_MARKUP_PROTOCOL = 17;
  * The composer's thumbnail strip: remove, and (protocol 17) a pen with the count of pending comments on each image, which
  * opens the markup overlay. Removing an image that has pending comments asks first and takes them along.
  */
-export function ComposerAttachments({ pending }: { pending: PendingThumb[] }) {
+export function ComposerAttachments({ pending, onCancel }: { pending: PendingThumb[]; onCancel?: (key: string) => void }) {
   const t = useT();
   const dispatch = useAppDispatch();
   const images = useAppSelector(selectImages);
@@ -50,6 +50,7 @@ export function ComposerAttachments({ pending }: { pending: PendingThumb[] }) {
         data-testid="composer-thumbs"
         ids={images.map((i) => i.id)}
         pending={pending}
+        onCancel={onCancel}
         onRemove={(id) => (onImage[id]?.length ? setAsking(id) : void dispatch(removeImage(id)))}
         onMark={offered ? (id) => void dispatch(markAttachment(id)) : undefined}
         counts={counts}

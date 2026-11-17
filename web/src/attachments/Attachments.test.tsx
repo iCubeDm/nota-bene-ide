@@ -18,12 +18,23 @@ vi.mock('./image.ts', async (orig) => ({
   uploadImage: async (b: Blob) => (uploads.push(b), { id: (b as File).name.padEnd(64, '0'), mediaType: 'image/png' }),
 }));
 
+const files = vi.hoisted(() => [] as File[]);
+vi.mock('./file.ts', async (orig) => ({
+  ...(await orig<typeof import('./file.ts')>()),
+  uploadFile: async (f: File) => (files.push(f), `attachments/${f.name}`),
+}));
+
+const localPage = vi.hoisted(() => ({ on: true }));
+vi.mock('@/net/local.ts', () => ({ isLocalPage: () => localPage.on }));
+
 const A = 'a'.padEnd(64, '0'), B = 'b'.padEnd(64, '0');
 beforeEach(() => {
   setLang('en');
   URL.createObjectURL = vi.fn(() => 'blob:x');
   URL.revokeObjectURL = vi.fn();
   uploads.length = 0;
+  files.length = 0;
+  localPage.on = true;
 });
 afterEach(cleanup);
 
@@ -41,11 +52,91 @@ const paste = (el: HTMLElement, files: File[]) => {
   return ev;
 };
 
-it('pasting a pdf shows onlyImages and attaches nothing', () => {
+it('pasting a pdf uploads it into attachments/ and puts its path at the caret (issue 461)', async () => {
   const { box } = setup();
-  paste(box, [new File(['x'], 'a.pdf', { type: 'application/pdf' })]);
-  expect(screen.getByText('Only images can be attached')).toBeInTheDocument();
+  await userEvent.type(box, 'see  now');
+  box.setSelectionRange(4, 4);
+  paste(box, [new File(['x'], 'a b.pdf', { type: 'application/pdf' })]);
+  await waitFor(() => expect(box.value).toBe('see `attachments/a b.pdf` now'));
+  expect(files.map((f) => f.name)).toEqual(['a b.pdf']);
   expect(document.querySelectorAll('img')).toHaveLength(0);
+  expect(screen.queryByText(/Only images/)).toBeNull();
+});
+
+it('a sound or a video goes in as an embed, so it plays in the feed; a failed upload says so and inserts nothing', async () => {
+  const { box } = setup();
+  paste(box, [new File(['x'], 'take.mp3', { type: 'audio/mpeg' })]);
+  await waitFor(() => expect(box.value).toBe('![](attachments/take.mp3)'));
+  const mod = await import('./file.ts');
+  vi.spyOn(mod, 'uploadFile').mockRejectedValueOnce(new Error('x'));
+  paste(box, [new File(['x'], 'b.zip', { type: 'application/zip' })]);
+  expect(await screen.findByText('Could not upload b.zip')).toBeInTheDocument();
+  expect(box.value).toBe('![](attachments/take.mp3)');
+});
+
+it('Send waits while a file uploads', async () => {
+  const mod = await import('./file.ts');
+  let done!: (p: string) => void;
+  vi.spyOn(mod, 'uploadFile').mockReturnValueOnce(new Promise((r) => (done = r)));
+  const { box } = setup();
+  paste(box, [new File(['x'], 'b.zip', { type: 'application/zip' })]);
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  expect(document.querySelector('[data-pending-file]')).toHaveTextContent('b.zip');
+  await act(async () => done('attachments/b.zip'));
+  expect(box.value).toBe('`attachments/b.zip`');
+  expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+});
+
+it('the × on an uploading file cancels it: nothing is inserted and nothing is said', async () => {
+  const mod = await import('./file.ts');
+  let seen: AbortSignal | undefined;
+  vi.spyOn(mod, 'uploadFile').mockImplementationOnce((_f, signal) => new Promise((_r, reject) => {
+    seen = signal;
+    signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+  }));
+  const { box } = setup();
+  paste(box, [new File(['x'], 'big.mov', { type: 'video/quicktime' })]);
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel the upload of big.mov' }));
+  expect(seen?.aborted).toBe(true);
+  await waitFor(() => expect(document.querySelector('[data-pending-file]')).toBeNull());
+  expect(box.value).toBe('');
+  expect(screen.queryByText(/Could not upload/)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled(); // nothing to send, and not stuck uploading
+});
+
+it('refusals say why: a file named attachments, too large, too large for the relay', async () => {
+  const mod = await import('./file.ts');
+  const { box } = setup();
+  vi.spyOn(mod, 'uploadFile').mockRejectedValueOnce(new mod.UploadError(409, 'attachments-not-folder'));
+  paste(box, [new File(['x'], 'a.zip', { type: 'application/zip' })]);
+  expect(await screen.findByText(/a file named attachments/)).toBeInTheDocument();
+  vi.spyOn(mod, 'uploadFile').mockRejectedValueOnce(new mod.UploadError(413, 'file too large'));
+  paste(box, [new File(['x'], 'b.zip', { type: 'application/zip' })]);
+  expect(await screen.findByText('b.zip is too large (up to 8 GB)')).toBeInTheDocument();
+  // a page on another computer reaches this one through the relay, which takes 32 MB at most: said before sending
+  localPage.on = false;
+  const big = new File(['x'], 'c.zip', { type: 'application/zip' });
+  Object.defineProperty(big, 'size', { value: 33 * 1024 * 1024 });
+  const before = files.length;
+  paste(box, [big]);
+  expect(await screen.findByText('c.zip is too large to send through the relay (up to 32 MB)')).toBeInTheDocument();
+  expect(files.length).toBe(before);
+});
+
+it('files dragged from the tree drop onto the composer as their paths (issue 461)', async () => {
+  const { box } = setup();
+  const { PATHS_MIME } = await import('@/files/drag.ts');
+  const data: Record<string, string> = { [PATHS_MIME]: JSON.stringify(['docs/a.md', 'clips/take.mp4']), 'text/plain': 'docs/a.md' };
+  const dataTransfer = { types: Object.keys(data), getData: (k: string) => data[k] ?? '', dropEffect: 'none', files: [] };
+  const over = new Event('dragover', { bubbles: true, cancelable: true });
+  Object.defineProperty(over, 'dataTransfer', { value: dataTransfer });
+  act(() => void box.dispatchEvent(over));
+  expect(over.defaultPrevented).toBe(true);
+  const drop = new Event('drop', { bubbles: true, cancelable: true });
+  Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer });
+  act(() => void box.dispatchEvent(drop));
+  expect(drop.defaultPrevented).toBe(true);
+  expect(box.value).toBe('`docs/a.md` ![](clips/take.mp4)');
 });
 
 it('a pasted image uploads, shows a thumbnail, and sends alone with a label', async () => {
@@ -101,7 +192,7 @@ it('Send is disabled while an upload is pending and Enter sends nothing', async 
   paste(box, [png(A)]);
   const btn = screen.getByRole('button', { name: 'Send' });
   expect(btn).toBeDisabled();
-  expect(btn.parentElement).toHaveAttribute('title', 'Wait for the image to finish uploading');
+  expect(btn.parentElement).toHaveAttribute('title', 'Wait for the upload to finish');
   await userEvent.type(box, 'x{Enter}');
   expect(sent).toHaveLength(0);
   await act(async () => done({ id: A, mediaType: 'image/png' }));

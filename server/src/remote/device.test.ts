@@ -120,6 +120,9 @@ describe('device channel', () => {
     for (const p of ['/remote', '/remote/pair', '/remote/config', '/remote?x=1', '/REMOTE/revoke', '/control']) expect(goodPath(p)).toBe(false);
     // the project switcher's routes start windows and hand out other windows' logins: the desktop only, until phase 2
     for (const p of ['/system/projects', '/system/projects/open', '/system/projects/create', '/system/projects/enter', '/system/projects/sessions', '/system/folders', '/system/agents']) expect(goodPath(p)).toBe(false);
+    // issue 461: Show in Finder / Open act on this computer's desktop: never from the phone
+    for (const p of ['/os/reveal', '/os/open', '/OS/open', '/os?x']) expect(goodPath(p)).toBe(false);
+    expect(goodPath('/osx.md')).toBe(true);
     expect(goodPath('/system/windows')).toBe(true);
     for (const p of ['/remotely.md', '/file?path=remote/a.md', '/info']) expect(goodPath(p)).toBe(true);
   });
@@ -232,6 +235,10 @@ describe('device channel', () => {
     const part = await l.phone.http(a.port, 'GET', '/file?path=a.txt', { headers: { range: 'bytes=0-9', cookie: 'x=1' } });
     expect(part.status).toBe(206);
     expect(part.body.toString()).toBe('0123456789');
+    // issue 461: Download through the relay saves under the file's name; Show in Finder never goes through
+    const dl = await l.phone.http(a.port, 'GET', '/file?path=a.txt&download=1');
+    expect(dl.headers['content-disposition']).toBe(`attachment; filename="a.txt"; filename*=UTF-8''a.txt`);
+    await expect(l.phone.http(a.port, 'POST', '/os/reveal', { headers: { 'content-type': 'application/json' }, body: Buffer.from('{"path":"a.txt"}') })).rejects.toMatchObject({ code: 4900 });
     const post = await l.phone.http(a.port, 'POST', '/system/prefs', { headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ updateCheck: false })) });
     expect(post.status).toBe(200);
     expect(post.headers['set-cookie']).toBeUndefined();

@@ -29,15 +29,18 @@ export function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-export type PendingThumb = { key: string; url: string };
+/** an upload in flight: an image's object URL thumbnail, or a file's name (issue 461) */
+export type PendingThumb = { key: string; url?: string; name?: string };
 
 /**
  * A strip of thumbnails. `ids` are the uploaded images (lazy `/attach/<id>`), `pending` are uploads in flight (object URLs,
  * dimmed). With `onRemove` each uploaded thumbnail has a ×. The strip is not anchor text.
  */
-export function Attachments({ ids, pending = [], onRemove, onMark, counts, ...rest }: {
+export function Attachments({ ids, pending = [], onRemove, onMark, onCancel, counts, ...rest }: {
   ids: string[];
   pending?: PendingThumb[];
+  /** with it each file upload in flight has a × that cancels it (issue 461) */
+  onCancel?: (key: string) => void;
   onRemove?: (id: string) => void;
   /** with it each uploaded thumbnail has a pen that opens its markup; `counts`: the pending comments on each image (a badge) */
   onMark?: (id: string) => void;
@@ -91,8 +94,25 @@ export function Attachments({ ids, pending = [], onRemove, onMark, counts, ...re
           )}
         </div>
       ))}
-      {pending.map((p) => (
-        <img key={p.key} src={p.url} alt="" data-pending className="size-14 animate-pulse rounded-md border border-border-soft object-cover opacity-50" />
+      {pending.map((p) => (p.url !== undefined
+        ? <img key={p.key} src={p.url} alt="" data-pending className="size-14 animate-pulse rounded-md border border-border-soft object-cover opacity-50" />
+        : (
+          <div key={p.key} data-pending-file className="relative">
+            <span title={p.name} className="flex h-14 max-w-48 animate-pulse items-center truncate rounded-md border border-border-soft px-2 text-xs text-muted-foreground">{p.name}</span>
+            {onCancel && (
+              <button
+                type="button"
+                title={t('uploadCancel', p.name ?? '')}
+                aria-label={t('uploadCancel', p.name ?? '')}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => { e.stopPropagation(); onCancel(p.key); }}
+                className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-background text-[0.625rem] leading-none text-muted-foreground ring-1 ring-border hover:text-destructive"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )
       ))}
       {open && <Lightbox id={open} onClose={() => setOpen(null)} />}
     </div>

@@ -118,6 +118,10 @@ Images are scaled to 1568 px on the long edge; a PNG over 3.5 MB becomes a JPEG.
 
 </details>
 
+### Attaching any other file
+
+Paste, drop or pick a file that is not an image (a sound, a video, a PDF, an archive, anything) in the composer or a comment popup: it is copied into the project's `attachments/` folder (made when first needed; a name already there gets ` (2)`, ` (3)`, ...) and its path goes into the text at the caret. A sound or video goes in as an embed (`![](attachments/take.mp3)`) and plays in the feed; anything else as `code`, a path that opens the file. The agent gets the path and reads the file itself. Send waits until the upload is done; the × on the file's chip cancels it. A file can be up to 8 GB; from a page on another computer, through the relay, up to 32 MB. A file of the project named `attachments` stops uploads until it is renamed. If you do not want the uploads committed, add `attachments/` to the project's `.gitignore`.
+
 ### Viewing and marking up images and video
 
 Images open in a viewer (a click toggles natural size). Video and audio get a player with seeking, speed, volume, picture in picture and fullscreen. Leaving its tab moves a playing video to picture in picture, and audio keeps playing; closing the tab stops it. Video comments are ticks on the timeline; a click seeks there. Video and audio in chat replies get the same player, and their ticks open the file's tab at that time.
@@ -370,7 +374,13 @@ A one-line draft starting with `!` is a shell command ("Shell · Enter runs", bu
 - A video edit (`*.nbcut.json`) opens as its timeline; **Source** shows its JSON ([video edits](#video-edits-nbcutjson)).
 - Files over 2 MB and binaries are not shown; **Open raw** serves the file as is.
 - Tab menu: Close, Close others, Close to the right, Close all, Copy path. Middle click closes; Alt+W closes, Alt+Shift+T reopens.
-- In the tree, a click opens a file; ⌘-click (Ctrl-click on Windows/Linux) picks files one by one and Shift-click picks the run from the last one clicked, without opening them (Esc lets them go). A file's right-click menu has Copy path, and for videos, sounds and photos **Add to** the open edit and **New edit** ([video edits](#video-edits-nbcutjson)).
+- In the tree, a click opens a file; ⌘-click (Ctrl-click on Windows/Linux) picks files one by one and Shift-click picks the run from the last one clicked, without opening them (Esc lets them go). A file's right-click menu has Copy path, **Download** (every picked file), and for videos, sounds and photos **Add to** the open edit and **New edit** ([video edits](#video-edits-nbcutjson)).
+
+### Files and the computer
+
+- **Into a message**: drag a file (or the picked files) from the tree onto the composer to put their paths at the caret, in the same form as [an attached file](#attaching-any-other-file). A file from Finder or Explorer goes into `attachments/` first.
+- **Out to the desktop**: drag a file from the tree onto Finder, Explorer or the desktop to copy it there (Chrome and Edge; other browsers do nothing). **Download** in its menu works in every browser.
+- **Show in Finder** (**Show in Explorer** on Windows, **Open containing folder** on Linux) and **Open in default app** are in a file's menu for this folder's files, in the window on the computer it runs on (a page reached from another computer does not show them). The server refuses them for requests through the phone relay and for helpers and scripts (any request with an `Authorization` header). Open opens documents and media only (pictures, sound, video, PDF, text and code, office documents, ...), judged by what a symlink points at; programs, scripts, HTML and SVG pages, and anything else are refused: use Show in Finder, which works for any file. On Windows a path with a comma opens its folder instead of selecting the file (Explorer splits its argument at commas).
 
 ### Other branches and worktrees
 

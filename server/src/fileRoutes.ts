@@ -79,6 +79,18 @@ const SAFETY = {
   'cross-origin-resource-policy': 'same-origin',
 };
 
+/**
+ * `download=1` (issue 461: the tree's Download, a drag out to the desktop): save under the file's own name rather than show
+ * it. The plain `filename` is an ASCII stand-in for old clients; `filename*` carries the real name (RFC 6266 / 5987).
+ */
+function disposition(req: IncomingMessage, rel: string): Record<string, string> {
+  if (new URL(req.url ?? '/', 'http://x').searchParams.get('download') !== '1') return {};
+  const name = path.basename(rel) || 'file';
+  const ascii = name.replace(/[^\x20-\x7e]|["\\%#;]/g, '_');
+  const ext = encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return { 'content-disposition': `attachment; filename="${ascii}"; filename*=UTF-8''${ext}` };
+}
+
 const CLI_TIMEOUT = 1500;
 
 // the CLI answers with project-relative paths, but also absolute ones (skills, added dirs): inside the root
@@ -194,7 +206,7 @@ export function fileRoutes(o: {
       (st) => {
         if (!st.isFile()) return plain(res, 404, 'not found');
         // weak: size + mtime is a version, not a content hash (the media markup records it, R3)
-        const head = { 'content-type': typeOf(abs), 'accept-ranges': 'bytes', etag: `W/"${st.size}-${st.mtimeMs}"`, ...SAFETY };
+        const head = { 'content-type': typeOf(abs), 'accept-ranges': 'bytes', etag: `W/"${st.size}-${st.mtimeMs}"`, ...SAFETY, ...disposition(req, abs) };
         const range = parseRange(req.headers.range, st.size);
         if (range === 'unsatisfiable') {
           res.writeHead(416, { 'content-range': `bytes */${st.size}` });
@@ -232,7 +244,7 @@ export function fileRoutes(o: {
    */
   const serveBlob = async (req: IncomingMessage, res: ServerResponse, root: string, src: Source) => {
     const rel = queryPath(req);
-    const head = { 'content-type': typeOf(rel), 'accept-ranges': 'bytes', ...SAFETY };
+    const head = { 'content-type': typeOf(rel), 'accept-ranges': 'bytes', ...SAFETY, ...disposition(req, rel) };
     if (req.method === 'HEAD') {
       const size = await blobSize(root, src, rel);
       if (size === null) return plain(res, 404, 'not found');

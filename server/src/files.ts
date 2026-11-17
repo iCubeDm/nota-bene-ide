@@ -5,6 +5,8 @@ import type { TreeEntry } from '@nota-bene/shared';
 import { stateCheck, stateRelativeTo, underState } from './stateGuard.ts';
 
 export const HIDDEN = new Set(['.git', 'node_modules', '.DS_Store']);
+/** the temp files of uploads into `attachments/` (osFiles.ts) until they get their name: never listed */
+export const UPLOAD_PREFIX = '.nb-upload-';
 // the tree shows build output and the media comments' `.nota-bene` folder; the file walk (the prototype's SKIP_DIRS,
 // so @ completion) does not: frame.jpg/layer.png of every comment would crowd out the project's own files
 const SKIP_DIRS = new Set([...HIDDEN, 'dist', 'build', '.next', '__pycache__', '.venv', 'venv', '.cache', '.nota-bene']);
@@ -63,7 +65,7 @@ export async function listDir(abs: string, root: string): Promise<TreeEntry[]> {
   const out: TreeEntry[] = [];
   const inState = stateCheck();
   for (const e of ents) {
-    if (HIDDEN.has(e.name)) continue;
+    if (HIDDEN.has(e.name) || e.name.startsWith(UPLOAD_PREFIX)) continue;
     if (inState(path.join(abs, e.name))) continue; // the state folder is not listed
     let dir = e.isDirectory();
     if (e.isSymbolicLink()) {
@@ -118,7 +120,7 @@ async function walk(root: string): Promise<string[]> {
     }
     ents.sort((a, b) => a.name.localeCompare(b.name, 'ru', { numeric: true }));
     for (const e of ents) {
-      if (SKIP_DIRS.has(e.name)) continue;
+      if (SKIP_DIRS.has(e.name) || e.name.startsWith(UPLOAD_PREFIX)) continue;
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) queue.push(r); // symlinked dirs are not followed
       else if (e.isFile() || (e.isSymbolicLink() && (await linkedFileInRoot(path.join(root, r), realRoot)))) {
