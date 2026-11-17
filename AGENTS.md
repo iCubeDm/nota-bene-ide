@@ -3,6 +3,15 @@
 Shared project instructions for Claude Code, Codex and other coding agents.
 Load the reference relevant to the task; do not read every document at startup.
 
+## Philosophy (mandatory)
+
+Do less, but smartly. Be lazy enough to find the concise solution that keeps working: not a workaround or a patch,
+nothing anyone has to come back to, because it fits the project's long-term direction. Keep documentation to what is
+necessary; everything else goes to a separate reference.
+
+Occam's razor applies to everything: code, UI, text, tests, docs and process. Add no entity, step or word that the
+result does not need.
+
 ## Project map
 
 - `shared/`: browser/server protocol and normalized agent events.
