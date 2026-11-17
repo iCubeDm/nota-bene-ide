@@ -151,7 +151,7 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
  * `capabilities.models`;
  * 7: a message anchor may name a subagent (`source.agent`, the Agent call's tool-use id) and `GET /subagent` serves its conversation;
  * 8: the client's `task-stop` and `task-background`, and `GET /task-output` (a shell task's output tail);
- * 9: a media anchor may carry a `camera` (a comment on a 3D model view; the viewer was removed in 2.1.0, issue 470, and the server drops it again);
+ * 9: a media anchor may carry a `camera` (a comment on a 3D model view; the viewer was removed in 2.1.0, issue 470: a stored `camera` is ignored and dropped when the comment is next written);
  * 10: the server's `commands` event (the slash menu's list); an older server sends none, so the menu stays closed;
  * 11: `! cmd` in the composer: the client's `shell-run` and `shell-stop`, the server's `shell-start`, `shell-out` and `shell-end` events. An older server would send `! cmd` to the agent, so the page runs it as a shell command only from 11.
  */

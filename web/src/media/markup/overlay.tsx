@@ -80,6 +80,7 @@ export function useOverlayPlacement(
       media.removeEventListener('load', place);
       media.removeEventListener('loadedmetadata', place);
       window.removeEventListener('resize', place);
+      ro?.disconnect();
     };
   }, [on, media, pane, place]);
   return box;

@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment, MediaAnchor, MediaShape } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { setFileVersion } from '@/files/slice.ts';
@@ -145,4 +145,16 @@ it('a sent mark of another version of the file is not drawn; a pending one still
   act(() => void store.dispatch(setFileVersion({ path: 'p.png', version: 'W/"2-2"' })));
   expect(ids().sort()).toEqual(['pending-old', 'sent-same', 'sent-unversioned']);
   expect(pane.querySelector('g[data-hit="pending-old"] title')?.textContent).toMatch(/changed/i);
+});
+
+it('unmounting disconnects the placement\'s ResizeObserver', () => {
+  const disconnect = vi.fn();
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() { disconnect(); } });
+  try {
+    const { r } = setup(image(), [comment('mine', media('p.png', [RED]))]);
+    r.unmount();
+    expect(disconnect).toHaveBeenCalled();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
