@@ -1,46 +1,17 @@
-import { useSyncExternalStore } from 'react';
 import { AUDIO, IMAGE, VIDEO } from '@nota-bene/shared/cut';
 import { serverSep } from '@/lib/paths.ts';
 
 export { AUDIO, IMAGE, VIDEO }; // shared: an edit's sources are these files
-export const MODEL = /\.(glb|gltf|blend)$/i;
-export const BLEND = /\.blend$/i;
 export const MD = /\.(md|markdown)$/i;
 export const HTML = /\.html?$/i;
 
-export type FileKind = 'md' | 'image' | 'video' | 'audio' | 'model' | 'text';
-
-/**
- * Experimental 3D (server env NOTA_BENE_EXPERIMENTAL_3D=1, announced in `hello.capabilities.model3d`). Off, a model
- * file is any other unsupported binary: kind `text`, the generic icon, and the three chunks are never fetched. Off until
- * the hello says otherwise, so nothing 3D loads on a guess. Module state (not redux) because kindOf/iconOf are pure
- * helpers called from many places; a component that calls them re-renders on a change through `useModel3d`.
- */
-let model3d = false;
-const model3dListeners = new Set<() => void>();
-export function setModel3d(on: boolean): void {
-  if (on === model3d) return;
-  model3d = on;
-  for (const fn of model3dListeners) fn();
-}
-export const isModel3d = (): boolean => model3d;
-// module-level: a stable function identity, so useSyncExternalStore does not resubscribe on every render
-const subscribeModel3d = (fn: () => void): (() => void) => {
-  model3dListeners.add(fn);
-  return () => void model3dListeners.delete(fn);
-};
-export function useModel3d(): boolean {
-  return useSyncExternalStore(subscribeModel3d, isModel3d);
-}
-/** A model file (.glb .gltf .blend) AND the viewer is on. */
-export const isModelFile = (path: string): boolean => model3d && MODEL.test(path);
+export type FileKind = 'md' | 'image' | 'video' | 'audio' | 'text';
 
 export function kindOf(path: string): FileKind {
   if (MD.test(path)) return 'md';
   if (IMAGE.test(path)) return 'image';
   if (VIDEO.test(path)) return 'video';
   if (AUDIO.test(path)) return 'audio';
-  if (isModelFile(path)) return 'model';
   return 'text';
 }
 
@@ -82,8 +53,3 @@ export const projectFileUrl = (path: string, src?: string): string =>
 export const isPath = (p: string): boolean =>
   !(serverSep() === '\\' ? /^(https?:|~|\/|\\\\|[A-Za-z]:[\\/])/ : /^(https?:|~|\/)/).test(p) &&!/[\n`<>|*]/.test(p) && (/\//.test(p) || /\.[a-z0-9]{1,5}$/i.test(p));
 
-/** Where a model's bytes come from: a .blend is converted to GLB by the server's Blender (`/model`), the rest are files. */
-export function modelUrl(p: string, src?: string): string {
-  if (!BLEND.test(p)) return fileUrl(p, undefined, src);
-  return `/model?path=${encodeURIComponent(p)}${src && src !== 'here' ? `&src=${encodeURIComponent(src)}` : ''}`;
-}

@@ -41,16 +41,12 @@ export type MediaShape =
   | { kind: 'arrow'; color: MarkColor; x1: number; y1: number; x2: number; y2: number }
   | { kind: 'pen'; color: MarkColor; points: number[] }
   | { kind: 'polygon'; color: MarkColor; points: number[] };
-/** A 3D view's camera (protocol 9): where it is, what it looks at, its vertical field of view in degrees (0 < fov < 180). */
-export type ModelCamera = { position: [number, number, number]; target: [number, number, number]; fov: number };
 export type MediaAnchor = {
   kind: 'media'; source: FileSource; width: number; height: number;
   /** seconds at the pause (video only), ms precision */
   time?: number;
   /** the /file ETag when drawn */
   version?: string;
-  /** a 3D model comment (protocol 9): the camera the frame was rendered from. A model comment has no `time`. */
-  camera?: ModelCamera;
   /** set only when the frame and layer files were downscaled to fit MARK_MAX_BYTES (0 < scale < 1; both files) */
   scale?: number;
   shapes: MediaShape[];
@@ -155,7 +151,7 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
  * `capabilities.models`;
  * 7: a message anchor may name a subagent (`source.agent`, the Agent call's tool-use id) and `GET /subagent` serves its conversation;
  * 8: the client's `task-stop` and `task-background`, and `GET /task-output` (a shell task's output tail);
- * 9: a media anchor may carry a `camera` (a comment on a 3D model view); an older server would drop it, so the client offers markup on a model only from 9;
+ * 9: a media anchor may carry a `camera` (a comment on a 3D model view; the viewer was removed in 2.1.0, issue 470, and the server drops it again);
  * 10: the server's `commands` event (the slash menu's list); an older server sends none, so the menu stays closed;
  * 11: `! cmd` in the composer: the client's `shell-run` and `shell-stop`, the server's `shell-start`, `shell-out` and `shell-end` events. An older server would send `! cmd` to the agent, so the page runs it as a shell command only from 11.
  */
@@ -238,15 +234,11 @@ export type ModelChoice = { model: string; effort?: AgentEffort };
  */
 export type Capabilities = {
   compact: boolean; clear: boolean; modes: AgentMode[]; usage: boolean; fileSuggestions: boolean; fork: boolean; idleCompact: boolean; models: boolean;
-  /** the server runs with the experimental 3D viewer on (env NOTA_BENE_EXPERIMENTAL_3D=1); absent / false: model files are plain files. Set by the server, not by the agent. */
-  model3d?: boolean;
   /** speech to text runs on the host (Whisper installed, ready and switched on); absent: not offered. Set by the server, not by the agent. */
   dictation?: 'whisper';
   provider?: 'claude' | 'codex' | 'omp';
-  modeDescriptors?: { id: AgentMode; name: string; description: string }[];
   taskBackground?: boolean;
   taskOutput?: boolean;
-  suggestions?: boolean;
   /** the agent deletes a stored session for good (POST /sessions/delete); absent: the Sessions menu offers no delete */
   deleteSession?: boolean;
   /** the video editor's export: true = ffmpeg was found on the host (`/cut/export` renders an edit), false = this server can
@@ -305,7 +297,7 @@ export type ClientMessage =
   | { type: 'comment-op'; opId: string; sessionId: string | null; ops: CommentOp[] }
   | { type: 'interrupt' }
   /** `input` is ignored by the server (an allow always runs the original input); no client sends it. */
-  | { type: 'permission'; id: string; allow: boolean; input?: Record<string, unknown>; response?: InteractionAnswer }
+  | { type: 'permission'; id: string; allow: boolean; response?: InteractionAnswer }
   /** `id`: echoed back as the `mode` event's `ack`, so the sender can tell its own echo from the others */
   | { type: 'mode'; mode: AgentMode; id?: string }
   /** `model` is a `ModelOption.value`; no `effort` = the model's default. `id`: echoed as the `model` event's `ack` */
@@ -490,16 +482,10 @@ function isMediaShape(v: unknown): v is MediaShape {
   }
 }
 
-const isVec3 = (v: unknown): v is [number, number, number] => Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === 'number' && Number.isFinite(x));
-function isCamera(v: unknown): v is ModelCamera {
-  return isObj(v) && isVec3(v.position) && isVec3(v.target) && typeof v.fov === 'number' && Number.isFinite(v.fov) && v.fov > 0 && v.fov < 180;
-}
-
 function isMediaAnchorShape(v: Obj): boolean {
   return isObj(v.source) && isFileSource(v.source) && isPos(v.width) && isPos(v.height)
     && (v.time === undefined || (typeof v.time === 'number' && Number.isFinite(v.time) && v.time >= 0))
     && (v.version === undefined || (typeof v.version === 'string' && v.version.length <= 200))
-    && (v.camera === undefined || (isCamera(v.camera) && v.time === undefined)) // a model comment has no time
     && (v.scale === undefined || (typeof v.scale === 'number' && v.scale > 0 && v.scale < 1))
     && Array.isArray(v.shapes) && v.shapes.length > 0 && v.shapes.every(isMediaShape);
 }
@@ -569,7 +555,7 @@ function isCommentOp(v: unknown): v is CommentOp {
 }
 
 function isPermission(o: Obj): boolean {
-  return typeof o.id === 'string' && typeof o.allow === 'boolean' && (o.input === undefined || isObj(o.input));
+  return typeof o.id === 'string' && typeof o.allow === 'boolean';
 }
 
 const SESSION_ID = /^[0-9a-f-]{36}$/i;
@@ -592,8 +578,6 @@ function toShape(s: MediaShape): MediaShape {
   }
 }
 
-const toCamera = (c: ModelCamera): ModelCamera => ({ position: [c.position[0], c.position[1], c.position[2]], target: [c.target[0], c.target[1], c.target[2]], fov: c.fov });
-
 /** exported for tests */
 export function toAnchor(a: Anchor): Anchor {
   if (isMediaAnchor(a)) {
@@ -601,7 +585,6 @@ export function toAnchor(a: Anchor): Anchor {
       kind: 'media', source: toSource(a.source) as FileSource, width: a.width, height: a.height,
       ...(a.time === undefined ? {} : { time: a.time }),
       ...(a.version === undefined ? {} : { version: a.version }),
-      ...(a.camera === undefined ? {} : { camera: toCamera(a.camera) }),
       ...(a.scale === undefined ? {} : { scale: a.scale }),
       shapes: a.shapes.map(toShape),
     };
@@ -687,7 +670,6 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
       if (!isPermission(m) || (m.response !== undefined && (!isObj(m.response) || typeof m.response.choice !== 'string' || m.response.choice.length > 128 || (m.response.values !== undefined && (!isObj(m.response.values) || Object.keys(m.response.values).length > 100 || !Object.values(m.response.values).every((v) => typeof v === 'string' && v.length <= 32768)))))) return { error: 'permission needs string id and boolean allow' };
       return {
         type: 'permission', id: m.id as string, allow: m.allow as boolean,
-        ...(m.input === undefined ? {} : { input: m.input as Record<string, unknown> }),
         ...(m.response === undefined ? {} : { response: m.response as InteractionAnswer }),
       };
     case 'mode':

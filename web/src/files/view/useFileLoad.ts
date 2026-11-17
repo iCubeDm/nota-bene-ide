@@ -128,12 +128,6 @@ export function useFileLoad({ path, src, ref, url, kind, media, hasVersion, acti
   }, [active, media, tabId]);
 
   const loadedRev = useRef<{ path: string; rev: number } | null>(null);
-  // the kind turned to media (a model once the hello says 3D is on) after a text load had won: that text is not this view's
-  useEffect(() => {
-    if (!media) return;
-    loadedRev.current = null;
-    setData(null);
-  }, [media]);
   useEffect(() => {
     if (media || !active) return;
     if (loadedRev.current?.path === path && loadedRev.current.rev === rev) return;
@@ -148,7 +142,7 @@ export function useFileLoad({ path, src, ref, url, kind, media, hasVersion, acti
   }, [media, active, path, rev, url, src]);
 
   // the load state comments read (orphan or unknown); published after the commit, so the text is in the DOM by then
-  // closing the view drops a jump still waiting for it; a kind flip under a live view (text -> model) is not a close
+  // closing the view drops a jump still waiting for it
   // StrictMode (dev) runs mount -> cleanup -> mount on a fresh view: that cleanup is no close, and must not drop a jump the same
   // click requested. The drop therefore waits one microtask and happens only if this key was not mounted again by then.
   const mountedKey = useRef<string | null>(null);
@@ -174,5 +168,5 @@ export function useFileLoad({ path, src, ref, url, kind, media, hasVersion, acti
     else dispatch(setFileLoad({ path, ref, s: data.s === 'text' ? 'loaded' : 'gone' }));
   }, [media, data, path, ref, dispatch]);
 
-  return { data, rev, loadedRev, failed, bust, onError: () => setFailed(true), mediaUrl, mediaEl, resumeAt, reloadClick, onMediaMeta };
+  return { data, rev, loadedRev, failed, onError: () => setFailed(true), mediaUrl, mediaEl, resumeAt, reloadClick, onMediaMeta };
 }

@@ -15,7 +15,7 @@ import { seekAndPause } from '@/media/mediaController.ts';
 import { selectDraft } from '@/media/markup/slice.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { fileTabId } from '@/tabs/slice.ts';
-import { fileUrl, HTML, kindOf, useModel3d } from './kinds.ts';
+import { fileUrl, HTML, kindOf } from './kinds.ts';
 import { tmpImageUrl, isTmpTabPath } from './tmpImages.ts';
 import { isFixed, sourcesKnown, useSources } from './sources.ts';
 import { SourceChip } from './SourcePicker.tsx';
@@ -24,7 +24,6 @@ import { HIGHLIGHT_MAX } from './view/CodeText.tsx';
 import { FileEditor, hasDraft } from './view/FileEditor.tsx';
 import { HtmlBody } from './view/HtmlBody.tsx';
 import { MediaBody } from './view/MediaBody.tsx';
-import { ModelPane } from './view/ModelPane.tsx';
 import { TextBody } from './view/TextBody.tsx';
 import { useFileLoad } from './view/useFileLoad.ts';
 import { useTmpImage } from './view/useTmpImage.ts';
@@ -40,10 +39,8 @@ const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAI
 export function FileView({ path, active, src = 'here', refName }: { path: string; active: boolean; src?: string; refName?: string }) {
   const t = useT();
   const dispatch = useAppDispatch();
-  useModel3d(); // kindOf follows the flag: re-render when the hello flips it
   const kind = kindOf(path);
-  // not text: no text load. A model rides the media reload machinery (cache-busting `bust`, held while marking) but is
-  // neither markable nor a player: the MediaController and the markup never see it
+  // not text: no text load
   const media = kind !== 'md' && kind !== 'text';
   const markableKind = kind === 'image' || kind === 'video';
   const tabId = fileTabId(path, src);
@@ -59,7 +56,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   const marking = useAppSelector((s) => selectDraft(s, tabId).on);
   const markingRef = useRef(marking);
   markingRef.current = marking;
-  const load = useFileLoad({ path, src, ref, url, kind, media, hasVersion: markableKind || kind === 'model', active, fixed, marking, markingRef });
+  const load = useFileLoad({ path, src, ref, url, kind, media, hasVersion: markableKind, active, fixed, marking, markingRef });
   const { data, rev, loadedRev, resumeAt } = load;
   const blob = useTmpImage(tmp ? load.mediaUrl : null);
   // until the blob arrives the image shows a 1x1 pixel, not a broken one
@@ -108,8 +105,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   const comments = useAppSelector(selectComments);
   const pane = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    // a model's jump is the model view's (ModelMarkup): a text load that won before the hello flipped the kind must not eat it
-    if (kind === 'model' || jump?.path !== path || jump.src !== src || !active || !data) return;
+    if (jump?.path !== path || jump.src !== src || !active || !data) return;
     // a rendered page takes its own jump once it is on screen (HtmlBody); a place on the page shows the page
     if (page) return;
     const target = comments.find((x) => x.id === jump.id);
@@ -174,9 +170,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
         <button type="button" aria-label={t('reload')} title={t('reload')} onClick={load.reloadClick} className="rounded px-1.5 hover:bg-muted hover:text-foreground">↻</button>
         <a href={tmp ? (blob.s === 'ok' ? blob.url : undefined) : url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground" aria-label={t('openRaw')} title={t('openRawTip')}><Svg size={14}>{ICONS.external}</Svg></a>
       </div>
-      {kind === 'model' ? (
-        <ModelPane path={path} src={src} fileRef={ref} tabId={tabId} active={active} reloadKey={load.bust} srcGone={srcGone} />
-      ) : media ? (
+      {media ? (
         <MediaBody
           kind={kind} path={path} fileRef={ref} tabId={tabId} active={active} marking={marking} natural={natural}
           onToggleNatural={() => setNatural((v) => !v)} mediaUrl={mediaUrl} failed={failed} srcGone={srcGone}

@@ -100,7 +100,7 @@ it('the time tooltip follows the pointer', () => {
 });
 
 it('comment ticks: at their %, sent and other-version ones dimmed, near ones merged with a count, no time = no tick', () => {
-  const s = setup({
+  setup({
     comments: [
       comment('a', 41), comment('b', 41.2), comment('sent', 80, { status: 'sent', sentIn: 'u' }),
       comment('old', 10, { anchor: { ...(comment('x', 10).anchor as MediaAnchor), version: 'W/"1"' } }),

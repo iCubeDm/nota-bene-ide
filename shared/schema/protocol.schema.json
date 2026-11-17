@@ -158,32 +158,6 @@
         "idleCompact": {
           "type": "boolean"
         },
-        "modeDescriptors": {
-          "items": {
-            "properties": {
-              "description": {
-                "type": "string"
-              },
-              "id": {
-                "$ref": "#/definitions/AgentMode"
-              },
-              "name": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "description"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "model3d": {
-          "description": "the server runs with the experimental 3D viewer on (env NOTA_BENE_EXPERIMENTAL_3D=1); absent / false: model files are plain files. Set by the server, not by the agent.",
-          "type": "boolean"
-        },
         "models": {
           "type": "boolean"
         },
@@ -200,9 +174,6 @@
             "omp"
           ],
           "type": "string"
-        },
-        "suggestions": {
-          "type": "boolean"
         },
         "taskBackground": {
           "type": "boolean"
@@ -348,10 +319,6 @@
             },
             "id": {
               "type": "string"
-            },
-            "input": {
-              "additionalProperties": {},
-              "type": "object"
             },
             "response": {
               "$ref": "#/definitions/InteractionAnswer"
@@ -957,10 +924,6 @@
     },
     "MediaAnchor": {
       "properties": {
-        "camera": {
-          "$ref": "#/definitions/ModelCamera",
-          "description": "a 3D model comment (protocol 9): the camera the frame was rendered from. A model comment has no `time`."
-        },
         "height": {
           "type": "number"
         },
@@ -1119,36 +1082,6 @@
         }
       ],
       "description": "All coordinates are relative to the media's natural size, 0..1. `polygon` (protocol 24, issue 447): a closed shape, `points` x, y pairs; a media comment with polygons also has `mask.png` beside its frame (white inside any polygon, nonzero rule, black outside)."
-    },
-    "ModelCamera": {
-      "description": "A 3D view's camera (protocol 9): where it is, what it looks at, its vertical field of view in degrees (0 < fov < 180).",
-      "properties": {
-        "fov": {
-          "type": "number"
-        },
-        "position": {
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 3,
-          "minItems": 3,
-          "type": "array"
-        },
-        "target": {
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 3,
-          "minItems": 3,
-          "type": "array"
-        }
-      },
-      "required": [
-        "position",
-        "target",
-        "fov"
-      ],
-      "type": "object"
     },
     "ModelOption": {
       "description": "A model the agent offers. `value` is what is sent back to pick it (an alias such as `sonnet`); `resolved` the full id the agent reports for it once running (`claude-…`), to match the two; `efforts` only for a model that has effort levels.",

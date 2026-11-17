@@ -11,7 +11,6 @@ import path from 'node:path';
 import { whisperDir } from './install.ts';
 import { defaultFactory, openPipeline, type Pipe, type WorkerFactory } from './pipelineHost.ts';
 import { speak } from './speak.ts';
-import { WHISPER_RATE } from './whisper.ts';
 import {
   FrameDecoder, encodeFrame, helloProof, hostSecret, hostSocketPath, HOST_PINS, HOST_PROTO, isPipePath, jobDeadlineMs, LOAD_DEADLINE_MS, newNonce,
   parseRequest, pcmFromInt16, privateDir, proofMatches, WireError, type Frame, type HostReply, type HostRequest, type JobError, type JobOpts,

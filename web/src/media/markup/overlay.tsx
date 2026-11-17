@@ -5,8 +5,8 @@ import { POLYGON_FILL_OPACITY } from './render.ts';
 
 /** What the overlays over a media tab share: the drawing (MarkupLayer) and the marks of its comments (MediaMarks). */
 
-/** An image, a video, or the canvas of a 3D model view (its natural size is its pixel size). */
-export type Media = HTMLImageElement | HTMLVideoElement | HTMLCanvasElement;
+/** An image or a video. */
+export type Media = HTMLImageElement | HTMLVideoElement;
 
 export const STROKE_PX = 3;
 /** A dark outline under every stroke, so a white or yellow mark stays visible on a light frame (no CSS filter: cheap). */
@@ -14,7 +14,7 @@ export const HALO_PX = STROKE_PX + 2;
 export const HALO = 'rgba(0,0,0,0.55)';
 
 export const natSize = (m: Media): [number, number] =>
-  m instanceof HTMLVideoElement ? [m.videoWidth, m.videoHeight] : m instanceof HTMLCanvasElement ? [m.width, m.height] : [m.naturalWidth, m.naturalHeight];
+  m instanceof HTMLVideoElement ? [m.videoWidth, m.videoHeight] : [m.naturalWidth, m.naturalHeight];
 
 /** The media's natural size, followed as it arrives (image load, video metadata), whether or not an overlay is shown. */
 export function useNatSize(media: Media): [[number, number], () => void] {
@@ -27,13 +27,9 @@ export function useNatSize(media: Media): [[number, number], () => void] {
     syncNat();
     media.addEventListener('load', syncNat);
     media.addEventListener('loadedmetadata', syncNat);
-    // a canvas has no load event: its pixel size follows its box
-    const ro = media instanceof HTMLCanvasElement && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncNat) : null;
-    ro?.observe(media);
     return () => {
       media.removeEventListener('load', syncNat);
       media.removeEventListener('loadedmetadata', syncNat);
-      ro?.disconnect();
     };
   }, [media, syncNat]);
   return [nat, syncNat];
@@ -84,7 +80,6 @@ export function useOverlayPlacement(
       media.removeEventListener('load', place);
       media.removeEventListener('loadedmetadata', place);
       window.removeEventListener('resize', place);
-      ro?.disconnect();
     };
   }, [on, media, pane, place]);
   return box;

@@ -150,7 +150,7 @@ it('without the file version (another source, an old server) the edit is not edi
 it('a file with CRLF line ends: the server keeps them, and the next read is no outside change', async () => {
   // as the server's withLineEnds: a file mostly CRLF is written CRLF
   write(serialize(cut0).replace(/\n/g, '\r\n'));
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
     if (init?.method !== 'POST') return Response.json(disk);
     const b = JSON.parse(init.body as string) as { text: string; base: string | null };
     if (b.base !== null && b.base !== disk.base) return Response.json({ error: 'changed' }, { status: 409 });

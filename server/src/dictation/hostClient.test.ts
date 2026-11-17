@@ -33,7 +33,6 @@ const until = async (cond: () => boolean | Promise<boolean>, ms = 8000): Promise
     await new Promise<void>((r) => setImmediate(r));
   }
 };
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 const WIN = process.platform === 'win32';
 /** Where every home of this file is: short, for sun_path (Windows has pipes, which are in no folder). */

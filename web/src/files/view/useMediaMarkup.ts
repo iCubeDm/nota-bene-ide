@@ -60,8 +60,8 @@ export function useMediaMarkup({ tabId, path, ref, active, marking, mediaUrl, me
 
 
 /**
- * What a media tab's markup shares with a 3D tab's and with an attached image's (no `mediaUrl`: no file version): the file version asked for when the mode is entered, the popup a
- * drawing's Add opens, and the saving state. Nothing is written until Add (the popup runs `prepare` then), and the draft
+ * What a media tab's markup shares with an attached image's (no `mediaUrl`: no file version): the file version asked for
+ * when the mode is entered, the popup a drawing's Add opens, and the saving state. Nothing is written until Add (the popup runs `prepare` then), and the draft
  * is cleared only once the comment exists.
  */
 export function useMarkPopup({ tabId, active, marking, mediaUrl }: { tabId: string; active: boolean; marking: boolean; mediaUrl?: string }) {

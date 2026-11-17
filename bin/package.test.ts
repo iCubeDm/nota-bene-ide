@@ -126,9 +126,9 @@ it('the generated package.json: unscoped name, one bin, exact runtime deps only,
   expect(root.engines.node).toBe('>=23.6');
 });
 
-it('ships compiled JS with the shared protocol inlined, the blend assets and no TypeScript', () => {
+it('ships compiled JS with the shared protocol inlined, and no TypeScript', () => {
   const files = tree(pkg).map((f) => toSlash(path.relative(pkg, f)));
-  expect(files).toEqual(expect.arrayContaining(['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/host.js', 'server/src/blend/export.py', 'server/src/blend/sandbox.sb', 'server/src/dictation/pipelineWorker.mjs', 'server/src/dictation/npm-shrinkwrap.json', 'web/dist/index.html', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'package.json']));
+  expect(files).toEqual(expect.arrayContaining(['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/host.js', 'server/src/dictation/pipelineWorker.mjs', 'server/src/dictation/npm-shrinkwrap.json', 'web/dist/index.html', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'package.json']));
   expect(files.filter((f) => /\.tsx?$/.test(f))).toEqual([]);
   for (const f of ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/host.js']) expect(fs.readFileSync(path.join(pkg, f), 'utf8')).not.toContain('@nota-bene/shared');
   expect(fs.readFileSync(path.join(pkg, 'bin/nota-bene.mjs'), 'utf8').startsWith('#!/usr/bin/env node')).toBe(true);
@@ -192,9 +192,8 @@ it('a read-only install runs: --find / --last answer, a window serves /info and 
     const token = fs.readFileSync(path.join(home, 'token'), 'utf8').trim();
     const auth = { headers: { authorization: `Bearer ${token}` } };
     expect((await fetch(`${url}/info`)).status).toBe(401); // the packaged server wants the token too
-    const info = await (await fetch(`${url}/info`, auth)).json() as { codeChanged: boolean; blender: boolean };
+    const info = await (await fetch(`${url}/info`, auth)).json() as { codeChanged: boolean };
     expect(info.codeChanged).toBe(false);
-    expect(info.blender).toBe(false);
     expect(await (await fetch(`${url}/`)).text()).toContain('Nota Bene');
     const about = await (await fetch(`${url}/system/about`, auth)).json() as { version: string };
     expect(about.version).toBe(JSON.parse(fs.readFileSync(path.join(pkg, 'package.json'), 'utf8')).version);

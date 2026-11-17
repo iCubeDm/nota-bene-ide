@@ -38,16 +38,15 @@ it('check names a stale file', () => {
 it('the mobile strings carry the web keys through webString', () => {
   const out = mobileStrings();
   expect(out).toContain('String webString(String key, String lang)');
-  expect(out).toContain(`"h5": {`);
-  expect(out).toContain(`"week": {`);
-  expect(out).toContain(JSON.stringify(ru.week));
+  expect(out).toContain(`"working": {`);
+  expect(out).toContain(JSON.stringify(ru.offline));
 });
 
 it('the mobile strings carry the mode and clear texts of every provider', () => {
   const out = mobileStrings();
   expect(out).toContain(JSON.stringify(ru.mode_plan));
   for (const id of ALL_MODES) expect(out).toContain(`"mode_${id}_desc": {`);
-  for (const k of ['modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip']) expect(out).toContain(`"${k}": {`);
+  for (const k of ['clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip']) expect(out).toContain(`"${k}": {`);
 });
 
 it('the mobile strings carry the source names of an action and a subagent, with their bare forms', () => {

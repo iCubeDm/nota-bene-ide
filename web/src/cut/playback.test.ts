@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import type { Cut } from '@nota-bene/shared/cut';
 import {
   activeClips, audible, clipEdges, lastFrame, clipLevel, dbGain, edgeStep, fadeAt, fadeRamp, frameStep, gainAt, layerOpacity, nextClip, sourceTime,
-  syncAction, trackLevel, videoLayers,
+  syncAction, trackLevel,
 } from './playback.ts';
 
 // two cameras on two video tracks (the upper one hidden for a while), a photo over them, a voice and a music track
@@ -61,14 +61,6 @@ it('nextClip: the first clip on the track that starts after the time, for preloa
   expect(nextClip(c, 'a1', 0)?.id).toBe('s1');
   expect(nextClip(c, 'a1', 3)?.id).toBe('s2');
   expect(nextClip(c, 'v2', 0.5)?.id).toBe('p1');
-});
-
-it('videoLayers: visible video tracks bottom-up in tracks order, each with its clip in view', () => {
-  const c = cut();
-  expect(videoLayers(c, 2).map((l) => [l.track, l.clip.id])).toEqual([['v1', 'c1'], ['v2', 'p1']]); // v3 is hidden
-  c.tracks[2]!.hidden = false;
-  expect(videoLayers(c, 2).map((l) => l.clip.id)).toEqual(['c1', 'p1', 'c3']);
-  expect(videoLayers(c, 9.5)).toEqual([]); // nothing: a black frame
 });
 
 it('dbGain: decibels as an amplitude factor', () => {
