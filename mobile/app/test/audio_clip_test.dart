@@ -1,11 +1,13 @@
+import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart' show LinearProgressIndicator;
+import 'package:flutter/material.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:nb_app/chat/audio_clip.dart';
 import 'package:nb_app/chat/markdown.dart';
+import 'package:nb_app/files/file_screen.dart';
 import 'package:nb_app/voice/player.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -51,6 +53,14 @@ void main() {
       }
     },
   );
+
+  test('a sound path resolves in its folder and never above the project', () {
+    expect(soundFile('/r', 'a.mp3', base: 'docs'), 'docs/a.mp3');
+    expect(soundFile('/r', './x/../a.mp3', base: 'docs/sub'), 'docs/sub/a.mp3');
+    expect(soundFile('/r', '../../a.mp3', base: 'docs'), isNull);
+    expect(soundFile('/r', '/r/s/a.mp3', base: 'docs'), 's/a.mp3');
+    expect(soundFile('/r', '/elsewhere/a.mp3'), isNull);
+  });
 
   group('in the feed', () {
     late Rig r;
@@ -218,5 +228,112 @@ void main() {
       expect(clips.files, isEmpty);
       expect(find.textContaining('too large'), findsOneWidget);
     });
+    const unplayable =
+        'The sound could not be played. Try again when the host is online.';
+
+    testWidgets(
+      'a clip left while it is fetched for another sound is not said to have failed',
+      (t) async {
+        final slow = Completer<HttpAnswer>();
+        await reply(
+          t,
+          '![](a.mp3) and ![](b.ogg)',
+          (p, m, path) => path.contains('a.mp3')
+              ? slow.future
+              : Future.value(answer(200, [1])),
+        );
+        await t.tap(inClip(find.byTooltip('Play'), 0));
+        await t.pump();
+        await t.tap(inClip(find.byTooltip('Play'), 1));
+        await t.pump();
+        await t.pump();
+        slow.complete(answer(200, [1]));
+        await t.pump();
+        await t.pump();
+        expect(find.text(unplayable), findsNothing);
+        expect(inClip(find.byTooltip('Pause'), 1), findsOneWidget);
+        expect(native.names.where((n) => n == 'play'), hasLength(1));
+        // nothing of the left clip was kept
+        expect(clips.files, hasLength(1));
+      },
+    );
+
+    testWidgets('a clip left while its body comes stops reading it', (t) async {
+      await reply(
+        t,
+        '![](a.mp3) and ![](b.ogg)',
+        (p, m, path) async => answer(200, [1]),
+      );
+      final body = StreamController<Uint8List>();
+      var cancels = 0;
+      r.ch.onHttpStream = (port, method, path) async => path.contains('a.mp3')
+          ? (
+              status: 200,
+              headers: const <String, String>{},
+              body: body.stream,
+              cancel: () {
+                cancels++;
+              },
+            )
+          : (
+              status: 200,
+              headers: const <String, String>{},
+              body: Stream.value(Uint8List.fromList([1])),
+              cancel: () {},
+            );
+      await t.tap(inClip(find.byTooltip('Play'), 0));
+      await t.pump();
+      body.add(Uint8List.fromList([1, 2]));
+      await t.pump();
+      expect(body.hasListener, isTrue);
+      await t.tap(inClip(find.byTooltip('Play'), 1));
+      await t.pump();
+      await t.pump();
+      expect(body.hasListener, isFalse);
+      expect(cancels, 1);
+      expect(find.text(unplayable), findsNothing);
+      expect(inClip(find.byTooltip('Pause'), 1), findsOneWidget);
+    });
+
+    testWidgets('a body shorter than its length is not a sound', (t) async {
+      await reply(
+        t,
+        '![](short.mp3)',
+        (p, m, path) async => answer(200, [1, 2, 3], {'content-length': '10'}),
+      );
+      await t.tap(inClip(find.byTooltip('Play')));
+      await t.pump();
+      await t.pump();
+      expect(native.names, isNot(contains('play')));
+      expect(clips.files, isEmpty);
+      expect(find.text(unplayable), findsOneWidget);
+    });
+
+    testWidgets(
+      'in a Markdown file a sound plays, its path taken from the file\'s folder',
+      (t) async {
+        await r.open(t);
+        r.ch.onHttp = (port, method, path) async => path.contains('.md')
+            ? answer(200, '![](take.mp3)\n\n![](../sounds/x.wav)'.codeUnits)
+            : answer(200, [1]);
+        final nav = Navigator.of(t.element(find.byType(Scaffold).first));
+        nav.push(
+          MaterialPageRoute<void>(
+            builder: (_) => FileScreen(tab: r.tab!, path: 'docs/plan.md'),
+          ),
+        );
+        await t.pumpAndSettle();
+        expect(find.byType(AudioClip), findsNWidgets(2));
+        await t.tap(inClip(find.byTooltip('Play'), 0));
+        await t.pump();
+        await t.pump();
+        expect(r.ch.requests, contains('GET /file?path=docs%2Ftake.mp3'));
+        await t.tap(inClip(find.byTooltip('Play'), 1));
+        await t.pump();
+        await t.pump();
+        expect(r.ch.requests, contains('GET /file?path=sounds%2Fx.wav'));
+        expect(native.names, ['play', 'stop', 'play']);
+      },
+    );
   });
 }

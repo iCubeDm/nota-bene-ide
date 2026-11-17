@@ -2,6 +2,7 @@
 // a row with play/pause, the file's name and, once it has played, its position and length. The file is read from the
 // window (`/file`) into the cache when it starts, so a file the agent rewrote plays as it is now, and plays through
 // the voice messages' player: one sound at a time.
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -21,42 +22,91 @@ final soundPath = RegExp(r'\.(mp3|wav|m4a|ogg)$', caseSensitive: false);
 /// The largest sound the phone reads.
 const soundMaxBytes = 64 * 1024 * 1024;
 
+typedef Written = ({String? path, FetchFail? fail});
+
 /// Where a sound read from the window is written before it plays.
 abstract class ClipFiles {
   /// The app's; a test puts its own.
   static ClipFiles shared = DiskClipFiles();
 
-  /// [body] written as the file [name]: its path, or null when it passes [max] bytes (nothing is left behind then).
-  Future<String?> write(String name, Stream<List<int>> body, int max);
+  /// [body] written as the file [name]: its path, or why there is none (past [max] bytes, short of a known [length],
+  /// broken off, or [abandoned] first). Without a path nothing is left behind and the body is no longer read.
+  Future<Written> write(
+    String name,
+    Stream<List<int>> body, {
+    required int max,
+    int? length,
+    Future<void>? abandoned,
+  });
 }
 
 /// In the cache folder of the voice messages (the platform clears it when it needs room); a sound read again replaces
 /// its file.
 class DiskClipFiles implements ClipFiles {
+  static var _seq = 0;
+
   @override
-  Future<String?> write(String name, Stream<List<int>> body, int max) async {
-    final dir = await playChannel.invokeMethod<String>('dir');
-    final f = File('$dir/clips/$name');
-    await f.parent.create(recursive: true);
-    // written aside and renamed: a half-written file must never be taken for the sound
-    final part = File('${f.path}.part');
-    final sink = part.openWrite();
-    var n = 0;
+  Future<Written> write(
+    String name,
+    Stream<List<int>> body, {
+    required int max,
+    int? length,
+    Future<void>? abandoned,
+  }) async {
+    File? part;
     try {
-      await for (final c in body) {
-        n += c.length;
-        if (n > max) break;
-        sink.add(c);
+      final dir = await playChannel.invokeMethod<String>('dir');
+      final f = File('$dir/clips/$name');
+      await f.parent.create(recursive: true);
+      // written aside, under a name of this read alone, and renamed: a half-written file is never taken for the sound,
+      // and two reads of one sound do not write into each other (issue 452)
+      part = File('${f.path}.$pid-${++_seq}.part');
+      final sink = part.openWrite();
+      final end = Completer<FetchFail?>();
+      var n = 0;
+      late final StreamSubscription<List<int>> sub;
+      void finish(FetchFail? fail) {
+        if (end.isCompleted) return;
+        if (fail != null) unawaited(sub.cancel());
+        end.complete(fail);
       }
-    } finally {
-      await sink.close();
+
+      sub = body.listen(
+        (c) {
+          n += c.length;
+          if (n > max) return finish(FetchFail.tooLarge);
+          sink.add(c);
+        },
+        onError: (Object _) => finish(FetchFail.unreadable),
+        onDone: () =>
+            finish(length != null && n != length ? FetchFail.unreadable : null),
+        cancelOnError: true,
+      );
+      abandoned?.then((_) => finish(FetchFail.unreadable));
+      var fail = await end.future;
+      try {
+        await sink.close();
+      } on Object {
+        fail ??= FetchFail.unreadable;
+      }
+      if (fail != null) {
+        await _drop(part);
+        return (path: null, fail: fail);
+      }
+      await part.rename(f.path);
+      return (path: f.path, fail: null);
+    } on Object {
+      if (part != null) await _drop(part);
+      return (path: null, fail: FetchFail.unreadable);
     }
-    if (n > max) {
-      await part.delete();
-      return null;
+  }
+
+  static Future<void> _drop(File f) async {
+    try {
+      if (await f.exists()) await f.delete();
+    } on Object {
+      // the cache is the platform's to clear
     }
-    await part.rename(f.path);
-    return f.path;
   }
 }
 
@@ -69,14 +119,17 @@ String _hash(String key) {
   return h.toRadixString(16).padLeft(8, '0');
 }
 
-/// [rel] of [tab]'s project read into a file of [files]: its path, or why there is none. Never throws.
-Future<({String? path, FetchFail? fail})> fetchSound(
+/// [rel] of [tab]'s project read into a file of [files]: its path, or why there is none. Never throws. Once
+/// [abandoned] completes the read stops and gives nothing.
+Future<Written> fetchSound(
   WindowTab tab,
   String rel, {
   ClipFiles? files,
+  Future<void>? abandoned,
 }) async {
-  ({String? path, FetchFail? fail}) failed(FetchFail f) =>
-      (path: null, fail: f);
+  Written failed(FetchFail f) => (path: null, fail: f);
+  var gone = false;
+  abandoned?.then((_) => gone = true);
   final ch = tab.link.channel;
   if (ch == null) return failed(FetchFail.unreadable);
   try {
@@ -87,36 +140,66 @@ Future<({String? path, FetchFail? fail})> fetchSound(
     );
     final bad = fetchFailOf(r.status);
     final length = int.tryParse(r.headers['content-length'] ?? '');
-    if (bad != null || (length != null && length > soundMaxBytes)) {
+    if (gone || bad != null || (length != null && length > soundMaxBytes)) {
       r.cancel();
       return failed(bad ?? FetchFail.tooLarge);
     }
     final ext = soundPath.firstMatch(rel)![0]!.toLowerCase();
     final name = '${_hash('${tab.link.host.id}|${tab.port}|$rel')}$ext';
-    final path = await (files ?? ClipFiles.shared).write(
+    final got = await (files ?? ClipFiles.shared).write(
       name,
       r.body,
-      soundMaxBytes,
+      max: soundMaxBytes,
+      length: length,
+      abandoned: abandoned,
     );
-    if (path == null) {
-      r.cancel();
-      return failed(FetchFail.tooLarge);
-    }
-    return (path: path, fail: null);
+    if (got.path == null) r.cancel();
+    return got;
   } on Object {
     return failed(FetchFail.unreadable);
   }
 }
 
-/// The project file [src] (as the reply wrote it) names in [root], or null when it is none.
-String? soundFile(String root, String src) {
+/// The project file [src] (as the text wrote it) names in [root], relative to [base] (a folder of the project, `''`
+/// for its root), or null when it is none (outside the project included).
+String? soundFile(String root, String src, {String base = ''}) {
   var p = src;
   try {
     p = Uri.decodeFull(src);
   } on ArgumentError {
     // kept as written
   }
-  return projectPath(root, p);
+  if (p.startsWith('/')) return projectPath(root, p);
+  final out = <String>[];
+  for (final seg in [...base.split('/'), ...p.split('/')]) {
+    if (seg.isEmpty || seg == '.') continue;
+    if (seg == '..') {
+      if (out.isEmpty) return null;
+      out.removeLast();
+    } else {
+      out.add(seg);
+    }
+  }
+  return projectPath(root, out.join('/'));
+}
+
+/// Where the sounds below play from: the window, and the folder their paths are relative to (a Markdown file's own;
+/// the chat has none, its paths are the project's).
+class SoundScope extends InheritedWidget {
+  const SoundScope({
+    super.key,
+    required this.tab,
+    required this.base,
+    required super.child,
+  });
+  final WindowTab tab;
+  final String base;
+
+  static SoundScope? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<SoundScope>();
+
+  @override
+  bool updateShouldNotify(SoundScope old) => old.tab != tab || old.base != base;
 }
 
 class AudioClip extends StatefulWidget {
@@ -133,16 +216,19 @@ class AudioClip extends StatefulWidget {
 class _AudioClipState extends State<AudioClip> {
   FetchFail? _fail;
 
-  // whether the last start had its file (and so failed in the player when it is not playing)
-  bool _opened = false;
+  // why the last read of the file gave none
+  FetchFail? _readFail;
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final p = widget.player ?? VoicePlayer.shared;
-    final tab = FileOpener.of(context);
-    final rel = tab == null ? null : soundFile(tab.root, widget.src);
+    final scope = SoundScope.of(context);
+    final tab = scope?.tab ?? FileOpener.of(context);
+    final rel = tab == null
+        ? null
+        : soundFile(tab.root, widget.src, base: scope?.base ?? '');
     final name = widget.src.split('/').last;
     final shownName = (() {
       try {
@@ -154,21 +240,25 @@ class _AudioClipState extends State<AudioClip> {
     final id = tab == null || rel == null
         ? null
         : 'clip|${tab.link.host.id}|${tab.port}|$rel';
-    Future<String?> open() async {
-      final got = await fetchSound(tab!, rel!);
-      _opened = got.path != null;
-      if (mounted) setState(() => _fail = got.fail);
+    Future<String?> open(Future<void> abandoned) async {
+      final got = await fetchSound(tab!, rel!, abandoned: abandoned);
+      _readFail = got.fail;
       return got.path;
     }
 
-    Future<void> toggle() async {
-      _opened = false;
-      await p.toggleSound(id!, open);
-      // the player could not play the file it was given (a format the phone does not know)
-      if (mounted && _opened && !p.isCurrent(id)) {
-        setState(() => _fail = FetchFail.unreadable);
-      }
+    // what the start says, and only that: a start left for another sound has nothing to say (issue 452)
+    void ended(SoundStart s) {
+      if (!mounted) return;
+      final fail = switch (s) {
+        SoundStart.noFile => _readFail ?? FetchFail.unreadable,
+        SoundStart.unplayable => FetchFail.unreadable,
+        SoundStart.playing => null,
+        _ => _fail,
+      };
+      if (fail != _fail) setState(() => _fail = fail);
     }
+
+    Future<void> toggle() async => ended(await p.toggleSound(id!, open));
 
     return ListenableBuilder(
       listenable: p,
@@ -188,12 +278,15 @@ class _AudioClipState extends State<AudioClip> {
                 1.0,
               );
         const barWidth = 160.0;
-        void seekTo(double dx) => p.seekSound(
-          id!,
-          open,
-          Duration(
-            milliseconds: (length!.inMilliseconds * (dx / barWidth).clamp(0, 1))
-                .round(),
+        Future<void> seekTo(double dx) async => ended(
+          await p.seekSound(
+            id!,
+            open,
+            Duration(
+              milliseconds:
+                  (length!.inMilliseconds * (dx / barWidth).clamp(0, 1))
+                      .round(),
+            ),
           ),
         );
         final fail = rel == null && tab != null ? FetchFail.outside : _fail;

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/audio_clip.dart';
 import 'package:nb_app/comments/queue.dart';
+import 'package:nb_app/media/fetch.dart';
 import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_app/voice/player.dart';
 import 'package:nb_app/voice/recorder.dart';
@@ -157,18 +159,42 @@ class MemoryQueueFile implements QueueFile {
   Future<void> write(String json) async => this.json = json;
 }
 
-/// The clips' files, in memory: name -> bytes.
+/// The clips' files, in memory: name -> bytes. Reads as the disk does: a body past [max], short of its length or
+/// abandoned leaves nothing.
 class MemoryClipFiles implements ClipFiles {
   final files = <String, List<int>>{};
 
   @override
-  Future<String?> write(String name, Stream<List<int>> body, int max) async {
+  Future<Written> write(
+    String name,
+    Stream<List<int>> body, {
+    required int max,
+    int? length,
+    Future<void>? abandoned,
+  }) async {
     final all = <int>[];
-    await for (final c in body) {
-      all.addAll(c);
-      if (all.length > max) return null;
+    final end = Completer<FetchFail?>();
+    late final StreamSubscription<List<int>> sub;
+    void finish(FetchFail? f) {
+      if (end.isCompleted) return;
+      if (f != null) sub.cancel();
+      end.complete(f);
     }
+
+    sub = body.listen(
+      (c) {
+        all.addAll(c);
+        if (all.length > max) finish(FetchFail.tooLarge);
+      },
+      onError: (Object _) => finish(FetchFail.unreadable),
+      onDone: () => finish(
+        length != null && all.length != length ? FetchFail.unreadable : null,
+      ),
+    );
+    abandoned?.then((_) => finish(FetchFail.unreadable));
+    final fail = await end.future;
+    if (fail != null) return (path: null, fail: fail);
     files[name] = all;
-    return '/cache/clips/$name';
+    return (path: '/cache/clips/$name', fail: null);
   }
 }

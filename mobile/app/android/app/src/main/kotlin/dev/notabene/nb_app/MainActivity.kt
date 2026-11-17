@@ -60,7 +60,10 @@ class MainActivity : FlutterFragmentActivity() {
 
     // Playing voice messages and the sounds of replies (`nb/play`): one MediaPlayer on a cached file at a time (a WAV, or
     // a reply's mp3/m4a/ogg/wav). `dir` answers the folder of the cached files; `play {path, from}` starts the file (a
-    // paused one of the same path resumes) at `from` ms and answers its length in ms (null when the player cannot tell);
+    // paused one of the same path resumes) at `from` ms and answers once it plays, with its length in ms (null when the
+    // player cannot tell); `music` (a reply's sound) plays it as music rather than speech. The file is prepared off the
+    // main thread (prepareAsync: a reply's sound can be large, issue 452); a `stop` or another `play` meanwhile drops it
+    // and answers the waiting `play` with an error.
     // `pause`, `seek {ms}` and `stop` do what they say. The phone calls back `position {ms}` about every 100 ms while
     // playing, `done` at the end, and `paused` when the app leaves the screen.
     private var playChannel: MethodChannel? = null
@@ -87,22 +90,12 @@ class MainActivity : FlutterFragmentActivity() {
                 "play" -> {
                     val path = call.argument<String>("path")
                     val from = (call.argument<Any>("from") as? Number)?.toInt() ?: 0
+                    val music = call.argument<Boolean>("music") == true
                     if (path == null) {
                         result.error("path", null, null)
                         return@setMethodCallHandler
                     }
-                    try {
-                        playFile(path, from)
-                        val length = try {
-                            player?.duration?.takeIf { it > 0 }
-                        } catch (_: IllegalStateException) {
-                            null
-                        }
-                        result.success(length)
-                    } catch (e: Exception) {
-                        releasePlayer()
-                        result.error("failed", e.message, null)
-                    }
+                    playFile(path, from, music, result)
                 }
                 "pause" -> {
                     try {
@@ -128,14 +121,31 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    private fun playFile(path: String, from: Int) {
+    // the player being prepared and the `play` waiting for it
+    private var preparing: MediaPlayer? = null
+    private var preparingResult: MethodChannel.Result? = null
+
+    private fun lengthOf(p: MediaPlayer): Int? = try {
+        p.duration.takeIf { it > 0 }
+    } catch (_: IllegalStateException) {
+        null
+    }
+
+    private fun playFile(path: String, from: Int, music: Boolean, result: MethodChannel.Result) {
         val current = player
         if (current != null && playing == path) {
-            if (from > 0) current.seekTo(from)
-            requestFocus()
-            current.start()
+            try {
+                if (from > 0) current.seekTo(from)
+                requestFocus()
+                current.start()
+            } catch (e: Exception) {
+                releasePlayer()
+                result.error("failed", e.message, null)
+                return
+            }
             mainHandler.removeCallbacks(tick)
             mainHandler.post(tick)
+            result.success(lengthOf(current))
             return
         }
         releasePlayer()
@@ -143,27 +153,62 @@ class MainActivity : FlutterFragmentActivity() {
         try {
             p.setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .setContentType(
+                        if (music) AudioAttributes.CONTENT_TYPE_MUSIC else AudioAttributes.CONTENT_TYPE_SPEECH
+                    )
                     .setUsage(AudioAttributes.USAGE_MEDIA)
                     .build()
             )
             p.setDataSource(path)
-            p.prepare()
-            if (from > 0) p.seekTo(from)
-            p.setOnCompletionListener {
-                releasePlayer()
-                playChannel?.invokeMethod("done", null)
-            }
         } catch (e: Exception) {
             // a file that cannot be read must not leave a native player behind
             p.release()
-            throw e
+            result.error("failed", e.message, null)
+            return
         }
-        requestFocus()
-        p.start()
-        player = p
-        playing = path
-        mainHandler.post(tick)
+        preparing = p
+        preparingResult = result
+        // the listeners run on the main thread (the player was made here)
+        p.setOnPreparedListener {
+            if (preparing !== p) return@setOnPreparedListener
+            val r = preparingResult
+            preparing = null
+            preparingResult = null
+            try {
+                if (from > 0) p.seekTo(from)
+                p.setOnCompletionListener {
+                    releasePlayer()
+                    playChannel?.invokeMethod("done", null)
+                }
+                requestFocus()
+                p.start()
+            } catch (e: Exception) {
+                p.release()
+                r?.error("failed", e.message, null)
+                return@setOnPreparedListener
+            }
+            player = p
+            playing = path
+            mainHandler.post(tick)
+            r?.success(lengthOf(p))
+        }
+        p.setOnErrorListener { _, what, extra ->
+            if (preparing !== p) return@setOnErrorListener false
+            val r = preparingResult
+            preparing = null
+            preparingResult = null
+            p.release()
+            r?.error("failed", "what=$what extra=$extra", null)
+            true
+        }
+        try {
+            p.prepareAsync()
+        } catch (e: Exception) {
+            preparing = null
+            preparingResult = null
+            p.release()
+            result.error("failed", e.message, null)
+        }
     }
 
     // a call or another player takes the speaker: the voice pauses (the phone is told, as when the app leaves)
@@ -194,6 +239,10 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private fun releasePlayer() {
+        preparing?.release()
+        preparing = null
+        preparingResult?.error("stopped", null, null)
+        preparingResult = null
         mainHandler.removeCallbacks(tick)
         player?.release()
         player = null

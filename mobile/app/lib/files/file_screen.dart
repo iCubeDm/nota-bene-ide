@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectionStatus;
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../chat/audio_clip.dart' show SoundScope;
 import '../chat/window_tab.dart';
 import '../comments/anchor.dart';
 import '../comments/comment_sheet.dart';
@@ -196,39 +197,46 @@ class _FileScreenState extends State<FileScreen> {
             )
           : text == null
           ? const Center(child: CircularProgressIndicator())
-          : SelectionArea(
-              onSelectionChanged: (s) => _selected = s?.plainText ?? '',
-              contextMenuBuilder: (context, state) =>
-                  AdaptiveTextSelectionToolbar.buttonItems(
-                    anchors: state.contextMenuAnchors,
-                    buttonItems: [
-                      ContextMenuButtonItem(
-                        label: t.comment,
-                        onPressed: () {
-                          state.hideToolbar();
-                          _comment();
-                        },
+          // the sounds of the file play from its folder, as on the desktop (issue 452)
+          : SoundScope(
+              tab: widget.tab,
+              base: widget.path.contains('/')
+                  ? widget.path.substring(0, widget.path.lastIndexOf('/'))
+                  : '',
+              child: SelectionArea(
+                onSelectionChanged: (s) => _selected = s?.plainText ?? '',
+                contextMenuBuilder: (context, state) =>
+                    AdaptiveTextSelectionToolbar.buttonItems(
+                      anchors: state.contextMenuAnchors,
+                      buttonItems: [
+                        ContextMenuButtonItem(
+                          label: t.comment,
+                          onPressed: () {
+                            state.hideToolbar();
+                            _comment();
+                          },
+                        ),
+                        ...state.contextMenuButtonItems,
+                      ],
+                    ),
+                child: ListenableBuilder(
+                  listenable: widget.tab.comments,
+                  builder: (context, _) => ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      12,
+                      16,
+                      bottomRoom(context, 32),
+                    ),
+                    children: [
+                      FileMarkdown(
+                        text: text,
+                        marks: _marks(),
+                        onMark: _edit,
+                        listenerAt: _listenerAt,
                       ),
-                      ...state.contextMenuButtonItems,
                     ],
                   ),
-              child: ListenableBuilder(
-                listenable: widget.tab.comments,
-                builder: (context, _) => ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    12,
-                    16,
-                    bottomRoom(context, 32),
-                  ),
-                  children: [
-                    FileMarkdown(
-                      text: text,
-                      marks: _marks(),
-                      onMark: _edit,
-                      listenerAt: _listenerAt,
-                    ),
-                  ],
                 ),
               ),
             ),
