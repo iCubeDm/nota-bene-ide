@@ -271,6 +271,8 @@
   "videoPlay": "Play",
   "videoPause": "Pause",
   "videoUnplayable": "The video could not be played. Try again when the host is online.",
+  "previewTooLarge": "Too large to preview here. Tap to open it full screen.",
+  "videoTooLarge": "The video is too large for the phone. Open it on the computer.",
   "frameFailed": "The frame could not be taken from the video. Try again.",
   "dictationDenied": "Microphone access is off for Nota Bene",
   "voiceHold": "Hold to record",
