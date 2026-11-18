@@ -1,6 +1,6 @@
 # Nota Bene architecture
 
-State as of 2026-11-15, release 2.0.1 on `main`.
+How the parts fit. Operational rules and the security model: [agent reference](agent-reference.md). User-facing behavior: [guide](guide.md).
 
 ## 1. Overview
 
@@ -67,6 +67,7 @@ flowchart TB
 | `omp/skills/nb/` | The omp skill (`/skill:nb`): `open.mjs` opens a detached omp window, `new`, or a fork of the invoking omp session. |
 | `plugin/skills/nb/` | The `/nb` skill for Claude Code (inside the plugin `plugin/`): `node open.mjs --plan / --wait / --run` (a Node script, so it runs on Windows too). |
 | `e2e/` | Playwright on scripted fake agents, plus Codex and omp browser acceptance through fixture agents (`codex.config.ts`, `omp.config.ts`). |
+| `relay/`, `mobile/` | The Go relay for remote access and the Flutter phone app ([2.3](#23-remote-relay)). |
 
 ## 2. Processes and lifecycle
 
@@ -76,7 +77,7 @@ sequenceDiagram
   participant L as Launcher
   participant S as Window server
   participant A as Provider runtime
-  CC->>L: nota-bene dir --agent claude or codex
+  CC->>L: nota-bene dir --agent claude, codex or omp
   L->>L: provider state, folder lock, free port, checkout build if stale
   L->>S: spawn main.ts (NOTA_BENE_LAUNCHER_PID, NOTA_BENE_SUPERVISED=1, NOTA_BENE_NONCE)
   S->>S: windows/PORT.json, resume the last session
@@ -84,16 +85,18 @@ sequenceDiagram
     S->>A: SDK query() owns Claude CLI
   else Codex
     S->>A: spawn app-server, initialize, thread/start or resume or fork
+  else omp
+    S->>A: spawn omp acp, initialize, session/new or load
   end
   Note over S,L: exit 75 = immediate restart with --continue<br/>0, 130, 143 = stop, anything else = crash: restart after 1 s, give up at 5 in 60 s
-  S-->>L: IPC channel closed (or ppid gone, older launcher) = launcher gone = exit
+  S-->>L: IPC channel closed = launcher gone = exit
 ```
 
-- **Supervision runs both ways.** The launcher restarts the server. The server exits by itself if the launcher is gone (`watchLauncher`): it is spawned with an IPC channel and stops when the channel closes, which also carries the launcher's stop message (Windows has no SIGTERM); without a channel (an older launcher) it compares `process.ppid` every 2 s. A foreground launcher in turn stops when the shell that started it is gone (`watchParent`), unless it is a `--detach` child. Launcher environment variables that were not inherited from the direct parent are dropped (`dropInheritedLauncherEnv`), so a test server started from inside a window does not think it is supervised.
-- **The launcher's secrets.** The launcher creates a random per-launch nonce and passes it to every server it starts (env `NOTA_BENE_NONCE`). Exit 75 keeps it, so open tabs stay logged in. After a crash it is replaced and the launcher opens a fresh login page. See section 6.
-- **The window registry** `~/.nota-bene/windows/<port>.json` serves "one window per folder per provider" and Settings, Windows. Codex uses the equivalent registry under `~/.nota-bene/providers/codex/`; locks, tokens and discovery use that same provider scope. A launch takes a per-folder lock (`locks/<hash>`), then gives way to a window already serving the folder, waiting up to 10 s for one that is in its restart gap.
-- **The Whisper host.** Dictation and voice messages do not load a model per window: the first window that needs one starts a detached `host.js` process (`server/src/dictation/hostMain.ts`) that holds the one Whisper model of the state folder, takes every window's jobs over a unix socket in `<state>/whisper-host/` (a 600 socket in a 700 folder, no TCP; on Windows a named pipe whose clients prove `whisper-host/host-secret`) in one round-robin queue, and exits, unloading the model, after 10 minutes without a job. A window that cannot use it (no `host.js`, a host that keeps dying) runs the model itself, as before. Remove Whisper stops it first. Operations, limits and test knobs are in [agent-reference](agent-reference.md#whisper-host).
-- **Control between windows** (M6-15). Window A sends `POST /system/windows/action`; its server proxies the request to `127.0.0.1:<port B>/control/<action>` with the token from `<stateDir>/control-token` (mode 600). `/control/*` rejects any request that has an `Origin` header, so only a server can reach it, never a page.
+- **Supervision runs both ways.** The launcher restarts the server. The server exits by itself if the launcher is gone (`watchLauncher`): it is spawned with an IPC channel and stops when the channel closes, which also carries the launcher's stop message (Windows has no SIGTERM). A foreground launcher in turn stops when the shell that started it is gone (`watchParent`), unless it is a `--detach` child. Launcher environment variables that were not inherited from the direct parent are dropped (`dropInheritedLauncherEnv`), so a test server started from inside a window does not think it is supervised.
+- **The launcher's secrets.** A per-launch nonce, kept by exit 75 and replaced after a crash ([Access token](agent-reference.md#access-token)).
+- **The window registry** `~/.nota-bene/windows/<port>.json` serves "one window per folder per provider" and Settings, Windows. Codex and omp keep theirs under `providers/<provider>/`, with their own locks and tokens. A launch takes a per-folder lock (`locks/<hash>`), then gives way to a window already serving the folder, waiting up to 10 s for one that is in its restart gap.
+- **The Whisper host.** Dictation and voice messages share one detached `host.js` process per state folder (`server/src/dictation/hostMain.ts`), which holds the one Whisper model, takes every window's jobs over a private unix socket (Windows: a named pipe) in one round-robin queue, and exits after 10 minutes idle. A window that cannot use it runs the model itself. Details: [Whisper host](agent-reference.md#whisper-host).
+- **Control between windows.** Window A sends `POST /system/windows/action`; its server proxies the request to `127.0.0.1:<port B>/control/<action>` with the token from `<stateDir>/control-token` (mode 600). `/control/*` rejects any request that has an `Origin` header, so only a server can reach it, never a page.
 
 **Invoking-host lifetime.** Claude's `/nb` owns a background launcher tied to its
 calling session. The Codex skill uses an owned background process in CLI, or
@@ -119,18 +122,16 @@ stays and loads, and only a Claude session would need the binary. No global npm 
 or manual skill copy is required. The helper selects `--agent codex`, handles
 CLI/Desktop lifetime and redacts browser login fragments from its output.
 
-The npm archive contains the compiled application and the standalone Codex and omp skills;
-the marketplace manifest and bootstrap instructions are distributed separately
-from GitHub. Each `v<version>` tag identifies the exact npm source; repository-only
-plugin/docs additions may follow it on `main`. Publishing a plugin update does not replace
-the immutable npm archive. This repository marketplace is for local clients;
-it is not a listing in the public ChatGPT plugin directory.
+The npm archive holds the compiled application and the standalone Codex and omp skills;
+the marketplace manifest comes from GitHub. A `v<version>` tag identifies the exact npm
+source; plugin or docs changes may follow it on `main` without replacing the archive.
+The marketplace is for local clients, not a listing in the public ChatGPT plugin directory.
 
 ### 2.3 Remote relay
 
 `relay/` holds `nb-relay`, a separate Go program for remote control: a stateless WebSocket hub that pairs a host (the Nota Bene server on a computer) with its devices (phones) by host id and forwards opaque frames. It stores nothing except the TLS certificate cache, and its admission checks are only a noise filter; the real authentication and confidentiality are the end-to-end handshake between host and phone. The hub is the importable Go package `relay/hub`; `relay/cmd/nb-relay` wraps it with TLS and flags, and with `-members` admits only hosts whose hello is signed by an operator-issued Ed25519 access key, a set number of hosts per key, from a file it re-reads (`members.go`; `invite`, `revoke`, `limit` and `members` edit it). The wire contract is [relay/PROTOCOL.md](../relay/PROTOCOL.md); building, running and the container image are in [relay/README.md](../relay/README.md).
 
-The host side is `nota-bene remote` (`server/src/remote/`), one process per user and the only new code that touches window servers. It keeps one outgoing connection to the relay (`relayClient.ts`), finds the windows of all three providers in their registries and proves each with that provider's token before sending anything (`discover.ts`), and runs one end-to-end channel per phone connection (`device.ts`): Noise IK (`noise.ts`, on `node:crypto`, checked against the official vectors), then a stream mux with per-stream and per-connection credit (`mux.ts`) carrying the host's window list, WebSockets to a window's `/ws` and HTTP requests to its routes, with the window's helper bearer added on the host. Pairing, the device list and revoking are in `connector.ts`; `pair`, `devices` and `revoke` reach the running connector over a Unix socket (`control.ts`). Every window keeps one connector running while a relay is saved (`keeper.ts`, as the Whisper host is kept), serves the Remote tab's `/remote` routes (`routes.ts`) and sends the page its state as the `remote` event. The channel's contract, for the phone's implementation, is [server/src/remote/CHANNEL.md](../server/src/remote/CHANNEL.md).
+The host side is `nota-bene remote` (`server/src/remote/`), one process per user. It keeps one outgoing connection to the relay (`relayClient.ts`), finds the windows of all three providers in their registries and proves each with that provider's token before sending anything (`discover.ts`), and runs one end-to-end channel per phone connection (`device.ts`): Noise IK (`noise.ts`, on `node:crypto`, checked against the official vectors), then a stream mux with per-stream and per-connection credit (`mux.ts`) carrying the host's window list, WebSockets to a window's `/ws` and HTTP requests to its routes, with the window's helper bearer added on the host. Pairing, the device list and revoking are in `connector.ts`; `pair`, `devices` and `revoke` reach the running connector over a Unix socket (`control.ts`). Every window keeps one connector running while a relay is saved (`keeper.ts`, as the Whisper host is kept), serves the Remote tab's `/remote` routes (`routes.ts`) and sends the page its state as the `remote` event. The channel's contract, for the phone's implementation, is [server/src/remote/CHANNEL.md](../server/src/remote/CHANNEL.md).
 
 The phone side is in `mobile/`: `mobile/channel` (`nb_channel`, pure Dart) is the same channel from the other end (Noise IK on the `cryptography` package, checked against the same vectors and worked examples; the mux; relay admission), proved end to end against the real relay and connector by `cross_test.dart`, which drives `server/src/remote/crossHost.ts`. `mobile/app` (`nb_app`, Flutter, Android) keeps one link per paired host (`hosts/host_link.dart`) and is an ordinary tab of a window over it (`chat/window_tab.dart`, the feed a port of `web/src/store/feed.ts`); it uses the protocol types generated into `mobile/protocol`. Build and test commands are in [mobile/README.md](../mobile/README.md).
 
@@ -147,44 +148,44 @@ The menu is a list of chats: the web folds the windows of one folder into one ro
 | Module | Responsibility |
 |---|---|
 | `main.ts` | Argument parsing, choice of what to resume, exit code 98 when the port is taken, the launcher watchdog. |
-| `server.ts` | Composition: creates the stores, `SessionManager`, the HTTP router and the WSS. It also holds the dispatcher of WebSocket messages and the link between comments and the session. One tab per window: an owner socket; a reload of the owner within 700 ms (grace) is not a second tab; a ping to the owner every 30 s (no pong means `terminate`); `takeover` (the old owner gets `taken-over` and is closed with code 4001); passive reconnection `?passive=1`. Messages that the agent's `capabilities` forbid are rejected as `server-error`. |
-| `auth.ts` | The access token and every value derived from it: cookie, key, login, helper bearer and the `/hello` proof (section 6). |
+| `server.ts` | Composition: the stores, `SessionManager`, the HTTP router and the WSS; the dispatcher of WebSocket messages and the link between comments and the session. One tab per window (owner socket, 700 ms reload grace, 30 s ping, `takeover` closes the old owner with 4001, `?passive=1`). Messages the agent's `capabilities` forbid are rejected as `server-error`. |
+| `auth.ts` | The access token and every value derived from it ([Access token](agent-reference.md#access-token)). |
 | `stateGuard.ts` | Knows the folders that hold secrets (the current state folder and the two default ones) and refuses to serve, list or search anything inside them. |
-| `http.ts` | No framework. Order: Host allowlist, then `/control/` (token, no Origin) or Origin for non-GET, then the open routes (`/auth`, `/hello`), then the auth check for everything else, then prefix routes (`/attach/`, `/marks/`, `/control/`, `/voice/`), exact routes, `/info`, and last the static files of `web/dist` with an SPA fallback. |
+| `http.ts` | No framework. Order: Host allowlist, then `/control/` (token, no Origin) or Origin for non-GET, then the open routes (`/auth`, `/hello`), then auth for everything else, then the routes, `/info`, and last the static files of `web/dist` with an SPA fallback. |
 | `hub.ts` | `EventHub`: the in-memory event history of the current session. A connecting socket gets `replay` (with `earlier`, the number of archived segments), then live events. `reset()` replaces the history (switch, `/clear`, restart). `cut()` moves everything before a compaction boundary into the archive; some events (sends not yet finished) stay in both the history and the archive. |
 | `archive.ts` | `HistoryArchive`: `history/<sid>.jsonl`, one line per segment (the conversation before a compaction), fsync on write, a broken line is skipped. The route `/history?session=&before=`. |
-| `subagent.ts` | The route `GET /subagent?session=&tool=` (protocol 7): the conversation of the subagent started by the Agent call with tool-use id `tool`. The answer is `{events, running, type, description}`. 400 for an id outside `[A-Za-z0-9_-]` (both ids end up in file paths), 409 for a conversation that is not the current one (as with `/history`), 404 if there is no such subagent. It goes through `AgentBackend.subagent(...)`: the Claude backend takes the agent id from `agent-<id>.meta.json` (`toolUseId`; this is not an SDK API and is read in one place, `agent/claude/subagents.ts`), with a fallback to the `agentId: …` line in the call's result. Messages come from `getSubagentMessages` through `transcriptToEvents(..., { subagent: true })` (the SDK marks every subagent message with the id of the parent call, so the live mapper would take them for nested ones and drop the text). `running` comes from `finished` / `stoppedByUser` in the meta. Codex instead resolves native child thread ids and reads their paginated history/status through app-server; it does not inspect Claude files. |
-| `taskOutput.ts` | The route `GET /task-output?session=&task=` (protocol 8): the tail of the output of a background shell or Monitor task, `{output, totalBytes, truncated, running}` (up to 8 KiB, with escape sequences, which the client cleans). Rules as for `/subagent`: 400 for an id outside `[A-Za-z0-9_-]`, 409 for a conversation that is not the current one, 404 if the server does not know the task (`hub.task(id)`) or it is not a shell one, 502 if the agent did not answer. `running` is read BEFORE the output: `false` means the output was read after the task ended. It goes through `SessionManager.taskOutput` and `AgentSession.taskOutput` (Claude: SDK control request `get_task_output`). Codex declares `taskOutput: false`, so the UI does not offer this view for native terminals. |
+| `subagent.ts` | `GET /subagent?session=&tool=`: the conversation of the subagent started by an Agent call, through `AgentBackend.subagent(...)`. The Claude backend maps the tool-use id to the agent id from `agent-<id>.meta.json` (not an SDK API; read only in `agent/claude/subagents.ts`); Codex reads native child threads. |
+| `taskOutput.ts` | `GET /task-output?session=&task=`: the tail of a background shell or Monitor task's output (Claude: SDK `get_task_output`; Codex declares `taskOutput: false`). |
 | `session.ts` | `SessionManager`, a facade: `pump()`, the wiring of the parts, and the public methods (`send`, `switchTo`, `restart`, `setMode`, `shellRun`, …). |
 | `session/` | The manager's parts: `phase` (the phase `live / switching / closed`), `turns` (`TurnLedger`: accounting of sends), `permissions` (`PermissionBroker`), `title`, `agentSlot` (the agent and its generation `gen`), `identity` (id, root, model, fork), `mode`, `sendQueue`, `target` (check of a switch target), `archiveCut` (the cut at `compacted`), `history` (loading the feed), `idleWiring`, `images`, `options`, `types`, `commands` (`CommandKeeper`: the slash menu's list) and `shell` / `shellText` (`ShellRunner`: the `! cmd` runs, below). |
-| `agent/types.ts` | The interfaces `AgentBackend` / `AgentSession`, the seam for replacing the agent. The agent produces `AgentEvent`; `capabilities` declare what it can do (modes, commands, fork, idle-compact). |
-| `agent/claude/sdk.ts` | The Claude backend: `query()` with streaming input (`InputQueue`), `canUseTool` to `PermissionAsk`, the `claude_code` preset prompt plus `APPEND` (mermaid, file paths, comment batches), and `--chrome` so the session has the browser tools. |
-| `agent/claude/map.ts` | Translation of SDK frames into `AgentEvent`: the only place where SDK keys enter the stream. |
-| `agent/claude/commands.ts` | What the `/` menu offers: every command or skill that is not a CLI built-in, plus the built-ins in the allowlist `BUILTIN_OK` (each tried against a real CLI without a terminal), and never a command the CLI tags `terminal_slash_commands`. |
-| `agent/provider.ts` | Validates `claude` / `codex` and derives provider state directories. Claude is the default. |
-| `agent/codex/backend.ts` | Native session listing and cwd validation, account/login, history, subagent lookup, session ownership and a lazy metadata RPC connection. |
-| `agent/codex/rpc.ts` | Owned app-server process (a CLI older than `CODEX_MIN_VERSION`, read from `initialize.userAgent`, is refused before any native call; a `userAgent` it cannot parse passes), newline-delimited JSON-RPC, initialization, request correlation, timeouts/abort, native request withdrawal and process-group cleanup. |
-| `agent/codex/session.ts` | Native thread/turn lifecycle, send/steer/interrupt, clear/compact, skills/models, context/limits and task discovery/stop. |
-| `agent/codex/map.ts`, `history.ts` | One item/id mapping for live and paginated historic events; durable archive reconciliation at compaction. |
-| `agent/codex/controls.ts` | Capabilities, approval/sandbox profiles, native interaction answers and variable-duration usage windows. |
+| `agent/types.ts` | The interfaces `AgentBackend` / `AgentSession`, the seam for replacing the agent. The agent produces `AgentEvent`; `capabilities` declare what it can do. |
+| `agent/claude/` | The Claude backend: `sdk.ts` (`query()` with streaming input, `canUseTool` to `PermissionAsk`, the `claude_code` preset prompt plus `APPEND`, `--chrome` for the browser tools), `map.ts` (SDK frames to `AgentEvent`, the only place SDK keys enter the stream), `transcript.ts` (replay), `commands.ts` (the `/` menu: commands and skills, plus the built-ins in `BUILTIN_OK`, never one the CLI tags `terminal_slash_commands`). |
+| `agent/provider.ts`, `agent/bin.ts` | Validates `claude` / `codex` / `omp` and derives provider state folders (Claude is the default); the one way to spawn an agent CLI. |
+| `agent/codex/` | The Codex adapter over its owned `codex app-server` ([3.5](#35-codex-adapter-and-native-ownership)). A CLI older than `CODEX_MIN_VERSION` is refused before any native call. |
+| `agent/acp/` | The generic ACP adapter (`rpc.ts`, `map.ts`, `session.ts`, `backend.ts`); `omp.ts` is the omp profile. |
 | `agent/fake.ts` | A scriptable backend for e2e. |
-| `agent/claude/transcript.ts` | Transcript to `ServerEvent[]` for replay; images go to the `AttachmentStore`. |
-| `tmpImage.ts` | The route `GET /tmpimage?path=` on the key tier (never the cookie): an image the agent left in a system temp folder (`/tmp`, `/private/tmp`, `os.tmpdir()`). Images only (png, jpg, jpeg, gif, webp, avif, bmp, svg), by the extension of the path and of its realpath; the realpath must be inside a temp folder and outside the state folders; regular files only, up to 50 MB. Anything else is one 404 body, so the route is no oracle for existence. No listing, no search. The folders reach the page in `hello.tmpDirs`. |
-| `prompts.ts` | `PromptStore`: `prompts/<sessionId>.jsonl`, append-only `{v,id,ts,text,src}` lines (`typed`, `shell`, `voice`), a repeated id is ignored, a broken line is skipped and reported once. Prompts cannot be rebuilt from the transcript (comment batches and `! cmd` are rewritten there), so the web page POSTs each one when the server has taken it. The routes `GET /prompts?session=` (the current conversation's last 1000; 409 for another) and `POST /prompts` (`{session\|null, id, text, src}`; HTTP only, no protocol bump). A session without an id keeps them in memory and `adopt()` moves them under the real id; a `/clear` or a fork `carry()`s the previous file to the new id; a switch drops the unadopted ones (as with comments). |
-| `comments.ts` | `CommentStore`: `comments/<sessionId>.v2.json` `{v: 2, rev, items, removed}` (protocol 19; a legacy `<sessionId>.json` array is read as revision 0 and never rewritten, so a downgraded server still finds the set as it was). `rev` grows with every change; `removed` keeps the last 500 deleted ids, so no add brings one back. `apply()` takes a client's ops all or none, `merge()` an older client's whole set. A session without an id lives in memory and `adopt()` moves it under the real id. |
+| `tmpImage.ts` | `GET /tmpimage?path=`: an image the agent left in a system temp folder, key tier only ([Access token](agent-reference.md#access-token)). |
+| `prompts.ts` | `PromptStore`: `prompts/<sessionId>.jsonl`, the prompts sent (`typed`, `shell`, `voice`). They cannot be rebuilt from the transcript (batches and `! cmd` are rewritten there), so the page POSTs each one the server has taken. |
+| `comments.ts` | `CommentStore`: `comments/<sessionId>.v2.json` `{v: 2, rev, items, removed}`. `rev` grows with every change; `removed` keeps the last 500 deleted ids, so no add brings one back. `apply()` takes a client's ops all or none, `merge()` an older client's whole set. A session without an id lives in memory until `adopt()`. |
 | `attachments.ts` | Content-addressed images (`sha256.ext`) up to 3.75 MiB, and voice recordings (`sha256.wav`, protocol 14). `POST /attach`, `GET /attach/<id>`, restoring from the trash. |
-| `voice/` | Voice messages and clips (protocol 14; [design](superpowers/specs/2026-11-09-voice-messages-design.md)): `POST /voice` stores a 16 kHz mono WAV and answers `{id, ms, wave}`, `GET /voice/<id>` serves it with Range, `POST /voice/<id>/text?lang=` transcribes it in parts through the Whisper host's queue, shared by every window of the machine (§2). A `send` with `voice` is transcribed in the send queue before the agent gets the text; the stored `voice-text` event carries the result. |
+| `voice/`, `dictation/` | Voice messages: `POST /voice` stores a 16 kHz mono WAV, `GET /voice/<id>` serves it, `POST /voice/<id>/text` transcribes it through the Whisper host. A `send` with `voice` is transcribed in the send queue before the agent gets the text. `dictation/` holds the install, the host and its client. |
 | `marks.ts` | The only write into the project folder: `<root>/.nota-bene/marks/<commentId>/{frame.jpg,layer.png,mask.png}` (`mask.png`: a drawing with polygons), with a self-ignoring `.nota-bene/.gitignore`. Magic-byte check, symlinks refused. |
 | `fileRoutes.ts`, `files.ts`, `git.ts` | `/tree`, `/file` (Range, sandbox headers), `/complete`, `/sources`, `/git-status`. Sources: the current checkout, other worktrees (from disk) and branches (through git blobs). |
 | `vcs.ts` | The read-only git views: `/vcs-diff`, `/vcs-file`, `/vcs-branches`, `/vcs-log`, `/vcs-commit`, `/vcs-commit-file`. Every call runs with `--no-optional-locks`, so polling never takes `index.lock` from an agent. A failed git is a 503, never an empty answer. |
-| `system.ts` | Settings: about, prefs, storage (including `history/`) and cleaning into the trash (including stale archives), windows, the control token. |
+| `system.ts` | Settings: about, prefs, storage and cleaning into the trash, windows, the control token. |
+| `projects.ts`, `projectRoutes.ts`, `recent.ts`, `seen.ts` | The project switcher ([2.4](#24-projects-across-windows)). |
+| `update.ts`, `runtime.ts`, `updater.ts` | The in-app update ([agent reference](agent-reference.md#in-app-update)). |
+| `restartGate.ts`, `turnMarks.ts` | The deferred server restart and the cut-turn note. |
+| `osFiles.ts`, `fileEdit.ts`, `gitSwitch.ts` | Reveal and Open on the desktop, saving an edited file, switching the checkout's branch. |
+| `cut/` | The video editor's server side: export with ffmpeg, new edits, waveform peaks. |
+| `remote/` | The remote connector ([2.3](#23-remote-relay)). |
 | `sessions.ts` | The route `/sessions`, titles, and each Claude session's working folder from the head of its transcript. |
 | `range.ts`, `errors.ts`, `codeStamp.ts` | HTTP Range parsing; `reportError` / `guard` (a failure becomes a `server-error` event); "the server's own sources changed since start" for `/info`. |
-| `audit.ts` | `AuditLog`: the window's audit log of system events, `<NOTA_BENE_HOME>/audit/YYYY-MM-DD.jsonl` (dir 700, files 600), one `appendFileSync` per line so the windows sharing a day file never cut into each other's lines. It taps the hub (`EventHub.tap`: every emitted event, stored or not) and is told the owner's client messages, socket opens and closes, the start, stop and requested exit. `client()` and `server()` keep only names, ids, counts and numbers: never message text, comments, commands, tool input or output, or streamed text. `auditNote` is for code with no window at hand (the Claude mapping writes the system messages it does not show: API retries and errors, hooks). Off when prefs say `audit: false` (read at most every 5 s); day files older than 14 days are pruned at start; a day file over 50 MB takes no more lines (one `audit-capped`). A write that fails turns the log off for the run, never the window. `startServer` writes one only when given `audit` (`main.ts` does; tests opt in). |
+| `audit.ts` | `AuditLog`: `<NOTA_BENE_HOME>/audit/YYYY-MM-DD.jsonl`, one `appendFileSync` per line so windows sharing a day file never cut into each other's lines. It taps the hub and the owner's client messages, and keeps only names, ids, counts and numbers, never text. A failed write turns the log off for the run, never the window. |
 | `prefs.ts`, `state.ts`, `windows.ts` | JSON state files (written through tmp + rename). `state.ts` also owns the state folder (created 700) and refuses one owned by another user. |
-| `stats.ts`, `idle.ts` | Context, limits and cost through `AgentSession` (Claude SDK usage or Codex token/rate-limit data; Codex cost is unknown). Idle compaction: 50 min after a turn, 15 min with no activity, context of 200k tokens or more. |
+| `stats.ts`, `idle.ts` | Context, limits and cost through `AgentSession` (Codex cost is unknown). Idle compaction. |
 
-`usage/` is independent of the session: `parse.ts` turns transcript lines of Claude and Codex into normalized records, `importer.ts` reads new bytes incrementally under a lock, `store.ts` keeps `<NOTA_BENE_HOME>/usage/`, `report.ts` builds the `UsageReport`, `routes.ts` serves it. The only link to a live session is `onStats`, through which main.ts records Claude's limit readings, which no transcript keeps. See `docs/superpowers/specs/2026-11-01-usage-analytics-design.md`.
+`usage/` is independent of the session: `parse.ts` turns transcript lines of Claude and Codex into normalized records, `importer.ts` reads new bytes incrementally under a lock, `store.ts` keeps `<NOTA_BENE_HOME>/usage/`, `report.ts` builds the `UsageReport`, `routes.ts` serves it. The only link to a live session is `onStats`, through which main.ts records Claude's limit readings, which no transcript keeps.
 
 ### 3.2 How SessionManager works
 
@@ -205,8 +206,8 @@ The menu is a list of chats: the web folds the windows of one folder into one ro
 - **Cut at compaction (`archiveCut`).** After the `compacted` event, in the same synchronous step where the generation was checked, `hub.cut()` writes the conversation before the boundary to the archive. The replay keeps what follows it, plus sends not yet finished (including the `/compact` itself). A write error is reported and cuts nothing. A conversation with no id of its own (a new session before `init`, a fork before its new id, a session after `/clear`) has no cut, and **a fork never offers its parent's archive**: `SessionIdentity.ownId` is `null` for it, `earlier` in the replay is 0, and `/history` answers 409.
 - **`switchTo`**: check the target (`target`), then teardown (`gen++`, close the agent, wait for the loop to end for at most 5 s), then new state, then `load()` (`hub.reset` + transcript replay + `resumed`), then mode/idle/stats, then the `onSwitch` listeners, then `ensureAgent()`. A new session may only be opened in the current root or in a folder that already has sessions: a local client must not be able to re-root `/file` to `/` or `~`.
 - **`restart`** is `switchTo(sessionId, root, restart=true)`. It is an escape hatch: it is allowed while the agent is busy (the interrupt takes at most 2 s).
-- **Slash commands (`CommandKeeper`, protocol 10).** The list is asked from the agent once it is up, replaced whenever the agent pushes `commands_changed`, and sent to every new socket with the other state (never stored). A switch empties it first, since the next project has its own skills. The composer's `SlashPicker` shows it for a `/` at offset 0, up to the first whitespace. The output of local commands (`system/local_command_output`) is shown as a reply. A `/compact` or `/clear` typed in the composer is tracked like the buttons (the same `turns` marking); while the agent is busy the page refuses them, and `/clear` with pending comments.
-- **Shell commands (`ShellRunner`, protocol 11).** A draft of one line starting with `!` becomes the client message `shell-run {id, cmd}` (at most 32 000 bytes). The server runs `$SHELL -lc -- cmd` (sh, bash, zsh, dash or ksh; any other shell falls back to `/bin/sh`; on Windows the shell of the `shell` preference: Git Bash, PowerShell or cmd, killed as a tree) in the project folder, with stdin `/dev/null`, in its own process group, with the launcher's variables (and the ones Claude Code sets for its sessions) left out of the environment. It is independent of the agent: it works while the agent is busy, one run at a time. The run is a block in the feed: `shell-start` (stored), `shell-out` (live, not stored; the whole tail, at most ten times a second, ANSI stripped, the last 64 000 characters) and `shell-end` (stored, with the exit code). `shell-stop` sends TERM to the group and KILL 3 s later; a run that exceeds 10 minutes is stopped the same way; when the shell exits, the rest of its group is stopped too, and every live group is killed when the server exits. A finished run is queued for the agent: the next `send` goes through `takeFor()`, which puts the queued runs, in the form Claude Code writes `!` commands (`<bash-input>`, `<bash-stdout>`, `<bash-stderr>`), in front of the message. It causes no turn of its own. Up to 10 runs are kept, each stream is cut to 32 KB and the whole lead to 64 KB (newest kept, with a note on how many were left out). A message that is itself a `/command` takes none, and a switch or `/clear` stops the run quietly and drops the queue. A refusal (`shell-refused`, a run in progress or a switch) goes only to the asking socket, and the page puts the draft back.
+- **Slash commands (`CommandKeeper`).** The list is asked from the agent once it is up, replaced whenever the agent pushes `commands_changed`, sent to every new socket (never stored) and emptied by a switch. A `/compact` or `/clear` typed in the composer is tracked like the buttons.
+- **Shell commands (`ShellRunner`).** A one-line draft starting with `!` becomes `shell-run {id, cmd}`. The server runs it in the project folder in its own process group, independent of the agent, one at a time, as a feed block (`shell-start`, live `shell-out`, `shell-end`). Finished runs are queued and put in front of the next `send` by `takeFor()` in Claude Code's own form; they cause no turn. Rules: [agent reference](agent-reference.md#session-rules).
 
 ### 3.3 Protocol
 
@@ -221,29 +222,13 @@ Protocol rules:
 
 - `parseClientMessage` validates incoming messages strictly and **rebuilds them only from known fields** (`toComment`, `toAnchor`), so stray keys reach neither the store nor the broadcast.
 - **Transient events** are not kept in the history (`store:false`): `comments`, `stats`, `mode`, `idle-compact`, `commands` and `shell-out` (the output of a `! cmd` run; its `shell-start` and `shell-end` are stored). A connecting socket gets them as separate frames after the replay, and `hello{protocol}` comes last.
-- **Subagents (protocol 7).** A message anchor can name a subagent: `{kind:'message', id, agent?}`, where `agent` is the tool-use id of the Agent call (`isAnchor` / `toSource` let only that field through; the id is checked as a plain id). The client lets you select in a subagent's tab (and sends such comments) only to a server with protocol 7 or later, because an older server would silently lose the field and attribute the comment to the main chat. In the batch the source reads `subagent reply «description»` (no numbers, like a plain `reply`), and for an action `Bash command (npm test) · subagent «description»`; the quote stays the locator. A comment on a conversation that is not loaded shows as orphaned and is not lost; "jump to source" opens the tab and looks for the fragment.
-- **Versioning.** All windows serve one shared `web/dist`, so a reloaded page can be newer than its server. The client sends new message types only to a server that announced the needed `PROTOCOL` (now 24). Protocol 24: a `MediaShape` may be a `polygon` `{kind:'polygon', color, points}` (3 to `POLYGON_MAX_POINTS` x, y pairs, 0..1), the Mask tool's shape; a media comment with polygons also has `/marks/<id>/mask.png` (white inside the polygons by the nonzero rule, black outside, the frame's size; checked like `layer.png`). An older server would refuse the comment, so the page offers the Mask tool only from 24. Protocol 23: a comment anchor may be a `CutAnchor` `{kind:'cut', source, time, clip?: {id, track, trackName?, src, srcTime}}`, a clip or a moment of a video edit's timeline (`time` on the timeline, `srcTime` the moment in the clip's source); an `edit` op of a pending cut comment also replaces its anchor when the new one is a cut anchor on the same file (the editor keeps a comment on its clip as the clip moves). An older server would refuse the comment, so the editor offers Comment only from 23. Protocol 19: comment ops. A client sends `comment-op {opId, sessionId, ops}` instead of the whole set: `add` (a stored id changes nothing, so a resent op is safe; a deleted id is refused unless the add is a `restore`, the Undo of a deletion; `before` names the comment it goes before, else it is appended), `edit` (the comment as edited; the server takes its text, label, images, recordings and generated-image count) and `remove` (the id stays deleted). The ops apply to the session they name (null: the current one), all or none. The current session's change goes to every socket as `comments {items, rev, ack: [opId]}`; another session's (work queued across a switch) is answered `comment-ack {opId}` to the sender only; a refusal is `comment-refused {opId, reason, id?}` to the sender only: `gone` and `sent` drop the op, `failed` (the store could not write) keeps it to send again. A whole `comments` set from an older client is still merged, but it cannot bring back a deleted id, and a pending comment it leaves out counts as deleted. Only ops tell "deleted" from "not seen yet": a whole set from a client that missed a new comment deletes it (issue 259). The phone (`mobile/app/lib/comments/comments.dart`, `queue.dart`) queues its changes as ops the same way, folded over the server's set, and keeps the queue on disk (`filesDir/comment-ops.json`, by host and session), so a change made offline outlives the app; before its first `hello` it sends nothing, and to a window older than 19 it sends the set with the queue folded in, once. Protocol 18: spoken-language detection on the server: a voice `send` may carry `detect: true` (then `lang` is only the hint), `voice-text` and the stored voice index carry `lang` (the language used; `user.voiceLang` on a replay), and `hello.dictationLang` is the host's dictation language (`auto` or a code, absent until chosen). A client without `detect` gets a transcript in `lang`, exactly as before; an older server drops `detect` (the parser rebuilds the send from known fields) and transcribes in `lang`. Protocol 17: a comment anchor may be an `AttachmentAnchor` `{kind:'attachment', image, width, height, scale?, shapes}`, marks on an image attached to the unsent message (`image` is the composer's image id; the comment's marked composite is its `images[0]`, `genImages` 1), and `send-refused` may carry the reason `detached`. An attachment comment goes only in the message that carries its image: the server refuses a `send` whose pending attachment comment's image is not among `images` (nothing is marked sent), and the client leaves such a comment pending. An older server would refuse the whole `comments` message, so the client offers it only from 17. Protocol 16: a voice `send` may carry `commentIds`, their batch `text` and `images` (the phone sends a recording together with its pending comments; an older server refuses it, so the phone keeps them pending). Protocol 15: the project icon. Protocol 14: voice messages. Protocol 13: a comment anchor may be a `PageAnchor` `{kind:'page', source, selector, trail, box?, near?}`, a place on a rendered HTML page (an element, or an SVG area in viewBox units); an older server would refuse the comment, so the page offers Mark only from 13 (text comments on a page are plain text anchors). Protocol 12: provider mode descriptors, structured interaction answers and usage windows with native durations; capability flags control task background/output and suggestions. Protocol 11: the client messages `shell-run {id, cmd}` and `shell-stop {id}`, and the server events `shell-start`, `shell-out`, `shell-end` and `shell-refused`; before it the page keeps a `!` draft a plain message. Protocol 10: the server event `commands` (the slash menu). Protocol 9: the anchor of a media comment could carry `camera` (a comment on a view of a 3D model); the viewer was removed in issue 470: a stored `camera` is ignored and dropped when the comment is next written. Protocol 8: the client messages `task-stop {id}` and `task-background {toolUseId}` (a refusal or "nothing to move to the background" arrives as a `server-error` event with `where: 'task'`, that is a toast) and `/task-output`; without it the client shows no Stop / "To background" and does not open a shell task's tab (the buttons are absent, not disabled). Protocol 7: the subagent anchor and `/subagent`. Protocol 6: switching model and effort. Protocol 5: the `agent` stream instead of raw SDK frames, `replay.earlier`, one tab per window (`occupied`, `taken-over`, `takeover`, code 4001, `?tab=` and `?passive=1` in the socket URL), `hello.capabilities`. The reverse skew (page newer than server) is covered by the `default` branches of the reducers, which return the state for an unknown `kind` and `t` instead of failing. The order of a rollout is: restart the server first, then reload the page. `shared/schema/protocol.schema.json` and the Dart types in `mobile/protocol/` are generated from these types (`npm run gen:protocol`), and a protocol change adds a fixture for each new variant to `shared/fixtures/protocol.json`.
+- **Subagents.** A message anchor can name a subagent (`{kind:'message', id, agent?}`, `agent` the Agent call's tool-use id); such comments go to the main session.
+- **Versioning.** All windows serve one shared `web/dist`, so a reloaded page can be newer than its server. The server announces `PROTOCOL` in `hello` (`shared/src/protocol.ts`). The rule: a client sends a new message type or field only to a server that announced the protocol that added it, and otherwise hides the feature (absent, not disabled). The reverse skew (page newer than server) is covered by the reducers' `default` branches, which return the state for an unknown `kind` or `t`. Roll out by restarting the server first, then reloading the page. Each bump is commented at its type in `protocol.ts`; CHANGELOG has the user-visible side.
+- **Generated types.** `shared/schema/protocol.schema.json` and the Dart types in `mobile/protocol/` are generated from these types (`npm run gen:protocol`; CI fails on stale output). A protocol change adds a fixture for each new variant to `shared/fixtures/protocol.json`.
 
 ### 3.4 Stores (server)
 
-```
-~/.nota-bene/              (NOTA_BENE_HOME; dev: ~/.nota-bene-dev)
-├── token                  access token for the API and the socket (600)
-├── control-token          the cross-window token (600)
-├── open/                  short-lived pages the browser is opened on (600)
-├── sessions.json          last session per folder
-├── prefs.json             modes[root], models[root], idleCompact[root], defaultMode, lang
-├── comments/<sid>.v2.json a session's comments (pending + sent), revision, deleted ids; <sid>.json before protocol 19
-├── prompts/<sid>.jsonl    the prompts sent in a session (the web's ↑/↓ and Alt+H history)
-├── attachments/<sha>.<ext>, trash/attachments/<stamp>/
-├── history/<sid>.jsonl    archive of the conversation before each compaction, trash/history/<stamp>/
-├── update-check.json      newest version seen on npm (one ask a minute per machine)
-├── runtime/               in-app update: <x.y.z>/ packages, current, state.json, update.lock, update.log
-├── windows/<port>.json    window registry
-├── locks/<hash>           launch locks
-└── providers/codex/       Codex-owned copy of the state layout above (no recursive providers/)
-<project>/.nota-bene/marks/<commentId>/{frame.jpg,layer.png,mask.png}
-```
+The state folder's layout is the guide's [State on disk](guide.md#state-on-disk). The only write into a project is `<root>/.nota-bene/marks/<commentId>/` (`marks.ts`).
 
 The native provider owns the source conversation. For Claude this is its
 transcript under `~/.claude/projects/...`; the SDK replays only since the last
@@ -256,11 +241,10 @@ cut away. Both providers expose earlier segments through `replay.earlier` and
 `/history`; forked sessions never inherit a parent's archive.
 
 `NOTA_BENE_HOME` is the base directory, not always the effective state directory:
-Claude uses the base unchanged; Codex uses `<base>/providers/codex`. Tokens,
-control tokens, windows, locks, last sessions, preferences, comments, attachments
-and archives are isolated by provider. Project markup files remain under the
-project's `.nota-bene/marks/`. Codex configuration and authentication remain owned
-by the installed Codex runtime; NB does not read its credential files.
+Claude uses the base unchanged; Codex and omp use `<base>/providers/<provider>`. Tokens,
+windows, locks, sessions, preferences, comments, attachments and archives are isolated
+by provider. Each agent's configuration and authentication stay its own; NB does not
+read their credential files.
 
 ### 3.5 Codex adapter and native ownership
 
@@ -318,24 +302,26 @@ The directories of `web/src` are cut by feature, not by layer. Each holds its ow
 | `net/` | `socket.ts`: the WebSocket with automatic reconnection after 1 s; `open` means "connected" (the replay arrived), not the opening of the socket; after 4001 there is no reconnection, only `reconnect()` on a click. It does not enter Redux. `auth.ts`: the login (the page takes `#t=` out of the address bar, posts it to `/auth`, keeps the key) and `apiFetch`, which every request except `/file` and `/attach` goes through. |
 | `feed/` | Rendering of the feed: Markdown, ToolLine, PermissionCard, PlanCard, DoneLine, ShellBlock; `EarlierButton` "Show before compaction" and `history.ts` (`GET /history`). |
 | `diagram/` | The diagram tab (mermaid): rendering, zoom. |
-| `tasks/` | Tasks (M2, step 2). `slice.ts` (`tasks` is `reduceTasks` from `shared`: both running tasks and the last 20 finished ones, with `status` `running / done / failed / stopped`, `end`, `kind` `agent / shell / workflow / other`, `parent`, `group` (the model response that launched it: the Claude API message id of the call, kept by `mapFrames` for the turn; for Codex the first spawn of a run that ends with the response's token usage, a message, reasoning or a wait), `workflow` (a workflow's name), `inner` (a workflow's agent: the Claude CLI reports them only in the workflow's `task_progress.workflow_progress`, and `mapFrames` turns them into tasks under it, with no Stop of their own and not counted; finished ones are the first to go past the cap); `tasksUi.open` says whether the drawer is open; the selectors `selectRunningCount`, which counts the indicator, the pulse and the favicon, and `selectTaskRows`, rows nested by `parent_task_id`; two or more agents of one `group` under the same parent get an umbrella row with the aggregate status, tokens and span and Stop all). A subagent row names its model (`Task.model`, shown by `shortModel`: `claude-sonnet-5-5` is "Sonnet 5.5", an alias "Sonnet", an unknown id as given): the Claude `mapFrames` adds the Agent call's `model` input to `started`, then the transcript's own model (`subagentModel`, the first assistant message of `agent-<id>.jsonl`) to the first `progress` after it is written, and reads no more once found; Codex and omp send none. The phone does not list tasks. `TasksDrawer.tsx` (the bottom drawer: an `absolute` overlay over the column of panels, it does not resize the feed; closed by Esc (capture phase + `preventDefault`, so the document hotkeys do not act on it), by a click outside, by the indicator and by Alt+T). `TaskButtons.tsx` (Stop with the confirmation "Stop?" for 3 s; "To background" only for a running task that blocks its call: the CLI says so itself (`is_backgrounded` from `task_started` and `task_updated.patch`, giving `bg`), and if it did not, a call with no result and (for a main-thread task) a turn in progress; after the click "Stopping…" until the server answers or refuses). `CardMenu.tsx` (the "⋯" menu on a subagent card). `ShellView.tsx` (the `shell:<taskId>` tab: `/task-output` once a second while the tab is visible and the task runs, one more read after it ends; `ansi.ts` strips escape sequences without interpreting them; it sticks to the bottom only if it was already there). `time.ts`. Watchers (`ambient`, shell / Monitor) are shown in the drawer but are not counted in the indicator, the pulse and the favicon; a child that still runs stays among the running rows together with its finished parent. The indicator under the composer is `shell/TasksIndicator.tsx`: `⚙ N tasks` (pulsing), quietly `✓ N` when only finished ones remain, hidden with no tasks. `shell` tabs are stored per root, like `agent` tabs. |
-| `subagent/` | The `agent:<toolUseId>` tab (M2, step 1): a subagent's conversation, read-only. `slice.ts` (`subagents.byTool`: the loaded feed through the same `reduce()` from `emptyFeed`, kept apart from `feed`; `fetchSubagent`), `AgentView.tsx` (the pane: `data-chat-pane` + `data-agent`, the same `Feed`, no composer; polled every 1.5 s while the agent works and the tab is visible). An Agent / Task call in the main feed is a card (type, description, status, "open"); it does not merge consecutive actions. |
+| `tasks/` | Tasks: `slice.ts` (`reduceTasks` from `shared`: running tasks and the last 20 finished, nested by `parent`; agents launched by one model response share a `group` and get an umbrella row; a workflow's agents are `inner` tasks under it), `TasksDrawer.tsx` (the bottom drawer, an overlay that does not resize the feed), `TaskButtons.tsx` (Stop, To background), `ShellView.tsx` (the `shell:<taskId>` tab over `/task-output`). Watchers (`ambient`) show in the drawer but are not counted by the indicator (`shell/TasksIndicator.tsx`), the pulse or the favicon. |
+| `subagent/` | The `agent:<toolUseId>` tab: a subagent's conversation, read-only, through the same `reduce()` kept apart from `feed`; polled while the agent works and the tab is visible. |
 | `composer/` | The input field, `@` mentions (`/complete`), the `/` menu (`SlashPicker`, `slashRank.ts`), the `!` shell mode (`shellMode.ts`), rollback of a refused send (`refused.ts`), the prompt history (`history.ts`: the `promptHistory` slice and the middleware that records a prompt on the server's echo, `PromptHistory.tsx`: the Alt+H list; ↑/↓ recall lives in `Composer.tsx`). |
 | `comments/` | Selection to popup to card, the panel, `HighlightLayer`, batch assembly (`compose.ts`, `send.ts`), labels, emoji. |
 | `anchors/` | Anchors as text offsets plus `quote/prefix/suffix` of 32 characters each, and re-anchoring when the text changes (`resolve.ts`). |
-| `page/` | Rendered HTML pages (`files/view/HtmlBody.tsx`). `prep.ts` strips what could run and points relative resources at `/file`; the page goes into an `<iframe sandbox="allow-same-origin" srcdoc>` (no scripts, readable from this window) as tall as the page, so the pane scrolls it. `frame.ts` carries the comment machinery across the frame: the page's body is the text root (`textRootOf`), its selection and rects are read and shifted into this window's coordinates, and HtmlBody forwards mouse and key events onto the frame element so the selection bar, cards and hotkeys hear them. `anchor.ts`: `PageAnchor` from an element or an SVG area, and `resolvePage` (the path if the element there still reads the same, else the one element that does). |
-| `files/`, `tree/`, `tabs/` | The tree, file viewing, icons, recent files (Alt+E), sources (branches and worktrees), tabs and the ▾ menu. Subfolders: `files/tree` (`TreeRow`, `useTreeEntries`), `files/view` (`TextBody`, `MediaBody`, `ModelPane` / `ModelBody`, `useFileLoad`), `comments/card` (`CardActions`, `useCommentSource`). |
-| `cut/` | The video editor (epic 406). An edit is a `*.nbcut.json` file; its types, `validateCut` and the sums (`clipLength`, `cutDuration`, `isPhotoSrc`) are in `shared/src/cut.ts` and `cutCheck.ts`. `FileView` shows the file through `CutBody` (Timeline / Source in its header): `layout.ts` takes from the parsed JSON, valid or not, the lanes (video tracks from the top of the picture down, then audio) and the clips it can place; `Timeline.tsx` draws them read-only with a ruler, zoom and a playhead; `useMissing.ts` HEADs each source (after each turn too) and a 404 joins the listed problems. `cut/export/` is the export's (#411). |
+| `page/` | Rendered HTML pages (`files/view/HtmlBody.tsx`). `prep.ts` strips what could run and points relative resources at `/file`; the page goes into an `<iframe sandbox="allow-same-origin" srcdoc>` (no scripts) as tall as the page. `frame.ts` carries the comment machinery across the frame (selection, rects, mouse and key events). `anchor.ts`: `PageAnchor` from an element or an SVG area, and `resolvePage`. |
+| `files/`, `tree/`, `tabs/` | The tree, file viewing and editing, icons, recent files, sources (branches and worktrees), tabs and the ▾ menu. Subfolders: `files/tree`, `files/view` (`TextBody`, `MediaBody`, `HtmlBody`, `FileEditor`, `useFileLoad`). |
+| `cut/` | The video editor. An edit is a `*.nbcut.json` file; its types and `validateCut` are in `shared/src/cut.ts` and `cutCheck.ts`. `FileView` shows it through `CutBody` (Timeline / Source); `layout.ts` places what it can of the parsed JSON, valid or not; `cut/export/` is the export. |
 | `media/` | `MediaController` (pause and PiP between tabs), the player and its keys, and `markup/` (geometry in 0..1, rendering to `frame.jpg` + `layer.png`, and `mask.png` for polygons). |
 | `controls/` | Mode, session switcher, compact/clear, restart, idle compaction, model and effort. |
 | `settings/`, `shell/`, `stats/` | The Settings tab; header, footer, strips, keymap, toasts, favicon, `OneTab` (the overlay "the window is already open" / "open in another tab"), `LoginRequired` (the overlay "This window is not logged in"); meters. |
 | `refs/` | Recognising paths in text and jumping to the file (`src/a.ts:42`). |
 | `components/ui/` | Wrappers over Radix (shadcn style). |
-| `i18n/` | `ru` / `en`, no library. The choice is saved on the server (`prefs.json`) so all windows share it. |
+| `i18n/` | Six languages (`LANGS` in `index.ts`), no library. The choice is saved on the server (`prefs.json`) so all windows share it. |
+| `projects/`, `remote/`, `vcs/`, `voice/`, `attachments/`, `usage/` | The project rail and switcher; the Remote tab; Changes and the Git log; recording and playing voice; composer attachments; the Usage tab. |
+| `lib/`, `theme/` | Small shared helpers (paths, formatting); theme tests. |
 
 ### 4.2 Store
 
-13 slices: `feed`, `conn`, `comments`, `composer`, `tabs`, `tree`, `files`, `controls`, `stats`, `tasks`, `tasksUi`, `markup`, `feedUi` (and `subagents`).
+16 slices: `feed`, `conn`, `comments`, `composer`, `tabs`, `tree`, `files`, `controls`, `stats`, `remote`, `tasks`, `tasksUi`, `markup`, `feedUi`, `subagents`, `promptHistory`.
 
 ```mermaid
 flowchart TB
@@ -369,7 +355,7 @@ App
 ```
 
 - **Large components are split into compositions:** `FileTree` = `TreeHeader` + `TreeRow` + the hooks `useTreeEntries` / `useExpandAll`; `FileView` = `TextBody` / `MediaBody` + `useFileLoad` / `useMediaMarkup`; `CommentCard` = `CardActions` + `useCommentSource`.
-- **Panels are docked** (R-M6-3): an open panel narrows the middle column instead of covering it.
+- **Panels are docked**: an open panel narrows the middle column instead of covering it.
 - **All tab panes stay mounted**; inactive ones are just `hidden`. Anchors, `HighlightLayer` and autoscroll depend on the stable DOM of the chat.
 - **Highlights** are drawn as `Range.getClientRects()` rectangles in a layer over the content; the text DOM is not touched.
 - **Hotkeys** are one module, `shell/keymap.ts`: one document listener, matching by `code`, Alt by default, aware of modal dialogs and text fields.
@@ -379,17 +365,17 @@ App
 | Client | Server | Purpose |
 |---|---|---|
 | `store.ts` → `net/socket.ts` | `/ws?tab=<id>` (`&passive=1` for a busy or taken-over tab) | All live session state. |
-| `tasks/ShellView.tsx` | `GET /task-output?session&task` | A shell task's output; 404 / 409 mean "the server no longer knows this task", a failed read shows a line and keeps the previous output, retry after 3 s. |
-| `subagent/slice.ts` (`fetchSubagent`), `subagent/AgentView.tsx` | `GET /subagent?session&tool` | A subagent's conversation; 404 / 409 mean "this subagent is not in the current session", other errors show a line in the pane. Comments on it go to the main session. |
-| `feed/history.ts`, `feed/EarlierButton.tsx` | `GET /history?session&before` | An archived segment before a compaction; 409 for a session that is not the current one, 404 if there is no segment. |
-| `comments/slice.ts` (`flushComments`, add/edit/remove) | WS `comment-op`, `comments`, `comment-ack`, `comment-refused`; the full `comments` set to a server older than 19 | Comment sync. From protocol 19 a change is queued as an op and shown at once (the server's set with the queue folded on top); every queued op is sent, in order, as soon as the socket is open, again after a reconnect, and leaves the queue on its ack. `gone` / `sent` refusals drop it with a toast; `failed` keeps it for the next open (sent again at once, it would loop). A server older than 19 gets the whole set and does a `merge`, protecting `sent`. Only the owner tab writes. |
+| `tasks/ShellView.tsx` | `GET /task-output?session&task` | A shell task's output. |
+| `subagent/slice.ts` (`fetchSubagent`), `subagent/AgentView.tsx` | `GET /subagent?session&tool` | A subagent's conversation; comments on it go to the main session. |
+| `feed/history.ts`, `feed/EarlierButton.tsx` | `GET /history?session&before` | An archived segment before a compaction. |
+| `comments/slice.ts` (`flushComments`, add/edit/remove) | WS `comment-op`, `comments`, `comment-ack`, `comment-refused` | Comment sync by ops: a change is queued and shown at once (the server's set with the queue folded on top), sent in order once the socket is open and again after a reconnect, and leaves the queue on its ack. `gone` / `sent` refusals drop it with a toast; `failed` keeps it for the next open. Only the owner tab writes. The phone queues ops the same way and keeps the queue on disk. |
 | `comments/send.ts` → `sendMessage` | WS `send{commentIds, images}` | The batch: the draft plus all pending comments as one message. |
 | `composer/shellMode.ts` | WS `shell-run{id, cmd}`, `shell-stop{id}` | A `! cmd` run; the block in the feed is driven by `shell-start` / `shell-out` / `shell-end`. |
 | `attachments/image.ts` | `POST /attach`, `GET /attach/<id>` | Image upload; only ids travel over the socket. |
-| `voice/` | `POST /voice`, `GET /voice/<id>`, `POST /voice/<id>/text` | The recorder (`recorder.ts`: microphone to 16 kHz mono 16-bit WAV, a 10-minute cap), the upload, the player (one `<audio>` at a time), the bubble, the composer's record bar and the comment clips. A server below protocol 14 or without Whisper gets no recording. |
+| `voice/` | `POST /voice`, `GET /voice/<id>`, `POST /voice/<id>/text` | The recorder (16 kHz mono WAV, 10-minute cap), upload, player, the composer's record bar and comment clips. No recording without Whisper. |
 | `media/markup/createMediaComment.ts` | `POST/DELETE /marks/<id>/<name>` | The frame and layer of media markup. |
 | `files/FileTree.tsx` | `/tree?path&src` | Lazy loading of the tree, up to 8 requests in parallel. |
-| `files/view/useTmpImage.ts` | `GET /tmpimage?path` | A temp image through `apiFetch` into a blob URL, revoked when the tab closes; a missing file shows "no longer exists". |
+| `files/view/useTmpImage.ts` | `GET /tmpimage?path` | A temp image through `apiFetch` into a blob URL. |
 | `files/FileView.tsx` | `/file` (HEAD, Range probe, GET) | Viewing; the ETag serves as the version for media anchors. |
 | `composer/MentionPicker.tsx`, `files/RecentFiles.tsx` | `/complete?q` | The CLI's search (`file_suggestions`) and our own file index in parallel; the results are merged. |
 | `files/sources.ts`, `shell/GitBranch.tsx` | `/sources`, `/git-status`, `/vcs-branches` | Branches and worktrees, the branch picker. |
@@ -399,7 +385,7 @@ App
 | `shell/RestartMenu.tsx`, `controls/slice.ts` | `/info`, `POST /restart-server` | The "Restart the server" item (only under the launcher). |
 | `settings/SettingsView.tsx` | `/system/*` | Windows, storage, defaults, about. |
 | `usage/UsageView.tsx` | `/usage`, `/usage/reset` | The token report; polls while the first import runs. |
-| `net/auth.ts` | `POST /auth`, then the key header on every `apiFetch` | Login (section 6). |
+| `net/auth.ts` | `POST /auth`, then the key header on every `apiFetch` | Login ([Access token](agent-reference.md#access-token)). |
 
 ## 5. End-to-end scenarios
 
@@ -445,7 +431,7 @@ sequenceDiagram
 
 1. A second tab connects while an owner exists: after 700 ms it gets `occupied` and shows the overlay "The window is already open in another tab".
 2. "Work here" sends `takeover`. The server sends the old owner `taken-over`, detaches it and closes it with code 4001; the new tab attaches as in a normal connection and gets the `replay`.
-3. The old tab shows "Open in another tab" with the same "Work here" button and does not reconnect by itself; with a server older than 19 its unsynced comment edits are discarded, from 19 its queued ops wait and go if it takes the window back.
+3. The old tab shows "Open in another tab" with the same "Work here" button and does not reconnect by itself; its queued comment ops wait and go if it takes the window back.
 
 **Reload of the owner within the grace period:**
 
@@ -454,35 +440,22 @@ sequenceDiagram
 3. The same `tab` as the owner's means the same page reconnecting after a drop (the old socket is a zombie): it is closed at once, without waiting.
 4. After a server restart both tabs reconnect passively (`&passive=1`): a passive socket cannot claim an empty window first. It gets `occupied` and carries on only on a click of "Work here".
 
-**A `! cmd` run:**
-
-1. The composer sees a one-line draft that starts with `!` (and a server at protocol 11 or later) and the Enter key runs `runShellDraft`: it refuses with pending comments or images, a bare `!`, a command over 32 000 bytes, or a run already in progress, otherwise it sends `shell-run`.
-2. The server answers `shell-start`, streams `shell-out` and ends with `shell-end` (all three are drawn as one block in the feed). The agent hears nothing yet.
-3. The next `send` goes through `takeFor()`: the finished runs are put in front of the message. If handing the message to the agent fails, `restore()` puts them back in the queue.
-
 ## 6. Security (the local threat model)
 
-- **Network.** The server listens only on `127.0.0.1`, and only `Host` values of the form `127.0.0.1:port` or `localhost:port` are accepted (protection against DNS rebinding).
-- **Methods other than GET/HEAD** need an `Origin` from the allowlist (CSRF from other pages), even with a Bearer. A WebSocket with no Origin is accepted only with valid credentials.
-- **The local access token** (`server/src/auth.ts`). The secret `<stateDir>/token` (32 random bytes as hex, mode 600, in a folder of mode 700, created with an exclusive link so two first launches agree) protects every route and `/ws`. Public are only `/`, the static assets, `POST /auth` (own Origin only) and `GET /hello`. It follows the ssh rule: only a missing file makes a token; a loose mode, a foreign owner, a symlink, a FIFO or garbage content make the server and every helper stop with a message that names the file and the fix, and nothing is rotated silently. The token is never put in argv, in the environment of the agent or of `!` commands, or in a log. A server started by the launcher refuses to start on a refused secret, and the launcher reports it once instead of crash-looping.
-- **Derived credentials.** Everything a client holds is an HMAC of the token with a label, the port and the launch nonce (the launcher makes the nonce and passes it to every server it starts; a restart keeps it, a crash relaunch replaces it). A value captured in one launch is dead in the next, and one captured for a port is dead on any other.
-  - **login**: carried by the URL fragment `#t=<login>`; it lasts until the launcher exits and the raw token is refused at `/auth`.
-  - **cookie** `nb_<port>`: HttpOnly, SameSite=Strict, one year. By itself it opens only `GET` / `HEAD` of `/file`, `/attach/<id>` and `/voice/<id>`, which is what `<img>`, `<video>` and `<audio>` load without being able to add a header.
-  - **key**: what the page keeps in localStorage. With the cookie it opens every other route and `/ws` (header `x-nota-bene-key`, or the `nb.<key>` WebSocket subprotocol, never the URL). A route added later is in the key tier by default.
-  - **helper bearer**: `Authorization: Bearer ...` for the launcher's helpers, both tiers.
-  - **proof**: what `GET /hello?c=<challenge>` answers. A helper first asks for the proof and sends no derived value to a port until its listener has shown that it holds the token.
-- **How a browser logs in.** The launcher opens the browser on a page in `<stateDir>/open/` (mode 600) that redirects to `http://127.0.0.1:PORT/#t=<login>`, so the login is not in `ps`. The page takes the fragment out of the address bar, posts `{login}` to `/auth` and receives the cookie and the key. `nota-bene --url PORT` prints the login URL for a second browser, and `--front PORT` brings the window to the front, logged in. A page without a login (a bookmark, a copied address, a tab of an earlier launch) shows the overlay "This window is not logged in" and stops reconnecting.
-- **The state folder is never served.** `/file`, `/tree`, `/complete` and every `src=` source refuse, list and search nothing whose real path is the state folder or inside it (`stateGuard.ts`), so a root that contains it (a session in `$HOME`) does not hand the token to a cookie.
-- **Trust limit and residual risk.** The token file is readable by the same OS user, including the user's own agent. The aim is to keep out other users and other local software that cannot read the file, not the user's own tools. Browsers send cookies to every port on 127.0.0.1, so while a window is live, a local web server that the user visits sees its `nb_<port>` cookie; with it, that server can read project files through `/file` and pasted images through `/attach/<id>`, and nothing else. It cannot open the socket or write, because the key lives in localStorage, which no other origin reads, and the cookie is dead after the next launch. A token that was ever committed to git stays readable in the history after the file is removed, so the state folder is not a place for a repository. Rotating everything means deleting `<stateDir>/token` and restarting the server; a window that was live under the old token can no longer be proved by the helpers and has to be reopened.
-- **`/tmpimage`.** It widens what the server reads beyond the project, so it stays on the key tier and is limited as described in section 3.1. A stray cookie cannot reach it.
-- **`/file` safety.** It serves `.html` and the other text kinds as `text/plain` and everything under a CSP `sandbox`.
-- **Tool permissions.** Claude's simple permission answer is `allow: boolean`. Protocol 12 also carries validated structured interaction answers for Codex approvals, questions and MCP forms. Native decision objects and requested permissions remain server-side; the browser selects an advertised choice rather than supplying replacement native policy or tool input.
-- **`! cmd`.** The server runs it with the privileges of the user, in the project folder, without a terminal. It is accepted only from the owner socket, one at a time, and it is not given the token or the launcher's variables.
-- **Paths.**
-  - `resolveInRoot` is the project sandbox;
-  - `/file` is served with sandbox headers;
-  - in `marks` only a UUID becomes a path, the file names are fixed, and symlinks are rejected.
-- **Control between windows.** The control token and a ban on Origin. Before any action the registry entry of the target is checked to be the same window (`root`, `pid`, `startedAt`), otherwise 409; the own window is not controlled this way.
+The model and its rules are in the agent reference, [Access token](agent-reference.md#access-token): a local token,
+values derived per launch and port, a cookie tier that opens only media loads, a key tier for everything else, helpers
+that prove a listener before they send, and a state folder that is never served. What else holds:
+
+- **Network.** The server listens only on `127.0.0.1` and accepts only `Host` values `127.0.0.1:port` or
+  `localhost:port` (against DNS rebinding). Methods other than GET/HEAD need an allowlisted `Origin`, even with a Bearer.
+- **Tool permissions.** The browser picks one of the choices the server advertised; native decision objects and
+  requested permissions stay on the server.
+- **`! cmd`** runs with the user's privileges in the project folder, from the owner socket only, without the token or the
+  launcher's variables.
+- **Paths.** `resolveInRoot` is the project sandbox; in `marks` only a UUID becomes a path, the file names are fixed and
+  symlinks are refused.
+- **Control between windows.** The control token and a ban on Origin; before any action the target's registry entry is
+  checked to be the same window (`root`, `pid`, `startedAt`), otherwise 409.
 
 ## 7. Testing
 
@@ -491,40 +464,18 @@ sequenceDiagram
 - **Codex integration.** RPC fixtures exercise transport, mapping, history, cancellation, policy and child cleanup. `npm run e2e:codex` runs the native-adapter browser fixture separately; `native.test.ts` drives the installed app-server against a local Responses mock without paid model calls. Marketplace smoke tests use isolated `CODEX_HOME`, NB state and a temporary project; npm runtime checks use the published package. Serialize browser suites that share ports.
 - **The `AgentBackend` seam** is the main reason almost everything can be tested without a real CLI.
 
-## 8. Critical assessment
+## 8. Design trade-offs
 
-Strengths:
-
-- a narrow shared contract in `shared/`;
-- strict validation at the boundary;
-- generations (`gen`) against races;
-- a single entry of server data into the store;
-- no extra dependencies on the server;
-- good testability through the backend seam.
-
-Weak points (assessed before M7; what was done is marked):
-
-1. **The web depended on the shape of SDK messages. Done (M7).** The server emits its own `AgentEvent` stream (the provider mappers are the bridges), `web/src/store/feed.ts` parses it instead of raw `SDKMessage`s, and the agent's abilities are declared by `capabilities`. Codex now uses its native app-server adapter alongside Claude; ACP is still future work. What remains: `agent/claude/sdk.ts` uses non-public APIs (`q.request({subtype:'file_suggestions'})`, `usage_EXPERIMENTAL_...`), so the SDK is updated by hand and with a run of `server/test/fixtures/real-frames.json`.
-2. **`SessionManager` was an implicit state machine. Done (M7).** A facade and the parts in `session/`: `Phase`, `TurnLedger`, `AgentSlot`, `SendQueue`, `PermissionBroker`; strict transitions where the server takes the step.
-3. **The persistence subscriber in `store.ts` was re-entrant. Done (M7).** Moved to listener middleware (`store/persist.ts`).
-4. **Comments sync as a full set. Done for the web (protocol 19).**
-   - **Problem.** Every change sent the whole array. The server protects only `sent`; for `pending` it was last writer wins, so a client with a stale set deleted a comment it had never seen (issue 259).
-   - **What changed.** Protocol 19: `add / edit / remove` ops with ids, acks and deleted ids on the server; the web sends ops. The phone still sends whole sets until it moves to ops too.
-5. **The `EventHub` history grew without bound. Done (M7).** The replay starts at the last compaction; the rest is in `history/<sid>.jsonl` and is loaded on request ("Show before compaction"). What remains is growth within one period between compactions, which is not noticeable.
-6. **Large components. Done (M7).** `FileView`, `CommentCard` and `FileTree` were split into compositions (`files/view`, `comments/card`, `files/tree`): loading hooks apart from rendering.
-7. **A shared `web/dist` for all windows** causes version skew between page and server, hence the `PROTOCOL` mechanism. This is a deliberate compromise (one build, instant update by reload). The price is that every new protocol message needs a version check on the client. In the reverse skew (a new page, an old server) unknown `kind` and `t` must not crash the reducers (`default` returns the state), and at a rollout the server is restarted first and the page reloaded second.
-
-## 9. Historical decisions after the review (2026-10-27)
-
-The implementation status is recorded in section 8; the list below preserves the
-original rationale, not a pending work plan.
-
-Order of work: P.3 and P.6 (web only), then P.2, then P.5 on top of the new state machine, then P.4.
-
-- **P.2 SessionManager.** Rebuild it into an explicit state machine now, as a separate task rather than together with M2. Characterisation tests of the current behaviour first.
-- **P.3 Persistence subscriber.** Move it to `createListenerMiddleware`: one listener per key, `enterRoot` as a reaction to `serverEvent(session)`.
-- **P.4 Comments.** Instead of operation-based sync, limit work to one tab per window, decided by the server (it sees all sockets). A new tab shows "The window is already open in another tab" with a "Work here" button; after a takeover the old one goes dark ("Open in another tab", with a button to take it back). A hard ban was rejected: a forgotten tab would block work, and a race on reload would give a false "already open".
-- **P.5 EventHub history.** Cut the replay right after a compaction, without waiting for a slowdown. The feed shows the conversation since the last compaction; the "Show before compaction" button loads the older part over HTTP, so history and the highlights of old comments are not lost silently.
-- **P.6 Large components.** Split into compositions right away: data loading hooks apart from rendering.
-- **§8.1 SDK and protocol (the user's decision, 2026-10-27).** Separate the agent SDK from the client-server protocol: an own `AgentEvent` stream modelled on ACP, the SDK only inside the Claude adapter, and the agent's abilities declared explicitly. Plan: M7, package E, before the state machine.
-- **State machine: where the strictness is.** The window phase (`live / switching / closed`) is strict. `idle / turn / asking` are derived from the accounting of sends and permissions, because turns overlap; the strict transitions belong to each send (`queued → running → answered | cancelled | failed`) and each permission request.
+- **The shared contract.** `shared/` is narrow, the boundary validates strictly, the server has no extra dependencies,
+  and the `AgentBackend` seam lets almost everything be tested without a real CLI.
+- **Generations (`gen`)** guard against races between sessions; the window phase is strict, while `idle / turn / asking`
+  are derived from sends and permissions because turns overlap.
+- **One tab per window, not a hard lock.** A forgotten tab must not block work, and a reload race must not show a false
+  "already open"; so a second tab can take over. Comment ops (protocol 19) remove the last-writer-wins loss of the
+  older whole-set sync (issue 259).
+- **History is cut at each compaction.** The feed shows the conversation since the last compaction; "Show before
+  compaction" loads the rest over HTTP, so nothing is lost silently.
+- **One `web/dist` for all windows** gives one build and an update by reload, at the price of version skew between page
+  and server: every new protocol message needs a version check on the client ([3.3](#33-protocol)).
+- **The Claude SDK** is used through some non-public APIs (`q.request({subtype:'file_suggestions'})`,
+  `usage_EXPERIMENTAL_...`), so it is updated by hand, with a run of `server/test/fixtures/real-frames.json`.

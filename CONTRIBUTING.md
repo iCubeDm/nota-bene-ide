@@ -27,8 +27,8 @@ Run `npm run e2e` when you change behaviour in the browser. The media fixtures n
 2. Branch from `main`. Each commit subject reads `gh-<issue>: <message>`, for example
    `gh-42: keep the scroll position after a reload`.
 3. Open a pull request with the same kind of title and `Closes #<issue>` in its body.
-4. CI runs the tests on Linux and macOS and checks the titles. All of it has to pass, and
-   the branch has to be up to date with `main`.
+4. CI runs the tests on Linux (Ubuntu) and checks the titles. All of it has to pass, and
+   the branch has to be up to date with `main`. Windows and macOS are checked by hand.
 5. A maintainer squash merges it. The pull request title becomes the commit on `main`.
 
 ## Keep in mind

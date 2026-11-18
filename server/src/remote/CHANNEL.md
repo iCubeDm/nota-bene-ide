@@ -147,10 +147,21 @@ The `OPEN` body names what the stream is:
   `{"status":n,"headers":{…}}`, the response body as `DATA`, and `END`.
   Request headers passed on: `accept`, `content-type`, `range`, `if-none-match`,
   `if-range`, `if-modified-since`; others are dropped (the host adds the
-  window's credentials). `set-cookie` never comes back. Refused with `CLOSE`
-  4900: a path that does not start with `/`, starts with `//`, holds
-  anything but printable ASCII (percent-encode the rest, as in a URL), `\` or
-  `#`, or is under `/control/`. The same path rule applies to `ws`. A request body may hold at most
-  32 MiB (4913 beyond).
+  window's credentials). `set-cookie` never comes back. A request body may
+  hold at most 32 MiB (4913 beyond).
+
+Path rule, for `http` and `ws` alike (`device.ts` `goodPath`). Refused with
+`CLOSE` 4900: a path longer than 8192 bytes, one that does not start with `/`
+or starts with `//`, one that holds anything but printable ASCII
+(percent-encode the rest, as in a URL), `\` or `#`, and any path under these
+prefixes (case-insensitive):
+
+- `/control`: the connector's own control routes.
+- `/remote`: pairing, revoking and switching access stay on the computer.
+- `/system/projects`, `/system/folders`, `/system/agents`: the project
+  switcher starts windows, creates folders and hands out other windows' logins.
+- `/os`: Show in Finder and Open act on this computer's desktop.
+
+A `ws` path must also be `/ws` (with an optional query).
 
 An unknown `port` closes the stream with 4904.
