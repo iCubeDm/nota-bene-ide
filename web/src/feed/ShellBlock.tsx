@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { SHELL_OUTPUT_CAP } from '@nota-bene/shared';
 import { useT } from '@/i18n/index.ts';
 import { num } from '@/lib/format.ts';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button.tsx';
 import { shellError } from '@/settings/shells.ts';
 
 /** A `! cmd` run (protocol 11): the command, its merged output, and how it ended; Stop while it runs. */
-export function ShellBlock({ item }: { item: Extract<FeedItem, { kind: 'shell' }> }) {
+export const ShellBlock = memo(function ShellBlock({ item }: { item: Extract<FeedItem, { kind: 'shell' }> }) {
   const t = useT();
   const dispatch = useAppDispatch();
   const [stopping, setStopping] = useState(false);
@@ -62,4 +62,4 @@ export function ShellBlock({ item }: { item: Extract<FeedItem, { kind: 'shell' }
       )}
     </div>
   );
-}
+});

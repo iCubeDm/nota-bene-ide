@@ -24,6 +24,7 @@ import { HIDDEN, renameRetry } from './platform.ts';
 import { stateDir } from './state.ts';
 import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from './update.ts';
 import type { Updater } from './updater.ts';
+import { readVersion } from './version.ts';
 import { wirePath } from './wirePath.ts';
 import { pidAlive, readWindows } from './windows.ts';
 
@@ -239,14 +240,7 @@ export async function listWindows(own: number, probe = probeWindow): Promise<Win
  * describe whatever repository the install happens to sit in.
  */
 export function describeVersion(dir: string): Promise<string> {
-  if (!fs.existsSync(path.join(dir, '.git'))) {
-    try {
-      const v = (JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as { version?: unknown }).version;
-      return Promise.resolve(typeof v === 'string' && v ? v : 'unknown');
-    } catch {
-      return Promise.resolve('unknown');
-    }
-  }
+  if (!fs.existsSync(path.join(dir, '.git'))) return Promise.resolve(readVersion(dir) ?? 'unknown');
   return new Promise((resolve) => {
     execFile('git', ['describe', '--tags', '--always', '--dirty'], { cwd: dir, timeout: 3000, ...HIDDEN }, (e, out) => resolve(e ? 'unknown' : out.trim()));
   });

@@ -111,6 +111,8 @@ export async function startServer(o: {
   /** tests shorten the reload grace (R-M7-6) and the heartbeat (R-M7-7) */
   takeoverGraceMs?: number;
   heartbeatMs?: number;
+  /** tests shorten how often a pending restart looks for a pause with no page open (restartGate, gh-422) */
+  restartEveryMs?: number;
   /** keeps the remote-access connector running and serves /remote (main.ts); absent = none (tests), /remote answers 503 */
   remote?: RemoteKeeper;
 }): Promise<{ url: string; close(): Promise<void> }> {
@@ -238,12 +240,14 @@ export async function startServer(o: {
       tabs: () => askers.size,
       exit: exitWith,
       changed: (pending) => hub.emit({ kind: 'restart-pending', pending }, { store: false }),
+      everyMs: o.restartEveryMs,
     });
     /** a request to restart: at once in a pause (true), else pending (false) */
     const requestRestart = () => restart.request() === 'now';
     const marks = new MarkFiles({ root, stateDir });
     // the video editor's export (epic 406): ffmpeg is looked up again at each connect and start, so one installed later is found
     const cutExporter = new CutExporter({ root, ...(o.ffmpeg ? { ffmpeg: o.ffmpeg } : {}) });
+    cutExporter.ffmpegState(); // warm: ffmpeg's version is asked now, in the background, so the first hello already knows it
     // the waveforms need any ffmpeg that decodes, not one new enough for the export
     const cutPeaks = new CutPeaks({ root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()) });
     // a deleted session: Nota Bene's own data of it goes too, each part on its own (a failure is reported, the rest still goes)

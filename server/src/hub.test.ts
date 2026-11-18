@@ -444,3 +444,43 @@ describe('EventHub.summary: what a window tells of its session', () => {
     expect(short.summary().last!.text).toBe('a'.repeat(120));
   });
 });
+
+describe('EventHub: streamed chunks and the task state (issue 471)', () => {
+  type Stored = Exclude<ServerEvent, { kind: 'replay' }>;
+  const agent = (e: Extract<ServerEvent, { kind: 'agent' }>['e']): Stored => ({ kind: 'agent', e, ts: 1 });
+  const start = agent({ t: 'message-start' });
+  const chunk = (text: string) => agent({ t: 'message-chunk', text });
+  const replayOf = (hub: EventHub) => { const s = sock(); hub.attach(s); return (JSON.parse(s.frames[0]!) as { events: ServerEvent[] }).events; };
+
+  it('a final message drops the chunks of the block it closes; its start stays, and so do the chunks of a block still open', () => {
+    const hub = new EventHub();
+    const tool = agent({ t: 'tool-call', id: 'c1', name: 'Read', input: {}, sub: false });
+    const m1 = agent({ t: 'message', id: 'm1', text: 'ab' });
+    for (const ev of [start, chunk('a'), chunk('b'), tool, start, chunk('c'), m1]) hub.emit(ev);
+    // the first block is closed by m1 (the k-th message takes the k-th open block); the second's chunk came after its start
+    expect(replayOf(hub)).toEqual([start, tool, start, chunk('c'), m1]);
+    const m2 = agent({ t: 'message', id: 'm2', text: 'c' });
+    hub.emit(m2);
+    expect(replayOf(hub)).toEqual([start, tool, start, m1, m2]);
+  });
+
+  it('a turn that ends with a block open keeps its chunks: the feed shows the partial text', () => {
+    const hub = new EventHub();
+    const end = agent({ t: 'turn-end', stop: 'interrupted', secs: 1, answers: [], queued: 0 } as never);
+    for (const ev of [start, chunk('part'), end, agent({ t: 'message', id: 'late', text: 'x' })]) hub.emit(ev);
+    expect(replayOf(hub).filter((e) => e.kind === 'agent' && e.e.t === 'message-chunk')).toEqual([chunk('part')]);
+  });
+
+  it('the task state follows the history as it grows, and after a reset', () => {
+    const hub = new EventHub();
+    const task = (id: string, phase: 'started' | 'done') => agent({ t: 'task', id, phase, ...(phase === 'started' ? { desc: id, call: `call-${id}` } : {}) } as never);
+    for (const ev of [task('a', 'started'), task('b', 'started'), task('a', 'done')]) hub.emit(ev);
+    expect(hub.task('a')).toEqual(reduceTasks({}, { kind: 'replay', events: replayOf(hub), ts: 0 } as ServerEvent).a);
+    expect(hub.runningTasks()).toEqual(['b']);
+    expect(hub.tasksRunning()).toBe(1);
+    expect(hub.callState('call-b')).toEqual({ live: true, hasResult: false });
+    hub.reset([task('c', 'started')]);
+    expect(hub.runningTasks()).toEqual(['c']);
+    expect(hub.task('a')).toBeUndefined();
+  });
+});

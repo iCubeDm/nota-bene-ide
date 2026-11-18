@@ -39,7 +39,20 @@ jobs:
           exit 1
       - run: npm ci
       - run: npx tsc -b
-      - run: npm test
+      # the launcher project runs in the launcher job, alongside (issue 472)
+      - run: npx vitest run --project node --project web
+
+  # the launcher and /nb tests: real servers on the shared ports, one file at a time (vitest.config.ts), so the longest leg
+  launcher:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --project launcher
 
   protocol:
     runs-on: ubuntu-latest

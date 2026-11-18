@@ -1,4 +1,4 @@
-import { reduceTasks, type ServerEvent, type Task } from '@nota-bene/shared';
+import { reduceTasks, type ServerEvent, type Task, type TasksState } from '@nota-bene/shared';
 
 /** `buffered`: bytes accepted but not yet written to the peer (a WebSocket's bufferedAmount) */
 type Sock = { send(data: string): void; buffered?(): number };
@@ -20,6 +20,10 @@ export class EventHub {
    * which no segment has); a copy of an archived event put back would be written into a segment again.
    */
   private archived = new WeakSet<ServerEvent>();
+  /** what reduceTasks makes of the history, kept as the history grows (issue 471) */
+  private tasks: TasksState = {};
+  /** the history's streamed blocks still open, each with its chunks, in the order the feed reducers match them */
+  private open: ServerEvent[][] = [];
   private socks = new Set<Sock>();
   /** sees every emitted event, stored or not (the audit log) */
   private taps = new Set<(ev: ServerEvent) => void>();
@@ -34,7 +38,7 @@ export class EventHub {
   emit(ev: EmitInput, o: { store?: boolean; lossy?: boolean } = {}): boolean {
     let skipped = false;
     const stamped = this.stamp(ev);
-    if (o.store ?? true) this.history.push(stamped);
+    if (o.store ?? true) this.store(stamped);
     for (const fn of this.taps) {
       try {
         fn(stamped);
@@ -62,24 +66,24 @@ export class EventHub {
    * `call`, not yet done) and whether its tool_result has arrived. The subagent route's `running` and its cached 404 read it.
    */
   callState(tool: string): { live: boolean; hasResult: boolean } {
-    const live = Object.values(reduceTasks({}, { kind: 'replay', events: this.history, ts: 0 } as ServerEvent)).some((t) => t.call === tool && t.status === 'running');
+    const live = Object.values(this.tasks).some((t) => t.call === tool && t.status === 'running');
     const hasResult = this.history.some((ev) => ev.kind === 'agent' && ev.e.t === 'tool-update' && ev.e.id === tool);
     return { live, hasResult };
   }
 
   /** The task `id` as the history replays it (running, or among the last finished); undefined when the server does not know it. */
   task(id: string): Task | undefined {
-    return reduceTasks({}, { kind: 'replay', events: this.history, ts: 0 } as ServerEvent)[id];
+    return this.tasks[id];
   }
 
   /** The agent's tasks still running, not counting watchers (`ambient`): a window with one is not in a pause for an update. */
   tasksRunning(): number {
-    return Object.values(reduceTasks({}, { kind: 'replay', events: this.history, ts: 0 } as ServerEvent)).filter((t) => t.status === 'running' && !t.ambient).length;
+    return Object.values(this.tasks).filter((t) => t.status === 'running' && !t.ambient).length;
   }
 
   /** The ids of every task still running, watchers included: what a dead agent leaves behind. */
   runningTasks(): string[] {
-    return Object.entries(reduceTasks({}, { kind: 'replay', events: this.history, ts: 0 } as ServerEvent)).filter(([, t]) => t.status === 'running').map(([id]) => id);
+    return Object.entries(this.tasks).filter(([, t]) => t.status === 'running').map(([id]) => id);
   }
 
   /** Attached sockets. */
@@ -103,7 +107,7 @@ export class EventHub {
    * a restart, the startup resume.
    */
   reset(events: ServerEvent[] = [], o: { earlier?: number } = {}): void {
-    this.history = [...events];
+    this.rebuild([...events]);
     this.earlier = o.earlier ?? 0;
     this.archived = new WeakSet();
     const frame = this.replayFrame();
@@ -146,7 +150,7 @@ export class EventHub {
       if (n > 0) this.earlier = n;
       for (const ev of kept) this.archived.add(ev);
     }
-    this.history = [...kept, ...this.history.slice(at)];
+    this.rebuild([...kept, ...this.history.slice(at)]);
     return moved;
   }
 
@@ -170,6 +174,36 @@ export class EventHub {
       if (ev.kind === 'user' && !ev.idle) return { last: { role: 'user', text: oneLine(ev.text), ...stampOf(ev.ts) }, replies, unseen };
     }
     return { last: null, replies, unseen };
+  }
+
+  /**
+   * Appends a stored event. A final `message` closes the first open streamed block (the feed reducers' rule: the k-th
+   * text block takes the k-th open stream) and replaces its text, so that block's chunks leave the history: a replay
+   * without them builds the same feed (its `message-start` stays, holding the block's place and time). A turn's end
+   * closes every open block with the text it has, so their chunks stay.
+   */
+  private store(ev: ServerEvent): void {
+    this.history.push(ev);
+    this.tasks = reduceTasks(this.tasks, ev);
+    if (ev.kind !== 'agent') return;
+    const t = ev.e.t;
+    if (t === 'message-start') this.open.push([]);
+    else if (t === 'message-chunk') this.open.at(-1)?.push(ev);
+    else if (t === 'turn-end') this.open = [];
+    else if (t === 'message') {
+      const chunks = this.open.shift();
+      if (chunks?.length) {
+        const drop = new Set(chunks);
+        this.history = this.history.filter((e) => !drop.has(e));
+      }
+    }
+  }
+
+  private rebuild(events: ServerEvent[]): void {
+    this.history = [];
+    this.tasks = {};
+    this.open = [];
+    for (const ev of events) this.store(ev);
   }
 
   private replayFrame(): string {

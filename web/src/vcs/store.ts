@@ -72,6 +72,25 @@ export async function loadDiff(root: string, src: string, base: string | undefin
   }
 }
 
+const watchers = new Map<string, { n: number; timer: ReturnType<typeof setInterval> }>();
+
+/**
+ * Keeps one diff fresh while something shows it: a load now, then one poll every 4 s per project, source and base,
+ * however many views watch it (the tool window and the tab share it, issue 471). Returns the end of this watch.
+ */
+export function watchDiff(root: string, src: string, base: string | undefined): () => void {
+  void loadDiff(root, src, base);
+  const key = diffKey(root, src, base);
+  const w = watchers.get(key) ?? { n: 0, timer: setInterval(() => { if (document.visibilityState === 'visible') void loadDiff(root, src, base); }, 4_000) };
+  w.n++;
+  watchers.set(key, w);
+  return () => {
+    if (--w.n > 0) return;
+    clearInterval(w.timer);
+    watchers.delete(key);
+  };
+}
+
 /** The file on screen: the one picked, or the first when that one is gone from the list. */
 export const currentFile = (files: VcsFile[], path: string | undefined) => files.find((f) => f.path === path) ?? files[0] ?? null;
 

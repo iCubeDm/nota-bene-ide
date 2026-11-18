@@ -134,9 +134,10 @@ with `Part of #<epic>` in its body; the last one closes the epic.
 A release follows the workflow above, then publishes from a tag on `main`.
 
 1. Open an issue for the release; its body is the changelog of the version.
-2. Bump the version on the issue's branch. Root `package.json` is the version source.
+2. Bump the version on the issue's branch. Root `package.json` is the version source;
+   the server and launcher read it (`server/src/version.ts`).
    Keep its lockfile root entries, `plugin/.claude-plugin/plugin.json`, `codex/plugin.json`,
-   the npm pin in `codex/skills/nb/SKILL.md`, the Codex and ACP client metadata (`CLIENT_VERSION` in `server/src/agent/acp/rpc.ts`), the README pins
+   the npm pin in `codex/skills/nb/SKILL.md`, the README pins
    and the `docs/architecture.md` header in sync.
 3. Move the notes under `## Unreleased` in CHANGELOG to the version's section. Update README
    and guide for user-visible changes. Keep AGENTS.md short; CLAUDE.md imports it and this

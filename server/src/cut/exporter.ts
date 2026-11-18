@@ -93,7 +93,7 @@ export type ExporterOptions = {
   /** which streams a source has (tests stub it); default: ask ffmpeg */
   probe?: (ffmpeg: string, file: string) => Promise<Probed>;
   /** the release of an ffmpeg binary (tests stub it); default: `ffmpeg -version`, asked once per binary */
-  version?: (ffmpeg: string) => string | null;
+  version?: (ffmpeg: string) => Promise<string | null>;
   /** after SIGTERM, how long before SIGKILL */
   graceMs?: number;
   /** removes a temp file (tests stub it); default: fs.rm, retried while Windows still holds the file */
@@ -104,6 +104,9 @@ export type ExporterOptions = {
 
 /** Whether the export can run here: ffmpeg is found, and new enough (4.4: `amix normalize`). */
 export type FfmpegState = { ok: true } | { ok: false; reason: 'no-ffmpeg' } | { ok: false; reason: 'old-ffmpeg'; version: string };
+
+const stateOf = (version: string | null): FfmpegState =>
+  (version && isOldFfmpeg(version) ? { ok: false, reason: 'old-ffmpeg', version } : { ok: true });
 
 type Running = { job: ExportJob; out: string; child: ChildProcess | null; cancelled: boolean; temp: string | null; kill?: NodeJS.Timeout };
 
@@ -119,8 +122,8 @@ export class CutExporter {
   private readonly o: Required<ExporterOptions>;
   private readonly jobs = new Map<string, Running>();
   private disposed = false;
-  /** the release of each ffmpeg binary asked, by its stat: a replaced binary is asked again */
-  private readonly versions = new Map<string, { stamp: string; version: string | null }>();
+  /** the release of each ffmpeg binary asked, by its stat: a replaced binary is asked again. `known` once it answered. */
+  private readonly versions = new Map<string, { stamp: string; asked: Promise<string | null>; known?: string | null }>();
   /** the exports folders swept of stale temp files */
   private readonly swept = new Set<string>();
 
@@ -132,25 +135,36 @@ export class CutExporter {
     };
   }
 
-  /** ffmpeg is looked up anew; its version is asked once per binary. */
+  /**
+   * ffmpeg is looked up anew; its version is asked once per binary, in the background (issue 468: never block the event
+   * loop on a tab's hello). Until it answers the state is ok, the benefit of the doubt an unknown version gets anyway;
+   * `start` waits for the answer.
+   */
   ffmpegState(): FfmpegState {
     const ffmpeg = this.o.ffmpeg();
     if (!ffmpeg) return { ok: false, reason: 'no-ffmpeg' };
+    return stateOf(this.versionOf(ffmpeg).known ?? null);
+  }
+
+  available(): boolean {
+    return this.ffmpegState().ok;
+  }
+
+  private versionOf(ffmpeg: string): { asked: Promise<string | null>; known?: string | null } {
     let stamp = '';
     try {
       const st = fs.statSync(ffmpeg);
       stamp = `${st.mtimeMs}:${st.size}`;
     } catch { /* a stub path: asked once */ }
-    let known = this.versions.get(ffmpeg);
-    if (!known || known.stamp !== stamp) {
-      known = { stamp, version: this.o.version(ffmpeg) };
-      this.versions.set(ffmpeg, known);
+    let entry = this.versions.get(ffmpeg);
+    if (!entry || entry.stamp !== stamp) {
+      const asked = this.o.version(ffmpeg).catch(() => null);
+      const fresh: { stamp: string; asked: Promise<string | null>; known?: string | null } = { stamp, asked };
+      void asked.then((v) => { fresh.known = v; });
+      entry = fresh;
+      this.versions.set(ffmpeg, entry);
     }
-    return known.version && isOldFfmpeg(known.version) ? { ok: false, reason: 'old-ffmpeg', version: known.version } : { ok: true };
-  }
-
-  available(): boolean {
-    return this.ffmpegState().ok;
+    return entry;
   }
 
   /** The edit's last export, or null. */
@@ -188,9 +202,11 @@ export class CutExporter {
   /** Starts an export of `edit` (project-relative). Resolves once ffmpeg runs; refusals are CutExportError. */
   async start(edit: string, mode: ExportMode): Promise<ExportJob> {
     if (this.disposed) throw new CutExportError(503, 'closing');
-    const state = this.ffmpegState();
+    const ffmpeg = this.o.ffmpeg();
+    if (!ffmpeg) throw new CutExportError(501, 'no-ffmpeg', '');
+    const state = stateOf(await this.versionOf(ffmpeg).asked);
     if (!state.ok) throw new CutExportError(501, state.reason, state.reason === 'old-ffmpeg' ? state.version : '');
-    const ffmpeg = this.o.ffmpeg()!;
+    if (this.disposed) throw new CutExportError(503, 'closing');
     const root = this.o.root();
     const abs = resolveInRoot(root, edit);
     if (!abs) throw new CutExportError(403, 'outside-project', edit);

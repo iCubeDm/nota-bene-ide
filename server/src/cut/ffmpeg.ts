@@ -1,5 +1,5 @@
 // Finding ffmpeg for the video editor's export (epic 406) and asking it what a source holds.
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { HIDDEN } from '../platform.ts';
@@ -97,11 +97,11 @@ export function isOldFfmpeg(version: string | null): boolean {
   return major < 4 || (major === 4 && minor < 4);
 }
 
-/** Asks `ffmpeg -version` (5 s at most); null when it does not answer with a release. Synchronous: the caller caches it per binary. */
-export function readFfmpegVersion(ffmpeg: string): string | null {
-  try {
-    return ffmpegVersion(execFileSync(ffmpeg, ['-version'], { timeout: 5000, env: ffmpegEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 20, ...HIDDEN }));
-  } catch {
-    return null;
-  }
+/** Asks `ffmpeg -version` (5 s at most, never blocking); null when it does not answer with a release. The caller caches it per binary. */
+export function readFfmpegVersion(ffmpeg: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile(ffmpeg, ['-version'], { timeout: 5000, env: ffmpegEnv(), encoding: 'utf8', maxBuffer: 1 << 20, ...HIDDEN }, (err, stdout) => {
+      resolve(err ? null : ffmpegVersion(stdout));
+    });
+  });
 }

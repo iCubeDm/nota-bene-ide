@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useT } from '@/i18n/index.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { answerPermission, useAppDispatch, useAppSelector } from '@/store/store.ts';
@@ -8,7 +9,7 @@ import { Markdown } from './Markdown.tsx';
  * ExitPlanMode: the plan as commentable markdown plus approve / keep planning. The commentable root is the plan body
  * only (`data-item-id="plan:<id>"`), so the buttons and the answer line coming and going never shift an anchor's offsets.
  */
-export function PlanCard({ item }: { item: Extract<FeedItem, { kind: 'permission' }> }) {
+export const PlanCard = memo(function PlanCard({ item }: { item: Extract<FeedItem, { kind: 'permission' }> }) {
   const t = useT();
   const dispatch = useAppDispatch();
   const before = useAppSelector((s) => s.controls.modeBeforePlan);
@@ -48,4 +49,4 @@ export function PlanCard({ item }: { item: Extract<FeedItem, { kind: 'permission
       )}
     </div>
   );
-}
+});

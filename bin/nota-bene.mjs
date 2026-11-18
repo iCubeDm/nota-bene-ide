@@ -51,6 +51,7 @@ import { recordRecent } from '../server/src/recent.ts';
 import { parentPluginVersion, pluginInstallVersion } from '../server/src/pluginOrigin.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
+import { packageVersion as ownVersion } from '../server/src/version.ts';
 import {
   liveWindows, pidAlive, probeInfo, readWindows, registerWindow, restartingWindows, setBuilding, unregisterWindow,
 } from '../server/src/windows.ts';
@@ -85,21 +86,20 @@ const STOP_MESSAGE = 'nota-bene:stop'; // server/src/main.ts STOP_MESSAGE
 const MAX_CRASHES = 5;
 const MAX_RESTARTS = 10;
 const GUARD_WINDOW_MS = 60_000;
+// the pause before a crashed server is relaunched; TEST-ONLY: NOTA_BENE_TEST_CRASH_PAUSE_MS shortens it (issue 472).
+// Never set it otherwise.
+const CRASH_PAUSE_MS = Number(process.env.NOTA_BENE_TEST_CRASH_PAUSE_MS) || 1000;
 // test only: NOTA_BENE_DETACH_WAIT_MS shortens the wait, to reach the timeout path
 const DETACH_WAIT_MS = Number(process.env.NOTA_BENE_DETACH_WAIT_MS) || 20_000;
 const LOCK_STALE_MS = 60_000;
 const LOCK_WAIT_MS = 30_000;
 const REBUILD_WAIT_MAX_MS = 5 * 60_000; // the most a launch or --find waits in total for a window that is rebuilding web/dist
-const RESTART_WAIT_MS = 10_000; // how long a launch waits for a restarting window of its folder to come back
+// how long a launch waits for a restarting window of its folder to come back; TEST-ONLY: NOTA_BENE_TEST_RESTART_WAIT_MS.
+// Never set it otherwise.
+const RESTART_WAIT_MS = Number(process.env.NOTA_BENE_TEST_RESTART_WAIT_MS) || 10_000;
 
 /** This package's version (the checkout's root package.json says the same). */
-export function packageVersion() {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8')).version ?? 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
+export const packageVersion = () => ownVersion() ?? 'unknown';
 
 /**
  * A published package (no `.git` at its root, the rule server/src/system.ts uses for the version) may hand over; a checkout never.
@@ -868,7 +868,7 @@ async function supervise(o, autoPort, release, state) {
   let dir = o.dir; // follows the window's in-app folder switches (its registry entry), so a relaunch reopens it
   let child = null;
   let stopping = false;
-  let wake = null; // cuts the 1 s crash pause short on a signal
+  let wake = null; // cuts the crash pause short on a signal
   let build = null; // the relaunch build in flight: a signal stops it
   const onSignal = (sig) => {
     if (stopping) return;
@@ -1042,7 +1042,7 @@ async function supervise(o, autoPort, release, state) {
       crashed = true;
       await new Promise((r) => {
         wake = r;
-        setTimeout(r, 1000);
+        setTimeout(r, CRASH_PAUSE_MS);
       });
       wake = null;
       if (stopping) return 0;
