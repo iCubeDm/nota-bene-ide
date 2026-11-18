@@ -26,10 +26,9 @@ export type UsageHit = {
 export type UsageSpend = { calls: number; w: number; spent: number | null };
 /** `month`, `limit`: the last reading, for the billing period it was in */
 export type UsageExtra = UsageSpend & { month: number | null; limit: number | null; currency: string | null };
-/** One weekly limit window: the tokens between its first and last reading, per percent gained. */
 /**
- * One weekly limit window: its own percent and tokens; `perPct` is the tokens per 1% averaged over it and every later
- * window up to the current. `h5`: the five-hour limit's, over the week's five-hour windows, averaged the same way.
+ * One weekly limit window, its own dataset: its percent, tokens and `perPct`, the tokens per 1% of it alone.
+ * `h5`: the same for the five-hour limit over that week's own five-hour windows.
  */
 export type UsageTank = { from: number; to: number; pct: number; w: number; perPct: number; h5?: { pct: number; w: number; perPct: number } };
 

@@ -506,7 +506,7 @@ Player and markup keys: [Images and video](#viewing-and-marking-up-images-and-vi
 
 <details><summary>More</summary>
 
-Each per-1% number averages from that window to the current one; a dash means no 5-hour readings that week. Codex keeps limit readings itself; Claude's (and hits passed on extra usage) are recorded only while a window is open. Empty periods are left out; data outlives deleted transcripts; temp-folder sessions are skipped. Hover a project for its subagent share.
+Each column counts its own week only, so past weeks stay fixed; a dash means no 5-hour readings that week. Codex keeps limit readings itself; Claude's (and hits passed on extra usage) are recorded only while a window is open. Empty periods are left out; data outlives deleted transcripts; temp-folder sessions are skipped. Hover a project for its subagent share.
 
 </details>
 

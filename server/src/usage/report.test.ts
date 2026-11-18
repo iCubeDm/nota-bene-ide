@@ -255,20 +255,25 @@ describe('tank', () => {
     expect(r.tanks).toEqual([{ from: T0, to: T0 + D, pct: 10, w: 1000, perPct: 100 }]);
   });
 
-  it('each number averages its window and every later one up to the current; the five-hour line averages a week\'s five-hour windows the same way', () => {
+  it('each week is its own dataset: tokens per percent of that window and of its own five-hour windows, fixed as later weeks grow', () => {
     const l = (ts: number, minutes: number, pct: number, resets: number): UsageRecord => ({ k: 'l', ts, minutes, pct, resets });
-    const r = report([
+    const past = [
       l(T0, week, 10, T0 + 6 * D), l(T0 + D, week, 20, T0 + 6 * D),
-      l(T0 + 7 * D, week, 0, T0 + 13 * D), l(T0 + 8 * D, week, 40, T0 + 13 * D),
       l(T0 + H, 300, 0, T0 + 5 * H), l(T0 + 3 * H, 300, 20, T0 + 5 * H),
-      l(T0 + 7 * D + H, 300, 5, T0 + 7 * D + 5 * H), l(T0 + 7 * D + 3 * H, 300, 25, T0 + 7 * D + 5 * H),
       call({ id: 'a', ts: T0 + 2 * H, out: 200 }),
+    ];
+    const current = [
+      l(T0 + 7 * D, week, 0, T0 + 13 * D), l(T0 + 8 * D, week, 40, T0 + 13 * D),
+      l(T0 + 7 * D + H, 300, 5, T0 + 7 * D + 5 * H), l(T0 + 7 * D + 3 * H, 300, 25, T0 + 7 * D + 5 * H),
       call({ id: 'b', ts: T0 + 7 * D + 2 * H, out: 400 }),
-    ], { period: 'all' });
-    expect(r.tanks).toEqual([
-      { from: T0, to: T0 + D, pct: 10, w: 1000, perPct: 60, h5: { pct: 20, w: 1000, perPct: 75 } },
+    ];
+    const first = { from: T0, to: T0 + D, pct: 10, w: 1000, perPct: 100, h5: { pct: 20, w: 1000, perPct: 50 } };
+    expect(report([...past, ...current], { period: 'all' }).tanks).toEqual([
+      first,
       { from: T0 + 7 * D, to: T0 + 8 * D, pct: 40, w: 2000, perPct: 50, h5: { pct: 20, w: 2000, perPct: 100 } },
     ]);
+    const more = [l(T0 + 9 * D, week, 60, T0 + 13 * D), call({ id: 'c', ts: T0 + 8 * D + H, out: 2000 })];
+    expect(report([...past, ...current, ...more], { period: 'all' }).tanks[0]).toEqual(first);
   });
 
   it('a reset time that jitters by milliseconds or seconds is one window; a reset hours later is another', () => {
@@ -281,7 +286,7 @@ describe('tank', () => {
       call({ id: 'in', ts: T0 + 2 * H, out: 200 }),
     ], { period: 'all' });
     expect(r.tanks).toEqual([
-      { from: T0, to: T0 + D, pct: 10, w: 1000, perPct: 25 },
+      { from: T0, to: T0 + D, pct: 10, w: 1000, perPct: 100 },
       { from: T0 + D + H, to: T0 + 2 * D, pct: 30, w: 0, perPct: 0 },
     ]);
   });
