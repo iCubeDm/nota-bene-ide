@@ -36,6 +36,8 @@ export class CodexSession implements AgentSession {
   private readonly terminals = new Map<string, { processId: string; itemId: string }>();
   private timer: NodeJS.Timeout | undefined;
   private polling = false;
+  /** a poll was asked for while one ran: it runs once more after it (a turn's end must not miss a late terminal) */
+  private repoll = false;
   private readonly o: StartOptions;
   readonly rpc: CodexConnection;
   constructor(o: StartOptions, rpc: CodexConnection) {
@@ -49,7 +51,10 @@ export class CodexSession implements AgentSession {
     });
     this.ready = this.open(o.resume, o.fork).then(() => {
       if (this.ended) return;
-      this.timer = setInterval(() => { void this.pollTerminals(); }, 3000); this.timer.unref();
+      // issue 471: a terminal starts only in a turn and outlives it, so the list is asked once now (a resumed thread may
+      // have some), then only during a turn or while one is known; a turn's end asks once more (settle)
+      void this.pollTerminals();
+      this.timer = setInterval(() => { if (this.active || this.terminals.size) void this.pollTerminals(); }, 3000); this.timer.unref();
     });
     void this.ready.catch((e) => this.fail(e));
     void rpc.closed.then(() => { if (!this.ended) this.fail(new Error('Codex disconnected. Restart the session to retry.')); });
@@ -216,7 +221,8 @@ export class CodexSession implements AgentSession {
     return { cost: null, limits: null, windows: this.windows };
   }
   private async pollTerminals() {
-    if (!this.tid || this.ended || this.polling) return;
+    if (!this.tid || this.ended) return;
+    if (this.polling) { this.repoll = true; return; }
     this.polling = true;
     try {
       const current = new Map<string, { processId: string; itemId: string }>(); let cursor: string | undefined; const seen = new Set<string>();
@@ -232,7 +238,10 @@ export class CodexSession implements AgentSession {
       for (const id of this.terminals.keys()) if (!current.has(id)) this.push({ t: 'task', phase: 'done', id });
       this.terminals.clear(); for (const [id, p] of current) this.terminals.set(id, p);
     } catch { /* Native terminal discovery is experimental. Never fabricate tasks when unavailable. */ }
-    finally { this.polling = false; }
+    finally {
+      this.polling = false;
+      if (this.repoll) { this.repoll = false; void this.pollTerminals(); }
+    }
   }
   async stopTask(id: string): Promise<void> {
     const terminal = this.terminals.get(id);
