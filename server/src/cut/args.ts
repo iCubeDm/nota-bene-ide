@@ -27,7 +27,7 @@ const s = (n: number): string => String(num(n));
  */
 export const REVERSE_BUDGET = 2 * 1024 ** 3;
 
-/** About what reversing `len` s of a `w`×`h` picture at `fps` holds: yuv420p frames (1.5 bytes a pixel), and the sound as stereo float at 48 kHz. */
+/** About what reversing `len` s of a `w`×`h` picture at `fps` holds: yuv420p frames (1.5 bytes a pixel: the picture is made 8-bit yuv420p before `reverse`), and the sound as stereo float at 48 kHz. */
 export const reverseBytes = (len: number, w: number, h: number, fps: number, sound: boolean): number =>
   Math.ceil(len * fps) * w * h * 1.5 + (sound ? len * 48000 * 2 * 4 : 0);
 
@@ -44,17 +44,24 @@ const boxOf = (c: Cut['clips'][number], W: number, H: number) => {
   return p ? { x: Math.round(p.x * W), y: Math.round(p.y * H), w: Math.round(p.w * W), h: Math.round(p.h * H) } : { x: 0, y: 0, w: W, h: H };
 };
 
-/** The first reversed clip whose part is over REVERSE_BUDGET as `mode` renders it (its picture at its box's size), else null. */
+/**
+ * The reversed clip that takes what one export holds of its reversed parts (every one at once, in one graph: its picture
+ * at its box's size, its sound when heard) over REVERSE_BUDGET, else null.
+ */
 export function tooLongToReverse(cut: Cut, sources: Sources, mode: ExportMode): string | null {
   const W = even(cut.width), H = even(cut.height);
+  const solo = cut.tracks.some((t) => t.solo);
+  let total = 0;
   for (const c of cut.clips) {
     const src = sources.get(c.src);
     const track = cut.tracks.find((t) => t.id === c.track);
     if (!c.reverse || !src || !track) continue;
     const seen = mode === 'mp4' && track.kind === 'video' && !track.hidden && src.video;
+    const heard = src.audio && !c.mute && !track.mute && (!solo || track.solo === true);
     const box = boxOf(c, W, H);
     const pic = seen ? fitIn(src.width, src.height, box.w, box.h) : { w: 0, h: 0 };
-    if (reverseBytes(clipLength(c), pic.w, pic.h, src.fps ?? cut.fps, src.audio) > REVERSE_BUDGET) return c.id;
+    total += reverseBytes(clipLength(c), pic.w, pic.h, src.fps ?? cut.fps, heard);
+    if (total > REVERSE_BUDGET) return c.id;
   }
   return null;
 }
@@ -124,7 +131,7 @@ export function exportArgs(cut: Cut, sources: Sources, output: string, mode: Exp
         ...((c.fadeOut ?? 0) > 0 ? [`,fade=t=out:st=${s(Math.max(c.at, c.at + len - c.fadeOut!))}:d=${s(c.fadeOut!)}${alpha}`] : []),
       ].join('');
       pictures.push(
-        `[${k}:v]${isAvif(c.src) ? `fps=${fps},trim=duration=${s(len)},` : ''}scale=${box.w}:${box.h}:force_original_aspect_ratio=decrease,setsar=1${c.reverse ? ',reverse' : ''},format=yuva420p` +
+        `[${k}:v]${isAvif(c.src) ? `fps=${fps},trim=duration=${s(len)},` : ''}scale=${box.w}:${box.h}:force_original_aspect_ratio=decrease,setsar=1${c.reverse ? ',format=yuv420p,reverse' : ''},format=yuva420p` +
           `${opacity < 1 ? `,colorchannelmixer=aa=${s(opacity)}` : ''},setpts=PTS-STARTPTS+${s(c.at)}/TB,fps=${fps}${fades}[p${n}]`,
         `[${last}][p${n}]overlay=x=${box.x}+(${box.w}-w)/2:y=${box.y}+(${box.h}-h)/2:eof_action=pass[v${n}]`,
       );

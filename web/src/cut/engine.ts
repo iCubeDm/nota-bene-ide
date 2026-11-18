@@ -44,8 +44,9 @@ export type PlayerOptions = {
    * cannot be: the clip shows and sounds nothing
    */
   reversed?: (c: CutClip, sound: boolean) => string | null;
-  /** an element could not load `url` (a copy removed under the page) */
-  failed?: (url: string) => void;
+  /** an element could not load `url`: true for a reversed clip's copy (removed under the page), which is then asked for
+   *  again and loaded afresh, even under the same URL */
+  failed?: (url: string) => boolean;
   /** ms; performance.now by default */
   now?: () => number;
   frame?: (f: () => void) => number;
@@ -261,7 +262,12 @@ export class CutPlayer {
       el.addEventListener('loadeddata', settle);
       el.addEventListener('seeked', settle);
       const m: Media = { el, clip: null, url: null, from: 0, ramp: null };
-      el.addEventListener('error', () => { if (m.url !== null) this.opts.failed?.(m.url); });
+      el.addEventListener('error', () => {
+        if (m.url !== null && this.opts.failed?.(m.url)) {
+          m.url = null; // the next load sets its src again
+          m.clip = null;
+        }
+      });
       return m;
     };
     const slot: Slot = { track, media: [make(), make()] };

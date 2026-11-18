@@ -190,7 +190,7 @@ describe('exportArgs', () => {
     expect(args.slice(args.indexOf('-ss'), args.indexOf('-ss') + 6)).toEqual(['-ss', '2.5', '-t', '2', '-i', '/p/media/a.mp4']);
     const g = graph(args);
     // scaled to its box first: reverse holds every frame of the part in memory
-    expect(g.find((f) => f.startsWith('[0:v]'))).toMatch(/^\[0:v\]scale=1280:720:force_original_aspect_ratio=decrease,setsar=1,reverse,format=yuva420p,/);
+    expect(g.find((f) => f.startsWith('[0:v]'))).toMatch(/^\[0:v\]scale=1280:720:force_original_aspect_ratio=decrease,setsar=1,format=yuv420p,reverse,format=yuva420p,/);
     expect(g.find((f) => f.startsWith('[0:a]'))).toMatch(/^\[0:a\]areverse,asetpts=/);
     expect(g.filter((f) => /(^|[\],])a?reverse/.test(f))).toHaveLength(2);
     // the sound alone too
@@ -208,6 +208,18 @@ describe('exportArgs', () => {
     // the sound alone holds far less
     expect(tooLongToReverse(long(over), big, 'wav')).toBeNull();
     expect(tooLongToReverse(cut((c) => { c.clips[0]!.out = 999; }), big, 'mp4')).toBeNull(); // not reversed
+    // one export holds every reversed part at once: two halves under the budget are over it together
+    const half = Math.ceil(over / 2) + 1;
+    const two = cut((c) => {
+      c.clips = [{ id: 'h1', track: 'v1', src: 'media/a.mp4', at: 0, out: half, reverse: true }, { id: 'h2', track: 'v1', src: 'media/a.mp4', at: half, in: half, out: 2 * half, reverse: true }];
+    });
+    expect(tooLongToReverse({ ...two, clips: [two.clips[0]!] }, big, 'mp4')).toBeNull();
+    expect(tooLongToReverse(two, big, 'mp4')).toBe('h2');
+    // a muted clip's sound is not reversed
+    const sound = REVERSE_BUDGET / (48000 * 2 * 4) + 10;
+    const voice = cut((c) => { c.clips = [{ id: 'v', track: 'a1', src: 'media/voice.wav', at: 0, out: sound, reverse: true }]; });
+    expect(tooLongToReverse(voice, SOURCES, 'wav')).toBe('v');
+    expect(tooLongToReverse({ ...voice, clips: [{ ...voice.clips[0]!, mute: true }] }, SOURCES, 'wav')).toBeNull();
   });
 
   it('an edit with nothing audible still has a silent sound track of its length', () => {

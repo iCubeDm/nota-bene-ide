@@ -1,7 +1,7 @@
 // A reversed clip's copy (issue 492): the server makes it once with ffmpeg (`GET /cut/reverse`, server/src/cut/reverse.ts)
 // and answers 202 while it does. An edit's view keeps one of these: on each committed change of the edit it asks again for
-// every reversed part (a copy already made answers at once, and the server keeps it as recently used; one removed since,
-// or of a source changed since, is made again under a new URL), and polls a part every second while it is made, only as
+// every reversed part (a copy already made answers at once, and the server keeps it as recently used; one removed since is
+// made again, under a new URL only when its source changed), and polls a part every second while it is made, only as
 // long as the edit still wants it. The preview plays the copy, the timeline marks a clip whose copy is not there.
 import { isPhotoSrc, type Cut } from '@nota-bene/shared/cut';
 import { projectFileUrl } from '@/files/kinds.ts';
@@ -81,9 +81,16 @@ export function reversedCopies(d: Deps) {
     },
     /** What is known of a part's copy; null for a part not asked for (one being dragged). */
     of: (p: Part): Reversed | null => states.get(keyOf(p)) ?? null,
-    /** A copy that failed to load (removed under the page): asked for again. */
-    failed(url: string): void {
-      for (const [key, v] of states) if (typeof v === 'object' && v.url === url && parts.has(key)) void ask(key);
+    /** A copy that failed to load (removed under the page): being made again until the server says so. false: no copy of ours. */
+    failed(url: string): boolean {
+      let ours = false;
+      for (const [key, v] of states) {
+        if (typeof v !== 'object' || v.url !== url || !parts.has(key)) continue;
+        ours = true;
+        set(key, 'making');
+        void ask(key);
+      }
+      return ours;
     },
     /** The view is gone: nothing is asked any more (until it wants parts again). */
     close: (): void => parts.clear(),

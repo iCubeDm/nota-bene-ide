@@ -2,9 +2,9 @@
 // once (`reverse` for the picture, `areverse` for the sound, both holding the part in memory) into the project's
 // `<root>/.nota-bene/reverse/`, kept out of git like the marks and served by /file as any project file. A copy is named
 // by a hash of the source's path, size and mtime and the part, so an edited source or another part is a new copy; the
-// newest KEEP stay. One copy is made at a time, and a source waits with one part at most: a newer part replaces the
-// one still waiting (a trim asks for a part per step). The picture is scaled to fit PREVIEW before it is reversed, and a
-// part over REVERSE_BUDGET is refused.
+// newest KEEP stay. One copy is made at a time; a waiting part the page stopped asking for (it polls every second while
+// it wants one) is dropped when its turn comes, so an edit changed many times in a row makes only what it still has. The
+// picture is scaled to fit PREVIEW and made 8-bit yuv420p before it is reversed, and a part over REVERSE_BUDGET is refused.
 import { spawn, type ChildProcess } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -22,6 +22,8 @@ const DIR = 'reverse';
 const KEEP = 24;
 /** a copy that takes longer is stopped: minutes of footage held in memory and encoded */
 const TIMEOUT_MS = 10 * 60_000;
+/** a waiting part not asked for again within this is no longer wanted: the page asks every second (web/src/cut/reverse.ts) */
+const STALE_MS = 5000;
 /** the preview copy's largest picture */
 const PREVIEW = { w: 1280, h: 720 };
 /** failed copies remembered */
@@ -46,6 +48,8 @@ export type ReverseOptions = {
   /** told on each copy started (tests count them) */
   spawned?: () => void;
   timeoutMs?: number;
+  /** ms after its last ask a waiting part is dropped; STALE_MS by default */
+  staleMs?: number;
   /** copies kept; KEEP by default */
   keep?: number;
 };
@@ -56,7 +60,7 @@ export class CutReverse {
   private readonly failed = new Map<string, ReverseError>();
   /** the copies asked for and not done, by key: the one being made and those waiting */
   private readonly running = new Set<string>();
-  private readonly waiting: { key: string; abs: string; make: () => Promise<void> }[] = [];
+  private readonly waiting: { key: string; asked: number; make: () => Promise<void> }[] = [];
   private busy = false; // one copy at a time: each holds its part in memory
   private readonly live = new Set<ChildProcess>();
   private disposed = false;
@@ -86,7 +90,11 @@ export class CutReverse {
     const out = `.nota-bene/${DIR}/${name}`;
     const failed = this.failed.get(key);
     if (failed) throw failed;
-    if (this.running.has(key)) return null;
+    if (this.running.has(key)) {
+      const w = this.waiting.find((j) => j.key === key);
+      if (w) w.asked = Date.now();
+      return null;
+    }
     const file = path.join(root, out);
     if (fs.existsSync(file)) {
       const now = new Date();
@@ -101,12 +109,9 @@ export class CutReverse {
     } catch {
       throw new ReverseError(403, 'no-folder');
     }
-    // the source's part still waiting gives way to this one
-    const older = this.waiting.findIndex((j) => j.abs === abs);
-    if (older >= 0) this.running.delete(this.waiting.splice(older, 1)[0]!.key);
     this.running.add(key);
     this.waiting.push({
-      key, abs, make: () => this.make(ffmpeg, abs, sound, from, to, path.join(dir, name)).then(() => this.trim(dir), (e: unknown) => {
+      key, asked: Date.now(), make: () => this.make(ffmpeg, abs, sound, from, to, path.join(dir, name)).then(() => this.trim(dir), (e: unknown) => {
         // a failed, too long or too slow copy stays known for its source version; closing or a spawn failure is asked again
         if (e instanceof ReverseError && ['failed', 'too-long', 'timeout'].includes(e.code)) {
           this.failed.set(key, e);
@@ -120,7 +125,12 @@ export class CutReverse {
 
   private next(): void {
     if (this.busy || this.disposed) return;
-    const job = this.waiting.shift();
+    let job = this.waiting.shift();
+    // a part no longer asked for is dropped (asked again, it waits anew)
+    while (job && Date.now() - job.asked > (this.o.staleMs ?? STALE_MS)) {
+      this.running.delete(job.key);
+      job = this.waiting.shift();
+    }
     if (!job) return;
     this.busy = true;
     void job.make().finally(() => {
@@ -171,7 +181,7 @@ export class CutReverse {
     // 10 frames, so a seek decodes little; even sides for yuv420p
     const args = ['-hide_banner', '-nostdin', '-y', '-loglevel', 'error', ...(from > 0 ? ['-ss', num(from)] : []), '-t', num(to - from), '-i', abs,
       '-sn', '-dn',
-      ...(video ? ['-map', '0:v:0', '-vf', `scale='min(${PREVIEW.w},iw)':'min(${PREVIEW.h},ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,reverse,format=yuv420p`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-g', '10'] : ['-vn']),
+      ...(video ? ['-map', '0:v:0', '-vf', `scale='min(${PREVIEW.w},iw)':'min(${PREVIEW.h},ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p,reverse`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-g', '10'] : ['-vn']),
       ...(has.audio ? ['-map', '0:a:0', '-af', 'areverse', '-c:a', 'aac', '-b:a', '192k'] : ['-an']),
       '-movflags', '+faststart', '-f', 'mp4', tmp];
     try {

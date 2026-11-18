@@ -88,7 +88,7 @@ describe('CutReverse', () => {
       const args = JSON.parse(fs.readFileSync(path.join(root, out), 'utf8')) as string[];
       expect(args.slice(args.indexOf('-ss'), args.indexOf('-i') + 2)).toEqual(['-ss', '1', '-t', '2', '-i', path.join(root, 'a.mp4')]);
       // scaled down to fit 1280×720 before reverse holds the frames
-      expect(args[args.indexOf('-vf') + 1]).toMatch(/^scale=.*1280.*720.*,reverse,/);
+      expect(args[args.indexOf('-vf') + 1]).toMatch(/^scale=.*1280.*720.*,format=yuv420p,reverse$/); // 8-bit before it holds the frames
       expect(args[args.indexOf('-af') + 1]).toBe('areverse');
       expect(await r.get('a.mp4', 1, 3)).toBe(out);
       expect(copies()).toBe(1);
@@ -123,14 +123,16 @@ describe('CutReverse', () => {
       expect(fs.existsSync(path.join(root, s))).toBe(false); // the oldest
     });
 
-    it('a newer part of a source replaces its older one still waiting: a trim does not queue a copy per step', async () => {
+    it('a waiting part no longer asked for is dropped: only the parts the page still polls are made', async () => {
       media('slow.mp4', 'HANG AV');
       media('b.mp4', 'AV');
-      const r = make({ ffmpeg: () => bin, timeoutMs: 300 });
+      const r = make({ ffmpeg: () => bin, timeoutMs: 300, staleMs: 100 });
       await r.get('slow.mp4', 0, 1);
       for (const to of [1, 1.5, 2, 2.5, 3]) expect(await r.get('b.mp4', 0, to)).toBeNull();
-      expect(await until(() => r.get('b.mp4', 0, 3))).toMatch(/\.mp4$/);
-      expect(copies()).toBe(2); // the slow one and the last part
+      // two parts of one source still asked for (two halves of a split) are both made
+      const [a, b] = await Promise.all([until(() => r.get('b.mp4', 0, 3)), until(() => r.get('b.mp4', 0, 2.5))]);
+      expect([a, b].every((x) => /\.mp4$/.test(x))).toBe(true);
+      expect(copies()).toBe(3); // the slow one and the two still asked for
     });
 
     it('a part too long to hold in memory is refused; a video on an audio track gets its sound alone', async () => {

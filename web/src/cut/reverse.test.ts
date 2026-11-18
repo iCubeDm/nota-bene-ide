@@ -67,8 +67,13 @@ it('a part too long to reverse has its own state; a load error of a copy asks fo
   await ticks();
   expect(s.of(part({ out: 99 }))).toBe('too-long');
   expect(s.of(part())).toEqual({ url: '/file?path=a.mp4' });
-  s.failed('/file?path=a.mp4');
+  const told = vi.fn();
+  s.subscribe(told);
+  expect(s.failed('/file?path=a.mp4')).toBe(true);
+  expect(s.of(part())).toBe('making'); // told at once: the player lets go of the dead copy
+  expect(s.failed('/file?path=media%2Fother.mp4')).toBe(false); // not a copy
   await ticks();
+  expect(told).toHaveBeenCalledTimes(2);
   expect(s.of(part())).toEqual({ url: '/file?path=a2.mp4' });
 });
 
