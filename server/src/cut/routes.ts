@@ -70,7 +70,7 @@ export function cutRoutes(o: {
     },
     '/cut/peaks': (req, res) => {
       if (req.method !== 'GET') return json(res, 405, { error: 'method not allowed' });
-      // a GET that starts ffmpeg: a page of another site must not be able to queue it (as /model)
+      // a GET that starts ffmpeg: a page of another site must not be able to queue it
       const site = req.headers['sec-fetch-site'];
       if (site !== undefined && site !== 'same-origin' && site !== 'none') return json(res, 403, { error: 'cross-site request' });
       const p = new URL(req.url ?? '', 'http://x').searchParams.get('path');

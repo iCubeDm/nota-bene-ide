@@ -42,7 +42,7 @@ SIGTERM. A foreground launcher stops when its parent shell is gone. `--detach` p
 Helpers: `--find DIR [--scan]` (the port of the live window, exit 1 if none), `--last DIR` (its last session id),
 `--url PORT` (the login URL), `--front PORT` (bring to front, logged in).
 
-**`/nb` skill** (`plugin/skills/nb/`; a checkout links `~/.claude/skills/nb` to it, on Windows with a junction).
+**`/nb` skill** (`plugin/skills/nb/`). A checkout links it with `ln -sfn "$PWD/plugin/skills/nb" ~/.claude/skills/nb`; on Windows, in `cmd`, a junction needs no admin rights or Developer Mode: `mklink /J "%USERPROFILE%\.claude\skills\nb" "<checkout>\plugin\skills\nb"`.
 `open.mjs --plan` prints `NB-RUN` / `NB-WAIT` / `NB-NAME` and launches nothing; the skill runs `NB-RUN` as a Claude Code
 background task (its output is the window's log; ending the task or the session stops the window), then
 `open.mjs --wait` for the URL. Rules:
@@ -64,8 +64,9 @@ The Codex skill is `codex/skills/nb/`, the omp skill `omp/skills/nb/`.
 Native since 1.9.0. What differs from POSIX goes through `server/src/platform.ts` (the launcher imports it too) and
 `shared/src/paths.ts`. Rules:
 
-- No bare `spawn('npm' | 'npx' | 'codex' | ...)`: resolve with `resolveBin`, then `spawnSpec`. An agent CLI is spawned
-  only through `server/src/agent/bin.ts`.
+- No bare `spawn('npm' | 'npx' | 'codex' | ...)`: resolve with `resolveBin`, then `spawnSpec`; npm and npx go through
+  `npmSpec` / `npxSpec` (the running Node's `npm-cli.js`, no shim). An agent CLI is spawned only through
+  `server/src/agent/bin.ts`.
 - No `process.kill(-pid)` (use `killTree`), no `process.kill(pid, 0)` (use `pidAlive`), no hard-coded `/` checks or `===`
   on paths (`isAbsPath`, `samePath`, `isInside`).
 - Never `taskkill` a tree of MSYS processes (Git Bash and its children): it can break MSYS so that every later `bash`
@@ -74,8 +75,10 @@ Native since 1.9.0. What differs from POSIX goes through `server/src/platform.ts
 - Absolute paths on the wire use the slash form (`C:/Users/x/proj`, `server/src/wirePath.ts`); `/info` and the window
   registry keep the native form, so compare them with `samePath`.
 - No unix sockets: the remote connector and the Whisper host listen on named pipes whose clients prove a per-home
-  secret (`remote/control-secret`, `whisper-host/host-secret`).
-- Private files: no modes or owners to check, so the profile's ACL is trusted and links are refused with `lstat`; the
+  secret (`remote/control-secret`, `whisper-host/host-secret`). A pipe name stays held while any accepted connection to
+  it is open.
+- Private files: no modes or owners to check, so the profile's ACL is trusted and links are refused with `lstat` (there
+  is no `O_NOFOLLOW`; never OR an undefined `fs.constants` flag in); the
   state folder must be inside `%USERPROFILE%` unless `NOTA_BENE_ALLOW_SHARED_HOME=1`. State writes go through
   `renameRetry`.
 - The repo is LF on every OS. CI runs on Ubuntu only: check Windows by hand before a release.
@@ -160,8 +163,9 @@ A release follows the workflow above, then publishes from a tag on `main`.
    changes.
 4. Run types and the package, skill and launcher tests. Run browser suites one at a time when behavior changes; a
    documentation or version-only release needs focused checks.
-5. Merge, wait for CI on `main`, then push an annotated tag `vX.Y.Z` on that commit straight away: the plugins on `main`
-   pin the version, so new installs fail until npm has it.
+5. Merge, wait for CI on `main`, then put an annotated tag `vX.Y.Z` on that commit and push it by name (never `--tags`:
+   any tag starts `publish.yml`), straight away: the plugins on `main` pin the version, so new installs fail until npm
+   has it.
 6. The tag starts `.github/workflows/publish.yml`: it checks the tag against `package.json` and `main`, builds with
    `scripts/build-package.mjs`, publishes through npm trusted publishing and creates the GitHub release. Pushing the tag
    is the authorization to publish. The package name stays `nota-bene-ide`; the root stays private.
@@ -170,6 +174,7 @@ A release follows the workflow above, then publishes from a tag on `main`.
 8. Verify the registry version and integrity.
 9. Verify the Codex marketplace install from `main` in an isolated `CODEX_HOME`, then smoke-test the published runtime
    with the installed skill and a fake Codex backend.
+10. Keep later repository-only plugin and documentation changes distinct from that archive.
 
 Do not restart a live NB server as part of building or publishing.
 
@@ -219,7 +224,7 @@ The canonical security model. Nothing on the machine reaches the API or the sock
   `127.0.0.1` port, so a local web server the user visits gets `nb_<port>` and can read what the cookie tier opens, until
   the next launch; it cannot open the socket or write. A token committed to git stays in its history.
 - **Rotating** means deleting `<state>/token` and restarting; windows live under the old token can no longer be proved
-  and must be reopened.
+  and must be reopened: `--find` does not see them, and a `/nb` or launch meanwhile starts a second window on the folder.
 - A page without a login (a bookmark, an old tab) shows "This window is not logged in" and stops reconnecting.
 - Dev: `npm run dev` has its own token; `npm run dev:open` proves both the backend and the Vite proxy before it logs in.
 - Smoke on 4790: with a temp `NOTA_BENE_HOME`, log a browser in with `node bin/nota-bene.mjs --front 4790`; for the API
@@ -304,7 +309,9 @@ the host, `hostClient.ts` the window's side, `transcribe.ts` the in-process fall
 If the project root is this directory, the chat window you are talking through is most likely served by this checkout.
 
 - `web/` changes take effect after `npm run build -w web` and a page reload (tell the user to reload). "Restart the
-  server" also rebuilds a stale `web/dist` first; a failed build is logged and the old one served.
+  server" also rebuilds a stale `web/dist` first; a crash relaunch never builds. A failed build is logged, the old
+  `web/dist` is served, and the build is not retried until a source changes. While the launcher builds, its registry
+  entry carries `building`, so another launch on that folder waits instead of opening a second window.
 - `server/` and `shared/` changes need a server restart: ask the user to open the ▾ menu next to "↻ Agent" and pick
   "Restart the server" (or press "Restart server · code updated"); the session resumes. **Do not kill, restart or curl
   your own window's server**: that kills your own turn.
