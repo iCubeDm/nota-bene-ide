@@ -86,7 +86,6 @@
   "askArchived": "Aus einem früheren Teil der Sitzung: wartet nicht mehr auf Antwort",
   "compact": "Verdichten",
   "modelAndEffort": "Modell und Aufwand",
-  "restartAgent": "Agent neu starten",
   "restartAgentTitle": "Agent neu starten?",
   "restartAgentBody": "Der Agent-Prozess startet in derselben Sitzung neu; ein laufender Zug stoppt.",
   "restart": "Neu starten",

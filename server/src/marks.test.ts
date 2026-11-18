@@ -8,7 +8,7 @@ import type { Comment } from '@nota-bene/shared';
 import { MARK_MAX_BYTES } from '@nota-bene/shared';
 import { EventHub } from './hub.ts';
 import { httpHandler } from './http.ts';
-import { MARK_ID, MarkFiles, markRoutes } from './marks.ts';
+import { MarkFiles, markRoutes } from './marks.ts';
 
 const ID = '0f8b2c4e-1a2b-4c3d-9e8f-0123456789ab';
 const ID2 = '1f8b2c4e-1a2b-4c3d-9e8f-0123456789ab';

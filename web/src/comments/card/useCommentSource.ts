@@ -5,7 +5,7 @@ import { revealRangeSideways, scrollRangeIntoView } from '@/anchors/scroll.ts';
 import { rangeForAnchor } from '@/anchors/text.ts';
 import { jumpToFileComment, selectFileLoad, selectFileVersion } from '@/files/slice.ts';
 import { markAttachment, selectImages } from '@/composer/slice.ts';
-import { activate, openAgent } from '@/tabs/slice.ts';
+import { activate } from '@/tabs/slice.ts';
 import { itemsOf, openSubagentTab, selectSubagent } from '@/subagent/slice.ts';
 import { revealToolOf, TOOL_SRC } from '@/feed/uiSlice.ts';
 import { t } from '@/i18n/index.ts';

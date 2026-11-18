@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Builds the publishable npm package into pkg/ (git-ignored): a compiled server and launcher, a FRESH web build, the
-// blend assets, LICENSE, THIRD-PARTY-NOTICES, README and a generated package.json. It never publishes anything.
+// Builds the publishable npm package into pkg/ (git-ignored): a compiled server and launcher, a FRESH web build,
+// LICENSE, THIRD-PARTY-NOTICES, README and a generated package.json. It never publishes anything.
 //
 //   node scripts/build-package.mjs [--out DIR] [--skip-web]
 //
 // Why esbuild, one bundle per entry, same directory depth as the checkout: Node refuses to strip types under
 // node_modules, so the server cannot ship as .ts. The code finds its files through `import.meta` relative lookups
-// (main.ts -> ../../web/dist, server.ts -> repoDir two levels up, blend.ts -> ./blend/*, the launcher -> ../server/src/main):
+// (main.ts -> ../../web/dist, server.ts -> repoDir two levels up, the launcher -> ../server/src/main):
 // bundling server/src/main.ts to pkg/server/src/main.js and bin/nota-bene.mjs to pkg/bin/nota-bene.mjs keeps every one of
 // them true with no change to the lookups. `@nota-bene/shared` is a workspace package, so it is inlined; the real runtime
 // dependencies stay external and are installed by npm.
@@ -47,7 +47,7 @@ export function packageJson() {
     repository: { type: 'git', url: 'git+https://github.com/iCubeDm/nota-bene-ide.git' },
     type: 'module',
     bin: { [BIN]: 'bin/nota-bene.mjs' },
-    files: ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/host.js', 'server/src/remote/cli.js', 'server/src/blend', 'server/src/dictation', 'web/dist', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'codex/skills/nb', 'omp/skills/nb'],
+    files: ['bin/nota-bene.mjs', 'server/src/main.js', 'server/src/host.js', 'server/src/remote/cli.js', 'server/src/dictation', 'web/dist', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'codex/skills/nb', 'omp/skills/nb'],
     engines: { node: NODE_RANGE },
     dependencies: runtimeDependencies(),
     keywords: ['claude', 'claude-code', 'codex', 'omp', 'ide', 'agent'],
@@ -98,8 +98,6 @@ export async function buildPackage({ out = path.join(ROOT, 'pkg'), skipWeb = fal
   await build({ ...common, entryPoints: [path.join(ROOT, 'bin/nota-bene.mjs')], outfile: path.join(out, 'bin/nota-bene.mjs') });
   fs.chmodSync(path.join(out, 'bin/nota-bene.mjs'), 0o755);
 
-  fs.mkdirSync(path.join(out, 'server/src/blend'), { recursive: true });
-  for (const f of ['export.py', 'sandbox.sb']) fs.copyFileSync(path.join(ROOT, 'server/src/blend', f), path.join(out, 'server/src/blend', f));
   // Whisper on the host: the worker thread's entry (plain JS, run as is) and the lockfile `npm ci` installs from; the
   // bundled server and host.js find them beside themselves (server/src/dictation/pipelineHost.ts: dictationAssetDir)
   fs.mkdirSync(path.join(out, 'server/src/dictation'), { recursive: true });

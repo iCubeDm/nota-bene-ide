@@ -23,7 +23,7 @@ import { ComposerAttachments } from '@/attachments/ComposerAttachments.tsx';
 import { insertPaths } from '@/attachments/file.ts';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { draggedPaths } from '@/files/drag.ts';
-import { addImage, removeImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
+import { addImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { BINDINGS, keysLabel, modKey, VOICE_KEY, withKey } from '@/shell/keymap.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';

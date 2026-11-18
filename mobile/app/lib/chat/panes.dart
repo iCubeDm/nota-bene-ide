@@ -346,7 +346,7 @@ class PaneStrip extends StatelessWidget {
           subs: {
             if (mode != null)
               1: (
-                text: modeLabel(tab!, mode, lang),
+                text: modeLabel(mode, lang),
                 danger: modeWithoutPrompts(mode),
               ),
           },

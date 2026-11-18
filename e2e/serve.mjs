@@ -23,12 +23,6 @@ seedUsage(path.join(claudeDir, 'projects/-work-demo'));
 fs.writeFileSync(path.join(home, 'token'), createHash('sha256').update(`nota-bene e2e ${fixture}`).digest('hex'), { mode: 0o600 });
 if (fixture === 'files') seedFiles(project);
 // the controls fixture's second session lives in a sibling folder of the project (removed with tmp)
-// experimental 3D is off by default; only the files fixture (the 3D specs) turns it on. The controls fixture keeps it off and
-// holds a model file, to check that it behaves as any other binary there (e2e/model3d-off.spec.ts)
-if (fixture === 'controls') {
-  fs.mkdirSync(path.join(project, 'models'));
-  fs.copyFileSync(path.join(root, 'e2e/fixtures/project/models/cube.glb'), path.join(project, 'models/cube.glb'));
-}
 if (fixture === 'controls') {
   fs.mkdirSync(path.join(tmp, 'other'));
   fs.writeFileSync(path.join(tmp, 'other/other.md'), '# Other project\n\nonly in the other folder\n');
@@ -112,7 +106,7 @@ for (const k of ['NOTA_BENE_LAUNCHER_PID', 'NOTA_BENE_SUPERVISED', 'NOTA_BENE_NO
 const child = spawn(
   process.execPath,
   [path.join(root, 'server/src/main.ts'), project, '--port', port, '--fake', path.join(root, 'server/test/fixtures', `${fixture}.json`)],
-  { cwd: root, env: { ...inherited, CLAUDE_CONFIG_DIR: claudeDir, CODEX_HOME: codexDir, NOTA_BENE_HOME: home, NOTA_BENE_NONCE: createHash('sha256').update(`nota-bene e2e nonce ${fixture}`).digest('hex').slice(0, 32), NOTA_BENE_EXPERIMENTAL_3D: fixture === 'files' ? '1' : '0' }, stdio: 'inherit', windowsHide: true },
+  { cwd: root, env: { ...inherited, CLAUDE_CONFIG_DIR: claudeDir, CODEX_HOME: codexDir, NOTA_BENE_HOME: home, NOTA_BENE_NONCE: createHash('sha256').update(`nota-bene e2e nonce ${fixture}`).digest('hex').slice(0, 32) }, stdio: 'inherit', windowsHide: true },
 );
 
 let done = false;

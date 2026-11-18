@@ -254,8 +254,7 @@ function keyOf(headers: IncomingHttpHeaders): string | undefined {
 
 /**
  * The only routes the cookie opens without the key: what an element loads with no way to add a header (<img>, <video>,
- * <audio>, a 3D loader's textures). `/model` is NOT among them: the viewer fetches it, so it goes through `apiFetch`. Anything
- * not listed needs the key; a new route is in the key tier by default.
+ * <audio>). Anything not listed needs the key; a new route is in the key tier by default.
  */
 export function cookieRoute(method: string | undefined, rawPath: string): boolean {
   if (method !== 'GET' && method !== 'HEAD') return false;

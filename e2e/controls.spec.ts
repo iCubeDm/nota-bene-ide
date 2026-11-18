@@ -7,7 +7,6 @@ import { en } from '../web/src/i18n/en.ts';
 // that change the server's session (clear, switch) leave it on an idle session of the project root.
 const composer = (page: Page) => page.locator('#composer-input'); // its placeholder changes with a suggestion
 const pill = (page: Page) => page.getByRole('button', { name: en.modeTip });
-const toasts = (page: Page) => page.getByTestId('toast');
 let seq = 0;
 const uniq = (label: string) => `${label} ${Date.now().toString(36)}-${process.pid}-${seq++}`;
 const bubble = (page: Page, text: string) => page.locator('[data-kind="user"]').filter({ hasText: text });

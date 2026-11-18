@@ -1,9 +1,8 @@
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { FileIcon, iconOf } from './FileIcon.tsx';
-import { setModel3d } from './kinds.ts';
 
-afterEach(() => { cleanup(); setModel3d(false); });
+afterEach(cleanup);
 
 it('maps the plan\'s extensions, media and well-known names (M6-11)', () => {
   const cases: [string, string][] = [
@@ -13,18 +12,9 @@ it('maps the plan\'s extensions, media and well-known names (M6-11)', () => {
     ['scene_v6.png', 'image'], ['a.JPG', 'image'], ['icon.svg', 'image'], ['clip_вход.mp4', 'video'], ['x.mov', 'video'], ['v.mp3', 'audio'],
     ['media/promo.nbcut.json', 'cut'], ['Edit 2.NBCUT.JSON', 'cut'], ['cut.json', 'json'],
     ['web/package.json', 'npm'], ['README.md', 'readme'], ['readme', 'readme'], ['.gitignore', 'git'], ['Dockerfile', 'docker'], ['dockerfile.dev', 'docker'],
-    ['LICENSE', 'file'], ['.env', 'file'], ['notes.txt', 'file'], ['archive.tar.gz', 'file'],
+    ['LICENSE', 'file'], ['.env', 'file'], ['notes.txt', 'file'], ['archive.tar.gz', 'file'], ['m/robot.glb', 'file'],
   ];
   for (const [p, id] of cases) expect([p, iconOf(p)]).toEqual([p, id]);
-});
-
-it('a model file has the model icon only while experimental 3D is on; off it is a plain file', () => {
-  expect(iconOf('m/robot.glb')).toBe('file');
-  expect(iconOf('scene.blend')).toBe('file');
-  setModel3d(true);
-  expect(iconOf('m/robot.glb')).toBe('model');
-  expect(iconOf('scene.GLTF')).toBe('model');
-  expect(iconOf('s.blend')).toBe('model');
 });
 
 it('a folder is closed or open; a letter mark is text, a glyph is strokes', () => {

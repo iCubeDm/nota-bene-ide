@@ -28,13 +28,7 @@ export function codexTooOld(userAgent: unknown): string | null {
 }
 export const CODEX_CAPABILITIES: Capabilities = {
   provider: 'codex', compact: true, clear: true, fork: true, usage: true, fileSuggestions: true, idleCompact: true, models: true,
-  modes: [...CODEX_MODES], taskBackground: false, taskOutput: false, suggestions: false, deleteSession: true,
-  modeDescriptors: [
-    { id: 'codex-configured', name: 'Codex config', description: 'Inherit Codex approval and sandbox settings. Changes apply to the next turn.' },
-    { id: 'codex-read-only', name: 'Read only', description: 'Read-only sandbox; request approval when necessary. Applies to the next turn.' },
-    { id: 'codex-workspace', name: 'Workspace', description: 'Write inside the workspace; request approval for additional access. Applies to the next turn.' },
-    { id: 'codex-full-access', name: 'Full access', description: 'Disable the sandbox and approval prompts. Applies to the next turn.' },
-  ],
+  modes: [...CODEX_MODES], taskBackground: false, taskOutput: false, deleteSession: true,
 };
 export function policy(mode: Mode, cwd: string, turn = false): Record<string, unknown> {
   if (mode === 'codex-configured') return {};
