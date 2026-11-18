@@ -501,7 +501,7 @@ Player and markup keys: [Images and video](#viewing-and-marking-up-images-and-vi
 - Separate **Claude** and **Codex** counters; **Reset** starts anew (**All time** keeps the rest).
 - **Weighted tokens**: input ×1, cache write ×1.25, cache read ×0.1, output ×5. A yardstick, not a price; hover for raw counts.
 - **Limit hits**: charts of 5-hour windows over the weeks, red where a limit was hit, and a table listing each hit with what was spent in the 5 hours (or the week) before it; click a row for the tasks.
-- **Tokens per 1%**: a table with one column per weekly window (the last 8) and rows avg 1% 5h and avg 1% weekly; a falling row means 100 % buys fewer tokens. Orange marks extra usage, with its tokens and cost.
+- **Tokens per 1%**: a table with one column per weekly window (the last 8) and rows avg 1% 5h and avg 1% weekly, each from its own week (a limit reset before its window ends counts the use on both sides of it); a falling row means 100 % buys fewer tokens. Orange marks extra usage, with its tokens and cost.
 - **Where it went**: the costliest **Tasks** (a message and all the agent did for it) and **Projects**; click a task for its subagents and costliest calls.
 
 <details><summary>More</summary>
