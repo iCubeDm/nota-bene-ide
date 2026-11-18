@@ -86,7 +86,6 @@
   "askArchived": "来自会话较早的部分：已不再等待回答",
   "compact": "压缩上下文",
   "modelAndEffort": "模型与推理强度",
-  "restartAgent": "重启智能体",
   "restartAgentTitle": "重启智能体？",
   "restartAgentBody": "智能体进程将在同一会话中重新启动；进行中的回合会停止。",
   "restart": "重启",

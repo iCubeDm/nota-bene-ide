@@ -479,7 +479,6 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   /** the timeline's seconds around the view: the waveform is drawn there */
   view: { from: number; to: number };
 }) {
-  const t = useT();
   const w = Math.max(2, b.len * pps);
   const bad = !!problems?.length;
   const url = projectFileUrl(b.src, fileSrc);
@@ -553,7 +552,7 @@ type Pointer = { clientX: number; clientY: number; altKey: boolean; shiftKey: bo
  * moves are the window's: a clip that changes lanes is a new element, and the drag must go on. An edit that changed
  * under the drag (a reload of the agent's version) ends it: a change built on the older edit is never committed.
  * Issue 432: Shift- or ⌘/Ctrl-press on a clip's body, edge or fade handle (on its gain line: a click, no drag) adds it to the selection or takes it out; a clip of a selection of
- * several moves them all (moveClips: refused, shown back where they were, while any would overlap; the edit bar says why, issue 442), a click on it alone
+ * several moves them all (groupMove: refused, shown back where they were, while any would overlap; the edit bar says why, issue 442), a click on it alone
  * selects it alone; its edges, gain line and fade handles act on it alone, the selection kept. With the blade a press
  * cuts the clip there (`bladeAt`, Shift: every track).
  * Issue 437: Shift alone on a clip's body or edge waits for the release: a click adds or takes out the clip; a drag on the

@@ -9,7 +9,6 @@ import { MarkupToolbar } from './MarkupToolbar.tsx';
 import { HALO, HALO_PX, shapeEls, STROKE_PX, useNatSize, useOverlayPlacement, type Media } from './overlay.tsx';
 import { addShape, clear, commitEdit, MASK_PROTOCOL, replaceShape, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
 import { keysInScope } from '@/lib/keyScope.ts';
-import { MODEL_MARKUP_PROTOCOL } from '@/model/pose.ts';
 
 type Pt = { x: number; y: number };
 
@@ -63,8 +62,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
 }) {
   const t = useT();
   const dispatch = useAppDispatch();
-  // a 3D view's comment carries a camera, which a server below protocol 9 would drop: no markup on it then
-  const offered = useAppSelector((s) => s.controls.protocol >= (media instanceof HTMLCanvasElement ? MODEL_MARKUP_PROTOCOL : 4));
+  const offered = useAppSelector((s) => s.controls.protocol >= 4);
   // polygons (issue 447): an older server would refuse the comment
   const mask = useAppSelector((s) => s.controls.protocol >= MASK_PROTOCOL);
   const draft = useAppSelector((s) => selectDraft(s, tabId));

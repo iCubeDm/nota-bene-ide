@@ -7,7 +7,7 @@ import { OMP_MIN_VERSION } from '../versions.ts';
 export { OMP_MIN_VERSION };
 export const OMP_CAPABILITIES: Capabilities = {
   provider: 'omp', compact: false, clear: true, fork: true, usage: true, fileSuggestions: false, idleCompact: false, models: true,
-  modes: [...OMP_MODES], taskBackground: false, taskOutput: false, suggestions: false,
+  modes: [...OMP_MODES], taskBackground: false, taskOutput: false,
 };
 /** omp's `--approval-mode` per mode; plan is an ACP mode on top of always-ask */
 const APPROVAL: Partial<Record<AgentMode, string>> = { 'omp-yolo': 'yolo', 'omp-write': 'write', 'omp-ask': 'always-ask', 'omp-plan': 'always-ask' };

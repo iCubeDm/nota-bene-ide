@@ -1,7 +1,6 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { Anchor, Comment } from '@nota-bene/shared';
 import { makeAnchor } from '@/anchors/resolve.ts';
 import { rangeForAnchor, textOf } from '@/anchors/text.ts';

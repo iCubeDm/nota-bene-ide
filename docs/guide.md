@@ -1,6 +1,6 @@
 # Nota Bene guide
 
-Nota Bene is a browser window over Claude Code, Codex or omp. You review what the agent made (replies, code, images, video frames, HTML pages, diagrams, 3D models), comment in the margin and send every comment as one batch. Exact limits and edge cases sit in collapsed **More** blocks. Short introduction: the [README](https://github.com/iCubeDm/nota-bene-ide/blob/main/README.md); how it is built: [architecture](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/architecture.md).
+Nota Bene is a browser window over Claude Code, Codex or omp. You review what the agent made (replies, code, images, video frames, HTML pages, diagrams), comment in the margin and send every comment as one batch. Exact limits and edge cases sit in collapsed **More** blocks. Short introduction: the [README](https://github.com/iCubeDm/nota-bene-ide/blob/main/README.md); how it is built: [architecture](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/architecture.md).
 
 Contents
 
@@ -10,7 +10,6 @@ Contents
 - [Margin comments and the batch send](#margin-comments-and-the-batch-send)
 - [Images and video](#images-and-video)
 - [HTML pages and diagrams](#html-pages-and-diagrams)
-- [3D models (experimental)](#3d-models-experimental)
 - [Chat](#chat)
 - [The @ picker and the / menu](#the--picker-and-the--menu)
 - [Shell commands with !](#shell-commands-with-)
@@ -92,7 +91,7 @@ The core of the tool: review first, then send everything at once.
 
 **Example.** The agent replies with a plan. Select "retry three times", click **Comment**, type `make this configurable`, press Cmd/Ctrl+Enter (Esc cancels): the fragment turns yellow and a card joins the **Comments** panel (Cmd/Ctrl+Shift+C). Select a line of another reply and click the quick label **Verify this**. Open `src/queue.ts` and comment on a function. Press **Send (3)** in the panel, or **Send** in the composer, which takes your typed text along. The agent gets one message, "Comments on fragments:", with each fragment, its source and your note. Sent comments are dimmed and tagged "sent".
 
-- Comment on replies, your own messages, tool lines, subagent replies (sent to the main session), files, diffs, images, video frames, HTML pages, 3D models and the clips and moments of a video edit.
+- Comment on replies, your own messages, tool lines, subagent replies (sent to the main session), files, diffs, images, video frames, HTML pages and the clips and moments of a video edit.
 - Quick labels: Looks good, Love it!, Clarify this, Verify this, Give me an example, Missing overview, Match existing patterns, Consider alternatives, Ensure no regression, Out of scope, Needs tests. Most add an instruction for the agent.
 - Emoji from the menu or a shortcode (`:+1:`); `@` works in the popup.
 - Click a highlight to open its card; edit or delete there or in the panel. Popups drag by their header. Cards jump to the source; tabs and tree rows show counts.
@@ -274,20 +273,6 @@ An edit (`*.nbcut.json`) is exported by Export: pick video (MP4: H.264 and AAC a
 <details><summary>More: ffmpeg</summary>
 
 Export needs ffmpeg on the machine: the path in `NOTA_BENE_FFMPEG`, else `ffmpeg` on `PATH`, else the usual places (Homebrew's `/opt/homebrew/bin` and `/usr/local/bin`, `/usr/bin`, `/snap/bin`; on Windows winget's, Scoop's and Chocolatey's folders, `Program Files\ffmpeg\bin` and `C:\ffmpeg\bin`). Without it the editor still works and Export says how to install it (`brew install ffmpeg`, `winget install ffmpeg`, `sudo apt install ffmpeg`); an ffmpeg installed later is found without a restart.
-
-</details>
-
-## 3D models (experimental)
-
-`.glb`, `.gltf` and `.blend` open in a 3D viewer: orbit, zoom, reset view, animation clips, an info line. **Mark up** freezes the view to draw on; the comment keeps the camera pose, and its chip brings the camera back there. Off by default and not yet on Windows. Turn it on at server start (stop an open window on the folder first, or the variable is ignored):
-
-```sh
-NOTA_BENE_EXPERIMENTAL_3D=1 nota-bene .
-```
-
-<details><summary>More</summary>
-
-`.blend` needs Blender: `NOTA_BENE_BLENDER`, else `blender` on `PATH`, else `/Applications/Blender.app/Contents/MacOS/Blender`. It converts in a locked-down mode (`sandbox-exec` on macOS), refuses files that reference outside the project, one at a time, 120 s at most; results go to `cache/blend/`. Models over 256 MB are not shown.
 
 </details>
 
@@ -631,7 +616,7 @@ Run the Mobile workflow by hand (Actions → Mobile → Run workflow), download 
 - Messages wait for the turn, or *Send now* interrupts; *Stop* ends it. The header pill opens model, effort, mode and *Restart agent*; the context ring opens tokens, limits, cost, idle compaction, *Compact*, *Clear* and *Stats*. Permissions are sheets, questions cards; offline, history stays readable.
 - **Panes** Files, Chat and Comments switch by tabs or swipe (side by side when wide); Markdown, images and video open full screen, other text up to 2 MiB read-only, and git *Changes* and *Log* show diffs.
 - **Comments**: tap a paragraph, heading, list item, quote or table for the labels (a chevron shows all eleven), *Comment* (text, images, voice clips) or *Copy*; select text in files and diffs, or mark up images and video frames.
-- "N comments to send" opens the Comments pane, where long-press edits, a left swipe deletes (*Undo*) and *Send* sends; typed and voice messages carry pending comments, and the desktop shows them too. Comments on HTML pages, 3D models and desktop-attached images stay on the desktop.
+- "N comments to send" opens the Comments pane, where long-press edits, a left swipe deletes (*Undo*) and *Send* sends; typed and voice messages carry pending comments, and the desktop shows them too. Comments on HTML pages and desktop-attached images stay on the desktop.
 - **Images** zoom with a pinch or double tap; the paperclip offers *Gallery*, *File*, *Camera* and recent photos (up to ten). Videos play in the app. A project sound a reply or a Markdown file embeds (`![](clips/take.mp3)`: mp3, wav, m4a, ogg, up to 64 MB) is a play row with its name, position and length; one sound plays at a time, voice messages included. A project image or video embedded the same way (`![](design/shot.png)`, `![](media/clip.mp4)`) shows as a preview or a tile with a play mark and its name; a tap opens it full screen, back returns to the text. A missing, outside or too large file says so.
 - **Voice** (Whisper on at the computer): hold to record, slide left to cancel, slide up to lock (*Stop* → *Delete* or *Send*), release to send; up to 10 minutes, transcribed on the computer, the same for comment clips, in the **Automatic** or a pinned language.
 - **Project icons**: long-press a session or open the window sheet for *Set icon* (camera or gallery, a 256 px square) or *Remove icon*; kept by Nota Bene on the computer, never in the project, and shown on every phone.
@@ -699,7 +684,6 @@ Everything is in `~/.nota-bene/` (`NOTA_BENE_HOME` to move it; `npm run dev` use
 | `attachments/<sha256>.<ext>` | *per agent*: pasted images and recordings (`.wav`) |
 | `windows/<port>.json`, `locks/` | *per agent*: running windows, launch locks |
 | `history/<sessionId>.jsonl` | *per agent*: conversation before each compaction |
-| `cache/blend/` | *per agent*: converted `.blend` files (safe to delete) |
 | `trash/` | *per agent*: what Storage → Clean moved |
 | `agent-choice.json` | each folder's last agent |
 | `recent.json`, `recent-hidden.json` | the switcher's Recent folders, and those removed with ✕ |
@@ -722,7 +706,6 @@ Native, no WSL or Docker. Differences:
 - **State folder**: no file modes, so your profile's access rights keep it private. It must be inside `%USERPROFILE%`; elsewhere (`D:\nb`) it is refused unless you restricted it yourself and set `NOTA_BENE_ALLOW_SHARED_HOME=1`. Links or junctions in place of private files are refused.
 - **Paths** show as `C:/Users/...`; `src\a.ts` and `src/a.ts` open the same file, `%TEMP%` images open in either form (elsewhere a backslash is part of a name); a drive-root project works. Tips name Ctrl.
 - **Voice and remote** use named pipes with secret files (`whisper-host/host-secret`, `remote/control-secret`); restart a running connector if `control-secret` is replaced.
-- **Not yet**: 3D models and `.blend` conversion.
 
 ## Troubleshooting
 
@@ -739,7 +722,6 @@ Native, no WSL or Docker. Differences:
 **Running**
 
 - **Interactive commands** (`sudo`, logins, vim, pagers) get empty input in `!` and in the agent's shell: use a real terminal.
-- **3D files open as plain files**: turn on [3D models](#3d-models-experimental).
 
 **Windows only**
 
