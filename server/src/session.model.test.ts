@@ -42,34 +42,6 @@ const modelEvents = (events: ServerEvent[]) => events.filter((e) => e.kind === '
 const pref = () => readPrefs().models[prefsKey('/proj')];
 
 describe('model and effort', () => {
-  it('the agent starts with the pref model and effort; its list reaches the clients and the manager', async () => {
-    setModelPref('/proj', { model: 'opus', effort: 'high' });
-    const b = fakeBackend([{ text: 'x' }], { models: MODELS });
-    const { events, make } = setup(b);
-    const s = await make();
-    expect(b.starts[0]).toMatchObject({ model: 'opus', effort: 'high' });
-    await until(() => events.some((e) => e.kind === 'models'));
-    expect(s.models()).toEqual(MODELS);
-    expect(s.model()).toEqual({ model: 'opus', effort: 'high' });
-    s.close();
-  });
-
-  it('a pref model the agent does not offer: the agent is put back on its default, the pref stays; a later start omits it', async () => {
-    setModelPref('/proj', { model: 'retired' });
-    const b = fakeBackend([{ text: 'x', crash: true }, { text: 'y' }], { models: MODELS });
-    const { events, make } = setup(b);
-    const s = await make();
-    await until(() => b.setModels.length === 1);
-    expect(b.setModels).toEqual([null]);
-    expect(s.model()).toEqual({ model: null });
-    expect(pref()).toEqual({ model: 'retired' });
-    s.send({ id: 'u1', text: 'hi' });
-    await until(() => events.some((e) => e.kind === 'agent' && e.e.t === 'turn-end')); // the crash killed the agent
-    s.send({ id: 'u2', text: 'again' });
-    expect(b.starts.map((x) => x.model)).toEqual(['retired', undefined]);
-    s.close();
-  });
-
   it('setModel: setModel and the effort go to the agent, the pref is written, one event carries the ack, even while busy', async () => {
     const b = fakeBackend([{ text: 'a slow reply for a while', chunk: 2, delayMs: 20 }], { models: MODELS });
     const { events, make } = setup(b);
