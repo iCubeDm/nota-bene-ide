@@ -33,9 +33,9 @@ const STEP = 1.5; // one zoom button press
  * hover; a click is `onNote`. A clip's sound (issue 431): the waveform of its used part where it is in view, and while
  * editing its gain line (dragged up or down, Shift: fine) and its fades' handles at its top corners (dragged inward).
  * Tools and selections (issue 432): with Select, Shift- or ⌘/Ctrl-click adds or removes a clip and a rectangle dragged on
- * empty space selects what it touches (Shift: adds; issue 442: from the track column and the rows after the lanes too), a selection moves together; with Blade, a click cuts the clip under
- * it there, snapped as edges are (Shift: every track; the line shows where on hover). The new tracks' buttons end each
- * kind's lanes in the track column. `flash` (issue 412): what a change of the file from outside did, shown for a moment
+ * empty space selects what it touches (Shift: adds; issue 442: from the track column and the rows beside the lanes too), a selection moves together; with Blade, a click cuts the clip under
+ * it there, snapped as edges are (Shift: every track; the line shows where on hover). The new tracks' buttons start the
+ * video lanes and end the audio ones in the track column (issue 490). `flash` (issue 412): what a change of the file from outside did, shown for a moment
  * (the caller clears it): the added and changed clips highlighted, a ghost where a removed one stood.
  */
 export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote, flash = null, copyOf }: {
@@ -203,13 +203,13 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
     }
     marquee(e, editing);
   };
-  // issue 442: a rectangle starts in the track column and on the rows after the lanes too, never from a control there
+  // issue 442: a rectangle starts in the track column and on the add-track and drop rows too, never from a control there
   const pressAside = (e: PointerEvent<HTMLElement>) => {
     if (!editing || editing.tool !== 'select' || e.button !== 0) return;
     if ((e.target as HTMLElement).closest('button, input, select, textarea, label, a, [data-track-name]')) return;
     marquee(e, editing, true);
   };
-  // `side`: pressed in the track column or below the lanes, the rectangle starts and stays within the lanes in view: the
+  // `side`: pressed in the track column or on a row beside the lanes, the rectangle starts and stays within the lanes in view: the
   // timeline scrolled under the sticky headers is not seen, nothing there is selected
   const marquee = (e: PointerEvent<HTMLElement>, ed: Editing, side = false) => {
     e.preventDefault();
@@ -352,8 +352,8 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
               <Head player={player} pps={pps} className="pointer-events-none absolute bottom-0 -ml-1 h-0 w-0 border-x-4 border-t-[6px] border-x-transparent border-t-destructive" />
             </div>
           </div>
-          {lanes.filter((l) => l.kind === 'video').map(lane)}
           {editing && <AddTrack kind="video" editing={editing} width={HEAD} onPress={pressAside} />}
+          {lanes.filter((l) => l.kind === 'video').map(lane)}
           {lanes.filter((l) => l.kind === 'audio').map(lane)}
           {editing && <AddTrack kind="audio" editing={editing} width={HEAD} onPress={pressAside} />}
           {editing && (
@@ -373,7 +373,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
   );
 }
 
-/** A new track's button (issue 432), in the track column at the end of its kind's lanes. */
+/** A new track's button (issue 432), in the track column where its kind grows (issue 490): above the video lanes, below the audio ones. */
 function AddTrack({ kind, editing, width, onPress }: {
   kind: 'video' | 'audio'; editing: Editing; width: number; onPress: (e: PointerEvent<HTMLElement>) => void;
 }) {
