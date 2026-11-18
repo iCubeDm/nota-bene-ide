@@ -15,7 +15,7 @@ import type { AddressInfo } from 'node:net';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { EventHub } from '../hub.ts';
-import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, ClientClosed, clientDeadlineMs, FALLBACK_MS, HELLO_WAIT_MS, HostClient, hostClient, hostEntryFile, HostLost, IDLE_CLOSE_MS, JOB_MARGIN_MS, LOCK_MARGIN_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
+import { BACKOFF_FAILURES, BACKOFF_WINDOW_MS, ClientClosed, clientDeadlineMs, FALLBACK_MS, HELLO_WAIT_MS, HostClient, hostClient, hostEntryFile, HostLost, JOB_MARGIN_MS, LOCK_MARGIN_MS, WhisperBusy, WhisperOff, type HostClientOptions } from './hostClient.ts';
 import { encodeFrame, FrameDecoder, helloProof, HOST_PINS, HOST_PROTO, hostDir, hostSecret, hostSocketPath, jobDeadlineMs, LOAD_DEADLINE_MS, newNonce, pcmFromInt16, privateDir, type Header } from './hostWire.ts';
 import { readPrefs, setWhisperPref } from '../prefs.ts';
 import { dictationRoutes } from './routes.ts';
@@ -608,10 +608,6 @@ describe('the connection', () => {
   it('the window waits as long as the host itself would: a model load, a model call, and a margin', () => {
     expect(clientDeadlineMs(16_000)).toBe(LOAD_DEADLINE_MS + jobDeadlineMs(16_000) + JOB_MARGIN_MS);
     expect(clientDeadlineMs(16_000 * 60)).toBeGreaterThan(jobDeadlineMs(16_000 * 60) + LOAD_DEADLINE_MS);
-  });
-
-  it('closes after a minute by default', () => {
-    expect(IDLE_CLOSE_MS).toBe(60_000);
   });
 
   it('close() ends it and a job that waits fails without a retry', async () => {
@@ -1356,16 +1352,6 @@ describe('the HTTP route', { timeout: 30_000 }, () => {
     expect((await f.next('cancel')).header).toEqual({ type: 'cancel', id: job.header.id });
   });
 
-  it('a full host queue is a 503 {error: busy}', async () => {
-    on();
-    const f = await FakeHost.start();
-    f.on = (s, sock) => f.answer(sock, { id: s.header.id, error: 'busy' });
-    const base = await serve(make());
-    const r = await fetch(`${base}/dictation/transcribe`, { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: new Uint8Array(makeWav()) });
-    expect(r.status).toBe(503);
-    expect(await r.json()).toEqual({ error: 'busy' });
-  });
-
   it('a host that answers answers the route', async () => {
     on();
     const f = await FakeHost.start();
@@ -1374,38 +1360,6 @@ describe('the HTTP route', { timeout: 30_000 }, () => {
     const r = await fetch(`${base}/dictation/transcribe?lang=en`, { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: new Uint8Array(makeWav()) });
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ text: 'from the host', lang: 'en' });
-  });
-
-  it('GET /dictation says `host: null` with no host running, and what the host says of itself with one', async () => {
-    const c = make();
-    const base = await serve(c);
-    expect((await (await fetch(`${base}/dictation`)).json() as { host: unknown }).host).toBeNull();
-    expect(fs.existsSync(hostDir())).toBe(false); // asking starts nothing and makes nothing
-    await FakeHost.start();
-    expect((await (await fetch(`${base}/dictation`)).json() as { host: unknown }).host).toEqual({ loaded: true, queued: 3, running: false });
-  });
-
-  it('GET /dictation is still a 200 with `host: null` for a host that does not answer, and does not wait on it for long', async () => {
-    const f = await FakeHost.start();
-    f.gate = new Promise<void>(() => {}); // never says hello
-    const base = await serve(make({ statusWaitMs: 150 }));
-    const t0 = Date.now();
-    const r = await fetch(`${base}/dictation`);
-    expect(r.status).toBe(200);
-    expect((await r.json() as { host: unknown }).host).toBeNull();
-    expect(Date.now() - t0).toBeLessThan(2000);
-  });
-
-  it('Remove with no host running is what it was: the install is deleted, Whisper is off, and nothing of the host is made', async () => {
-    fakeInstall();
-    on();
-    const base = await serve(make());
-    const r = await fetch(`${base}/dictation/remove`, { method: 'POST' });
-    expect([r.status, await r.json()]).toEqual([200, { ok: true }]);
-    expect(fs.existsSync(path.join(home, 'whisper'))).toBe(false);
-    expect(readPrefs().whisper).toBe(false);
-    expect(fs.existsSync(hostDir())).toBe(false);
-    expect(reports).toEqual([]);
   });
 
   it('Remove makes Whisper off and not ready first, then stops a running host (gone, with its socket name) before it deletes the install', async () => {

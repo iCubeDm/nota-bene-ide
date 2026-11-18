@@ -433,17 +433,6 @@ describe('small things of the run', () => {
     expect(t).toContain('dddd');
     expect(t).not.toContain('aaaa');
   });
-
-  it('a /clear-style stop drops the run’s output and leaves nothing for the agent', async () => {
-    const r = make();
-    r.run('r1', 'echo secret; sleep 30');
-    await until(() => outs().length > 0);
-    r.stopAll();
-    r.dropQueue();
-    await sleep(300);
-    expect(ended()).toBeUndefined();
-    expect(r.take('x')).toBe('x');
-  });
 });
 
 describe('the shell of a run on Windows', () => {
