@@ -1,5 +1,8 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ffmpegPlaces, ffmpegVersion, findFfmpeg, isOldFfmpeg, probeSource } from './ffmpeg.ts';
+import { ffmpegPlaces, ffmpegVersion, findFfmpeg, isOldFfmpeg, probeSource, readFfmpegVersion } from './ffmpeg.ts';
 
 describe('findFfmpeg', () => {
   const yes = (...ok: string[]) => (p: string) => ok.includes(p);
@@ -56,6 +59,23 @@ describe('ffmpegVersion', () => {
     expect(ffmpegVersion('ffmpeg version 4.3.6-0+deb11u1 Copyright')).toBe('4.3.6');
     expect(ffmpegVersion('ffmpeg version N-112233-gabcdef Copyright')).toBeNull();
     expect(ffmpegVersion('')).toBeNull();
+  });
+
+  // issue 468: it was execFileSync on a tab's hello, up to 5 s of a frozen server
+  it.skipIf(process.platform === 'win32')('readFfmpegVersion asks without blocking the event loop', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-ffver-'));
+    try {
+      const slow = path.join(dir, 'ffmpeg');
+      fs.writeFileSync(slow, "#!/usr/bin/env node\nsetTimeout(() => console.log('ffmpeg version 6.1.1 Copyright'), 300);\n", { mode: 0o755 });
+      let ticks = 0;
+      const timer = setInterval(() => { ticks++; }, 20);
+      const asked = readFfmpegVersion(slow);
+      expect(ticks).toBe(0);
+      expect(await asked).toBe('6.1.1');
+      clearInterval(timer);
+      expect(ticks).toBeGreaterThan(3);
+      expect(await readFfmpegVersion(path.join(dir, 'missing'))).toBeNull();
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
   it('older than 4.4 is old (amix has no normalize there); unknown is not', () => {

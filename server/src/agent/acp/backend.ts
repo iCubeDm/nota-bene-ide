@@ -4,7 +4,8 @@ import type { AgentMode, Capabilities, Interaction } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from '../types.ts';
 import { array, record, string } from '../json.ts';
 import { samePath } from '../../platform.ts';
-import { AcpError, AcpRpc, CLIENT_VERSION, type AcpConnection } from './rpc.ts';
+import { packageVersion } from '../../version.ts';
+import { AcpError, AcpRpc, type AcpConnection } from './rpc.ts';
 import { AcpSession, captureReplay } from './session.ts';
 
 /** a tool approval the agent asks as a form, read back into a tool name and choices */
@@ -31,7 +32,7 @@ export type AcpProfile = {
 const real = (p: string) => { try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } };
 
 export function acpBackend(profile: AcpProfile, options: { connect?: (mode: AgentMode, cwd?: string) => AcpConnection } = {}): AgentBackend {
-  const connect = options.connect ?? ((mode: AgentMode, cwd?: string) => new AcpRpc({ name: profile.name, command: profile.command(), args: profile.args(mode), cwd, clientVersion: CLIENT_VERSION, installHint: profile.errors.install }));
+  const connect = options.connect ?? ((mode: AgentMode, cwd?: string) => new AcpRpc({ name: profile.name, command: profile.command(), args: profile.args(mode), cwd, clientVersion: packageVersion() ?? 'unknown', installHint: profile.errors.install }));
   const first = profile.capabilities.modes[0]!;
   let metadata: AcpConnection | undefined;
   const sessions = new Set<AcpSession>();

@@ -15,6 +15,7 @@ import { transcriptExists } from './sessions.ts';
 import { lastSession, stateDir } from './state.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
 import { pidAlive, realpathNative, samePath } from './platform.ts';
+import { packageVersion } from './version.ts';
 
 const USAGE =
   'Usage: node server/src/main.ts [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--continue] [--fake script.json] [--allow-origin URL]';
@@ -212,11 +213,7 @@ const self = fileURLToPath(import.meta.url);
  * the package bundle alike two folders above this file, and tells the connector the package version. */
 function remoteKeeper(): RemoteKeeper {
   const repo = fileURLToPath(new URL('../..', import.meta.url));
-  let version: string | undefined;
-  try {
-    const v = (JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8')) as { version?: unknown }).version;
-    if (typeof v === 'string' && v) version = v;
-  } catch { /* no version: a connector of another one is then not replaced */ }
+  const version = packageVersion(); // none: a connector of another one is then not replaced
   return new RemoteKeeper({ entry: path.join(repo, 'bin', 'nota-bene.mjs'), ...(version ? { version } : {}) });
 }
 if (process.argv[1] && samePath(realpathNative(process.argv[1]), realpathNative(self))) {

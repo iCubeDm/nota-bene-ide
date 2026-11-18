@@ -1,11 +1,10 @@
 // `nota-bene remote …` (the launcher hands its argv over before its own parsing). The foreground run is the connector;
 // the other commands talk to it over the control socket.
-import fs from 'node:fs';
-import path from 'node:path';
 import { renderUnicodeCompact } from 'uqr';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient, type Msg } from './control.ts';
 import { readConfig, writeAccessKey, writeConfig } from './store.ts';
+import { packageVersion } from '../version.ts';
 
 export const REMOTE_USAGE = 'Usage: nota-bene remote [--relay wss://HOST]   run the connector in the foreground (the relay is saved)\n'
   + '       nota-bene remote pair                    show a QR code to pair a phone\n'
@@ -14,17 +13,6 @@ export const REMOTE_USAGE = 'Usage: nota-bene remote [--relay wss://HOST]   run 
   + '       nota-bene remote status\n'
   + '       nota-bene remote key [--clear]           save the relay access key you were given (read from stdin), or remove it\n'
   + '(a folder named remote opens with `nota-bene ./remote`)';
-
-/** The package's version, for `status` (a window replaces a connector it started from another version). Here and in the
- * package bundle alike, this file is three folders below the package root. */
-function packageVersion(): string | undefined {
-  try {
-    const v = (JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../../../package.json'), 'utf8')) as { version?: unknown }).version;
-    return typeof v === 'string' && v ? v : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 type Io = { out: (s: string) => void; err: (s: string) => void; input?: (prompt: string) => Promise<string> };
 const stdio: Io = { out: (s) => void process.stdout.write(s), err: (s) => void process.stderr.write(s), input: readSecret };

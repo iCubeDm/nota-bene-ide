@@ -37,7 +37,7 @@ const until = async (cond: () => boolean, ms = 5000) => {
   }
 };
 const make = (o: Partial<ConstructorParameters<typeof CutExporter>[0]> = {}) => {
-  const e = new CutExporter({ root: () => root, ffmpeg: () => fake, probe: async () => ({ video: true, audio: true }), version: () => null, graceMs: 200, ...o });
+  const e = new CutExporter({ root: () => root, ffmpeg: () => fake, probe: async () => ({ video: true, audio: true }), version: async () => null, graceMs: 200, ...o });
   exporters.push(e);
   return e;
 };
@@ -235,14 +235,23 @@ describe('CutExporter', () => {
   });
 
   it('an ffmpeg older than 4.4 is unusable, with its version; a newer one or an unknown build is usable', async () => {
-    let v: string | null = '4.3.2';
-    const e = make({ version: () => v });
+    // issue 468: the version is asked in the background, once per binary; while it is unknown the state is ok (nothing
+    // waits on a tab's hello), and an export waits for the answer
+    let answer!: (v: string | null) => void;
+    let asked = 0;
+    const e = make({ version: () => { asked++; return new Promise((r) => { answer = r; }); } });
+    expect(e.ffmpegState()).toEqual({ ok: true });
+    const started = refusal(e.start(edit('x.nbcut.json'), 'mp4'));
+    answer('4.3.2');
+    expect(await started).toMatchObject({ status: 501, code: 'old-ffmpeg', detail: '4.3.2' });
     expect(e.ffmpegState()).toEqual({ ok: false, reason: 'old-ffmpeg', version: '4.3.2' });
     expect(e.available()).toBe(false);
-    expect(await refusal(e.start(edit('x.nbcut.json'), 'mp4'))).toMatchObject({ status: 501, code: 'old-ffmpeg', detail: '4.3.2' });
-    v = '4.4';
-    expect(make({ version: () => v }).ffmpegState()).toEqual({ ok: true });
-    expect(make({ version: () => null }).available()).toBe(true);
+    expect(asked).toBe(1);
+    const newer = make({ version: async () => '4.4' });
+    newer.ffmpegState();
+    await Promise.resolve();
+    expect(newer.ffmpegState()).toEqual({ ok: true });
+    expect(make({ version: async () => null }).available()).toBe(true);
     expect(make({ ffmpeg: () => null }).ffmpegState()).toEqual({ ok: false, reason: 'no-ffmpeg' });
   });
 

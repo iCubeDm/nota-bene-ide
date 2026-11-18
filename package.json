@@ -23,6 +23,7 @@
     "e2e:codex": "playwright test -c e2e/codex.config.ts",
     "e2e:omp": "playwright test -c e2e/omp.config.ts",
     "gen:protocol": "node scripts/gen-protocol.ts",
+    "gen:notices": "node scripts/third-party-notices.mjs",
     "mobile:assets": "node scripts/mobile-assets.mjs"
   },
   "devDependencies": {
