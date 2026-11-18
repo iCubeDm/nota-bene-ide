@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } 
 import { Attachments } from '@/attachments/Attachments.tsx';
 import { mediaTypeOf } from '@/attachments/image.ts';
 import { addImage } from '@/composer/slice.ts';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
+import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { selectSwitching } from '@/controls/slice.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
 import { getLang, useT } from '@/i18n/index.ts';

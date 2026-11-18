@@ -2,7 +2,7 @@ import { askUserQuestion } from './ask-question.ts';
 import { deleteSession, getSessionInfo, getSessionMessages, getSubagentMessages, listSessions, listSubagents, query, renameSession } from '@anthropic-ai/claude-agent-sdk';
 import type { ModelInfo, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { CLAUDE_CAPABILITIES, type AgentEvent, type EffortLevel, type Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
-import type { AgentBackend, AgentSession, PermissionAsk, SendImage } from '../types.ts';
+import type { AgentBackend, AgentSession, SendImage } from '../types.ts';
 import { SessionNotFoundError } from '../types.ts';
 import { CommandTap, offered, pickCommands, toSlash } from './commands.ts';
 import { gitBashWarning } from './gitBash.ts';

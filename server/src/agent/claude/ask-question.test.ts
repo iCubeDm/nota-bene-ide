@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { askUserQuestion, questionPrompt } from './ask-question.ts';
+import type { Interaction } from '@nota-bene/shared';
+import { askUserQuestion } from './ask-question.ts';
 
 const input = {
   questions: [
@@ -8,8 +9,10 @@ const input = {
   ],
 };
 
-it('questionPrompt: one required field per question, with its header, options, descriptions and multi-select', () => {
-  expect(questionPrompt(input)).toEqual({
+it('the prompt: one required field per question, with its header, options, descriptions and multi-select', async () => {
+  let prompt: Interaction | undefined;
+  await askUserQuestion(input, async (p) => { prompt = p; return null; });
+  expect(prompt).toEqual({
     title: 'Claude', tool: 'AskUserQuestion',
     choices: [{ id: 'submit', label: 'Send answers' }, { id: 'cancel', label: 'Cancel' }],
     fields: [
@@ -17,8 +20,8 @@ it('questionPrompt: one required field per question, with its header, options, d
       { id: 'q1', label: 'Which features?', header: 'Features', options: ['A', 'B'], notes: ['a', 'b'], multi: true, required: true },
     ],
   });
-  expect(questionPrompt({ questions: 'x' })).toBeNull();
-  expect(questionPrompt({ questions: [] })).toBeNull();
+  expect(await askUserQuestion({ questions: 'x' }, async () => null)).toBeNull();
+  expect(await askUserQuestion({ questions: [] }, async () => null)).toBeNull();
 });
 
 it('askUserQuestion: submit allows with the answers keyed by question text; free text as given', async () => {

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { type AgentEvent, type AgentEffort as EffortLevel, type AgentMode as Mode, type ModelOption, type SlashCommand, type Stats } from '@nota-bene/shared';
 import type { ProviderSession as AgentSession, ProviderStartOptions as StartOptions } from '../types.ts';
-import { answerNative, CODEX_CAPABILITIES, CODEX_MIN_VERSION, codexTooOld, limits, models, policy, type CodexConnection } from './controls.ts';
+import { answerNative, CODEX_MIN_VERSION, codexTooOld, limits, models, policy, type CodexConnection } from './controls.ts';
 import { array, codexInput, CodexMapper, itemId, record, string } from './map.ts';
 
 type Turn = { interruptRequested?: boolean; interruption?: Promise<void>; id?: string; ids: Set<string>; pending: number; end?: Record<string, unknown>; finished: boolean; at: number; done: Promise<void>; resolve(): void };

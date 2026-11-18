@@ -656,22 +656,6 @@ const _json = r'''
   }
  },
  "web": {
-  "h5": {
-   "en": "5h",
-   "ru": "5ч",
-   "zh": "5h",
-   "es": "5h",
-   "pt": "5h",
-   "de": "5 h"
-  },
-  "week": {
-   "en": "week",
-   "ru": "неделя",
-   "zh": "周",
-   "es": "semana",
-   "pt": "semana",
-   "de": "Woche"
-  },
   "mode_default": {
    "en": "Default",
    "ru": "Обычный",
@@ -864,14 +848,6 @@ const _json = r'''
    "pt": "Planejamento somente leitura; escritas perguntam",
    "de": "Nur lesende Planung; Schreiben fragt"
   },
-  "modeTip": {
-   "en": "Agent mode",
-   "ru": "Режим агента",
-   "zh": "代理模式",
-   "es": "Modo del agente",
-   "pt": "Modo do agente",
-   "de": "Agent-Modus"
-  },
   "clearTitle": {
    "en": "Clear context",
    "ru": "Очистить контекст",
@@ -992,14 +968,6 @@ const _json = r'''
    "pt": "comentários",
    "de": "Kommentare"
   },
-  "ctx": {
-   "en": "context",
-   "ru": "контекст",
-   "zh": "上下文",
-   "es": "contexto",
-   "pt": "contexto",
-   "de": "Kontext"
-  },
   "vcsChanges": {
    "en": "Changes",
    "ru": "Изменения",
@@ -1071,14 +1039,6 @@ const _json = r'''
    "es": "Git no respondió. Se mantiene el último resultado.",
    "pt": "O Git não respondeu. O último resultado continua na tela.",
    "de": "Git hat nicht geantwortet. Das letzte Ergebnis bleibt sichtbar."
-  },
-  "vcsAllBranches": {
-   "en": "All branches",
-   "ru": "Все ветки",
-   "zh": "所有分支",
-   "es": "Todas las ramas",
-   "pt": "Todos os branches",
-   "de": "Alle Branches"
   },
   "binary": {
    "en": "Binary file, not shown",

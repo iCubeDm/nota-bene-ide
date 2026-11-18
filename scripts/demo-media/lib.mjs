@@ -109,7 +109,7 @@ export async function startServer(work, script, name, { codex, whisper } = {}) {
     try { execFileSync('cp', ['-cR', whisper, path.join(home, 'whisper')]); } catch { fs.cpSync(whisper, path.join(home, 'whisper'), { recursive: true }); }
     fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ whisper: true, dictationLang: 'en' }));
   }
-  const env = { ...cleanEnv(), NOTA_BENE_HOME: home, NOTA_BENE_NONCE: NONCE, CLAUDE_JOURNAL_VAULT: vault, NOTA_BENE_EXPERIMENTAL_3D: '0', NOTA_BENE_TEST_WHISPER_IDLE_MS: '8000' };
+  const env = { ...cleanEnv(), NOTA_BENE_HOME: home, NOTA_BENE_NONCE: NONCE, CLAUDE_JOURNAL_VAULT: vault, NOTA_BENE_TEST_WHISPER_IDLE_MS: '8000' };
   let stopping = false;
   const spawnOne = (root, port, args, extra = {}) => {
     const c = spawn(process.execPath, [path.join(REPO, 'server/src/main.ts'), root, '--port', String(port), ...args], {

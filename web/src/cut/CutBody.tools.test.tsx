@@ -1,11 +1,10 @@
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/store/store.ts';
 import { CutBody } from './CutBody.tsx';
-import { PATH_MIME } from './drag.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
@@ -422,7 +421,7 @@ it('a Shift-click on a clip, no drag, adds or removes it on release', async () =
 });
 
 it('a Shift drag on the end edge ripples the later clips of the track; on the start edge it is a plain trim', async () => {
-  const { clip, pps, container } = await show();
+  const { pps, container } = await show();
   const p = pps();
   const part = (id: string, sel: string) => container.querySelector(`[data-clip="${id}"] ${sel}`)!;
   drag(part('c1', '[data-trim="end"]'), 100, 100 - p, { shiftKey: true, altKey: true });

@@ -26,7 +26,6 @@ import { feedUiSlice, TOOL_SRC } from '../feed/uiSlice.ts';
 import { adoptServerLang } from '../i18n/index.ts';
 import { uiScale } from '../shell/uiScale.ts';
 import { theme } from '../shell/theme.ts';
-import { setModel3d } from '../files/kinds.ts';
 import { setTmpDirs } from '../files/tmpImages.ts';
 import { learnServerSep } from '../lib/paths.ts';
 import { coalesceChunks } from './chunks.ts';
@@ -163,7 +162,7 @@ export function makeStore(o: {
   const media: MediaController = new MediaController({
     pip: o.pip ?? browserPip,
     activate: (id) => store.dispatch(activate(id as Tab['id'])),
-    // video and audio only: a model tab (.glb) has no player, and an image has nothing to pause
+    // video and audio only: an image has nothing to pause
     isMedia: (id) => {
       const tab = store.getState().tabs.open.find((t) => t.id === id);
       return tab?.kind === 'file' && (VIDEO.test(tab.path) || AUDIO.test(tab.path));
@@ -190,7 +189,6 @@ export function makeStore(o: {
       if (ev.kind === 'hello') adoptServerLang(ev.lang);
       if (ev.kind === 'hello') uiScale.adopt(ev.uiScale);
       if (ev.kind === 'hello') theme.adopt(ev.theme);
-      if (ev.kind === 'hello') setModel3d(ev.capabilities?.model3d === true); // before the dispatch: views read it on re-render
       // the server's separator, for paths in agent text (lib/paths.ts serverSep): from its first absolute path
       if (ev.kind === 'hello') learnServerSep(ev.tmpDirs?.[0]);
       if (ev.kind === 'session') learnServerSep(ev.root);

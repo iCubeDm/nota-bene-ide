@@ -43,16 +43,6 @@ export function sourceTime(c: CutClip, t: number): number {
   return Math.min(c.out ?? from, Math.max(from, from + t - c.at));
 }
 
-export type Layer = { track: string; clip: CutClip; z: number };
-/** The picture at `t`: the visible video tracks' clips in view, bottom-up (tracks order, a later one covers). */
-export function videoLayers(cut: Cut, t: number): Layer[] {
-  const on = activeClips(cut, t);
-  return cut.tracks.filter((x) => x.kind === 'video').flatMap((x, z) => {
-    const clip = on.get(x.id);
-    return clip && !x.hidden ? [{ track: x.id, clip, z }] : [];
-  });
-}
-
 /** Decibels as an amplitude factor. */
 export const dbGain = (db: number): number => 10 ** (db / 20);
 

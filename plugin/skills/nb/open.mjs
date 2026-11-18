@@ -346,7 +346,7 @@ async function main(argv) {
   else { say(`NB: unknown argument '${argv[0]}'. Use /nb (resume the last window session here), /nb new, or /nb fork (carry this conversation over).`); exit(0); }
 
   // inside a Nota Bene window (the launcher)
-  if (process.env.NOTA_BENE_SUPERVISED || process.env.AI_IDE_SUPERVISED) { say('NB: already running inside Nota Bene — nothing to open.'); exit(0); }
+  if (process.env.NOTA_BENE_SUPERVISED) { say('NB: already running inside Nota Bene — nothing to open.'); exit(0); }
   const DIR = real(process.cwd()) ?? process.cwd();
   const HOME = process.env.HOME || os.homedir();
   const same = (a, b) => (WIN ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : a === b);

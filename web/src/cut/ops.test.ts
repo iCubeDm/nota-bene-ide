@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
 import {
   addClip, addTrack, deleteClips, dragGain, duplicateClip, freeAt, GAIN_MAX, GAIN_MIN, gainAtY, gainY, setFade, setGain, moveClip, moveTrack, movePlace, nudgeClip, removeTrack, renameTrack, resizePlace,
-  duplicateClips, moveClips, setClip, setClips, setTrackFlag, setTrackGain, fmtDb, snapMove, snapPoints, snapTime, splitAt, trimEnd, trimStart,
+  duplicateClips, groupMove, setClip, setClips, setTrackFlag, setTrackGain, fmtDb, snapMove, snapPoints, snapTime, splitAt, trimEnd, trimStart,
   moveForward, rippleTrimEnd, trackForward,
 } from './ops.ts';
 
@@ -339,30 +339,30 @@ describe('the gain line and the fade handles (issue 431)', () => {
 });
 
 describe('a selection of clips (issue 432)', () => {
-  it('moveClips: keeps the relative times and tracks; refuses an overlap on any track', () => {
+  it('groupMove: keeps the relative times and tracks; refuses an overlap on any track', () => {
     const cut = base();
-    const a = valid(moveClips(cut, ['c2', 'c4'], 1)!);
+    const a = valid(groupMove(cut, ['c2', 'c4'], 1) as Cut);
     expect(clip(a, 'c2')).toMatchObject({ track: 'v1', at: 9 });
     expect(clip(a, 'c4')).toMatchObject({ track: 'a1', at: 1.5 });
     expect(clip(a, 'c1')).toEqual(clip(cut, 'c1'));
     // c1 4 s later would sit over c2 (8..12): the whole move is refused, c3 with it
-    expect(moveClips(cut, ['c1', 'c3'], 4)).toBeNull();
+    expect(groupMove(cut, ['c1', 'c3'], 4)).toBe('overlap');
     expect(cut.clips).toEqual(base().clips); // the given edit is left alone
   });
-  it('moveClips: never before 0, the earliest clip stops there and the rest keep their distance', () => {
-    const a = valid(moveClips(base(), ['c3', 'c4'], -5)!);
+  it('groupMove: never before 0, the earliest clip stops there and the rest keep their distance', () => {
+    const a = valid(groupMove(base(), ['c3', 'c4'], -5) as Cut);
     expect(clip(a, 'c4').at).toBe(0);
     expect(clip(a, 'c3').at).toBe(0.5);
   });
-  it('moveClips: a lane shift moves the clips of that kind by as many lanes in the drawn order, the others keep theirs', () => {
+  it('groupMove: a lane shift moves the clips of that kind by as many lanes in the drawn order, the others keep theirs', () => {
     const cut = base();
     // drawn top-down: v2 (top of the picture), v1; down one lane: v2 -> v1
-    const a = valid(moveClips(cut, ['c3', 'c4'], 4, { kind: 'video', by: 1 })!);
+    const a = valid(groupMove(cut, ['c3', 'c4'], 4, { kind: 'video', by: 1 }) as Cut);
     expect(clip(a, 'c3')).toMatchObject({ track: 'v1', at: 5 });
     expect(clip(a, 'c4')).toMatchObject({ track: 'a1', at: 4.5 });
     // past the last lane of the kind: refused
-    expect(moveClips(cut, ['c3'], 0, { kind: 'video', by: 2 })).toBeNull();
-    expect(moveClips(cut, [], 1)).toBeNull();
+    expect(groupMove(cut, ['c3'], 0, { kind: 'video', by: 2 })).toBe('lane');
+    expect(groupMove(cut, [], 1)).toBeNull();
   });
   it('duplicateClips: the copies keep their spacing, after the selection, past anything in the way', () => {
     const cut = base();
@@ -438,7 +438,7 @@ describe('a clip with everything after it on its track (issue 437)', () => {
     ] };
     const fwd = valid(moveForward(cut, 'a', 0.5));
     expect(clip(fwd, 'b').at - clip(fwd, 'a').at).toBeCloseTo(1.0004, 6);
-    const sel = valid(moveClips(cut, ['a', 'b'], 0.5)!);
+    const sel = valid(groupMove(cut, ['a', 'b'], 0.5) as Cut);
     expect(clip(sel, 'b').at - clip(sel, 'a').at).toBeCloseTo(1.0004, 6);
     // stopped at a previous clip whose end is off the millisecond: the moved ones touch it, not overlap
     const after: Cut = { ...cut, clips: [...cut.clips, { id: 'c', track: 'v1', src: 'media/c.mp4', at: 3, out: 1 }] };

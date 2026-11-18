@@ -2,6 +2,7 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream';
+import { fuzzyScore } from '@nota-bene/shared';
 import type { EventHub } from './hub.ts';
 import { reportError } from './errors.ts';
 import { EDIT_MAX, readEditable, writeEditable, type EditAnswer } from './fileEdit.ts';
@@ -11,11 +12,9 @@ import { branchInfo, commitFileOf, commitOf, diffOf, fileOf, logOf } from './vcs
 import { switchBranch, SwitchRefused } from './gitSwitch.ts';
 import type { Fields } from './audit.ts';
 import { listWindows } from './system.ts';
-import { fuzzyScore } from './fuzzy.ts';
 import type { ProviderSession as AgentSession } from './agent/types.ts';
 import { parseRange } from './range.ts';
 import { serveTmpImage } from './tmpImage.ts';
-import { BlendError, type BlendConverter, type BlendInput } from './blend.ts';
 
 // from the prototype's MIME table
 const MIME: Record<string, string> = {
@@ -157,8 +156,6 @@ export function fileRoutes(o: {
   root: () => string;
   hub: EventHub;
   complete: (q: string) => Promise<string[]>;
-  /** .blend → GLB for /model; without it the route is not served */
-  blend?: BlendConverter;
   /** the roots of the windows whose agent is at work, for the branch list and the switch; a test passes its own */
   working?: () => Promise<string[]>;
   /** this window's agent is at work: no branch switch under it */
@@ -379,55 +376,6 @@ export function fileRoutes(o: {
     '/tmpimage': (req, res) => {
       if (!getOnly(req, res)) return;
       serveTmpImage(req, res, (e) => fail(req, res, e));
-    },
-
-    '/model': (req, res) => {
-      if (!getOnly(req, res)) return;
-      const blend = o.blend;
-      if (!blend) return plain(res, 404, 'not found');
-      // the first GET that starts a process: a page of another site must not be able to queue Blender
-      const site = req.headers['sec-fetch-site'];
-      if (site !== undefined && site !== 'same-origin' && site !== 'none') return plain(res, 403, 'cross-site request');
-      const rel = queryPath(req);
-      if (!/\.blend$/i.test(rel)) return plain(res, 400, 'only .blend files are converted');
-      withSource(req, res, async (src, root) => {
-        let input: BlendInput;
-        if (src === 'here' || (src.kind === 'worktree' && src.dir)) {
-          const abs = resolveInRoot(src === 'here' ? root : src.dir!, rel);
-          if (abs === null) return plain(res, 403, 'outside project');
-          const st = await fs.promises.stat(abs).catch(() => null);
-          if (!st?.isFile()) return plain(res, 404, 'not found');
-          input = { file: abs, base: src === 'here' ? root : src.dir! };
-        } else {
-          // a branch: the blob is written to a temp file by the converter and removed after
-          let bytes: Buffer | null;
-          try {
-            bytes = await readFile(root, src, rel);
-          } catch (e) {
-            return sourceFail(req, res, e);
-          }
-          if (bytes === null) return plain(res, 404, 'not found');
-          input = { bytes };
-        }
-        try {
-          const conv = await blend.convert(input);
-          const { glb, hash, transient } = conv;
-          const st = await fs.promises.stat(glb);
-          res.writeHead(200, { 'content-type': 'model/gltf-binary', 'content-length': st.size, etag: `"${hash}"`, ...SAFETY });
-          if (req.method === 'HEAD') {
-            res.end();
-            if (transient) fs.promises.rm(glb, { force: true }).catch(() => {});
-            return;
-          }
-          pipeline(fs.createReadStream(glb), res, (e) => {
-            if (transient) fs.promises.rm(glb, { force: true }).catch(() => {});
-            if (e && (e as NodeJS.ErrnoException).code !== 'ERR_STREAM_PREMATURE_CLOSE') reportError(o.hub, rel, e);
-          });
-        } catch (e) {
-          if (e instanceof BlendError) return json(req, res, e.status, { error: e.code, detail: e.detail, ...(e.paths ? { paths: e.paths } : {}) });
-          fail(req, res, e);
-        }
-      });
     },
 
     '/complete': (req, res) => {

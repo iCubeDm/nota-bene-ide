@@ -34,11 +34,6 @@ String uuidV4() {
   return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
 }
 
-CapabilitiesModeDescriptorsItem? _descriptor(WindowTab tab, AgentMode m) =>
-    tab.capabilities?.provider == CapabilitiesProvider.codex
-    ? null
-    : tab.capabilities?.modeDescriptors?.where((d) => d.id == m).firstOrNull;
-
 /// The modes the agent offers (the known ones, in its order).
 List<AgentMode> offeredModes(WindowTab tab) => [
   for (final m in tab.capabilities?.modes ?? const <AgentMode>[])
@@ -59,14 +54,12 @@ bool modeWithoutPrompts(AgentMode m) =>
     m == AgentMode.codexFullAccess ||
     m == AgentMode.ompYolo;
 
-/// A mode's name as the web's mode pill shows it (ModePill.tsx): the host's own for any provider but Codex, else the
-/// web's string.
-String modeLabel(WindowTab tab, AgentMode m, String lang) =>
-    _descriptor(tab, m)?.name ?? webString('mode_${m.toJson()}', lang);
+/// A mode's name as the web's mode pill shows it (ModePill.tsx).
+String modeLabel(AgentMode m, String lang) =>
+    webString('mode_${m.toJson()}', lang);
 
-/// A mode's description, by the same rule.
-String modeDescription(WindowTab tab, AgentMode m, String lang) =>
-    _descriptor(tab, m)?.description ??
+/// A mode's description, as the web's mode pill shows it.
+String modeDescription(AgentMode m, String lang) =>
     webString('mode_${m.toJson()}_desc', lang);
 
 class WindowTab extends ChangeNotifier {

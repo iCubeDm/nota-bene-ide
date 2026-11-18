@@ -373,7 +373,6 @@ export const en: Dict = {
   winNone: 'No windows registered',
   projSwitchTip: 'Projects',
   projSearch: 'Find a project',
-  projRunning: 'Running',
   projRecent: 'Recent',
   projProjects: 'Projects',
   projExpand: (p: string) => `Sessions of ${p}`,
@@ -490,7 +489,6 @@ export const en: Dict = {
   // branches and worktrees (M3-16)
   readOnly: 'read-only',
   sourceGone: 'This branch or worktree no longer exists',
-  fileTree: 'File tree',
   gitDetached: 'detached',
   // the git views (gh-30)
   vcsEmptyFile: 'Empty file',
@@ -576,29 +574,6 @@ export const en: Dict = {
   editTakeDisk: 'Take the version on disk',
   editReadOnly: 'This file is read-only.',
   reload: 'Reload',
-  // 3D model (.glb / .gltf / .blend)
-  modelLoading: (pct) => (pct === null ? 'Loading the model…' : `Loading the model… ${pct}%`),
-  modelTooBig: (size) => `The model is too large to show (${size}, the limit is 256 MB)`,
-  modelFailed: (e) => `Could not show the model: ${e}`,
-  modelOutsideRefs: (paths) => `This .blend references files outside the project: ${paths}`,
-  modelConverting: 'Blender converts the file…',
-  modelNoBlender: 'A .blend file needs Blender installed on this computer. Looked for: the NOTA_BENE_BLENDER variable, "blender" on PATH, and on macOS /Applications/Blender.app/Contents/MacOS/Blender. On another system set NOTA_BENE_BLENDER to the Blender program or put blender on PATH',
-  modelBlendNote: 'converted by Blender: materials made of shader nodes may look different',
-  modelLost: 'The WebGL context was lost: the browser took the GPU back. Reload the tab (↻)',
-  modelInfo: (size, meshes, tris, mats, anims) =>
-    `${size} · ${meshes} mesh${meshes === 1 ? '' : 'es'} · ${tris} triangle${tris === 1 ? '' : 's'} · ${mats} material${mats === 1 ? '' : 's'} · ${anims} animation${anims === 1 ? '' : 's'}`,
-  modelNoWebgl: 'WebGL is not available in this browser: the model cannot be shown',
-  modelRefused: (uri) => `The model refers to an external resource, which is not loaded: ${uri}`,
-  modelRefusedN: (n) => `${n} external resource${n === 1 ? '' : 's'} not loaded`,
-  sizeB: 'B', sizeKB: 'KB', sizeMB: 'MB', sizeGB: 'GB',
-  modelReset: 'Reset view',
-  modelResetTip: 'Reset view (double click)',
-  modelClip: 'Animation',
-  modelPlay: 'Play',
-  camLine: (pos: string, target: string, fov: string) => `camera ${pos} → ${target}, fov ${fov}°`,
-  modelViews: 'Saved views',
-  modelViewGo: 'Go to this view',
-  modelPause: 'Pause',
   // image attachments (M3-12)
   attach: (mod) => `Attach a file (paste: ${mod}V)`,
   remove: 'Remove',
@@ -606,7 +581,6 @@ export const en: Dict = {
   imgLabelC: (k: number, ci: number) => `[image ${k} · for comment ${ci}]`,
   imgLabelG: (k: number, cs: number[]) => `[image ${k} · for comments ${cs.join(', ')}]`,
   imgRefShared: (k: number, cs: number[]) => `📎 image ${k} (shared by comments ${cs.join(', ')}; every mark carries a badge with its comment number)`,
-  groupFail: 'Not sent: could not prepare the combined image',
   imgRef: (ks: number[]) => `📎 images: ${ks.join(', ')}`,
   // a media comment (markup on an image / video frame): the frame and the layer are labelled, pasted ones follow bare
   imgRefMedia: (ks: number[]) => `📎 images: ${ks.map((k, i) => (i === 0 ? `${k} (frame with marks)` : String(k))).join(', ')}`,

@@ -21,7 +21,6 @@ Map<String, Object?> hello({
   bool compact = true,
   bool clear = true,
   List<String> modes = const ['default', 'plan'],
-  List<Map<String, Object?>>? descriptors,
   String? provider,
 }) => {
   'kind': 'hello',
@@ -30,7 +29,6 @@ Map<String, Object?> hello({
     compact: compact,
     clear: clear,
     modes: modes,
-    modeDescriptors: descriptors,
     provider: provider,
   ),
 };
@@ -115,44 +113,16 @@ void main() {
     expect(colorOf('mode_default'), isNot(danger));
   });
 
-  testWidgets('the host\'s mode descriptors name the modes (not Codex)', (
-    t,
-  ) async {
-    await sheet(
-      t,
-      hi: hello(
-        modes: ['default', 'plan'],
-        descriptors: [
-          {'id': 'default', 'name': 'Ask first', 'description': 'Asks a lot'},
-          {'id': 'plan', 'name': 'Think', 'description': 'Plans'},
-        ],
-      ),
-    );
-    r.event({'kind': 'mode', 'mode': 'default'});
-    await t.pumpAndSettle();
-    expect(inSheet(find.text('Ask first')), findsOneWidget);
-    expect(find.text('Asks a lot'), findsOneWidget);
-  });
-
-  testWidgets('Codex takes the web\'s texts', (t) async {
+  testWidgets('the modes take the web\'s texts', (t) async {
     await sheet(
       t,
       hi: hello(
         modes: ['codex-read-only', 'codex-workspace'],
         provider: 'codex',
-        descriptors: [
-          {
-            'id': 'codex-read-only',
-            'name': 'Host name',
-            'description': 'Host description',
-          },
-        ],
       ),
     );
     r.event({'kind': 'mode', 'mode': 'codex-read-only'});
     await t.pumpAndSettle();
-    expect(find.text('Host name'), findsNothing);
-    expect(find.text('Host description'), findsNothing);
     expect(
       inSheet(find.text(webString('mode_codex-read-only', 'en'))),
       findsOneWidget,

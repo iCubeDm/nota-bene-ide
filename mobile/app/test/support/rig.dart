@@ -101,7 +101,6 @@ class Rig {
     bool usage = true,
     bool clear = true,
     List<String> modes = const ['default'],
-    List<Map<String, Object?>>? modeDescriptors,
     String? provider,
     String? dictation,
   }) => {
@@ -110,7 +109,6 @@ class Rig {
     'compact': compact,
     'clear': clear,
     'modes': modes,
-    'modeDescriptors': ?modeDescriptors,
     'usage': usage,
     'fileSuggestions': true,
     'fork': false,
