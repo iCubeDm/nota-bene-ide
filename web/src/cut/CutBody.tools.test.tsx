@@ -456,11 +456,11 @@ it('a rectangle can start in the track column and on the add-track rows; the hea
   expect(container.querySelector('[data-marquee]')).not.toBeNull();
   fireEvent.pointerUp(head, { clientX: 144 + p, clientY: 80, pointerId: 2 });
   expect(selected(container)).toEqual(['c3']);
-  // from the "+ Video" row (above the video lanes, issue 490) over the clips of both tracks
+  // from the "+ Video" row (above the video lanes, issue 490) down over the clips of both tracks
   const add = container.querySelector('[data-track-add="video"]')!;
-  fireEvent.pointerDown(add, { clientX: 300, clientY: 100, button: 0, pointerId: 2 });
-  fireEvent.pointerMove(add, { clientX: 144 + 7 * p, clientY: 20, pointerId: 2 });
-  fireEvent.pointerUp(add, { clientX: 144 + 7 * p, clientY: 20, pointerId: 2 });
+  fireEvent.pointerDown(add, { clientX: 300, clientY: 0, button: 0, pointerId: 2 });
+  fireEvent.pointerMove(add, { clientX: 144 + 7 * p, clientY: 90, pointerId: 2 });
+  fireEvent.pointerUp(add, { clientX: 144 + 7 * p, clientY: 90, pointerId: 2 });
   expect(selected(container)).toEqual(['c1', 'c2', 'c3']);
   // the row for a new track by a drop, too (Shift adds nothing new here: all are in)
   const dropRow = container.querySelector('[data-cut-drop]')!;

@@ -33,8 +33,8 @@ const STEP = 1.5; // one zoom button press
  * editing its gain line (dragged up or down, Shift: fine) and its fades' handles at its top corners (dragged inward).
  * Tools and selections (issue 432): with Select, Shift- or ⌘/Ctrl-click adds or removes a clip and a rectangle dragged on
  * empty space selects what it touches (Shift: adds; issue 442: from the track column and the rows beside the lanes too), a selection moves together; with Blade, a click cuts the clip under
- * it there, snapped as edges are (Shift: every track; the line shows where on hover). The new tracks' buttons end each
- * kind's lanes in the track column. `flash` (issue 412): what a change of the file from outside did, shown for a moment
+ * it there, snapped as edges are (Shift: every track; the line shows where on hover). The new tracks' buttons start the
+ * video lanes and end the audio ones in the track column (issue 490). `flash` (issue 412): what a change of the file from outside did, shown for a moment
  * (the caller clears it): the added and changed clips highlighted, a ghost where a removed one stood.
  */
 export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote, flash = null }: {
