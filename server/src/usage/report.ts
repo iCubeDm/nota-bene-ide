@@ -239,7 +239,8 @@ const RESET_JITTER_MS = 10 * 60_000;
 
 /**
  * A provider may reset a limit early, keeping the window's reset time (issue 486): a fall of more than this many points
- * starts a new rise. Two interleaved sources jitter by 1–2 points and a lone outlier dipped 7; a reset falls to about 0.
+ * to at most this many is a reset, and the next rise counts from 0. Two interleaved sources jitter by 1–2 points and
+ * outliers dip and return; neither lands near 0, so neither counts twice.
  */
 const RESET_DROP_PCT = 10;
 
@@ -259,10 +260,10 @@ function limitWindows(calls: readonly CallRecord[], records: readonly UsageRecor
     list.sort((a, b) => a.ts - b.ts);
     const first = list[0]!, last = list[list.length - 1]!;
     const w = calls.reduce((sum, c) => (c.ts > first.ts && c.ts <= last.ts ? sum + weigh(c) : sum), 0);
-    let pct = last.pct - first.pct; // the sum of the rises: the net change plus each reset's fall
+    let pct = last.pct - first.pct; // the sum of the rises: the net change plus the level each reset fell from
     for (let i = 1; i < list.length; i++) {
-      const drop = list[i - 1]!.pct - list[i]!.pct;
-      if (drop > RESET_DROP_PCT) pct += drop;
+      const prev = list[i - 1]!.pct, cur = list[i]!.pct;
+      if (prev - cur > RESET_DROP_PCT && cur <= RESET_DROP_PCT) pct += prev;
     }
     return { resets, from: first.ts, to: last.ts, pct, w };
   });
