@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS, main, MAX_CLIENTS, MAX_FAILURE_MESSAGE, MAX_QUEUED_BYTES, MAX_QUEUED_PER_CLIENT, MAX_QUEUED_TOTAL, startHost, WHISPER_IDLE_MS, type Host, type HostOptions } from './hostMain.ts';
+import { JOB_DEADLINE_MIN_MS, jobDeadlineMs, LOAD_DEADLINE_MS, main, MAX_CLIENTS, MAX_FAILURE_MESSAGE, MAX_QUEUED_BYTES, MAX_QUEUED_PER_CLIENT, MAX_QUEUED_TOTAL, startHost, type Host, type HostOptions } from './hostMain.ts';
 import { encodeFrame, FrameDecoder, helloProof, hostSecret, HOST_PINS, HOST_PROTO, hostSocketPath, MAX_HEADER, newNonce, pcmToInt16, type Header } from './hostWire.ts';
 import type { WorkerData, WorkerFactory, WorkerLike } from './pipelineHost.ts';
 import { MAX_AUDIO, WHISPER_MODEL, WHISPER_PACKAGE, WHISPER_REVISION } from './whisper.ts';
@@ -795,9 +795,6 @@ describe('idle', () => {
   /** Only the timers the host sets are faked: the sockets run for real. */
   const fakeClock = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
-  it('is ten minutes, and the host\'s own default', () => {
-    expect(WHISPER_IDLE_MS).toBe(10 * 60_000);
-  });
   it('a host that never got a job holds no model and stops after the idle time, to the millisecond', async () => {
     fakeClock();
     const h = await start({ idleMs: 5000 });

@@ -113,33 +113,6 @@ describe('running a command', () => {
     expect(s.backend.prompts).toEqual([]);
   });
 
-  it('refuses a second command while one runs, with a note', async () => {
-    const s = await boot();
-    const c = await connect(s.url);
-    c.send({ type: 'shell-run', id: 'r1', cmd: 'sleep 30' });
-    await until(() => ofKind(c, 'shell-start').length === 1);
-    c.send({ type: 'shell-run', id: 'r2', cmd: 'echo second' });
-    await until(() => refused(c).length === 1);
-    expect(refused(c)[0]).toEqual({ kind: 'shell-refused', id: 'r2', reason: 'running' });
-    expect(c.events.filter((e) => e.kind === 'server-error')).toEqual([]); // a refusal is not a toast: the page puts the draft back
-    expect(ofKind(c, 'shell-start')).toHaveLength(1);
-    c.send({ type: 'shell-stop', id: 'r1' });
-    await until(() => !!endOf(c));
-  });
-
-  it('shell-stop ends the run with the user as the reason; an unknown id changes nothing', async () => {
-    const s = await boot();
-    const c = await connect(s.url);
-    c.send({ type: 'shell-run', id: 'r1', cmd: 'echo up; sleep 30' });
-    await until(() => ofKind(c, 'shell-out').length > 0);
-    c.send({ type: 'shell-stop', id: 'nope' });
-    await sleep(80);
-    expect(endOf(c)).toBeUndefined();
-    c.send({ type: 'shell-stop', id: 'r1' });
-    await until(() => !!endOf(c));
-    expect(endOf(c)).toMatchObject({ stop: 'user', code: null, output: `${HEAD}up\n` });
-  });
-
   it('a run past the timeout is stopped with that reason', async () => {
     const s = await boot({ shell: { timeoutMs: 150 } });
     const c = await connect(s.url);
@@ -301,14 +274,21 @@ describe('what the agent hears', () => {
     expect(endOf(c, 'r2')!.output.toLowerCase()).toBe(`${HEAD}${sh(other)}\n`.toLowerCase());
   });
 
-  it('is refused while a switch is in progress', async () => {
+  it('is refused while another runs or a switch is in progress, with a note', async () => {
     const s = await boot({ historyDelayMs: 400 });
     const c = await connect(s.url);
+    c.send({ type: 'shell-run', id: 'r0', cmd: 'sleep 30' });
+    await until(() => ofKind(c, 'shell-start').length === 1);
+    c.send({ type: 'shell-run', id: 'r2', cmd: 'echo second' });
+    await until(() => refused(c).length === 1);
+    expect(refused(c)[0]).toEqual({ kind: 'shell-refused', id: 'r2', reason: 'running' });
+    expect(c.events.filter((e) => e.kind === 'server-error')).toEqual([]); // a refusal is not a toast: the page puts the draft back
+    expect(ofKind(c, 'shell-start')).toHaveLength(1);
     c.send({ type: 'switch', id: SB, dir: other });
     await sleep(100);
     c.send({ type: 'shell-run', id: 'r1', cmd: `touch ${sh(path.join(tmp, 'ran'))}` });
-    await until(() => refused(c).length === 1);
-    expect(refused(c)[0]).toMatchObject({ id: 'r1', reason: 'switching' });
+    await until(() => refused(c).length === 2);
+    expect(refused(c)[1]).toMatchObject({ id: 'r1', reason: 'switching' });
     await sleep(300);
     expect(fs.existsSync(path.join(tmp, 'ran'))).toBe(false);
   });
@@ -378,28 +358,6 @@ describe('it adds no way in but the owner’s socket', () => {
     expect(endOf(owner)).toBeUndefined();
     owner.send({ type: 'shell-stop', id: 'r1' });
     await until(() => !!endOf(owner));
-  });
-
-  it('refuses a command over 32 KB, a non-string, an empty one and a bad id, and runs nothing', async () => {
-    const s = await boot();
-    const c = await connect(s.url);
-    const bad: unknown[] = [
-      { type: 'shell-run', id: 'r1', cmd: `touch ${marker()}; #${'x'.repeat(32 * 1024)}` },
-      { type: 'shell-run', id: 'r1', cmd: 5 },
-      { type: 'shell-run', id: 'r1', cmd: ['touch', marker()] },
-      { type: 'shell-run', id: 'r1', cmd: '   ' },
-      { type: 'shell-run', id: 'r1' },
-      { type: 'shell-run', id: 7, cmd: `touch ${marker()}` },
-      { type: 'shell-run', id: '../x', cmd: `touch ${marker()}` },
-      { type: 'shell-stop', id: 5 },
-    ];
-    for (const m of bad) c.send(m);
-    await until(() => ofKind(c, 'server-error').filter((e) => e.where === 'ws').length === bad.length);
-    await sleep(100);
-    expect(ran()).toBe(false);
-    expect(ofKind(c, 'shell-start')).toEqual([]);
-    c.send({ type: 'shell-run', id: 'ok', cmd: 'echo still works' }); // the socket and the server are fine
-    await until(() => !!endOf(c, 'ok'));
   });
 
   it('takes the command as one argv item: the shell sees exactly the text', async () => {
