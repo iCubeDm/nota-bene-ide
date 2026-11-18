@@ -48,7 +48,7 @@ Contents
 
 The window is a background task of the Claude Code session: its output is the window's log; it stops with the task, the session, or **Stop Nota Bene** (⏻). The first `/nb` after installing or updating the plugin installs the npm package (about 330 MB per plugin version) and takes a few minutes.
 
-Claude Code does not update the plugin by itself: turn on auto-update for the nota-bene marketplace (`/plugin` → **Marketplaces** → **nota-bene** → **Enable auto-update**, or `"autoUpdate": true` on its `extraKnownMarketplaces` entry in `~/.claude/settings.json`; see [Install](../README.md#install)). The update runs after the first message of a session, after a random delay of up to 10 minutes; `/reload-plugins` applies it in the current session. `DISABLE_AUTOUPDATER`, `DISABLE_UPDATES` or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` turn it off (unless `FORCE_AUTOUPDATE_PLUGINS=1`).
+Claude Code does not update the plugin by itself: turn on auto-update for its marketplace ([Install](../README.md#install)). Until then a window opened by an older plugin shows **Update the /nb plugin** ([Updates](#updates)).
 
 ### From a terminal: `nota-bene`
 
@@ -179,7 +179,7 @@ Mermaid and SVG blocks in replies render as diagrams; **Open diagram** opens one
 
 ## Video edits (`.nbcut.json`)
 
-A file named `<name>.nbcut.json` is an edit for the video editor (coming in 2.1.0, in `main` now): video, photos and sound on tracks. It opens as a **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame); a clip with sound draws the waveform of the part it uses, scaled by its gain and fades, and its fades as slopes. The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom.
+A file named `<name>.nbcut.json` is an edit for the video editor: video, photos and sound on tracks. It opens as a **Timeline**; **Source** shows its JSON. Video tracks are drawn top-down from the one on top of the picture, then the audio tracks. Each track header shows its name, gain and whether it is muted, solo or hidden. Clips sit at their time with the file name and a thumbnail (a photo, or a video's first used frame); a clip with sound draws the waveform of the part it uses, scaled by its gain and fades, and its fades as slopes. The zoom buttons, or Ctrl/⌘ with the mouse wheel, zoom.
 
 **Preview.** The frame above the timeline plays the edit as the export renders it: video tracks stacked (a later one on top), each clip at its `place`, sound mixed with gains, fades, mute and solo. Click or drag on the ruler, or drag the playhead, to scrub. An edit with problems does not play.
 
@@ -517,7 +517,7 @@ An installed window checks npm (at most once a minute per machine, and on return
 - **Update** installs it beside the current one; the window restarts in a pause (nothing running, empty composer) on the same port and session. **Restart** does it at once.
 - **Update automatically** (off by default, per machine) does this for every release.
 - A failed install, no answer in 20 s or an exit in the first minute rolls back and shows `runtime/update.log`.
-- Source checkouts never update; versions up to 1.6.0 update once by hand ([Updating](../README.md#updating)).
+- Source checkouts never update; versions up to 1.6.0 update once by hand (`npm i -g nota-bene-ide@latest`, then reopen the windows).
 - The Claude Code plugin is not part of this update. A window opened by `/nb` from an older plugin shows **Update the /nb plugin** with the commands (`claude plugin marketplace update nota-bene`, then `claude plugin update nota-bene@nota-bene`, then restart Claude Code); **Got it** hides it until the next plugin version. On Windows it shows only for plugins from this version on.
 
 Turn the check off in Settings → Defaults (per agent) or with `NOTA_BENE_NO_UPDATE_CHECK=1`.
@@ -538,7 +538,7 @@ Nota Bene gives a web page the power to read your project and run an agent, so i
 
 - **Local only.** The server binds to `127.0.0.1` and checks hosts and origins.
 - **Access token.** `<state>/token`: 32 random bytes, mode 600, folder mode 700 (Windows: see [Windows](#windows)). Every route and the WebSocket need a credential derived from it. It is never on a command line, in the environment, a URL or a log; the agent and `!` commands do not get it.
-- **Login.** The launcher opens a mode-600 page in `<state>/open/` that redirects to `http://127.0.0.1:PORT/#t=LOGIN` (a keyed hash of token, port and a per-launch value). The page trades it once for an HttpOnly, SameSite=Strict cookie `nb_<port>` and a key in local storage. The cookie alone opens only `GET /file` and `/attach/<id>`; the rest needs the key.
+- **Login.** The launcher opens a mode-600 page in `<state>/open/` that redirects to `http://127.0.0.1:PORT/#t=LOGIN` (a keyed hash of token, port and a per-launch value). The page trades it once for an HttpOnly, SameSite=Strict cookie `nb_<port>` and a key in local storage. The cookie alone opens only `GET /file`, `/attach/<id>` and `/voice/<id>` (what images, video and audio load); the rest needs the key.
 - **One launch.** The login dies with the launcher; a crash relaunch opens a fresh login page. **Restart the server** keeps it.
 - **Another browser:** `nota-bene --url PORT`, which first checks the port is really your window.
 - **Rotating:** delete `<state>/token` and restart, then reopen old windows: `--find` no longer recognises them, so until you do, `/nb` or a new launch on that folder starts a second window.
@@ -547,7 +547,7 @@ Nota Bene gives a web page the power to read your project and run an agent, so i
 Residual risk:
 
 - Any process running as you, the agent included, can read the token. The aim is to keep out other users and software that cannot read your files.
-- Browsers send cookies to every `127.0.0.1` port: a local server on another port that you visit gets `nb_<port>` and can read open-project files (`/file`) and pasted images (`/attach/<id>`), nothing more, until the next launch.
+- Browsers send cookies to every `127.0.0.1` port: a local server on another port that you visit gets `nb_<port>` and can read open-project files (`/file`), pasted images (`/attach/<id>`) and voice-message audio (`/voice/<id>`), nothing more, until the next launch.
 - A token committed to git stays in its history. Do not make the state folder a repository.
 
 <a id="remote-access-prototype"></a>
@@ -680,10 +680,14 @@ Everything is in `~/.nota-bene/` (`NOTA_BENE_HOME` to move it; `npm run dev` use
 | `open/` | *per agent*: short-lived login pages |
 | `sessions.json` | *per agent*: each folder's last session |
 | `prefs.json` | *per agent*: mode per project, language, theme, Whisper on and spoken language |
-| `comments/<sessionId>.json` | *per agent*: comments |
+| `archived-sessions.json`, `seen-sessions.json` | *per agent*: the sessions the Sessions menu hides; when you last saw each session |
+| `comments/<sessionId>.v2.json` | *per agent*: comments, pending and sent |
+| `prompts/<sessionId>.jsonl` | *per agent*: the prompts you sent (↑/↓ and Alt+H) |
 | `attachments/<sha256>.<ext>` | *per agent*: pasted images and recordings (`.wav`) |
 | `windows/<port>.json`, `locks/` | *per agent*: running windows, launch locks |
 | `history/<sessionId>.jsonl` | *per agent*: conversation before each compaction |
+| `voice.jsonl` | *per agent*: which messages were voice messages, and their transcripts |
+| `turns-open/` | *per agent*: a mark per session while the agent works, so a restart mid-turn offers **Continue** |
 | `trash/` | *per agent*: what Storage → Clean moved |
 | `agent-choice.json` | each folder's last agent |
 | `recent.json`, `recent-hidden.json` | the switcher's Recent folders, and those removed with ✕ |
@@ -713,7 +717,7 @@ Native, no WSL or Docker. Differences:
 
 - **`/nb` fails with an apostrophe in the path** (`/Users/o'brien`): use `npm i -g nota-bene-ide` and `nota-bene`.
 - **"cannot write to the plugin data dir ... sandbox mode"**: allow writes to that folder in Claude Code's sandbox settings, or turn the sandbox off for `/nb`.
-- **`/nb` fails with *Shell command permission check failed* on its `open.sh` or `open.mjs` command** (often with *the auto mode classifier gave no verdict*): Claude Code did not let the skill's own command through its pre-approval and auto mode had no answer. Run `/nb` again (a missing verdict is often brief); update the plugin (`claude plugin marketplace update nota-bene`, `claude plugin update nota-bene@nota-bene`, restart Claude Code), whose `/nb` pre-approves its exact command; or add an allow rule to `permissions.allow` in `~/.claude/settings.json` with the quoted path from the message, as written there: `Bash("<path>/skills/nb/open.sh" *)` for a plugin up to 1.8, `Bash(node "<path>/skills/nb/open.mjs" *)` from 1.9.
+- **`/nb` fails with *Shell command permission check failed* on its `open.mjs` command** (often with *the auto mode classifier gave no verdict*): Claude Code did not let the skill's own command through its pre-approval and auto mode had no answer. Run `/nb` again (a missing verdict is often brief); update the plugin (`claude plugin marketplace update nota-bene`, `claude plugin update nota-bene@nota-bene`, restart Claude Code), whose `/nb` pre-approves its exact command; or add the allow rule `Bash(node "<path>/skills/nb/open.mjs" *)` to `permissions.allow` in `~/.claude/settings.json`, with the quoted path from the message.
 - **"port N is in use"**: another `--port`, or none. "no free port": stop a window in Settings → Windows.
 - **`nota-bene . &` stops with its shell**: use `nota-bene . --detach`.
 - **"This window is not logged in"** (a bookmark, an old tab, after a crash relaunch): run `nota-bene` or `/nb` again, or `nota-bene --front PORT`; `--url PORT` prints a URL.

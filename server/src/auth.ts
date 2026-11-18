@@ -7,7 +7,7 @@
 // to every server it starts: exit 75 keeps it, a crash relaunch takes a new one; an unsupervised server makes its own). The nonce is
 // public, not a secret. A value captured from one launch is dead at the next, and one captured for a port is dead on any
 // other. Derived values, each with its own label:
-//   cookie  `nb_<port>`      HttpOnly, opens only `/file` and `/attach/<id>` (what <img>, <video> and <audio> load without
+//   cookie  `nb_<port>`      HttpOnly, opens only `/file`, `/attach/<id>` and `/voice/<id>` (what <img>, <video> and <audio> load without
 //                            headers): a browser sends it to every port on 127.0.0.1, so on its own it must not open
 //                            anything else (not /info, not the socket, not a write)
 //   key                      what the page keeps in localStorage (origin-scoped, port included); with the cookie it opens

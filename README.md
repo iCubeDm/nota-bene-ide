@@ -22,7 +22,7 @@ Nota Bene opens the agent you already have (its own login, models and sessions) 
 
 ## What you can do
 
-**Images.** Open an image from the project, a screenshot the agent left in `/tmp`, or one you pasted into the message. Draw a rectangle, ellipse, arrow or freehand line on it, or (in `main`, coming in 2.1.0) outline an exact area point by point with a mask, and comment; the agent receives the picture with your marks drawn on it (and a mask as `mask.png`).
+**Images.** Open an image from the project, a screenshot the agent left in `/tmp`, or one you pasted into the message. Draw a rectangle, ellipse, arrow or freehand line on it, or outline an exact area point by point with a mask, and comment; the agent receives the picture with your marks drawn on it (and a mask as `mask.png`).
 
 ![Marking up an image: a rectangle and a mask, each with a comment](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/annotate-image.gif)
 
@@ -34,11 +34,11 @@ Nota Bene opens the agent you already have (its own login, models and sessions) 
 
 ![Commenting on a line of code](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/annotate-code.gif)
 
-**Steering the agent.** A message sent mid-turn joins it; permission requests, plans and questions are cards you answer in the window. Subagents get their own tabs, background tasks a drawer. Voice messages and voice comments are transcribed on your computer with Whisper (optional). Open projects sit in a rail on the left, one click apart (in `main`, coming in 2.1.0). Sessions, archives and the history from before each compaction; a Usage tab for tokens and plan limits across projects; updates in one click.
+**Steering the agent.** A message sent mid-turn joins it; permission requests, plans and questions are cards you answer in the window. Subagents get their own tabs, background tasks a drawer. Voice messages and voice comments are transcribed on your computer with Whisper (optional). Open projects sit in a rail on the left, one click apart. Sessions, archives and the history from before each compaction; a Usage tab for tokens and plan limits across projects; updates in one click.
 
 ![Recording a voice message: it is transcribed on the computer and the agent answers the text](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/voice-message.gif)
 
-**Video editor (coming in 2.1.0, in `main` now; 2.0.1 does not have it).** An edit (`*.nbcut.json`) opens as a timeline: video and photos on stacked tracks, sound with its waveform, gain and fades, mute and solo, and a preview with a level meter. Comment a clip or a moment like anything else; the agent writes the edit as JSON, and what it changed is highlighted on the timeline. Export renders MP4, WAV or M4A with ffmpeg. See [Video edits](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#video-edits-nbcutjson).
+**Video editor.** An edit (`*.nbcut.json`) opens as a timeline: video and photos on stacked tracks, sound with its waveform, gain and fades, mute and solo, and a preview with a level meter. Comment a clip or a moment like anything else; the agent writes the edit as JSON, and what it changed is highlighted on the timeline. Export renders MP4, WAV or M4A with ffmpeg. See [Video edits](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#video-edits-nbcutjson).
 
 ![Editing a video: the voice-over turned up, the preview played, a comment on the music, and the agent's change to it highlighted](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/video-editor.gif)
 
@@ -154,29 +154,7 @@ An Android app (a prototype) drives your windows from a phone: chat, files, Git 
 
 ## Updating
 
-From 1.7.0 on, a window updates itself: the header shows `↑ <version>`, **Update** installs it and the window restarts in a pause with the same session; **Update automatically** does it for every release. See [Updates](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#updates).
-
-The window's update does not update the Claude Code plugin. An older plugin's `/nb` still opens the newest version, but a window it opened says **Update the /nb plugin** until you run the commands below (or turn on [auto-update](#install) for the marketplace):
-
-```sh
-claude plugin marketplace update nota-bene
-claude plugin update nota-bene@nota-bene       # then restart Claude Code
-```
-
-<details>
-<summary>Versions up to 1.6.0: update once by hand</summary>
-
-```sh
-npm i -g nota-bene-ide@latest                  # terminal
-claude plugin marketplace update nota-bene     # Claude Code plugin,
-claude plugin update nota-bene@nota-bene       #   then restart Claude Code
-codex plugin marketplace upgrade               # Codex plugin
-codex plugin add nota-bene@nota-bene
-```
-
-Then close the old windows and open them again: a `/nb` window is a background task of its Claude Code session (stop it in `/tasks`), a terminal window stops with Ctrl+C. Sessions, comments and settings stay.
-
-</details>
+A window updates itself: the header shows `↑ <version>` and **Update** installs it; the window restarts in a pause with the same session. The Claude Code plugin updates separately: turn on [auto-update](#install) for its marketplace, or run `claude plugin marketplace update nota-bene` and `claude plugin update nota-bene@nota-bene`, then restart Claude Code. Versions up to 1.6.0 update once by hand: `npm i -g nota-bene-ide@latest` and the plugin commands. Details: [Updates](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#updates).
 
 ## Guide
 
