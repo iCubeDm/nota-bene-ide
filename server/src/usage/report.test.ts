@@ -291,6 +291,15 @@ describe('tank', () => {
     ]);
   });
 
+  it('a limit reset early within one window adds its rise; jitter and a single dip do not split it (issue 486)', () => {
+    const l = (h: number, pct: number): UsageRecord => ({ k: 'l', ts: T0 + h * H, minutes: week, pct, resets: T0 + 6 * D });
+    const r = report([
+      l(0, 0), l(1, 48), l(2, 49), l(3, 48), l(4, 80), l(5, 73), l(6, 80), l(7, 98), l(8, 0), l(9, 36),
+      call({ id: 'a', ts: T0 + H / 2, out: 200 }), call({ id: 'b', ts: T0 + 8.5 * H, out: 200 }),
+    ], { period: 'all' });
+    expect(r.tanks).toEqual([{ from: T0, to: T0 + 9 * H, pct: 134, w: 2000, perPct: 2000 / 134 }]);
+  });
+
   it('under one percent is no measurement; five-hour readings are not the tank', () => {
     expect(report([
       { k: 'l', ts: T0, minutes: week, pct: 10, resets: 1 }, { k: 'l', ts: T0 + D, minutes: week, pct: 10.5, resets: 1 },

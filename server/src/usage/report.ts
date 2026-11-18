@@ -237,7 +237,13 @@ function weeksOf(calls: readonly CallRecord[], events: readonly HitEvent[], isEx
 /** Providers report a window's reset with jitter (Claude milliseconds, Codex seconds); a moved reset is hours away. */
 const RESET_JITTER_MS = 10 * 60_000;
 
-/** Each limit window of `minutes` (by its reset) with its percent and tokens from its first to its last reading. */
+/**
+ * A provider may reset a limit early, keeping the window's reset time (issue 486): a fall of more than this many points
+ * starts a new rise. Two interleaved sources jitter by 1–2 points and a lone outlier dipped 7; a reset falls to about 0.
+ */
+const RESET_DROP_PCT = 10;
+
+/** Each limit window of `minutes` (by its reset) with its percent (the sum of its rises) and tokens from its first to its last reading. */
 function limitWindows(calls: readonly CallRecord[], records: readonly UsageRecord[], minutes: number) {
   const readings = records
     .filter((r): r is LimitRecord & { resets: number } => r.k === 'l' && r.minutes === minutes && r.resets !== null)
@@ -253,7 +259,12 @@ function limitWindows(calls: readonly CallRecord[], records: readonly UsageRecor
     list.sort((a, b) => a.ts - b.ts);
     const first = list[0]!, last = list[list.length - 1]!;
     const w = calls.reduce((sum, c) => (c.ts > first.ts && c.ts <= last.ts ? sum + weigh(c) : sum), 0);
-    return { resets, from: first.ts, to: last.ts, pct: last.pct - first.pct, w };
+    let pct = last.pct - first.pct; // the sum of the rises: the net change plus each reset's fall
+    for (let i = 1; i < list.length; i++) {
+      const drop = list[i - 1]!.pct - list[i]!.pct;
+      if (drop > RESET_DROP_PCT) pct += drop;
+    }
+    return { resets, from: first.ts, to: last.ts, pct, w };
   });
 }
 
