@@ -2741,7 +2741,7 @@
       "type": "object"
     },
     "UsageTank": {
-      "description": "One weekly limit window: its own percent and tokens; `perPct` is the tokens per 1% averaged over it and every later window up to the current. `h5`: the five-hour limit's, over the week's five-hour windows, averaged the same way.",
+      "description": "One weekly limit window, its own dataset: its percent, tokens and `perPct`, the tokens per 1% of it alone. `h5`: the same for the five-hour limit over that week's own five-hour windows.",
       "properties": {
         "from": {
           "type": "number"

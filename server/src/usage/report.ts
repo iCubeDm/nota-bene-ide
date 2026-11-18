@@ -258,25 +258,17 @@ function limitWindows(calls: readonly CallRecord[], records: readonly UsageRecor
 }
 
 /**
- * Tokens per percent of the weekly limit, one entry per weekly window: `perPct` averages that window and every later one
- * up to the current (tokens over percent, summed), so the last is the current window alone. `h5` does the same for the
- * five-hour limit: a week's five-hour windows (by their first reading) summed, then averaged up to the current week.
+ * Tokens per percent of the weekly limit, one entry per weekly window, each its own dataset (issue 482): `perPct` is that
+ * window's tokens over its percent, and `h5` the same over that week's five-hour windows (by their first reading).
  */
 function tanksOf(calls: readonly CallRecord[], records: readonly UsageRecord[]): UsageTank[] {
   const weeks = limitWindows(calls, records, WEEK_MINUTES).filter((x) => x.pct >= 1).sort((a, b) => a.from - b.from);
   const fives = limitWindows(calls, records, 5 * 60).filter((x) => x.pct > 0);
-  const h5 = weeks.map((k) => {
+  return weeks.map((k) => {
     const own = fives.filter((f) => f.from > k.resets - 7 * DAY && f.from <= k.resets);
-    return { pct: own.reduce((sum, f) => sum + f.pct, 0), w: own.reduce((sum, f) => sum + f.w, 0) };
+    const pct = own.reduce((sum, f) => sum + f.pct, 0), w = own.reduce((sum, f) => sum + f.w, 0);
+    return { from: k.from, to: k.to, pct: k.pct, w: k.w, perPct: k.w / k.pct, ...(pct > 0 ? { h5: { pct, w, perPct: w / pct } } : {}) };
   });
-  const out: UsageTank[] = [];
-  let pct = 0, w = 0, pct5 = 0, w5 = 0;
-  for (let i = weeks.length - 1; i >= 0; i--) {
-    const k = weeks[i]!, f = h5[i]!;
-    pct += k.pct; w += k.w; pct5 += f.pct; w5 += f.w;
-    out.unshift({ from: k.from, to: k.to, pct: k.pct, w: k.w, perPct: w / pct, ...(pct5 > 0 ? { h5: { pct: f.pct, w: f.w, perPct: w5 / pct5 } } : {}) });
-  }
-  return out;
 }
 
 export function periodStart(period: UsagePeriod, trip: number | null, now: number): number | null {
