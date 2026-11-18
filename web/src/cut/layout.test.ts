@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { drawable, drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn } from './layout.ts';
+import { drawable, drawnSpan, fmtTime, ppsRange, rulerStep, srcSpan, ticksIn } from './layout.ts';
 
 it('drawable: video tracks top-down from the one on top of the picture, then the audio tracks in order', () => {
   const d = drawable({
@@ -38,6 +38,18 @@ it('drawable: places what it can, by index, and skips the rest', () => {
     { i: 6, id: 'c7', track: 'a1', src: 'm/f.wav', at: 2, len: 4, from: 0, photo: false },
   ]);
   expect(d.end).toBe(6);
+});
+
+it('a reversed clip (issue 492): drawn as reversed, its waveform read from its end back; a photo never is', () => {
+  const v = { tracks: [{ id: 'v1', kind: 'video' }], clips: [
+    { id: 'a', track: 'v1', src: 'a.mp4', at: 0, in: 2, out: 6, reverse: true },
+    { id: 'p', track: 'v1', src: 'p.png', at: 5, dur: 1, reverse: true },
+  ] };
+  const [b, p] = drawable(v).blocks;
+  expect([b!.reverse, p!.reverse]).toEqual([true, undefined]);
+  expect(srcSpan(b!, 0, 0.5)).toEqual([5.5, 6]);
+  expect(srcSpan(b!, 3.5, 0.5)).toEqual([2, 2.5]);
+  expect(srcSpan({ ...b!, reverse: undefined }, 1, 0.5)).toEqual([3, 3.5]);
 });
 
 it('drawable: nothing to draw from what is not an edit', () => {

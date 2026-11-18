@@ -185,6 +185,17 @@ describe('exportArgs', () => {
     expect(graph(exportArgs(c, SOURCES, '/o', 'wav')).some((f) => /(^|,)fade=/.test(f))).toBe(false);
   });
 
+  it('a reversed clip (issue 492): reverse and areverse on its part only, first in its chains, the input trimmed as before', () => {
+    const args = exportArgs(cut((c) => { c.clips[0]!.reverse = true; }), SOURCES, '/o', 'mp4');
+    expect(args.slice(args.indexOf('-ss'), args.indexOf('-ss') + 6)).toEqual(['-ss', '2.5', '-t', '2', '-i', '/p/media/a.mp4']);
+    const g = graph(args);
+    expect(g.find((f) => f.startsWith('[0:v]'))).toMatch(/^\[0:v\]reverse,scale=/);
+    expect(g.find((f) => f.startsWith('[0:a]'))).toMatch(/^\[0:a\]areverse,asetpts=/);
+    expect(g.filter((f) => /(^|[\],])a?reverse/.test(f))).toHaveLength(2);
+    // the sound alone too
+    expect(graph(exportArgs(cut((c) => { c.clips[3]!.reverse = true; }), SOURCES, '/o', 'wav')).find((f) => f.startsWith('[2:a]'))).toMatch(/^\[2:a\]areverse,/);
+  });
+
   it('an edit with nothing audible still has a silent sound track of its length', () => {
     const g = graph(exportArgs(cut((c) => { for (const t of c.tracks) t.mute = true; }), SOURCES, '/o', 'mp4'));
     expect(g.filter((f) => f.includes('anullsrc') || f.includes('amix'))).toEqual(['anullsrc=r=48000:cl=stereo:d=3.5[aout]']);

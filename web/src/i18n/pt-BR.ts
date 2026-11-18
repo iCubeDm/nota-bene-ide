@@ -989,6 +989,9 @@ export const ptBR: Dict = {
   cutFadeIn: "Fade in, s",
   cutFadeOut: "Fade out, s",
   cutClipMute: "Silenciar o som",
+  cutReverse: "Ao contrário",
+  cutReversing: "invertendo…",
+  cutReverseFailed: "não foi possível inverter",
   cutPlaceX: "X, %",
   cutPlaceY: "Y, %",
   cutPlaceW: "Largura, %",
@@ -1006,5 +1009,5 @@ export const ptBR: Dict = {
   cutComment: "Comentar o clipe ou o momento",
   cutCommentShort: "Comentar",
   cutGoneTag: "o clipe não está mais na edição",
-  cutIssue: (code: string) => ({ "type": "ausente ou de tipo errado", "version": "a versão deve ser 1", "number": "não é um número", "negative": "não pode ser negativo", "positive": "deve ser maior que 0", "frame-size": "deve ser um número inteiro de 16 a 8192", "fps": "deve estar entre 1 e 120", "out-before-in": "out deve vir depois de in", "kind": "uma faixa é \"video\" ou \"audio\"", "duplicate": "este id é usado duas vezes", "unknown-track": "nenhuma faixa tem este id", "photo-in-out": "uma foto usa dur, não in nem out", "photo-no-dur": "uma foto precisa de dur", "media-no-out": "um clipe de vídeo ou áudio precisa de out", "media-dur": "um clipe de vídeo ou áudio usa in e out, não dur", "photo-audio": "uma foto não pode ficar numa faixa de áudio", "fade": "os fades são mais longos que o clipe", "place": "deve estar entre 0 e 1, com tamanho maior que 0", "opacity": "deve estar entre 0 e 1", "place-audio": "uma faixa de áudio não tem imagem: sem place", "src": "precisa de um caminho relativo ao projeto", "src-kind": "não é um arquivo de vídeo, som ou foto (pela extensão)", "photo-kind": "uma foto é png, jpg, webp, avif ou bmp: a exportação não lê gif nem svg", "audio-video": "um arquivo de som não pode ficar numa faixa de vídeo", "overlap": "sobrepõe o clipe anterior da sua faixa", "missing": "o arquivo não está no projeto" } as Record<string, string>)[code] ?? code,
+  cutIssue: (code: string) => ({ "type": "ausente ou de tipo errado", "version": "a versão deve ser 1", "number": "não é um número", "negative": "não pode ser negativo", "positive": "deve ser maior que 0", "frame-size": "deve ser um número inteiro de 16 a 8192", "fps": "deve estar entre 1 e 120", "out-before-in": "out deve vir depois de in", "kind": "uma faixa é \"video\" ou \"audio\"", "duplicate": "este id é usado duas vezes", "unknown-track": "nenhuma faixa tem este id", "photo-in-out": "uma foto usa dur, não in nem out", "photo-no-dur": "uma foto precisa de dur", "media-no-out": "um clipe de vídeo ou áudio precisa de out", "media-dur": "um clipe de vídeo ou áudio usa in e out, não dur", "photo-reverse": "uma foto não pode tocar de trás para frente", "photo-audio": "uma foto não pode ficar numa faixa de áudio", "fade": "os fades são mais longos que o clipe", "place": "deve estar entre 0 e 1, com tamanho maior que 0", "opacity": "deve estar entre 0 e 1", "place-audio": "uma faixa de áudio não tem imagem: sem place", "src": "precisa de um caminho relativo ao projeto", "src-kind": "não é um arquivo de vídeo, som ou foto (pela extensão)", "photo-kind": "uma foto é png, jpg, webp, avif ou bmp: a exportação não lê gif nem svg", "audio-video": "um arquivo de som não pode ficar numa faixa de vídeo", "overlap": "sobrepõe o clipe anterior da sua faixa", "missing": "o arquivo não está no projeto" } as Record<string, string>)[code] ?? code,
 };

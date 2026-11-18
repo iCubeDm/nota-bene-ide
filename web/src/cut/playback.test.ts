@@ -54,6 +54,15 @@ it('sourceTime: in + the time since the clip started, within the used part', () 
   expect(sourceTime({ id: 'n', track: 'v1', src: 'n.mp4', at: 1, out: 3 }, 2)).toBe(1); // in defaults to 0
 });
 
+it('sourceTime of a reversed clip (issue 492): the time in its reversed copy of the used part, from 0 to its length; its fades stay at its ends', () => {
+  const r = { ...cut().clips[1]!, reverse: true, fadeIn: 1, fadeOut: 1 }; // at 5, in 10 out 14
+  expect(sourceTime(r, 5)).toBe(0);
+  expect(sourceTime(r, 6.5)).toBe(1.5); // the copy at 1.5 s is the source at 12.5
+  expect(sourceTime(r, 100)).toBe(4);
+  expect(sourceTime(r, 0)).toBe(0);
+  expect([fadeAt(r, 5), fadeAt(r, 5.5), fadeAt(r, 7), fadeAt(r, 8.5)]).toEqual([0, 0.5, 1, 0.5]);
+});
+
 it('nextClip: the first clip on the track that starts after the time, for preloading', () => {
   const c = cut();
   expect(nextClip(c, 'v1', 0)?.id).toBe('c2');

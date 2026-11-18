@@ -5,11 +5,11 @@ import { isPhotoSrc } from '@nota-bene/shared/cut';
 export type Lane = { id: string; kind: 'video' | 'audio'; name?: string; n: number; gain?: number; mute?: boolean; solo?: boolean; hidden?: boolean };
 /**
  * A clip as drawn: `i` its index in `clips` (issue paths name it), `from` where it starts in its source; its sound's
- * gain (dB) and mute and its fades (issue 431), when the file has them.
+ * gain (dB) and mute and its fades (issue 431), and whether it plays backwards (issue 492), when the file has them.
  */
 export type Block = {
   i: number; id: string; track: string; src: string; at: number; len: number; from: number; photo: boolean;
-  gain?: number; mute?: boolean; fadeIn?: number; fadeOut?: number;
+  gain?: number; mute?: boolean; fadeIn?: number; fadeOut?: number; reverse?: true;
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -46,13 +46,17 @@ export function drawable(v: unknown): { lanes: Lane[]; blocks: Block[]; end: num
     if (!fin(len) || len <= 0) return;
     blocks.push({
       i, id: typeof c.id === 'string' ? c.id : '', track: c.track, src: c.src, at: c.at, len, from: photo ? 0 : from, photo,
-      ...(fin(c.gain) && { gain: c.gain }), ...(c.mute === true && { mute: true }),
+      ...(fin(c.gain) && { gain: c.gain }), ...(c.mute === true && { mute: true }), ...(c.reverse === true && !photo && { reverse: true as const }),
       ...(fin(c.fadeIn) && c.fadeIn > 0 && { fadeIn: c.fadeIn }), ...(fin(c.fadeOut) && c.fadeOut > 0 && { fadeOut: c.fadeOut }),
     });
     end = Math.max(end, c.at + len);
   });
   return { lanes: order, blocks, end };
 }
+
+/** The part of its source (seconds, from..to) under `x` to `x + dx` seconds into a clip as drawn; a reversed one's runs from its end back (issue 492). */
+export const srcSpan = (b: Block, x: number, dx: number): [number, number] =>
+  b.reverse ? [b.from + b.len - x - dx, b.from + b.len - x] : [b.from + x, b.from + x + dx];
 
 const STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600];
 /** Seconds between ruler labels at `pps` pixels a second: at least 70 px apart. */

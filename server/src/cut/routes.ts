@@ -1,6 +1,7 @@
 // `GET /cut/export?path=`, `POST /cut/export {path, mode}`, `POST /cut/export/cancel {path}`: the video editor's export.
 // A long job polled over HTTP, as the Whisper install is: the start answers 202, the page asks for the state until it ends.
 // `GET /cut/peaks?path=<source>`: a source's waveform for the timeline (issue 431), peaks.ts.
+// `GET /cut/reverse?path=<source>&in=&out=`: a reversed copy of that part for the preview (issue 492), reverse.ts.
 // `POST /cut/new {dir, cut}`: a new edit beside the files it was made from (issue 426), newEdit.ts.
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import { readCapped } from '../attachments.ts';
@@ -10,6 +11,7 @@ import { EXPORT_MODES, type ExportMode } from './args.ts';
 import { CutExportError, type CutExporter } from './exporter.ts';
 import { createEdit } from './newEdit.ts';
 import { PeaksError, type CutPeaks } from './peaks.ts';
+import { ReverseError, type CutReverse } from './reverse.ts';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -34,7 +36,8 @@ const isMode = (v: unknown): v is ExportMode => EXPORT_MODES.includes(v as Expor
 const isPath = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 4096;
 
 export function cutRoutes(o: {
-  hub: EventHub; exporter: Pick<CutExporter, 'ffmpegState' | 'job' | 'start' | 'cancel'>; peaks: Pick<CutPeaks, 'get'>; root: () => string;
+  hub: EventHub; exporter: Pick<CutExporter, 'ffmpegState' | 'job' | 'start' | 'cancel'>; peaks: Pick<CutPeaks, 'get'>;
+  reverse: Pick<CutReverse, 'get'>; root: () => string;
 }): Record<string, RequestListener> {
   const failed = (req: IncomingMessage, res: ServerResponse) => (e: unknown): void => {
     if (e instanceof TooLarge) {
@@ -51,6 +54,14 @@ export function cutRoutes(o: {
   const post = (h: (body: Record<string, unknown>, res: ServerResponse) => void | Promise<void>, max = MAX_BODY): RequestListener => (req, res) => {
     if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
     readBody(req, max).then((b) => h(b, res)).catch(failed(req, res));
+  };
+  // a GET that starts ffmpeg: a page of another site must not be able to queue it
+  const sameSite = (req: IncomingMessage, res: ServerResponse): boolean => {
+    const site = req.headers['sec-fetch-site'];
+    if (req.method !== 'GET') json(res, 405, { error: 'method not allowed' });
+    else if (site !== undefined && site !== 'same-origin' && site !== 'none') json(res, 403, { error: 'cross-site request' });
+    else return true;
+    return false;
   };
   return {
     '/cut/export': (req, res) => {
@@ -69,10 +80,7 @@ export function cutRoutes(o: {
       json(res, 200, { ffmpeg: ff.ok, ...(!ff.ok && ff.reason === 'old-ffmpeg' && { ffmpegProblem: 'old', ffmpegVersion: ff.version }), job: o.exporter.job(p) });
     },
     '/cut/peaks': (req, res) => {
-      if (req.method !== 'GET') return json(res, 405, { error: 'method not allowed' });
-      // a GET that starts ffmpeg: a page of another site must not be able to queue it
-      const site = req.headers['sec-fetch-site'];
-      if (site !== undefined && site !== 'same-origin' && site !== 'none') return json(res, 403, { error: 'cross-site request' });
+      if (!sameSite(req, res)) return;
       const p = new URL(req.url ?? '', 'http://x').searchParams.get('path');
       if (!isPath(p)) return json(res, 400, { error: 'path must be a source' });
       o.peaks.get(p).then((b) => {
@@ -80,6 +88,18 @@ export function cutRoutes(o: {
         res.end(b);
       }, (e: unknown) => {
         if (e instanceof PeaksError) return json(res, e.status, { error: e.code });
+        failed(req, res)(e);
+      });
+    },
+    '/cut/reverse': (req, res) => {
+      if (!sameSite(req, res)) return;
+      const q = new URL(req.url ?? '', 'http://x').searchParams;
+      const p = q.get('path');
+      const from = Number(q.get('in') ?? 0);
+      const to = Number(q.get('out'));
+      if (!isPath(p) || !Number.isFinite(from) || !Number.isFinite(to)) return json(res, 400, { error: 'path, in and out must be a part of a source' });
+      o.reverse.get(p, from, to).then((out) => (out === null ? json(res, 202, { making: true }) : json(res, 200, { path: out })), (e: unknown) => {
+        if (e instanceof ReverseError) return json(res, e.status, { error: e.code });
         failed(req, res)(e);
       });
     },

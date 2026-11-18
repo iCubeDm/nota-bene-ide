@@ -19,6 +19,17 @@ export const isPhotoSrc = (src: string): boolean => IMAGE.test(src);
 /** A clip's length on the timeline: `dur` for a photo, `out - in` for video and audio. */
 export const clipLength = (c: CutClip): number => (isPhotoSrc(c.src) ? c.dur ?? 0 : (c.out ?? 0) - (c.in ?? 0));
 
+/**
+ * The moment of a clip's source at timeline time `t`: `in + (t - at)`, a reversed clip's `out - (t - at)` (issue 492); a
+ * photo's own time starts at its showing. Not clamped to the clip.
+ */
+export const srcMoment = (c: CutClip, t: number): number =>
+  isPhotoSrc(c.src) ? t - c.at : c.reverse ? (c.out ?? 0) - (t - c.at) : (c.in ?? 0) + (t - c.at);
+
+/** The timeline time of moment `s` of the clip's source: srcMoment's inverse. */
+export const clipTime = (c: CutClip, s: number): number =>
+  isPhotoSrc(c.src) ? c.at + s : c.reverse ? c.at + (c.out ?? 0) - s : c.at + s - (c.in ?? 0);
+
 /** Where the last clip ends; 0 for an edit without clips. */
 export const cutDuration = (cut: Cut): number => cut.clips.reduce((m, c) => Math.max(m, c.at + clipLength(c)), 0);
 
@@ -26,7 +37,7 @@ export const cutDuration = (cut: Cut): number => cut.clips.reduce((m, c) => Math
  * What is wrong in an edit: `path` names the field (`clips[2].out`), `clip`/`track` the id it belongs to. Codes:
  * `type` (missing or of the wrong type), `version`, `number` (not a finite number), `negative`, `positive` (must be
  * above 0), `frame-size` (width or height not a whole number from 16 to 8192), `fps` (not from 1 to 120), `out-before-in`, `kind` (a track is not video or audio), `duplicate` (an id used twice), `unknown-track`,
- * `photo-in-out`, `photo-no-dur`, `media-no-out`, `media-dur`, `photo-audio` (a photo on an audio track), `fade` (the
+ * `photo-in-out`, `photo-no-dur`, `media-no-out`, `media-dur`, `photo-audio` (a photo on an audio track), `photo-reverse`, `fade` (the
  * fades are longer than the clip), `place` (outside 0..1, or no size), `opacity` (outside 0..1), `place-audio` (a
  * place on an audio track), `src` (not a project-relative path), `src-kind` (not a video, sound or photo file by its
  * extension), `photo-kind` (an image the export cannot read as a still: gif, svg), `audio-video` (a sound file on a video track), `overlap` (with the clip before it on its track).
@@ -137,6 +148,8 @@ export function validateCut(v: unknown): CutCheck {
     }
     num(c, at, 'gain', 'any', true);
     flag(c, at, 'mute');
+    flag(c, at, 'reverse');
+    if (photo && c.reverse === true) fail(`${at}.reverse`, 'photo-reverse');
     const fadeIn = num(c, at, 'fadeIn', 'min0', true);
     const fadeOut = num(c, at, 'fadeOut', 'min0', true);
     if (len !== undefined && (fadeIn ?? 0) + (fadeOut ?? 0) > len + EPS) fail(`${at}.${fadeOut !== undefined ? 'fadeOut' : 'fadeIn'}`, 'fade');

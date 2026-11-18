@@ -15,7 +15,7 @@ type Media = {
   /** the clip it is loaded for, and its URL */
   clip: string | null;
   url: string | null;
-  /** the clip's in-point when it was loaded */
+  /** where the clip starts in what it plays when it was loaded: its in-point, 0 in a reversed copy */
   from: number;
   /** the clip gain node and the ramp scheduled on it (clip id and the clock's epoch) */
   gain?: GainNode;
@@ -39,6 +39,8 @@ type Slot = {
 export type PlayerOptions = {
   /** a source's URL */
   url: (src: string) => string;
+  /** a reversed clip's copy's URL (issue 492), null while it is being made or when it cannot be: the clip shows and sounds nothing */
+  reversed?: (c: CutClip) => string | null;
   /** ms; performance.now by default */
   now?: () => number;
   frame?: (f: () => void) => number;
@@ -117,7 +119,7 @@ export class CutPlayer {
     const keep = new Map(cut?.clips.map((c) => [c.id, c]));
     for (const s of this.slots) for (const m of s.media) {
       const c = m.clip === null ? undefined : keep.get(m.clip);
-      if (!c || c.track !== s.track.id || this.opts.url(c.src) !== m.url || (c.in ?? 0) !== m.from) m.clip = null;
+      if (!c || c.track !== s.track.id || this.mediaUrl(c) !== m.url || sourceTime(c, c.at) !== m.from) m.clip = null;
       m.ramp = null;
     }
     this.levels();
@@ -408,8 +410,9 @@ export class CutPlayer {
         return { s, clip, next: undefined, photo: undefined, media: undefined, cur: undefined };
       }
       const photo = clip && isPhotoSrc(clip.src) ? clip : undefined;
-      const media = clip && !photo ? clip : undefined;
-      const nextMedia = next && !isPhotoSrc(next.src) ? next : undefined;
+      // a reversed clip whose copy is not there yet plays as a gap
+      const media = clip && !photo && this.mediaUrl(clip) !== null ? clip : undefined;
+      const nextMedia = next && !isPhotoSrc(next.src) && this.mediaUrl(next) !== null ? next : undefined;
       const cur = media ? s.media.find((m) => m.clip === media.id) ?? s.media.find((m) => m.clip !== nextMedia?.id) ?? s.media[0] : undefined;
       // the one already holding the next clip, else the other: never both loading one file
       const spare = s.media.find((m) => m !== cur && m.clip === nextMedia?.id) ?? s.media.find((m) => m !== cur)!;
@@ -459,15 +462,20 @@ export class CutPlayer {
     return Number.isFinite(el.duration) && sourceTime(clip, t) >= el.duration - 0.5 / this.fps;
   }
 
+  // what a video or audio clip plays: its source, or a reversed clip's copy (null until it is made)
+  private mediaUrl(c: CutClip): string | null {
+    return c.reverse ? this.opts.reversed?.(c) ?? null : this.opts.url(c.src);
+  }
+
   private load(m: Media, clip: CutClip, t: number): void {
     if (m.clip === clip.id) return;
-    const url = this.opts.url(clip.src);
+    const url = this.mediaUrl(clip)!;
     if (m.url !== url) {
       m.el.src = url;
       m.url = url;
     }
     m.clip = clip.id;
-    m.from = clip.in ?? 0;
+    m.from = sourceTime(clip, clip.at);
     m.ramp = null;
     // already there (the same file at the same place): a seek would only cost a decode
     const want = sourceTime(clip, t);

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { CUT_PEAKS_RATE } from '@nota-bene/shared/cut';
 import { useT, type t as T } from '@/i18n/index.ts';
-import type { Block } from './layout.ts';
+import { srcSpan, type Block } from './layout.ts';
 import { fmtDb, gainY } from './ops.ts';
 import { dbGain } from './playback.ts';
 import { peaksOf, type Wave as Waveform } from './peaks.ts';
@@ -29,7 +29,7 @@ const envelope = (b: Block, x: number): number =>
   Math.max(0, Math.min(1, b.fadeIn ? x / b.fadeIn : 1, b.fadeOut ? (b.len - x) / b.fadeOut : 1));
 
 /**
- * The waveform of the clip's used part (`from` on in its source) between `x0` and `x1` px of the clip, at `pps`: each
+ * The waveform of the clip's used part (`from` on in its source; a reversed clip's from its end back) between `x0` and `x1` px of the clip, at `pps`: each
  * column the loudest peak under it, scaled by the clip's gain and fades as it is heard, mirrored about the middle. A video
  * clip draws it in a band along its bottom, under the thumbnail's middle.
  */
@@ -51,9 +51,9 @@ export function Wave({ b, peaks, pps, x0, x1, band }: { b: Block; peaks: Uint8Ar
     const H = c.height;
     for (let px = 0; px < c.width; px++) {
       const x = x0 + px / dpr; // CSS px into the clip
-      const s = b.from + x / pps;
-      const i0 = Math.floor(s * CUT_PEAKS_RATE);
-      const i1 = Math.max(i0 + 1, Math.ceil((s + 1 / (dpr * pps)) * CUT_PEAKS_RATE));
+      const [s0, s1] = srcSpan(b, x / pps, 1 / (dpr * pps));
+      const i0 = Math.floor(s0 * CUT_PEAKS_RATE);
+      const i1 = Math.max(i0 + 1, Math.ceil(s1 * CUT_PEAKS_RATE));
       let max = 0;
       for (let i = Math.max(0, i0); i < Math.min(peaks.length, i1); i++) if (peaks[i]! > max) max = peaks[i]!;
       if (max === 0) continue;
@@ -61,7 +61,7 @@ export function Wave({ b, peaks, pps, x0, x1, band }: { b: Block; peaks: Uint8Ar
       const bar = Math.max(1, amp * H);
       g.fillRect(px, (H - bar) / 2, 1, bar);
     }
-  }, [peaks, pps, x0, w, band, b.from, b.gain, b.fadeIn, b.fadeOut, b.len]);
+  }, [peaks, pps, x0, w, band, b.from, b.gain, b.fadeIn, b.fadeOut, b.len, b.reverse]);
   if (w <= 0) return null;
   return (
     <canvas

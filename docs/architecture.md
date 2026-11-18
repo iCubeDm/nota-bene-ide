@@ -169,7 +169,7 @@ The menu is a list of chats: the web folds the windows of one folder into one ro
 | `comments.ts` | `CommentStore`: `comments/<sessionId>.v2.json` `{v: 2, rev, items, removed}`. `rev` grows with every change; `removed` keeps the last 500 deleted ids, so no add brings one back. `apply()` takes a client's ops all or none, `merge()` an older client's whole set. A session without an id lives in memory until `adopt()`. |
 | `attachments.ts` | Content-addressed images (`sha256.ext`) up to 3.75 MiB, and voice recordings (`sha256.wav`, protocol 14). `POST /attach`, `GET /attach/<id>`, restoring from the trash. |
 | `voice/`, `dictation/` | Voice messages: `POST /voice` stores a 16 kHz mono WAV, `GET /voice/<id>` serves it, `POST /voice/<id>/text` transcribes it through the Whisper host. A `send` with `voice` is transcribed in the send queue before the agent gets the text. `dictation/` holds the install, the host and its client. |
-| `marks.ts` | The only write into the project folder: `<root>/.nota-bene/marks/<commentId>/{frame.jpg,layer.png,mask.png}` (`mask.png`: a drawing with polygons), with a self-ignoring `.nota-bene/.gitignore`. Magic-byte check, symlinks refused. |
+| `marks.ts` | The marks in the project folder: `<root>/.nota-bene/marks/<commentId>/{frame.jpg,layer.png,mask.png}` (`mask.png`: a drawing with polygons), with a self-ignoring `.nota-bene/.gitignore` (`projectDir`, which the video editor's reversed copies in `.nota-bene/reverse/` share). Magic-byte check, symlinks refused. |
 | `fileRoutes.ts`, `files.ts`, `git.ts` | `/tree`, `/file` (Range, sandbox headers), `/complete`, `/sources`, `/git-status`. Sources: the current checkout, other worktrees (from disk) and branches (through git blobs). |
 | `vcs.ts` | The read-only git views: `/vcs-diff`, `/vcs-file`, `/vcs-branches`, `/vcs-log`, `/vcs-commit`, `/vcs-commit-file`. Every call runs with `--no-optional-locks`, so polling never takes `index.lock` from an agent. A failed git is a 503, never an empty answer. |
 | `system.ts` | Settings: about, prefs, storage and cleaning into the trash, windows, the control token. |
@@ -177,7 +177,7 @@ The menu is a list of chats: the web folds the windows of one folder into one ro
 | `update.ts`, `runtime.ts`, `updater.ts` | The in-app update ([agent reference](agent-reference.md#in-app-update)). |
 | `restartGate.ts`, `turnMarks.ts` | The deferred server restart and the cut-turn note. |
 | `osFiles.ts`, `fileEdit.ts`, `gitSwitch.ts` | Reveal and Open on the desktop, saving an edited file, switching the checkout's branch. |
-| `cut/` | The video editor's server side: export with ffmpeg, new edits, waveform peaks. |
+| `cut/` | The video editor's server side: export with ffmpeg, new edits, waveform peaks, reversed copies of clips for the preview. |
 | `remote/` | The remote connector ([2.3](#23-remote-relay)). |
 | `sessions.ts` | The route `/sessions`, titles, and each Claude session's working folder from the head of its transcript. |
 | `range.ts`, `errors.ts`, `codeStamp.ts` | HTTP Range parsing; `reportError` / `guard` (a failure becomes a `server-error` event); "the server's own sources changed since start" for `/info`. |

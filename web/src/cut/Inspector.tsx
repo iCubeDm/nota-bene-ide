@@ -8,7 +8,7 @@ type Patch = Parameters<typeof setClip>[2];
 
 /**
  * The selected clip's numbers (issue 409): where it starts, the used part of its source (a photo: how long it shows),
- * its sound's gain, its fades (on a video track the picture's too, issue 431), and on a video track its frame (percent of the output frame) and opacity, with "Fit to
+ * its sound's gain and mute, whether it plays backwards (issue 492), its fades (on a video track the picture's too, issue 431), and on a video track its frame (percent of the output frame) and opacity, with "Fit to
  * frame" to drop the frame. A value the format refuses is marked and not applied.
  */
 export function Inspector({ cut, clip: c, commit }: { cut: Cut; clip: CutClip; commit: (c: Cut) => void }) {
@@ -39,6 +39,10 @@ export function Inspector({ cut, clip: c, commit }: { cut: Cut; clip: CutClip; c
             <input type="checkbox" checked={!!c.mute} onChange={(e) => apply({ mute: e.target.checked || undefined })} />
             {t('cutClipMute')}
           </label>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
+            <input type="checkbox" checked={!!c.reverse} onChange={(e) => apply({ reverse: e.target.checked || undefined })} />
+            {t('cutReverse')}
+          </label>
         </>
       )}
       {/* a photo's fades fade its picture (issue 431) */}
@@ -62,7 +66,7 @@ export function Inspector({ cut, clip: c, commit }: { cut: Cut; clip: CutClip; c
 
 /**
  * Several selected clips (issue 432): how many, and the fields they share, each set on all of them at once: the sound's
- * gain and mute (on the clips with sound) and the fades; issue 442: on the video tracks' clips their frame and opacity, each
+ * gain, mute and reverse (on the clips with sound) and the fades; issue 442: on the video tracks' clips their frame and opacity, each
  * clip keeping the rest of its own frame. A field whose values differ shows empty, "mixed"; a value the format refuses for any
  * of them is marked and applied to none.
  */
@@ -79,6 +83,7 @@ export function GroupInspector({ cut, clips, commit }: { cut: Cut; clips: CutCli
     return v.every((x) => x === v[0]) ? v[0]! : null;
   };
   const muted = same(sound, (c) => !!c.mute);
+  const backwards = same(sound, (c) => !!c.reverse);
   // the frame's field `k` set on every selected clip of a video track, as one step
   const video = clips.filter((c) => cut.tracks.find((x) => x.id === c.track)?.kind === 'video');
   const placeAll = (k: keyof CutPlace, v: number): boolean => {
@@ -101,6 +106,13 @@ export function GroupInspector({ cut, clips, commit }: { cut: Cut; clips: CutCli
               onChange={() => apply(sound, { mute: muted === true ? undefined : true })}
             />
             {t('cutClipMute')}
+          </label>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
+            <input
+              type="checkbox" checked={backwards === true} ref={(el) => { if (el) el.indeterminate = backwards === null; }}
+              onChange={() => apply(sound, { reverse: backwards === true ? undefined : true })}
+            />
+            {t('cutReverse')}
           </label>
         </>
       )}

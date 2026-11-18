@@ -49,6 +49,7 @@ import { whisperPhase } from './dictation/install.ts';
 import { CutExporter } from './cut/exporter.ts';
 import { findFfmpeg } from './cut/ffmpeg.ts';
 import { CutPeaks } from './cut/peaks.ts';
+import { CutReverse } from './cut/reverse.ts';
 import { cutRoutes } from './cut/routes.ts';
 import { usageRoutes } from './usage/routes.ts';
 import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, keyCredential, loginCredential, newNonce, proofFor, sameSecret, sessionCookie } from './auth.ts';
@@ -250,6 +251,7 @@ export async function startServer(o: {
     cutExporter.ffmpegState(); // warm: ffmpeg's version is asked now, in the background, so the first hello already knows it
     // the waveforms need any ffmpeg that decodes, not one new enough for the export
     const cutPeaks = new CutPeaks({ root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()) });
+    const cutReverse = new CutReverse({ root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()), stateDir });
     // a deleted session: Nota Bene's own data of it goes too, each part on its own (a failure is reported, the rest still goes)
     const forgetDeleted = (id: string) => {
       const parts: [string, () => void][] = [
@@ -434,7 +436,7 @@ export async function startServer(o: {
         },
         ...usageRoutes({ hub }),
         ...dictationRoutes({ hub }),
-        ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, root }),
+        ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, reverse: cutReverse, root }),
         ...remoteRoutes({ hub, keeper: o.remote }),
         ...projectRoutes({ hub, port: () => ownPort, provider: parseProvider(process.env.NOTA_BENE_AGENT), repoDir }),
         ...systemRoutes({
@@ -899,6 +901,7 @@ export async function startServer(o: {
       const backendClose = o.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
       cutExporter.dispose();
       cutPeaks.dispose();
+      cutReverse.dispose();
       for (const c of wss.clients) c.terminate();
       wss.close(() => {
         server.close(() => { void Promise.resolve(backendClose).then(() => resolve()); });

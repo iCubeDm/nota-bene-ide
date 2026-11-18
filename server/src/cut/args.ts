@@ -33,7 +33,9 @@ const AUDIO_FMT = `aresample=${RATE},aformat=sample_fmts=fltp:channel_layouts=st
  * (`alpha=1`) on an upper one, so it fades to what is under it. Over the black frame both are the preview's layer opacity.
  * The sound: silence of the whole length mixed (summed, not averaged) with every audible clip's sound, a video clip's own
  * included when its source has one: clip gain + track gain in dB, the fades, delayed to its `at`. A clip is audible unless
- * it or its track is muted, or another track has solo and its own has not. Gaps are black and silent.
+ * it or its track is muted, or another track has solo and its own has not. A reversed clip (issue 492) runs its trimmed
+ * part backwards: `reverse` and `areverse` first in its chains, so its fades stay at its ends on the timeline. Gaps are
+ * black and silent.
  * mp4: H.264 (yuv420p) and AAC; wav: 16-bit PCM; m4a: AAC. `-progress pipe:1` reports on stdout; errors go to stderr.
  */
 export function exportArgs(cut: Cut, sources: Sources, output: string, mode: ExportMode): string[] {
@@ -84,7 +86,7 @@ export function exportArgs(cut: Cut, sources: Sources, output: string, mode: Exp
         ...((c.fadeOut ?? 0) > 0 ? [`,fade=t=out:st=${s(Math.max(c.at, c.at + len - c.fadeOut!))}:d=${s(c.fadeOut!)}${alpha}`] : []),
       ].join('');
       pictures.push(
-        `[${k}:v]${isAvif(c.src) ? `fps=${fps},trim=duration=${s(len)},` : ''}scale=${box.w}:${box.h}:force_original_aspect_ratio=decrease,setsar=1,format=yuva420p` +
+        `[${k}:v]${c.reverse ? 'reverse,' : ''}${isAvif(c.src) ? `fps=${fps},trim=duration=${s(len)},` : ''}scale=${box.w}:${box.h}:force_original_aspect_ratio=decrease,setsar=1,format=yuva420p` +
           `${opacity < 1 ? `,colorchannelmixer=aa=${s(opacity)}` : ''},setpts=PTS-STARTPTS+${s(c.at)}/TB,fps=${fps}${fades}[p${n}]`,
         `[${last}][p${n}]overlay=x=${box.x}+(${box.w}-w)/2:y=${box.y}+(${box.h}-h)/2:eof_action=pass[v${n}]`,
       );
@@ -92,7 +94,7 @@ export function exportArgs(cut: Cut, sources: Sources, output: string, mode: Exp
     }
     if (heard) {
       const gain = num((c.gain ?? 0) + (track.gain ?? 0));
-      const chain = ['asetpts=PTS-STARTPTS', AUDIO_FMT];
+      const chain = [...(c.reverse ? ['areverse'] : []), 'asetpts=PTS-STARTPTS', AUDIO_FMT];
       if (gain !== 0) chain.push(`volume=${s(gain)}dB`);
       if ((c.fadeIn ?? 0) > 0) chain.push(`afade=t=in:st=0:d=${s(c.fadeIn!)}`);
       if ((c.fadeOut ?? 0) > 0) chain.push(`afade=t=out:st=${s(Math.max(0, len - c.fadeOut!))}:d=${s(c.fadeOut!)}`);

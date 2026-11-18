@@ -224,6 +224,20 @@ it('the inspector edits the selected clip; a value the format refuses is marked,
   expect(screen.queryByRole('spinbutton', { name: 'Opacity, %' })).toBeNull(); // an audio clip has no picture
 });
 
+it('the inspector reverses the selected clip (issue 492): saved, marked while its copy is made, undoable', async () => {
+  const { clip, container } = await show();
+  fireEvent.pointerDown(clip('c3'), { clientX: 10, button: 0, pointerId: 1 });
+  fireEvent.pointerUp(clip('c3'), { clientX: 10, pointerId: 1 });
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Reverse' }));
+  await saved(() => expect(clipOnDisk('c3')).toMatchObject({ reverse: true }));
+  valid();
+  await waitFor(() => expect(container.querySelector('[data-clip="c3"] [data-reversing="making"]')).toHaveTextContent('reversing…'));
+  expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).startsWith('/cut/reverse?path=media%2Fvoice.wav&in=0&out='))).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect(clipOnDisk('c3')).not.toHaveProperty('reverse'));
+  expect(container.querySelector('[data-clip="c3"] [data-reversing]')).toBeNull();
+});
+
 it('the selected video clip has its frame on the preview: dragged, resized, opacity, fit to frame', async () => {
   const { container, clip } = await show();
   fireEvent.pointerDown(clip('c1'), { clientX: 10, button: 0, pointerId: 1 });

@@ -18,6 +18,7 @@ import { registerEditTarget, touchEditTarget } from './targets.ts';
 import { EditBar } from './EditBar.tsx';
 import type { Editing, Tool } from './editing.ts';
 import { CutPlayer } from './engine.ts';
+import { reversed, useReversedVersion } from './reverse.ts';
 import { drawable } from './layout.ts';
 import { ExportControl } from './export/ExportControl.tsx';
 import { GroupInspector, Inspector } from './Inspector.tsx';
@@ -85,10 +86,18 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   // one player for the tab's life; an edited file is handed to it, the playhead stays where it was
   const srcRef = useRef(src);
   srcRef.current = src;
-  const [player] = useState(() => new CutPlayer({ url: (s) => projectFileUrl(s, srcRef.current) }));
+  const [player] = useState(() => new CutPlayer({
+    url: (s) => projectFileUrl(s, srcRef.current),
+    reversed: (c) => {
+      const r = reversed.of(c, srcRef.current);
+      return typeof r === 'object' ? r.url : null;
+    },
+  }));
   useEffect(() => () => player.dispose(), [player]);
   const playable = check.ok ? check.cut : null;
-  useEffect(() => player.setCut(playable, draw.end), [player, playable, draw.end]);
+  // a reversed clip's copy made (issue 492): the player looks its clips up again
+  const copies = useReversedVersion();
+  useEffect(() => player.setCut(playable, draw.end), [player, playable, draw.end, copies]);
   useEffect(() => player.setLive(active), [player, active]);
   const pane = useRef<HTMLDivElement>(null);
 

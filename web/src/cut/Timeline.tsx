@@ -14,6 +14,7 @@ import { dB, FadeHandle, FadeSlopes, GainLine, usePeaks, Wave } from './ClipSoun
 import { addTrack, dragGain, groupMove, laneShift, moveClip, moveForward, rippleTrimEnd, setFade, setGain, snapMove, snapPoints, snapTime, trackForward, trimEnd, trimStart } from './ops.ts';
 import { TrackHead } from './TrackHead.tsx';
 import { drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn, type Block, type Lane } from './layout.ts';
+import { reversed, useReversedVersion } from './reverse.ts';
 import { poster } from './thumbs.ts';
 import { applyCutKey } from './useCutKeys.ts';
 
@@ -479,6 +480,7 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   /** the timeline's seconds around the view: the waveform is drawn there */
   view: { from: number; to: number };
 }) {
+  const t = useT();
   const w = Math.max(2, b.len * pps);
   const bad = !!problems?.length;
   const url = projectFileUrl(b.src, fileSrc);
@@ -488,7 +490,11 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   const sound = !b.photo;
   // once in view, the thumbnail and the waveform load
   const seen = useSeen(ref, active && (thumb || (sound && !gone)));
-  const frameOf = usePoster(seen && thumb && !b.photo ? url : null, b.from || 0);
+  // a reversed clip's first frame is its part's last one (issue 492)
+  const frameOf = usePoster(seen && thumb && !b.photo ? url : null, b.reverse ? Math.max(b.from, b.from + b.len - 0.05) : b.from || 0);
+  // its copy for the preview is made once: until it is, the clip says so
+  useReversedVersion();
+  const copy = b.reverse && !gone ? reversed.of({ src: b.src, in: b.from, out: b.from + b.len }, fileSrc) : null;
   const shown = seen && thumb ? (b.photo ? url : frameOf) : null;
   // the sound (issue 431): the waveform drawn around the view, in steps of WAVE_STEP px so a scroll seldom redraws it
   const wave = usePeaks(seen && sound && !gone ? b.src : null, fileSrc);
@@ -522,6 +528,11 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
       ))}
       {shown && <img src={shown} alt="" draggable={false} className="h-full flex-none bg-black object-cover" style={frame ? { aspectRatio: `${frame.width} / ${frame.height}` } : undefined} />}
       <span className={`relative min-w-0 truncate px-1 ${gone ? 'line-through' : ''}`}>{basename(b.src)}</span>
+      {(copy === 'making' || copy === 'failed') && (
+        <span data-reversing={copy} className={`relative flex-none truncate px-1 ${copy === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>
+          {t(copy === 'making' ? 'cutReversing' : 'cutReverseFailed')}
+        </span>
+      )}
       {changed !== undefined && (
         <span key={`${changed}:${b.id}`} data-changed-mark className="nb-cut-flash pointer-events-none absolute inset-0 z-[3] rounded" style={flashStyle} />
       )}
@@ -680,7 +691,7 @@ function useClipDrag(
           const tol = SNAP_PX / p;
           out = grip === 'move' ? forward ? moveForward(base, id, snapMove(at0 + dt, end0 - at0, pts, tol) - at0)
             : moveClip(base, id, snapMove(at0 + dt, end0 - at0, pts, tol), lane)
-            : grip === 'start' ? trimStart(base, id, snapTime(at0 + dt, pts, tol))
+            : grip === 'start' ? trimStart(base, id, snapTime(at0 + dt, pts, tol), cur.lenOf(c.src))
             : (forward ? rippleTrimEnd : trimEnd)(base, id, snapTime(end0 + dt, pts, tol), cur.lenOf(c.src));
           cur.draft(out);
         };

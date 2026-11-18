@@ -37,10 +37,14 @@ export function activeClips(cut: Cut, t: number): Map<string, CutClip> {
 export const nextClip = (cut: Cut, track: string, t: number): CutClip | undefined =>
   byTrack(cut).get(track)?.find((c) => c.at > t + EPS);
 
-/** Where in its source a video or audio clip is at timeline time `t`: `in + (t - at)`, within `in..out`. */
+/**
+ * Where the element playing a video or audio clip is at timeline time `t`: in its source `in + (t - at)`, within
+ * `in..out`; a reversed clip plays its reversed copy of that part (issue 492, server/src/cut/reverse.ts), `t - at` within
+ * `0..out - in`.
+ */
 export function sourceTime(c: CutClip, t: number): number {
-  const from = c.in ?? 0;
-  return Math.min(c.out ?? from, Math.max(from, from + t - c.at));
+  const from = c.reverse ? 0 : c.in ?? 0;
+  return Math.min(from + clipLength(c), Math.max(from, from + t - c.at));
 }
 
 /** Decibels as an amplitude factor. */
