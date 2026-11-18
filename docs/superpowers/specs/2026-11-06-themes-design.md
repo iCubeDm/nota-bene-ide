@@ -1,139 +1,73 @@
 # Themes and a new default look
 
-Nota Bene has one dark theme whose palette came from Plannotator, grid included. Testers want a choice, and the
-author wants the window to feel like their IDE (IntelliJ IDEA, Darcula, Classic UI) without turning into an IDE.
-A theme is colour, background texture and a few states; the layout, tabs, panels, controls and every feature
-stay as they are.
+Nota Bene has one dark theme with a Plannotator palette and grid. Testers want a choice; the author wants the window to feel like their IDE (IntelliJ Darcula) without becoming one. A theme is colour, background texture and a few states; layout, tabs, panels, controls and features stay.
 
-Goals: five themes, two dark and three light; a new default dark theme, Darcula; the current look kept as a
-theme named Plannotator; every colour through theme tokens; a markup palette that is always at hand.
+Goals: five themes (two dark, three light); new default dark theme Darcula; the current look kept as Plannotator; every colour through theme tokens; an always-at-hand markup palette.
 
-Non-goals: layout changes; a theme editor or user-defined themes; following the OS light/dark setting (later, if
-asked); importing IDE scheme files.
+Non-goals: layout changes; theme editor or user themes; following the OS light/dark setting (later if asked); importing IDE scheme files.
 
-Anti-goals: an IDE look (solid grey tool-window slabs, square corners, a status bar): the shadcn/ui shapes stay.
-A feature, tab, button or shortcut lost or moved by a theme. A theme in which some part keeps the old colours.
+Anti-goals: an IDE look (solid grey slabs, square corners, status bar: shadcn/ui shapes stay); a feature, tab, button or shortcut lost or moved by a theme; a theme where some part keeps old colours.
 
-The work is three changes, in this order, each with its own issue and PR:
-
-1. Theme system, Darcula, Plannotator, header icons and the "Open raw" icon.
-2. The three light themes.
-3. The always-visible markup palette and its keys.
+Three changes in order, each with its own issue and PR: (1) theme system, Darcula, Plannotator, header icons, "Open raw" icon; (2) three light themes; (3) markup palette and keys.
 
 ## 1. Theme system
 
-**Tokens.** Every colour goes through a CSS variable in `web/src/theme.css`. Today about 139 colour literals sit
-in 16 files outside the tokens (oklch, hex and rgb in components, the composer field, code highlighting, the
-diagram canvas, the focus ring, flashes). Each becomes a token or a mix of tokens. New tokens cover what themes
-differ in beyond the shadcn set:
+**Tokens.** Every colour goes through a CSS variable in `web/src/theme.css`. About 139 colour literals in 16 files sit outside tokens today (components, composer field, code highlighting, diagram canvas, focus ring, flashes); each becomes a token or a mix. New tokens beyond shadcn's: pane background and texture (`.grid-pane`); active tab (background, text, underline); pressed tool-window button (focused and unfocused panel); header function accents (sessions, agent restart, model, usage); inline code and syntax colours (keyword, string, function, number, comment, type, variable, property); input focus ring; popover and separator.
 
-- the pane background and its texture (`.grid-pane`);
-- the active tab (background, text, underline);
-- a pressed tool-window button, in a focused panel and in an unfocused one;
-- function accents in the header (sessions, agent restart, model, usage);
-- inline code (background, text) and the syntax colours of code blocks (keyword, string, function, number,
-  comment, type, variable, property);
-- the focus ring of inputs;
-- popover and separator colours.
+A theme is a block of values on `:root[data-theme="<id>"]` and sets `color-scheme` to its kind so scrollbars and native controls follow the theme, not the OS. Mermaid and the SVG canvas take a light/dark base from the kind.
 
-A theme is a block of token values on `:root[data-theme="<id>"]`. Each theme also sets `color-scheme` to its kind (`light` or `dark`), so scrollbars and native controls follow the theme, not the OS.
-Diagrams (mermaid) and the SVG canvas take a light or dark base from the theme's kind.
+**Choosing.** A Theme row in the gear menu above the scale (submenu of five names) and a Settings section "Themes" after Defaults (dark first; name plus swatch of background, card, primary; current marked). One global preference like language and scale: `prefs.json` (`theme`), sent in `hello`, cached in localStorage and applied before React renders (no flash on reload), shared by every window. Unknown/missing id falls back to Darcula; optional in `hello` like `uiScale`, so no protocol bump. A switch re-renders open diagrams in every window. Ids: `darcula` (default), `plannotator`, `intellij-light`, `github-light`, `solarized-light`. Names are not translated; row label and tooltips are, in all six languages.
 
-**Choosing.** A Theme row in the gear menu, above the scale, with a submenu of the five names, and a section of
-its own in Settings, Themes, after Defaults: the five themes, dark ones first, each with its name and a small
-swatch of its background, card and primary, the current one marked. Like the language and the scale it is one global preference: kept in the server's
-`prefs.json` (`theme`), sent in `hello`, cached in localStorage so the first paint has the right colours, and
-shared by every window. An unknown or missing id falls back to Darcula; the field is optional in `hello`, as `uiScale` is, so no protocol bump. The cached id is applied before React renders, so a reload never flashes another theme. A switch re-renders open diagrams in every window. Ids: `darcula` (default), `plannotator`, `intellij-light`, `github-light`,
-`solarized-light`. Names are not translated; the row label and tooltips are, in all six languages.
+**Plannotator.** Today's values unchanged, with the 24px grid. Everyone, upgraders included, gets Darcula until they pick Plannotator; the changelog says how to restore the old look; no in-app notice.
 
-**Plannotator.** Today's values, unchanged, with the 24px grid. Everyone, upgraders included, gets Darcula until they pick Plannotator; the changelog says how to get the old look back. No in-app notice.
+**Contrast.** Every theme passes WCAG AA for body text and controls. Where a value below fails, move its lightness, never its hue.
 
-**Contrast.** Every theme passes WCAG AA for body text and controls. The values below are the intent; where one fails (muted text on muted fill, say), the builder moves its lightness, never its hue.
-
-**Darcula.** Neutrals and accents from the author's Darcula scheme, today's shadcn/ui shapes:
+**Darcula** (author's scheme, today's shadcn shapes):
 
 | Token | Value |
 |---|---|
-| background | `#2b2b2b` |
-| foreground | `#c9ced6` |
-| card | `#313131`, a step above the paper around it (`#2a2b2c`); code blocks stay on `#2b2b2b`, a step below |
-| side panels | `#3c3f41`, Darcula's panel; header and strips `rgb(60 63 65 / .9)` |
-| popover (menus, search) | `#3c3f41`, separators `#505050` |
+| background / foreground | `#2b2b2b` / `#c9ced6` |
+| card | `#313131` (a step above paper `#2a2b2c`); code blocks stay `#2b2b2b` |
+| side panels; header and strips | `#3c3f41`; `rgb(60 63 65 / .9)` |
+| popover; separators | `#3c3f41`; `#505050` |
 | muted / muted text | `#3a3c3e` / `#8f959c` |
 | border / soft border | `#45484b` / `rgb(255 255 255 / .07)` |
-| primary (buttons, Send) | `#4a78c2`, white text |
-| link and line blue | `#589df6`; active-tab underline `#4a88c7` |
-| warning, comment marks | `#ffc66d` |
-| success | `#66bf31` |
-| destructive | `#e06c64` |
-| inline code | `#2e2e2e` background, `#4f86cd` text |
-| input focus | border `#466d94`, a 2px ring `#3d6185`; inputs in popovers have no fill of their own |
+| primary | `#4a78c2`, white text |
+| link blue; active-tab underline | `#589df6`; `#4a88c7` |
+| warning, comment marks; success; destructive | `#ffc66d`; `#66bf31`; `#e06c64` |
+| inline code | `#2e2e2e` bg, `#4f86cd` text |
+| input focus | border `#466d94`, 2px ring `#3d6185`; inputs in popovers have no own fill |
 
-Syntax: keyword `#cc7832`, string `#66bf31`, function and class `#ffc66d`, number `#6897bb`, comment `#808080`,
-local variable `#f99e71`, property and parameter `#9876aa`.
+Syntax: keyword `#cc7832`, string `#66bf31`, function/class `#ffc66d`, number `#6897bb`, comment `#808080`, local variable `#f99e71`, property/parameter `#9876aa`.
 
-Background texture: millimetre paper in real CSS millimetres, white hairlines at 1 mm (`.018`), 5 mm (`.035`) and
-10 mm (`.06`) opacity, under the centred card as today.
+Texture: millimetre paper in real CSS mm, white hairlines at 1 mm (.018), 5 mm (.035), 10 mm (.06) opacity under the centred card. Active tab: `#45484b`, white text, blue underline. Pressed tool-window button: `#4a78c2` white icon when its panel has focus, `#4b4e51` white icon otherwise. Header accents: sessions `#589df6`, agent restart `#66bf31`, model `#ae8abe`, usage `#ffc66d`, gear neutral.
 
-Active tab: light grey `#45484b`, white text, the blue underline. Pressed tool-window button: blue `#4a78c2`
-with a white icon while its panel has focus, grey `#4b4e51` with a white icon when it does not.
+**Header and file bar.** Sessions and ↻ Agent become icons (history clock with existing chevron; restart arrow); "Open raw" becomes an open-externally icon. Text stays where it is a value or needs explaining (model, mode, Send, panel titles). Names move to tooltips and `aria-label`.
 
-Header accents: sessions blue `#589df6`, agent restart green `#66bf31`, model `#ae8abe`, usage `#ffc66d`, the
-gear neutral.
-
-**Header and file bar.** Sessions and ↻ Agent become icons (a history clock with the existing chevron; a
-restart arrow), and "Open raw" above a file becomes an open-externally icon. Text stays where it is a value or
-needs explaining: the model, the mode, Send, panel titles. The names move to tooltips and `aria-label`.
-
-**Tooltips name the key.** Every control that has a shortcut shows it in its tooltip (for example "Files (⌘⇧F)"). This is
-a rule for every new control too, and goes into `AGENTS.md`.
+**Tooltips name the key.** Every control with a shortcut shows it in its tooltip (e.g. "Files (⌘⇧F)"); a rule for new controls too, added to `AGENTS.md`.
 
 ## 2. Light themes
 
-IntelliJ Light, GitHub Light (Primer) and Solarized Light, each from its published palette: UI neutrals,
-accents and syntax colours mapped onto the same tokens. The texture is the Darcula millimetre paper with dark
-hairlines at equivalent contrast. Solarized's low contrast must still pass WCAG AA for body text and controls;
-where its own values do not, the closest Solarized tone that does is used.
+IntelliJ Light, GitHub Light (Primer), Solarized Light, each from its published palette mapped onto the same tokens. Texture is the millimetre paper with dark hairlines at equivalent contrast. Solarized must still pass AA; where its values do not, use the closest Solarized tone that does.
 
 ## 3. Markup palette
 
-The palette (tools, colours, undo, Comment, close) moves out of the floating bar into the file bar, next to the
-path. It is always there for an image. For a video it appears when the video is paused (the pause button or
-Space) and goes away when it plays; an uncommented drawing is kept, as today. The "Mark up" button is gone.
+The palette (tools, colours, undo, Comment, close) moves from the floating bar into the file bar next to the path. Always present for an image; for a video it appears when paused and goes away on play (an uncommented drawing is kept). The "Mark up" button is gone.
 
-The default tool is a pointer that draws nothing: a click toggles natural size and selection works as now.
-Drawing starts once a tool is picked. Keys, side by side on the keyboard, active while the image or player has
-focus and never in a text field:
+Default tool is a pointer that draws nothing (click toggles natural size, selection works as now); drawing starts once a tool is picked. Keys are side by side, active while the image/player has focus, never in a text field:
 
 | Key | Tool |
 |---|---|
-| Q | pointer |
-| W | rectangle |
-| E | ellipse |
-| R | pen |
-| T | arrow |
+| Q / W / E / R / T | pointer / rectangle / ellipse / pen / arrow |
 | 1–5 | colour: red, yellow, green, blue, white |
 | Cmd/Ctrl+Z | undo |
 | Enter | comment |
-| Esc | back to the pointer; asks first when a drawing has no comment |
+| Esc | back to pointer; asks first when a drawing has no comment |
 
-These keys replace R/E/P/A rather than adding to them: the author asked for keys side by side, and an alias would give R two meanings. The changelog and the guide say so.
+These replace R/E/P/A (the author asked for side-by-side keys; an alias would give R two meanings); changelog and guide say so. Keys use the player scope (`inPlayerScope`). Enter and Esc are taken only while there is a drawing or a drawing tool is active, otherwise they fall through. The pressed tool shows the active one.
 
-The keys work in the same scope as the player keys (`inPlayerScope`). Enter and Esc are taken only while there is a drawing or a drawing tool is active; otherwise they fall through to the layers that own them today. The pressed tool in the palette shows which tool is active.
-
-On an image, 1–5 always pick the colour and keep the tool. On a video, 0–9 seek to 0–90 % as today while the pointer is active, and 1–5 pick a colour while a drawing tool is. Pressing play with an uncommented drawing asks first, with the dialog Esc uses today; once it plays, the palette hides and the tool goes back to the pointer.
-
-In a narrow window the path truncates from the left first; the palette keeps its width and never wraps. HTML
-pages keep their Mark (N) mode: an always-on element outline would get in the way of reading.
+On an image 1–5 always pick colour and keep the tool. On a video 0–9 seek to 0–90 % while the pointer is active; 1–5 pick a colour while a drawing tool is. Play with an uncommented drawing asks first (the dialog Esc uses); once it plays, the palette hides and the tool returns to the pointer. Narrow window: the path truncates from the left; the palette never wraps. HTML pages keep their Mark (N) mode (an always-on outline would hinder reading).
 
 ## Decided by the builder
 
-- Token names, and how the 139 literals map onto them.
-- The icons, as long as they match the existing set in `TabStrip.tsx`.
-- How a panel's focus is tracked for the pressed tool-window state.
-- The light palettes' exact values, from the official sources.
-- Tests: a theme switch test across windows like the scale's, a check that no colour literal is left outside
-  `theme.css`, and e2e for the palette and its keys. The literal check has an allow-list: the five markup colours
-  (they are what the agent sees on the frame, the same in every theme), white text on primary, and test fixtures.
-
-Docs: `docs/guide.md` (Settings and its Themes section, the gear menu, markup and its keys, the hotkey table) and the changelog.
+Token names and the mapping of the 139 literals; icons (match `TabStrip.tsx`); how panel focus is tracked; light palette values from official sources. Tests: theme switch across windows like scale; a check that no colour literal is left outside `theme.css` (allow-list: the five markup colours, which the agent sees the same in every theme; white text on primary; fixtures); e2e for palette and keys. Docs: `docs/guide.md` (Settings/Themes, gear menu, markup keys, hotkey table) and changelog.
