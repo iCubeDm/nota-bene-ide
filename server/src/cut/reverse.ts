@@ -186,6 +186,10 @@ export class CutReverse {
       '-movflags', '+faststart', '-f', 'mp4', tmp];
     try {
       await this.run(ffmpeg, args);
+      // a part at or past the source's end comes out without frames (ffmpeg still exits 0): such a copy names no
+      // stream, and served it would only fail to load again and again
+      const made = await probe(ffmpeg, tmp);
+      if ((video && !made.video) || (has.audio && !made.audio)) throw new ReverseError(422, 'failed');
       fs.renameSync(tmp, file);
     } catch (e) {
       fs.rmSync(tmp, { force: true });

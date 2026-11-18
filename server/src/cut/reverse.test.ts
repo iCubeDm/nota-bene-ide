@@ -44,6 +44,7 @@ const fs = require('fs'); const path = require('path');
 const a = process.argv.slice(2);
 const body = fs.readFileSync(a[a.indexOf('-i') + 1], 'utf8');
 if (!a.includes('-f')) {
+  if (body.startsWith('[')) { process.stderr.write('  Stream #0:0: Video: h264\\n  Stream #0:1: Audio: aac\\n'); process.exit(1); } // a copy it made
   process.stderr.write((body.includes('V') ? '  Stream #0:0: Video: h264' + (body.includes('BIG') ? ', yuv420p, 3840x2160, 60 fps' : '') + '\\n' : '') + (body.includes('A') ? '  Stream #0:1: Audio: aac\\n' : ''));
   process.exit(1);
 }
@@ -170,6 +171,10 @@ describe('CutReverse', () => {
       '-filter_complex', '[0][1]concat=n=2:v=1:a=0[v];[2]volume=0.05[q];[3]volume=0.9[l];[q][l]concat=n=2:v=0:a=1[a]',
       '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(root, 'rb.mp4'));
     const r = make();
+    // a part past the source's end: ffmpeg writes a copy without frames, which is refused, not served
+    await r.get('rb.mp4', 30, 35);
+    expect(await until(() => refused(r.get('rb.mp4', 30, 35)).catch(() => null), 60_000)).toEqual([422, 'failed']);
+    expect(fs.readdirSync(path.join(root, '.nota-bene', 'reverse'))).toEqual([]);
     const out = path.join(root, await until(() => r.get('rb.mp4', 0, 2), 60_000));
     const firstPixel = execFileSync(real!, ['-hide_banner', '-loglevel', 'error', '-i', out, '-frames:v', '1', '-vf', 'scale=1:1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1']);
     expect(firstPixel[2]!).toBeGreaterThan(firstPixel[0]!); // blue first
