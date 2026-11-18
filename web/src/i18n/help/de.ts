@@ -31,7 +31,7 @@ export const helpDe: HelpDict = {
   settingsMenu: 'Einstellungen: Sprache, Design, Oberflächengröße, Fernzugriff, Nutzung, alle Einstellungen',
   usageTotals: 'Gewichtete Tokens, ein Maßstab, kein Preis: Input ×1, Cache-Write ×1,25, Cache-Read ×0,1, Output ×5, für jedes Modell gleich.',
   usageExtra: 'Tokens ab einem erreichten Limit, mit denen die Arbeit bis zum Reset weiterlief. Der Betrag stammt vom Anbieter selbst und wird gelesen, solange ein Fenster offen ist.',
-  usageTank: 'Tokens pro 1 % des Wochenlimits nur im Fenster der Spalte; vergangene Wochen bleiben fest. Fällt die Zeile, ergeben dieselben 100 % weniger Tokens.',
+  usageTank: 'Tokens pro 1 % des Wochenlimits nur im Fenster der Spalte; vergangene Wochen bleiben unverändert. Fällt die Zeile, ergeben dieselben 100 % weniger Tokens.',
   usageTank5h: 'Tokens pro 1 % des 5-Stunden-Limits über die 5-Stunden-Fenster nur der Woche der Spalte. Ein Strich: in dieser Woche keine 5-Stunden-Werte.',
   projectRail: 'Die offenen Projekte links: ein Klick wechselt dorthin, das Abzeichen zeigt, dass es auf dich wartet oder neue Antworten hat. Eine Einstellung für alle Fenster dieses Agenten.',
   sounds: 'Nur solange du nicht auf den Tab schaust, ein Tab pro Fenster. Der Browser lässt eine Seite erst Töne abspielen, nachdem du einmal in ihr geklickt oder getippt hast.',
