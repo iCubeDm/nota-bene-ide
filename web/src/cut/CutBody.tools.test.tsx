@@ -214,11 +214,11 @@ it('the gain line acts on the clip under the pointer, the selection stays', asyn
   expect(selected(container)).toEqual(['c1', 'c3']);
 });
 
-it('the add-track buttons sit in the track column: "+ Video" after the video tracks, "+ Audio" after the audio ones', async () => {
+it('the add-track buttons sit in the track column: "+ Video" above the video tracks, "+ Audio" after the audio ones (issue 490)', async () => {
   const { container } = await show();
   expect(container.querySelector('[data-cut-tools] [aria-label="Add a video track"]')).toBeNull();
   const rows = [...container.querySelectorAll('[data-lane], [data-track-add]')].map((e) => e.getAttribute('data-lane') ?? `+${e.getAttribute('data-track-add')}`);
-  expect(rows).toEqual(['v1', '+video', 'a1', '+audio']);
+  expect(rows).toEqual(['+video', 'v1', 'a1', '+audio']);
   const video = screen.getByRole('button', { name: 'Add a video track' });
   expect(video.textContent).toBe('+ Video');
   expect(video.closest('[data-track-add]')).not.toBeNull();
@@ -227,7 +227,7 @@ it('the add-track buttons sit in the track column: "+ Video" after the video tra
   fireEvent.click(video);
   await saved(() => expect(onDisk().tracks.map((t) => t.id)).toEqual(['v1', 'a1', 'a2', 'v2']));
   await waitFor(() => expect([...container.querySelectorAll('[data-lane], [data-track-add]')].map((e) => e.getAttribute('data-lane') ?? `+${e.getAttribute('data-track-add')}`))
-    .toEqual(['v2', 'v1', '+video', 'a1', 'a2', '+audio']));
+    .toEqual(['+video', 'v2', 'v1', 'a1', 'a2', '+audio']));
 });
 
 // review follow-ups (issue 432)
@@ -456,11 +456,11 @@ it('a rectangle can start in the track column and on the add-track rows; the hea
   expect(container.querySelector('[data-marquee]')).not.toBeNull();
   fireEvent.pointerUp(head, { clientX: 144 + p, clientY: 80, pointerId: 2 });
   expect(selected(container)).toEqual(['c3']);
-  // from the "+ Video" row (below the video lane) up over both clips of the video track
+  // from the "+ Video" row (above the video lanes, issue 490) down over the clips of both tracks
   const add = container.querySelector('[data-track-add="video"]')!;
-  fireEvent.pointerDown(add, { clientX: 300, clientY: 100, button: 0, pointerId: 2 });
-  fireEvent.pointerMove(add, { clientX: 144 + 7 * p, clientY: 20, pointerId: 2 });
-  fireEvent.pointerUp(add, { clientX: 144 + 7 * p, clientY: 20, pointerId: 2 });
+  fireEvent.pointerDown(add, { clientX: 300, clientY: 0, button: 0, pointerId: 2 });
+  fireEvent.pointerMove(add, { clientX: 144 + 7 * p, clientY: 90, pointerId: 2 });
+  fireEvent.pointerUp(add, { clientX: 144 + 7 * p, clientY: 90, pointerId: 2 });
   expect(selected(container)).toEqual(['c1', 'c2', 'c3']);
   // the row for a new track by a drop, too (Shift adds nothing new here: all are in)
   const dropRow = container.querySelector('[data-cut-drop]')!;
