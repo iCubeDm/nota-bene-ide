@@ -89,7 +89,7 @@ it('words the server’s refusals for the shell setting (Windows) in the user’
 it('marks a cut output, and says so when a command printed nothing', () => {
   const { feed } = setup();
   feed(start('a')); feed(end({ id: 'a', output: 'tail', truncated: true }));
-  expect(screen.getByText('earlier output cut · the last 64 KB')).toBeInTheDocument();
+  expect(screen.getByText('earlier output cut · the last 64,000 characters')).toBeInTheDocument();
   feed(start('b')); feed(end({ id: 'b', output: '' }));
   expect(screen.getByText('(no output)')).toBeInTheDocument();
 });

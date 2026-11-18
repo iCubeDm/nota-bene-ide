@@ -86,7 +86,7 @@ it('a reset empties the feed and shows the cleared line; a boundary shows the co
   expect(screen.queryByText(/old message/)).toBeNull();
   expect(screen.getByText(/new conversation · context cleared/)).toBeInTheDocument();
   emit(agent({ t: 'compacted', preTokens: 12000 }));
-  expect(screen.getByText(/context compacted · was 12k tokens/)).toBeInTheDocument();
+  expect(screen.getByText(/context compacted · was 12K tokens/)).toBeInTheDocument();
 });
 
 it('clearing with a pending chat comment ends with an empty panel, no re-push and no error', async () => {

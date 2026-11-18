@@ -65,6 +65,3 @@ export const uiScale = {
 };
 
 export const useUiScale = () => useSyncExternalStore(uiScale.subscribe, uiScale.get);
-
-/** How a scale reads in the interface language: `125 %`, `125%`. */
-export const scaleLabel = (v: number, lang: string): string => new Intl.NumberFormat(lang, { style: 'percent' }).format(v);

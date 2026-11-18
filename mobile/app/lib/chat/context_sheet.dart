@@ -4,13 +4,12 @@
 // clear send what the desktop's do, under the same conditions (web/src/controls/CompactClear.tsx): off while the agent
 // works, absent when the agent cannot.
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
-import '../usage/format.dart' show fmtTokens;
+import '../usage/format.dart' show fmtTokens, money;
 import '../usage/usage_screen.dart';
 import '../comments/strings.g.dart';
 import 'window_sheet.dart';
@@ -22,10 +21,6 @@ Color contextColor(NbColors c, num pct) => pct >= 90
     : pct >= 70
     ? c.accent
     : c.primary;
-
-/// A token count the short way (`68k`, `1.2M`); a whole unit loses its `.0`.
-String _tokens(num n, String lang) =>
-    fmtTokens(n, lang).replaceFirst(RegExp(r'\.0(?=\D|$)'), '');
 
 Future<void> showContextSheet(BuildContext context, WindowTab tab) {
   final c = Theme.of(context).extension<NbColors>()!;
@@ -108,8 +103,8 @@ class ContextSheet extends StatelessWidget {
                 Text(
                   t.contextTokens(
                     ctx.pct.clamp(0, 100).round().toString(),
-                    _tokens(ctx.used, lang),
-                    _tokens(ctx.max, lang),
+                    fmtTokens(ctx.used, lang),
+                    fmtTokens(ctx.max, lang),
                   ),
                   style: TextStyle(fontSize: 13, color: c.foreground),
                 ),
@@ -133,10 +128,7 @@ class ContextSheet extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      NumberFormat.simpleCurrency(
-                        locale: lang,
-                        name: 'USD',
-                      ).format(cost),
+                      money(cost * 100, 'USD', lang),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,

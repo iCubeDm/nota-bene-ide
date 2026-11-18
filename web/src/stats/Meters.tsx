@@ -1,6 +1,6 @@
 import type { Limit } from '@nota-bene/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { fmtK } from '@/lib/format.ts';
+import { compact, money, percent } from '@/lib/format.ts';
 import { getLang, useT } from '@/i18n/index.ts';
 import { selectCapabilitiesKnown } from '@/controls/slice.ts';
 import { useAppSelector } from '@/store/store.ts';
@@ -20,7 +20,7 @@ function Meter({ label, pct, tip }: { label: string; pct: number; tip: string })
         <span
           role="meter"
           tabIndex={0}
-          aria-label={`${label} ${shown}%`}
+          aria-label={`${label} ${percent(shown / 100)}`}
           aria-valuenow={shown}
           aria-valuemin={0}
           aria-valuemax={100}
@@ -31,7 +31,7 @@ function Meter({ label, pct, tip }: { label: string; pct: number; tip: string })
           <span className="block h-1 w-11 overflow-hidden rounded-sm outline outline-1 outline-meter-line bg-meter-track">
             <i className={`block h-full ${FILL[level]}`} style={{ width: `${Math.min(100, pct)}%` }} />
           </span>
-          {shown}%
+          {percent(shown / 100)}
         </span>
       </TooltipTrigger>
       <TooltipContent>{tip}</TooltipContent>
@@ -51,7 +51,7 @@ export function Meters() {
   const fiveHour = L?.five_hour ?? windows.find((w) => w.minutes === 300);
   const week = L?.seven_day ?? windows.find((w) => w.minutes === 10080);
   const parts = [
-    st.context && <Meter key="ctx" label={t('ctx')} pct={st.context.pct} tip={t('ctxTip', fmtK(st.context.used), fmtK(st.context.max))} />,
+    st.context && <Meter key="ctx" label={t('ctx')} pct={st.context.pct} tip={t('ctxTip', compact(st.context.used), compact(st.context.max))} />,
     fiveHour && <Meter key="h5" label={t('h5')} pct={fiveHour.utilization} tip={`${t('h5Tip')}${resets(fiveHour)}`} />,
     week && <Meter key="week" label={t('week')} pct={week.utilization} tip={`${t('weekTip')}${resets(week)}`} />,
     ...windows.filter((w) => w.minutes !== 300 && w.minutes !== 10080).map((w, i) => <Meter key={`native-${i}`} label={w.minutes == null ? w.label : `${w.minutes % 60 === 0 ? w.minutes / 60 + 'h' : w.minutes + 'm'}`} pct={w.utilization} tip={`${w.label}${resets(w)}`} />),
@@ -59,7 +59,7 @@ export function Meters() {
     st.cost != null && (
       <Tooltip key="cost">
         <TooltipTrigger asChild>
-          <span tabIndex={0} aria-label={t(L ? 'costPlanTip' : 'costTip')} className="cursor-default">${st.cost.toFixed(2)}</span>
+          <span tabIndex={0} aria-label={t(L ? 'costPlanTip' : 'costTip')} className="cursor-default">{money(st.cost * 100, 'USD')}</span>
         </TooltipTrigger>
         <TooltipContent>{t(L ? 'costPlanTip' : 'costTip')}</TooltipContent>
       </Tooltip>

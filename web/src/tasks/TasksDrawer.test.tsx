@@ -136,7 +136,7 @@ describe('rows', () => {
     task({ t: 'task', id: 'a', phase: 'progress', tokens: 45678, tool: 'Grep', summary: 'a long summary of what is going on' }, 100_000);
     fireEvent.click(indicator()!);
     expect(row('a')).toHaveTextContent('desc a');
-    expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('local_bash · 0s · 46k tok · Grep');
+    expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('local_bash · 0s · 45.7K tok · Grep');
     expect(row('a').querySelector('[data-task-summary]')).toHaveAttribute('title', 'a long summary of what is going on');
     expect(row('a').querySelector('[data-task-status]')).toHaveAttribute('aria-label', 'running');
     act(() => void vi.advanceTimersByTime(65_000));
@@ -165,7 +165,7 @@ describe('rows', () => {
     task(start('b', { type: 'local_agent' }));
     task(start('c', { type: 'local_agent', model: 'my-model' }));
     fireEvent.click(indicator()!);
-    expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('local_agent · Sonnet 5.5 · 0s · 101k tok · Bash');
+    expect(row('a').querySelector('[data-task-meta]')).toHaveTextContent('local_agent · Sonnet 5.5 · 0s · 101K tok · Bash');
     expect(row('b').querySelector('[data-task-meta]')).toHaveTextContent('local_agent · 0s');
     expect(row('c').querySelector('[data-task-meta]')).toHaveTextContent('local_agent · my-model · 0s');
   });
@@ -190,7 +190,7 @@ describe('rows', () => {
     expect(g).toHaveAttribute('data-status', 'running');
     expect(g).toHaveTextContent('3 parallel agents');
     expect(g.querySelector('[data-task-summary]')).toHaveTextContent('1/3 done, 1 failed');
-    expect(g.querySelector('[data-task-meta]')).toHaveTextContent('0s · 3k tok');
+    expect(g.querySelector('[data-task-meta]')).toHaveTextContent('0s · 3K tok');
     expect(g.style.paddingLeft).toBe('12px');
     expect(row('c').style.paddingLeft).toBe('30px');
     expect([...document.querySelectorAll('[data-task], [data-task-group]')].map((n) => n.getAttribute('data-task') ?? 'group')).toEqual(['group', 'c', 'b', 'a']);

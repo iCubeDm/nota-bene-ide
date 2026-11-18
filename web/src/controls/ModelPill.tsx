@@ -3,6 +3,7 @@ import { shortModel, type AgentEffort as EffortLevel, type ModelOption } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
+import { compact } from '@/lib/format.ts';
 import { selectStats } from '@/stats/slice.ts';
 import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { EffortSlider } from './EffortSlider.tsx';
@@ -120,7 +121,6 @@ export function ModelPill() {
     </button>
   );
   if (!switchable) return trigger;
-  const kTokens = Math.max(1, Math.round(used / 1000));
   // the current model's session id is sent only when a `[1m]`-style suffix tells it from the row (an effort change must
   // not switch it to the alias and drop the 1M variant); otherwise the row's value, as always
   const modelFor = (o: ModelOption) => (o === current && id && id !== o.value && id !== o.resolved ? id : o.value);
@@ -244,7 +244,7 @@ export function ModelPill() {
             <EffortSlider levels={efforts} value={cur?.effort} echo={cur} onPick={pickEffort} />
           </div>
         )}
-        {warn && <p data-testid="cache-warn" className="m-0 shrink-0 border-t border-border-soft px-2.5 pb-1.5 pt-1.5 text-[0.71875rem] leading-snug text-warn">{t('modelCacheWarn', kTokens)}</p>}
+        {warn && <p data-testid="cache-warn" className="m-0 shrink-0 border-t border-border-soft px-2.5 pb-1.5 pt-1.5 text-[0.71875rem] leading-snug text-warn">{t('modelCacheWarn', compact(used))}</p>}
       </DropdownMenuContent>
     </DropdownMenu>
   );

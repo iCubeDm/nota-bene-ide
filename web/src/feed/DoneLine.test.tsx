@@ -27,7 +27,7 @@ it('a resume notice is muted and follows the language', () => {
 it('the compacted line tells how long it took; a failed one is red with the error', () => {
   setLang('ru');
   const { container, rerender } = render(<MarkerLine item={{ kind: 'marker', key: 'k', what: 'compacted', pre: 850000, ms: 72000, ts: 0 }} />);
-  expect(container).toHaveTextContent('⇣ контекст сжат · было 850k токенов · за 1:12');
+  expect(container).toHaveTextContent('⇣ контекст сжат · было 850 тыс. токенов · за 1:12');
   rerender(<MarkerLine item={{ kind: 'marker', key: 'k', what: 'compactFailed', error: 'boom', ts: 0 }} />);
   expect(container.querySelector('[data-kind="marker"]')).toHaveClass('text-destructive');
   expect(container).toHaveTextContent('⇣ сжать контекст не удалось: boom');

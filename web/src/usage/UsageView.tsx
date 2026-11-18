@@ -3,6 +3,7 @@ import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, typ
 import { useAppSelector } from '@/store/store.ts';
 import { getLang, useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
+import { compact, compactParts, money, num, percent } from '@/lib/format.ts';
 
 const POLL_MS = 2000;
 const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, WEEKS_SHOWN = 16, WINDOWS_SHOWN = 32, TANKS_SHOWN = 8;
@@ -12,22 +13,9 @@ const PERIOD_KEY = { trip: 'usagePeriodTrip', '7d': 'usagePeriod7d', '30d': 'usa
 const MODEL_COLOR = ['bg-primary', 'bg-nb-accent'];
 const REST_COLOR = 'bg-muted-foreground';
 
-export const pct = (a: number, b: number): string => (b > 0 ? `${Math.round(a / b * 100)}%` : '0%');
+export const pct = (a: number, b: number): string => percent(b > 0 ? a / b : 0);
 /** A part of the whole: a tiny one never reads as nothing. */
-export const part = (a: number, b: number): string => (a / b < 0.01 ? '<1%' : pct(a, b));
-export const num = (n: number): string => n.toLocaleString(getLang());
-/** Large counts in the unit that reads best. */
-export function fmtTokens(n: number): string {
-  const lang = getLang();
-  const unit = (v: number, ru: string, en: string) => `${v.toFixed(1)}${lang === 'ru' ? ` ${ru}` : en}`;
-  return n >= 1e9 ? unit(n / 1e9, 'млрд', 'B') : n >= 1e6 ? unit(n / 1e6, 'млн', 'M') : n >= 1e3 ? unit(n / 1e3, 'тыс', 'k') : String(Math.round(n));
-}
-/** Minor units to the currency's own format; the currency says how many digits a minor unit is. */
-export function money(minor: number, currency: string | null): string {
-  const f = new Intl.NumberFormat(getLang(), { style: 'currency', currency: currency ?? 'USD' });
-  return f.format(minor / 10 ** (f.resolvedOptions().maximumFractionDigits ?? 2));
-}
-
+export const part = (a: number, b: number): string => (a / b < 0.01 ? `<${percent(0.01)}` : pct(a, b));
 const when = (ts: number): string => new Date(ts).toLocaleString(getLang(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const shortTime = (ts: number): string => new Date(ts).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
 /** A week's Monday, `plus` days on. */
@@ -48,15 +36,20 @@ const VALUE = 'font-mono text-[0.8125rem] whitespace-nowrap';
 const TH = 'border-b border-border px-2 py-1 text-left text-xs font-medium text-muted-foreground first:pl-0';
 const TD = 'border-b border-border-soft px-2 py-1.5 align-top first:pl-0';
 
-/** The trip meter: whole digits on dark wheels, the tenth on a lit one. */
+/** The trip meter: whole digits on dark wheels, the fraction on lit ones, in the language's own short unit. */
 function Odometer({ value }: { value: number }) {
-  const [, whole = '', tenth, unit = ''] = /^(\d+)(?:\.(\d))?\s*(.*)$/.exec(fmtTokens(value)) ?? [];
   const WHEEL = 'block min-w-[0.82em] rounded-[3px] px-[0.06em] py-[0.2em] text-center';
+  const parts = compactParts(value);
+  const unit = parts.filter((p) => p.type === 'compact').map((p) => p.value).join('');
+  let fraction = false;
   return (
     <>
-      <span role="img" aria-label={fmtTokens(value)} className="inline-flex gap-0.5 font-mono text-[2.125rem] leading-none font-medium tabular-nums">
-        {[...whole].map((c, i) => <span key={i} className={`${WHEEL} bg-muted`}>{c}</span>)}
-        {tenth && <><span className="block py-[0.2em]">.</span><span className={`${WHEEL} bg-primary text-primary-foreground`}>{tenth}</span></>}
+      <span role="img" aria-label={compact(value)} className="inline-flex gap-0.5 font-mono text-[2.125rem] leading-none font-medium tabular-nums">
+        {parts.flatMap((p, i) => {
+          if (p.type === 'decimal') fraction = true;
+          if (p.type === 'integer' || p.type === 'fraction') return [...p.value].map((c, j) => <span key={`${i}.${j}`} className={`${WHEEL} ${fraction ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>{c}</span>);
+          return p.type === 'decimal' || p.type === 'group' ? [<span key={i} className="block py-[0.2em]">{p.value}</span>] : [];
+        })}
       </span>
       {unit && <span className="text-muted-foreground">{unit}</span>}
     </>
@@ -78,7 +71,7 @@ function ModelMix({ r }: { r: UsageReport }) {
   const rest = r.models.slice(MODELS_SHOWN);
   const restW = rest.reduce((a, m) => a + m.w, 0);
   const parts = [
-    ...shown.map((m, i) => ({ key: m.key, value: m.w, color: MODEL_COLOR[i]!, name: modelName(m.key), tip: t('usageModelTip', num(m.calls), fmtTokens(m.out), fmtTokens(m.write), fmtTokens(m.read)) })),
+    ...shown.map((m, i) => ({ key: m.key, value: m.w, color: MODEL_COLOR[i]!, name: modelName(m.key), tip: t('usageModelTip', num(m.calls), compact(m.out), compact(m.write), compact(m.read)) })),
     ...(rest.length ? [{ key: '-', value: restW, color: REST_COLOR, name: t('usageRest'), tip: rest.map((m) => modelName(m.key)).join(', ') }] : []),
   ];
   return (
@@ -88,7 +81,7 @@ function ModelMix({ r }: { r: UsageReport }) {
         {parts.map((p) => (
           <span key={p.key} title={p.tip}>
             <i className={`mr-1.5 inline-block size-2 rounded-sm ${p.color}`} />
-            <span className="font-medium">{p.name}</span> {part(p.value, r.total.w)} <span className="font-mono text-xs text-muted-foreground">{fmtTokens(p.value)}</span>
+            <span className="font-medium">{p.name}</span> {part(p.value, r.total.w)} <span className="font-mono text-xs text-muted-foreground">{compact(p.value)}</span>
           </span>
         ))}
       </div>
@@ -122,9 +115,9 @@ function Bars({ title, bars, first, last }: { title: string; bars: BarItem[]; fi
         {tip && (
           <div role="status" className="pointer-events-none absolute bottom-full z-10 mb-1 rounded border border-border bg-popover px-2 py-1 text-xs whitespace-nowrap" style={side}>
             <div className="mb-0.5 text-muted-foreground">{tip.label}</div>
-            <TipRow name={t('usageBarTotal')} value={fmtTokens(tip.w)} />
-            {tip.extra && tip.w > tip.extra ? <TipRow name={t('usageBarLimit')} value={fmtTokens(tip.w - tip.extra)} /> : null}
-            {tip.extra ? <TipRow name="extra usage" value={fmtTokens(tip.extra)} color="bg-warn" /> : null}
+            <TipRow name={t('usageBarTotal')} value={compact(tip.w)} />
+            {tip.extra && tip.w > tip.extra ? <TipRow name={t('usageBarLimit')} value={compact(tip.w - tip.extra)} /> : null}
+            {tip.extra ? <TipRow name="extra usage" value={compact(tip.extra)} color="bg-warn" /> : null}
             {tip.hit && <TipRow name={t('usageHitShort')} color="bg-destructive" />}
           </div>
         )}
@@ -151,15 +144,15 @@ function HitRow({ h, currency }: { h: UsageHit; currency: string | null }) {
       <tr className="group cursor-pointer" onClick={() => setOpen(!open)}>
         <td className={TD}><button type="button" aria-expanded={open} className="cursor-pointer text-left whitespace-nowrap group-hover:text-link">{when(h.ts)}</button></td>
         <td className={`${TD} whitespace-nowrap`}>{h.kind === 'week' ? t('usageWeek') : t('usageH5')}</td>
-        <td className={`${TD} text-right font-mono whitespace-nowrap`}>{fmtTokens(h.w)}</td>
+        <td className={`${TD} text-right font-mono whitespace-nowrap`}>{compact(h.w)}</td>
         <td className={`${TD} text-right font-mono whitespace-nowrap`}>{num(h.calls)}</td>
         <td className={`${TD} whitespace-nowrap text-muted-foreground`}>{went}</td>
       </tr>
       {open && (
         <tr>
           <td colSpan={5} className="max-w-0 border-b border-border-soft pb-2 pl-3.5 text-muted-foreground">
-            {h.extra && <div className="pb-1">{t('usageHitExtra', fmtTokens(h.extra.w), h.extra.spent === null ? t('usageSumUnknown') : money(h.extra.spent, currency))}</div>}
-            {h.tasks.map((k) => <div key={k.id} className={LINE}><span className={ELLIPSIS}>{k.label || t('usageNoLabel')}</span><span className={VALUE}>{fmtTokens(k.w)}</span></div>)}
+            {h.extra && <div className="pb-1">{t('usageHitExtra', compact(h.extra.w), h.extra.spent === null ? t('usageSumUnknown') : money(h.extra.spent, currency))}</div>}
+            {h.tasks.map((k) => <div key={k.id} className={LINE}><span className={ELLIPSIS}>{k.label || t('usageNoLabel')}</span><span className={VALUE}>{compact(k.w)}</span></div>)}
           </td>
         </tr>
       )}
@@ -211,7 +204,7 @@ function Limits({ r }: { r: UsageReport }) {
       )}
       {extra && (
         <p className="text-[0.8125rem] text-muted-foreground" title={t('usageExtraTip')}>
-          {t('usageExtra', fmtTokens(extra.w), extra.spent === null ? t('usageSumUnknown') : money(extra.spent, extra.currency))}
+          {t('usageExtra', compact(extra.w), extra.spent === null ? t('usageSumUnknown') : money(extra.spent, extra.currency))}
           {extra.month !== null && ` ${extra.limit === null ? t('usageExtraMonth', money(extra.month, extra.currency)) : t('usageExtraOf', money(extra.month, extra.currency), money(extra.limit, extra.currency))}`}
         </p>
       )}
@@ -225,8 +218,8 @@ function TankTable({ tanks }: { tanks: UsageTank[] }) {
   const t = useT();
   const span = (k: UsageTank): string => (shortTime(k.from) === shortTime(k.to) ? shortTime(k.from) : `${shortTime(k.from)} – ${shortTime(k.to)}`);
   const rows: { label: string; tip: string; cell: (k: UsageTank) => string }[] = [
-    ...(tanks.some((k) => k.h5) ? [{ label: t('usageTank5h'), tip: t('usageTank5hTip'), cell: (k: UsageTank) => (k.h5 ? fmtTokens(k.h5.perPct) : '—') }] : []),
-    { label: t('usageTank'), tip: t('usageTankTip'), cell: (k: UsageTank) => fmtTokens(k.perPct) },
+    ...(tanks.some((k) => k.h5) ? [{ label: t('usageTank5h'), tip: t('usageTank5hTip'), cell: (k: UsageTank) => (k.h5 ? compact(k.h5.perPct) : '—') }] : []),
+    { label: t('usageTank'), tip: t('usageTankTip'), cell: (k: UsageTank) => compact(k.perPct) },
   ];
   return (
     <div className="min-w-0 overflow-x-auto">
@@ -260,13 +253,13 @@ function TaskDetail({ task, color }: { task: UsageTaskRow; color: (model: string
       {task.agents.length > 0 && (
         <div>
           <div className="text-foreground">{t('usageSubagents')}</div>
-          {task.agents.slice(0, AGENTS_SHOWN).map((a) => <div key={a.id} className={LINE}><span className={ELLIPSIS}>{a.label || a.id}</span><span className={VALUE}>{modelName(a.model)} {a.calls} {fmtTokens(a.w)}</span></div>)}
+          {task.agents.slice(0, AGENTS_SHOWN).map((a) => <div key={a.id} className={LINE}><span className={ELLIPSIS}>{a.label || a.id}</span><span className={VALUE}>{modelName(a.model)} {a.calls} {compact(a.w)}</span></div>)}
           {task.agents.length > AGENTS_SHOWN && <div>{t('usageMoreAgents', task.agents.length - AGENTS_SHOWN)}</div>}
         </div>
       )}
       <div>
         <div className="text-foreground">{t('usageTopCalls')}</div>
-        {task.top.map((c, i) => <div key={i} className={LINE}><span className={ELLIPSIS}>{c.agent ? agents.get(c.agent) || c.agent : t('usageMain')}, {modelName(c.model)}, {t('usageCallLine', fmtTokens(c.out), fmtTokens(c.read))}</span><span className={VALUE}>{fmtTokens(c.w)}</span></div>)}
+        {task.top.map((c, i) => <div key={i} className={LINE}><span className={ELLIPSIS}>{c.agent ? agents.get(c.agent) || c.agent : t('usageMain')}, {modelName(c.model)}, {t('usageCallLine', compact(c.out), compact(c.read))}</span><span className={VALUE}>{compact(c.w)}</span></div>)}
       </div>
     </div>
   );
@@ -304,7 +297,7 @@ function Spent({ r, color }: { r: UsageReport; color: (model: string) => string 
           <Row share={task.w / r.tasks[0]!.w} aria-expanded={open === task.id} onClick={() => setOpen(open === task.id ? null : task.id)}>
             <span className={`${ELLIPSIS} flex-1 group-hover:text-link`}>{task.label || t('usageNoLabel')}</span>
             <span className="text-xs whitespace-nowrap text-muted-foreground">{task.project}</span>
-            <span className={VALUE}>{fmtTokens(task.w)}</span>
+            <span className={VALUE}>{compact(task.w)}</span>
           </Row>
           {open === task.id && <TaskDetail task={task} color={color} />}
         </Fragment>
@@ -312,7 +305,7 @@ function Spent({ r, color }: { r: UsageReport; color: (model: string) => string 
         <Row key={p.key} share={p.w / r.projects[0]!.w} title={p.sub > 0 ? `${t('usageSubagents')} ${pct(p.sub, p.w)}` : undefined}>
           <span className={`${ELLIPSIS} flex-1`}>{p.key}</span>
           <span className="text-xs whitespace-nowrap text-muted-foreground">{part(p.w, r.total.w)}</span>
-          <span className={VALUE}>{fmtTokens(p.w)}</span>
+          <span className={VALUE}>{compact(p.w)}</span>
         </Row>
       ))}
       {items > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[0.8125rem]`}>{all ? t('usageShowTop') : t('usageShowAll', items)}</button>}
@@ -392,7 +385,7 @@ export function UsageView({ active }: { active: boolean }) {
         {shown && live(shown) && (
           <div className="flex flex-wrap items-center gap-3.5">
             <Odometer value={shown.total.w} />
-            <span className="text-muted-foreground underline decoration-dotted underline-offset-3" title={t('usageTotalsTip', fmtTokens(shown.total.read), fmtTokens(shown.total.out))}>{t('usageTokens')}</span>
+            <span className="text-muted-foreground underline decoration-dotted underline-offset-3" title={t('usageTotalsTip', compact(shown.total.read), compact(shown.total.out))}>{t('usageTokens')}</span>
             {shown.from && shown.period === 'trip' && <span className="text-[0.8125rem] text-muted-foreground">{t('usageSince', when(shown.from))}</span>}
             <button type="button" onClick={() => setAsking(!asking)} aria-expanded={asking} className={`${ACTION} ml-auto`}>{t('usageReset')}</button>
           </div>

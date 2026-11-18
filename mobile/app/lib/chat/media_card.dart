@@ -9,6 +9,7 @@ import '../files/image_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../media/fetch.dart';
 import '../theme.dart';
+import '../usage/format.dart' show byteSize;
 import 'feed.dart';
 import 'files.dart';
 import 'window_tab.dart';
@@ -139,7 +140,12 @@ class _PictureState extends State<_Picture> {
               switch (got.fail) {
                 FetchFail.notFound => t.fileNotFound,
                 FetchFail.outside => t.fileOutside,
-                FetchFail.tooLarge => t.imageTooLarge,
+                FetchFail.tooLarge => t.imageTooLarge(
+                  byteSize(
+                    imageMaxBytes,
+                    Localizations.localeOf(context).languageCode,
+                  ),
+                ),
                 _ => t.fileUnreadable,
               },
               textAlign: TextAlign.center,

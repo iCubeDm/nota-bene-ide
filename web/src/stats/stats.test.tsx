@@ -3,7 +3,6 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { ServerEvent, Stats } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { fmtK } from '@/lib/format.ts';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
 import { Meters, meterLevel } from './Meters.tsx';
@@ -39,12 +38,6 @@ it('59 has no class, 60 warn, 85 hot', () => {
   expect(screen.getByRole('meter')).toHaveClass('warn');
   stats({ ...none, context: ctx(85) });
   expect(screen.getByRole('meter')).toHaveClass('hot');
-});
-
-it('fmtK', () => {
-  expect(fmtK(1234567)).toBe('1.2M');
-  expect(fmtK(45678)).toBe('46k');
-  expect(fmtK(999)).toBe('999');
 });
 
 it('meter has aria value and label', () => {
@@ -99,7 +92,7 @@ it('shows context, 5h and week in the same order for both provider formats', () 
   ] });
   expect(labels()).toEqual(['context 42%', '5h 30%', 'week 10%']);
   act(() => setLang('ru'));
-  expect(labels()).toEqual(['контекст 42%', '5ч 30%', 'неделя 10%']);
+  expect(labels()).toEqual(['контекст 42\u00a0%', '5ч 30\u00a0%', 'неделя 10\u00a0%']);
 });
 
 it('keeps nonstandard and unknown native windows after standard windows, including zero usage', () => {
@@ -118,7 +111,7 @@ it('labels follow the language', () => {
   stats({ ...none, context: ctx(10) });
   expect(screen.getByRole('meter')).toHaveAttribute('aria-label', 'context 10%');
   act(() => setLang('ru'));
-  expect(screen.getByRole('meter')).toHaveAttribute('aria-label', 'контекст 10%');
+  expect(screen.getByRole('meter')).toHaveAttribute('aria-label', 'контекст 10\u00a0%');
 });
 
 it('the meters sit in the composer tools row, left of the compact and clear buttons (prototype footer)', async () => {

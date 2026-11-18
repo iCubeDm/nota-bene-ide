@@ -235,7 +235,7 @@ void main() {
       );
       await t.tap(find.text('zeta.txt'));
       await t.pumpAndSettle();
-      expect(find.textContaining('5.0 MB'), findsOneWidget);
+      expect(find.textContaining('5.2 MB'), findsOneWidget);
     });
 
     testWidgets('a failed folder says so and Retry asks again', (t) async {

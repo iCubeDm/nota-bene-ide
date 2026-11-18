@@ -1,29 +1,55 @@
-// The usage report's number and date formatters: ports of the desktop's (web/src/usage/UsageView.tsx), pinned by
-// test/fixtures/usage/format.json, which the web side writes. [lang] is an app language code.
+// The app's number and date formatters: ports of the desktop's (web/src/lib/format.ts, web/src/usage/UsageView.tsx),
+// pinned by test/fixtures/usage/format.json, which the web side writes. [lang] is an app language code.
 import 'dart:math' as math;
 
 import 'package:intl/intl.dart';
 
-String pct(num a, num b) => b > 0 ? '${(a / b * 100).round()}%' : '0%';
+/// A fraction as a whole percent: `33%`, `33 %`.
+String percent(num v, String lang) =>
+    NumberFormat.percentPattern(lang).format(v);
+
+String pct(num a, num b, String lang) => percent(b > 0 ? a / b : 0, lang);
 
 /// A part of the whole: a tiny one never reads as nothing.
-String part(num a, num b) => a / b < 0.01 ? '<1%' : pct(a, b);
+String part(num a, num b, String lang) =>
+    a / b < 0.01 ? '<${percent(0.01, lang)}' : pct(a, b, lang);
 
 /// A count with the locale's grouping, as `toLocaleString` writes it. (`num` is a Dart type, hence the name.)
 String fmtNum(num n, String lang) =>
     NumberFormat.decimalPattern(lang).format(n);
 
-/// Large counts in the unit that reads best.
+final _compact = <String, NumberFormat>{};
+
+/// A large count the short way, in the language's own units (`1.5K`, `2,5 млн`, `250万`), as the desktop's one
+/// formatter writes it (web/src/lib/format.ts, issue 469).
+/// German has no short unit for thousands: such a count keeps every digit, grouped (`45.678`), as ICU writes it.
 String fmtTokens(num n, String lang) {
-  String unit(double v, String ru, String en) =>
-      '${v.toStringAsFixed(1)}${lang == 'ru' ? ' $ru' : en}';
-  return n >= 1e9
-      ? unit(n / 1e9, 'млрд', 'B')
-      : n >= 1e6
-      ? unit(n / 1e6, 'млн', 'M')
-      : n >= 1e3
-      ? unit(n / 1e3, 'тыс', 'k')
-      : '${n.round()}';
+  final s = (_compact[lang] ??= NumberFormat.compact(locale: lang)).format(n);
+  return RegExp(r'^\d{5,}$').hasMatch(s) ? fmtNum(n, lang) : s;
+}
+
+/// ICU's short unit names, byte to terabyte.
+const _bytes = {
+  'en': ['B', 'kB', 'MB', 'GB', 'TB'], // CLDR's "3 byte" reads oddly
+  'ru': ['Б', 'кБ', 'МБ', 'ГБ', 'ТБ'],
+  'zh': ['B', 'kB', 'MB', 'GB', 'TB'],
+  'es': ['B', 'kB', 'MB', 'GB', 'TB'],
+  'pt': ['bytes', 'kB', 'MB', 'GB', 'TB'],
+  'de': ['Byte', 'kB', 'MB', 'GB', 'TB'],
+};
+
+/// A size in the unit that reads best: `3 B`, `1.5 MB`, `2 ГБ` (999 999 bytes are 1 MB, not 1000 kB).
+String byteSize(num n, String lang) {
+  final units = _bytes[lang] ?? _bytes['en']!;
+  var i = 0;
+  while (i < units.length - 1 && n / math.pow(1000, i) >= 999.95) {
+    i++;
+  }
+  final f = NumberFormat.decimalPattern(lang)..maximumFractionDigits = 1;
+  final v = n / math.pow(1000, i);
+  // ICU's German keeps a no-break space before one byte and before GB
+  final space = lang == 'de' && (i == 3 || (i == 0 && v == 1)) ? '\u00a0' : ' ';
+  return '${f.format(v)}$space${units[i]}';
 }
 
 /// Symbols `intl` shares between currencies (`$` is a dozen of them); the desktop's ICU tells these apart.

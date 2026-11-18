@@ -158,12 +158,12 @@ it('while a command runs a second is refused with a note and kept; once it ends 
   expect(sent).toMatchObject([{ type: 'shell-run', cmd: 'ls' }]);
 });
 
-it('a command over 32 KB is refused with a note', async () => {
+it('a command over the limit is refused with a note', async () => {
   const { sent, box, store } = setup();
   act(() => void store.dispatch(setDraft(`!${'x'.repeat(SHELL_CMD_MAX + 1)}`)));
   await userEvent.type(box, '{Enter}');
   expect(sent).toHaveLength(0);
-  expect(titles()).toContain('Not run: the command is longer than 32 KB.');
+  expect(titles()).toContain('Not run: the command is longer than 32 kB.');
 });
 
 it('offline: nothing goes out and the draft stays', async () => {

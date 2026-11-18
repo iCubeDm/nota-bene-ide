@@ -6,7 +6,7 @@ import 'dart:typed_data';
 import '../chat/window_tab.dart';
 
 /// The largest image the phone opens.
-const imageMaxBytes = 32 * 1024 * 1024;
+const imageMaxBytes = 32000000;
 
 /// The largest image previewed in the text (issue 459); a larger one opens full screen on a tap.
 const previewMaxBytes = 8 * 1024 * 1024;

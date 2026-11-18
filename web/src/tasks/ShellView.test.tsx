@@ -97,7 +97,7 @@ it('escape sequences are stripped, not interpreted; the text is shown as text, n
 it('a truncated tail says how much came before it', async () => {
   answer = () => json(view({ output: 'x'.repeat(8192), totalBytes: 8192 + 5 * 1024, truncated: true }));
   await setup();
-  expect(document.querySelector('[data-shell-truncated]')).toHaveTextContent('…(5 KB earlier not shown)');
+  expect(document.querySelector('[data-shell-truncated]')).toHaveTextContent('…(5.1 kB earlier not shown)');
   cleanup();
   answer = () => json(view());
   await setup();

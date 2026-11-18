@@ -40,7 +40,7 @@ test('the indicator counts the running tasks; the drawer lists them all with the
   await expect(drawer).toBeVisible();
   await expect(row(page, 'e2e-sh-run')).toHaveAttribute('data-status', 'running');
   await expect(row(page, 'e2e-sh-done')).toHaveAttribute('data-status', 'done');
-  await expect(row(page, 'e2e-ag-bg')).toContainText('12k tok');
+  await expect(row(page, 'e2e-ag-bg')).toContainText('12.3K tok');
   await expect(row(page, 'e2e-ag-bg')).toContainText('Read');
   await expect(row(page, 'e2e-ag-bg')).toContainText('reading docs/architecture.md');
   // the shell the agent launched is nested under it

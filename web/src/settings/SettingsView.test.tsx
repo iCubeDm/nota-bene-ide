@@ -133,10 +133,10 @@ it('Storage: sizes, and the clean asks first, then reports where the files went'
   expect(screen.getByText('Chat history before compaction')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /Clean unreferenced files · 3/ }));
   const dialog = await screen.findByRole('dialog');
-  expect(dialog).toHaveTextContent('Move 3 files (3.0 MB) to the trash');
+  expect(dialog).toHaveTextContent('Move 3 files (3 MB) to the trash');
   expect(posts).toEqual([]);
   fireEvent.click(within(dialog).getByRole('button', { name: 'Clean unreferenced files' }));
-  expect(await screen.findByText('Moved 3 (3.0 MB) to ~/.nota-bene/trash/attachments/x')).toHaveAttribute('role', 'status');
+  expect(await screen.findByText('Moved 3 (3 MB) to ~/.nota-bene/trash/attachments/x')).toHaveAttribute('role', 'status');
 });
 
 it('Defaults: the update check is switched on the server; the variable leaves the box off with the reason', async () => {

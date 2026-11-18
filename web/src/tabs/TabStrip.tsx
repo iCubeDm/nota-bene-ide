@@ -89,8 +89,12 @@ function RenameInput({ ref, id, title, done }: { ref: Ref<HTMLInputElement>; id:
   );
 }
 
-/** A tab, no tooltip (issue 463): its label says it; a file tab's `fileLabel` is from fileLabels. */
-function TabItem({ tab, active, last, playing, fileLabel }: { tab: Tab; active: boolean; last: boolean; playing: boolean; fileLabel?: string }) {
+/** A tab's label, in the strip and in its menu alike: `title` is the chat's, `files` from fileLabels (issue 469). */
+export const tabLabel = (tab: Tab, t: ReturnType<typeof useT>, title: string | null, files: Map<string, string>): string =>
+  tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'remote' ? t('remote') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : files.get(tab.path) ?? basename(tab.path);
+
+/** A tab, no tooltip (issue 463): its label says it; `labels` are the open files' from fileLabels. */
+function TabItem({ tab, active, last, playing, labels }: { tab: Tab; active: boolean; last: boolean; playing: boolean; labels: Map<string, string> }) {
   const t = useT();
   const d = useAppDispatch();
   const badge = useAppSelector((s) => (tab.kind === 'file' ? selectPendingCountByPath(s)[fileKey(tab.path, tab.ref)] ?? 0 : 0));
@@ -98,7 +102,7 @@ function TabItem({ tab, active, last, playing, fileLabel }: { tab: Tab; active: 
   const session = useAppSelector((s) => selectSession(s)?.id ?? null);
   const [renaming, setRenaming] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const label = tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'remote' ? t('remote') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : fileLabel ?? basename(tab.path);
+  const label = tabLabel(tab, t, title, labels);
   const isChat = tab.kind === 'chat';
   return (
     <ContextMenu>
@@ -190,10 +194,10 @@ export function TabStrip() {
       >
         {open.map((tab, i) => (
           // the dot marks a background tab that still plays; the active tab shows its own player
-          <TabItem key={tab.id} tab={tab} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} fileLabel={tab.kind === 'file' ? labels.get(tab.path) : undefined} />
+          <TabItem key={tab.id} tab={tab} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} labels={labels} />
         ))}
       </div>
-      <TabsMenu strip={strip} />
+      <TabsMenu strip={strip} labels={labels} />
     </div>
   );
 }

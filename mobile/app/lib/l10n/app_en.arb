@@ -230,7 +230,14 @@
   "commentDeleted": "Comment deleted",
   "fileNotFound": "This file is not there (any more).",
   "fileOutside": "This file is outside the project.",
-  "fileTooLarge": "The file is too large for the phone (over 2 MB). Open it on the computer.",
+  "fileTooLarge": "The file is too large for the phone (over {limit}). Open it on the computer.",
+  "@fileTooLarge": {
+    "placeholders": {
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
   "fileNotMarkdown": "Only Markdown files, images and videos open on the phone.",
   "fileUnreadable": "The file could not be read. Try again when the host is online.",
   "openFile": "Open the file",
@@ -263,9 +270,23 @@
   },
   "markUndo": "Undo",
   "markFailed": "The mark could not be saved. Check the connection and try again.",
-  "imageTooLarge": "The image is too large for the phone (over 32 MB). Open it on the computer.",
+  "imageTooLarge": "The image is too large for the phone (over {limit}). Open it on the computer.",
+  "@imageTooLarge": {
+    "placeholders": {
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
   "imageUnreadable": "The image could not be shown.",
-  "soundTooLarge": "The sound is too large for the phone (over 64 MB). Open it on the computer.",
+  "soundTooLarge": "The sound is too large for the phone (over {limit}). Open it on the computer.",
+  "@soundTooLarge": {
+    "placeholders": {
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
   "soundUnplayable": "The sound could not be played. Try again when the host is online.",
   "videoPlay": "Play",
   "videoPause": "Pause",
@@ -387,10 +408,13 @@
       }
     }
   },
-  "fileTooLargeSize": "The file is too large for the phone, {size} (the limit is 2 MB). Open it on the computer.",
+  "fileTooLargeSize": "The file is too large for the phone, {size} (the limit is {limit}). Open it on the computer.",
   "@fileTooLargeSize": {
     "placeholders": {
       "size": {
+        "type": "String"
+      },
+      "limit": {
         "type": "String"
       }
     }

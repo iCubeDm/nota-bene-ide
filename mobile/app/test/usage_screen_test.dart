@@ -239,13 +239,13 @@ void main() {
     await show(t);
     await t.tapText(w('usagePeriod30d'));
     await t.tapText(w('usagePeriod7d'));
-    expect(find.text('2.0M'), findsOneWidget);
+    expect(find.text('2M'), findsOneWidget);
     slow.complete(
       answer(200, jsonEncode(report(period: '30d', total: 9000000))),
     );
     await t.pumpAndSettle();
-    expect(find.text('9.0M'), findsNothing);
-    expect(find.text('2.0M'), findsOneWidget);
+    expect(find.text('9M'), findsNothing);
+    expect(find.text('2M'), findsOneWidget);
   });
 
   testWidgets('a report of another provider is never shown', (t) async {

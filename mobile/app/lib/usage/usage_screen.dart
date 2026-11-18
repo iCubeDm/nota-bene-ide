@@ -284,7 +284,7 @@ class _Report extends StatelessWidget {
         Text(
           usageTemplate('usageSide', lang, [
             fmtNum(r.total.calls, lang),
-            pct(r.total.sub, r.total.w),
+            pct(r.total.sub, r.total.w, lang),
           ]),
           style: _small(context),
         ),
@@ -423,7 +423,7 @@ class _ModelMix extends StatelessWidget {
                         text: p.name,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      TextSpan(text: ' ${part(p.w, r.total.w)} '),
+                      TextSpan(text: ' ${part(p.w, r.total.w, lang)} '),
                       TextSpan(
                         text: fmtTokens(p.w, lang),
                         style: _small(context),
@@ -724,7 +724,7 @@ class _HitRow extends StatelessWidget {
         (h.projects.entries.toList()
               ..sort((a, b) => b.value.compareTo(a.value)))
             .take(2)
-            .map((e) => '${e.key} ${pct(e.value, h.w)}')
+            .map((e) => '${e.key} ${pct(e.value, h.w, lang)}')
             .join(', ');
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
@@ -912,7 +912,7 @@ class _SpentState extends State<_Spent> {
                       style: const TextStyle(fontSize: 13),
                     ),
                   ),
-                  Text(part(p.w, r.total.w), style: _small(context)),
+                  Text(part(p.w, r.total.w, lang), style: _small(context)),
                   Text(fmtTokens(p.w, lang), style: _mono),
                 ],
               ),
@@ -962,7 +962,7 @@ class _TaskDetail extends StatelessWidget {
           Text(
             usageTemplate('usageTaskLine', lang, [
               fmtNum(task.calls, lang),
-              pct(task.sub, task.w),
+              pct(task.sub, task.w, lang),
               when(task.ts.toInt(), lang),
             ]),
             style: _small(context),

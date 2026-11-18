@@ -42,7 +42,7 @@ void main() {
     await r.openContextSheet(t, stats: stats({'context': ctx}));
     expect(find.byType(ContextSheet), findsOneWidget);
     expect(find.byType(WindowSheet), findsNothing);
-    expect(inSheet(find.text('34% · 68k of 200k tokens')), findsOneWidget);
+    expect(inSheet(find.text('34% · 68K of 200K tokens')), findsOneWidget);
     expect(inSheet(find.byKey(const ValueKey('context-bar'))), findsOneWidget);
   });
 

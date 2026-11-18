@@ -20,7 +20,8 @@ import { type ThemeId } from '@nota-bene/shared';
 import { Logo } from './Logo.tsx';
 import { ProjectSwitcher } from '@/projects/ProjectSwitcher.tsx';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from './theme.ts';
-import { scaleLabel, uiScale, useUiScale } from './uiScale.ts';
+import { uiScale, useUiScale } from './uiScale.ts';
+import { percent } from '@/lib/format.ts';
 
 const row = 'gap-2.5 px-2 py-1.5 text-[0.8125rem] text-foreground [&>svg]:text-muted-foreground';
 const stepBtn = 'grid size-6 cursor-pointer place-items-center rounded-md text-[0.9375rem] leading-none text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent';
@@ -136,7 +137,7 @@ export function Header() {
             <span className="-mr-1 flex items-center">
               <button type="button" id="scaleDown" aria-label={t('scaleSmaller')} title={`${t('scaleSmaller')} (${isMacLabel('−')})`} disabled={scale === UI_SCALES[0]}
                 onClick={() => uiScale.step(-1)} className={stepBtn}>−</button>
-              <span id="scaleValue" className="w-10 text-center tabular-nums text-muted-foreground">{scaleLabel(scale, lang)}</span>
+              <span id="scaleValue" className="w-10 text-center tabular-nums text-muted-foreground">{percent(scale)}</span>
               <button type="button" id="scaleUp" aria-label={t('scaleLarger')} title={`${t('scaleLarger')} (${isMacLabel('=')})`} disabled={scale === UI_SCALES[UI_SCALES.length - 1]}
                 onClick={() => uiScale.step(1)} className={stepBtn}>+</button>
             </span>

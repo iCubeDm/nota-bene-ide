@@ -11,6 +11,7 @@ void main() {
           as Map<String, Object?>;
   final pairs = [for (final p in fx['pairs'] as List) (p as List).cast<num>()];
   final tokens = (fx['tokens'] as List).cast<num>();
+  final sizes = (fx['sizes'] as List).cast<num>();
   final currencies = (fx['currencies'] as List).cast<String>();
   final models = (fx['models'] as List).cast<String>();
   final langs = (fx['langs'] as Map).cast<String, Map>();
@@ -19,12 +20,12 @@ void main() {
     expect(langs.keys, ['en', 'ru', 'zh', 'es', 'pt', 'de']);
     for (final MapEntry(key: lang, value: want) in langs.entries) {
       expect(
-        [for (final p in pairs) pct(p[0], p[1])],
+        [for (final p in pairs) pct(p[0], p[1], lang)],
         want['pct'],
         reason: 'pct $lang',
       );
       expect(
-        [for (final p in pairs.where((p) => p[1] > 0)) part(p[0], p[1])],
+        [for (final p in pairs.where((p) => p[1] > 0)) part(p[0], p[1], lang)],
         want['part'],
         reason: 'part $lang',
       );
@@ -32,6 +33,11 @@ void main() {
         [for (final n in tokens) fmtTokens(n, lang)],
         want['fmtTokens'],
         reason: 'fmtTokens $lang',
+      );
+      expect(
+        [for (final n in sizes) byteSize(n, lang)],
+        want['byteSize'],
+        reason: 'byteSize $lang',
       );
       expect([for (final m in models) modelName(m)], want['modelName']);
       expect(fmtNum(1234567, lang), want['num'], reason: 'num $lang');

@@ -1,6 +1,7 @@
 import { SHELL_CMD_MAX } from '@nota-bene/shared';
 import { t } from '../i18n/index.ts';
 import { toast } from '../shell/toast.ts';
+import { byteSize } from '../lib/format.ts';
 import { selectPending } from '../comments/slice.ts';
 import { activate } from '../tabs/slice.ts';
 import { selectConn, type AppThunk, type RootState } from '../store/store.ts';
@@ -36,7 +37,7 @@ export const runShellDraft = (): AppThunk<'sent' | 'blocked' | 'empty' | 'offlin
   const cmd = commandOf(draft);
   if (selectPending(st).length || selectImages(st).length) return (toast(t('shellWithAttachments'), ''), 'blocked');
   if (!cmd) return 'empty';
-  if (new TextEncoder().encode(cmd).length > SHELL_CMD_MAX) return (toast(t('shellTooLong'), ''), 'blocked');
+  if (new TextEncoder().encode(cmd).length > SHELL_CMD_MAX) return (toast(t('shellTooLong', byteSize(SHELL_CMD_MAX)), ''), 'blocked');
   if (selectShellRunning(st)) return (toast(t('shellBusy'), ''), 'blocked');
   const id = crypto.randomUUID();
   if (selectConn(st) !== 'open' || !send({ type: 'shell-run', id, cmd })) return 'offline';
