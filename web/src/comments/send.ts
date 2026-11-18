@@ -10,7 +10,6 @@ import { draftSent, removeImage, selectBuilding, selectDraft, selectImages, sele
 import { createSelector } from '@reduxjs/toolkit';
 import { markSending, selectComments, selectPending, unmarkSending } from './slice.ts';
 import { selectFileVersion } from '../files/slice.ts';
-import { cameraLine } from '../model/pose.ts';
 import { cutWhere } from '../cut/quote.ts';
 import { liveCutState } from '../cut/live.ts';
 import { mediaTime } from '../media/markup/geometry.ts';
@@ -41,7 +40,7 @@ export function whereOf(
 ): string {
   const src = anchorSource(c.anchor);
   const a = c.anchor;
-  if (isMediaAnchor(a)) return `${whereOfFile(a.source)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${a.width}×${a.height}${a.camera ? ` · ${cameraLine(a.camera, getLang())}` : ''}`;
+  if (isMediaAnchor(a)) return `${whereOfFile(a.source)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${a.width}×${a.height}`;
   if (isCutAnchor(a)) return cutWhere(a, whereOfFile(a.source), lang);
   if (isAttachmentAnchor(a)) return tIn(lang, 'srcAttachment', attNo?.(a.image) ?? 0, a.width, a.height);
   if (!src) return t('srcChat');

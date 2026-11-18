@@ -5,8 +5,7 @@ import { selectFileVersion } from '@/files/slice.ts';
 import { useT } from '@/i18n/index.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { shapePath } from './geometry.ts';
-import { aspectScale } from '@/model/pose.ts';
-import { shapeEls, STROKE_PX, useNatSize, useOverlayPlacement, type Media } from './overlay.tsx';
+import { shapeEls, STROKE_PX, useOverlayPlacement, type Media } from './overlay.tsx';
 import { selectDraft } from './slice.ts';
 
 /**
@@ -52,10 +51,8 @@ function usePausedAt(media: Media): number | null {
  * placed only on resizes. With no mark to show, nothing is mounted or observed.
  */
 /** `refName`: the file's ref for another source (not `ref`: that name is React's). */
-export function MediaMarks({ tabId, media, fit, path, refName: ref, atView }: {
+export function MediaMarks({ tabId, media, fit, path, refName: ref }: {
   tabId: string; media: Media; fit: 'contain' | 'natural'; path: string; refName?: string;
-  /** a 3D view (canvas): the ids of the comments whose camera the view is at now; only those show (like a video mark at its time) */
-  atView?: ReadonlySet<string>;
 }) {
   const t = useT();
   const dispatch = useAppDispatch();
@@ -63,16 +60,14 @@ export function MediaMarks({ tabId, media, fit, path, refName: ref, atView }: {
   const marking = useAppSelector((s) => selectDraft(s, tabId).on);
   const current = useAppSelector((s) => selectFileVersion(s, path, ref));
   const at = usePausedAt(media);
-  const [nat] = useNatSize(media); // a canvas: followed as its box changes
   const video = media instanceof HTMLVideoElement;
   const shown = useMemo(() => {
     if (at === null) return [];
     // a sent mark drawn on another version of the file points at what is no longer there (a pending one stays, flagged)
     const live = all.filter((c) => !(c.status === 'sent' && changedSince(c, current)));
-    const list = video ? live.filter((c) => c.anchor.time !== undefined && Math.abs(c.anchor.time - at) <= TIME_TOLERANCE)
-      : media instanceof HTMLCanvasElement ? live.filter((c) => atView?.has(c.id)) : live;
+    const list = video ? live.filter((c) => c.anchor.time !== undefined && Math.abs(c.anchor.time - at) <= TIME_TOLERANCE) : live;
     return list.some((c) => c.status === 'sent') ? [...list].sort((a, b) => (a.status === b.status ? 0 : a.status === 'sent' ? -1 : 1)) : list;
-  }, [all, at, video, media, atView, current]);
+  }, [all, at, video, current]);
 
   // the paths of a comment, per comment object (an edit of the text makes a new object; that is rare and cheap)
   const cache = useRef(new WeakMap<MediaComment, { els: ReturnType<typeof shapeEls>; ds: string[] }>());
@@ -91,12 +86,6 @@ export function MediaMarks({ tabId, media, fit, path, refName: ref, atView }: {
   const on = shown.length > 0 && !!pane;
   useOverlayPlacement(svg, media, fit, on);
 
-  // a 3D view: the marks were drawn on the aspect the canvas had then; the camera's fov is vertical, so only x moves
-  const fix = (c: MediaComment): string | undefined => {
-    if (!(media instanceof HTMLCanvasElement)) return undefined;
-    const k = aspectScale(c.anchor.width, c.anchor.height, nat[0], nat[1]);
-    return k === 1 ? undefined : `translate(0.5 0) scale(${k} 1) translate(-0.5 0)`;
-  };
   const open = (id: string) => (e: MouseEvent) => {
     e.stopPropagation();
     dispatch(openCommentCard({ id, x: e.clientX, y: e.clientY }));
@@ -118,12 +107,12 @@ export function MediaMarks({ tabId, media, fit, path, refName: ref, atView }: {
       className="pointer-events-none absolute z-10 overflow-visible select-none"
     >
       {shown.map((c) => (
-        <g key={c.id} data-mark={c.id} transform={fix(c)} opacity={c.status === 'sent' ? SENT_OPACITY : undefined}>{drawn(c).els}</g>
+        <g key={c.id} data-mark={c.id} opacity={c.status === 'sent' ? SENT_OPACITY : undefined}>{drawn(c).els}</g>
       ))}
       {!marking && shown.map((c) => {
         const changed = changedSince(c, current);
         return (
-          <g key={c.id} data-hit={c.id} transform={fix(c)} onClick={open(c.id)} className="cursor-pointer">
+          <g key={c.id} data-hit={c.id} onClick={open(c.id)} className="cursor-pointer">
             {changed && <title>{t('fileChanged')}</title>}
             {drawn(c).ds.map((d, i) => (
               <path key={i} d={d} stroke="transparent" strokeWidth={HIT_PX} vectorEffect="non-scaling-stroke" pointerEvents="stroke" />

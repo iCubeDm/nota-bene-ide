@@ -391,7 +391,7 @@ void main() {
     });
 
     test(
-      'comments with images are sent; page and 3D model comments stay for the desktop',
+      'comments with images are sent; page comments stay for the desktop',
       () {
         final x = c('a', 'x', 'see');
         final media = (fixture['comments'] as Map)['video'] as Map;
@@ -407,17 +407,6 @@ void main() {
           'status': 'pending',
           'createdAt': 1,
         });
-        Comment model() {
-          final j = Map<String, Object?>.from(media.cast<String, Object?>());
-          final a = Map<String, Object?>.from(j['anchor'] as Map)
-            ..remove('time')
-            ..['camera'] = {
-              'position': [0, 0, 1],
-              'target': [0, 0, 0],
-              'fov': 50,
-            };
-          return Comment.fromJson({...j, 'id': 'model', 'anchor': a});
-        }
 
         cs.apply([
           Comment(
@@ -430,7 +419,6 @@ void main() {
           ),
           Comment.fromJson(media.cast<String, Object?>()),
           page(),
-          model(),
           x,
         ]);
         expect(cs.sendable.map((x) => x.id), [

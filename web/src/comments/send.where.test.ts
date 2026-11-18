@@ -3,27 +3,19 @@ import type { Comment, MediaAnchor } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { whereOf } from './send.ts';
 
-const model = (over: Partial<MediaAnchor> = {}): Comment => ({
+const media = (over: Partial<MediaAnchor> = {}): Comment => ({
   id: 'c1', text: 'thin', status: 'pending', createdAt: 1,
   anchor: {
-    kind: 'media', source: { kind: 'file', path: 'models/car.glb' }, width: 800, height: 600,
-    camera: { position: [1.23456, 2, -3.5], target: [0, 0.12345, 0], fov: 50 },
+    kind: 'media', source: { kind: 'file', path: 'media/a.mp4' }, width: 800, height: 600,
     shapes: [{ kind: 'rect', color: '#ff3b30', x: 0.1, y: 0.1, w: 0.2, h: 0.2 }], ...over,
   },
 });
 afterEach(() => setLang('en'));
 
-it('a model comment names the file, the frame size and the camera (3 significant digits), in en and ru', () => {
+it('a media comment names the file, the time and the frame size; another source keeps its ref', () => {
   setLang('en');
-  expect(whereOf(model())).toBe('models/car.glb · 800×600 · camera (1.23, 2, -3.5) → (0, 0.123, 0), fov 50°');
-  setLang('ru');
-  expect(whereOf(model())).toBe('models/car.glb · 800×600 · камера (1.23, 2, -3.5) → (0, 0.123, 0), fov 50°');
-});
-
-it('a video / image comment (no camera) is unchanged; another source keeps its ref', () => {
-  setLang('en');
-  expect(whereOf(model({ camera: undefined, time: 4.24 }))).toBe('models/car.glb @ 0:04.240 · 800×600');
-  expect(whereOf(model({ source: { kind: 'file', path: 'm.glb', ref: 'feat' } }))).toMatch(/^m\.glb @ feat · 800×600 · camera /);
+  expect(whereOf(media({ time: 4.24 }))).toBe('media/a.mp4 @ 0:04.240 · 800×600');
+  expect(whereOf(media({ source: { kind: 'file', path: 'a.png', ref: 'feat' } }))).toBe('a.png @ feat · 800×600');
 });
 
 it('a cut comment names the edit and the time on the timeline (issue 430)', () => {

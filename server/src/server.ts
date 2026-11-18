@@ -20,7 +20,6 @@ import { EventHub } from './hub.ts';
 import { complete, fileRoutes } from './fileRoutes.ts';
 import { osFileRoutes } from './osFiles.ts';
 import { tmpDirNames } from './tmpImage.ts';
-import { BlendConverter } from './blend.ts';
 import { readPrefs } from './prefs.ts';
 import { httpHandler, isAllowedHost } from './http.ts';
 import { SwitchError, createSessionManager } from './session.ts';
@@ -85,8 +84,6 @@ export async function startServer(o: {
   /** the checkout the server runs from (Settings → About's version); default: two levels above this file */
   repoDir?: string;
   webDist: string;
-  /** the experimental 3D model viewer (/model, Blender); default: env NOTA_BENE_EXPERIMENTAL_3D=1 */
-  experimental3d?: boolean;
   /** the ffmpeg binary of the video editor's export, looked up at each use (tests stub it); default: findFfmpeg */
   ffmpeg?: () => string | null;
   allowedOrigins?: string[];
@@ -186,7 +183,7 @@ export async function startServer(o: {
         reportError(hub, 'prompts', e);
       }
     });
-    manager.onSwitch((id, { restart }) => {
+    manager.onSwitch((_, { restart }) => {
       if (!restart) prompts.dropPending();
       // the unsent set of a new session (in memory, no id yet) stays behind: it must not be adopted by another
       // session. A restart keeps the same session (and root), so it keeps the set too
@@ -247,9 +244,6 @@ export async function startServer(o: {
     });
     /** a request to restart: at once in a pause (true), else pending (false) */
     const requestRestart = () => restart.request() === 'now';
-    // experimental 3D is off unless asked for: no converter means /model is a plain 404 and Blender is never looked up
-    const model3d = o.experimental3d ?? process.env.NOTA_BENE_EXPERIMENTAL_3D === '1';
-    const blend = model3d ? new BlendConverter({ stateDir }) : undefined;
     const marks = new MarkFiles({ root, stateDir });
     // the video editor's export (epic 406): ffmpeg is looked up again at each connect and start, so one installed later is found
     const cutExporter = new CutExporter({ root, ...(o.ffmpeg ? { ffmpeg: o.ffmpeg } : {}) });
@@ -333,7 +327,7 @@ export async function startServer(o: {
       allowedOrigins,
       extra: {
         ...fileRoutes({
-          root, hub, complete: (q) => complete({ session: manager, root: root() }, q), blend,
+          root, hub, complete: (q) => complete({ session: manager, root: root() }, q),
           selfBusy: () => manager.busy(), ...(audit ? { audit: (ev, f) => audit.write(ev, f) } : {}),
         }),
         ...attachmentRoutes(attachments, hub),
@@ -461,7 +455,7 @@ export async function startServer(o: {
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen()[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), blender: blend?.available() ?? false, icon: projectIcons.versionOrNull(root) };
+        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen()[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root) };
       },
     }));
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
@@ -507,7 +501,7 @@ export async function startServer(o: {
     const sendHello = (ws: WebSocket) => {
       try {
         const { lang, uiScale, theme, whisper, dictationLang } = readPrefs(); // the user's UI language, scale and theme, shared by every window; absent until chosen
-        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, model3d, ffmpeg: cutExporter.available(), ...(whisper === true && whisperPhase() === 'ready' ? { dictation: 'whisper' as const } : {}) }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), ...(dictationLang ? { dictationLang } : {}), tmpDirs: tmpDirNames() }));
+        ws.send(JSON.stringify({ kind: 'hello', protocol: PROTOCOL, capabilities: { ...caps, ffmpeg: cutExporter.available(), ...(whisper === true && whisperPhase() === 'ready' ? { dictation: 'whisper' as const } : {}) }, ...(lang ? { lang } : {}), ...(uiScale ? { uiScale } : {}), ...(theme ? { theme } : {}), ...(dictationLang ? { dictationLang } : {}), tmpDirs: tmpDirNames() }));
       } catch (e) {
         reportError(hub, 'hello', e);
       }
@@ -706,8 +700,7 @@ export async function startServer(o: {
             manager.interrupt();
             break;
           case 'permission':
-            // msg.input is deliberately ignored: a client must never rewrite the input of an approved tool call
-            // (the WS also accepts origin-less connections). The agent gets the ORIGINAL input back, as in the prototype.
+            // the agent gets the ORIGINAL input back: a client never rewrites the input of an approved tool call
             manager.answer(msg.id, msg.allow, msg.response);
             break;
           case 'command':
@@ -903,7 +896,6 @@ export async function startServer(o: {
         keeper.off('warn', remoteWarn);
       }
       const backendClose = o.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
-      blend?.dispose();
       cutExporter.dispose();
       cutPeaks.dispose();
       for (const c of wss.clients) c.terminate();

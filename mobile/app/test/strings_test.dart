@@ -94,7 +94,7 @@ void main() {
     );
   });
 
-  test('the web keys: h5 and week in every app language', () {
+  test('the web keys: working and offline in every app language', () {
     final files = {
       'en': 'en',
       'ru': 'ru',
@@ -105,7 +105,7 @@ void main() {
     };
     for (final MapEntry(key: lang, value: file) in files.entries) {
       final src = File('../../web/src/i18n/$file.ts').readAsStringSync();
-      for (final k in ['h5', 'week']) {
+      for (final k in ['working', 'offline']) {
         final v = RegExp(
           '^  $k: \'(.*)\',\$',
           multiLine: true,
@@ -113,7 +113,7 @@ void main() {
         expect(webString(k, lang), v, reason: '$k $lang');
       }
     }
-    expect(webString('week', 'xx'), 'week');
+    expect(webString('offline', 'xx'), 'no connection to the server…');
   });
 
   test('the mode and clear texts of the web in every app language', () {

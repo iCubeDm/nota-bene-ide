@@ -3,8 +3,8 @@
 <h1 align="center">Nota Bene</h1>
 
 <p align="center">
-  <strong>A creative agentic environment for media, video, 3D and code.</strong><br>
-  Work with <strong>Claude Code</strong>, <strong>Codex</strong> or <strong>omp</strong> on anything you can see and hear: mark up an image or a video frame, comment a moment of a clip, review a diagram, an HTML page or a 3D model, then send it all to the agent as one batch. Code too.
+  <strong>A creative agentic environment for media, video and code.</strong><br>
+  Work with <strong>Claude Code</strong>, <strong>Codex</strong> or <strong>omp</strong> on anything you can see and hear: mark up an image or a video frame, comment a moment of a clip, review a diagram or an HTML page, then send it all to the agent as one batch. Code too.
 </p>
 
 <p align="center">
@@ -27,8 +27,6 @@ Nota Bene opens the agent you already have (its own login, models and sessions) 
 ![Marking up an image: a rectangle and a mask, each with a comment](https://raw.githubusercontent.com/iCubeDm/nota-bene-ide/main/docs/media/annotate-image.gif)
 
 **Video and audio.** A player with frame stepping, speed, picture in picture and keyboard control. Pause on a frame, mark it up and comment: the comment keeps its moment and shows as a tick on the timeline. Audio files play and seek in the same player.
-
-**3D models (experimental).** `.glb`, `.gltf` and `.blend` (through your Blender) open in an orbit viewer with animation clips. Mark up a view; the comment remembers the camera. Off by default; macOS and Linux only.
 
 **Pages and diagrams.** An HTML page renders in a tab with its scripts off. Comment on its text, click an element, or drag a box over an area of an SVG diagram; the agent gets the place as it reads on the page. Mermaid and SVG in replies render as diagrams.
 

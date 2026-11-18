@@ -16,22 +16,20 @@ const DICTS: [string, Record<string, unknown>][] = [['en', en], ['ru', ru], ['zh
 /** the batch strings the phone's composeBatch uses */
 const BATCH_KEYS = ['batchHead', 'srcChat', 'markStale', 'cutMomentQ', 'maskLine'] as const;
 /**
- * Web strings the phone shows as they are; `webString` reads them: the usage meters' words, the window sheet's
- * mode names and descriptions (every provider's modes, as ModePill.tsx shows them) and its clear/compact texts, and
- * the mic's Whisper sheet.
+ * Web strings the phone shows as they are; `webString` reads them: the window sheet's mode names and descriptions
+ * (every provider's modes, as ModePill.tsx shows them) and its clear/compact texts, and the mic's Whisper sheet.
  * A key that is not a plain string in a dictionary fails the generator.
  */
 export const WEB_KEYS: readonly string[] = [
-  'h5', 'week',
   ...ALL_MODES.flatMap((m) => [`mode_${m}`, `mode_${m}_desc`]),
-  'modeTip', 'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip', 'clearFail', 'working', 'offline',
+  'clearTitle', 'clearQ', 'clearBtn', 'compactTip', 'clearTip', 'clearFail', 'working', 'offline',
   'srcMine', 'replyPlain',
   'dictInstallGo', 'dictInstalling', 'dictFailed', 'dictRetry',
-  // the sent comments under a message, and the header's context
-  'commentsLc', 'ctx',
+  // the sent comments under a message
+  'commentsLc',
   // the git views' words
   'vcsChanges', 'vcsNoChanges', 'vcsNoCommits', 'vcsEmptyFile', 'vcsOnlyMeta', 'vcsTooBig', 'vcsShowAnyway', 'vcsNoRepo',
-  'vcsFailed', 'vcsAllBranches', 'binary',
+  'vcsFailed', 'binary',
 ];
 /**
  * Web strings that count (`nComments(n)`): kept as the forms of 1, 2 and 5 with the number as `{0}`, which

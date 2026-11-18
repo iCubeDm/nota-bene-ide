@@ -126,11 +126,9 @@ test('switch needs an id (uuid or null) and an absolute dir', () => {
   expect(P({ type: 'switch', dir: '/a' })).toHaveProperty('error');
 });
 test('restart parses', () => expect(P({ type: 'restart' })).toEqual({ type: 'restart' }));
-test('permission keeps an optional input object', () => {
-  expect(P({ type: 'permission', id: 'p', allow: true, input: { plan: 'x' } })).toEqual({ type: 'permission', id: 'p', allow: true, input: { plan: 'x' } });
+test('permission parses; a client\'s input is dropped (it never rewrites an approved tool call)', () => {
   expect(P({ type: 'permission', id: 'p', allow: true })).toStrictEqual({ type: 'permission', id: 'p', allow: true });
-  expect(P({ type: 'permission', id: 'p', allow: true, input: 'x' })).toHaveProperty('error');
-  expect(P({ type: 'permission', id: 'p', allow: true, input: [1] })).toHaveProperty('error');
+  expect(P({ type: 'permission', id: 'p', allow: true, input: { plan: 'x' } })).toStrictEqual({ type: 'permission', id: 'p', allow: true });
 });
 
 test('activity and idle-compact (only a boolean on; extra keys dropped)', () => {
@@ -466,56 +464,9 @@ test('bg: the CLI\'s is_backgrounded is kept from the start and moved by an upda
   expect(reduceTasks({}, T(1, { id: 'w', phase: 'started', desc: 'w', ambient: true })).w?.ambient).toBe(true);
 });
 
-// ---- a model view's camera (protocol 9) ----
-const cam = (over: Record<string, unknown> = {}) => ({ position: [1, 2, 3], target: [0, 0.5, 0], fov: 45, ...over });
-
-test('a media anchor may carry a camera; it round-trips and a model anchor has no time', () => {
-  const a = mediaAnchor({ source: { kind: 'file', path: 'm/a.glb' }, version: '"v"', camera: cam() });
-  expect(parseMedia(a)).toEqual({ type: 'comments', sessionId: null, items: [comment({ anchor: a })] });
-  const out = toAnchor(a as unknown as MediaAnchor) as MediaAnchor;
-  expect(out.camera).toEqual(cam());
-  expect('time' in out).toBe(false);
-});
-
-test('an anchor without a camera is unchanged (no camera key appears)', () => {
-  const a = mediaAnchor({ time: 2 });
-  expect('camera' in (toAnchor(a as unknown as MediaAnchor) as MediaAnchor)).toBe(false);
-  expect(parseMedia(a)).not.toHaveProperty('error');
-});
-
-test('camera: unknown keys are dropped, in the camera and not copied by reference', () => {
-  const input = mediaAnchor({ camera: { ...cam(), junk: 1 } }) as unknown as MediaAnchor;
-  const out = toAnchor(input) as MediaAnchor;
-  expect(JSON.stringify(out.camera)).not.toMatch(/junk/);
-  expect(out.camera!.position).not.toBe(input.camera!.position);
-  const parsed = parseMedia(input) as { items: { anchor: MediaAnchor }[] };
-  expect(parsed.items[0].anchor.camera).toEqual(cam());
-});
-
-const badCameras: [string, unknown][] = [
-  ['NaN (serialises to null)', cam({ position: [1, null, 3] })],
-  ['position of 2', cam({ position: [1, 2] })],
-  ['position of 4', cam({ position: [1, 2, 3, 4] })],
-  ['target not an array', cam({ target: 'x' })],
-  ['target string numbers', cam({ target: ['0', '0', '0'] })],
-  ['fov 0', cam({ fov: 0 })],
-  ['fov 180', cam({ fov: 180 })],
-  ['fov negative', cam({ fov: -5 })],
-  ['fov missing', { position: [1, 2, 3], target: [0, 0, 0] }],
-  ['fov a string', cam({ fov: '45' })],
-  ['camera null', null],
-  ['camera an array', [1, 2, 3]],
-];
-test.each(badCameras)('rejects a camera: %s', (_n, c) => {
-  expect(parseMedia(mediaAnchor({ camera: c }))).toHaveProperty('error');
-});
-
-test('camera fov bounds: (0, 180) exclusive', () => {
-  for (const fov of [0.01, 45, 179.99]) expect(parseMedia(mediaAnchor({ camera: cam({ fov }) }))).not.toHaveProperty('error');
-});
-
-test('a model comment has no time: camera together with time is rejected', () => {
-  expect(parseMedia(mediaAnchor({ camera: cam(), time: 2 }))).toHaveProperty('error');
+test('a stored model comment\'s camera (the 3D viewer removed in issue 470) is dropped; the comment stays', () => {
+  const parsed = parseMedia(mediaAnchor({ camera: { position: [1, 2, 3], target: [0, 0, 0], fov: 45 } })) as { items: { anchor: MediaAnchor }[] };
+  expect('camera' in parsed.items[0]!.anchor).toBe(false);
 });
 
 test('accepts shell-run and shell-stop', () => {

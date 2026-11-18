@@ -223,13 +223,10 @@ final class Capabilities implements _Json {
     required this.fork,
     required this.idleCompact,
     required this.models,
-    this.model3d,
     this.dictation,
     this.provider,
-    this.modeDescriptors,
     this.taskBackground,
     this.taskOutput,
-    this.suggestions,
     this.deleteSession,
     this.ffmpeg,
   });
@@ -244,16 +241,10 @@ final class Capabilities implements _Json {
       fork: json['fork'] as bool,
       idleCompact: json['idleCompact'] as bool,
       models: json['models'] as bool,
-      model3d: json['model3d'] as bool?,
       dictation: json['dictation'] as String?,
       provider: _opt(json['provider'], CapabilitiesProvider.fromJson),
-      modeDescriptors: _listOrNull(
-        json['modeDescriptors'],
-        _obj(CapabilitiesModeDescriptorsItem.fromJson),
-      ),
       taskBackground: json['taskBackground'] as bool?,
       taskOutput: json['taskOutput'] as bool?,
-      suggestions: json['suggestions'] as bool?,
       deleteSession: json['deleteSession'] as bool?,
       ffmpeg: json['ffmpeg'] as bool?,
     );
@@ -267,13 +258,10 @@ final class Capabilities implements _Json {
   final bool fork;
   final bool idleCompact;
   final bool models;
-  final bool? model3d;
   final String? dictation;
   final CapabilitiesProvider? provider;
-  final List<CapabilitiesModeDescriptorsItem>? modeDescriptors;
   final bool? taskBackground;
   final bool? taskOutput;
-  final bool? suggestions;
   final bool? deleteSession;
   final bool? ffmpeg;
 
@@ -288,42 +276,13 @@ final class Capabilities implements _Json {
       'fork': fork,
       'idleCompact': idleCompact,
       'models': models,
-      if (model3d != null) 'model3d': model3d,
       if (dictation != null) 'dictation': dictation,
       if (provider != null) 'provider': provider!.toJson(),
-      if (modeDescriptors != null)
-        'modeDescriptors': _jsonList(modeDescriptors),
       if (taskBackground != null) 'taskBackground': taskBackground,
       if (taskOutput != null) 'taskOutput': taskOutput,
-      if (suggestions != null) 'suggestions': suggestions,
       if (deleteSession != null) 'deleteSession': deleteSession,
       if (ffmpeg != null) 'ffmpeg': ffmpeg,
     };
-  }
-}
-
-final class CapabilitiesModeDescriptorsItem implements _Json {
-  const CapabilitiesModeDescriptorsItem({
-    required this.id,
-    required this.name,
-    required this.description,
-  });
-
-  factory CapabilitiesModeDescriptorsItem.fromJson(Map<String, Object?> json) {
-    return CapabilitiesModeDescriptorsItem(
-      id: AgentMode.fromJson(json['id']),
-      name: json['name'] as String,
-      description: json['description'] as String,
-    );
-  }
-
-  final AgentMode id;
-  final String name;
-  final String description;
-
-  @override
-  Map<String, Object?> toJson() {
-    return {'id': id.toJson(), 'name': name, 'description': description};
   }
 }
 
@@ -567,7 +526,6 @@ final class ClientMessagePermission extends ClientMessage {
   const ClientMessagePermission({
     required this.id,
     required this.allow,
-    this.input,
     this.response,
   });
 
@@ -575,14 +533,12 @@ final class ClientMessagePermission extends ClientMessage {
     return ClientMessagePermission(
       id: json['id'] as String,
       allow: json['allow'] as bool,
-      input: json['input'] as Map<String, Object?>?,
       response: _opt(json['response'], _obj(InteractionAnswer.fromJson)),
     );
   }
 
   final String id;
   final bool allow;
-  final Map<String, Object?>? input;
   final InteractionAnswer? response;
 
   @override
@@ -591,7 +547,6 @@ final class ClientMessagePermission extends ClientMessage {
       'type': 'permission',
       'id': id,
       'allow': allow,
-      if (input != null) 'input': input,
       if (response != null) 'response': response!.toJson(),
     };
   }
@@ -1292,7 +1247,6 @@ final class MediaAnchor extends Anchor {
     required this.height,
     this.time,
     this.version,
-    this.camera,
     this.scale,
     required this.shapes,
   });
@@ -1304,7 +1258,6 @@ final class MediaAnchor extends Anchor {
       height: json['height'] as num,
       time: json['time'] as num?,
       version: json['version'] as String?,
-      camera: _opt(json['camera'], _obj(ModelCamera.fromJson)),
       scale: json['scale'] as num?,
       shapes: _list(json['shapes'], _obj(MediaShape.fromJson)),
     );
@@ -1315,7 +1268,6 @@ final class MediaAnchor extends Anchor {
   final num height;
   final num? time;
   final String? version;
-  final ModelCamera? camera;
   final num? scale;
   final List<MediaShape> shapes;
 
@@ -1328,7 +1280,6 @@ final class MediaAnchor extends Anchor {
       'height': height,
       if (time != null) 'time': time,
       if (version != null) 'version': version,
-      if (camera != null) 'camera': camera!.toJson(),
       if (scale != null) 'scale': scale,
       'shapes': _jsonList(shapes),
     };
@@ -1495,31 +1446,6 @@ enum MediaShapeRectOrEllipseKind implements _Json {
     ellipse => 'ellipse',
     $unknown => _unsendable('MediaShapeRectOrEllipseKind'),
   };
-}
-
-final class ModelCamera implements _Json {
-  const ModelCamera({
-    required this.position,
-    required this.target,
-    required this.fov,
-  });
-
-  factory ModelCamera.fromJson(Map<String, Object?> json) {
-    return ModelCamera(
-      position: _list(json['position'], _as<num>),
-      target: _list(json['target'], _as<num>),
-      fov: json['fov'] as num,
-    );
-  }
-
-  final List<num> position;
-  final List<num> target;
-  final num fov;
-
-  @override
-  Map<String, Object?> toJson() {
-    return {'position': position, 'target': target, 'fov': fov};
-  }
 }
 
 final class ModelOption implements _Json {

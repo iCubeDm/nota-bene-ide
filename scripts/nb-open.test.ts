@@ -172,7 +172,6 @@ const env = (extra: Record<string, string> = {}): NodeJS.ProcessEnv => {
     STUB_BIN_SRC: path.join(tmp, 'app/bin/nota-bene.mjs'),
   });
   delete e.NOTA_BENE_SUPERVISED;
-  delete e.AI_IDE_SUPERVISED;
   delete e.NOTA_BENE_FAKE;
   delete e.NB_TEST_NODE_VERSION;
   for (const [k, v] of Object.entries(extra)) {
@@ -361,8 +360,8 @@ describe('arguments', () => {
 });
 
 describe('guards', () => {
-  it.each(['NOTA_BENE_SUPERVISED', 'AI_IDE_SUPERVISED'])('inside Nota Bene (%s) there is nothing to open', async (v) => {
-    const r = await nb('', { env: { [v]: '1' } });
+  it('inside Nota Bene there is nothing to open', async () => {
+    const r = await nb('', { env: { NOTA_BENE_SUPERVISED: '1' } });
     expect(r.code).toBe(0);
     expect(r.out).toBe('NB: already running inside Nota Bene — nothing to open.\n');
     expect(launches()).toEqual([]);
@@ -589,7 +588,7 @@ describe('--plan', () => {
   });
 
   it('guards and refusals are the same NB: lines', async () => {
-    let r = await plan('', { env: { AI_IDE_SUPERVISED: '1' } });
+    let r = await plan('', { env: { NOTA_BENE_SUPERVISED: '1' } });
     expect(r.out).toBe('NB: already running inside Nota Bene — nothing to open.\n');
     r = await plan('', { cwd: home });
     expect(r.out).toBe(`NB: refusing to open the whole ${shown(home)} as a project — cd into a project first.\n`);

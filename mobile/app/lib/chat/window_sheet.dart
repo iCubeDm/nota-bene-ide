@@ -130,8 +130,8 @@ class WindowSheet extends StatelessWidget {
                 const SizedBox(height: 6),
                 for (final m in modes)
                   _ModeRow(
-                    name: modeLabel(tab, m, lang),
-                    description: modeDescription(tab, m, lang),
+                    name: modeLabel(m, lang),
+                    description: modeDescription(m, lang),
                     selected: m == mode,
                     danger: modeWithoutPrompts(m),
                     onTap: open ? () => tab.setMode(m) : null,

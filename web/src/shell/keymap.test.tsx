@@ -7,7 +7,7 @@ import { App } from '@/App.tsx';
 import { promptHistoryModal } from '@/composer/historyModal.ts';
 import { recentModal } from '@/files/recent.ts';
 import { openFile, selectTabs } from '@/tabs/slice.ts';
-import { BINDINGS, keysLabel, modKey, VOICE_KEY, withKey } from './keymap.ts';
+import { BINDINGS, keysLabel, modKey, withKey } from './keymap.ts';
 
 beforeEach(() => {
   localStorage.clear();

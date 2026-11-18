@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
+import type { RequestListener, ServerResponse } from 'node:http';
 import { isMediaAnchor, MARK_MAX_BYTES } from '@nota-bene/shared';
 import type { Comment } from '@nota-bene/shared';
 import { readCapped, refuseTooLarge } from './attachments.ts';

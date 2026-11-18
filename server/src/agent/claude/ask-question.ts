@@ -32,11 +32,6 @@ function promptOf(qs: Question[]): Interaction {
   };
 }
 
-export function questionPrompt(input: Record<string, unknown>): Interaction | null {
-  const qs = questionsOf(input);
-  return qs && promptOf(qs);
-}
-
 /**
  * canUseTool for AskUserQuestion: the answers go back as `updatedInput.answers` (question text -> label; several labels
  * comma-separated; free text as typed). Cancel, or an ask the agent withdrew, denies. null: the input is not a question

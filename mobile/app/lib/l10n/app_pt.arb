@@ -86,7 +86,6 @@
   "askArchived": "De uma parte anterior da sessão: não aguarda mais resposta",
   "compact": "Compactar",
   "modelAndEffort": "Modelo e esforço",
-  "restartAgent": "Reiniciar o agente",
   "restartAgentTitle": "Reiniciar o agente?",
   "restartAgentBody": "O processo do agente reinicia na mesma sessão; o turno em andamento para.",
   "restart": "Reiniciar",

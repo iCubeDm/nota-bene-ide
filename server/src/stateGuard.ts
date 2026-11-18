@@ -1,6 +1,6 @@
 // The server's state folder holds the access token, so no file route may serve, list or search anything in it, whatever the
 // project root, the symlinks or the source (`src=`) are: a window whose root is $HOME contains `~/.nota-bene`, and a cookie that
-// may read project files must not read the token with it. One check, shared by /file, /tree, /model, /complete and the branch reads.
+// may read project files must not read the token with it. One check, shared by /file, /tree, /complete and the branch reads.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
