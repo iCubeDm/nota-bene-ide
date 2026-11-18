@@ -1,15 +1,15 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import type { ClientMessage, Comment, CutAnchor } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
 import { makeStore, serverEvent } from '@/store/store.ts';
 import { selectComments } from '@/comments/slice.ts';
 import { jumpToFileComment } from '@/files/slice.ts';
 import { CutBody } from './CutBody.tsx';
 import { liveCutState } from './live.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';
+import { disk, elapse, onDisk, setupCut, write } from './testCut.tsx';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
 // the waveforms (peaks.ts) are their own tests' (CutBody.edit.test.tsx): here they ask nothing of the server
@@ -28,26 +28,7 @@ const fixture = {
 };
 const source = { kind: 'file' as const, path: 'e.nbcut.json' };
 
-let disk: { text: string; base: string };
-let ver: number;
-beforeEach(() => {
-  setLang('en');
-  ver = 0;
-  disk = { text: JSON.stringify(fixture), base: 'b0' };
-  Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
-    configurable: true, get(this: HTMLElement) { return this.hasAttribute('data-timeline-scroll') ? 1160 : 0; },
-  });
-  vi.stubGlobal('IntersectionObserver', class { observe() {} disconnect() {} unobserve() {} takeRecords() { return []; } });
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
-    if (url.startsWith('/cut/export?')) return Response.json({ ffmpeg: true, job: null });
-    if (!url.startsWith('/edit')) return new Response(null, { status: 200 });
-    if (init?.method !== 'POST') return Response.json(disk);
-    const b = JSON.parse(init.body as string) as { text: string };
-    disk = { text: b.text, base: `b${++ver}` };
-    return Response.json({ base: disk.base });
-  }));
-});
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth; });
+setupCut(fixture);
 
 async function show({ protocol = 23, items = [] as Comment[] } = {}) {
   const sent: ClientMessage[] = [];
@@ -136,22 +117,22 @@ it('a moved clip takes its comment along (an edit op with the new anchor); a cli
   fireEvent.keyDown(document, { code: 'Delete', key: 'Delete' });
   await waitFor(() => expect(liveCutState(k1.anchor as CutAnchor)).toBe('gone'));
   expect(cuts()[0]!.time).toBe(4); // it keeps its time
-  await waitFor(() => expect(JSON.parse(disk.text).clips).toHaveLength(2), { timeout: SAVE_DELAY + 1500 });
+  await waitFor(() => expect(onDisk().clips).toHaveLength(2), { timeout: SAVE_DELAY + 1500 });
 });
 
 it('only this window\'s own changes move a comment: never the edit as loaded, a reload of the file or an incoming edit of the comment', async () => {
   const stale = note('k1', { time: 9, clip: { id: 'c3', track: 'a1', src: 'media/voice.wav', srcTime: 3 } }); // c3 puts it at 2
   const { sent, reload, store, cuts, container } = await show({ items: [stale] });
   const edits = () => sent.filter((m) => m.type === 'comment-op').length;
-  await new Promise((r) => setTimeout(r, 50));
+  await elapse(50);
   expect(edits()).toBe(0);
   // the tick is drawn where the clip puts it all the same
   expect(container.querySelector<HTMLElement>('[data-cut-note="k1"]')!.title).toMatch(/^0:02\.000/);
-  disk = { text: JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c3' ? { ...c, at: 3 } : c)) }), base: 'b-agent' };
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c3' ? { ...c, at: 3 } : c)) }));
   reload(disk.text);
   await waitFor(() => expect(container.querySelector<HTMLElement>('[data-cut-note="k1"]')!.title).toMatch(/^0:04\.000/));
   store.dispatch(serverEvent({ kind: 'comments', items: [{ ...stale, anchor: { ...stale.anchor, time: 7 } as CutAnchor }], rev: 2 } as never));
-  await new Promise((r) => setTimeout(r, 50));
+  await elapse(50);
   expect(edits()).toBe(0);
   expect(cuts()[0]!.time).toBe(7);
 });
@@ -172,5 +153,5 @@ it('a blade cut takes a comment on the right part along to it, as S does (issue 
   fireEvent.pointerUp(clip('c3'), { clientX: 3 * pps(), clientY: 0, pointerId: 1 });
   await waitFor(() => expect(cuts()[0]!.clip!.id).not.toBe('c3'));
   expect(cuts()[0]).toMatchObject({ time: 5, clip: { src: 'media/voice.wav', srcTime: 6 } });
-  await waitFor(() => expect(JSON.parse(disk.text).clips).toHaveLength(4), { timeout: SAVE_DELAY + 1500 });
+  await waitFor(() => expect(onDisk().clips).toHaveLength(4), { timeout: SAVE_DELAY + 1500 });
 });

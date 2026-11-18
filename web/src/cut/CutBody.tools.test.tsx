@@ -1,11 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { validateCut, type Cut } from '@nota-bene/shared/cut';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
-import { CutBody } from './CutBody.tsx';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { expect, it, vi } from 'vitest';
 import { SAVE_DELAY } from './useCutDoc.ts';
+import { clipOnDisk, drag, elapse, fixture, onDisk, saved, setupCut, show, valid, write } from './testCut.tsx';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
 vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async () => 4) }));
@@ -13,57 +9,8 @@ vi.mock('./peaks.ts', () => ({
   peaksOf: vi.fn(async (src: string) => (src === 'media/street.webm' ? { none: 'no-audio' } : { peaks: new Uint8Array(800).fill(128) })),
 }));
 
-const fixture = {
-  version: 1, width: 1280, height: 720, fps: 25,
-  tracks: [{ id: 'v1', kind: 'video', name: 'Main' }, { id: 'a1', kind: 'audio', name: 'Voice' }],
-  clips: [
-    { id: 'c1', track: 'v1', src: 'media/intro.mp4', at: 0, out: 4 },
-    { id: 'c2', track: 'v1', src: 'media/street.webm', at: 6, out: 4 },
-    { id: 'c3', track: 'a1', src: 'media/voice.wav', at: 0, out: 8 },
-  ],
-};
+setupCut();
 
-let disk: { text: string; base: string };
-let ver: number;
-const write = (text: string) => void (disk = { text, base: `b${++ver}` });
-const onDisk = () => JSON.parse(disk.text) as Cut;
-const clipOnDisk = (id: string) => onDisk().clips.find((c) => c.id === id);
-beforeEach(() => {
-  setLang('en');
-  ver = 0;
-  write(JSON.stringify(fixture));
-  Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
-    configurable: true, get(this: HTMLElement) { return this.hasAttribute('data-timeline-scroll') ? 1160 : 0; },
-  });
-  vi.stubGlobal('IntersectionObserver', class { observe() {} disconnect() {} unobserve() {} takeRecords() { return []; } });
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
-    if (url.startsWith('/cut/export?')) return Response.json({ ffmpeg: true, job: null });
-    if (!url.startsWith('/edit')) return new Response(null, { status: 200 });
-    if (init?.method !== 'POST') return Response.json(disk);
-    const b = JSON.parse(init.body as string) as { text: string; base: string | null };
-    if (b.base !== null && b.base !== disk.base) return Response.json({ error: 'changed' }, { status: 409 });
-    write(b.text);
-    return Response.json({ base: disk.base });
-  }));
-});
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth; });
-
-async function show() {
-  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
-  const ui = (text: string) => <Provider store={store}><CutBody text={text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active /></Provider>;
-  const r = render(ui(disk.text));
-  await waitFor(() => expect(r.container.querySelector('[data-cut-tools]')).not.toBeNull());
-  const pps = () => Number(r.container.querySelector('[data-timeline]')!.getAttribute('data-pps'));
-  const clip = (id: string) => r.container.querySelector<HTMLElement>(`[data-clip="${id}"]`)!;
-  return { ...r, pps, clip, reload: () => r.rerender(ui(disk.text)) };
-}
-const saved = (f: () => void) => waitFor(f, { timeout: SAVE_DELAY + 1500 });
-const valid = () => expect(validateCut(onDisk()).ok).toBe(true);
-const drag = (el: Element, from: number, to: number, opts: Record<string, unknown> = {}) => {
-  fireEvent.pointerDown(el, { clientX: from, clientY: 0, button: 0, pointerId: 1, ...opts });
-  fireEvent.pointerMove(el, { clientX: to, clientY: 0, pointerId: 1, ...opts });
-  fireEvent.pointerUp(el, { clientX: to, clientY: 0, pointerId: 1, ...opts });
-};
 const press = (el: Element, x: number, opts: Record<string, unknown> = {}) => {
   fireEvent.pointerDown(el, { clientX: x, clientY: 0, button: 0, pointerId: 1, ...opts });
   fireEvent.pointerUp(el, { clientX: x, clientY: 0, pointerId: 1, ...opts });
@@ -180,7 +127,7 @@ it('a selection moves together, keeping its times and tracks, as one step; a mov
   expect(clip('c1').style.left).toBe('0px');
   expect(clip('c3').style.left).toBe(`${p}px`);
   fireEvent.pointerUp(clip('c1'), { clientX: 100 + 3.5 * p, clientY: 0, pointerId: 1, altKey: true });
-  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  await elapse(SAVE_DELAY + 300);
   expect(clipOnDisk('c1')!.at).toBe(0);
   expect(clipOnDisk('c3')!.at).toBe(1);
   // one undo takes the whole move back
@@ -313,7 +260,7 @@ it('a Shift-click or Cmd-press on a trim edge or a fade handle adds or removes t
   expect(selected(container)).toEqual(['c1']);
   press(part('c2', '[data-trim="start"]'), 10, { ctrlKey: true });
   expect(selected(container)).toEqual(['c1', 'c2']);
-  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  await elapse(SAVE_DELAY + 300);
   expect(onDisk()).toEqual(fixture); // nothing trimmed
 });
 
@@ -332,7 +279,7 @@ it('ids gone from the edit leave the selection: after an undo and after an outsi
   await saved(() => expect(onDisk().clips).toHaveLength(5));
   expect(selected(container)).toEqual([]);
   // an outside version without c2, then with it again
-  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  await elapse(SAVE_DELAY + 300);
   press(clip('c1'), 10);
   press(clip('c2'), 10, { shiftKey: true });
   write(JSON.stringify({ ...fixture, clips: fixture.clips.filter((c) => c.id !== 'c2') }));
@@ -353,7 +300,7 @@ it('V, C and Delete typed into a field of the clip panel stay in the field', asy
   for (const code of ['KeyC', 'KeyV', 'Delete', 'Backspace']) fireEvent.keyDown(gain, { code, key: code });
   expect(screen.getByRole('button', { name: /^Select/ })).toHaveAttribute('aria-pressed', 'true');
   expect(selected(container)).toEqual(['c1', 'c3']);
-  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  await elapse(SAVE_DELAY + 300);
   expect(onDisk().clips).toHaveLength(3);
 });
 
@@ -416,7 +363,7 @@ it('a Shift-click on a clip, no drag, adds or removes it on release', async () =
   expect(selected(container)).toEqual(['c1', 'c2']);
   press(clip('c1'), 10, { shiftKey: true });
   expect(selected(container)).toEqual(['c2']);
-  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  await elapse(SAVE_DELAY + 300);
   expect(onDisk()).toEqual(fixture); // nothing moved
 });
 
@@ -456,7 +403,7 @@ it('a Shift drag up or down on a clip is a drag: it moves nothing and leaves the
   fireEvent.pointerMove(clip('c1'), { clientX: 100, clientY: 20, pointerId: 1, shiftKey: true });
   fireEvent.pointerUp(clip('c1'), { clientX: 100, clientY: 20, pointerId: 1, shiftKey: true });
   expect(selected(container)).toEqual(['c3']);
-  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  await elapse(SAVE_DELAY + 300);
   expect(onDisk()).toEqual(fixture);
 });
 
@@ -551,7 +498,7 @@ it('a refused group nudge or drag says why in the edit bar; the next change clea
   press(clip('c3'), 10, { shiftKey: true });
   key('ArrowRight');
   expect(note()).toMatch(/would overlap/);
-  await new Promise((r) => setTimeout(r, SAVE_DELAY + 300));
+  await elapse(SAVE_DELAY + 300);
   expect(clipOnDisk('c1')!.at).toBe(0);
   // a move that goes through takes the note away
   press(clip('c2'), 10);

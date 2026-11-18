@@ -388,9 +388,12 @@ describe('server', () => {
     const postJson = (url: string, p: string, body: unknown = {}) =>
       fetch(`${url}${p}`, { method: 'POST', headers: { origin: url, 'content-type': 'application/json' }, body: JSON.stringify(body) });
     // `pause=1`: a page of protocol 22+ that asks for the restart in its own pause (the phone and an older page do not)
+    // a pending restart looks for a pause every EVERY ms (1 s in a real window); a wait of `quiet` outlasts several looks
+    const EVERY = 100;
+    const quiet = () => new Promise((r) => setTimeout(r, 3 * EVERY));
     const working = async (codes: number[], query = '?pause=1') => {
       supervise();
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: long(), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
+      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: long(), webDist: dist, oneTab: false, restartEveryMs: EVERY, exit: (c) => { codes.push(c); } });
       closers.push(s.close);
       const c = await connect(s.url, query);
       c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'work' }));
@@ -413,7 +416,7 @@ describe('server', () => {
       expect(codes).toEqual([]);
       c.ws.send(JSON.stringify({ type: 'interrupt' }));
       await until(() => c.events.some(isResult));
-      await new Promise((r) => setTimeout(r, 1500)); // a page is open: the server does not go by itself
+      await quiet(); // a page is open: the server does not go by itself
       expect(codes).toEqual([]);
       expect((await postJson(s.url, '/restart-server/pause')).status).toBe(200);
       await until(() => codes.length === 1);
@@ -450,7 +453,7 @@ describe('server', () => {
       await post(s.url, s.url);
       c.ws.send(JSON.stringify({ type: 'interrupt' }));
       await until(() => c.events.some(isResult));
-      await new Promise((r) => setTimeout(r, 1500));
+      await quiet();
       expect(codes).toEqual([]); // the page will ask
       c.ws.close();
       await until(() => codes.length === 1, 4000);
@@ -468,7 +471,7 @@ describe('server', () => {
       await until(() => c.events.some(isResult));
       expect((await postJson(s.url, '/restart-server/pause')).status).toBe(409);
       c.ws.close();
-      await new Promise((r) => setTimeout(r, 1500));
+      await quiet();
       expect(codes).toEqual([]);
       expect(await info(s.url)).toMatchObject({ restartPending: false });
     });
