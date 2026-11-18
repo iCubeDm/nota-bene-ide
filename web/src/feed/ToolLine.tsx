@@ -1,4 +1,4 @@
-import { useContext, useId, useMemo, useState } from 'react';
+import { memo, useContext, useId, useMemo, useState } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ARG_KEYS, type FeedItem } from '@/store/feed.ts';
@@ -179,7 +179,7 @@ function TmpImages({ input }: { input: Record<string, unknown> }) {
 }
 
 /** One action: its line, and below it, while open (state in `feedUi`), the panel. A closed line names its comments. */
-export function ToolLine({ item }: { item: Tool }) {
+export const ToolLine = memo(function ToolLine({ item }: { item: Tool }) {
   const t = useT();
   const dispatch = useAppDispatch();
   const key = scopedId(useContext(FeedScope).agent, item.id); // the chat's line and a subagent's tab's line of one id are two lines
@@ -217,4 +217,4 @@ export function ToolLine({ item }: { item: Tool }) {
       {open && <Panel item={item} id={panelId} end={end} />}
     </div>
   );
-}
+});

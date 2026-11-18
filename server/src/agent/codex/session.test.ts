@@ -34,6 +34,52 @@ function setup(rpc = new Script(), extra = {}) {
 const send = (session: CodexSession, uuid: string, priority: 'next' | 'now' = 'next') => session.send({ uuid, text: uuid, priority });
 
 describe('Codex session ownership', () => {
+  it('a turn that ends while a terminal list is running asks once more after it (issue 471)', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const s = setup(); await s.session.ready; await flush();
+      send(s.session, 'a'); await flush();
+      const base = s.rpc.reply;
+      let answer!: (v: unknown) => void;
+      s.rpc.reply = (m, p) => m === 'thread/backgroundTerminals/list' ? new Promise((r) => { answer = r; }) : base(m, p);
+      vi.advanceTimersByTime(3000); await flush(); // an interval poll, still waiting
+      s.rpc.reply = async (m, p) => m === 'thread/backgroundTerminals/list' ? { data: [{ processId: '8', itemId: 'i', command: 'late' }] } : base(m, p);
+      s.rpc.emit('turn/completed', { turn: { id: 't1', status: 'completed' } }); await flush();
+      answer({ data: [] }); await flush();
+      // the terminal the turn started late is found by the ask after the running one
+      expect(s.events).toContainEqual(expect.objectContaining({ t: 'task', phase: 'started', desc: 'late' }));
+      await s.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('asks for background terminals at the start, during a turn and while one is known, not while idle (issue 471)', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const s = setup(); await s.session.ready; await flush();
+      const lists = () => s.rpc.calls.filter((c) => c.method === 'thread/backgroundTerminals/list').length;
+      expect(lists()).toBe(1);
+      vi.advanceTimersByTime(9000); await flush();
+      expect(lists()).toBe(1); // idle, none known
+      send(s.session, 'a'); await flush();
+      const base = s.rpc.reply;
+      s.rpc.reply = async (m, p) => m === 'thread/backgroundTerminals/list' ? { data: [{ processId: '7', itemId: 'i', command: 'sleep 99' }] } : base(m, p);
+      vi.advanceTimersByTime(3000); await flush();
+      expect(lists()).toBe(2); // in the turn
+      s.rpc.emit('turn/completed', { turn: { id: 't1', status: 'completed' } }); await flush();
+      expect(lists()).toBe(3); // the turn's end
+      vi.advanceTimersByTime(3000); await flush();
+      expect(lists()).toBe(4); // a terminal is known: its end is watched
+      s.rpc.reply = base;
+      vi.advanceTimersByTime(3000); await flush();
+      expect(s.events).toContainEqual(expect.objectContaining({ t: 'task', phase: 'done' }));
+      vi.advanceTimersByTime(9000); await flush();
+      expect(lists()).toBe(5); // none left: idle again
+      await s.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('holds completion until a steering acknowledgement and settles only accepted sends once', async () => {
     const s = setup(); await s.session.ready;
     send(s.session, 'a'); await flush();

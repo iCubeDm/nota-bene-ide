@@ -117,4 +117,11 @@ describe('/usage/reset', () => {
     expect((await post(base, 'nope')).status).toBe(400);
     expect((await fetch(`${base}/usage/reset`)).status).toBe(405);
   });
+
+  it('a body over the limit is 413, never buffered whole (issue 468)', async () => {
+    let resets = 0;
+    const base = await serve({ reset: () => { resets++; } });
+    expect((await post(base, JSON.stringify({ provider: 'codex', pad: 'x'.repeat(64 * 1024) }))).status).toBe(413);
+    expect(resets).toBe(0);
+  });
 });

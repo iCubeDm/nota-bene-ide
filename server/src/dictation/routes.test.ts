@@ -85,6 +85,8 @@ describe('dictation routes', () => {
     }
     expect((await fetch(`${base}/dictation/lang`, { method: 'POST', body: '{' })).status).toBe(400);
     expect((await fetch(`${base}/dictation/lang`)).status).toBe(405);
+    // issue 468: a body over the limit is 413, never buffered whole
+    expect((await fetch(`${base}/dictation/lang`, { method: 'POST', body: JSON.stringify({ lang: 'ru', pad: 'x'.repeat(64 * 1024) }) })).status).toBe(413);
     expect(readPrefs().dictationLang).toBe('de'); // nothing refused was stored
   });
 

@@ -9,6 +9,13 @@ import { Feed } from './Feed.tsx';
 import { inputText } from './ToolLine.tsx';
 import { clockTime, fullTime } from './time.ts';
 
+// counts renders: every feed element and the feed itself call useT once a render
+const renders = vi.hoisted(() => ({ n: 0 }));
+vi.mock('@/i18n/index.ts', async (orig) => {
+  const m = await orig<typeof import('@/i18n/index.ts')>();
+  return { ...m, useT: () => (renders.n++, m.useT()) };
+});
+
 beforeEach(() => setLang('en'));
 afterEach(cleanup);
 
@@ -431,4 +438,20 @@ describe('a resume after a restart that cut a turn (gh-422)', () => {
     act(() => { store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij' }] })); });
     expect(screen.queryByText('The server restarted during a turn')).toBeNull();
   });
+});
+
+it('a streamed token re-renders the feed and the reply it extends, not every item (issue 471)', () => {
+  const { store } = setup();
+  act(() => {
+    for (let i = 0; i < 20; i++) {
+      store.dispatch(serverEvent({ kind: 'user', id: `u${i}`, text: `q${i}`, ts: 1 }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'tool-call', id: `t${i}`, name: 'Bash', input: { command: 'ls' }, sub: false } }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'message', id: `a:${i}`, text: `a${i}` } }));
+    }
+    store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'message-start' } }));
+  });
+  renders.n = 0;
+  act(() => { store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'message-chunk', text: 'x' } })); });
+  // the feed, its earlier button, the first day's separator and the streaming reply's time; the 60 other items stay
+  expect(renders.n).toBe(4);
 });

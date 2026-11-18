@@ -51,6 +51,7 @@ import { recordRecent } from '../server/src/recent.ts';
 import { parentPluginVersion, pluginInstallVersion } from '../server/src/pluginOrigin.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
+import { packageVersion as ownVersion } from '../server/src/version.ts';
 import {
   liveWindows, pidAlive, probeInfo, readWindows, registerWindow, restartingWindows, setBuilding, unregisterWindow,
 } from '../server/src/windows.ts';
@@ -98,13 +99,7 @@ const REBUILD_WAIT_MAX_MS = 5 * 60_000; // the most a launch or --find waits in 
 const RESTART_WAIT_MS = Number(process.env.NOTA_BENE_TEST_RESTART_WAIT_MS) || 10_000;
 
 /** This package's version (the checkout's root package.json says the same). */
-export function packageVersion() {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8')).version ?? 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
+export const packageVersion = () => ownVersion() ?? 'unknown';
 
 /**
  * A published package (no `.git` at its root, the rule server/src/system.ts uses for the version) may hand over; a checkout never.

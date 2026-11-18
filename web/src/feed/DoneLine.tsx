@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { fmtK } from '@/lib/format.ts';
 import { useT } from '@/i18n/index.ts';
 import type { FeedItem } from '@/store/feed.ts';
@@ -12,7 +12,7 @@ import { timeOf } from './UserMessage.tsx';
 const BASE = 'mt-4 border-t border-dashed border-border-soft pt-1 font-mono text-[0.65625rem]';
 const LINE = `${BASE} text-muted-foreground`;
 
-export function DoneLine({ item }: { item: Extract<FeedItem, { kind: 'done' }> }) {
+export const DoneLine = memo(function DoneLine({ item }: { item: Extract<FeedItem, { kind: 'done' }> }) {
   const t = useT();
   return (
     <div data-kind="done" className={LINE}>
@@ -20,9 +20,9 @@ export function DoneLine({ item }: { item: Extract<FeedItem, { kind: 'done' }> }
       {item.error ? <span className="whitespace-pre-wrap break-words text-destructive"> · {item.error}</span> : null}
     </div>
   );
-}
+});
 
-export function NoticeLine({ item }: { item: Extract<FeedItem, { kind: 'notice' }> }) {
+export const NoticeLine = memo(function NoticeLine({ item }: { item: Extract<FeedItem, { kind: 'notice' }> }) {
   const t = useT();
   return (
     <div data-kind="notice" className={LINE}>
@@ -30,7 +30,7 @@ export function NoticeLine({ item }: { item: Extract<FeedItem, { kind: 'notice' 
       {item.cut ? <TurnCut noticeKey={item.key} /> : null}
     </div>
   );
-}
+});
 
 /**
  * gh-422: the server stopped during a turn of this session (a forced restart, a stop, a crash). Continue sends the
@@ -59,7 +59,7 @@ function TurnCut({ noticeKey }: { noticeKey: string }) {
   );
 }
 
-export function MarkerLine({ item }: { item: Extract<FeedItem, { kind: 'marker' }> }) {
+export const MarkerLine = memo(function MarkerLine({ item }: { item: Extract<FeedItem, { kind: 'marker' }> }) {
   const t = useT();
   const at = item.ts === 0 ? '' : timeOf(item.ts);
   return (
@@ -70,7 +70,7 @@ export function MarkerLine({ item }: { item: Extract<FeedItem, { kind: 'marker' 
       {item.what === 'cleared' && item.prev ? <ArchivePrev id={item.prev} /> : null}
     </div>
   );
-}
+});
 
 /** After a /clear: the conversation before it goes to the Sessions menu's archive in one click (it stays restorable there). */
 function ArchivePrev({ id }: { id: string }) {
@@ -97,7 +97,7 @@ function ArchivePrev({ id }: { id: string }) {
 }
 
 /** The server's own /compact after a quiet stretch: a line, never a bubble the user did not write. */
-export function IdleCompactLine({ item }: { item: Extract<FeedItem, { kind: 'user' }> }) {
+export const IdleCompactLine = memo(function IdleCompactLine({ item }: { item: Extract<FeedItem, { kind: 'user' }> }) {
   const t = useT();
   const idle = useAppSelector(selectIdleCompact);
   return (
@@ -105,7 +105,7 @@ export function IdleCompactLine({ item }: { item: Extract<FeedItem, { kind: 'use
       {t('idleLine', idle ? String(idle.minutes) : '', item.ts === 0 ? '' : timeOf(item.ts))}
     </div>
   );
-}
+});
 
 /**
  * The live line while a compaction runs: elapsed time and an estimated bar (see compactTiming.ts). `since` is the

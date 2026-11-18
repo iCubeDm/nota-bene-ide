@@ -177,3 +177,19 @@ it('the Tree checkbox shows the files as folders, folds a folder, filters, and i
   act(() => setPanel(true));
   expect(await screen.findByRole('checkbox', { name: 'Tree' })).toBeChecked();
 });
+
+it('the tool window and the tab showing one diff share one poll (issue 471)', async () => {
+  // the 4 s timers running: the diff list's and the tab's file patch
+  const live = new Set<unknown>();
+  const set = globalThis.setInterval, clear = globalThis.clearInterval;
+  vi.spyOn(globalThis, 'setInterval').mockImplementation(((fn: () => void, ms?: number) => { const id = set(fn, ms); if (ms === 4_000) live.add(id); return id; }) as typeof setInterval);
+  vi.spyOn(globalThis, 'clearInterval').mockImplementation(((id: ReturnType<typeof setInterval>) => { live.delete(id); clear(id); }) as typeof clearInterval);
+  const store = setup(<ChangesPanel />);
+  act(() => setPanel(true));
+  render(<Provider store={store}><ChangesView active /></Provider>);
+  await screen.findByText('hello');
+  expect(live.size).toBe(2); // one for the diff however many views show it, one for the file
+  cleanup();
+  expect(live.size).toBe(0);
+  vi.restoreAllMocks();
+});

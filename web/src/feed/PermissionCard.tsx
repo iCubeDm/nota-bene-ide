@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useT } from '@/i18n/index.ts';
 import type { FeedItem } from '@/store/feed.ts';
 import { answerPermission, useAppDispatch } from '@/store/store.ts';
 
-export function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'permission' }> }) {
+export const PermissionCard = memo(function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'permission' }> }) {
   const t = useT();
   const dispatch = useAppDispatch();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -74,4 +74,4 @@ export function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'perm
       )}
     </div>
   );
-}
+});

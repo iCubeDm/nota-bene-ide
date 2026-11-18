@@ -3,9 +3,6 @@ import { StringDecoder } from 'node:string_decoder';
 import { HIDDEN, killTree } from '../../platform.ts';
 import { agentSpawn } from '../bin.ts';
 
-/** what Nota Bene says it is in `initialize`; the release pin test keeps it at package.json's version */
-export const CLIENT_VERSION = '2.0.1';
-
 export class AcpError extends Error {
   readonly code: number | undefined;
   readonly data: unknown;

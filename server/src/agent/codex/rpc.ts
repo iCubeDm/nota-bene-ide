@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { HIDDEN, killTree } from '../../platform.ts';
+import { packageVersion } from '../../version.ts';
 import { agentSpawn } from '../bin.ts';
 
 export type RpcRequest = { id: string | number; method: string; params: Record<string, unknown> };
@@ -45,7 +46,7 @@ export class CodexRpc {
       clearTimeout(this.killTimer); this.closeResolve();
     });
     this.ready = this.call('initialize', {
-      clientInfo: { name: 'nota-bene', title: 'Nota Bene', version: '2.0.1' },
+      clientInfo: { name: 'nota-bene', title: 'Nota Bene', version: packageVersion() ?? 'unknown' },
       capabilities: { experimentalApi: true },
     }).then((info) => { this.notify('initialized'); return info; });
     void this.ready.catch(() => {}); // ready may reject before the first caller subscribes
