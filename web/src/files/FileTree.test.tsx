@@ -28,7 +28,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const turnEnd = (historic = false): ServerEvent => ({ kind: 'agent', ts: 1, e: { t: 'turn-end', stop: 'done', secs: 0, answers: 'none', queued: 0 } });
+const turnEnd = (): ServerEvent => ({ kind: 'agent', ts: 1, e: { t: 'turn-end', stop: 'done', secs: 0, answers: 'none', queued: 0 } });
 
 function setup() {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
@@ -70,7 +70,7 @@ it('refresh keeps open folders, drops vanished ones, and a live result triggers 
   calls.length = 0;
   fs.src = [{ name: 'lib', dir: true }, { name: 'main.ts', dir: false }, { name: 'new.ts', dir: false }];
   // replay with a result inside: no refresh
-  live(store, { kind: 'replay', events: [turnEnd(true)] });
+  live(store, { kind: 'replay', events: [turnEnd()] });
   await new Promise((r) => setTimeout(r, 20));
   expect(calls).toEqual([]);
   live(store, turnEnd());

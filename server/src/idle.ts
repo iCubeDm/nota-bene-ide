@@ -25,11 +25,10 @@ const num = (v: string | undefined): number | undefined => {
   return v !== undefined && v !== '' && Number.isFinite(n) && n >= 0 ? n : undefined;
 };
 
-/** NOTA_BENE_IDLE_COMPACT_MINUTES; CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS (the CLI's own knob). */
+/** CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS: the CLI's own knob. */
 export function idleConfig(env: NodeJS.ProcessEnv = process.env): IdleConfig {
-  const minutes = num(env.NOTA_BENE_IDLE_COMPACT_MINUTES);
   return {
-    afterMs: minutes !== undefined && minutes > 0 ? minutes * 60_000 : AFTER_MS,
+    afterMs: AFTER_MS,
     awayMs: AWAY_MS,
     retryMs: RETRY_MS,
     cacheMs: CACHE_MS,

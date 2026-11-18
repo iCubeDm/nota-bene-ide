@@ -195,20 +195,14 @@ const stepFrom = (d: number, lo: number) => (ms(d) >= lo - EPS ? ms(d) : d);
  */
 const shiftAt = (at: number, d: number) => (ms(at) === at && ms(d) === d ? ms(at + d) : at + d);
 
-/**
- * A selection of clips moved together (issue 432): `dt` seconds later (the earliest stops at 0, the rest keep their distance),
- * and with `lanes` the clips of that kind `by` lanes down in the drawn order (up when negative), the others on their own
- * tracks. null when the move is refused: a clip would overlap one outside the selection, or a lane is not there.
- */
-export function moveClips(cut: Cut, ids: readonly string[], dt: number, lanes?: { kind: CutTrack['kind']; by: number }): Cut | null {
-  const r = groupMove(cut, ids, dt, lanes);
-  return typeof r === 'string' ? null : r;
-}
-
 /** Why a selection cannot move (issue 442): a clip would overlap one outside it, or a lane is not there. */
 export type GroupRefusal = 'overlap' | 'lane';
 
-/** moveClips, with why a refused move is refused; null when none of `ids` is in the edit. */
+/**
+ * A selection of clips moved together (issue 432): `dt` seconds later (the earliest stops at 0, the rest keep their distance),
+ * and with `lanes` the clips of that kind `by` lanes down in the drawn order (up when negative), the others on their own
+ * tracks. A refused move says why (issue 442); null when none of `ids` is in the edit.
+ */
 export function groupMove(cut: Cut, ids: readonly string[], dt: number, lanes?: { kind: CutTrack['kind']; by: number }): Cut | GroupRefusal | null {
   const group = cut.clips.filter((c) => ids.includes(c.id));
   if (!group.length) return null;
@@ -266,7 +260,7 @@ export function rippleTrimEnd(cut: Cut, id: string, to: number, srcLen?: number)
   return { ...cut, clips: cut.clips.map((x) => moved.get(x.id) ?? { ...x, at: shiftAt(x.at, d) }) };
 }
 
-/** How far `to` is from `from` in the drawn order of their kind, for moveClips; null when they are of different kinds or not there. */
+/** How far `to` is from `from` in the drawn order of their kind, for groupMove; null when they are of different kinds or not there. */
 export function laneShift(cut: Cut, from: string, to: string): { kind: CutTrack['kind']; by: number } | null {
   const a = trackOf(cut, from), b = trackOf(cut, to);
   if (!a || !b || a.kind !== b.kind) return null;

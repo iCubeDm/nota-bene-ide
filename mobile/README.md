@@ -41,7 +41,7 @@ While marking up (a picture or a paused frame) one finger draws and two fingers 
 `app/lib/media/markup.dart`); a picture's zoom carries into markup.
 
 Marks and comments are the desktop's media comments: the frame and layer are stored under `/marks/<id>/`, and the
-agent's image goes to `/attach`. Page and 3D-model comments stay desktop-only.
+agent's image goes to `/attach`. Page comments stay desktop-only.
 
 ## Usage on the phone
 

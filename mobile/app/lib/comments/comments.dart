@@ -104,8 +104,8 @@ class Comments extends ChangeNotifier {
   void refresh() => notifyListeners();
 
   /// What the phone sends with a message: the pending text and media comments, their images with them. A page
-  /// comment, a 3D model one or one on an edit's timeline, made on the desktop, stays pending for it (the phone cannot
-  /// write their batch lines).
+  /// comment or one on an edit's timeline, made on the desktop, stays pending for it (the phone cannot write their batch
+  /// lines).
   List<Comment> get sendable {
     final away = held();
     return [
@@ -122,7 +122,7 @@ class Comments extends ChangeNotifier {
         if ((want == null || want.contains(c.id)) &&
             switch (c.anchor) {
               TextAnchor() => true,
-              MediaAnchor(:final camera) => camera == null,
+              MediaAnchor() => true,
               _ => false,
             })
           c,
@@ -148,7 +148,6 @@ class Comments extends ChangeNotifier {
     for (final c in all)
       if (c.anchor case MediaAnchor(
         source: FileSource(path: final p, ref: null),
-        camera: null,
       ) when p == path)
         c,
   ];

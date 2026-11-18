@@ -30,10 +30,7 @@
 *.pdf binary
 *.wasm binary
 *.onnx binary
-*.glb binary
 *.bin binary
-*.blend binary
-*.ktx2 binary
 *.zip binary
 *.gz binary
 *.tgz binary

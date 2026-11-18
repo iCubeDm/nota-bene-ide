@@ -1,11 +1,8 @@
-import { afterEach, expect, it } from 'vitest';
+import { expect, it } from 'vitest';
 import { setServerSep } from '@/lib/paths.ts';
-import { fileUrl, isPath, kindOf, modelUrl, setModel3d } from './kinds.ts';
-
-afterEach(() => setModel3d(false));
+import { fileUrl, isPath, kindOf } from './kinds.ts';
 
 it('kindOf covers each regex', () => {
-  setModel3d(true);
   expect(kindOf('a/README.md')).toBe('md');
   expect(kindOf('x.MARKDOWN')).toBe('md');
   expect(kindOf('p.PNG')).toBe('image');
@@ -15,13 +12,6 @@ it('kindOf covers each regex', () => {
   expect(kindOf('v.m4v')).toBe('video');
   expect(kindOf('s.m4a')).toBe('audio');
   expect(kindOf('s.ogg')).toBe('audio');
-  expect(kindOf('m/robot.glb')).toBe('model');
-  expect(kindOf('ROBOT.GLB')).toBe('model');
-  expect(kindOf('scene.gltf')).toBe('model');
-  expect(kindOf('scene.blend')).toBe('model');
-  expect(kindOf('SCENE.BLEND')).toBe('model');
-  expect(kindOf('scene.blend1')).toBe('text');
-  expect(kindOf('scene.gltf.txt')).toBe('text');
   expect(kindOf('main.ts')).toBe('text');
   expect(kindOf('Makefile')).toBe('text');
 });
@@ -57,16 +47,3 @@ it('isPath: Windows absolute forms are refused only on a Windows server', () => 
   }
 });
 
-it('modelUrl: a .blend goes through /model (converted by Blender), a glb / gltf through /file', () => {
-  expect(modelUrl('m/a b.blend', 'here')).toBe('/model?path=m%2Fa%20b.blend');
-  expect(modelUrl('m/a.BLEND', 'wt-1')).toBe('/model?path=m%2Fa.BLEND&src=wt-1');
-  expect(modelUrl('m/a.glb', 'wt-1')).toBe('/file?path=m%2Fa.glb&src=wt-1');
-});
-
-it('kindOf: with experimental 3D off a model file is plain text, like any unsupported binary', () => {
-  for (const p of ['m/robot.glb', 'ROBOT.GLB', 'scene.gltf', 'scene.blend']) expect([p, kindOf(p)]).toEqual([p, 'text']);
-  setModel3d(true);
-  expect(kindOf('scene.blend')).toBe('model');
-  setModel3d(false);
-  expect(kindOf('scene.blend')).toBe('text');
-});

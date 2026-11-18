@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { isAttachmentAnchor } from '@nota-bene/shared';
 import { removeComment, selectComments } from '@/comments/slice.ts';
-import { addImage, markAttachment, removeImage, selectImages, selectMarking } from '@/composer/slice.ts';
+import { markAttachment, removeImage, selectImages, selectMarking } from '@/composer/slice.ts';
 import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
 import { useT } from '@/i18n/index.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';

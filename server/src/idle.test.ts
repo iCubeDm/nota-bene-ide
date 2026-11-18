@@ -103,10 +103,8 @@ describe('idleConfig and settings', () => {
   it('defaults: 50 min after the turn, 15 min away, 55 min cache, the CLI 200k minimum; env overrides', () => {
     expect(idleConfig({})).toEqual({ afterMs: AFTER_MS, awayMs: AWAY_MS, retryMs: RETRY_MS, cacheMs: CACHE_MS, minTokens: MIN_TOKENS });
     expect([AFTER_MS, AWAY_MS, CACHE_MS]).toEqual([50 * 60_000, 15 * 60_000, 55 * 60_000]);
-    expect(idleConfig({ NOTA_BENE_IDLE_COMPACT_MINUTES: '5', CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS: '100000' }))
-      .toMatchObject({ afterMs: 5 * 60_000, minTokens: 100_000 });
-    expect(idleConfig({ NOTA_BENE_IDLE_COMPACT_MINUTES: 'x', CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS: '-1' }))
-      .toMatchObject({ afterMs: AFTER_MS, minTokens: MIN_TOKENS });
+    expect(idleConfig({ CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS: '100000' })).toMatchObject({ minTokens: 100_000 });
+    expect(idleConfig({ CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS: '-1' })).toMatchObject({ minTokens: MIN_TOKENS });
   });
 
   it('"idleCompaction": false in Claude Code settings.json blocks it; missing or broken files do not', () => {

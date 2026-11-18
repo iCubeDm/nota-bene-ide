@@ -337,23 +337,10 @@
             "kind": "media",
             "source": {
               "kind": "file",
-              "path": "models/a.glb"
+              "path": "media/b.png"
             },
             "width": 800,
             "height": 600,
-            "camera": {
-              "position": [
-                1,
-                2,
-                3
-              ],
-              "target": [
-                0,
-                0,
-                0
-              ],
-              "fov": 50
-            },
             "shapes": [
               {
                 "kind": "arrow",
@@ -521,9 +508,6 @@
       "type": "permission",
       "id": "p2",
       "allow": false,
-      "input": {
-        "path": "src/a.ts"
-      },
       "response": {
         "choice": "ok",
         "values": {
@@ -660,18 +644,9 @@
         "fork": false,
         "idleCompact": true,
         "models": true,
-        "model3d": false,
         "provider": "claude",
-        "modeDescriptors": [
-          {
-            "id": "plan",
-            "name": "Plan",
-            "description": "Plan first"
-          }
-        ],
         "taskBackground": true,
-        "taskOutput": true,
-        "suggestions": true
+        "taskOutput": true
       },
       "lang": "en",
       "uiScale": 1,
@@ -1048,23 +1023,10 @@
             "kind": "media",
             "source": {
               "kind": "file",
-              "path": "models/a.glb"
+              "path": "media/b.png"
             },
             "width": 800,
             "height": 600,
-            "camera": {
-              "position": [
-                1,
-                2,
-                3
-              ],
-              "target": [
-                0,
-                0,
-                0
-              ],
-              "fov": 50
-            },
             "shapes": [
               {
                 "kind": "arrow",

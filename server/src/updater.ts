@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { readPrefs } from './prefs.ts';
 import { installing, installRelease, patchUpdateState, rawCurrent, readCurrent, readUpdateState, runtimeDir } from './runtime.ts';

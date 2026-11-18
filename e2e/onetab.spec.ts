@@ -8,7 +8,6 @@ const workHere = (page: Page) => page.getByRole('button', { name: 'Work here' })
 let seq = 0;
 const uniq = (label: string) => `${label} ${Date.now().toString(36)}-${process.pid}-${seq++}`;
 const bubble = (page: Page, text: string) => page.locator('[data-kind="user"]').filter({ hasText: text });
-const FAV_IDLE = '#6b7280';
 const FAV_ERROR = '#e5484d';
 
 async function open(page: Page) {

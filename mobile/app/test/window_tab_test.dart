@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/feed.dart';
-import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_app/chat/window_tab.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/store/hosts.dart';
@@ -197,8 +196,7 @@ void main() {
   });
 
   group('permission mode', () {
-    Map<String, Object?> caps({String? provider, bool descriptors = false}) => {
-      'provider': ?provider,
+    Map<String, Object?> caps() => {
       'compact': true,
       'clear': true,
       'modes': ['default', 'plan'],
@@ -207,14 +205,6 @@ void main() {
       'fork': false,
       'idleCompact': true,
       'models': true,
-      if (descriptors)
-        'modeDescriptors': [
-          {
-            'id': 'plan',
-            'name': 'Plan (host)',
-            'description': 'Host plan text',
-          },
-        ],
     };
 
     Future<void> open(Map<String, Object?> c) async {
@@ -265,28 +255,5 @@ void main() {
     test('setMode on a window the tab does not own sends nothing', () async {
       expect(tab.setMode(AgentMode.plan), isFalse);
     });
-
-    test(
-      'labels: the host names for claude, the web strings for codex',
-      () async {
-        await open(caps(descriptors: true));
-        expect(modeLabel(tab, AgentMode.plan, 'ru'), 'Plan (host)');
-        expect(modeDescription(tab, AgentMode.plan, 'ru'), 'Host plan text');
-        // no descriptor for default: the web's string
-        expect(
-          modeLabel(tab, AgentMode.default_, 'ru'),
-          webString('mode_default', 'ru'),
-        );
-        await open(caps(provider: 'codex', descriptors: true));
-        expect(
-          modeLabel(tab, AgentMode.plan, 'ru'),
-          webString('mode_plan', 'ru'),
-        );
-        expect(
-          modeDescription(tab, AgentMode.plan, 'de'),
-          webString('mode_plan_desc', 'de'),
-        );
-      },
-    );
   });
 }

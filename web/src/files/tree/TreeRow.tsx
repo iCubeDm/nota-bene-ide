@@ -2,7 +2,6 @@ import type { TreeEntry } from '@nota-bene/shared';
 import { isEditMedia } from '@/cut/assemble.ts';
 import { PATH_MIME } from '@/cut/drag.ts';
 import { downloadUrl, PATHS_MIME } from '@/files/drag.ts';
-import { openFile } from '@/tabs/slice.ts';
 import { Svg } from '@/tabs/TabStrip.tsx';
 import { FileIcon } from '../FileIcon.tsx';
 import { fileKey } from '../sources.ts';
