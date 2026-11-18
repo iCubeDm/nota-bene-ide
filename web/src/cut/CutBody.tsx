@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
 import { AUDIO, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
@@ -18,7 +18,7 @@ import { registerEditTarget, touchEditTarget } from './targets.ts';
 import { EditBar } from './EditBar.tsx';
 import type { Editing, Tool } from './editing.ts';
 import { CutPlayer } from './engine.ts';
-import { reversed, useReversedVersion } from './reverse.ts';
+import { askServer, reversedCopies, reversedParts } from './reverse.ts';
 import { drawable } from './layout.ts';
 import { ExportControl } from './export/ExportControl.tsx';
 import { GroupInspector, Inspector } from './Inspector.tsx';
@@ -86,18 +86,25 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   // one player for the tab's life; an edited file is handed to it, the playhead stays where it was
   const srcRef = useRef(src);
   srcRef.current = src;
+  // the reversed clips' copies (issue 492), asked for on each committed edit (never a drag's steps), let go with the tab
+  const [copies] = useState(() => reversedCopies(askServer));
   const [player] = useState(() => new CutPlayer({
     url: (s) => projectFileUrl(s, srcRef.current),
-    reversed: (c) => {
-      const r = reversed.of(c, srcRef.current);
-      return typeof r === 'object' ? r.url : null;
+    reversed: (c, sound) => {
+      const r = copies.of({ src: c.src, in: c.in, out: c.out, sound });
+      return r !== null && typeof r === 'object' ? r.url : null;
     },
+    failed: (url) => copies.failed(url),
   }));
   useEffect(() => () => player.dispose(), [player]);
+  useEffect(() => () => copies.close(), [copies]);
   const playable = check.ok ? check.cut : null;
-  // a reversed clip's copy made (issue 492): the player looks its clips up again
-  const copies = useReversedVersion();
-  useEffect(() => player.setCut(playable, draw.end), [player, playable, draw.end, copies]);
+  const committed = draft ? null : playable;
+  useEffect(() => { if (committed) copies.want(reversedParts(committed), src); }, [copies, committed, src]);
+  // a copy made: the player looks its clips up again, the timeline its marks
+  const made = useSyncExternalStore(copies.subscribe, copies.version);
+  useEffect(() => player.setCut(playable, draw.end), [player, playable, draw.end, made]);
+
   useEffect(() => player.setLive(active), [player, active]);
   const pane = useRef<HTMLDivElement>(null);
 
@@ -362,7 +369,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
             <Timeline
               player={player} lanes={draw.lanes} blocks={draw.blocks} end={draw.end} frame={frame} problems={problems} missing={missing} fileSrc={src} active={active}
               tools={path !== undefined && <ExportControl path={path} blocked={issues.length > 0 ? t('cutExportBlocked') : undefined} />}
-              editing={editing} notes={notes} onNote={(n) => goTo(n.id)} flash={active ? flash : null}
+              editing={editing} notes={notes} onNote={(n) => goTo(n.id)} flash={active ? flash : null} copyOf={copies.of}
             />
           )}
         </>

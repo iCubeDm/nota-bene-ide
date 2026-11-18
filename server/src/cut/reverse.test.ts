@@ -37,14 +37,14 @@ const until = async <T,>(f: () => Promise<T | null>, ms = 10_000): Promise<T> =>
   }
 };
 
-// a stand-in ffmpeg: asked for a file's streams (no output) it names them by the file's text (AV, A); making a copy it
+// a stand-in ffmpeg: asked for a file's streams (no output) it names them by the file's text (AV, A; BIG: a 4K picture at 60 fps); making a copy it
 // logs the call and writes its arguments as the copy, or hangs (HANG) or fails (FAIL)
 const FAKE = `#!/usr/bin/env node
 const fs = require('fs'); const path = require('path');
 const a = process.argv.slice(2);
 const body = fs.readFileSync(a[a.indexOf('-i') + 1], 'utf8');
 if (!a.includes('-f')) {
-  process.stderr.write((body.includes('V') ? '  Stream #0:0: Video: h264\\n' : '') + (body.includes('A') ? '  Stream #0:1: Audio: aac\\n' : ''));
+  process.stderr.write((body.includes('V') ? '  Stream #0:0: Video: h264' + (body.includes('BIG') ? ', yuv420p, 3840x2160, 60 fps' : '') + '\\n' : '') + (body.includes('A') ? '  Stream #0:1: Audio: aac\\n' : ''));
   process.exit(1);
 }
 fs.appendFileSync(path.join(__dirname, 'copies.log'), process.pid + '\\n');
@@ -87,7 +87,8 @@ describe('CutReverse', () => {
       expect(fs.readFileSync(path.join(root, '.nota-bene', '.gitignore'), 'utf8')).toBe('*\n');
       const args = JSON.parse(fs.readFileSync(path.join(root, out), 'utf8')) as string[];
       expect(args.slice(args.indexOf('-ss'), args.indexOf('-i') + 2)).toEqual(['-ss', '1', '-t', '2', '-i', path.join(root, 'a.mp4')]);
-      expect(args[args.indexOf('-vf') + 1]).toMatch(/^reverse,/);
+      // scaled down to fit 1280×720 before reverse holds the frames
+      expect(args[args.indexOf('-vf') + 1]).toMatch(/^scale=.*1280.*720.*,reverse,/);
       expect(args[args.indexOf('-af') + 1]).toBe('areverse');
       expect(await r.get('a.mp4', 1, 3)).toBe(out);
       expect(copies()).toBe(1);
@@ -120,6 +121,29 @@ describe('CutReverse', () => {
       await until(() => r.get('s.wav', 0, 3));
       expect(fs.readdirSync(path.join(root, '.nota-bene', 'reverse')).filter((n) => !n.startsWith('.'))).toHaveLength(2);
       expect(fs.existsSync(path.join(root, s))).toBe(false); // the oldest
+    });
+
+    it('a newer part of a source replaces its older one still waiting: a trim does not queue a copy per step', async () => {
+      media('slow.mp4', 'HANG AV');
+      media('b.mp4', 'AV');
+      const r = make({ ffmpeg: () => bin, timeoutMs: 300 });
+      await r.get('slow.mp4', 0, 1);
+      for (const to of [1, 1.5, 2, 2.5, 3]) expect(await r.get('b.mp4', 0, to)).toBeNull();
+      expect(await until(() => r.get('b.mp4', 0, 3))).toMatch(/\.mp4$/);
+      expect(copies()).toBe(2); // the slow one and the last part
+    });
+
+    it('a part too long to hold in memory is refused; a video on an audio track gets its sound alone', async () => {
+      media('big.mp4', 'BIG AV');
+      media('a.mp4', 'AV');
+      const r = make({ ffmpeg: () => bin });
+      await r.get('big.mp4', 0, 600);
+      expect(await until(() => refused(r.get('big.mp4', 0, 600)).catch(() => null))).toEqual([422, 'too-long']);
+      expect(copies()).toBe(0);
+      const s = await until(() => r.get('a.mp4', 0, 1, true));
+      expect(s).toMatch(/\.m4a$/);
+      expect(JSON.parse(fs.readFileSync(path.join(root, s), 'utf8'))).toContain('-vn');
+      expect(await until(() => r.get('a.mp4', 0, 1))).toMatch(/\.mp4$/); // its picture too: another copy
     });
 
     it('one copy at a time; a copy that takes too long is stopped and answers timeout', async () => {

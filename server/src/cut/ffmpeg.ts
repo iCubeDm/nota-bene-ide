@@ -58,13 +58,19 @@ export function findFfmpeg({ env = process.env, platform = process.platform, exi
   return ffmpegPlaces(env, platform).find(exists) ?? null;
 }
 
-/** What a source holds, as far as the export needs to know. */
-export type Probed = { video: boolean; audio: boolean };
+/** What a source holds, as far as the export needs to know; the picture's size and rate when ffmpeg names them (issue 492). */
+export type Probed = { video: boolean; audio: boolean; width?: number; height?: number; fps?: number };
 
 /** The streams `ffmpeg -i <file>` names on stderr (it exits 1: no output was given). ffprobe is not needed. */
 export function probeSource(stderr: string): Probed {
   const streams = stderr.split('\n').filter((l) => /^\s*Stream #\d+:\d+/.test(l));
-  return { video: streams.some((l) => /: Video: /.test(l)), audio: streams.some((l) => /: Audio: /.test(l)) };
+  const pic = streams.find((l) => /: Video: /.test(l));
+  const size = pic && /, (\d+)x(\d+)[,\s]/.exec(`${pic} `);
+  const fps = pic && /, ([\d.]+) (?:fps|tbr)\b/.exec(pic);
+  return {
+    video: !!pic, audio: streams.some((l) => /: Audio: /.test(l)),
+    ...(size && { width: Number(size[1]), height: Number(size[2]) }), ...(fps && { fps: Number(fps[1]) }),
+  };
 }
 
 // the child gets no secrets from our environment (API keys, tokens): only what a program needs to start

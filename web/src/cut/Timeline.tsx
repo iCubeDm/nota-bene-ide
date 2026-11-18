@@ -14,7 +14,7 @@ import { dB, FadeHandle, FadeSlopes, GainLine, usePeaks, Wave } from './ClipSoun
 import { addTrack, dragGain, groupMove, laneShift, moveClip, moveForward, rippleTrimEnd, setFade, setGain, snapMove, snapPoints, snapTime, trackForward, trimEnd, trimStart } from './ops.ts';
 import { TrackHead } from './TrackHead.tsx';
 import { drawnSpan, fmtTime, ppsRange, rulerStep, ticksIn, type Block, type Lane } from './layout.ts';
-import { reversed, useReversedVersion } from './reverse.ts';
+import type { Part, Reversed } from './reverse.ts';
 import { poster } from './thumbs.ts';
 import { applyCutKey } from './useCutKeys.ts';
 
@@ -38,7 +38,7 @@ const STEP = 1.5; // one zoom button press
  * kind's lanes in the track column. `flash` (issue 412): what a change of the file from outside did, shown for a moment
  * (the caller clears it): the added and changed clips highlighted, a ghost where a removed one stood.
  */
-export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote, flash = null }: {
+export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote, flash = null, copyOf }: {
   player: CutPlayer;
   lanes: Lane[]; blocks: Block[]; end: number; frame: { width: number; height: number; fps: number } | null;
   problems: ReadonlyMap<number, string[]>; missing: ReadonlySet<string>; fileSrc: string; active: boolean;
@@ -48,6 +48,8 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
   notes?: CutNote[];
   onNote?: (n: CutNote) => void;
   flash?: CutFlash | null;
+  /** what is known of a reversed clip's copy (issue 492) */
+  copyOf?: (p: Part) => Reversed | null;
 }) {
   const t = useT();
   const lit = new Set(flash ? [...flash.added, ...flash.changed] : []);
@@ -299,7 +301,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
       >
         {blocks.filter((b) => b.track === l.id).map((b) => (
           <Clip
-            key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active}
+            key={b.i} b={b} lane={l} pps={pps} frame={frame} problems={problems.get(b.i)} gone={missing.has(b.src)} fileSrc={fileSrc} active={active} copyOf={copyOf}
             selected={editing?.sel.includes(b.id)} changed={lit.has(b.id) ? flash!.gen : undefined} drag={editing ? clipDrag : undefined} view={{ from: (view.left - seen) / pps, to: (view.left + 2 * seen) / pps }}
           />
         ))}
@@ -470,9 +472,9 @@ function usePoster(url: string | null, at: number): string | null {
 
 /** One clip: its file name, a thumbnail on a video track (the photo; a video's first used frame) once it is in view,
  *  its problems outlined; at least 2 px wide, however short. */
-function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, changed, drag, view }: {
+function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, changed, drag, view, copyOf }: {
   b: Block; lane: Lane; pps: number; frame: { width: number; height: number } | null; problems: string[] | undefined; gone: boolean;
-  fileSrc: string; active: boolean; selected?: boolean;
+  fileSrc: string; active: boolean; selected?: boolean; copyOf?: (p: Part) => Reversed | null;
   /** changed by an outside change of the file a moment ago (issue 412): that change's count; highlighted by a layer of
    *  its own, fading (the selection ring stays), keyed by it so a new change starts the fade again */
   changed?: number;
@@ -492,9 +494,8 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
   const seen = useSeen(ref, active && (thumb || (sound && !gone)));
   // a reversed clip's first frame is its part's last one (issue 492)
   const frameOf = usePoster(seen && thumb && !b.photo ? url : null, b.reverse ? Math.max(b.from, b.from + b.len - 0.05) : b.from || 0);
-  // its copy for the preview is made once: until it is, the clip says so
-  useReversedVersion();
-  const copy = b.reverse && !gone ? reversed.of({ src: b.src, in: b.from, out: b.from + b.len }, fileSrc) : null;
+  // its copy for the preview is made once: until it is, the clip says so (a drag's part is not asked for: no mark)
+  const copy = b.reverse && !gone ? copyOf?.({ src: b.src, in: b.from, out: b.from + b.len, sound: lane.kind === 'audio' }) ?? null : null;
   const shown = seen && thumb ? (b.photo ? url : frameOf) : null;
   // the sound (issue 431): the waveform drawn around the view, in steps of WAVE_STEP px so a scroll seldom redraws it
   const wave = usePeaks(seen && sound && !gone ? b.src : null, fileSrc);
@@ -528,9 +529,9 @@ function Clip({ b, lane, pps, frame, problems, gone, fileSrc, active, selected, 
       ))}
       {shown && <img src={shown} alt="" draggable={false} className="h-full flex-none bg-black object-cover" style={frame ? { aspectRatio: `${frame.width} / ${frame.height}` } : undefined} />}
       <span className={`relative min-w-0 truncate px-1 ${gone ? 'line-through' : ''}`}>{basename(b.src)}</span>
-      {(copy === 'making' || copy === 'failed') && (
-        <span data-reversing={copy} className={`relative flex-none truncate px-1 ${copy === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>
-          {t(copy === 'making' ? 'cutReversing' : 'cutReverseFailed')}
+      {typeof copy === 'string' && (
+        <span data-reversing={copy} className={`relative flex-none truncate px-1 ${copy === 'failed' || copy === 'too-long' ? 'text-destructive' : 'text-muted-foreground'}`}>
+          {t(({ making: 'cutReversing', failed: 'cutReverseFailed', 'too-long': 'cutReverseTooLong', elsewhere: 'cutReverseElsewhere' } as const)[copy])}
         </span>
       )}
       {changed !== undefined && (

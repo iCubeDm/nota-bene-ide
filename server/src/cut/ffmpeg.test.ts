@@ -44,8 +44,10 @@ describe('probeSource', () => {
   Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p, 320x240, 25 fps
   Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 128 kb/s
 At least one output file must be specified`;
-    expect(probeSource(video)).toEqual({ video: true, audio: true });
-    expect(probeSource(video.split('\n').filter((l) => !l.includes('Audio:')).join('\n'))).toEqual({ video: true, audio: false });
+    // the picture's size and rate too (issue 492: what reversing it holds in memory)
+    expect(probeSource(video)).toEqual({ video: true, audio: true, width: 320, height: 240, fps: 25 });
+    expect(probeSource(video.split('\n').filter((l) => !l.includes('Audio:')).join('\n'))).toEqual({ video: true, audio: false, width: 320, height: 240, fps: 25 });
+    expect(probeSource('  Stream #0:0: Video: h264, yuv420p(tv, bt709, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 29.97 fps, 29.97 tbr')).toMatchObject({ width: 1920, height: 1080, fps: 29.97 });
     expect(probeSource("  Stream #0:0: Audio: mp3, 44100 Hz, stereo, fltp, 128 kb/s")).toEqual({ video: false, audio: true });
     // an unreadable file: ffmpeg names no stream
     expect(probeSource('a.mp4: Invalid data found when processing input')).toEqual({ video: false, audio: false });

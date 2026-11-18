@@ -2,13 +2,16 @@
 // once (`reverse` for the picture, `areverse` for the sound, both holding the part in memory) into the project's
 // `<root>/.nota-bene/reverse/`, kept out of git like the marks and served by /file as any project file. A copy is named
 // by a hash of the source's path, size and mtime and the part, so an edited source or another part is a new copy; the
-// newest KEEP stay.
+// newest KEEP stay. One copy is made at a time, and a source waits with one part at most: a newer part replaces the
+// one still waiting (a trim asks for a part per step). The picture is scaled to fit PREVIEW before it is reversed, and a
+// part over REVERSE_BUDGET is refused.
 import { spawn, type ChildProcess } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AUDIO, VIDEO } from '@nota-bene/shared/cut';
 import { resolveInRoot } from '../files.ts';
+import { fitIn, REVERSE_BUDGET, reverseBytes } from './args.ts';
 import { projectDir } from '../marks.ts';
 import { HIDDEN } from '../platform.ts';
 import { ffmpegEnv, probe } from './ffmpeg.ts';
@@ -19,6 +22,8 @@ const DIR = 'reverse';
 const KEEP = 24;
 /** a copy that takes longer is stopped: minutes of footage held in memory and encoded */
 const TIMEOUT_MS = 10 * 60_000;
+/** the preview copy's largest picture */
+const PREVIEW = { w: 1280, h: 720 };
 /** failed copies remembered */
 const KEEP_FAILED = 512;
 
@@ -49,9 +54,11 @@ const num = (n: number): string => String(Math.round(n * 1e6) / 1e6);
 
 export class CutReverse {
   private readonly failed = new Map<string, ReverseError>();
+  /** the copies asked for and not done, by key: the one being made and those waiting */
   private readonly running = new Set<string>();
+  private readonly waiting: { key: string; abs: string; make: () => Promise<void> }[] = [];
+  private busy = false; // one copy at a time: each holds its part in memory
   private readonly live = new Set<ChildProcess>();
-  private queue: Promise<unknown> = Promise.resolve(); // one copy at a time: each holds its part in memory
   private disposed = false;
   private readonly o: ReverseOptions;
   constructor(o: ReverseOptions) {
@@ -60,20 +67,21 @@ export class CutReverse {
 
   /**
    * The project-relative path of the reversed copy of `rel` from `from` to `to` seconds; null while it is being made (the
-   * first ask starts it). Refusals are ReverseError: 400 bad-part or not-media, 403 outside-project, 404 not-found, 501
-   * no-ffmpeg, 422 failed, 504 timeout, 503 closing; a copy that failed is not tried again until the source changes.
+   * first ask starts it). `soundOnly`: its sound alone (a video on an audio track). Refusals are ReverseError: 400 bad-part
+   * or not-media, 403 outside-project, 404 not-found, 501 no-ffmpeg, 422 failed or too-long, 504 timeout, 503 closing; a
+   * copy that failed is not tried again until the source changes.
    */
-  async get(rel: string, from: number, to: number): Promise<string | null> {
+  async get(rel: string, from: number, to: number, soundOnly = false): Promise<string | null> {
     if (this.disposed) throw new ReverseError(503, 'closing');
     if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to <= from) throw new ReverseError(400, 'bad-part');
     const root = this.o.root();
     const abs = resolveInRoot(root, rel);
     if (!abs) throw new ReverseError(403, 'outside-project');
-    const sound = AUDIO.test(abs);
-    if (!sound && !VIDEO.test(abs)) throw new ReverseError(400, 'not-media');
+    if (!AUDIO.test(abs) && !VIDEO.test(abs)) throw new ReverseError(400, 'not-media');
+    const sound = soundOnly || AUDIO.test(abs);
     const st = await fs.promises.stat(abs).catch(() => null);
     if (!st?.isFile()) throw new ReverseError(404, 'not-found');
-    const key = `${abs}\n${st.size}\n${st.mtimeMs}\n${num(from)}\n${num(to)}`;
+    const key = `${abs}\n${st.size}\n${st.mtimeMs}\n${num(from)}\n${num(to)}${sound ? '\nsound' : ''}`;
     const name = `${crypto.createHash('sha256').update(key).digest('hex').slice(0, 32)}${sound ? '.m4a' : '.mp4'}`;
     const out = `.nota-bene/${DIR}/${name}`;
     const failed = this.failed.get(key);
@@ -93,22 +101,39 @@ export class CutReverse {
     } catch {
       throw new ReverseError(403, 'no-folder');
     }
+    // the source's part still waiting gives way to this one
+    const older = this.waiting.findIndex((j) => j.abs === abs);
+    if (older >= 0) this.running.delete(this.waiting.splice(older, 1)[0]!.key);
     this.running.add(key);
-    const job = this.queue.then(() => this.make(ffmpeg, abs, sound, from, to, path.join(dir, name)));
-    this.queue = job.catch(() => {});
-    job.then(() => this.trim(dir), (e: unknown) => {
-      // a failed or too long copy stays known for its source version; closing or a spawn failure is asked again
-      if (e instanceof ReverseError && (e.code === 'failed' || e.code === 'timeout')) {
-        this.failed.set(key, e);
-        for (const k of this.failed.keys()) if (this.failed.size > KEEP_FAILED) this.failed.delete(k);
-      }
-    }).finally(() => this.running.delete(key));
+    this.waiting.push({
+      key, abs, make: () => this.make(ffmpeg, abs, sound, from, to, path.join(dir, name)).then(() => this.trim(dir), (e: unknown) => {
+        // a failed, too long or too slow copy stays known for its source version; closing or a spawn failure is asked again
+        if (e instanceof ReverseError && ['failed', 'too-long', 'timeout'].includes(e.code)) {
+          this.failed.set(key, e);
+          for (const k of this.failed.keys()) if (this.failed.size > KEEP_FAILED) this.failed.delete(k);
+        }
+      }),
+    });
+    this.next();
     return null;
+  }
+
+  private next(): void {
+    if (this.busy || this.disposed) return;
+    const job = this.waiting.shift();
+    if (!job) return;
+    this.busy = true;
+    void job.make().finally(() => {
+      this.running.delete(job.key);
+      this.busy = false;
+      this.next();
+    });
   }
 
   /** Stops the running copy. The server calls it on close: it never throws. */
   dispose(): void {
     this.disposed = true;
+    this.waiting.length = 0;
     for (const c of this.live) c.kill('SIGKILL');
   }
 
@@ -139,11 +164,14 @@ export class CutReverse {
     const has = await probe(ffmpeg, abs);
     const video = has.video && !sound; // a sound file's cover art is no picture
     if (!video && !has.audio) throw new ReverseError(422, 'failed');
+    const pic = video ? fitIn(has.width, has.height, Math.min(PREVIEW.w, has.width ?? PREVIEW.w), Math.min(PREVIEW.h, has.height ?? PREVIEW.h)) : { w: 0, h: 0 };
+    if (reverseBytes(to - from, pic.w, pic.h, has.fps ?? 30, has.audio) > REVERSE_BUDGET) throw new ReverseError(422, 'too-long');
     const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.part`);
-    // a proxy for the preview: H.264 with a key frame every 10 frames, so a seek decodes little; even sides for yuv420p
+    // a proxy for the preview, fit into PREVIEW (never larger) before reverse holds its frames: H.264 with a key frame every
+    // 10 frames, so a seek decodes little; even sides for yuv420p
     const args = ['-hide_banner', '-nostdin', '-y', '-loglevel', 'error', ...(from > 0 ? ['-ss', num(from)] : []), '-t', num(to - from), '-i', abs,
       '-sn', '-dn',
-      ...(video ? ['-map', '0:v:0', '-vf', 'reverse,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-g', '10'] : ['-vn']),
+      ...(video ? ['-map', '0:v:0', '-vf', `scale='min(${PREVIEW.w},iw)':'min(${PREVIEW.h},ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,reverse,format=yuv420p`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-g', '10'] : ['-vn']),
       ...(has.audio ? ['-map', '0:a:0', '-af', 'areverse', '-c:a', 'aac', '-b:a', '192k'] : ['-an']),
       '-movflags', '+faststart', '-f', 'mp4', tmp];
     try {

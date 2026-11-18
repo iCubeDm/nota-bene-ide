@@ -238,6 +238,24 @@ it('the inspector reverses the selected clip (issue 492): saved, marked while it
   expect(container.querySelector('[data-clip="c3"] [data-reversing]')).toBeNull();
 });
 
+it('a trim of a reversed clip asks for its copy once it is committed, not at each step of the drag (issue 492)', async () => {
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c3' ? { ...c, reverse: true } : c)) }));
+  const { container, pps } = await show();
+  const p = pps();
+  const asked = () => new Set(vi.mocked(fetch).mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith('/cut/reverse?')));
+  await waitFor(() => expect(asked().size).toBe(1));
+  const end = container.querySelector('[data-clip="c3"] [data-trim="end"]')!;
+  fireEvent.pointerDown(end, { clientX: 100, clientY: 0, button: 0, pointerId: 1, altKey: true });
+  for (let i = 1; i <= 5; i++) fireEvent.pointerMove(end, { clientX: 100 - i * p * 0.5, clientY: 0, pointerId: 1, altKey: true });
+  await elapse(50);
+  expect(asked().size).toBe(1); // the drag's parts are never asked for
+  expect(container.querySelector('[data-clip="c3"] [data-reversing]')).toBeNull(); // nor marked
+  fireEvent.pointerUp(end, { clientX: 100 - 5 * p * 0.5, clientY: 0, pointerId: 1, altKey: true });
+  await saved(() => expect(clipOnDisk('c3')).toMatchObject({ in: 2.5, out: 8 })); // its end edge is its in
+  await waitFor(() => expect(asked().size).toBe(2));
+  expect([...asked()].some((u) => u.includes('in=2.5&out=8'))).toBe(true);
+});
+
 it('the selected video clip has its frame on the preview: dragged, resized, opacity, fit to frame', async () => {
   const { container, clip } = await show();
   fireEvent.pointerDown(clip('c1'), { clientX: 10, button: 0, pointerId: 1 });

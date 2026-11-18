@@ -39,8 +39,13 @@ type Slot = {
 export type PlayerOptions = {
   /** a source's URL */
   url: (src: string) => string;
-  /** a reversed clip's copy's URL (issue 492), null while it is being made or when it cannot be: the clip shows and sounds nothing */
-  reversed?: (c: CutClip) => string | null;
+  /**
+   * a reversed clip's copy's URL (issue 492), of its sound alone on an audio track; null while it is being made or when it
+   * cannot be: the clip shows and sounds nothing
+   */
+  reversed?: (c: CutClip, sound: boolean) => string | null;
+  /** an element could not load `url` (a copy removed under the page) */
+  failed?: (url: string) => void;
   /** ms; performance.now by default */
   now?: () => number;
   frame?: (f: () => void) => number;
@@ -119,7 +124,7 @@ export class CutPlayer {
     const keep = new Map(cut?.clips.map((c) => [c.id, c]));
     for (const s of this.slots) for (const m of s.media) {
       const c = m.clip === null ? undefined : keep.get(m.clip);
-      if (!c || c.track !== s.track.id || this.mediaUrl(c) !== m.url || sourceTime(c, c.at) !== m.from) m.clip = null;
+      if (!c || c.track !== s.track.id || this.mediaUrl(c, s) !== m.url || sourceTime(c, c.at) !== m.from) m.clip = null;
       m.ramp = null;
     }
     this.levels();
@@ -255,7 +260,9 @@ export class CutPlayer {
       const settle = () => { if (!this.playing) this.tick(); };
       el.addEventListener('loadeddata', settle);
       el.addEventListener('seeked', settle);
-      return { el, clip: null, url: null, from: 0, ramp: null };
+      const m: Media = { el, clip: null, url: null, from: 0, ramp: null };
+      el.addEventListener('error', () => { if (m.url !== null) this.opts.failed?.(m.url); });
+      return m;
     };
     const slot: Slot = { track, media: [make(), make()] };
     if (video) {
@@ -411,13 +418,13 @@ export class CutPlayer {
       }
       const photo = clip && isPhotoSrc(clip.src) ? clip : undefined;
       // a reversed clip whose copy is not there yet plays as a gap
-      const media = clip && !photo && this.mediaUrl(clip) !== null ? clip : undefined;
-      const nextMedia = next && !isPhotoSrc(next.src) && this.mediaUrl(next) !== null ? next : undefined;
+      const media = clip && !photo && this.mediaUrl(clip, s) !== null ? clip : undefined;
+      const nextMedia = next && !isPhotoSrc(next.src) && this.mediaUrl(next, s) !== null ? next : undefined;
       const cur = media ? s.media.find((m) => m.clip === media.id) ?? s.media.find((m) => m.clip !== nextMedia?.id) ?? s.media[0] : undefined;
       // the one already holding the next clip, else the other: never both loading one file
       const spare = s.media.find((m) => m !== cur && m.clip === nextMedia?.id) ?? s.media.find((m) => m !== cur)!;
-      if (nextMedia) this.load(spare, nextMedia, nextMedia.at);
-      if (cur && media) this.load(cur, media, t);
+      if (nextMedia) this.load(spare, nextMedia, nextMedia.at, this.mediaUrl(nextMedia, s)!);
+      if (cur && media) this.load(cur, media, t, this.mediaUrl(media, s)!);
       return { s, clip, next, photo, media, cur };
     });
     if (this.playing && !this.scrubbing) {
@@ -463,13 +470,12 @@ export class CutPlayer {
   }
 
   // what a video or audio clip plays: its source, or a reversed clip's copy (null until it is made)
-  private mediaUrl(c: CutClip): string | null {
-    return c.reverse ? this.opts.reversed?.(c) ?? null : this.opts.url(c.src);
+  private mediaUrl(c: CutClip, s: Slot): string | null {
+    return c.reverse ? this.opts.reversed?.(c, s.track.kind === 'audio') ?? null : this.opts.url(c.src);
   }
 
-  private load(m: Media, clip: CutClip, t: number): void {
+  private load(m: Media, clip: CutClip, t: number, url: string): void {
     if (m.clip === clip.id) return;
-    const url = this.mediaUrl(clip)!;
     if (m.url !== url) {
       m.el.src = url;
       m.url = url;

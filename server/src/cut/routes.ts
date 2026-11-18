@@ -1,7 +1,7 @@
 // `GET /cut/export?path=`, `POST /cut/export {path, mode}`, `POST /cut/export/cancel {path}`: the video editor's export.
 // A long job polled over HTTP, as the Whisper install is: the start answers 202, the page asks for the state until it ends.
 // `GET /cut/peaks?path=<source>`: a source's waveform for the timeline (issue 431), peaks.ts.
-// `GET /cut/reverse?path=<source>&in=&out=`: a reversed copy of that part for the preview (issue 492), reverse.ts.
+// `GET /cut/reverse?path=<source>&in=&out=[&sound=1]`: a reversed copy of that part for the preview (issue 492), reverse.ts.
 // `POST /cut/new {dir, cut}`: a new edit beside the files it was made from (issue 426), newEdit.ts.
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import { readCapped } from '../attachments.ts';
@@ -98,7 +98,7 @@ export function cutRoutes(o: {
       const from = Number(q.get('in') ?? 0);
       const to = Number(q.get('out'));
       if (!isPath(p) || !Number.isFinite(from) || !Number.isFinite(to)) return json(res, 400, { error: 'path, in and out must be a part of a source' });
-      o.reverse.get(p, from, to).then((out) => (out === null ? json(res, 202, { making: true }) : json(res, 200, { path: out })), (e: unknown) => {
+      o.reverse.get(p, from, to, q.get('sound') === '1').then((out) => (out === null ? json(res, 202, { making: true }) : json(res, 200, { path: out })), (e: unknown) => {
         if (e instanceof ReverseError) return json(res, e.status, { error: e.code });
         failed(req, res)(e);
       });

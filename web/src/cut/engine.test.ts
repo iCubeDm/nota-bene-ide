@@ -122,9 +122,9 @@ const cut = (): Cut => ({
   ],
 });
 
-function setup(c: Cut = cut(), reversed?: (c: CutClip) => string | null) {
+function setup(c: Cut = cut(), reversed?: (c: CutClip, sound: boolean) => string | null, failed?: (url: string) => void) {
   const box = document.createElement('div');
-  const p = new CutPlayer({ url: (s) => `/file?path=${s}`, reversed, now: () => now, frame: (f) => frames.push(f), cancel: () => {} });
+  const p = new CutPlayer({ url: (s) => `/file?path=${s}`, reversed, failed, now: () => now, frame: (f) => frames.push(f), cancel: () => {} });
   p.setCut(c);
   p.attach(box);
   p.setLive(true);
@@ -150,7 +150,9 @@ it('a reversed clip (issue 492) plays its reversed copy forwards once it is made
   const c = cut();
   c.clips[1]!.reverse = true; // c2: 5..9, the source's 10..14 backwards
   let copy: string | null = null;
-  const { p, layer, shown } = setup(c, (x) => (x.id === 'c2' ? copy : null));
+  const asked: [string, boolean][] = [];
+  const lost: string[] = [];
+  const { p, layer, shown } = setup(c, (x, sound) => (asked.push([x.id, sound]), x.id === 'c2' ? copy : null), (u) => lost.push(u));
   p.seek(4.9);
   // not preloaded while it is being made
   expect([...layer('v1').querySelectorAll('video')].map((v) => v.getAttribute('src'))).not.toContain('/file?path=.nota-bene/reverse/x.mp4');
@@ -161,6 +163,10 @@ it('a reversed clip (issue 492) plays its reversed copy forwards once it is made
   const [v] = shown('v1');
   expect(v!.getAttribute('src')).toBe(copy);
   expect(v!.currentTime).toBe(1.5);
+  expect(asked.every(([, sound]) => !sound)).toBe(true); // a video track: picture and sound
+  // the copy removed under the page: told, so it is asked for again
+  v!.dispatchEvent(new Event('error'));
+  expect(lost).toEqual([copy]);
 });
 
 it('a cut swaps to the preloaded element in the same step; the old one takes the clip after', () => {

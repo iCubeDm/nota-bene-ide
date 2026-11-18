@@ -57,6 +57,7 @@ export function ExportControl({ path, blocked, pollMs = POLL_MS }: { path: strin
     if (e.code === 'missing-source') return t('cutExportMissing', e.detail);
     if (e.code === 'invalid-edit') return t('cutExportInvalid', e.detail);
     if (e.code === 'unreadable-source') return t('cutExportUnreadable', e.detail);
+    if (e.code === 'too-long') return t('cutExportTooLong', e.detail);
     if (e.code === 'not-an-edit') return t('cutExportNotEdit', e.detail);
     if (e.code === 'empty') return t('cutExportEmpty');
     if (e.code === 'bad-edit') return t('cutExportBadEdit', e.detail);

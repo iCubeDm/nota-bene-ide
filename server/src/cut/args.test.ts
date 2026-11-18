@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Cut } from '@nota-bene/shared/cut';
-import { cutEnd, exportArgs, type Sources } from './args.ts';
+import { cutEnd, exportArgs, REVERSE_BUDGET, reverseBytes, tooLongToReverse, type Sources } from './args.ts';
 
 /** The value after `flag` (the first one). */
 const after = (args: string[], flag: string): string | undefined => args[args.indexOf(flag) + 1];
@@ -189,11 +189,25 @@ describe('exportArgs', () => {
     const args = exportArgs(cut((c) => { c.clips[0]!.reverse = true; }), SOURCES, '/o', 'mp4');
     expect(args.slice(args.indexOf('-ss'), args.indexOf('-ss') + 6)).toEqual(['-ss', '2.5', '-t', '2', '-i', '/p/media/a.mp4']);
     const g = graph(args);
-    expect(g.find((f) => f.startsWith('[0:v]'))).toMatch(/^\[0:v\]reverse,scale=/);
+    // scaled to its box first: reverse holds every frame of the part in memory
+    expect(g.find((f) => f.startsWith('[0:v]'))).toMatch(/^\[0:v\]scale=1280:720:force_original_aspect_ratio=decrease,setsar=1,reverse,format=yuva420p,/);
     expect(g.find((f) => f.startsWith('[0:a]'))).toMatch(/^\[0:a\]areverse,asetpts=/);
     expect(g.filter((f) => /(^|[\],])a?reverse/.test(f))).toHaveLength(2);
     // the sound alone too
     expect(graph(exportArgs(cut((c) => { c.clips[3]!.reverse = true; }), SOURCES, '/o', 'wav')).find((f) => f.startsWith('[2:a]'))).toMatch(/^\[2:a\]areverse,/);
+  });
+
+  it('a reversed part too long to hold in memory (issue 492): the first such clip, by its frames at its box\'s size', () => {
+    // 720p at 30 fps, sound: about 1.4 MB a frame
+    expect(reverseBytes(10, 1280, 720, 30, true)).toBe(300 * 1280 * 720 * 1.5 + 10 * 48000 * 2 * 4);
+    const big: Sources = new Map([...SOURCES, ['media/a.mp4', { file: '/p/media/a.mp4', video: true, audio: true, width: 3840, height: 2160, fps: 30 }]]);
+    const long = (sec: number) => cut((c) => { c.clips[0] = { ...c.clips[0]!, in: 0, out: sec, reverse: true }; c.clips.splice(1, 1); });
+    expect(tooLongToReverse(long(20), big, 'mp4')).toBeNull();
+    const over = Math.ceil(REVERSE_BUDGET / (30 * 1280 * 720 * 1.5)) + 1;
+    expect(tooLongToReverse(long(over), big, 'mp4')).toBe('c1');
+    // the sound alone holds far less
+    expect(tooLongToReverse(long(over), big, 'wav')).toBeNull();
+    expect(tooLongToReverse(cut((c) => { c.clips[0]!.out = 999; }), big, 'mp4')).toBeNull(); // not reversed
   });
 
   it('an edit with nothing audible still has a silent sound track of its length', () => {
