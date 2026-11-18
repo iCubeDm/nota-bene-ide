@@ -304,3 +304,14 @@ it('a failed save says so and goes back to the server\'s value; saves go one at 
   await waitFor(() => expect(getToasts().some((x) => x.title === t('railSaveFail', '500'))).toBe(true));
   await waitFor(() => expect(railPref.get()).toBe(true));
 });
+
+it('a working folder\'s dot pulses in the accent colour, like the composer\'s working mark (issue 484); waiting stays steady', async () => {
+  await setup();
+  const dot = (root: string) => [...tile(root).querySelector('.rounded-full.border-2')!.classList];
+  expect(dot('/w/site')).toContain('bg-warn');
+  expect(dot('/w/site')).not.toContain('animate-pulse');
+  projects = () => Response.json({ ...LIST, running: LIST.running.filter((r) => r.state !== 'waiting') });
+  cleanup();
+  render(<Provider store={store()}><TooltipProvider><ProjectRail /></TooltipProvider></Provider>);
+  await waitFor(() => expect(dot('/w/site')).toEqual(expect.arrayContaining(['animate-pulse', 'bg-nb-accent'])));
+});
