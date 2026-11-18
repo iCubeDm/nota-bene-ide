@@ -43,7 +43,7 @@
 - A registry entry whose port answers with another root or provider's proof: `409 window not answering`, nothing sent to an unproven listener.
 - A folder name with a separator, `..`, NUL, a leading or trailing space or over 255 bytes: `400 bad request`, nothing created.
 - Open on a folder that already has a window of that provider gets its `already-open URL`; no second window.
--  The launcher failing or hanging: answered within 30 s with a short reason, stdout never echoed beyond the first line or logged.
+- The launcher failing or hanging: answered within 30 s with a short reason, stdout never echoed beyond the first line or logged.
 - A window mid-restart and one that never answers are both listed with their own state.
 
 ## Docs and checks
