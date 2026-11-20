@@ -325,7 +325,7 @@ export class Connector extends EventEmitter {
   }
 
   #startPairing(client: net.Socket): Msg {
-    if (!this.#relayUrl) return { t: 'error', message: 'this computer is not reachable through a relay: save a relay and turn access on' };
+    if (!this.#relayUrl) return { t: 'error', code: 'noRelay', message: 'this computer is not reachable through a relay: save a relay and turn access on' };
     if (this.#pairing) this.#endPairing(this.#pairing, 'cancelled');
     const secret = randomBytes(32);
     const expiresAt = Date.now() + this.#ttl;

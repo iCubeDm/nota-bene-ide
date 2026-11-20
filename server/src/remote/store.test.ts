@@ -211,6 +211,8 @@ describe('access key', () => {
       expect(() => parseAccessKey(bad)).toThrow(/starts with nbk1_ and has 48 characters/);
       try { parseAccessKey(bad); } catch (e) { expect((e as Error).message).not.toContain(bad); }
     }
+    // the right shape, not canonical base64url (issue 507): refused as a bad key too
+    expect(() => parseAccessKey(`nbk1_${'A'.repeat(42)}B`)).toThrow(expect.objectContaining({ code: 'badAccessKey', message: 'an access key starts with nbk1_ and has 48 characters' }));
   });
 
   it('is saved readable by its owner only, read back, and removed', () => {
