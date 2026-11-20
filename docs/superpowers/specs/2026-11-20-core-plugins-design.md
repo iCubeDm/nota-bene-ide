@@ -68,6 +68,11 @@ Names are final unless a step finds a collision; shapes are interfaces, not bodi
 - `interface ConnectionManager { current(): AgentConnection; get(id): AgentConnection | undefined; list():
   AgentConnection[] }`. `makeStore` creates it with exactly one connection; `open()` is left to issue 383.
 - `serverEvent(ev, agent = SELF)` gains `meta: { agent }` (reducers ignore it until 383); `connState`, `selectConn`.
+- `onEvent(fn) → off`: the connection's events after the store has applied them; the non-React `repository` refetches
+  through it (`Resource.events`), so there is no second path into Redux and no store listener in core data code.
+- **Connection state has one owner, the connection.** The manager mirrors each change into the store with one
+  `connState` dispatch; components read the `conn` slice (`useConnState` is a selector over it), never the
+  connection object. `conn.state()` exists for non-React code (the repository's pause).
 - Hooks: `useConnection()`, `useConnState()`, `useFeature(f)`.
 - The thunk extra argument becomes `{ connections }` (today `{ send, takeOver, stopSocket }`).
 
@@ -94,7 +99,8 @@ Names are final unless a step finds a collision; shapes are interfaces, not bodi
   Keys stay exactly as today (`lang`, `nb.theme`, `tabs:<root>`, …), so nothing saved is lost. Codecs: `bool`,
   `string`, `json<T>(valid)`, `oneOf(values)`.
 - `storage.pref<K extends keyof SharedPrefs>(name) → Pref<T> { get(); set(v) /* POST /system/prefs, chained, last
-  wins */; subscribe(fn); }`, cached in local storage under its current key so a reload does not flash. `SharedPrefs`
+  wins */; subscribe(fn); }`; `set` posts through `connections.current().fetch(routes.systemPrefs(), …)`, so a pref
+  follows the agent's base path; cached in local storage under its current key so a reload does not flash. `SharedPrefs`
   (`lang`, `uiScale`, `theme`, `dictationLang`, `projectRail`, `sounds`) is typed in `web/src/sdk/storage.ts`.
 - One adoption point: the connection adopts `hello.lang`, `hello.uiScale`, `hello.theme`, `hello.dictationLang` into
   their prefs (today three separate calls in `store.ts:170-173` plus a fourth for dictation). `projectRail` and
@@ -104,6 +110,18 @@ Names are final unless a step finds a collision; shapes are interfaces, not bodi
 - `track(name: string, props?: Record<string, string | number | boolean>)`: appends to an in-memory ring of the last
   200 events, `track.recent()` reads it (tests, a future local view). No network, no storage.
 - No plugin calls `localStorage`; the boundary check scans for it outside `web/src/sdk/` and `net/auth.ts`.
+
+**The state rule.** Each piece of state has exactly one home:
+
+| What | Where |
+|---|---|
+| server data pushed over the socket, and UI state several components or a reload share | a slice (core or a plugin's), fed by `serverEvent` / actions |
+| server data fetched over HTTP | `useResource` / `repository` (its cache is the one copy) |
+| anything that outlives the page (local or server prefs, saved UI state) | `storage.local` / `storage.pref` (a slice may mirror it through a listener, as `persist.ts` does) |
+| state of one component instance | `useState` / `useReducer` |
+
+No new `useSyncExternalStore` module singletons: the 28 existing ones fold into `storage`, `repository` or a slice when
+a step touches them (the boundary check counts them outside `web/src/sdk/`).
 
 **Capabilities**: `has(protocol, feature)` and `type Feature` re-exported from `@nota-bene/shared` (below);
 `conn.has(f)` / `useFeature(f)` bind it to the connection's `hello.protocol`.
@@ -126,6 +144,13 @@ Names are final unless a step finds a collision; shapes are interfaces, not bodi
   `chat.interrupt()`, `chat.answer(id, allow, response?)`, `chat.takeOver()`.
 - Tabs: `openTab`, `openFile(path, at?)`, `activate`, `closeTab`, `selectTabs`, `type Tab`, augmentable
   `interface TabKinds` (`Tab = TabKinds[keyof TabKinds]`), registered the same way as `PluginState`.
+- **Root change.** The listener that sees a new `feed.session.root` stays core (`store/persist.ts`) and dispatches
+  `enterRoot({ root, first })` with no plugin data; today it reads `readSavedTabs` and `readSavedDirs`
+  (`persist.ts:36-45`) and `tabs/slice.ts:76` takes them in the action. Each owner restores its own saved state in its
+  own listener on `enterRoot`: core `tabs` its tabs; `files` its tree dirs, recent files, the sources reload and the
+  ref cache. **Listener order** is registration order: core listeners first (the root-change listener first of all,
+  then core `tabs`), then each plugin's in `PLUGINS` order, a plugin's own in its declared order. Saving listeners
+  compare before/after as today, so a restore dispatched by an earlier listener is seen by the later ones.
 - Registries are built once from `plugins` (`buildRegistry`), frozen, and read with `useRegistry()` or
   `registry(store)`.
 
@@ -199,18 +224,21 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
 ## The import rule
 
 - **Tool.** A Vitest test, `scripts/boundaries.test.ts`, in the `node` project (so it runs in CI's `npx vitest run
-  --project node --project web` and in `npm test`). It parses every `web/src` file with oxc (`parseSync` from
-  `rolldown/utils`, already installed with Vite 8; added as a direct devDependency pinned to Vite's version) and reads
-  `staticImports`, `staticExports` and `dynamicImports`, resolving `@/` and relative specifiers. Type-only imports count:
-  they couple too.
+  --project node --project web` and in `npm test`), with no dependency: a regular expression over each file's whole
+  text finds `import … from '…'`, `import type … from '…'`, `export … from '…'`, side-effect `import '…'` and
+  `import('…')`, tolerant of newlines inside the braces; comments are stripped first so a commented import does not
+  count. It resolves `@/` and relative specifiers. Type-only imports count: they couple too. Step 1's fixture cases
+  (multi-line, type-only, re-export, dynamic, a specifier inside a string or a comment) prove it; only if a case cannot
+  pass does it switch to oxc (`parseSync` from `rolldown/utils`, already installed with Vite).
 - **Why not dependency-cruiser.** The repository is on TypeScript 7 (`typescript@7.0.2` ships only `tsc.js`, no
   compiler API). dependency-cruiser parses TypeScript through the `typescript` API or `@swc/core`; it would need a new
-  native dependency plus its own config language for what is 80 lines over a parser we already have. There is no
+  native dependency plus its own config language for a folder rule. There is no
   ESLint in the repository to hang a rule on. Revisit if TypeScript's API returns and the rules grow beyond folders.
 - **Rules.** (1) A plugin file imports only `@/sdk`, `@/sdk/ui`, its own folder, `@nota-bene/shared*`, packages.
   (2) A core file never imports a plugin folder. (3) `@/testing` only from `*.test.ts(x)`. (4) Test files are exempt from
   1–2 (an integration test composes plugins through the harness). (5) No `localStorage` outside `web/src/sdk/` and
-  `net/auth.ts`; no `protocol >= <number>` (or `?? 0) >=`) in `web/src` or `mobile/app/lib` (a text scan).
+  `net/auth.ts`; no `protocol >= <number>` (or `?? 0) >=`) in `web/src` or `mobile/app/lib`; no new
+  `useSyncExternalStore` outside `web/src/sdk/` (text scans).
 - **Baseline.** `scripts/boundaries.baseline.json`: a sorted list of `"<file> -> <imported module>"` (and
   `"<file> -> localStorage"`, `"<file> -> protocol gate"`). The test fails on an entry not in the baseline (a new
   violation) and on a baseline entry no longer present (stale: the shrink must be committed). `UPDATE_BOUNDARIES=1`
@@ -223,16 +251,17 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
   models: 6, subagentAnchors: 7, taskControl: 8, camera: 9, commands: 10, shellRun: 11, providerModes: 12, pageAnchors:
   13, voice: 14, projectIcon: 15, voiceComments: 16, attachmentAnchors: 17, voiceDetect: 18, commentOps: 19, remote:
   20, accessKeys: 21, restartPending: 22, cutAnchors: 23, polygons: 24, wholePicture: 25, imagesAlone: 26, compactOrder:
-  27, remoteHosts: 28, remoteProjects: 29 } as const`, each entry with the doc comment that today sits in the
+  27, remoteHosts: 28, remoteProjects: 29 } as const` (names indicative; a protocol that added several gated things gets
+  several names with the same number, e.g. `heldSends: 27` beside `compactOrder: 27`), each entry with the doc comment that today sits in the
   `protocol.ts` history block (moved, not duplicated). `type Feature = keyof typeof FEATURES`;
   `has(protocol: number | null | undefined, f: Feature): boolean`. Re-exported from `@nota-bene/shared`.
 - `PROTOCOL` stays a literal; a test asserts it equals the largest entry, so a bump is "add an entry, raise the number".
 - The schema gets `"x-features"` beside `"x-protocol"`; the Dart generator emits `enum Feature { activity(1), …; final
   int protocol; }` and `bool hasFeature(num? protocol, Feature f)` into `protocol.g.dart`. The existing `Capabilities`
   type (the provider's capabilities in `hello`) keeps its name; hence `Feature`, not `Capability`.
-- Every gate in both apps uses a name: web `comments/CommentPopup.tsx:299,375`, `composer/Composer.tsx:100`,
-  `media/playerKeys.ts:92`, `media/PlayerBar.tsx:102`, `media/markup/MarkupLayer.tsx:65`, `controls/slice.ts:188` and the
-  rest of the 54 matches; phone `window_tab.dart:158-166,241`, `comments/comments.dart`, `files/image_screen.dart`,
+- Every gate in both apps uses a name: web (7 in product code) `comments/CommentPopup.tsx:299,375`,
+  `composer/Composer.tsx:100`, `media/playerKeys.ts:92`, `media/PlayerBar.tsx:102`, `media/markup/MarkupLayer.tsx:65`,
+  `controls/slice.ts:188`; phone `window_tab.dart:158-166,241`, `comments/comments.dart`, `files/image_screen.dart`,
   `comments/comment_sheet.dart`, `chat/controls.dart`, `store/voice_lang.dart` `detectProtocol`. The unused
   `OPS_PROTOCOL`, `SHELL_PROTOCOL`, `COMPACT_ORDER_PROTOCOL`, `ATTACHMENT_MARKUP_PROTOCOL` are deleted.
 - `docs/agent-reference.md` and `architecture.md` §3.3 "Versioning" say: a protocol change adds a `FEATURES` entry; a
@@ -240,31 +269,44 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
 
 ## The host stream's `windows` message
 
-- `shared/src/host.ts`, re-exported from `@nota-bene/shared`: `HostWindow = { id: string; port: number; provider:
+- `shared/src/host.ts`, re-exported from `@nota-bene/shared`: `HostWindow = { id?: string; port: number; provider:
   AgentProvider; root: string; title?; session?; model?; busy?; supervised?; pending?; last?: LastMessage | null;
   replies?: number; icon?: string | null }`, `LastMessage = { role: 'user' | 'assistant'; text: string; at?: number }`,
   `HostStreamMessage = { t: 'windows'; windows: HostWindow[] }`, and `HOST_WINDOW_INFO = ['title', 'session', …,
   'icon'] as const satisfies readonly (keyof HostWindow)[]` (today `INFO_FIELDS` in `server/src/remote/device.ts:18`).
-- The id: `windowId(provider, root) = provider + ':' + sha1(root).slice(0, 16)` in `server/src/remote/discover.ts`, the
-  same hash as the launcher's per-folder lock (`bin/nota-bene.mjs:462`). The registry guarantees one window per folder
-  per provider, so it is unique per computer, survives restarts and port changes, and needs no new persisted state. It
-  is opaque to clients; issue 383 may replace its derivation without a client change.
+- `id` is optional in the schema: a generated Dart `fromJson` with a required field would throw on every host before
+  this release. The channel derives the key in one place, `HostWindow.key => id ?? 'port:$port'` (an extension in
+  `nb_channel`); nothing else in the app reads `id` or `port` for identity.
+- `AgentProvider` (`'claude' | 'codex' | 'omp'`, today `server/src/agent/provider.ts:3`) moves to `shared/src/agent.ts`;
+  `provider.ts` re-exports it, so the server's imports do not change and shared needs no second union.
+- The server's own `HostWindow` (`server/src/remote/discover.ts:13`, with `bearer` and `nonce`, used by `device.ts`
+  and `connector.test.ts`) is renamed `ProvedWindow`, so the name means one thing.
+- The id: `windowKey(provider, root) = provider + ':' + sha1(root).slice(0, 16)` in a new `server/src/windows.ts`. The
+  launcher already imports `server/src/*` modules (`bin/nota-bene.mjs:44-48`), so its per-folder lock
+  (`bin/nota-bene.mjs:462`, the same hash) uses that helper too. The id survives restarts and port changes and needs no
+  persisted state. It is opaque to clients; issue 383 may replace its derivation without a client change.
+- **Collisions.** One window per folder per provider is the launcher's rule, not an invariant: `Windows` keys by port
+  (`discover.ts`), a launch with `NOTA_BENE_LOCKED=1` or an inner launch skips the lock (`bin/nota-bene.mjs:735,809`),
+  and a dev server and a launcher window can register the same root. Rule: among windows with the same key the lowest
+  port keeps the bare id and the others get `<id>:<port>`, computed per list in `device.ts`, so every phone sees the
+  same ids.
 - `device.ts` `#hostStream` builds `HostStreamMessage`; `hostLink.ts:165,232-234` drops its `HostWindowInfo` cast for
   the shared type (a light shape check stays at the parse boundary); `projects.ts` `remoteRows` reads typed rows.
 - `gen:protocol` adds `HostStreamMessage` to `ROOTS` (it reaches `HostWindow`); `mobile/channel` takes `nb_protocol`
   as a real dependency (today dev only) and its hand-written `HostWindow` and `LastMessage`
-  (`channel.dart:50-110`, `iconSupported: j.containsKey('icon')`) give way to the generated ones; `withIcon` becomes an
-  extension.
+  (`channel.dart:50-110`, `iconSupported: j.containsKey('icon')`) give way to the generated ones; `withIcon` and `key`
+  are extensions.
 - **No protocol bump.** `PROTOCOL` covers browser↔window; the host stream is the channel's (CHANNEL.md "version 1"),
-  whose rule is that a peer ignores fields it does not know. `id` is an additive field. A phone that meets a host
+  whose rule is that a peer ignores fields it does not know. `id` is an additive, optional field. A phone that meets a host
   without it (any host before this release) keys the window as `port:<n>`, as today. CHANGELOG gets no entry: nothing
   changes for the user.
 - The phone keys windows by `(hostId, window.id)`: `notify/visible.dart` `ChatPlace`, `home.dart` `lastChat` (read once
   in the old `"host port root"` form and rewritten), `hosts/host_link.dart:76-87`, `chat/window_tab.dart` `_box` and
   lookups by port. Port is used only to open `ws`/`http` streams. `iconSupported` goes (always true for the documented
   minimum host, protocol 18).
-- `server/src/remote/CHANNEL.md`: the host stream section lists the real fields (`id`, `icon` were missing) and gains
-  a "Reconnects" section (the phone reopens a `ws` stream after 4904 once the window is listed again; the host stream
+- `server/src/remote/CHANNEL.md`: the host stream section lists the real fields (`id`, `icon` were missing), states
+  that a phone ignores fields it does not know and treats every field but `port`, `provider`, `root` as optional, and
+  gains a "Reconnects" section (the phone reopens a `ws` stream after 4904 once the window is listed again; the host stream
   is the online state; backoff is the link's).
 
 ## The phone mirror
@@ -281,11 +323,14 @@ inventing one.
 | `storage` | `AppStores`: the record of vault-backed stores built in `main.dart` `_load` (hosts, seen, notified, notify choice, voice lang, voice outboxes, comment queues, project icons), replacing `CommentQueues.instance`, `VoiceStore.instance`, `ProjectIcons.instance` and the resets in `test/support/rig.dart:58-60` |
 | `Sdk` | `Sdk` (`lib/sdk.dart`): `{ AppStores stores; Links links; Identity id; Background background }`, passed down where `_load`'s record is today |
 | capabilities | generated `Feature` / `hasFeature`; `WindowConnection.has(f)` |
-| registries | none. Feed items, anchors and events are generated sealed classes; an exhaustive `switch` is the registry and the compiler checks completeness. Screens are pushed routes. A Dart registry would add indirection and lose that check |
+| registries | none. Events and anchors are generated sealed classes and the feed items hand-written sealed classes (`chat/feed.dart`); an exhaustive `switch` is the registry and the compiler checks completeness. Screens are pushed routes. A Dart registry would add indirection and lose that check |
 | i18n | ARB stays; the two crash-prone lookups go: `'mode_${m.toJson()}'` (`window_tab.dart:52-58`) becomes a generated exhaustive map, `m['en']!` (`strings.g.dart:40-43`) a typed accessor; the generator's hand-coded Russian plural rule uses `Intl.plural` |
 
 UI↔model leaks are cut where they are: `ago` moves from `hosts/hosts_screen.dart` to `ui/time.dart`; the voice
-directory from `voice/player.dart` to the voice store; `resolveLocale` from `main.dart` to `l10n/locale.dart`.
+directory from `voice/player.dart` to the voice store; `resolveLocale` from `main.dart` to `l10n/locale.dart`. A small
+`test/imports_test.dart` keeps them cut: nothing in `lib/` imports `main.dart`, and model and store files (`store/`,
+`chat/feed.dart`, `chat/session_state.dart`, `chat/window_*.dart`, `comments/comments.dart`, `comments/queue.dart`,
+`voice/outbox.dart`, `notify/`) import no `*_screen.dart`, `*_sheet.dart` or `voice/player.dart`.
 
 ## The feed golden fixture
 
@@ -293,7 +338,9 @@ directory from `voice/player.dart` to the voice store; `resolveLocale` from `mai
   streamed chunks, tool call/update/result including Agent calls, permission and answer, plan, shell run, compaction and
   `earlier`, held sends, voice text, an unknown kind) and writes the result as
   `mobile/app/test/fixtures/feed/<case>.json`: `{ events, items }`, where `items` is a projection of fields both models
-  hold (kind, id, text, final, tool name/arg/result/isError, permission answer, phase). It checks the file equals its
+  hold (kind, id, text, final, tool name/arg/result/isError, permission answer, `phase`). `phase` is computed by a
+  function in the test file from the item's `toolKind` and name, not added to `store/feed.ts`: the web has no phase,
+  so it is a fixture expectation for the phone's table only. It checks the file equals its
   output; `UPDATE_FIXTURES=1` rewrites it, as the media and anchor parity tests do.
 - `mobile/app/test/feed_test.dart` replays each case through `Feed.apply` and compares the same projection, replacing
   "applies without throwing" (`feed_test.dart:23`).
@@ -341,9 +388,9 @@ flags). §3.3 "Versioning" points at `FEATURES`. §2.3 names `HostWindow.id` and
 
 ## Calls made
 
-1. **Import rule = a Vitest test over oxc (`rolldown/utils`), not dependency-cruiser**: TypeScript 7 has no compiler
-   API and the repository has no ESLint; oxc is already installed with Vite. `rolldown` becomes a direct devDependency
-   pinned to Vite's version.
+1. **Import rule = a dependency-free Vitest test** (a newline-tolerant regex over whole files), not dependency-cruiser:
+   TypeScript 7 has no compiler API and the repository has no ESLint. oxc via `rolldown/utils` only if a step-1
+   fixture case cannot pass.
 2. **Type-only imports count** as violations; **test files are exempt** from plugin→plugin and core→plugin, and
    `@/testing` is test-only.
 3. **Plugins import `@/sdk` and `@/sdk/ui` only**, not other core folders directly; the 398 plugin→core imports are in
@@ -357,10 +404,12 @@ flags). §3.3 "Versioning" points at `FEATURES`. §2.3 names `HostWindow.id` and
 8. **One extra registry, `sendParts`**, and a `Plugin.pause` predicate, both needed to break the composer↔comments
    cycle and `shell/pagePause.ts`'s imports.
 9. **Capability table named `FEATURES` / `Feature`, function `has`**: `Capabilities` is taken by the provider's
-   capabilities in `hello`. One entry per protocol 1–29; `PROTOCOL` stays a literal checked against the table.
-10. **Window id = `provider:sha1(root)[0..16]`**, derived, not persisted; opaque to clients.
-11. **No protocol or channel version bump** for `id`: additive under CHANNEL.md's ignore-unknown rule; the phone
-    falls back to `port:<n>`. No CHANGELOG entries in the epic unless a step changes behavior.
+   capabilities in `hello`. Several names may share a number; `PROTOCOL` stays a literal checked against the table.
+10. **Window id = `provider:sha1(root)[0..16]`** from one helper in `server/src/windows.ts` shared with the launcher's
+    lock; derived, not persisted, opaque to clients, optional in the schema. Duplicates (unlocked launches, a dev
+    server): the lowest port keeps the bare id, the others get `<id>:<port>`.
+11. **No protocol or channel version bump** for `id`: optional and additive under CHANNEL.md's ignore-unknown rule;
+    the channel's `key` falls back to `port:<n>` in one place. No CHANGELOG entries in the epic unless a step changes behavior.
 12. **Web agent id is `'self'`** until issue 383; `serverEvent` carries it in `meta` now, the `conn` slice keeps one
     state.
 13. **`track` is an in-memory ring of 200 events** with `track.recent()`; nothing persisted or sent.
@@ -368,10 +417,19 @@ flags). §3.3 "Versioning" points at `FEATURES`. §2.3 names `HostWindow.id` and
 15. **Storage keeps every current key** unchanged, so no migration of saved UI state.
 16. **No Dart registries**: sealed generated types and exhaustive switches already are the registry. Dart gets `Sdk`,
     `AppStores`, `WindowConnection`, `WindowState`, `Repository` classes and `Feature`.
-17. **No Dart import lint**: the phone's three named leaks are fixed by hand; a rule there would cost more than the
+17. **No Dart folder lint**, only the small import test of call 25: a full rule there would cost more than the
     remaining risk.
 18. **Feed fixture lives in `mobile/app/test/fixtures/feed/`**, written and checked by a web test, as the other
     parity fixtures are.
 19. **Test migration is opportunistic**: the harness lands early; tests move when a step touches them.
 20. **Route builders live in the web SDK, not `shared`**: the server's route table and the phone build paths their own
     way; the answer types are what must match, and they go through the generator.
+21. **`AgentProvider` moves to `shared/src/agent.ts`** (re-exported by `server/src/agent/provider.ts`); the server's
+    proved window type is renamed `ProvedWindow`.
+22. **Repository events come from `AgentConnection.onEvent`**, called after the store applied the event. The
+    connection is the single owner of connection state; the store mirrors it with one `connState` dispatch.
+23. **Root change**: core dispatches `enterRoot({ root, first })`; each owner restores its own saved state in its own
+    listener; order is core first, then `PLUGINS` order.
+24. **One state rule** (slice / `useResource` / `storage` / component state); no new `useSyncExternalStore`
+    singletons, counted by the boundary check.
+25. **A Dart import test** (`test/imports_test.dart`) for the two leak classes the review found, instead of a lint.
