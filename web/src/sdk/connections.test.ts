@@ -4,6 +4,7 @@ import { act, renderHook } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { makeStore, serverEvent } from '../store/store.ts';
+import { cancelRestart } from '../controls/slice.ts';
 import type { SocketState } from '../net/socket.ts';
 import { agentConnection, connectionsOf, SELF, useConnection, useConnState, useFeature, type ConnState, type ConnectionManager } from './connections.ts';
 
@@ -165,4 +166,14 @@ it('the page connections: before any store the one agent at base "", never opene
   const { makeStore: make } = await import('../store/store.ts');
   const store = make({ url: 'ws://x/ws', connect: fake().connect });
   expect(fresh.connections.current()).toBe(fresh.connectionsOf(store).current());
+});
+
+it('a thunk fetches through its own store\'s connection, not the page\'s last one', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('ok')));
+  const a = makeStore({ url: 'ws://x/ws', connect: fake().connect });
+  makeStore({ url: 'ws://x/ws', connect: fake().connect });
+  const conn = connectionsOf(a).current();
+  const spy = vi.spyOn(conn, 'fetch');
+  expect(await a.dispatch(cancelRestart())).toBe(true);
+  expect(spy).toHaveBeenCalledWith('/restart-server/cancel', { method: 'POST' });
 });

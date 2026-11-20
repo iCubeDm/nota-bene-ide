@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { has, type SubagentView } from '@nota-bene/shared';
-import { type FeedItem, type FeedState, type AppThunk, type RootState, connections } from '@/sdk';
+import { type FeedItem, type FeedState, type AppThunk, type RootState } from '@/sdk';
 import { emptyFeed, reduce } from '../store/feed.ts';
 import { openAgent } from '../tabs/slice.ts';
 
@@ -67,7 +67,7 @@ export type FetchResult = 'running' | 'done' | 'gone' | 'error' | 'stale';
  * anything else wrong is `error` with a short text, never a silent empty pane. An answer arriving after the
  * conversation changed is dropped.
  */
-export const fetchSubagent = (tool: string, signal?: AbortSignal): AppThunk<Promise<FetchResult>> => async (dispatch, getState) => {
+export const fetchSubagent = (tool: string, signal?: AbortSignal): AppThunk<Promise<FetchResult>> => async (dispatch, getState, { connections }) => {
   const session = getState().feed.session?.id;
   if (!session) return 'stale';
   dispatch(requested({ tool, session }));

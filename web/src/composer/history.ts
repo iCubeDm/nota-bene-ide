@@ -1,6 +1,6 @@
 import { createSlice, type Middleware, type PayloadAction } from '@reduxjs/toolkit';
 import { fuzzyScore, PROMPT_MAX, type PromptEntry, type PromptSrc } from '@nota-bene/shared';
-import { connections, serverEvent, type AppThunk, type RootState } from '@/sdk';
+import { serverEvent, type AppThunk, type RootState } from '@/sdk';
 import type { SentDraft, ShellDraft } from './slice.ts';
 
 /**
@@ -85,7 +85,7 @@ export function searchPrompts(items: PromptEntry[], query: string): PromptEntry[
 const warn = (what: string, e: unknown) => console.warn(`prompt history: ${what}`, e);
 
 /** Asks the server for the session's stored prompts; an answer for a session that is not the current one any more is dropped. */
-export const loadHistory = (): AppThunk => (d, getState) => {
+export const loadHistory = (): AppThunk => (d, getState, { connections }) => {
   const sid = getState().promptHistory.sid;
   connections.current().fetch(sid === null ? '/prompts' : `/prompts?session=${encodeURIComponent(sid)}`)
     .then((r) => (r.ok ? (r.json() as Promise<{ session: string | null; prompts: PromptEntry[] }>) : Promise.reject(new Error(`/prompts ${r.status}`))))
@@ -95,7 +95,7 @@ export const loadHistory = (): AppThunk => (d, getState) => {
 };
 
 /** Shows the entry at once and tells the server in the background (a failure only logs: the list is a convenience). */
-const record = (entry: Omit<PromptEntry, 'ts'>): AppThunk => (d, getState) => {
+const record = (entry: Omit<PromptEntry, 'ts'>): AppThunk => (d, getState, { connections }) => {
   if (!entry.text.trim() || entry.text.length > PROMPT_MAX) return;
   const full: PromptEntry = { ...entry, ts: Date.now() };
   const session = getState().feed.session?.id ?? null;

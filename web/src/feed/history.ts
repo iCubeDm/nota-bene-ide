@@ -1,5 +1,5 @@
 import { historyPrepended, type HistoryPage } from '@/store/feed.ts';
-import { type AppThunk, connections } from '@/sdk';
+import type { AppThunk } from '@/sdk';
 
 /** What one «Show before compaction» click came to: prepended, failed (shown, retry possible), or stale (dropped). */
 export type EarlierResult = 'ok' | 'failed' | 'stale';
@@ -16,7 +16,7 @@ function isPage(v: unknown): v is HistoryPage {
  * - An answer arriving after a replay, a /clear or a session change (another epoch or id) is dropped.
  * `beforePrepend` runs right before the prepend is dispatched, in the same task: the feed measures its scroll there.
  */
-export const loadEarlier = (beforePrepend?: () => void): AppThunk<Promise<EarlierResult>> => async (dispatch, getState) => {
+export const loadEarlier = (beforePrepend?: () => void): AppThunk<Promise<EarlierResult>> => async (dispatch, getState, { connections }) => {
   const f = getState().feed;
   const session = f.session?.id;
   if (!session || f.earlier <= 0) return 'failed';
