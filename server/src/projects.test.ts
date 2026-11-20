@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
 import { recordRecent } from './recent.ts';
-import { enterUrl, listProjects, sessionsOf, stopAt, stopOthers, type ProbedInfo } from './projects.ts';
+import { enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type ProbedInfo } from './projects.ts';
 import { startServer } from './server.ts';
 import { registerWindow } from './windows.ts';
 
@@ -200,4 +200,19 @@ it('stopOthers stops every window but this one, of every provider', async () => 
   expect(await stopOthers({ port: own, provider: 'claude' })).toEqual({ stopped: 2, failed: 0 });
   expect(await Promise.all([ea.code, eb.code])).toEqual([0, 0]);
   expect(ownStopped).toBe(false);
+});
+
+it('issue 297: a paired computer\'s windows as rows, the state from its host stream, the proxy\'s own one current', () => {
+  const last = { role: 'assistant', text: 'done', at: 5 };
+  const rows = remoteRows([{ id: 'h1', name: 'Studio', windows: [
+    { port: 4777, provider: 'claude', root: '/p/a', title: 'T', session: 's1', busy: true, last },
+    { port: 4778, provider: 'codex', root: '/p/b', busy: true, pending: true },
+    { port: 4779, provider: 'omp', root: '/p/c' },
+    { port: 4781, provider: 'gpt', root: '/p/d' },
+  ] }], { host: 'h1', port: 4779 });
+  expect(rows).toEqual([
+    { provider: 'claude', port: 4777, root: '/p/a', title: 'T', session: 's1', state: 'working', current: false, clients: 0, unseen: 0, last, remote: { host: 'h1', name: 'Studio' } },
+    expect.objectContaining({ port: 4778, state: 'waiting', title: null, last: null }),
+    expect.objectContaining({ port: 4779, state: 'idle', current: true }),
+  ]);
 });

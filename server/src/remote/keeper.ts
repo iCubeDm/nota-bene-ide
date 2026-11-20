@@ -17,6 +17,7 @@ import { stateBaseDir } from '../state.ts';
 import { readLock, takeLockFile } from '../runtime.ts';
 import { controlClient, running, type ControlClient, type Msg } from './control.ts';
 import { pairHost } from './hostLink.ts';
+import type { Computer } from '../projects.ts';
 import {
   checkRelay, clearLastError, fingerprint, fromB64u, parseAccessKey, readAccessKey, readConfig, readDevices, readHosts, readLastError, remoteDir, removeHost, writeAccessKey,
   writeConfig, type Host, type RemoteConfig,
@@ -254,6 +255,20 @@ export class RemoteKeeper extends EventEmitter {
     await this.#ask({ op: 'hosts' });
     await this.refresh();
     return { ok: true };
+  }
+
+  /** The paired computers online and their windows (issue 297), for the switcher; none without a paired computer. */
+  async computers(): Promise<Computer[]> {
+    if (readHosts().length === 0) return [];
+    const r = await this.#ask({ op: 'computers' });
+    return Array.isArray(r?.computers) ? r.computers as Computer[] : [];
+  }
+
+  /** A desktop proxy of that window of a paired computer (proxy.ts): the URL that logs a tab in there, or why not. */
+  async openWindow(host: string, port: number): Promise<{ url: string } | { error: string }> {
+    const r = await this.#ask({ op: 'open', host, port });
+    if (!r) throw new NotRunning();
+    return typeof r.url === 'string' ? { url: r.url } : { error: typeof r.error === 'string' ? r.error : 'no such window' };
   }
 
   async revoke(id: string): Promise<{ ok: boolean; error?: string }> {

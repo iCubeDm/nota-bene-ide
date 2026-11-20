@@ -54,7 +54,7 @@ import { CutPeaks } from './cut/peaks.ts';
 import { CutReverse } from './cut/reverse.ts';
 import { cutRoutes } from './cut/routes.ts';
 import { usageRoutes } from './usage/routes.ts';
-import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, keyCredential, loginCredential, newNonce, proofFor, sameSecret, sessionCookie } from './auth.ts';
+import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, loginRoute, newNonce, proofFor } from './auth.ts';
 
 /** how long a newcomer waits for the owner to close before it is told `occupied` (R-M7-6) */
 export const TAKEOVER_GRACE_MS = 700;
@@ -304,34 +304,7 @@ export async function startServer(o: {
         },
       );
     };
-    // POST /auth {token}: the page's one-time login (the token came in the URL fragment, which never reaches a server). Only
-    // reached with one of our own Origins (http.ts refuses the other POSTs), so a foreign page cannot even try
-    const authRoute: http.RequestListener = (req, res) => {
-      const plain = (status: number, body: string, headers: Record<string, string> = {}) => {
-        res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', ...headers });
-        res.end(body);
-      };
-      if (req.method !== 'POST') return plain(405, 'method not allowed', { allow: 'POST' });
-      let body = '';
-      let tooBig = false;
-      req.on('data', (d: Buffer) => {
-        body += d;
-        if (body.length > 1024) { tooBig = true; req.destroy(); }
-      });
-      req.on('end', () => {
-        if (tooBig) return;
-        let given: unknown;
-        try {
-          given = (JSON.parse(body) as { login?: unknown }).login;
-        } catch {
-          return plain(400, 'bad request');
-        }
-        if (token === null) return plain(200, '{"ok":true}', { 'content-type': 'application/json; charset=utf-8' });
-        // the login value of THIS launch and port, never the raw token: a URL that leaked is good until the launcher exits
-        if (typeof given !== 'string' || !sameSecret(given, loginCredential(token, ownPort, nonce))) return plain(401, 'unauthorized');
-        plain(200, JSON.stringify({ ok: true, key: keyCredential(token, ownPort, nonce) }), { 'content-type': 'application/json; charset=utf-8', 'set-cookie': sessionCookie(token, ownPort, nonce), 'cache-control': 'no-store' });
-      });
-    };
+    const authRoute = loginRoute(token, () => ownPort, nonce);
     // GET /hello?c=<hex>: the one thing a helper may ask before it trusts a port. Answers only the proof that this server holds the
     // token for the port it is bound to and the given challenge: no root, no state, nothing to replay (the port is in the proof)
     const helloRoute: http.RequestListener = (req, res) => {
@@ -461,7 +434,7 @@ export async function startServer(o: {
         ...dictationRoutes({ hub }),
         ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, reverse: cutReverse, root }),
         ...remoteRoutes({ hub, keeper: o.remote }),
-        ...projectRoutes({ hub, port: () => ownPort, provider: parseProvider(process.env.NOTA_BENE_AGENT), repoDir }),
+        ...projectRoutes({ hub, port: () => ownPort, provider: parseProvider(process.env.NOTA_BENE_AGENT), repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         ...systemRoutes({
           updater: win, newer,
           hub, root, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir,

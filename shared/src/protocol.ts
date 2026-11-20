@@ -174,7 +174,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 26: a comment's text may be empty when it has images (issue 497): pasted images or a drawing alone. An older server would refuse it, so the page and the phone offer it only from 26.
 // 27: a compaction ordered while the agent works waits for the next pause (issue 499): the client's `command` compact (or a typed `/compact`) is then the pending compaction, `compact-cancel` drops it; the server's `compact-pending` event (on attach and when it changes) and `send-held`. A page that says `held=1` on the ws url has its sends held behind a pending restart or compaction; an older one is refused and handed over as before.
 // 28: this computer as a device of another (issue 297): `RemoteState.hosts` (the paired computers and their link) and `POST /remote/connect {code}`, `/remote/forget {id}`. An older server has neither, so the page offers no Connect to a computer.
-export const PROTOCOL = 28;
+// 29: another computer's projects in this one's switcher (issue 297): `GET /system/projects` rows may carry `remote: {host, name}`, `POST /system/remote/open {host, port}` opens a desktop proxy for one, and `GET /system/remote/page` is `{host, name}` on a page the proxy serves (null on a window's own); the channel's `public` stream. Both computers need it: the flag comes from the proxy, the page from the other computer.
+export const PROTOCOL = 29;
 
 /** protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it */
 export type HeldSend = { id: string; text: string; ts: number; images?: ImageRef[]; voice?: Voice };

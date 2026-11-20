@@ -565,15 +565,28 @@ A dot on the gear shows remote access: none (off), amber (connecting), green (on
 - **Access**: relay address, [access key](#access-key), the switch that lets devices in, state, the computer's fingerprint.
 - **Pair a device**: a QR code (or text, Copy), time left, fingerprint. A code pairs one device; another is refused and named.
 - **Devices**: each paired phone or computer with **Revoke** (immediate).
-- **Connect to a computer**: paste the code another computer shows under *Pair a device*; this one becomes its device. Each paired computer shows online, connecting, not reachable or revoked, with **Forget** (here only: the other computer lists this one until it revokes it). It needs no relay or access key of its own. Using the other computer's windows from here comes in a later release.
+- **Connect to a computer**: paste the code another computer shows under *Pair a device*; this one becomes its device. Each paired computer shows online, connecting, not reachable or revoked, with **Forget** (here only: the other computer lists this one until it revokes it). It needs no relay or access key of its own.
 
 With a relay saved and access on, or a computer paired, the first window starts the connector and others share it, so the link stays up while any window is open. Only the computer can pair, revoke or switch access.
 
 <details><summary>More</summary>
 
-The connector stops a minute after the last window closes; log: `remote/connector.log`. A lasting refusal is retried after 1, 2, 5, then 10 minutes; a change in the tab retries at once. Only the pairing window shows the code.
+The connector stops a minute after the last window closes (and the last tab of another computer's window); log: `remote/connector.log`. A lasting refusal is retried after 1, 2, 5, then 10 minutes; a change in the tab retries at once. Only the pairing window shows the code.
 
 </details>
+
+### Working in another computer's projects
+
+Once this computer is paired with another, the project switcher and the rail list that computer's running windows beside this one's: a laptop on the tile and the computer's name in the row (the tooltip in the rail). A computer that is offline drops out of the list until it is back. Choosing one opens it in the same tab with the full interface (chat, files, editor, comments, video, voice, shell), served by that computer through the relay and this computer's connector, end-to-end encrypted. The switcher there still lists both computers and moves to either.
+
+It is a tab of that window like any other: it takes the window over from the other computer's tab and its phone, and **Work here** takes it back. What is not there:
+
+- Starting, creating or stopping the other computer's projects: no **Open folder…**, **New project…**, Recent, stop buttons or **Stop Nota Bene** on its page; its other windows' sessions are not listed.
+- **Show in Finder** and **Open in default app**: they act on the computer the window runs on.
+- The **Remote** tab: pairing and access are changed on that computer.
+- Files over 32 MB: the relay carries a request whole, up to 32 MB; a larger file says so before it is sent (images are resized as usual).
+
+Both computers need this release or a later one. The tab shows the other computer's window on `localhost` with a port of its own (this computer's windows stay on `127.0.0.1`), so the two never share a login; the address is new each time and is gone a minute after its last tab closed.
 
 ### Access key
 

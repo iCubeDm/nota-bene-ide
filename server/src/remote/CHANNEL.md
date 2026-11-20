@@ -151,8 +151,14 @@ The `OPEN` body names what the stream is:
   `if-range`, `if-modified-since`; others are dropped (the host adds the
   window's credentials). `set-cookie` never comes back. A request body may
   hold at most 32 MiB (4913 beyond).
+- `{"kind":"public","port":n,"method":"GET"|"HEAD","path":"/…","headers"?:{…}}`:
+  as `http`, but the host adds no credentials: the window answers what it
+  serves anyone (the app shell) and 401 for the rest. Another computer's
+  desktop proxy (`proxy.ts`) sends a page's requests this way until the page
+  logged in to the proxy. A host that does not know the kind closes it with
+  4900, so an older one never answers such a request with credentials.
 
-Path rule, for `http` and `ws` alike (`device.ts` `goodPath`). Refused with
+Path rule, for `http`, `public` and `ws` alike (`device.ts` `goodPath`). Refused with
 `CLOSE` 4900: a path longer than 8192 bytes, one that does not start with `/`
 or starts with `//`, one that holds anything but printable ASCII
 (percent-encode the rest, as in a URL), `\` or `#`, and any path under these

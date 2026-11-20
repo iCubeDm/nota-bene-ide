@@ -26,6 +26,8 @@ export type RunningRow = {
   /** final replies of its session after the person last saw it (seen.ts) */
   unseen: number;
   last: LastMessage | null;
+  /** issue 297: a window of a paired computer (its host id and name), reached through this computer's connector */
+  remote?: { host: string; name: string };
 };
 export type ProjectsList = { running: RunningRow[]; recent: (RecentEntry & { running: boolean })[]; /** folders removed from Recent (recent.ts): the page drops them from its session history too */ hidden: string[] };
 export type ProbedInfo = {
@@ -88,6 +90,25 @@ export async function listProjects(own: { port: number; provider: AgentProvider 
   const up = new Set(rows.filter((r) => r.state !== 'restarting').map((r) => `${r.provider} ${r.root}`));
   const recent = readRecent(stateBaseDir()).map((e) => ({ ...e, root: wirePath(e.root), running: up.has(`${e.provider} ${wirePath(e.root)}`) }));
   return { running: rows, recent, hidden: readHidden(stateBaseDir()) };
+}
+
+/** A paired computer's windows as its host stream lists them (remote/hostLink.ts), for the switcher. */
+export type Computer = { id: string; name: string; windows: { port: number; provider: string; root: string; [k: string]: unknown }[] };
+
+/**
+ * The windows of the paired computers as rows (issue 297), the state from what the host stream says (`pending`, `busy`);
+ * `current`: the one a desktop proxy's page shows. An unknown agent's window is left out (the page names the agents).
+ */
+export function remoteRows(computers: Computer[], current?: { host: string; port: number }): RunningRow[] {
+  return computers.flatMap((c) => c.windows.flatMap((w): RunningRow[] => {
+    if (!(PROVIDERS as string[]).includes(w.provider) || typeof w.port !== 'number' || typeof w.root !== 'string') return [];
+    const last = w.last && typeof w.last === 'object' ? w.last as LastMessage : null;
+    return [{
+      provider: w.provider as AgentProvider, port: w.port, root: w.root, title: typeof w.title === 'string' ? w.title : null,
+      session: typeof w.session === 'string' ? w.session : null, state: w.pending ? 'waiting' : w.busy ? 'working' : 'idle',
+      current: current?.host === c.id && current.port === w.port, clients: 0, unseen: 0, last, remote: { host: c.id, name: c.name },
+    }];
+  }));
 }
 
 export type EnterResult = { url: string } | { error: 'no such window' | 'window not answering' };

@@ -5,7 +5,8 @@ import type { ServerEvent } from '@nota-bene/shared';
 import { setLang, t } from '@/i18n/index.ts';
 import { getToasts } from '@/shell/toast.ts';
 import { makeStore } from '@/store/store.ts';
-import type { ProjectsList } from './api.ts';
+import { page } from '@/net/local.ts';
+import type { ProjectsList, RunningRow } from './api.ts';
 import { nav, projectsMenu, setStarter } from './api.ts';
 import { ProjectSwitcher } from './ProjectSwitcher.tsx';
 
@@ -37,19 +38,27 @@ const LOCAL = { current: S1, root: '/w/notes', sessions: [
   { id: S4.replace('4444', '7777'), title: 'In a subfolder', at: 4, size: 1, cwd: '/w/notes/web' },
 ] };
 
+const URL_REMOTE = `http://localhost:50123/#t=${'b'.repeat(64)}`;
+const STUDIO = { host: 'h1', name: 'Studio' };
+/** another computer's window on the same folder and port as this one's */
+const REMOTE: RunningRow = { provider: 'claude', port: 4791, root: '/w/notes', title: 'Studio notes', session: S2, state: 'idle', current: false, clients: 0, unseen: 0, last: at(60, 'from the studio'), remote: STUDIO };
+
 let calls: { url: string; body: Record<string, unknown> | undefined }[];
+let list: ProjectsList;
 let enter: () => Response;
 let hidden: string[];
 beforeEach(() => {
   setLang('en');
   calls = [];
   hidden = [];
+  list = LIST;
   enter = () => Response.json({ url: URL_OK });
   vi.stubGlobal('fetch', vi.fn(async (u: string, init?: RequestInit) => {
     const url = String(u);
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
     calls.push({ url, body });
-    if (url === '/system/projects') return Response.json({ ...LIST, recent: LIST.recent.filter((e) => !hidden.includes(e.root)), hidden });
+    if (url === '/system/projects') return Response.json({ ...list, recent: list.recent.filter((e) => !hidden.includes(e.root)), hidden });
+    if (url === '/system/remote/open') return body?.host === 'h1' ? Response.json({ url: URL_REMOTE }) : Response.json({ error: 'no such window' }, { status: 404 });
     if (url === '/system/projects/forget') { hidden.push(String(body?.root)); return Response.json({ ok: true }); }
     if (url === '/system/projects/enter') return enter();
     if (url === '/system/projects/open') return Response.json({ url: URL_OK });
@@ -66,7 +75,7 @@ beforeEach(() => {
   }));
   vi.spyOn(nav, 'go').mockImplementation(() => {});
 });
-afterEach(() => { cleanup(); act(() => projectsMenu.close()); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); act(() => projectsMenu.close()); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; });
 
 function setup() {
   const store = makeStore({ url: 'ws://x', connect: (_u, onEvent, onState) => {
@@ -303,4 +312,51 @@ it('a page restored by Back has the menu closed', async () => {
   expect(projectsMenu.get()).toBe(true);
   act(() => { window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); });
   expect(projectsMenu.get()).toBe(false);
+});
+
+it('issue 297: another computer\'s window is a row of its own, with the laptop and its name; it opens through the connector', async () => {
+  list = { ...LIST, running: [...LIST.running, REMOTE] };
+  await openMenu();
+  const notes = within(screen.getByRole('group', { name: t('projProjects') })).getAllByRole('button', { name: /^notes ·/ });
+  expect(notes).toHaveLength(2);
+  const remote = notes.find((b) => b.textContent!.includes('Studio'))!;
+  expect(remote).toHaveTextContent('from the studio');
+  expect(remote.getAttribute('aria-label')).toBe('notes · Studio · Studio notes · Claude');
+  expect(remote.querySelector('[data-remote]')).not.toBeNull();
+  expect(notes.find((b) => b !== remote)!.querySelector('[data-remote]')).toBeNull();
+  // its sessions and its stop are that computer's: neither here
+  expect(screen.getAllByRole('button', { name: t('projExpand', 'notes') })).toHaveLength(1);
+  expect(screen.queryByRole('button', { name: t('projStop', 'notes') })).toBeNull();
+  fireEvent.click(remote);
+  await waitFor(() => expect(nav.go).toHaveBeenCalledWith(URL_REMOTE));
+  expect(calls.find((c) => c.url === '/system/remote/open')!.body).toEqual({ host: 'h1', port: 4791 });
+  expect(calls.some((c) => c.url === '/system/projects/enter')).toBe(false);
+});
+
+it('issue 297: a failed open of another computer\'s window says why and stays', async () => {
+  list = { ...LIST, running: [...LIST.running, { ...REMOTE, remote: { host: 'h2', name: 'Gone' } }] };
+  await openMenu();
+  fireEvent.click(within(screen.getByRole('group', { name: t('projProjects') })).getAllByRole('button', { name: /^notes · Gone/ })[0]!);
+  await waitFor(() => expect(getToasts().some((x) => x.title === t('projEnterFailed', t('whyNoWindow')))).toBe(true));
+  expect(nav.go).not.toHaveBeenCalled();
+});
+
+it('issue 297: on another computer\'s page, a move is a navigation to its proxy; nothing to open, start or stop here', async () => {
+  page.remote = STUDIO;
+  list = { ...LIST, running: [...LIST.running.map((r) => ({ ...r, current: false })), { ...REMOTE, current: true }, { ...REMOTE, port: 4777, root: '/w/far', current: false }] };
+  await openMenu();
+  await screen.findByRole('group', { name: t('projProjects') });
+  expect(screen.queryByRole('group', { name: t('projRecent') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t('projOpenFolder') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t('projNew') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t('projStop', 'blog') })).toBeNull();
+  // this page's own folder still expands to its sessions
+  expect(screen.getAllByRole('button', { name: t('projExpand', 'notes') })).toHaveLength(1);
+  expect(screen.queryByRole('button', { name: t('projExpand', 'blog') })).toBeNull();
+  fireEvent.click(projectRow('blog'));
+  expect(nav.go).toHaveBeenCalledWith('/system/remote/enter?provider=claude&port=4795&root=%2Fw%2Fblog');
+  act(() => projectsMenu.open());
+  fireEvent.click(await screen.findByRole('button', { name: /^far ·/ }));
+  expect(nav.go).toHaveBeenCalledWith('/system/remote/enter?host=h1&port=4777');
+  expect(calls.some((c) => c.url === '/system/projects/enter' || c.url === '/system/remote/open')).toBe(false);
 });

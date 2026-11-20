@@ -1,5 +1,7 @@
 // `GET /remote`, `POST /remote/{config,pair,pair/cancel,revoke,connect,forget}`: the Remote tab's server side (keeper.ts does
-// the work). Key tier, as every route; a paired device never reaches them (device.ts goodPath).
+// the work). `POST /system/remote/open`, `GET /system/remote/page`: the switcher's move to a paired computer's window and
+// the page's question whether it is one (issue 297; a desktop proxy answers the latter itself, proxy.ts). Key tier, as
+// every route; a paired device never reaches them (device.ts goodPath).
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import type { EventHub } from '../hub.ts';
 import { reportError } from '../errors.ts';
@@ -25,7 +27,7 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   return v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
 }
 
-export type RemoteKeeperApi = Pick<RemoteKeeper, 'refresh' | 'setConfig' | 'pair' | 'cancelPair' | 'revoke' | 'connect' | 'forget'>;
+export type RemoteKeeperApi = Pick<RemoteKeeper, 'refresh' | 'setConfig' | 'pair' | 'cancelPair' | 'revoke' | 'connect' | 'forget' | 'openWindow'>;
 
 /** `keeper` undefined: this window keeps no connector (a test server); every route answers 503. */
 export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undefined }): Record<string, RequestListener> {
@@ -78,6 +80,15 @@ export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undef
       const b = await readBody(req);
       if (typeof b.code !== 'string' || !b.code.trim()) return json(res, 400, { error: 'code must be a string' });
       json(res, 200, { ok: true, host: await k.connect(b.code) });
+    }),
+    // this window is no desktop proxy's page
+    '/system/remote/page': (req, res) => (req.method === 'GET' || req.method === 'HEAD' ? json(res, 200, null) : json(res, 405, { error: 'method not allowed' })),
+    '/system/remote/open': route('POST', async (k, req, res) => {
+      const b = await readBody(req);
+      if (typeof b.host !== 'string' || !b.host || !Number.isInteger(b.port)) return json(res, 400, { error: 'bad request' });
+      const r = await k.openWindow(b.host, b.port as number);
+      if ('url' in r) return json(res, 200, r);
+      json(res, r.error === 'no such window' ? 404 : 409, r);
     }),
     '/remote/forget': route('POST', async (k, req, res) => {
       const b = await readBody(req);

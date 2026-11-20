@@ -11,9 +11,9 @@ import { CipherState, Handshake, MAX_PLAINTEXT, PROLOGUE, type KeyPair } from '.
 import { deviceHash, fromB64u, pairProof } from './store.ts';
 
 const METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']);
-const FORWARDED = ['accept', 'content-type', 'range', 'if-none-match', 'if-range', 'if-modified-since'];
+export const FORWARDED = ['accept', 'content-type', 'range', 'if-none-match', 'if-range', 'if-modified-since'];
 const DROPPED = new Set(['set-cookie', 'connection', 'keep-alive', 'transfer-encoding']);
-const MAX_BODY = 32 * 1024 * 1024; // a request body is buffered whole, so a refused bearer can be retried
+export const MAX_BODY = 32 * 1024 * 1024; // a request body is buffered whole, so a refused bearer can be retried
 const INFO_MS = 5000;
 const INFO_FIELDS = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies', 'icon'];
 
@@ -163,7 +163,7 @@ export class DeviceChannel {
   #openKind(s: Stream, open: unknown): void {
     const o = (open && typeof open === 'object' ? open : {}) as { kind?: unknown; port?: unknown; path?: unknown; method?: unknown; headers?: unknown };
     if (o.kind === 'host') return this.#hostStream(s);
-    if (o.kind !== 'ws' && o.kind !== 'http') return s.close(BAD_FRAME, 'unknown stream kind');
+    if (o.kind !== 'ws' && o.kind !== 'http' && o.kind !== 'public') return s.close(BAD_FRAME, 'unknown stream kind');
     if (!goodPath(o.path)) return s.close(BAD_FRAME, 'bad path');
     const w = typeof o.port === 'number' ? this.#o.windows.get(o.port) : undefined;
     if (!w) return s.close(UNKNOWN_WINDOW, 'no such window');
@@ -173,13 +173,17 @@ export class DeviceChannel {
     }
     const method = typeof o.method === 'string' ? o.method.toUpperCase() : '';
     if (!METHODS.has(method)) return s.close(BAD_FRAME, 'bad method');
+    // issue 297: a request without the window's credentials (what it serves anyone: the app shell), for a desktop proxy's
+    // page that has not logged in to it yet
+    const anon = o.kind === 'public';
+    if (anon && method !== 'GET' && method !== 'HEAD') return s.close(BAD_FRAME, 'bad method');
     const headers: Record<string, string> = {};
     if (o.headers && typeof o.headers === 'object') {
       for (const [k, v] of Object.entries(o.headers as Record<string, unknown>)) {
         if (typeof v === 'string' && FORWARDED.includes(k.toLowerCase())) headers[k.toLowerCase()] = v;
       }
     }
-    this.#httpStream(s, w, method, o.path, headers);
+    this.#httpStream(s, w, method, o.path, headers, anon);
   }
 
   #hostStream(s: Stream): void {
@@ -240,7 +244,7 @@ export class DeviceChannel {
     });
   }
 
-  #httpStream(s: Stream, w0: HostWindow, method: string, path: string, headers: Record<string, string>): void {
+  #httpStream(s: Stream, w0: HostWindow, method: string, path: string, headers: Record<string, string>, anon: boolean): void {
     const parts: Buffer[] = [];
     let size = 0;
     let req: http.ClientRequest | undefined;
@@ -252,11 +256,11 @@ export class DeviceChannel {
     this.#track(s, () => req?.destroy());
     const send = (w: HostWindow, retried: boolean) => {
       const body = Buffer.concat(parts);
-      const h: Record<string, string> = { ...headers, authorization: w.bearer, host: `127.0.0.1:${w.port}` };
+      const h: Record<string, string> = { ...headers, ...(anon ? {} : { authorization: w.bearer }), host: `127.0.0.1:${w.port}` };
       if (method !== 'GET' && method !== 'HEAD') h.origin = `http://127.0.0.1:${w.port}`;
       if (body.length > 0 || (method !== 'GET' && method !== 'HEAD')) h['content-length'] = String(body.length);
       try {
-        req = http.request({ host: '127.0.0.1', port: w.port, method, path, headers: h }, (res) => this.#answer(s, res, w, retried, send));
+        req = http.request({ host: '127.0.0.1', port: w.port, method, path, headers: h }, (res) => this.#answer(s, res, w, retried || anon, send));
       } catch {
         return s.close(BAD_FRAME, 'bad request');
       }

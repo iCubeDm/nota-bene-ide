@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { t } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
+import { remotePage } from '@/net/local.ts';
 import { toast } from '@/shell/toast.ts';
 
 export type Provider = 'claude' | 'codex' | 'omp';
@@ -13,6 +14,8 @@ export type RunningRow = {
   /** final replies of its session the person has not seen (server/src/seen.ts) */
   unseen: number;
   last: LastMessage | null;
+  /** issue 297: a window of a paired computer (its host id and name), opened through this computer's connector */
+  remote?: { host: string; name: string };
 };
 export type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
 export type ProjectsList = { running: RunningRow[]; recent: RecentRow[]; /** folders removed from Recent: out of this window's history too */ hidden?: string[] };
@@ -174,11 +177,28 @@ export async function forgetRecent(root: string): Promise<string | null> {
   }
 }
 
-/** Moves this tab to the window of `row`, logged in (that window opens `session` when given); a refusal is a toast and the tab stays (false). */
+/**
+ * Moves this tab to the window of `row`, logged in (that window opens `session` when given); a refusal is a toast and the tab
+ * stays (false). Another computer's window opens through this computer's connector (POST /system/remote/open). From such a
+ * window's page (issue 297) the move is a navigation to its proxy's `/system/remote/enter`, whose redirect carries the
+ * login: page code there never holds a credential of this computer's windows.
+ */
 export async function enterProject(row: RunningRow, session?: string): Promise<boolean> {
+  if (remotePage()) {
+    const q = new URLSearchParams(row.remote ? { host: row.remote.host, port: String(row.port) } : { provider: row.provider, port: String(row.port), root: row.root });
+    nav.go(`/system/remote/enter?${q}`);
+    return true;
+  }
   try {
-    const r = await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
-    if (!r.ok) { toast(t('projEnterFailed', reasonText(await reasonOf(r))), row.root); return false; }
+    const r = row.remote
+      ? await postJson('/system/remote/open', { host: row.remote.host, port: row.port })
+      : await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
+    // the remote routes say why as JSON `{error}`, the switcher's as text
+    if (!r.ok) {
+      const why = row.remote ? ((await r.json().catch(() => null)) as { error?: unknown } | null)?.error : await reasonOf(r);
+      toast(t('projEnterFailed', reasonText(typeof why === 'string' ? why : String(r.status))), row.root);
+      return false;
+    }
     const { url } = (await r.json()) as { url?: unknown };
     if (typeof url !== 'string') { toast(t('projEnterFailed', reasonText('bad answer')), row.root); return false; }
     nav.go(url);

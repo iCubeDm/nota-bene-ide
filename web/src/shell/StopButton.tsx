@@ -5,6 +5,7 @@ import { selectSwitching, stopWindow } from '@/controls/slice.ts';
 import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { apiFetch } from '@/net/auth.ts';
+import { remotePage } from '@/net/local.ts';
 import { stopOthers } from '@/projects/api.ts';
 import { toast } from './toast.ts';
 
@@ -12,7 +13,8 @@ import { toast } from './toast.ts';
  * ⏻ in the header's corner: Stop Nota Bene. After a confirmation that warns of a running turn (here or in another window),
  * every other window stops first (/system/projects/stop-others), then this one, its agent and its launcher; the sessions
  * stay and the tab parks on the Stopped overlay. If another window does not stop, this one stays open: it is the way back
- * to the rest (a single project is stopped from the project list).
+ * to the rest (a single project is stopped from the project list). Not on another computer's page shown through this one
+ * (issue 297): its projects are not stopped from here.
  */
 export function StopButton() {
   const t = useT();
@@ -24,8 +26,8 @@ export function StopButton() {
   const open = () => {
     setAsk(true);
     setOthersBusy(false);
-    apiFetch('/system/projects').then((r) => (r.ok ? r.json() : null)).then((j: { running?: { state?: string; current?: boolean }[] } | null) => {
-      setOthersBusy(!!j?.running?.some((w) => !w.current && w.state === 'working'));
+    apiFetch('/system/projects').then((r) => (r.ok ? r.json() : null)).then((j: { running?: { state?: string; current?: boolean; remote?: object }[] } | null) => {
+      setOthersBusy(!!j?.running?.some((w) => !w.current && !w.remote && w.state === 'working'));
     }).catch(() => {});
   };
   const stop = async () => {
@@ -33,6 +35,7 @@ export function StopButton() {
     if ((await stopOthers()) !== 0) return toast(t('stopAllFail'), '');
     void d(stopWindow());
   };
+  if (remotePage()) return null;
   return (
     <>
       <button

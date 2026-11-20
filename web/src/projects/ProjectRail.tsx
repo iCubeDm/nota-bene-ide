@@ -5,6 +5,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
+import { remotePage } from '@/net/local.ts';
 import { enterProject, openStarter, PROVIDER_LABEL, useProjects, type RunningRow } from './api.ts';
 import { useRailPref } from './railPref.ts';
 import { foldRows, type Badge, type ProjectRow } from './rows.ts';
@@ -21,7 +22,7 @@ const isWide = () => window.matchMedia?.(WIDE).matches ?? true;
 
 /** By folder name, case-insensitive, then by the whole path: the order does not follow the states. */
 export const byName = (a: ProjectRow, b: ProjectRow): number =>
-  folderOf(a.root).localeCompare(folderOf(b.root), undefined, { sensitivity: 'base' }) || a.root.localeCompare(b.root);
+  folderOf(a.root).localeCompare(folderOf(b.root), undefined, { sensitivity: 'base' }) || a.key.localeCompare(b.key);
 
 /**
  * This project's tile stands for the other windows in its folder (another agent's): its badge counts only them, never this
@@ -65,16 +66,16 @@ function Rail() {
         const go = !!target;
         const latest = r.windows.find((w) => w.title)?.title;
         const agents = [...new Set(r.windows.map((w) => PROVIDER_LABEL[w.provider]))].join(', ');
-        const lines = [folderOf(r.root), agents, t(STATE_KEY[r.state]), ...(latest ? [latest] : []), ...(r.current ? [t('projThis')] : []),
+        const lines = [folderOf(r.root), ...(r.remote ? [r.remote.name] : []), agents, t(STATE_KEY[r.state]), ...(latest ? [latest] : []), ...(r.current ? [t('projThis')] : []),
           ...(sib?.waiting ? [t('projSiblingWaits', PROVIDER_LABEL[sib.waiting.provider])] : [])];
         return (
-          <Tooltip key={r.root}>
+          <Tooltip key={r.key}>
             <TooltipTrigger asChild>
               <button type="button" data-root={r.root} aria-label={lines.join(' · ')} aria-current={r.current ? 'true' : undefined}
                 aria-disabled={!r.current && !go ? 'true' : undefined}
                 onClick={() => { if (target) void move(target); }}
                 className={`relative grid flex-none place-items-center rounded-lg p-0.5 ${r.current ? `bg-primary/15 ring-1 ring-primary/50 ${go ? 'cursor-pointer' : 'cursor-default'}` : go ? 'cursor-pointer hover:bg-muted' : 'cursor-default opacity-45'}`}>
-                <Tile root={r.root} state={r.state} ring="border-chrome" />
+                <Tile root={r.root} state={r.state} remote={!!r.remote} ring="border-chrome" />
                 <span className="absolute -top-1 -right-1 flex">
                   <BadgeView b={sib ? sib.badge : rowBadge(r)} />
                 </span>
@@ -89,13 +90,14 @@ function Rail() {
           </Tooltip>
         );
       })}
-      <Tooltip>
+      {/* another computer's page (issue 297) opens no folder of this one */}
+      {!remotePage() && <Tooltip>
         <TooltipTrigger asChild>
           <button type="button" aria-label={t('projOpenFolder')} onClick={() => openStarter('open')}
             className="mt-auto grid size-8 flex-none cursor-pointer place-items-center rounded-lg border border-dashed border-border-soft text-base leading-none text-muted-foreground hover:bg-muted hover:text-foreground">+</button>
         </TooltipTrigger>
         <TooltipContent side="right">{t('projOpenFolder')}</TooltipContent>
-      </Tooltip>
+      </Tooltip>}
     </nav>
   );
 }

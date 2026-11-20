@@ -21,7 +21,7 @@
 // same OS user (the agent too): the aim is to shut out other users and software that cannot read the file.
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
-import type { IncomingHttpHeaders } from 'node:http';
+import type { IncomingHttpHeaders, RequestListener } from 'node:http';
 import path from 'node:path';
 import { renameRetry } from './platform.ts';
 import { SecretError, stateDir } from './state.ts';
@@ -276,3 +276,37 @@ export function authenticated(headers: IncomingHttpHeaders, token: string, port:
 /** The Set-Cookie value a successful /auth sends. */
 export const sessionCookie = (token: string, port: number, nonce: string): string =>
   `${cookieName(port)}=${cookieCredential(token, port, nonce)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${COOKIE_MAX_AGE_S}`;
+
+/**
+ * POST /auth {login}: the page's one-time login (the login came in the URL fragment, which never reaches a server). Only
+ * reached with one of the listener's own Origins (the caller refuses the other POSTs), so a foreign page cannot even try.
+ * A window answers it for its port and launch; the desktop proxy (remote/proxy.ts) for its own. `token` null: no auth (tests).
+ */
+export function loginRoute(token: string | null, port: () => number, nonce: string): RequestListener {
+  return (req, res) => {
+    const plain = (status: number, body: string, headers: Record<string, string> = {}) => {
+      res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', ...headers });
+      res.end(body);
+    };
+    if (req.method !== 'POST') return plain(405, 'method not allowed', { allow: 'POST' });
+    let body = '';
+    let tooBig = false;
+    req.on('data', (d: Buffer) => {
+      body += d;
+      if (body.length > 1024) { tooBig = true; req.destroy(); }
+    });
+    req.on('end', () => {
+      if (tooBig) return;
+      let given: unknown;
+      try {
+        given = (JSON.parse(body) as { login?: unknown }).login;
+      } catch {
+        return plain(400, 'bad request');
+      }
+      if (token === null) return plain(200, '{"ok":true}', { 'content-type': 'application/json; charset=utf-8' });
+      // the login value of THIS launch and port, never the raw token: a URL that leaked is good until the launcher exits
+      if (typeof given !== 'string' || !sameSecret(given, loginCredential(token, port(), nonce))) return plain(401, 'unauthorized');
+      plain(200, JSON.stringify({ ok: true, key: keyCredential(token, port(), nonce) }), { 'content-type': 'application/json; charset=utf-8', 'set-cookie': sessionCookie(token, port(), nonce), 'cache-control': 'no-store' });
+    });
+  };
+}

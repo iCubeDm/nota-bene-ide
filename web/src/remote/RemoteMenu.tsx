@@ -1,6 +1,7 @@
 import type { RemoteState } from '@nota-bene/shared';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu.tsx';
 import { useT } from '@/i18n/index.ts';
+import { remotePage } from '@/net/local.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openRemote } from '@/tabs/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
@@ -18,12 +19,15 @@ export function troubleWhy(s: RemoteState | null, t: ReturnType<typeof useT>): s
   return s?.lastError?.message ?? t('remoteNotStarted');
 }
 
-/** The settings menu's Remote access row: the connector's state at a glance; it opens the Remote tab. */
+/**
+ * The settings menu's Remote access row: the connector's state at a glance; it opens the Remote tab. Not on another
+ * computer's page shown through this one (issue 297): its proxy refuses /remote, the access is that computer's to change.
+ */
 export function RemoteMenuItem({ className }: { className: string }) {
   const t = useT();
   const d = useAppDispatch();
   const { supported, state } = useAppSelector(selectRemote);
-  if (!supported) return null;
+  if (!supported || remotePage()) return null;
   const ind = indicator(state);
   const phones = state?.devices.filter((x) => x.online).length ?? 0;
   return (
@@ -43,6 +47,6 @@ export function RemoteMenuItem({ className }: { className: string }) {
 export function RemoteDot() {
   const { supported, state } = useAppSelector(selectRemote);
   const ind = indicator(state);
-  if (!supported || ind === 'off') return null;
+  if (!supported || ind === 'off' || remotePage()) return null;
   return <span id="settingsDot" data-state={ind} className={`pointer-events-none absolute right-0.5 top-0.5 size-1.5 rounded-full ${DOT[ind]}`} />;
 }
