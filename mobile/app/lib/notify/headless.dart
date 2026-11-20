@@ -8,7 +8,7 @@ import 'package:flutter/widgets.dart';
 
 import '../hosts/host_link.dart';
 import '../l10n/app_localizations.dart';
-import '../main.dart' show resolveLocale;
+import '../l10n/locale.dart';
 import '../pairing/pair_flow.dart' show ChannelFactory, connectChannel;
 import '../store/hosts.dart';
 import '../store/lang_choice.dart';

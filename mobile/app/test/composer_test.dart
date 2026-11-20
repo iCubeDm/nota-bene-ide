@@ -803,7 +803,8 @@ void main() {
         // back out of the chat: the route and its tab are gone
         await t.pumpWidget(const SizedBox());
         r.dispose();
-        r = Rig();
+        // the same app run: its stores stay
+        r = Rig()..stores = r.stores;
         await r.open(
           t,
           keepStore: true,
@@ -833,7 +834,8 @@ void main() {
         up.complete(ok());
         await t.pump();
         r.dispose();
-        r = Rig();
+        // the same app run: its stores stay
+        r = Rig()..stores = r.stores;
         await r.open(
           t,
           keepStore: true,

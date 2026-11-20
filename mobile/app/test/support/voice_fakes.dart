@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/audio_clip.dart';
 import 'package:nb_app/comments/queue.dart';
 import 'package:nb_app/media/fetch.dart';
+import 'package:nb_app/sdk.dart';
+import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_app/voice/player.dart';
 import 'package:nb_app/voice/recorder.dart';
@@ -158,6 +160,16 @@ class MemoryQueueFile implements QueueFile {
   @override
   Future<void> write(String json) async => this.json = json;
 }
+
+/// The app's stores in memory: an empty vault, outbox disk and queue file unless given (each call a fresh install),
+/// caching sent voices in the player of the moment.
+Future<AppStores> memoryStores({OutFiles? outFiles, QueueFile? queueFile}) =>
+    AppStores.load(
+      MemoryVault(),
+      sounds: VoicePlayer.shared,
+      outFiles: outFiles ?? MemoryOutFiles(),
+      queueFile: queueFile ?? MemoryQueueFile(),
+    );
 
 /// The clips' files, in memory: name -> bytes. Reads as the disk does: a body past [max], short of its length or
 /// abandoned leaves nothing.

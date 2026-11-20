@@ -12,7 +12,7 @@ import 'package:nb_channel/nb_channel.dart';
 import 'support/fakes.dart';
 import 'support/rig.dart';
 
-String w(String key) => usageString(key, 'en');
+String w(UsageKey key) => usageString(key, 'en');
 
 Map<String, Object?> row(num calls, num wt, {num sub = 0}) => {
   'calls': calls,
@@ -158,7 +158,7 @@ void main() {
     await show(t);
     expect(usageGets(), ['GET /usage?provider=claude&period=trip']);
     expect(find.text('1.5M'), findsOneWidget);
-    expect(find.text(w('usageTokens')), findsOneWidget);
+    expect(find.text(w(UsageKey.usageTokens)), findsOneWidget);
     expect(find.textContaining('Opus 5.5'), findsWidgets);
   });
 
@@ -209,10 +209,10 @@ void main() {
         '',
         'Nov 1 – Nov 7',
         'Nov 8',
-        w('usageTank5h'),
+        w(UsageKey.usageTank5h),
         '—',
         fmtTokens(900000, 'en'),
-        w('usageTank'),
+        w(UsageKey.usageTank),
         fmtTokens(3800000, 'en'),
         fmtTokens(3700000, 'en'),
       ]);
@@ -237,8 +237,8 @@ void main() {
           : Future.value(answer(200, jsonEncode(report()))),
     );
     await show(t);
-    await t.tapText(w('usagePeriod30d'));
-    await t.tapText(w('usagePeriod7d'));
+    await t.tapText(w(UsageKey.usagePeriod30d));
+    await t.tapText(w(UsageKey.usagePeriod7d));
     expect(find.text('2M'), findsOneWidget);
     slow.complete(
       answer(200, jsonEncode(report(period: '30d', total: 9000000))),
@@ -252,24 +252,24 @@ void main() {
     host((p) async => answer(200, jsonEncode(report(provider: 'codex'))));
     await show(t);
     expect(find.text('1.5M'), findsNothing);
-    expect(find.text(w('usageLoading')), findsOneWidget);
+    expect(find.text(w(UsageKey.usageLoading)), findsOneWidget);
   });
 
   testWidgets('a failing request says so and does not spin', (t) async {
     host((p) async => answer(500, '{}'));
     await show(t);
     expect(
-      find.text(usageTemplate('usageLoadFail', 'en', ['500'])),
+      find.text(usageTemplate(UsageKey.usageLoadFail, 'en', ['500'])),
       findsOneWidget,
     );
-    expect(find.text(w('usageLoading')), findsNothing);
+    expect(find.text(w(UsageKey.usageLoading)), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
   testWidgets('importing polls every 2 s until the screen is left', (t) async {
     host((p) async => answer(200, jsonEncode(report(importing: true))));
     await show(t);
-    expect(find.text(w('usageImporting')), findsOneWidget);
+    expect(find.text(w(UsageKey.usageImporting)), findsOneWidget);
     expect(usageGets(), hasLength(1));
     await t.pump(const Duration(seconds: 2, milliseconds: 100));
     expect(usageGets(), hasLength(2));
@@ -287,12 +287,12 @@ void main() {
       ),
     );
     await show(t);
-    await t.tapText(w('usagePeriodAll'));
-    await t.tap(find.byTooltip(w('usageReset')));
+    await t.tapText(w(UsageKey.usagePeriodAll));
+    await t.tap(find.byTooltip(w(UsageKey.usageReset)));
     await t.pumpAndSettle();
-    expect(find.text(w('usageResetQ')), findsOneWidget);
+    expect(find.text(w(UsageKey.usageResetQ)), findsOneWidget);
     expect(r.ch.calls.where((c) => c.method == 'POST'), isEmpty);
-    await t.tap(find.widgetWithText(FilledButton, w('usageReset')));
+    await t.tap(find.widgetWithText(FilledButton, w(UsageKey.usageReset)));
     await t.pumpAndSettle();
     final post = r.ch.calls.singleWhere((c) => c.method == 'POST');
     expect(post.path, '/usage/reset');
@@ -303,12 +303,12 @@ void main() {
   testWidgets('a refused reset says so', (t) async {
     host((p) async => answer(200, jsonEncode(report())), reset: 409);
     await show(t);
-    await t.tap(find.byTooltip(w('usageReset')));
+    await t.tap(find.byTooltip(w(UsageKey.usageReset)));
     await t.pumpAndSettle();
-    await t.tap(find.widgetWithText(FilledButton, w('usageReset')));
+    await t.tap(find.widgetWithText(FilledButton, w(UsageKey.usageReset)));
     await t.pumpAndSettle();
     expect(
-      find.text(usageTemplate('usageLoadFail', 'en', ['409'])),
+      find.text(usageTemplate(UsageKey.usageLoadFail, 'en', ['409'])),
       findsOneWidget,
     );
   });
@@ -323,11 +323,11 @@ void main() {
     );
     await t.drag(find.byType(ListView), const Offset(0, -200));
     await t.pumpAndSettle();
-    expect(find.text(w('usageTopCalls')), findsNothing);
+    expect(find.text(w(UsageKey.usageTopCalls)), findsNothing);
     await t.tap(find.text('Write the intro'));
     await t.pumpAndSettle();
-    expect(find.text(w('usageTopCalls')), findsOneWidget);
-    expect(find.text(w('usageSubagents')), findsWidgets);
+    expect(find.text(w(UsageKey.usageTopCalls)), findsOneWidget);
+    expect(find.text(w(UsageKey.usageSubagents)), findsWidgets);
   });
 
   testWidgets('the model mix keeps its proportions at billions of tokens', (
@@ -369,10 +369,10 @@ void main() {
     await t.pumpAndSettle();
     for (final line in [
       when(1700000000000, 'en'),
-      '${w('usageBarTotal')} ${fmtTokens(5000, 'en')}',
-      '${w('usageBarLimit')} ${fmtTokens(3000, 'en')}',
+      '${w(UsageKey.usageBarTotal)} ${fmtTokens(5000, 'en')}',
+      '${w(UsageKey.usageBarLimit)} ${fmtTokens(3000, 'en')}',
       'extra usage ${fmtTokens(2000, 'en')}',
-      w('usageHitShort'),
+      w(UsageKey.usageHitShort),
     ]) {
       expect(find.text(line), findsOneWidget, reason: line);
     }

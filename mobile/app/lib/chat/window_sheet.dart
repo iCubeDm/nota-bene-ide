@@ -41,10 +41,10 @@ String? runWindowCommand(
       name == ClientMessageCommandName.compact && tab.canOrderCompact;
   if ((tab.busy && !ordered) ||
       (name == ClientMessageCommandName.clear && tab.orderWaits)) {
-    return webString('working', lang);
+    return webString(WebKey.working, lang);
   }
   if (!tab.send(ClientMessageCommand(name: name))) {
-    return webString('offline', lang);
+    return webString(WebKey.offline, lang);
   }
   return null;
 }

@@ -51,8 +51,8 @@ void main() {
 
   setUp(() {
     disk = MemoryOutFiles();
-    store = VoiceStore(disk);
     VoicePlayer.shared = VoicePlayer(files: MemoryVoiceFiles());
+    store = VoiceStore(disk, sounds: VoicePlayer.shared);
     sent = [];
     upload = null;
     open = true;
@@ -116,7 +116,7 @@ void main() {
       upload!.complete(ok());
       await settle();
       detectOk = false;
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       box = attach(next);
       await next.ready;
       box.opened();
@@ -139,7 +139,7 @@ void main() {
       upload!.complete(ok());
       await settle();
       detectOk = true;
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       box = attach(next);
       await next.ready;
       box.opened();
@@ -177,7 +177,7 @@ void main() {
       expect(box.entries.single.stage, OutStage.uploading);
       expect(box.entries.single.voice, isNotNull);
       // the app dies and starts again
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       box = attach(next);
       await next.ready;
       expect(box.entries, hasLength(1));
@@ -198,7 +198,7 @@ void main() {
       await settle();
       expect(box.heldIds, {'c1'});
       box.detach(owner);
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       upload = null;
       final again = attach(next);
       await next.ready;
@@ -218,7 +218,7 @@ void main() {
     box.submit(wavOf(1000), 'en');
     await settle();
     box.detach(owner);
-    final next = VoiceStore(disk);
+    final next = VoiceStore(disk, sounds: VoicePlayer.shared);
     upload = null;
     final again = attach(next);
     await next.ready;
@@ -238,7 +238,7 @@ void main() {
       await settle();
       expect(box.entries.single.stage, OutStage.failed);
       box.detach(owner);
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       box = attach(next);
       await next.ready;
       expect(box.entries.single.stage, OutStage.failed);

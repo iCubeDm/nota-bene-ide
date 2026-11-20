@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/feed.dart';
 import 'package:nb_app/chat/window_tab.dart';
-import 'package:nb_app/comments/queue.dart';
 import 'package:nb_app/hosts/host_link.dart';
+import 'package:nb_app/sdk.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_channel/nb_channel.dart';
@@ -36,10 +36,11 @@ void main() {
   late HostLink link;
   late FakeChannel ch;
   late WindowTab tab;
+  late AppStores stores;
 
   setUp(() async {
-    // the comment queues are the app's: each test starts with an empty one
-    CommentQueues.instance = CommentQueues(MemoryQueueFile());
+    // the comment queues are the app's: each test starts with empty ones
+    stores = await memoryStores();
     f = FakeFactory();
     ch = FakeChannel([window(4791, '/p')]);
     f.results.add(ch);
@@ -55,7 +56,12 @@ void main() {
       sleep: (_) => Completer<void>().future,
     )..start();
     await settle();
-    tab = WindowTab(link, window(4791, '/p'), retry: (_) async {});
+    tab = WindowTab(
+      link,
+      window(4791, '/p'),
+      stores: stores,
+      retry: (_) async {},
+    );
     await settle();
   });
 
@@ -210,6 +216,7 @@ void main() {
       final own = WindowTab(
         link,
         window(4791, '/p', id: id),
+        stores: stores,
         retry: (_) async {},
       );
       await settle();
@@ -240,6 +247,7 @@ void main() {
         final own = WindowTab(
           link,
           window(4792, '/p', id: id),
+          stores: stores,
           retry: (_) async {},
         );
         await settle();
@@ -265,6 +273,7 @@ void main() {
         final own = WindowTab(
           link,
           window(4792, '/p', id: '$id:4792'),
+          stores: stores,
           retry: (_) async {},
         );
         await settle();

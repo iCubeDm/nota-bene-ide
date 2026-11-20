@@ -104,6 +104,11 @@ void main() {
     expect(e.mode, AgentMode.$unknown);
   });
 
+  test('a refusal for a reason not known yet is a refusal', () {
+    final a = GitSwitchAnswer.fromJson({'error': 'from-the-future'});
+    expect((a as GitSwitchRefusal).error, GitSwitchError.$unknown);
+  });
+
   test('\$unknown cannot be sent', () {
     expect(() => AgentMode.$unknown.toJson(), throwsStateError);
   });

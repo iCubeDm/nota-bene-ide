@@ -167,7 +167,7 @@ class ContextSheet extends StatelessWidget {
                       child: SheetTile(
                         NbGlyph.compact,
                         t.tileCompact,
-                        tooltip: webString('compactTip', lang),
+                        tooltip: webString(WebKey.compactTip, lang),
                         // while the agent works: ordered for its next pause (protocol 27), once
                         enabled:
                             open &&
@@ -197,7 +197,7 @@ class ContextSheet extends StatelessWidget {
                       child: SheetTile(
                         NbGlyph.clear,
                         t.tileClear,
-                        tooltip: webString('clearTip', lang),
+                        tooltip: webString(WebKey.clearTip, lang),
                         enabled: open && !tab.busy && !tab.orderWaits,
                         onTap: () => _clear(context),
                       ),
@@ -236,8 +236,8 @@ class ContextSheet extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(webString('clearTitle', lang)),
-        content: Text(webString('clearQ', lang)),
+        title: Text(webString(WebKey.clearTitle, lang)),
+        content: Text(webString(WebKey.clearQ, lang)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
@@ -245,7 +245,7 @@ class ContextSheet extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: Text(webString('clearBtn', lang)),
+            child: Text(webString(WebKey.clearBtn, lang)),
           ),
         ],
       ),
@@ -256,7 +256,7 @@ class ContextSheet extends StatelessWidget {
     final why = runWindowCommand(tab, ClientMessageCommandName.clear, lang);
     if (why != null) {
       messenger?.showSnackBar(
-        SnackBar(content: Text(webString('clearFail', lang) + why)),
+        SnackBar(content: Text(webString(WebKey.clearFail, lang) + why)),
       );
     }
   }

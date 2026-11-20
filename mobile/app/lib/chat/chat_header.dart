@@ -79,6 +79,7 @@ class ChatHeader extends StatelessWidget {
                   ListenableBuilder(
                     listenable: tab.link,
                     builder: (_, _) => ProjectIconAvatar(
+                      icons: tab.stores.icons,
                       link: tab.link,
                       port: tab.port,
                       icon: tab.window?.icon,

@@ -37,7 +37,8 @@ it('check names a stale file', () => {
 
 it('the mobile strings carry the web keys through webString', () => {
   const out = mobileStrings();
-  expect(out).toContain('String webString(String key, String lang)');
+  expect(out).toContain('String webString(WebKey key, String lang)');
+  expect(out).toMatch(/enum WebKey \{[^}]*\bworking,/);
   expect(out).toContain(`"working": {`);
   expect(out).toContain(JSON.stringify(ru.offline));
 });
@@ -53,4 +54,13 @@ it('the mobile strings carry the source names of an action and a subagent, with 
   const out = mobileStrings();
   for (const k of ['srcTool', 'srcToolBare', 'srcAgentReply', 'srcAgentReplyBare', 'srcAgentTool', 'srcAgentToolBare']) expect(out).toContain(`"${k}": {`);
   expect(out).toContain(JSON.stringify(ru.srcAgentReply('')));
+});
+
+it('the mobile strings name every mode in an exhaustive switch and read nothing with `!`', () => {
+  const out = mobileStrings();
+  expect(out).toContain("AgentMode.default_ => 'default',");
+  expect(out).toContain("AgentMode.codexReadOnly => 'codex-read-only',");
+  expect(out).toContain('AgentMode.$unknown => null,');
+  expect(out).not.toMatch(/\]!/);
+  expect(out).toContain('Intl.plural(');
 });

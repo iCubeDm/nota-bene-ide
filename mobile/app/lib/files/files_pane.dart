@@ -130,7 +130,11 @@ class _PaneHomeState extends State<_PaneHome> {
             SizedBox(
               height: 40,
               child: FolderTabs(
-                labels: [t.tabFiles, webString('vcsChanges', lang), t.tabLog],
+                labels: [
+                  t.tabFiles,
+                  webString(WebKey.vcsChanges, lang),
+                  t.tabLog,
+                ],
                 at: at.toDouble(),
                 onTap: (i) => setState(() => _at = i),
               ),

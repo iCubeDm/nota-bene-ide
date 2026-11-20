@@ -199,14 +199,16 @@ class _DiffScreenState extends State<DiffScreen> {
     if (p == null || patch == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (widget.file.binary || p.binary) return _note(webString('binary', lang));
+    if (widget.file.binary || p.binary) {
+      return _note(webString(WebKey.binary, lang));
+    }
     if (p.hunks.isEmpty) {
       return _note(
         patch.truncated
-            ? webString('vcsTooBig', lang)
+            ? webString(WebKey.vcsTooBig, lang)
             : widget.file.status == VcsFileStatus.a
-            ? webString('vcsEmptyFile', lang)
-            : webString('vcsOnlyMeta', lang),
+            ? webString(WebKey.vcsEmptyFile, lang)
+            : webString(WebKey.vcsOnlyMeta, lang),
       );
     }
     if (p.size > bigDiffRows && !_force) {
@@ -214,10 +216,10 @@ class _DiffScreenState extends State<DiffScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(batchTemplate('vcsBigDiff', lang, [p.size])),
+            Text(batchTemplate(BatchKey.vcsBigDiff, lang, [p.size])),
             TextButton(
               onPressed: () => setState(() => _force = true),
-              child: Text(webString('vcsShowAnyway', lang)),
+              child: Text(webString(WebKey.vcsShowAnyway, lang)),
             ),
           ],
         ),
@@ -229,7 +231,7 @@ class _DiffScreenState extends State<DiffScreen> {
           Padding(
             padding: const EdgeInsets.all(8),
             child: Text(
-              webString('vcsTooBig', lang),
+              webString(WebKey.vcsTooBig, lang),
               style: TextStyle(color: c.accent),
             ),
           ),

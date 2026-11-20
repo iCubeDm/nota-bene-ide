@@ -15,6 +15,7 @@ import 'package:nb_app/theme.dart';
 
 import 'support/fakes.dart';
 import 'support/mermaid_fake.dart';
+import 'support/voice_fakes.dart';
 
 Map<String, Object?> agent(Map<String, Object?> e) => {
   'kind': 'agent',
@@ -43,7 +44,12 @@ void main() {
       sleep: (_) => Completer<void>().future,
     )..start();
     await t.pump();
-    tab = WindowTab(link, window(4791, '/home/u/notes'), retry: (_) async {});
+    tab = WindowTab(
+      link,
+      window(4791, '/home/u/notes'),
+      stores: await memoryStores(),
+      retry: (_) async {},
+    );
     await t.pumpWidget(
       NbApp(
         home: MermaidScope(
