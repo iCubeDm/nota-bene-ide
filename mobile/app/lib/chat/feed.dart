@@ -424,8 +424,15 @@ class Feed {
     model = f.model;
   }
 
-  /// a kind this build does not know is no kind
-  static String? _kind(String? k) => k == r'$unknown' ? null : k;
+  /// the wire value of a tool kind; one this build does not know is none
+  static String? _kind(Object? k) => switch (k) {
+    WireAgentEventToolCallToolKind.$unknown ||
+    WireAgentEventToolUpdateToolKind.$unknown ||
+    null => null,
+    WireAgentEventToolCallToolKind k => k.toJson(),
+    WireAgentEventToolUpdateToolKind k => k.toJson(),
+    _ => null,
+  };
 
   void _agent(WireAgentEvent e) {
     switch (e) {
@@ -475,7 +482,7 @@ class Feed {
       ):
         items.add(
           ToolItem(id, name, toolArg(input), input, sub: sub)
-            ..toolKind = _kind(toolKind?.name),
+            ..toolKind = _kind(toolKind),
         );
       case WireAgentEventToolUpdate(
         :final id,
@@ -491,7 +498,7 @@ class Feed {
         t
           ..result = text
           ..isError = isError
-          ..toolKind = _kind(toolKind?.name) ?? t.toolKind;
+          ..toolKind = _kind(toolKind) ?? t.toolKind;
       case WireAgentEventTurnStart():
         busy = true;
         agentTurn = true;

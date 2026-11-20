@@ -89,7 +89,8 @@ void main() {
       Directory('test/fixtures/feed').listSync().whereType<File>().toList()
         ..sort((a, b) => a.path.compareTo(b.path));
   test('has the desktop feed fixtures', () {
-    expect(cases.length, greaterThanOrEqualTo(10));
+    // as many as web/src/store/feedParity.test.ts writes (it fails on a file no case produces)
+    expect(cases.length, 11);
   });
   for (final file in cases) {
     test('the feed of ${file.uri.pathSegments.last} matches the desktop', () {

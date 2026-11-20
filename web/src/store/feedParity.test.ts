@@ -204,6 +204,10 @@ const CASES: Record<string, ServerEvent[]> = {
 
 const dir = path.resolve(__dirname, '../../../mobile/app/test/fixtures/feed');
 
+it('the fixture directory holds exactly the cases', () => {
+  expect(fs.readdirSync(dir).sort()).toEqual(Object.keys(CASES).map((n) => `${n}.json`).sort());
+});
+
 for (const [name, events] of Object.entries(CASES)) {
   it(`the feed of ${name}`, () => {
     const items = events.reduce(reduce, emptyFeed).items;
