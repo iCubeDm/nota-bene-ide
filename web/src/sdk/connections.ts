@@ -147,9 +147,13 @@ export function connectionManager(list: () => AgentConnection[]): ConnectionMana
   };
 }
 
-/** The connection manager of a store made by makeStore: its thunk extra argument, so there is no second registry. */
-export const connectionsOf = (store: { dispatch: (a: never) => unknown }): ConnectionManager =>
-  store.dispatch(((_d: unknown, _g: unknown, x: { connections: ConnectionManager }) => x.connections) as never) as ConnectionManager;
+const managers = new WeakMap<object, ConnectionManager>();
+
+/** Ties a store to its manager (makeStore), so hooks and tests find it. */
+export const bindConnections = (store: object, m: ConnectionManager): void => void managers.set(store, m);
+
+/** The connection manager of a store made by makeStore. */
+export const connectionsOf = (store: object): ConnectionManager => managers.get(store)!;
 
 export const useConnection = (): AgentConnection => connectionsOf(useStore()).current();
 export const useConnState = (): ConnState => useSelector((s: { conn: { state: ConnState } }) => s.conn.state);

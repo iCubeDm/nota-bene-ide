@@ -5,7 +5,20 @@ import { Provider } from 'react-redux';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { makeStore, serverEvent } from '../store/store.ts';
 import type { SocketState } from '../net/socket.ts';
-import { agentConnection, connectionsOf, SELF, useConnection, useConnState, useFeature, type ConnState } from './connections.ts';
+import { agentConnection, connectionsOf, SELF, useConnection, useConnState, useFeature, type ConnState, type ConnectionManager } from './connections.ts';
+
+// the comment flush, called through, records which connection it found (the open-after-registration test below)
+const flushed = vi.hoisted(() => [] as string[]);
+vi.mock('../comments/slice.ts', async (orig) => {
+  const real = await orig<typeof import('../comments/slice.ts')>();
+  return {
+    ...real,
+    flushComments: () => (d: never, g: never, x: { connections: ConnectionManager }) => {
+      flushed.push(x.connections.current().id);
+      return (real.flushComments() as (d: never, g: never, x: unknown) => void)(d, g, x);
+    },
+  };
+});
 
 function fake() {
   const sent: ClientMessage[] = [];
@@ -32,6 +45,13 @@ it('the page has exactly one connection, SELF', () => {
   expect(m.get(SELF)).toBe(m.current());
   expect(m.get('other')).toBeUndefined();
   expect(m.current().base).toBe('');
+});
+
+it('a socket that reports open inside connect already finds the connection, and the comment flush runs', () => {
+  flushed.length = 0;
+  const store = makeStore({ url: 'u', connect: (_u, _e, onState) => (onState('open'), { send: () => true, close() {} }) });
+  expect(store.getState().conn.state).toBe('open');
+  expect(flushed).toEqual([SELF]);
 });
 
 it('the connection owns its state; the store mirrors each change with one connState dispatch', () => {

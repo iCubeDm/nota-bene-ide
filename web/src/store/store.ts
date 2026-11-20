@@ -2,7 +2,7 @@ import { configureStore, createAction, createListenerMiddleware, createSlice, ty
 import { useDispatch, useSelector, useStore, type TypedUseSelectorHook } from 'react-redux';
 import type { ImageRef, ServerEvent, Voice } from '@nota-bene/shared';
 import { dictationAsk } from '../voice/lang.ts';
-import { agentConnection, connectionManager, SELF, type AgentConnection, type AgentId, type Connect, type ConnectionManager, type ConnState } from '../sdk/connections.ts';
+import { agentConnection, bindConnections, connectionManager, SELF, type AgentConnection, type AgentId, type Connect, type ConnectionManager, type ConnState } from '../sdk/connections.ts';
 import { t } from '../i18n/index.ts';
 import { composerSlice } from '../composer/slice.ts';
 import { refusedMiddleware } from '../composer/refused.ts';
@@ -140,6 +140,7 @@ export function makeStore(o: {
     devTools: devToolsEnabled(),
   });
   mediaByStore.set(store, media);
+  bindConnections(store, connections);
   const self = agentConnection({
     id: SELF,
     base: '',
