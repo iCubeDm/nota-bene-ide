@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publicOf } from './noise.ts';
 import {
-  addDevice, b64u, controlSecret, deviceHash, fingerprint, fromB64u, hostId, hostKey, pairProof, pairTicket, pairUri, parsePairUri,
+  addDevice, addHost, b64u, controlSecret, deviceHash, deviceKey, fingerprint, fromB64u, hostId, hostKey, pairProof, readHosts, removeHost, pairTicket, pairUri, parsePairUri,
   clearLastError, memberPub, memberSign, parseAccessKey, readAccessKey, readConfig, readDevices, readLastError, remoteDir, removeDevice,
   writeAccessKey, writeConfig, writeLastError,
 } from './store.ts';
@@ -117,6 +117,25 @@ describe('remote store', () => {
     expect(removeDevice(two.id)?.id).toBe(two.id);
     expect(removeDevice(one.id.slice(0, 2))?.id).toBe(one.id);
     expect(readDevices()).toEqual([]);
+  });
+
+  it('keeps its own device key beside the host key, mode 600 (issue 297)', () => {
+    const d = deviceKey();
+    expect(deviceKey().priv.equals(d.priv)).toBe(true);
+    expect(d.priv.equals(hostKey().priv)).toBe(false);
+    if (!WIN) expect(fs.statSync(path.join(remoteDir(), 'device.key')).mode & 0o777).toBe(0o600);
+  });
+
+  it('saves a paired computer once per key, renames it, forgets it by id or prefix (issue 297)', () => {
+    const one = addHost({ relay: 'wss://relay.example.com', pub: examplePhone, name: 'Studio' });
+    expect(one).toMatchObject({ id: fingerprint(examplePhone).replace(/-/g, '').slice(0, 4), pub: b64u(examplePhone), relay: 'wss://relay.example.com', name: 'Studio' });
+    const again = addHost({ relay: 'wss://other.example.com', pub: examplePhone, name: 'Studio 2' });
+    expect(again).toMatchObject({ id: one.id, relay: 'wss://other.example.com', name: 'Studio 2', addedAt: one.addedAt });
+    expect(readHosts()).toHaveLength(1);
+    if (!WIN) expect(fs.statSync(path.join(remoteDir(), 'hosts.json')).mode & 0o777).toBe(0o600);
+    expect(removeHost('zzzzzzzz')).toBeNull();
+    expect(removeHost(one.id.slice(0, 2))?.id).toBe(one.id);
+    expect(readHosts()).toEqual([]);
   });
 
   it('refuses an ambiguous prefix', () => {

@@ -172,10 +172,15 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 24: polygon media shapes (`MediaShape` kind `polygon`, issue 447) and `mask.png` beside a media comment's frame (`/marks`). An older server would refuse the comment, so the page offers the Mask tool only from 24.
 // 25: a media anchor may have no shapes (a comment on the whole picture, issue 494), and a `comment-op` that does not parse is answered `comment-refused` `invalid`. An older server would refuse such a comment and answer nothing, so the phone offers it only from 25.
 // 26: a comment's text may be empty when it has images (issue 497): pasted images or a drawing alone. An older server would refuse it, so the page and the phone offer it only from 26.
-export const PROTOCOL = 26;
+// 27: this computer as a device of another (issue 297): `RemoteState.hosts` (the paired computers and their link) and `POST /remote/connect {code}`, `/remote/forget {id}`. An older server has neither, so the page offers no Connect to a computer.
+export const PROTOCOL = 27;
 
-/** A paired phone as the Remote tab lists it (protocol 20). */
+/** A paired device (a phone or another computer) as the Remote tab lists it (protocol 20). */
 export type RemoteDevice = { id: string; name?: string; fingerprint: string; online: boolean; pairedAt: number };
+/** The link to a paired computer: `failing` while its retries get no channel, `revoked` when it refused this one. */
+export type RemoteHostState = 'online' | 'connecting' | 'failing' | 'revoked';
+/** A computer this one is paired with as a device (protocol 27); `fingerprint` is its host key's. */
+export type RemoteHost = { id: string; name?: string; fingerprint: string; state: RemoteHostState; pairedAt: number };
 
 /** What a window knows of the remote-access connector (`nota-bene remote`), shared by every window of the user. */
 export type RemoteState = {
@@ -200,6 +205,8 @@ export type RemoteState = {
   accessKey: boolean;
   /** a window tried to start the connector and it did not come up (no relay refusal explains it) */
   startFailed: boolean;
+  /** protocol 27: the computers this one connects to as a device (an older server sends none) */
+  hosts?: RemoteHost[];
 };
 
 export type RemotePairResult = 'paired' | 'refused' | 'expired' | 'cancelled';

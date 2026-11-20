@@ -6,6 +6,8 @@ import { serverEvent, type RootState } from '../store/store.ts';
 export const REMOTE_PROTOCOL = 20;
 /** The server that takes a relay access key (`POST /remote/config {accessKey}`, `state.accessKey`). */
 export const ACCESS_KEY_PROTOCOL = 21;
+/** The server that connects to other computers as their device (`state.hosts`, `/remote/connect`, issue 297). */
+export const COMPUTERS_PROTOCOL = 27;
 
 export type RemotePair = Extract<ServerEvent, { kind: 'remote-pair' }>;
 export type RemoteSlice = {
@@ -13,13 +15,15 @@ export type RemoteSlice = {
   supported: boolean;
   /** it also takes an access key */
   keys: boolean;
+  /** it also connects to other computers */
+  computers: boolean;
   /** null until the first `remote` event */
   state: RemoteState | null;
   /** the last outcome of this window's pairing, until the tab starts another or dismisses it */
   pair: RemotePair | null;
 };
 
-const initialState: RemoteSlice = { supported: false, keys: false, state: null, pair: null };
+const initialState: RemoteSlice = { supported: false, keys: false, computers: false, state: null, pair: null };
 
 export const remoteSlice = createSlice({
   name: 'remote',
@@ -33,6 +37,7 @@ export const remoteSlice = createSlice({
       if (ev.kind === 'hello') {
         s.supported = ev.protocol >= REMOTE_PROTOCOL;
         s.keys = ev.protocol >= ACCESS_KEY_PROTOCOL;
+        s.computers = ev.protocol >= COMPUTERS_PROTOCOL;
       }
       else if (ev.kind === 'remote') s.state = ev.state;
       else if (ev.kind === 'remote-pair') s.pair = ev;

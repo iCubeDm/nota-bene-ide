@@ -1,4 +1,4 @@
-import type { RemoteState } from '@nota-bene/shared';
+import type { RemoteHost, RemoteState } from '@nota-bene/shared';
 import { apiFetch } from '@/net/auth.ts';
 
 export type PairCode = { uri: string; qr: string; hostFingerprint: string; expiresAt: number };
@@ -23,3 +23,5 @@ export const saveRemote = (c: { relay?: string; enabled?: boolean; accessKey?: s
 export const startPair = () => post<PairCode>('/remote/pair');
 export const cancelPair = () => post<{ ok: true }>('/remote/pair/cancel');
 export const revokePhone = (id: string) => post<{ ok: boolean; error?: string }>('/remote/revoke', { id });
+export const connectComputer = (code: string) => post<{ ok: true; host: RemoteHost }>('/remote/connect', { code });
+export const forgetComputer = (id: string) => post<{ ok: boolean; error?: string }>('/remote/forget', { id });

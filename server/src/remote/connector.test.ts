@@ -8,7 +8,7 @@ import { registerWindow } from '../windows.ts';
 import { remoteMain } from './cli.ts';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient } from './control.ts';
-import { hostKey, pairProof, pairTicket, parseAccessKey, parsePairUri, b64u, readAccessKey, readConfig, readLastError, writeAccessKey, writeConfig } from './store.ts';
+import { addHost, hostKey, pairProof, readHosts, pairTicket, parseAccessKey, parsePairUri, b64u, readAccessKey, readConfig, readLastError, writeAccessKey, writeConfig } from './store.ts';
 import { Windows, type HostWindow } from './discover.ts';
 import { RelayClient } from './relayClient.ts';
 import { generateKeyPair } from './noise.ts';
@@ -260,6 +260,32 @@ describe('connector', () => {
     cl.send({ op: 'stop' });
     expect(await run).toBe(0); // with this client still connected: the connector drops it
 
+  });
+
+  it('cli: with access off and a computer paired, a managed run keeps only the link; computers and forget (issue 297)', async () => {
+    const out: string[] = [];
+    const io = { out: (s: string) => void out.push(s), err: () => {} };
+    writeConfig({ relay: relay.url, enabled: false });
+    const h = addHost({ relay: relay.url, pub: generateKeyPair().pub, name: 'Studio' });
+    const run = remoteMain(['--managed'], io);
+    await until(() => fs.existsSync(path.join(process.env.NOTA_BENE_HOME!, 'remote', 'control.sock')));
+    const cl = await client();
+    cl.send({ op: 'status' });
+    expect(await cl.next()).toMatchObject({ relay: null, hostFingerprint: null, online: false, hosts: [expect.objectContaining({ id: h.id, name: 'Studio' })] });
+    cl.send({ op: 'pair' });
+    expect(await cl.next()).toMatchObject({ t: 'error' });
+    // nobody is the host behind that key: the relay says the host is offline, and the link keeps trying
+    for (let i = 0; i < 100 && !out.join('').includes('failing'); i++) {
+      out.length = 0;
+      expect(await remoteMain(['computers'], io)).toBe(0);
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    expect(out.join('')).toMatch(new RegExp(`^${h.id}\\s+Studio\\s+.*failing`));
+    expect(await remoteMain(['forget', h.id], io)).toBe(0);
+    expect(readHosts()).toEqual([]);
+    expect(await remoteMain(['forget', h.id], io)).toBe(1);
+    cl.send({ op: 'stop' });
+    expect(await run).toBe(0);
   });
 
   it('cli: without a relay the foreground run says how to set one', async () => {

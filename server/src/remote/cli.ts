@@ -3,13 +3,17 @@
 import { renderUnicodeCompact } from 'uqr';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient, type Msg } from './control.ts';
-import { readConfig, writeAccessKey, writeConfig } from './store.ts';
+import { pairHost } from './hostLink.ts';
+import { fingerprint, fromB64u, readConfig, readHosts, removeHost, writeAccessKey, writeConfig } from './store.ts';
 import { packageVersion } from '../version.ts';
 
 export const REMOTE_USAGE = 'Usage: nota-bene remote [--relay wss://HOST]   run the connector in the foreground (the relay is saved)\n'
-  + '       nota-bene remote pair                    show a QR code to pair a phone\n'
-  + '       nota-bene remote devices                 list the paired phones\n'
-  + '       nota-bene remote revoke ID               unpair a phone and cut it off\n'
+  + '       nota-bene remote pair                    show a QR code to pair a device (a phone, another computer)\n'
+  + '       nota-bene remote devices                 list the paired devices\n'
+  + '       nota-bene remote revoke ID               unpair a device and cut it off\n'
+  + '       nota-bene remote connect CODE            pair with another computer as its device (CODE from its `pair`)\n'
+  + '       nota-bene remote computers               list the computers this one is paired with\n'
+  + '       nota-bene remote forget ID               forget such a computer\n'
   + '       nota-bene remote status\n'
   + '       nota-bene remote key [--clear]           save the relay access key you were given (read from stdin), or remove it\n'
   + '(a folder named remote opens with `nota-bene ./remote`)';
@@ -98,11 +102,38 @@ async function ask(io: Io, m: Msg): Promise<Msg | null> {
   }
 }
 
+/** A running connector picks up a changed hosts.json; none running: the next one reads it. */
+async function syncHosts(): Promise<Msg | null> {
+  let cl: ControlClient | undefined;
+  try {
+    cl = await controlClient();
+    cl.send({ op: 'hosts' });
+    return await cl.next();
+  } catch {
+    return null;
+  } finally {
+    cl?.close();
+  }
+}
+
+async function connectHost(code: string, io: Io): Promise<number> {
+  try {
+    const h = await pairHost(code);
+    await syncHosts();
+    io.out(`Paired with ${h.name ?? 'the computer'}: id ${h.id}, host fingerprint ${fingerprint(fromB64u(h.pub, 32))} (compare it with the other computer)\n`);
+    return 0;
+  } catch (e) {
+    io.err(`nota-bene: ${(e as Error).message}\n`);
+    return 1;
+  }
+}
+
 const deviceLine = (d: Msg) => `${String(d.id).padEnd(8)}  ${String(d.name ?? '-').padEnd(20)}  ${String(d.fingerprint)}  ${d.online ? 'online' : 'offline'}\n`;
 
 async function run(argv: string[], io: Io): Promise<number> {
   let relay: string | undefined;
-  // --managed: a window started it (keeper.ts). It exits when access is off or no window is left, and leaves the setting alone
+  // --managed: a window started it (keeper.ts). It exits with nothing to do (access off, no computer paired) or no window
+  // left, and leaves the setting alone
   let managed = false;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--relay' && argv[i + 1] !== undefined) relay = argv[++i];
@@ -112,23 +143,27 @@ async function run(argv: string[], io: Io): Promise<number> {
       return 2;
     }
   }
+  let hostRelay: string | undefined;
+  let linked: boolean;
   try {
     const cfg = readConfig();
-    if (managed && cfg.enabled === false) return 0; // turned off in a window since it was started
     // run by hand: an explicit request for access, so a switch turned off in a window is on again
     if (relay !== undefined || (!managed && cfg.enabled === false)) writeConfig({ ...cfg, ...(relay !== undefined ? { relay } : {}), ...(managed ? {} : { enabled: true }) });
+    // access off (a managed run): no host side, only the links to the computers this one is paired with
+    hostRelay = managed && cfg.enabled === false ? undefined : relay ?? cfg.relay;
+    linked = readHosts().length > 0;
   } catch (e) {
     io.err(`nota-bene: ${(e as Error).message}\n`);
     return 2;
   }
-  relay ??= readConfig().relay;
-  if (!relay) {
+  if (managed && !hostRelay && !linked) return 0;
+  if (!hostRelay && !linked) {
     io.err('nota-bene: no relay set. Start it once with `nota-bene remote --relay wss://relay.example.com` (your relay\'s address); it is saved for later runs.\n'
       + 'To open a folder named remote in a window, run `nota-bene ./remote`.\n');
     return 2;
   }
   const version = packageVersion();
-  const c = new Connector({ relay, managed, ...(version ? { version } : {}) });
+  const c = new Connector({ ...(hostRelay ? { relay: hostRelay } : {}), managed, ...(version ? { version } : {}) });
   const stamp = () => new Date().toISOString().slice(11, 19);
   c.on('log', (m: string) => io.err(`${stamp()} ${m}\n`));
   try {
@@ -137,7 +172,7 @@ async function run(argv: string[], io: Io): Promise<number> {
     io.err(`nota-bene: ${(e as Error).message}\n`);
     return 1;
   }
-  io.err(`nota-bene remote: relay ${relay}, host fingerprint ${c.hostFingerprint}\n`);
+  io.err(hostRelay ? `nota-bene remote: relay ${hostRelay}, host fingerprint ${c.hostFingerprint}\n` : 'nota-bene remote: connecting to the paired computers only\n');
   const code = await new Promise<number>((resolve) => {
     const quit = () => resolve(0);
     process.once('SIGINT', quit);
@@ -155,7 +190,8 @@ async function pair(io: Io): Promise<number> {
   const interrupted = new Promise<number>((r) => process.once('SIGINT', () => r(130)));
   try {
     cl.send({ op: 'pair' });
-    const code = await cl.next((m) => m.t === 'code');
+    const code = await cl.next((m) => m.t === 'code' || m.t === 'error');
+    if (code.t === 'error') throw new Error(String(code.message));
     io.out(`${renderUnicodeCompact(String(code.uri))}\n\n${String(code.uri)}\n\n`);
     io.out(`Scan it with the Nota Bene app within ${Math.round((Number(code.expiresAt) - Date.now()) / 60_000)} minutes.\n`);
     io.out(`Host fingerprint: ${String(code.hostFingerprint)} (the app shows it too: they must match)\n`);
@@ -196,7 +232,7 @@ export async function remoteMain(argv: string[], io: Io = stdio): Promise<number
     const r = await ask(io, { op: 'devices' });
     if (!r) return 1;
     const list = (r.devices as Msg[]) ?? [];
-    io.out(list.length ? list.map(deviceLine).join('') : 'No paired phones. Pair one with `nota-bene remote pair`.\n');
+    io.out(list.length ? list.map(deviceLine).join('') : 'No paired devices. Pair one with `nota-bene remote pair`.\n');
     return 0;
   }
   if (cmd === 'revoke' && rest.length === 1) {
@@ -209,6 +245,26 @@ export async function remoteMain(argv: string[], io: Io = stdio): Promise<number
     const d = r.device as Msg;
     io.out(`revoked ${String(d.id)} (${String(d.fingerprint)})\n`);
     return 0;
+  }
+  if (cmd === 'connect' && rest.length === 1) return connectHost(rest[0]!, io);
+  if (cmd === 'computers' && rest.length === 0) {
+    const r = await syncHosts();
+    const list = r ? (r.hosts as Msg[]) ?? [] : readHosts().map((h) => ({ ...h, fingerprint: fingerprint(fromB64u(h.pub, 32)), state: 'not running' }));
+    io.out(list.length ? list.map((h) => `${String(h.id).padEnd(8)}  ${String(h.name ?? '-').padEnd(20)}  ${String(h.fingerprint)}  ${String(h.state)}\n`).join('')
+      : 'No paired computers. Pair with one with `nota-bene remote connect CODE`.\n');
+    return 0;
+  }
+  if (cmd === 'forget' && rest.length === 1) {
+    try {
+      const h = removeHost(rest[0]!);
+      if (!h) throw new Error(`no paired computer ${rest[0]!}`);
+      await syncHosts();
+      io.out(`forgot ${h.id} (${h.name ?? 'a computer'})\n`);
+      return 0;
+    } catch (e) {
+      io.err(`nota-bene: ${(e as Error).message}\n`);
+      return 1;
+    }
   }
   if (cmd === 'status' && rest.length === 0) {
     const r = await ask(io, { op: 'status' });

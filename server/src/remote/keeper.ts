@@ -1,4 +1,5 @@
-// The window's side of remote access: one `nota-bene remote` per user, kept running while a relay is saved and access is on.
+// The window's side of remote access: one `nota-bene remote` per user, kept running while a relay is saved and access is on,
+// or while this computer is paired with another one as its device (issue 297).
 // Every window asks the connector's control socket for its status every few seconds; when nobody answers, it starts one
 // (`--managed`, detached, under remote/spawn.lock so that windows finding nobody together start one), as the Whisper host
 // is started (dictation/hostClient.ts). A managed connector exits a minute after the last window (connector.ts); one
@@ -9,15 +10,16 @@ import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { RemoteDevice, RemotePairResult, RemoteState } from '@nota-bene/shared';
+import type { RemoteDevice, RemoteHost, RemoteHostState, RemotePairResult, RemoteState } from '@nota-bene/shared';
 import { renderSVG } from 'uqr';
 import { HIDDEN, renameRetry } from '../platform.ts';
 import { stateBaseDir } from '../state.ts';
 import { readLock, takeLockFile } from '../runtime.ts';
 import { controlClient, running, type ControlClient, type Msg } from './control.ts';
+import { pairHost } from './hostLink.ts';
 import {
-  checkRelay, clearLastError, fingerprint, fromB64u, parseAccessKey, readAccessKey, readConfig, readDevices, readLastError, remoteDir, writeAccessKey, writeConfig,
-  type RemoteConfig,
+  checkRelay, clearLastError, fingerprint, fromB64u, parseAccessKey, readAccessKey, readConfig, readDevices, readHosts, readLastError, remoteDir, removeHost, writeAccessKey,
+  writeConfig, type Host, type RemoteConfig,
 } from './store.ts';
 
 /** A readable access key is saved. Nothing is created to find out; a broken file (mode, owner) counts as none, so the tab
@@ -80,6 +82,21 @@ function device(d: Msg): RemoteDevice {
   };
 }
 
+const HOST_STATES = new Set<string>(['online', 'connecting', 'failing', 'revoked']);
+
+function host(h: Msg): RemoteHost {
+  return {
+    id: String(h.id), ...(typeof h.name === 'string' ? { name: h.name } : {}), fingerprint: String(h.fingerprint),
+    state: HOST_STATES.has(String(h.state)) ? h.state as RemoteHostState : 'connecting', pairedAt: typeof h.pairedAt === 'number' ? h.pairedAt : 0,
+  };
+}
+
+/** A saved computer as the tab shows it while no connector says how its link is. */
+const savedHost = (h: Host): RemoteHost => ({ id: h.id, ...(h.name ? { name: h.name } : {}), fingerprint: fingerprint(fromB64u(h.pub, 32)), state: 'connecting', pairedAt: h.addedAt });
+
+/** The relay the connector should be a host on: none while access is off. */
+const hostRelay = (c: RemoteConfig): string | null => (c.enabled !== false ? c.relay ?? null : null);
+
 export type KeeperOptions = {
   /** the package's version: a managed connector of another one is replaced */
   version?: string;
@@ -99,7 +116,7 @@ export class RemoteKeeper extends EventEmitter {
   #pass: Promise<RemoteState> | undefined;
   #state: RemoteState = {
     configured: false, enabled: true, running: false, online: false, relay: null, hostFingerprint: null, devices: [],
-    pairing: null, legacy: false, lastError: null, startFailed: false, accessKey: false,
+    pairing: null, legacy: false, lastError: null, startFailed: false, accessKey: false, hosts: [],
   };
   #last = '';
   #warned = '';
@@ -151,7 +168,8 @@ export class RemoteKeeper extends EventEmitter {
     if (typeof accessKey === 'string') parseAccessKey(accessKey);
     await this.#pass;
     const st = await this.#ask({ op: 'status' });
-    const replace = !!st && (cfg.enabled === false || (cfg.relay !== undefined && cfg.relay !== st.relay));
+    // the connector is a host on another relay than it should be now (off, another relay, on again after a client-only run)
+    const replace = !!st && hostRelay({ ...readConfig(), ...cfg }) !== (st.relay ?? null);
     // a connector from before access keys neither reads nor reconnects with one
     if ((replace || (accessKey !== undefined && !!st)) && st!.version === undefined) throw new LegacyConnector();
     if (Object.keys(cfg).length) writeConfig({ ...readConfig(), ...cfg });
@@ -188,7 +206,8 @@ export class RemoteKeeper extends EventEmitter {
     let code: Msg;
     try {
       cl.send({ op: 'pair' });
-      code = await cl.next((m) => m.t === 'code', ASK_MS);
+      code = await cl.next((m) => m.t === 'code' || m.t === 'error', ASK_MS);
+      if (code.t === 'error') throw new Error(String(code.message)); // no host side (access off, or no relay)
     } catch (e) {
       cl.close();
       throw e;
@@ -208,6 +227,28 @@ export class RemoteKeeper extends EventEmitter {
     this.#pairClient = undefined;
     cl.close();
     void this.refresh();
+  }
+
+  /** Pairs with another computer by its code (issue 297), saves it, and has the connector link it (started if none runs). */
+  async connect(code: string): Promise<RemoteHost> {
+    const h = await pairHost(code);
+    await this.#ask({ op: 'hosts' });
+    await this.refresh();
+    return this.#state.hosts?.find((x) => x.id === h.id) ?? savedHost(h);
+  }
+
+  /** Forgets a paired computer; its link stops. */
+  async forget(id: string): Promise<{ ok: boolean; error?: string }> {
+    let h: Host | null;
+    try {
+      h = removeHost(id);
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+    if (!h) return { ok: false, error: `no paired computer ${id}` };
+    await this.#ask({ op: 'hosts' });
+    await this.refresh();
+    return { ok: true };
   }
 
   async revoke(id: string): Promise<{ ok: boolean; error?: string }> {
@@ -277,8 +318,9 @@ export class RemoteKeeper extends EventEmitter {
     let cfg: RemoteConfig = {};
     try {
       // never set up: nothing to ask, and nothing is created (remote/, and on Windows the pipe's secret) by asking.
-      // A connector needs a saved relay, so none runs without this file.
-      if (!fs.existsSync(path.join(stateBaseDir(), 'remote', 'config.json'))) {
+      // A connector needs a saved relay or a paired computer, so none runs without one of these files.
+      const dir = path.join(stateBaseDir(), 'remote');
+      if (!fs.existsSync(path.join(dir, 'config.json')) && !fs.existsSync(path.join(dir, 'hosts.json'))) {
         this.#wasRunning = false;
         this.#publish(this.#compute(cfg, null, []));
         return this.#state;
@@ -293,7 +335,7 @@ export class RemoteKeeper extends EventEmitter {
       }
       // it was running and it is gone, the relay's refusal left behind: it exited for good, so wait before the next one
       if (!st && this.#wasRunning && readLastError()) this.#backOff();
-      if (!st && !this.#stopped && cfg.relay && cfg.enabled !== false && this.#o.now() >= this.#retryAt) {
+      if (!st && !this.#stopped && (hostRelay(cfg) || readHosts().length > 0) && this.#o.now() >= this.#retryAt) {
         if (await this.#start()) {
           st = await this.#ask({ op: 'status' });
           this.#failures = 0;
@@ -329,6 +371,7 @@ export class RemoteKeeper extends EventEmitter {
       lastError: none ? null : readLastError(),
       startFailed: this.#startFailed,
       accessKey: hasAccessKey(),
+      hosts: none ?? (Array.isArray(st?.hosts) ? (st.hosts as Msg[]).map(host) : readHosts().map(savedHost)),
     };
   }
 

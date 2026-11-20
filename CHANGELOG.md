@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Remote access: connect to another computer (first step).** The Remote tab's **Pair a phone** is now **Pair a device**, and a new **Connect to a computer** takes the code another computer shows there: this computer pairs with it as a device (its own key, `remote/device.key`), lists it as online, connecting, not reachable or revoked, and can **Forget** it; it needs no relay or access key of its own. The other computer lists it among its devices and can revoke it. Also `nota-bene remote connect`, `computers` and `forget`. Working in the other computer's projects from here comes next.
 - **Comments: a comment on a whole picture from the phone no longer gets stuck.** A comment the window refuses no longer sits in the phone's or the page's queue for good.
 - **Comments: images alone are enough.** A comment with only pasted images, or (on the computer) a drawing with no words, can be added; before, the window refused it and it was lost.
 - **Tabs: Usage, Settings, Remote, Changes and Git log survive a reload.** They come back in their place, the active one active, as file tabs do. In Usage, **Where it went** keeps Tasks or Projects (and **All**) when the period or provider changes.

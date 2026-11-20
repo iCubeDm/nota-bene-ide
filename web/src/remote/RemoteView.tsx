@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { RemoteDevice } from '@nota-bene/shared';
+import type { RemoteDevice, RemoteHost, RemoteHostState } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { cancelPair, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
+import { cancelPair, connectComputer, forgetComputer, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
 import { clearPair, indicator, selectRemote } from './slice.ts';
 import { TONE, troubleWhy, WORD } from './RemoteMenu.tsx';
 
@@ -192,14 +192,18 @@ function Pairing({ ready }: { ready: boolean }) {
   );
 }
 
-function Phone({ p }: { p: RemoteDevice }) {
+/** A paired device or computer: name, fingerprint, state, date; its action (Revoke, Forget) asks first. */
+function Paired({ data, name, fingerprint, status, pairedAt, action, ask, run }: {
+  data: Record<string, string>; name: string; fingerprint: string; status: ReactNode; pairedAt: number;
+  action: string; ask: string; run: () => Promise<{ ok: boolean; error?: string }>;
+}) {
   const t = useT();
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const revoke = async () => {
+  const go = async () => {
     setError(null);
     try {
-      const r = await revokePhone(p.id);
+      const r = await run();
       if (!r.ok) setError(r.error ?? '');
       else setAsking(false);
     } catch (e) {
@@ -207,19 +211,19 @@ function Phone({ p }: { p: RemoteDevice }) {
     }
   };
   return (
-    <div data-phone={p.id} className="rounded-lg border border-border-soft px-3 py-2">
+    <div {...data} className="rounded-lg border border-border-soft px-3 py-2">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[0.8125rem]">
-        <span className="font-semibold text-foreground">{p.name ?? t('remoteAPhone')}</span>
-        <span className="font-mono text-[0.6875rem] text-muted-foreground">{p.fingerprint}</span>
-        <span className={`text-[0.6875rem] ${p.online ? 'text-success' : 'text-muted-foreground'}`}>{p.online ? t('remoteOnline') : t('remoteOffline')}</span>
-        {p.pairedAt > 0 && <span className="text-[0.6875rem] text-muted-foreground">{t('remotePairedAt', new Date(p.pairedAt).toLocaleDateString(getLang()))}</span>}
+        <span className="font-semibold text-foreground">{name}</span>
+        <span className="font-mono text-[0.6875rem] text-muted-foreground">{fingerprint}</span>
+        {status}
+        {pairedAt > 0 && <span className="text-[0.6875rem] text-muted-foreground">{t('remotePairedAt', new Date(pairedAt).toLocaleDateString(getLang()))}</span>}
         <span className="flex-1" />
-        {!asking && <Button type="button" variant="ghost" size="xs" onClick={() => setAsking(true)}>{t('remoteRevoke')}</Button>}
+        {!asking && <Button type="button" variant="ghost" size="xs" onClick={() => setAsking(true)}>{action}</Button>}
       </div>
       {asking && (
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[0.8125rem]">
-          <span className="text-foreground">{t('remoteRevokeAsk')}</span>
-          <Button type="button" variant="destructive" size="xs" onClick={() => void revoke()}>{t('remoteRevoke')}</Button>
+          <span className="text-foreground">{ask}</span>
+          <Button type="button" variant="destructive" size="xs" onClick={() => void go()}>{action}</Button>
           <Button type="button" variant="ghost" size="xs" onClick={() => setAsking(false)}>{t('remoteCancel')}</Button>
         </div>
       )}
@@ -228,10 +232,67 @@ function Phone({ p }: { p: RemoteDevice }) {
   );
 }
 
+function Phone({ p }: { p: RemoteDevice }) {
+  const t = useT();
+  return (
+    <Paired data={{ 'data-phone': p.id }} name={p.name ?? t('remoteAPhone')} fingerprint={p.fingerprint} pairedAt={p.pairedAt}
+      status={<span className={`text-[0.6875rem] ${p.online ? 'text-success' : 'text-muted-foreground'}`}>{p.online ? t('remoteOnline') : t('remoteOffline')}</span>}
+      action={t('remoteRevoke')} ask={t('remoteRevokeAsk')} run={() => revokePhone(p.id)} />
+  );
+}
+
+const HOST_WORD = { online: 'remoteOnline', connecting: 'remoteHostConnecting', failing: 'remoteHostFailing', revoked: 'remoteHostRevoked' } as const satisfies Record<RemoteHostState, string>;
+const HOST_TONE: Record<RemoteHostState, string> = { online: 'text-success', connecting: 'text-muted-foreground', failing: 'text-warn', revoked: 'text-destructive' };
+
+/** Issue 297: this computer as a device of others: the code of another computer's Pair a device, and the paired ones. */
+function Computers({ hosts }: { hosts: RemoteHost[] }) {
+  const t = useT();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<RemoteHost | null>(null);
+  const connect = async () => {
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      setDone((await connectComputer(code.trim())).host);
+      setCode('');
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-3">
+      <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); void connect(); }}>
+        <span className="flex flex-wrap items-center gap-2">
+          <input id="remoteConnectCode" aria-label={t('remoteConnectCode')} value={code} placeholder="nbremote://pair?…" spellCheck={false} autoComplete="off"
+            onChange={(e) => setCode(e.target.value)} className={input} />
+          <Button type="submit" size="sm" disabled={busy || !code.trim()}>{t('remoteConnectBtn')}</Button>
+        </span>
+        <span className="text-xs text-muted-foreground">{t('remoteConnectHint')}</span>
+        {error && <span role="alert" className="text-xs text-destructive">{t('remoteFailed', error)}</span>}
+        {done && <span id="remoteConnected" role="status" className="text-[0.8125rem] text-success">{t('remoteConnected', done.name ?? t('remoteAComputer'), done.fingerprint)}</span>}
+      </form>
+      {hosts.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {hosts.map((h) => (
+            <Paired key={h.id} data={{ 'data-computer': h.id }} name={h.name ?? t('remoteAComputer')} fingerprint={h.fingerprint} pairedAt={h.pairedAt}
+              status={<span data-state={h.state} className={`text-[0.6875rem] ${HOST_TONE[h.state]}`}>{t(HOST_WORD[h.state])}</span>}
+              action={t('remoteForget')} ask={t('remoteForgetAsk')} run={() => forgetComputer(h.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** The Remote tab: what `nota-bene remote` and its commands do, from the window. */
 export function RemoteView() {
   const t = useT();
-  const { supported, keys, state } = useAppSelector(selectRemote);
+  const { supported, keys, computers, state } = useAppSelector(selectRemote);
   const [note, setNote] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
   if (!supported) return <div className="nb-prose mx-auto mt-6 text-[0.8125rem] text-muted-foreground">{t('remoteOldServer')}</div>;
@@ -294,6 +355,11 @@ export function RemoteView() {
           {state?.devices.length ? (
             <div className="flex flex-col gap-2">{state.devices.map((p) => <Phone key={p.id} p={p} />)}</div>
           ) : <div className="text-xs text-muted-foreground">{t('remoteNoPhones')}</div>}
+        </Section>
+      )}
+      {computers && (
+        <Section id="remoteComputers" title={t('remoteConnectTitle')}>
+          <Computers hosts={state?.hosts ?? []} />
         </Section>
       )}
     </div>

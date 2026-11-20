@@ -20,12 +20,13 @@ const INFO_FIELDS = ['title', 'session', 'model', 'busy', 'supervised', 'pending
 /**
  * A path the proxy sends on: one of the window's own routes, never another host, never the control routes, never the
  * remote-access routes (a paired phone would pair another device, revoke phones or turn access off unseen), never the
- * project switcher's (they start windows, create folders and hand out other windows' logins: the desktop's until phase 2),
+ * project switcher's (they start windows, create folders and hand out other windows' logins: the desktop's until phase 2,
+ * and `/system/remote` reaches the computers this one is paired with),
  * never `/os/` (Show in Finder and Open act on this computer's desktop; issue 461).
  */
 export const goodPath = (p: unknown): p is string =>
   typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !p.startsWith('//') && !/[\\#]/.test(p) && !/^\/(control|remote)(\/|\?|$)/i.test(p)
-  && !/^\/system\/(projects|folders|agents)(\/|\?|$)/i.test(p)
+  && !/^\/system\/(projects|folders|agents|remote)(\/|\?|$)/i.test(p) // issue 297: `remote` opens proxies to other computers
   && !/^\/os(\/|\?|$)/i.test(p); // issue 461: Show in Finder / Open act on this computer's desktop
 
 /** What this computer calls itself, for the phone's host label: `os.hostname()` without a trailing `.local`, control and bidi-override characters dropped, at most 64 characters. */
