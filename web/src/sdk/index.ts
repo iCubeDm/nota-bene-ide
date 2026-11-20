@@ -28,6 +28,8 @@ export {
   type HelloEvent,
   type Route,
 } from './connections.ts';
+export { routes } from './routes.ts';
+export { defineResource, useResource, repository, pageVisible, type Resource, type Snapshot } from './repository.ts';
 
 // core modules that still import plugins (later steps of issue 511 cut those edges)
 export { withKey, withKeys, keysLabel, modKey, isMac } from '../shell/keymap.ts';

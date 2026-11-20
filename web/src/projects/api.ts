@@ -1,7 +1,7 @@
 // The project switcher's and the starter's client side: the server routes of server/src/projectRoutes.ts, their answer
-// types (mirrored: the web does not import from server/), the polling hook, and the move of this tab to another window.
-import { useEffect, useSyncExternalStore } from 'react';
-import { t, connections, toast } from '@/sdk';
+// types (mirrored: the web does not import from server/), the polled list, and the move of this tab to another window.
+import { useEffect, useRef, useState } from 'react';
+import { t, connections, defineResource, routes, toast, useResource } from '@/sdk';
 import { remotePage } from '@/net/local.ts';
 
 export type Provider = 'claude' | 'codex' | 'omp';
@@ -48,107 +48,41 @@ export const projectsMenu = {
 const isList = (v: unknown): v is ProjectsList =>
   !!v && typeof v === 'object' && Array.isArray((v as ProjectsList).running) && Array.isArray((v as ProjectsList).recent);
 
-// GET /system/projects, one fetch loop for the page however many parts show it (the header's switcher, the rail): every
-// 3 s while any of them is `active` (the menu is open, the rail shows) and the window has the focus, every 10 s otherwise;
-// never while the page is hidden. A request that does not answer in 8 s is given up. The last part gone stops it and
-// drops the list.
-let list: ProjectsList | null = null;
-const listSubs = new Set<() => void>();
-const demand = new Map<symbol, boolean>();
-let period = 0;
-let timer: ReturnType<typeof setInterval> | undefined;
-/** the request on its way (its start), or null: one at a time, and one older than a period no longer holds the next back */
-let inFlight: { at: number; id: number } | null = null;
-let reqs = 0;
-let gen = 0;
-const TIMEOUT_MS = 8000;
+const EMPTY: ProjectsList = { running: [], recent: [] };
+// GET /system/projects, one poll for the page however many parts show it (the header's switcher, the rail): every 3 s
+// while any of them is `active` (the menu is open, the rail shows) and the window has the focus, every 10 s otherwise;
+// never while the page is hidden. A request that does not answer in 8 s, or by the next poll, is given up.
+const projectsResource = defineResource<void, ProjectsList>({
+  key: () => '',
+  route: () => routes.systemProjects(),
+  timeout: 8000,
+  // a malformed answer is an empty list
+  parse: (text) => { const j: unknown = JSON.parse(text); return isList(j) ? j : EMPTY; },
+});
 
-const timeoutSignal = (): AbortSignal | undefined => (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? AbortSignal.timeout(TIMEOUT_MS) : undefined);
-
-function load(): void {
-  if (document.visibilityState === 'hidden') return;
-  if (inFlight && Date.now() - inFlight.at < (period || TIMEOUT_MS)) return;
-  const me = { at: Date.now(), id: ++reqs };
-  inFlight = me;
-  const g = gen;
-  const signal = timeoutSignal();
-  connections.current().fetch('/system/projects', signal ? { signal } : undefined)
-    .then((r) => (r.ok ? r.json() : undefined))
-    .then((j: unknown) => {
-      if (g !== gen || inFlight !== me) return;
-      // a refusal keeps the last list; a malformed answer is an empty one
-      if (j === undefined) { if (list) return; list = { running: [], recent: [] }; } else list = isList(j) ? j : { running: [], recent: [] };
-      for (const f of listSubs) f();
-    })
-    .catch(() => { /* the next poll tries again; the header's own line says when the server is gone */ })
-    .finally(() => { if (inFlight === me) inFlight = null; });
-}
-
-const focused = () => typeof document.hasFocus !== 'function' || document.hasFocus();
-
-function schedule(): void {
-  const want = demand.size === 0 ? 0 : [...demand.values()].some(Boolean) && focused() ? 3000 : 10_000;
-  if (want === period) return;
-  const wasSlow = period === 10_000;
-  clearInterval(timer);
-  timer = undefined;
-  period = want;
-  if (want) timer = setInterval(load, want);
-  if (want === 3000 && wasSlow) load();
-}
-
-const onFocusChange = () => schedule();
-// issue 449: Back to a page this tab left for another window brings it from the back/forward cache with the list it had then.
-// Whether it is visible yet at pageshow depends on the browser: a hidden one loads when it shows.
-let restored = false;
-const onPageShow = (e: PageTransitionEvent) => {
-  if (!e.persisted) return;
-  inFlight = null;
-  if (document.visibilityState === 'hidden') restored = true;
-  else load();
-};
-const onVisible = () => {
-  if (!restored || document.visibilityState === 'hidden') return;
-  restored = false;
-  inFlight = null;
-  load();
-};
-let listening = false;
-function listen(on: boolean): void {
-  if (on === listening) return;
-  listening = on;
-  const f = on ? window.addEventListener : window.removeEventListener;
-  f.call(window, 'focus', onFocusChange);
-  f.call(window, 'blur', onFocusChange);
-  f.call(window, 'pageshow', onPageShow as EventListener);
-  (on ? document.addEventListener : document.removeEventListener).call(document, 'visibilitychange', onVisible);
-  if (!on) restored = false;
-}
-
-/** Nobody shows the list any more (checked after the commit: a part re-subscribing for another `active` keeps it). */
-function dropIfUnused(): void {
-  if (demand.size > 0) return;
-  listen(false);
-  gen++;
-  inFlight = null;
-  list = null;
-}
-
-const subscribeList = (f: () => void) => { listSubs.add(f); return () => void listSubs.delete(f); };
-const getList = () => list;
+const hasFocus = () => typeof document.hasFocus !== 'function' || document.hasFocus();
 
 /** The projects list, shared: `active` asks for the 3 s poll while it holds; a change of it loads at once. */
 export function useProjects(active: boolean): { data: ProjectsList | null; reload(): void } {
-  const data = useSyncExternalStore(subscribeList, getList);
+  const [focused, setFocused] = useState(hasFocus);
   useEffect(() => {
-    const id = Symbol('projects');
-    demand.set(id, active);
-    listen(true);
-    schedule();
-    load();
-    return () => { demand.delete(id); schedule(); void Promise.resolve().then(dropIfUnused); };
-  }, [active]);
-  return { data, reload: () => { inFlight = null; load(); } };
+    const f = () => setFocused(hasFocus());
+    window.addEventListener('focus', f);
+    window.addEventListener('blur', f);
+    return () => { window.removeEventListener('focus', f); window.removeEventListener('blur', f); };
+  }, []);
+  const { data, failed, refresh } = useResource(projectsResource, undefined, { every: active && focused ? 3000 : 10_000 });
+  const was = useRef(active);
+  useEffect(() => {
+    if (was.current === active) return;
+    was.current = active;
+    refresh();
+  }, [active, refresh]);
+  // issue 449: Back to a page this tab left for another window brings it from the back/forward cache with the list it
+  // had then; a page restored hidden reads once it shows (the repository's pause)
+  useEffect(() => onPageRestore(refresh), [refresh]);
+  // a refusal keeps the last list; with none yet it is an empty one
+  return { data: data ?? (failed ? EMPTY : null), reload: refresh };
 }
 
 export const postJson = (url: string, body: unknown): Promise<Response> =>
@@ -187,7 +121,7 @@ export const reasonOf = async (r: Response): Promise<string> => (await r.text().
 /** Removes a folder from Recent (POST /system/projects/forget): null, or the reason it failed. */
 export async function forgetRecent(root: string): Promise<string | null> {
   try {
-    const r = await postJson('/system/projects/forget', { root });
+    const r = await postJson(routes.systemProjects('forget'), { root });
     return r.ok ? null : reasonOf(r);
   } catch {
     return 'window not answering';
@@ -202,14 +136,13 @@ export async function forgetRecent(root: string): Promise<string | null> {
  */
 export async function enterProject(row: RunningRow, session?: string): Promise<boolean> {
   if (remotePage()) {
-    const q = new URLSearchParams(row.remote ? { host: row.remote.host, port: String(row.port) } : { provider: row.provider, port: String(row.port), root: row.root });
-    nav.go(`/system/remote/enter?${q}`);
+    nav.go(routes.systemRemoteEnter(row.remote ? { host: row.remote.host, port: String(row.port) } : { provider: row.provider, port: String(row.port), root: row.root }));
     return true;
   }
   try {
     const r = row.remote
-      ? await postJson('/system/remote/open', { host: row.remote.host, port: row.port })
-      : await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
+      ? await postJson(routes.systemRemoteOpen(), { host: row.remote.host, port: row.port })
+      : await postJson(routes.systemProjects('enter'), { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
     // the remote routes say why as JSON `{error}`, the switcher's as text
     if (!r.ok) {
       const why = row.remote ? remoteWhy(((await r.json().catch(() => null)) as { error?: unknown } | null)?.error) : reasonText(await reasonOf(r));
@@ -229,7 +162,7 @@ export async function enterProject(row: RunningRow, session?: string): Promise<b
 /** Stops that window from the list (its agent and launcher; the session stays); the refusal's reason, or null. */
 export async function stopProject(row: RunningRow): Promise<string | null> {
   try {
-    const r = await postJson('/system/projects/stop', { provider: row.provider, port: row.port, root: row.root });
+    const r = await postJson(routes.systemProjects('stop'), { provider: row.provider, port: row.port, root: row.root });
     return r.ok ? null : await reasonOf(r);
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
@@ -239,7 +172,7 @@ export async function stopProject(row: RunningRow): Promise<string | null> {
 /** The header's Stop Nota Bene, before this window stops itself: every other window; how many could not be stopped. */
 export async function stopOthers(): Promise<number> {
   try {
-    const r = await postJson('/system/projects/stop-others', {});
+    const r = await postJson(routes.systemProjects('stop-others'), {});
     if (!r.ok) return -1;
     const j = (await r.json()) as { failed?: unknown };
     return typeof j.failed === 'number' ? j.failed : -1;
@@ -260,8 +193,8 @@ export const openStarter = (mode: 'open' | 'new'): void => starter?.(mode);
 export async function openFolder(dir: string, provider: Provider, create?: { name: string; git: boolean }, session?: string): Promise<string | null> {
   try {
     const r = create
-      ? await postJson('/system/projects/create', { parent: dir, name: create.name, git: create.git, provider })
-      : await postJson('/system/projects/open', { dir, provider });
+      ? await postJson(routes.systemProjects('create'), { parent: dir, name: create.name, git: create.git, provider })
+      : await postJson(routes.systemProjects('open'), { dir, provider });
     if (!r.ok) return reasonOf(r);
     const { url } = (await r.json()) as { url?: unknown };
     if (typeof url !== 'string') return 'bad answer';

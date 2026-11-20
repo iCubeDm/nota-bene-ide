@@ -252,7 +252,6 @@
   "web/src/projects/ProjectSwitcher.tsx -> web/src/net/local.ts",
   "web/src/projects/ProjectSwitcher.tsx -> web/src/tabs/TabStrip.tsx",
   "web/src/projects/Tile.tsx -> web/src/tabs/TabStrip.tsx",
-  "web/src/projects/api.ts -> useSyncExternalStore",
   "web/src/projects/api.ts -> web/src/net/local.ts",
   "web/src/projects/landing.ts -> web/src/controls/slice.ts",
   "web/src/projects/landing.ts -> web/src/controls/useNote.ts",

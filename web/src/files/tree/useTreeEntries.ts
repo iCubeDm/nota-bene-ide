@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Source, TreeEntry } from '@nota-bene/shared';
 import { setDirs } from '@/tree/slice.ts';
-import { useAppDispatch, type RootState, connections } from '@/sdk';
+import { useAppDispatch, type RootState, connections, routes } from '@/sdk';
 import { useStore } from 'react-redux';
 import { isFixed } from '../sources.ts';
 
@@ -10,7 +10,7 @@ type Loaded = TreeEntry[] | 'gone' | 'error';
 /** Always build the query with encodeURIComponent: a `+` in a name must survive. */
 export async function loadDir(rel: string, src: string): Promise<Loaded> {
   try {
-    const r = await connections.current().fetch(`/tree?path=${encodeURIComponent(rel)}${src === 'here' ? '' : `&src=${encodeURIComponent(src)}`}`);
+    const r = await connections.current().fetch(routes.tree(rel, src));
     if (r.status === 404) return 'gone';
     if (!r.ok) return 'error';
     return (await r.json()) as TreeEntry[];

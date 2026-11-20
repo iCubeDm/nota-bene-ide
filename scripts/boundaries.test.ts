@@ -99,6 +99,8 @@ function scan(root: string): string[] {
     if (/\blocalStorage\b/.test(code) && me.folder !== 'sdk' && rel !== 'net/auth.ts') add('localStorage');
     if (GATE.test(code)) add('protocol gate');
     if (/\buseSyncExternalStore\b/.test(code) && me.folder !== 'sdk') add('useSyncExternalStore');
+    // the page's visibility pauses polls in the SDK's repository and is read nowhere else (pageVisible)
+    if (/\bvisibilityState\b/.test(code) && me.folder !== 'sdk') add('visibilityState');
   }
   const phone = path.join(root, PHONE);
   for (const abs of files(phone, /\.dart$/)) {
@@ -256,7 +258,7 @@ it('exempts test files, the listed test helpers and the harness from the folder 
   ]);
 });
 
-it('counts the text rules: localStorage, protocol gates, useSyncExternalStore', () => {
+it('counts the text rules: localStorage, protocol gates, useSyncExternalStore, visibilityState', () => {
   const root = tree({
     ...base,
     [`${W}/feed/Feed.tsx`]: [
@@ -264,6 +266,7 @@ it('counts the text rules: localStorage, protocol gates, useSyncExternalStore', 
       "const on = useAppSelector((s) => s.controls.protocol >= 14);",
       "const n = useSyncExternalStore(sub, get);",
       "const best = (stamps.get(a) ?? 0) >= (stamps.get(b) ?? 0);",
+      "if (document.visibilityState === 'hidden') return;",
     ].join('\n'),
     [`${W}/comments/named.ts`]: "s.ops = ev.protocol >= OPS_PROTOCOL;",
     [`${W}/comments/below.ts`]: "if (st.controls.protocol < 16) return;",
@@ -276,7 +279,7 @@ it('counts the text rules: localStorage, protocol gates, useSyncExternalStore', 
       "const OPS_PROTOCOL = 7;",
     ].join('\n'),
     [`${W}/lib/quiet.ts`]: "// localStorage, useSyncExternalStore and protocol >= 4 in a comment\nconst k = 'localStorage';",
-    [`${W}/sdk/storage.ts`]: "localStorage.setItem('k', 'v'); useSyncExternalStore(a, b);",
+    [`${W}/sdk/storage.ts`]: "localStorage.setItem('k', 'v'); useSyncExternalStore(a, b); document.visibilityState;",
     [`${W}/net/auth.ts`]: "localStorage.getItem('t');",
     ['mobile/app/lib/chat/window_tab.dart']: "bool get v => (protocol ?? 0) >= 14;\nbool get o => (tab.protocol ?? 0) >= opsProtocol;",
     ['mobile/app/lib/chat/quiet.dart']: "/// (protocol ?? 0) >= 14 is how it used to read\nconst p = 3;",
@@ -289,6 +292,7 @@ it('counts the text rules: localStorage, protocol gates, useSyncExternalStore', 
     `${W}/feed/Feed.tsx -> localStorage`,
     `${W}/feed/Feed.tsx -> protocol gate`,
     `${W}/feed/Feed.tsx -> useSyncExternalStore`,
+    `${W}/feed/Feed.tsx -> visibilityState`,
   ]);
   expect(classify('mobile/app/lib/chat/window_tab.dart -> protocol gate')).toBe('protocol gate');
 });

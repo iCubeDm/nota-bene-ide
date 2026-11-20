@@ -4,7 +4,7 @@ import { isAttachmentAnchor, type AttachmentAnchor, type MediaShape } from '@not
 import { CommentPopup } from '@/comments/CommentPopup.tsx';
 import { selectComments } from '@/comments/slice.ts';
 import { useMarkPopup } from '@/files/view/useMediaMarkup.ts';
-import { useT, toast, useAppDispatch, useAppSelector } from '@/sdk';
+import { useT, toast, useAppDispatch, useAppSelector, connections, routes } from '@/sdk';
 import { prepareAttachmentComment } from '@/media/markup/createMediaComment.ts';
 import { MarkupLayer } from '@/media/markup/MarkupLayer.tsx';
 import { shapeEls, useOverlayPlacement } from '@/media/markup/overlay.tsx';
@@ -87,7 +87,7 @@ export function AttachmentMarkup({ id, onClose }: { id: string; onClose: () => v
     <div ref={root} onKeyDown={onKeyDown} role="dialog" aria-modal="true" aria-label={t('markAttachment')} data-anchor-skip className="fixed inset-0 z-50 grid place-items-center bg-scrim/80">
       <div className="relative h-[92vh] w-[92vw]">
         <div data-pane={tabId} className="absolute inset-0 grid place-items-center overflow-auto">
-          <img ref={setImg} src={`/attach/${id}`} alt="" draggable={false} className="relative max-h-full max-w-full rounded-lg object-contain" />
+          <img ref={setImg} src={connections.current().url(routes.attach(id))} alt="" draggable={false} className="relative max-h-full max-w-full rounded-lg object-contain" />
         </div>
         {img && <Marks image={id} media={img} />}
         {img && <MarkupLayer tabId={tabId} media={img} fit="contain" onAdd={onAdd} held={!!markPopup} saving={saving} />}

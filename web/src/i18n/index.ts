@@ -1,6 +1,7 @@
 import { isUiLang, type UiLang } from '@nota-bene/shared';
 import { useSyncExternalStore } from 'react';
 import { apiFetch } from '../net/auth.ts';
+import { routes } from '../sdk/routes.ts';
 import { de } from './de.ts';
 import { en } from './en.ts';
 import { es } from './es.ts';
@@ -55,7 +56,7 @@ let unsynced: Lang | null = null;
 export function persistLang(l: Lang, ifUnset = false): void {
   if (!ifUnset) unsynced = l;
   try {
-    void apiFetch('/system/prefs', {
+    void apiFetch(routes.systemPrefs(), {
       method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ lang: l, ...(ifUnset ? { ifUnset: true } : {}) }),
     }).then((r) => { if (r.ok && !ifUnset && unsynced === l) unsynced = null; }, () => {});
   } catch { /* no fetch: the local cache still holds the choice */ }

@@ -3,6 +3,7 @@
 // it (a login value of this launch, not the raw token) for an HttpOnly cookie through POST /auth, which also returns the page's key. The cookie (sent to every port on 127.0.0.1,
 // so it opens only GET routes) goes along by itself; the key stays in localStorage (origin-scoped, port included) and is sent
 // by `apiFetch` (every request but /file and /attach) and as the `nb.<key>` WebSocket subprotocol (never in the URL): both needed to write.
+import { routes } from '../sdk/routes.ts';
 
 export const KEY_STORAGE = 'nb.key';
 export const KEY_HEADER = 'x-nota-bene-key';
@@ -46,7 +47,7 @@ export async function loginFromFragment(loc: Location = location, hist: History 
   // before anything else: from now on a reload, a copied address or a screen share no longer holds the token
   hist.replaceState(null, '', loc.pathname + loc.search);
   try {
-    const r = await fetchFn('/auth', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ login: m[1] }) });
+    const r = await fetchFn(routes.auth(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ login: m[1] }) });
     if (!r.ok) return false;
     const j = (await r.json().catch(() => null)) as { key?: unknown } | null;
     if (j && typeof j.key === 'string') {
@@ -67,7 +68,7 @@ export async function loginFromFragment(loc: Location = location, hist: History 
  */
 export async function refusedForAuth(fetchFn: typeof fetch = fetch): Promise<boolean> {
   try {
-    return (await apiFetch('/info', { cache: 'no-store' }, fetchFn)).status === 401;
+    return (await apiFetch(routes.info(), { cache: 'no-store' }, fetchFn)).status === 401;
   } catch {
     return false;
   }

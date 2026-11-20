@@ -7,7 +7,8 @@ import { cancelRestart, restartAgent, restartInPause, restartServer, selectResta
 import { selectPagePause } from './pagePause.ts';
 import { selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { apiFetch } from '@/net/auth.ts';
+import { routes } from '@/sdk/routes.ts';
+import { defineResource, useResource } from '@/sdk/repository.ts';
 
 export const INFO_POLL_MS = 20_000;
 /** while a restart is pending and this page is in its pause, it asks again this often (the server may still see work) */
@@ -29,27 +30,21 @@ function useRestartInPause(pending: boolean): void {
   }, [pending, paused, switching, d]);
 }
 
+const infoResource = defineResource<void, { supervised?: unknown; codeChanged?: unknown }>({ key: () => '', route: routes.info, every: INFO_POLL_MS });
+
 /**
  * `/info.supervised` and `.codeChanged`: read on load and after every reconnect (a relaunch may change them), on window
  * focus, and every 20 s while the tab is visible (the agent edits server code while the user watches). false on failure.
  */
 function useServerInfo(): { supervised: boolean; codeChanged: boolean } {
   const conn = useAppSelector(selectConn);
-  const [info, setInfo] = useState({ supervised: false, codeChanged: false });
+  const { data, failed, refresh } = useResource(infoResource, undefined, { on: conn === 'open' });
   useEffect(() => {
     if (conn !== 'open') return;
-    let live = true;
-    const read = () => {
-      apiFetch('/info').then((r) => r.json()).then((j: { supervised?: unknown; codeChanged?: unknown }) => {
-        if (live) setInfo({ supervised: j.supervised === true, codeChanged: j.codeChanged === true });
-      }).catch(() => { if (live) setInfo({ supervised: false, codeChanged: false }); });
-    };
-    read();
-    const timer = setInterval(() => { if (document.visibilityState === 'visible') read(); }, INFO_POLL_MS);
-    window.addEventListener('focus', read);
-    return () => { live = false; clearInterval(timer); window.removeEventListener('focus', read); };
-  }, [conn]);
-  return info;
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [conn, refresh]);
+  return { supervised: !failed && data?.supervised === true, codeChanged: !failed && data?.codeChanged === true };
 }
 
 /** ↻ restarts the agent (R-M4-1); the chevron opens the menu, whose second item restarts the whole server (R-M5-1). */

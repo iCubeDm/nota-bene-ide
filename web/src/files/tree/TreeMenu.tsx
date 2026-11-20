@@ -1,6 +1,6 @@
 import { VIDEO } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { useT, connections, isMac, toast, useAppDispatch, openFile } from '@/sdk';
+import { useT, connections, routes, isMac, toast, useAppDispatch, openFile } from '@/sdk';
 import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/sdk/ui';
 import { isEditMedia, newCutOf } from '@/cut/assemble.ts';
 import { srcSize } from '@/cut/durations.ts';
@@ -71,7 +71,7 @@ export function TreeMenu({ row, picked, src, creating, setCreating }: {
       const [items, frame] = await Promise.all([Promise.all(media.map(async (f) => ({ src: f, len: await mediaLen(f) }))), firstFrame(media)]);
       const made = newCutOf(items, frame);
       if (!made) return toast(t('treeNewEditFailed'), t('cutCannotAdd', media.map((f) => basename(f)).join(', ')));
-      const r = await connections.current().fetch('/cut/new', {
+      const r = await connections.current().fetch(routes.cutNew(), {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dir: folderOf(media[0]!), cut: made.cut }),
       });
       const j = await r.json().catch(() => null) as { path?: string; error?: string; code?: string } | null;
@@ -92,7 +92,7 @@ export function TreeMenu({ row, picked, src, creating, setCreating }: {
   // the server's refusal codes become words (OS_REASONS)
   const os = async (action: 'reveal' | 'open') => {
     try {
-      const r = await connections.current().fetch(`/os/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: row }) });
+      const r = await connections.current().fetch(routes.os(action), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: row }) });
       if (r.ok) return;
       const j = (await r.json().catch(() => null)) as { error?: string } | null;
       toast(t('treeOsFail', basename(row)), t(OS_REASONS[j?.error ?? ''] ?? 'treeOsOther'));

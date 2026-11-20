@@ -148,6 +148,18 @@ describe('the picker', () => {
     expect(screen.getByRole('button', { name: /^old/ }).querySelector('[data-agent-dot]')).toBeNull();
   });
 
+  it('opening the menu reads the branches at once, even right after a read', async () => {
+    const { store, el, wait } = await open();
+    fireEvent.click(screen.getByRole('button', { name: /^agent\/one/ })); // viewing: the closed button keeps its mark fresh
+    await wait(0);
+    const asks = () => vi.mocked(fetch).mock.calls.filter(([u]) => u === '/vcs-branches').length;
+    const n = asks();
+    expect(selectTree(store.getState()).src).toBe('ref:agent/one');
+    fireEvent.click(el()!);
+    await wait(0);
+    expect(asks()).toBe(n + 1);
+  });
+
   it('picking changes the view and says so; the checkout is not touched', async () => {
     const { store, el } = await open();
     fireEvent.click(screen.getByRole('button', { name: /^agent\/one/ }));

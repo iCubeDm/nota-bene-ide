@@ -4,7 +4,7 @@
 // being browsed). "New folder here" creates one in the folder being browsed and opens it. Either way in a window of the
 // chosen agent, and this tab moves there.
 import { useEffect, useRef, useState } from 'react';
-import { useT, connections } from '@/sdk';
+import { useT, connections, routes } from '@/sdk';
 import { Dialog, DialogContent, DialogTitle } from '@/sdk/ui';
 import { isAbsolute, onPageRestore, openFolder, postJson, PROVIDER_LABEL, reasonOf, reasonText, setStarter, validName, type Provider } from './api.ts';
 
@@ -54,7 +54,7 @@ export function Starter() {
 
   const fetchListing = async (path: string | undefined, withHidden: boolean): Promise<Listing | string> => {
     try {
-      const r = await postJson('/system/folders', { ...(path !== undefined ? { path } : {}), hidden: withHidden });
+      const r = await postJson(routes.systemFolders(), { ...(path !== undefined ? { path } : {}), hidden: withHidden });
       if (!r.ok) return reasonOf(r);
       return (await r.json()) as Listing;
     } catch (e) {
@@ -85,7 +85,7 @@ export function Starter() {
       setRunning(false);
       setHidden(false);
       void browse(last.current, false);
-      void connections.current().fetch('/system/agents').then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[]; default?: Provider } | null) => {
+      void connections.current().fetch(routes.systemAgents()).then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[]; default?: Provider } | null) => {
         if (!j || !Array.isArray(j.agents)) return;
         setAgents(j.agents);
         if (j.default) setAgent(j.default);

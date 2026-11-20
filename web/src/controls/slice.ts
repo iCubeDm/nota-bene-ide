@@ -1,6 +1,6 @@
 import { createAction, type PayloadAction, createListenerMiddleware, createSlice } from '@reduxjs/toolkit';
 import { has, CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
-import { t, toast, connState, serverEvent, type AppThunk, type RootState } from '@/sdk';
+import { t, toast, connState, serverEvent, routes, type AppThunk, type RootState } from '@/sdk';
 
 /**
  * `switching`: a `switch` we sent is in flight. `asked` from the click until the reset's `replay` (the server accepted
@@ -286,7 +286,7 @@ export const restartAgent = (): AppThunk<boolean> => (dispatch, getState, { conn
 export const stopWindow = (): AppThunk<Promise<boolean>> => async (_dispatch, getState, { connections }) => {
   if (getState().controls.switching) return false;
   try {
-    const r = await connections.current().fetch('/stop', { method: 'POST' });
+    const r = await connections.current().fetch(routes.stop(), { method: 'POST' });
     if (!r.ok) { toast(t('stopFail'), (await r.text().catch(() => '')) || String(r.status)); return false; }
   } catch (e) {
     toast(t('stopFail'), e instanceof Error ? e.message : String(e));
@@ -309,13 +309,13 @@ let serverRestartTimer: ReturnType<typeof setTimeout> | undefined;
  * tells the header); `now` is Restart now, which cuts the running turn. An older server always restarts at once.
  */
 export const restartServer = (o: { now?: boolean } = {}): AppThunk<Promise<boolean>> => (dispatch) =>
-  dispatch(restartVia('/restart-server', o.now ? { now: true } : undefined));
+  dispatch(restartVia(routes.restartServer(), o.now ? { now: true } : undefined));
 
 /** the page is in its pause too (as for the update's hand-over): the pending restart may go now */
 export const restartInPause = (): AppThunk<Promise<boolean>> => async (dispatch, getState, { connections }) => {
   if (getState().controls.switching) return false;
   // asked first, the restarting phase only once it is accepted: a 409 (the server still sees work) changes nothing here
-  const ok = await connections.current().fetch('/restart-server/pause', { method: 'POST' }).then((r) => r.ok, () => false);
+  const ok = await connections.current().fetch(routes.restartServer('pause'), { method: 'POST' }).then((r) => r.ok, () => false);
   if (!ok || getState().controls.switching) return false;
   dispatch(switchStarted(true));
   dispatch(restartAccepted()); // a `restart-pending` before the socket drops ends the phase: the server stayed
@@ -334,7 +334,7 @@ export const cancelCompact = (): AppThunk<boolean> => (_d, _g, { connections }) 
 /** drops the pending restart; the server's `restart-pending` updates every page */
 export const cancelRestart = (): AppThunk<Promise<boolean>> => async (_d, _g, { connections }) => {
   try {
-    const r = await connections.current().fetch('/restart-server/cancel', { method: 'POST' });
+    const r = await connections.current().fetch(routes.restartServer('cancel'), { method: 'POST' });
     if (!r.ok) { toast(t('restartFail'), (await r.text().catch(() => '')) || String(r.status)); return false; }
     return true;
   } catch (e) {

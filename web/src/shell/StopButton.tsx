@@ -5,6 +5,7 @@ import { selectSwitching, stopWindow } from '@/controls/slice.ts';
 import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { apiFetch } from '@/net/auth.ts';
+import { routes } from '@/sdk/routes.ts';
 import { remotePage } from '@/net/local.ts';
 import { stopOthers } from '@/projects/api.ts';
 import { toast } from './toast.ts';
@@ -26,7 +27,7 @@ export function StopButton() {
   const open = () => {
     setAsk(true);
     setOthersBusy(false);
-    apiFetch('/system/projects').then((r) => (r.ok ? r.json() : null)).then((j: { running?: { state?: string; current?: boolean; remote?: object }[] } | null) => {
+    apiFetch(routes.systemProjects()).then((r) => (r.ok ? r.json() : null)).then((j: { running?: { state?: string; current?: boolean; remote?: object }[] } | null) => {
       setOthersBusy(!!j?.running?.some((w) => !w.current && !w.remote && w.state === 'working'));
     }).catch(() => {});
   };

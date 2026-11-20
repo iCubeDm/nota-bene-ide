@@ -1,9 +1,9 @@
 import { dictationLangSet } from '@/controls/slice.ts';
-import { useAppDispatch, useAppSelector, connections, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome } from '@/sdk';
+import { useAppDispatch, useAppSelector, connections, defineResource, routes, useResource, type Resource, type Route, type Snapshot, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome } from '@/sdk';
 import { Button, ConfirmDialog } from '@/sdk/ui';
 import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
 import { langName } from '@/voice/lang.ts';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { has, MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
 import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
 import { uiScale, useUiScale } from '@/shell/uiScale.ts';
@@ -32,26 +32,15 @@ const uptime = (since: number, now = Date.now()) => {
   return m < 60 ? tNow('upMin', m) : m < 1440 ? tNow('upHMin', Math.floor(m / 60), m % 60) : tNow('upD', Math.floor(m / 1440));
 };
 
-async function getJson<T>(url: string): Promise<T> {
-  const r = await connections.current().fetch(url);
-  if (!r.ok) throw new Error(`${url} ${r.status}`);
-  return (await r.json()) as T;
-}
+/** A GET route as it is: every section reads its own. */
+const getResource = defineResource<Route, unknown>({ key: (url) => url, route: (url) => url });
 const postJson = (url: string, body: unknown) =>
   connections.current().fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
-/** One load per activation; `reload` after an action. A failure is shown in the section, never thrown. */
-function useLoad<T>(url: string, active: boolean): { data: T | null; error: string | null; reload: () => void } {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    let live = true;
-    getJson<T>(url).then((d) => { if (live) { setData(d); setError(null); } }, (e: unknown) => { if (live) setError(e instanceof Error ? e.message : String(e)); });
-    return () => { live = false; };
-  }, [url, active, n]);
-  return { data, error, reload: useCallback(() => setN((x) => x + 1), []) };
+/** One load per activation; `reload` after an action; `every` polls (by the data). A failure is shown in the section, never thrown. */
+function useLoad<T>(url: Route, active: boolean, every?: (data: T | null) => number): { data: T | null; error: string | null; reload: () => void } {
+  const r = useResource(getResource as Resource<Route, T>, url, { on: active, ...(every ? { every: (now: Snapshot<T>) => every(now.data) } : {}) });
+  return { data: r.data, error: r.failed ? r.error : null, reload: r.refresh };
 }
 
 function Section({ title, children, aside, id }: { title: string; children: ReactNode; aside?: ReactNode; id?: string }) {
@@ -105,12 +94,13 @@ export function SettingsView({ active }: { active: boolean }) {
   const scale = useUiScale();
   const themeId = useTheme();
   const rail = useRailPref();
-  const windows = useLoad<WindowRow[]>('/system/windows', active);
-  const storage = useLoad<Storage>('/system/storage', active);
-  const about = useLoad<About>('/system/about', active);
-  const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean; audit?: boolean; auditDir?: string; sounds?: Sounds; shell?: ShellChoice; shells?: Record<WinShell, string | null> }>('/system/prefs', active);
-  const upd = useLoad<{ auto: boolean }>('/system/update', active);
-  const dict = useLoad<Dictation>('/dictation', active);
+  const windows = useLoad<WindowRow[]>(routes.systemWindows(), active);
+  const storage = useLoad<Storage>(routes.systemStorage(), active);
+  const about = useLoad<About>(routes.systemAbout(), active);
+  const prefs = useLoad<{ defaultMode: Mode; updateCheck?: boolean; updateCheckForcedOff?: boolean; audit?: boolean; auditDir?: string; sounds?: Sounds; shell?: ShellChoice; shells?: Record<WinShell, string | null> }>(routes.systemPrefs(), active);
+  const upd = useLoad<{ auto: boolean }>(routes.systemUpdate(), active);
+  // an install runs on the server with nobody awaiting it: its phase is polled until it settles
+  const dict = useLoad<Dictation>(routes.dictation(), active, (d) => (d?.phase === 'installing' ? 2000 : 0));
   const [ask, setAsk] = useState<{ title: string; body: string; confirm: string; run: () => Promise<void> } | null>(null);
   // the port whose action is in flight: that row's buttons are off until it settles (no double relays)
   const [pending, setPending] = useState<number | null>(null);
@@ -121,7 +111,7 @@ export function SettingsView({ active }: { active: boolean }) {
     setPending(w.port);
     try {
       // the row's identity: the server refuses if another window has taken the port since this list was loaded
-      const r = await postJson('/system/windows/action', { port: w.port, action, root: w.root, pid: w.pid, startedAt: w.startedAt }).catch(() => null);
+      const r = await postJson(routes.systemWindowsAction(), { port: w.port, action, root: w.root, pid: w.pid, startedAt: w.startedAt }).catch(() => null);
       if (r?.ok) return setNote(t('winSent'));
       const body = r ? await r.text().catch(() => '') : '';
       const inner = r?.status === 502 ? (JSON.parse(body || '{}') as { status?: number }).status : undefined;
@@ -146,7 +136,7 @@ export function SettingsView({ active }: { active: boolean }) {
   };
   const clean = async () => {
     try {
-      const r = await postJson('/system/storage/clean', {});
+      const r = await postJson(routes.systemStorageClean(), {});
       if (!r.ok) throw new Error(`${r.status}`);
       const j = (await r.json()) as { moved: number; bytes: number; trash: string; errors?: string[] };
       setNote(t('stCleaned', j.moved, byteSize(j.bytes), short(j.trash)) + (j.errors?.length ? ` · ${t('stErrors', j.errors.length, j.errors[0]!)}` : ''));
@@ -157,21 +147,13 @@ export function SettingsView({ active }: { active: boolean }) {
   };
   const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean } | { audit: boolean } | { sounds: Sounds } | { shell: ShellChoice }) => {
     try {
-      const r = await postJson('/system/prefs', pref);
+      const r = await postJson(routes.systemPrefs(), pref);
       if (!r.ok) throw new Error(`${r.status}`);
     } catch (e) {
       setNote(t('setLoadFail', e instanceof Error ? e.message : String(e)));
     }
     prefs.reload();
   };
-  // an install runs on the server with nobody awaiting it: poll its phase until it settles
-  const installing = dict.data?.phase === 'installing';
-  const reloadDict = dict.reload;
-  useEffect(() => {
-    if (!active || !installing) return;
-    const id = setInterval(reloadDict, 2000);
-    return () => clearInterval(id);
-  }, [active, installing, reloadDict]);
   const dictPost = async (url: string, body: unknown = {}) => {
     try {
       const r = await postJson(url, body);
@@ -254,7 +236,7 @@ export function SettingsView({ active }: { active: boolean }) {
         {fail(dict.error)}
         {dict.data?.phase === 'none' && (
           <Button type="button" variant="outline" size="sm"
-            onClick={() => setAsk({ title: t('dictInstall', dict.data!.downloadMb, dict.data!.diskMb), body: t('dictInstallQ', dict.data!.downloadMb, dict.data!.diskMb, dict.data!.dir), confirm: t('dictInstallGo'), run: () => dictPost('/dictation/install') })}>
+            onClick={() => setAsk({ title: t('dictInstall', dict.data!.downloadMb, dict.data!.diskMb), body: t('dictInstallQ', dict.data!.downloadMb, dict.data!.diskMb, dict.data!.dir), confirm: t('dictInstallGo'), run: () => dictPost(routes.dictation('install')) })}>
             {t('dictInstall', dict.data.downloadMb, dict.data.diskMb)}
           </Button>
         )}
@@ -262,25 +244,25 @@ export function SettingsView({ active }: { active: boolean }) {
         {dict.data?.phase === 'failed' && (
           <div className="flex items-center gap-3">
             <span role="alert" className="text-[0.8125rem] text-warn">{t('dictFailed')}</span>
-            <Button type="button" variant="outline" size="sm" onClick={() => void dictPost('/dictation/install')}>{t('dictRetry')}</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => void dictPost(routes.dictation('install'))}>{t('dictRetry')}</Button>
           </div>
         )}
         {dict.data?.phase === 'ready' && (
           <div className="flex flex-wrap items-center gap-4 text-[0.8125rem]">
             <label className="flex items-center gap-2 text-foreground">
               <input type="checkbox" aria-label={t('dictUse')} checked={dict.data.on} className="size-3.5 accent-primary"
-                onChange={(e) => void dictPost('/dictation/on', { on: e.target.checked })} />
+                onChange={(e) => void dictPost(routes.dictation('on'), { on: e.target.checked })} />
               {t('dictUse')}
             </label>
             <Button type="button" variant="outline" size="sm"
-              onClick={() => setAsk({ title: t('dictRemove'), body: t('dictRemoveQ', dict.data!.dir), confirm: t('dictRemoveGo'), run: () => dictPost('/dictation/remove') })}>
+              onClick={() => setAsk({ title: t('dictRemove'), body: t('dictRemoveQ', dict.data!.dir), confirm: t('dictRemoveGo'), run: () => dictPost(routes.dictation('remove')) })}>
               {t('dictRemove')}
             </Button>
           </div>
         )}
         {dict.data?.phase === 'ready' && has(protocol, 'voiceDetect') && (
           <Row label={t('dictLang')}>
-            <select aria-label={t('dictLang')} value={dictLang} onChange={(e) => void dictPost('/dictation/lang', { lang: e.target.value })}
+            <select aria-label={t('dictLang')} value={dictLang} onChange={(e) => void dictPost(routes.dictation('lang'), { lang: e.target.value })}
               className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[0.8125rem] text-foreground">
               <option value="auto">{t('dictLangAuto')}</option>
               {LANGS.map((l) => <option key={l.id} value={l.id.split('-')[0]}>{l.name}</option>)}
@@ -328,7 +310,7 @@ export function SettingsView({ active }: { active: boolean }) {
           {prefs.data && (
             <span className="flex flex-col gap-1">
               <input type="checkbox" aria-label={t('settingsAutoUpdate')} checked={upd.data?.auto === true} disabled={prefs.data.updateCheck !== true || !upd.data}
-                onChange={(e) => void postJson('/system/update/auto', { on: e.target.checked }).then((r) => { if (!r.ok) throw new Error(`${r.status}`); }).catch((err: unknown) => setNote(t('setLoadFail', err instanceof Error ? err.message : String(err)))).then(upd.reload).then(recheckUpdate)}
+                onChange={(e) => void postJson(routes.systemUpdate('auto'), { on: e.target.checked }).then((r) => { if (!r.ok) throw new Error(`${r.status}`); }).catch((err: unknown) => setNote(t('setLoadFail', err instanceof Error ? err.message : String(err)))).then(upd.reload).then(recheckUpdate)}
                 className="size-3.5 accent-primary" />
               <span className="text-xs text-muted-foreground">{t('settingsAutoUpdateHint')}</span>
             </span>

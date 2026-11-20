@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } 
 import { Attachments } from '@/attachments/Attachments.tsx';
 import { mediaTypeOf } from '@/attachments/image.ts';
 import { addImage } from '@/composer/slice.ts';
-import { getLang, useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, connections, routes } from '@/sdk';
 import { Tooltip, TooltipTrigger } from '@/sdk/ui';
 import { selectSwitching } from '@/controls/slice.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
@@ -97,7 +97,7 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
           onClick={popover ? undefined : jump}
           className={`flex items-end gap-2 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover ? '' : 'cursor-pointer'}`}
         >
-          {c.images?.[0] && <img src={`/attach/${c.images[0]}`} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
+          {c.images?.[0] && <img src={connections.current().url(routes.attach(c.images[0]))} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
           <span className="min-w-0 truncate font-mono text-[0.6875rem]">
             {media.source.path.slice(media.source.path.lastIndexOf('/') + 1)}{media.time !== undefined ? ` @ ${mediaTime(media.time)}` : ''}
           </span>
@@ -108,7 +108,7 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
           onClick={popover || !attached ? undefined : jump}
           className={`flex items-end gap-2 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover || !attached ? '' : 'cursor-pointer'}`}
         >
-          {c.images?.[0] && <img src={`/attach/${c.images[0]}`} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
+          {c.images?.[0] && <img src={connections.current().url(routes.attach(c.images[0]))} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
           {!sent && !attached && (
             <span className="flex min-w-0 flex-col items-start gap-1">
               <span data-detached className="rounded bg-warn/15 px-1 text-[0.6875rem] text-warn">{t('attachDetached')}</span>

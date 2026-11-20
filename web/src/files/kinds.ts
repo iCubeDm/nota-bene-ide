@@ -1,5 +1,5 @@
 import { AUDIO, IMAGE, VIDEO } from '@nota-bene/shared/cut';
-import { serverSep } from '@/sdk';
+import { serverSep, connections, routes } from '@/sdk';
 
 export { AUDIO, IMAGE, VIDEO }; // shared: an edit's sources are these files
 export const MD = /\.(md|markdown)$/i;
@@ -45,8 +45,7 @@ export function fileUrl(p: string, baseDir?: string, src?: string): string {
 }
 
 /** URL of a project-relative path taken as it is, not as a link: `a%20b.mp4` is that file's name (an edit's sources). */
-export const projectFileUrl = (path: string, src?: string): string =>
-  `/file?path=${encodeURIComponent(path)}${src && src !== 'here' ? `&src=${encodeURIComponent(src)}` : ''}`;
+export const projectFileUrl = (path: string, src?: string): string => connections.current().url(routes.file(path, { src }));
 
 /** A project-relative path in agent text: never absolute (`/a`; on a Windows server also `C:\a`, `C:/a` or `\\host\share`),
  *  a URL or `~`. */

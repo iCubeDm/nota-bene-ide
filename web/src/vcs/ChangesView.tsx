@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { VcsFile } from '@nota-bene/shared';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
 import { refOf } from '@/files/sources.ts';
-import { useT } from '@/sdk';
+import { routes, useT } from '@/sdk';
 import { FileDiff, type DiffFile } from './DiffBody.tsx';
 import { parsePatch } from './parse.ts';
 import { currentFile, focusFile, setSplit, usePatch, useVcsUi, type RepoDiff } from './store.ts';
@@ -36,13 +36,13 @@ const arrow = 'grid size-6 place-items-center rounded border border-border-soft 
 /** The current diff, ONE file at a time: the panel picks it, and a large diff stays as light as a small one. */
 export function ChangesView({ active }: { active: boolean }) {
   const t = useT();
-  const { src, base, data } = useLiveDiff(active);
+  const { src, base, data, failed } = useLiveDiff(active);
   const ui = useVcsUi();
   const repo = data?.repo ? data : null;
   const files = repo?.files ?? [];
   const cur = currentFile(files, ui.focus?.path);
   const at = cur ? files.indexOf(cur) : -1;
-  const url = cur ? `/vcs-file?${new URLSearchParams({ src, path: cur.path, ...(base ? { base } : {}), ...(cur.old ? { old: cur.old } : {}) })}` : null;
+  const url = cur ? routes.vcsFile(src, cur.path, { base, old: cur.old }) : null;
   const got = usePatch(url, active);
   const view = useMemo(() => (cur && got && (got.patch || !got.failed) ? viewOf(cur, got.patch) : null), [cur?.path, got]); // eslint-disable-line react-hooks/exhaustive-deps
   const ref = refOf(src);
@@ -62,7 +62,7 @@ export function ChangesView({ active }: { active: boolean }) {
         <SplitToggle split={ui.split} />
       </div>
       <div className="px-4 pb-6">
-        {(ui.failed || got?.failed) && <p role="alert" className="mb-2 text-xs text-warn">{t('vcsFailed')}</p>}
+        {(failed || got?.failed) && <p role="alert" className="mb-2 text-xs text-warn">{t('vcsFailed')}</p>}
         {repo?.unrelated && repo.base && <p role="alert" className="mb-2 text-xs text-warn">{t('vcsUnrelated', repo.base)}</p>}
         {repo && !files.length && !repo.unrelated && <div className="nb-card m-0! p-6 text-center text-sm text-muted-foreground">{t('vcsNoChanges')}</div>}
         {repo?.truncated && <p role="alert" className="mb-2 text-xs text-warn">{t('vcsCut', files.length)}</p>}

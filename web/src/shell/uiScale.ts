@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { isUiScale, UI_SCALES, type UiScale } from '@nota-bene/shared';
 import { apiFetch } from '@/net/auth.ts';
+import { routes } from '@/sdk/routes.ts';
 
 const KEY = 'nb.uiScale';
 
@@ -36,7 +37,7 @@ function setLocal(v: UiScale): void {
 function persist(v: UiScale): void {
   unsynced = v;
   try {
-    void apiFetch('/system/prefs', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ uiScale: v }) })
+    void apiFetch(routes.systemPrefs(), { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ uiScale: v }) })
       .then((r) => { if (r.ok && unsynced === v) unsynced = null; }, () => {});
   } catch { /* no fetch: the local cache still holds the choice */ }
 }

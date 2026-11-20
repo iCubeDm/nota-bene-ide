@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
-import { connState, makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { testStore, type FakeConnection } from '@/testing';
 import { draftSent, setBuilding, setDraft, uploadStarted } from '@/composer/slice.ts';
 import { reloadPage } from './reloadPage.ts';
 import { recheckUpdate, UpdateNotice } from './UpdateNotice.tsx';
@@ -14,12 +15,13 @@ globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {
 
 let answer: unknown;
 const status = { current: '1.2.0', latest: '1.3.0', phase: 'available', canUpdate: false, auto: false, busy: false, log: '/state/update.log' };
-let store: ReturnType<typeof makeStore>;
+let store: ReturnType<typeof testStore>['store'];
+let sock: FakeConnection;
 const render = (ui: React.ReactElement) => rtlRender(<Provider store={store}>{ui}</Provider>);
 beforeEach(() => {
   setLang('en');
   localStorage.clear();
-  store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  ({ store, conn: sock } = testStore());
   answer = status;
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(answer))));
 });
@@ -144,6 +146,54 @@ it('shows Updating… and polls while installing', async () => {
   }
 });
 
+it('installing and ready are followed while the tab is hidden, so the restart comes in a pause, not on return', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const hidden = vi.spyOn(document, 'visibilityState', 'get');
+  try {
+    answer = { ...status, canUpdate: true, phase: 'installing' };
+    render(<UpdateNotice />);
+    expect(await screen.findByText('Updating to 1.3.0…')).toBeInTheDocument();
+    hidden.mockReturnValue('hidden');
+    act(() => void document.dispatchEvent(new Event('visibilitychange')));
+    answer = { ...status, canUpdate: true, phase: 'ready' };
+    await act(() => vi.advanceTimersByTimeAsync(2100));
+    expect(await screen.findByText('1.3.0 is ready')).toBeInTheDocument();
+    await vi.waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u) === '/system/update/restart')).toBe(true));
+    // at rest, a hidden tab is not asked
+    answer = { ...status, phase: 'none', latest: null };
+    await act(() => vi.advanceTimersByTimeAsync(10_100));
+    const before = asks('/system/update');
+    await act(() => vi.advanceTimersByTimeAsync(130_000));
+    expect(asks('/system/update')).toBe(before);
+  } finally {
+    hidden.mockRestore();
+    vi.useRealTimers();
+  }
+});
+
+it('a network error keeps the status shown; a refusal hides it', async () => {
+  render(<UpdateNotice />);
+  await button();
+  vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'));
+  act(() => recheckUpdate());
+  await vi.waitFor(() => expect(asks('/system/update')).toBe(2));
+  await act(async () => { await Promise.resolve(); });
+  expect(screen.getByRole('button', { name: '↑ 1.3.0' })).toBeInTheDocument();
+  vi.mocked(fetch).mockImplementation(async () => new Response('no', { status: 503 }));
+  act(() => recheckUpdate());
+  await vi.waitFor(() => expect(screen.queryByRole('button', { name: '↑ 1.3.0' })).toBeNull());
+});
+
+it('a reconnect asks once', async () => {
+  render(<UpdateNotice />);
+  await vi.waitFor(() => expect(asks('/system/update')).toBe(1));
+  act(() => sock.setState('closed'));
+  act(() => sock.setState('open'));
+  await vi.waitFor(() => expect(asks('/system/update')).toBe(2));
+  await new Promise((r) => setTimeout(r, 50));
+  expect(asks('/system/update')).toBe(2);
+});
+
 it('ready: restarts by itself when idle and the composer is empty', async () => {
   answer = { ...status, canUpdate: true, phase: 'ready' };
   render(<UpdateNotice />);
@@ -167,7 +217,7 @@ it('ready: a draft in the composer, a waiting approval or a busy agent hold the 
   expect(posted()).toEqual([]);
   second.unmount();
 
-  store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  ({ store, conn: sock } = testStore());
   answer = { ...status, canUpdate: true, phase: 'ready', busy: true };
   render(<UpdateNotice />);
   const restart = await screen.findByRole('button', { name: 'Restart' });
@@ -187,7 +237,7 @@ it('ready: an upload, a send not yet echoed, a combined image being built, a run
     ['task', () => store.dispatch(serverEvent({ kind: 'agent', e: { t: 'task', id: 't1', phase: 'started', desc: 'build', type: 'local_bash' }, ts: 1 }))],
   ];
   for (const [what, hold] of holds) {
-    store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+    ({ store, conn: sock } = testStore());
     act(hold);
     const { unmount } = render(<UpdateNotice />);
     await screen.findByText('1.3.0 is ready');
@@ -266,24 +316,24 @@ it('an outdated /nb plugin shows beside a newer version on offer', async () => {
 
 it('after a handover the page reloads itself once it reconnects to the new version, when idle', async () => {
   answer = { ...status, latest: null, phase: 'none', canUpdate: true };
-  act(() => void store.dispatch(connState('open')));
+  act(() => sock.setState('open'));
   render(<UpdateNotice />);
   await vi.waitFor(() => expect(asks('/system/update')).toBe(1));
   answer = { ...status, current: '1.3.0', latest: null, phase: 'none', canUpdate: true, updatedFrom: '1.2.0' };
-  act(() => void store.dispatch(connState('closed')));
-  act(() => void store.dispatch(connState('open'))); // the server of the new version answers
+  act(() => sock.setState('closed'));
+  act(() => sock.setState('open')); // the server of the new version answers
   await vi.waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1));
 });
 
 it('after a handover with a draft the page stays, and Updated to offers Reload', async () => {
   answer = { ...status, latest: null, phase: 'none', canUpdate: true };
   act(() => void store.dispatch(setDraft('half a thought')));
-  act(() => void store.dispatch(connState('open')));
+  act(() => sock.setState('open'));
   render(<UpdateNotice />);
   await vi.waitFor(() => expect(asks('/system/update')).toBe(1));
   answer = { ...status, current: '1.3.0', latest: null, phase: 'none', canUpdate: true, updatedFrom: '1.2.0' };
-  act(() => void store.dispatch(connState('closed')));
-  act(() => void store.dispatch(connState('open')));
+  act(() => sock.setState('closed'));
+  act(() => sock.setState('open'));
   const reload = await screen.findByRole('button', { name: 'Reload' });
   expect(screen.getByRole('button', { name: 'Updated to 1.3.0' })).toBeInTheDocument();
   expect(reloadPage).not.toHaveBeenCalled();
@@ -293,11 +343,11 @@ it('after a handover with a draft the page stays, and Updated to offers Reload',
 
 it('a page loaded on the new version never reloads', async () => {
   answer = { ...status, current: '1.3.0', latest: null, phase: 'none', canUpdate: true, updatedFrom: '1.2.0' };
-  act(() => void store.dispatch(connState('open')));
+  act(() => sock.setState('open'));
   render(<UpdateNotice />);
   await screen.findByRole('button', { name: 'Updated to 1.3.0' });
-  act(() => void store.dispatch(connState('closed')));
-  act(() => void store.dispatch(connState('open')));
+  act(() => sock.setState('closed'));
+  act(() => sock.setState('open'));
   await vi.waitFor(() => expect(asks('/system/update')).toBe(2));
   expect(reloadPage).not.toHaveBeenCalled();
   expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
@@ -305,12 +355,12 @@ it('a page loaded on the new version never reloads', async () => {
 
 it('a source checkout whose version changed does not reload', async () => {
   answer = { ...status, current: 'v1.2.0-3-gabc', latest: null, phase: 'none' };
-  act(() => void store.dispatch(connState('open')));
+  act(() => sock.setState('open'));
   render(<UpdateNotice />);
   await vi.waitFor(() => expect(asks('/system/update')).toBe(1));
   answer = { ...status, current: 'v1.2.0-4-gdef', latest: null, phase: 'none' };
-  act(() => void store.dispatch(connState('closed')));
-  act(() => void store.dispatch(connState('open')));
+  act(() => sock.setState('closed'));
+  act(() => sock.setState('open'));
   await vi.waitFor(() => expect(asks('/system/update')).toBe(2));
   await new Promise((r) => setTimeout(r, 50));
   expect(reloadPage).not.toHaveBeenCalled();

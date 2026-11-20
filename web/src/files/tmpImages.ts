@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { connections, isDrivePath, isServerDrivePath, underDir, wireAbs } from '@/sdk';
+import { connections, routes, isDrivePath, isServerDrivePath, underDir, wireAbs } from '@/sdk';
 
 /**
  * Images of the server's temp folders (a screenshot the agent left in /tmp). The tab is a plain file tab whose path is
@@ -39,7 +39,7 @@ export function isTmpImagePath(abs: string, from: string[] = dirs): boolean {
 /** A tab path that is a temp image (any absolute path: project paths are relative). */
 export const isTmpTabPath = (path: string): boolean => (path.startsWith('/') || isServerDrivePath(path)) && IMG.test(path);
 
-export const tmpImageUrl = (abs: string, bust = 0): string => `/tmpimage?path=${encodeURIComponent(abs)}${bust ? `&r=${bust}` : ''}`;
+export const tmpImageUrl = (abs: string, bust = 0): string => routes.tmpImage(abs, bust);
 
 /** Temp image paths in a line of text (a Bash command, a Read's file_path), in order, without duplicates, in the wire form. */
 export function tmpImagePathsIn(text: string, from: string[] = dirs): string[] {

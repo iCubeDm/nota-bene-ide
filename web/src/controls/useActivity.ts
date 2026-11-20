@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAppDispatch } from '@/sdk';
+import { pageVisible, useAppDispatch } from '@/sdk';
 import { reportActivity } from './slice.ts';
 
 const EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'scroll', 'focus'] as const;
@@ -12,7 +12,7 @@ export function useActivity(): void {
   const dispatch = useAppDispatch();
   useEffect(() => {
     const on = () => {
-      if (document.visibilityState === 'visible') dispatch(reportActivity());
+      if (pageVisible()) dispatch(reportActivity());
     };
     for (const e of EVENTS) window.addEventListener(e, on, { capture: true, passive: true });
     document.addEventListener('visibilitychange', on);

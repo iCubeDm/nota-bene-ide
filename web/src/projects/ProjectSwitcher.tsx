@@ -5,7 +5,7 @@
 // Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent,
 // ✕ removes one from both (the server keeps it out until it is launched again).
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useT, shortHome, connections, toast, withKey, selectSession, useAppSelector } from '@/sdk';
+import { useT, shortHome, connections, routes, toast, withKey, selectSession, useAppSelector } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog } from '@/sdk/ui';
 import { ago } from '@/controls/SessionPicker.tsx';
 import { remotePage } from '@/net/local.ts';
@@ -57,7 +57,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     if (!open) return;
     setExpanded(new Set(session?.root ? [rowKey(session.root, here?.host)] : []));
     let gone = false;
-    connections.current().fetch('/sessions').then((r) => (r.ok ? r.json() : null)).then((v: { sessions?: LocalSession[] } | null) => {
+    connections.current().fetch(routes.sessions()).then((r) => (r.ok ? r.json() : null)).then((v: { sessions?: LocalSession[] } | null) => {
       if (!gone && v && Array.isArray(v.sessions)) setLocal(v.sessions.filter((x) => typeof x?.cwd === 'string' && typeof x.id === 'string'));
     }).catch(() => {});
     return () => { gone = true; };

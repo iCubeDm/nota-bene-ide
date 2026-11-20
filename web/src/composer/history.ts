@@ -1,6 +1,6 @@
 import { createSlice, type Middleware, type PayloadAction } from '@reduxjs/toolkit';
 import { fuzzyScore, PROMPT_MAX, type PromptEntry, type PromptSrc } from '@nota-bene/shared';
-import { serverEvent, type AppThunk, type RootState } from '@/sdk';
+import { serverEvent, routes, type AppThunk, type RootState } from '@/sdk';
 import type { SentDraft, ShellDraft } from './slice.ts';
 
 /**
@@ -87,7 +87,7 @@ const warn = (what: string, e: unknown) => console.warn(`prompt history: ${what}
 /** Asks the server for the session's stored prompts; an answer for a session that is not the current one any more is dropped. */
 export const loadHistory = (): AppThunk => (d, getState, { connections }) => {
   const sid = getState().promptHistory.sid;
-  connections.current().fetch(sid === null ? '/prompts' : `/prompts?session=${encodeURIComponent(sid)}`)
+  connections.current().fetch(routes.prompts(sid ?? undefined))
     .then((r) => (r.ok ? (r.json() as Promise<{ session: string | null; prompts: PromptEntry[] }>) : Promise.reject(new Error(`/prompts ${r.status}`))))
     // the answer must be for the session asked about and still the current one
     .then((body) => { if (getState().promptHistory.sid === sid && body.session === sid) d(historySlice.actions.loaded(body.prompts)); })
@@ -100,7 +100,7 @@ const record = (entry: Omit<PromptEntry, 'ts'>): AppThunk => (d, getState, { con
   const full: PromptEntry = { ...entry, ts: Date.now() };
   const session = getState().feed.session?.id ?? null;
   d(historySlice.actions.appended(full));
-  connections.current().fetch('/prompts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session, id: full.id, text: full.text, src: full.src }) })
+  connections.current().fetch(routes.prompts(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session, id: full.id, text: full.text, src: full.src }) })
     .then((r) => { if (!r.ok) warn('save failed', r.status); })
     .catch((e: unknown) => warn('save failed', e));
 };

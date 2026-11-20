@@ -1,5 +1,5 @@
 import { historyPrepended, type HistoryPage } from '@/store/feed.ts';
-import type { AppThunk } from '@/sdk';
+import { routes, type AppThunk } from '@/sdk';
 
 /** What one «Show before compaction» click came to: prepended, failed (shown, retry possible), or stale (dropped). */
 export type EarlierResult = 'ok' | 'failed' | 'stale';
@@ -23,7 +23,7 @@ export const loadEarlier = (beforePrepend?: () => void): AppThunk<Promise<Earlie
   const { epoch, earlier } = f;
   let page: HistoryPage;
   try {
-    const r = await connections.current().fetch(`/history?session=${encodeURIComponent(session)}&before=${earlier + 1}`);
+    const r = await connections.current().fetch(routes.history(session, earlier + 1));
     if (r.status === 404) page = { events: [], segment: earlier, more: false };
     else if (!r.ok) return stale() ? 'stale' : 'failed';
     else {

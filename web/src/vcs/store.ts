@@ -1,6 +1,6 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import type { VcsDiff, VcsFile, VcsPatch } from '@nota-bene/shared';
-import { connections } from '@/sdk';
+import { defineResource, routes, useResource, type Route } from '@/sdk';
 
 /** The git views' shared state, outside Redux as `files/sources.ts` is: the tool window and the tab share one fetch. */
 export type RepoDiff = Extract<VcsDiff, { repo: true }>;
@@ -13,31 +13,21 @@ type Ui = {
   /** a commit a comment asked for */
   commit: { sha: string; path: string; at: number } | null;
   hasRepo: boolean;
-  failed: boolean;
 };
 
 const readBases = (): Record<string, string> => {
   try { return JSON.parse(localStorage.getItem('vcs:bases') ?? '{}') as Record<string, string>; } catch { return {}; }
 };
-const initial = (): Ui => ({ panel: false, focus: null, split: localStorage.getItem('vcs:split') === '1', bases: readBases(), commit: null, hasRepo: false, failed: false });
+const initial = (): Ui => ({ panel: false, focus: null, split: localStorage.getItem('vcs:split') === '1', bases: readBases(), commit: null, hasRepo: false });
 let ui = initial();
-let data: VcsDiff | null = null;
-let loadedFor = '';
-let raw = '';
-let seq = 0;
-let inflight = ''; // the key being asked: a slow git does not pile up requests
 const listeners = new Set<() => void>();
 const fire = () => { for (const fn of listeners) fn(); };
 const subscribe = (fn: () => void) => { listeners.add(fn); return () => void listeners.delete(fn); };
 const change = (next: Partial<Ui>) => { ui = { ...ui, ...next }; fire(); };
 
 const baseKey = (root: string, src: string) => `${root}\0${src}`;
-const diffKey = (root: string, src: string, base: string | undefined) => `${root}\0${src}\0${base ?? ''}`;
 
 export const useVcsUi = () => useSyncExternalStore(subscribe, () => ui);
-/** The answer for exactly this project, source and base: another's list is never shown under this one's name. */
-export const useDiffData = (root: string, src: string, base: string | undefined) =>
-  useSyncExternalStore(subscribe, () => (loadedFor === diffKey(root, src, base) ? data : null));
 export const setPanel = (panel: boolean) => change({ panel });
 export const focusFile = (path: string) => change({ focus: { path, at: Date.now() } });
 export const showCommit = (sha: string, path: string) => change({ commit: { sha, path, at: Date.now() } });
@@ -51,71 +41,22 @@ export function pickBase(root: string, src: string, base: string | null) {
   change({ bases });
 }
 /** Test hook. */
-export function resetVcs() { ui = initial(); data = null; loadedFor = raw = inflight = ''; seq++; fire(); }
+export function resetVcs() { ui = initial(); fire(); }
 
-export async function loadDiff(root: string, src: string, base: string | undefined) {
-  const key = diffKey(root, src, base);
-  if (inflight === key) return;
-  inflight = key;
-  const mine = ++seq;
-  try {
-    const q = new URLSearchParams({ src, ...(base ? { base } : {}) });
-    const r = await connections.current().fetch(`/vcs-diff?${q}`);
-    const body = r.ok ? await r.text() : null;
-    if (mine !== seq) return;
-    if (ui.failed !== (body === null)) change({ failed: body === null });
-    if (body === null || (key === loadedFor && body === raw)) return; // no change: no re-render of a large diff
-    loadedFor = key; raw = body; data = JSON.parse(body) as VcsDiff;
-    fire();
-  } catch { /* offline: keep what is shown */ } finally {
-    if (mine === seq) inflight = '';
-  }
-}
-
-const watchers = new Map<string, { n: number; timer: ReturnType<typeof setInterval> }>();
-
-/**
- * Keeps one diff fresh while something shows it: a load now, then one poll every 4 s per project, source and base,
- * however many views watch it (the tool window and the tab share it, issue 471). Returns the end of this watch.
- */
-export function watchDiff(root: string, src: string, base: string | undefined): () => void {
-  void loadDiff(root, src, base);
-  const key = diffKey(root, src, base);
-  const w = watchers.get(key) ?? { n: 0, timer: setInterval(() => { if (document.visibilityState === 'visible') void loadDiff(root, src, base); }, 4_000) };
-  w.n++;
-  watchers.set(key, w);
-  return () => {
-    if (--w.n > 0) return;
-    clearInterval(w.timer);
-    watchers.delete(key);
-  };
-}
+/** One project, source and base's diff: one poll every 4 s however many views watch it (the tool window and the tab, issue 471). */
+export const diffResource = defineResource<{ root: string; src: string; base: string | undefined }, VcsDiff>({
+  key: (a) => `${a.root}\0${a.src}\0${a.base ?? ''}`,
+  route: (a) => routes.vcsDiff(a.src, a.base),
+  every: 4_000,
+});
 
 /** The file on screen: the one picked, or the first when that one is gone from the list. */
 export const currentFile = (files: VcsFile[], path: string | undefined) => files.find((f) => f.path === path) ?? files[0] ?? null;
 
+const patchResource = defineResource<Route, VcsPatch>({ key: (url) => url, route: (url) => url });
+
 /** One file's patch, refreshed while shown (only this file, so a large diff costs nothing here). `failed`: the last ask; what came before stays. */
-export function usePatch(url: string | null, on: boolean, every = 4_000) {
-  const [got, setGot] = useState<(VcsPatch & { url: string; failed: boolean }) | null>(null);
-  useEffect(() => {
-    if (!url || !on) return;
-    let gone = false;
-    let running = false;
-    const run = async () => {
-      if (running) return;
-      running = true;
-      try {
-        const r = await connections.current().fetch(url);
-        if (gone) return;
-        if (!r.ok) return setGot((p) => (p?.url === url ? { ...p, failed: true } : { url, patch: '', truncated: false, failed: true }));
-        const v = await r.json() as VcsPatch;
-        if (!gone) setGot((p) => (p?.url === url && p.patch === v.patch && !p.failed ? p : { url, ...v, failed: false }));
-      } catch { /* keep */ } finally { running = false; }
-    };
-    void run();
-    if (!every) return () => { gone = true; };
-    const id = setInterval(() => { if (document.visibilityState === 'visible') void run(); }, every);
-    return () => { gone = true; clearInterval(id); };
-  }, [url, on, every]);
-  return got?.url === url ? got : null;
+export function usePatch(url: Route | null, on: boolean, every = 4_000) {
+  const { data, failed } = useResource(patchResource, url, { on, every });
+  return useMemo(() => (!url ? null : data ? { url, ...data, failed } : failed ? { url, patch: '', truncated: false, failed } : null), [url, data, failed]);
 }
