@@ -46,6 +46,9 @@ class Rig {
     bool keepStore = false,
     // false: the window said hello and has not replayed yet (the tab is still connecting)
     bool replay = true,
+    // false: the window has said nothing yet; the test sends the first events itself (the server's order: replay,
+    // comments, hello)
+    bool greet = true,
   }) async {
     // the voice outboxes and the comment queues are the app's: each test starts with an empty disk
     if (!keepStore) {
@@ -86,8 +89,10 @@ class Rig {
       ),
     );
     await t.pump();
-    event(hello ?? {'kind': 'hello', 'protocol': 13, 'capabilities': caps()});
-    if (replay) event({'kind': 'replay', 'events': events});
+    if (greet) {
+      event(hello ?? {'kind': 'hello', 'protocol': 13, 'capabilities': caps()});
+      if (replay) event({'kind': 'replay', 'events': events});
+    }
     if (settle) {
       await t.pumpAndSettle();
     } else {

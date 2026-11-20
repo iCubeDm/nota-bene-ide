@@ -662,7 +662,8 @@
       "enum": [
         "gone",
         "sent",
-        "failed"
+        "failed",
+        "invalid"
       ],
       "type": "string"
     },
@@ -936,6 +937,7 @@
           "type": "number"
         },
         "shapes": {
+          "description": "empty (protocol 25, issue 494): a comment on the whole picture, as the phone makes one",
           "items": {
             "$ref": "#/definitions/MediaShape"
           },
@@ -3309,5 +3311,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 24
+  "x-protocol": 25
 }

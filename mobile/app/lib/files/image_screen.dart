@@ -40,6 +40,9 @@ List<ShownMark> shownMarks(WindowTab tab, String path, {double? at}) {
   ];
 }
 
+/// The window that takes a media comment without marks, on the whole picture (protocol 25).
+const wholePictureProtocol = 25;
+
 /// Makes the comment once the sheet is saved: the files first, then the comment with its frame. False when it
 /// failed (the user was told; the drawing stays for another try).
 Future<bool> saveMediaComment(
@@ -411,7 +414,9 @@ class _ImageScreenState extends State<ImageScreen>
               _glide.stop();
               _markup.marking = true;
             }),
-          if (_item.markable)
+          // a comment without marks: an older window would refuse it (issue 494)
+          if (_item.markable &&
+              (widget.tab.protocol ?? 0) >= wholePictureProtocol)
             _action('act-comment', NbGlyph.comments, t.comment, _comment),
           _action('act-share', NbGlyph.share, t.share, _share),
         ],
