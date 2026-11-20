@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { UsageReport, UsageRow } from '@nota-bene/shared';
@@ -279,6 +279,34 @@ it('an empty period says so; a failure shows in the tab', async () => {
   cleanup();
   vi.stubGlobal('fetch', vi.fn(async (url: string) => (url.startsWith('/usage') ? new Response('', { status: 500 }) : new Response('[]'))));
   setup();
-  expect((await screen.findByText(/Could not load the report/)).textContent).toContain('500');
+  expect((await screen.findByText(/Could not load the report/)).textContent).toBe('Could not load the report: 500');
+});
+
+it('a failed reset says so until the next report loads', async () => {
+  setup();
+  await screen.findByText('Review the parser');
+  vi.mocked(fetch).mockImplementationOnce(async () => new Response('', { status: 500 }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+  fireEvent.click(within(screen.getByText(/Start counting from now/).parentElement!).getByRole('button', { name: 'Reset' }));
+  await screen.findByText(/Could not load the report/);
+  fireEvent.click(screen.getByRole('button', { name: '7 days' }));
+  await waitFor(() => expect(screen.queryByText(/Could not load the report/)).toBeNull());
+});
+
+it('a failed read ends the import poll', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  let fail = false;
+  reply = () => ({ ...REPORT, importing: true });
+  const real = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, init) => (fail && String(url).startsWith('/usage') ? new Response('', { status: 500 }) : real(url, init)));
+  setup();
+  await screen.findByText(/the numbers will grow/);
+  fail = true;
+  await act(async () => { await vi.advanceTimersByTimeAsync(2100); });
+  await screen.findByText(/Could not load the report/);
+  const usage = () => vi.mocked(fetch).mock.calls.filter(([u]) => String(u).startsWith('/usage')).length;
+  const n = usage();
+  await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+  expect(usage()).toBe(n);
 });
 

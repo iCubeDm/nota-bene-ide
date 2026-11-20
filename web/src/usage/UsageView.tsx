@@ -1,4 +1,4 @@
-import { Fragment, useState, type ComponentProps, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTank, type UsageTaskRow } from '@nota-bene/shared';
 import { useAppSelector, getLang, useT, connections, defineResource, routes, useResource, compact, compactParts, money, num, percent } from '@/sdk';
 
@@ -345,10 +345,12 @@ export function UsageView({ active }: { active: boolean }) {
   const [asking, setAsking] = useState(false);
   const [spent, setSpent] = useState<SpentView>({ list: 'tasks', all: false });
 
-  // an import still running is read again every POLL_MS
-  const got = useResource(usageResource, { provider, period }, { on: active, every: (r) => (r?.importing ? POLL_MS : 0) });
+  // an import still running is read again every POLL_MS; a failed read ends that
+  const got = useResource(usageResource, { provider, period }, { on: active, every: (now) => (now.data?.importing && !now.failed ? POLL_MS : 0) });
   const report = got.data;
-  const error = resetError ?? (got.failed ? got.error : null);
+  const error = resetError ?? (got.failed ? (got.status === undefined ? got.error : String(got.status)) : null);
+  // the next report that loads clears a failed reset's line
+  useEffect(() => { if (report) setError(null); }, [report]);
 
   const reset = async () => {
     setAsking(false);

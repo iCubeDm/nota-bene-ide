@@ -33,7 +33,7 @@ export function ExportControl({ path, blocked, pollMs = POLL_MS }: { path: strin
   const running = job?.phase === 'running';
   // the server's answer, applied when it says something new; a running export is looked at every pollMs
   const got = useResource(exportResource, path, { every: running ? pollMs : 0 });
-  const gone = got.failed && got.error?.endsWith(' 404');
+  const gone = got.failed && got.status === 404;
   useEffect(() => {
     if (gone) return setLive(null);
     const s = got.data;

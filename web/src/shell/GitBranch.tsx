@@ -115,8 +115,14 @@ export function GitBranch() {
   const viewing = src !== 'here';
   // the branch list of this project (an id of another project may mean another branch here): while the menu is open,
   // else only for the mark of the source shown
-  const info = useResource(branchesResource, root ?? '', { on: open || viewing, every: open ? 5_000 : 30_000 }).data ?? NO_BRANCHES;
-  useEffect(() => { if (open) void loadSources(true); }, [open]);
+  const branches = useResource(branchesResource, root ?? '', { on: open || viewing, every: open ? 5_000 : 30_000 });
+  const info = branches.data ?? NO_BRANCHES;
+  // opening reads at once (a source already shown is watched, so it is asked again; otherwise the watch's first read)
+  useEffect(() => {
+    if (!open) return;
+    void loadSources(true);
+    if (viewing) branches.refresh();
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setHasRepo(!!st), [st]);
   if (!st) return null;
   const here = st.detached ? t('gitDetached') : st.branch;

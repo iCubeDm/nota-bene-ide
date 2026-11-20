@@ -1,5 +1,5 @@
 import { dictationLangSet } from '@/controls/slice.ts';
-import { useAppDispatch, useAppSelector, connections, defineResource, routes, useResource, type Resource, type Route, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome } from '@/sdk';
+import { useAppDispatch, useAppSelector, connections, defineResource, routes, useResource, type Resource, type Route, type Snapshot, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome } from '@/sdk';
 import { Button, ConfirmDialog } from '@/sdk/ui';
 import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
 import { langName } from '@/voice/lang.ts';
@@ -39,7 +39,7 @@ const postJson = (url: string, body: unknown) =>
 
 /** One load per activation; `reload` after an action; `every` polls (by the data). A failure is shown in the section, never thrown. */
 function useLoad<T>(url: Route, active: boolean, every?: (data: T | null) => number): { data: T | null; error: string | null; reload: () => void } {
-  const r = useResource(getResource as Resource<Route, T>, url, { on: active, ...(every ? { every } : {}) });
+  const r = useResource(getResource as Resource<Route, T>, url, { on: active, ...(every ? { every: (now: Snapshot<T>) => every(now.data) } : {}) });
   return { data: r.data, error: r.failed ? r.error : null, reload: r.refresh };
 }
 

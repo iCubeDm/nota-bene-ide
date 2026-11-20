@@ -11,7 +11,7 @@ const POLL_MS = 2000;
 function Body({ close }: { close: () => void }) {
   const t = useT();
   const dispatch = useAppDispatch();
-  const got = useResource(dictationResource, undefined, { every: (d) => (d?.phase === 'installing' ? POLL_MS : 0) });
+  const got = useResource(dictationResource, undefined, { every: (now) => (now.data?.phase === 'installing' ? POLL_MS : 0) });
   const dict = got.data;
   const [actError, setError] = useState('');
   const error = actError || (got.failed ? got.error ?? '' : '');

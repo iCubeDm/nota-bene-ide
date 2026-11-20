@@ -5,7 +5,7 @@ import { apiFetch } from '@/net/auth.ts';
 import { routes } from '@/sdk/routes.ts';
 import { defineResource, useResource } from '@/sdk/repository.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
-import { selectConn, useAppSelector } from '@/store/store.ts';
+import { useAppSelector } from '@/store/store.ts';
 import { selectPagePause } from './pagePause.ts';
 import { reloadPage } from './reloadPage.ts';
 
@@ -147,9 +147,12 @@ function PluginOutdated({ plugin, current }: { plugin: string; current: string }
 export function UpdateNotice() {
   const t = useT();
   // the server's answer, or what this page's own install or switch just made of it (until the server says more)
-  const [every, setEvery] = useState(ASK_MS);
-  const got = useResource(statusResource, undefined, { every });
-  const server = got.failed ? null : got.data;
+  // the phase shown sets the pace; an install and a restart waiting for a pause are followed while the tab is hidden
+  const [phase, setPhase] = useState<Phase | undefined>();
+  const moving = phase === 'installing' || phase === 'ready';
+  const got = useResource(statusResource, undefined, { every: phase === 'installing' ? INSTALLING_MS : phase === 'ready' ? READY_MS : ASK_MS, whileHidden: moving });
+  // a refusal hides the notice; a network error keeps what is shown
+  const server = got.failed && got.status !== undefined ? null : got.data;
   const [mine, setMine] = useState<{ over: Status | null; v: Status } | null>(null);
   const update = mine && mine.over === server ? mine.v : server;
   const setUpdate = (v: Status) => setMine({ over: server, v });
@@ -164,14 +167,7 @@ export function UpdateNotice() {
 
   if (server && loadedWith.current === null) loadedWith.current = server.current;
   const ask = got.refresh;
-  // a reconnect may be to a server of another version (a handover): ask at once
-  const conn = useAppSelector(selectConn);
-  const wasOpen = useRef(false);
-  useEffect(() => {
-    if (conn !== 'open') return;
-    if (wasOpen.current) ask();
-    wasOpen.current = true;
-  }, [conn, ask]);
+  // a reconnect may be to a server of another version (a handover): the repository asks at once
   useEffect(() => {
     window.addEventListener('focus', ask); // the server keeps the answer, so this asks npm no more often
     window.addEventListener(RECHECK, ask);
@@ -180,8 +176,7 @@ export function UpdateNotice() {
       window.removeEventListener(RECHECK, ask);
     };
   }, [ask]);
-  const phase = update?.phase;
-  useEffect(() => setEvery(phase === 'installing' ? INSTALLING_MS : phase === 'ready' ? READY_MS : ASK_MS), [phase]);
+  useEffect(() => setPhase(update?.phase), [update?.phase]);
   // the window restarts only in a pause: the server checks its turn, this page the composer and the questions
   useEffect(() => {
     if (update?.phase !== 'ready' || update.busy || !idle || Date.now() - restartedAt.current < READY_MS) return;

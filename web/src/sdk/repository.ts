@@ -32,21 +32,30 @@ export interface Snapshot<T> {
   readonly error: string | null;
   /** a read is on its way and nothing has come yet */
   readonly loading: boolean;
+  /** the HTTP status of a refusal (undefined after an answer, a timeout or a network error) */
+  readonly status?: number;
+}
+
+export interface WatchOptions {
+  /** ms between reads for this watcher (default: the resource's `every`; 0 is none) */
+  every?: number;
+  /** keep polling while the page is hidden (a server-side process that must be followed to its end) */
+  whileHidden?: boolean;
 }
 
 export interface Repository {
   /** reads now, replacing a request in flight (deferred while paused) */
   load<A, T>(res: Resource<A, T>, args: A): Promise<T | null>;
   /** keeps it fresh until the returned stop; the first watcher reads at once (a new request), and so does a shorter period when the last read is older than it */
-  watch<A, T>(res: Resource<A, T>, args: A, o?: { every?: number }): Stop;
+  watch<A, T>(res: Resource<A, T>, args: A, o?: WatchOptions): Stop;
   peek<A, T>(res: Resource<A, T>, args: A): Snapshot<T>;
   subscribe<A, T>(res: Resource<A, T>, args: A, fn: () => void): () => void;
   /** forgets the answer (of one key, or every key of the resource); a watched entry reads again */
   invalidate<A, T>(res: Resource<A, T>, args?: A): void;
 }
 
-/** ends a watch; `every` changes the period this watcher asks for */
-export type Stop = (() => void) & { every(ms?: number): void };
+/** ends a watch; `set` changes what this watcher asks for */
+export type Stop = (() => void) & { set(o: WatchOptions): void };
 
 const INITIAL: Snapshot<never> = Object.freeze({ data: null, failed: false, error: null, loading: false });
 /** the states in which the poll waits: `connecting` (never open yet) does not, so a page's first reads go out at once */
@@ -64,7 +73,7 @@ type Entry = {
   snap: Snapshot<unknown>;
   /** the text the data was parsed from */
   text: string | null;
-  watchers: Map<symbol, number>;
+  watchers: Map<symbol, { every: number; whileHidden: boolean }>;
   every: number;
   timer?: ReturnType<typeof setInterval>;
   /** the latest request on its way; an older one replaced by it may still answer, until a newer answer lands */
@@ -92,7 +101,7 @@ function makeRepository(conn: AgentConnection): Repository {
   const byRes = new Map<Resource<unknown, unknown>, Map<string, Entry>>();
   const live = (e: Entry) => e.watchers.size > 0;
   const all = function* () { for (const m of byRes.values()) yield* m.values(); };
-  const paused = () => pageHidden() || DOWN.has(conn.state());
+  const paused = (e: Entry) => (pageHidden() && ![...e.watchers.values()].some((w) => w.whileHidden)) || DOWN.has(conn.state());
 
   const entry = <A, T>(res: Resource<A, T>, args: A): Entry => {
     const r = res as Resource<unknown, unknown>;
@@ -109,7 +118,7 @@ function makeRepository(conn: AgentConnection): Repository {
   };
 
   const read = (e: Entry, force: boolean): Promise<void> => {
-    if (paused()) {
+    if (paused(e)) {
       e.due = true;
       return e.req?.done ?? Promise.resolve();
     }
@@ -127,19 +136,19 @@ function makeRepository(conn: AgentConnection): Repository {
         const r = await Promise.race([conn.fetch(route, { signal: ctl.signal }), new Promise<never>((_, no) => ctl.signal.addEventListener('abort', () => no(new Error('aborted'))))]);
         const text = await r.text();
         if (req.n < e.shown) return;
-        if (!r.ok) return e.req === req ? set(e, { failed: true, error: `${route.replace(/\?.*$/, '')} ${r.status}`, loading: false }) : undefined;
+        if (!r.ok) return e.req === req ? set(e, { failed: true, error: `${route.replace(/\?.*$/, '')} ${r.status}`, status: r.status, loading: false }) : undefined;
         e.shown = req.n;
         if (e.text !== null && text === e.text) {
-          if (e.snap.failed || e.snap.loading) set(e, { failed: false, error: null, loading: false });
+          if (e.snap.failed || e.snap.loading) set(e, { failed: false, error: null, status: undefined, loading: false });
           return;
         }
         const data = e.res.parse ? e.res.parse(text) : JSON.parse(text);
         e.text = text;
-        set(e, { data, failed: false, error: null, loading: false });
+        set(e, { data, failed: false, error: null, status: undefined, loading: false });
       } catch (err) {
         if (e.req !== req) return;
         e.shown = req.n;
-        set(e, { failed: true, error: ctl.signal.aborted ? 'timeout' : err instanceof Error ? err.message : String(err), loading: false });
+        set(e, { failed: true, error: ctl.signal.aborted ? 'timeout' : err instanceof Error ? err.message : String(err), status: undefined, loading: false });
       } finally {
         clearTimeout(timer);
         if (e.req === req) e.req = null;
@@ -152,7 +161,7 @@ function makeRepository(conn: AgentConnection): Repository {
   const tick = (e: Entry) => void read(e, !!e.res.timeout && !!e.req && Date.now() - e.req.at >= e.every);
   /** The shortest period asked for; the timer restarts when it changes. */
   const retime = (e: Entry) => {
-    const every = Math.min(...[...e.watchers.values()].filter((n) => n > 0), Infinity);
+    const every = Math.min(...[...e.watchers.values()].map((w) => w.every).filter((n) => n > 0), Infinity);
     const next = every === Infinity ? 0 : every;
     if (next === e.every) return;
     clearInterval(e.timer);
@@ -163,13 +172,13 @@ function makeRepository(conn: AgentConnection): Repository {
   // one visibility listener, one connection-state subscription and one event listener while anything is watched
   let down = DOWN.has(conn.state());
   const onVisible = () => {
-    if (paused()) return;
-    for (const e of all()) if (live(e) && e.due) void read(e, false);
+    for (const e of all()) if (live(e) && e.due && !paused(e)) void read(e, false);
   };
   const onState = () => {
     const was = down;
     down = DOWN.has(conn.state());
-    if (was && !down) for (const e of all()) if (live(e)) void read(e, false);
+    // forced: a request hung across the drop is not waited for
+    if (was && !down) for (const e of all()) if (live(e)) void read(e, true);
   };
   const onEvent = (ev: ServerEvent) => {
     for (const e of all()) if (live(e) && e.res.events?.includes(ev.kind)) void read(e, true);
@@ -207,15 +216,15 @@ function makeRepository(conn: AgentConnection): Repository {
         watched++;
         listen();
       }
-      const set = (ms: number | undefined, first: boolean) => {
+      const set = (w: WatchOptions, first: boolean) => {
         const before = e.every;
-        e.watchers.set(id, ms ?? res.every ?? 0);
+        e.watchers.set(id, { every: w.every ?? res.every ?? 0, whileHidden: !!w.whileHidden });
         retime(e);
         // a first watcher asks afresh; a shorter period catches up when the last ask is older than it
         const behind = e.every > 0 && (before === 0 || e.every < before) && Date.now() - e.at >= e.every;
-        if (first || behind) void read(e, first);
+        if (first || behind || (e.due && !paused(e))) void read(e, first);
       };
-      set(o.every, e.watchers.size === 0);
+      set(o, e.watchers.size === 0);
       const stop = () => {
         if (!e.watchers.delete(id)) return;
         retime(e);
@@ -229,7 +238,7 @@ function makeRepository(conn: AgentConnection): Repository {
         listen();
         sweep();
       };
-      return Object.assign(stop, { every: (ms?: number) => { if (e.watchers.has(id)) set(ms, false); } });
+      return Object.assign(stop, { set: (w: WatchOptions) => { if (e.watchers.has(id)) set(w, false); } });
     },
     peek: (res, args) => (byRes.get(res as Resource<unknown, unknown>)?.get(res.key(args))?.snap ?? INITIAL) as Snapshot<never>,
     subscribe: (res, args, fn) => {
@@ -274,10 +283,11 @@ const noop = () => () => {};
 
 /**
  * A resource for `args` (null: nothing asked), watched while `on` (default true), at the resource's period or `every`
- * (which may depend on the data: a phase that is still moving is polled, a settled one is not; 0 is no poll).
+ * (which may depend on what is shown: a phase that is still moving is polled, a settled one is not; 0 is no poll), and
+ * `whileHidden` keeps it polled while the page is hidden.
  * A new `refreshOn` value reads again at once (a turn, a disk change); `refresh` does the same.
  */
-export function useResource<A, T>(res: Resource<A, T>, args: A | null, o: { on?: boolean; every?: number | ((data: T | null) => number); refreshOn?: unknown } = {}): Snapshot<T> & { refresh(): void } {
+export function useResource<A, T>(res: Resource<A, T>, args: A | null, o: { on?: boolean; every?: number | ((now: Snapshot<T>) => number); whileHidden?: boolean; refreshOn?: unknown } = {}): Snapshot<T> & { refresh(): void } {
   const repo = repositoryOf(useAgent());
   const key = args === null ? null : res.key(args);
   const at = useRef(args);
@@ -285,16 +295,17 @@ export function useResource<A, T>(res: Resource<A, T>, args: A | null, o: { on?:
   const on = o.on ?? true;
   const subscribe = useCallback((fn: () => void) => (at.current === null ? noop() : repo.subscribe(res, at.current, fn)), [repo, res, key]); // eslint-disable-line react-hooks/exhaustive-deps
   const snap = useSyncExternalStore(subscribe, () => (at.current === null ? INITIAL : repo.peek(res, at.current))) as Snapshot<T>;
-  const ms = typeof o.every === 'function' ? o.every(snap.data) : o.every;
-  const every = useRef(ms);
-  every.current = ms;
+  const ms = typeof o.every === 'function' ? o.every(snap) : o.every;
+  const hiddenToo = !!o.whileHidden;
+  const want = useRef<WatchOptions>({});
+  want.current = { every: ms, whileHidden: hiddenToo };
   const watch = useRef<Stop | null>(null);
   useEffect(() => {
     if (at.current === null || !on) return;
-    const stop = (watch.current = repo.watch(res, at.current, { every: every.current }));
+    const stop = (watch.current = repo.watch(res, at.current, want.current));
     return () => { stop(); watch.current = null; };
   }, [repo, res, key, on]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => watch.current?.every(ms), [ms]);
+  useEffect(() => watch.current?.set({ every: ms, whileHidden: hiddenToo }), [ms, hiddenToo]);
   const seen = useRef(o.refreshOn);
   useEffect(() => {
     if (Object.is(seen.current, o.refreshOn)) return;
