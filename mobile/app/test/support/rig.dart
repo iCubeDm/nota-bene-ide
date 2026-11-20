@@ -40,6 +40,8 @@ class Rig {
     Seen? seen,
     AppVisible? visible,
     HostWindow? win,
+    // false: a desktop from before project pictures (its list never carries `icon`)
+    bool icons = true,
     // false when something on screen animates for good (a pulsing dot)
     bool settle = true,
     // the same app run: the voice outboxes keep what they have
@@ -56,7 +58,8 @@ class Rig {
       CommentQueues.instance = CommentQueues(MemoryQueueFile());
     }
     final f = FakeFactory();
-    ch = FakeChannel([win ?? window(4791, '/home/u/notes')]);
+    ch = FakeChannel([win ?? window(4791, '/home/u/notes')])
+      ..iconsSupported = icons;
     f.results.add(ch);
     link = HostLink(
       PairedHost(
@@ -78,8 +81,7 @@ class Rig {
           renderer: FakeMermaid(),
           child: ChatRoute(
             link: link,
-            port: 4791,
-            root: '/home/u/notes',
+            window: window(4791, '/home/u/notes'),
             seen: seen,
             visible: visible,
             onTab: (x) => tab = x,

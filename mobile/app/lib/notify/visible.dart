@@ -3,7 +3,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:nb_channel/nb_channel.dart';
 
-typedef ChatPlace = ({String hostId, int port, String root});
+/// A chat by its host and its window's key ([HostWindowKey.key]).
+typedef ChatPlace = ({String hostId, String window});
 
 class AppVisible extends ChangeNotifier {
   AppVisible() : _visible = _now() {
@@ -37,20 +38,20 @@ class AppVisible extends ChangeNotifier {
   /// The chat route in use (a screen pushed over it keeps it: its tab is still the one in use).
   ChatPlace? get chat => _chat;
 
-  void open(String hostId, int port, String root) {
-    _chat = (hostId: hostId, port: port, root: root);
+  void open(String hostId, String window) {
+    _chat = (hostId: hostId, window: window);
     notifyListeners();
   }
 
-  void close(String hostId, int port, String root) {
-    if (_chat != (hostId: hostId, port: port, root: root)) return;
+  void close(String hostId, String window) {
+    if (_chat != (hostId: hostId, window: window)) return;
     _chat = null;
     notifyListeners();
   }
 
   /// [w] of [hostId] is in front of the user.
   bool onScreen(String hostId, HostWindow w) =>
-      _visible && _chat == (hostId: hostId, port: w.port, root: w.root);
+      _visible && _chat == (hostId: hostId, window: w.key);
 
   @override
   void dispose() {

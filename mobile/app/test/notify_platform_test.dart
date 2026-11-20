@@ -17,7 +17,7 @@ void main() {
           return switch (c.method) {
             'permission' => 'ask',
             'requestPermission' => true,
-            'takeLaunch' => {'hostId': 'h', 'port': 4791, 'root': '/r'},
+            'takeLaunch' => {'hostId': 'h', 'window': 'port:4791'},
             _ => null,
           };
         });
@@ -53,8 +53,7 @@ void main() {
       text: 'done',
       publicTitle: 'New reply in notes',
       hostId: 'h',
-      port: 4791,
-      root: '/r',
+      window: 'claude:0123456789abcdef',
       channelName: 'Agents',
     );
     await p.cancel('h s1');
@@ -62,7 +61,7 @@ void main() {
     await p.stopService();
     await p.openSettings();
     await p.done();
-    expect(await p.takeLaunch(), (hostId: 'h', port: 4791, root: '/r'));
+    expect(await p.takeLaunch(), (hostId: 'h', window: 'port:4791'));
     expect(
       [for (final c in calls) c.method],
       [
@@ -90,8 +89,7 @@ void main() {
       'text': 'done',
       'publicTitle': 'New reply in notes',
       'hostId': 'h',
-      'port': 4791,
-      'root': '/r',
+      'window': 'claude:0123456789abcdef',
       'channel': 'Agents',
     });
     expect(calls[5].arguments, {'tag': 'h s1'});
@@ -101,8 +99,8 @@ void main() {
   test('a tapped notification reaches the opened stream', () async {
     final p = ChannelBackground();
     final got = p.opened.first;
-    await fromNative('opened', {'hostId': 'h', 'port': 4791, 'root': '/r'});
-    expect(await got, (hostId: 'h', port: 4791, root: '/r'));
+    await fromNative('opened', {'hostId': 'h', 'window': 'port:4791'});
+    expect(await got, (hostId: 'h', window: 'port:4791'));
   });
 
   test(

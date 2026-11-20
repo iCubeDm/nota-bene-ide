@@ -14,8 +14,6 @@ sealed class AgentEvent {
   final HostWindow w;
   final String project;
 
-  int get port => w.port;
-  String get root => w.root;
   String get session => w.session!;
 
   /// One notification per session: the next event of a session replaces it.
@@ -68,7 +66,7 @@ List<AgentEvent> detect(
       } else if (replies > r) {
         if (!here && replies > seen.seenOf(hostId, session)) {
           final last = w.last;
-          final text = last != null && last.role == 'assistant'
+          final text = last != null && last.role == LastMessageRole.assistant
               ? _cut(last.text)
               : null;
           events.add(ReplyEvent(hostId, w, text));
@@ -76,10 +74,11 @@ List<AgentEvent> detect(
         r = replies;
       }
     }
-    if (w.pending && !waiting) {
+    final pending = w.pending == true;
+    if (pending && !waiting) {
       if (!here) events.add(WaitEvent(hostId, w));
       waiting = true;
-    } else if (!w.pending) {
+    } else if (!pending) {
       waiting = false;
     }
     if (was == null || was.replies != r || was.waiting != waiting) {

@@ -19,15 +19,14 @@ abstract class BackgroundPlatform {
   Future<void> updateService(String title, String text);
   Future<void> stopService();
 
-  /// Posts (or replaces, by [tag]) a notification that opens the chat of [hostId], [port] and [root].
+  /// Posts (or replaces, by [tag]) a notification that opens the chat of [hostId] and [window] (its key).
   Future<void> notify({
     required String tag,
     required String title,
     String? text,
     required String publicTitle,
     required String hostId,
-    required int port,
-    required String root,
+    required String window,
     required String channelName,
   });
 
@@ -73,9 +72,9 @@ class ChannelBackground implements BackgroundPlatform {
 
   static ChatPlace? _place(Object? a) {
     if (a is! Map) return null;
-    final hostId = a['hostId'], port = a['port'], root = a['root'];
-    if (hostId is! String || port is! int || root is! String) return null;
-    return (hostId: hostId, port: port, root: root);
+    final hostId = a['hostId'], window = a['window'];
+    if (hostId is! String || window is! String) return null;
+    return (hostId: hostId, window: window);
   }
 
   @override
@@ -108,8 +107,7 @@ class ChannelBackground implements BackgroundPlatform {
     String? text,
     required String publicTitle,
     required String hostId,
-    required int port,
-    required String root,
+    required String window,
     required String channelName,
   }) => backgroundChannel.invokeMethod('notify', {
     'tag': tag,
@@ -117,8 +115,7 @@ class ChannelBackground implements BackgroundPlatform {
     'text': text,
     'publicTitle': publicTitle,
     'hostId': hostId,
-    'port': port,
-    'root': root,
+    'window': window,
     'channel': channelName,
   });
 

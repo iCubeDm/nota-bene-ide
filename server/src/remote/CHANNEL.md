@@ -124,8 +124,16 @@ phone sees the relay's close (4403) and shows that it is not paired.
 The `OPEN` body names what the stream is:
 
 - `{"kind":"host"}`: the host's own stream. The host sends one message
-  `{"t":"windows","windows":[{port, provider, root, title?, session?, model?, busy?, supervised?, pending?, last?, replies?}]}`
-  (`pending`: a permission or interaction prompt awaits an answer in the window;
+  `{"t":"windows","windows":[{id?, port, provider, root, title?, session?, model?, busy?, supervised?, pending?, last?, replies?, icon?}]}`
+  (`HostStreamMessage` in `shared/src/host.ts`, generated for the phone;
+  `id`: the window's stable id, `<provider>:<first 16 hex of sha1(root)>`, the
+  same across restarts and port changes; a second window of the same folder and
+  agent gets `<id>:<port>`, the lowest port keeping the bare id. It is opaque: a
+  phone keys a window by it, and by `port:<n>` when a host sends none (one before
+  it). `port` only addresses the `ws` and `http` streams below. `icon`: the
+  version of the folder's picture, null when it has none, left out when the host
+  could not read the window that time;
+  `pending`: a permission or interaction prompt awaits an answer in the window;
   `last`: `{role: "user"|"assistant", text, at}` or null, the latest user message
   or final reply of the current session as one plain line of at most 120
   characters plus `…`, `at` in ms since epoch, left out when the event has no
@@ -136,6 +144,8 @@ The `OPEN` body names what the stream is:
   older window sends none of the three.)
   when the stream opens and again whenever the list or a field changes (it
   checks every 5 s while the stream is open). The phone sends nothing on it.
+  The phone ignores fields it does not know and treats every field but `port`,
+  `provider` and `root` as optional; a window without those three is left out.
   The channel being up is the host's online state.
 - `{"kind":"ws","port":n,"path":"/ws?tab=<id>…"}`: a WebSocket to that
   window, exactly as a browser tab would open it (the one-tab rule applies).
@@ -174,3 +184,14 @@ prefixes (case-insensitive):
 A `ws` path must also be `/ws` (with an optional query).
 
 An unknown `port` closes the stream with 4904.
+
+## Reconnects
+
+- The host stream is the online state: a window is reachable while it is
+  listed there. When the channel drops, the phone reconnects with the link's
+  backoff (it doubles up to a cap and starts over after a connection that
+  lasted a minute); a new channel opens a new host stream, which lists the
+  windows again.
+- A `ws` stream closed with 4904 (the window restarted or went away) is opened
+  again once a host stream list sent after that close names the window, by its
+  `id`, possibly on another port.

@@ -66,6 +66,10 @@ class FakeChannel implements Channel {
       .last
       .stream;
 
+  /// The host knows project pictures (false: a desktop before them).
+  @override
+  bool iconsSupported = true;
+
   void push(List<HostWindow> l) {
     _last = l;
     _ctl.add(l);
@@ -213,13 +217,14 @@ HttpAnswer answer(int status, String body, {Map<String, String>? headers}) => (
 HostWindow window(
   int port,
   String root, {
-  String provider = 'claude',
+  String? id,
+  AgentProvider provider = AgentProvider.claude,
   bool busy = false,
   String? title,
   String? model,
   String? icon,
-  bool iconSupported = false,
 }) => HostWindow(
+  id: id,
   port: port,
   provider: provider,
   root: root,
@@ -227,7 +232,6 @@ HostWindow window(
   title: title,
   model: model,
   icon: icon,
-  iconSupported: iconSupported || icon != null,
 );
 
 /// The Android side of `nb/background`, recorded: [calls] holds each method with its arguments.
@@ -281,8 +285,7 @@ class FakeBackground implements BackgroundPlatform {
     String? text,
     required String publicTitle,
     required String hostId,
-    required int port,
-    required String root,
+    required String window,
     required String channelName,
   }) async => calls.add((
     'notify',
@@ -292,8 +295,7 @@ class FakeBackground implements BackgroundPlatform {
       'text': text,
       'publicTitle': publicTitle,
       'hostId': hostId,
-      'port': port,
-      'root': root,
+      'window': window,
       'channel': channelName,
     },
   ));

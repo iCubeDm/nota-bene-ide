@@ -111,7 +111,7 @@ class Hosts extends ChangeNotifier {
 
   PairedHost? byId(String id) => _all.where((h) => h.id == id).firstOrNull;
 
-  /// `hostId port root` of the chat opened last on this phone.
+  /// `hostId key` of the chat opened last on this phone (`hostId port root` before issue 511, read by Home).
   String? get lastChat => _lastChat;
 
   Future<void> _save() async {

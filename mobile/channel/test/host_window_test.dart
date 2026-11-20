@@ -1,104 +1,122 @@
 import 'package:nb_channel/nb_channel.dart';
 import 'package:test/test.dart';
 
+Map<String, Object?> raw([Map<String, Object?> extra = const {}]) => {
+  'port': 4781,
+  'provider': 'claude',
+  'root': '/proj',
+  ...extra,
+};
+
 void main() {
   iconTests();
-  test('a window reads its pending, last and replies', () {
-    final w = HostWindow.fromJson({
-      'port': 4781,
-      'provider': 'claude',
-      'root': '/proj',
-      'pending': true,
-      'last': {
-        'role': 'assistant',
-        'text': 'done **now**',
-        'at': 1700000000000,
-      },
-      'replies': 3,
-    });
+  test('a window reads its id, pending, last and replies', () {
+    final w = HostWindow.fromJson(
+      raw({
+        'id': 'claude:0123456789abcdef',
+        'pending': true,
+        'last': {
+          'role': 'assistant',
+          'text': 'done **now**',
+          'at': 1700000000000,
+        },
+        'replies': 3,
+      }),
+    );
+    expect(w.key, 'claude:0123456789abcdef');
     expect(w.pending, isTrue);
     expect(w.replies, 3);
-    expect(w.last!.role, 'assistant');
+    expect(w.last!.role, LastMessageRole.assistant);
     expect(w.last!.text, 'done **now**');
-    expect(w.last!.at, DateTime.fromMillisecondsSinceEpoch(1700000000000));
+    expect(w.last!.time, DateTime.fromMillisecondsSinceEpoch(1700000000000));
   });
 
-  test('an older window sends none of them: the defaults', () {
-    final w = HostWindow.fromJson({
-      'port': 4781,
-      'provider': 'claude',
-      'root': '/proj',
-    });
-    expect(w.pending, isFalse);
+  test('a host before ids (issue 511): the window is keyed by its port', () {
+    final w = HostWindow.fromJson(raw());
+    expect(w.id, isNull);
+    expect(w.key, 'port:4781');
+    expect(w.pending, isNull);
     expect(w.last, isNull);
     expect(w.replies, isNull);
-    final n = HostWindow.fromJson({
-      'port': 4781,
-      'provider': 'claude',
-      'root': '/proj',
-      'last': null,
-      'replies': 0,
-    });
+    final n = HostWindow.fromJson(raw({'last': null, 'replies': 0}));
     expect(n.last, isNull);
     expect(n.replies, 0);
   });
 
-  test('a last without a time (a restored history) has a null at', () {
+  test('a last without a time (a restored history) has a null time', () {
     for (final at in [null, 0, -5]) {
-      final w = HostWindow.fromJson({
-        'port': 4781,
-        'provider': 'claude',
-        'root': '/proj',
-        'last': {'role': 'user', 'text': 'old', 'at': ?at},
-      });
-      expect(w.last, isNotNull);
+      final w = HostWindow.fromJson(
+        raw({
+          'last': {'role': 'user', 'text': 'old', 'at': ?at},
+        }),
+      );
       expect(w.last!.text, 'old');
-      expect(w.last!.at, isNull);
+      expect(w.last!.time, isNull);
     }
   });
 
-  test('replies as a whole double, malformed pending and last tolerated', () {
-    final w = HostWindow.fromJson({
-      'port': 4781,
-      'provider': 'claude',
-      'root': '/proj',
-      'replies': 1.0,
-      'pending': 'yes',
-      'last': {'role': 'user', 'text': 5, 'at': 'now'},
-    });
-    expect(w.replies, 1);
-    expect(w.pending, isFalse);
-    expect(w.last, isNull);
-    expect(
-      HostWindow.fromJson({
-        'port': 4781,
-        'provider': 'claude',
-        'root': '/proj',
-        'last': 'nonsense',
-        'replies': 'x',
-      }).last,
-      isNull,
-    );
+  test(
+    'parseWindows: a window that does not parse is left out, the others kept',
+    () {
+      final list = parseWindows([
+        raw({'pending': 'yes'}),
+        'nonsense',
+        raw({'port': 4782, 'last': 'nonsense'}),
+        raw({'port': 4783, 'id': 'codex:x', 'provider': 'codex'}),
+        {'port': 4784, 'provider': 'claude'}, // no root
+      ], null);
+      expect(list.map((w) => w.key), ['codex:x']);
+    },
+  );
+
+  test('parseWindows: an unknown agent is kept, as unknown', () {
+    final list = parseWindows([
+      raw({'provider': 'gemini'}),
+    ], null);
+    expect(list.single.provider, AgentProvider.$unknown);
   });
 }
 
 void iconTests() {
+  test('icon: the version, null when none', () {
+    expect(
+      HostWindow.fromJson(raw({'icon': 'abcdef0123456789'})).icon,
+      'abcdef0123456789',
+    );
+    expect(HostWindow.fromJson(raw({'icon': null})).icon, isNull);
+  });
+
   test(
-    'icon: the version, null when none, and whether the host knows icons',
+    'parseWindows: a window listed without icon keeps the last known one; a null removes it',
     () {
-      HostWindow w(Map<String, Object?> extra) => HostWindow.fromJson({
-        'port': 4781,
-        'provider': 'claude',
-        'root': '/proj',
-        ...extra,
-      });
-      expect(w({'icon': 'abcdef0123456789'}).icon, 'abcdef0123456789');
-      expect(w({'icon': 'abcdef0123456789'}).iconSupported, isTrue);
-      expect(w({'icon': null}).icon, isNull);
-      expect(w({'icon': null}).iconSupported, isTrue);
-      // an older host sends no field at all
-      expect(w({}).icon, isNull);
-      expect(w({}).iconSupported, isFalse);
+      final before = parseWindows([
+        raw({'id': 'a', 'icon': 'v-keep'}),
+      ], null);
+      // the host could not read the window's /info that time: no field
+      final kept = parseWindows([
+        raw({'id': 'a'}),
+      ], before);
+      expect(kept.single.icon, 'v-keep');
+      expect(
+        parseWindows([
+          raw({'id': 'a', 'icon': null}),
+        ], kept).single.icon,
+        isNull,
+      );
+      // another folder under that id is another window: nothing kept
+      expect(
+        parseWindows([
+          raw({'id': 'a', 'root': '/other'}),
+        ], before).single.icon,
+        isNull,
+      );
+      // the same window on another port keeps it too
+      expect(
+        parseWindows([
+          raw({'id': 'a', 'port': 4790}),
+        ], before).single.icon,
+        'v-keep',
+      );
     },
   );
 }

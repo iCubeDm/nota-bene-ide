@@ -6,7 +6,7 @@ import { SCHEMA_PATH } from './schema.ts';
 
 const read = (p: string) => JSON.parse(fs.readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8'));
 const schema = read(SCHEMA_PATH);
-const fx = read('shared/fixtures/protocol.json') as { client: any[]; server: any[]; usage: any[] };
+const fx = read('shared/fixtures/protocol.json') as { client: any[]; server: any[]; usage: any[]; host: any[] };
 // strict: false because the schema generator emits `type` beside `const`, which strict mode rejects
 const ajv = new Ajv({ strict: false, allErrors: true });
 ajv.addSchema(schema, 'p');
@@ -18,7 +18,7 @@ function failures(items: unknown[], root: string): string[] {
 }
 
 it('every fixture is valid', () => {
-  expect([...failures(fx.client, 'ClientMessage'), ...failures(fx.server, 'ServerEvent'), ...failures(fx.usage, 'UsageReport')]).toEqual([]);
+  expect([...failures(fx.client, 'ClientMessage'), ...failures(fx.server, 'ServerEvent'), ...failures(fx.usage, 'UsageReport'), ...failures(fx.host, 'HostStreamMessage')]).toEqual([]);
 });
 
 it('the parser takes every client fixture as it is', () => {
