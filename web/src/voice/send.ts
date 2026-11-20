@@ -11,7 +11,7 @@ import { trackVoiceSend } from './inflight.ts';
  * phone does the same), composed now; without it (a retry from a bubble) the recording goes alone.
  * False when nothing was sent (offline, mid-switch).
  */
-export const sendVoice = (voice: Voice, id: string = crypto.randomUUID(), force = false, rides = false): AppThunk<boolean> => (d, getState, { send }) => {
+export const sendVoice = (voice: Voice, id: string = crypto.randomUUID(), force = false, rides = false): AppThunk<boolean> => (d, getState, { connections }) => {
   const st = getState();
   if (selectConn(st) !== 'open' || st.controls.switching) return false;
   if (rides) {
@@ -21,7 +21,7 @@ export const sendVoice = (voice: Voice, id: string = crypto.randomUUID(), force 
       return r.sent;
     }
   }
-  const ok = send({ type: 'send', id, text: '', voice: { id: voice.id, ms: voice.ms, wave: voice.wave }, ...dictationAsk(st), ...(force && selectBusy(st) ? { force: true } : {}) });
+  const ok = connections.current().send({ type: 'send', id, text: '', voice: { id: voice.id, ms: voice.ms, wave: voice.wave }, ...dictationAsk(st), ...(force && selectBusy(st) ? { force: true } : {}) });
   if (ok) trackVoiceSend(id, voice, []);
   return ok;
 };
