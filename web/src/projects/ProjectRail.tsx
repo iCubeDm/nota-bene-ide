@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { remotePage } from '@/net/local.ts';
 import { enterProject, openStarter, PROVIDER_LABEL, useProjects, type RunningRow } from './api.ts';
 import { useRailPref } from './railPref.ts';
-import { foldRows, type Badge, type ProjectRow } from './rows.ts';
+import { foldRows, rowTitle, type Badge, type ProjectRow } from './rows.ts';
 import { BadgeView, folderOf, LIVE, rowBadge, STATE_KEY, Tile } from './Tile.tsx';
 
 /** Below this width the rail would crowd the panes out: it is not shown (and not polled for). */
@@ -64,9 +64,9 @@ function Rail() {
         const sib = r.current ? siblingsOf(r) : null;
         const target = sib ? sib.target : r.windows.find((w) => LIVE.has(w.state));
         const go = !!target;
-        const latest = r.windows.find((w) => w.title)?.title;
+        const title = rowTitle(r);
         const agents = [...new Set(r.windows.map((w) => PROVIDER_LABEL[w.provider]))].join(', ');
-        const lines = [folderOf(r.root), ...(r.remote ? [r.remote.name] : []), agents, t(STATE_KEY[r.state]), ...(latest ? [latest] : []), ...(r.current ? [t('projThis')] : []),
+        const lines = [...(title ? [title] : []), folderOf(r.root), ...(r.remote ? [r.remote.name] : []), agents, t(STATE_KEY[r.state]), ...(r.current ? [t('projThis')] : []),
           ...(sib?.waiting ? [t('projSiblingWaits', PROVIDER_LABEL[sib.waiting.provider])] : [])];
         return (
           <Tooltip key={r.key}>
@@ -75,7 +75,7 @@ function Rail() {
                 aria-disabled={!r.current && !go ? 'true' : undefined}
                 onClick={() => { if (target) void move(target); }}
                 className={`relative grid flex-none place-items-center rounded-lg p-0.5 ${r.current ? `bg-primary/15 ring-1 ring-primary/50 ${go ? 'cursor-pointer' : 'cursor-default'}` : go ? 'cursor-pointer hover:bg-muted' : 'cursor-default opacity-45'}`}>
-                <Tile root={r.root} state={r.state} remote={!!r.remote} ring="border-chrome" />
+                <Tile root={r.root} title={title} state={r.state} remote={!!r.remote} ring="border-chrome" />
                 <span className="absolute -top-1 -right-1 flex">
                   <BadgeView b={sib ? sib.badge : rowBadge(r)} />
                 </span>

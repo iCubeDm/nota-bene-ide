@@ -88,6 +88,22 @@ it('the tooltip text names the folder, its agents, its state and the latest sess
   expect(label).toContain('Fix the login form');
 });
 
+it('issue 509: a tile shows its session title\'s initials, and its tooltip leads with the title, the folder next', async () => {
+  await setup();
+  expect(tile('/w/site')).toHaveTextContent(/^FT/);
+  expect(tile('/w/site').getAttribute('aria-label')).toMatch(/^Fix the login form · site · Claude, Codex/);
+  expect(tile('/w/notes')).toHaveTextContent(/^WN/);
+  // no title yet: the folder, as before
+  expect(tile('/w/gone')).toHaveTextContent(/^GO/);
+  expect(tile('/w/gone').getAttribute('aria-label')).toMatch(/^gone · omp/);
+});
+
+it('issue 509: a title with no letters or digits leaves the folder\'s letters', async () => {
+  projects = () => Response.json({ ...LIST, running: LIST.running.map((r) => (r.root === '/w/Blog' ? { ...r, title: '🚀' } : r)) });
+  await setup();
+  expect(tile('/w/Blog')).toHaveTextContent(/^BL/);
+});
+
 it('this project is highlighted and a click on it goes nowhere; another moves there to its live window', async () => {
   await setup();
   expect(tile('/w/notes')).toHaveAttribute('aria-current', 'true');
@@ -326,7 +342,7 @@ it('issue 297: another computer\'s folder is a tile of its own with the laptop a
   const notes = tiles().filter((b) => b.dataset.root === '/w/notes');
   expect(notes).toHaveLength(2);
   const there = notes.find((b) => b.querySelector('[data-remote]'))!;
-  expect(there.getAttribute('aria-label')).toMatch(/^notes · Studio · Claude/);
+  expect(there.getAttribute('aria-label')).toMatch(/^Studio notes · notes · Studio · Claude/);
   expect(within(rail()).queryByRole('button', { name: t('projOpenFolder') })).toBeNull();
   fireEvent.click(there);
   expect(nav.go).toHaveBeenCalledWith('/system/remote/enter?host=h1&port=4791');

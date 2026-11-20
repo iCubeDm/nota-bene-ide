@@ -18,7 +18,7 @@ import { selectSession, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
-import { badgeOf, foldRows, rowKey, titlePrefix, type ProjectRow } from './rows.ts';
+import { badgeOf, foldRows, rowKey, rowTitle, titlePrefix, type ProjectRow } from './rows.ts';
 import { BadgeView, folderOf, LIVE, rowBadge, STATE_KEY, Tile } from './Tile.tsx';
 
 const short = shortHome;
@@ -151,7 +151,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                     <div className={`group/proj flex items-center gap-1 rounded-md pr-1 ${r.current ? 'bg-primary/10' : ''}`}>
                       <button type="button" aria-label={`${folder} · ${detail}`} title={short(r.root)} onClick={() => goTo(r)}
                         className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-muted ${!r.current && !r.windows.some((w) => LIVE.has(w.state)) ? 'opacity-60' : ''}`}>
-                        <Tile root={r.root} state={r.state} remote={!!r.remote} />
+                        <Tile root={r.root} title={rowTitle(r)} state={r.state} remote={!!r.remote} />
                         <span className="flex min-w-0 flex-1 flex-col">
                           <span className="flex items-baseline gap-2">
                             <span className="truncate text-[0.8125rem] font-semibold text-foreground">{folder}</span>
