@@ -7,7 +7,7 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/feed.dart';
-import '../chat/markdown.dart';
+import '../chat/markdown_syntax.dart';
 import 'anchor.dart';
 import 'strings.g.dart';
 

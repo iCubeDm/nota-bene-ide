@@ -9,7 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/feed.dart' show Feed;
-import '../chat/window_tab.dart' show uuidV4;
+import '../chat/window_connection.dart' show uuidV4;
 import '../media/shapes.dart';
 import 'chat_anchor.dart';
 import 'queue.dart';

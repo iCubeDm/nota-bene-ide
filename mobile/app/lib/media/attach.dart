@@ -10,7 +10,6 @@ import 'package:image/image.dart' as img;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/window_tab.dart';
-import '../files/image_screen.dart';
 import 'media_comment.dart';
 import 'render.dart';
 
@@ -113,7 +112,7 @@ Future<ImageRef> uploadImageVia(
 
 /// [uploadImageVia] through [tab]'s window; an [AttachError] while its host is offline.
 Future<ImageRef> uploadImage(WindowTab tab, Prepared p, String label) async {
-  final http = windowHttp(tab);
+  final http = tab.http;
   if (http == null) throw AttachError('offline');
   return await uploadImageVia(http, p, label);
 }

@@ -14,7 +14,6 @@ import '../files/file_markdown.dart';
 import '../store/sizes.dart';
 import '../theme.dart';
 import '../voice/outbox.dart';
-import '../voice/upload.dart';
 import '../voice/voice_bubble.dart';
 import 'chat_header.dart';
 import 'comment_target.dart';

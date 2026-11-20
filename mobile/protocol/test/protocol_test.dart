@@ -107,6 +107,13 @@ void main() {
   test('a refusal for a reason not known yet is a refusal', () {
     final a = GitSwitchAnswer.fromJson({'error': 'from-the-future'});
     expect((a as GitSwitchRefusal).error, GitSwitchError.$unknown);
+    // and it goes back as it came, not as a throw
+    expect(a.toJson(), {'error': 'from-the-future'});
+    expect(
+      () => const GitSwitchRefusal(error: GitSwitchError.$unknown).toJson(),
+      throwsStateError,
+      reason: 'one made here has nothing to send',
+    );
   });
 
   test('\$unknown cannot be sent', () {

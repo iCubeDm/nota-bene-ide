@@ -13,7 +13,8 @@ type Ty =
 type Field = { json: string; dart: string; ty: Ty; required: boolean };
 /** a discriminator's wire value: a string, or a boolean (`{ repo: false } | { repo: true, … }`) */
 type Lit = string | boolean;
-type Disc = { prop: string; values: Lit[] };
+/** `open`: the tag is a named enum and takes a value this side does not know (as `$unknown`) */
+type Disc = { prop: string; values: Lit[]; open?: boolean };
 type ClassDecl = { k: 'class'; name: string; fields: Field[]; bases: string[]; disc?: Disc };
 /** `open`: the variant whose tag is a named enum, which takes a tag value this side does not know (as `$unknown`) */
 type UnionDecl = { k: 'union'; name: string; prop: string; variants: { values: Lit[]; name: string; open: boolean }[] };
@@ -32,6 +33,8 @@ const isObj = (n: JSONSchema7Definition | undefined): n is JSONSchema7 => typeof
 const words = (s: string) => s.split(/[^A-Za-z0-9]+/).filter(Boolean);
 const pascal = (s: string) => words(s).map((w) => w[0].toUpperCase() + w.slice(1)).join('');
 const safe = (s: string) => (RESERVED.has(s) || TAKEN.has(s) ? `${s}_` : s);
+/** whether [s] can stand as a Dart member name as it is */
+export const isDartName = (s: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(s) && safe(s) === s;
 
 function camel(s: string): string {
   const [first, ...rest] = words(s);
@@ -277,7 +280,7 @@ export function schemaToDart(schema: ProtocolSchema): string {
       const open = tagRef !== null && defKind(tagRef) === 'enum';
       if (open && variants.some((x) => x.open)) fail(v.mc, `two variants of ${name} are tagged by an enum`);
       variants.push({ values, name: vname, open });
-      const disc = { prop, values };
+      const disc = { prop, values, ...(open ? { open } : {}) };
       if (v.ref) {
         variantOf.set(v.ref, [...(variantOf.get(v.ref) ?? []), { union: name, disc }]);
       } else {
@@ -378,19 +381,22 @@ function renderEnum(d: EnumDecl): string {
 
 function renderUnion(d: UnionDecl): string {
   const lacking = d.variants.filter((v) => !v.values.length);
-  const arms = d.variants.filter((v) => v.values.length).flatMap((v) => arm(6, v.values.map(lit), `${v.name}.fromJson(json)`));
-  // a tag value this side does not know: the enum-tagged variant takes it, else the raw JSON is kept as Unknown
+  // a tag value this side does not know: the enum-tagged variant takes it (with its known values: no arms of its own),
+  // else the raw JSON is kept as Unknown
   const open = d.variants.find((v) => v.open);
+  const arms = d.variants.filter((v) => v.values.length && !v.open).flatMap((v) => arm(6, v.values.map(lit), `${v.name}.fromJson(json)`));
   return [
     `sealed class ${d.name} implements _Json {`,
     `  const ${d.name}();`,
     '',
     `  factory ${d.name}.fromJson(Map<String, Object?> json) {`,
     ...lacking.map((v) => `    if (!json.containsKey(${q(d.prop)})) return ${v.name}.fromJson(json);`),
-    `    return switch (json[${q(d.prop)}]) {`,
-    ...arms,
-    open ? `      _ => ${open.name}.fromJson(json),` : `      _ => ${d.name}Unknown(json),`,
-    '    };',
+    ...(open && !arms.length ? [`    return ${open.name}.fromJson(json);`] : [
+      `    return switch (json[${q(d.prop)}]) {`,
+      ...arms,
+      open ? `      _ => ${open.name}.fromJson(json),` : `      _ => ${d.name}Unknown(json),`,
+      '    };',
+    ]),
     '  }',
     '',
     '  @override',
@@ -421,9 +427,16 @@ function renderClass(d: ClassDecl): string {
   const ctor = fields.length ? wrap('  ', `const ${d.name}({`, ctorParams, '});') : [`  const ${d.name}();`];
   const argNodes = fields.map((f) => fromExpr(typed(f), `json[${q(f.json)}]`));
   const argsFlat = fields.map((f, i) => `${f.dart}: ${flat(argNodes[i])}`).join(', ');
-  const args = `    return ${d.name}(${argsFlat});`.length <= WIDTH
-    ? [`    return ${d.name}(${argsFlat});`]
-    : [`    return ${d.name}(`, ...fields.flatMap((f, i) => lines(argNodes[i], 6, `${f.dart}: `, ',')), '    );'];
+  // the enum-tagged variant of a union keeps the JSON it came from when its tag is unknown here, and sends that back
+  const tag = d.disc?.open ? fields.find((f) => f.json === d.disc!.prop && f.ty.k === 'enum') : undefined;
+  const head = tag ? 'final v = ' : 'return ';
+  const args = `    ${head}${d.name}(${argsFlat});`.length <= WIDTH
+    ? [`    ${head}${d.name}(${argsFlat});`]
+    : [`    ${head}${d.name}(`, ...fields.flatMap((f, i) => lines(argNodes[i], 6, `${f.dart}: `, ',')), '    );'];
+  if (tag && tag.ty.k === 'enum') {
+    const keep = `    if (v.${tag.dart} == ${tag.ty.name}.$unknown) _raws[v] = json;`;
+    args.push(...(keep.length <= WIDTH ? [keep] : [`    if (v.${tag.dart} == ${tag.ty.name}.$unknown) {`, '      _raws[v] = json;', '    }']), '    return v;');
+  }
   const entries = [
     ...(single ? [`${q(single.prop)}: ${lit(single.values[0])},`] : []),
     ...fields.flatMap((f) => {
@@ -452,6 +465,7 @@ function renderClass(d: ClassDecl): string {
     '',
     '  @override',
     '  Map<String, Object?> toJson() {',
+    ...(tag ? ['    final raw = _raws[this];', '    if (raw != null) return raw;'] : []),
     ...(entries.length ? mapLines : ['    return {};']),
     '  }',
     '}',
@@ -471,6 +485,7 @@ const HELPERS: { name: string; uses: string[]; code: string }[] = [
   { name: '_mapOrNull', uses: ['_map'], code: 'Map<String, T>? _mapOrNull<T>(Object? v, T Function(Object?) f) {\n  return v == null ? null : _map(v, f);\n}' },
   { name: '_jsonList', uses: [], code: 'List<Object?>? _jsonList(List<_Json>? xs) {\n  return xs?.map((x) => x.toJson()).toList();\n}' },
   { name: '_unsendable', uses: [], code: "Never _unsendable(String type) {\n  throw StateError('$type.\\$unknown cannot be sent');\n}" },
+  { name: '_raws', uses: [], code: '// the JSON of a variant whose tag this side does not know, sent back as it came\nfinal _raws = Expando<Map<String, Object?>>();' },
   { name: '_jsonMap', uses: [], code: 'Map<String, Object?>? _jsonMap(Map<String, _Json>? xs) {\n  return xs?.map((k, x) => MapEntry(k, x.toJson()));\n}' },
 ];
 

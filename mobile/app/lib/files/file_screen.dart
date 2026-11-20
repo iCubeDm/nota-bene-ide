@@ -13,13 +13,13 @@ import '../comments/comment_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../ui/insets.dart';
 import '../usage/format.dart' show byteSize;
+import '../chat/paths.dart';
 import 'file_markdown.dart';
+
+export '../chat/paths.dart' show isMarkdownPath;
 
 /// The largest file the phone opens.
 const fileMaxBytes = 2000000;
-
-bool isMarkdownPath(String path) =>
-    RegExp(r'\.(md|markdown)$', caseSensitive: false).hasMatch(path);
 
 enum _Fail { notMarkdown, notFound, outside, tooLarge, unreadable }
 

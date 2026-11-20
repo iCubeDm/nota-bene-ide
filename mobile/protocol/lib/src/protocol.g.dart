@@ -1039,15 +1039,7 @@ sealed class GitSwitchAnswer implements _Json {
 
   factory GitSwitchAnswer.fromJson(Map<String, Object?> json) {
     if (!json.containsKey('error')) return GitSwitched.fromJson(json);
-    return switch (json['error']) {
-      'bad-request' ||
-      'not-a-repo' ||
-      'unknown-branch' ||
-      'busy' ||
-      'git' ||
-      'timeout' => GitSwitchRefusal.fromJson(json),
-      _ => GitSwitchRefusal.fromJson(json),
-    };
+    return GitSwitchRefusal.fromJson(json);
   }
 
   @override
@@ -1089,10 +1081,12 @@ final class GitSwitchRefusal extends GitSwitchAnswer {
   const GitSwitchRefusal({required this.error, this.detail});
 
   factory GitSwitchRefusal.fromJson(Map<String, Object?> json) {
-    return GitSwitchRefusal(
+    final v = GitSwitchRefusal(
       error: GitSwitchError.fromJson(json['error']),
       detail: json['detail'] as String?,
     );
+    if (v.error == GitSwitchError.$unknown) _raws[v] = json;
+    return v;
   }
 
   final GitSwitchError error;
@@ -1100,6 +1094,8 @@ final class GitSwitchRefusal extends GitSwitchAnswer {
 
   @override
   Map<String, Object?> toJson() {
+    final raw = _raws[this];
+    if (raw != null) return raw;
     return {'error': error.toJson(), if (detail != null) 'detail': detail};
   }
 }
@@ -5036,3 +5032,6 @@ List<Object?>? _jsonList(List<_Json>? xs) {
 Never _unsendable(String type) {
   throw StateError('$type.\$unknown cannot be sent');
 }
+
+// the JSON of a variant whose tag this side does not know, sent back as it came
+final _raws = Expando<Map<String, Object?>>();
