@@ -212,6 +212,63 @@ void main() {
     );
   });
 
+  // issue 499: a window of protocol 27 orders a Compact while the agent works for its next pause
+  testWidgets(
+    'protocol 27: Compact while the agent works is ordered; once pending it is off',
+    (t) async {
+      await r.open(
+        t,
+        hello: {'kind': 'hello', 'protocol': 27, 'capabilities': Rig.caps()},
+      );
+      await r.openContextSheet(t);
+      r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
+      await t.pumpAndSettle();
+      await t.tap(find.text('Compact'));
+      await t.pumpAndSettle();
+      expect(r.sent.single, {'type': 'command', 'name': 'compact'});
+      r.event({'kind': 'compact-pending', 'pending': true, 'held': <Object>[]});
+      await r.openContextSheet(t);
+      await t.tap(inSheet(find.text('Compact')));
+      await t.pumpAndSettle();
+      expect(r.sent, hasLength(1));
+    },
+  );
+
+  testWidgets(
+    'the pending compaction: its chip with Cancel, and the held messages dimmed, with what they wait for',
+    (t) async {
+      await r.open(
+        t,
+        hello: {'kind': 'hello', 'protocol': 27, 'capabilities': Rig.caps()},
+      );
+      r.event({
+        'kind': 'compact-pending',
+        'pending': true,
+        'held': [
+          {'id': 'h1', 'text': 'after it', 'ts': 2},
+        ],
+      });
+      await t.pumpAndSettle();
+      expect(find.text(webString('compactPending', 'en')), findsOneWidget);
+      expect(find.text('after it'), findsOneWidget);
+      expect(find.text('waits for the compaction'), findsOneWidget);
+      r.event({'kind': 'restart-pending', 'pending': true});
+      await t.pumpAndSettle();
+      expect(find.text('waits for the restart'), findsOneWidget);
+      await t.tap(find.text(webString('compactCancel', 'en')));
+      await t.pumpAndSettle();
+      expect(r.sent.last, {'type': 'compact-cancel'});
+      r.event({
+        'kind': 'compact-pending',
+        'pending': false,
+        'held': <Object>[],
+      });
+      await t.pumpAndSettle();
+      expect(find.text(webString('compactPending', 'en')), findsNothing);
+      expect(find.text('after it'), findsNothing);
+    },
+  );
+
   testWidgets('Compact is off offline', (t) async {
     await r.open(t);
     await r.openContextSheet(t);
@@ -308,6 +365,26 @@ void main() {
     expect(find.text(webString('clearTitle', 'en')), findsNothing);
     expect(r.sent, isEmpty);
   });
+
+  testWidgets(
+    'Clear is off while a compaction is pending or messages are held (issue 499)',
+    (t) async {
+      await r.open(
+        t,
+        hello: {'kind': 'hello', 'protocol': 27, 'capabilities': Rig.caps()},
+      );
+      r.event({'kind': 'compact-pending', 'pending': true, 'held': <Object>[]});
+      await r.openContextSheet(t);
+      await t.tap(find.text('Clear'));
+      await t.pumpAndSettle();
+      expect(find.text(webString('clearTitle', 'en')), findsNothing);
+      expect(
+        runWindowCommand(r.tab!, ClientMessageCommandName.clear, 'en'),
+        webString('working', 'en'),
+      );
+      expect(r.sent, isEmpty);
+    },
+  );
 
   testWidgets('no Clear when the agent cannot', (t) async {
     await r.open(

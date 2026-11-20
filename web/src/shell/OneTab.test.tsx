@@ -105,7 +105,7 @@ it('the page sends its tab id in the url; a resync and a send wait for the attac
     },
   });
   // pause=1: this page asks for a pending server restart in its own pause (gh-422)
-  expect(url).toMatch(/^ws:\/\/x\/ws\?tab=[0-9a-f-]{36}&pause=1$/);
+  expect(url).toMatch(/^ws:\/\/x\/ws\?tab=[0-9a-f-]{36}&pause=1&held=1$/);
   // a comment written while offline, and a send typed during the grace: neither goes out
   act(() => { store.dispatch(addComment({ source: { kind: 'message', id: 'm' }, quote: 'q', text: 't', anchor: { start: 0, end: 1 } } as never) as never); });
   expect(store.getState().comments.unsynced).toBe(true);
@@ -164,7 +164,7 @@ it('an occupied or taken page reconnects passive; a fresh or dropped one does no
   act(() => ev({ kind: 'taken-over' }));
   act(() => state('taken'));
   expect(urlOf()).toMatch(/&passive=1$/);
-  expect(urlOf()).toMatch(/^ws:\/\/x\/ws\?tab=[0-9a-f-]{36}&pause=1&passive=1$/);
+  expect(urlOf()).toMatch(/^ws:\/\/x\/ws\?tab=[0-9a-f-]{36}&pause=1&held=1&passive=1$/);
 });
 
 it('a takeover attach adopts the server comments: the offline edits of the old tab are dropped, not re-sent (Minor 6)', async () => {

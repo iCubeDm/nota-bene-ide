@@ -15,6 +15,8 @@ import { ToolGroup } from './ToolGroup.tsx';
 import { ToolLine } from './ToolLine.tsx';
 import { UserMessage } from './UserMessage.tsx';
 import { DaySeparator, MsgTime } from './MsgTime.tsx';
+import { selectHeld, selectRestartPending } from '@/controls/slice.ts';
+import type { HeldSend } from '@nota-bene/shared';
 import { dayStarts } from './time.ts';
 
 /** Farther from the end than this, the "jump to the latest" button shows. */
@@ -22,6 +24,8 @@ const AWAY_PX = 200;
 
 /** How long after a prepend the reader's anchor is kept: late images and diagrams above it grow the page. */
 const ANCHOR_MS = 1000;
+
+const NONE: HeldSend[] = [];
 
 /** An element the reader was looking at before an archived segment went in, and where it stood in the pane. */
 type Anchor = { el: HTMLElement; offset: number };
@@ -37,6 +41,8 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
   const main = useAppSelector((s) => (feed ? null : selectFeed(s)));
   const { items, compacting, epoch, earlier } = (feed ?? main)!;
   const busy = agent ? !!running : main!.busy;
+  const held = useAppSelector((s) => (agent ? NONE : selectHeld(s)));
+  const restart = useAppSelector(selectRestartPending);
   const hidden = useMemo(() => retriedVoice(items), [items]);
   const days = useMemo(() => dayStarts(items, hidden), [items, hidden]); // where a day separator goes
   const scope = useMemo(() => ({ agent, busy: agent ? !!running : undefined }), [agent, running]);
@@ -86,7 +92,7 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
       stick.current = true;
     } else if (pane) setUnread(true);
     // `earlier`: a page that added nothing new (all kept items, or a 404) still ends its prepend here
-  }, [items, compacting, earlier]);
+  }, [items, compacting, earlier, held]);
 
   useLayoutEffect(() => () => settling.current?.(), []);
 
@@ -190,6 +196,8 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
         return el && <Fragment key={el.key}>{day !== undefined && <DaySeparator ts={day} />}{el}</Fragment>;
       })}
       {compacting !== null && <CompactingLine since={compacting} />}
+      {/* issue 499: the sends the server holds, last, as they will go: after the pending restart, then the compaction */}
+      {held.map((h) => <UserMessage key={h.id} item={{ kind: 'user', ...h }} held={restart ? 'restart' : 'compact'} />)}
       {away && (
         // sticky inside the scrolling pane: it stays at the pane's bottom edge without taking room in the transcript
         <div data-anchor-skip className="pointer-events-none sticky bottom-3 flex h-0 items-start justify-end">

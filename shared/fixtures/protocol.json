@@ -544,6 +544,9 @@
       "type": "restart"
     },
     {
+      "type": "compact-cancel"
+    },
+    {
       "type": "activity"
     },
     {
@@ -1210,6 +1213,28 @@
     {
       "kind": "restart-pending",
       "pending": true
+    },
+    {
+      "kind": "compact-pending",
+      "pending": true,
+      "held": [
+        {
+          "id": "h1",
+          "text": "after the compaction",
+          "ts": 1700000000000,
+          "images": [
+            {
+              "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "mediaType": "image/png",
+              "label": "image 1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "send-held",
+      "id": "s1"
     },
     {
       "kind": "server-error",

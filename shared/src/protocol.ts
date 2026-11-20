@@ -172,7 +172,11 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 24: polygon media shapes (`MediaShape` kind `polygon`, issue 447) and `mask.png` beside a media comment's frame (`/marks`). An older server would refuse the comment, so the page offers the Mask tool only from 24.
 // 25: a media anchor may have no shapes (a comment on the whole picture, issue 494), and a `comment-op` that does not parse is answered `comment-refused` `invalid`. An older server would refuse such a comment and answer nothing, so the phone offers it only from 25.
 // 26: a comment's text may be empty when it has images (issue 497): pasted images or a drawing alone. An older server would refuse it, so the page and the phone offer it only from 26.
-export const PROTOCOL = 26;
+// 27: a compaction ordered while the agent works waits for the next pause (issue 499): the client's `command` compact (or a typed `/compact`) is then the pending compaction, `compact-cancel` drops it; the server's `compact-pending` event (on attach and when it changes) and `send-held`. A page that says `held=1` on the ws url has its sends held behind a pending restart or compaction; an older one is refused and handed over as before.
+export const PROTOCOL = 27;
+
+/** protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it */
+export type HeldSend = { id: string; text: string; ts: number; images?: ImageRef[]; voice?: Voice };
 
 /** A paired phone as the Remote tab lists it (protocol 20). */
 export type RemoteDevice = { id: string; name?: string; fingerprint: string; online: boolean; pairedAt: number };
@@ -306,6 +310,8 @@ export type ClientMessage =
   /** `model` is a `ModelOption.value`; no `effort` = the model's default. `id`: echoed as the `model` event's `ack` */
   | { type: 'model'; model: string; effort?: AgentEffort; id?: string }
   | { type: 'command'; name: 'compact' | 'clear' }
+  /** protocol 27: drop the pending compaction; the held sends go (unless a restart is still pending) */
+  | { type: 'compact-cancel' }
   /** id null = a new session in dir; dir is absolute */
   | { type: 'switch'; id: string | null; dir: string }
   | { type: 'restart' }
@@ -379,6 +385,13 @@ export type ServerEvent =
   | { kind: 'resumed'; id: string; cut?: true }
   /** protocol 22, never stored: a server restart is waiting for the next pause (on attach and when it changes) */
   | { kind: 'restart-pending'; pending: boolean }
+  /**
+   * protocol 27, never stored: a compaction waits for the next pause (`pending`), and the sends held until a pending
+   * restart and compaction went, oldest first (on attach and when either changes)
+   */
+  | { kind: 'compact-pending'; pending: boolean; held: HeldSend[] }
+  /** protocol 27, to the asking socket only, never stored: its send is held (see `compact-pending`), or its typed `/compact` became the pending compaction; a `user` event follows when the send goes */
+  | { kind: 'send-held'; id: string }
   | { kind: 'server-error'; where: string; message: string }
   /** to the asking socket only, never stored: a `send` the server did not take (the web side clears its pending state) */
   | { kind: 'send-refused'; id: string; reason: 'busy' | 'switching' | 'detached' }
@@ -704,6 +717,8 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
     case 'command':
       if (m.name !== 'compact' && m.name !== 'clear') return { error: 'command name must be compact or clear' };
       return { type: 'command', name: m.name };
+    case 'compact-cancel':
+      return { type: 'compact-cancel' };
     case 'switch':
       if (m.id !== null && !isSessionId(m.id)) return { error: 'switch needs id: session uuid or null' };
       if (typeof m.dir !== 'string' || !isAbsPath(m.dir)) return { error: 'switch needs an absolute dir' };

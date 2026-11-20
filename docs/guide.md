@@ -73,7 +73,7 @@ For a Codex or omp window, add `--agent codex` or `--agent omp` to `--url` and `
 
 <details><summary>More</summary>
 
-The launcher supervises the server. **Restart the server** relaunches it at once when the agent is idle; while it works (a turn, a question, a `!` command, a running task) the restart waits for it to finish, and the header shows **Restart pending** with **Restart the server now** (it asks first: the running turn and its subagents are cut off) and **Cancel**. A new message before then is answered first. After a restart that cut a turn (Restart now, a crash, a stop mid-turn) the resumed chat says "The server restarted during a turn" with **Continue**, which asks the agent to go on; nothing is sent by itself. The relaunch rebuilds the page first if web sources changed (a failed build keeps the old page until a source changes). A crash is relaunched after 1 s; after five within a minute it gives up. Example: `nota-bene ~/work/app --port 4800 --no-open`, then `nota-bene --url 4800` prints `http://127.0.0.1:4800/#t=...`.
+The launcher supervises the server. **Restart the server** relaunches it at once when the agent is idle; while it works (a turn, a question, a `!` command, a running task) the restart waits for it to finish, and the header shows **Restart pending** with **Restart the server now** (it asks first: the running turn and its subagents are cut off) and **Cancel**. A message sent before then waits until after the restart (the chat shows it dimmed, "waits for the restart"); **Send now** still interrupts and goes at once, and a message from an older phone app is still answered first. After a restart that cut a turn (Restart now, a crash, a stop mid-turn) the resumed chat says "The server restarted during a turn" with **Continue**, which asks the agent to go on; nothing is sent by itself. The relaunch rebuilds the page first if web sources changed (a failed build keeps the old page until a source changes). A crash is relaunched after 1 s; after five within a minute it gives up. Example: `nota-bene ~/work/app --port 4800 --no-open`, then `nota-bene --url 4800` prints `http://127.0.0.1:4800/#t=...`.
 
 </details>
 
@@ -288,6 +288,7 @@ Enter sends, Shift+Enter is a new line. The chat tab cannot be closed.
 - Permission requests are cards (**Allow**, **Deny**). A plan is a card: **Approve** returns to the previous mode, **Keep planning** stays.
 - Agent questions are cards with options (radio or checkboxes) and a free-text answer: **Send answers** or **Cancel**.
 - The bar under the box shows context, the 5-hour and weekly limits, and the session cost when reported (on a plan, the API-price equivalent). Its buttons run `/compact` and `/clear`.
+- **Compact while the agent works** (the button, the phone's Compact or a typed `/compact`, whose instructions are kept) waits for its next pause, with nobody needing to watch: every tab and the phone show **Compact pending** with **Cancel**. A pending restart goes first and the compaction runs after it; messages sent meanwhile, or while it runs, wait, dimmed, and go after both, in order (Cancel sends them on). The order survives a restart and stays with its session when you open another. **Send now** still interrupts and goes at once; a message from an older phone app is not held. `/clear` stays refused while the agent works and while a compaction is pending or messages wait.
 - **Idle compaction**: a conversation of 200,000+ tokens is compacted 50 minutes after its last turn (after 15 idle minutes in the window), so the cache is not wasted. Turn it off per project with its indicator, or `"idleCompaction": false` in `~/.claude/settings.json`.
 
 ### Voice messages
@@ -332,7 +333,7 @@ Comment-only sends and the compact/clear buttons are not recorded; images are no
 
 - Listed: commands and skills the CLI allows outside a terminal (yours, project, plugin, MCP prompts), and "built-in" ones tested that way: `/compact`, `/clear`, `/context`, `/usage`, `/recap`, `/rename`, `/skill-doctor`, `/reload-skills`, `/list-agents`, `/dataviz`, `/claude-api`, `/simplify`, `/code-review`, `/verify`, `/run`, `/security-review`, `/loop`, `/update-config`, `/init`.
 - Hidden: terminal-only commands, those that change model, effort, style or settings behind the UI (`/model`, `/effort`, `/output-style`, `/config`…) or need a terminal (`/mcp`, `/doctor`, `/color`). Typed by hand they still run; the header pills and Settings cover them.
-- `/compact` and `/clear` are refused while the agent is busy (they cannot be queued); `/clear` also with pending comments. `/clear` keeps the old session in Sessions (**Archive previous session** hides it).
+- `/clear` is refused while the agent is busy (it cannot be queued), and `/compact` then waits for the next pause (see Compact above); `/clear` also with pending comments. `/clear` keeps the old session in Sessions (**Archive previous session** hides it).
 
 ## Shell commands with !
 
@@ -689,6 +690,7 @@ Everything is in `~/.nota-bene/` (`NOTA_BENE_HOME` to move it; `npm run dev` use
 | `history/<sessionId>.jsonl` | *per agent*: conversation before each compaction |
 | `voice.jsonl` | *per agent*: which messages were voice messages, and their transcripts |
 | `turns-open/` | *per agent*: a mark per session while the agent works, so a restart mid-turn offers **Continue** |
+| `compact-pending/` | *per agent*: a compaction ordered while the agent works and the messages waiting behind it, per session, so a restart keeps them |
 | `trash/` | *per agent*: what Storage → Clean moved |
 | `agent-choice.json` | each folder's last agent |
 | `recent.json`, `recent-hidden.json` | the switcher's Recent folders, and those removed with ✕ |

@@ -66,7 +66,7 @@ void main() {
 
   test('opens /ws with a tab id and waits for the replay', () async {
     final path = ch.wsOpens.single['path'] as String;
-    expect(path, matches(RegExp(r'^/ws\?tab=[0-9a-f-]{36}$')));
+    expect(path, matches(RegExp(r'^/ws\?tab=[0-9a-f-]{36}&held=1$')));
     expect(tab.state, TabState.connecting);
     ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': 13});
     ch.event(ch.lastWsId, replay([user('u1')]));

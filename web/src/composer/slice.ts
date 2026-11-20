@@ -37,7 +37,8 @@ export const composerSlice = createSlice({
     b.addCase(serverEvent, (s, a) => {
       const ev = a.payload;
       // the echo (or the refusal, handled by refusedMiddleware before this runs), or a new history: nothing left to restore
-      if ((ev.kind === 'user' && ev.id === s.unconfirmed?.id) || ev.kind === 'send-refused' || ev.kind === 'replay') s.unconfirmed = null;
+      // `send-held` (protocol 27): taken, it waits behind a pending restart or compaction
+      if (((ev.kind === 'user' || ev.kind === 'send-held') && ev.id === s.unconfirmed?.id) || ev.kind === 'send-refused' || ev.kind === 'replay') s.unconfirmed = null;
       if ((ev.kind === 'shell-start' && ev.id === s.shellUnconfirmed?.id) || ev.kind === 'shell-refused' || ev.kind === 'replay') s.shellUnconfirmed = null;
     }).addCase(connState, (s, a) => {
       if (a.payload !== 'open') s.unconfirmed = s.shellUnconfirmed = null; // the refusal can no longer arrive on this socket

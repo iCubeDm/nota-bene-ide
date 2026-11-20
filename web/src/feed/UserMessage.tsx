@@ -20,11 +20,12 @@ import { VoiceBubble } from '@/voice/VoiceBubble.tsx';
 /** A line's time in the UI language: `14:32` today, with its date on another day (see time.ts); '' for ts 0. */
 export const timeOf = (ts: number): string => (ts > 0 ? clockTime(ts, getLang()) : '');
 
-export const UserMessage = memo(function UserMessage({ item }: { item: Extract<FeedItem, { kind: 'user' }> }) {
+/** `held` (issue 499): a send the server holds behind a pending restart or compaction; the line says what it waits for */
+export const UserMessage = memo(function UserMessage({ item, held }: { item: Extract<FeedItem, { kind: 'user' }>; held?: 'restart' | 'compact' }) {
   const t = useT();
   const inAgent = !!useContext(FeedScope).agent; // a subagent's tab: the first message is the prompt it was given, not the user's
   const sent = useAppSelector((s) => selectSentFor(s, item.id));
-  const mode = item.force ? t('youForced') : item.duringWork ? t('youBusy') : '';
+  const mode = held ? t(held === 'restart' ? 'youHeldRestart' : 'youHeldCompact') : item.force ? t('youForced') : item.duringWork ? t('youBusy') : '';
   const m = BATCH_HEAD.exec(item.text);
   // a voice message: `text` is '' until the host's transcript arrives (a replayed history has it there at once)
   const general = item.voice ? '' : m ? item.text.slice(0, m.index) : item.text;
@@ -33,7 +34,8 @@ export const UserMessage = memo(function UserMessage({ item }: { item: Extract<F
     <div
       data-kind="user"
       data-item-id={item.id}
-      className="my-2.5 rounded-[10px] border border-border-soft bg-muted/55 px-3 py-2"
+      data-held={held}
+      className={`my-2.5 rounded-[10px] border border-border-soft bg-muted/55 px-3 py-2${held ? ' border-dashed opacity-70' : ''}`}
     >
       <div data-anchor-skip className="mb-0.5 font-mono text-[0.65625rem] text-muted-foreground">
         {inAgent ? t('agentPrompt') : t('you')}

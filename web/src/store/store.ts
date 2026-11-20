@@ -131,8 +131,9 @@ export function makeStore(o: {
   const connectFn = o.connect ?? ((u, e, st) => realConnect(u, e, st, WebSocket, refusedForAuth, socketProtocols));
   // the server recognises a reconnect of the owning tab by it: no grace, no occupied (M7-15 fix round 1)
   const tabId = newTabId();
-  // pause=1 (gh-422): this page asks for a pending server restart in its own pause, so the server waits for that ask
-  const baseUrl = `${o.url}${o.url.includes('?') ? '&' : '?'}tab=${tabId}&pause=1`;
+  // pause=1 (gh-422): this page asks for a pending server restart in its own pause, so the server waits for that ask;
+  // held=1 (issue 499): it knows `send-held`, so its sends may wait behind a pending restart or compaction
+  const baseUrl = `${o.url}${o.url.includes('?') ? '&' : '?'}tab=${tabId}&pause=1&held=1`;
   // an occupied or taken page reconnects passive: after a restart both tabs retry, and the one that was parked must not
   // win the window by being first (the server answers a passive socket `occupied` even with no owner)
   const url = () => {

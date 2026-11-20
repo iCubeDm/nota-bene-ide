@@ -398,6 +398,18 @@
         },
         {
           "properties": {
+            "type": {
+              "const": "compact-cancel",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
             "dir": {
               "type": "string"
             },
@@ -734,6 +746,35 @@
       "required": [
         "kind",
         "path"
+      ],
+      "type": "object"
+    },
+    "HeldSend": {
+      "description": "protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "images": {
+          "items": {
+            "$ref": "#/definitions/ImageRef"
+          },
+          "type": "array"
+        },
+        "text": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "voice": {
+          "$ref": "#/definitions/Voice"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "ts"
       ],
       "type": "object"
     },
@@ -1866,6 +1907,45 @@
           "required": [
             "kind",
             "pending"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "held": {
+              "items": {
+                "$ref": "#/definitions/HeldSend"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "compact-pending",
+              "type": "string"
+            },
+            "pending": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "pending",
+            "held"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "send-held",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
           ],
           "type": "object"
         },
@@ -3311,5 +3391,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 26
+  "x-protocol": 27
 }

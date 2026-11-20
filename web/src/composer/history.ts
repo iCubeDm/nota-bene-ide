@@ -109,7 +109,7 @@ const record = (entry: Omit<PromptEntry, 'ts'>): AppThunk => (d, getState) => {
 type Slice = { composer: { unconfirmed: SentDraft | null; shellUnconfirmed: ShellDraft | null } };
 
 /**
- * Records a prompt once the server has taken it: the typed draft on its `user` echo, a `! cmd` on `shell-start` (both read
+ * Records a prompt once the server has taken it: the typed draft on its `user` echo (or `send-held`), a `! cmd` on `shell-start` (both read
  * before the composer's reducer drops them), a voice message on its live `voice-text`. A replayed event is history, not a
  * new prompt. A new session id, and a replay, reload the stored list (not every `session` event: those also carry a new title).
  */
@@ -118,7 +118,7 @@ export const historyMiddleware: Middleware = (api) => (next) => (action) => {
   const ev = action.payload;
   const c = (api.getState() as Slice).composer;
   const dispatch = api.dispatch as (a: unknown) => void;
-  if (ev.kind === 'user' && c.unconfirmed?.id === ev.id) dispatch(record({ id: ev.id, text: c.unconfirmed.text, src: 'typed' }));
+  if ((ev.kind === 'user' || ev.kind === 'send-held') && c.unconfirmed?.id === ev.id) dispatch(record({ id: ev.id, text: c.unconfirmed.text, src: 'typed' }));
   else if (ev.kind === 'shell-start' && c.shellUnconfirmed?.id === ev.id) dispatch(record({ id: ev.id, text: c.shellUnconfirmed.draft, src: 'shell' as PromptSrc }));
   else if (ev.kind === 'voice-text' && ev.text) dispatch(record({ id: ev.id, text: ev.text, src: 'voice' }));
   const result = next(action);
