@@ -191,7 +191,11 @@ void main() {
         FakeFactory().factory,
         await Identity.load(MemoryVault()),
       );
-      final tab = WindowTab(link, 4791, '/home/u/notes', retry: (_) async {});
+      final tab = WindowTab(
+        link,
+        window(4791, '/home/u/notes'),
+        retry: (_) async {},
+      );
       await expectLater(
         uploadImage(tab, prepared, 'x'),
         throwsA(isA<AttachError>()),

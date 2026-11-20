@@ -1,3 +1,4 @@
+import { has } from '@nota-bene/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { selectMediaComments } from '@/comments/slice.ts';
 import { selectFileVersion } from '@/files/slice.ts';
@@ -99,7 +100,7 @@ export function PlayerBar({ media, box, tabId, path = '', refName, flash, onTick
   const ctl = useMedia();
   const video = media instanceof HTMLVideoElement;
   const state = useMediaState(media);
-  const offered = useAppSelector((s) => s.controls.protocol >= 4);
+  const offered = useAppSelector((s) => has(s.controls.protocol, 'mediaAnchors'));
   const comments = useAppSelector((s) => selectMediaComments(s, path, refName));
   const version = useAppSelector((s) => selectFileVersion(s, path, refName));
   const items = useMemo<MarkerIn[]>(() => !video ? [] : comments.flatMap((c) =>

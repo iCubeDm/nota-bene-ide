@@ -24,6 +24,16 @@ void main() {
     for (final item in fixtures('usage')) {
       expect(UsageReport.fromJson(item).toJson(), equals(item));
     }
+    for (final item in fixtures('host')) {
+      expect(HostStreamMessage.fromJson(item).toJson(), equals(item));
+    }
+  });
+
+  test('a host window without an id (a host before issue 511) parses', () {
+    final m = HostStreamMessage.fromJson(fixtures('host')[1]);
+    expect(m.windows.single.id, isNull);
+    expect(m.windows.single.port, 4781);
+    expect(m.windows.single.provider, AgentProvider.omp);
   });
 
   test('every HTTP answer fixture round-trips', () {

@@ -7,7 +7,7 @@ import { createGenerator } from 'ts-json-schema-generator';
 
 /** the HTTP answers the phone reads, so it parses them with generated classes (issue 511) */
 export const ANSWERS = ['VcsDiff', 'VcsPatch', 'VcsLog', 'VcsCommitDetail', 'GitSwitchAnswer', 'TreeEntry', 'CompleteAnswer', 'ProjectIconAnswer'] as const;
-export const ROOTS = ['ClientMessage', 'ServerEvent', 'UsageReport', ...ANSWERS] as const;
+export const ROOTS = ['ClientMessage', 'ServerEvent', 'UsageReport', 'HostStreamMessage', ...ANSWERS] as const;
 export const SCHEMA_PATH = 'shared/schema/protocol.schema.json';
 
 export type ProtocolSchema = {

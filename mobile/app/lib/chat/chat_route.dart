@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nb_channel/nb_channel.dart';
 
 import '../hosts/host_link.dart';
 import '../l10n/app_localizations.dart';
@@ -27,8 +28,7 @@ class ChatRoute extends StatefulWidget {
   const ChatRoute({
     super.key,
     required this.link,
-    required this.port,
-    required this.root,
+    required this.window,
     this.seen,
     this.visible,
     this.onTab,
@@ -36,8 +36,9 @@ class ChatRoute extends StatefulWidget {
   });
 
   final HostLink link;
-  final int port;
-  final String root;
+
+  /// The window as it was listed when the chat opened; the tab follows it by its key.
+  final HostWindow window;
 
   /// Told the window's replies while the chat is open, so the list shows none of them unread.
   final Seen? seen;
@@ -56,8 +57,7 @@ class ChatRoute extends StatefulWidget {
 class _ChatRouteState extends State<ChatRoute> {
   late final WindowTab _tab = WindowTab(
     widget.link,
-    widget.port,
-    widget.root,
+    widget.window,
     retry: widget.retry,
   );
   PermissionWatcher? _asks;
@@ -75,18 +75,25 @@ class _ChatRouteState extends State<ChatRoute> {
     widget.link.addListener(_see);
     _tab.addListener(_see);
     widget.visible?.addListener(_see);
-    widget.visible?.open(widget.link.host.id, widget.port, widget.root);
+    widget.visible?.open(widget.link.host.id, _shown);
     _see();
   }
 
-  /// While the tab is open and the app on screen, the window's replies count as seen.
+  /// The key the chat was last shown under (the window's key can change: issue 511, a duplicate's id).
+  late String _shown = _tab.key;
+
+  /// The chat in front keeps its window's current key; while the tab is open and the app on screen, the window's
+  /// replies count as seen.
   void _see() {
+    final w = _tab.window;
+    if (_tab.key != _shown) {
+      widget.visible?.close(widget.link.host.id, _shown);
+      _shown = _tab.key;
+      widget.visible?.open(widget.link.host.id, _shown);
+    }
     final seen = widget.seen;
     if (seen == null || _tab.state != TabState.open) return;
     if (widget.visible?.visible == false) return;
-    final w = widget.link.windows
-        .where((w) => w.port == widget.port && w.root == widget.root)
-        .firstOrNull;
     final session = w?.session, replies = w?.replies;
     if (session == null || replies == null) return;
     unawaited(seen.see(widget.link.host.id, session, replies));
@@ -103,7 +110,7 @@ class _ChatRouteState extends State<ChatRoute> {
     widget.link.removeListener(_see);
     _tab.removeListener(_see);
     widget.visible?.removeListener(_see);
-    widget.visible?.close(widget.link.host.id, widget.port, widget.root);
+    widget.visible?.close(widget.link.host.id, _shown);
     _asks?.dispose();
     _tab.dispose();
     _draft.dispose();

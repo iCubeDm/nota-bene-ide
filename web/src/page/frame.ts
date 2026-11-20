@@ -3,9 +3,6 @@ import { useSyncExternalStore } from 'react';
 // A rendered HTML page lives in its own document (HtmlBody's frame). The comment machinery works in this window's
 // coordinates and DOM; these helpers carry what it reads across the frame's edge.
 
-/** The server protocol from which a comment may point at a page element or area (PageAnchor). */
-export const PAGE_PROTOCOL = 13;
-
 /** The frame HtmlBody renders a page into. */
 export const PAGE_FRAME = 'iframe[data-page-frame]';
 

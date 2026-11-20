@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:nb_protocol/nb_protocol.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -22,87 +23,15 @@ class ChannelError implements Exception {
       'ChannelError($message${relayCode == null ? '' : ', $relayCode'})';
 }
 
-/// One window as the host stream lists it.
-/// The latest user message or final reply of a window's session, as the window sends it: one plain line.
-class LastMessage {
-  LastMessage({required this.role, required this.text, this.at});
+/// The phone's names for a window of the host stream (its generated `HostWindow`, shared/src/host.ts).
+extension HostWindowKey on HostWindow {
+  /// The window's identity on its host (issue 511): its stable id, or `port:<n>` from a host before ids. Nothing else
+  /// in the app reads `id` or `port` for identity; `port` only opens the window's streams.
+  String get key => id ?? 'port:$port';
 
-  /// `user` or `assistant`.
-  final String role, text;
-
-  /// Null when the window has no time for it (a restored history).
-  final DateTime? at;
-
-  static LastMessage? fromJson(Object? j) {
-    if (j is! Map) return null;
-    final role = j['role'], text = j['text'], at = j['at'];
-    if (role is! String || text is! String) return null;
-    return LastMessage(
-      role: role,
-      text: text,
-      at: at is num && at > 0
-          ? DateTime.fromMillisecondsSinceEpoch(at.toInt())
-          : null,
-    );
-  }
-}
-
-class HostWindow {
-  HostWindow({
-    required this.port,
-    required this.provider,
-    required this.root,
-    this.title,
-    this.session,
-    this.model,
-    this.busy = false,
-    this.supervised = false,
-    this.pending = false,
-    this.last,
-    this.replies,
-    this.icon,
-    this.iconSupported = false,
-  });
-
-  factory HostWindow.fromJson(Map<String, Object?> j) => HostWindow(
-    port: j['port'] as int,
-    provider: j['provider'] as String,
-    root: j['root'] as String,
-    title: j['title'] as String?,
-    session: j['session'] as String?,
-    model: j['model'] as String?,
-    busy: j['busy'] == true,
-    supervised: j['supervised'] == true,
-    pending: j['pending'] == true,
-    last: LastMessage.fromJson(j['last']),
-    replies: switch (j['replies']) {
-      final num n => n.toInt(),
-      _ => null,
-    },
-    icon: j['icon'] is String ? j['icon'] as String : null,
-    iconSupported: j.containsKey('icon'),
-  );
-
-  final int port;
-  final String provider;
-  final String root;
-  final String? title, session, model;
-  final bool busy, supervised;
-
-  /// A permission or interaction prompt awaits an answer in the window.
-  final bool pending;
-
-  /// Null: no message yet, or an older window that does not tell.
-  final LastMessage? last;
-
-  /// The final replies of the session; null from an older window.
-  final int? replies;
-
-  /// The version (a hash) of the picture of the window's project folder, null when it has none.
-  final String? icon;
-
-  /// This window with another picture state (the phone keeps the last known one when a poll leaves the field out).
-  HostWindow withIcon(String? icon, bool iconSupported) => HostWindow(
+  /// This window with another picture version.
+  HostWindow withIcon(String? icon) => HostWindow(
+    id: id,
     port: port,
     provider: provider,
     root: root,
@@ -115,12 +44,40 @@ class HostWindow {
     last: last,
     replies: replies,
     icon: icon,
-    iconSupported: iconSupported,
   );
+}
 
-  /// The host knows project pictures (protocol 15 lists `icon`, null or not); an older host does not, and the phone
-  /// offers no Set icon there.
-  final bool iconSupported;
+extension LastMessageTime on LastMessage {
+  /// When it was said; null when the window has no time for it (a restored history).
+  DateTime? get time => switch (at) {
+    final num a when a > 0 => DateTime.fromMillisecondsSinceEpoch(a.toInt()),
+    _ => null,
+  };
+}
+
+/// The windows of a host stream `windows` message. A window that does not parse is left out, the others kept. A
+/// window listed without `icon` (the host could not read its /info that time) keeps the picture it had in [before],
+/// so the icon does not blink off.
+List<HostWindow> parseWindows(List<Object?> raw, List<HostWindow>? before) => [
+  for (final m in raw)
+    if (m is Map)
+      if (_window(m.cast<String, Object?>()) case final w?)
+        m.containsKey('icon')
+            ? w
+            : switch (before
+                  ?.where((o) => o.key == w.key && o.root == w.root)
+                  .firstOrNull) {
+                final o? => w.withIcon(o.icon),
+                null => w,
+              },
+];
+
+HostWindow? _window(Map<String, Object?> m) {
+  try {
+    return HostWindow.fromJson(m);
+  } on Object {
+    return null;
+  }
 }
 
 typedef HttpAnswer = ({
@@ -357,10 +314,10 @@ class Channel {
         return;
       }
       if (j is Map && j['t'] == 'windows' && j['windows'] is List) {
-        final list = [
-          for (final w in j['windows'] as List)
-            if (w is Map) HostWindow.fromJson(w.cast<String, Object?>()),
-        ];
+        final raw = j['windows'] as List;
+        // a host that knows project pictures lists `icon` (null or a version); an older one never does
+        _icons = _icons || raw.any((w) => w is Map && w.containsKey('icon'));
+        final list = parseWindows(raw, _last);
         _last = list;
         _windows.add(list);
       }
@@ -415,6 +372,11 @@ class Channel {
   }
 
   List<HostWindow>? get lastWindows => _last;
+
+  /// The host knows project pictures: a list it sent carried `icon`. An older host does not, and the phone offers no
+  /// Set icon there. Set before the list that shows it is added to [windows].
+  bool get iconsSupported => _icons;
+  bool _icons = false;
 
   /// Completes with the relay's close code (0 when there was none) once the channel is gone.
   Future<int> get closed => _closed.future;

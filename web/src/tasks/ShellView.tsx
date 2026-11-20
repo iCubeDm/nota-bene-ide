@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { TaskOutputView } from '@nota-bene/shared';
+import { has, type TaskOutputView } from '@nota-bene/shared';
 import { useT } from '@/i18n/index.ts';
 import { useAppSelector } from '@/store/store.ts';
 import type { ShellTab } from '@/tabs/slice.ts';
 import { plainOutput } from './ansi.ts';
-import { selectTaskControls, TASKS_PROTOCOL } from './slice.ts';
+import { selectTaskControls } from './slice.ts';
 import { StopButton } from './TaskButtons.tsx';
 import { apiFetch } from '@/net/auth.ts';
 import { byteSize } from '@/lib/format.ts';
@@ -49,7 +49,7 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
   }, [session, task]);
 
   useEffect(() => {
-    if (!session || !active || protocol < TASKS_PROTOCOL || final.current) return;
+    if (!session || !active || !has(protocol, 'taskControl') || final.current) return;
     const ctl = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
@@ -112,7 +112,7 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
       >
         {out.status === 'gone' ? (
           <div data-kind="shell-status" role="status" className="py-6 text-center text-sm text-muted-foreground">{t('shellGone')}</div>
-        ) : protocol < TASKS_PROTOCOL ? (
+        ) : !has(protocol, 'taskControl') ? (
           <div data-kind="shell-status" role="status" className="py-6 text-center text-sm text-muted-foreground">{t('shellNeedsRestart')}</div>
         ) : out.status === 'loading' ? (
           <div data-kind="shell-status" role="status" className="py-6 text-center text-sm text-muted-foreground">{t('shellLoading')}</div>

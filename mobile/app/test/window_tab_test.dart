@@ -55,7 +55,7 @@ void main() {
       sleep: (_) => Completer<void>().future,
     )..start();
     await settle();
-    tab = WindowTab(link, 4791, '/p', retry: (_) async {});
+    tab = WindowTab(link, window(4791, '/p'), retry: (_) async {});
     await settle();
   });
 
@@ -199,6 +199,91 @@ void main() {
     ch.push([window(4791, '/p')]);
     await settle();
     expect(ch.wsOpens, hasLength(2));
+  });
+
+  test(
+    'a window that restarts on another port keeps its chat: the tab follows its id (issue 511)',
+    () async {
+      const id = 'claude:0123456789abcdef';
+      ch.push([window(4791, '/p', id: id)]);
+      await settle();
+      final own = WindowTab(
+        link,
+        window(4791, '/p', id: id),
+        retry: (_) async {},
+      );
+      await settle();
+      ch.event(ch.lastWsId, replay([user('u1')]));
+      await settle();
+      expect(own.state, TabState.open);
+      ch.push([]);
+      ch.host(Close(ch.lastWsId, 4904));
+      await settle();
+      expect(own.state, TabState.gone);
+      ch.push([window(4795, '/p', id: id)]);
+      await settle();
+      expect(ch.wsOpens.last['port'], 4795);
+      expect((own.key, own.port), (id, 4795));
+      expect(own.feed.items, hasLength(1), reason: 'the same chat');
+      own.dispose();
+    },
+  );
+
+  group('two windows of one folder and agent (issue 511)', () {
+    const id = 'claude:0123456789abcdef';
+
+    test(
+      'a second one on a lower port takes the bare id: the open chat stays on its own',
+      () async {
+        ch.push([window(4792, '/p', id: id)]);
+        await settle();
+        final own = WindowTab(
+          link,
+          window(4792, '/p', id: id),
+          retry: (_) async {},
+        );
+        await settle();
+        ch.push([
+          window(4791, '/p', id: id),
+          window(4792, '/p', id: '$id:4792'),
+        ]);
+        await settle();
+        expect(own.port, 4792);
+        expect(own.window!.port, 4792);
+        own.dispose();
+      },
+    );
+
+    test(
+      'the lower one leaves: the other takes the bare id and the chat on it stays',
+      () async {
+        ch.push([
+          window(4791, '/p', id: id),
+          window(4792, '/p', id: '$id:4792'),
+        ]);
+        await settle();
+        final own = WindowTab(
+          link,
+          window(4792, '/p', id: '$id:4792'),
+          retry: (_) async {},
+        );
+        await settle();
+        ch.push([window(4792, '/p', id: id)]);
+        await settle();
+        expect(own.window!.port, 4792);
+        // and it still follows its window when that restarts on another port
+        ch.event(ch.lastWsId, replay([]));
+        await settle();
+        ch.push([]);
+        ch.host(Close(ch.lastWsId, 4904));
+        await settle();
+        ch.push([window(4795, '/p', id: id)]);
+        await settle();
+        expect(own.port, 4795);
+        expect(ch.wsOpens.last['port'], 4795);
+        own.dispose();
+      },
+    );
   });
 
   test('send writes JSON on the stream only while open', () async {

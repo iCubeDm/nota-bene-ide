@@ -30,6 +30,15 @@
       ],
       "type": "string"
     },
+    "AgentProvider": {
+      "description": "The agents a window can run.",
+      "enum": [
+        "claude",
+        "codex",
+        "omp"
+      ],
+      "type": "string"
+    },
     "Anchor": {
       "anyOf": [
         {
@@ -168,12 +177,7 @@
           "type": "array"
         },
         "provider": {
-          "enum": [
-            "claude",
-            "codex",
-            "omp"
-          ],
-          "type": "string"
+          "$ref": "#/definitions/AgentProvider"
         },
         "taskBackground": {
           "type": "boolean"
@@ -832,6 +836,100 @@
       ],
       "type": "object"
     },
+    "HostStreamMessage": {
+      "description": "What the host stream sends: the whole list on open and on every change.",
+      "properties": {
+        "t": {
+          "const": "windows",
+          "type": "string"
+        },
+        "windows": {
+          "items": {
+            "$ref": "#/definitions/HostWindow"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "t",
+        "windows"
+      ],
+      "type": "object"
+    },
+    "HostWindow": {
+      "description": "One window as the host stream lists it. `port`, `provider` and `root` are always there; every other field may be missing (the host could not read the window's /info that time, or an older host).",
+      "properties": {
+        "busy": {
+          "type": "boolean"
+        },
+        "icon": {
+          "description": "the version (a hash) of the picture of the window's project folder; null when it has none",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The window's stable id (issue 511): `provider:sha1(root)[0..16]`, the same across restarts and port changes; for a second window of the same folder and agent, `<id>:<port>`. Opaque to clients. Absent from a host before it.",
+          "type": "string"
+        },
+        "last": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LastMessage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pending": {
+          "description": "a permission or interaction prompt awaits an answer in the window",
+          "type": "boolean"
+        },
+        "port": {
+          "description": "Transport only: the port the host reaches the window on (the `port` of the `ws` / `http` stream kinds).",
+          "type": "integer"
+        },
+        "provider": {
+          "$ref": "#/definitions/AgentProvider"
+        },
+        "replies": {
+          "description": "The final replies of the session.",
+          "type": "integer"
+        },
+        "root": {
+          "type": "string"
+        },
+        "session": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "supervised": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "port",
+        "provider",
+        "root"
+      ],
+      "type": "object"
+    },
     "IdleCompact": {
       "description": "`minutes` after the last turn, if the window saw no activity for `awayMinutes`",
       "properties": {
@@ -986,6 +1084,30 @@
       },
       "required": [
         "choice"
+      ],
+      "type": "object"
+    },
+    "LastMessage": {
+      "description": "The latest user message or final reply of a window's session, as the window sends it: one plain line.",
+      "properties": {
+        "at": {
+          "description": "ms since the epoch; absent or 0 when the window has no time for it (a restored history)",
+          "type": "number"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "text"
       ],
       "type": "object"
     },

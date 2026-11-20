@@ -1,7 +1,7 @@
 import { useAutosize } from '@/composer/autosize.ts';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
-import { isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
+import { has, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
 import { getLang, useT } from '@/i18n/index.ts';
 import { pageQuote } from '@/page/quote.ts';
@@ -29,7 +29,7 @@ import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import type { ImageEntry } from '@/composer/slice.ts';
 import { mediaLine } from '@/media/markup/geometry.ts';
 import { deleteMarks, type MediaAnchorPatch } from '@/media/markup/createMediaComment.ts';
-import { addComment, IMAGES_ALONE_PROTOCOL, setPanelOpen } from './slice.ts';
+import { addComment, setPanelOpen } from './slice.ts';
 import { useDrag } from './useDrag.ts';
 import { clearPageSelections } from '@/page/frame.ts';
 
@@ -79,7 +79,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   const store = useStore<RootState>();
   const protocol = useAppSelector((s) => s.controls.protocol);
   // images or a drawing without words: an older server would refuse the comment
-  const imagesAlone = protocol >= IMAGES_ALONE_PROTOCOL;
+  const imagesAlone = has(protocol, 'imagesAlone');
   const root = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState(pending.text ?? '');
@@ -296,7 +296,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           ariaLabel={t('commentPh')}
           // as in the composer: the mic while the field is empty, Add once it has something
           hasContent={hasContent}
-          mic={protocol >= 14 ? (
+          mic={has(protocol, 'voice') ? (
             <MicButton
               testId="popup-mic"
               anchor={micAnchor}
@@ -372,7 +372,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           >
             📎
           </button>
-          {protocol >= 14 && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micAnchor} />}
+          {has(protocol, 'voice') && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micAnchor} />}
           <span data-slot="emoji"><EmojiMenu target={area} /></span>
         </span>
       </div>

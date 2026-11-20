@@ -26,3 +26,6 @@ export type AgentEvent =
 
 /** What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`. */
 export type WireAgentEvent = Exclude<AgentEvent, { t: 'init' } | { t: 'rate-limit' } | { t: 'commands' }>;
+
+/** The agents a window can run. */
+export type AgentProvider = 'claude' | 'codex' | 'omp';

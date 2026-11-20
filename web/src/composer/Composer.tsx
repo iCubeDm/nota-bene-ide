@@ -15,7 +15,7 @@ import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
 import { PromptHistory } from './PromptHistory.tsx';
 import { MessageInput, MicButton, SendIcon } from './MessageInput.tsx';
-import type { PromptEntry } from '@nota-bene/shared';
+import { has, type PromptEntry } from '@nota-bene/shared';
 import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
 import { Meters } from '@/stats/Meters.tsx';
 import { CtxNudge } from '@/stats/CtxNudge.tsx';
@@ -97,7 +97,7 @@ export function Composer() {
     return list.findIndex((x) => x.text === value);
   };
   // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
-  const voiceOk = useAppSelector((s) => s.controls.protocol >= 14);
+  const voiceOk = useAppSelector((s) => has(s.controls.protocol, 'voice'));
   const whisper = caps.dictation === 'whisper';
   const fileIn = useRef<HTMLInputElement>(null);
   // the mic without Whisper asks to set it up in a prompt anchored to the mic

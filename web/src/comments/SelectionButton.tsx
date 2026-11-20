@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { Anchor, AnchorSource } from '@nota-bene/shared';
+import { has, type Anchor, type AnchorSource } from '@nota-bene/shared';
 import { makeAnchor } from '@/anchors/resolve.ts';
 import { offsetsOf, textOf } from '@/anchors/text.ts';
 import type { QuickLabelId } from '@nota-bene/shared';
@@ -12,7 +12,6 @@ import { labelsFor, labelText } from './labels.ts';
 import { LabelTip } from './LabelTip.tsx';
 import { addComment, setPanelOpen } from './slice.ts';
 import { editable } from '@/lib/editable.ts';
-import { AGENT_PROTOCOL } from '@/subagent/slice.ts';
 import { clearPageSelections, pageRoot, pageSelection, rangeRect } from '@/page/frame.ts';
 
 /** What the popup (M1-10) needs: where the text is anchored and where to put the popup; `text` is what was typed to open it. */
@@ -114,7 +113,7 @@ export function SelectionButton({ onComment }: { onComment: (s: PendingSelection
   const dispatch = useAppDispatch();
   const protocol = useAppSelector((s) => s.controls.protocol);
   const agentsOkNow = useRef(false);
-  agentsOkNow.current = protocol >= AGENT_PROTOCOL;
+  agentsOkNow.current = has(protocol, 'subagentAnchors');
   const barLabels = labelsFor(protocol).filter((l) => BAR.includes(l.id));
   const [sel, setSel] = useState<PendingSelection | null>(null);
   const selNow = useRef<PendingSelection | null>(null);

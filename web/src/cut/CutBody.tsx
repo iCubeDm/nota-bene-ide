@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
-import { isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
+import { has, isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
 import { AUDIO, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
 import { projectFileUrl } from '@/files/kinds.ts';
@@ -31,7 +31,7 @@ import { useCutDoc } from './useCutDoc.ts';
 import { useCutKeys } from './useCutKeys.ts';
 import { useMissing } from './useMissing.ts';
 import { setLiveCut } from './live.ts';
-import { CUT_PROTOCOL, followAnchor, pinAnchor, timeOf } from './pin.ts';
+import { followAnchor, pinAnchor, timeOf } from './pin.ts';
 import type { CutNote } from './Timeline.tsx';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -250,7 +250,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     dispatch(clearJump());
     goTo(jump.id);
   });
-  const canComment = protocol >= CUT_PROTOCOL && path !== undefined;
+  const canComment = has(protocol, 'cutAnchors') && path !== undefined;
   const comment = () => {
     if (!cut || path === undefined) return;
     const anchor = pinAnchor(cut, { kind: 'file', path }, player.time(), selected?.id ?? null);

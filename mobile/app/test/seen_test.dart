@@ -11,7 +11,7 @@ import 'support/fakes.dart';
 
 HostWindow win(String? session, int? replies) => HostWindow(
   port: 4791,
-  provider: 'claude',
+  provider: AgentProvider.claude,
   root: '/home/u/notes',
   session: session,
   replies: replies,

@@ -9,7 +9,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
-import 'package:nb_protocol/nb_protocol.dart' show ProjectIconAnswer;
+import 'package:nb_protocol/nb_protocol.dart'
+    show AgentProvider, ProjectIconAnswer;
 
 import '../media/attach.dart' show Prepared, UnsupportedImage;
 import '../media/media_comment.dart' show WindowHttp;
@@ -272,12 +273,11 @@ class _ProjectIconAvatarState extends State<ProjectIconAvatar> {
 }
 
 /// The provider's name for a screen reader (product names, not translated).
-String providerName(String? provider) => switch (provider) {
-  'claude' => 'Claude',
-  'codex' => 'Codex',
-  'omp' => 'omp',
-  null || '' => '',
-  final p => p,
+String providerName(AgentProvider? provider) => switch (provider) {
+  AgentProvider.claude => 'Claude',
+  AgentProvider.codex => 'Codex',
+  AgentProvider.omp => 'omp',
+  AgentProvider.$unknown || null => '',
 };
 
 /// A small round badge with the provider's letter, over a picture.

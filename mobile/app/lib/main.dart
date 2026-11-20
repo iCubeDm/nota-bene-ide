@@ -236,8 +236,7 @@ class _AppRootState extends State<AppRoot> {
               ? Scaffold(appBar: AppBar(title: Text(folderOf(w.root))))
               : ChatRoute(
                   link: link,
-                  port: w.port,
-                  root: w.root,
+                  window: w,
                   seen: d.seen,
                   visible: _visible,
                 );

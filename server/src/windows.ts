@@ -4,8 +4,10 @@
 // keeps writers of different ports from ever touching each other's entries; each file is replaced atomically.
 // An entry is only a hint: every reader verifies it (pid alive + /info.root), because a window can be killed
 // without unregistering, and its port reused by another app.
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { AgentProvider } from './agent/provider.ts';
 import { SecretError, verifiedBearer } from './auth.ts';
 import { pidAlive, renameRetry } from './platform.ts';
 import { stateDir } from './state.ts';
@@ -24,6 +26,15 @@ export type WindowEntry = {
   /** the launcher is rebuilding web/dist before relaunching the server: a launch of the folder keeps waiting for it */
   building?: boolean;
 };
+
+/** A folder's short hash: names its launch lock (bin/nota-bene.mjs) and is the core of its windows' id. */
+export const rootHash = (root: string): string => createHash('sha1').update(root).digest('hex').slice(0, 16);
+
+/**
+ * A window's stable id (issue 511): the same across restarts and port changes, no state kept. The host stream sends it
+ * (remote/device.ts, which makes a second window of one folder and agent `<id>:<port>`); clients treat it as opaque.
+ */
+export const windowKey = (provider: AgentProvider, root: string): string => `${provider}:${rootHash(root)}`;
 
 const dir = (base?: string) => path.join(base ?? stateDir(), 'windows');
 const fileOf = (port: number | string, base?: string) => path.join(dir(base), `${port}.json`);

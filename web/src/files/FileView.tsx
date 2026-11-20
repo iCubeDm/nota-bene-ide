@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { PAGE_PROTOCOL } from '@/page/frame.ts';
-import { isCutAnchor, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
+import { has, isCutAnchor, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
 import { isCutPath } from '@nota-bene/shared/cut';
 import { CutBody } from '@/cut/CutBody.tsx';
 import { editable as isEditable } from '@/lib/editable.ts';
@@ -77,8 +76,8 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   const timeline = cut && pageView && !editing && data?.s === 'text';
   const [pageMarking, setPageMarking] = useState(false);
   const [scripts, setScripts] = useState(false);
-  // an older server would refuse a comment on an element (PAGE_PROTOCOL): marking is offered from it on
-  const canMark = useAppSelector((s) => s.controls.protocol >= PAGE_PROTOCOL);
+  // an older server would refuse a comment on an element (`pageAnchors`): marking is offered from it on
+  const canMark = useAppSelector((s) => has(s.controls.protocol, 'pageAnchors'));
   const marksPage = page && canMark && pageMarking;
   useEffect(() => { if (!page) setPageMarking(false); }, [page]);
   const pageMarkingNow = useRef(pageMarking);

@@ -1,5 +1,5 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { anchorSource, isCutAnchor, isMediaAnchor, type Comment, type CommentOp, type CutAnchor, type MediaAnchor } from '@nota-bene/shared';
+import { has, anchorSource, isCutAnchor, isMediaAnchor, type Comment, type CommentOp, type CutAnchor, type MediaAnchor } from '@nota-bene/shared';
 import { fileKey } from '../files/sources.ts';
 // store.ts imports this file for the reducer; every use of serverEvent below is lazy (inside callbacks), so the cycle is safe.
 import { connState, serverEvent, type AppThunk, type RootState } from '../store/store.ts';
@@ -7,10 +7,6 @@ import { connState, serverEvent, type AppThunk, type RootState } from '../store/
 export type CommentCard = { id: string; x: number; y: number };
 /** a local change on its way to the server (protocol 19): it shows at once and is sent until the server acks or refuses it */
 export type QueuedOp = { opId: string; sessionId: string | null; ops: CommentOp[] };
-/** the server that takes comment ops */
-export const OPS_PROTOCOL = 19;
-/** the server that takes a comment with images and no words (issue 497): a drawing, pasted images */
-export const IMAGES_ALONE_PROTOCOL = 26;
 export type CommentsState = {
   /** what the user sees: the server's set with the queued changes of this session on top */
   items: Comment[];
@@ -65,7 +61,7 @@ export const commentsSlice = createSlice({
     }).addCase(serverEvent, (s, a) => {
       const ev = a.payload;
       if (ev.kind === 'hello') {
-        s.ops = ev.protocol >= OPS_PROTOCOL;
+        s.ops = has(ev.protocol, 'commentOps');
         if (s.ops && !s.unsynced) s.items = view(s);
         if (!s.ops && s.queue.length) {
           // an older server after all (a downgrade): what is queued goes as the whole set, as before protocol 19
