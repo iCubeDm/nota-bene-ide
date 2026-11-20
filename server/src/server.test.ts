@@ -476,6 +476,70 @@ describe('server', () => {
       expect(await info(s.url)).toMatchObject({ restartPending: false });
     });
 
+    // issue 499: a compaction ordered while the agent works, and the sends held behind it
+    const users = (c: Client) => c.events.flatMap((e) => (e.kind === 'user' ? [e.text] : []));
+    const lastOrder = (c: Client) => c.events.filter((e) => e.kind === 'compact-pending').at(-1);
+
+    it('compact while working (held=1): pending, a later send held; at the pause the compaction runs, then the send', async () => {
+      const codes: number[] = [];
+      const { c } = await working(codes, '?pause=1&held=1');
+      expect(lastOrder(c)).toEqual({ kind: 'compact-pending', pending: false, held: [] }); // on attach
+      c.ws.send(JSON.stringify({ type: 'command', name: 'compact' }));
+      await until(() => lastOrder(c)?.kind === 'compact-pending' && (lastOrder(c) as { pending: boolean }).pending);
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'after' }));
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u3', text: '/compact' })); // typed: the same order, again a no-op
+      await until(() => c.events.filter((e) => e.kind === 'send-held').length === 2);
+      expect(lastOrder(c)).toMatchObject({ pending: true, held: [{ id: 'u2', text: 'after' }] });
+      expect(users(c)).toEqual(['work']); // the agent has not got it
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => users(c).length === 3, 4000);
+      expect(users(c)).toEqual(['work', '/compact', 'after']);
+      expect(c.events.some((e) => e.kind === 'server-error')).toBe(false);
+      await until(() => c.events.filter(isResult).length === 3);
+      expect(lastOrder(c)).toEqual({ kind: 'compact-pending', pending: false, held: [] });
+      expect(codes).toEqual([]);
+    });
+
+    it('an older page (no held=1): compact while working is refused and its sends go as before', async () => {
+      const codes: number[] = [];
+      const { c } = await working(codes);
+      c.ws.send(JSON.stringify({ type: 'command', name: 'compact' }));
+      await until(() => c.events.some((e) => e.kind === 'server-error' && e.where === 'busy'));
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'after' }));
+      await until(() => users(c).length === 2);
+      expect(c.events.some((e) => e.kind === 'send-held' || (e.kind === 'compact-pending' && e.pending))).toBe(false);
+    });
+
+    it('restart and compaction pending: the restart goes first; the order and the held send stay on disk for the next start', async () => {
+      const codes: number[] = [];
+      const { s, c } = await working(codes, '?held=1'); // no page that asks: the server goes by its own rule
+      const id = ((await (await fetch(`${s.url}/info`)).json()) as { session: string }).session;
+      expect(await (await post(s.url, s.url)).json()).toEqual({ ok: true, pending: true });
+      c.ws.send(JSON.stringify({ type: 'command', name: 'compact' }));
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'after' }));
+      await until(() => c.events.some((e) => e.kind === 'send-held'));
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => codes.length === 1, 4000);
+      expect(codes).toEqual([75]);
+      expect(users(c)).toEqual(['work']); // neither the compaction nor the send went before the restart
+      const rec = JSON.parse(fs.readFileSync(path.join(home, 'compact-pending', `${id}.json`), 'utf8'));
+      expect(rec).toMatchObject({ compact: true, held: [{ id: 'u2', text: 'after' }] });
+    });
+
+    it('cancel (held=1): the held send goes at once, no compaction', async () => {
+      const codes: number[] = [];
+      const { c } = await working(codes, '?pause=1&held=1');
+      c.ws.send(JSON.stringify({ type: 'command', name: 'compact' }));
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'after' }));
+      await until(() => c.events.some((e) => e.kind === 'send-held'));
+      c.ws.send(JSON.stringify({ type: 'compact-cancel' }));
+      await until(() => users(c).length === 2);
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => c.events.filter(isResult).length === 2);
+      await quiet();
+      expect(users(c)).toEqual(['work', 'after']);
+    });
+
     it('now: exits 75 at once mid-turn and leaves the mark of the cut turn', async () => {
       const codes: number[] = [];
       const { s } = await working(codes);

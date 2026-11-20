@@ -8,6 +8,7 @@ import { Composer } from '@/composer/Composer.tsx';
 import { Feed } from '@/feed/Feed.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/store/store.ts';
+import { CompactPending } from './CompactPending.tsx';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
@@ -27,6 +28,7 @@ function setup() {
   render(
     <Provider store={store}>
       <TooltipProvider>
+        <CompactPending />
         <Feed />
         <Composer />
       </TooltipProvider>
@@ -166,4 +168,39 @@ it("the server's idle /compact is a muted line, not the user's bubble", () => {
   expect(document.querySelector('[data-kind="idle-compact"]')).toHaveTextContent(/⇣ idle compaction · 50 min after the turn/);
   emit(agent({ t: 'compacting' }));
   expect(document.querySelector('[data-kind="compacting"]')).not.toBeNull();
+});
+
+// issue 499: a server of protocol 27 orders a Compact while the agent works for the next pause
+it('protocol 27: Compact while busy is sent (ordered); once pending it is off, and the held sends show last, waiting', async () => {
+  const { emit, commands, store } = setup();
+  emit({ kind: 'hello', protocol: 27 }, { kind: 'user', id: 'u1', text: 'hi', ts: 1 });
+  expect(screen.getByRole('button', { name: /Clear context/ })).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: /Compact context/ }));
+  expect(commands()).toEqual([{ type: 'command', name: 'compact' }]);
+  emit({ kind: 'compact-pending', pending: true, held: [{ id: 'u2', text: 'after it', ts: 2 }] });
+  expect(screen.getByRole('button', { name: /Compact context/ })).toBeDisabled();
+  const held = document.querySelector('[data-item-id="u2"]')!;
+  expect(held).toHaveAttribute('data-held', 'compact');
+  expect(held).toHaveTextContent('waits for the compaction');
+  expect(document.querySelectorAll('[data-kind="user"]')[1]).toBe(held); // after the feed
+  emit({ kind: 'restart-pending', pending: true });
+  expect(held).toHaveTextContent('waits for the restart');
+  expect(store.getState().feed.busy).toBe(true);
+  expect(store.getState().feed.waiting).toEqual(['u1']); // a held send is not the agent's yet
+  emit({ kind: 'compact-pending', pending: false, held: [] });
+  expect(document.querySelector('[data-item-id="u2"]')).toBeNull();
+});
+
+it('the pending chip offers Cancel, which sends compact-cancel', async () => {
+  const { emit, sent } = setup();
+  emit({ kind: 'hello', protocol: 27 }, { kind: 'compact-pending', pending: true, held: [] });
+  await userEvent.click(screen.getByRole('button', { name: 'Compact pending' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Cancel the compaction' }));
+  expect(sent.filter((m) => m.type === 'compact-cancel')).toEqual([{ type: 'compact-cancel' }]);
+});
+
+it('an older server: Compact stays off while busy', () => {
+  const { emit } = setup();
+  emit({ kind: 'hello', protocol: 26 }, { kind: 'user', id: 'u1', text: 'hi', ts: 1 });
+  expect(screen.getByRole('button', { name: /Compact context/ })).toBeDisabled();
 });

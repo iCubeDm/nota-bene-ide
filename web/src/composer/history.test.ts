@@ -69,6 +69,19 @@ it('a refused send is not recorded', async () => {
   expect(posts).toHaveLength(0);
 });
 
+it('a held send (protocol 27) is taken: recorded on `send-held`, and nothing is left to restore', async () => {
+  const { store, feed, sent } = setup();
+  feed(session('s1'));
+  act(() => void store.dispatch(setDraft('later')));
+  act(() => void store.dispatch(sendBatch(false)));
+  const id = (sent.find((m) => m.type === 'send') as { id: string }).id;
+  expect(store.getState().composer.unconfirmed).not.toBeNull();
+  feed({ kind: 'send-held', id });
+  await flush();
+  expect(store.getState().composer.unconfirmed).toBeNull();
+  expect(items(store)).toEqual([id]);
+});
+
 it('a send of comments only (an empty draft) is not recorded', async () => {
   const { store, feed } = setup();
   feed(session('s1'));

@@ -30,6 +30,8 @@ export const WEB_KEYS: readonly string[] = [
   // the git views' words
   'vcsChanges', 'vcsNoChanges', 'vcsNoCommits', 'vcsEmptyFile', 'vcsOnlyMeta', 'vcsTooBig', 'vcsShowAnyway', 'vcsNoRepo',
   'vcsFailed', 'binary',
+  // a compaction ordered while the agent works (issue 499): the chip and the held messages
+  'compactPending', 'compactPendingBody', 'compactCancel', 'youHeldRestart', 'youHeldCompact',
 ];
 /**
  * Web strings that count (`nComments(n)`): kept as the forms of 1, 2 and 5 with the number as `{0}`, which

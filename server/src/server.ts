@@ -22,7 +22,7 @@ import { osFileRoutes } from './osFiles.ts';
 import { tmpDirNames } from './tmpImage.ts';
 import { readPrefs } from './prefs.ts';
 import { httpHandler, isAllowedHost } from './http.ts';
-import { SwitchError, createSessionManager } from './session.ts';
+import { SwitchError, createSessionManager, trackedCommand } from './session.ts';
 import type { IdleConfig } from './idle.ts';
 import { archiveRoute, deleteRoute, listSessionsView, renameRoute, seenRoute } from './sessions.ts';
 import { readArchived, setArchived } from './archivedSessions.ts';
@@ -34,6 +34,7 @@ import { moveWindow } from './windows.ts';
 import { pidAlive } from './platform.ts';
 import { controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
 import { RESTART, restartGate } from './restartGate.ts';
+import { compactOrder } from './compactOrder.ts';
 import { TurnMarks, changesWork } from './turnMarks.ts';
 import { projectRoutes } from './projectRoutes.ts';
 import { parseProvider } from './agent/provider.ts';
@@ -240,9 +241,29 @@ export async function startServer(o: {
       // only a page that will ask in its pause holds the server's own rule back: the phone and an older bundle never ask
       tabs: () => askers.size,
       exit: exitWith,
-      changed: (pending) => hub.emit({ kind: 'restart-pending', pending }, { store: false }),
+      changed: (pending) => {
+        hub.emit({ kind: 'restart-pending', pending }, { store: false });
+        order.check(); // cancelled: what it held goes on
+      },
       everyMs: o.restartEveryMs,
     });
+    // issue 499: a compaction ordered while the agent works waits for the next pause, after a pending restart; the sends
+    // of pages that understand it (`held=1`) wait behind both
+    const order = compactOrder({
+      dir: path.join(stateDir(), 'compact-pending'),
+      session: () => manager.archiveId(),
+      busy: notPaused,
+      switching: () => manager.switching(),
+      restartPending: () => restart.pending(),
+      compact: () => manager.command('compact'),
+      send: (m) => void manager.send(m),
+      changed: () => hub.emit({ kind: 'compact-pending', ...order.view() }, { store: false }),
+      report: (e) => reportError(hub, 'compact', e),
+      everyMs: o.restartEveryMs,
+    });
+    order.enter(manager.archiveId()); // the start: what this session's last run left pending goes on
+    manager.onSessionId(() => order.moved());
+    manager.onSwitch((_id, { restart: same }) => { if (!same) order.enter(manager.archiveId()); });
     /** a request to restart: at once in a pause (true), else pending (false) */
     const requestRestart = () => restart.request() === 'now';
     const marks = new MarkFiles({ root, stateDir });
@@ -540,6 +561,7 @@ export async function startServer(o: {
       }
       try {
         ws.send(JSON.stringify({ kind: 'restart-pending', pending: restart.pending() }));
+        ws.send(JSON.stringify({ kind: 'compact-pending', ...order.view() }));
       } catch (e) {
         reportError(hub, 'restart', e);
       }
@@ -593,6 +615,13 @@ export async function startServer(o: {
     const handleOwner = (ws: WebSocket, msg: ClientMessage) => {
         switch (msg.type) {
           case 'send':
+            // issue 499: a typed /compact while the agent works (or behind a pending order) is the pending compaction
+            if (holds.has(ws) && caps.compact && !msg.commentIds?.length && !manager.switching() && trackedCommand(msg.text, manager.commands()) === 'compact'
+              && (manager.busy() || order.holding())) {
+              order.order();
+              ws.send(JSON.stringify({ kind: 'send-held', id: msg.id }));
+              break;
+            }
             {
               // before markSent: a refused send must not flip its comments to sent. Only the asking socket hears
               // of it (not stored, not broadcast)
@@ -622,7 +651,14 @@ export async function startServer(o: {
                 reportError(hub, 'comments', e); // the message itself must still go out
               }
             }
-            manager.send({ id: msg.id, text: msg.text, ...(msg.force ? { force: true } : {}), ...(msg.images?.length ? { images: msg.images } : {}), ...(msg.voice ? { voice: msg.voice, lang: msg.lang, ...(msg.detect ? { detect: true as const } : {}) } : {}) });
+            {
+              const send = { id: msg.id, text: msg.text, ...(msg.images?.length ? { images: msg.images } : {}), ...(msg.voice ? { voice: msg.voice, lang: msg.lang, ...(msg.detect ? { detect: true as const } : {}) } : {}) };
+              // issue 499: behind a pending restart or compaction a send waits; a forced one (Send now) goes at once, as before
+              if (holds.has(ws) && !msg.force && order.holding()) {
+                order.hold({ ...send, ts: Date.now() });
+                ws.send(JSON.stringify({ kind: 'send-held', id: msg.id }));
+              } else manager.send({ ...send, ...(msg.force ? { force: true } : {}) });
+            }
             break;
           case 'comments':
             // R14: a set in flight across a switch (or a /clear) must not land in the session that replaced it
@@ -708,7 +744,12 @@ export async function startServer(o: {
             break;
           case 'command':
             if (!caps[msg.name]) return refuse(`command ${msg.name}`);
-            manager.command(msg.name);
+            // issue 499: Compact while the agent works (or behind a pending restart) is ordered for the next pause
+            if (msg.name === 'compact' && holds.has(ws) && !manager.switching() && (manager.busy() || order.holding())) order.order();
+            else manager.command(msg.name);
+            break;
+          case 'compact-cancel':
+            order.cancel();
             break;
           case 'switch':
             manager.switch({ id: msg.id, dir: msg.dir }).catch(switchFailed);
@@ -765,6 +806,8 @@ export async function startServer(o: {
     // gh-422: sockets of a page (protocol 22+, `?pause=1`) that asks for a pending restart in its own pause; while one
     // is attached the server leaves that moment to it, otherwise its own pause rule restarts
     const asksInPause = new WeakSet<WebSocket>();
+    // issue 499: sockets of a page (protocol 27+, `?held=1`) that knows `send-held`: only their sends are held
+    const holds = new WeakSet<WebSocket>();
     const askers = new Set<WebSocket>();
 
     let conns = 0;
@@ -776,6 +819,7 @@ export async function startServer(o: {
       // (a restart drops both tabs); it is told `occupied` and takes over only on the user's click
       const passive = params.get('passive') === '1';
       if (params.get('pause') === '1') asksInPause.add(ws);
+      if (params.get('held') === '1') holds.add(ws);
       const conn = ++conns;
       audit?.write('ws-open', { conn, tab, passive });
       ws.on('close', (code) => audit?.write('ws-close', { conn, code }));
@@ -891,6 +935,7 @@ export async function startServer(o: {
       if (heartbeat) clearInterval(heartbeat);
       win.stop();
       restart.stop();
+      order.stop();
       turnMarks.freeze(); // a stop (SIGTERM, ⏻) during a turn keeps its mark: the close ends the turn
       manager.close();
       hostClient.close(); // the Whisper host drops this window's jobs

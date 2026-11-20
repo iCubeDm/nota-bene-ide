@@ -1,5 +1,5 @@
 import { createAction, type PayloadAction, createListenerMiddleware, createSlice } from '@reduxjs/toolkit';
-import { CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
+import { CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
 import { t } from '../i18n/index.ts';
 import { apiFetch } from '../net/auth.ts';
 import { toast } from '../shell/toast.ts';
@@ -44,10 +44,13 @@ export type ControlsState = { mode: Mode | null; modeBeforePlan: Mode | null; re
    * server did not go after all (declined at the reply: still pending; or cancelled), so the restarting phase ends
    */
   restartAsked: boolean;
+  /** protocol 27 (issue 499): a compaction waits for the next pause, and the sends held behind it and a pending restart (`compact-pending`) */
+  compactPending: boolean;
+  held: HeldSend[];
 };
 
 /** The mode as the UI shows it: null until the server has told us (or the user picked one). */
-const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null, restartPending: false, restartAsked: false };
+const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null, restartPending: false, restartAsked: false, compactPending: false, held: [] };
 
 /** Entering `plan` from X remembers X (prototype setModeUI). */
 function setMode(s: ControlsState, m: Mode): void {
@@ -88,7 +91,7 @@ export const controlsSlice = createSlice({
     b.addCase(dictationLangSet, (s, a) => void (s.dictationLang = a.payload));
     b.addCase(idleCompactSet, (s, a) => void (s.idleCompact && (s.idleCompact.on = a.payload)));
     // a dropped socket may come back to another server (a restart): until its hello, assume an old one
-    b.addCase(connState, (s, a) => void (a.payload === 'closed' && ((s.protocol = 0), (s.restartPending = false), (s.restartAsked = false))));
+    b.addCase(connState, (s, a) => void (a.payload === 'closed' && ((s.protocol = 0), (s.restartPending = false), (s.restartAsked = false), (s.compactPending = false), (s.held = []))));
     b.addCase(serverEvent, (s, a) => {
       const ev = a.payload;
       if (ev.kind === 'hello') {
@@ -112,6 +115,7 @@ export const controlsSlice = createSlice({
       if (ev.kind === 'models') s.models = ev.models;
       if (ev.kind === 'commands') s.commands = ev.commands;
       if (ev.kind === 'idle-compact') s.idleCompact = ev.state;
+      if (ev.kind === 'compact-pending') { s.compactPending = ev.pending; s.held = ev.held; }
       if (ev.kind === 'restart-pending') {
         s.restartPending = ev.pending;
         if (s.restartAsked && s.restarting) { s.switching = null; s.restarting = false; }
@@ -156,6 +160,11 @@ export const selectCapabilities = (s: RootState): Capabilities => s.controls.cap
 export const selectSwitching = (s: RootState): boolean => s.controls.switching !== null;
 export const selectRestarting = (s: RootState): boolean => s.controls.restarting;
 export const selectRestartPending = (s: RootState): boolean => s.controls.restartPending;
+export const selectCompactPending = (s: RootState): boolean => s.controls.compactPending;
+export const selectHeld = (s: RootState): HeldSend[] => s.controls.held;
+/** protocol 27 (issue 499): the server orders a Compact while the agent works for the next pause */
+export const COMPACT_ORDER_PROTOCOL = 27;
+export const selectCanOrderCompact = (s: RootState): boolean => s.controls.protocol >= COMPACT_ORDER_PROTOCOL;
 
 /** Optimistic: set locally, then send. The server answers every `mode` with one echo (to every socket). */
 export const pickMode = (mode: Mode): AppThunk => (dispatch, getState, { send }) => {
@@ -232,12 +241,15 @@ controlsListener.startListening({
   },
 });
 
-/** compact / clear. Refused while busy or switching (the server would answer `busy` too); the confirmation for clear is the caller's. */
+/**
+ * compact / clear. Refused while busy or switching (the server would answer `busy` too); the confirmation for clear is the caller's.
+ * A Compact while busy goes to a server of protocol 27: it waits there for the next pause (`compact-pending`).
+ */
 export type CommandResult = 'sent' | 'busy' | 'switching' | 'offline';
 export const runCommand = (name: 'compact' | 'clear'): AppThunk<CommandResult> => (_d, getState, { send }) => {
   const st = getState();
   if (st.controls.switching) return 'switching';
-  if (st.feed.busy) return 'busy';
+  if (st.feed.busy && !(name === 'compact' && selectCanOrderCompact(st))) return 'busy';
   return send({ type: 'command', name }) ? 'sent' : 'offline';
 };
 
@@ -317,6 +329,9 @@ export const restartInPause = (): AppThunk<Promise<boolean>> => async (dispatch,
   }, SERVER_RESTART_TIMEOUT_MS);
   return true;
 };
+
+/** drops the pending compaction; the server's `compact-pending` updates every page */
+export const cancelCompact = (): AppThunk<boolean> => (_d, _g, { send }) => send({ type: 'compact-cancel' });
 
 /** drops the pending restart; the server's `restart-pending` updates every page */
 export const cancelRestart = (): AppThunk<Promise<boolean>> => async () => {

@@ -36,7 +36,10 @@ String? runWindowCommand(
   ClientMessageCommandName name,
   String lang,
 ) {
-  if (tab.busy) return webString('working', lang);
+  // a Compact while the agent works waits for its next pause on a window of protocol 27 (issue 499)
+  final ordered =
+      name == ClientMessageCommandName.compact && tab.canOrderCompact;
+  if (tab.busy && !ordered) return webString('working', lang);
   if (!tab.send(ClientMessageCommand(name: name))) {
     return webString('offline', lang);
   }

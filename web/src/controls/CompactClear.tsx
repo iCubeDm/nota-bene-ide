@@ -4,17 +4,22 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useT } from '@/i18n/index.ts';
 import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
-import { runCommand, selectCapabilities, selectCapabilitiesKnown, selectIdleCompact, selectSwitching, toggleIdleCompact } from './slice.ts';
+import { runCommand, selectCanOrderCompact, selectCapabilities, selectCompactPending, selectCapabilitiesKnown, selectIdleCompact, selectSwitching, toggleIdleCompact } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
 
 const ICON = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const;
 
-/** /compact (at once) and /clear (after a confirmation); both off while the agent works (R-M4-4) or a switch runs. */
+/**
+ * /compact (at once, or while the agent works ordered for its next pause: protocol 27) and /clear (after a confirmation,
+ * off while the agent works: R-M4-4); both off while a switch runs.
+ */
 export function CompactClear() {
   const t = useT();
   const dispatch = useAppDispatch();
   // off mid-switch too: the server would refuse them as `busy`, and they belong to the session being left
   const busy = useAppSelector((s) => selectBusy(s) || selectSwitching(s));
+  // protocol 27 (issue 499): Compact while the agent works is ordered for the next pause; once ordered, again is nothing
+  const compactOff = useAppSelector((s) => selectSwitching(s) || selectCompactPending(s) || (selectBusy(s) && !selectCanOrderCompact(s)));
   const [asking, setAsking] = useState(false);
   const [note, showNote] = useNote();
   const caps = useAppSelector(selectCapabilities); // Compact and Clear show from the start (Claude's set until hello)
@@ -26,7 +31,7 @@ export function CompactClear() {
     <>
       {caps.compact && <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('compactTip')} onClick={() => dispatch(runCommand('compact'))}>
+          <Button type="button" variant="ghost" size="icon-sm" disabled={compactOff} aria-label={t('compactTip')} onClick={() => dispatch(runCommand('compact'))}>
             <svg {...ICON}><path d="M4 14h6v6" /><path d="M20 10h-6V4" /><path d="m14 10 7-7" /><path d="m3 21 7-7" /></svg>
           </Button>
         </TooltipTrigger>

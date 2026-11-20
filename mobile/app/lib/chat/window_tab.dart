@@ -226,6 +226,18 @@ class WindowTab extends ChangeNotifier {
   /// The server's idle-compaction state of this project (`idle-compact` event); null until it says.
   IdleCompact? idleCompact;
 
+  /// Protocol 27 (issue 499): a compaction waits for the agent's next pause (`compact-pending`).
+  bool compactPending = false;
+
+  /// The messages the window holds behind a pending restart or compaction, oldest first; they go after it.
+  List<HeldSend> held = const [];
+
+  /// A server restart waits for the agent's next pause (`restart-pending`, protocol 22): the held messages wait for it first.
+  bool restartPending = false;
+
+  /// Whether the window orders a Compact while the agent works for its next pause (protocol 27).
+  bool get canOrderCompact => (protocol ?? 0) >= 27;
+
   /// When the last turn ended in this tab's sight (null after a fresh replay: the feed carries no times).
   DateTime? lastDoneAt;
 
@@ -293,9 +305,12 @@ class WindowTab extends ChangeNotifier {
     comments.closed();
     _on = ch;
     whisperOn = null;
+    compactPending = restartPending = false; // the new socket says again
+    held = const [];
     final s = _stream = ch.ws(
       port,
-      '/ws?tab=$tabId${_passive ? '&passive=1' : ''}',
+      // held=1 (issue 499): the phone knows `send-held`, so its messages may wait behind a pending restart or compaction
+      '/ws?tab=$tabId&held=1${_passive ? '&passive=1' : ''}',
     );
     _set(TabState.connecting);
     s.messages.listen((m) {
@@ -419,6 +434,15 @@ class WindowTab extends ChangeNotifier {
         _retrying.remove(id);
         voiceOutbox.refused(id);
         _refusals.add(e);
+      case ServerEventCompactPending(:final pending, :final held):
+        compactPending = pending;
+        this.held = held;
+      case ServerEventRestartPending(:final pending):
+        restartPending = pending;
+      case ServerEventSendHeld(:final id):
+        // taken: it waits in [held] and comes back as a `user` event when it goes
+        _retrying.remove(id);
+        voiceOutbox.arrived(id);
       case ServerEventUser(:final id):
         _retrying.remove(id);
         voiceOutbox.arrived(id);

@@ -248,6 +248,9 @@ its `/remote` answers 503. Tests use a temporary `NOTA_BENE_HOME` and an in-proc
 - **Deferred restart** (`server/src/restartGate.ts`): `POST /restart-server` exits 75 only in a pause (no turn, question,
   approval, switch, `!` run or running task); otherwise it is pending until one. A page that connected with `?pause=1`
   holds it until its own side is quiet; `{now: true}` cuts the turn. The update's 77 uses the same `pauseExit`.
+- **Pending compaction** (`server/src/compactOrder.ts`, issue 499): Compact while busy waits for the same pause, after a
+  pending restart. Sends of a `?held=1` socket (protocol 27) wait behind either (`send-held`, `compact-pending`) and go
+  after the compaction's turn; a forced send does not wait. `<state>/compact-pending/<sessionId>.json` keeps both across a restart.
 - **Cut turns** (`server/src/turnMarks.ts`): while the agent works, `<state>/turns-open/<sessionId>` exists; a start that
   finds it offers **Continue**. Nothing is sent by itself.
 - **`!` commands** (`server/src/session/shell.ts`, `shellText.ts`): owner socket only, one at a time, no turn of its own.
