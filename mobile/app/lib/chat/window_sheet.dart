@@ -141,24 +141,26 @@ class WindowSheet extends StatelessWidget {
                     onTap: open ? () => tab.setMode(m) : null,
                   ),
               ],
-              if (win != null) ...[
+              if (win != null &&
+                  (tab.link.iconsSupported || win.icon != null)) ...[
                 gap,
                 // the same picker and calls as a row of the sessions list; its flows keep the chat's context, not the sheet's
                 Row(
                   children: [
-                    Expanded(
-                      child: SheetTile(
-                        NbGlyph.image,
-                        t.setIcon,
-                        enabled: open,
-                        onTap: () {
-                          Navigator.pop(context);
-                          setProjectIconFlow(outer, tab.link, win);
-                        },
+                    if (tab.link.iconsSupported)
+                      Expanded(
+                        child: SheetTile(
+                          NbGlyph.image,
+                          t.setIcon,
+                          enabled: open,
+                          onTap: () {
+                            Navigator.pop(context);
+                            setProjectIconFlow(outer, tab.link, win);
+                          },
+                        ),
                       ),
-                    ),
                     if (win.icon != null) ...[
-                      const SizedBox(width: 8),
+                      if (tab.link.iconsSupported) const SizedBox(width: 8),
                       Expanded(
                         child: SheetTile(
                           NbGlyph.trash,

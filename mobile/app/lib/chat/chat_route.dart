@@ -75,16 +75,25 @@ class _ChatRouteState extends State<ChatRoute> {
     widget.link.addListener(_see);
     _tab.addListener(_see);
     widget.visible?.addListener(_see);
-    widget.visible?.open(widget.link.host.id, _tab.key);
+    widget.visible?.open(widget.link.host.id, _shown);
     _see();
   }
 
-  /// While the tab is open and the app on screen, the window's replies count as seen.
+  /// The key the chat was last shown under (the window's key can change: issue 511, a duplicate's id).
+  late String _shown = _tab.key;
+
+  /// The chat in front keeps its window's current key; while the tab is open and the app on screen, the window's
+  /// replies count as seen.
   void _see() {
+    final w = _tab.window;
+    if (_tab.key != _shown) {
+      widget.visible?.close(widget.link.host.id, _shown);
+      _shown = _tab.key;
+      widget.visible?.open(widget.link.host.id, _shown);
+    }
     final seen = widget.seen;
     if (seen == null || _tab.state != TabState.open) return;
     if (widget.visible?.visible == false) return;
-    final w = _tab.window;
     final session = w?.session, replies = w?.replies;
     if (session == null || replies == null) return;
     unawaited(seen.see(widget.link.host.id, session, replies));
@@ -101,7 +110,7 @@ class _ChatRouteState extends State<ChatRoute> {
     widget.link.removeListener(_see);
     _tab.removeListener(_see);
     widget.visible?.removeListener(_see);
-    widget.visible?.close(widget.link.host.id, _tab.key);
+    widget.visible?.close(widget.link.host.id, _shown);
     _asks?.dispose();
     _tab.dispose();
     _draft.dispose();

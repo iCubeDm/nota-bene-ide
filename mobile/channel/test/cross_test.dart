@@ -117,6 +117,7 @@ void main() {
         .join()
         .substring(0, 16);
     expect(list.single.key, 'claude:$hash');
+    expect(ch.iconsSupported, isTrue);
     await ch.close();
   });
 

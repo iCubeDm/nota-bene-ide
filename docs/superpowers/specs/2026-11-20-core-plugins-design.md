@@ -305,8 +305,8 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
   changes for the user.
 - The phone keys windows by `(hostId, window.id)`: `notify/visible.dart` `ChatPlace`, `home.dart` `lastChat` (read once
   in the old `"host port root"` form and rewritten), `hosts/host_link.dart:76-87`, `chat/window_tab.dart` `_box` and
-  lookups by port. Port is used only to open `ws`/`http` streams. `iconSupported` goes (always true for the documented
-  minimum host, protocol 18).
+  lookups by port. Port is used only to open `ws`/`http` streams. `iconSupported` becomes one flag per host
+  (`Channel.iconsSupported`: a list carried `icon`), so a desktop from before project pictures offers no Set icon.
 - `server/src/remote/CHANNEL.md`: the host stream section lists the real fields (`id`, `icon` were missing), states
   that a phone ignores fields it does not know and treats every field but `port`, `provider`, `root` as optional, and
   gains a "Reconnects" section (the phone reopens a `ws` stream after 4904 once the window is listed again; the host stream

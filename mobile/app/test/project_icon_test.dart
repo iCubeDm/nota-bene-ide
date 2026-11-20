@@ -292,7 +292,7 @@ void main() {
     });
 
     testWidgets(
-      'the menu offers Set icon, Remove icon to a window that has one',
+      'the menu offers Set icon to a host that knows icons, Remove icon to a window that has one',
       (t) async {
         final ch = FakeChannel([
           window(4791, '/home/u/notes', title: 'Plan'),
@@ -317,6 +317,22 @@ void main() {
         links.dispose();
       },
     );
+
+    testWidgets('a host without icon support: the menu offers neither', (
+      t,
+    ) async {
+      final ch = FakeChannel([window(4793, '/home/u/old', title: 'Old')])
+        ..iconsSupported = false;
+      ch.onHttp = (port, m, path) async => answer(404);
+      f.results.add(ch);
+      final links = await pump(t);
+      await t.longPress(find.text('Old'));
+      await t.pumpAndSettle();
+      expect(find.text('Set icon'), findsNothing);
+      expect(find.text('Remove icon'), findsNothing);
+      expect(find.text('Mark read'), findsOneWidget);
+      links.dispose();
+    });
 
     testWidgets(
       'Remove icon sends DELETE and asks the host for its windows again',

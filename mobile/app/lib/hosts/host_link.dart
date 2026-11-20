@@ -62,6 +62,10 @@ class HostLink extends ChangeNotifier {
   /// The windows the host listed last; kept while offline.
   List<HostWindow> get windows => _windows;
 
+  /// The host knows project pictures ([Channel.iconsSupported]); kept while offline.
+  bool get iconsSupported => _icons;
+  bool _icons = false;
+
   Channel? get channel => _channel;
 
   bool get running => _running;
@@ -93,6 +97,7 @@ class HostLink extends ChangeNotifier {
         final list = await ch.refreshWindows(wait: timeout).timeout(timeout);
         if (identical(_channel, ch)) {
           _windows = list;
+          _icons = ch.iconsSupported;
           _notify();
         }
       } on Object {
@@ -185,6 +190,7 @@ class HostLink extends ChangeNotifier {
       _lists = 0;
       final sub = ch.windows.listen((l) {
         _windows = l;
+        _icons = ch.iconsSupported;
         _lists++;
         _notify();
       });
