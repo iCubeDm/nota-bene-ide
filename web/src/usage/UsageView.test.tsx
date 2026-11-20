@@ -203,6 +203,21 @@ it('five rows, then all of them; the projects share the list', async () => {
   expect(screen.getAllByText('app').length).toBeGreaterThan(0);
 });
 
+// issue 500: the next report loads without the list, which must not take the choice with it
+it('the Tasks/Projects choice and its expansion survive a period or provider switch', async () => {
+  const projects = [...Array(7).keys()].map((i) => ({ key: `proj${i}`, ...row({ w: 100 - i }) }));
+  reply = () => ({ ...REPORT, projects });
+  setup();
+  fireEvent.click(await screen.findByRole('button', { name: 'Projects' }));
+  fireEvent.click(screen.getByRole('button', { name: 'All 7' }));
+  fireEvent.click(screen.getByRole('button', { name: '7 days' }));
+  await waitFor(() => expect(gets).toContain('/usage?provider=claude&period=7d'));
+  fireEvent.click(await screen.findByRole('button', { name: 'Codex' }));
+  await waitFor(() => expect(gets).toContain('/usage?provider=codex&period=7d'));
+  expect((await screen.findByRole('button', { name: 'Projects' })).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByText('proj6')).toBeTruthy();
+});
+
 it('a project row says its share of everything spent; its subagents are in the tip', async () => {
   reply = () => ({
     ...REPORT,

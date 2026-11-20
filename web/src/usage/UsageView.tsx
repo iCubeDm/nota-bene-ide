@@ -277,14 +277,16 @@ function Row({ share, children, ...button }: { share: number; children: ReactNod
   return button.onClick ? <button type="button" className={`group ${ROW} cursor-pointer`} {...button}>{body}</button> : <div className={ROW} title={button.title}>{body}</div>;
 }
 
-function Spent({ r, color }: { r: UsageReport; color: (model: string) => string }) {
+/** Which list "Where it went" shows and whether all of it: kept by the tab, so another report keeps it (issue 500). */
+type SpentView = { list: 'tasks' | 'projects'; all: boolean };
+type SpentProps = { view: SpentView; setView: (v: SpentView) => void };
+
+function Spent({ r, color, view: { list, all }, setView }: { r: UsageReport; color: (model: string) => string } & SpentProps) {
   const t = useT();
-  const [list, setList] = useState<'tasks' | 'projects'>('tasks');
   const [open, setOpen] = useState<string | null>(null);
-  const [all, setAll] = useState(false);
   const items = list === 'tasks' ? r.tasks.length : r.projects.length;
   const shown = all ? Infinity : ROWS_SHOWN;
-  const pick = (l: typeof list) => { setList(l); setAll(false); };
+  const pick = (l: typeof list) => setView({ list: l, all: false });
   return (
     <section className="min-w-0">
       <div className="mb-1.5 flex items-baseline gap-3.5">
@@ -308,12 +310,12 @@ function Spent({ r, color }: { r: UsageReport; color: (model: string) => string 
           <span className={VALUE}>{compact(p.w)}</span>
         </Row>
       ))}
-      {items > ROWS_SHOWN && <button type="button" onClick={() => setAll(!all)} className={`${CHOICE} mt-1.5 text-[0.8125rem]`}>{all ? t('usageShowTop') : t('usageShowAll', items)}</button>}
+      {items > ROWS_SHOWN && <button type="button" onClick={() => setView({ list, all: !all })} className={`${CHOICE} mt-1.5 text-[0.8125rem]`}>{all ? t('usageShowTop') : t('usageShowAll', items)}</button>}
     </section>
   );
 }
 
-function Report({ r }: { r: UsageReport }) {
+function Report({ r, ...spent }: { r: UsageReport } & SpentProps) {
   const t = useT();
   const rank = new Map(r.models.map((m, i) => [m.key, i]));
   const color = (model: string) => MODEL_COLOR[rank.get(model) ?? MODEL_COLOR.length] ?? REST_COLOR;
@@ -324,7 +326,7 @@ function Report({ r }: { r: UsageReport }) {
         <p className="mt-1 text-[0.8125rem] text-muted-foreground">{t('usageSide', num(r.total.calls), pct(r.total.sub, r.total.w))}</p>
       </div>
       <Limits r={r} />
-      <Spent r={r} color={color} />
+      <Spent r={r} color={color} {...spent} />
     </>
   );
 }
@@ -342,6 +344,7 @@ export function UsageView({ active }: { active: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [n, setN] = useState(0);
   const [asking, setAsking] = useState(false);
+  const [spent, setSpent] = useState<SpentView>({ list: 'tasks', all: false });
 
   useEffect(() => {
     if (!active) return;
@@ -402,7 +405,7 @@ export function UsageView({ active }: { active: boolean }) {
       {error && <p role="alert" className="text-[0.8125rem] text-destructive">{t('usageLoadFail', error)}</p>}
       {shown?.importing && <p role="status" className="text-[0.8125rem] text-warn">{t('usageImporting')}</p>}
       {!shown && !error && <p className="text-[0.8125rem] text-muted-foreground">{t('usageLoading')}</p>}
-      {shown && (live(shown) ? <Report r={shown} /> : <p className="text-[0.8125rem] text-muted-foreground">{t('usageEmpty')}</p>)}
+      {shown && (live(shown) ? <Report r={shown} view={spent} setView={setSpent} /> : <p className="text-[0.8125rem] text-muted-foreground">{t('usageEmpty')}</p>)}
     </div>
   );
 }
