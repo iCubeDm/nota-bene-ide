@@ -105,11 +105,12 @@ class _One extends StatelessWidget {
   final Comment comment;
   final String lang;
 
-  /// What the comment is on: the quote, or a media file's name with its time and the number of shapes.
+  /// What the comment is on: the quote, or a media file's name with its time and the number of shapes (none on the
+  /// whole picture, issue 494).
   String get _quote {
     final x = comment;
     return switch (x.anchor) {
-      MediaAnchor(:final shapes) =>
+      MediaAnchor(:final shapes) when shapes.isNotEmpty =>
         '${quoteOf(x)} · ${webCount('markShapes', lang, shapes.length)}',
       _ => quoteOf(x, lang),
     };

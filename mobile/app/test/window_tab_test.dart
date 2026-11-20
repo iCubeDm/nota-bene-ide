@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/feed.dart';
 import 'package:nb_app/chat/window_tab.dart';
+import 'package:nb_app/comments/queue.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/vault.dart';
@@ -10,6 +11,7 @@ import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/fakes.dart';
+import 'support/voice_fakes.dart';
 
 Future<void> settle() async {
   for (var i = 0; i < 8; i++) {
@@ -36,6 +38,8 @@ void main() {
   late WindowTab tab;
 
   setUp(() async {
+    // the comment queues are the app's: each test starts with an empty one
+    CommentQueues.instance = CommentQueues(MemoryQueueFile());
     f = FakeFactory();
     ch = FakeChannel([window(4791, '/p')]);
     f.results.add(ch);
@@ -127,6 +131,61 @@ void main() {
     await settle();
     expect(tab.feed.items.map((i) => (i as UserItem).id), ['u1', 'u2']);
   });
+
+  test(
+    'issue 494: changes made while the socket was down go once on the next one, after its hello',
+    () async {
+      final told = <void>[];
+      final sub = tab.comments.changedElsewhere.listen(told.add);
+      Future<void> connect(int id) async {
+        ch.event(id, replay([]));
+        ch.event(id, {'kind': 'comments', 'items': <Object?>[]});
+        ch.event(id, {'kind': 'hello', 'protocol': 19});
+        await settle();
+      }
+
+      await connect(ch.lastWsId);
+      final first = ch.lastWsId;
+      ch.host(Close(first, 1006));
+      await settle();
+      final x = Comment.fromJson({
+        'id': 'x',
+        'anchor': {
+          'source': {'kind': 'file', 'path': 'a.md'},
+          'start': 0,
+          'end': 1,
+          'quote': 'q',
+          'prefix': '',
+          'suffix': '',
+        },
+        'text': 't',
+        'status': 'pending',
+        'createdAt': 1,
+      });
+      tab.comments.add(x.anchor, 'offline', null, id: 'x');
+      tab.comments.remove('x');
+      await settle();
+      expect(ch.lastWsId, isNot(first), reason: 'the tab reopened its socket');
+      ch.event(ch.lastWsId, replay([]));
+      ch.event(ch.lastWsId, {'kind': 'comments', 'items': <Object?>[]});
+      await settle();
+      expect(
+        ch.sentOn(ch.lastWsId).where((m) => m['type'] == 'comment-op'),
+        isEmpty,
+        reason: 'nothing goes before the hello',
+      );
+      ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': 19});
+      await settle();
+      final ops = [
+        for (final m in ch.sentOn(ch.lastWsId))
+          if (m['type'] == 'comment-op')
+            ((m['ops'] as List).single as Map)['op'],
+      ];
+      expect(ops, ['add', 'remove']);
+      expect(told, isEmpty);
+      await sub.cancel();
+    },
+  );
 
   test('4904 waits until the window is listed again, then reopens', () async {
     ch.event(ch.lastWsId, replay([user('u1')]));

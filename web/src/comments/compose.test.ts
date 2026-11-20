@@ -65,6 +65,16 @@ it('a media comment: shape lines, image labels, files', () => {
   );
 });
 
+it('issue 494: a comment on the whole picture has no quote line, so no blank line before the arrow', () => {
+  const out = composeBatch('', [media('m1', 'All of it', { shapes: [] })], 'en', none, mwhere, () => undefined, [[1]]);
+  expect(out).toBe(
+    'Comments on fragments:\n\n1. [media/scene_v6.png · 1920×1080]\n' +
+    '→ All of it\n' +
+    '📎 images: 1 (frame with marks)\n' +
+    '   files: .nota-bene/marks/m1/frame.jpg, .nota-bene/marks/m1/layer.png',
+  );
+});
+
 it('a media comment with a polygon (issue 447): its points in px, mask.png named after the layer and explained', () => {
   const poly = { kind: 'polygon' as const, color: '#34c759' as const, points: [0.1, 0.1, 0.5, 0.1, 0.3, 0.6] };
   const out = composeBatch('', [media('m1', 'remove this', { shapes: [poly], scale: 0.5 })], 'en', none, mwhere, () => undefined, [[1]]);
@@ -167,5 +177,5 @@ it('an attachment comment: shape lines and the image refs, no files line, no sta
 
 it('an anchor of a kind this client does not know composes without a quote and does not throw', () => {
   const x = { id: 'f', text: 'hm', status: 'pending', createdAt: 1, anchor: { kind: 'future', thing: 1 } } as unknown as Comment;
-  expect(composeBatch('', [x], 'en', none, () => 'somewhere', () => undefined)).toBe('Comments on fragments:\n\n1. [somewhere]\n\n→ hm');
+  expect(composeBatch('', [x], 'en', none, () => 'somewhere', () => undefined)).toBe('Comments on fragments:\n\n1. [somewhere]\n→ hm');
 });

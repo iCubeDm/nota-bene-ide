@@ -93,6 +93,15 @@ it('the batch details render comment text as markdown and the quote as plain tex
   expect(composeBatch('go', [c], 'en', () => '', () => 'x', () => undefined)).toContain('→ use **this** `code`');
 });
 
+it('issue 494: the batch details name a whole-picture comment by its file alone, without a shape count', () => {
+  const c: Comment = {
+    id: 'c1', anchor: { kind: 'media', source: { kind: 'file', path: 'img/shot.png' }, width: 10, height: 10, shapes: [] },
+    text: 'whole', status: 'sent', sentIn: 'u1', createdAt: 1,
+  };
+  const { root } = setup('go', [c]);
+  expect(root.querySelector('details blockquote')!.textContent).toBe('shot.png');
+});
+
 it('a comment card renders its text as markdown; editing shows the raw source', () => {
   const c: Comment = {
     id: 'c1', anchor: { source: { kind: 'message', id: 'a1' }, start: 6, end: 17, quote: 'brave world', prefix: 'hello ', suffix: '' },

@@ -160,8 +160,14 @@ class Comments extends ChangeNotifier {
         c,
   ];
 
-  /// A new socket said hello: [protocol] says how the changes go, and what went on the old socket goes again. The
-  /// window says hello after its replay and set (issue 494), so the queue goes now.
+  /// The socket is gone: nothing goes until the next one's hello, and what went on this one goes again then.
+  void closed() {
+    _ops = null;
+    _wired.clear();
+  }
+
+  /// A new socket said hello: [protocol] says how the changes go. The window says hello after its replay and set
+  /// (issue 494), so the queue goes now.
   void hello(num? protocol) {
     _ops = (protocol ?? 0) >= opsProtocol;
     _wired.clear();
@@ -470,7 +476,8 @@ int generatedImages(Comment c) =>
             .where((l) => l.id == c.label)
             .firstOrNull
             ?.instruction;
-        return '${i + 1}. [${whereOf(c, feed, lang)}]\n$quote\n→ $body$more${instr != null ? '\n   $instr' : ''}$tail';
+        // no quote (a comment on the whole picture, issue 494): no line for it
+        return '${i + 1}. [${whereOf(c, feed, lang)}]\n${quote.isEmpty ? '' : '$quote\n'}→ $body$more${instr != null ? '\n   $instr' : ''}$tail';
       }(),
   ];
   return (
