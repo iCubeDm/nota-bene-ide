@@ -185,20 +185,27 @@ it('a pasted image is saved on the comment (images-only is enough)', async () =>
 it('issue 497: an older server would refuse images or a drawing alone, so Add wants words there', async () => {
   URL.createObjectURL = vi.fn(() => 'blob:x');
   URL.revokeObjectURL = vi.fn();
-  setup(pending, undefined, 25);
+  const first = setup(pending, undefined, 25);
   const f = new File(['x'], 'a.png', { type: 'image/png' });
   const ev = new Event('paste', { bubbles: true, cancelable: true });
   Object.defineProperty(ev, 'clipboardData', { value: { files: [f], items: [] } });
   act(() => void box().dispatchEvent(ev));
   await waitFor(() => expect(document.querySelector('img[src^="/attach/"]:not([data-pending])')).toBeTruthy());
   expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+  fireEvent.keyDown(box(), { key: 'Enter', metaKey: true }); // the pasted image stays: the popup does not close
+  await act(async () => {});
+  expect(first.onClose).not.toHaveBeenCalled();
   fireEvent.change(box(), { target: { value: 'see this' } });
   expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
   cleanup();
-  const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: async () => ({ images: [FRAME, LAYER] }) }, undefined, 25);
+  const prepare = vi.fn(async () => ({ images: [FRAME, LAYER] }));
+  const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare }, undefined, 25);
   expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+  // Cmd+Enter neither saves the drawing's files nor closes the popup: nothing is left behind or lost
   fireEvent.keyDown(box(), { key: 'Enter', metaKey: true });
   await act(async () => {});
+  expect(prepare).not.toHaveBeenCalled();
+  expect(onClose).not.toHaveBeenCalled();
   expect(comments()).toEqual([]);
 });
 

@@ -152,6 +152,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     const { prepare, id } = pending;
     // a drawing is content of its own: no text and no label is still a comment
     const has = !!(body || label || clips.length || (imagesAlone && (prepare || images.length)));
+    // images or a drawing an older server would refuse (issue 497): the popup stays, nothing is saved or lost
+    if (!has && (prepare || images.length)) return;
     let prepared: string[] = [];
     let anchor = pending.anchor;
     if (prepare) {
