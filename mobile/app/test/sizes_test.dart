@@ -18,6 +18,7 @@ import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/sizes.dart';
 import 'package:nb_app/store/theme_choice.dart';
 import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/hosts/project_icon.dart' show ProjectIcons;
 import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart'
     show VcsFile, VcsFileStatus, VcsPatch;
@@ -316,6 +317,7 @@ void main() {
           sizes: await sizesOf(1.5, 1.3),
           home: Home(
             hosts: hosts,
+            icons: ProjectIcons(),
             seen: await Seen.load(MemoryVault()),
             clock: () => DateTime(2026, 11, 9),
             links: links,

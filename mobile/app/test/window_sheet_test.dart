@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/window_sheet.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_channel/nb_channel.dart' show HostWindow;
+import 'package:nb_protocol/nb_protocol.dart' show AgentMode;
 import 'package:nb_app/theme.dart';
 
 import 'controls_test.dart' show models;
@@ -71,17 +72,20 @@ void main() {
     r.event({'kind': 'mode', 'mode': 'plan'});
     await t.pumpAndSettle();
     expect(find.byWidgetPredicate((w) => w is SegmentedButton), findsNothing);
-    expect(find.text(webString('mode_default_desc', 'en')), findsOneWidget);
-    expect(find.text(webString('mode_plan_desc', 'en')), findsOneWidget);
-    final plan = rowOf(webString('mode_plan', 'en'));
-    final dflt = rowOf(webString('mode_default', 'en'));
+    expect(
+      find.text(modeDescription(AgentMode.default_, 'en')),
+      findsOneWidget,
+    );
+    expect(find.text(modeDescription(AgentMode.plan, 'en')), findsOneWidget);
+    final plan = rowOf(modeLabel(AgentMode.plan, 'en'));
+    final dflt = rowOf(modeLabel(AgentMode.default_, 'en'));
     expect(t.getSize(plan.first).height, greaterThanOrEqualTo(48));
     // the current one carries the check
     expect(
       find.descendant(of: plan.first, matching: find.byIcon(Icons.check)),
       findsOneWidget,
     );
-    await t.tap(find.text(webString('mode_default', 'en')));
+    await t.tap(find.text(modeLabel(AgentMode.default_, 'en')));
     await t.pumpAndSettle();
     final m = r.sent.single;
     expect((m['type'], m['mode']), ('mode', 'default'));
@@ -107,10 +111,10 @@ void main() {
     final danger = Theme.of(
       t.element(find.byType(WindowSheet)),
     ).extension<NbColors>()!.destructive;
-    Color? colorOf(String key) =>
-        t.widget<Text>(inSheet(find.text(webString(key, 'en')))).style?.color;
-    expect(colorOf('mode_auto'), danger);
-    expect(colorOf('mode_default'), isNot(danger));
+    Color? colorOf(AgentMode m) =>
+        t.widget<Text>(inSheet(find.text(modeLabel(m, 'en')))).style?.color;
+    expect(colorOf(AgentMode.auto), danger);
+    expect(colorOf(AgentMode.default_), isNot(danger));
   });
 
   testWidgets('the modes take the web\'s texts', (t) async {
@@ -124,11 +128,11 @@ void main() {
     r.event({'kind': 'mode', 'mode': 'codex-read-only'});
     await t.pumpAndSettle();
     expect(
-      inSheet(find.text(webString('mode_codex-read-only', 'en'))),
+      inSheet(find.text(modeLabel(AgentMode.codexReadOnly, 'en'))),
       findsOneWidget,
     );
     expect(
-      find.text(webString('mode_codex-read-only_desc', 'en')),
+      find.text(modeDescription(AgentMode.codexReadOnly, 'en')),
       findsOneWidget,
     );
   });

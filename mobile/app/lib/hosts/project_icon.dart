@@ -95,8 +95,6 @@ Future<void> deleteProjectIcon(WindowHttp http) async {
 class ProjectIcons {
   ProjectIcons({this.capacity = 48});
 
-  static final instance = ProjectIcons();
-
   final int capacity;
   final _bytes =
       <String, Uint8List>{}; // insertion order: the oldest goes first
@@ -150,7 +148,7 @@ class ProjectIconAvatar extends StatefulWidget {
     required this.fallback,
     this.badge,
     this.semanticLabel,
-    this.icons,
+    required this.icons,
   });
 
   final HostLink link;
@@ -166,7 +164,9 @@ class ProjectIconAvatar extends StatefulWidget {
 
   /// What a screen reader says of the avatar, picture or letter: the provider's name.
   final String? semanticLabel;
-  final ProjectIcons? icons;
+
+  /// The pictures fetched so far, the app's.
+  final ProjectIcons icons;
 
   @override
   State<ProjectIconAvatar> createState() => _ProjectIconAvatarState();
@@ -175,8 +175,6 @@ class ProjectIconAvatar extends StatefulWidget {
 class _ProjectIconAvatarState extends State<ProjectIconAvatar> {
   Uint8List? _bytes;
   bool _loading = false;
-
-  ProjectIcons get _icons => widget.icons ?? ProjectIcons.instance;
 
   @override
   void initState() {
@@ -220,13 +218,13 @@ class _ProjectIconAvatarState extends State<ProjectIconAvatar> {
   void _load() {
     final v = widget.icon;
     if (v == null) return;
-    final have = _icons.cached(v);
+    final have = widget.icons.cached(v);
     if (have != null) {
       _bytes = have;
       return;
     }
     _loading = true;
-    _icons.load(v, _http).then((b) {
+    widget.icons.load(v, _http).then((b) {
       _loading = false;
       if (!mounted || widget.icon != v) return;
       if (b != null) setState(() => _bytes = b);

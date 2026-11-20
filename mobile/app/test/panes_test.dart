@@ -399,12 +399,12 @@ void main() {
       r.event({'kind': 'mode', 'mode': 'default'});
       await t.pumpAndSettle();
       final sub = find.byKey(const ValueKey('sub-1'));
-      expect(t.widget<Text>(sub).data, webString('mode_default', 'en'));
+      expect(t.widget<Text>(sub).data, modeLabel(AgentMode.default_, 'en'));
       final c = Theme.of(t.element(sub)).extension<NbColors>()!;
       expect(t.widget<Text>(sub).style!.color, c.mutedFg);
       r.event({'kind': 'mode', 'mode': 'auto'});
       await t.pumpAndSettle();
-      expect(t.widget<Text>(sub).data, webString('mode_auto', 'en'));
+      expect(t.widget<Text>(sub).data, modeLabel(AgentMode.auto, 'en'));
       expect(t.widget<Text>(sub).style!.color, c.destructive);
     });
 

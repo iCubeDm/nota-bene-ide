@@ -1046,21 +1046,12 @@ sealed class GitSwitchAnswer implements _Json {
       'busy' ||
       'git' ||
       'timeout' => GitSwitchRefusal.fromJson(json),
-      _ => GitSwitchAnswerUnknown(json),
+      _ => GitSwitchRefusal.fromJson(json),
     };
   }
 
   @override
   Map<String, Object?> toJson();
-}
-
-final class GitSwitchAnswerUnknown extends GitSwitchAnswer {
-  const GitSwitchAnswerUnknown(this.raw);
-
-  final Map<String, Object?> raw;
-
-  @override
-  Map<String, Object?> toJson() => raw;
 }
 
 enum GitSwitchError implements _Json {

@@ -11,6 +11,7 @@ import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/vault.dart';
+import 'package:nb_app/hosts/project_icon.dart' show ProjectIcons;
 import 'package:nb_channel/nb_channel.dart';
 
 import 'support/fakes.dart';
@@ -56,6 +57,7 @@ void main() {
       NbApp(
         home: Home(
           hosts: hosts,
+          icons: ProjectIcons(),
           seen: seen,
           clock: () => now,
           links: links,
@@ -365,6 +367,7 @@ void main() {
       NbApp(
         home: Home(
           hosts: hosts,
+          icons: ProjectIcons(),
           seen: seen,
           clock: () => now,
           links: links,

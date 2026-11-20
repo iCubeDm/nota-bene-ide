@@ -50,8 +50,8 @@ class _SentCommentsState extends State<SentComments> {
       final c = Theme.of(context).extension<NbColors>()!;
       final lang = Localizations.localeOf(context).languageCode;
       final head = sent.isEmpty
-          ? webString('commentsLc', lang)
-          : webCount('nComments', lang, sent.length);
+          ? webString(WebKey.commentsLc, lang)
+          : webCount(CountKey.nComments, lang, sent.length);
       return Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Column(
@@ -111,7 +111,7 @@ class _One extends StatelessWidget {
     final x = comment;
     return switch (x.anchor) {
       MediaAnchor(:final shapes) when shapes.isNotEmpty =>
-        '${quoteOf(x)} · ${webCount('markShapes', lang, shapes.length)}',
+        '${quoteOf(x)} · ${webCount(CountKey.markShapes, lang, shapes.length)}',
       _ => quoteOf(x, lang),
     };
   }

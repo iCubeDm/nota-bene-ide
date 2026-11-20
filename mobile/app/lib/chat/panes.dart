@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../comments/comments.dart' show Comments;
+import '../comments/strings.g.dart' show modeLabel;
 import '../l10n/app_localizations.dart';
 import '../ui/blur_band.dart';
 import '../ui/folder_tabs.dart';

@@ -5,7 +5,7 @@ import 'dart:io';
 
 import 'package:nb_protocol/nb_protocol.dart';
 
-import '../voice/player.dart' show playChannel;
+import '../voice/files.dart' show outDir;
 
 /// Where the queues are kept; the app's files dir on the phone.
 abstract class QueueFile {
@@ -16,14 +16,8 @@ abstract class QueueFile {
 /// `filesDir/comment-ops.json`, beside `nb/play`'s `outDir`; where the platform has none (tests), nothing is kept.
 class DiskQueueFile implements QueueFile {
   Future<File?> _file() async {
-    try {
-      final p = await playChannel.invokeMethod<String>('outDir');
-      return p == null
-          ? null
-          : File('${Directory(p).parent.path}/comment-ops.json');
-    } on Object {
-      return null;
-    }
+    final d = await outDir();
+    return d == null ? null : File('${d.parent.path}/comment-ops.json');
   }
 
   @override
@@ -63,9 +57,6 @@ class CommentQueues {
   CommentQueues(this.file) {
     ready = _load();
   }
-
-  /// The one the app uses; tests put their own.
-  static CommentQueues instance = CommentQueues(DiskQueueFile());
 
   final QueueFile file;
   late final Future<void> ready;

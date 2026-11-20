@@ -15,7 +15,8 @@ type Field = { json: string; dart: string; ty: Ty; required: boolean };
 type Lit = string | boolean;
 type Disc = { prop: string; values: Lit[] };
 type ClassDecl = { k: 'class'; name: string; fields: Field[]; bases: string[]; disc?: Disc };
-type UnionDecl = { k: 'union'; name: string; prop: string; variants: { values: Lit[]; name: string }[] };
+/** `open`: the variant whose tag is a named enum, which takes a tag value this side does not know (as `$unknown`) */
+type UnionDecl = { k: 'union'; name: string; prop: string; variants: { values: Lit[]; name: string; open: boolean }[] };
 type EnumDecl = { k: 'enum'; name: string; values: string[] };
 /** a definition that is a list (an HTTP answer such as `/complete`'s) */
 type TypedefDecl = { k: 'typedef'; name: string; ty: Ty };
@@ -39,7 +40,7 @@ function camel(s: string): string {
 }
 
 /** the Dart member name of an enum's wire value: camelCase for words, `_` for other characters, `v` before a non-letter */
-function memberName(value: string): string {
+export function memberName(value: string): string {
   if (/^[A-Za-z][A-Za-z0-9]*([-_ ][A-Za-z0-9]+)*$/.test(value)) return safe(camel(value));
   const s = value.replace(/[^A-Za-z0-9]/g, '_');
   return safe(/^[A-Za-z]/.test(s) ? s : `v${s}`);
@@ -107,14 +108,15 @@ function wrap(indent: string, head: string, items: string[], tail: string): stri
   return [`${indent}${head}`, ...items.map((i) => `${indent}  ${i},`), `${indent}${tail}`];
 }
 
-/** a switch arm; an arm that does not fit puts its result on the next line, a pattern that does not fit one value a line */
-function arm(indent: number, pattern: string, result: string): string[] {
+/** a switch arm over [alts]; an arm that does not fit puts its result on the next line, a pattern that does not fit one
+ * value a line (split between the values, never inside one: a string value may hold ' || ') */
+function arm(indent: number, alts: string[], result: string): string[] {
   const pad = ' '.repeat(indent);
+  const pattern = alts.join(' || ');
   const one = `${pad}${pattern} => ${result},`;
   if (one.length <= WIDTH) return [one];
-  if (`${pad}${pattern} =>`.length <= WIDTH || !pattern.includes(' || ')) return [`${pad}${pattern} =>`, `${pad}  ${result},`];
-  const [last, ...rest] = pattern.split(' || ').reverse();
-  return [...rest.reverse().map((p) => `${pad}${p} ||`), ...arm(indent, last, result)];
+  if (`${pad}${pattern} =>`.length <= WIDTH || alts.length === 1) return [`${pad}${pattern} =>`, `${pad}  ${result},`];
+  return [...alts.slice(0, -1).map((p) => `${pad}${p} ||`), ...arm(indent, alts.slice(-1), result)];
 }
 
 export function schemaToDart(schema: ProtocolSchema): string {
@@ -270,7 +272,11 @@ export function schemaToDart(schema: ProtocolSchema): string {
       }
       const vname = v.ref ?? name + values.map((x) => pascal(String(x))).join('Or');
       if (!values.length && !v.ref) fail(v.mc, `a variant of ${name} has no discriminator and no name`);
-      variants.push({ values, name: vname });
+      const tag = v.node.properties![prop];
+      const tagRef = tag === undefined ? null : refName(tag);
+      const open = tagRef !== null && defKind(tagRef) === 'enum';
+      if (open && variants.some((x) => x.open)) fail(v.mc, `two variants of ${name} are tagged by an enum`);
+      variants.push({ values, name: vname, open });
       const disc = { prop, values };
       if (v.ref) {
         variantOf.set(v.ref, [...(variantOf.get(v.ref) ?? []), { union: name, disc }]);
@@ -357,13 +363,13 @@ function renderEnum(d: EnumDecl): string {
     `  ${[...members, '$unknown'].join(',\n  ')};`,
     '',
     `  static ${d.name} fromJson(Object? v) => switch (v) {`,
-    ...d.values.flatMap((v, i) => arm(4, q(v), members[i])),
+    ...d.values.flatMap((v, i) => arm(4, [q(v)], members[i])),
     '    _ => $unknown,',
     '  };',
     '',
     '  @override',
     '  String toJson() => switch (this) {',
-    ...d.values.flatMap((v, i) => arm(4, members[i], q(v))),
+    ...d.values.flatMap((v, i) => arm(4, [members[i]], q(v))),
     ...unknownArm(d.name),
     '  };',
     '}',
@@ -372,7 +378,9 @@ function renderEnum(d: EnumDecl): string {
 
 function renderUnion(d: UnionDecl): string {
   const lacking = d.variants.filter((v) => !v.values.length);
-  const arms = d.variants.filter((v) => v.values.length).flatMap((v) => arm(6, v.values.map(lit).join(' || '), `${v.name}.fromJson(json)`));
+  const arms = d.variants.filter((v) => v.values.length).flatMap((v) => arm(6, v.values.map(lit), `${v.name}.fromJson(json)`));
+  // a tag value this side does not know: the enum-tagged variant takes it, else the raw JSON is kept as Unknown
+  const open = d.variants.find((v) => v.open);
   return [
     `sealed class ${d.name} implements _Json {`,
     `  const ${d.name}();`,
@@ -381,22 +389,24 @@ function renderUnion(d: UnionDecl): string {
     ...lacking.map((v) => `    if (!json.containsKey(${q(d.prop)})) return ${v.name}.fromJson(json);`),
     `    return switch (json[${q(d.prop)}]) {`,
     ...arms,
-    `      _ => ${d.name}Unknown(json),`,
+    open ? `      _ => ${open.name}.fromJson(json),` : `      _ => ${d.name}Unknown(json),`,
     '    };',
     '  }',
     '',
     '  @override',
     '  Map<String, Object?> toJson();',
     '}',
-    '',
-    `final class ${d.name}Unknown extends ${d.name} {`,
-    `  const ${d.name}Unknown(this.raw);`,
-    '',
-    '  final Map<String, Object?> raw;',
-    '',
-    '  @override',
-    '  Map<String, Object?> toJson() => raw;',
-    '}',
+    ...(open ? [] : [
+      '',
+      `final class ${d.name}Unknown extends ${d.name} {`,
+      `  const ${d.name}Unknown(this.raw);`,
+      '',
+      '  final Map<String, Object?> raw;',
+      '',
+      '  @override',
+      '  Map<String, Object?> toJson() => raw;',
+      '}',
+    ]),
   ].join('\n');
 }
 

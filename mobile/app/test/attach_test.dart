@@ -14,6 +14,7 @@ import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/fakes.dart';
+import 'support/voice_fakes.dart';
 
 Uint8List png(int w, int h) =>
     img.encodePng(img.Image(width: w, height: h, numChannels: 3));
@@ -194,6 +195,7 @@ void main() {
       final tab = WindowTab(
         link,
         window(4791, '/home/u/notes'),
+        stores: await memoryStores(),
         retry: (_) async {},
       );
       await expectLater(

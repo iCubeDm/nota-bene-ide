@@ -219,6 +219,7 @@ void main() {
         NbApp(
           home: Home(
             hosts: hosts,
+            icons: ProjectIcons(),
             seen: seen,
             links: links,
             onPair: () {},

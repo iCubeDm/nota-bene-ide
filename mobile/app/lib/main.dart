@@ -10,17 +10,16 @@ import 'home.dart';
 import 'hosts/host_link.dart';
 import 'hosts/hosts_screen.dart';
 import 'l10n/app_localizations.dart';
+import 'l10n/locale.dart';
 import 'lock/lock.dart';
 import 'notify/background.dart';
 import 'notify/platform.dart';
 import 'notify/visible.dart';
 import 'pairing/pair_flow.dart';
 import 'pairing/scan_screen.dart';
+import 'sdk.dart';
 import 'settings_screen.dart';
-import 'store/hosts.dart';
-import 'store/notified.dart';
-import 'store/notify_choice.dart';
-import 'store/seen.dart';
+import 'store/hosts.dart' show Identity;
 import 'store/lang_choice.dart';
 import 'store/sizes.dart';
 import 'store/voice_lang.dart';
@@ -28,6 +27,7 @@ import 'store/theme_choice.dart';
 import 'store/vault.dart';
 import 'theme.dart';
 import 'ui/focus_across_away.dart';
+import 'voice/player.dart' show VoicePlayer;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -89,23 +89,11 @@ class _AppRootState extends State<AppRoot> {
   /// The chats of tapped notifications: the one that started the app, then each tapped while it runs. Kept until the
   /// start screen listens (a launch is known before it is built).
   final _opened = StreamController<ChatPlace>();
-  late final Future<
-    ({
-      Identity id,
-      Hosts hosts,
-      Seen seen,
-      Links links,
-      Background background,
-      NotifyChoice notify,
-    })
-  >
-  _load = () async {
+  late final Future<Sdk> _load = () async {
     final v = SecureVault();
     final id = await Identity.load(v);
-    final hosts = await Hosts.load(v);
-    final seen = await Seen.load(v);
-    final notified = await Notified.load(v);
-    final notify = await NotifyChoice.load(v);
+    final stores = await AppStores.load(v, sounds: VoicePlayer.shared);
+    final AppStores(:hosts, :seen, :notified) = stores;
     final links = Links(hosts, connectChannel, id);
     seen.watch(hosts, links);
     hosts.addListener(() => notified.prune({for (final h in hosts.all) h.id}));
@@ -120,7 +108,7 @@ class _AppRootState extends State<AppRoot> {
             resolveLocale(PlatformDispatcher.instance.locales),
       ),
       explain: _explain,
-      enabled: notify.on,
+      enabled: stores.notify.on,
     );
     _platform.opened.listen(_opened.add);
     unawaited(
@@ -128,14 +116,7 @@ class _AppRootState extends State<AppRoot> {
         if (p != null) _opened.add(p);
       }),
     );
-    return (
-      id: id,
-      hosts: hosts,
-      seen: seen,
-      links: links,
-      background: background,
-      notify: notify,
-    );
+    return Sdk(stores: stores, links: links, id: id, background: background);
   }();
 
   /// Why notifications are wanted, before Android's own question; true to go on to it.
@@ -199,7 +180,7 @@ class _AppRootState extends State<AppRoot> {
             flow: PairFlow(
               connectChannel,
               d.id,
-              d.hosts,
+              d.stores.hosts,
               pause: d.links.pauseHost,
               resume: d.links.resumeHost,
             ),
@@ -207,8 +188,9 @@ class _AppRootState extends State<AppRoot> {
         ),
       );
       return Home(
-        hosts: d.hosts,
-        seen: d.seen,
+        hosts: d.stores.hosts,
+        seen: d.stores.seen,
+        icons: d.stores.icons,
         links: d.links,
         onPair: pair,
         opened: _opened.stream,
@@ -216,13 +198,13 @@ class _AppRootState extends State<AppRoot> {
           MaterialPageRoute<void>(
             builder: (_) => SettingsScreen(
               identity: d.id,
-              hosts: d.hosts,
+              hosts: d.stores.hosts,
               themes: widget.themes,
               langs: widget.langs,
               voiceLang: widget.voiceLang,
               sizes: widget.sizes,
               notify: NotifySettings(
-                choice: d.notify,
+                choice: d.stores.notify,
                 platform: _platform,
                 apply: d.background.setEnabled,
               ),
@@ -237,24 +219,14 @@ class _AppRootState extends State<AppRoot> {
               : ChatRoute(
                   link: link,
                   window: w,
-                  seen: d.seen,
+                  stores: d.stores,
+                  seen: d.stores.seen,
                   visible: _visible,
                 );
         },
       );
     },
   );
-}
-
-/// The phone's language when Nota Bene has it (UI_LANGS: zh is zh-CN, pt is pt-BR), otherwise English.
-Locale resolveLocale(List<Locale>? preferred) {
-  for (final l in preferred ?? const <Locale>[]) {
-    switch (l.languageCode) {
-      case 'en' || 'ru' || 'zh' || 'es' || 'pt' || 'de':
-        return Locale(l.languageCode);
-    }
-  }
-  return const Locale('en');
 }
 
 class NbApp extends StatelessWidget {

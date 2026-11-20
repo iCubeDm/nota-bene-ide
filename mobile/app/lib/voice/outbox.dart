@@ -11,7 +11,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/window_tab.dart' show uuidV4;
 import '../media/media_comment.dart';
-import 'player.dart';
+import 'files.dart';
 import 'upload.dart';
 import 'wav.dart';
 
@@ -109,14 +109,7 @@ abstract class OutFiles {
 
 /// `filesDir/voice-out` (`nb/play`'s `outDir`); where the platform has none (tests), nothing is kept.
 class DiskOutFiles implements OutFiles {
-  Future<Directory?> _dir() async {
-    try {
-      final p = await playChannel.invokeMethod<String>('outDir');
-      return p == null ? null : Directory(p);
-    } on Object {
-      return null;
-    }
-  }
+  Future<Directory?> _dir() => outDir();
 
   @override
   Future<String?> readIndex() async {
@@ -159,14 +152,14 @@ class DiskOutFiles implements OutFiles {
 
 /// All the outboxes of the app, by window (host and session).
 class VoiceStore {
-  VoiceStore(this.files) {
+  VoiceStore(this.files, {required this.sounds}) {
     ready = _load();
   }
 
-  /// The one the app uses; tests put their own.
-  static VoiceStore instance = VoiceStore(DiskOutFiles());
-
   final OutFiles files;
+
+  /// The player: a sent recording is cached there, a finished one let go.
+  final Sounds sounds;
   late final Future<void> ready;
   bool _loaded = false;
   final _boxes = <String, VoiceOutbox>{};
@@ -328,7 +321,7 @@ class VoiceOutbox extends ChangeNotifier {
           e.wave = v.wave;
           // the recording is cached under the host's id: playing it needs no download
           unawaited(
-            VoicePlayer.shared.files
+            _store.sounds.files
                 .save(v.id, wav)
                 .then<void>((_) {})
                 .catchError((Object _) {}),
@@ -402,7 +395,7 @@ class VoiceOutbox extends ChangeNotifier {
   void _forget(PendingVoice e) {
     e._timer?.cancel();
     unawaited(_store.files.deleteWav(e.key).catchError((Object _) {}));
-    unawaited(VoicePlayer.shared.drop(e.key));
+    unawaited(_store.sounds.drop(e.key));
   }
 
   /// The window showed message [id]: its bubble replaces ours.
