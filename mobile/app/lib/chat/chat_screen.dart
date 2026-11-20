@@ -20,6 +20,7 @@ import 'chat_header.dart';
 import 'comment_target.dart';
 import 'feed.dart';
 import 'files.dart';
+import 'held.dart';
 import 'media_card.dart';
 import 'markdown.dart';
 import '../ui/blur_band.dart';
@@ -234,6 +235,10 @@ class _ChatScreenState extends State<ChatScreen> {
       final c = Theme.of(context).extension<NbColors>()!;
       final f = widget.tab.feed;
       final pending = widget.tab.voiceOutbox.entries;
+      // issue 499: the messages the window holds behind a pending restart or compaction, and the pending compaction's chip
+      final held = widget.tab.held;
+      final chip = widget.tab.compactPending ? 1 : 0;
+      final below = chip + pending.length + held.length;
       final items = f.items;
       final rows = feedRows(items);
       // the feed keeps the floating header clear
@@ -297,9 +302,16 @@ class _ChatScreenState extends State<ChatScreen> {
                                   ),
                                   itemCount:
                                       rows.length +
-                                      pending.length +
+                                      below +
                                       (f.earlier > 0 ? 1 : 0),
                                   itemBuilder: (context, i) {
+                                    if (i < chip) {
+                                      return CompactPendingChip(
+                                        widget.tab,
+                                        key: const ValueKey('compact-pending'),
+                                      );
+                                    }
+                                    i -= chip;
                                     // the newest sit at the bottom: the recordings still going out
                                     if (i < pending.length) {
                                       final e = pending[pending.length - 1 - i];
@@ -310,6 +322,16 @@ class _ChatScreenState extends State<ChatScreen> {
                                       );
                                     }
                                     i -= pending.length;
+                                    // then the held messages: they go after the restart and the compaction
+                                    if (i < held.length) {
+                                      final h = held[held.length - 1 - i];
+                                      return HeldBubble(
+                                        h,
+                                        restart: widget.tab.restartPending,
+                                        key: ValueKey('held:${h.id}'),
+                                      );
+                                    }
+                                    i -= held.length;
                                     if (i == rows.length) {
                                       return Center(
                                         child: TextButton(
@@ -377,7 +399,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     );
                                     return at < 0
                                         ? null
-                                        : rows.length - 1 - at + pending.length;
+                                        : rows.length - 1 - at + below;
                                   },
                                 ),
                               ),

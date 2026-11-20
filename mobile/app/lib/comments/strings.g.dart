@@ -1047,6 +1047,46 @@ const _json = r'''
    "es": "Archivo binario, no se muestra",
    "pt": "Arquivo binário, não exibido",
    "de": "Binärdatei, nicht angezeigt"
+  },
+  "compactPending": {
+   "en": "Compact pending",
+   "ru": "Сжатие ожидает",
+   "zh": "等待压缩",
+   "es": "Compactación pendiente",
+   "pt": "Compactação pendente",
+   "de": "Komprimierung ausstehend"
+  },
+  "compactPendingBody": {
+   "en": "The context is compacted when the agent finishes. Messages sent meanwhile wait and go after it.",
+   "ru": "Контекст сожмётся, когда агент закончит. Сообщения, отправленные до этого, подождут и уйдут после.",
+   "zh": "代理完成后将压缩上下文。在此期间发送的消息会等待，并在压缩后发送。",
+   "es": "El contexto se compacta cuando el agente termine. Los mensajes enviados mientras tanto esperan y van después.",
+   "pt": "O contexto é compactado quando o agente terminar. As mensagens enviadas nesse meio-tempo esperam e vão depois.",
+   "de": "Der Kontext wird komprimiert, wenn der Agent fertig ist. Nachrichten, die bis dahin gesendet werden, warten und gehen danach."
+  },
+  "compactCancel": {
+   "en": "Cancel the compaction",
+   "ru": "Отменить сжатие",
+   "zh": "取消压缩",
+   "es": "Cancelar la compactación",
+   "pt": "Cancelar a compactação",
+   "de": "Komprimierung abbrechen"
+  },
+  "youHeldRestart": {
+   "en": " · waits for the restart",
+   "ru": " · ждёт перезапуска",
+   "zh": " · 等待重启",
+   "es": " · espera el reinicio",
+   "pt": " · aguarda o reinício",
+   "de": " · wartet auf den Neustart"
+  },
+  "youHeldCompact": {
+   "en": " · waits for the compaction",
+   "ru": " · ждёт сжатия",
+   "zh": " · 等待压缩",
+   "es": " · espera la compactación",
+   "pt": " · aguarda a compactação",
+   "de": " · wartet auf die Komprimierung"
   }
  },
  "counted": {

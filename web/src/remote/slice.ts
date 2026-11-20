@@ -7,7 +7,7 @@ export const REMOTE_PROTOCOL = 20;
 /** The server that takes a relay access key (`POST /remote/config {accessKey}`, `state.accessKey`). */
 export const ACCESS_KEY_PROTOCOL = 21;
 /** The server that connects to other computers as their device (`state.hosts`, `/remote/connect`, issue 297). */
-export const COMPUTERS_PROTOCOL = 27;
+export const COMPUTERS_PROTOCOL = 28;
 
 export type RemotePair = Extract<ServerEvent, { kind: 'remote-pair' }>;
 export type RemoteSlice = {

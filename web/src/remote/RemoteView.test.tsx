@@ -240,7 +240,7 @@ describe('Remote tab', () => {
   });
 
   it('connect to a computer: shown without a relay of its own; the code is posted, the outcome or the refusal shown (issue 297)', async () => {
-    setup({ protocol: 27, state: OFF });
+    setup({ protocol: 28, state: OFF });
     open();
     answer = () => Response.json({ error: 'the computer refused the code: it expired, was already used, or was withdrawn' }, { status: 400 });
     fireEvent.change(screen.getByLabelText('Pairing code'), { target: { value: ' nbremote://pair?v=1&s=x ' } });
@@ -257,7 +257,7 @@ describe('Remote tab', () => {
       { id: 'wxyz', name: 'Studio', fingerprint: 'hhhh-hhhh-hhhh-hhhh', state: 'online' as const, pairedAt: 1 },
       { id: 'vvvv', fingerprint: 'gggg-gggg-gggg-gggg', state: 'revoked' as const, pairedAt: 1 },
     ];
-    setup({ protocol: 27, state: { ...OFF, hosts } });
+    setup({ protocol: 28, state: { ...OFF, hosts } });
     open();
     const studio = document.querySelector('[data-computer="wxyz"]')!;
     expect(studio).toHaveTextContent('Studio');
@@ -271,7 +271,7 @@ describe('Remote tab', () => {
     fireEvent.click(within(studio as HTMLElement).getAllByRole('button', { name: 'Forget' })[0]!);
     await waitFor(() => expect(posts).toEqual([{ url: '/remote/forget', body: { id: 'wxyz' } }]));
     cleanup();
-    setup({ protocol: 26, state: { ...OFF, hosts } });
+    setup({ protocol: 27, state: { ...OFF, hosts } });
     open();
     expect(document.getElementById('remoteComputers')).toBeNull();
   });

@@ -33,7 +33,7 @@ export const refusedMiddleware: Middleware = (api) => (next) => (action) => {
   const ev = serverEvent.match(action) && action.payload.kind === 'send-refused' ? action.payload : undefined;
   const refused = ev?.id;
   const why = t(ev?.reason === 'busy' ? 'sendRefusedBusy' : ev?.reason === 'detached' ? 'sendRefusedDetached' : 'sendRefused');
-  if (serverEvent.match(action) && action.payload.kind === 'user') voiceSendEchoed(action.payload.id);
+  if (serverEvent.match(action) && (action.payload.kind === 'user' || action.payload.kind === 'send-held')) voiceSendEchoed(action.payload.id);
   // a voice message has no draft: the refusal is told and its recording comes back in the composer's preview (Send again)
   const voice = refused ? takeVoiceSend(refused) : undefined;
   if (voice) {

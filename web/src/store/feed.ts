@@ -336,6 +336,8 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'remote': // protocol 20: the remote slice
     case 'remote-pair':
     case 'restart-pending': // protocol 22: the controls slice
+    case 'compact-pending': // protocol 27: the controls slice
+    case 'send-held': // the composer: the draft went (held, not lost)
       return s;
     default: {
       // as above: a protocol-4 server still sends `{kind:'sdk'}`
