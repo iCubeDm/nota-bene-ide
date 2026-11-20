@@ -1,9 +1,8 @@
 import { configureStore, createAction, createListenerMiddleware, createSlice, type Middleware, type ThunkAction, type UnknownAction } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, useStore, type TypedUseSelectorHook } from 'react-redux';
-import type { ClientMessage, ImageRef, ServerEvent, Voice } from '@nota-bene/shared';
+import type { ImageRef, ServerEvent, Voice } from '@nota-bene/shared';
 import { dictationAsk } from '../voice/lang.ts';
-import { refusedForAuth, socketProtocols } from '../net/auth.ts';
-import { connect as realConnect, type Connection, type SocketState } from '../net/socket.ts';
+import { agentConnection, bindConnections, connectionManager, SELF, type AgentConnection, type AgentId, type Connect, type ConnectionManager, type ConnState } from '../sdk/connections.ts';
 import { t } from '../i18n/index.ts';
 import { composerSlice } from '../composer/slice.ts';
 import { refusedMiddleware } from '../composer/refused.ts';
@@ -28,7 +27,6 @@ import { uiScale } from '../shell/uiScale.ts';
 import { theme } from '../shell/theme.ts';
 import { setTmpDirs } from '../files/tmpImages.ts';
 import { learnServerSep } from '../lib/paths.ts';
-import { coalesceChunks } from './chunks.ts';
 import { persistListeners, type PersistState } from './persist.ts';
 import { emptyFeed, historyPrepended, prependHistory, reduce, type FeedState } from './feed.ts';
 
@@ -52,8 +50,8 @@ const toastMiddleware: Middleware = () => (next) => (action) => {
   return next(action);
 };
 
-/** The only way server data enters the store. */
-export const serverEvent = createAction<ServerEvent>('server/event');
+/** The only way server data enters the store; `meta.agent` names the connection it came from (reducers ignore it until issue 383). */
+export const serverEvent = createAction('server/event', (ev: ServerEvent, agent: AgentId = SELF) => ({ payload: ev, meta: { agent } }));
 export const connState = createAction<ConnState>('conn/state');
 
 // reduce() is pure and returns a new object. Returning a new state from an Immer case reducer is
@@ -69,10 +67,7 @@ export const feedSlice = createSlice({
     .addCase(historyPrepended, (state, a) => prependHistory(state as FeedState, a.payload)),
 });
 
-// unauthorized = the server refused the page's login (the access token, net/auth.ts)
-// connecting = never open yet; closed = dropped after an open; occupied = another tab owns the window; taken = another tab took it from us (M7-15)
-/** `stopped`: this tab stopped its own window (the header's Stop Nota Bene); nothing reconnects after it */
-export type ConnState = 'connecting' | 'open' | 'closed' | 'occupied' | 'taken' | 'unauthorized' | 'stopped';
+export type { ConnState };
 
 export const connSlice = createSlice({
   name: 'conn',
@@ -81,8 +76,7 @@ export const connSlice = createSlice({
   extraReducers: (b) => b.addCase(connState, (_s, a) => ({ state: a.payload })),
 });
 
-type Send = (m: ClientMessage) => boolean;
-type Extra = { send: Send; takeOver(): void; stopSocket(): void };
+type Extra = { connections: ConnectionManager };
 
 /** Whether Redux DevTools are on: dev builds only. Read at call time so tests can stub it. */
 export const devToolsEnabled = (): boolean => import.meta.env.DEV;
@@ -117,48 +111,17 @@ const mediaMiddleware = (media: MediaController): Middleware => (api) => {
 };
 
 /**
- * Creates the store and exactly one socket connection. The socket lives only in this closure
- * (reached by thunks through the thunk `extra` argument), never in Redux state: it is not serializable.
+ * Creates the store and its connection manager with exactly one connection (SELF). The connection lives only in this
+ * closure (reached by thunks through the thunk `extra` argument), never in Redux state: it is not serializable; the store
+ * mirrors its state into the `conn` slice.
  */
-/** This page instance's id, in memory only (not sessionStorage: a duplicated tab would copy it and steal the window). */
-const newTabId = () => crypto.randomUUID();
-
 export function makeStore(o: {
   url: string;
-  connect?: (url: string | (() => string), onEvent: (ev: ServerEvent) => void, onState: (s: SocketState) => void) => Connection;
+  connect?: Connect;
   pip?: PipApi;
 }) {
-  const connectFn = o.connect ?? ((u, e, st) => realConnect(u, e, st, WebSocket, refusedForAuth, socketProtocols));
-  // the server recognises a reconnect of the owning tab by it: no grace, no occupied (M7-15 fix round 1)
-  const tabId = newTabId();
-  // pause=1 (gh-422): this page asks for a pending server restart in its own pause, so the server waits for that ask;
-  // held=1 (issue 499): it knows `send-held`, so its sends may wait behind a pending restart or compaction
-  const baseUrl = `${o.url}${o.url.includes('?') ? '&' : '?'}tab=${tabId}&pause=1&held=1`;
-  // an occupied or taken page reconnects passive: after a restart both tabs retry, and the one that was parked must not
-  // win the window by being first (the server answers a passive socket `occupied` even with no owner)
-  const url = () => {
-    const st = store.getState().conn.state;
-    return st === 'occupied' || st === 'taken' ? `${baseUrl}&passive=1` : baseUrl;
-  };
-  let conn: Connection | null = null;
-  const send: Send = (m) => conn?.send(m) ?? false;
-  // «Работать здесь» was pressed: the next `occupied` is answered with `takeover` at once (and never shown)
-  let takeoverWanted = false;
-  const takeOver = () => {
-    takeoverWanted = true;
-    if (store.getState().conn.state === 'occupied') {
-      // a send that did not go out (socket not open) keeps the wish: the next `occupied` is answered with takeover
-      takeoverWanted = !send({ type: 'takeover' });
-    } else {
-      // from `taken`: the overlay stays up (inert) until the attach, or `occupied` to answer with takeover
-      conn?.reconnect?.();
-    }
-  };
-  // the window was stopped from this tab: the socket stays down, and its close must not turn `stopped` back into `closed`
-  const stopSocket = () => {
-    store.dispatch(connState('stopped'));
-    conn?.close();
-  };
+  const conns: AgentConnection[] = [];
+  const connections = connectionManager(() => conns);
   // one media controller per store; it holds DOM elements, so it lives here and not in state (components reach it via useMedia)
   const media: MediaController = new MediaController({
     pip: o.pip ?? browserPip,
@@ -173,20 +136,17 @@ export function makeStore(o: {
   persistListeners(persist);
   const store = configureStore({
     reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, remote: remoteSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer, promptHistory: historySlice.reducer },
-    middleware: (gdm) => gdm({ thunk: { extraArgument: { send, takeOver, stopSocket } satisfies Extra } }).prepend(controlsListener.middleware, persist.middleware).concat(toastMiddleware, compactTimingMiddleware, refusedMiddleware, historyMiddleware, mediaMiddleware(media)),
+    middleware: (gdm) => gdm({ thunk: { extraArgument: { connections } satisfies Extra } }).prepend(controlsListener.middleware, persist.middleware).concat(toastMiddleware, compactTimingMiddleware, refusedMiddleware, historyMiddleware, mediaMiddleware(media)),
     devTools: devToolsEnabled(),
   });
   mediaByStore.set(store, media);
-  conn = connectFn(
-    url,
-    coalesceChunks((ev) => {
-      if (ev.kind === 'occupied') {
-        if (takeoverWanted) {
-          takeoverWanted = false;
-          send({ type: 'takeover' });
-        } else store.dispatch(connState('occupied'));
-      } else if (ev.kind === 'taken-over') store.dispatch(connState('taken'));
-      else if (ev.kind === 'replay') takeoverWanted = false; // a replay goes to the owner only: the takeover went through
+  bindConnections(store, connections);
+  const self = agentConnection({
+    id: SELF,
+    base: '',
+    url: o.url,
+    ...(o.connect ? { connect: o.connect } : {}),
+    deliver: (ev) => {
       if (ev.kind === 'hello') adoptServerLang(ev.lang);
       if (ev.kind === 'hello') uiScale.adopt(ev.uiScale);
       if (ev.kind === 'hello') theme.adopt(ev.theme);
@@ -194,18 +154,19 @@ export function makeStore(o: {
       if (ev.kind === 'hello') learnServerSep(ev.tmpDirs?.[0]);
       if (ev.kind === 'session') learnServerSep(ev.root);
       if (ev.kind === 'hello') setTmpDirs(ev.tmpDirs);
-      store.dispatch(serverEvent(ev));
+      store.dispatch(serverEvent(ev, SELF));
       // protocol 19: another window changed or deleted the comment first, so this change was not made
       if (ev.kind === 'comment-refused' && ev.reason !== 'failed') toast(t('commentChangedElsewhere'), '');
       // the next queued comment change goes once the server is known (hello) and the previous one is answered
       if (ev.kind === 'hello' || ev.kind === 'comments' || ev.kind === 'comment-ack' || ev.kind === 'comment-refused') store.dispatch(flushComments());
-    }),
-    (s) => {
-      if (store.getState().conn.state === 'stopped') return;
+    },
+    mirror: (s) => {
       store.dispatch(connState(s));
       if (s === 'open') store.dispatch(flushComments());
     },
-  );
+  });
+  conns.push(self);
+  self.open();
   return store;
 }
 
@@ -227,10 +188,10 @@ export const selectSession = (s: RootState) => s.feed.session;
 
 export const sendMessage =
   (text: string, force: boolean, commentIds?: string[], images?: ImageRef[], id: string = crypto.randomUUID(), voice?: Voice): AppThunk<boolean> =>
-  (_d, getState, { send }) => {
+  (_d, getState, { connections }) => {
     const st = getState();
     if (selectConn(st) !== 'open') return false;
-    return send({
+    return connections.current().send({
       type: 'send', id, text, force: force && selectBusy(st),
       ...(commentIds?.length ? { commentIds } : {}),
       ...(images?.length ? { images } : {}),
@@ -238,15 +199,15 @@ export const sendMessage =
     });
   };
 
-export const interrupt = (): AppThunk => (_d, getState, { send }) => {
-  if (selectBusy(getState())) send({ type: 'interrupt' });
+export const interrupt = (): AppThunk => (_d, getState, { connections }) => {
+  if (selectBusy(getState())) connections.current().send({ type: 'interrupt' });
 };
 
 /** «Работать здесь»: take the window over from the other tab (R-M7-5/8). */
-export const takeOver = (): AppThunk => (_d, _g, extra) => extra.takeOver();
+export const takeOver = (): AppThunk => (_d, _g, { connections }) => connections.current().takeOver();
 
-export const answerPermission = (id: string, allow: boolean, response?: import('@nota-bene/shared').InteractionAnswer): AppThunk => (_d, _g, { send }) => {
-  send({ type: 'permission', id, allow, ...(response ? { response } : {}) });
+export const answerPermission = (id: string, allow: boolean, response?: import('@nota-bene/shared').InteractionAnswer): AppThunk => (_d, _g, { connections }) => {
+  connections.current().send({ type: 'permission', id, allow, ...(response ? { response } : {}) });
 };
 
 const ARG_CUT = 60;

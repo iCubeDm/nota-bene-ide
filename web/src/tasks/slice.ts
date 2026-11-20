@@ -144,9 +144,9 @@ export const selectForeground = (s: RootState, id: string): boolean => {
 /** The server understands the task controls (stop, to background, shell output). */
 export const selectTaskControls = (s: RootState): boolean => has(s.controls.protocol, 'taskControl');
 
-export const stopTask = (id: string | string[]): AppThunk => (_d, getState, { send }) => {
-  if (selectTaskControls(getState())) for (const one of typeof id === 'string' ? [id] : id) send({ type: 'task-stop', id: one });
+export const stopTask = (id: string | string[]): AppThunk => (_d, getState, { connections }) => {
+  if (selectTaskControls(getState())) for (const one of typeof id === 'string' ? [id] : id) connections.current().send({ type: 'task-stop', id: one });
 };
-export const backgroundTask = (toolUseId: string): AppThunk => (_d, getState, { send }) => {
-  if (selectTaskControls(getState())) send({ type: 'task-background', toolUseId });
+export const backgroundTask = (toolUseId: string): AppThunk => (_d, getState, { connections }) => {
+  if (selectTaskControls(getState())) connections.current().send({ type: 'task-background', toolUseId });
 };
