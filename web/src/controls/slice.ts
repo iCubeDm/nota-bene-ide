@@ -1,6 +1,6 @@
-import { createAction, type PayloadAction, createListenerMiddleware, createSlice } from '@reduxjs/toolkit';
+import { createAction, type PayloadAction, createSlice } from '@reduxjs/toolkit';
 import { has, CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
-import { t, toast, connState, serverEvent, routes, type AppThunk, type RootState } from '@/sdk';
+import { t, toast, connState, serverEvent, routes, type AppThunk, type RootState, type StartListening } from '@/sdk';
 
 /**
  * `switching`: a `switch` we sent is in flight. `asked` from the click until the reset's `replay` (the server accepted
@@ -224,17 +224,14 @@ export const nextMode = (m: Mode, modes: readonly Mode[] = MODES): Mode => {
  * `restoreAfterPlan` set, clear it, and if the echo differs, pick the remembered mode once.
  * A listener (not a reducer): it dispatches a thunk that sends.
  */
-export const controlsListener = createListenerMiddleware();
-controlsListener.startListening({
-  // lazy match: store.ts and this file import each other, so serverEvent is not yet defined when this runs at load
-  predicate: (a) => serverEvent.match(a),
-  effect: (action, api) => {
-    const ev = (action as ReturnType<typeof serverEvent>).payload;
+export const controlsListeners = (start: StartListening): void => void start({
+  actionCreator: serverEvent,
+  effect: ({ payload: ev }, api) => {
     if (ev.kind !== 'mode' || ev.mode === 'plan') return;
-    const want = (api.getState() as RootState).controls.restoreAfterPlan;
+    const want = api.getState().controls.restoreAfterPlan;
     if (!want) return;
     api.dispatch(restoreCleared());
-    if (want !== ev.mode) (api.dispatch as (t: AppThunk) => void)(pickMode(want));
+    if (want !== ev.mode) api.dispatch(pickMode(want));
   },
 });
 

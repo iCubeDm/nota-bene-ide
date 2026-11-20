@@ -70,11 +70,11 @@ const diagramTab = ({ source, lang }: SavedDiagram): DiagramTab => ({
 
 /**
  * The window's project root became known or changed (a switch to another folder, here or in another window). One action
- * for every slice, so the tabs, the tree and the file state change together: the tabs become that root's saved ones
- * (merged on the first root, replacing after), the tree shows its saved folders, the file load state is dropped.
- * The saved state is read by the caller (the store's subscriber), before anything is persisted under the new root.
+ * for every slice: the tabs become that root's saved ones (merged on the first root, replacing after), and each plugin
+ * drops or restores its own state, in its reducer or its own listener (the tree its saved folders, the files their
+ * load state). The saved tabs are read by the caller (`store/persist.ts`), before anything is persisted under the new root.
  */
-export const enterRoot = createAction<{ root: string; first: boolean; tabs: SavedTabs | null; dirs: string[] | null }>('tabs/enterRoot');
+export const enterRoot = createAction<{ root: string; first: boolean; tabs: SavedTabs | null }>('tabs/enterRoot');
 
 const viewTab = (v: View) => ({ id: v, kind: v }) as ViewTab;
 const idx = (s: TabsState, id: string) => s.open.findIndex((t) => t.id === id);

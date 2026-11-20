@@ -1,38 +1,23 @@
-import { combineSlices, configureStore, createAction, createListenerMiddleware, createSlice, type Middleware, type Reducer, type ThunkAction, type UnknownAction } from '@reduxjs/toolkit';
+import { combineSlices, configureStore, createAction, createListenerMiddleware, createSlice, type Middleware, type Reducer, type ThunkAction, type ThunkDispatch, type TypedStartListening, type UnknownAction } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, useStore, type TypedUseSelectorHook } from 'react-redux';
 import type { ImageRef, ServerEvent, Voice } from '@nota-bene/shared';
 import { dictationAsk } from '../voice/lang.ts';
 import { agentConnection, bindConnections, connectionManager, SELF, type AgentConnection, type AgentId, type Connect, type ConnectionManager, type ConnState } from '../sdk/connections.ts';
 import { t } from '../i18n/index.ts';
-import { refusedMiddleware } from '../composer/refused.ts';
-import { historyMiddleware } from '../composer/history.ts';
-import { controlsListener } from '../controls/slice.ts';
-import { flushComments } from '../comments/slice.ts';
 import { activate, tabsSlice, type Tab, type TabsState } from '../tabs/slice.ts';
 import { AUDIO, VIDEO } from '../files/kinds.ts';
 import { browserPip, MediaController, type PipApi } from '../media/mediaController.ts';
 import { agentName, itemsOf } from '../subagent/slice.ts';
 import { toast } from '../shell/toast.ts';
-import { recordCompactMs } from '../feed/compactTiming.ts';
 import { TOOL_SRC } from '../feed/uiSlice.ts';
 import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
-import { setTmpDirs } from '../files/tmpImages.ts';
 import { learnServerSep } from '../lib/paths.ts';
-import { persistListeners, type PersistState } from './persist.ts';
+import { persistListeners } from './persist.ts';
 import { emptyFeed, historyPrepended, prependHistory, reduce, type FeedState } from './feed.ts';
 
-/** A live compaction's duration feeds the estimate of the next one (a replay is history: it would count twice). */
-const compactTimingMiddleware: Middleware = () => (next) => (action) => {
-  if (serverEvent.match(action) && action.payload.kind === 'agent') {
-    const e = action.payload.e;
-    if (e.t === 'compacted' && e.ms) recordCompactMs(e.ms);
-  }
-  return next(action);
-};
-
 /** A server error is a toast (R-M4-5), never a feed item. A middleware, not a reducer: reducers have no side effects. */
-const toastMiddleware: Middleware = () => (next) => (action) => {
+export const toastMiddleware: Middleware = () => (next) => (action) => {
   // not `busy`: the server broadcasts those refusals to every window, and a race outcome is not a server error (the asking control shows it inline)
   if (serverEvent.match(action) && action.payload.kind === 'server-error' && action.payload.where !== 'busy') {
     // a warning the server names by `where` is shown in the page's language, not as the server's English text
@@ -73,6 +58,8 @@ type Extra = { connections: ConnectionManager };
 /** The core's slices; the plugins' are injected by makeStore. */
 const coreReducer = () => combineSlices(feedSlice, connSlice, tabsSlice).withLazyLoadedSlices<PluginState>();
 export type RootState = ReturnType<ReturnType<typeof coreReducer>> & PluginState;
+/** How a listener (`Plugin.listeners`) registers on the store's one listener middleware. */
+export type StartListening = TypedStartListening<RootState, ThunkDispatch<RootState, Extra, UnknownAction>>;
 
 /** The reducer of the core and every plugin's slices, each injected once. A slice name taken twice is a build error. */
 function rootReducer(plugins: readonly Plugin[]): Reducer<RootState> {
@@ -91,6 +78,15 @@ function rootReducer(plugins: readonly Plugin[]): Reducer<RootState> {
 export const devToolsEnabled = (): boolean => import.meta.env.DEV;
 
 const mediaByStore = new WeakMap<object, MediaController>();
+const pluginsByStore = new WeakMap<object, readonly Plugin[]>();
+
+/**
+ * The middleware appended after the defaults, in order (behavior: each sees an action before the ones after it): the
+ * core's toast, each plugin's in `PLUGINS` order, the core's media last. The one listener middleware is prepended, so
+ * its listeners run once all of these have passed the action on.
+ */
+export const middlewareOf = (plugins: readonly Plugin[], media: Middleware): Middleware[] =>
+  [toastMiddleware, ...plugins.flatMap((p) => p.middleware ?? []), media];
 
 /**
  * Tells the media controller about every tab change, whatever caused it (tab click, openFile, close actions, restore):
@@ -99,7 +95,7 @@ const mediaByStore = new WeakMap<object, MediaController>();
  */
 const mediaMiddleware = (media: MediaController): Middleware => (api) => {
   // diffed against the last tabs it reported, not the state before this action, so a change is reported once however
-  // the dispatches nest. The persistence listener (enterRoot on a new root) sits outside this middleware: it dispatches
+  // the dispatches nest. The root-change listener (enterRoot on a new root) sits outside this middleware: it dispatches
   // after the triggering action has come back through here, so that restore is its own pass, never nested in this one
   let seen: TabsState | null = null;
   return (next) => (action) => {
@@ -122,7 +118,8 @@ const mediaMiddleware = (media: MediaController): Middleware => (api) => {
 /**
  * Creates the store and its connection manager with exactly one connection (SELF). The connection lives only in this
  * closure (reached by thunks through the thunk `extra` argument), never in Redux state: it is not serializable; the store
- * mirrors its state into the `conn` slice.
+ * mirrors its state into the `conn` slice. `plugins`: the app's `PLUGINS`. A test may pass a subset, but `RootState`
+ * still names every plugin's slice: a subset suits only code that reads the core's state and that subset's.
  */
 export function makeStore(o: {
   url: string;
@@ -142,14 +139,17 @@ export function makeStore(o: {
       return tab?.kind === 'file' && (VIDEO.test(tab.path) || AUDIO.test(tab.path));
     },
   });
-  const persist = createListenerMiddleware<PersistState>();
-  persistListeners(persist);
+  // one listener middleware: the core's listeners first, then each plugin's in order (see Plugin.listeners)
+  const listeners = createListenerMiddleware<RootState, ThunkDispatch<RootState, Extra, UnknownAction>>();
+  persistListeners(listeners.startListening);
+  for (const p of o.plugins) p.listeners?.(listeners.startListening);
   const store = configureStore({
     reducer: rootReducer(o.plugins),
-    middleware: (gdm) => gdm({ thunk: { extraArgument: { connections } satisfies Extra } }).prepend(controlsListener.middleware, persist.middleware).concat(toastMiddleware, compactTimingMiddleware, refusedMiddleware, historyMiddleware, mediaMiddleware(media)),
+    middleware: (gdm) => gdm({ thunk: { extraArgument: { connections } satisfies Extra } }).prepend(listeners.middleware).concat(...middlewareOf(o.plugins, mediaMiddleware(media))),
     devTools: devToolsEnabled(),
   });
   mediaByStore.set(store, media);
+  pluginsByStore.set(store, o.plugins);
   bindConnections(store, connections);
   const self = agentConnection({
     id: SELF,
@@ -161,17 +161,9 @@ export function makeStore(o: {
       // the server's separator, for paths in agent text (lib/paths.ts serverSep): from its first absolute path
       if (ev.kind === 'hello') learnServerSep(ev.tmpDirs?.[0]);
       if (ev.kind === 'session') learnServerSep(ev.root);
-      if (ev.kind === 'hello') setTmpDirs(ev.tmpDirs);
       store.dispatch(serverEvent(ev, SELF));
-      // protocol 19: another window changed or deleted the comment first, so this change was not made
-      if (ev.kind === 'comment-refused' && ev.reason !== 'failed') toast(t('commentChangedElsewhere'), '');
-      // the next queued comment change goes once the server is known (hello) and the previous one is answered
-      if (ev.kind === 'hello' || ev.kind === 'comments' || ev.kind === 'comment-ack' || ev.kind === 'comment-refused') store.dispatch(flushComments());
     },
-    mirror: (s) => {
-      store.dispatch(connState(s));
-      if (s === 'open') store.dispatch(flushComments());
-    },
+    mirror: (s) => store.dispatch(connState(s)),
   });
   conns.push(self);
   self.open();
@@ -186,6 +178,8 @@ export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
 export const useAppDispatch: () => AppDispatch = useDispatch;
 /** The store's media controller (see makeStore). */
 export const useMedia = (): MediaController => mediaByStore.get(useStore())!;
+/** The plugins the store was made with, in order. */
+export const usePlugins = (): readonly Plugin[] => pluginsByStore.get(useStore())!;
 
 export const selectFeed = (s: RootState): FeedState => s.feed;
 export const selectBusy = (s: RootState): boolean => s.feed.busy;

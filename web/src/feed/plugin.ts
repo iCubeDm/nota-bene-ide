@@ -1,9 +1,10 @@
 import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin } from '@/sdk';
+import { compactTimingMiddleware } from './compactTiming.ts';
 import { feedUiSlice } from './uiSlice.ts';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof feedUiSlice> {}
 }
 
-export const feedPlugin = definePlugin({ id: 'feed', slices: [feedUiSlice] });
+export const feedPlugin = definePlugin({ id: 'feed', slices: [feedUiSlice], middleware: [compactTimingMiddleware] });

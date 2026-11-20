@@ -1,4 +1,5 @@
-import { json, storage } from '@/sdk';
+import type { Middleware } from '@reduxjs/toolkit';
+import { json, serverEvent, storage } from '@/sdk';
 
 /**
  * How long a compaction usually takes here. The SDK reports no progress while it compacts (only `status: compacting`,
@@ -18,6 +19,15 @@ export function recordCompactMs(ms: number): void {
   if (!(ms > 0)) return;
   saved.set([...read(), ms].slice(-KEEP));
 }
+
+/** A live compaction's duration feeds the estimate of the next one (a replay is history: it would count twice). */
+export const compactTimingMiddleware: Middleware = () => (next) => (action) => {
+  if (serverEvent.match(action) && action.payload.kind === 'agent') {
+    const e = action.payload.e;
+    if (e.t === 'compacted' && e.ms) recordCompactMs(e.ms);
+  }
+  return next(action);
+};
 
 export function expectedCompactMs(): number {
   const v = read().sort((a, b) => a - b);

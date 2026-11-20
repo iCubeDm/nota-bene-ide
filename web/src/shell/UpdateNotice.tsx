@@ -6,8 +6,7 @@ import { routes } from '@/sdk/routes.ts';
 import { storage, string } from '@/sdk/storage.ts';
 import { defineResource, useResource } from '@/sdk/repository.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
-import { useAppSelector } from '@/store/store.ts';
-import { selectPagePause } from './pagePause.ts';
+import { usePagePause } from './pagePause.ts';
 import { reloadPage } from './reloadPage.ts';
 
 /** the newest version the user put off with Later */
@@ -164,7 +163,7 @@ export function UpdateNotice() {
   // what the newer version changes, by version: asked when the popover first opens for it
   const [changes, setChanges] = useState<{ v: string; text: string } | null>(null);
   // the pause the server cannot see (pagePause.ts): a draft counts, the update's reload would lose it
-  const idle = useAppSelector((st) => selectPagePause(st, { draft: true }));
+  const idle = usePagePause({ draft: true });
   const restartedAt = useRef(0);
   // the server version this page's code came with: another one after a reconnect means a handover happened
   const loadedWith = useRef<string | null>(null);
