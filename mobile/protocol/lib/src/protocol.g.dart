@@ -86,6 +86,28 @@ enum AgentMode implements _Json {
   };
 }
 
+enum AgentProvider implements _Json {
+  claude,
+  codex,
+  omp,
+  $unknown;
+
+  static AgentProvider fromJson(Object? v) => switch (v) {
+    'claude' => claude,
+    'codex' => codex,
+    'omp' => omp,
+    _ => $unknown,
+  };
+
+  @override
+  String toJson() => switch (this) {
+    claude => 'claude',
+    codex => 'codex',
+    omp => 'omp',
+    $unknown => _unsendable('AgentProvider'),
+  };
+}
+
 sealed class Anchor implements _Json {
   const Anchor();
 
@@ -242,7 +264,7 @@ final class Capabilities implements _Json {
       idleCompact: json['idleCompact'] as bool,
       models: json['models'] as bool,
       dictation: json['dictation'] as String?,
-      provider: _opt(json['provider'], CapabilitiesProvider.fromJson),
+      provider: _opt(json['provider'], AgentProvider.fromJson),
       taskBackground: json['taskBackground'] as bool?,
       taskOutput: json['taskOutput'] as bool?,
       deleteSession: json['deleteSession'] as bool?,
@@ -259,7 +281,7 @@ final class Capabilities implements _Json {
   final bool idleCompact;
   final bool models;
   final String? dictation;
-  final CapabilitiesProvider? provider;
+  final AgentProvider? provider;
   final bool? taskBackground;
   final bool? taskOutput;
   final bool? deleteSession;
@@ -284,28 +306,6 @@ final class Capabilities implements _Json {
       if (ffmpeg != null) 'ffmpeg': ffmpeg,
     };
   }
-}
-
-enum CapabilitiesProvider implements _Json {
-  claude,
-  codex,
-  omp,
-  $unknown;
-
-  static CapabilitiesProvider fromJson(Object? v) => switch (v) {
-    'claude' => claude,
-    'codex' => codex,
-    'omp' => omp,
-    _ => $unknown,
-  };
-
-  @override
-  String toJson() => switch (this) {
-    claude => 'claude',
-    codex => 'codex',
-    omp => 'omp',
-    $unknown => _unsendable('CapabilitiesProvider'),
-  };
 }
 
 sealed class ClientMessage implements _Json {
@@ -1030,6 +1030,94 @@ final class HeldSend implements _Json {
   }
 }
 
+final class HostStreamMessage implements _Json {
+  const HostStreamMessage({required this.t, required this.windows});
+
+  factory HostStreamMessage.fromJson(Map<String, Object?> json) {
+    return HostStreamMessage(
+      t: json['t'] as String,
+      windows: _list(json['windows'], _obj(HostWindow.fromJson)),
+    );
+  }
+
+  final String t;
+  final List<HostWindow> windows;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'t': t, 'windows': _jsonList(windows)};
+  }
+}
+
+final class HostWindow implements _Json {
+  const HostWindow({
+    this.id,
+    required this.port,
+    required this.provider,
+    required this.root,
+    this.title,
+    this.session,
+    this.model,
+    this.busy,
+    this.supervised,
+    this.pending,
+    this.last,
+    this.replies,
+    this.icon,
+  });
+
+  factory HostWindow.fromJson(Map<String, Object?> json) {
+    return HostWindow(
+      id: json['id'] as String?,
+      port: json['port'] as int,
+      provider: AgentProvider.fromJson(json['provider']),
+      root: json['root'] as String,
+      title: json['title'] as String?,
+      session: json['session'] as String?,
+      model: json['model'] as String?,
+      busy: json['busy'] as bool?,
+      supervised: json['supervised'] as bool?,
+      pending: json['pending'] as bool?,
+      last: _opt(json['last'], _obj(LastMessage.fromJson)),
+      replies: json['replies'] as int?,
+      icon: json['icon'] as String?,
+    );
+  }
+
+  final String? id;
+  final int port;
+  final AgentProvider provider;
+  final String root;
+  final String? title;
+  final String? session;
+  final String? model;
+  final bool? busy;
+  final bool? supervised;
+  final bool? pending;
+  final LastMessage? last;
+  final int? replies;
+  final String? icon;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {
+      if (id != null) 'id': id,
+      'port': port,
+      'provider': provider.toJson(),
+      'root': root,
+      if (title != null) 'title': title,
+      if (session != null) 'session': session,
+      if (model != null) 'model': model,
+      if (busy != null) 'busy': busy,
+      if (supervised != null) 'supervised': supervised,
+      if (pending != null) 'pending': pending,
+      if (last != null) 'last': last!.toJson(),
+      if (replies != null) 'replies': replies,
+      if (icon != null) 'icon': icon,
+    };
+  }
+}
+
 final class IdleCompact implements _Json {
   const IdleCompact({
     required this.on,
@@ -1245,6 +1333,46 @@ final class InteractionFieldsItem implements _Json {
       if (multi != null) 'multi': multi,
     };
   }
+}
+
+final class LastMessage implements _Json {
+  const LastMessage({required this.role, required this.text, this.at});
+
+  factory LastMessage.fromJson(Map<String, Object?> json) {
+    return LastMessage(
+      role: LastMessageRole.fromJson(json['role']),
+      text: json['text'] as String,
+      at: json['at'] as num?,
+    );
+  }
+
+  final LastMessageRole role;
+  final String text;
+  final num? at;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'role': role.toJson(), 'text': text, if (at != null) 'at': at};
+  }
+}
+
+enum LastMessageRole implements _Json {
+  user,
+  assistant,
+  $unknown;
+
+  static LastMessageRole fromJson(Object? v) => switch (v) {
+    'user' => user,
+    'assistant' => assistant,
+    _ => $unknown,
+  };
+
+  @override
+  String toJson() => switch (this) {
+    user => 'user',
+    assistant => 'assistant',
+    $unknown => _unsendable('LastMessageRole'),
+  };
 }
 
 final class Limit implements _Json {

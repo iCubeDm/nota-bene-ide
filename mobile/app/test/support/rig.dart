@@ -78,8 +78,7 @@ class Rig {
           renderer: FakeMermaid(),
           child: ChatRoute(
             link: link,
-            port: 4791,
-            root: '/home/u/notes',
+            window: window(4791, '/home/u/notes'),
             seen: seen,
             visible: visible,
             onTab: (x) => tab = x,

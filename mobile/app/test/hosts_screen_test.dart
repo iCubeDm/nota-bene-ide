@@ -116,7 +116,7 @@ void main() {
     await t.tap(find.textContaining('notes'));
     await t.pumpAndSettle();
     expect(opened, ['$a 4791']);
-    expect(hosts.lastChat, '$a 4791 /home/u/notes');
+    expect(hosts.lastChat, '$a port:4791');
     links.dispose();
   });
 
@@ -137,12 +137,35 @@ void main() {
     'Home opens the last chat only when its host is online and lists it',
     (t) async {
       await hosts.add(paired(a, 'laptop'));
-      await hosts.setLastChat('$a 4791 /home/u/notes');
-      f.results.add(FakeChannel([window(4791, '/home/u/notes')]));
+      await hosts.setLastChat('$a claude:0123456789abcdef');
+      f.results.add(
+        FakeChannel([
+          window(4791, '/home/u/web', id: 'claude:fedcba9876543210'),
+          window(4792, '/home/u/notes', id: 'claude:0123456789abcdef'),
+        ]),
+      );
+      final opened = <String>[];
+      final links = await pump(t, opened: opened);
+      expect(opened, ['$a 4792']);
+      expect(find.text('chat /home/u/notes'), findsOneWidget);
+      links.dispose();
+    },
+  );
+
+  testWidgets(
+    'the last chat saved before window ids (`host port root`) is found by port and folder and saved anew',
+    (t) async {
+      await hosts.add(paired(a, 'laptop'));
+      await hosts.setLastChat('$a 4791 /home/u/my notes');
+      f.results.add(
+        FakeChannel([
+          window(4791, '/home/u/my notes', id: 'claude:0123456789abcdef'),
+        ]),
+      );
       final opened = <String>[];
       final links = await pump(t, opened: opened);
       expect(opened, ['$a 4791']);
-      expect(find.text('chat /home/u/notes'), findsOneWidget);
+      expect(hosts.lastChat, '$a claude:0123456789abcdef');
       links.dispose();
     },
   );
@@ -159,12 +182,12 @@ void main() {
     final tapped = StreamController<ChatPlace>();
     final links = await pump(t, opened: opened, tapped: tapped.stream);
     expect(find.text('chat /home/u/notes'), findsOneWidget);
-    tapped.add((hostId: a, port: 4792, root: '/home/u/web'));
+    tapped.add((hostId: a, window: 'port:4792'));
     await t.pumpAndSettle();
     expect(opened, ['$a 4791', '$a 4792']);
     expect(find.text('chat /home/u/web'), findsOneWidget);
     expect(find.text('chat /home/u/notes'), findsNothing);
-    expect(hosts.lastChat, '$a 4792 /home/u/web');
+    expect(hosts.lastChat, '$a port:4792');
     await tapped.close();
     links.dispose();
   });
@@ -182,12 +205,12 @@ void main() {
 
   HostWindow full({
     bool pending = false,
-    String role = 'assistant',
+    LastMessageRole role = LastMessageRole.assistant,
     int replies = 5,
     DateTime? at,
   }) => HostWindow(
     port: 4791,
-    provider: 'claude',
+    provider: AgentProvider.claude,
     root: '/home/u/notes',
     title: 'Plan',
     session: 's1',
@@ -195,7 +218,11 @@ void main() {
     busy: true,
     pending: pending,
     replies: replies,
-    last: LastMessage(role: role, text: 'Done, see the diff', at: at ?? now),
+    last: LastMessage(
+      role: role,
+      text: 'Done, see the diff',
+      at: (at ?? now).millisecondsSinceEpoch,
+    ),
   );
 
   Future<Links> pumpOne(WidgetTester t, HostWindow w, {int seenTo = 2}) async {
@@ -242,12 +269,15 @@ void main() {
   testWidgets('a last without a time shows its text and no time', (t) async {
     final w = HostWindow(
       port: 4791,
-      provider: 'claude',
+      provider: AgentProvider.claude,
       root: '/home/u/notes',
       title: 'Plan',
       session: 's1',
       replies: 2,
-      last: LastMessage(role: 'assistant', text: 'Restored reply'),
+      last: LastMessage(
+        role: LastMessageRole.assistant,
+        text: 'Restored reply',
+      ),
     );
     final links = await pumpOne(t, w);
     expect(find.text('notes: Restored reply'), findsOneWidget);
@@ -265,7 +295,7 @@ void main() {
   });
 
   testWidgets('a user message is prefixed with You', (t) async {
-    final links = await pumpOne(t, full(role: 'user'));
+    final links = await pumpOne(t, full(role: LastMessageRole.user));
     expect(find.text('notes: You: Done, see the diff'), findsOneWidget);
     links.dispose();
   });

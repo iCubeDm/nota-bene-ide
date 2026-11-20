@@ -9,7 +9,7 @@ import { remoteMain } from './cli.ts';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient } from './control.ts';
 import { addHost, hostKey, pairProof, readHosts, pairTicket, parseAccessKey, parsePairUri, b64u, readAccessKey, readConfig, readLastError, writeAccessKey, writeConfig } from './store.ts';
-import { Windows, type HostWindow } from './discover.ts';
+import { Windows, type ProvedWindow } from './discover.ts';
 import { RelayClient } from './relayClient.ts';
 import { generateKeyPair } from './noise.ts';
 import { relayPhone } from './testPhone.ts';
@@ -220,7 +220,7 @@ describe('connector', () => {
     await until(() => exits.length === 1, 2000);
     expect(exits).toEqual(['idle']);
     await m.stop();
-    const one = new (class extends Windows { override list(): HostWindow[] { return [{ port: 4790, provider: 'claude', root: '/p', bearer: 'b', nonce: 'n' }]; } })();
+    const one = new (class extends Windows { override list(): ProvedWindow[] { return [{ port: 4790, provider: 'claude', root: '/p', bearer: 'b', nonce: 'n' }]; } })();
     const kept = await connector({ managed: true, idleExitMs: 80, windows: one });
     const later: string[] = [];
     kept.on('exit', (w: string) => later.push(`managed ${w}`));

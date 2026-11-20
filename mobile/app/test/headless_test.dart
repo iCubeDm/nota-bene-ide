@@ -14,11 +14,11 @@ import 'support/fakes.dart';
 
 HostWindow w(int replies, {String root = '/home/u/notes'}) => HostWindow(
   port: 4791,
-  provider: 'claude',
+  provider: AgentProvider.claude,
   root: root,
   session: 's1',
   replies: replies,
-  last: LastMessage(role: 'assistant', text: 'Ready.'),
+  last: LastMessage(role: LastMessageRole.assistant, text: 'Ready.'),
 );
 
 void main() {

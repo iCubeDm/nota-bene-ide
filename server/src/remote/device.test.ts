@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -6,9 +7,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
 import { startServer } from '../server.ts';
-import { registerWindow } from '../windows.ts';
+import { HOST_WINDOW_INFO } from '@nota-bene/shared';
+import { registerWindow, windowKey } from '../windows.ts';
 import { cleanName, computerName, DeviceChannel, goodPath } from './device.ts';
-import { Windows } from './discover.ts';
+import { Windows, type ProvedWindow } from './discover.ts';
 import { CONN_WINDOW } from './mux.ts';
 import { generateKeyPair, type KeyPair } from './noise.ts';
 import { b64u, hostKey, pairProof } from './store.ts';
@@ -175,6 +177,61 @@ describe('device channel', () => {
     const h = l.phone.host();
     await until(() => h.lists.length > 0);
     expect(h.lists[0]).toEqual([expect.objectContaining({ port: a.port, provider: 'claude', root: path.join(tmp, 'proj') })]);
+  });
+
+  it('the host stream gives each window its stable id and only the /info fields of the host stream (issue 511)', async () => {
+    const a = await window();
+    const l = await paired(await windows());
+    const h = l.phone.host();
+    await until(() => h.lists.length > 0);
+    const w = h.lists[0]![0]!;
+    expect(w).toMatchObject({ id: windowKey('claude', path.join(tmp, 'proj')), port: a.port });
+    // /info says more (clients, codeChanged, restartPending, unseen): for other windows, not for the phone
+    expect(Object.keys(w).filter((k) => !['id', 'port', 'provider', 'root', ...HOST_WINDOW_INFO].includes(k))).toEqual([]);
+  });
+
+  /** Windows of stub launches whose /info fails (a 500 on an ephemeral port): what `list()` gives is all there is. */
+  async function stubWindows() {
+    const ports: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const srv = http.createServer((_q, r) => r.writeHead(500).end());
+      await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+      closers.push(() => new Promise<void>((r) => srv.close(() => r())));
+      ports.push((srv.address() as AddressInfo).port);
+    }
+    ports.sort((x, y) => x - y);
+    let list: ProvedWindow[] = [];
+    const ev = new EventEmitter();
+    const stub = Object.assign(ev, { list: () => list, get: (p: number) => list.find((w) => w.port === p) }) as unknown as Windows;
+    const set = (next: { port: number; root: string; provider?: 'claude' | 'codex' }[]) => {
+      list = next.map((w) => ({ provider: 'claude', bearer: 'Bearer x', nonce: 'n', ...w }));
+      ev.emit('change', list);
+    };
+    return { ports, stub, set };
+  }
+
+  it('a window that restarts on another port keeps its id', async () => {
+    const { ports: [p1, p2], stub, set } = await stubWindows();
+    set([{ port: p1!, root: '/p' }]);
+    const l = await paired(stub);
+    const h = l.phone.host();
+    await until(() => h.lists.length > 0);
+    set([{ port: p2!, root: '/p' }]);
+    await until(() => h.lists.length > 1);
+    expect(h.lists.map((x) => x[0])).toEqual([
+      { id: windowKey('claude', '/p'), port: p1, provider: 'claude', root: '/p' },
+      { id: windowKey('claude', '/p'), port: p2, provider: 'claude', root: '/p' },
+    ]);
+  });
+
+  it('two windows of one folder and agent: the lower port keeps the bare id, the other gets `<id>:<port>`', async () => {
+    const { ports: [p1, p2, p3], stub, set } = await stubWindows();
+    set([{ port: p1!, root: '/p' }, { port: p2!, root: '/p' }, { port: p3!, root: '/p', provider: 'codex' }]);
+    const l = await paired(stub);
+    const h = l.phone.host();
+    await until(() => h.lists.length > 0);
+    const id = windowKey('claude', '/p');
+    expect(h.lists[0]!.map((w) => w.id)).toEqual([id, `${id}:${p2}`, windowKey('codex', '/p')]);
   });
 
   it('the host stream passes the pending, last and replies of a window', async () => {

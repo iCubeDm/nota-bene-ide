@@ -72,23 +72,6 @@ class HostLink extends ChangeNotifier {
     _notify();
   }
 
-  /// A poll that left the picture fields out (the host could not read the window's /info that time) must not make the
-  /// icon blink off: the last known one stays for a window of the same port and folder.
-  List<HostWindow> _keepIcons(List<HostWindow> next) => [
-    for (final w in next)
-      if (w.iconSupported)
-        w
-      else
-        switch (_windows
-            .where(
-              (o) => o.port == w.port && o.root == w.root && o.iconSupported,
-            )
-            .firstOrNull) {
-          final o? => w.withIcon(o.icon, true),
-          null => w,
-        },
-  ];
-
   void _notify() {
     if (!_disposed) notifyListeners();
   }
@@ -109,7 +92,7 @@ class HostLink extends ChangeNotifier {
       try {
         final list = await ch.refreshWindows(wait: timeout).timeout(timeout);
         if (identical(_channel, ch)) {
-          _windows = _keepIcons(list);
+          _windows = list;
           _notify();
         }
       } on Object {
@@ -201,7 +184,7 @@ class HostLink extends ChangeNotifier {
       final onlineAt = _clock();
       _lists = 0;
       final sub = ch.windows.listen((l) {
-        _windows = _keepIcons(l);
+        _windows = l;
         _lists++;
         _notify();
       });

@@ -278,36 +278,10 @@ void main() {
       links.dispose();
     });
 
-    testWidgets('a poll that leaves the icon out keeps the last known one', (
-      t,
-    ) async {
-      final ch = FakeChannel([
-        window(4791, '/home/u/notes', title: 'Plan', icon: 'v-keep'),
-      ]);
-      f.results.add(ch);
-      final links = await pump(t);
-      final link = links.of(a)!;
-      ch.push([window(4791, '/home/u/notes', title: 'Plan')]); // no field
-      await t.pumpAndSettle();
-      expect(link.windows.single.icon, 'v-keep');
-      expect(link.windows.single.iconSupported, isTrue);
-      ch.push([
-        window(4791, '/home/u/notes', title: 'Plan', iconSupported: true),
-      ]);
-      await t.pumpAndSettle();
-      expect(link.windows.single.icon, isNull); // a removal is said outright
-      ch.push([
-        window(4791, '/other', title: 'Plan'),
-      ]); // another folder on the port
-      await t.pumpAndSettle();
-      expect(link.windows.single.iconSupported, isFalse);
-      links.dispose();
-    });
-
     testWidgets('no icon, or a fetch that fails: the letter stays', (t) async {
       final ch = FakeChannel([
         window(4791, '/home/u/notes', title: 'Plan', icon: 'v-fails'),
-        window(4792, '/home/u/site', iconSupported: true),
+        window(4792, '/home/u/site'),
       ]);
       ch.onHttp = (port, m, path) async => answer(404);
       f.results.add(ch);
@@ -318,12 +292,11 @@ void main() {
     });
 
     testWidgets(
-      'the menu offers Set icon to a host that knows icons, Remove icon to a window that has one',
+      'the menu offers Set icon, Remove icon to a window that has one',
       (t) async {
         final ch = FakeChannel([
-          window(4791, '/home/u/notes', title: 'Plan', iconSupported: true),
+          window(4791, '/home/u/notes', title: 'Plan'),
           window(4792, '/home/u/site', title: 'Site', icon: 'v-menu'),
-          window(4793, '/home/u/old', title: 'Old'), // an older host: no field
         ]);
         ch.onHttp = (port, m, path) async => answer(404);
         f.results.add(ch);
@@ -341,12 +314,6 @@ void main() {
         await menu('Site');
         expect(find.text('Set icon'), findsOneWidget);
         expect(find.text('Remove icon'), findsOneWidget);
-        await t.tapAt(const Offset(5, 5));
-        await t.pumpAndSettle();
-        await menu('Old');
-        expect(find.text('Set icon'), findsNothing);
-        expect(find.text('Remove icon'), findsNothing);
-        expect(find.text('Mark read'), findsOneWidget);
         links.dispose();
       },
     );
@@ -399,9 +366,7 @@ void main() {
       }
 
       Future<FakeChannel> rig(WidgetTester t) async {
-        final ch = FakeChannel([
-          window(4791, '/home/u/notes', title: 'Plan', iconSupported: true),
-        ]);
+        final ch = FakeChannel([window(4791, '/home/u/notes', title: 'Plan')]);
         f.results.add(ch);
         return ch;
       }

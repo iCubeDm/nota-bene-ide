@@ -55,7 +55,7 @@ void main() {
       sleep: (_) => Completer<void>().future,
     )..start();
     await settle();
-    tab = WindowTab(link, 4791, '/p', retry: (_) async {});
+    tab = WindowTab(link, window(4791, '/p'), retry: (_) async {});
     await settle();
   });
 
@@ -200,6 +200,34 @@ void main() {
     await settle();
     expect(ch.wsOpens, hasLength(2));
   });
+
+  test(
+    'a window that restarts on another port keeps its chat: the tab follows its id (issue 511)',
+    () async {
+      const id = 'claude:0123456789abcdef';
+      ch.push([window(4791, '/p', id: id)]);
+      await settle();
+      final own = WindowTab(
+        link,
+        window(4791, '/p', id: id),
+        retry: (_) async {},
+      );
+      await settle();
+      ch.event(ch.lastWsId, replay([user('u1')]));
+      await settle();
+      expect(own.state, TabState.open);
+      ch.push([]);
+      ch.host(Close(ch.lastWsId, 4904));
+      await settle();
+      expect(own.state, TabState.gone);
+      ch.push([window(4795, '/p', id: id)]);
+      await settle();
+      expect(ch.wsOpens.last['port'], 4795);
+      expect((own.key, own.port), (id, 4795));
+      expect(own.feed.items, hasLength(1), reason: 'the same chat');
+      own.dispose();
+    },
+  );
 
   test('send writes JSON on the stream only while open', () async {
     tab.send(const ClientMessageInterrupt());

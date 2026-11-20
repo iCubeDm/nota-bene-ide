@@ -4,7 +4,7 @@
 // its host stream's `windows` list. The connector runs the links (connector.ts); testPhone.ts drives the same end.
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
-import type { RemoteHostState } from '@nota-bene/shared';
+import type { HostStreamMessage, HostWindow, RemoteHostState } from '@nota-bene/shared';
 import { cleanName, computerName } from './device.ts';
 import { collect, Mux, UNREACHABLE, type Stream } from './mux.ts';
 import { CipherState, Handshake, PROLOGUE, type KeyPair } from './noise.ts';
@@ -161,9 +161,6 @@ export async function pairHost(code: string, o: { timeoutMs?: number; name?: str
   }
 }
 
-/** One window of the other computer, as its host stream lists it (CHANNEL.md, Stream kinds). */
-export type HostWindowInfo = { port: number; provider: string; root: string; [k: string]: unknown };
-
 /** Closes after which the relay protocol says not to retry unchanged (4403: the computer revoked this one). */
 const FINAL = new Set([4401, 4403, 4409, 4413]);
 
@@ -175,7 +172,7 @@ const FINAL = new Set([4401, 4403, 4409, 4413]);
  */
 export class HostLink extends EventEmitter {
   state: RemoteHostState = 'connecting';
-  windows: HostWindowInfo[] = [];
+  windows: HostWindow[] = [];
   /** no reconnect is pending: revoked, or a close the protocol says not to retry */
   done = false;
   #o: { relay: string; hostPub: Buffer; key: KeyPair; name: string | undefined; backoff: { minMs: number; maxMs: number } };
@@ -229,9 +226,10 @@ export class HostLink extends EventEmitter {
       collect(sock.end.open({ kind: 'host' }), (data) => {
         if (this.#sock !== sock) return;
         try {
-          const m = JSON.parse(data.toString('utf8')) as { t?: unknown; windows?: unknown };
-          if (m.t !== 'windows' || !Array.isArray(m.windows)) return;
-          this.windows = m.windows as HostWindowInfo[];
+          const m = JSON.parse(data.toString('utf8')) as Partial<HostStreamMessage> | null;
+          if (m?.t !== 'windows' || !Array.isArray(m.windows)) return;
+          // the shape check of the parse boundary: what the rest relies on (CHANNEL.md: every other field is optional)
+          this.windows = m.windows.filter((w) => typeof w?.port === 'number' && typeof w.provider === 'string' && typeof w.root === 'string');
           this.emit('windows', this.windows);
         } catch { /* not JSON: ignored, as an unknown message */ }
       });

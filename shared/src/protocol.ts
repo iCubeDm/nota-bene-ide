@@ -1,4 +1,4 @@
-import type { WireAgentEvent } from './agent.ts';
+import type { AgentProvider, WireAgentEvent } from './agent.ts';
 import type { ThemeId, UiLang, UiScale } from './lang.ts';
 import { isAbsPath } from './paths.ts';
 
@@ -260,7 +260,7 @@ export type Capabilities = {
   compact: boolean; clear: boolean; modes: AgentMode[]; usage: boolean; fileSuggestions: boolean; fork: boolean; idleCompact: boolean; models: boolean;
   /** speech to text runs on the host (Whisper installed, ready and switched on); absent: not offered. Set by the server, not by the agent. */
   dictation?: 'whisper';
-  provider?: 'claude' | 'codex' | 'omp';
+  provider?: AgentProvider;
   taskBackground?: boolean;
   taskOutput?: boolean;
   /** the agent deletes a stored session for good (POST /sessions/delete); absent: the Sessions menu offers no delete */
@@ -768,7 +768,8 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
   }
 }
 
-export type { AgentEvent, StopReason, WireAgentEvent } from './agent.ts';
+export type { AgentEvent, AgentProvider, StopReason, WireAgentEvent } from './agent.ts';
+export { HOST_WINDOW_INFO, type HostStreamMessage, type HostWindow, type LastMessage } from './host.ts';
 export { FINISHED_CAP, orderedTasks, reduceTasks, shortModel, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
 export { BATCH_HEAD, BATCH_HEADS, DEFAULT_THEME, isThemeId, isUiLang, isUiScale, THEME_KIND, THEMES, UI_LANGS, UI_SCALES, type ThemeId, type UiLang, type UiScale } from './lang.ts';
 export type { GitSwitchAnswer, GitSwitchError, VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsPatch } from './vcs.ts';

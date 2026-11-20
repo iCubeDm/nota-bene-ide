@@ -58,7 +58,7 @@ class _HomeState extends State<Home> {
     widget.hosts.addListener(_changed);
     widget.seen.addListener(_changed);
     _tapped = widget.opened?.listen((p) {
-      _want = '${p.hostId} ${p.port} ${p.root}';
+      _want = '${p.hostId} ${p.window}';
       _lastTried = false;
       _openLast();
     });
@@ -85,7 +85,7 @@ class _HomeState extends State<Home> {
   void _openLast() {
     if (_lastTried || !mounted) return;
     final last = (_want ?? widget.hosts.lastChat)?.split(' ');
-    if (last == null || last.length < 3) {
+    if (last == null || last.length < 2) {
       _lastTried = true;
       return;
     }
@@ -97,10 +97,15 @@ class _HomeState extends State<Home> {
     if (link.state == LinkState.connecting) return; // wait for the first answer
     _lastTried = true;
     if (link.state != LinkState.online) return;
-    final port = int.tryParse(last[1]);
+    // `hostId key`; before issue 511 `hostId port root`, found once by port and folder and saved anew on open
+    final port = last.length > 2 ? int.tryParse(last[1]) : null;
     final root = last.sublist(2).join(' ');
     final w = link.windows
-        .where((w) => w.port == port && w.root == root)
+        .where(
+          (w) => port == null
+              ? w.key == last[1]
+              : w.port == port && w.root == root,
+        )
         .firstOrNull;
     if (w != null) _open(link, w);
   }
@@ -108,7 +113,7 @@ class _HomeState extends State<Home> {
   void _open(HostLink link, HostWindow w) {
     _lastTried = true;
     _want = null;
-    unawaited(widget.hosts.setLastChat('${link.host.id} ${w.port} ${w.root}'));
+    unawaited(widget.hosts.setLastChat('${link.host.id} ${w.key}'));
     Navigator.of(context)
       ..popUntil((r) => r.isFirst)
       ..push(

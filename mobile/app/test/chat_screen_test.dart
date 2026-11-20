@@ -43,7 +43,7 @@ void main() {
       sleep: (_) => Completer<void>().future,
     )..start();
     await t.pump();
-    tab = WindowTab(link, 4791, '/home/u/notes', retry: (_) async {});
+    tab = WindowTab(link, window(4791, '/home/u/notes'), retry: (_) async {});
     await t.pumpWidget(
       NbApp(
         home: MermaidScope(

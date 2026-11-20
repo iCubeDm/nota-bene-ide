@@ -115,9 +115,7 @@ class HostsList extends StatelessWidget {
               unread: seen.unread(l.host.id, w),
               now: clock(),
               onOpen: () => onOpen(l, w),
-              onSetIcon: onSetIcon == null || !w.iconSupported
-                  ? null
-                  : () => onSetIcon!(l, w),
+              onSetIcon: onSetIcon == null ? null : () => onSetIcon!(l, w),
               onRemoveIcon: onRemoveIcon == null || w.icon == null
                   ? null
                   : () => onRemoveIcon!(l, w),
@@ -302,7 +300,7 @@ class _SessionRow extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (w.busy)
+                    if (w.busy == true)
                       Positioned(
                         right: 0,
                         bottom: 0,
@@ -341,7 +339,7 @@ class _SessionRow extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (last?.at case final at?) ...[
+                        if (last?.time case final at?) ...[
                           const SizedBox(width: 8),
                           Text(
                             rowTime(at, now, lang),
@@ -364,7 +362,7 @@ class _SessionRow extends StatelessWidget {
                                 ),
                                 if (last != null)
                                   TextSpan(
-                                    text: last.role == 'user'
+                                    text: last.role == LastMessageRole.user
                                         ? '${t.youPrefix}${last.text}'
                                         : last.text,
                                   ),
@@ -375,7 +373,7 @@ class _SessionRow extends StatelessWidget {
                             style: TextStyle(fontSize: 15, color: c.mutedFg),
                           ),
                         ),
-                        if (w.pending)
+                        if (w.pending == true)
                           _Badge('!', c.accent, c.background)
                         else if (unread > 0)
                           _Badge('$unread', c.primary, c.primaryFg),
