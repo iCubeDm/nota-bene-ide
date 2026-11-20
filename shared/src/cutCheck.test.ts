@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipLength, cutDuration, isCutPath, isPhotoSrc, validateCut, type CutIssue } from './cut.ts';
+import { clipLength, clipTime, cutDuration, isCutPath, isPhotoSrc, srcMoment, validateCut, type CutIssue } from './cut.ts';
 
 // a valid edit: a main video, a photo over it, voice and music
 const base = () => ({
@@ -114,6 +114,12 @@ describe('validateCut', () => {
     expect(codes(edit((c) => { clip(c, 'c3').dur = 0; }))).toEqual(['clips[2].dur positive']);
   });
 
+  it('takes reverse on a video or audio clip, not on a photo (issue 492)', () => {
+    expect(validateCut(edit((c) => { clip(c, 'c1').reverse = true; clip(c, 'c4').reverse = true; })).ok).toBe(true);
+    expect(codes(edit((c) => { clip(c, 'c3').reverse = true; }))).toEqual(['clips[2].reverse photo-reverse']);
+    expect(codes(edit((c) => { clip(c, 'c1').reverse = 'yes'; }))).toEqual(['clips[0].reverse type']);
+  });
+
   it('refuses a photo on an audio track', () => {
     expect(codes(edit((c) => { const x = clip(c, 'c3'); x.track = 'a1'; x.at = 20; delete x.place; }))).toEqual(['clips[2].track photo-audio']);
   });
@@ -208,6 +214,18 @@ describe('helpers', () => {
     expect(clipLength({ id: 'a', track: 't', src: 'x.mp4', at: 3, in: 2, out: 7 })).toBe(5);
     expect(clipLength({ id: 'a', track: 't', src: 'x.mp4', at: 3, out: 4 })).toBe(4);
     expect(clipLength({ id: 'a', track: 't', src: 'x.png', at: 3, dur: 2.5 })).toBe(2.5);
+  });
+
+  it('srcMoment and clipTime: the moment of the source at a timeline time and back; a reversed clip runs out to in (issue 492)', () => {
+    const fwd = { id: 'a', track: 't', src: 'x.mp4', at: 3, in: 2, out: 7 };
+    const rev = { ...fwd, reverse: true };
+    expect(srcMoment(fwd, 4)).toBe(3);
+    expect(clipTime(fwd, 3)).toBe(4);
+    expect(srcMoment(rev, 3)).toBe(7);
+    expect(srcMoment(rev, 4)).toBe(6);
+    expect(srcMoment(rev, 8)).toBe(2);
+    expect(clipTime(rev, 6)).toBe(4);
+    expect(srcMoment({ id: 'p', track: 't', src: 'x.png', at: 3, dur: 2 }, 4)).toBe(1); // a photo's own time
   });
 
   it('cutDuration is the end of the last clip', () => {

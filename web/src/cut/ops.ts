@@ -91,17 +91,21 @@ export function nudgeClip(cut: Cut, id: string, frames: number): Cut {
  * The clip's start to `at`, its end where it was: a video or audio clip's `in` moves with it (not before the source's
  * start), a photo's `dur` changes. Not before the end of the clip before it, nor closer than a frame to its own end.
  */
-export function trimStart(cut: Cut, id: string, at: number): Cut {
+export function trimStart(cut: Cut, id: string, at: number, srcLen?: number): Cut {
   const c = cut.clips.find((x) => x.id === id);
   if (!c) return cut;
   const e = end(c);
   const photo = isPhotoSrc(c.src);
   const prev = others(cut, c.track, [id]).filter((x) => x.at < c.at + EPS).reduce((m, x) => Math.max(m, end(x)), 0);
-  const low = Math.min(c.at, Math.max(prev, photo ? 0 : c.at - (c.in ?? 0)));
+  // how far back the start may go in the source: to its start, a reversed clip's to its end (`srcLen`, when known)
+  const room = photo ? Infinity : c.reverse ? (srcLen === undefined ? Infinity : srcLen - (c.out ?? 0)) : c.in ?? 0;
+  const low = Math.min(c.at, Math.max(prev, c.at - room));
   // a frame at least, unless the clip is shorter than that already: then it may only grow
   const high = Math.max(c.at, e - frame(cut));
   const t = msWithin(Math.min(high, Math.max(low, at)), low, high);
   if (photo) return withClip(cut, id, (x) => fitFades({ ...x, at: t, dur: msWithin(e - t, 0, e - t) }));
+  // a reversed clip starts at its `out` (issue 492): that moves back by what `at` moved
+  if (c.reverse) return withClip(cut, id, (x) => fitFades({ ...x, at: t, out: msWithin((x.out ?? 0) - (t - x.at), x.in ?? 0, Infinity) }));
   // the end stays where it was: `in` moves by what `at` moved
   return withClip(cut, id, (x) => fitFades({ ...x, at: t, in: msWithin((x.in ?? 0) + t - x.at, (x.in ?? 0) + t - x.at, Infinity) }));
 }
@@ -115,10 +119,12 @@ export function trimEnd(cut: Cut, id: string, to: number, srcLen?: number): Cut 
   if (!c) return cut;
   const photo = isPhotoSrc(c.src);
   const next = others(cut, c.track, [id]).filter((x) => x.at > c.at - EPS).reduce((m, x) => Math.min(m, x.at), Infinity);
-  const high = Math.min(next, photo || srcLen === undefined ? Infinity : c.at + srcLen - (c.in ?? 0));
+  // a reversed clip ends at its `in` (issue 492): down to the source's start
+  const high = Math.min(next, c.reverse ? c.at + (c.out ?? 0) : photo || srcLen === undefined ? Infinity : c.at + srcLen - (c.in ?? 0));
   // a frame at least, never into the next clip (a clip shorter than a frame before it may only shrink to what is there)
   const e = Math.min(next, Math.max(Math.min(c.at + frame(cut), end(c)), Math.min(high, to)));
   if (photo) return withClip(cut, id, (x) => fitFades({ ...x, dur: msWithin(e - x.at, 0, next - x.at) }));
+  if (c.reverse) return withClip(cut, id, (x) => fitFades({ ...x, in: msWithin((x.out ?? 0) - (e - x.at), 0, x.out ?? 0) }));
   return withClip(cut, id, (x) => fitFades({ ...x, out: msWithin((x.in ?? 0) + e - x.at, 0, (x.in ?? 0) + next - x.at) }));
 }
 
@@ -143,6 +149,11 @@ export function splitAt(cut: Cut, t: number, ids: readonly string[]): { cut: Cut
     if (isPhotoSrc(c.src)) {
       const left = fitFades({ ...c, dur: ms(cutAt), fadeOut: undefined });
       return [left, fitFades({ ...c, id, at, dur: ms(clipLength(c) - cutAt), fadeIn: undefined })];
+    }
+    // a reversed clip's left part is the end of its source part (issue 492)
+    if (c.reverse) {
+      const mid = ms((c.out ?? 0) - cutAt);
+      return [fitFades({ ...c, in: mid, fadeOut: undefined }), fitFades({ ...c, id, at, out: mid, fadeIn: undefined })];
     }
     const mid = ms((c.in ?? 0) + cutAt);
     return [fitFades({ ...c, out: mid, fadeOut: undefined }), fitFades({ ...c, id, at, in: mid, fadeIn: undefined })];

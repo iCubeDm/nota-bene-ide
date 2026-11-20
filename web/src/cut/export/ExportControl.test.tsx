@@ -124,6 +124,7 @@ it('every refusal is worded, an unexpected server failure too', async () => {
   const cases: [number, string, string, string][] = [
     [422, 'unreadable-source', 'media/x.mp4', 'ffmpeg cannot read the source file: media/x.mp4'],
     [400, 'not-an-edit', 'a.txt', 'Not an edit file: a.txt'],
+    [422, 'too-long', 'c4', 'Clip c4 is too long to reverse: shorten it'],
     [422, 'empty', '', 'The edit has no clips: there is nothing to export'],
     [422, 'bad-edit', 'Unexpected token', 'The edit file is damaged (Unexpected token)'],
     [404, 'no-edit', '', 'The edit file is gone'],

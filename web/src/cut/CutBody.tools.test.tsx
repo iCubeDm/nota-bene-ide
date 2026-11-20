@@ -318,6 +318,19 @@ it('mute on several clips: indeterminate while they differ, then on for all', as
   expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Mute its sound' }).checked).toBe(true);
 });
 
+it('reverse on several clips (issue 492): indeterminate while they differ, then on for all, one undo step', async () => {
+  write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c1' ? { ...c, reverse: true } : c)) }));
+  const { clip } = await show();
+  press(clip('c1'), 10);
+  press(clip('c3'), 10, { shiftKey: true });
+  const box = () => screen.getByRole<HTMLInputElement>('checkbox', { name: 'Reverse' });
+  expect(box().indeterminate).toBe(true);
+  fireEvent.click(box());
+  await saved(() => expect([clipOnDisk('c1')!.reverse, clipOnDisk('c3')!.reverse]).toEqual([true, true]));
+  fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
+  await saved(() => expect([clipOnDisk('c1')!.reverse, clipOnDisk('c3')!.reverse]).toEqual([true, undefined]));
+});
+
 // Shift on a clip: it moves with everything after it on its track, its end edge ripples (issue 437)
 it('a Shift drag on a clip moves it and the later clips of its track as one step, the selection kept; left, it stops at the clip before', async () => {
   const { clip, pps, container } = await show();

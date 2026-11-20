@@ -96,6 +96,24 @@ describe('trim', () => {
     const s = valid(trimStart(base(), 'c1', 99));
     expect(clip(s, 'c1')).toMatchObject({ at: 4.96, in: 6.96, out: 7 });
   });
+  it('a reversed clip (issue 492): its start edge is its out, its end edge its in; a split keeps what plays where', () => {
+    const rev = (): Cut => ({ ...base(), clips: base().clips.map((c) => (c.id === 'c1' ? { ...c, reverse: true } : c)) }); // 0..5, source 7 back to 2
+    let cut = valid(trimStart(rev(), 'c1', 1));
+    expect(clip(cut, 'c1')).toMatchObject({ at: 1, in: 2, out: 6 });
+    cut = valid(trimEnd(rev(), 'c1', 4));
+    expect(clip(cut, 'c1')).toMatchObject({ at: 0, in: 3, out: 7 });
+    cut = valid(trimEnd(rev(), 'c1', 30)); // down to the source's start
+    expect(clip(cut, 'c1')).toMatchObject({ at: 0, in: 0, out: 7 });
+    const late = moveClip(rev(), 'c1', 2); // 2..7
+    cut = valid(trimStart(late, 'c1', 0, 8)); // the source is 8 s: out up to 8
+    expect(clip(cut, 'c1')).toMatchObject({ at: 1, in: 2, out: 8 });
+    cut = valid(trimStart(late, 'c1', 0)); // its length unknown: as asked
+    expect(clip(cut, 'c1')).toMatchObject({ at: 0, in: 2, out: 9 });
+    const { cut: split, ids } = splitAt(rev(), 3, ['c1']);
+    valid(split);
+    expect(clip(split, 'c1')).toMatchObject({ at: 0, in: 4, out: 7, reverse: true });
+    expect(clip(split, ids[0]!)).toMatchObject({ at: 3, in: 2, out: 4, reverse: true });
+  });
   it('a photo trims its dur from either end', () => {
     let cut = valid(trimEnd(base(), 'c3', 6));
     expect(clip(cut, 'c3')).toMatchObject({ at: 1, dur: 5 });

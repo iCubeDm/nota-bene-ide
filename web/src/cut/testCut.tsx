@@ -42,6 +42,7 @@ export function setupCut(start: object = fixture) {
     vi.stubGlobal('IntersectionObserver', class { observe() {} disconnect() {} unobserve() {} takeRecords() { return []; } });
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       if (url.startsWith('/cut/export?')) return Response.json({ ffmpeg: true, job: null });
+      if (url.startsWith('/cut/reverse?')) return Response.json({ making: true }, { status: 202 });
       if (!url.startsWith('/edit')) return new Response(null, { status: 200 });
       if (init?.method !== 'POST') return Response.json(disk);
       const b = JSON.parse(init.body as string) as { text: string; base: string | null };

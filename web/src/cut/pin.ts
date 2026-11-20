@@ -1,10 +1,8 @@
 // Where a comment on an edit's timeline is pinned, and how it keeps to its clip (issue 430).
 import type { CutAnchor, CutAnchorClip, FileSource } from '@nota-bene/shared';
-import { clipLength, isPhotoSrc, type Cut, type CutClip } from '@nota-bene/shared/cut';
+import { clipLength, clipTime, srcMoment, type Cut, type CutClip } from '@nota-bene/shared/cut';
 
 const ms = (t: number) => Math.round(t * 1000) / 1000;
-/** Where a clip starts in its source: `in` (0 by default); a photo's own time starts at its showing. */
-const from = (c: CutClip) => (isPhotoSrc(c.src) ? 0 : c.in ?? 0);
 
 function clipOf(cut: Cut, c: CutClip, srcTime: number): CutAnchorClip {
   const name = cut.tracks.find((t) => t.id === c.track)?.name;
@@ -20,11 +18,14 @@ export function pinAnchor(cut: Cut, source: FileSource, playhead: number, sel: s
   if (!c) return { kind: 'cut', source, time: ms(playhead) };
   const on = playhead >= c.at && playhead < c.at + clipLength(c);
   const time = ms(on ? playhead : c.at);
-  return { kind: 'cut', source, time, clip: clipOf(cut, c, from(c) + time - c.at) };
+  return { kind: 'cut', source, time, clip: clipOf(cut, c, srcMoment(c, time)) };
 }
 
-/** Whether clip `c` holds `srcTime` of its source (from its `in`, up to but not at its end). */
-const holds = (c: CutClip, srcTime: number) => srcTime >= from(c) - 1e-9 && srcTime < from(c) + clipLength(c) - 1e-9;
+/** Whether clip `c` holds `srcTime` of its source (from its start on the timeline, up to but not at its end). */
+const holds = (c: CutClip, srcTime: number) => {
+  const t = clipTime(c, srcTime);
+  return t >= c.at - 1e-9 && t < c.at + clipLength(c) - 1e-9;
+};
 
 /**
  * The clip a comment is on in `cut`: its own clip by id when that still holds its moment of the source; else the clip of
@@ -48,7 +49,7 @@ export function timeOf(a: CutAnchor, cut: Cut): number | undefined {
   if (!a.clip) return a.time;
   const c = clipFor(a, cut);
   if (!c) return undefined;
-  return ms(Math.min(c.at + clipLength(c), Math.max(c.at, c.at + a.clip.srcTime - from(c))));
+  return ms(Math.min(c.at + clipLength(c), Math.max(c.at, clipTime(c, a.clip.srcTime))));
 }
 
 /** How a comment stands in `cut`: on its clip ('ok'; also a moment of the timeline), its moment trimmed out of the clip, or the clip gone. */

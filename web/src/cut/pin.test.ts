@@ -36,6 +36,22 @@ describe('pinAnchor (issue 430)', () => {
   });
 });
 
+describe('a reversed clip (issue 492)', () => {
+  const rev = (): Cut => ({ ...base(), clips: base().clips.map((c) => (c.id === 'c1' ? { ...c, reverse: true } : c)) }); // 0..5: source 7 back to 2
+  it('pins the moment of the source under the playhead, and keeps to it through a trim and a split', () => {
+    const a = pinAnchor(rev(), source, 1, 'c1');
+    expect(a.clip!.srcTime).toBe(6);
+    expect(timeOf(a, rev())).toBe(1);
+    const trimmed = trimStart(rev(), 'c1', 0.5); // out 6.5
+    expect(timeOf(a, trimmed)).toBe(1);
+    const { cut } = splitAt(rev(), 3, ['c1']);
+    expect(timeOf(a, cut)).toBe(1);
+    expect(cutState(a, cut)).toBe('ok');
+    const right = pinAnchor(rev(), source, 4, 'c1'); // the source's 3: on the right part after the split
+    expect(followAnchor(right, cut)!.clip!.id).not.toBe('c1');
+  });
+});
+
 describe('followAnchor: the comment keeps to its clip by id (issue 430)', () => {
   const pinned = pinAnchor(base(), source, 3, 'c1'); // 1 s into the source past in = 2
   it('unchanged: null', () => {

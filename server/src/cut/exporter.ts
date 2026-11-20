@@ -6,7 +6,7 @@ import path from 'node:path';
 import { CUT_EXT, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { resolveInRoot } from '../files.ts';
 import { HIDDEN, renameRetry } from '../platform.ts';
-import { cutEnd, exportArgs, type ExportMode, type Sources } from './args.ts';
+import { cutEnd, exportArgs, tooLongToReverse, type ExportMode, type Sources } from './args.ts';
 import { ffmpegEnv, findFfmpeg, isOldFfmpeg, probe as probeWith, readFfmpegVersion, type Probed } from './ffmpeg.ts';
 
 const TAIL_BYTES = 16384;
@@ -226,6 +226,8 @@ export class CutExporter {
       const end = cutEnd(cut);
       if (!(end > 0)) throw new CutExportError(422, 'empty');
       const sources = await this.sources(ffmpeg, root, cut);
+      const long = tooLongToReverse(cut, sources, mode);
+      if (long) throw new CutExportError(422, 'too-long', long);
       const out = resolveInRoot(root, output);
       if (!out) throw new CutExportError(403, 'outside-project', output);
       await fs.promises.mkdir(path.dirname(out), { recursive: true });
@@ -247,7 +249,7 @@ export class CutExporter {
 
   /** Every clip's source, resolved inside the project and probed for a picture and sound, a few at a time (photos are not asked). */
   private async sources(ffmpeg: string, root: string, cut: Cut): Promise<Sources> {
-    const out = new Map<string, { file: string; video: boolean; audio: boolean }>();
+    const out = new Map<string, { file: string } & Probed>();
     const srcs = [...new Set(cut.clips.map((c) => c.src))];
     for (const src of srcs) {
       const file = typeof src === 'string' ? resolveInRoot(root, src) : null;
@@ -259,7 +261,7 @@ export class CutExporter {
     await pooled(srcs.filter((s) => !isPhotoSrc(s)), PROBES, async (src) => {
       const p = await this.o.probe(ffmpeg, out.get(src)!.file);
       if (!p.video && !p.audio) throw new CutExportError(422, 'unreadable-source', src);
-      Object.assign(out.get(src)!, { video: p.video, audio: p.audio });
+      Object.assign(out.get(src)!, p);
     });
     return out;
   }

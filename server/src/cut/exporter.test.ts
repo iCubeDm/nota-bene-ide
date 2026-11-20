@@ -298,6 +298,13 @@ describe('CutExporter', () => {
     });
   });
 
+  it('a reversed part too long to hold in memory is refused before ffmpeg runs (issue 492)', async () => {
+    const e = make({ probe: async () => ({ video: true, audio: true, width: 1920, height: 1080, fps: 60 }) });
+    const r = await refusal(e.start(edit('long.nbcut.json', 'media/a.mp4', (c) => { c.width = 1920; c.height = 1080; c.clips[0] = { ...c.clips[0]!, out: 600, reverse: true }; }), 'mp4'));
+    expect(r).toMatchObject({ status: 422, code: 'too-long', detail: 'c' });
+    expect(spawns().filter((s) => s.argv.includes('long.mp4') || s.argv.some((a) => a.includes('long.mp4')))).toHaveLength(0);
+  });
+
   it('an edit that is no JSON, or has nothing in it, is refused', async () => {
     const e = make();
     fs.writeFileSync(path.join(root, 'bad.nbcut.json'), '{');

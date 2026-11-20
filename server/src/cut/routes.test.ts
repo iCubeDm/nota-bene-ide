@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EventHub } from '../hub.ts';
 import { CutExportError, type CutExporter, type ExportJob } from './exporter.ts';
 import { PeaksError } from './peaks.ts';
+import { ReverseError } from './reverse.ts';
 import { cutRoutes } from './routes.ts';
 
 let root: string;
@@ -30,8 +31,10 @@ const fake = (o: Partial<Fake> = {}): Fake => ({
 });
 type Peaks = { get: (rel: string) => Promise<Buffer> };
 const noPeaks: Peaks = { get: async () => { throw new PeaksError(501, 'no-ffmpeg'); } };
-async function serve(exporter: Fake, peaks: Peaks = noPeaks): Promise<string> {
-  const routes = cutRoutes({ hub: new EventHub(), exporter, peaks, root: () => root });
+type Reverse = { get: (rel: string, from: number, to: number, soundOnly?: boolean) => Promise<string | null> };
+const noReverse: Reverse = { get: async () => { throw new ReverseError(501, 'no-ffmpeg'); } };
+async function serve(exporter: Fake, peaks: Peaks = noPeaks, reverse: Reverse = noReverse): Promise<string> {
+  const routes = cutRoutes({ hub: new EventHub(), exporter, peaks, reverse, root: () => root });
   server = http.createServer(((req, res) => routes[req.url!.split('?')[0]!]!(req, res)) as RequestListener);
   await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -127,5 +130,30 @@ describe('GET /cut/peaks (issue 431)', () => {
     // a GET that starts a process: never for another site's page
     expect((await fetch(`${base}/cut/peaks?path=media%2Fa.wav`, { headers: { 'sec-fetch-site': 'cross-site' } })).status).toBe(403);
     expect(asked).toEqual(['media/a.wav', 'media/silent.mp4']);
+  });
+});
+
+describe('GET /cut/reverse (issue 492)', () => {
+  it('a reversed copy\'s path once made, 202 while it is being made; a refusal keeps its status and code; only GET, only from the page itself', async () => {
+    const asked: unknown[][] = [];
+    const base = await serve(fake(), noPeaks, {
+      get: async (rel, from, to, soundOnly) => {
+        asked.push([rel, from, to, soundOnly]);
+        if (rel === 'media/ready.mp4') return '.nota-bene/reverse/x.mp4';
+        if (rel === 'media/new.mp4') return null;
+        throw new ReverseError(422, 'failed');
+      },
+    });
+    const ok = await fetch(`${base}/cut/reverse?path=media%2Fready.mp4&in=1.5&out=3`);
+    expect([ok.status, await ok.json()]).toEqual([200, { path: '.nota-bene/reverse/x.mp4' }]);
+    const making = await fetch(`${base}/cut/reverse?path=media%2Fnew.mp4&out=3&sound=1`);
+    expect([making.status, await making.json()]).toEqual([202, { making: true }]);
+    const bad = await fetch(`${base}/cut/reverse?path=media%2Fbad.mp4&in=0&out=1`);
+    expect([bad.status, await bad.json()]).toEqual([422, { error: 'failed' }]);
+    expect((await fetch(`${base}/cut/reverse?in=0&out=1`)).status).toBe(400);
+    expect((await fetch(`${base}/cut/reverse?path=a.mp4&in=0&out=x`)).status).toBe(400);
+    expect((await fetch(`${base}/cut/reverse?path=a.mp4&out=1`, { method: 'POST' })).status).toBe(405);
+    expect((await fetch(`${base}/cut/reverse?path=a.mp4&out=1`, { headers: { 'sec-fetch-site': 'cross-site' } })).status).toBe(403);
+    expect(asked).toEqual([['media/ready.mp4', 1.5, 3, false], ['media/new.mp4', 0, 3, true], ['media/bad.mp4', 0, 1, false]]);
   });
 });

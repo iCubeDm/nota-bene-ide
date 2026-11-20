@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Video edits: reverse a clip.** **Reverse** in the clip panel (also for several clips at once, undoable) plays a video or sound clip's used part backwards, picture and sound, for loops; the edit file says `"reverse": true`. Its fades stay at its ends, trims, cuts and comments keep what plays where, and its waveform and thumbnail are drawn reversed. Photos can't be reversed. The preview plays a reversed copy that ffmpeg makes once per part (at most 1280×720, kept in the project's `.nota-bene/reverse/`, out of git); the clip says *reversing…* until it is ready. Reversing holds the whole part in memory, so a part over about 2 GB of frames is *too long to reverse* and Export refuses it. A reversed clip loses its alpha channel in the export.
+
 ## 2.1.0 — 2026-11-18
 
 - **Video edits: the format and a read-only timeline.** A `*.nbcut.json` file (tracks of video, photos and sound; the format is in the guide) opens as a timeline with its tracks, clips and thumbnails, a ruler, zoom and a playhead. Problems in the file and missing sources are listed in the view.

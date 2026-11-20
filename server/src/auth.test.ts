@@ -335,7 +335,7 @@ const MATRIX: { method: string; path: string; cookie: 'open' | 'refused' }[] = [
   { method: 'GET', path: `/voice/${ID}`, cookie: 'open' },
   { method: 'HEAD', path: `/voice/${ID}`, cookie: 'open' },
   ...['/info', '/tree?path=', '/complete?q=a', '/sources', '/sessions', '/history?session=x&before=1', '/subagent?session=x&tool=y',
-    '/task-output?session=x&task=y', '/git-status', '/vcs-diff', '/vcs-file?path=a.txt', '/vcs-branches', '/vcs-log', '/vcs-commit?sha=abcdef0', '/vcs-commit-file?sha=abcdef0&path=a.txt', '/system/about', '/system/update/changes', '/system/windows', '/system/storage', '/system/prefs', '/system/projects', '/usage?provider=none', '/tmpimage?path=%2Ftmp%2Fa.png', '/edit?path=a.txt', '/cut/export?path=a.nbcut.json', '/cut/peaks?path=a.wav',
+    '/task-output?session=x&task=y', '/git-status', '/vcs-diff', '/vcs-file?path=a.txt', '/vcs-branches', '/vcs-log', '/vcs-commit?sha=abcdef0', '/vcs-commit-file?sha=abcdef0&path=a.txt', '/system/about', '/system/update/changes', '/system/windows', '/system/storage', '/system/prefs', '/system/projects', '/usage?provider=none', '/tmpimage?path=%2Ftmp%2Fa.png', '/edit?path=a.txt', '/cut/export?path=a.nbcut.json', '/cut/peaks?path=a.wav', '/cut/reverse?path=a.mp4&out=1',
     `/marks/${ID}/frame.jpg`].map((path) => ({ method: 'GET', path, cookie: 'refused' as const })),
   { method: 'POST', path: '/attach', cookie: 'refused' },
   { method: 'GET', path: '/project-icon', cookie: 'refused' },

@@ -9,7 +9,7 @@ import type { EventHub } from './hub.ts';
 import { renameRetry, samePath } from './platform.ts';
 
 /**
- * The server's only write into the project folder: `<root>/.nota-bene/marks/<comment id>/{frame.jpg,layer.png,mask.png}`
+ * The marks in the project folder: `<root>/.nota-bene/marks/<comment id>/{frame.jpg,layer.png,mask.png}`
  * (`mask.png`: a drawing with polygons, issue 447).
  * Nothing from the client becomes a path except the id, which must match MARK_ID; the names are fixed.
  */
@@ -105,6 +105,36 @@ function writeExclusive(file: string): void {
   fs.closeSync(fd);
 }
 
+/** Throws when the (existing, real) `.nota-bene` folder is the server's state folder. Native realpaths on both sides:
+ *  the JS one keeps the spelling it was given, so `c:\users\x\.nota-bene` would not equal `C:\Users\x\.nota-bene`. */
+function notStateDir(nb: string, stateDir: (() => string) | undefined): void {
+  if (!stateDir) return;
+  let state: string;
+  try {
+    state = fs.realpathSync.native(stateDir());
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw e;
+  }
+  if (samePath(fs.realpathSync.native(nb), state)) throw new Error(`the project's .nota-bene is the state folder: ${nb}`);
+}
+
+/**
+ * `<root>/.nota-bene/<sub>`, made when missing with `.nota-bene/.gitignore` = "*\n": the project's own folder of what the
+ * server writes there (the marks, issue 492's reversed copies). The project folder itself may be a symlink (the user chose
+ * it); `.nota-bene` and `<sub>` must be real folders. Throws when `.nota-bene` is the state folder (`stateDir`, root = $HOME).
+ */
+export function projectDir(root: string, sub: string, stateDir?: () => string): string {
+  if (!fs.statSync(root).isDirectory()) throw new Error(`project root is not a directory: ${root}`);
+  const nb = path.join(root, '.nota-bene');
+  ensureDir(nb);
+  notStateDir(nb, stateDir);
+  writeGitignore(nb);
+  const dir = path.join(nb, sub);
+  ensureDir(dir);
+  return dir;
+}
+
 export class MarkFiles {
   private readonly root: () => string;
   private readonly stateDir: (() => string) | undefined;
@@ -115,20 +145,6 @@ export class MarkFiles {
     this.stateDir = o.stateDir;
   }
 
-  /** Throws when the (existing, real) `.nota-bene` folder is the server's state folder. Native realpaths on both sides:
-   *  the JS one keeps the spelling it was given, so `c:\users\x\.nota-bene` would not equal `C:\Users\x\.nota-bene`. */
-  private notStateDir(nb: string): void {
-    if (!this.stateDir) return;
-    let state: string;
-    try {
-      state = fs.realpathSync.native(this.stateDir());
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return;
-      throw e;
-    }
-    if (samePath(fs.realpathSync.native(nb), state)) throw new Error(`the project's .nota-bene is the state folder: ${nb}`);
-  }
-
   /** Writes `frame.jpg` | `layer.png` | `mask.png` for comment `id` (creates `.nota-bene/.gitignore` = "*\n" if missing). Throws on a bad id/name/type, a symlinked dir, or bytes > MARK_MAX_BYTES. */
   write(id: string, name: MarkName, bytes: Buffer): void {
     checkId(id);
@@ -137,16 +153,8 @@ export class MarkFiles {
     const { magic } = NAMES[name];
     if (bytes.length < magic.length || magic.some((b, i) => bytes[i] !== b)) throw new MarkError(400, `${name}: not a ${NAMES[name].type}`);
 
-    // the project folder itself may be a symlink (the user chose it); everything below it may not
     const root = path.resolve(this.root());
-    if (!fs.statSync(root).isDirectory()) throw new Error(`project root is not a directory: ${root}`);
-    const nb = path.join(root, '.nota-bene');
-    ensureDir(nb);
-    this.notStateDir(nb);
-    writeGitignore(nb);
-    const marks = path.join(nb, 'marks');
-    ensureDir(marks);
-    const dir = path.join(marks, id);
+    const dir = path.join(projectDir(root, 'marks', this.stateDir), id);
     ensureDir(dir);
     // belt and braces against a swap between the checks: the folder must resolve to where it claims to be
     if (fs.realpathSync(dir) !== path.join(fs.realpathSync(root), '.nota-bene', 'marks', id)) {
@@ -172,7 +180,7 @@ export class MarkFiles {
     const dir = path.join(marks, id);
     // every level is lstat-ed: a symlinked .nota-bene or marks must not make us delete elsewhere
     if (!realDir(nb)) return;
-    this.notStateDir(nb);
+    notStateDir(nb, this.stateDir);
     if (!realDir(marks) || !realDir(dir)) return;
     fs.rmSync(dir, { recursive: true, force: true }); // rm -r unlinks symlinks inside, never follows them
   }

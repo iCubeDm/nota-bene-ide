@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { Cut } from '@nota-bene/shared/cut';
+import type { Cut, CutClip } from '@nota-bene/shared/cut';
 import { CutPlayer } from './engine.ts';
 
 // jsdom plays no media: an element keeps its own time, paused flag, rate and readiness, and play/pause flip them
@@ -122,9 +122,9 @@ const cut = (): Cut => ({
   ],
 });
 
-function setup(c: Cut = cut()) {
+function setup(c: Cut = cut(), reversed?: (c: CutClip, sound: boolean) => string | null, failed?: (url: string) => boolean) {
   const box = document.createElement('div');
-  const p = new CutPlayer({ url: (s) => `/file?path=${s}`, now: () => now, frame: (f) => frames.push(f), cancel: () => {} });
+  const p = new CutPlayer({ url: (s) => `/file?path=${s}`, reversed, failed, now: () => now, frame: (f) => frames.push(f), cancel: () => {} });
   p.setCut(c);
   p.attach(box);
   p.setLive(true);
@@ -144,6 +144,43 @@ it('shows the clip in view at its source time and preloads the next one: two ele
   expect(spare.currentTime).toBe(10); // c2 waits at its in-point
   expect(spare.style.visibility).toBe('hidden');
   expect(v!.paused).toBe(true);
+});
+
+it('a reversed clip (issue 492) plays its reversed copy forwards once it is made; until then it shows and sounds nothing', () => {
+  const c = cut();
+  c.clips[1]!.reverse = true; // c2: 5..9, the source's 10..14 backwards
+  let copy: string | null = null;
+  const asked: [string, boolean][] = [];
+  const lost: string[] = [];
+  const { p, layer, shown } = setup(c, (x, sound) => (asked.push([x.id, sound]), x.id === 'c2' ? copy : null), (u) => (lost.push(u), true));
+  p.seek(4.9);
+  // not preloaded while it is being made
+  expect([...layer('v1').querySelectorAll('video')].map((v) => v.getAttribute('src'))).not.toContain('/file?path=.nota-bene/reverse/x.mp4');
+  p.seek(6.5);
+  expect(shown('v1')).toEqual([]);
+  copy = '/file?path=.nota-bene/reverse/x.mp4';
+  p.setCut(c);
+  const [v] = shown('v1');
+  expect(v!.getAttribute('src')).toBe(copy);
+  expect(v!.currentTime).toBe(1.5);
+  expect(asked.every(([, sound]) => !sound)).toBe(true); // a video track: picture and sound
+  // the copy removed under the page: told, so it is asked for again; made again under the same URL, it is loaded again
+  const sets: string[] = [];
+  const own = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')!;
+  Object.defineProperty(v!, 'src', { configurable: true, get: () => own.get!.call(v), set: (x: string) => { sets.push(x); own.set!.call(v, x); } });
+  v!.dispatchEvent(new Event('error'));
+  expect(lost).toEqual([copy]);
+  p.setCut(c);
+  expect(sets).toEqual([copy]);
+  // a source of its own that fails is no copy: not loaded again and again
+  const plain = setup(cut(), undefined, () => false);
+  plain.p.seek(1);
+  const [w] = plain.shown('v1');
+  const again: string[] = [];
+  Object.defineProperty(w!, 'src', { configurable: true, get: () => own.get!.call(w), set: (x: string) => { again.push(x); own.set!.call(w, x); } });
+  w!.dispatchEvent(new Event('error'));
+  plain.p.seek(1.2);
+  expect(again).toEqual([]);
 });
 
 it('a cut swaps to the preloaded element in the same step; the old one takes the clip after', () => {

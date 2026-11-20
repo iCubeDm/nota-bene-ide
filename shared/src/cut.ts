@@ -59,6 +59,8 @@ export type CutClip = {
   gain?: number;
   /** the clip's own sound off */
   mute?: boolean;
+  /** video and audio (issue 492): the used part plays backwards, from `out` back to `in`, picture and sound */
+  reverse?: boolean;
   /**
    * fades, seconds from each end: the clip's sound, and on a video track its picture too (issue 431). The lowest video
    * track (the first in `tracks`) fades from and to black, an upper one fades its opacity over the tracks under it; the
@@ -76,7 +78,7 @@ export const CUT_PEAKS_RATE = 100;
 /** The edit's file name ending. */
 export const CUT_EXT = '.nbcut.json';
 
-export { AUDIO, clipLength, cutDuration, IMAGE, isCutPath, isPhotoSrc, PHOTO, validateCut, VIDEO, type CutCheck, type CutIssue } from './cutCheck.ts';
+export { AUDIO, clipLength, clipTime, cutDuration, IMAGE, isCutPath, isPhotoSrc, PHOTO, srcMoment, validateCut, VIDEO, type CutCheck, type CutIssue } from './cutCheck.ts';
 
 /**
  * A new edit's file name in a folder that has `names` (issue 426): `edit.nbcut.json`, else `edit 2.nbcut.json` and on, the
