@@ -1,4 +1,4 @@
-import { SHELL_CMD_MAX } from '@nota-bene/shared';
+import { has, SHELL_CMD_MAX } from '@nota-bene/shared';
 import { t } from '../i18n/index.ts';
 import { toast } from '../shell/toast.ts';
 import { byteSize } from '../lib/format.ts';
@@ -7,15 +7,13 @@ import { activate } from '../tabs/slice.ts';
 import { selectConn, type AppThunk, type RootState } from '../store/store.ts';
 import { selectDraft, selectImages, setDraft, shellDraftSent } from './slice.ts';
 
-/** The first protocol whose server takes `shell-run` and `shell-stop`: an older one would send `! cmd` to the agent as a message, so the page keeps it a message there. */
-export const SHELL_PROTOCOL = 11;
 
 /**
  * A draft that is a shell command (as in Claude Code's terminal): one line that starts with `!` at offset 0 (not `![`, a
  * markdown link or image), and the server knows `shell-run`. A pasted script of several lines is a message: it must not run on one Enter.
  */
 export const isShellDraft = (draft: string): boolean => draft.startsWith('!') && !draft.startsWith('![') && !draft.trimEnd().includes('\n'); // a paste's trailing newline is still one line
-export const selectShellMode = (s: RootState): boolean => s.controls.protocol >= SHELL_PROTOCOL && isShellDraft(selectDraft(s));
+export const selectShellMode = (s: RootState): boolean => has(s.controls.protocol, 'shellRun') && isShellDraft(selectDraft(s));
 
 /** The id of the `! cmd` run in progress, if the feed shows one. */
 export const selectShellRunning = (s: RootState): string | null => {

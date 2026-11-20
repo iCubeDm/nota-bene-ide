@@ -84,9 +84,7 @@ class WindowSheet extends StatelessWidget {
         color: c.mutedFg,
       );
       final gap = const SizedBox(height: 16);
-      final win = tab.link.windows
-          .where((w) => w.port == tab.port && w.root == tab.root)
-          .firstOrNull;
+      final win = tab.window;
       return SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -143,12 +141,13 @@ class WindowSheet extends StatelessWidget {
                     onTap: open ? () => tab.setMode(m) : null,
                   ),
               ],
-              if (win != null && (win.iconSupported || win.icon != null)) ...[
+              if (win != null &&
+                  (tab.link.iconsSupported || win.icon != null)) ...[
                 gap,
                 // the same picker and calls as a row of the sessions list; its flows keep the chat's context, not the sheet's
                 Row(
                   children: [
-                    if (win.iconSupported)
+                    if (tab.link.iconsSupported)
                       Expanded(
                         child: SheetTile(
                           NbGlyph.image,
@@ -160,9 +159,8 @@ class WindowSheet extends StatelessWidget {
                           },
                         ),
                       ),
-                    if (win.iconSupported && win.icon != null)
-                      const SizedBox(width: 8),
-                    if (win.icon != null)
+                    if (win.icon != null) ...[
+                      if (tab.link.iconsSupported) const SizedBox(width: 8),
                       Expanded(
                         child: SheetTile(
                           NbGlyph.trash,
@@ -174,6 +172,7 @@ class WindowSheet extends StatelessWidget {
                           },
                         ),
                       ),
+                    ],
                   ],
                 ),
               ],

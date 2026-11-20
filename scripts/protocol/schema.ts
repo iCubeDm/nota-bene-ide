@@ -5,7 +5,7 @@ import { FEATURES, PROTOCOL } from '@nota-bene/shared';
 import type { JSONSchema7Definition } from 'json-schema';
 import { createGenerator } from 'ts-json-schema-generator';
 
-export const ROOTS = ['ClientMessage', 'ServerEvent', 'UsageReport'] as const;
+export const ROOTS = ['ClientMessage', 'ServerEvent', 'UsageReport', 'HostStreamMessage'] as const;
 export const SCHEMA_PATH = 'shared/schema/protocol.schema.json';
 
 export type ProtocolSchema = {

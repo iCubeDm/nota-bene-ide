@@ -4,7 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:nb_protocol/nb_protocol.dart' show CapabilitiesProvider;
+import 'package:nb_protocol/nb_protocol.dart' show AgentProvider;
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
@@ -14,13 +14,12 @@ import 'context_sheet.dart' show contextColor;
 import 'session_state.dart';
 import 'window_tab.dart';
 
-/// The avatar letter of a provider: `claude` C, `codex` X, `omp` O, else the first letter or `?`.
-String providerLetter(String? provider) => switch (provider) {
-  'claude' => 'C',
-  'codex' => 'X',
-  'omp' => 'O',
-  null || '' => '?',
-  final p => p.substring(0, 1).toUpperCase(),
+/// The avatar letter of a provider: `claude` C, `codex` X, `omp` O, else `?`.
+String providerLetter(AgentProvider? provider) => switch (provider) {
+  AgentProvider.claude => 'C',
+  AgentProvider.codex => 'X',
+  AgentProvider.omp => 'O',
+  AgentProvider.$unknown || null => '?',
 };
 
 /// The web's level of a limit meter (web/src/stats/Meters.tsx): 0 below 60%, 1 (warn) from 60%, 2 (hot) from 85%.
@@ -82,24 +81,11 @@ class ChatHeader extends StatelessWidget {
                     builder: (_, _) => ProjectIconAvatar(
                       link: tab.link,
                       port: tab.port,
-                      icon: tab.link.windows
-                          .where((w) => w.port == tab.port)
-                          .firstOrNull
-                          ?.icon,
+                      icon: tab.window?.icon,
                       size: 28,
-                      semanticLabel: providerName(
-                        switch (tab.capabilities?.provider) {
-                          CapabilitiesProvider.$unknown || null => null,
-                          final p => p.name,
-                        },
-                      ),
+                      semanticLabel: providerName(tab.capabilities?.provider),
                       badge: ProviderBadge(
-                        letter: providerLetter(
-                          switch (tab.capabilities?.provider) {
-                            CapabilitiesProvider.$unknown || null => null,
-                            final p => p.name,
-                          },
-                        ),
+                        letter: providerLetter(tab.capabilities?.provider),
                         size: 13,
                         fill: c.muted,
                         fg: c.foreground,
@@ -114,10 +100,7 @@ class ChatHeader extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Text(
-                          providerLetter(switch (tab.capabilities?.provider) {
-                            CapabilitiesProvider.$unknown || null => null,
-                            final p => p.name,
-                          }),
+                          providerLetter(tab.capabilities?.provider),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,

@@ -4,8 +4,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import os from 'node:os';
+import { HOST_WINDOW_INFO, type HostStreamMessage, type HostWindow } from '@nota-bene/shared';
 import WebSocket from 'ws';
-import { windowInfo, type HostWindow, type Windows } from './discover.ts';
+import { windowKey } from '../windows.ts';
+import { windowInfo, type ProvedWindow, type Windows } from './discover.ts';
 import { BAD_FRAME, Mux, TOO_LARGE, UNKNOWN_WINDOW, UNREACHABLE, type Stream } from './mux.ts';
 import { CipherState, Handshake, MAX_PLAINTEXT, PROLOGUE, type KeyPair } from './noise.ts';
 import { deviceHash, fromB64u, pairProof } from './store.ts';
@@ -15,7 +17,6 @@ export const FORWARDED = ['accept', 'content-type', 'range', 'if-none-match', 'i
 const DROPPED = new Set(['set-cookie', 'connection', 'keep-alive', 'transfer-encoding']);
 export const MAX_BODY = 32 * 1024 * 1024; // a request body is buffered whole, so a refused bearer can be retried
 const INFO_MS = 5000;
-const INFO_FIELDS = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies', 'icon'];
 
 /**
  * A path the proxy sends on: one of the window's own routes, never another host, never the control routes, never the
@@ -38,6 +39,18 @@ export function cleanName(raw: string): string | undefined {
 /** What this computer calls itself, for the phone's host label: `os.hostname()` without a trailing `.local`, cleaned. */
 export function computerName(raw: string = os.hostname()): string | undefined {
   return cleanName(cleanName(raw)?.replace(/\.local$/i, '') ?? '');
+}
+
+/**
+ * The ids of a list of windows (issue 511): `windowKey(provider, root)`. One window per folder and agent is the launcher's
+ * rule, not an invariant (an unlocked or inner launch, a dev server), so among windows of one key the lowest port keeps
+ * the bare id and the others get `<id>:<port>`: every phone sees the same ids.
+ */
+function windowIds(list: readonly ProvedWindow[]): string[] {
+  const keys = list.map((w) => windowKey(w.provider, w.root));
+  const lowest = new Map<string, number>();
+  list.forEach((w, i) => lowest.set(keys[i]!, Math.min(w.port, lowest.get(keys[i]!) ?? Infinity)));
+  return list.map((w, i) => (lowest.get(keys[i]!) === w.port ? keys[i]! : `${keys[i]}:${w.port}`));
 }
 
 export type DeviceOptions = {
@@ -192,12 +205,13 @@ export class DeviceChannel {
       const list = this.#o.windows.list();
       const infos = await Promise.all(list.map((w) => windowInfo(w)));
       if (s.closed) return;
-      const windows = list.map((w, i) => {
+      const ids = windowIds(list);
+      const windows = list.map((w, i): HostWindow => {
         const info = infos[i] ?? {};
-        const extra = Object.fromEntries(INFO_FIELDS.filter((k) => info[k] !== undefined).map((k) => [k, info[k]]));
-        return { port: w.port, provider: w.provider, root: w.root, ...extra };
+        const extra = Object.fromEntries(HOST_WINDOW_INFO.filter((k) => info[k] !== undefined).map((k) => [k, info[k]]));
+        return { id: ids[i]!, port: w.port, provider: w.provider, root: w.root, ...extra };
       });
-      const m = JSON.stringify({ t: 'windows', windows });
+      const m = JSON.stringify({ t: 'windows', windows } satisfies HostStreamMessage);
       if (m === last) return;
       last = m;
       s.write(Buffer.from(m));
@@ -213,7 +227,7 @@ export class DeviceChannel {
     void push();
   }
 
-  #wsStream(s: Stream, w: HostWindow, path: string): void {
+  #wsStream(s: Stream, w: ProvedWindow, path: string): void {
     const up = new WebSocket(`ws://127.0.0.1:${w.port}${path}`, { headers: { authorization: w.bearer }, perMessageDeflate: false });
     const opened = new Promise<boolean>((r) => {
       up.once('open', () => r(true));
@@ -244,7 +258,7 @@ export class DeviceChannel {
     });
   }
 
-  #httpStream(s: Stream, w0: HostWindow, method: string, path: string, headers: Record<string, string>, anon: boolean): void {
+  #httpStream(s: Stream, w0: ProvedWindow, method: string, path: string, headers: Record<string, string>, anon: boolean): void {
     const parts: Buffer[] = [];
     let size = 0;
     let req: http.ClientRequest | undefined;
@@ -254,7 +268,7 @@ export class DeviceChannel {
       parts.push(chunk);
     };
     this.#track(s, () => req?.destroy());
-    const send = (w: HostWindow, retried: boolean) => {
+    const send = (w: ProvedWindow, retried: boolean) => {
       const body = Buffer.concat(parts);
       const h: Record<string, string> = { ...headers, ...(anon ? {} : { authorization: w.bearer }), host: `127.0.0.1:${w.port}` };
       if (method !== 'GET' && method !== 'HEAD') h.origin = `http://127.0.0.1:${w.port}`;
@@ -278,7 +292,7 @@ export class DeviceChannel {
     });
   }
 
-  #answer(s: Stream, res: http.IncomingMessage, w: HostWindow, retried: boolean, send: (w: HostWindow, retried: boolean) => void): void {
+  #answer(s: Stream, res: http.IncomingMessage, w: ProvedWindow, retried: boolean, send: (w: ProvedWindow, retried: boolean) => void): void {
     if (res.statusCode === 401 && !retried) {
       res.resume();
       void this.#o.windows.reprove(w.port).then((again) => {

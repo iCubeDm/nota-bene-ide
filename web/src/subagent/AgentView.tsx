@@ -6,7 +6,7 @@ import { Feed } from '@/feed/Feed.tsx';
 import { useAppDispatch, useAppSelector, type AppStore } from '@/store/store.ts';
 import { setAgentTitle, type AgentTab } from '@/tabs/slice.ts';
 import { selectLiveCalls } from '@/tasks/slice.ts';
-import { AGENT_PROTOCOL, OLD_SERVER, fetchSubagent, selectSubagent, selectToolResulted } from './slice.ts';
+import { OLD_SERVER, fetchSubagent, knownOld, selectSubagent, selectToolResulted } from './slice.ts';
 
 /** How often a running subagent is read again while its tab is the visible one. */
 export const POLL_MS = 1500;
@@ -25,7 +25,7 @@ export function AgentView({ tab, active }: { tab: AgentTab; active: boolean }) {
   const session = useAppSelector((s) => s.feed.session?.id ?? null);
   const entry = useAppSelector((s) => selectSubagent(s, tab.tool));
   // protocol 0: no `hello` yet, nothing to claim
-  const noComment = useAppSelector((s) => s.controls.protocol > 0 && s.controls.protocol < AGENT_PROTOCOL);
+  const noComment = useAppSelector((s) => knownOld(s.controls.protocol));
   const { tool } = tab;
   // keep reading only while something says it works: a live task of its call, or the call has no result yet. The
   // server's `running` alone is not enough (a meta without `finished` proves nothing)

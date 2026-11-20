@@ -13,6 +13,7 @@ import { controlClient, type Msg } from './control.ts';
 import { computerName } from './device.ts';
 import { pairHost } from './hostLink.ts';
 import { fingerprint, parsePairUri, readHosts, Refusal, removeHost } from './store.ts';
+import { windowKey } from '../windows.ts';
 
 const script = fileURLToPath(new URL('./crossHost.ts', import.meta.url));
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -84,6 +85,8 @@ describe('a computer as a device of another', () => {
       expect(st).toMatchObject({ relay: null, hostFingerprint: null, online: false });
       expect(st.hosts).toEqual([{ id: host.id, name: host.name, fingerprint: fingerprint(Buffer.from(host.pub, 'base64url')), state: 'online', pairedAt: host.addedAt }]);
       await until(() => a.hostWindows(host.id).some((w) => w.port === ready.port));
+      // the shared HostWindow, with its stable id (issue 511)
+      expect(a.hostWindows(host.id)).toEqual([expect.objectContaining({ id: windowKey('claude', ready.root as string), port: ready.port, provider: 'claude', root: ready.root })]);
 
       ask({ op: 'revoke', id });
       expect(await next()).toEqual({ t: 'revoked' });

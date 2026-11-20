@@ -1630,5 +1630,62 @@
       "tanks": [],
       "extra": null
     }
+  ],
+  "host": [
+    {
+      "t": "windows",
+      "windows": [
+        {
+          "id": "claude:0123456789abcdef",
+          "port": 4781,
+          "provider": "claude",
+          "root": "/home/u/notes",
+          "title": "Plan",
+          "session": "s1",
+          "model": "sonnet",
+          "busy": true,
+          "supervised": false,
+          "pending": false,
+          "last": {
+            "role": "assistant",
+            "text": "done",
+            "at": 1700000000000
+          },
+          "replies": 3,
+          "icon": "abcdef0123456789"
+        },
+        {
+          "id": "claude:0123456789abcdef:4782",
+          "port": 4782,
+          "provider": "claude",
+          "root": "/home/u/notes",
+          "busy": false
+        },
+        {
+          "id": "codex:fedcba9876543210",
+          "port": 4783,
+          "provider": "codex",
+          "root": "/home/u/site",
+          "last": {
+            "role": "user",
+            "text": "old"
+          }
+        }
+      ]
+    },
+    {
+      "t": "windows",
+      "windows": [
+        {
+          "port": 4781,
+          "provider": "omp",
+          "root": "/home/u/notes"
+        }
+      ]
+    },
+    {
+      "t": "windows",
+      "windows": []
+    }
   ]
 }

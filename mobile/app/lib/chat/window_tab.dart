@@ -62,12 +62,11 @@ String modeDescription(AgentMode m, String lang) =>
     webString('mode_${m.toJson()}_desc', lang);
 
 class WindowTab extends ChangeNotifier {
-  WindowTab(
-    this.link,
-    this.port,
-    this.root, {
-    Future<void> Function(Duration)? retry,
-  }) : _retry = retry ?? ((d) => Future<void>.delayed(d)) {
+  WindowTab(this.link, HostWindow w, {Future<void> Function(Duration)? retry})
+    : _key = w.key,
+      root = w.root,
+      _port = w.port,
+      _retry = retry ?? ((d) => Future<void>.delayed(d)) {
     voiceOutbox.attach(
       this,
       send: send,
@@ -82,8 +81,34 @@ class WindowTab extends ChangeNotifier {
   }
 
   final HostLink link;
-  final int port;
+
+  /// The window's key on its host ([HostWindowKey.key]) as it was last listed.
+  String get key => _key;
+  String _key;
   final String root;
+  int _port;
+
+  /// The window as its host lists it now; null while it is not listed. The one on the tab's port first: a second
+  /// window of the folder and agent on a lower port takes the bare id (issue 511), and the chat must not move to it.
+  /// By key only once that port is gone (a restart on another port). The folder too: a host before ids keys by port.
+  HostWindow? get window {
+    final same = link.windows.where((w) => w.root == root);
+    final w =
+        same.where((w) => w.port == _port).firstOrNull ??
+        same.where((w) => w.key == _key).firstOrNull;
+    if (w != null) {
+      _port = w.port;
+      _key = w.key;
+    }
+    return w;
+  }
+
+  /// Transport only: where the window's streams open (the port it was last listed on).
+  int get port {
+    window;
+    return _port;
+  }
+
   final Future<void> Function(Duration) _retry;
 
   /// In memory only: a tab id kept on disk would let a second copy of the app steal the window.
@@ -105,8 +130,7 @@ class WindowTab extends ChangeNotifier {
   num? protocol;
 
   /// What the app keeps for this window beyond the tab, by host and session (the project before the host lists one).
-  late final String _box =
-      '${link.host.id}|${link.windows.where((w) => w.port == port).firstOrNull?.session ?? root}';
+  late final String _box = '${link.host.id}|${window?.session ?? root}';
 
   /// The window's comments of this session (the server's set), with the changes made here it has not acked, which
   /// outlive the app.
@@ -289,7 +313,7 @@ class WindowTab extends ChangeNotifier {
     if (_state == TabState.gone) {
       // only a list the host sent after the close: the one from before still names the window that just went
       final fresh = !identical(link.windows, _goneList);
-      if (fresh && link.windows.any((w) => w.port == port)) {
+      if (fresh && window != null) {
         _open(ch);
       }
       return;

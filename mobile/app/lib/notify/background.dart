@@ -4,6 +4,8 @@
 // [Background.hiddenPause], as before; the periodic check then asks [Background.check].
 import 'dart:async';
 
+import 'package:nb_channel/nb_channel.dart';
+
 import '../hosts/host_link.dart';
 import '../l10n/app_localizations.dart';
 import '../store/notified.dart';
@@ -31,8 +33,7 @@ Future<void> postEvent(
     WaitEvent() => s.notifyWaitingPublic(e.project),
   },
   hostId: e.hostId,
-  port: e.port,
-  root: e.root,
+  window: e.w.key,
   channelName: s.notifyChannelEvents,
 );
 
@@ -143,7 +144,7 @@ class Background {
     final working = [
       for (final l in online)
         for (final w in l.windows)
-          if (w.busy || w.pending) w,
+          if (w.busy == true || w.pending == true) w,
     ];
     if (working.isEmpty) {
       if (_serviceOn) _quiet ??= Timer(linger, () => unawaited(_stop()));
@@ -152,7 +153,7 @@ class Background {
     _quiet?.cancel();
     _quiet = null;
     final s = strings();
-    final text = working.any((w) => w.pending)
+    final text = working.any((w) => w.pending == true)
         ? s.notifyServiceWaiting
         : s.notifyServiceWorking(working.length);
     if (_serviceOn) {
@@ -234,7 +235,7 @@ class Background {
       final w = links
           .of(chat.hostId)
           ?.windows
-          .where((w) => w.port == chat.port && w.root == chat.root)
+          .where((w) => w.key == chat.window)
           .firstOrNull;
       if (w?.session != null) {
         unawaited(platform.cancel('${chat.hostId} ${w!.session}'));

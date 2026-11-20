@@ -203,12 +203,12 @@ it('stopOthers stops every window but this one, of every provider', async () => 
 });
 
 it('issue 297: a paired computer\'s windows as rows, the state from its host stream, the proxy\'s own one current', () => {
-  const last = { role: 'assistant', text: 'done', at: 5 };
+  const last = { role: 'assistant' as const, text: 'done', at: 5 };
   const rows = remoteRows([{ id: 'h1', name: 'Studio', windows: [
     { port: 4777, provider: 'claude', root: '/p/a', title: 'T', session: 's1', busy: true, last },
     { port: 4778, provider: 'codex', root: '/p/b', busy: true, pending: true },
     { port: 4779, provider: 'omp', root: '/p/c' },
-    { port: 4781, provider: 'gpt', root: '/p/d' },
+    { port: 4781, provider: 'gpt' as 'omp', root: '/p/d' }, // a newer computer's agent
   ] }], { host: 'h1', port: 4779 });
   expect(rows).toEqual([
     { provider: 'claude', port: 4777, root: '/p/a', title: 'T', session: 's1', state: 'working', current: false, clients: 0, unseen: 0, last, remote: { host: 'h1', name: 'Studio' } },

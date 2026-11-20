@@ -1,13 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
-import type { RemoteState, ServerEvent } from '@nota-bene/shared';
+import { has, type RemoteState, type ServerEvent } from '@nota-bene/shared';
 import { serverEvent, type RootState } from '../store/store.ts';
 
-/** The server that has the `remote` event and the /remote routes. */
-export const REMOTE_PROTOCOL = 20;
-/** The server that takes a relay access key (`POST /remote/config {accessKey}`, `state.accessKey`). */
-export const ACCESS_KEY_PROTOCOL = 21;
-/** The server that connects to other computers as their device (`state.hosts`, `/remote/connect`, issue 297). */
-export const COMPUTERS_PROTOCOL = 28;
 
 export type RemotePair = Extract<ServerEvent, { kind: 'remote-pair' }>;
 export type RemoteSlice = {
@@ -35,9 +29,9 @@ export const remoteSlice = createSlice({
     b.addCase(serverEvent, (s, a) => {
       const ev = a.payload;
       if (ev.kind === 'hello') {
-        s.supported = ev.protocol >= REMOTE_PROTOCOL;
-        s.keys = ev.protocol >= ACCESS_KEY_PROTOCOL;
-        s.computers = ev.protocol >= COMPUTERS_PROTOCOL;
+        s.supported = has(ev.protocol, 'remote');
+        s.keys = has(ev.protocol, 'accessKeys');
+        s.computers = has(ev.protocol, 'remoteHosts');
       }
       else if (ev.kind === 'remote') s.state = ev.state;
       else if (ev.kind === 'remote-pair') s.pair = ev;

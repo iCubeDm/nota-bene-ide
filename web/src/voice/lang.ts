@@ -1,3 +1,4 @@
+import { has } from '@nota-bene/shared';
 import { getLang } from '@/i18n/index.ts';
 import type { RootState } from '@/store/store.ts';
 
@@ -10,8 +11,6 @@ export function clock(ms: number, up = false): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-/** Protocol 18: the server can detect the spoken language (`detect`), and the host stores the user's choice. */
-export const DETECT_PROTOCOL = 18;
 
 /**
  * What a dictation request says about the language: Auto (the default, `dictationLang` absent or `auto`) asks the server to
@@ -20,7 +19,7 @@ export const DETECT_PROTOCOL = 18;
  */
 export const dictationAsk = (s: RootState): { lang: string; detect?: true } => {
   const pref = s.controls.dictationLang;
-  if (s.controls.protocol < DETECT_PROTOCOL) return { lang: whisperLang() };
+  if (!has(s.controls.protocol, 'voiceDetect')) return { lang: whisperLang() };
   return !pref || pref === 'auto' ? { lang: whisperLang(), detect: true } : { lang: pref };
 };
 

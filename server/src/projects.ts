@@ -5,6 +5,7 @@
 // before anything is sent to it, as the remote connector does (remote/discover.ts). The login is the launcher's (`loginTarget`
 // in bin/nota-bene.mjs): derived from that token, that port and the nonce the listener proved. It goes only into the JSON
 // answer to the page, which navigates to it; never into a log, an error or a URL query.
+import type { HostWindow, LastMessage } from '@nota-bene/shared';
 import { providerStateDir, type AgentProvider } from './agent/provider.ts';
 import path from 'node:path';
 import { helperCredential, loginCredential, proveListener, readSecret, SecretError } from './auth.ts';
@@ -19,7 +20,6 @@ export const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'omp'];
 const PROBE_MS = 700;
 
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
-export type LastMessage = { role: 'user' | 'assistant'; text: string; at?: number };
 export type RunningRow = {
   provider: AgentProvider; port: number; root: string; title: string | null; session: string | null;
   state: ProjectState; current: boolean; clients: number;
@@ -93,7 +93,7 @@ export async function listProjects(own: { port: number; provider: AgentProvider 
 }
 
 /** A paired computer's windows as its host stream lists them (remote/hostLink.ts), for the switcher. */
-export type Computer = { id: string; name: string; windows: { port: number; provider: string; root: string; [k: string]: unknown }[] };
+export type Computer = { id: string; name: string; windows: HostWindow[] };
 
 /**
  * The windows of the paired computers as rows (issue 297), the state from what the host stream says (`pending`, `busy`);
@@ -101,10 +101,11 @@ export type Computer = { id: string; name: string; windows: { port: number; prov
  */
 export function remoteRows(computers: Computer[], current?: { host: string; port: number }): RunningRow[] {
   return computers.flatMap((c) => c.windows.flatMap((w): RunningRow[] => {
-    if (!(PROVIDERS as string[]).includes(w.provider) || typeof w.port !== 'number' || typeof w.root !== 'string') return [];
-    const last = w.last && typeof w.last === 'object' ? w.last as LastMessage : null;
+    // a newer computer's agent this one does not know
+    if (!PROVIDERS.includes(w.provider)) return [];
+    const last = w.last && typeof w.last === 'object' ? w.last : null;
     return [{
-      provider: w.provider as AgentProvider, port: w.port, root: w.root, title: typeof w.title === 'string' ? w.title : null,
+      provider: w.provider, port: w.port, root: w.root, title: typeof w.title === 'string' ? w.title : null,
       session: typeof w.session === 'string' ? w.session : null, state: w.pending ? 'waiting' : w.busy ? 'working' : 'idle',
       current: current?.host === c.id && current.port === w.port, clients: 0, unseen: 0, last, remote: { host: c.id, name: c.name },
     }];

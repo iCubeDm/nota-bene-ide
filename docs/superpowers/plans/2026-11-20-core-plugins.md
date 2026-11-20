@@ -85,7 +85,7 @@ run in parallel with 5–11.
   `mobile/channel/pubspec.yaml` (`nb_protocol` as a dependency), `mobile/channel/lib/src/channel.dart` (generated
   `HostWindow`; extensions `withIcon` and `key => id ?? 'port:$port'`); `mobile/app`: `notify/visible.dart`,
   `home.dart` (`lastChat` by key, the old `"host port root"` form read once), `hosts/host_link.dart`,
-  `chat/window_tab.dart` (lookups by key; `iconSupported` gone); `server/src/remote/CHANNEL.md` (the real fields, the
+  `chat/window_tab.dart` (lookups by key; `iconSupported` a per-host flag); `server/src/remote/CHANNEL.md` (the real fields, the
   ignore-unknown-fields rule for the host stream stated, a Reconnects section).
 - **Produces:** `HostWindow.id = provider:sha1(root)[0..16]`, `<id>:<port>` for the higher ports of a duplicate; the
   phone's window key `(hostId, key)`.
