@@ -67,6 +67,17 @@ it('a union told apart by an enum one variant lacks', () => {
   expect(dart).toContain("if (!json.containsKey('error')) return Done.fromJson(json);");
   expect(dart).toContain("'busy' || 'git' => Refusal.fromJson(json),");
   expect(dart).toContain('final Why error;');
+  // a reason this side does not know is still a refusal, its error \$unknown: no Unknown variant to fall into
+  expect(dart).toContain('_ => Refusal.fromJson(json),');
+  expect(dart).not.toContain('AnswerUnknown');
+});
+
+it('an arm too long for a line splits between values, not inside one', () => {
+  const long = 'x'.repeat(30);
+  const dart = schemaToDart(schema({
+    E: { anyOf: [obj({ kind: { type: 'string', enum: [`${long} || a`, `${long}b`, `${long}c`] } }, ['kind']), obj({ kind: lit('y') }, ['kind'])] },
+  }));
+  expect(dart).toContain(`      '${long} || a' ||\n      '${long}b' ||\n`);
 });
 
 it('a list answer as a typedef', () => {
