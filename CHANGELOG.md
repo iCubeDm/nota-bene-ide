@@ -4,6 +4,7 @@
 
 - **Comments: a comment on a whole picture from the phone no longer gets stuck.** A comment the window refuses no longer sits in the phone's or the page's queue for good.
 - **Comments: images alone are enough.** A comment with only pasted images, or (on the computer) a drawing with no words, can be added; before, the window refused it and it was lost.
+- **Tabs: Usage, Settings, Remote, Changes and Git log survive a reload.** They come back in their place, the active one active, as file tabs do. In Usage, **Where it went** keeps Tasks or Projects (and **All**) when the period or provider changes.
 - **Video edits: reverse a clip.** **Reverse** in the clip panel (also for several clips at once, undoable) plays a video or sound clip's used part backwards, picture and sound, for loops; the edit file says `"reverse": true`. Its fades stay at its ends, trims, cuts and comments keep what plays where, and its waveform and thumbnail are drawn reversed. Photos can't be reversed. The preview plays a reversed copy that ffmpeg makes once per part (at most 1280×720, kept in the project's `.nota-bene/reverse/`, out of git); the clip says *reversing…* until it is ready. Reversing holds the whole part in memory, so a part over about 2 GB of frames is *too long to reverse* and Export refuses it. A reversed clip loses its alpha channel in the export.
 
 ## 2.1.0 — 2026-11-18
