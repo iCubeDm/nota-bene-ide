@@ -136,7 +136,7 @@ function fold(items: Comment[], o: CommentOp): Comment[] {
 }
 
 /** Sends the queued changes not on the wire yet, in order (protocol 19); an offline whole set goes first. */
-export const flushComments = (): AppThunk => (d, getState, { send }) => {
+export const flushComments = (): AppThunk => (d, getState, { connections }) => {
   const st = getState().comments;
   // a whole set changed offline before the server was known to take ops goes first, as a whole set (a 19 server merges it)
   if (st.unsynced || !st.ops) d(resyncComments());
@@ -144,7 +144,7 @@ export const flushComments = (): AppThunk => (d, getState, { send }) => {
   const wired: string[] = [];
   for (const q of st.queue) {
     if (st.wired.includes(q.opId)) continue;
-    if (!send({ type: 'comment-op', opId: q.opId, sessionId: q.sessionId, ops: q.ops })) break;
+    if (!connections.current().send({ type: 'comment-op', opId: q.opId, sessionId: q.sessionId, ops: q.ops })) break;
     wired.push(q.opId);
   }
   if (wired.length) d(commentsSlice.actions.setWired(wired));
@@ -159,15 +159,15 @@ const change = (op: CommentOp, items: Comment[]): AppThunk => (d, getState) => {
 
 /** Update locally first, then send the FULL set; a closed socket keeps the local change for the next sync. */
 // Accepted race: two edits within one round trip can see the first echo overwrite the second locally until the second echo lands.
-const sync = (items: Comment[]): AppThunk => (d, getState, { send }) => {
+const sync = (items: Comment[]): AppThunk => (d, getState, { connections }) => {
   d(commentsSlice.actions.setItems(items));
-  d(commentsSlice.actions.setUnsynced(!send({ type: 'comments', sessionId: getState().feed.session?.id ?? null, items })));
+  d(commentsSlice.actions.setUnsynced(!connections.current().send({ type: 'comments', sessionId: getState().feed.session?.id ?? null, items })));
 };
 
 /** On socket open: re-send local changes made while offline (local wins; last-writer-wins between windows is accepted). */
-export const resyncComments = (): AppThunk => (d, getState, { send }) => {
+export const resyncComments = (): AppThunk => (d, getState, { connections }) => {
   const st = getState().comments;
-  if (st.unsynced && send({ type: 'comments', sessionId: getState().feed.session?.id ?? null, items: st.items })) d(commentsSlice.actions.markResent());
+  if (st.unsynced && connections.current().send({ type: 'comments', sessionId: getState().feed.session?.id ?? null, items: st.items })) d(commentsSlice.actions.markResent());
 };
 
 /** `id`: caller-given (a media comment's mark folder is named by it, so it exists before the comment); else a fresh one. */

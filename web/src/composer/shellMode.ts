@@ -31,7 +31,7 @@ export const commandOf = (draft: string): string => draft.slice(1).trim();
  * 'empty' is a bare `!`; 'offline' sends nothing; 'sent' clears the draft and shows the chat, where the block appears.
  * Never a message to the agent: the server runs it, and the agent hears of it with the next message.
  */
-export const runShellDraft = (): AppThunk<'sent' | 'blocked' | 'empty' | 'offline'> => (d, getState, { send }) => {
+export const runShellDraft = (): AppThunk<'sent' | 'blocked' | 'empty' | 'offline'> => (d, getState, { connections }) => {
   const st = getState();
   const draft = selectDraft(st);
   const cmd = commandOf(draft);
@@ -40,7 +40,7 @@ export const runShellDraft = (): AppThunk<'sent' | 'blocked' | 'empty' | 'offlin
   if (new TextEncoder().encode(cmd).length > SHELL_CMD_MAX) return (toast(t('shellTooLong', byteSize(SHELL_CMD_MAX)), ''), 'blocked');
   if (selectShellRunning(st)) return (toast(t('shellBusy'), ''), 'blocked');
   const id = crypto.randomUUID();
-  if (selectConn(st) !== 'open' || !send({ type: 'shell-run', id, cmd })) return 'offline';
+  if (selectConn(st) !== 'open' || !connections.current().send({ type: 'shell-run', id, cmd })) return 'offline';
   d(shellDraftSent({ id, draft })); // until the server's shell-start: a refusal puts it back
   d(setDraft(''));
   d(activate('chat'));
@@ -48,4 +48,4 @@ export const runShellDraft = (): AppThunk<'sent' | 'blocked' | 'empty' | 'offlin
 };
 
 /** false: the stop did not go out (offline). */
-export const stopShell = (id: string): AppThunk<boolean> => (_d, _g, { send }) => send({ type: 'shell-stop', id });
+export const stopShell = (id: string): AppThunk<boolean> => (_d, _g, { connections }) => connections.current().send({ type: 'shell-stop', id });

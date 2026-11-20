@@ -169,15 +169,15 @@ export const selectOrderWaits = (s: RootState): boolean => s.controls.compactPen
 export const selectCanOrderCompact = (s: RootState): boolean => s.controls.protocol >= COMPACT_ORDER_PROTOCOL;
 
 /** Optimistic: set locally, then send. The server answers every `mode` with one echo (to every socket). */
-export const pickMode = (mode: Mode): AppThunk => (dispatch, getState, { send }) => {
+export const pickMode = (mode: Mode): AppThunk => (dispatch, getState, { connections }) => {
   const c = getState().controls;
   // mid-switch the server ignores it and announces the new session's mode: an optimistic pill would lie
   if (c.mode === mode || c.switching) return;
   dispatch(modeSet(mode));
   // an older server answers no ack: then echoes apply as they come (the quick Shift+Tab race comes back, nothing hangs)
-  if (c.protocol < 2) return void send({ type: 'mode', mode });
+  if (c.protocol < 2) return void connections.current().send({ type: 'mode', mode });
   const id = crypto.randomUUID();
-  if (send({ type: 'mode', mode, id })) dispatch(modeSent(id));
+  if (connections.current().send({ type: 'mode', mode, id })) dispatch(modeSent(id));
 };
 
 export const selectModel = (s: RootState): ControlsState['model'] => s.controls.model;
@@ -191,29 +191,29 @@ export const selectModelSwitchable = (s: RootState): boolean =>
  * Not optimistic (unlike pickMode): nobody flips models in quick succession, and the pill must show what the agent
  * runs, which the server's echo says. `effort` absent: the model's default.
  */
-export const pickModel = (model: string, effort?: EffortLevel): AppThunk => (_d, getState, { send }) => {
+export const pickModel = (model: string, effort?: EffortLevel): AppThunk => (_d, getState, { connections }) => {
   const st = getState();
   if (st.controls.switching || !selectModelSwitchable(st)) return;
-  send({ type: 'model', model, ...(effort && { effort }), id: crypto.randomUUID() });
+  connections.current().send({ type: 'model', model, ...(effort && { effort }), id: crypto.randomUUID() });
 };
 
 export const selectIdleCompact = (s: RootState): IdleCompact | null => s.controls.idleCompact;
 
 /** Optimistic, like pickMode; the server's echo (to every socket) confirms it. Off while Claude Code's settings block it. */
-export const toggleIdleCompact = (): AppThunk => (dispatch, getState, { send }) => {
+export const toggleIdleCompact = (): AppThunk => (dispatch, getState, { connections }) => {
   const st = getState().controls.idleCompact;
   if (!st || st.blocked) return;
   dispatch(idleCompactSet(!st.on));
-  send({ type: 'idle-compact', on: !st.on });
+  connections.current().send({ type: 'idle-compact', on: !st.on });
 };
 
 export const ACTIVITY_THROTTLE_MS = 30_000;
 let lastActivity = -Infinity;
 /** The user touched the UI: tell the server at most once per ACTIVITY_THROTTLE_MS (the idle clock is minutes). */
-export const reportActivity = (now = Date.now()): AppThunk => (_d, getState, { send }) => {
+export const reportActivity = (now = Date.now()): AppThunk => (_d, getState, { connections }) => {
   if (now - lastActivity < ACTIVITY_THROTTLE_MS) return;
   if (getState().controls.protocol < 1) return; // an older server has no idle compaction and refuses `activity`
-  if (send({ type: 'activity' })) lastActivity = now;
+  if (connections.current().send({ type: 'activity' })) lastActivity = now;
 };
 /** tests */
 export const resetActivityThrottle = (): void => void (lastActivity = -Infinity);
@@ -248,12 +248,12 @@ controlsListener.startListening({
  * A Compact while busy goes to a server of protocol 27: it waits there for the next pause (`compact-pending`).
  */
 export type CommandResult = 'sent' | 'busy' | 'switching' | 'offline';
-export const runCommand = (name: 'compact' | 'clear'): AppThunk<CommandResult> => (_d, getState, { send }) => {
+export const runCommand = (name: 'compact' | 'clear'): AppThunk<CommandResult> => (_d, getState, { connections }) => {
   const st = getState();
   if (st.controls.switching) return 'switching';
   if (st.feed.busy && !(name === 'compact' && selectCanOrderCompact(st))) return 'busy';
   if (name === 'clear' && selectOrderWaits(st)) return 'busy';
-  return send({ type: 'command', name }) ? 'sent' : 'offline';
+  return connections.current().send({ type: 'command', name }) ? 'sent' : 'offline';
 };
 
 /**
@@ -262,11 +262,11 @@ export const runCommand = (name: 'compact' | 'clear'): AppThunk<CommandResult> =
  * Switching stays on until the new session's `session` event (after the reset's `replay`) or a `switch` server-error.
  */
 export type SwitchResult = 'sent' | 'busy' | 'switching' | 'offline';
-export const switchSession = (id: string | null, dir: string): AppThunk<SwitchResult> => (dispatch, getState, { send }) => {
+export const switchSession = (id: string | null, dir: string): AppThunk<SwitchResult> => (dispatch, getState, { connections }) => {
   const st = getState();
   if (st.controls.switching) return 'switching';
   if (st.feed.busy) return 'busy';
-  if (st.conn.state !== 'open' || !send({ type: 'switch', id, dir })) return 'offline';
+  if (st.conn.state !== 'open' || !connections.current().send({ type: 'switch', id, dir })) return 'offline';
   dispatch(switchStarted(false));
   return 'sent';
 };
@@ -276,9 +276,9 @@ export const switchSession = (id: string | null, dir: string): AppThunk<SwitchRe
  * escape hatch for a stuck agent; the server interrupts first). It rides the switch phases: the server answers with an
  * empty `replay` and the same session again, and refuses with a `switch` server-error.
  */
-export const restartAgent = (): AppThunk<boolean> => (dispatch, getState, { send }) => {
+export const restartAgent = (): AppThunk<boolean> => (dispatch, getState, { connections }) => {
   const st = getState();
-  if (st.controls.switching || st.conn.state !== 'open' || !send({ type: 'restart' })) return false;
+  if (st.controls.switching || st.conn.state !== 'open' || !connections.current().send({ type: 'restart' })) return false;
   clearTimeout(serverRestartTimer);
   dispatch(switchStarted(true));
   return true;
@@ -288,7 +288,7 @@ export const restartAgent = (): AppThunk<boolean> => (dispatch, getState, { send
  * the header's Stop Nota Bene (⏻), after the other windows: POST /stop; the server answers, then exits 0 and its launcher with it (the session stays and can
  * be resumed). The tab parks on the Stopped overlay at once, before the socket drops, so it never shows a reconnect.
  */
-export const stopWindow = (): AppThunk<Promise<boolean>> => async (_dispatch, getState, { stopSocket }) => {
+export const stopWindow = (): AppThunk<Promise<boolean>> => async (_dispatch, getState, { connections }) => {
   if (getState().controls.switching) return false;
   try {
     const r = await apiFetch('/stop', { method: 'POST' });
@@ -297,7 +297,7 @@ export const stopWindow = (): AppThunk<Promise<boolean>> => async (_dispatch, ge
     toast(t('stopFail'), e instanceof Error ? e.message : String(e));
     return false;
   }
-  stopSocket();
+  connections.current().stop();
   return true;
 };
 
@@ -334,7 +334,7 @@ export const restartInPause = (): AppThunk<Promise<boolean>> => async (dispatch,
 };
 
 /** drops the pending compaction; the server's `compact-pending` updates every page */
-export const cancelCompact = (): AppThunk<boolean> => (_d, _g, { send }) => send({ type: 'compact-cancel' });
+export const cancelCompact = (): AppThunk<boolean> => (_d, _g, { connections }) => connections.current().send({ type: 'compact-cancel' });
 
 /** drops the pending restart; the server's `restart-pending` updates every page */
 export const cancelRestart = (): AppThunk<Promise<boolean>> => async () => {
