@@ -14,9 +14,6 @@ const voiceLangs = <(String, String)>[
   ('de', 'Deutsch'),
 ];
 
-/// The first protocol where the host detects the spoken language (`detect`) and names it (`lang`).
-const detectProtocol = 18;
-
 /// The endonym of [code] for a badge or a screen reader: the app's six by their own names, the code otherwise.
 String voiceLangName(String code) =>
     voiceLangs.where((l) => l.$1 == code).firstOrNull?.$2 ?? code;

@@ -245,6 +245,9 @@ its `/remote` answers 503. Tests use a temporary `NOTA_BENE_HOME` and an in-proc
 
 ## Session rules
 
+- **Protocol features.** A protocol change adds an entry to `FEATURES` (`shared/src/features.ts`) and raises `PROTOCOL`
+  to it; a client gates on `has(protocol, name)` (phone: `hasFeature`), never on a number (the boundary check counts
+  such comparisons in `web/src` and `mobile/app/lib`).
 - **One tab per window.** The first socket owns the session; a second tab can take over, and the old one gets close code
   4001. A reload of the owner within 700 ms is not a second tab.
 - **Switch and ↻ are in-process**: the server closes the agent and resumes (another) session. A new session may start

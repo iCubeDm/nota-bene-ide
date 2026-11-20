@@ -1,9 +1,4 @@
 [
-  "mobile/app/lib/chat/controls.dart -> protocol gate",
-  "mobile/app/lib/chat/window_tab.dart -> protocol gate",
-  "mobile/app/lib/comments/comment_sheet.dart -> protocol gate",
-  "mobile/app/lib/comments/comments.dart -> protocol gate",
-  "mobile/app/lib/files/image_screen.dart -> protocol gate",
   "web/src/anchors/scroll.ts -> web/src/page/frame.ts",
   "web/src/attachments/AttachmentMarkup.tsx -> web/src/comments/CommentPopup.tsx",
   "web/src/attachments/AttachmentMarkup.tsx -> web/src/comments/slice.ts",

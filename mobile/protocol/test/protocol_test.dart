@@ -63,4 +63,11 @@ void main() {
     expect(out.containsKey('title'), isTrue);
     expect(out['title'], isNull);
   });
+
+  test('hasFeature: at, below and above its protocol, and with none', () {
+    expect(hasFeature(Feature.voice.protocol, Feature.voice), isTrue);
+    expect(hasFeature(Feature.voice.protocol - 1, Feature.voice), isFalse);
+    expect(hasFeature(protocolVersion, Feature.voice), isTrue);
+    expect(hasFeature(null, Feature.activity), isFalse);
+  });
 }
