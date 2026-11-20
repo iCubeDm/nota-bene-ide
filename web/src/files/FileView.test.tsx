@@ -67,7 +67,6 @@ it('renders a text file in a data-file-path root, toolbar outside it', async () 
 
 it('long lines wrap by default; the header switch (and Alt+Z) turns it off for every view, remembered', async () => {
   localStorage.removeItem('nb.wrap');
-  wrapLines.reload();
   spec.body = 'x'.repeat(500) + '\n';
   const { r } = setup('notes.txt');
   const pre = await waitFor(() => { const p = r.container.querySelector('[data-file-path] pre'); expect(p?.textContent).toContain('xxx'); return p!; });
@@ -78,7 +77,6 @@ it('long lines wrap by default; the header switch (and Alt+Z) turns it off for e
   expect(pre.className).not.toContain('whitespace-pre-wrap');
   expect(pre.className).toContain('overflow-x-auto');
   expect(localStorage.getItem('nb.wrap')).toBe('0');
-  wrapLines.reload();
   expect(wrapLines.get()).toBe(false);
   act(() => wrapLines.toggle());
   expect(pre.className).toContain('whitespace-pre-wrap');

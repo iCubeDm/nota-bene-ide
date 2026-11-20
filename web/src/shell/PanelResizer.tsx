@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useT } from '@/i18n/index.ts';
+import { storage, string } from '@/sdk/storage.ts';
 
 const STEP = 16;
 /** a panel never takes more than this share of the window, so the middle column keeps room */
@@ -7,13 +8,11 @@ const MAX_SHARE = 0.45;
 
 const clampTo = (w: number, min: number) => Math.round(Math.max(min, Math.min(w, Math.max(min, window.innerWidth * MAX_SHARE))));
 
+const saved = (key: string) => storage.local(key, string, '');
+
 function readWidth(key: string, initial: number, min: number): number {
-  try {
-    const v = Number(localStorage.getItem(key));
-    return Number.isFinite(v) && v > 0 ? clampTo(v, min) : initial;
-  } catch {
-    return initial;
-  }
+  const v = Number(saved(key).get());
+  return Number.isFinite(v) && v > 0 ? clampTo(v, min) : initial;
 }
 
 /**
@@ -25,11 +24,11 @@ export function usePanelWidth(key: string, initial: number, min: number) {
   const set = useCallback((w: number) => {
     const next = clampTo(w, min);
     setWidth(next);
-    try { localStorage.setItem(key, String(next)); } catch { /* storage unavailable: not persisted */ }
+    saved(key).set(String(next));
   }, [key, min]);
   const reset = useCallback(() => {
     setWidth(initial);
-    try { localStorage.removeItem(key); } catch { /* not persisted */ }
+    saved(key).remove();
   }, [key, initial]);
   return { width, set, reset };
 }

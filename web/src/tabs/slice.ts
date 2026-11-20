@@ -1,6 +1,7 @@
 import { createAction, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { TASK_ID, TOOL_USE_ID } from '@nota-bene/shared';
 import type { RootState } from '../store/store.ts';
+import { json, storage } from '../sdk/storage.ts';
 import type { DiagramLang } from '../diagram/render.ts';
 import { sha1 } from '../diagram/sha1.ts';
 
@@ -257,7 +258,7 @@ const isSavedTab = (t: unknown): t is SavedTab => {
 /** Reads `{ tabs, active }`, or the older `{ files, active }`, or the older `{ paths, active }` (this folder only). */
 export function readSavedTabs(root: string): SavedTabs | null {
   try {
-    const v = JSON.parse(localStorage.getItem(tabsKey(root)) ?? 'null');
+    const v = storage.local(tabsKey(root), json<any>(), null).get();
     const active = typeof v?.active === 'string' ? v.active : 'chat';
     // per entry: one bad tab is dropped, the others keep their place (an active id that was dropped falls back in restore)
     if (Array.isArray(v?.tabs)) return { tabs: v.tabs.filter((t: unknown) => isSavedTab(t)), active };

@@ -15,7 +15,6 @@ vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn(async 
 
 beforeEach(() => {
   localStorage.clear();
-  seekStep.reload();
   setLang('en');
   vi.stubGlobal('fetch', vi.fn(async () => new Response('x', { status: 200 })));
 });

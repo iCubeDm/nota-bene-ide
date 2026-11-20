@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { AppThunk, RootState } from '@/sdk';
+import { bool, json, storage, type AppThunk, type RootState } from '@/sdk';
 import { enterRoot } from '../tabs/slice.ts';
 
 /**
@@ -16,13 +16,7 @@ const ancestors = (p: string): string[] => {
 };
 
 /** Open unless the user closed it (store.ts persists it, like the comments panel's): panels start open (R-M6-3). */
-const readTreeOpen = (): boolean => {
-  try {
-    return typeof localStorage === 'undefined' || localStorage.getItem('panel:tree') !== '0';
-  } catch {
-    return true; // storage unavailable: the default, open
-  }
-};
+const readTreeOpen = (): boolean => storage.local('panel:tree', bool, true).get();
 
 export const treeSlice = createSlice({
   name: 'tree',
@@ -73,13 +67,9 @@ export const selectRefreshSeq = (s: RootState): number => s.feed.turnSeq + s.tre
 
 /** `tree:<root>` for this folder (unchanged since M3-07), `tree:<root>:<src>` for another source. */
 export const treeKey = (root: string, src = 'here') => (src === 'here' ? `tree:${root}` : `tree:${root}:${src}`);
+const isDirs = (v: unknown): v is string[] => Array.isArray(v) && v.every((p: unknown) => typeof p === 'string');
 export function readSavedDirs(root: string, src = 'here'): string[] | null {
-  try {
-    const v = JSON.parse(localStorage.getItem(treeKey(root, src)) ?? 'null');
-    return Array.isArray(v) && v.every((p: unknown) => typeof p === 'string') ? v : null;
-  } catch {
-    return null;
-  }
+  return storage.local(treeKey(root, src), json(isDirs), null).get();
 }
 
 /** Show another source in the tree, with the folders that were open there last time. */

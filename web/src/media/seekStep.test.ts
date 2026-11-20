@@ -1,19 +1,17 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { seekStep } from './seekStep.ts';
 
-beforeEach(() => { localStorage.clear(); seekStep.reload(); });
-afterEach(() => { localStorage.clear(); seekStep.reload(); });
+beforeEach(() => localStorage.clear());
+afterEach(() => localStorage.clear());
 
 it('defaults to 5 s, persists a choice, and falls back to 5 on garbage', () => {
   expect(seekStep.get()).toBe(5);
   seekStep.set(0.5);
   expect(localStorage.getItem('nb.seekStep')).toBe('0.5');
-  seekStep.reload();
   expect(seekStep.get()).toBe(0.5);
   for (const bad of ['abc', '7', '', '-1', 'NaN']) {
     localStorage.setItem('nb.seekStep', bad);
-    seekStep.reload();
-    expect(seekStep.get()).toBe(5);
+      expect(seekStep.get()).toBe(5);
   }
 });
 

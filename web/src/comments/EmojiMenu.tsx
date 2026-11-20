@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { getLang, useT } from '@/sdk';
+import { getLang, json, storage, useT } from '@/sdk';
 import { setValueAndCaret } from './insertText.ts';
 import { emojiGroups, loadEmoji, searchShortcodes } from './emoji.ts';
 
@@ -9,22 +9,14 @@ const SEARCH_MAX = 200;
 const MENU_W = 288;
 const MENU_H = 320;
 
+const recent = storage.local(RECENT_KEY, json((v): v is unknown[] => Array.isArray(v)), []);
+
 function readRecent(): string[] {
-  try {
-    const v: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
-    return Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string'))].slice(0, RECENT_MAX) : [];
-  } catch {
-    return [];
-  }
+  return [...new Set(recent.get().filter((x): x is string => typeof x === 'string'))].slice(0, RECENT_MAX);
 }
 
 function pushRecent(emoji: string): void {
-  try {
-    const next = [emoji, ...readRecent().filter((e) => e !== emoji)].slice(0, RECENT_MAX);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-  } catch {
-    /* storage blocked or full: recents are a nicety */
-  }
+  recent.set([emoji, ...readRecent().filter((e) => e !== emoji)].slice(0, RECENT_MAX));
 }
 
 /** Replace the selection (or insert at the caret). */

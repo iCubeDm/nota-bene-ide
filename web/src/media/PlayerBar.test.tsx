@@ -16,7 +16,6 @@ const TAB = `file:${PATH}`;
 
 beforeEach(() => {
   localStorage.clear();
-  seekStep.reload();
   setLang('en');
   // every element is 1000 px wide: the timeline's track too
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect(1000));

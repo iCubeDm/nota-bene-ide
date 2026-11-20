@@ -1,3 +1,5 @@
+import { json, storage } from '@/sdk';
+
 /**
  * How long a compaction usually takes here. The SDK reports no progress while it compacts (only `status: compacting`,
  * then `status: null` and the boundary with its `duration_ms`), so the bar is an estimate: elapsed time against the
@@ -8,23 +10,13 @@ const KEEP = 10;
 /** the user's compactions measured 30–125 s, median ~75 s (transcripts, 2026-10-26) */
 export const DEFAULT_MS = 75_000;
 
-function read(): number[] {
-  try {
-    const v: unknown = JSON.parse(localStorage.getItem(KEY) ?? '[]');
-    return Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number' && x > 0) : [];
-  } catch {
-    return [];
-  }
-}
+const saved = storage.local(KEY, json((v): v is unknown[] => Array.isArray(v)), []);
+const read = (): number[] => saved.get().filter((x): x is number => typeof x === 'number' && x > 0);
 
 /** A live boundary's duration_ms; only the last KEEP are kept. */
 export function recordCompactMs(ms: number): void {
   if (!(ms > 0)) return;
-  try {
-    localStorage.setItem(KEY, JSON.stringify([...read(), ms].slice(-KEEP)));
-  } catch {
-    // storage full or off: the estimate stays at what it was
-  }
+  saved.set([...read(), ms].slice(-KEEP));
 }
 
 export function expectedCompactMs(): number {

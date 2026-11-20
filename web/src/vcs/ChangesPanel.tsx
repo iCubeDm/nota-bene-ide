@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { bool, storage, useStored, useT, useAppDispatch, useAppSelector } from '@/sdk';
 import { PanelResizer, usePanelWidth } from '@/sdk/ui';
 import { openChanges } from '@/tabs/slice.ts';
 import { selectTree } from '@/tree/slice.ts';
@@ -10,8 +10,8 @@ import { useLiveDiff } from './useLiveDiff.ts';
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 const dir = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
-const TREE_KEY = 'panel:changes:tree';
-const readTree = () => { try { return localStorage.getItem(TREE_KEY) === '1'; } catch { return false; } };
+/** the list as a folder tree, remembered */
+const treeView = storage.local('panel:changes:tree', bool, false);
 
 /** The tool window next to Files: what changed, from where. Clicking a file jumps to it in the Changes tab. */
 export function ChangesPanel() {
@@ -24,12 +24,9 @@ export function ChangesPanel() {
   const files = repo?.files ?? [];
   const size = usePanelWidth('panel:changes:width', 300, 200);
   const [filter, setFilter] = useState('');
-  const [tree, setTreeView] = useState(readTree);
+  const tree = useStored(treeView);
   const [shut, setShut] = useState<ReadonlySet<string>>(new Set()); // folders of the tree folded by hand
-  const setTree = (on: boolean) => {
-    setTreeView(on);
-    try { localStorage.setItem(TREE_KEY, on ? '1' : '0'); } catch { /* storage unavailable: not persisted */ }
-  };
+  const setTree = (on: boolean) => treeView.set(on);
   const toggle = (path: string) => setShut((s) => { const n = new Set(s); if (!n.delete(path)) n.add(path); return n; });
   useEffect(() => { if (treeOpen) setPanel(false); }, [treeOpen]); // a reveal opened Files
   if (!panel) return null;
