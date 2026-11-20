@@ -7,8 +7,8 @@ import { closeControl, controlClient, serveControl, write } from './control.ts';
 import { Windows } from './discover.ts';
 import { BACKOFF_MS, LegacyConnector, olderVersion, RemoteKeeper, type PairOutcome } from './keeper.ts';
 import { generateKeyPair } from './noise.ts';
-import { PairError } from './hostLink.ts';
-import { addHost, b64u, hostKey, pairProof, pairTicket, parsePairUri, readAccessKey, readHosts, readConfig, readLastError, remoteDir, writeConfig, writeLastError } from './store.ts';
+import { PairError, pairHost } from './hostLink.ts';
+import { addHost, b64u, hostKey, pairProof, pairTicket, pairUri, parsePairUri, readAccessKey, readHosts, readConfig, readLastError, remoteDir, writeConfig, writeLastError } from './store.ts';
 import { relayPhone } from './testPhone.ts';
 import { startRelay, type TestRelay } from './testRelay.ts';
 
@@ -359,6 +359,17 @@ describe('remote keeper', () => {
     await until(() => revoked() === 1);
     await expect(k.connect('nbremote://nope')).rejects.toThrow(PairError);
     await until(() => revoked() === 2);
+  });
+
+  it('its own pairing code is refused before the relay; with no host key, none is made (issue 505)', async () => {
+    const own = pairUri({ relay: relay.url, hostPub: hostKey().pub, secret: Buffer.alloc(32, 7) });
+    await expect(pairHost(own)).rejects.toThrow(new PairError('this is this computer\'s own pairing code: paste it on the other computer'));
+    expect(readHosts()).toEqual([]);
+    expect(fs.existsSync(path.join(remoteDir(), 'device.key'))).toBe(false); // refused before anything else
+    fs.rmSync(path.join(remoteDir(), 'host.key'));
+    // another computer's code (nobody serves it here): the relay is tried, and checking it made no host key
+    await expect(pairHost(pairUri({ relay: relay.url, hostPub: generateKeyPair().pub, secret: Buffer.alloc(32, 7) }))).rejects.toThrow(/not connected to its relay/);
+    expect(fs.existsSync(path.join(remoteDir(), 'host.key'))).toBe(false);
   });
 
   it('a home never set up: the state says no key and nothing is created', async () => {
