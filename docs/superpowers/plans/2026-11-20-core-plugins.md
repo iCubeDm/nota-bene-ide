@@ -20,7 +20,7 @@ titled `gh-511: <what>`, body `Part of #511`. The epic PR goes to `main` after t
 - E2E (`npm run e2e`, ports 4791–4795) runs on the steps marked **e2e**, where DOM order or wiring moves.
 
 Steps are grouped by number; lettered steps are separate PRs in that order. Steps 1–4 touch contracts and are the
-riskiest across processes; 5a and 8a are the riskiest in the web core. Phone steps 12–13 depend only on 2–4 and may
+riskiest across processes; 5a and 8a are the riskiest in the web core. Phone steps 12–13 depend only on 2a–4 and may
 run in parallel with 5–11.
 
 ---
@@ -31,33 +31,45 @@ run in parallel with 5–11.
 - **Files:** `scripts/boundaries.test.ts` (new, no dependency), `scripts/boundaries.baseline.json` (new),
   `web/src/sdk/index.ts` and `web/src/sdk/ui.ts` (empty modules so the rule has a target).
 - **Produces:** the rules of the spec (plugin → only SDK, core → no plugin, `@/testing` test-only, test files exempt,
-  `localStorage` outside the SDK, numeric protocol gates in `web/src` and `mobile/app/lib`, new
+  `localStorage` outside the SDK, protocol comparisons (numbers or constants) in `web/src` and `mobile/app/lib`, new
   `useSyncExternalStore` outside the SDK); `UPDATE_BOUNDARIES=1`.
 - **Tests:** the check on the real tree; scanner cases on a temp fixture tree: a multi-line `import { a,\n b } from`,
   `import type`, `export { x } from`, `export * from`, side-effect `import '…'`, `import('…')`, a specifier inside a
   string or a comment (not counted), `@/` and relative resolution; a new violation fails, a stale entry fails. If a
   case cannot pass with the regex, the scanner switches to oxc (`rolldown/utils`) in this PR and says why.
-- **Baseline:** created: ~229 plugin→plugin, ~398 plugin→core, ~74 core→plugin, ~21 `localStorage` files, 7 web and
-  ~10 phone protocol gates, 28 `useSyncExternalStore` files.
+- **Baseline:** created: ~229 plugin→plugin, ~398 plugin→core, ~74 core→plugin, ~21 `localStorage` files, 22 web and
+  5 phone protocol-gate files, 28 `useSyncExternalStore` files.
 
-### 2. Capability table in `shared`, generated for Dart
+### 2a. Capability table in `shared`, generated for Dart; phone gates
 
-- **Goal:** no `protocol >= N` anywhere.
+- **Goal:** the `FEATURES` table exists and the phone has no protocol comparison.
 - **Files:** `shared/src/features.ts` (new; the history comments move here from `protocol.ts`), `shared/src/protocol.ts`
-  (re-export, unused `*_PROTOCOL` constants deleted), `scripts/protocol/schema.ts` (`x-features`),
-  `scripts/protocol/dart.ts` (`enum Feature`, `hasFeature`), `mobile/protocol/lib/src/protocol.g.dart` (generated),
-  `shared/schema/protocol.schema.json`; the 7 web gates (`comments/CommentPopup.tsx`, `composer/Composer.tsx`,
-  `media/playerKeys.ts`, `media/PlayerBar.tsx`, `media/markup/MarkupLayer.tsx`, `controls/slice.ts`); phone
-  `chat/window_tab.dart`, `chat/controls.dart`, `comments/comments.dart`, `comments/comment_sheet.dart`,
-  `files/image_screen.dart`, `store/voice_lang.dart`; `docs/agent-reference.md` and `docs/architecture.md` §3.3
-  (the versioning rule only).
+  (re-export), `scripts/protocol/schema.ts` (`x-features`), `scripts/protocol/dart.ts` (`enum Feature`,
+  `hasFeature`), `mobile/protocol/lib/src/protocol.g.dart` (generated), `shared/schema/protocol.schema.json`; phone
+  `chat/window_tab.dart`, `chat/controls.dart`, `comments/comments.dart` (`opsProtocol`),
+  `comments/comment_sheet.dart` (`imagesAloneProtocol`), `files/image_screen.dart` (`wholePictureProtocol`),
+  `store/voice_lang.dart` (`detectProtocol`); `docs/agent-reference.md` and `docs/architecture.md` §3.3 (the versioning
+  rule only).
 - **Produces:** `FEATURES` (several names may share a number), `type Feature`, `has(protocol, f)`; Dart `Feature`,
   `hasFeature`.
 - **Tests:** `shared/src/features.test.ts` (`PROTOCOL` equals the largest entry; `has` at, below, above and with
   `undefined`); `scripts/protocol/dart.test.ts` (the enum is emitted, shared numbers allowed);
-  `mobile/protocol/test/protocol_test.dart` (`hasFeature`); the existing old-server tests (CommentPopup.voice, micSend,
-  controls, CutBody.comments, …) pass unchanged, now through names.
-- **Baseline:** protocol gates → 0 (web and phone).
+  `mobile/protocol/test/protocol_test.dart` (`hasFeature`); the phone's old-server tests pass unchanged.
+- **Baseline:** phone protocol gates 5 → 0.
+
+### 2b. Web gates through `has`
+
+- **Goal:** no protocol comparison in `web/src`; the 14 `*_PROTOCOL` constants are gone.
+- **Files:** the 22 files the check finds: `attachments/ComposerAttachments.tsx`, `comments/CommentPopup.tsx`,
+  `comments/SelectionButton.tsx`, `comments/labels.ts` (`SINCE` → a `Feature` per label), `comments/send.ts`,
+  `comments/slice.ts`, `composer/Composer.tsx`, `composer/shellMode.ts`, `controls/slice.ts`, `cut/CutBody.tsx`,
+  `files/FileView.tsx`, `media/PlayerBar.tsx`, `media/markup/MarkupLayer.tsx`, `media/playerKeys.ts`,
+  `remote/slice.ts`, `settings/SettingsView.tsx`, `subagent/AgentView.tsx`, `subagent/slice.ts`,
+  `tasks/ShellView.tsx`, `tasks/TasksDrawer.tsx`, `tasks/slice.ts`, `voice/lang.ts`; and the constants' other homes
+  (`page/frame.ts`, `cut/pin.ts`, `media/markup/slice.ts`, and their importers).
+- **Tests:** the existing old-server tests (CommentPopup.voice, micSend, controls, CutBody.comments, labels, remote,
+  tasks, …) pass unchanged, now through names.
+- **Baseline:** web protocol gates 22 → 0.
 
 ### 3. The host stream's `windows` message, typed, with a stable window id
 
