@@ -1,0 +1,89 @@
+{
+ "events": [
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "plan it",
+   "ts": 1
+  },
+  {
+   "kind": "mode",
+   "mode": "plan"
+  },
+  {
+   "kind": "permission",
+   "id": "p1",
+   "toolName": "ExitPlanMode",
+   "input": {
+    "plan": "# Plan\n\n1. one\n2. two"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "permission-done",
+   "id": "p1",
+   "allow": true,
+   "ts": 2
+  },
+  {
+   "kind": "mode",
+   "mode": "default"
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "message",
+    "id": "m1:0",
+    "text": "doing it"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "done",
+    "secs": 3,
+    "answers": [
+     "u1"
+    ],
+    "queued": 0
+   },
+   "ts": 1
+  }
+ ],
+ "items": [
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "plan it",
+   "force": false,
+   "duringWork": false,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "permission",
+   "id": "p1",
+   "toolName": "ExitPlanMode",
+   "answer": true,
+   "archived": false
+  },
+  {
+   "kind": "assistant",
+   "id": "m1:0",
+   "text": "doing it",
+   "final": true
+  },
+  {
+   "kind": "done",
+   "key": "l0",
+   "secs": 3,
+   "status": "done",
+   "error": null
+  }
+ ]
+}

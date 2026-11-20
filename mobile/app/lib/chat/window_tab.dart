@@ -17,7 +17,6 @@ import '../comments/strings.g.dart';
 import '../hosts/host_link.dart';
 import '../media/fetch.dart';
 import '../media/media_comment.dart' show WindowHttp;
-import '../store/voice_lang.dart' show detectProtocol;
 import '../voice/outbox.dart';
 import 'feed.dart';
 
@@ -180,13 +179,13 @@ class WindowTab extends ChangeNotifier {
   }
 
   /// Whether the window can detect the spoken language (protocol 18); an older one gets the language alone.
-  bool get detectProtocolOk => (protocol ?? 0) >= detectProtocol;
+  bool get detectProtocolOk => hasFeature(protocol, Feature.voiceDetect);
 
   /// Whether the window speaks protocol 14, where voice messages begin.
-  bool get voiceProtocol => (protocol ?? 0) >= 14;
+  bool get voiceProtocol => hasFeature(protocol, Feature.voice);
 
   /// Whether a voice message may carry the pending comments (protocol 16); an older window gets the recording alone.
-  bool get voiceCommentsProtocol => (protocol ?? 0) >= 16;
+  bool get voiceCommentsProtocol => hasFeature(protocol, Feature.voiceComments);
 
   /// The batch the agent gets for [items] (after [general]), as the desktop writes it, with the images that go along:
   /// one place for the typed send, the comments pane's Send and a recording that carries comments. A media comment is
@@ -263,7 +262,7 @@ class WindowTab extends ChangeNotifier {
   bool get orderWaits => compactPending || held.isNotEmpty;
 
   /// Whether the window orders a Compact while the agent works for its next pause (protocol 27).
-  bool get canOrderCompact => (protocol ?? 0) >= 27;
+  bool get canOrderCompact => hasFeature(protocol, Feature.compactOrder);
 
   /// When the last turn ended in this tab's sight (null after a fresh replay: the feed carries no times).
   DateTime? lastDoneAt;

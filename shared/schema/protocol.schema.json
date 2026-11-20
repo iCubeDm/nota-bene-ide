@@ -3557,5 +3557,37 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
+  "x-features": {
+    "accessKeys": 21,
+    "activity": 1,
+    "agentEvents": 5,
+    "attachmentAnchors": 17,
+    "camera": 9,
+    "commands": 10,
+    "commentOps": 19,
+    "compactOrder": 27,
+    "cutAnchors": 23,
+    "fireLabel": 3,
+    "heldSends": 27,
+    "imagesAlone": 26,
+    "mediaAnchors": 4,
+    "modeAck": 2,
+    "models": 6,
+    "pageAnchors": 13,
+    "polygons": 24,
+    "projectIcon": 15,
+    "providerModes": 12,
+    "remote": 20,
+    "remoteHosts": 28,
+    "remoteProjects": 29,
+    "restartPending": 22,
+    "shellRun": 11,
+    "subagentAnchors": 7,
+    "taskControl": 8,
+    "voice": 14,
+    "voiceComments": 16,
+    "voiceDetect": 18,
+    "wholePicture": 25
+  },
   "x-protocol": 29
 }

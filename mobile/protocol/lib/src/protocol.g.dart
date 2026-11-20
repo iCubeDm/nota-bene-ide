@@ -3,6 +3,45 @@
 
 const int protocolVersion = 29;
 
+enum Feature {
+  activity(1),
+  modeAck(2),
+  fireLabel(3),
+  mediaAnchors(4),
+  agentEvents(5),
+  models(6),
+  subagentAnchors(7),
+  taskControl(8),
+  camera(9),
+  commands(10),
+  shellRun(11),
+  providerModes(12),
+  pageAnchors(13),
+  voice(14),
+  projectIcon(15),
+  voiceComments(16),
+  attachmentAnchors(17),
+  voiceDetect(18),
+  commentOps(19),
+  remote(20),
+  accessKeys(21),
+  restartPending(22),
+  cutAnchors(23),
+  polygons(24),
+  wholePicture(25),
+  imagesAlone(26),
+  compactOrder(27),
+  heldSends(27),
+  remoteHosts(28),
+  remoteProjects(29);
+
+  const Feature(this.protocol);
+  final int protocol;
+}
+
+/// Whether a peer that announced [protocol] understands [f].
+bool hasFeature(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;
+
 enum AgentEffort implements _Json {
   low,
   medium,

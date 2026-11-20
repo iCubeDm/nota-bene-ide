@@ -50,7 +50,7 @@ void main() {
   Future<void> openSheet(
     WidgetTester t, {
     Comment? editing,
-    num protocol = imagesAloneProtocol,
+    num? protocol,
   }) async {
     t.view.physicalSize = const Size(400, 800);
     t.view.devicePixelRatio = 1;
@@ -59,7 +59,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': protocol,
+        'protocol': protocol ?? Feature.imagesAlone.protocol,
         'capabilities': Rig.caps(),
       },
     );
@@ -192,7 +192,7 @@ void main() {
     testWidgets(
       'an older window gets no comment of images alone: it would refuse it (issue 497)',
       (t) async {
-        await openSheet(t, protocol: imagesAloneProtocol - 1);
+        await openSheet(t, protocol: Feature.imagesAlone.protocol - 1);
         await attach(t);
         expect(find.byKey(const ValueKey('send')), findsNothing);
         await t.enterText(

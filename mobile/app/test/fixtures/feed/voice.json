@@ -1,0 +1,144 @@
+{
+ "events": [
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "",
+   "ts": 1,
+   "voice": {
+    "id": "v1",
+    "ms": 1200,
+    "wave": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "kind": "voice-text",
+   "id": "u1",
+   "error": "failed",
+   "ts": 2
+  },
+  {
+   "kind": "user",
+   "id": "u2",
+   "text": "",
+   "ts": 1,
+   "voice": {
+    "id": "v1",
+    "ms": 1200,
+    "wave": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "kind": "voice-text",
+   "id": "u2",
+   "text": "the transcript",
+   "lang": "en",
+   "ts": 3
+  },
+  {
+   "kind": "user",
+   "id": "u3",
+   "text": "typed",
+   "ts": 1,
+   "voice": {
+    "id": "v2",
+    "ms": 500,
+    "wave": []
+   },
+   "voiceLang": "de",
+   "historic": true
+  },
+  {
+   "kind": "voice-text",
+   "id": "u4",
+   "text": "no such message",
+   "ts": 4
+  },
+  {
+   "kind": "user",
+   "id": "u5",
+   "text": "idle compact",
+   "ts": 1,
+   "idle": true,
+   "historic": true
+  },
+  {
+   "kind": "user",
+   "id": "u6",
+   "text": "",
+   "ts": 1,
+   "voice": {
+    "id": "v3",
+    "ms": 300,
+    "wave": [
+     0
+    ]
+   },
+   "historic": true
+  },
+  {
+   "kind": "voice-text",
+   "id": "u6",
+   "error": "off",
+   "ts": 5
+  }
+ ],
+ "items": [
+  {
+   "kind": "user",
+   "id": "u2",
+   "text": "",
+   "force": false,
+   "duringWork": true,
+   "idle": false,
+   "voice": "v1",
+   "voiceText": "the transcript",
+   "voiceError": null,
+   "voiceLang": "en"
+  },
+  {
+   "kind": "user",
+   "id": "u3",
+   "text": "typed",
+   "force": false,
+   "duringWork": false,
+   "idle": false,
+   "voice": "v2",
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": "de"
+  },
+  {
+   "kind": "user",
+   "id": "u5",
+   "text": "idle compact",
+   "force": false,
+   "duringWork": false,
+   "idle": true,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "user",
+   "id": "u6",
+   "text": "",
+   "force": false,
+   "duringWork": false,
+   "idle": false,
+   "voice": "v3",
+   "voiceText": null,
+   "voiceError": "off",
+   "voiceLang": null
+  }
+ ]
+}

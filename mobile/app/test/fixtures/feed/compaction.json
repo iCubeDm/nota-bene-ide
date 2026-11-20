@@ -1,0 +1,125 @@
+{
+ "events": [
+  {
+   "kind": "session",
+   "id": "sess-1",
+   "root": "/project",
+   "title": "Fixture",
+   "model": "model-a"
+  },
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "go",
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "compacting"
+   },
+   "ts": 10
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "compacting"
+   },
+   "ts": 40
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "compacted",
+    "preTokens": 150000,
+    "ms": 4000
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "compact-failed",
+    "error": "not compacting: ignored"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "compacting"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "compact-failed",
+    "error": "too long"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "compacting"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "compact-end"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "done",
+    "secs": 3,
+    "answers": [
+     "u1"
+    ],
+    "queued": 0
+   },
+   "ts": 1
+  }
+ ],
+ "items": [
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "go",
+   "force": false,
+   "duringWork": false,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "marker",
+   "key": "l0",
+   "what": "compacted",
+   "pre": 150000,
+   "error": null
+  },
+  {
+   "kind": "marker",
+   "key": "l1",
+   "what": "compactFailed",
+   "pre": null,
+   "error": "too long"
+  },
+  {
+   "kind": "done",
+   "key": "l2",
+   "secs": 3,
+   "status": "done",
+   "error": null
+  }
+ ]
+}

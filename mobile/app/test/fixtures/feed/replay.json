@@ -1,0 +1,139 @@
+{
+ "events": [
+  {
+   "kind": "user",
+   "id": "live",
+   "text": "dropped by the replay",
+   "ts": 1
+  },
+  {
+   "kind": "replay",
+   "earlier": 2,
+   "events": [
+    {
+     "kind": "session",
+     "id": "sess-1",
+     "root": "/project",
+     "title": "Fixture",
+     "model": "model-a"
+    },
+    {
+     "kind": "user",
+     "id": "u1",
+     "text": "hi",
+     "ts": 1,
+     "historic": true
+    },
+    {
+     "kind": "agent",
+     "e": {
+      "t": "message",
+      "id": "a1:0",
+      "text": "hello"
+     },
+     "ts": 1
+    },
+    {
+     "kind": "agent",
+     "e": {
+      "t": "tool-call",
+      "id": "t1",
+      "name": "Read",
+      "input": {
+       "file_path": "src/a.ts"
+      },
+      "sub": false
+     },
+     "ts": 1
+    },
+    {
+     "kind": "agent",
+     "e": {
+      "t": "tool-update",
+      "id": "t1",
+      "text": "line 1",
+      "isError": false
+     },
+     "ts": 1
+    },
+    {
+     "kind": "agent",
+     "e": {
+      "t": "turn-end",
+      "stop": "done",
+      "secs": 3,
+      "answers": [
+       "u1"
+      ],
+      "queued": 0
+     },
+     "ts": 1
+    },
+    {
+     "kind": "resumed",
+     "id": "0123456789abcdef"
+    }
+   ]
+  },
+  {
+   "kind": "user",
+   "id": "u2",
+   "text": "after the replay",
+   "ts": 1
+  }
+ ],
+ "items": [
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "hi",
+   "force": false,
+   "duringWork": false,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "assistant",
+   "id": "a1:0",
+   "text": "hello",
+   "final": true
+  },
+  {
+   "kind": "tool",
+   "id": "t1",
+   "name": "Read",
+   "arg": "src/a.ts",
+   "sub": false,
+   "result": "line 1",
+   "isError": false,
+   "phase": "reading"
+  },
+  {
+   "kind": "done",
+   "key": "l0",
+   "secs": 3,
+   "status": "done",
+   "error": null
+  },
+  {
+   "kind": "notice",
+   "key": "l1",
+   "text": "01234567"
+  },
+  {
+   "kind": "user",
+   "id": "u2",
+   "text": "after the replay",
+   "force": false,
+   "duringWork": false,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  }
+ ]
+}
