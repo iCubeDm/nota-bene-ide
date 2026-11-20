@@ -470,14 +470,17 @@ int generatedImages(Comment c) =>
           ].where((s) => s.isNotEmpty).join(' '),
           ...clips,
         ].where((s) => s.isNotEmpty).toList();
-        final body = lines.isEmpty ? '' : lines.first;
         final more = lines.skip(1).map((l) => '\n   $l').join();
         final instr = quickLabels
             .where((l) => l.id == c.label)
             .firstOrNull
             ?.instruction;
+        // no words at all (images alone, issue 497): the first line of the tail takes the arrow (compose.ts)
+        final body = lines.isEmpty
+            ? tail.replaceFirst('\n', '')
+            : '${lines.first}$more${instr != null ? '\n   $instr' : ''}$tail';
         // no quote (a comment on the whole picture, issue 494): no line for it
-        return '${i + 1}. [${whereOf(c, feed, lang)}]\n${quote.isEmpty ? '' : '$quote\n'}→ $body$more${instr != null ? '\n   $instr' : ''}$tail';
+        return '${i + 1}. [${whereOf(c, feed, lang)}]\n${quote.isEmpty ? '' : '$quote\n'}→ $body';
       }(),
   ];
   return (

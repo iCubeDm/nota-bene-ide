@@ -32,6 +32,12 @@ test('rejects a comment with empty text and no label, or other bad shapes', () =
   expect(parseClientMessage(comments(comment({ anchor: { ...anchor, source: { kind: 'x' } } })))).toHaveProperty('error');
   expect(parseClientMessage('{"type":"comments","sessionId":null,"items":"no"}')).toHaveProperty('error');
 });
+test('with images a comment\'s text may be empty (issue 497); with none it may not', () => {
+  const c = comment({ text: '', images: ['e'.repeat(64)] });
+  expect(parseClientMessage(comments(c))).toStrictEqual({ type: 'comments', sessionId: null, items: [c] });
+  expect(parseClientMessage(JSON.stringify({ type: 'comment-op', opId: 'o1', sessionId: null, ops: [{ op: 'add', comment: c }] }))).not.toHaveProperty('error');
+  expect(parseClientMessage(comments(comment({ text: '', images: [] })))).toHaveProperty('error');
+});
 test('send accepts commentIds as string[] and rejects other shapes', () => {
   expect(parseClientMessage('{"type":"send","id":"u1","text":"hi","commentIds":["c1"]}'))
     .toEqual({ type: 'send', id: 'u1', text: 'hi', commentIds: ['c1'] });

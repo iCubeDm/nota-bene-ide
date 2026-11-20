@@ -34,6 +34,9 @@ import 'strings.g.dart';
 @visibleForTesting
 Future<Prepared> Function(Uint8List, String) prepareFor = prepareImage;
 
+/// The window that takes a comment of images alone, with no text (protocol 26, issue 497).
+const imagesAloneProtocol = 26;
+
 /// What the sheet gave: a comment to save, or the edited one deleted.
 sealed class SheetResult {}
 
@@ -723,8 +726,12 @@ class _SheetState extends State<_Sheet> {
   Widget _field(AppLocalizations t, NbColors c) {
     final tab = widget.tab;
     final typed = _text.text.trim().isNotEmpty;
+    // images alone: an older window would refuse the comment
     final sendable =
-        typed || _label != null || _clips.isNotEmpty || _images.isNotEmpty;
+        typed ||
+        _label != null ||
+        _clips.isNotEmpty ||
+        (_images.isNotEmpty && (tab?.protocol ?? 0) >= imagesAloneProtocol);
     final voice = tab != null;
     return Builder(
       // a context under the sheet's own messenger, so "Whisper is on" shows above the sheet

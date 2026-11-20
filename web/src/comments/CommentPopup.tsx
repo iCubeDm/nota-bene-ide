@@ -29,7 +29,7 @@ import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import type { ImageEntry } from '@/composer/slice.ts';
 import { mediaLine } from '@/media/markup/geometry.ts';
 import { deleteMarks, type MediaAnchorPatch } from '@/media/markup/createMediaComment.ts';
-import { addComment, setPanelOpen } from './slice.ts';
+import { addComment, IMAGES_ALONE_PROTOCOL, setPanelOpen } from './slice.ts';
 import { useDrag } from './useDrag.ts';
 import { clearPageSelections } from '@/page/frame.ts';
 
@@ -78,6 +78,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   // read from the store at decision time: after an unmount there are no renders to refresh a ref
   const store = useStore<RootState>();
   const protocol = useAppSelector((s) => s.controls.protocol);
+  // images or a drawing without words: an older server would refuse the comment
+  const imagesAlone = protocol >= IMAGES_ALONE_PROTOCOL;
   const root = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState(pending.text ?? '');
@@ -149,7 +151,9 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     const body = text.trim();
     const { prepare, id } = pending;
     // a drawing is content of its own: no text and no label is still a comment
-    const has = !!(prepare || body || label || images.length || clips.length);
+    const has = !!(body || label || clips.length || (imagesAlone && (prepare || images.length)));
+    // images or a drawing an older server would refuse (issue 497): the popup stays, nothing is saved or lost
+    if (!has && (prepare || images.length)) return;
     let prepared: string[] = [];
     let anchor = pending.anchor;
     if (prepare) {
@@ -247,7 +251,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   // the mic inside the field hides once it has something (text, an image); a recorded clip keeps it (one more can be recorded)
   const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
   // as in the composer, Add is always beside the field (off with nothing to add); a drawing and the clips are content of their own
-  const canAdd = hasContent || !!pending.prepare || clips.length > 0;
+  const canAdd = !!text.trim() || clips.length > 0 || (imagesAlone && (hasContent || !!pending.prepare));
   const addButton = (
     <Button className="h-8" disabled={off || !canAdd} aria-busy={busy || waiting || undefined} title={switching ? t('switching') : waiting ? t('voiceClipsWait') : undefined} onClick={() => void add()}>
       {(busy || waiting) && <span aria-hidden className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}

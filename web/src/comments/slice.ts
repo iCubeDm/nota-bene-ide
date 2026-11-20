@@ -9,6 +9,8 @@ export type CommentCard = { id: string; x: number; y: number };
 export type QueuedOp = { opId: string; sessionId: string | null; ops: CommentOp[] };
 /** the server that takes comment ops */
 export const OPS_PROTOCOL = 19;
+/** the server that takes a comment with images and no words (issue 497): a drawing, pasted images */
+export const IMAGES_ALONE_PROTOCOL = 26;
 export type CommentsState = {
   /** what the user sees: the server's set with the queued changes of this session on top */
   items: Comment[];

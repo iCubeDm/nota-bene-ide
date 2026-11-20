@@ -171,7 +171,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 23: cut anchors (a comment on a clip or a moment of a video edit's timeline, issue 430); an `edit` op of a pending cut comment also takes its anchor when it is a cut anchor on the same file (the comment follows its clip). An older server would refuse the comment.
 // 24: polygon media shapes (`MediaShape` kind `polygon`, issue 447) and `mask.png` beside a media comment's frame (`/marks`). An older server would refuse the comment, so the page offers the Mask tool only from 24.
 // 25: a media anchor may have no shapes (a comment on the whole picture, issue 494), and a `comment-op` that does not parse is answered `comment-refused` `invalid`. An older server would refuse such a comment and answer nothing, so the phone offers it only from 25.
-export const PROTOCOL = 25;
+// 26: a comment's text may be empty when it has images (issue 497): pasted images or a drawing alone. An older server would refuse it, so the page and the phone offer it only from 26.
+export const PROTOCOL = 26;
 
 /** A paired phone as the Remote tab lists it (protocol 20). */
 export type RemoteDevice = { id: string; name?: string; fingerprint: string; online: boolean; pairedAt: number };
@@ -540,8 +541,8 @@ const COMMENT_FIELDS: [string, (v: Obj) => boolean][] = [
   ['anchor', (v) => isAnchor(v.anchor)],
   ['voice', (v) => v.voice === undefined || (Array.isArray(v.voice) && v.voice.length <= VOICE_MAX_CLIPS && v.voice.every(isClip))],
   ['label', (v) => v.label === undefined || (QUICK_LABEL_IDS as readonly unknown[]).includes(v.label)],
-  // empty text is allowed only for a one-click quick label, or with recordings
-  ['text', (v) => typeof v.text === 'string' && (v.text !== '' || v.label !== undefined || (Array.isArray(v.voice) && v.voice.length > 0))],
+  // empty text is allowed only for a one-click quick label, with recordings, or with images (issue 497)
+  ['text', (v) => typeof v.text === 'string' && (v.text !== '' || v.label !== undefined || [v.voice, v.images].some((l) => Array.isArray(l) && l.length > 0))],
   ['status', (v) => v.status === 'pending' || v.status === 'sent'],
   ['createdAt', (v) => isOffset(v.createdAt)],
   ['sentIn', (v) => v.sentIn === undefined || typeof v.sentIn === 'string'],
