@@ -252,6 +252,11 @@ it('the popup quote for a media anchor shows the file and the shape count, not a
   expect(screen.queryByText(/«/)).toBeNull();
 });
 
+it('issue 494: a comment on the whole picture (no shapes) shows the file alone', () => {
+  setup({ ...pending, anchor: mediaAnchor({ shapes: [] }), id: MID, prepare: async () => ({ images: [] }) });
+  expect(screen.getByText('scene_v6.png')).toBeInTheDocument();
+});
+
 it('a video quote has the time; one shape is singular', () => {
   const a = mediaAnchor({ source: { kind: 'file', path: 'clip.mp4' }, time: 4.24, shapes: [mediaAnchor().shapes[0]!] });
   setup({ ...pending, anchor: a, id: MID, prepare: async () => ({ images: [] }) });

@@ -289,6 +289,8 @@ class WindowTab extends ChangeNotifier {
 
   void _open(Channel ch) {
     _stream?.close(1000);
+    // a new socket: the comment queue waits for its hello (issue 494)
+    comments.closed();
     _on = ch;
     whisperOn = null;
     final s = _stream = ch.ws(

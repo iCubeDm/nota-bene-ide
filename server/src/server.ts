@@ -793,6 +793,8 @@ export async function startServer(o: {
         }
         if ('error' in msg) {
           reportError(hub, 'ws', msg.error);
+          // a comment op that can never be applied: answered, so the client drops it instead of sending it forever (issue 494)
+          if (msg.opId !== undefined) ws.send(JSON.stringify({ kind: 'comment-refused', opId: msg.opId, reason: 'invalid' }));
           return;
         }
         if (msg.type === 'takeover') return; // the owner has nothing to take

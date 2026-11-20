@@ -179,7 +179,6 @@ const rejectCases: [string, unknown][] = [
   ['polygon points not an array', mediaAnchor({ shapes: [{ kind: 'polygon', color: '#ff3b30', points: '0,0' }] })],
   ['unknown colour', mediaAnchor({ shapes: [{ ...rect, color: '#123456' }] })],
   ['unknown shape kind', mediaAnchor({ shapes: [{ ...rect, kind: 'star' }] })],
-  ['shapes empty', mediaAnchor({ shapes: [] })],
   ['width <= 0', mediaAnchor({ width: 0 })],
   ['height <= 0', mediaAnchor({ height: 0 })],
   ['source is a message', mediaAnchor({ source: { kind: 'message', id: 'm1' } })],
@@ -192,6 +191,22 @@ const rejectCases: [string, unknown][] = [
   ['scale > 1', mediaAnchor({ scale: 1.5 })],
   ['scale not a number', mediaAnchor({ scale: '0.5' })],
 ];
+test('issue 494: a media comment without marks (the phone\'s, on the whole picture) is taken', () => {
+  const c = comment({ anchor: mediaAnchor({ shapes: [] }) });
+  expect(parseMedia(mediaAnchor({ shapes: [] }))).toEqual({ type: 'comments', sessionId: null, items: [c] });
+});
+
+test('issue 494: a refused comment-op keeps its opId and names the op and the field that failed', () => {
+  const op = (ops: unknown, opId: unknown = 'o1') => JSON.stringify({ type: 'comment-op', opId, sessionId: null, ops });
+  const ok = { op: 'add', comment: comment() };
+  expect(parseClientMessage(op([ok, { op: 'add', comment: comment({ anchor: mediaAnchor({ width: 0 }) }) }])))
+    .toEqual({ error: expect.stringContaining('ops[1].comment.anchor'), opId: 'o1' });
+  expect(parseClientMessage(op([{ op: 'add', comment: comment({ createdAt: -1 }) }]))).toEqual({ error: expect.stringContaining('ops[0].comment.createdAt'), opId: 'o1' });
+  expect(parseClientMessage(op([ok, ok, { op: 'move' }]))).toEqual({ error: expect.stringContaining('ops[2]'), opId: 'o1' });
+  expect(parseClientMessage(op([]))).toEqual({ error: expect.any(String), opId: 'o1' });
+  expect(parseClientMessage(op([ok], ''))).not.toHaveProperty('opId');
+});
+
 test.each(rejectCases)('rejects a media anchor: %s', (_name, a) => {
   expect(parseMedia(a)).toHaveProperty('error');
 });

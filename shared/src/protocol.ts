@@ -49,6 +49,7 @@ export type MediaAnchor = {
   version?: string;
   /** set only when the frame and layer files were downscaled to fit MARK_MAX_BYTES (0 < scale < 1; both files) */
   scale?: number;
+  /** empty (protocol 25, issue 494): a comment on the whole picture, as the phone makes one */
   shapes: MediaShape[];
 };
 export type TextAnchor = { source: AnchorSource; start: number; end: number; quote: string; prefix: string; suffix: string };
@@ -169,7 +170,8 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 // 22: a server restart that waits for the agent (gh-422): the server's `restart-pending` event (on attach and when it changes) and `resumed.cut` (the resume after a restart that cut a turn); `POST /restart-server {now}`, `/restart-server/pause`, `/restart-server/cancel`, `/info.restartPending`. An older server restarts at once and sends neither.
 // 23: cut anchors (a comment on a clip or a moment of a video edit's timeline, issue 430); an `edit` op of a pending cut comment also takes its anchor when it is a cut anchor on the same file (the comment follows its clip). An older server would refuse the comment.
 // 24: polygon media shapes (`MediaShape` kind `polygon`, issue 447) and `mask.png` beside a media comment's frame (`/marks`). An older server would refuse the comment, so the page offers the Mask tool only from 24.
-export const PROTOCOL = 24;
+// 25: a media anchor may have no shapes (a comment on the whole picture, issue 494), and a `comment-op` that does not parse is answered `comment-refused` `invalid`. An older server would refuse such a comment and answer nothing, so the phone offers it only from 25.
+export const PROTOCOL = 25;
 
 /** A paired phone as the Remote tab lists it (protocol 20). */
 export type RemoteDevice = { id: string; name?: string; fingerprint: string; online: boolean; pairedAt: number };
@@ -284,7 +286,7 @@ export type CommentOp =
   | { op: 'remove'; id: string };
 /** gone: the comment was deleted, or is missing for an edit; sent: a sent comment cannot change (the client drops the op);
  * failed: the server could not store it (the client keeps the op and sends it again) */
-export type CommentRefusal = 'gone' | 'sent' | 'failed';
+export type CommentRefusal = 'gone' | 'sent' | 'failed' | 'invalid';
 /** at most this many ops in one `comment-op` */
 export const COMMENT_OPS_MAX = 50;
 
@@ -487,7 +489,7 @@ function isMediaAnchorShape(v: Obj): boolean {
     && (v.time === undefined || (typeof v.time === 'number' && Number.isFinite(v.time) && v.time >= 0))
     && (v.version === undefined || (typeof v.version === 'string' && v.version.length <= 200))
     && (v.scale === undefined || (typeof v.scale === 'number' && v.scale > 0 && v.scale < 1))
-    && Array.isArray(v.shapes) && v.shapes.length > 0 && v.shapes.every(isMediaShape);
+    && Array.isArray(v.shapes) && v.shapes.every(isMediaShape);
 }
 
 function isAttachmentAnchorShape(v: Obj): boolean {
@@ -532,17 +534,31 @@ function isAnchor(v: unknown): v is Anchor {
     && typeof v.quote === 'string' && typeof v.prefix === 'string' && typeof v.suffix === 'string';
 }
 
-function isComment(v: unknown): v is Comment {
-  if (!isObj(v) || typeof v.id !== 'string' || !isAnchor(v.anchor) || typeof v.text !== 'string') return false;
-  const labelOk = v.label === undefined || (QUICK_LABEL_IDS as readonly unknown[]).includes(v.label);
-  const voiceOk = v.voice === undefined || (Array.isArray(v.voice) && v.voice.length <= VOICE_MAX_CLIPS && v.voice.every(isClip));
+/** A comment's fields with their checks, in order: the first that fails names what a refused op got wrong (issue 494). */
+const COMMENT_FIELDS: [string, (v: Obj) => boolean][] = [
+  ['id', (v) => typeof v.id === 'string'],
+  ['anchor', (v) => isAnchor(v.anchor)],
+  ['voice', (v) => v.voice === undefined || (Array.isArray(v.voice) && v.voice.length <= VOICE_MAX_CLIPS && v.voice.every(isClip))],
+  ['label', (v) => v.label === undefined || (QUICK_LABEL_IDS as readonly unknown[]).includes(v.label)],
   // empty text is allowed only for a one-click quick label, or with recordings
-  const textOk = v.text !== '' || v.label !== undefined || (Array.isArray(v.voice) && v.voice.length > 0);
-  if (!voiceOk) return false;
-  return labelOk && textOk && (v.status === 'pending' || v.status === 'sent') && isOffset(v.createdAt)
-    && (v.sentIn === undefined || typeof v.sentIn === 'string')
-    && (v.images === undefined || (Array.isArray(v.images) && v.images.every(isImageId)))
-    && (v.genImages === undefined || isOffset(v.genImages));
+  ['text', (v) => typeof v.text === 'string' && (v.text !== '' || v.label !== undefined || (Array.isArray(v.voice) && v.voice.length > 0))],
+  ['status', (v) => v.status === 'pending' || v.status === 'sent'],
+  ['createdAt', (v) => isOffset(v.createdAt)],
+  ['sentIn', (v) => v.sentIn === undefined || typeof v.sentIn === 'string'],
+  ['images', (v) => v.images === undefined || (Array.isArray(v.images) && v.images.every(isImageId))],
+  ['genImages', (v) => v.genImages === undefined || isOffset(v.genImages)],
+];
+
+function isComment(v: unknown): v is Comment {
+  return isObj(v) && COMMENT_FIELDS.every(([, ok]) => ok(v));
+}
+
+/** Which op of [ops] fails, and where: `ops[1].comment.anchor`, or `ops[1]` for the op's own fields. */
+function opFault(ops: unknown[]): string {
+  const i = ops.findIndex((o) => !isCommentOp(o));
+  const o = ops[i];
+  const field = isObj(o) && isObj(o.comment) && (o.op === 'add' || o.op === 'edit') ? COMMENT_FIELDS.find(([, ok]) => !ok(o.comment as Obj))?.[0] : undefined;
+  return `ops[${i}]${field ? `.comment.${field}` : ''}`;
 }
 
 function isCommentOp(v: unknown): v is CommentOp {
@@ -636,7 +652,8 @@ function toImageRef(i: ImageRef): ImageRef {
   return { id: i.id, mediaType: i.mediaType, label: i.label };
 }
 
-export function parseClientMessage(raw: string): ClientMessage | { error: string } {
+/** `opId`: a comment-op that did not parse, answered `comment-refused` `invalid`. */
+export function parseClientMessage(raw: string): ClientMessage | { error: string; opId?: string } {
   let o: unknown;
   try {
     o = JSON.parse(raw);
@@ -661,8 +678,10 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
       return { type: 'comments', sessionId: m.sessionId, items: (m.items as Comment[]).map(toComment) };
     case 'comment-op':
       if (typeof m.opId !== 'string' || m.opId === '' || m.opId.length > 100) return { error: 'comment-op needs opId: a short string' };
-      if (m.sessionId !== null && typeof m.sessionId !== 'string') return { error: 'comment-op needs sessionId: string | null' };
-      if (!Array.isArray(m.ops) || m.ops.length === 0 || m.ops.length > COMMENT_OPS_MAX || !m.ops.every(isCommentOp)) return { error: 'comment-op needs ops: 1 to 50 valid CommentOp' };
+      // past here the opId is usable: the server answers it `invalid`, so the client does not keep the op forever (issue 494)
+      if (m.sessionId !== null && typeof m.sessionId !== 'string') return { error: 'comment-op needs sessionId: string | null', opId: m.opId };
+      if (!Array.isArray(m.ops) || m.ops.length === 0 || m.ops.length > COMMENT_OPS_MAX) return { error: 'comment-op needs ops: 1 to 50 valid CommentOp', opId: m.opId };
+      if (!m.ops.every(isCommentOp)) return { error: `comment-op needs ops: 1 to 50 valid CommentOp; ${opFault(m.ops)} is not`, opId: m.opId };
       return { type: 'comment-op', opId: m.opId, sessionId: m.sessionId, ops: (m.ops as CommentOp[]).map(toCommentOp) };
     case 'interrupt':
       return { type: 'interrupt' };

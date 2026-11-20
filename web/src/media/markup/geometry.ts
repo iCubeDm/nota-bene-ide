@@ -1,4 +1,4 @@
-import type { MediaShape } from '@nota-bene/shared';
+import type { MediaAnchor, MediaShape } from '@nota-bene/shared';
 
 export const round4 = (v: number): number => Math.round(v * 10000) / 10000;
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
@@ -185,4 +185,10 @@ export function mediaTime(t: number): string {
   const ms = Math.round(t * 1000);
   const m = Math.floor(ms / 60000), rest = ms - m * 60000;
   return `${m}:${String(Math.floor(rest / 1000)).padStart(2, '0')}.${String(rest % 1000).padStart(3, '0')}`;
+}
+
+/** A media comment's line: the file's name, the paused time and [count] of its shapes; none for a comment on the whole picture (issue 494). */
+export function mediaLine(a: MediaAnchor, count: (n: number) => string): string {
+  const name = a.source.path.slice(a.source.path.lastIndexOf('/') + 1);
+  return `${name}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''}${a.shapes.length ? ` · ${count(a.shapes.length)}` : ''}`;
 }

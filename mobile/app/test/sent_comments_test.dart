@@ -150,6 +150,8 @@ void main() {
       await t.pumpAndSettle();
       expect(find.textContaining('spoken words'), findsOneWidget);
       expect(find.textContaining('clip.mp4 @ 1:05'), findsOneWidget);
+      // issue 494: no shapes (the whole picture), no shape count
+      expect(find.textContaining('shapes'), findsNothing);
       expect(find.textContaining('look here'), findsOneWidget);
     });
   });

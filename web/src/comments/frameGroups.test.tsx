@@ -59,6 +59,11 @@ it('frameGroups: same path, time, version and size group (>= 2); the key carries
   expect(g).toEqual([{ key: '1:c1,2:c2', idx: [0, 1] }, { key: '4:c4,5:c5', idx: [3, 4] }]);
 });
 
+it('issue 494: a comment on the whole picture (no shapes) has no badge, so it never joins a shared frame', () => {
+  const whole = { ...mc('c2'), anchor: { ...(mc('c2').anchor as Extract<Comment['anchor'], { kind: 'media' }>), shapes: [] } };
+  expect(fg.frameGroups([mc('c1'), whole, mc('c3')])).toEqual([{ key: '1:c1,3:c3', idx: [0, 2] }]);
+});
+
 it('a send with a shared frame builds one composite, disables a second send, and sends 2 images for 3+1 comments', async () => {
   const done = gate();
   const { sent, store } = setup([mc('c1'), mc('c2'), mc('c3'), mc('c4', { path: 'b.png', img: 'b' })]);
