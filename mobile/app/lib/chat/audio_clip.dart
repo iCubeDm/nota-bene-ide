@@ -15,10 +15,10 @@ import '../ui/nb_icon.dart';
 import '../voice/player.dart';
 import '../voice/voice_view.dart' show clock;
 import 'embed.dart';
+import 'paths.dart';
 import 'window_tab.dart';
 
-/// The sounds a reply embeds (the desktop's own list, `AUDIO` of shared/src/cutCheck.ts).
-final soundPath = RegExp(r'\.(mp3|wav|m4a|ogg)$', caseSensitive: false);
+export 'paths.dart' show soundPath;
 
 /// The largest sound the phone reads.
 const soundMaxBytes = 64000000;

@@ -9,7 +9,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
-import '../chat/window_tab.dart' show uuidV4;
+import '../chat/window_connection.dart' show uuidV4;
 import '../media/media_comment.dart';
 import 'files.dart';
 import 'upload.dart';

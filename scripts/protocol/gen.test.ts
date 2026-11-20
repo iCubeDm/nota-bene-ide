@@ -4,7 +4,7 @@ import path from 'node:path';
 import { expect, it } from 'vitest';
 import { DART_PATH } from './dart.ts';
 import { check, generate } from './gen.ts';
-import { mobileStrings } from './mobileStrings.ts';
+import { dartEnum, mobileStrings } from './mobileStrings.ts';
 import { SCHEMA_PATH } from './schema.ts';
 import { ALL_MODES } from '../../shared/src/protocol.ts';
 import { ru } from '../../web/src/i18n/ru.ts';
@@ -63,4 +63,9 @@ it('the mobile strings name every mode in an exhaustive switch and read nothing 
   expect(out).toContain('AgentMode.$unknown => null,');
   expect(out).not.toMatch(/\]!/);
   expect(out).toContain('Intl.plural(');
+});
+
+it('a key that cannot be a Dart enum member as it is fails the strings', () => {
+  expect(dartEnum('K', 'd', ['working', 'clear_2'])).toContain('enum K { working, clear_2 }');
+  for (const k of ['class', 'name', 'values', 'mode-plan', '2x', '']) expect(() => dartEnum('K', 'd', [k])).toThrow(/cannot be a member of K/);
 });

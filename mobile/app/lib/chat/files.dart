@@ -8,21 +8,10 @@ import '../files/image_screen.dart';
 import '../files/text_file_screen.dart';
 import '../files/video_screen.dart';
 import 'feed.dart';
+import 'paths.dart';
 import 'window_tab.dart';
 
-enum FileKind { markdown, image, video }
-
-final _image = RegExp(r'\.(png|jpe?g|gif|webp|bmp)$', caseSensitive: false);
-final _video = RegExp(r'\.(mp4|mov|webm|m4v)$', caseSensitive: false);
-
-/// What the phone opens [path] as, or null when it does not open it.
-FileKind? fileKindOf(String path) => isMarkdownPath(path)
-    ? FileKind.markdown
-    : _image.hasMatch(path)
-    ? FileKind.image
-    : _video.hasMatch(path)
-    ? FileKind.video
-    : null;
+export 'paths.dart' show FileKind, fileKindOf;
 
 IconData fileIcon(String path) => switch (fileKindOf(path)) {
   FileKind.image => Icons.image_outlined,

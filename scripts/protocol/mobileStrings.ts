@@ -1,7 +1,7 @@
 // The app's quick labels and comment-batch strings, from the web's own sources (web/src/comments/labels.ts and
 // web/src/i18n), so the phone sends the batch the desktop would. Written by `npm run gen:protocol`.
 import { ALL_MODES } from '../../shared/src/protocol.ts';
-import { memberName } from './dart.ts';
+import { isDartName, memberName } from './dart.ts';
 import { QUICK_LABELS } from '../../web/src/comments/labels.ts';
 import { de } from '../../web/src/i18n/de.ts';
 import { en } from '../../web/src/i18n/en.ts';
@@ -98,8 +98,12 @@ const text = (d: Record<string, unknown>, key: string): string => {
   return v;
 };
 
-/** a Dart enum of [keys], one line when it fits (as dart format writes it) */
-const dartEnum = (name: string, doc: string, keys: readonly string[]): string => {
+/**
+ * a Dart enum of [keys], one line when it fits (as dart format writes it). A key is looked up by its member's `name`, so
+ * one that cannot be a member as it is (a reserved word, `name`, a dash) fails the generator instead of being renamed.
+ */
+export const dartEnum = (name: string, doc: string, keys: readonly string[]): string => {
+  for (const k of keys) if (!isDartName(k) || k === 'name') throw new Error(`web i18n: ${k} cannot be a member of ${name}`);
   const one = `enum ${name} { ${keys.join(', ')} }`;
   return `/// ${doc}\n${one.length <= 80 ? one : `enum ${name} {\n${keys.map((k) => `  ${k},`).join('\n')}\n}`}`;
 };

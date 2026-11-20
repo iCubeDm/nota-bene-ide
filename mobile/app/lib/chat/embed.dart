@@ -9,7 +9,10 @@ import '../l10n/app_localizations.dart';
 import '../media/fetch.dart';
 import '../theme.dart';
 import 'files.dart';
+import 'paths.dart';
 import 'window_tab.dart';
+
+export 'paths.dart' show embedPath;
 
 /// The project file [src] (as the text wrote it) names in [root], relative to [base] (a folder of the project, `''`
 /// for its root), or null when it is none (outside the project included).
@@ -28,9 +31,6 @@ String? embedFile(String root, String src, {String base = ''}) {
   }
   return projectPath(root, out.join('/'));
 }
-
-/// [src] without its `?query` or `#fragment` (`shot.png?v=2` is `shot.png`; issue 459).
-String embedPath(String src) => src.split(RegExp(r'[?#]')).first;
 
 /// The file name [src] shows: its last segment, decoded.
 String embedName(String src) => decodedName(embedPath(src).split('/').last);

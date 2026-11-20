@@ -65,11 +65,32 @@ it('a union told apart by an enum one variant lacks', () => {
     Why: { type: 'string', enum: ['busy', 'git'] },
   }));
   expect(dart).toContain("if (!json.containsKey('error')) return Done.fromJson(json);");
-  expect(dart).toContain("'busy' || 'git' => Refusal.fromJson(json),");
   expect(dart).toContain('final Why error;');
-  // a reason this side does not know is still a refusal, its error \$unknown: no Unknown variant to fall into
-  expect(dart).toContain('_ => Refusal.fromJson(json),');
+  // a reason this side does not know is still a refusal, its error \$unknown: no Unknown variant to fall into, and
+  // its known reasons need no arms of their own
+  expect(dart).toContain("if (!json.containsKey('error')) return Done.fromJson(json);\n    return Refusal.fromJson(json);\n  }");
   expect(dart).not.toContain('AnswerUnknown');
+  // one read with an unknown reason goes back as it came
+  expect(dart).toContain('if (v.error == Why.$unknown) _raws[v] = json;');
+  expect(dart).toContain('    final raw = _raws[this];\n    if (raw != null) return raw;');
+  expect(dart).toContain('final _raws = Expando<Map<String, Object?>>();');
+});
+
+it('beside a literal-tagged variant, the enum-tagged one is the default and has no arms', () => {
+  const dart = schemaToDart(schema({
+    Answer: { anyOf: [{ $ref: '#/definitions/Done' }, { $ref: '#/definitions/Refusal' }] },
+    Done: obj({ error: lit('none') }, ['error']),
+    Refusal: obj({ error: { $ref: '#/definitions/Why' } }, ['error']),
+    Why: { type: 'string', enum: ['busy', 'git'] },
+  }));
+  expect(dart).toContain("return switch (json['error']) {\n      'none' => Done.fromJson(json),\n      _ => Refusal.fromJson(json),\n    };");
+});
+
+it('a union without an enum tag keeps no raw JSON of its variants', () => {
+  const dart = schemaToDart(schema({
+    E: { anyOf: [obj({ kind: lit('x') }, ['kind']), obj({ kind: lit('y') }, ['kind'])] },
+  }));
+  expect(dart).not.toContain('_raws');
 });
 
 it('an arm too long for a line splits between values, not inside one', () => {

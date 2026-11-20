@@ -9,7 +9,6 @@ import '../comments/chat_anchor.dart' show batchRaw;
 import '../comments/comments.dart' show labelLine, quoteOf;
 import '../comments/strings.g.dart';
 import '../theme.dart';
-import '../voice/upload.dart' show voiceLoader;
 import '../voice/voice_bubble.dart';
 import 'markdown.dart';
 import 'media_card.dart';
