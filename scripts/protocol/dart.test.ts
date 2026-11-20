@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import { schemaToDart } from './dart.ts';
 import { buildSchema, type ProtocolSchema } from './schema.ts';
 
-const schema = (definitions: Record<string, JSONSchema7Definition>): ProtocolSchema => ({ $schema: 'http://json-schema.org/draft-07/schema#', 'x-protocol': 7, definitions });
+const schema = (definitions: Record<string, JSONSchema7Definition>): ProtocolSchema => ({ $schema: 'http://json-schema.org/draft-07/schema#', 'x-protocol': 7, 'x-features': { a: 1 }, definitions });
 const lit = (value: string): JSONSchema7Definition => ({ type: 'string', const: value });
 const obj = (properties: Record<string, JSONSchema7Definition>, required: string[]): JSONSchema7Definition => ({ type: 'object', properties, required });
 
@@ -114,3 +114,9 @@ it('the real schema converts', () => {
   expect(dart).toContain('enum AgentMode');
   expect(schemaToDart(buildSchema())).toBe(dart);
 }, 60_000);
+
+it('the feature table as an enum, numbers shared', () => {
+  const dart = schemaToDart({ ...schema({}), 'x-features': { held: 27, voice: 14, compactOrder: 27 } });
+  expect(dart).toContain('enum Feature {\n  voice(14),\n  held(27),\n  compactOrder(27);\n\n  const Feature(this.protocol);\n  final int protocol;\n}');
+  expect(dart).toContain('bool hasFeature(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;');
+});

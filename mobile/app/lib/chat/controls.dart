@@ -7,7 +7,7 @@ import '../l10n/app_localizations.dart';
 import 'window_tab.dart';
 
 bool modelSwitchable(WindowTab tab) =>
-    (tab.protocol ?? 0) >= 6 &&
+    hasFeature(tab.protocol, Feature.models) &&
     (tab.capabilities?.models ?? false) &&
     tab.models.isNotEmpty;
 

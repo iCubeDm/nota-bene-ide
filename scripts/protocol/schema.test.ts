@@ -1,4 +1,4 @@
-import { PROTOCOL } from '@nota-bene/shared';
+import { FEATURES, PROTOCOL } from '@nota-bene/shared';
 import { expect, it } from 'vitest';
 import { buildSchema, serialize } from './schema.ts';
 
@@ -23,6 +23,10 @@ it('holds every root and what it reaches', () => {
 
 it('carries the protocol version', () => {
   expect(buildSchema()['x-protocol']).toBe(PROTOCOL);
+}, 60_000);
+
+it('carries the feature table', () => {
+  expect(buildSchema()['x-features']).toEqual(FEATURES);
 }, 60_000);
 
 it('is deterministic', () => {

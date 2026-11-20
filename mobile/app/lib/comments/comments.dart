@@ -15,9 +15,6 @@ import 'chat_anchor.dart';
 import 'queue.dart';
 import 'strings.g.dart';
 
-/// The window that takes comment ops; an older one gets the whole set.
-const opsProtocol = 19;
-
 class Comments extends ChangeNotifier {
   Comments(
     this._send,
@@ -169,7 +166,7 @@ class Comments extends ChangeNotifier {
   /// A new socket said hello: [protocol] says how the changes go. The window says hello after its replay and set
   /// (issue 494), so the queue goes now.
   void hello(num? protocol) {
-    _ops = (protocol ?? 0) >= opsProtocol;
+    _ops = hasFeature(protocol, Feature.commentOps);
     _wired.clear();
     flush();
   }
