@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { badgeOf, foldRows, titlePrefix } from './rows.ts';
+import { badgeOf, foldRows, initials, rowTitle, titlePrefix } from './rows.ts';
 import type { RunningRow } from './api.ts';
 
 const row = (o: Partial<RunningRow>): RunningRow => ({
@@ -49,4 +49,28 @@ it('the tab title carries the same badge', () => {
   expect(titlePrefix('!')).toBe('(!) ');
   expect(titlePrefix(4)).toBe('(4) ');
   expect(titlePrefix(null)).toBe('');
+});
+
+it('issue 509: a tile\'s letters: the first two words\' initials, else a word\'s first two characters, else ?', () => {
+  expect(initials('Fix the login form')).toBe('FT');
+  expect(initials('ai-ide')).toBe('AI');
+  expect(initials('crossroad-raiders')).toBe('CR');
+  expect(initials('notes')).toBe('NO');
+  expect(initials('Починить вход')).toBe('ПВ');
+  expect(initials('«пример»')).toBe('ПР');
+  expect(initials('v2 — release, 3.1')).toBe('VR');
+  expect(initials('42')).toBe('42');
+  expect(initials('x')).toBe('X');
+  expect(initials('— … !')).toBe('?');
+  expect(initials('')).toBe('?');
+});
+
+it('issue 509: a row\'s title: this window\'s own, else the first window with one, else none', () => {
+  const [r] = foldRows([
+    row({ port: 1, title: 'Newest', last: { role: 'assistant', text: 'x', at: 30 } }),
+    row({ port: 2, title: 'Mine', current: true, last: { role: 'assistant', text: 'x', at: 20 } }),
+  ]);
+  expect(rowTitle(r!)).toBe('Mine');
+  expect(rowTitle(foldRows([row({ port: 1, title: null, last: { role: 'assistant', text: 'x', at: 30 } }), row({ port: 2, title: 'Older' }), row({ port: 3, current: true })])[0]!)).toBe('Older');
+  expect(rowTitle(foldRows([row({ port: 1 }), row({ port: 2, title: '' })])[0]!)).toBeNull();
 });

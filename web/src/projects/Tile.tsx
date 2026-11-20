@@ -2,7 +2,7 @@
 // state dot) and its one badge; the state names and which states have a window to move to.
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import type { ProjectState } from './api.ts';
-import type { Badge } from './rows.ts';
+import { initials, type Badge } from './rows.ts';
 
 export const folderOf = (root: string) => root.split(/[\\/]/).filter(Boolean).pop() ?? root;
 const DOT: Record<ProjectState, string> = {
@@ -16,16 +16,16 @@ const TILES = ['bg-accent-agent/20 text-accent-agent', 'bg-accent-model/20 text-
   'bg-accent-usage/20 text-accent-usage', 'bg-primary/20 text-primary', 'bg-success/20 text-success', 'bg-warn/20 text-warn'];
 
 /**
- * Two letters of the folder on a colour picked by its path: the same project looks the same everywhere. `ring`: the dot's
- * edge, the surface's colour. `remote`: another computer's (issue 297), a laptop in the corner.
+ * Two letters of its session's title (issue 509), else of the folder, on a colour picked by its path: the same project looks
+ * the same everywhere, whatever its session. `ring`: the dot's edge, the surface's colour. `remote`: another computer's
+ * (issue 297), a laptop in the corner.
  */
-export function Tile({ root, state, remote, ring = 'border-popover' }: { root: string; state?: ProjectState; remote?: boolean; ring?: string }) {
+export function Tile({ root, title, state, remote, ring = 'border-popover' }: { root: string; title?: string | null; state?: ProjectState; remote?: boolean; ring?: string }) {
   let h = 0;
   for (const c of root) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const letters = (folderOf(root).match(/[\p{L}\p{N}]/gu) ?? ['?']).slice(0, 2).join('').toUpperCase();
   return (
     <span aria-hidden className={`relative flex size-8 flex-none items-center justify-center rounded-lg text-[0.6875rem] font-bold ${TILES[h % TILES.length]}`}>
-      {letters}
+      {initials(title || folderOf(root))}
       {state && <span className={`absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 ${ring} ${DOT[state]}`} />}
       {remote && <span data-remote className={`absolute -bottom-1 -left-1 rounded-sm p-px text-muted-foreground ${ring === 'border-chrome' ? 'bg-chrome' : 'bg-popover'}`}><Svg size={10}>{ICONS.laptop}</Svg></span>}
     </span>

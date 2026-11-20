@@ -41,4 +41,15 @@ export function badgeOf(rows: { state: ProjectState; unseen: number; current: bo
   return n > 0 ? n : null;
 }
 
+/** issue 509: a tile's letters from any text: the initials of its first two words, else a lone word's first two characters. */
+export function initials(text: string): string {
+  const words = text.match(/[\p{L}\p{N}]+/gu) ?? [];
+  const s = words.length > 1 ? words[0]![0]! + words[1]![0]! : (words[0] ?? '?').slice(0, 2);
+  return s.toUpperCase();
+}
+
+/** A row's session title: this window's own when it has one, else the first window's with one. */
+export const rowTitle = (r: Pick<ProjectRow, 'windows'>): string | null =>
+  (r.windows.find((w) => w.current && w.title) ?? r.windows.find((w) => w.title))?.title ?? null;
+
 export const titlePrefix = (b: Badge): string => (b === null ? '' : `(${b}) `);
