@@ -1,12 +1,11 @@
 // The CutBody tests' shared setup: an edit file behind a stubbed /edit, the view on it, and a fake clock (issue 472),
 // so a save's SAVE_DELAY and a highlight's FLASH_MS pass in fake time. Module mocks (thumbs, durations, peaks) stay
 // in each test file: vi.mock is hoisted per file.
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
+import { act, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
 import { setLang } from '@/sdk';
-import { makeStore } from '@/store/store.ts';
+import { renderWith, stubRoutes } from '@/testing';
 import { CutBody } from './CutBody.tsx';
 import { SAVE_DELAY } from './useCutDoc.ts';
 
@@ -22,6 +21,9 @@ export const fixture = {
 
 export let disk: { text: string; base: string };
 let ver: number;
+let routes: ReturnType<typeof stubRoutes>;
+/** The requests the view made, as path and query. */
+export const requested = () => routes.calls.map((r) => { const u = new URL(r.url); return u.pathname + u.search; });
 export const write = (text: string) => void (disk = { text, base: `b${++ver}` });
 export const onDisk = () => JSON.parse(disk.text) as Cut;
 export const clipOnDisk = (id: string) => onDisk().clips.find((c) => c.id === id);
@@ -40,19 +42,25 @@ export function setupCut(start: object = fixture) {
       configurable: true, get(this: HTMLElement) { return this.hasAttribute('data-timeline-scroll') ? 1160 : 0; },
     });
     vi.stubGlobal('IntersectionObserver', class { observe() {} disconnect() {} unobserve() {} takeRecords() { return []; } });
-    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
-      if (url.startsWith('/cut/export?')) return Response.json({ ffmpeg: true, job: null });
-      if (url.startsWith('/cut/reverse?')) return Response.json({ making: true }, { status: 202 });
-      if (!url.startsWith('/edit')) return new Response(null, { status: 200 });
-      if (init?.method !== 'POST') return Response.json(disk);
-      const b = JSON.parse(init.body as string) as { text: string; base: string | null };
-      if (b.base !== null && b.base !== disk.base) return Response.json({ error: 'changed' }, { status: 409 });
-      write(b.text);
-      return Response.json({ base: disk.base });
-    }));
+    routes = stubRoutes({
+      '/cut/export': { ffmpeg: true, job: null },
+      // setLang('en') above saves the choice; a refusal would leave it unsynced into the next test
+      '/system/prefs': {},
+      // every media file is there (useMissing asks with HEAD)
+      '/file': () => new Response(null, { status: 200 }),
+      '/cut/reverse': () => Response.json({ making: true }, { status: 202 }),
+      '/edit': async (req) => {
+        if (req.method !== 'POST') return Response.json(disk);
+        const b = (await req.json()) as { text: string; base: string | null };
+        if (b.base !== null && b.base !== disk.base) return Response.json({ error: 'changed' }, { status: 409 });
+        write(b.text);
+        return Response.json({ base: disk.base });
+      },
+    });
   });
   afterEach(() => {
     cleanup();
+    routes.restore();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
@@ -63,14 +71,13 @@ export function setupCut(start: object = fixture) {
 export const elapse = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 
 export async function show(active = true) {
-  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   let on = active;
-  const ui = (text: string) => <Provider store={store}><CutBody text={text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active={on} /></Provider>;
-  const r = render(ui(disk.text));
+  const ui = (text: string) => <CutBody text={text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active={on} />;
+  const r = renderWith(ui(disk.text));
   await waitFor(() => expect(r.container.querySelector('[data-cut-tools]')).not.toBeNull());
   const pps = () => Number(r.container.querySelector('[data-timeline]')!.getAttribute('data-pps'));
   const clip = (id: string) => r.container.querySelector<HTMLElement>(`[data-clip="${id}"]`)!;
-  const gets = () => vi.mocked(fetch).mock.calls.filter(([u, i]) => String(u).startsWith('/edit') && i?.method !== 'POST').length;
+  const gets = () => routes.calls.filter((c) => new URL(c.url).pathname === '/edit' && c.method !== 'POST').length;
   // the file view reads the file again; resolved once the editor's read of its version is answered and handled
   const reread = async () => {
     const n = gets();

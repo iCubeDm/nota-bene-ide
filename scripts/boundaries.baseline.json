@@ -129,7 +129,6 @@
   "web/src/cut/quote.ts -> web/src/media/markup/geometry.ts",
   "web/src/cut/reverse.ts -> web/src/files/kinds.ts",
   "web/src/cut/targets.ts -> useSyncExternalStore",
-  "web/src/cut/testCut.tsx -> web/src/store/store.ts",
   "web/src/cut/useCutKeys.ts -> web/src/media/playerKeys.ts",
   "web/src/cut/useCutKeys.ts -> web/src/media/seekStep.ts",
   "web/src/cut/useMissing.ts -> web/src/files/kinds.ts",
