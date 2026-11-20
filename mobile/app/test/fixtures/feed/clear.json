@@ -1,0 +1,96 @@
+{
+ "events": [
+  {
+   "kind": "session",
+   "id": "sess-1",
+   "root": "/project",
+   "title": "Fixture",
+   "model": "model-a"
+  },
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "before",
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "done",
+    "secs": 3,
+    "answers": [
+     "u1"
+    ],
+    "queued": 0
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "reset",
+    "prev": "sess-0"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "done",
+    "secs": 3,
+    "answers": "all",
+    "queued": 0
+   },
+   "ts": 1
+  },
+  {
+   "kind": "user",
+   "id": "u2",
+   "text": "after",
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "done",
+    "secs": 3,
+    "answers": [
+     "u2"
+    ],
+    "queued": 0
+   },
+   "ts": 1
+  }
+ ],
+ "items": [
+  {
+   "kind": "marker",
+   "key": "l1",
+   "what": "cleared",
+   "pre": null,
+   "error": null
+  },
+  {
+   "kind": "user",
+   "id": "u2",
+   "text": "after",
+   "force": false,
+   "duringWork": false,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "done",
+   "key": "l2",
+   "secs": 3,
+   "status": "done",
+   "error": null
+  }
+ ]
+}

@@ -365,6 +365,12 @@ describe('history before a compaction (R-M7-4)', () => {
     expect(emptyFeed.earlier).toBe(0);
   });
 
+  test('a /clear keeps the epoch: only a replay bumps it, so an older page never matches a later one', () => {
+    const s = replayed(3);
+    expect(s.epoch).toBeGreaterThan(0);
+    expect(reduce(s, agent({ t: 'reset', newId: 'n' })).epoch).toBe(s.epoch);
+  });
+
   test('historyPrepended puts the segment\'s feed items first', () => {
     const s = replayed(1);
     const next = prependHistory(s, page(s, [user({ id: 'u1', text: 'before', historic: true }), message('a1:0', 'old reply'), result()], 1, false));

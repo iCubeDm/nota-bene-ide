@@ -160,7 +160,7 @@ function reduceAgent(s: FeedState, e: WireAgentEvent, ts: number): FeedState {
     {
       const { key, lineN } = lineKey(s);
       const cleared: FeedItem = { kind: 'marker', what: 'cleared', ts, key, ...(e.prev ? { prev: e.prev } : {}) };
-      return { ...emptyFeed, session: s.session, turnSeq: s.turnSeq, lineN, items: [cleared] };
+      return { ...emptyFeed, session: s.session, turnSeq: s.turnSeq, epoch: s.epoch, lineN, items: [cleared] };
     }
     // a compaction: compacting, then its end (compact-failed, compact-end), then (on success) compacted
     case 'compacting': // the CLI repeats it as a keepalive (every 30 s) and at each phase: the compaction started at the first one

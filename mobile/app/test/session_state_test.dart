@@ -107,6 +107,36 @@ void main() {
     }
   });
 
+  testWidgets('the normalized tool kind decides before the name', (t) async {
+    await r.open(t);
+    r.tab!.clock = () => DateTime.now();
+    r.event(user('u1'));
+    r.event(
+      agent({
+        't': 'tool-call',
+        'id': 't1',
+        'name': 'run',
+        'input': {'command': 'ls'},
+        'sub': false,
+        'toolKind': 'command',
+      }),
+    );
+    await flush(t);
+    expect(lineText(t), startsWith('working · running commands · '));
+    r.event(
+      agent({
+        't': 'tool-call',
+        'id': 't2',
+        'name': 'Read',
+        'input': {'url': 'x'},
+        'sub': false,
+        'toolKind': 'search',
+      }),
+    );
+    await flush(t);
+    expect(lineText(t), startsWith('working · searching · '));
+  });
+
   testWidgets('working with no known phase: just working', (t) async {
     await r.open(t);
     r.event(user('u1'));

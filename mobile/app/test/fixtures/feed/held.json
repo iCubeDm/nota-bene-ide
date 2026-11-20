@@ -1,0 +1,291 @@
+{
+ "events": [
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "first",
+   "ts": 1
+  },
+  {
+   "kind": "send-held",
+   "id": "u2"
+  },
+  {
+   "kind": "compact-pending",
+   "pending": true,
+   "held": []
+  },
+  {
+   "kind": "user",
+   "id": "u2",
+   "text": "during work",
+   "ts": 1
+  },
+  {
+   "kind": "user",
+   "id": "u3",
+   "text": "queued",
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "done",
+    "secs": 3,
+    "answers": [
+     "u1"
+    ],
+    "queued": 1
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "cancelled",
+    "sendId": "u3"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "done",
+    "secs": 3,
+    "answers": [
+     "u2"
+    ],
+    "queued": 0
+   },
+   "ts": 1
+  },
+  {
+   "kind": "user",
+   "id": "u4",
+   "text": "forced",
+   "ts": 1,
+   "force": true
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "failed",
+    "secs": 3,
+    "answers": "none",
+    "queued": 0
+   },
+   "ts": 1
+  },
+  {
+   "kind": "user",
+   "id": "u5",
+   "text": "crash",
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "failed",
+    "secs": 3,
+    "answers": "all",
+    "queued": 0,
+    "error": "the agent died"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "user",
+   "id": "u6",
+   "text": "forced again",
+   "ts": 1,
+   "force": true
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "failed",
+    "secs": 3,
+    "answers": "all",
+    "queued": 0,
+    "error": ""
+   },
+   "ts": 1
+  },
+  {
+   "kind": "user",
+   "id": "u7",
+   "text": "empty error",
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "failed",
+    "secs": 3,
+    "answers": "all",
+    "queued": 0,
+    "error": ""
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-start"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "turn-end",
+    "stop": "done",
+    "secs": 1,
+    "answers": "none",
+    "queued": 0
+   },
+   "ts": 1
+  }
+ ],
+ "items": [
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "first",
+   "force": false,
+   "duringWork": false,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "user",
+   "id": "u2",
+   "text": "during work",
+   "force": false,
+   "duringWork": true,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "user",
+   "id": "u3",
+   "text": "queued",
+   "force": false,
+   "duringWork": true,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "done",
+   "key": "l0",
+   "secs": 3,
+   "status": "done",
+   "error": null
+  },
+  {
+   "kind": "done",
+   "key": "l1",
+   "secs": 3,
+   "status": "done",
+   "error": null
+  },
+  {
+   "kind": "user",
+   "id": "u4",
+   "text": "forced",
+   "force": true,
+   "duringWork": false,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "done",
+   "key": "l2",
+   "secs": 3,
+   "status": "interrupted",
+   "error": null
+  },
+  {
+   "kind": "user",
+   "id": "u5",
+   "text": "crash",
+   "force": false,
+   "duringWork": true,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "done",
+   "key": "l3",
+   "secs": 3,
+   "status": "failed",
+   "error": "the agent died"
+  },
+  {
+   "kind": "user",
+   "id": "u6",
+   "text": "forced again",
+   "force": true,
+   "duringWork": false,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "done",
+   "key": "l4",
+   "secs": 3,
+   "status": "interrupted",
+   "error": null
+  },
+  {
+   "kind": "user",
+   "id": "u7",
+   "text": "empty error",
+   "force": false,
+   "duringWork": true,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "done",
+   "key": "l5",
+   "secs": 3,
+   "status": "failed",
+   "error": null
+  },
+  {
+   "kind": "done",
+   "key": "l6",
+   "secs": 1,
+   "status": "done",
+   "error": null
+  }
+ ]
+}

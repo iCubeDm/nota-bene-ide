@@ -15,31 +15,39 @@ enum SessionPhase { reading, searching, editing, running, delegating }
 SessionPhase? sessionPhase(Feed f) {
   if (!f.busy) return null;
   for (final it in f.items.reversed) {
-    if (it is ToolItem && it.result == null) {
-      return switch (it.name.toLowerCase()) {
-        'read' || 'notebookread' => SessionPhase.reading,
-        'grep' ||
-        'glob' ||
-        'ls' ||
-        'find' ||
-        'search' ||
-        'websearch' ||
-        'webfetch' => SessionPhase.searching,
-        'edit' ||
-        'multiedit' ||
-        'write' ||
-        'notebookedit' ||
-        'apply_patch' => SessionPhase.editing,
-        'bash' || 'shell' || 'exec' => SessionPhase.running,
-        'task' || 'agent' => SessionPhase.delegating,
-        _ => null,
-      };
-    }
+    if (it is ToolItem && it.result == null) return toolPhase(it);
     // the turn's own tools only: a user message ends the search
     if (it is UserItem) return null;
   }
   return null;
 }
+
+/// What a tool does: by the agent's normalized kind first (any agent's tool names), by the tool's name for the rest.
+SessionPhase? toolPhase(ToolItem it) =>
+    switch (it.toolKind) {
+      'command' => SessionPhase.running,
+      'search' => SessionPhase.searching,
+      'agent' => SessionPhase.delegating,
+      _ => null,
+    } ??
+    switch (it.name.toLowerCase()) {
+      'read' || 'notebookread' => SessionPhase.reading,
+      'grep' ||
+      'glob' ||
+      'ls' ||
+      'find' ||
+      'search' ||
+      'websearch' ||
+      'webfetch' => SessionPhase.searching,
+      'edit' ||
+      'multiedit' ||
+      'write' ||
+      'notebookedit' ||
+      'apply_patch' => SessionPhase.editing,
+      'bash' || 'shell' || 'exec' => SessionPhase.running,
+      'task' || 'agent' => SessionPhase.delegating,
+      _ => null,
+    };
 
 /// A question to the user (a permission or a plan) is open and nobody has answered it.
 bool awaitsAnswer(Feed f) =>
