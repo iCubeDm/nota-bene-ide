@@ -523,7 +523,51 @@ describe('server', () => {
       expect(codes).toEqual([75]);
       expect(users(c)).toEqual(['work']); // neither the compaction nor the send went before the restart
       const rec = JSON.parse(fs.readFileSync(path.join(home, 'compact-pending', `${id}.json`), 'utf8'));
-      expect(rec).toMatchObject({ compact: true, held: [{ id: 'u2', text: 'after' }] });
+      expect(rec).toMatchObject({ compact: '/compact', held: [{ id: 'u2', text: 'after' }] });
+    });
+
+    it('a typed /compact with instructions while working keeps them', async () => {
+      const codes: number[] = [];
+      const { c } = await working(codes, '?pause=1&held=1');
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: '/compact keep the API notes' }));
+      await until(() => c.events.some((e) => e.kind === 'send-held'));
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => users(c).length === 2, 4000);
+      expect(users(c)).toEqual(['work', '/compact keep the API notes']);
+    });
+
+    it('a send while the ordered compaction itself runs waits for its end', async () => {
+      const codes: number[] = [];
+      supervise();
+      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'x'.repeat(4000), chunk: 1, delayMs: 5, compactMs: 600 }, { text: 'again' }]), webDist: dist, oneTab: false, restartEveryMs: EVERY, exit: (code) => { codes.push(code); } });
+      closers.push(s.close);
+      const c = await connect(s.url, '?pause=1&held=1');
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'work' }));
+      await until(() => c.events.some((e) => e.kind === 'agent' && e.e.t === 'message-chunk'));
+      c.ws.send(JSON.stringify({ type: 'command', name: 'compact' }));
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => users(c).includes('/compact'), 4000);
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'after' }));
+      await until(() => c.events.some((e) => e.kind === 'send-held' && e.id === 'u2'));
+      expect(users(c)).toEqual(['work', '/compact']);
+      await until(() => users(c).length === 3, 4000);
+      expect(users(c)).toEqual(['work', '/compact', 'after']);
+    });
+
+    it('Clear while a compaction is pending (the agent idle, a `!` run going): refused, button and typed', async () => {
+      const codes: number[] = [];
+      const { c } = await working(codes, '?pause=1&held=1');
+      c.ws.send(JSON.stringify({ type: 'command', name: 'compact' }));
+      c.ws.send(JSON.stringify({ type: 'shell-run', id: 'r1', cmd: 'sleep 2' }));
+      await until(() => c.events.some((e) => e.kind === 'shell-start'));
+      c.ws.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => c.events.some(isResult));
+      c.ws.send(JSON.stringify({ type: 'command', name: 'clear' }));
+      await until(() => c.events.some((e) => e.kind === 'server-error' && e.where === 'busy'));
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: '/clear' }));
+      await until(() => c.events.some((e) => e.kind === 'send-refused' && e.id === 'u2'));
+      expect(users(c)).toEqual(['work']);
+      expect(lastOrder(c)).toMatchObject({ pending: true });
     });
 
     it('cancel (held=1): the held send goes at once, no compaction', async () => {

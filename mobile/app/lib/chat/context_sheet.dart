@@ -198,7 +198,7 @@ class ContextSheet extends StatelessWidget {
                         NbGlyph.clear,
                         t.tileClear,
                         tooltip: webString('clearTip', lang),
-                        enabled: open && !tab.busy,
+                        enabled: open && !tab.busy && !tab.orderWaits,
                         onTap: () => _clear(context),
                       ),
                     ),

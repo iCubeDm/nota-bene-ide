@@ -366,6 +366,26 @@ void main() {
     expect(r.sent, isEmpty);
   });
 
+  testWidgets(
+    'Clear is off while a compaction is pending or messages are held (issue 499)',
+    (t) async {
+      await r.open(
+        t,
+        hello: {'kind': 'hello', 'protocol': 27, 'capabilities': Rig.caps()},
+      );
+      r.event({'kind': 'compact-pending', 'pending': true, 'held': <Object>[]});
+      await r.openContextSheet(t);
+      await t.tap(find.text('Clear'));
+      await t.pumpAndSettle();
+      expect(find.text(webString('clearTitle', 'en')), findsNothing);
+      expect(
+        runWindowCommand(r.tab!, ClientMessageCommandName.clear, 'en'),
+        webString('working', 'en'),
+      );
+      expect(r.sent, isEmpty);
+    },
+  );
+
   testWidgets('no Clear when the agent cannot', (t) async {
     await r.open(
       t,

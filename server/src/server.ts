@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -255,7 +256,8 @@ export async function startServer(o: {
       busy: notPaused,
       switching: () => manager.switching(),
       restartPending: () => restart.pending(),
-      compact: () => manager.command('compact'),
+      // the user's /compact, with the instructions typed after it, as a typed one goes in a pause
+      compact: (text) => void manager.send({ id: randomUUID(), text }),
       send: (m) => void manager.send(m),
       changed: () => hub.emit({ kind: 'compact-pending', ...order.view() }, { store: false }),
       report: (e) => reportError(hub, 'compact', e),
@@ -277,7 +279,7 @@ export async function startServer(o: {
     const forgetDeleted = (id: string) => {
       const parts: [string, () => void][] = [
         ['history', () => archive.forget(id)], ['prompts', () => prompts.forget(id)], ['comments', () => store.forget(id)],
-        ['archived', () => setArchived(id, false)], ['last session', () => void forgetSession(id)],
+        ['archived', () => setArchived(id, false)], ['last session', () => void forgetSession(id)], ['compact-pending', () => order.forget(id)],
       ];
       for (const [what, drop] of parts) {
         try { drop(); } catch (e) { reportError(hub, `sessions/delete ${what}`, e); }
@@ -618,14 +620,14 @@ export async function startServer(o: {
             // issue 499: a typed /compact while the agent works (or behind a pending order) is the pending compaction
             if (holds.has(ws) && caps.compact && !msg.commentIds?.length && !manager.switching() && trackedCommand(msg.text, manager.commands()) === 'compact'
               && (manager.busy() || order.holding())) {
-              order.order();
+              order.order(msg.text);
               ws.send(JSON.stringify({ kind: 'send-held', id: msg.id }));
               break;
             }
             {
               // before markSent: a refused send must not flip its comments to sent. Only the asking socket hears
-              // of it (not stored, not broadcast)
-              const why = manager.refusal(msg.text);
+              // of it (not stored, not broadcast). A /clear waits for nobody: refused behind a pending order (issue 499)
+              const why = manager.refusal(msg.text) ?? (order.holding() && trackedCommand(msg.text, manager.commands()) === 'clear' ? 'busy' : null);
               if (why) {
                 ws.send(JSON.stringify({ kind: 'send-refused', id: msg.id, reason: why }));
                 break;
@@ -745,7 +747,9 @@ export async function startServer(o: {
           case 'command':
             if (!caps[msg.name]) return refuse(`command ${msg.name}`);
             // issue 499: Compact while the agent works (or behind a pending restart) is ordered for the next pause
-            if (msg.name === 'compact' && holds.has(ws) && !manager.switching() && (manager.busy() || order.holding())) order.order();
+            if (msg.name === 'compact' && holds.has(ws) && !manager.switching() && (manager.busy() || order.holding())) order.order('/compact');
+            // a /clear must not run ahead of a pending compaction and the sends held behind it
+            else if (msg.name === 'clear' && order.holding()) reportError(hub, 'busy', new Error('a compaction or restart is pending; the command was not sent'));
             else manager.command(msg.name);
             break;
           case 'compact-cancel':

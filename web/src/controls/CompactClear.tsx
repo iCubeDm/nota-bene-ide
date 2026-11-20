@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useT } from '@/i18n/index.ts';
 import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
-import { runCommand, selectCanOrderCompact, selectCapabilities, selectCompactPending, selectCapabilitiesKnown, selectIdleCompact, selectSwitching, toggleIdleCompact } from './slice.ts';
+import { runCommand, selectCanOrderCompact, selectCapabilities, selectCompactPending, selectOrderWaits, selectCapabilitiesKnown, selectIdleCompact, selectSwitching, toggleIdleCompact } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
 
 const ICON = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const;
@@ -16,8 +16,9 @@ const ICON = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strok
 export function CompactClear() {
   const t = useT();
   const dispatch = useAppDispatch();
-  // off mid-switch too: the server would refuse them as `busy`, and they belong to the session being left
-  const busy = useAppSelector((s) => selectBusy(s) || selectSwitching(s));
+  // off mid-switch too: the server would refuse them as `busy`, and they belong to the session being left; Clear also
+  // behind a pending compaction or held sends (issue 499), which it would run ahead of
+  const busy = useAppSelector((s) => selectBusy(s) || selectSwitching(s) || selectOrderWaits(s));
   // protocol 27 (issue 499): Compact while the agent works is ordered for the next pause; once ordered, again is nothing
   const compactOff = useAppSelector((s) => selectSwitching(s) || selectCompactPending(s) || (selectBusy(s) && !selectCanOrderCompact(s)));
   const [asking, setAsking] = useState(false);

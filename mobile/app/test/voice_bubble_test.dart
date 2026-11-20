@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/store/voice_lang.dart';
+import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_app/voice/player.dart';
 
 import 'support/rig.dart';
@@ -311,4 +313,46 @@ void main() {
     expect(m['lang'], 'de');
     expect(m.containsKey('detect'), isFalse);
   });
+
+  // issue 499: the socket dropped before the `send-held` of a voice message: the new one replays, then says what it holds
+  for (final heldIt in [true, false]) {
+    testWidgets(
+      'protocol 27: a voice message lost from sight in a drop is ${heldIt ? 'kept when the window holds it' : 'failed when it does not'}',
+      (t) async {
+        await r.open(
+          t,
+          hello: {'kind': 'hello', 'protocol': 27, 'capabilities': Rig.caps()},
+        );
+        r.ch.onHttp = (port, method, path) async => (
+          status: 200,
+          headers: const <String, String>{},
+          body: Uint8List.fromList(utf8.encode(jsonEncode(voice))),
+        );
+        final box = r.tab!.voiceOutbox;
+        box.submit(Uint8List(64), 'en');
+        await t.pump();
+        await t.pump();
+        final id = r.sent.last['id'] as String;
+        r.event({'kind': 'replay', 'events': <Object>[]});
+        await t.pump();
+        expect(
+          box.entries.single.stage,
+          OutStage.sent,
+        ); // not judged before the window says what it holds
+        r.event({
+          'kind': 'compact-pending',
+          'pending': true,
+          'held': [
+            if (heldIt) {'id': id, 'text': '', 'ts': 1},
+          ],
+        });
+        await t.pump();
+        if (heldIt) {
+          expect(box.entries, isEmpty);
+        } else {
+          expect(box.entries.single.stage, OutStage.failed);
+        }
+      },
+    );
+  }
 }

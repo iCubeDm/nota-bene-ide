@@ -164,6 +164,8 @@ export const selectCompactPending = (s: RootState): boolean => s.controls.compac
 export const selectHeld = (s: RootState): HeldSend[] => s.controls.held;
 /** protocol 27 (issue 499): the server orders a Compact while the agent works for the next pause */
 export const COMPACT_ORDER_PROTOCOL = 27;
+/** a compaction is pending or sends are held (issue 499): a /clear would run ahead of them */
+export const selectOrderWaits = (s: RootState): boolean => s.controls.compactPending || s.controls.held.length > 0;
 export const selectCanOrderCompact = (s: RootState): boolean => s.controls.protocol >= COMPACT_ORDER_PROTOCOL;
 
 /** Optimistic: set locally, then send. The server answers every `mode` with one echo (to every socket). */
@@ -250,6 +252,7 @@ export const runCommand = (name: 'compact' | 'clear'): AppThunk<CommandResult> =
   const st = getState();
   if (st.controls.switching) return 'switching';
   if (st.feed.busy && !(name === 'compact' && selectCanOrderCompact(st))) return 'busy';
+  if (name === 'clear' && selectOrderWaits(st)) return 'busy';
   return send({ type: 'command', name }) ? 'sent' : 'offline';
 };
 

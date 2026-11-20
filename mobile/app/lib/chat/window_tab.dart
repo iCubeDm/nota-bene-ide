@@ -235,6 +235,9 @@ class WindowTab extends ChangeNotifier {
   /// A server restart waits for the agent's next pause (`restart-pending`, protocol 22): the held messages wait for it first.
   bool restartPending = false;
 
+  /// A compaction is pending or messages are held: a /clear would run ahead of them, so it waits like one while busy.
+  bool get orderWaits => compactPending || held.isNotEmpty;
+
   /// Whether the window orders a Compact while the agent works for its next pause (protocol 27).
   bool get canOrderCompact => (protocol ?? 0) >= 27;
 
@@ -384,10 +387,13 @@ class WindowTab extends ChangeNotifier {
         _takeoverWanted = false;
         _passive = false;
         feed.apply(e);
-        voiceOutbox.reconcile({
-          for (final i in feed.items)
-            if (i is UserItem) i.id,
-        });
+        // a window of protocol 27 may hold a message it never told this socket of (issue 499): judge once its
+        // `compact-pending`, which follows the replay, says what it holds
+        if (canOrderCompact) {
+          _reconcileHeld = true;
+        } else {
+          _reconcile();
+        }
         _set(TabState.open);
         // what waited for the window goes on now that it takes messages
         voiceOutbox.opened();
@@ -437,6 +443,7 @@ class WindowTab extends ChangeNotifier {
       case ServerEventCompactPending(:final pending, :final held):
         compactPending = pending;
         this.held = held;
+        if (_reconcileHeld) _reconcile();
       case ServerEventRestartPending(:final pending):
         restartPending = pending;
       case ServerEventSendHeld(:final id):
@@ -487,6 +494,18 @@ class WindowTab extends ChangeNotifier {
       _notify();
     }
     return sent;
+  }
+
+  bool _reconcileHeld = false;
+
+  /// After a replay: what the window shows or holds has arrived; what was sent and is in neither was lost with the socket.
+  void _reconcile() {
+    _reconcileHeld = false;
+    voiceOutbox.reconcile({
+      for (final i in feed.items)
+        if (i is UserItem) i.id,
+      for (final h in held) h.id,
+    });
   }
 
   bool _loadingEarlier = false;

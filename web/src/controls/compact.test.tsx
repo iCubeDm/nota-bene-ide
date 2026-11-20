@@ -204,3 +204,14 @@ it('an older server: Compact stays off while busy', () => {
   emit({ kind: 'hello', protocol: 26 }, { kind: 'user', id: 'u1', text: 'hi', ts: 1 });
   expect(screen.getByRole('button', { name: /Compact context/ })).toBeDisabled();
 });
+
+it('Clear is off while a compaction is pending or sends are held, the agent idle (a `!` run or a task holds the pause)', () => {
+  const { emit, store } = setup();
+  emit({ kind: 'hello', protocol: 27 }, { kind: 'compact-pending', pending: true, held: [] });
+  expect(store.getState().feed.busy).toBe(false);
+  expect(screen.getByRole('button', { name: /Clear context/ })).toBeDisabled();
+  emit({ kind: 'compact-pending', pending: false, held: [{ id: 'h1', text: 'x', ts: 1 }] });
+  expect(screen.getByRole('button', { name: /Clear context/ })).toBeDisabled();
+  emit({ kind: 'compact-pending', pending: false, held: [] });
+  expect(screen.getByRole('button', { name: /Clear context/ })).toBeEnabled();
+});
