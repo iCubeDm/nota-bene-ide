@@ -1,3 +1,4 @@
+import { has } from '@nota-bene/shared';
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { keysInScope } from '@/lib/keyScope.ts';
 import { useT } from '@/i18n/index.ts';
@@ -89,7 +90,7 @@ export function usePlayerKeys({ tabId, active, marking, media, image, box }: {
 }): Flash | null {
   const t = useT();
   const dispatch = useAppDispatch();
-  const offered = useAppSelector((s) => s.controls.protocol >= 4);
+  const offered = useAppSelector((s) => has(s.controls.protocol, 'mediaAnchors'));
   const [flash, setFlash] = useState<Flash | null>(null);
   const n = useRef(0);
   const unit = t('unitSec');

@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { SubagentView } from '@nota-bene/shared';
+import { has, type SubagentView } from '@nota-bene/shared';
 import { emptyFeed, reduce, type FeedItem, type FeedState } from '../store/feed.ts';
 import type { AppThunk, RootState } from '../store/store.ts';
 import { openAgent } from '../tabs/slice.ts';
@@ -76,7 +76,7 @@ export const fetchSubagent = (tool: string, signal?: AbortSignal): AppThunk<Prom
   // an older server has no /subagent (its page fallback answers HTML): say what helps, not a JSON parse error
   const old = () => (dispatch(failed({ tool, session, status: 'error', error: OLD_SERVER })), 'error' as const);
   const { protocol } = getState().controls;
-  if (protocol > 0 && protocol < AGENT_PROTOCOL) return old(); // known old: not even asked
+  if (knownOld(protocol)) return old(); // known old: not even asked
   try {
     const r = await apiFetch(`/subagent?session=${encodeURIComponent(session)}&tool=${encodeURIComponent(tool)}`, { signal });
     if (stale()) return 'stale';
@@ -113,8 +113,8 @@ export const itemsOf = (s: RootState, agent?: string): FeedItem[] | null => {
 /** The error of a read from a server without /subagent: the tab asks for a server restart. */
 export const OLD_SERVER = 'old-server';
 
-/** The first protocol whose server keeps `source.agent` on a comment's anchor (older ones drop it): below it, no comments in a subagent's tab. */
-export const AGENT_PROTOCOL = 7;
+/** A server that said hello and drops `source.agent` from a comment's anchor (before `subagentAnchors`): no comments in a subagent's tab. */
+export const knownOld = (protocol: number): boolean => protocol !== 0 && !has(protocol, 'subagentAnchors');
 
 /** Any Agent / Task call is a subagent's: `Agent` in current Claude Code, `Task` in older ones. */
 export const isAgentTool = (name: string, toolKind?: string): boolean => toolKind === 'agent' || name === 'Agent' || name === 'Task';

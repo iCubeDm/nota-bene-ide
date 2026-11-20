@@ -1,4 +1,4 @@
-import { anchorSource, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef, type Voice } from '@nota-bene/shared';
+import { has, anchorSource, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef, type Voice } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
 import { getLang, t, tIn, type Lang } from '../i18n/index.ts';
 import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
@@ -196,7 +196,7 @@ export const sendBatch = (force: boolean): AppThunk<SendResult> => (d, getState)
 export const voiceComments = (id: string, voice: Voice, force: boolean): AppThunk<{ ids: string[]; sent: boolean }> => (d, getState) => {
   const st = getState();
   const pending = selectSendable(st).filter((c) => !isAttachmentAnchor(c.anchor));
-  if (st.controls.protocol < 16 || !pending.length) return { ids: [], sent: false };
+  if (!has(st.controls.protocol, 'voiceComments') || !pending.length) return { ids: [], sent: false };
   const snap: Snapshot = { sid: st.feed.session?.id, draft: '', body: '', own: [], pending, prints: pending.map(printOf) };
   d(markSending(pending.map((c) => c.id)));
   return { ids: pending.map((c) => c.id), sent: d(sendNow(snap, new Map(), force, { voice, id })) === 'sent' };

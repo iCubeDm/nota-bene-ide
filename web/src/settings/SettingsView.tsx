@@ -1,9 +1,9 @@
 import { dictationLangSet } from '@/controls/slice.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
-import { DETECT_PROTOCOL, langName } from '@/voice/lang.ts';
+import { langName } from '@/voice/lang.ts';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
+import { has, MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
 import { apiFetch } from '@/net/auth.ts';
 import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
@@ -283,7 +283,7 @@ export function SettingsView({ active }: { active: boolean }) {
             </Button>
           </div>
         )}
-        {dict.data?.phase === 'ready' && protocol >= DETECT_PROTOCOL && (
+        {dict.data?.phase === 'ready' && has(protocol, 'voiceDetect') && (
           <Row label={t('dictLang')}>
             <select aria-label={t('dictLang')} value={dictLang} onChange={(e) => void dictPost('/dictation/lang', { lang: e.target.value })}
               className="rounded-md border border-border-soft bg-transparent px-2 py-1 text-[0.8125rem] text-foreground">
