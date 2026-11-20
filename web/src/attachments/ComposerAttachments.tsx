@@ -2,9 +2,8 @@ import { useMemo, useState } from 'react';
 import { has, isAttachmentAnchor } from '@nota-bene/shared';
 import { removeComment, selectComments } from '@/comments/slice.ts';
 import { markAttachment, removeImage, selectImages, selectMarking } from '@/composer/slice.ts';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { ConfirmDialog } from '@/sdk/ui';
 import { AttachmentMarkup } from './AttachmentMarkup.tsx';
 import { Attachments, type PendingThumb } from './Attachments.tsx';
 

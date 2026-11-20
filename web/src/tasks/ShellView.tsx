@@ -1,13 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { has, type TaskOutputView } from '@nota-bene/shared';
-import { useT } from '@/i18n/index.ts';
-import { useAppSelector } from '@/store/store.ts';
+import { useT, useAppSelector, connections, byteSize } from '@/sdk';
 import type { ShellTab } from '@/tabs/slice.ts';
 import { plainOutput } from './ansi.ts';
 import { selectTaskControls } from './slice.ts';
 import { StopButton } from './TaskButtons.tsx';
-import { apiFetch } from '@/net/auth.ts';
-import { byteSize } from '@/lib/format.ts';
 
 /** How often a running task's output is read again while its tab is the visible one. */
 export const SHELL_POLL_MS = 1000;
@@ -55,7 +52,7 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
     const tick = async () => {
       let next = RETRY_MS;
       try {
-        const r = await apiFetch(`/task-output?session=${encodeURIComponent(session)}&task=${encodeURIComponent(task)}`, { signal: ctl.signal });
+        const r = await connections.current().fetch(`/task-output?session=${encodeURIComponent(session)}&task=${encodeURIComponent(task)}`, { signal: ctl.signal });
         if (ctl.signal.aborted) return;
         if (r.status === 404 || r.status === 409) {
           final.current = true;

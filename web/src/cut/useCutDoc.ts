@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
-import { apiFetch } from '@/net/auth.ts';
+import { connections } from '@/sdk';
 import { cutChanges, isNoChange, type CutChanges } from './changes.ts';
 import { commit, redo as redoStep, start, undo as undoStep, type History } from './history.ts';
 
@@ -87,7 +87,7 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
     const w = writes.current;
     let j: { text: string; base: string };
     try {
-      const r = await apiFetch(`/edit?path=${encodeURIComponent(path)}`);
+      const r = await connections.current().fetch(`/edit?path=${encodeURIComponent(path)}`);
       if (!r.ok) return;
       j = await r.json() as { text: string; base: string };
       if (typeof j.text !== 'string' || typeof j.base !== 'string') return;
@@ -114,7 +114,7 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
       writes.current++;
       setSaving(true);
       try {
-        const r = await apiFetch('/edit', {
+        const r = await connections.current().fetch('/edit', {
           method: 'POST', keepalive, headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ path, text: body, base: overwrite ? null : disk.current.base }),
         });

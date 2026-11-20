@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import { MARK_COLORS, type MarkColor } from '@nota-bene/shared';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
-import { isMac, withKeys } from '@/shell/keymap.ts';
+import { useT, isMac, withKeys } from '@/sdk';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import type { Draft, MarkTool } from './slice.ts';
 
 const TOOL_ICONS: Record<MarkTool, ReactNode> = {

@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify';
-import { t } from '@/i18n/index.ts';
+import { t } from '@/sdk';
 import { theme } from '@/shell/theme.ts';
 
 /**

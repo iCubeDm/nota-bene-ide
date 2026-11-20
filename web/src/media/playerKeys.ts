@@ -1,8 +1,6 @@
 import { has } from '@nota-bene/shared';
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { keysInScope } from '@/lib/keyScope.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector, type AppDispatch } from '@/store/store.ts';
+import { keysInScope, useT, useAppDispatch, useAppSelector, type AppDispatch } from '@/sdk';
 import { setMode } from './markup/slice.ts';
 import { seekStep } from './seekStep.ts';
 

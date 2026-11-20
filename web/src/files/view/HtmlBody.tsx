@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { isPageAnchor, isTextAnchor, type FileSource } from '@nota-bene/shared';
-import { scrollRangeIntoView, scrollRectIntoView } from '@/anchors/scroll.ts';
-import { rangeForAnchor } from '@/anchors/text.ts';
+import { scrollRangeIntoView, scrollRectIntoView, rangeForAnchor, useT, useAppDispatch, useAppSelector, openFile } from '@/sdk';
 import { CommentPopup, type PendingComment } from '@/comments/CommentPopup.tsx';
 import { flashRange, flashRects, HighlightLayer } from '@/comments/HighlightLayer.tsx';
 import { selectComments } from '@/comments/slice.ts';
-import { useT } from '@/i18n/index.ts';
 import { areaAnchor, areaRect, elementAnchor, nearOf, pickTarget, resolvePage, toUserBox } from '@/page/anchor.ts';
 import { outOf, pageRendered } from '@/page/frame.ts';
 import { preparePage } from '@/page/prep.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { openFile } from '@/tabs/slice.ts';
 import { clearJump, selectJump } from '../slice.ts';
 
 /** how often (ms) a shown page is measured: the frame takes the page's height, so the pane scrolls it */

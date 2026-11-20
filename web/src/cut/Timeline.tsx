@@ -2,9 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { clipLength, type Cut } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
 import { projectFileUrl } from '@/files/kinds.ts';
-import { useT } from '@/i18n/index.ts';
+import { useT, isMac, withKeys } from '@/sdk';
 import { EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon, PauseIcon, PlayIcon } from '@/media/playerIcons.tsx';
-import { isMac, withKeys } from '@/shell/keymap.ts';
 import { PATH_MIME } from './drag.ts';
 import { flashStyle, type CutFlash } from './changes.ts';
 import type { Editing } from './editing.ts';

@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
-import { getLang, t as tNow, useT } from '@/i18n/index.ts';
-import { selectBusy, selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { ConfirmDialog } from './ConfirmDialog.tsx';
+import { getLang, t as tNow, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize } from '@/sdk';
+import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog } from '@/sdk/ui';
 import { selectSwitching, switchSession } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
-import { apiFetch } from '@/net/auth.ts';
-import { byteSize } from '@/lib/format.ts';
 import { archiveSession, brief, deleteSession, renameSession } from './sessionsApi.ts';
 
 /** GET /sessions (server/src/sessions.ts SessionsView). */
@@ -111,7 +107,7 @@ export function SessionPicker() {
   /** (Re)loads the list; the filter and the archive view stay as they are. */
   const load = () => {
     const seq = ++loadSeq.current;
-    void apiFetch('/sessions')
+    void connections.current().fetch('/sessions')
       .then(async (r) => {
         if (!r.ok) throw new Error(brief(r.status, await r.text().catch(() => '')));
         const v: unknown = await r.json();

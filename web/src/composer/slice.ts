@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { ImageType } from '@nota-bene/shared';
-import { connState, serverEvent, type RootState } from '../store/store.ts';
+import { connState, serverEvent, type RootState } from '@/sdk';
 
 /** What the last `! cmd` took out of the composer; kept until the server's `shell-start`, so a `shell-refused` can put the draft back. */
 export type ShellDraft = { id: string; draft: string };

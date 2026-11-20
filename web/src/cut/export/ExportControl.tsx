@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button.tsx';
+import { useT, useAppDispatch, useAppSelector, openFile } from '@/sdk';
+import { Button } from '@/sdk/ui';
 import { selectCapabilitiesKnown } from '@/controls/slice.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { openFile } from '@/tabs/slice.ts';
 import { cancelExport, EXPORT_MODES, ExportRefused, getExport, startExport, type ExportJob, type ExportMode } from './api.ts';
 
 /** how often a running export is looked at */

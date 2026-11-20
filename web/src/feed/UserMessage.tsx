@@ -2,18 +2,15 @@ import { BATCH_HEAD, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAncho
 import { cutLine } from '@/cut/quote.ts';
 import { pageQuote } from '@/page/quote.ts';
 import { Attachments } from '@/attachments/Attachments.tsx';
-import { getLang, useT } from '@/i18n/index.ts';
+import { getLang, useT, escapeMentions, type FeedItem, useAppSelector } from '@/sdk';
 import { mediaLine } from '@/media/markup/geometry.ts';
 import { memo, useContext } from 'react';
 import { Markdown } from './Markdown.tsx';
 import { MsgTime } from './MsgTime.tsx';
 import { clockTime } from './time.ts';
 import { FeedScope } from './scope.ts';
-import { escapeMentions } from '@/refs/refs.ts';
 import { labelOf } from '@/comments/labels.ts';
 import { selectSentFor } from '@/comments/slice.ts';
-import type { FeedItem } from '@/store/feed.ts';
-import { useAppSelector } from '@/store/store.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { VoiceBubble } from '@/voice/VoiceBubble.tsx';
 

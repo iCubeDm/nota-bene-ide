@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useT } from '@/i18n/index.ts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
+import { ConfirmDialog } from '@/components/ConfirmDialog.tsx';
 import { cancelRestart, restartAgent, restartInPause, restartServer, selectRestartPending, selectSwitching } from '@/controls/slice.ts';
 import { selectPagePause } from './pagePause.ts';
 import { selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';

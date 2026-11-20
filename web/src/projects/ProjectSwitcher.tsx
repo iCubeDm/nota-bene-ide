@@ -5,16 +5,10 @@
 // Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent,
 // ✕ removes one from both (the server keeps it out until it is launched again).
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
+import { useT, shortHome, connections, toast, withKey, selectSession, useAppSelector } from '@/sdk';
+import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog } from '@/sdk/ui';
 import { ago } from '@/controls/SessionPicker.tsx';
-import { shortHome } from '@/lib/paths.ts';
-import { apiFetch } from '@/net/auth.ts';
 import { remotePage } from '@/net/local.ts';
-import { toast } from '@/shell/toast.ts';
-import { withKey } from '@/shell/keymap.ts';
-import { selectSession, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
@@ -63,7 +57,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     if (!open) return;
     setExpanded(new Set(session?.root ? [rowKey(session.root, here?.host)] : []));
     let gone = false;
-    apiFetch('/sessions').then((r) => (r.ok ? r.json() : null)).then((v: { sessions?: LocalSession[] } | null) => {
+    connections.current().fetch('/sessions').then((r) => (r.ok ? r.json() : null)).then((v: { sessions?: LocalSession[] } | null) => {
       if (!gone && v && Array.isArray(v.sessions)) setLocal(v.sessions.filter((x) => typeof x?.cwd === 'string' && typeof x.id === 'string'));
     }).catch(() => {});
     return () => { gone = true; };

@@ -1,4 +1,4 @@
-import { getLang, useT } from '@/i18n/index.ts';
+import { getLang, useT } from '@/sdk';
 import { useSyncExternalStore } from 'react';
 import { clockTime, currentDay, dayLabel, fullTime, subscribeDay } from './time.ts';
 

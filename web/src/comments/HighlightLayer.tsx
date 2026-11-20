@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { anchorSource, isPageAnchor, isTextAnchor, type AnchorSource, type Comment, type PageAnchor } from '@nota-bene/shared';
-import { rangeForAnchor } from '@/anchors/text.ts';
+import { rangeForAnchor, useAppDispatch, useAppSelector } from '@/sdk';
 import { areaRect, resolvePage } from '@/page/anchor.ts';
 import { outOf, pageRoot, pageSelection, rangeRects, textRootOf } from '@/page/frame.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { fileKey } from '@/files/sources.ts';
 import { openCommentCard, selectComments } from './slice.ts';
 

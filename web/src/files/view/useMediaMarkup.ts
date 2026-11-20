@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { type MediaAnchor, type MediaShape } from '@nota-bene/shared';
 import type { PendingComment } from '@/comments/CommentPopup.tsx';
-import { useT } from '@/i18n/index.ts';
-import { toast } from '@/shell/toast.ts';
+import { useT, toast, useAppDispatch, useMedia } from '@/sdk';
 import { prepareMediaComment } from '@/media/markup/createMediaComment.ts';
 import { dropShapes } from '@/media/markup/slice.ts';
-import { useAppDispatch, useMedia } from '@/store/store.ts';
 import { headVersion } from './useFileLoad.ts';
 
 /**

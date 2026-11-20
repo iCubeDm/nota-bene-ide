@@ -151,3 +151,18 @@ it('fetch and url put the agent base in front of the route; fetch carries the ke
   expect(new Headers(calls[0]![1]?.headers).get('x-nota-bene-key')).toBe('k1');
   localStorage.removeItem('nb.key');
 });
+
+it('the page connections: before any store the one agent at base "", never opened; then the last store made', async () => {
+  vi.resetModules();
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('ok')));
+  const sock = vi.fn();
+  vi.stubGlobal('WebSocket', sock);
+  const fresh = await import('./connections.ts');
+  expect(fresh.connections.current().id).toBe(fresh.SELF);
+  await fresh.connections.current().fetch('/info');
+  expect(vi.mocked(fetch).mock.calls[0]![0]).toBe('/info');
+  expect(sock).not.toHaveBeenCalled();
+  const { makeStore: make } = await import('../store/store.ts');
+  const store = make({ url: 'ws://x/ws', connect: fake().connect });
+  expect(fresh.connections.current()).toBe(fresh.connectionsOf(store).current());
+});

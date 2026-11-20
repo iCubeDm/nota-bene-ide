@@ -5,16 +5,13 @@
 // This window's sessions are renamed and archived from their row (the time gives way on hover); delete stays in the
 // Sessions menu (▾ on the chat tab). Another window's are only opened: its server takes no write from this one.
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
+import { useT, connections, toast, useAppDispatch } from '@/sdk';
+import { ConfirmDialog } from '@/sdk/ui';
 import { ago, ArchiveIcon } from '@/controls/SessionPicker.tsx';
 import { switchSession } from '@/controls/slice.ts';
 import { REFUSED } from '@/controls/useNote.ts';
 import { archiveSession, renameSession } from '@/controls/sessionsApi.ts';
-import { apiFetch } from '@/net/auth.ts';
 import { remotePage } from '@/net/local.ts';
-import { toast } from '@/shell/toast.ts';
-import { useAppDispatch } from '@/store/store.ts';
 import { enterProject, openFolder, postJson, PROVIDER_LABEL, reasonText, type Provider, type RunningRow } from './api.ts';
 
 export type LocalSession = { id: string; title: string; at: number; cwd: string; archived?: true };
@@ -52,7 +49,7 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
         return [];
       }
     })).then((lists) => { if (!gone) setOthers(lists.flat()); });
-    apiFetch('/system/agents').then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[] } | null) => {
+    connections.current().fetch('/system/agents').then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[] } | null) => {
       if (!gone && j && Array.isArray(j.agents)) setAgents(j.agents);
     }).catch(() => {});
     return () => { gone = true; };

@@ -1,5 +1,5 @@
 import { useCallback, type ReactNode } from 'react';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import type { CutPlayer } from './engine.ts';
 
 /**

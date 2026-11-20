@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { PanelResizer, usePanelWidth } from '@/shell/PanelResizer.tsx';
+import { useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { PanelResizer, usePanelWidth } from '@/sdk/ui';
 import { openChanges } from '@/tabs/slice.ts';
 import { selectTree } from '@/tree/slice.ts';
 import { StatusMark } from './DiffBody.tsx';

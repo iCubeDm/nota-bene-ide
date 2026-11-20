@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { getLang, useT } from '@/i18n/index.ts';
+import { getLang, useT } from '@/sdk';
 import { setValueAndCaret } from './insertText.ts';
 import { emojiGroups, loadEmoji, searchShortcodes } from './emoji.ts';
 

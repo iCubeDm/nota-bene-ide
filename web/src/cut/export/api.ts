@@ -1,4 +1,4 @@
-import { apiFetch } from '@/net/auth.ts';
+import { connections } from '@/sdk';
 
 /** The video editor's export (server/src/cut/routes.ts): an edit rendered by ffmpeg into the project's `exports/`. */
 export type ExportMode = 'mp4' | 'wav' | 'm4a';
@@ -31,12 +31,12 @@ export class ExportRefused extends Error {
 }
 
 async function post(url: string, body: unknown): Promise<Response> {
-  return apiFetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  return connections.current().fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 }
 
 /** null: a server without the export routes (older than the capability). */
 export async function getExport(edit: string): Promise<ExportState | null> {
-  const r = await apiFetch(`/cut/export?path=${encodeURIComponent(edit)}`);
+  const r = await connections.current().fetch(`/cut/export?path=${encodeURIComponent(edit)}`);
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`/cut/export ${r.status}`);
   return (await r.json()) as ExportState;

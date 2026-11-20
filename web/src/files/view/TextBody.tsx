@@ -1,9 +1,7 @@
 import type { Ref } from 'react';
 import { Markdown } from '@/feed/Markdown.tsx';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { refClick } from '@/refs/refs.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch } from '@/store/store.ts';
+import { refClick, useT, useAppDispatch } from '@/sdk';
 import type { FileKind } from '../kinds.ts';
 import { CodeText } from './CodeText.tsx';
 import { useWrapLines } from '../wrap.ts';

@@ -1,4 +1,4 @@
-import type { t as tNow } from '@/i18n/index.ts';
+import type { t as tNow } from '@/sdk';
 
 /** The shells of `! cmd` on Windows, as the server's prefs.ts has them (Settings → Defaults); other systems run $SHELL. */
 export type WinShell = 'git-bash' | 'pwsh' | 'powershell' | 'cmd';

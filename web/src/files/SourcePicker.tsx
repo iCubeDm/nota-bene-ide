@@ -1,4 +1,4 @@
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 
 /** The branch chip of a view or a tab of another source (M3-16): read-only. */
 export function SourceChip({ name }: { name: string }) {

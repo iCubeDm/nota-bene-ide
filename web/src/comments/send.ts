@@ -1,7 +1,7 @@
 import { has, anchorSource, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef, type Voice } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
-import { getLang, t, tIn, type Lang } from '../i18n/index.ts';
-import { selectReplyLabel, sendMessage, type AppThunk, type RootState } from '../store/store.ts';
+import { getLang, t, tIn, type Lang, type AppThunk, type RootState, activate, toast, chat } from '@/sdk';
+import { selectReplyLabel } from '../store/store.ts';
 import { isClearCommand } from '../composer/slashRank.ts';
 import { runShellDraft, selectShellMode } from '../composer/shellMode.ts';
 import { composeBatch } from './compose.ts';
@@ -13,8 +13,6 @@ import { selectFileVersion } from '../files/slice.ts';
 import { cutWhere } from '../cut/quote.ts';
 import { liveCutState } from '../cut/live.ts';
 import { mediaTime } from '../media/markup/geometry.ts';
-import { activate } from '../tabs/slice.ts';
-import { toast } from '../shell/toast.ts';
 import { agentName } from '../subagent/slice.ts';
 import { buildComposites, frameGroups, type FrameGroup } from './frameGroups.ts';
 
@@ -124,7 +122,7 @@ const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean
     (c) => { const s = isCutAnchor(c.anchor) ? liveCutState(c.anchor) : undefined; return s === 'ok' ? undefined : s; },
   );
   const id = voice?.id ?? crypto.randomUUID();
-  if (!d(sendMessage(text, force, ids, images, id, voice?.voice))) return fail('offline');
+  if (!d(chat.send(text, force, ids, images, id, voice?.voice))) return fail('offline');
   if (voice) return 'sent'; // a recording has no draft to hand back or clear, and the chat tab is not taken over
   d(draftSent({ id, text: body, images: own, commentIds: ids })); // until the echo: a refusal puts it back
   const cur = selectDraft(getState());

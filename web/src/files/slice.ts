@@ -1,7 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { RootState } from '../store/store.ts';
-import { activate, enterRoot, fileArg, fileTabId, openFile, openLog } from '../tabs/slice.ts';
-import type { AppThunk } from '../store/store.ts';
+import { type RootState, activate, openFile, type AppThunk } from '@/sdk';
+import { enterRoot, fileArg, fileTabId, openLog } from '../tabs/slice.ts';
 import { fileKey, isCommitRef, loadSources, srcIdOfRef } from './sources.ts';
 import { showCommit } from '@/vcs/store.ts';
 

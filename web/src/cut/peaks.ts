@@ -6,7 +6,7 @@
 // written again, or one read while it was still being written, is read again.
 import { CUT_PEAKS_RATE } from '@nota-bene/shared/cut';
 import { projectFileUrl } from '@/files/kinds.ts';
-import { apiFetch } from '@/net/auth.ts';
+import { connections } from '@/sdk';
 import { srcLength } from './durations.ts';
 
 /** The largest file the page decodes, and the longest sound (seconds): about 250 MB of samples at 48 kHz stereo. */
@@ -119,7 +119,7 @@ export const peaksOf = peaksLoader({
     const r = await fetch(url, { method: 'HEAD' });
     return r.ok ? r.headers.get('etag') : null;
   },
-  fetchPeaks: (src) => apiFetch(`/cut/peaks?path=${encodeURIComponent(src)}`),
+  fetchPeaks: (src) => connections.current().fetch(`/cut/peaks?path=${encodeURIComponent(src)}`),
   fetchFile: (url) => fetch(url),
   duration: srcLength,
   decode: async (bytes) => new OfflineAudioContext(1, 1, DECODE_RATE).decodeAudioData(bytes),

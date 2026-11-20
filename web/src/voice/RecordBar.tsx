@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { PlaneIcon } from '@/composer/MessageInput.tsx';
-import { useT } from '@/i18n/index.ts';
-import { BINDINGS, keysLabel, modKey } from '@/shell/keymap.ts';
+import { useT, keysLabel, modKey } from '@/sdk';
+import { BINDINGS } from '@/shell/keymap.ts';
 import { clock } from './lang.ts';
 import type { RecState } from './useVoiceRecorder.ts';
 import { release as releasePlay } from './player.ts';

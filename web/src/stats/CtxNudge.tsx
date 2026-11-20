@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
+import { useT, selectBusy, selectSession, useAppDispatch, useAppSelector } from '@/sdk';
 import { runCommand, selectCapabilities, selectSwitching } from '@/controls/slice.ts';
 import { REFUSED, useNote } from '@/controls/useNote.ts';
-import { selectBusy, selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { selectStats } from './slice.ts';
 
 /** The context fill levels that bring up the reminder, in percent. */

@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { VcsCommitDetail, VcsLog } from '@nota-bene/shared';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { useT } from '@/i18n/index.ts';
-import { apiFetch } from '@/net/auth.ts';
-import { PanelResizer, usePanelWidth } from '@/shell/PanelResizer.tsx';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, connections, useAppDispatch, useAppSelector } from '@/sdk';
+import { PanelResizer, usePanelWidth } from '@/sdk/ui';
 import { pickSource, selectRefreshSeq, selectTree } from '@/tree/slice.ts';
 import { useSources } from '@/files/sources.ts';
 import { FileDiff, StatusMark } from './DiffBody.tsx';
@@ -52,7 +50,7 @@ export function LogView({ active }: { active: boolean }) {
       if (running) return;
       running = true;
       try {
-        const r = await apiFetch(`/vcs-log?${new URLSearchParams({ src, all: all ? '1' : '0' })}`);
+        const r = await connections.current().fetch(`/vcs-log?${new URLSearchParams({ src, all: all ? '1' : '0' })}`);
         if (gone) return;
         setFailed(!r.ok);
         if (r.ok) { const v = await r.json() as VcsLog; if (!gone) setLoaded({ key, log: v }); }
@@ -66,7 +64,7 @@ export function LogView({ active }: { active: boolean }) {
     setDetail(null);
     if (!sha) return;
     let gone = false;
-    void apiFetch(`/vcs-commit?sha=${sha}`).then(async (r) => {
+    void connections.current().fetch(`/vcs-commit?sha=${sha}`).then(async (r) => {
       if (gone) return;
       setFailed(!r.ok);
       if (r.ok) { const v = await r.json() as VcsCommitDetail; if (!gone) setDetail(v); }

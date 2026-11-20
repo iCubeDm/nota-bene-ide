@@ -1,6 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { Stats } from '@nota-bene/shared';
-import { serverEvent, type RootState } from '../store/store.ts';
+import { serverEvent, type RootState } from '@/sdk';
 
 /** null until the first `stats` event. Each event replaces the whole slice (its null parts mean "unknown"). */
 export const statsSlice = createSlice({

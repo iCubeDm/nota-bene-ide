@@ -1,5 +1,4 @@
-import { tIn, type Lang } from '@/i18n/index.ts';
-import type { FeedItem } from '@/store/feed.ts';
+import { tIn, type Lang, type FeedItem } from '@/sdk';
 
 // Message times in the feed. A ts of 0 is a time nobody recorded (an old replay): it is never shown, never dated.
 

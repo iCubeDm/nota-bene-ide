@@ -1,11 +1,7 @@
 import { type ReactElement, type RefObject, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Button } from '@/components/ui/button.tsx';
-import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
+import { useT, withKey, useAppSelector } from '@/sdk';
+import { Button, Popover, PopoverAnchor, PopoverContent, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { ago } from '@/controls/SessionPicker.tsx';
-import { useT } from '@/i18n/index.ts';
-import { withKey } from '@/shell/keymap.ts';
-import { useAppSelector } from '@/store/store.ts';
 import { searchPrompts, selectPromptItems } from './history.ts';
 import { promptHistoryModal } from './historyModal.ts';
 

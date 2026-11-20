@@ -1,5 +1,5 @@
 import { AUDIO, IMAGE, VIDEO } from '@nota-bene/shared/cut';
-import { serverSep } from '@/lib/paths.ts';
+import { serverSep } from '@/sdk';
 
 export { AUDIO, IMAGE, VIDEO }; // shared: an edit's sources are these files
 export const MD = /\.(md|markdown)$/i;

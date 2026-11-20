@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import { VolumeHighIcon, VolumeLowIcon, VolumeOffIcon } from './playerIcons.tsx';
 import type { MediaSnapshot } from './useMediaState.ts';
 

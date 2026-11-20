@@ -1,6 +1,5 @@
 import { has } from '@nota-bene/shared';
-import { getLang } from '@/i18n/index.ts';
-import type { RootState } from '@/store/store.ts';
+import { getLang, type RootState } from '@/sdk';
 
 /** The UI language as Whisper takes it: an ISO 639 code (zh-CN → zh, pt-BR → pt). */
 export const whisperLang = (): string => getLang().split('-')[0]!;

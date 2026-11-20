@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 
 const BTN = 'inline-flex items-center px-0.5 text-muted-foreground opacity-60 hover:opacity-100 hover:text-foreground [&_svg]:size-[13px]';
 const svg = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'aria-hidden': true } as const;

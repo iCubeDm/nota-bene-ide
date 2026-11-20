@@ -1,6 +1,6 @@
 import { AUDIO, IMAGE, VIDEO, isPath } from '@/files/kinds.ts';
 import { setValueAndCaret } from '@/comments/insertText.ts';
-import { apiFetch } from '@/net/auth.ts';
+import { connections } from '@/sdk';
 
 /** A refused upload: the HTTP status and the server's error code (`attachments-not-folder`, ...). */
 export class UploadError extends Error {
@@ -18,7 +18,7 @@ export class UploadError extends Error {
  * into the project's `attachments/`; answers the project-relative path it got there. `signal` cancels it.
  */
 export async function uploadFile(f: File, signal?: AbortSignal): Promise<string> {
-  const r = await apiFetch(`/attach-file?name=${encodeURIComponent(f.name)}`, { method: 'POST', body: f, ...(signal ? { signal } : {}) });
+  const r = await connections.current().fetch(`/attach-file?name=${encodeURIComponent(f.name)}`, { method: 'POST', body: f, ...(signal ? { signal } : {}) });
   const j = (await r.json().catch(() => null)) as { path?: unknown; error?: unknown } | null;
   if (!r.ok || typeof j?.path !== 'string') throw new UploadError(r.status, typeof j?.error === 'string' ? j.error : undefined);
   return j.path;

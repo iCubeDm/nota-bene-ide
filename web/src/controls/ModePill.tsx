@@ -1,9 +1,6 @@
 import type { AgentMode as Mode } from '@nota-bene/shared';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
-import { isMac, withKeys } from '@/shell/keymap.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, isMac, withKeys, useAppDispatch, useAppSelector } from '@/sdk';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { pickMode, selectCapabilitiesKnown, selectMode, selectSwitching } from './slice.ts';
 
 // colours as in the CLI's mode line (prototype #modeBtn.m-*)

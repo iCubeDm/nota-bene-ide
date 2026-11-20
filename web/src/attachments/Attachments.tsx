@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 
 /** Full-size view. Esc / click closes; this Esc is consumed here (preventDefault + stop), so nothing else acts on it. */
 export function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {

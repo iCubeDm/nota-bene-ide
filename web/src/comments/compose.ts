@@ -1,5 +1,5 @@
 import { isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, type Comment } from '@nota-bene/shared';
-import { tIn, type Lang } from '../i18n/index.ts';
+import { tIn, type Lang } from '@/sdk';
 import { describeShape } from '../media/markup/geometry.ts';
 import { pageLines } from '../page/quote.ts';
 import { cutQuote } from '../cut/quote.ts';

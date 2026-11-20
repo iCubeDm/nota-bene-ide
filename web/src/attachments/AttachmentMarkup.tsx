@@ -4,13 +4,11 @@ import { isAttachmentAnchor, type AttachmentAnchor, type MediaShape } from '@not
 import { CommentPopup } from '@/comments/CommentPopup.tsx';
 import { selectComments } from '@/comments/slice.ts';
 import { useMarkPopup } from '@/files/view/useMediaMarkup.ts';
-import { useT } from '@/i18n/index.ts';
+import { useT, toast, useAppDispatch, useAppSelector } from '@/sdk';
 import { prepareAttachmentComment } from '@/media/markup/createMediaComment.ts';
 import { MarkupLayer } from '@/media/markup/MarkupLayer.tsx';
 import { shapeEls, useOverlayPlacement } from '@/media/markup/overlay.tsx';
 import { clear, selectDraft, setMode } from '@/media/markup/slice.ts';
-import { toast } from '@/shell/toast.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 
 /** The markup tab id of an attached image (the drawing's draft lives in the markup slice under it). */
 export const attachTabId = (imageId: string): string => `attach:${imageId}`;

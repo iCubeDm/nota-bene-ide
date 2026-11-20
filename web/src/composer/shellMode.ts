@@ -1,10 +1,6 @@
 import { has, SHELL_CMD_MAX } from '@nota-bene/shared';
-import { t } from '../i18n/index.ts';
-import { toast } from '../shell/toast.ts';
-import { byteSize } from '../lib/format.ts';
+import { t, toast, byteSize, activate, selectConn, type AppThunk, type RootState } from '@/sdk';
 import { selectPending } from '../comments/slice.ts';
-import { activate } from '../tabs/slice.ts';
-import { selectConn, type AppThunk, type RootState } from '../store/store.ts';
 import { selectDraft, selectImages, setDraft, shellDraftSent } from './slice.ts';
 
 

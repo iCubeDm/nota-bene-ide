@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useT } from '@/i18n/index.ts';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
+import { ConfirmDialog } from '@/components/ConfirmDialog.tsx';
 import { selectSwitching, stopWindow } from '@/controls/slice.ts';
 import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';

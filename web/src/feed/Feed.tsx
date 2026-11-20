@@ -1,8 +1,6 @@
 import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { refClick } from '@/refs/refs.ts';
-import { selectFeed, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { retriedVoice, type FeedState } from '@/store/feed.ts';
+import { useT, refClick, selectFeed, useAppDispatch, useAppSelector, type FeedState } from '@/sdk';
+import { retriedVoice } from '@/store/feed.ts';
 import { isAgentTool } from '@/subagent/slice.ts';
 import { FeedScope } from './scope.ts';
 import { Markdown } from './Markdown.tsx';

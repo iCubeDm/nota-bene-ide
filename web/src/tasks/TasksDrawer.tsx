@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { has, shortModel } from '@nota-bene/shared';
-import { compact } from '@/lib/format.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { compact, useT, useAppDispatch, useAppSelector } from '@/sdk';
 import { openAgent, openShell } from '@/tabs/slice.ts';
 import { selectDrawerOpen, selectRunningCount, selectTaskControls, selectTaskRows, setDrawer, type Task } from './slice.ts';
 import { BackgroundButton, BTN, StopButton } from './TaskButtons.tsx';

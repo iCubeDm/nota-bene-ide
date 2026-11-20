@@ -1,19 +1,14 @@
 import { dictationLangSet } from '@/controls/slice.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useAppDispatch, useAppSelector, connections, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome } from '@/sdk';
+import { Button, ConfirmDialog } from '@/sdk/ui';
 import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
 import { langName } from '@/voice/lang.ts';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { has, MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
-import { Button } from '@/components/ui/button.tsx';
-import { apiFetch } from '@/net/auth.ts';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
-import { byteSize, percent } from '@/lib/format.ts';
-import { getLang, chooseLang, LANGS, t as tNow, useT, type Lang } from '@/i18n/index.ts';
 import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
 import { uiScale, useUiScale } from '@/shell/uiScale.ts';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '@/shell/theme.ts';
 import { playCue, type Sounds } from '@/shell/sounds.ts';
-import { folderName, shortWinHome } from '@/lib/paths.ts';
 import { railPref, useRailPref } from '@/projects/railPref.ts';
 import { SHELL_NAMES, WIN_SHELLS, type ShellChoice, type WinShell } from './shells.ts';
 
@@ -38,12 +33,12 @@ const uptime = (since: number, now = Date.now()) => {
 };
 
 async function getJson<T>(url: string): Promise<T> {
-  const r = await apiFetch(url);
+  const r = await connections.current().fetch(url);
   if (!r.ok) throw new Error(`${url} ${r.status}`);
   return (await r.json()) as T;
 }
 const postJson = (url: string, body: unknown) =>
-  apiFetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  connections.current().fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 /** One load per activation; `reload` after an action. A failure is shown in the section, never thrown. */
 function useLoad<T>(url: string, active: boolean): { data: T | null; error: string | null; reload: () => void } {

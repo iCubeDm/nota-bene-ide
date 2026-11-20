@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react';
 import type { ImageEntry } from '@/composer/slice.ts';
-import { t } from '@/i18n/index.ts';
+import { t } from '@/sdk';
 import { isLocalPage } from '@/net/local.ts';
 import { uploadFile, UploadError } from './file.ts';
 import { prepareImage, uploadImage } from './image.ts';

@@ -1,17 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
+import { useT, openFile, useAppDispatch, useAppSelector } from '@/sdk';
+import { PanelResizer, usePanelWidth, ContextMenu, ContextMenuTrigger } from '@/sdk/ui';
 import { selectPendingCountByPath } from '@/comments/slice.ts';
-import { selectActiveTab, openFile } from '@/tabs/slice.ts';
+import { selectActiveTab } from '@/tabs/slice.ts';
 import { clearReveal, pickSource, revealFile, selectRefreshSeq, selectTree, setDirs, setTreeOpen, toggleDir } from '@/tree/slice.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { loadSources, useSources } from './sources.ts';
-import { PanelResizer, usePanelWidth } from '@/shell/PanelResizer.tsx';
 import { useTreeEntries } from './tree/useTreeEntries.ts';
 import { useExpandAll } from './tree/useExpandAll.ts';
 import { TreeHeader } from './tree/TreeHeader.tsx';
 import { renderDir } from './tree/TreeRow.tsx';
 import { TreeMenu } from './tree/TreeMenu.tsx';
-import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu.tsx';
 
 export { EXPAND_CAP } from './tree/useExpandAll.ts';
 

@@ -1,5 +1,5 @@
 import type { Voice } from '@nota-bene/shared';
-import { selectBusy, selectConn, type AppThunk } from '@/store/store.ts';
+import { selectBusy, selectConn, type AppThunk } from '@/sdk';
 import { voiceComments } from '../comments/send.ts';
 import { dictationAsk } from './lang.ts';
 import { trackVoiceSend } from './inflight.ts';

@@ -2,7 +2,7 @@ import { useRef, type MutableRefObject, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { isMediaAnchor } from '@nota-bene/shared';
 import { CommentPopup } from '@/comments/CommentPopup.tsx';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import { applyPlayerKey, usePlayerKeys } from '@/media/playerKeys.ts';
 import { PlayerBar } from '@/media/PlayerBar.tsx';
 import { PlayerFlash } from '@/media/PlayerFlash.tsx';
