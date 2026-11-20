@@ -5,6 +5,7 @@ import { setLang, t } from '@/i18n/index.ts';
 import { makeStore } from '@/store/store.ts';
 import { getToasts } from '@/shell/toast.ts';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
+import { page } from '@/net/local.ts';
 import type { ProjectsList } from './api.ts';
 import { nav, projectsMenu, setStarter } from './api.ts';
 import { ProjectRail } from './ProjectRail.tsx';
@@ -54,7 +55,7 @@ beforeEach(() => {
   vi.spyOn(document, 'hasFocus').mockReturnValue(true);
   vi.spyOn(nav, 'go').mockImplementation(() => {});
 });
-afterEach(() => { cleanup(); act(() => projectsMenu.close()); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); act(() => projectsMenu.close()); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; });
 
 const store = () => makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
 const rail = () => screen.getByRole('navigation', { name: t('projRail') });
@@ -314,4 +315,19 @@ it('a working folder\'s dot pulses in the accent colour, like the composer\'s wo
   cleanup();
   render(<Provider store={store()}><TooltipProvider><ProjectRail /></TooltipProvider></Provider>);
   await waitFor(() => expect(dot('/w/site')).toEqual(expect.arrayContaining(['animate-pulse', 'bg-nb-accent'])));
+});
+
+it('issue 297: another computer\'s folder is a tile of its own with the laptop and its name; its page has no +', async () => {
+  const remote = { ...LIST.running[3]!, current: false, title: 'Studio notes', remote: { host: 'h1', name: 'Studio' } };
+  projects = () => Response.json({ ...LIST, running: [...LIST.running, remote] });
+  page.remote = { host: 'h1', name: 'Studio' };
+  render(<Provider store={store()}><TooltipProvider><ProjectRail /></TooltipProvider></Provider>);
+  await waitFor(() => expect(tiles().length).toBe(6));
+  const notes = tiles().filter((b) => b.dataset.root === '/w/notes');
+  expect(notes).toHaveLength(2);
+  const there = notes.find((b) => b.querySelector('[data-remote]'))!;
+  expect(there.getAttribute('aria-label')).toMatch(/^notes · Studio · Claude/);
+  expect(within(rail()).queryByRole('button', { name: t('projOpenFolder') })).toBeNull();
+  fireEvent.click(there);
+  expect(nav.go).toHaveBeenCalledWith('/system/remote/enter?host=h1&port=4791');
 });

@@ -15,7 +15,7 @@ import { isSessionId } from '@nota-bene/shared';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { HIDDEN } from './platform.ts';
-import { enterUrl, listProjects, PROVIDERS, sessionsOf, stopAt, stopOthers } from './projects.ts';
+import { enterUrl, listProjects, PROVIDERS, remoteRows, sessionsOf, stopAt, stopOthers, type Computer } from './projects.ts';
 import { forgetRecent, readRecent } from './recent.ts';
 import { stateBaseDir } from './state.ts';
 import { readJson } from './system.ts';
@@ -132,6 +132,8 @@ export function projectRoutes(o: {
   repoDir: string;
   launch?: Launch;
   agents?: Agents;
+  /** issue 297: the paired computers online and their windows (the connector's, remote/keeper.ts); none when absent */
+  computers?: () => Promise<Computer[]>;
 }): Record<string, RequestListener> {
   const launch = o.launch ?? launcherOf(o.repoDir);
   const agents = o.agents ?? defaultAgents();
@@ -158,7 +160,10 @@ export function projectRoutes(o: {
     '/system/projects': (req, res) => {
       if (!only('GET', req, res)) return;
       const warn = (m: string) => { if (!warned.has(m)) { warned.add(m); reportError(o.hub, '/system/projects', new Error(m)); } };
-      listProjects({ port: o.port(), provider: o.provider }, undefined, warn).then((l) => json(res, 200, l), (e) => fail(res, '/system/projects', e));
+      // a paired computer that cannot be asked (no connector, a broken hosts.json) lists nothing, as one offline
+      const computers = (o.computers?.() ?? Promise.resolve([])).catch(() => []);
+      Promise.all([listProjects({ port: o.port(), provider: o.provider }, undefined, warn), computers])
+        .then(([l, c]) => json(res, 200, { ...l, running: [...l.running, ...remoteRows(c)] }), (e) => fail(res, '/system/projects', e));
     },
 
     '/system/projects/enter': post('/system/projects/enter', async (b, res) => {

@@ -15,6 +15,10 @@ import { Windows } from './discover.ts';
 import { closeControl, running, serveControl, write, type Msg } from './control.ts';
 import { HostLink, type HostWindowInfo } from './hostLink.ts';
 import type { KeyPair } from './noise.ts';
+import { WindowProxy, type EnterTarget } from './proxy.ts';
+import { readPrefs } from '../prefs.ts';
+import { bareRow, enterUrl, listProjects, PROVIDERS, remoteRows, type Computer } from '../projects.ts';
+import type { AgentProvider } from '../agent/provider.ts';
 import { KEY_LIMIT, KEY_LIMIT_MESSAGE, RelayClient } from './relayClient.ts';
 import {
   addDevice, b64u, clearLastError, deviceHash, deviceKey, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readAccessKey, readDevices, readHosts, readLastError,
@@ -50,11 +54,14 @@ export class Connector extends EventEmitter {
   #idleSince: number | undefined;
   #idleTimer: NodeJS.Timeout | undefined;
   #links = new Map<string, { link: HostLink; host: Host }>();
+  /** the desktop proxies of the paired computers' windows (proxy.ts): each keeps this connector up */
+  #proxies = new Set<WindowProxy>();
+  #lingerMs: number | undefined;
 
   /** `managed`: started by a window (`--managed`), so it exits with no window to serve. `version`: the package's, for `status`. */
   constructor(o: {
     relay?: string; windows?: Windows; pairTtlMs?: number; backoff?: { minMs: number; maxMs: number };
-    managed?: boolean; version?: string; idleExitMs?: number;
+    managed?: boolean; version?: string; idleExitMs?: number; lingerMs?: number;
   }) {
     super();
     this.#relayUrl = o.relay;
@@ -64,6 +71,7 @@ export class Connector extends EventEmitter {
     this.windows = o.windows ?? new Windows();
     this.#ttl = o.pairTtlMs ?? 5 * 60_000;
     this.#backoff = o.backoff;
+    this.#lingerMs = o.lingerMs;
   }
 
   get online(): boolean {
@@ -177,6 +185,48 @@ export class Connector extends EventEmitter {
     return this.#links.get(id)?.link.windows ?? [];
   }
 
+  /** The paired computers whose channel is up, with their windows (issue 297: A's switcher lists them). */
+  computers(): Computer[] {
+    return [...this.#links.values()].filter((l) => l.link.state === 'online')
+      .map((l) => ({ id: l.host.id, name: l.host.name ?? fingerprint(fromB64u(l.host.pub, 32)), windows: l.link.windows }));
+  }
+
+  /** A desktop proxy for that window of a paired computer (proxy.ts): its login URL, or why not. */
+  async openProxy(host: string, port: number): Promise<{ url: string } | { error: string }> {
+    const l = this.#links.get(host);
+    if (!l || l.link.state !== 'online') return { error: 'not connected' };
+    if (!l.link.windows.some((w) => w.port === port)) return { error: 'no such window' };
+    const computer = { host, name: l.host.name ?? fingerprint(fromB64u(l.host.pub, 32)) };
+    const p: WindowProxy = new WindowProxy({
+      lang: () => { try { return readPrefs().lang; } catch { return undefined; } },
+      // the computer's link of the moment (one paired again, or on a new relay, has a new one)
+      open: (o) => this.#links.get(host)?.link.open(o) ?? null, port, computer,
+      projects: async () => {
+        // this computer's windows (none current: the page is the other one's) and the paired ones'; no Recent, which
+        // would open folders here. Only that computer's own rows say more than what lists and moves
+        const own = await listProjects({ port: 0, provider: 'claude' });
+        const rows = remoteRows(this.computers(), { host, port });
+        return { running: [...own.running.map(bareRow), ...rows.map((r) => (r.remote?.host === host ? r : bareRow(r)))], recent: [], hidden: [] };
+      },
+      enter: (to) => this.#enter(to),
+      onClose: () => {
+        this.#proxies.delete(p);
+        if (this.#server) this.#idleCheck();
+      },
+      ...(this.#lingerMs !== undefined ? { lingerMs: this.#lingerMs } : {}),
+    });
+    await p.start();
+    this.#proxies.add(p);
+    this.#log(`computer ${host}: window ${port} on localhost:${p.port}`);
+    return { url: p.url };
+  }
+
+  async #enter(to: EnterTarget): Promise<{ url: string } | { error: string }> {
+    if ('host' in to) return this.openProxy(to.host, to.port);
+    if (!(PROVIDERS as string[]).includes(to.provider)) return { error: 'no such window' };
+    return enterUrl({ provider: to.provider as AgentProvider, port: to.port, root: to.root });
+  }
+
   #hostView(h: Host): Msg {
     return {
       id: h.id, ...(h.name ? { name: h.name } : {}), fingerprint: fingerprint(fromB64u(h.pub, 32)),
@@ -185,7 +235,8 @@ export class Connector extends EventEmitter {
   }
 
   #idleCheck(): void {
-    if (this.windows.list().length > 0) return void (this.#idleSince = undefined);
+    if (!this.#managed) return;
+    if (this.windows.list().length > 0 || this.#proxies.size > 0) return void (this.#idleSince = undefined);
     const now = Date.now();
     this.#idleSince ??= now;
     if (now - this.#idleSince < this.#idleMs) return;
@@ -208,6 +259,7 @@ export class Connector extends EventEmitter {
       this.#server = undefined;
       await closeControl(srv);
     }
+    for (const p of [...this.#proxies]) p.close();
     this.windows.stop();
     await this.#relay?.stop();
   }
@@ -352,6 +404,11 @@ export class Connector extends EventEmitter {
         // hosts.json changed (a computer paired or forgotten, by a window or the CLI)
         this.#syncHosts();
         return write(sock, { hosts: readHosts().map((h) => this.#hostView(h)) });
+      case 'computers':
+        return write(sock, { computers: this.computers() });
+      case 'open':
+        if (typeof m.host !== 'string' || !Number.isInteger(m.port)) return write(sock, { error: 'bad request' });
+        return void this.openProxy(m.host, m.port as number).then((r) => write(sock, r), (e: Error) => write(sock, { error: e.message }));
       case 'pair': {
         this.#pairClients.add(sock);
         sock.once('close', () => {

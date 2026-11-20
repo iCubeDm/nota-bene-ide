@@ -1,5 +1,6 @@
 // A project's look, shared by the header's switcher and the rail: its tile (two letters on a colour of its own, with the
 // state dot) and its one badge; the state names and which states have a window to move to.
+import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import type { ProjectState } from './api.ts';
 import type { Badge } from './rows.ts';
 
@@ -14,8 +15,11 @@ export const LIVE = new Set<ProjectState>(['working', 'waiting', 'idle']);
 const TILES = ['bg-accent-agent/20 text-accent-agent', 'bg-accent-model/20 text-accent-model', 'bg-accent-sessions/20 text-accent-sessions',
   'bg-accent-usage/20 text-accent-usage', 'bg-primary/20 text-primary', 'bg-success/20 text-success', 'bg-warn/20 text-warn'];
 
-/** Two letters of the folder on a colour picked by its path: the same project looks the same everywhere. `ring`: the dot's edge, the surface's colour. */
-export function Tile({ root, state, ring = 'border-popover' }: { root: string; state?: ProjectState; ring?: string }) {
+/**
+ * Two letters of the folder on a colour picked by its path: the same project looks the same everywhere. `ring`: the dot's
+ * edge, the surface's colour. `remote`: another computer's (issue 297), a laptop in the corner.
+ */
+export function Tile({ root, state, remote, ring = 'border-popover' }: { root: string; state?: ProjectState; remote?: boolean; ring?: string }) {
   let h = 0;
   for (const c of root) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const letters = (folderOf(root).match(/[\p{L}\p{N}]/gu) ?? ['?']).slice(0, 2).join('').toUpperCase();
@@ -23,6 +27,7 @@ export function Tile({ root, state, ring = 'border-popover' }: { root: string; s
     <span aria-hidden className={`relative flex size-8 flex-none items-center justify-center rounded-lg text-[0.6875rem] font-bold ${TILES[h % TILES.length]}`}>
       {letters}
       {state && <span className={`absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 ${ring} ${DOT[state]}`} />}
+      {remote && <span data-remote className={`absolute -bottom-1 -left-1 rounded-sm p-px text-muted-foreground ${ring === 'border-chrome' ? 'bg-chrome' : 'bg-popover'}`}><Svg size={10}>{ICONS.laptop}</Svg></span>}
     </span>
   );
 }

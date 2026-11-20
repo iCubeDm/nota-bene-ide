@@ -12,6 +12,7 @@ import { switchSession } from '@/controls/slice.ts';
 import { REFUSED } from '@/controls/useNote.ts';
 import { archiveSession, renameSession } from '@/controls/sessionsApi.ts';
 import { apiFetch } from '@/net/auth.ts';
+import { remotePage } from '@/net/local.ts';
 import { toast } from '@/shell/toast.ts';
 import { useAppDispatch } from '@/store/store.ts';
 import { enterProject, openFolder, postJson, PROVIDER_LABEL, reasonText, type Provider, type RunningRow } from './api.ts';
@@ -38,6 +39,8 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
   const mine = live.find((w) => w.current);
 
   useEffect(() => {
+    // another computer's page (issue 297): its proxy answers neither, the agents of the windows here are the choice
+    if (remotePage()) return;
     let gone = false;
     void Promise.all(live.filter((w) => !w.current).map(async (w) => {
       try {
@@ -87,6 +90,7 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
   const [pick, setPick] = useState<Provider | null>(null);
   const picked = pick ? live.find((x) => x.provider === pick) : undefined;
   // the agent of a window here first (this window's when it is one), else the first installed
+  const choices = agents.length ? agents : [...new Set(live.map((w) => w.provider))];
   const firstAgent = (): Provider | null => (mine ?? live[0])?.provider ?? agents[0] ?? null;
   const fresh = async (agent: Provider) => {
     const w = live.find((x) => x.provider === agent);
@@ -163,7 +167,7 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
           onCancel={() => setPick(null)}
         >
           <div role="radiogroup" aria-label={t('startAgent')} className="flex flex-wrap gap-2">
-            {agents.map((a) => (
+            {choices.map((a) => (
               <label key={a} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm ${a === pick ? 'border-primary text-foreground' : 'border-border-soft text-muted-foreground'}`}>
                 <input type="radio" name="nb-new-agent" aria-label={PROVIDER_LABEL[a]} checked={a === pick} onChange={() => setPick(a)} className="accent-primary" />
                 {PROVIDER_LABEL[a]}

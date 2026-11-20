@@ -369,6 +369,7 @@ const MATRIX: { method: string; path: string; cookie: 'open' | 'refused' }[] = [
   { method: 'POST', path: '/system/folders', cookie: 'refused' },
   { method: 'POST', path: '/system/projects/open', cookie: 'refused' },
   { method: 'POST', path: '/system/projects/create', cookie: 'refused' },
+  { method: 'POST', path: '/system/remote/open', cookie: 'refused' },
   { method: 'POST', path: `/marks/${ID}/frame.jpg`, cookie: 'refused' },
   { method: 'DELETE', path: `/marks/${ID}`, cookie: 'refused' },
 ];
@@ -519,9 +520,9 @@ describe('the socket', () => {
     expect((await wsTry(s.url, { authorization: 'Bearer ' + 'e'.repeat(64) })).status).toBe(401);
   });
 
-  it('the cookie alone is refused with no frames, with the page\'s Origin, a forged allowed Origin, or none', async () => {
+  it('the cookie alone is refused with no frames, with the page\'s Origin or none', async () => {
     const s = await boot({ nonce: N1 });
-    const attempts: Record<string, string>[] = [{ cookie: s.cookie, origin: s.origin }, { cookie: s.cookie }, { cookie: s.cookie, origin: `http://localhost:${s.port}` }];
+    const attempts: Record<string, string>[] = [{ cookie: s.cookie, origin: s.origin }, { cookie: s.cookie }];
     for (const headers of attempts) {
       const r = await wsTry(s.url, headers);
       expect(r.status).toBe(401);

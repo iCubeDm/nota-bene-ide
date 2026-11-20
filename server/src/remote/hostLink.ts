@@ -209,6 +209,12 @@ export class HostLink extends EventEmitter {
     s?.ws.close(1000);
   }
 
+  /** A stream to the computer (CHANNEL.md, Stream kinds) while the channel is up; null while it is down. */
+  open(o: unknown): Stream | null {
+    const mux = this.state === 'online' ? this.#sock?.end.mux : undefined;
+    return mux ? mux.open(o) : null;
+  }
+
   #set(s: RemoteHostState): void {
     if (s === this.state) return;
     this.state = s;

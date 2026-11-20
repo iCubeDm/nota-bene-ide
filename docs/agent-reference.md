@@ -219,6 +219,12 @@ The canonical security model. Nothing on the machine reaches the API or the sock
 - **Project switcher** (`server/src/projects.ts`, `projectRoutes.ts`): a window mints another window's login itself,
   from that provider's token after `proveListener`, and returns it only in a JSON body. The `&s=<id>` hand-off after the
   login is dropped with the fragment before `/auth`.
+- **Desktop proxy** (`server/src/remote/proxy.ts`, issue 297): another computer's window on a listener of the connector,
+  served as `localhost` (the windows stay on `127.0.0.1`, so the cookies never mix), with its own token, nonce, login,
+  cookie and key checked by the same `auth.ts` code and stripped; the other computer sees only the channel's helper
+  bearer. Before its login the page gets only what a window serves anyone (`public` stream). Its page never obtains a
+  credential for this computer's windows: the switch back is a same-origin navigation (`Sec-Fetch-*`) to
+  `/system/remote/enter`, answered with a 303 whose fragment page code cannot read. Its rows of this computer carry no title, session or last message. Windows accept only `127.0.0.1`, never `localhost`, as Host and Origin (dev keeps `--allow-origin http://localhost:5173`; Vite's `changeOrigin` sends `127.0.0.1:4780`).
 - **Trust limit.** The token is readable by any process of the same OS user, the agent included: the aim is to keep out
   other users and software that cannot read the file. Accepted residual risk: browsers send cookies to every
   `127.0.0.1` port, so a local web server the user visits gets `nb_<port>` and can read what the cookie tier opens, until

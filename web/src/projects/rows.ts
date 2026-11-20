@@ -1,21 +1,28 @@
 // The chat list's rows: one per folder over the windows of every agent in it, and the one badge that sums them up.
 import type { LastMessage, ProjectState, RunningRow } from './api.ts';
 
-export type ProjectRow = { root: string; windows: RunningRow[]; state: ProjectState; unseen: number; last: LastMessage | null; current: boolean };
+/** `key`: the folder, qualified by its computer for another one's (issue 297: the same path may be on both) */
+export type ProjectRow = {
+  key: string; root: string; remote?: RunningRow['remote']; windows: RunningRow[]; state: ProjectState; unseen: number; last: LastMessage | null; current: boolean;
+};
 export type Badge = '!' | number | null;
 
 const URGENCY: ProjectState[] = ['waiting', 'working', 'idle', 'silent', 'restarting'];
 const atOf = (x: { last: LastMessage | null }) => x.last?.at ?? 0;
 const folderOf = (root: string) => root.split(/[\\/]/).filter(Boolean).pop() ?? root;
 
-/** The windows grouped by folder: the most urgent state, the summed unseen, the newest message; waiting first, then unseen, then the rest. */
+/** A folder's row key: its path, qualified by its computer for another one's. */
+export const rowKey = (root: string, host?: string): string => (host ? `${host}\n${root}` : root);
+const keyOf = (r: RunningRow) => rowKey(r.root, r.remote?.host);
+
+/** The windows grouped by folder (and computer): the most urgent state, the summed unseen, the newest message; waiting first, then unseen, then the rest. */
 export function foldRows(running: RunningRow[]): ProjectRow[] {
   const by = new Map<string, RunningRow[]>();
-  for (const r of running) by.set(r.root, [...(by.get(r.root) ?? []), r]);
-  const rows = [...by].map(([root, ws]): ProjectRow => {
+  for (const r of running) by.set(keyOf(r), [...(by.get(keyOf(r)) ?? []), r]);
+  const rows = [...by].map(([key, ws]): ProjectRow => {
     const windows = [...ws].sort((a, b) => atOf(b) - atOf(a));
     return {
-      root, windows,
+      key, root: ws[0]!.root, ...(ws[0]!.remote ? { remote: ws[0]!.remote } : {}), windows,
       state: URGENCY.find((s) => windows.some((w) => w.state === s)) ?? 'idle',
       unseen: windows.reduce((n, w) => n + w.unseen, 0),
       last: windows[0]!.last,
@@ -23,7 +30,7 @@ export function foldRows(running: RunningRow[]): ProjectRow[] {
     };
   });
   const group = (r: ProjectRow) => (r.state === 'waiting' ? 0 : r.unseen > 0 ? 1 : 2);
-  return rows.sort((a, b) => group(a) - group(b) || atOf(b) - atOf(a) || folderOf(a.root).localeCompare(folderOf(b.root)) || a.root.localeCompare(b.root));
+  return rows.sort((a, b) => group(a) - group(b) || atOf(b) - atOf(a) || folderOf(a.root).localeCompare(folderOf(b.root)) || a.key.localeCompare(b.key));
 }
 
 /** One badge over the projects other than this one: `!` when any waits for the person, else the unseen replies, else none. */
