@@ -59,20 +59,27 @@ export function fingerprint(pub: Buffer): string {
 const KEY_RE = /^[A-Za-z0-9_-]{43}$/;
 const JSON_RE = /^\{[\s\S]*\}$/;
 
+/** The key saved in `name`, or null when there is none yet. */
+function savedKey(name: string, what: string, hint: string): KeyPair | null {
+  const have = readPrivateFile(path.join(remoteDir(), name), KEY_RE, what, hint);
+  if (!have) return null;
+  const priv = fromB64u(have, 32);
+  return { priv, pub: publicOf(priv) };
+}
+
 function keyFile(name: string, what: string, hint: string): KeyPair {
+  const have = savedKey(name, what, hint);
+  if (have) return have;
   const file = path.join(remoteDir(), name);
-  const have = readPrivateFile(file, KEY_RE, what, hint);
-  if (have) {
-    const priv = fromB64u(have, 32);
-    return { priv, pub: publicOf(priv) };
-  }
   const k = generateKeyPair();
   // two first starts agree on one key, as with the token
   return createOnce(file, b64u(k.priv)) ? k : settled(file, () => keyFile(name, what, hint));
 }
 
-export const hostKey = (): KeyPair =>
-  keyFile('host.key', 'a host key (43 base64url characters)', 'delete it to make a new host key (every paired device then has to pair again)');
+const HOST_KEY = ['host.key', 'a host key (43 base64url characters)', 'delete it to make a new host key (every paired device then has to pair again)'] as const;
+export const hostKey = (): KeyPair => keyFile(...HOST_KEY);
+/** The host key if this computer has one: reading it makes none. */
+export const savedHostKey = (): KeyPair | null => savedKey(...HOST_KEY);
 
 /** This computer's key as a device of other computers (issue 297): separate from its host identity. */
 export const deviceKey = (): KeyPair =>

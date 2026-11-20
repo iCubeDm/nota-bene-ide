@@ -9,7 +9,7 @@ import { cleanName, computerName } from './device.ts';
 import { collect, Mux, UNREACHABLE, type Stream } from './mux.ts';
 import { CipherState, Handshake, PROLOGUE, type KeyPair } from './noise.ts';
 import { relayProof } from './relayClient.ts';
-import { addHost, b64u, deviceKey, fromB64u, hostId, pairProof, pairTicket, parsePairUri, type Host } from './store.ts';
+import { addHost, b64u, deviceKey, fromB64u, hostId, pairProof, pairTicket, parsePairUri, savedHostKey, type Host } from './store.ts';
 
 /** The device end of one channel: handshake message 1 out, message 2 in, then mux frames both ways. */
 export class DeviceEnd {
@@ -142,6 +142,8 @@ export async function pairHost(code: string, o: { timeoutMs?: number; name?: str
   } catch (e) {
     throw new PairError((e as Error).message);
   }
+  // issue 505: its own code would make this computer its own device
+  if (savedHostKey()?.pub.equals(p.hostPub)) throw new PairError('this is this computer\'s own pairing code: paste it on the other computer');
   const key = deviceKey();
   const name = o.name ?? computerName();
   const sock = relayDevice(
