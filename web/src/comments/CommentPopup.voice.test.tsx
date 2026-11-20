@@ -226,7 +226,7 @@ it('an attached image alone swaps the mic for Add', async () => {
 it('a drawing\'s Add saves it; the mic stays inside the field meanwhile', async () => {
   let done!: (r: { images: string[] }) => void;
   const prepare = () => new Promise<{ images: string[] }>((res) => { done = res; });
-  const { store } = setup({ prepare });
+  const { store } = setup({ prepare, protocol: 26 });
   const before = addBtn();
   fireEvent.click(before);
   await waitFor(() => expect(addBtn()).toHaveAttribute('aria-busy', 'true'));

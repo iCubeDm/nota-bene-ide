@@ -253,7 +253,7 @@ it('after a turn an image always reloads; a video only while paused, and it keep
   expect(v().currentTime).toBe(12);
 });
 
-const hello = (): ServerEvent => ({ kind: 'hello', protocol: 4 });
+const hello = (): ServerEvent => ({ kind: 'hello', protocol: 26 }); // takes a drawing alone (issue 497)
 
 it('an image click does not toggle the zoom while marking', () => {
   const { r, store } = setup('p.png');

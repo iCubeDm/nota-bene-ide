@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ClientMessage, MediaAnchor } from '@nota-bene/shared';
+import { parseClientMessage, type ClientMessage, type MediaAnchor } from '@nota-bene/shared';
 import { Composer } from '@/composer/Composer.tsx';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
@@ -24,7 +24,7 @@ afterEach(() => {
   window.getSelection()?.removeAllRanges();
 });
 
-function setup(p: PendingComment = pending, onAdded?: () => void) {
+function setup(p: PendingComment = pending, onAdded?: () => void, protocol = 26) {
   const sent: ClientMessage[] = [];
   const store = makeStore({
     url: 'ws://x',
@@ -33,7 +33,7 @@ function setup(p: PendingComment = pending, onAdded?: () => void) {
       return { send: (m: ClientMessage) => (sent.push(m), true), close() {} };
     }) as never,
   });
-  store.dispatch({ type: 'server/event', payload: { kind: 'hello', protocol: 3 } }); // a server that knows every label
+  store.dispatch({ type: 'server/event', payload: { kind: 'hello', protocol } }); // a server that knows every label
   const onClose = vi.fn();
   render(
     <Provider store={store}>
@@ -51,6 +51,7 @@ const box = () => screen.getByPlaceholderText('Comment…');
 /** Like setup, with the popup's `hidden` prop driven by the test. */
 function setupHidable(p: PendingComment) {
   const store = makeStore({ url: 'ws://x', connect: (() => ({ send: () => true, close() {} })) as never });
+  store.dispatch({ type: 'server/event', payload: { kind: 'hello', protocol: 26 } }); // takes a drawing alone (issue 497)
   const ui = (hidden: boolean) => (
     <Provider store={store}>
       <TooltipProvider>
@@ -166,7 +167,7 @@ vi.mock('@/attachments/image.ts', async (orig) => ({
 it('a pasted image is saved on the comment (images-only is enough)', async () => {
   URL.createObjectURL = vi.fn(() => 'blob:x');
   URL.revokeObjectURL = vi.fn();
-  const { comments, onClose } = setup();
+  const { comments, onClose, sent } = setup();
   const f = new File(['x'], 'a.png', { type: 'image/png' });
   const ev = new Event('paste', { bubbles: true, cancelable: true });
   Object.defineProperty(ev, 'clipboardData', { value: { files: [f], items: [] } });
@@ -175,6 +176,30 @@ it('a pasted image is saved on the comment (images-only is enough)', async () =>
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   expect(comments()[0]).toMatchObject({ text: '', images: ['e'.repeat(64)] });
   expect(onClose).toHaveBeenCalled();
+  // the op as it goes on the wire is one the server takes (issue 497)
+  const op = sent.find((m) => m.type === 'comment-op');
+  expect(op).toMatchObject({ ops: [{ op: 'add', comment: { text: '', images: ['e'.repeat(64)] } }] });
+  expect(parseClientMessage(JSON.stringify(op))).toStrictEqual(op);
+});
+
+it('issue 497: an older server would refuse images or a drawing alone, so Add wants words there', async () => {
+  URL.createObjectURL = vi.fn(() => 'blob:x');
+  URL.revokeObjectURL = vi.fn();
+  setup(pending, undefined, 25);
+  const f = new File(['x'], 'a.png', { type: 'image/png' });
+  const ev = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(ev, 'clipboardData', { value: { files: [f], items: [] } });
+  act(() => void box().dispatchEvent(ev));
+  await waitFor(() => expect(document.querySelector('img[src^="/attach/"]:not([data-pending])')).toBeTruthy());
+  expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+  fireEvent.change(box(), { target: { value: 'see this' } });
+  expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
+  cleanup();
+  const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: async () => ({ images: [FRAME, LAYER] }) }, undefined, 25);
+  expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+  fireEvent.keyDown(box(), { key: 'Enter', metaKey: true });
+  await act(async () => {});
+  expect(comments()).toEqual([]);
 });
 
 it('while switching: Add and the quick labels are disabled with the switching tooltip, Cmd+Enter adds nothing', () => {

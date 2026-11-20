@@ -41,6 +41,11 @@ it('refs append the imgRef line under the comment, in the batch language', () =>
   expect(composeBatch('', [c('a', 'q', 'y')], 'ru', none, where, () => undefined, [[1]])).toContain('→ y\n📎 изображения: 1');
 });
 
+it('a comment of images alone: the images line takes the arrow, no empty arrow (issue 497)', () => {
+  const out = composeBatch('', [{ ...c('a', 'q', ''), images: ['e'.repeat(64)] }, c('b', 'q2', 'z')], 'en', none, where, () => undefined, [[1], []]);
+  expect(out).toContain('> q\n→ 📎 images: 1\n\n2. [reply]\n> q2\n→ z');
+});
+
 const media = (id: string, text: string, o: Partial<MediaAnchor> = {}): Comment => ({
   id, text, status: 'pending', createdAt: 1,
   anchor: {

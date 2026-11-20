@@ -47,11 +47,22 @@ void main() {
 
   String idOf(int i) => i.toRadixString(16).padLeft(64, '0');
 
-  Future<void> openSheet(WidgetTester t, {Comment? editing}) async {
+  Future<void> openSheet(
+    WidgetTester t, {
+    Comment? editing,
+    num protocol = imagesAloneProtocol,
+  }) async {
     t.view.physicalSize = const Size(400, 800);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
-    await r.open(t);
+    await r.open(
+      t,
+      hello: {
+        'kind': 'hello',
+        'protocol': protocol,
+        'capabilities': Rig.caps(),
+      },
+    );
     r.ch.onHttp = (port, method, path) async {
       if (path == '/attach') {
         return (
@@ -178,6 +189,25 @@ void main() {
       );
     });
 
+    testWidgets(
+      'an older window gets no comment of images alone: it would refuse it (issue 497)',
+      (t) async {
+        await openSheet(t, protocol: imagesAloneProtocol - 1);
+        await attach(t);
+        expect(find.byKey(const ValueKey('send')), findsNothing);
+        await t.enterText(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.byType(TextField),
+          ),
+          'see these',
+        );
+        await t.pumpAndSettle();
+        await send(t);
+        expect((got as SheetSave).images, [idOf(0), idOf(1)]);
+      },
+    );
+
     testWidgets('an edit starts with the images the comment has', (t) async {
       final x = Comment(
         id: 'x',
@@ -214,10 +244,10 @@ void main() {
           res.label,
           images: res.imageIds,
         );
-        expect((r.sent.last['items'] as List).single['images'], [
-          idOf(0),
-          idOf(1),
-        ]);
+        expect(
+          ((r.sent.last['ops'] as List).single as Map)['comment']['images'],
+          [idOf(0), idOf(1)],
+        );
         // an edit replaces the pasted images and keeps the generated frame first
         final media = Comment(
           id: 'm',

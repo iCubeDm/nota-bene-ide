@@ -58,8 +58,10 @@ export function composeBatch(
     const clips = (c.voice ?? []).map((v) => v.text.replace(/\s+/g, ' ').trim()).filter(Boolean);
     const [head = '', ...more] = [[labelOf(c), c.text.trim()].filter(Boolean).join(' '), ...clips].filter(Boolean);
     const instr = instructionOf(c);
+    // no words at all (images alone, issue 497): the first line of the tail takes the arrow
+    const body = head ? `${head}${more.map((l) => `\n   ${l}`).join('')}${instr ? `\n   ${instr}` : ''}${tail}` : tail.slice(1);
     // no quote (a comment on the whole picture, issue 494): no line for it
-    return `${i + 1}. [${whereOf(c)}]\n${quote ? `${quote}\n` : ''}→ ${head}${more.map((l) => `\n   ${l}`).join('')}${instr ? `\n   ${instr}` : ''}${tail}`;
+    return `${i + 1}. [${whereOf(c)}]\n${quote ? `${quote}\n` : ''}→ ${body}`;
   });
   return `${general ? general + '\n\n' : ''}${tIn(lang, 'batchHead')}\n\n${blocks.join('\n\n')}`;
 }

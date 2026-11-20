@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, it } from 'vitest';
-import { generatedImages, isAttachmentAnchor, type Comment } from '@nota-bene/shared';
+import { generatedImages, isAttachmentAnchor, parseClientMessage, type Comment } from '@nota-bene/shared';
 import { tIn, type Lang } from '@/i18n/index.ts';
 import { composeBatch } from './compose.ts';
 import { instructionOf, labelOf } from './labels.ts';
@@ -45,6 +45,14 @@ const comments: Record<string, Comment> = {
   whole: { // issue 494: no shapes, a comment on the whole picture
     ...base, id: '55555555-5555-4555-8555-555555555555', text: 'all of it', images: [hex('2')], genImages: 1,
     anchor: { kind: 'media', source: { kind: 'file', path: 'img/whole.png' }, width: 960, height: 640, shapes: [] },
+  },
+  bare: { // issue 497: pasted images and no words
+    ...base, id: 'c-bare', text: '', images: [hex('3'), hex('4')],
+    anchor: { source: { kind: 'file', path: 'docs/plan.md' }, start: 4, end: 9, quote: 'cache', prefix: 'the ', suffix: '' },
+  },
+  drawn: { // issue 497: a drawing and no words
+    ...base, id: '66666666-6666-4666-8666-666666666666', text: '', images: [hex('5')], genImages: 1,
+    anchor: { kind: 'media', source: { kind: 'file', path: 'img/shot.png' }, width: 1920, height: 1080, shapes: [{ kind: 'rect', color: '#ff3b30', x: 0.1, y: 0.1, w: 0.2, h: 0.2 }] },
   },
   mask: { // issue 447: a polygon, so mask.png too
     ...base, id: '44444444-4444-4444-8444-444444444444', text: 'inpaint this', images: [hex('1')], genImages: 1,
@@ -89,6 +97,12 @@ it('the desktop side of the batch fixtures', () => {
     fs.writeFileSync(out, json);
   }
   expect(json).toBe(fs.readFileSync(out, 'utf8'));
+});
+
+// the phone's comments_test checks that its own add makes the same JSON as these (issue 497)
+it('every fixture comment is one the server takes', () => {
+  const set = { type: 'comments', sessionId: null, items: Object.values(comments) };
+  expect(parseClientMessage(JSON.stringify(set))).toStrictEqual(set);
 });
 
 // Comments on a composer image (protocol 17). Kept in a file of its own so the phone's media test is unaffected until its

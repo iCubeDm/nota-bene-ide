@@ -174,6 +174,39 @@ void main() {
     });
   });
 
+  test(
+    'a comment of images alone: the phone sends the JSON the desktop checks against the server (issue 497)',
+    () {
+      for (final k in ['bare', 'drawn']) {
+        final want = ((fixture['comments'] as Map)[k] as Map)
+            .cast<String, Object?>();
+        final sent = <ClientMessage>[];
+        final cs = Comments(
+          (m) {
+            sent.add(m);
+            return true;
+          },
+          () => null,
+          now: () => DateTime.fromMillisecondsSinceEpoch(1),
+        )..hello(13);
+        final w = Comment.fromJson(want);
+        cs.add(
+          w.anchor,
+          '',
+          null,
+          id: w.id,
+          images: w.images,
+          genImages: w.genImages?.toInt(),
+        );
+        final m = sent.whereType<ClientMessageComments>().single;
+        expect(
+          jsonDecode(jsonEncode(m.items.single.toJson())),
+          jsonDecode(jsonEncode(want)),
+        );
+      }
+    },
+  );
+
   group('composeBatch (compose.test.ts, text anchors)', () {
     test('general text first, then the header and numbered items', () {
       final out = composeBatch('Please fix', [
