@@ -1,6 +1,7 @@
-// `nota-bene remote`: one per host user. It keeps the relay connection, a DeviceChannel per phone connection, the
-// pairing in flight and the control socket. devices.json is the source of truth for who may connect; the relay's
-// filter is updated from it live.
+// `nota-bene remote`: one per host user. As a host (while a relay is saved and access is on) it keeps the relay
+// connection, a DeviceChannel per device connection and the pairing in flight; devices.json is the source of truth for
+// who may connect, and the relay's filter is updated from it live. As a device of other computers (issue 297) it keeps a
+// HostLink per computer in hosts.json. And the control socket.
 //
 // Pairing: one code at a time (a new `pair` cancels the previous one). While a code is valid the relay holds its
 // ticket, so any phone presenting it reaches the host; the first valid proof is paired, and every later one is refused
@@ -12,10 +13,12 @@ import type net from 'node:net';
 import { DeviceChannel } from './device.ts';
 import { Windows } from './discover.ts';
 import { closeControl, running, serveControl, write, type Msg } from './control.ts';
+import { HostLink, type HostWindowInfo } from './hostLink.ts';
 import type { KeyPair } from './noise.ts';
 import { KEY_LIMIT, KEY_LIMIT_MESSAGE, RelayClient } from './relayClient.ts';
 import {
-  addDevice, b64u, clearLastError, deviceHash, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readAccessKey, readDevices, readLastError, removeDevice, writeLastError, type Device,
+  addDevice, b64u, clearLastError, deviceHash, deviceKey, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readAccessKey, readDevices, readHosts, readLastError,
+  removeDevice, renameHost, writeLastError, type Device, type Host,
 } from './store.ts';
 
 const MAX_DEVICES = 32; // the relay's limit for a device list
@@ -30,11 +33,12 @@ type Pairing = { secret: Buffer; expiresAt: number; used: boolean; client: net.S
  */
 export class Connector extends EventEmitter {
   readonly windows: Windows;
-  #relayUrl: string;
+  /** the relay this computer is a host on; none: it only connects to other computers */
+  #relayUrl: string | undefined;
   #ttl: number;
   #backoff: { minMs: number; maxMs: number } | undefined;
   #key!: KeyPair;
-  #relay!: RelayClient;
+  #relay: RelayClient | undefined;
   #keyWarned = false;
   #server: net.Server | undefined;
   #channels = new Map<number, { ch: DeviceChannel; hash: string }>();
@@ -45,10 +49,11 @@ export class Connector extends EventEmitter {
   #idleMs: number;
   #idleSince: number | undefined;
   #idleTimer: NodeJS.Timeout | undefined;
+  #links = new Map<string, { link: HostLink; host: Host }>();
 
   /** `managed`: started by a window (`--managed`), so it exits with no window to serve. `version`: the package's, for `status`. */
   constructor(o: {
-    relay: string; windows?: Windows; pairTtlMs?: number; backoff?: { minMs: number; maxMs: number };
+    relay?: string; windows?: Windows; pairTtlMs?: number; backoff?: { minMs: number; maxMs: number };
     managed?: boolean; version?: string; idleExitMs?: number;
   }) {
     super();
@@ -65,58 +70,118 @@ export class Connector extends EventEmitter {
     return this.#relay?.online ?? false;
   }
 
-  get hostFingerprint(): string {
-    return fingerprint(this.#key.pub);
+  /** null when this computer is no host (no relay, or access off) */
+  get hostFingerprint(): string | null {
+    return this.#relayUrl ? fingerprint(this.#key.pub) : null;
   }
 
   async start(): Promise<void> {
     if (await running()) throw new Error('nota-bene remote is already running');
-    this.#key = hostKey();
     this.windows.on('warn', (m: string) => this.#log(m));
     await this.windows.start();
-    this.#relay = new RelayClient({
-      url: this.#relayUrl,
-      key: this.#key,
-      devices: () => this.#hashes(),
-      ticket: () => (this.#pairing ? pairTicket(this.#pairing.secret) : null),
-      member: () => this.#accessKey(),
-      ...(this.#backoff ? { backoff: this.#backoff } : {}),
-    });
-    this.#relay.on('online', () => {
-      clearLastError();
-      this.#log('online');
-      this.emit('online');
-    });
-    this.#relay.on('offline', (code: number) => {
-      this.#log(`offline (relay closed with ${code}); reconnecting`);
-      this.emit('offline', code);
-    });
-    this.#relay.on('limited', () => {
-      // the windows say why while it retries; going online clears it
-      writeLastError({ code: KEY_LIMIT, message: KEY_LIMIT_MESSAGE, at: Date.now() });
-      this.#log(`${KEY_LIMIT_MESSAGE}; retrying`);
-    });
-    // the key limit is no longer why it is offline (the relay is down, say): the windows stop saying so
-    this.#relay.on('retry', () => { if (readLastError()?.code === KEY_LIMIT) clearLastError(); });
-    this.#relay.on('fatal', (code: number, message: string) => {
-      writeLastError({ code, message, at: Date.now() }); // the windows say why, and wait before they start another
-      this.#log(message);
-      this.emit('fatal', message);
-    });
-    this.#relay.on('open', (conn: number, hash: string) => this.#open(conn, hash));
-    this.#relay.on('frame', (conn: number, payload: Buffer) => this.#channels.get(conn)?.ch.receive(payload));
-    this.#relay.on('gone', (conn: number) => {
-      this.#channels.get(conn)?.ch.close();
-      this.#channels.delete(conn);
-    });
+    // a broken key file or hosts.json refuses the start before anything listens
+    if (this.#relayUrl) this.#key = hostKey();
+    this.#syncHosts();
     this.#server = await serveControl((m, sock) => this.#control(m, sock));
-    this.#relay.start();
     if (this.#managed) {
       this.#idleTimer = setInterval(() => this.#idleCheck(), Math.max(10, this.#idleMs / 4));
       this.#idleTimer.unref();
       this.windows.on('change', () => this.#idleCheck());
       this.#idleCheck();
     }
+    if (this.#relayUrl) this.#startHost(this.#relayUrl);
+  }
+
+  #startHost(url: string): void {
+    const relay = (this.#relay = new RelayClient({
+      url,
+      key: this.#key,
+      devices: () => this.#hashes(),
+      ticket: () => (this.#pairing ? pairTicket(this.#pairing.secret) : null),
+      member: () => this.#accessKey(),
+      ...(this.#backoff ? { backoff: this.#backoff } : {}),
+    }));
+    relay.on('online', () => {
+      clearLastError();
+      this.#log('online');
+      this.emit('online');
+    });
+    relay.on('offline', (code: number) => {
+      this.#log(`offline (relay closed with ${code}); reconnecting`);
+      this.emit('offline', code);
+    });
+    relay.on('limited', () => {
+      // the windows say why while it retries; going online clears it
+      writeLastError({ code: KEY_LIMIT, message: KEY_LIMIT_MESSAGE, at: Date.now() });
+      this.#log(`${KEY_LIMIT_MESSAGE}; retrying`);
+    });
+    // the key limit is no longer why it is offline (the relay is down, say): the windows stop saying so
+    relay.on('retry', () => { if (readLastError()?.code === KEY_LIMIT) clearLastError(); });
+    relay.on('fatal', (code: number, message: string) => {
+      writeLastError({ code, message, at: Date.now() }); // the windows say why, and wait before they start another
+      this.#log(message);
+      this.emit('fatal', message);
+    });
+    relay.on('open', (conn: number, hash: string) => this.#open(conn, hash));
+    relay.on('frame', (conn: number, payload: Buffer) => this.#channels.get(conn)?.ch.receive(payload));
+    relay.on('gone', (conn: number) => {
+      this.#channels.get(conn)?.ch.close();
+      this.#channels.delete(conn);
+    });
+    relay.start();
+  }
+
+  /**
+   * Brings the links in line with hosts.json: a forgotten computer's link stops, a new one starts, and one whose relay
+   * changed or that gave up (revoked, paired again since) starts over.
+   */
+  #syncHosts(): void {
+    const hosts = readHosts();
+    for (const [id, l] of [...this.#links]) {
+      const h = hosts.find((x) => x.id === id);
+      if (h && h.pub === l.host.pub && h.relay === l.host.relay && !l.link.done) {
+        l.host = h;
+        continue;
+      }
+      l.link.stop();
+      this.#links.delete(id);
+    }
+    // a managed connector with no host side and no computer left (the last one forgotten) has nothing to do
+    if (hosts.length === 0 && this.#managed && !this.#relayUrl && this.#server) {
+      this.#log('no relay and no paired computer; exiting');
+      setImmediate(() => this.emit('exit', 'idle'));
+    }
+    if (hosts.length === 0) return;
+    const key = deviceKey();
+    for (const h of hosts) {
+      if (this.#links.has(h.id)) continue;
+      const link = new HostLink({ relay: h.relay, hostPub: fromB64u(h.pub, 32), key, ...(this.#backoff ? { backoff: this.#backoff } : {}) });
+      const entry = { link, host: h };
+      link.on('state', (st: string) => this.#log(`computer ${h.id}: ${st}`));
+      // what it calls itself now (renamed, or paired before it said): saved, unless it was forgotten meanwhile
+      link.on('name', (name: string) => {
+        if (this.#links.get(h.id) !== entry || entry.host.name === name) return;
+        try {
+          entry.host = renameHost(fromB64u(h.pub, 32), name) ?? entry.host;
+        } catch (e) {
+          this.#log(`computer ${h.id}: its name was not saved: ${(e as Error).message}`);
+        }
+      });
+      this.#links.set(h.id, entry);
+      link.start();
+    }
+  }
+
+  /** The latest `windows` list of a paired computer (empty while its link is down). */
+  hostWindows(id: string): HostWindowInfo[] {
+    return this.#links.get(id)?.link.windows ?? [];
+  }
+
+  #hostView(h: Host): Msg {
+    return {
+      id: h.id, ...(h.name ? { name: h.name } : {}), fingerprint: fingerprint(fromB64u(h.pub, 32)),
+      state: this.#links.get(h.id)?.link.state ?? 'connecting', pairedAt: h.addedAt,
+    };
   }
 
   #idleCheck(): void {
@@ -136,6 +201,8 @@ export class Connector extends EventEmitter {
     for (const { ch } of this.#channels.values()) ch.close();
     this.#channels.clear();
     for (const s of this.#pairClients) s.destroy();
+    for (const { link } of this.#links.values()) link.stop();
+    this.#links.clear();
     if (this.#server) {
       const srv = this.#server;
       this.#server = undefined;
@@ -161,10 +228,10 @@ export class Connector extends EventEmitter {
   #open(conn: number, hash: string): void {
     const ch = new DeviceChannel({
       hostKey: this.#key,
-      send: (b) => this.#relay.send(conn, b),
+      send: (b) => this.#relay!.send(conn, b),
       drop: () => {
         this.#channels.delete(conn);
-        this.#relay.closeConn(conn);
+        this.#relay!.closeConn(conn);
       },
       windows: this.windows,
       pairing: () => this.#pairing ?? null,
@@ -191,7 +258,7 @@ export class Connector extends EventEmitter {
     }
     p.used = true;
     const d = addDevice(pub, name);
-    this.#relay.setDevices(this.#hashes());
+    this.#relay!.setDevices(this.#hashes());
     this.#log(`paired ${d.name ?? 'a phone'} (id ${d.id}, fingerprint ${fingerprint(pub)})`);
     if (p.client) write(p.client, { t: 'paired', device: { ...this.#view(d), online: true } });
     return true;
@@ -201,17 +268,18 @@ export class Connector extends EventEmitter {
     if (this.#pairing !== p) return;
     clearTimeout(p.timer);
     this.#pairing = undefined;
-    this.#relay.setTicket(null);
+    this.#relay?.setTicket(null);
     if (notice && !p.used && p.client) write(p.client, { t: notice });
   }
 
   #startPairing(client: net.Socket): Msg {
+    if (!this.#relayUrl) return { t: 'error', message: 'this computer is not reachable through a relay: save a relay and turn access on' };
     if (this.#pairing) this.#endPairing(this.#pairing, 'cancelled');
     const secret = randomBytes(32);
     const expiresAt = Date.now() + this.#ttl;
     const p: Pairing = { secret, expiresAt, used: false, client, timer: setTimeout(() => this.#endPairing(p, 'expired'), this.#ttl) };
     this.#pairing = p;
-    this.#relay.setTicket(pairTicket(secret));
+    this.#relay!.setTicket(pairTicket(secret));
     return { t: 'code', uri: pairUri({ relay: this.#relayUrl, hostPub: this.#key.pub, secret }), hostFingerprint: this.hostFingerprint, expiresAt };
   }
 
@@ -223,13 +291,13 @@ export class Connector extends EventEmitter {
       return { ok: false, error: (e as Error).message };
     }
     if (!d) return { ok: false, error: `no paired device ${id}` };
-    this.#relay.setDevices(this.#hashes());
+    this.#relay?.setDevices(this.#hashes());
     for (const [conn, c] of [...this.#channels]) {
       // by the key the phone proved in the handshake, not the relay's label (a channel still in its handshake goes too)
       if (c.ch.devicePub ? b64u(c.ch.devicePub) !== d.pub : c.hash !== deviceHash(fromB64u(d.pub, 32))) continue;
       c.ch.close(); // its frames are ignored from now on, whatever the relay still delivers
       this.#channels.delete(conn);
-      this.#relay.closeConn(conn);
+      this.#relay!.closeConn(conn);
     }
     this.#log(`revoked ${d.id}`);
     return { ok: true, device: { ...this.#view(d), online: false } };
@@ -249,11 +317,21 @@ export class Connector extends EventEmitter {
   }
 
   #control(m: Msg, sock: net.Socket): void {
+    try {
+      this.#answer(m, sock);
+    } catch (e) {
+      // a broken state file (devices.json, hosts.json): said, and the connector goes on
+      this.#log((e as Error).message);
+      write(sock, { ok: false, error: (e as Error).message });
+    }
+  }
+
+  #answer(m: Msg, sock: net.Socket): void {
     switch (m.op) {
       case 'status':
         return write(sock, {
-          online: this.online, relay: this.#relayUrl, hostFingerprint: this.hostFingerprint,
-          windows: this.windows.list().length, devices: readDevices().map((d) => this.#view(d)),
+          online: this.online, relay: this.#relayUrl ?? null, hostFingerprint: this.hostFingerprint,
+          windows: this.windows.list().length, devices: readDevices().map((d) => this.#view(d)), hosts: readHosts().map((h) => this.#hostView(h)),
           ...(this.#version ? { version: this.#version } : {}), managed: this.#managed,
           pairing: this.#pairing && !this.#pairing.used ? { expiresAt: this.#pairing.expiresAt } : null,
         });
@@ -261,7 +339,7 @@ export class Connector extends EventEmitter {
         // a new access key: connect with it now
         write(sock, { ok: true });
         this.#log('reconnecting with the saved access key');
-        return void this.#relay.reconnect();
+        return void this.#relay?.reconnect();
       case 'stop':
         write(sock, { ok: true });
         this.#log('asked to stop over the control socket');
@@ -270,6 +348,10 @@ export class Connector extends EventEmitter {
         return write(sock, { devices: readDevices().map((d) => this.#view(d)) });
       case 'revoke':
         return write(sock, typeof m.id === 'string' ? this.revoke(m.id) : { ok: false, error: 'revoke needs an id' });
+      case 'hosts':
+        // hosts.json changed (a computer paired or forgotten, by a window or the CLI)
+        this.#syncHosts();
+        return write(sock, { hosts: readHosts().map((h) => this.#hostView(h)) });
       case 'pair': {
         this.#pairClients.add(sock);
         sock.once('close', () => {

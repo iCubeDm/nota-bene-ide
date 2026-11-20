@@ -3,11 +3,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Connector } from './connector.ts';
-import { closeControl, serveControl, write } from './control.ts';
+import { closeControl, controlClient, serveControl, write } from './control.ts';
 import { Windows } from './discover.ts';
 import { BACKOFF_MS, LegacyConnector, olderVersion, RemoteKeeper, type PairOutcome } from './keeper.ts';
 import { generateKeyPair } from './noise.ts';
-import { b64u, pairProof, pairTicket, parsePairUri, readAccessKey, readConfig, readLastError, remoteDir, writeConfig, writeLastError } from './store.ts';
+import { PairError } from './hostLink.ts';
+import { addHost, b64u, hostKey, pairProof, pairTicket, parsePairUri, readAccessKey, readHosts, readConfig, readLastError, remoteDir, writeConfig, writeLastError } from './store.ts';
 import { relayPhone } from './testPhone.ts';
 import { startRelay, type TestRelay } from './testRelay.ts';
 
@@ -47,8 +48,11 @@ const until = async (cond: () => boolean | Promise<boolean>, ms = 5000) => {
 };
 
 /** A connector in this process, as `nota-bene remote` would run: it stops when asked to exit. */
-async function connector(o: { managed?: boolean; version?: string } = {}): Promise<Connector> {
-  const c = new Connector({ relay: readConfig().relay ?? relay.url, backoff: { minMs: 50, maxMs: 200 }, windows: new Windows(), idleExitMs: 3_600_000, ...o });
+async function connector(o: { managed?: boolean; version?: string; relay?: string | null } = {}): Promise<Connector> {
+  const { relay: url, ...rest } = o;
+  const c = new Connector({
+    ...(url === null ? {} : { relay: url ?? readConfig().relay ?? relay.url }), backoff: { minMs: 50, maxMs: 200 }, windows: new Windows(), idleExitMs: 3_600_000, ...rest,
+  });
   c.on('exit', () => void c.stop());
   await c.start();
   started.push(c);
@@ -297,6 +301,64 @@ describe('remote keeper', () => {
     expect(spawns).toHaveLength(2); // not after the back-off
     expect(r.state).toMatchObject({ running: true, accessKey: true, lastError: null });
     expect(readLastError()).toBeNull();
+  });
+
+  it('a computer paired and no relay of its own: a connector runs for the link; off keeps it; forget (issue 297)', async () => {
+    const h = addHost({ relay: relay.url, pub: generateKeyPair().pub, name: 'Studio' });
+    // as `nota-bene remote --managed` would run: a host only with a relay saved and access on
+    const { k, spawns } = keeper({ spawn: () => setTimeout(() => {
+      const cfg = readConfig();
+      void connector({ managed: true, version: '9.9.9', relay: cfg.enabled === false ? null : cfg.relay ?? null });
+    }, 50) });
+    const s = await k.refresh();
+    expect(spawns).toHaveLength(1);
+    expect(s).toMatchObject({ configured: false, running: true, online: false, hosts: [expect.objectContaining({ id: h.id, name: 'Studio' })] });
+    // nobody is the host behind that key: the relay says it is offline, and the link keeps trying
+    await until(async () => (await k.refresh()).hosts?.[0]?.state === 'failing');
+    // a relay saved: the client-only connector is replaced by one that is a host too
+    const on = await k.setConfig({ relay: relay.url });
+    expect(on.stopped).toBe('managed');
+    await until(async () => (await k.refresh()).online);
+    expect(k.state().hosts).toHaveLength(1);
+    // access off: a host no more, but still the computer's link
+    const off = await k.setConfig({ enabled: false });
+    expect(off.state).toMatchObject({ running: true, online: false, hosts: [expect.objectContaining({ id: h.id })] });
+    await expect(k.forget('zzzzzzzz')).resolves.toMatchObject({ ok: false });
+    expect(await k.forget(h.id)).toEqual({ ok: true });
+    expect(readHosts()).toEqual([]);
+    expect(k.state().hosts).toEqual([]);
+    await expect(k.connect('nbremote://pair?v=2')).rejects.toThrow(PairError);
+  });
+
+  it('a client-only managed connector is replaced once a relay is saved outside the tab (issue 297)', async () => {
+    addHost({ relay: relay.url, pub: generateKeyPair().pub });
+    const { k, spawns } = keeper({ spawn: () => setTimeout(() => {
+      const cfg = readConfig();
+      void connector({ managed: true, version: '9.9.9', relay: cfg.enabled === false ? null : cfg.relay ?? null });
+    }, 50) });
+    expect(await k.refresh()).toMatchObject({ running: true, hostFingerprint: null });
+    writeConfig({ relay: relay.url }); // as `nota-bene remote --relay` does before it finds one running
+    await until(async () => (await k.refresh()).online);
+    expect(spawns).toHaveLength(2);
+  });
+
+  it('a failed connect still has the connector restart a link that gave up (issue 297)', async () => {
+    writeConfig({ relay: relay.url });
+    const { k } = keeper();
+    await k.refresh();
+    await until(async () => (await k.refresh()).online);
+    const logs: string[] = [];
+    started.at(-1)!.on('log', (m: string) => logs.push(m));
+    // this very host does not list this device: the relay refuses the link, which gives up
+    const h = addHost({ relay: relay.url, pub: hostKey().pub });
+    const cl = await controlClient();
+    cl.send({ op: 'hosts' });
+    await cl.next();
+    cl.close();
+    const revoked = () => logs.filter((l) => l === `computer ${h.id}: revoked`).length;
+    await until(() => revoked() === 1);
+    await expect(k.connect('nbremote://nope')).rejects.toThrow(PairError);
+    await until(() => revoked() === 2);
   });
 
   it('a home never set up: the state says no key and nothing is created', async () => {

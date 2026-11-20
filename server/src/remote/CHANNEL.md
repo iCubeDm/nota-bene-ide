@@ -6,7 +6,9 @@ them. This document is the contract for what those frames contain: the
 handshake, the pairing, the streams. The Node side lives in this folder; the
 phone's implementation (`mobile/channel`) passes the same vectors and worked
 examples, and `mobile/channel/test/cross_test.dart` runs it against the real
-relay and connector through `crossHost.ts`.
+relay and connector through `crossHost.ts`. Another computer's connector can
+be the device too (`hostLink.ts`, with its own `device.key`): what is said
+here of the phone holds for it, and message 1 carries that computer's name.
 
 ## Handshake
 
@@ -160,6 +162,7 @@ prefixes (case-insensitive):
 - `/remote`: pairing, revoking and switching access stay on the computer.
 - `/system/projects`, `/system/folders`, `/system/agents`: the project
   switcher starts windows, creates folders and hands out other windows' logins.
+- `/system/remote`: reaches the computers this one is paired with as a device.
 - `/os`: Show in Finder and Open act on this computer's desktop.
 
 A `ws` path must also be `/ws` (with an optional query).

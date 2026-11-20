@@ -213,7 +213,7 @@ The canonical security model. Nothing on the machine reaches the API or the sock
   inside it (`server/src/stateGuard.ts`), so a root that contains it (a session in `$HOME`) does not hand out the token.
 - **Routes that reach beyond the project** stay key tier: `/tmpimage` (images in a temp folder, realpath checked, no
   listing, one 404 for every refusal) and `/os/reveal`, `/os/open` (loopback peer without `Authorization` only). The
-  phone relay refuses `/control`, `/remote`, `/system/projects`, `/system/folders`, `/system/agents` and `/os`
+  phone relay refuses `/control`, `/remote`, `/system/projects`, `/system/folders`, `/system/agents`, `/system/remote` and `/os`
   (`server/src/remote/device.ts` `goodPath`; [channel contract](../server/src/remote/CHANNEL.md)).
 - **`/file`** serves `.html` and other text kinds as `text/plain`, everything under a CSP `sandbox`.
 - **Project switcher** (`server/src/projects.ts`, `projectRoutes.ts`): a window mints another window's login itself,

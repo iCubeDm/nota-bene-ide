@@ -1,5 +1,6 @@
 // The connector's state under `<stateBase>/remote/` (700): `host.key` (the host's X25519 private key, base64url),
-// `devices.json` (the paired phones: the source of truth for who may connect), `config.json` (the relay URL, access on or off), `last-error.json` (the relay's last refusal) and, on
+// `devices.json` (the paired devices: the source of truth for who may connect), `device.key` and `hosts.json` (this
+// computer as a device of other computers: its own key, and the computers it paired with, issue 297), `config.json` (the relay URL, access on or off), `last-error.json` (the relay's last refusal) and, on
 // Windows, `control-secret` (what a client of the control pipe proves it holds, control.ts). All
 // mode 600, written whole and renamed in, read with the token's checks (auth.ts readPrivateFile). Also the pairing
 // derivations of CHANNEL.md.
@@ -58,17 +59,24 @@ export function fingerprint(pub: Buffer): string {
 const KEY_RE = /^[A-Za-z0-9_-]{43}$/;
 const JSON_RE = /^\{[\s\S]*\}$/;
 
-export function hostKey(): KeyPair {
-  const file = path.join(remoteDir(), 'host.key');
-  const have = readPrivateFile(file, KEY_RE, 'a host key (43 base64url characters)', 'delete it to make a new host key (every paired phone then has to pair again)');
+function keyFile(name: string, what: string, hint: string): KeyPair {
+  const file = path.join(remoteDir(), name);
+  const have = readPrivateFile(file, KEY_RE, what, hint);
   if (have) {
     const priv = fromB64u(have, 32);
     return { priv, pub: publicOf(priv) };
   }
   const k = generateKeyPair();
   // two first starts agree on one key, as with the token
-  return createOnce(file, b64u(k.priv)) ? k : settled(file, hostKey);
+  return createOnce(file, b64u(k.priv)) ? k : settled(file, () => keyFile(name, what, hint));
 }
+
+export const hostKey = (): KeyPair =>
+  keyFile('host.key', 'a host key (43 base64url characters)', 'delete it to make a new host key (every paired device then has to pair again)');
+
+/** This computer's key as a device of other computers (issue 297): separate from its host identity. */
+export const deviceKey = (): KeyPair =>
+  keyFile('device.key', 'a device key (43 base64url characters)', 'delete it to make a new device key (every computer this one connects to then has to be paired again)');
 
 /** link() codes of a file system without hard links (as in auth.ts). */
 const NO_LINKS = new Set(['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'ENOSYS']);
@@ -162,15 +170,27 @@ export function readDevices(): Device[] {
 
 const writeDevices = (devices: Device[]) => writePrivateFile(devicesFile(), `${JSON.stringify({ v: 1, devices }, null, 2)}\n`);
 
-/** Adds a phone (idempotent for one key). Its id is the shortest of 4, 8 or 16 fingerprint characters not taken. */
+/** The id of a new entry: the shortest of 4, 8 or 16 fingerprint characters no entry's id is a prefix of (or extends). */
+function newId(pub: Buffer, list: { id: string }[]): string {
+  const fp = fingerprint(pub).replace(/-/g, '');
+  return [4, 8, 16].map((n) => fp.slice(0, n)).find((c) => !list.some((d) => d.id.startsWith(c) || c.startsWith(d.id))) ?? fp;
+}
+
+/** The entry whose id is or starts with `idOrPrefix`; null when none does; an ambiguous prefix throws. */
+function byId<T extends { id: string }>(list: T[], idOrPrefix: string): T | null {
+  const exact = list.find((d) => d.id === idOrPrefix);
+  const matches = exact ? [exact] : list.filter((d) => idOrPrefix !== '' && d.id.startsWith(idOrPrefix));
+  if (matches.length > 1) throw new Error(`"${idOrPrefix}" is ambiguous: ${matches.map((d) => d.id).join(', ')}`);
+  return matches[0] ?? null;
+}
+
+/** Adds a device (idempotent for one key). */
 export function addDevice(pub: Buffer, name?: string): Device {
   const devices = readDevices();
   const key = b64u(pub);
   const have = devices.find((d) => d.pub === key);
   if (have) return have;
-  const fp = fingerprint(pub).replace(/-/g, '');
-  const id = [4, 8, 16].map((n) => fp.slice(0, n)).find((c) => !devices.some((d) => d.id.startsWith(c) || c.startsWith(d.id))) ?? fp;
-  const d: Device = { id, pub: key, ...(name ? { name: name.slice(0, 64) } : {}), addedAt: Date.now() };
+  const d: Device = { id: newId(pub, devices), pub: key, ...(name ? { name: name.slice(0, 64) } : {}), addedAt: Date.now() };
   writeDevices([...devices, d]);
   return d;
 }
@@ -178,12 +198,49 @@ export function addDevice(pub: Buffer, name?: string): Device {
 /** Removes the device whose id is or starts with `idOrPrefix`; null when none does; an ambiguous prefix throws. */
 export function removeDevice(idOrPrefix: string): Device | null {
   const devices = readDevices();
-  const exact = devices.find((d) => d.id === idOrPrefix);
-  const matches = exact ? [exact] : devices.filter((d) => idOrPrefix !== '' && d.id.startsWith(idOrPrefix));
-  if (matches.length === 0) return null;
-  if (matches.length > 1) throw new Error(`"${idOrPrefix}" is ambiguous: ${matches.map((d) => d.id).join(', ')}`);
-  writeDevices(devices.filter((d) => d !== matches[0]));
-  return matches[0]!;
+  const d = byId(devices, idOrPrefix);
+  if (d) writeDevices(devices.filter((x) => x !== d));
+  return d;
+}
+
+/** A computer this one paired with as a device (issue 297): where to reach it and the host key it pinned. */
+export type Host = { id: string; relay: string; pub: string; name?: string; addedAt: number };
+
+export function readHosts(): Host[] {
+  const j = readJson('hosts.json', 'the paired computers (JSON)');
+  const list = j && Array.isArray(j.hosts) ? (j.hosts as Host[]) : [];
+  return list.filter((h) => h && typeof h.id === 'string' && typeof h.relay === 'string' && typeof h.pub === 'string' && KEY_RE.test(h.pub));
+}
+
+const writeHosts = (hosts: Host[]) => writePrivateFile(path.join(remoteDir(), 'hosts.json'), `${JSON.stringify({ v: 1, hosts }, null, 2)}\n`);
+
+/** Saves a paired computer; one already saved with this key keeps its id and date and takes the new relay and name. */
+export function addHost(o: { relay: string; pub: Buffer; name?: string }): Host {
+  checkRelay(o.relay);
+  const hosts = readHosts();
+  const key = b64u(o.pub);
+  const have = hosts.find((h) => h.pub === key);
+  const h: Host = { id: have?.id ?? newId(o.pub, hosts), relay: o.relay, pub: key, ...(o.name ? { name: o.name.slice(0, 64) } : {}), addedAt: have?.addedAt ?? Date.now() };
+  writeHosts(have ? hosts.map((x) => (x === have ? h : x)) : [...hosts, h]);
+  return h;
+}
+
+/** A saved computer's new name, read and written at once: a computer forgotten meanwhile stays forgotten. */
+export function renameHost(pub: Buffer, name: string): Host | null {
+  const hosts = readHosts();
+  const have = hosts.find((h) => h.pub === b64u(pub));
+  if (!have) return null;
+  const h: Host = { ...have, name: name.slice(0, 64) };
+  writeHosts(hosts.map((x) => (x === have ? h : x)));
+  return h;
+}
+
+/** Forgets the computer whose id is or starts with `idOrPrefix`; null when none does; an ambiguous prefix throws. */
+export function removeHost(idOrPrefix: string): Host | null {
+  const hosts = readHosts();
+  const h = byId(hosts, idOrPrefix);
+  if (h) writeHosts(hosts.filter((x) => x !== h));
+  return h;
 }
 
 export function checkRelay(url: string): void {

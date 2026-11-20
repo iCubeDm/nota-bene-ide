@@ -556,17 +556,18 @@ Residual risk:
 
 ## Remote access
 
-A paired phone reaches this computer's windows through a relay you run (`relay/`). Both sides connect out, nothing on the computer listens, and traffic is end-to-end encrypted: the relay sees only ciphertext and which phone talks to which host.
+A paired device (a phone, or another computer running Nota Bene) reaches this computer's windows through a relay you run (`relay/`). Both sides connect out, nothing on the computer listens, and traffic is end-to-end encrypted: the relay sees only ciphertext and which device talks to which host.
 
 ### From a window
 
 A dot on the gear shows remote access: none (off), amber (connecting), green (online), red (failing; the **Remote** tab says why). The row opens the **Remote** tab:
 
-- **Access**: relay address, [access key](#access-key), the switch that lets phones in, state, the computer's fingerprint.
-- **Pair a phone**: a QR code (or text, Copy), time left, fingerprint. A code pairs one phone; another is refused and named.
-- **Phones**: each paired phone with **Revoke** (immediate).
+- **Access**: relay address, [access key](#access-key), the switch that lets devices in, state, the computer's fingerprint.
+- **Pair a device**: a QR code (or text, Copy), time left, fingerprint. A code pairs one device; another is refused and named.
+- **Devices**: each paired phone or computer with **Revoke** (immediate).
+- **Connect to a computer**: paste the code another computer shows under *Pair a device*; this one becomes its device. Each paired computer shows online, connecting, not reachable or revoked, with **Forget** (here only: the other computer lists this one until it revokes it). It needs no relay or access key of its own. Using the other computer's windows from here comes in a later release.
 
-With a relay saved and access on, the first window starts the connector and others share it, so the phone stays connected while any window is open. Only the computer can pair, revoke or switch access.
+With a relay saved and access on, or a computer paired, the first window starts the connector and others share it, so the link stays up while any window is open. Only the computer can pair, revoke or switch access.
 
 <details><summary>More</summary>
 
@@ -590,15 +591,18 @@ Running your own relay: `relay/README.md`, Access keys. A relay without `-member
 ```sh
 nota-bene remote --relay wss://relay.example.com   # run it (relay saved; later just `nota-bene remote`)
 nota-bene remote pair                             # another terminal: a QR code, valid 5 minutes
-nota-bene remote devices                          # paired phones: id, name, fingerprint, online
+nota-bene remote devices                          # paired devices: id, name, fingerprint, online
 nota-bene remote revoke <id>                      # unpair; cut off at once
+nota-bene remote connect                          # pair with another computer as its device (paste its code)
+nota-bene remote computers                        # the computers this one is paired with, and their state
+nota-bene remote forget <id>                      # forget one
 nota-bene remote status
 nota-bene remote key                              # save the access key (hidden input); --clear removes it
 ```
 
 - It reaches every window of every agent with their own credentials, which never leave the computer.
 - `pair` prints both fingerprints; compare with the app. A new `pair`, Ctrl+C or 5 minutes end the code.
-- **A paired phone is fully trusted**: it can do what a tab can, including **Work here**.
+- **A paired device is fully trusted**: it can do what a tab can, including **Work here**. A paired computer counts against the 32 devices.
 - One connector per user ("already running"); it also stops if the relay reports another with the same key.
 - A project folder named `remote` opens with `nota-bene ./remote`.
 

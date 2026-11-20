@@ -1,7 +1,8 @@
 // For tests in other languages (mobile/channel/test/cross_test.dart): a real relay, one window and the connector,
 // driven by JSON lines on stdin and reporting on stdout. Commands: {"op":"pair"}, {"op":"revoke","id"},
-// {"op":"restart-relay"}, {"op":"stop"}. Reports: {"t":"ready","relay","port"}, {"t":"code","uri"},
-// {"t":"paired","id"}, {"t":"revoked"}, {"t":"restarted"}, {"t":"error","message"}. Needs NOTA_BENE_HOME set to a
+// {"op":"devices"}, {"op":"restart-relay"}, {"op":"stop"}. Reports: {"t":"ready","relay","port"}, {"t":"code","uri"},
+// {"t":"paired","id"}, {"t":"revoked"}, {"t":"devices","devices":[{id, name?}]}, {"t":"restarted"}, {"t":"error","message"}.
+// Also the other computer of hostLink.test.ts (issue 297). Needs NOTA_BENE_HOME set to a
 // temporary folder; it never touches the real one.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,6 +13,7 @@ import { startServer } from '../server.ts';
 import { registerWindow } from '../windows.ts';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient } from './control.ts';
+import { readDevices } from './store.ts';
 import { startRelay } from './testRelay.ts';
 
 const say = (m: object) => process.stdout.write(`${JSON.stringify(m)}\n`);
@@ -55,6 +57,8 @@ export async function main(): Promise<void> {
       } else if (m.op === 'revoke') {
         const r = c.revoke(String(m.id));
         say(r.ok ? { t: 'revoked' } : { t: 'error', message: String(r.error) });
+      } else if (m.op === 'devices') {
+        say({ t: 'devices', devices: readDevices().map((d) => ({ id: d.id, ...(d.name ? { name: d.name } : {}) })) });
       } else if (m.op === 'restart-relay') {
         await relay.restart();
         say({ t: 'restarted' });

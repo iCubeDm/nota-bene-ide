@@ -9,7 +9,7 @@ import { openRemote, selectTabs } from '@/tabs/slice.ts';
 
 const OFF: RemoteState = {
   configured: false, enabled: true, running: false, online: false, relay: null, hostFingerprint: null, devices: [],
-  pairing: null, legacy: false, lastError: null, startFailed: false, accessKey: false,
+  pairing: null, legacy: false, lastError: null, startFailed: false, accessKey: false, hosts: [],
 };
 const ONLINE: RemoteState = {
   ...OFF, configured: true, running: true, online: true, relay: 'wss://relay.example.com', hostFingerprint: 'abcd-efgh-ijkl-mnop',
@@ -127,7 +127,7 @@ describe('Remote tab', () => {
     setup({ state: ONLINE });
     open();
     answer = () => Response.json({ state: { ...ONLINE, enabled: false }, stopped: 'hand' });
-    fireEvent.click(screen.getByLabelText('Allow access from paired phones'));
+    fireEvent.click(screen.getByLabelText('Allow access from paired devices'));
     expect(await screen.findByText('The connector that was started in a terminal has been stopped.')).toBeTruthy();
     expect(posts).toEqual([{ url: '/remote/config', body: { enabled: false } }]);
   });
@@ -135,7 +135,7 @@ describe('Remote tab', () => {
   it('a terminal connector of an older version: the switch is disabled, with the reason', () => {
     setup({ state: { ...ONLINE, legacy: true } });
     open();
-    expect((screen.getByLabelText('Allow access from paired phones') as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Allow access from paired devices') as HTMLInputElement).disabled).toBe(true);
     expect(document.getElementById('remoteLegacy')).toHaveTextContent(/older version/);
   });
 
@@ -145,10 +145,10 @@ describe('Remote tab', () => {
     answer = (url) => (url === '/remote/pair'
       ? Response.json({ uri: 'nbremote://pair?v=1&r=x', qr: '<svg data-test-qr="1"></svg>', hostFingerprint: 'abcd-efgh-ijkl-mnop', expiresAt: Date.now() + 5 * 60_000 })
       : Response.json({ ok: true }));
-    fireEvent.click(screen.getByRole('button', { name: 'Pair a phone' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pair a device' }));
     await waitFor(() => expect(document.querySelector('#remoteQr svg[data-test-qr]')).not.toBeNull());
     expect(document.getElementById('remoteUri')).toHaveTextContent('nbremote://pair?v=1&r=x');
-    expect(screen.getByText('Scan the code with the Nota Bene app within 5 min.')).toBeTruthy();
+    expect(screen.getByText('Scan the code with the Nota Bene app, or paste it on the other computer under Connect to a computer, within 5 min.')).toBeTruthy();
     act(() => { store.dispatch(serverEvent({ kind: 'remote-pair', result: 'refused', fingerprint: 'evil-evil-evil-evil' })); });
     expect(document.getElementById('remotePairOutcome')).toHaveTextContent('evil-evil-evil-evil');
     expect(document.getElementById('remoteQr')).not.toBeNull(); // a refusal keeps the code
@@ -164,7 +164,7 @@ describe('Remote tab', () => {
     answer = (url) => (url === '/remote/pair'
       ? Response.json({ uri: 'nbremote://pair?v=1', qr: '<svg></svg>', hostFingerprint: 'abcd-efgh-ijkl-mnop', expiresAt: Date.now() + 60_000 })
       : Response.json({ ok: true }));
-    fireEvent.click(screen.getByRole('button', { name: 'Pair a phone' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pair a device' }));
     await waitFor(() => expect(document.getElementById('remoteQr')).not.toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(document.getElementById('remoteQr')).toBeNull();
@@ -174,7 +174,7 @@ describe('Remote tab', () => {
   it('pairing waits for the connector online; another window\'s pairing is named', () => {
     const store = setup({ state: { ...ONLINE, online: false } });
     open();
-    expect((screen.getByRole('button', { name: 'Pair a phone' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Pair a device' }) as HTMLButtonElement).disabled).toBe(true);
     act(() => { store.dispatch(serverEvent({ kind: 'remote', state: { ...ONLINE, pairing: { expiresAt: 1, mine: false } } })); });
     expect(screen.getByText('A pairing is in progress in another window.')).toBeTruthy();
   });
@@ -186,11 +186,11 @@ describe('Remote tab', () => {
     expect(row).toHaveTextContent('Test phone');
     expect(row).toHaveTextContent('qrst-uvwx-yz23-4567');
     expect(row).toHaveTextContent('online');
-    expect(document.querySelector('[data-phone="bbbb"]')).toHaveTextContent('a phone');
+    expect(document.querySelector('[data-phone="bbbb"]')).toHaveTextContent('a device');
     answer = () => Response.json({ ok: true });
     fireEvent.click(row.querySelector('button')!);
     expect(posts).toEqual([]);
-    expect(row).toHaveTextContent('Revoke this phone?');
+    expect(row).toHaveTextContent('Revoke this device?');
     fireEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[0]!);
     await waitFor(() => expect(posts).toEqual([{ url: '/remote/revoke', body: { id: 'aaaa' } }]));
   });
@@ -237,6 +237,43 @@ describe('Remote tab', () => {
     expect(document.getElementById('remoteWhy')).toHaveTextContent(/enter the access key you were given/);
     act(() => { store.dispatch(serverEvent({ kind: 'remote', state: { ...ONLINE, online: false, accessKey: true, lastError: { code: 4405, message: 'x', at: 1 } } })); });
     expect(document.getElementById('remoteWhy')).toHaveTextContent(/close Nota Bene on another computer/);
+  });
+
+  it('connect to a computer: shown without a relay of its own; the code is posted, the outcome or the refusal shown (issue 297)', async () => {
+    setup({ protocol: 28, state: OFF });
+    open();
+    answer = () => Response.json({ error: 'the computer refused the code: it expired, was already used, or was withdrawn' }, { status: 400 });
+    fireEvent.change(screen.getByLabelText('Pairing code'), { target: { value: ' nbremote://pair?v=1&s=x ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('the computer refused the code');
+    answer = () => Response.json({ ok: true, host: { id: 'wxyz', name: 'Studio', fingerprint: 'hhhh-hhhh-hhhh-hhhh', state: 'online', pairedAt: 1 } });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    expect(await screen.findByText('Connected to Studio, host fingerprint hhhh-hhhh-hhhh-hhhh: compare it with the other computer.')).toBeTruthy();
+    expect(posts.map((p) => p.body)).toEqual([{ code: 'nbremote://pair?v=1&s=x' }, { code: 'nbremote://pair?v=1&s=x' }]);
+  });
+
+  it('paired computers: name, state; Forget asks first, then posts the id; an older server shows no section', async () => {
+    const hosts = [
+      { id: 'wxyz', name: 'Studio', fingerprint: 'hhhh-hhhh-hhhh-hhhh', state: 'online' as const, pairedAt: 1 },
+      { id: 'vvvv', fingerprint: 'gggg-gggg-gggg-gggg', state: 'revoked' as const, pairedAt: 1 },
+    ];
+    setup({ protocol: 28, state: { ...OFF, hosts } });
+    open();
+    const studio = document.querySelector('[data-computer="wxyz"]')!;
+    expect(studio).toHaveTextContent('Studio');
+    expect(studio).toHaveTextContent('online');
+    expect(document.querySelector('[data-computer="vvvv"]')).toHaveTextContent('a computer');
+    expect(document.querySelector('[data-computer="vvvv"]')).toHaveTextContent('revoked by that computer');
+    answer = () => Response.json({ ok: true });
+    fireEvent.click(within(studio as HTMLElement).getByRole('button', { name: 'Forget' }));
+    expect(posts).toEqual([]);
+    expect(studio).toHaveTextContent('Forget this computer here?');
+    fireEvent.click(within(studio as HTMLElement).getAllByRole('button', { name: 'Forget' })[0]!);
+    await waitFor(() => expect(posts).toEqual([{ url: '/remote/forget', body: { id: 'wxyz' } }]));
+    cleanup();
+    setup({ protocol: 27, state: { ...OFF, hosts } });
+    open();
+    expect(document.getElementById('remoteComputers')).toBeNull();
   });
 
   it('an older server: the tab says to restart it', () => {

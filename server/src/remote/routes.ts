@@ -1,8 +1,9 @@
-// `GET /remote`, `POST /remote/{config,pair,pair/cancel,revoke}`: the Remote tab's server side (keeper.ts does the work). Key tier,
-// as every route; a paired phone never reaches them (device.ts goodPath).
+// `GET /remote`, `POST /remote/{config,pair,pair/cancel,revoke,connect,forget}`: the Remote tab's server side (keeper.ts does
+// the work). Key tier, as every route; a paired device never reaches them (device.ts goodPath).
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import type { EventHub } from '../hub.ts';
 import { reportError } from '../errors.ts';
+import { PairError } from './hostLink.ts';
 import { LegacyConnector, NotRunning, type RemoteKeeper } from './keeper.ts';
 
 const MAX_BODY = 16 * 1024;
@@ -24,7 +25,7 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   return v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
 }
 
-export type RemoteKeeperApi = Pick<RemoteKeeper, 'refresh' | 'setConfig' | 'pair' | 'cancelPair' | 'revoke'>;
+export type RemoteKeeperApi = Pick<RemoteKeeper, 'refresh' | 'setConfig' | 'pair' | 'cancelPair' | 'revoke' | 'connect' | 'forget'>;
 
 /** `keeper` undefined: this window keeps no connector (a test server); every route answers 503. */
 export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undefined }): Record<string, RequestListener> {
@@ -33,6 +34,7 @@ export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undef
     if (e instanceof SyntaxError) return json(res, 400, { error: 'bad json' });
     if (e instanceof LegacyConnector) return json(res, 409, { error: 'legacy' });
     if (e instanceof NotRunning) return json(res, 409, { error: 'not running' });
+    if (e instanceof PairError) return json(res, 400, { error: e.message });
     reportError(o.hub, req.url ?? '/remote', e);
     json(res, 500, { error: e instanceof Error ? e.message : String(e) });
   };
@@ -71,6 +73,16 @@ export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undef
       const b = await readBody(req);
       if (typeof b.id !== 'string' || !b.id) return json(res, 400, { error: 'id must be a string' });
       json(res, 200, await k.revoke(b.id));
+    }),
+    '/remote/connect': route('POST', async (k, req, res) => {
+      const b = await readBody(req);
+      if (typeof b.code !== 'string' || !b.code.trim()) return json(res, 400, { error: 'code must be a string' });
+      json(res, 200, { ok: true, host: await k.connect(b.code) });
+    }),
+    '/remote/forget': route('POST', async (k, req, res) => {
+      const b = await readBody(req);
+      if (typeof b.id !== 'string' || !b.id) return json(res, 400, { error: 'id must be a string' });
+      json(res, 200, await k.forget(b.id));
     }),
   };
 }

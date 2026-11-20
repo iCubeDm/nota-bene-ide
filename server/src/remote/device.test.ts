@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
 import { startServer } from '../server.ts';
 import { registerWindow } from '../windows.ts';
-import { computerName, DeviceChannel, goodPath } from './device.ts';
+import { cleanName, computerName, DeviceChannel, goodPath } from './device.ts';
 import { Windows } from './discover.ts';
 import { CONN_WINDOW } from './mux.ts';
 import { generateKeyPair, type KeyPair } from './noise.ts';
@@ -119,7 +119,7 @@ describe('device channel', () => {
   it('a phone reaches no remote-access route: it would pair, revoke or switch access off unseen', () => {
     for (const p of ['/remote', '/remote/pair', '/remote/config', '/remote?x=1', '/REMOTE/revoke', '/control']) expect(goodPath(p)).toBe(false);
     // the project switcher's routes start windows and hand out other windows' logins: the desktop only, until phase 2
-    for (const p of ['/system/projects', '/system/projects/open', '/system/projects/create', '/system/projects/enter', '/system/projects/sessions', '/system/folders', '/system/agents']) expect(goodPath(p)).toBe(false);
+    for (const p of ['/system/projects', '/system/projects/open', '/system/projects/create', '/system/projects/enter', '/system/projects/sessions', '/system/folders', '/system/agents', '/system/remote/open', '/System/Remote']) expect(goodPath(p)).toBe(false);
     // issue 461: Show in Finder / Open act on this computer's desktop: never from the phone
     for (const p of ['/os/reveal', '/os/open', '/OS/open', '/os?x']) expect(goodPath(p)).toBe(false);
     expect(goodPath('/osx.md')).toBe(true);
@@ -132,6 +132,9 @@ describe('device channel', () => {
     expect(computerName('\u202E\u0007')).toBeUndefined();
     expect(computerName('a'.repeat(100))).toBe('a'.repeat(64));
     expect(computerName('😀'.repeat(100))).toBe('😀'.repeat(64));
+    // a name another device or computer sent is cleaned the same way, but keeps its .local (issue 297)
+    expect(cleanName('\u202eStudio\u0000.local')).toBe('Studio.local');
+    expect(cleanName(' \u2066 ')).toBeUndefined();
   });
 
   it('an unlisted phone without a proof is dropped without an answer', async () => {
@@ -153,7 +156,7 @@ describe('device channel', () => {
       return true;
     };
     const first = link({ windows: w, host: hostKey(), secret, onPaired });
-    first.phone.hello({ v: 1, name: 'Pixel', pair: b64u(pairProof(secret, first.phone.key.pub)) });
+    first.phone.hello({ v: 1, name: '\u202ePi\u0007xel\n', pair: b64u(pairProof(secret, first.phone.key.pub)) });
     await first.phone.ready;
     expect(added).toEqual([[b64u(first.phone.key.pub), 'Pixel']]);
 

@@ -1232,7 +1232,7 @@
       "type": "string"
     },
     "RemoteDevice": {
-      "description": "A paired phone as the Remote tab lists it (protocol 20).",
+      "description": "A paired device (a phone or another computer) as the Remote tab lists it (protocol 20).",
       "properties": {
         "fingerprint": {
           "type": "string"
@@ -1257,6 +1257,43 @@
         "pairedAt"
       ],
       "type": "object"
+    },
+    "RemoteHost": {
+      "description": "A computer this one is paired with as a device (protocol 28); `fingerprint` is its host key's.",
+      "properties": {
+        "fingerprint": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pairedAt": {
+          "type": "number"
+        },
+        "state": {
+          "$ref": "#/definitions/RemoteHostState"
+        }
+      },
+      "required": [
+        "id",
+        "fingerprint",
+        "state",
+        "pairedAt"
+      ],
+      "type": "object"
+    },
+    "RemoteHostState": {
+      "description": "The link to a paired computer: `failing` while its retries get no channel, `revoked` when it refused this one.",
+      "enum": [
+        "online",
+        "connecting",
+        "failing",
+        "revoked"
+      ],
+      "type": "string"
     },
     "RemotePairResult": {
       "enum": [
@@ -1293,6 +1330,13 @@
             "string",
             "null"
           ]
+        },
+        "hosts": {
+          "description": "protocol 28: the computers this one connects to as a device (an older server sends none)",
+          "items": {
+            "$ref": "#/definitions/RemoteHost"
+          },
+          "type": "array"
         },
         "lastError": {
           "anyOf": [
@@ -3391,5 +3435,5 @@
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
   },
-  "x-protocol": 27
+  "x-protocol": 28
 }

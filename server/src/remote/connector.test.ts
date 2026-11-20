@@ -8,7 +8,7 @@ import { registerWindow } from '../windows.ts';
 import { remoteMain } from './cli.ts';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient } from './control.ts';
-import { hostKey, pairProof, pairTicket, parseAccessKey, parsePairUri, b64u, readAccessKey, readConfig, readLastError, writeAccessKey, writeConfig } from './store.ts';
+import { addHost, hostKey, pairProof, readHosts, pairTicket, parseAccessKey, parsePairUri, b64u, readAccessKey, readConfig, readLastError, writeAccessKey, writeConfig } from './store.ts';
 import { Windows, type HostWindow } from './discover.ts';
 import { RelayClient } from './relayClient.ts';
 import { generateKeyPair } from './noise.ts';
@@ -260,6 +260,64 @@ describe('connector', () => {
     cl.send({ op: 'stop' });
     expect(await run).toBe(0); // with this client still connected: the connector drops it
 
+  });
+
+  it('cli: with access off and a computer paired, a managed run keeps only the link; computers and forget (issue 297)', async () => {
+    const out: string[] = [];
+    const io = { out: (s: string) => void out.push(s), err: () => {} };
+    writeConfig({ relay: relay.url, enabled: false });
+    const h = addHost({ relay: relay.url, pub: generateKeyPair().pub, name: 'Studio' });
+    const run = remoteMain(['--managed'], io);
+    await until(() => fs.existsSync(path.join(process.env.NOTA_BENE_HOME!, 'remote', 'control.sock')));
+    const cl = await client();
+    cl.send({ op: 'status' });
+    expect(await cl.next()).toMatchObject({ relay: null, hostFingerprint: null, online: false, hosts: [expect.objectContaining({ id: h.id, name: 'Studio' })] });
+    cl.send({ op: 'pair' });
+    expect(await cl.next()).toMatchObject({ t: 'error' });
+    // nobody is the host behind that key: the relay says the host is offline, and the link keeps trying
+    for (let i = 0; i < 100 && !out.join('').includes('failing'); i++) {
+      out.length = 0;
+      expect(await remoteMain(['computers'], io)).toBe(0);
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    expect(out.join('')).toMatch(new RegExp(`^${h.id}\\s+Studio\\s+.*failing`));
+    expect(await remoteMain(['forget', h.id], io)).toBe(0);
+    expect(readHosts()).toEqual([]);
+    // nothing left to do: the managed connector exits by itself
+    expect(await run).toBe(0);
+    expect(await remoteMain(['forget', h.id], io)).toBe(1);
+  });
+
+  it('cli: connect reads the code from stdin only; a failed one still restarts a link that gave up (issue 297)', async () => {
+    const c = await connector();
+    const logs: string[] = [];
+    c.on('log', (m: string) => logs.push(m));
+    // a computer that does not list this device (this very host): the relay refuses the link, which gives up
+    const h = addHost({ relay: relay.url, pub: hostKey().pub });
+    const cl = await client();
+    cl.send({ op: 'hosts' });
+    await cl.next();
+    const revoked = () => logs.filter((l) => l === `computer ${h.id}: revoked`).length;
+    await until(() => revoked() === 1);
+    const err: string[] = [];
+    const io = { out: () => {}, err: (s: string) => void err.push(s), input: async () => ' nbremote://nope ' };
+    expect(await remoteMain(['connect', 'nbremote://pair?v=1'], io)).toBe(2); // never in argv (ps, shell history)
+    expect(await remoteMain(['connect'], io)).toBe(1);
+    expect(err.join('')).toMatch(/not a pairing code/);
+    await until(() => revoked() === 2);
+  });
+
+  it('a broken hosts.json is reported on the control socket; the connector goes on (issue 297)', async () => {
+    await connector();
+    const cl = await client();
+    fs.writeFileSync(path.join(process.env.NOTA_BENE_HOME!, 'remote', 'hosts.json'), 'not json', { mode: 0o600 });
+    cl.send({ op: 'status' });
+    expect(await cl.next()).toMatchObject({ ok: false, error: expect.stringMatching(/hosts\.json/) });
+    cl.send({ op: 'hosts' });
+    expect(await cl.next()).toMatchObject({ ok: false });
+    fs.rmSync(path.join(process.env.NOTA_BENE_HOME!, 'remote', 'hosts.json'));
+    cl.send({ op: 'status' });
+    expect(await cl.next()).toMatchObject({ hosts: [] });
   });
 
   it('cli: without a relay the foreground run says how to set one', async () => {
