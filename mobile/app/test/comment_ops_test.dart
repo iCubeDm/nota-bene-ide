@@ -331,13 +331,13 @@ void main() {
         sessionId: null,
         ops: [CommentOpAdd(comment: c('n'))],
       );
-      CommentQueues.instance = CommentQueues(
-        MemoryQueueFile()
-          ..json = jsonEncode({
-            '${b64u(List.filled(32, 1))}|/home/u/notes': [queued.toJson()],
-          }),
-      );
-      final r = Rig();
+      final r = Rig()
+        ..stores = await memoryStores(
+          queueFile: MemoryQueueFile()
+            ..json = jsonEncode({
+              '${b64u(List.filled(32, 1))}|/home/u/notes': [queued.toJson()],
+            }),
+        );
       await r.open(t, keepStore: true, greet: false, settle: false);
       expect([for (final x in r.tab!.comments.all) x.id], ['n']);
       r.event({'kind': 'replay', 'events': <Object?>[]});

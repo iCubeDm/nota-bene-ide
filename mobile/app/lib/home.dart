@@ -7,6 +7,7 @@ import 'package:nb_channel/nb_channel.dart';
 
 import 'hosts/host_link.dart';
 import 'hosts/icon_flow.dart';
+import 'hosts/project_icon.dart' show ProjectIcons;
 import 'hosts/hosts_screen.dart';
 import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';
@@ -21,6 +22,7 @@ class Home extends StatefulWidget {
     super.key,
     required this.hosts,
     required this.seen,
+    required this.icons,
     required this.links,
     required this.onPair,
     required this.chat,
@@ -31,6 +33,7 @@ class Home extends StatefulWidget {
 
   final Hosts hosts;
   final Seen seen;
+  final ProjectIcons icons;
   final DateTime Function() clock;
   final Links links;
   final VoidCallback onPair;
@@ -164,6 +167,7 @@ class _HomeState extends State<Home> {
           : HostsList(
               links: widget.links.all,
               seen: widget.seen,
+              icons: widget.icons,
               clock: widget.clock,
               onOpen: _open,
               onForget: (l) => widget.hosts.forget(l.host.id),

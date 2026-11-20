@@ -11,12 +11,11 @@ import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/comments.dart';
-import '../comments/queue.dart';
 
 import '../hosts/host_link.dart';
 import '../media/fetch.dart';
 import '../media/media_comment.dart' show WindowHttp;
-import '../voice/outbox.dart';
+import '../sdk.dart';
 import 'feed.dart';
 
 enum TabState { connecting, open, occupied, taken, gone, offline }
@@ -53,11 +52,15 @@ bool modeWithoutPrompts(AgentMode m) =>
     m == AgentMode.ompYolo;
 
 class WindowTab extends ChangeNotifier {
-  WindowTab(this.link, HostWindow w, {Future<void> Function(Duration)? retry})
-    : _key = w.key,
-      root = w.root,
-      _port = w.port,
-      _retry = retry ?? ((d) => Future<void>.delayed(d)) {
+  WindowTab(
+    this.link,
+    HostWindow w, {
+    required this.stores,
+    Future<void> Function(Duration)? retry,
+  }) : _key = w.key,
+       root = w.root,
+       _port = w.port,
+       _retry = retry ?? ((d) => Future<void>.delayed(d)) {
     voiceOutbox.attach(
       this,
       send: send,
@@ -72,6 +75,9 @@ class WindowTab extends ChangeNotifier {
   }
 
   final HostLink link;
+
+  /// The app's stores: this window's comment queue and voice outbox are among them.
+  final AppStores stores;
 
   /// The window's key on its host ([HostWindowKey.key]) as it was last listed.
   String get key => _key;
@@ -128,12 +134,12 @@ class WindowTab extends ChangeNotifier {
   late final comments = Comments(
     send,
     () => feed.sessionId,
-    queue: CommentQueues.instance.of(_box),
+    queue: stores.comments.of(_box),
   );
 
   /// The voice messages recorded for this window that it has not shown yet. They belong to the app, by host and
   /// window, and outlive this tab: leaving the chat loses none.
-  late final voiceOutbox = VoiceStore.instance.outbox(_box);
+  late final voiceOutbox = stores.voice.outbox(_box);
 
   /// The window's own requests through its channel; null while the host is offline.
   WindowHttp? get http {

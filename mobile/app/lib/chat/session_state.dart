@@ -4,7 +4,7 @@
 import 'package:intl/intl.dart';
 
 import '../hosts/host_link.dart' show LinkState;
-import '../hosts/hosts_screen.dart' show ago;
+import '../ui/time.dart';
 import '../l10n/app_localizations.dart';
 import 'feed.dart';
 import 'window_tab.dart';

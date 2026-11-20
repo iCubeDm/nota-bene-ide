@@ -8,6 +8,7 @@ import 'package:nb_channel/nb_channel.dart';
 import '../hosts/host_link.dart';
 import '../l10n/app_localizations.dart';
 import '../notify/visible.dart';
+import '../sdk.dart';
 import '../store/seen.dart';
 import '../theme.dart';
 import '../comments/comment_strip.dart';
@@ -29,6 +30,7 @@ class ChatRoute extends StatefulWidget {
     super.key,
     required this.link,
     required this.window,
+    required this.stores,
     this.seen,
     this.visible,
     this.onTab,
@@ -39,6 +41,7 @@ class ChatRoute extends StatefulWidget {
 
   /// The window as it was listed when the chat opened; the tab follows it by its key.
   final HostWindow window;
+  final AppStores stores;
 
   /// Told the window's replies while the chat is open, so the list shows none of them unread.
   final Seen? seen;
@@ -58,6 +61,7 @@ class _ChatRouteState extends State<ChatRoute> {
   late final WindowTab _tab = WindowTab(
     widget.link,
     widget.window,
+    stores: widget.stores,
     retry: widget.retry,
   );
   PermissionWatcher? _asks;

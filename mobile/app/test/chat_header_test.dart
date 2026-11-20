@@ -217,6 +217,7 @@ void main() {
     final own = WindowTab(
       rig.link,
       window(4791, '/home/u/notes'),
+      stores: rig.stores!,
       retry: (_) async {},
     );
     addTearDown(own.dispose);
@@ -249,6 +250,7 @@ void main() {
     final own = WindowTab(
       rig.link,
       window(4791, '/home/u/notes'),
+      stores: rig.stores!,
       retry: (_) async {},
     );
     addTearDown(own.dispose);
