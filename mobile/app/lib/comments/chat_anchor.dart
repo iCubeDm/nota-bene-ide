@@ -96,7 +96,7 @@ const _langs = ['en', 'ru', 'zh', 'es', 'pt', 'de'];
 
 /// BATCH_HEAD (shared/src/lang.ts): every language's heading of a sent batch.
 final _batchHead = RegExp(
-  '(?:^|\\n\\n)(?:${_langs.map((l) => RegExp.escape(batchString('batchHead', l))).join('|')})\\n\\n',
+  '(?:^|\\n\\n)(?:${_langs.map((l) => RegExp.escape(batchString(BatchKey.batchHead, l))).join('|')})\\n\\n',
 );
 
 /// A message with its batch of comments cut off, as UserMessage.tsx shows it (the batch is in its details).
@@ -161,7 +161,8 @@ const _argCut = 60;
 /// from before "show earlier"). The phone holds no subagent's own feed: an action is looked for in the chat's, and
 /// a subagent is named by its Agent call's description there, as the desktop does after a reload with its tab closed.
 String whereOfChat(String messageId, Feed feed, String lang, {String? agent}) {
-  String fill(String key, List<Object> args) => batchTemplate(key, lang, args);
+  String fill(BatchKey key, List<Object> args) =>
+      batchTemplate(key, lang, args);
   String? tool() {
     if (!messageId.startsWith(_toolSrc)) return null;
     final id = messageId.substring(_toolSrc.length);
@@ -171,8 +172,8 @@ String whereOfChat(String messageId, Feed feed, String lang, {String? agent}) {
             ? '${it.arg.substring(0, _argCut)}…'
             : it.arg;
         return arg.isEmpty
-            ? fill('srcToolBare', [it.name])
-            : fill('srcTool', [it.name, arg]);
+            ? fill(BatchKey.srcToolBare, [it.name])
+            : fill(BatchKey.srcTool, [it.name, arg]);
       }
     }
     return null;
@@ -189,12 +190,12 @@ String whereOfChat(String messageId, Feed feed, String lang, {String? agent}) {
     final what = tool();
     if (what != null) {
       return name.isEmpty
-          ? fill('srcAgentToolBare', [what])
-          : fill('srcAgentTool', [what, name]);
+          ? fill(BatchKey.srcAgentToolBare, [what])
+          : fill(BatchKey.srcAgentTool, [what, name]);
     }
     return name.isEmpty
-        ? batchString('srcAgentReplyBare', lang)
-        : fill('srcAgentReply', [name]);
+        ? batchString(BatchKey.srcAgentReplyBare, lang)
+        : fill(BatchKey.srcAgentReply, [name]);
   }
   final what = tool();
   if (what != null) return what;
@@ -202,15 +203,19 @@ String whereOfChat(String messageId, Feed feed, String lang, {String? agent}) {
     final ok = feed.items.any(
       (it) => it is PermissionItem && 'plan:${it.id}' == messageId,
     );
-    return ok ? webString('mode_plan', lang) : batchString('srcChat', lang);
+    return ok
+        ? modeLabel(AgentMode.plan, lang)
+        : batchString(BatchKey.srcChat, lang);
   }
   for (final it in feed.items) {
-    if (it is UserItem && it.id == messageId) return webString('srcMine', lang);
+    if (it is UserItem && it.id == messageId) {
+      return webString(WebKey.srcMine, lang);
+    }
     if (it is AssistantItem && it.id == messageId) {
       return it.final_
-          ? webString('replyPlain', lang)
-          : batchString('srcChat', lang);
+          ? webString(WebKey.replyPlain, lang)
+          : batchString(BatchKey.srcChat, lang);
     }
   }
-  return batchString('srcChat', lang);
+  return batchString(BatchKey.srcChat, lang);
 }

@@ -12,7 +12,6 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/comments.dart';
 import '../comments/queue.dart';
-import '../comments/strings.g.dart';
 
 import '../hosts/host_link.dart';
 import '../media/fetch.dart';
@@ -52,14 +51,6 @@ bool modeWithoutPrompts(AgentMode m) =>
     m == AgentMode.auto ||
     m == AgentMode.codexFullAccess ||
     m == AgentMode.ompYolo;
-
-/// A mode's name as the web's mode pill shows it (ModePill.tsx).
-String modeLabel(AgentMode m, String lang) =>
-    webString('mode_${m.toJson()}', lang);
-
-/// A mode's description, as the web's mode pill shows it.
-String modeDescription(AgentMode m, String lang) =>
-    webString('mode_${m.toJson()}_desc', lang);
 
 class WindowTab extends ChangeNotifier {
   WindowTab(this.link, HostWindow w, {Future<void> Function(Duration)? retry})

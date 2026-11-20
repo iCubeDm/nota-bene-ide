@@ -173,14 +173,14 @@ class _ChangesPageState extends State<ChangesPage> {
         child: ErrorRetry(message: failText(t, _error!), onRetry: _load),
       );
     } else if (ch == null) {
-      body = Center(child: Text(webString('vcsNoRepo', lang)));
+      body = Center(child: Text(webString(WebKey.vcsNoRepo, lang)));
     } else {
       final name = ch.branch ?? 'HEAD';
       final head = ch.uncommitted
-          ? batchTemplate('vcsOnlyUncommitted', lang, [name])
+          ? batchTemplate(BatchKey.vcsOnlyUncommitted, lang, [name])
           : ch.base == null
           ? name
-          : '$name ${batchTemplate('vcsAgainst', lang, [ch.base!])}';
+          : '$name ${batchTemplate(BatchKey.vcsAgainst, lang, [ch.base!])}';
       final lead = <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -190,14 +190,14 @@ class _ChangesPageState extends State<ChangesPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              webString('vcsFailed', lang),
+              webString(WebKey.vcsFailed, lang),
               style: TextStyle(color: c.accent, fontSize: 12),
             ),
           ),
         if (ch.files.isEmpty)
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Center(child: Text(webString('vcsNoChanges', lang))),
+            child: Center(child: Text(webString(WebKey.vcsNoChanges, lang))),
           ),
       ];
       // the files are built as they scroll
@@ -302,7 +302,7 @@ class _LogPageState extends State<LogPage> {
     } else if (commits == null) {
       body = const Center(child: CircularProgressIndicator());
     } else if (commits.isEmpty) {
-      body = Center(child: Text(webString('vcsNoCommits', lang)));
+      body = Center(child: Text(webString(WebKey.vcsNoCommits, lang)));
     } else {
       final lead = _error == null ? 0 : 1;
       // the commits are built as they scroll
@@ -315,7 +315,7 @@ class _LogPageState extends State<LogPage> {
             return Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Text(
-                webString('vcsFailed', lang),
+                webString(WebKey.vcsFailed, lang),
                 style: TextStyle(color: c.accent, fontSize: 12),
               ),
             );
@@ -325,7 +325,7 @@ class _LogPageState extends State<LogPage> {
               padding: const EdgeInsets.all(12),
               child: Center(
                 child: Text(
-                  batchTemplate('vcsLogCut', lang, [commits.length]),
+                  batchTemplate(BatchKey.vcsLogCut, lang, [commits.length]),
                   style: TextStyle(color: c.mutedFg, fontSize: 12),
                 ),
               ),

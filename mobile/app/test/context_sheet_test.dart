@@ -208,7 +208,7 @@ void main() {
     expect(r.sent, isEmpty);
     expect(
       runWindowCommand(r.tab!, ClientMessageCommandName.compact, 'en'),
-      webString('working', 'en'),
+      webString(WebKey.working, 'en'),
     );
   });
 
@@ -249,13 +249,13 @@ void main() {
         ],
       });
       await t.pumpAndSettle();
-      expect(find.text(webString('compactPending', 'en')), findsOneWidget);
+      expect(find.text(webString(WebKey.compactPending, 'en')), findsOneWidget);
       expect(find.text('after it'), findsOneWidget);
       expect(find.text('waits for the compaction'), findsOneWidget);
       r.event({'kind': 'restart-pending', 'pending': true});
       await t.pumpAndSettle();
       expect(find.text('waits for the restart'), findsOneWidget);
-      await t.tap(find.text(webString('compactCancel', 'en')));
+      await t.tap(find.text(webString(WebKey.compactCancel, 'en')));
       await t.pumpAndSettle();
       expect(r.sent.last, {'type': 'compact-cancel'});
       r.event({
@@ -264,7 +264,7 @@ void main() {
         'held': <Object>[],
       });
       await t.pumpAndSettle();
-      expect(find.text(webString('compactPending', 'en')), findsNothing);
+      expect(find.text(webString(WebKey.compactPending, 'en')), findsNothing);
       expect(find.text('after it'), findsNothing);
     },
   );
@@ -303,14 +303,16 @@ void main() {
     await r.openContextSheet(t);
     await t.tap(find.text('Clear'));
     await t.pumpAndSettle();
-    expect(find.text(webString('clearTitle', 'en')), findsOneWidget);
+    expect(find.text(webString(WebKey.clearTitle, 'en')), findsOneWidget);
     expect(r.sent, isEmpty);
     await t.tap(find.widgetWithText(TextButton, 'Cancel'));
     await t.pumpAndSettle();
     expect(r.sent, isEmpty);
     await t.tap(find.text('Clear'));
     await t.pumpAndSettle();
-    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
+    await t.tap(
+      find.widgetWithText(FilledButton, webString(WebKey.clearBtn, 'en')),
+    );
     await t.pumpAndSettle();
     expect(r.sent.single, {'type': 'command', 'name': 'clear'});
     expect(find.byType(ContextSheet), findsNothing);
@@ -332,11 +334,15 @@ void main() {
     await confirmClear(t);
     r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
     await t.pump();
-    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
+    await t.tap(
+      find.widgetWithText(FilledButton, webString(WebKey.clearBtn, 'en')),
+    );
     await t.pumpAndSettle();
     expect(r.sent, isEmpty);
     expect(
-      find.text(webString('clearFail', 'en') + webString('working', 'en')),
+      find.text(
+        webString(WebKey.clearFail, 'en') + webString(WebKey.working, 'en'),
+      ),
       findsOneWidget,
     );
   });
@@ -347,10 +353,14 @@ void main() {
     await confirmClear(t);
     r.ch.drop();
     await t.pump();
-    await t.tap(find.widgetWithText(FilledButton, webString('clearBtn', 'en')));
+    await t.tap(
+      find.widgetWithText(FilledButton, webString(WebKey.clearBtn, 'en')),
+    );
     await t.pumpAndSettle();
     expect(
-      find.text(webString('clearFail', 'en') + webString('offline', 'en')),
+      find.text(
+        webString(WebKey.clearFail, 'en') + webString(WebKey.offline, 'en'),
+      ),
       findsOneWidget,
     );
   });
@@ -362,7 +372,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Clear'));
     await t.pumpAndSettle();
-    expect(find.text(webString('clearTitle', 'en')), findsNothing);
+    expect(find.text(webString(WebKey.clearTitle, 'en')), findsNothing);
     expect(r.sent, isEmpty);
   });
 
@@ -377,10 +387,10 @@ void main() {
       await r.openContextSheet(t);
       await t.tap(find.text('Clear'));
       await t.pumpAndSettle();
-      expect(find.text(webString('clearTitle', 'en')), findsNothing);
+      expect(find.text(webString(WebKey.clearTitle, 'en')), findsNothing);
       expect(
         runWindowCommand(r.tab!, ClientMessageCommandName.clear, 'en'),
-        webString('working', 'en'),
+        webString(WebKey.working, 'en'),
       );
       expect(r.sent, isEmpty);
     },

@@ -332,11 +332,12 @@ String whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
   ),
   TextAnchor(source: AnchorSourceMessage(:final id, :final agent)) =>
     whereOfChat(id, feed, lang, agent: agent),
-  CutAnchor(:final source, :final time) => batchTemplate('srcCut', lang, [
-    _file(source.path, source.ref),
-    mediaTime(time.toDouble()),
-  ]),
-  _ => batchString('srcChat', lang),
+  CutAnchor(:final source, :final time) => batchTemplate(
+    BatchKey.srcCut,
+    lang,
+    [_file(source.path, source.ref), mediaTime(time.toDouble())],
+  ),
+  _ => batchString(BatchKey.srcChat, lang),
 };
 
 /// A photo by its extension, as the edit's format reads it (shared/src/cutCheck.ts, IMAGE).
@@ -351,12 +352,12 @@ String quoteOf(Comment c, [String lang = 'en']) => switch (c.anchor) {
   TextAnchor(:final quote) => quote,
   MediaAnchor(:final source, :final time) =>
     '${source.path.split('/').last}${time != null ? ' @ ${mediaTime(time.toDouble())}' : ''}',
-  CutAnchor(clip: null) => batchString('cutMomentQ', lang),
+  CutAnchor(clip: null) => batchString(BatchKey.cutMomentQ, lang),
   CutAnchor(clip: final CutAnchorClip k) => () {
     final track = k.trackName != null ? '${k.trackName} (${k.track})' : k.track;
     return _photo.hasMatch(k.src)
-        ? batchTemplate('cutClipPhotoQ', lang, [k.id, track, k.src])
-        : batchTemplate('cutClipQ', lang, [
+        ? batchTemplate(BatchKey.cutClipPhotoQ, lang, [k.id, track, k.src])
+        : batchTemplate(BatchKey.cutClipQ, lang, [
             k.id,
             track,
             k.src,
@@ -396,7 +397,7 @@ int generatedImages(Comment c) =>
       ImageRef(
         id: im.id,
         mediaType: im.mediaType,
-        label: batchTemplate('imgLabel', lang, [k + 1]),
+        label: batchTemplate(BatchKey.imgLabel, lang, [k + 1]),
       ),
   ];
   if (items.isEmpty) return (text: general, images: images);
@@ -411,7 +412,7 @@ int generatedImages(Comment c) =>
                 ImageRef(
                   id: id,
                   mediaType: ImageType.image_png,
-                  label: batchTemplate('imgLabelC', lang, [
+                  label: batchTemplate(BatchKey.imgLabelC, lang, [
                     images.length + 1,
                     i + 1,
                   ]),
@@ -435,24 +436,24 @@ int generatedImages(Comment c) =>
         var tail = '';
         if (a is MediaAnchor) {
           final sfx = a.scale != null
-              ? batchTemplate('scaledSfx', lang, [jsNum(a.scale!)])
+              ? batchTemplate(BatchKey.scaledSfx, lang, [jsNum(a.scale!)])
               : '';
           final dir = '.nota-bene/marks/${c.id}';
           if (refs.isNotEmpty) {
             tail +=
-                '\n${batchTemplate('imgRefMedia', lang, [refs.first])}${refs.skip(1).map((k) => ', $k').join()}';
+                '\n${batchTemplate(BatchKey.imgRefMedia, lang, [refs.first])}${refs.skip(1).map((k) => ', $k').join()}';
           }
           // a drawing with polygons has a mask beside its frame (issue 447)
           final masked = a.shapes.any((s) => s is MediaShapePolygon);
           final mask = masked ? ', $dir/mask.png$sfx' : '';
           tail +=
-              '\n${batchTemplate('filesLine', lang, ['$dir/frame.jpg$sfx, $dir/layer.png$sfx$mask'])}';
-          if (masked) tail += '\n${batchString('maskLine', lang)}';
+              '\n${batchTemplate(BatchKey.filesLine, lang, ['$dir/frame.jpg$sfx, $dir/layer.png$sfx$mask'])}';
+          if (masked) tail += '\n${batchString(BatchKey.maskLine, lang)}';
           if (staleOf?.call(c) ?? false) {
-            tail += '\n${batchString('markStale', lang)}';
+            tail += '\n${batchString(BatchKey.markStale, lang)}';
           }
         } else if (refs.isNotEmpty) {
-          tail = '\n${batchTemplate('imgRef', lang, [refs.join(', ')])}';
+          tail = '\n${batchTemplate(BatchKey.imgRef, lang, [refs.join(', ')])}';
         }
         // the recordings' transcripts follow what was typed, each on a line of its own (a transcript's breaks are
         // spaces); the first of the lot is on the arrow line (compose.ts)
@@ -482,7 +483,7 @@ int generatedImages(Comment c) =>
   ];
   return (
     text:
-        '${general.isNotEmpty ? '$general\n\n' : ''}${batchString('batchHead', lang)}\n\n${blocks.join('\n\n')}',
+        '${general.isNotEmpty ? '$general\n\n' : ''}${batchString(BatchKey.batchHead, lang)}\n\n${blocks.join('\n\n')}',
     images: images,
   );
 }

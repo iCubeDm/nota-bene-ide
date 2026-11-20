@@ -170,7 +170,7 @@ class _CommentsPaneState extends State<CommentsPane>
         break;
       }
     }
-    return webString('srcMine', lang);
+    return webString(WebKey.srcMine, lang);
   }
 
   @override

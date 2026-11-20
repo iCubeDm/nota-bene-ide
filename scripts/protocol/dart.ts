@@ -40,7 +40,7 @@ function camel(s: string): string {
 }
 
 /** the Dart member name of an enum's wire value: camelCase for words, `_` for other characters, `v` before a non-letter */
-function memberName(value: string): string {
+export function memberName(value: string): string {
   if (/^[A-Za-z][A-Za-z0-9]*([-_ ][A-Za-z0-9]+)*$/.test(value)) return safe(camel(value));
   const s = value.replace(/[^A-Za-z0-9]/g, '_');
   return safe(/^[A-Za-z]/.test(s) ? s : `v${s}`);

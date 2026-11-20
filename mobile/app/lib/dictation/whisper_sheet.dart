@@ -168,20 +168,20 @@ class _WhisperSheetState extends State<WhisperSheet> {
     ) = switch (_step) {
       _Step.asking => (null, null, null),
       _Step.absent => (
-        batchTemplate('dictInstallQ', lang, [_dl, _disk, _dir]),
-        webString('dictInstallGo', lang),
+        batchTemplate(BatchKey.dictInstallQ, lang, [_dl, _disk, _dir]),
+        webString(WebKey.dictInstallGo, lang),
         _install,
       ),
       _Step.failed => (
-        webString('dictFailed', lang),
-        webString('dictRetry', lang),
+        webString(WebKey.dictFailed, lang),
+        webString(WebKey.dictRetry, lang),
         _install,
       ),
-      _Step.installing => (webString('dictInstalling', lang), null, null),
+      _Step.installing => (webString(WebKey.dictInstalling, lang), null, null),
       _Step.off => (t.whisperOff, t.whisperTurnOn, _turnOn),
       _Step.noAnswer => (
         t.whisperNoAnswer,
-        webString('dictRetry', lang),
+        webString(WebKey.dictRetry, lang),
         _again,
       ),
     };
