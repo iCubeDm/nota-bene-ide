@@ -11,7 +11,7 @@ export const REMOTE_USAGE = 'Usage: nota-bene remote [--relay wss://HOST]   run 
   + '       nota-bene remote pair                    show a QR code to pair a device (a phone, another computer)\n'
   + '       nota-bene remote devices                 list the paired devices\n'
   + '       nota-bene remote revoke ID               unpair a device and cut it off\n'
-  + '       nota-bene remote connect CODE            pair with another computer as its device (CODE from its `pair`)\n'
+  + '       nota-bene remote connect                 pair with another computer as its device (its `pair` code, read from stdin)\n'
   + '       nota-bene remote computers               list the computers this one is paired with\n'
   + '       nota-bene remote forget ID               forget such a computer\n'
   + '       nota-bene remote status\n'
@@ -116,15 +116,17 @@ async function syncHosts(): Promise<Msg | null> {
   }
 }
 
-async function connectHost(code: string, io: Io): Promise<number> {
+/** The code comes from stdin, as the access key does: never in argv (ps, shell history). */
+async function connectHost(io: Io): Promise<number> {
   try {
-    const h = await pairHost(code);
-    await syncHosts();
+    const h = await pairHost(await (io.input ?? readSecret)('Pairing code (nbremote://pair?…): '));
     io.out(`Paired with ${h.name ?? 'the computer'}: id ${h.id}, host fingerprint ${fingerprint(fromB64u(h.pub, 32))} (compare it with the other computer)\n`);
     return 0;
   } catch (e) {
     io.err(`nota-bene: ${(e as Error).message}\n`);
     return 1;
+  } finally {
+    await syncHosts(); // also after a failure: a link that gave up (revoked, then paired again) starts over
   }
 }
 
@@ -246,12 +248,12 @@ export async function remoteMain(argv: string[], io: Io = stdio): Promise<number
     io.out(`revoked ${String(d.id)} (${String(d.fingerprint)})\n`);
     return 0;
   }
-  if (cmd === 'connect' && rest.length === 1) return connectHost(rest[0]!, io);
+  if (cmd === 'connect' && rest.length === 0) return connectHost(io);
   if (cmd === 'computers' && rest.length === 0) {
     const r = await syncHosts();
     const list = r ? (r.hosts as Msg[]) ?? [] : readHosts().map((h) => ({ ...h, fingerprint: fingerprint(fromB64u(h.pub, 32)), state: 'not running' }));
     io.out(list.length ? list.map((h) => `${String(h.id).padEnd(8)}  ${String(h.name ?? '-').padEnd(20)}  ${String(h.fingerprint)}  ${String(h.state)}\n`).join('')
-      : 'No paired computers. Pair with one with `nota-bene remote connect CODE`.\n');
+      : 'No paired computers. Pair with one with `nota-bene remote connect`.\n');
     return 0;
   }
   if (cmd === 'forget' && rest.length === 1) {

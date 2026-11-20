@@ -33,8 +33,6 @@ export async function main(): Promise<void> {
   const c = new Connector({ relay: relay.url, backoff: { minMs: 50, maxMs: 300 } });
   await c.start();
   await c.windows.refresh();
-  // a ticket set before the relay's `ok` would miss the hello: ready means online
-  while (!c.online) await new Promise((r) => setTimeout(r, 20));
   let pairing: ControlClient | undefined;
 
   const stop = async () => {

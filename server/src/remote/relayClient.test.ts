@@ -137,6 +137,39 @@ describe('relay client', () => {
     await a.c.stop();
   });
 
+  it('a ticket or device list set between the hello and the relay\'s ok is sent once it is online', async () => {
+    const got: Record<string, unknown>[] = [];
+    let hello!: () => void;
+    const helloSeen = new Promise<void>((r) => (hello = r));
+    let sendOk!: () => void;
+    const wss = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    await new Promise((r) => wss.once('listening', r));
+    wss.on('connection', (ws) => {
+      ws.send(JSON.stringify({ t: 'challenge', eph: b64u(generateKeyPair().pub), nonce: b64u(seq(0x61)) }));
+      ws.on('message', (d) => {
+        got.push(JSON.parse(String(d)) as Record<string, unknown>);
+        if (got.length === 1) { sendOk = () => ws.send(JSON.stringify({ t: 'ok' })); hello(); }
+      });
+    });
+    const port = (wss.address() as { port: number }).port;
+    let ticket: Buffer | null = null;
+    let list: string[] = [];
+    const c = new RelayClient({ url: `ws://127.0.0.1:${port}`, key: generateKeyPair(), devices: () => list, ticket: () => ticket, backoff: { minMs: 20, maxMs: 50 } });
+    c.start();
+    await helloSeen;
+    ticket = seq(0x90);
+    c.setTicket(ticket); // not online yet: dropped
+    list = [deviceHash(seq(0x10))];
+    c.setDevices(list);
+    sendOk();
+    await until(() => got.length >= 3);
+    expect(got[0]).toMatchObject({ t: 'hello', devices: [] });
+    expect(got.slice(1)).toEqual(expect.arrayContaining([{ t: 'ticket', ticket: b64u(seq(0x90)) }, { t: 'devices', devices: list }]));
+    await c.stop();
+    for (const ws of wss.clients) ws.terminate();
+    await new Promise((r) => wss.close(r));
+  });
+
   it('a relay that goes silent (a laptop that slept through the close) is dropped and reconnected', async () => {
     let conns = 0;
     const wss = new WebSocketServer({ host: '127.0.0.1', port: 0 });

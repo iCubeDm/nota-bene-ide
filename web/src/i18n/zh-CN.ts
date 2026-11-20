@@ -282,7 +282,7 @@ export const zhCN: Dict = {
   remoteHostFailing: '无法访问',
   remoteHostRevoked: '已被那台电脑撤销',
   remoteForget: '忘记',
-  remoteForgetAsk: '忘记这台电脑？再次连接需要它提供新的代码。',
+  remoteForgetAsk: '在这里忘记这台电脑？在你于那台电脑上撤销之前，它仍会把这台电脑列为设备。',
   remoteFailed: (msg) => `失败：${msg}`,
   remoteMenu: '远程访问',
   remoteKey: '访问密钥',

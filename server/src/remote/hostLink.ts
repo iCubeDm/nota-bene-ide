@@ -5,7 +5,7 @@
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
 import type { RemoteHostState } from '@nota-bene/shared';
-import { computerName } from './device.ts';
+import { cleanName, computerName } from './device.ts';
 import { collect, Mux, UNREACHABLE, type Stream } from './mux.ts';
 import { CipherState, Handshake, PROLOGUE, type KeyPair } from './noise.ts';
 import { relayProof } from './relayClient.ts';
@@ -158,7 +158,8 @@ export async function pairHost(code: string, o: { timeoutMs?: number; name?: str
     if (won === 'timeout') throw new PairError('the computer did not answer');
     if (won !== 'ready') throw new PairError(pairFailure(won));
     const host = (sock.end.welcome as { host?: unknown } | null)?.host;
-    return addHost({ relay: p.relay, pub: p.hostPub, ...(typeof host === 'string' && host ? { name: host } : {}) });
+    const hostName = typeof host === 'string' ? cleanName(host) : undefined;
+    return addHost({ relay: p.relay, pub: p.hostPub, ...(hostName ? { name: hostName } : {}) });
   } finally {
     clearTimeout(timer);
     sock.end.close();
@@ -222,7 +223,8 @@ export class HostLink extends EventEmitter {
       if (this.#sock !== sock) return;
       this.#onlineAt = Date.now();
       const host = (sock.end.welcome as { host?: unknown } | null)?.host;
-      if (typeof host === 'string' && host) this.emit('name', host);
+      const hostName = typeof host === 'string' ? cleanName(host) : undefined;
+      if (hostName) this.emit('name', hostName);
       this.#set('online');
       collect(sock.end.open({ kind: 'host' }), (data) => {
         if (this.#sock !== sock) return;

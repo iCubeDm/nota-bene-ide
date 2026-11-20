@@ -3,12 +3,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Connector } from './connector.ts';
-import { closeControl, serveControl, write } from './control.ts';
+import { closeControl, controlClient, serveControl, write } from './control.ts';
 import { Windows } from './discover.ts';
 import { BACKOFF_MS, LegacyConnector, olderVersion, RemoteKeeper, type PairOutcome } from './keeper.ts';
 import { generateKeyPair } from './noise.ts';
 import { PairError } from './hostLink.ts';
-import { addHost, b64u, pairProof, pairTicket, parsePairUri, readAccessKey, readHosts, readConfig, readLastError, remoteDir, writeConfig, writeLastError } from './store.ts';
+import { addHost, b64u, hostKey, pairProof, pairTicket, parsePairUri, readAccessKey, readHosts, readConfig, readLastError, remoteDir, writeConfig, writeLastError } from './store.ts';
 import { relayPhone } from './testPhone.ts';
 import { startRelay, type TestRelay } from './testRelay.ts';
 
@@ -328,6 +328,37 @@ describe('remote keeper', () => {
     expect(readHosts()).toEqual([]);
     expect(k.state().hosts).toEqual([]);
     await expect(k.connect('nbremote://pair?v=2')).rejects.toThrow(PairError);
+  });
+
+  it('a client-only managed connector is replaced once a relay is saved outside the tab (issue 297)', async () => {
+    addHost({ relay: relay.url, pub: generateKeyPair().pub });
+    const { k, spawns } = keeper({ spawn: () => setTimeout(() => {
+      const cfg = readConfig();
+      void connector({ managed: true, version: '9.9.9', relay: cfg.enabled === false ? null : cfg.relay ?? null });
+    }, 50) });
+    expect(await k.refresh()).toMatchObject({ running: true, hostFingerprint: null });
+    writeConfig({ relay: relay.url }); // as `nota-bene remote --relay` does before it finds one running
+    await until(async () => (await k.refresh()).online);
+    expect(spawns).toHaveLength(2);
+  });
+
+  it('a failed connect still has the connector restart a link that gave up (issue 297)', async () => {
+    writeConfig({ relay: relay.url });
+    const { k } = keeper();
+    await k.refresh();
+    await until(async () => (await k.refresh()).online);
+    const logs: string[] = [];
+    started.at(-1)!.on('log', (m: string) => logs.push(m));
+    // this very host does not list this device: the relay refuses the link, which gives up
+    const h = addHost({ relay: relay.url, pub: hostKey().pub });
+    const cl = await controlClient();
+    cl.send({ op: 'hosts' });
+    await cl.next();
+    cl.close();
+    const revoked = () => logs.filter((l) => l === `computer ${h.id}: revoked`).length;
+    await until(() => revoked() === 1);
+    await expect(k.connect('nbremote://nope')).rejects.toThrow(PairError);
+    await until(() => revoked() === 2);
   });
 
   it('a home never set up: the state says no key and nothing is created', async () => {

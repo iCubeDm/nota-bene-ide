@@ -17,8 +17,8 @@ import { HostLink, type HostWindowInfo } from './hostLink.ts';
 import type { KeyPair } from './noise.ts';
 import { KEY_LIMIT, KEY_LIMIT_MESSAGE, RelayClient } from './relayClient.ts';
 import {
-  addDevice, addHost, b64u, clearLastError, deviceHash, deviceKey, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readAccessKey, readDevices, readHosts, readLastError,
-  removeDevice, writeLastError, type Device, type Host,
+  addDevice, b64u, clearLastError, deviceHash, deviceKey, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readAccessKey, readDevices, readHosts, readLastError,
+  removeDevice, renameHost, writeLastError, type Device, type Host,
 } from './store.ts';
 
 const MAX_DEVICES = 32; // the relay's limit for a device list
@@ -146,6 +146,11 @@ export class Connector extends EventEmitter {
       l.link.stop();
       this.#links.delete(id);
     }
+    // a managed connector with no host side and no computer left (the last one forgotten) has nothing to do
+    if (hosts.length === 0 && this.#managed && !this.#relayUrl && this.#server) {
+      this.#log('no relay and no paired computer; exiting');
+      setImmediate(() => this.emit('exit', 'idle'));
+    }
     if (hosts.length === 0) return;
     const key = deviceKey();
     for (const h of hosts) {
@@ -156,8 +161,11 @@ export class Connector extends EventEmitter {
       // what it calls itself now (renamed, or paired before it said): saved, unless it was forgotten meanwhile
       link.on('name', (name: string) => {
         if (this.#links.get(h.id) !== entry || entry.host.name === name) return;
-        const now = readHosts().find((x) => x.id === h.id && x.pub === h.pub);
-        if (now) entry.host = addHost({ relay: now.relay, pub: fromB64u(now.pub, 32), name });
+        try {
+          entry.host = renameHost(fromB64u(h.pub, 32), name) ?? entry.host;
+        } catch (e) {
+          this.#log(`computer ${h.id}: its name was not saved: ${(e as Error).message}`);
+        }
       });
       this.#links.set(h.id, entry);
       link.start();
@@ -309,6 +317,16 @@ export class Connector extends EventEmitter {
   }
 
   #control(m: Msg, sock: net.Socket): void {
+    try {
+      this.#answer(m, sock);
+    } catch (e) {
+      // a broken state file (devices.json, hosts.json): said, and the connector goes on
+      this.#log((e as Error).message);
+      write(sock, { ok: false, error: (e as Error).message });
+    }
+  }
+
+  #answer(m: Msg, sock: net.Socket): void {
     switch (m.op) {
       case 'status':
         return write(sock, {

@@ -290,7 +290,7 @@ export const ru = {
   remoteHostFailing: 'недоступен',
   remoteHostRevoked: 'доступ отозван тем компьютером',
   remoteForget: 'Забыть',
-  remoteForgetAsk: 'Забыть этот компьютер? Чтобы подключиться снова, понадобится новый код с него.',
+  remoteForgetAsk: 'Забыть этот компьютер здесь? В его списке устройств этот компьютер останется, пока ты не отзовёшь его там.',
   remoteFailed: (msg: string) => `Не получилось: ${msg}`,
   remoteMenu: 'Удалённый доступ',
   remoteKey: 'Ключ доступа',

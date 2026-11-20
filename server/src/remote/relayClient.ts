@@ -111,6 +111,8 @@ export class RelayClient extends EventEmitter {
     const ws = new WebSocket(url, { maxPayload: 1024 * 1024 + 4, perMessageDeflate: false });
     this.#ws = ws;
     let greeted = false;
+    // what the hello said: a ticket or a list set before the relay's `ok` was not sent, so `ok` sends the change
+    let said = { ticket: null as string | null, devices: '' };
     let quiet: NodeJS.Timeout | undefined;
     const heard = () => {
       clearTimeout(quiet);
@@ -139,9 +141,10 @@ export class RelayClient extends EventEmitter {
           const nonce = fromB64u(m.nonce, 32);
           const proof = relayProof('host', this.#o.key.priv, eph, nonce);
           const ticket = this.#o.ticket();
+          said = { ticket: ticket ? b64u(ticket) : null, devices: JSON.stringify(this.#o.devices()) };
           const seed = this.#o.member();
           const member = seed ? { member: b64u(memberPub(seed)), sig: b64u(memberSign(seed, nonce, eph, this.#o.key.pub)) } : {};
-          ws.send(JSON.stringify({ t: 'hello', key: b64u(this.#o.key.pub), proof: b64u(proof), devices: this.#o.devices(), ...(ticket ? { ticket: b64u(ticket) } : {}), ...member }));
+          ws.send(JSON.stringify({ t: 'hello', key: b64u(this.#o.key.pub), proof: b64u(proof), devices: JSON.parse(said.devices) as string[], ...(ticket ? { ticket: b64u(ticket) } : {}), ...member }));
         } catch {
           ws.close(4400);
         }
@@ -150,6 +153,10 @@ export class RelayClient extends EventEmitter {
       if (m.t === 'ok' && !this.#online) {
         this.#online = true;
         this.#onlineAt = Date.now();
+        const ticket = this.#o.ticket();
+        if ((ticket ? b64u(ticket) : null) !== said.ticket) this.setTicket(ticket);
+        const devices = this.#o.devices();
+        if (JSON.stringify(devices) !== said.devices) this.setDevices(devices);
         this.emit('online');
       } else if (m.t === 'open' && typeof m.conn === 'number' && typeof m.device === 'string') {
         this.#conns.add(m.conn);

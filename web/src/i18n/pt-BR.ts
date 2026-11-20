@@ -282,7 +282,7 @@ export const ptBR: Dict = {
   remoteHostFailing: 'inacessível',
   remoteHostRevoked: 'revogado por esse computador',
   remoteForget: 'Esquecer',
-  remoteForgetAsk: 'Esquecer este computador? Para conectar de novo, será preciso um novo código dele.',
+  remoteForgetAsk: 'Esquecer este computador aqui? Ele mantém este entre seus dispositivos até você revogá-lo lá.',
   remoteFailed: (msg) => `Falhou: ${msg}`,
   remoteMenu: 'Acesso remoto',
   remoteKey: 'Chave de acesso',

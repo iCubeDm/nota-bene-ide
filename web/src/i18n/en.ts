@@ -290,7 +290,7 @@ export const en: Dict = {
   remoteHostFailing: 'not reachable',
   remoteHostRevoked: 'revoked by that computer',
   remoteForget: 'Forget',
-  remoteForgetAsk: 'Forget this computer? Connecting again needs a new code from it.',
+  remoteForgetAsk: 'Forget this computer here? It keeps this one among its devices until you revoke it there.',
   remoteFailed: (msg) => `Failed: ${msg}`,
   remoteMenu: 'Remote access',
   remoteKey: 'Access key',

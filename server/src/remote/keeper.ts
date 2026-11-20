@@ -231,8 +231,13 @@ export class RemoteKeeper extends EventEmitter {
 
   /** Pairs with another computer by its code (issue 297), saves it, and has the connector link it (started if none runs). */
   async connect(code: string): Promise<RemoteHost> {
-    const h = await pairHost(code);
-    await this.#ask({ op: 'hosts' });
+    let h: Host;
+    try {
+      h = await pairHost(code);
+    } finally {
+      // also after a failure: a link that gave up (revoked, then paired again) starts over
+      await this.#ask({ op: 'hosts' });
+    }
     await this.refresh();
     return this.#state.hosts?.find((x) => x.id === h.id) ?? savedHost(h);
   }
@@ -329,7 +334,8 @@ export class RemoteKeeper extends EventEmitter {
       let st = await this.#ask({ op: 'status' });
       // a managed connector of an older version (the package was updated): replaced by one of this version. Only older: a
       // window of the previous release still open must not replace the new one back, every few seconds
-      if (st && st.managed === true && this.#o.version && olderVersion(st.version, this.#o.version)) {
+      // or one that is a host on another relay than the saved one says (`nota-bene remote --relay` while it ran as a client)
+      if (st && st.managed === true && ((this.#o.version && olderVersion(st.version, this.#o.version)) || (st.version !== undefined && hostRelay(cfg) !== (st.relay ?? null)))) {
         await this.#stopConnector();
         st = null;
       }

@@ -282,7 +282,7 @@ export const de: Dict = {
   remoteHostFailing: 'nicht erreichbar',
   remoteHostRevoked: 'von diesem Computer entfernt',
   remoteForget: 'Vergessen',
-  remoteForgetAsk: 'Diesen Computer vergessen? Für eine neue Verbindung braucht es einen neuen Code von ihm.',
+  remoteForgetAsk: 'Diesen Computer hier vergessen? Er führt diesen weiter unter seinen Geräten, bis du ihn dort entfernst.',
   remoteFailed: (msg) => `Fehlgeschlagen: ${msg}`,
   remoteMenu: 'Fernzugriff',
   remoteKey: 'Zugangsschlüssel',

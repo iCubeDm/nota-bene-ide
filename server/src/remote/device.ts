@@ -29,11 +29,15 @@ export const goodPath = (p: unknown): p is string =>
   && !/^\/system\/(projects|folders|agents|remote)(\/|\?|$)/i.test(p) // issue 297: `remote` opens proxies to other computers
   && !/^\/os(\/|\?|$)/i.test(p); // issue 461: Show in Finder / Open act on this computer's desktop
 
-/** What this computer calls itself, for the phone's host label: `os.hostname()` without a trailing `.local`, control and bidi-override characters dropped, at most 64 characters. */
-export function computerName(raw: string = os.hostname()): string | undefined {
-  const clean = raw.replace(/[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, '').trim();
-  const n = [...clean.replace(/\.local$/i, '').trim()].slice(0, 64).join('').trim();
+/** A name to show and save: control and bidi-override characters dropped, at most 64 characters; none when nothing is left. */
+export function cleanName(raw: string): string | undefined {
+  const n = [...raw.replace(/[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, '').trim()].slice(0, 64).join('').trim();
   return n || undefined;
+}
+
+/** What this computer calls itself, for the phone's host label: `os.hostname()` without a trailing `.local`, cleaned. */
+export function computerName(raw: string = os.hostname()): string | undefined {
+  return cleanName(cleanName(raw)?.replace(/\.local$/i, '') ?? '');
 }
 
 export type DeviceOptions = {
@@ -108,7 +112,7 @@ export class DeviceChannel {
     const pub = hs.remoteStatic!;
     if (payload?.v !== 1) return this.#fail();
     if (this.#o.deviceHash !== undefined && deviceHash(pub) !== this.#o.deviceHash) return this.#fail();
-    const name = typeof payload.name === 'string' ? payload.name : undefined;
+    const name = typeof payload.name === 'string' ? cleanName(payload.name) : undefined;
     if (!this.#o.isListed(pub)) {
       const p = this.#o.pairing();
       if (!p || typeof payload.pair !== 'string') return this.#fail();

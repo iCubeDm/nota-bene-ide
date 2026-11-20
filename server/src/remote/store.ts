@@ -225,6 +225,16 @@ export function addHost(o: { relay: string; pub: Buffer; name?: string }): Host 
   return h;
 }
 
+/** A saved computer's new name, read and written at once: a computer forgotten meanwhile stays forgotten. */
+export function renameHost(pub: Buffer, name: string): Host | null {
+  const hosts = readHosts();
+  const have = hosts.find((h) => h.pub === b64u(pub));
+  if (!have) return null;
+  const h: Host = { ...have, name: name.slice(0, 64) };
+  writeHosts(hosts.map((x) => (x === have ? h : x)));
+  return h;
+}
+
 /** Forgets the computer whose id is or starts with `idOrPrefix`; null when none does; an ambiguous prefix throws. */
 export function removeHost(idOrPrefix: string): Host | null {
   const hosts = readHosts();

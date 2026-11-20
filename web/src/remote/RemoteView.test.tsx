@@ -267,7 +267,7 @@ describe('Remote tab', () => {
     answer = () => Response.json({ ok: true });
     fireEvent.click(within(studio as HTMLElement).getByRole('button', { name: 'Forget' }));
     expect(posts).toEqual([]);
-    expect(studio).toHaveTextContent('Forget this computer?');
+    expect(studio).toHaveTextContent('Forget this computer here?');
     fireEvent.click(within(studio as HTMLElement).getAllByRole('button', { name: 'Forget' })[0]!);
     await waitFor(() => expect(posts).toEqual([{ url: '/remote/forget', body: { id: 'wxyz' } }]));
     cleanup();

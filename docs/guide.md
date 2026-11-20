@@ -564,7 +564,7 @@ A dot on the gear shows remote access: none (off), amber (connecting), green (on
 - **Access**: relay address, [access key](#access-key), the switch that lets devices in, state, the computer's fingerprint.
 - **Pair a device**: a QR code (or text, Copy), time left, fingerprint. A code pairs one device; another is refused and named.
 - **Devices**: each paired phone or computer with **Revoke** (immediate).
-- **Connect to a computer**: paste the code another computer shows under *Pair a device*; this one becomes its device. Each paired computer shows online, connecting, not reachable or revoked, with **Forget**. It needs no relay or access key of its own. Using the other computer's windows from here comes in a later release.
+- **Connect to a computer**: paste the code another computer shows under *Pair a device*; this one becomes its device. Each paired computer shows online, connecting, not reachable or revoked, with **Forget** (here only: the other computer lists this one until it revokes it). It needs no relay or access key of its own. Using the other computer's windows from here comes in a later release.
 
 With a relay saved and access on, or a computer paired, the first window starts the connector and others share it, so the link stays up while any window is open. Only the computer can pair, revoke or switch access.
 
@@ -592,7 +592,7 @@ nota-bene remote --relay wss://relay.example.com   # run it (relay saved; later 
 nota-bene remote pair                             # another terminal: a QR code, valid 5 minutes
 nota-bene remote devices                          # paired devices: id, name, fingerprint, online
 nota-bene remote revoke <id>                      # unpair; cut off at once
-nota-bene remote connect '<code>'                 # pair with another computer as its device
+nota-bene remote connect                          # pair with another computer as its device (paste its code)
 nota-bene remote computers                        # the computers this one is paired with, and their state
 nota-bene remote forget <id>                      # forget one
 nota-bene remote status
