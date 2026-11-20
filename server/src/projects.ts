@@ -111,6 +111,12 @@ export function remoteRows(computers: Computer[], current?: { host: string; port
   }));
 }
 
+/**
+ * A row as another computer's page gets it (issue 297, the desktop proxy): what the switcher lists and moves with (folder,
+ * agent, port, state, computer), none of the window's content (title, session, last message, counts).
+ */
+export const bareRow = (r: RunningRow): RunningRow => ({ ...r, title: null, session: null, clients: 0, unseen: 0, last: null });
+
 export type EnterResult = { url: string } | { error: 'no such window' | 'window not answering' };
 type Window = { provider: AgentProvider; port: number; root: string };
 type Proved = { token: string; nonce: string; bearer: string; root: string } | { error: 'no such window' | 'window not answering' };

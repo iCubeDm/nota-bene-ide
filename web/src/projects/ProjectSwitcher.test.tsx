@@ -7,7 +7,7 @@ import { getToasts } from '@/shell/toast.ts';
 import { makeStore } from '@/store/store.ts';
 import { page } from '@/net/local.ts';
 import type { ProjectsList, RunningRow } from './api.ts';
-import { nav, projectsMenu, setStarter } from './api.ts';
+import { enterFailure, nav, projectsMenu, setStarter } from './api.ts';
 import { ProjectSwitcher } from './ProjectSwitcher.tsx';
 
 const S1 = '11111111-1111-4111-8111-111111111111';
@@ -58,7 +58,12 @@ beforeEach(() => {
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
     calls.push({ url, body });
     if (url === '/system/projects') return Response.json({ ...list, recent: list.recent.filter((e) => !hidden.includes(e.root)), hidden });
-    if (url === '/system/remote/open') return body?.host === 'h1' ? Response.json({ url: URL_REMOTE }) : Response.json({ error: 'no such window' }, { status: 404 });
+    if (url === '/system/remote/open') {
+      if (body?.host === 'h1') return Response.json({ url: URL_REMOTE });
+      if (body?.host === 'h3') return Response.json({ error: 'not running' }, { status: 409 });
+      if (body?.host === 'h4') return Response.json({ error: 'EACCES: some raw exception' }, { status: 500 });
+      return Response.json({ error: 'no such window' }, { status: 404 });
+    }
     if (url === '/system/projects/forget') { hidden.push(String(body?.root)); return Response.json({ ok: true }); }
     if (url === '/system/projects/enter') return enter();
     if (url === '/system/projects/open') return Response.json({ url: URL_OK });
@@ -359,4 +364,38 @@ it('issue 297: on another computer\'s page, a move is a navigation to its proxy;
   fireEvent.click(await screen.findByRole('button', { name: /^far ·/ }));
   expect(nav.go).toHaveBeenCalledWith('/system/remote/enter?host=h1&port=4777');
   expect(calls.some((c) => c.url === '/system/projects/enter' || c.url === '/system/remote/open')).toBe(false);
+});
+
+it('issue 297: the connector\'s refusals are said in words, never its raw text', async () => {
+  list = { ...LIST, running: [...LIST.running, { ...REMOTE, root: '/w/three', remote: { host: 'h3', name: 'Three' } }, { ...REMOTE, root: '/w/four', remote: { host: 'h4', name: 'Four' } }] };
+  await openMenu();
+  fireEvent.click(await screen.findByRole('button', { name: /^three ·/ }));
+  await waitFor(() => expect(getToasts().some((x) => x.title === t('projEnterFailed', t('whyNotConnected')))).toBe(true));
+  act(() => projectsMenu.open());
+  fireEvent.click(await screen.findByRole('button', { name: /^four ·/ }));
+  await waitFor(() => expect(getToasts().some((x) => x.title === t('projEnterFailed', t('whyRemoteFailed')))).toBe(true));
+  expect(getToasts().some((x) => x.title.includes('EACCES'))).toBe(false);
+});
+
+it('issue 297: a switch that came back to this page says why, once, and leaves the address clean', () => {
+  const hist = { replaceState: vi.fn() } as unknown as History;
+  for (const [code, why] of [['no-window', 'whyNoWindow'], ['not-connected', 'whyNotConnected'], ['login', 'whyNotLoggedIn'], ['not-answering', 'whyNotAnswering'], ['<b>raw</b>', 'whyRemoteFailed']] as const) {
+    enterFailure({ search: `?enter=${encodeURIComponent(code)}`, pathname: '/', hash: '' } as Location, hist);
+    expect(getToasts().some((x) => x.title === t('projEnterFailed', t(why))), code).toBe(true);
+  }
+  expect(hist.replaceState).toHaveBeenLastCalledWith(null, '', '/');
+  const before = getToasts().length;
+  enterFailure({ search: '', pathname: '/', hash: '' } as Location, hist);
+  expect(getToasts().length).toBe(before);
+});
+
+it('issue 297: on another computer\'s page this folder\'s sessions ask nothing this computer\'s switcher alone answers', async () => {
+  page.remote = STUDIO;
+  list = { ...LIST, running: [...LIST.running.map((r) => ({ ...r, current: false })), { ...REMOTE, current: true }] };
+  await openMenu();
+  await screen.findByRole('group', { name: t('projSessionsOf', 'notes') });
+  expect(calls.some((c) => c.url === '/system/agents' || c.url === '/system/projects/sessions')).toBe(false);
+  // a new session: this window's agent is offered, not an empty choice
+  fireEvent.click(screen.getByRole('button', { name: t('projNewSess') }));
+  expect(await screen.findByRole('radio', { name: 'Claude' })).toBeChecked();
 });

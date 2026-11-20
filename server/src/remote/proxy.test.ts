@@ -19,6 +19,8 @@ import { Connector } from './connector.ts';
 import { type Msg } from './control.ts';
 import { pairHost } from './hostLink.ts';
 import { RemoteKeeper } from './keeper.ts';
+import { BAD_FRAME, Mux } from './mux.ts';
+import { WindowProxy } from './proxy.ts';
 
 const script = fileURLToPath(new URL('./crossHost.ts', import.meta.url));
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -105,7 +107,8 @@ describe('another computer\'s window through this one', () => {
     expect(list.running).toContainEqual(expect.objectContaining({ port: aPort, current: true }));
     const row = list.running.find((r) => r.remote)!;
     expect(row).toMatchObject({ port: ready.port, root: ready.root, provider: 'claude', state: 'idle', current: false, remote: { host: host.id, name: host.name } });
-    expect(JSON.parse((await req(aPort, '/system/remote/page', { host: `127.0.0.1:${aPort}`, headers: aPage })).body)).toBeNull();
+    // A's own window has no such route: its page gets the app shell there, which is no `{host, name}`
+    expect((await req(aPort, '/system/remote/page', { host: `127.0.0.1:${aPort}`, headers: aPage })).body).toBe('<h1>a</h1>');
 
     // opening it: a listener on localhost, with a login of its own
     const opened = await req(aPort, '/system/remote/open', { method: 'POST', host: `127.0.0.1:${aPort}`, headers: aPage, body: JSON.stringify({ host: host.id, port: ready.port }) });
@@ -147,7 +150,8 @@ describe('another computer\'s window through this one', () => {
     expect(there.recent).toEqual([]);
     expect(there.running).toContainEqual(expect.objectContaining({ port: ready.port, current: true, remote: { host: host.id, name: host.name } }));
     expect(there.running).toContainEqual(expect.objectContaining({ port: aPort, root: aRoot, current: false }));
-    expect(there.running.find((r) => r.port === aPort)!.remote).toBeUndefined();
+    // A's rows carry what the switcher lists and moves with, nothing of their content
+    expect(there.running.find((r) => r.port === aPort)).toEqual({ provider: 'claude', port: aPort, root: aRoot, title: null, session: null, state: expect.any(String), current: false, clients: 0, unseen: 0, last: null });
 
     // what a paired device may not reach is refused here, logged in or not
     const write = { ...page, origin, 'content-type': 'application/json' };
@@ -156,6 +160,8 @@ describe('another computer\'s window through this one', () => {
       expect((await req(port, p, { method: m, headers: write, body: m === 'POST' ? '{}' : undefined })).status, `${m} ${p}`).toBe(403);
     }
     expect((await req(port, '/prefs', { method: 'POST', headers: { ...page, origin: 'http://localhost:1' }, body: '{}' })).status).toBe(403);
+    // a service worker one page registered would outlive the listener onto a later one on that port: none is served
+    expect((await req(port, '/sw.js', { headers: { ...page, 'service-worker': 'script' } })).status).toBe(403);
     // a body the other computer would not take is refused before it goes
     const big = await new Promise<number>((resolve) => {
       const r = http.request({ host: '127.0.0.1', port, path: '/attach-file?name=a.bin', method: 'POST', agent: false, headers: { host: `localhost:${port}`, ...write, 'content-length': String(33 * 1024 * 1024) } }, (res) => {
@@ -196,7 +202,13 @@ describe('another computer\'s window through this one', () => {
       expect(r.status).toBe(403);
       expect(r.headers.location).toBeUndefined();
     }
-    expect((await req(port, home, { headers: { ...nav, cookie: aCookie } })).status).toBe(401);
+    // a navigation that cannot go comes back to the page, which says why
+    const lost = await req(port, home, { headers: { ...nav, cookie: aCookie } });
+    expect([lost.status, lost.headers.location]).toEqual([303, '/?enter=login']);
+    const gone = await req(port, `/system/remote/enter?host=${host.id}&port=1`, { headers: nav });
+    expect([gone.status, gone.headers.location]).toEqual([303, '/?enter=no-window']);
+    const nowhere = await req(port, `/system/remote/enter?host=nope&port=1`, { headers: nav });
+    expect([nowhere.status, nowhere.headers.location]).toEqual([303, '/?enter=not-connected']);
     const other = await req(port, `/system/remote/enter?host=${host.id}&port=${ready.port}`, { headers: nav });
     expect(other.status).toBe(303);
     const otherUrl = new URL(other.headers.location!);
@@ -211,4 +223,41 @@ describe('another computer\'s window through this one', () => {
     await new Promise((r) => setTimeout(r, LINGER * 2));
     await expect(req(port, '/')).rejects.toThrow();
   }, 90_000);
+});
+
+describe('the proxy without a window behind it', () => {
+  /** a proxy over an in-process channel whose host side is `host` (each OPEN goes to it) */
+  async function over(host: (s: import('./mux.ts').Stream, open: { kind?: string }) => void, lang?: string) {
+    let a: Mux, b: Mux;
+    a = new Mux({ send: (p) => queueMicrotask(() => b.receive(p)) });
+    b = new Mux({ send: (p) => queueMicrotask(() => a.receive(p)), onOpen: (s, o) => host(s, o as { kind?: string }) });
+    const p = new WindowProxy({ open: (o) => a.open(o), port: 4777, computer: { host: 'h', name: 'Studio' }, projects: async () => ({}), enter: async () => ({ error: 'x' }), onClose: () => {}, ...(lang ? { lang: () => lang } : {}) });
+    await p.start();
+    closers.push(() => p.close());
+    return p;
+  }
+  const nav = { 'sec-fetch-dest': 'document', 'sec-fetch-mode': 'navigate' };
+
+  it('an older host refuses the `public` kind: the page says so in the person\'s language, a request gets 502', async () => {
+    const kinds: string[] = [];
+    const p = await over((s, o) => { kinds.push(String(o.kind)); s.close(BAD_FRAME, 'unknown stream kind'); }, 'de');
+    const page = await req(p.port, '/', { headers: nav });
+    expect(page.status).toBe(502);
+    expect(page.headers['content-type']).toMatch(/^text\/html/);
+    expect(page.body).toContain('lang="de"');
+    expect(page.body).toContain('Studio');
+    expect(page.body).not.toContain('could not be reached');
+    expect((await req(p.port, '/assets/a.js')).status).toBe(502);
+    expect(kinds).toEqual(['public', 'public']);
+  });
+
+  it('a computer that is not connected: the same page, in English without a saved language', async () => {
+    const p = new WindowProxy({ open: () => null, port: 4777, computer: { host: 'h', name: 'Studio' }, projects: async () => ({}), enter: async () => ({ error: 'x' }), onClose: () => {} });
+    await p.start();
+    closers.push(() => p.close());
+    const page = await req(p.port, '/', { headers: nav });
+    expect(page.status).toBe(502);
+    expect(page.body).toContain('lang="en"');
+    expect(page.body).toContain('Studio');
+  });
 });

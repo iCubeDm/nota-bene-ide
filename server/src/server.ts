@@ -891,8 +891,9 @@ export async function startServer(o: {
         reportError(hub, 'windows', e);
       }
     });
-    allowedHosts.push(`127.0.0.1:${port}`, `localhost:${port}`);
-    allowedOrigins.push(`http://127.0.0.1:${port}`, `http://localhost:${port}`);
+    // never `localhost`: that host name is the desktop proxies' (remote/proxy.ts), and cookies are scoped by host only
+    allowedHosts.push(`127.0.0.1:${port}`);
+    allowedOrigins.push(`http://127.0.0.1:${port}`);
     const keeper = o.remote;
     const remoteState = (state: RemoteState) => hub.emit({ kind: 'remote', state }, { store: false });
     const remotePair = (p: PairOutcome) => hub.emit({ kind: 'remote-pair', ...p }, { store: false });

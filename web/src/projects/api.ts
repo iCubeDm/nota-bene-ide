@@ -164,6 +164,25 @@ const REASONS = {
 } as const;
 export const reasonText = (why: string): string => (why in REASONS ? t(REASONS[why as keyof typeof REASONS]) : why);
 
+/**
+ * Why another computer's window did not open (issue 297): the connector's refusals (POST /system/remote/open) and the codes
+ * a desktop proxy sends back with a failed switch (`/?enter=<code>`, server/src/remote/proxy.ts). Anything else is the
+ * generic failure, never its raw text.
+ */
+const REMOTE_WHY = {
+  'no such window': 'whyNoWindow', 'no-window': 'whyNoWindow', 'not-answering': 'whyNotAnswering', 'not connected': 'whyNotConnected',
+  'not-connected': 'whyNotConnected', 'not running': 'whyNotConnected', login: 'whyNotLoggedIn',
+} as const;
+const remoteWhy = (why: unknown): string => t(typeof why === 'string' && why in REMOTE_WHY ? REMOTE_WHY[why as keyof typeof REMOTE_WHY] : 'whyRemoteFailed');
+
+/** A switch from another computer's page that came back (`?enter=<code>`): says why once, and takes the code off the address. */
+export function enterFailure(loc: Location = location, hist: History = history): void {
+  const code = new URLSearchParams(loc.search).get('enter');
+  if (code === null) return;
+  hist.replaceState(null, '', loc.pathname + loc.hash);
+  toast(t('projEnterFailed', remoteWhy(code)), '');
+}
+
 /** A failed answer's reason: the server's short text, or the status. */
 export const reasonOf = async (r: Response): Promise<string> => (await r.text().catch(() => '')).trim() || String(r.status);
 
@@ -195,8 +214,8 @@ export async function enterProject(row: RunningRow, session?: string): Promise<b
       : await postJson('/system/projects/enter', { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
     // the remote routes say why as JSON `{error}`, the switcher's as text
     if (!r.ok) {
-      const why = row.remote ? ((await r.json().catch(() => null)) as { error?: unknown } | null)?.error : await reasonOf(r);
-      toast(t('projEnterFailed', reasonText(typeof why === 'string' ? why : String(r.status))), row.root);
+      const why = row.remote ? remoteWhy(((await r.json().catch(() => null)) as { error?: unknown } | null)?.error) : reasonText(await reasonOf(r));
+      toast(t('projEnterFailed', why), row.root);
       return false;
     }
     const { url } = (await r.json()) as { url?: unknown };

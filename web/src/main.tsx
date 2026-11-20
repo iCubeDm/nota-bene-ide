@@ -5,6 +5,7 @@ import { App } from './App.tsx';
 import { fragmentSession, loginFromFragment } from './net/auth.ts';
 import { loadRemotePage } from './net/local.ts';
 import { startLanding } from './projects/landing.ts';
+import { enterFailure } from './projects/api.ts';
 import { defaultSocketUrl } from './net/socket.ts';
 import { makeStore } from './store/store.ts';
 import './shell/theme.ts';
@@ -18,6 +19,7 @@ const landing = fragmentSession(location.hash);
 void loginFromFragment().then(() => loadRemotePage()).then(() => {
   const store = makeStore({ url: defaultSocketUrl(location) });
   if (landing) startLanding(store, landing);
+  enterFailure();
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <Provider store={store}>

@@ -581,12 +581,12 @@ Once this computer is paired with another, the project switcher and the rail lis
 
 It is a tab of that window like any other: it takes the window over from the other computer's tab and its phone, and **Work here** takes it back. What is not there:
 
-- Starting, creating or stopping the other computer's projects: no **Open folder…**, **New project…**, Recent, stop buttons or **Stop Nota Bene** on its page; its other windows' sessions are not listed.
+- Starting, creating or stopping the other computer's projects: no **Open folder…**, **New project…**, Recent, stop buttons or **Stop Nota Bene** on its page; its other windows' sessions are not listed, and a new session there starts with the agents of its windows on that folder.
 - **Show in Finder** and **Open in default app**: they act on the computer the window runs on.
 - The **Remote** tab: pairing and access are changed on that computer.
 - Files over 32 MB: the relay carries a request whole, up to 32 MB; a larger file says so before it is sent (images are resized as usual).
 
-Both computers need this release or a later one. The tab shows the other computer's window on `localhost` with a port of its own (this computer's windows stay on `127.0.0.1`), so the two never share a login; the address is new each time and is gone a minute after its last tab closed.
+Both computers need this release or a later one; with the other computer offline, or on an older release, the tab says it cannot be reached. The tab shows the other computer's window on `localhost` with a port of its own (this computer's windows stay on `127.0.0.1`), so the two never share a login; the address is new each time and is gone a minute after its last tab closed.
 
 ### Access key
 

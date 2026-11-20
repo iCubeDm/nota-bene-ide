@@ -1,7 +1,7 @@
 // `GET /remote`, `POST /remote/{config,pair,pair/cancel,revoke,connect,forget}`: the Remote tab's server side (keeper.ts does
-// the work). `POST /system/remote/open`, `GET /system/remote/page`: the switcher's move to a paired computer's window and
-// the page's question whether it is one (issue 297; a desktop proxy answers the latter itself, proxy.ts). Key tier, as
-// every route; a paired device never reaches them (device.ts goodPath).
+// the work). `POST /system/remote/open`: the switcher's move to a paired computer's window (issue 297; the page's question
+// whether it is one, `GET /system/remote/page`, only a desktop proxy answers, proxy.ts). Key tier, as every route; a
+// paired device never reaches them (device.ts goodPath).
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import type { EventHub } from '../hub.ts';
 import { reportError } from '../errors.ts';
@@ -81,8 +81,6 @@ export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undef
       if (typeof b.code !== 'string' || !b.code.trim()) return json(res, 400, { error: 'code must be a string' });
       json(res, 200, { ok: true, host: await k.connect(b.code) });
     }),
-    // this window is no desktop proxy's page
-    '/system/remote/page': (req, res) => (req.method === 'GET' || req.method === 'HEAD' ? json(res, 200, null) : json(res, 405, { error: 'method not allowed' })),
     '/system/remote/open': route('POST', async (k, req, res) => {
       const b = await readBody(req);
       if (typeof b.host !== 'string' || !b.host || !Number.isInteger(b.port)) return json(res, 400, { error: 'bad request' });

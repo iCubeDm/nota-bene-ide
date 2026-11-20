@@ -45,7 +45,7 @@ async function serve(keeper: RemoteKeeperApi | undefined): Promise<string> {
 const post = (base: string, p: string, body?: unknown) => fetch(base + p, { method: 'POST', body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) });
 
 describe('remote routes', () => {
-  it('issue 297: open asks the connector for a paired window, and the page is no proxy\'s', async () => {
+  it('issue 297: open asks the connector for a paired window', async () => {
     const { k, calls } = fake();
     const base = await serve(k);
     const r = await post(base, '/system/remote/open', { host: 'wxyz', port: 4777 });
@@ -55,12 +55,9 @@ describe('remote routes', () => {
     expect((await post(base, '/system/remote/open', { host: 'nope', port: 4777 })).status).toBe(404);
     expect((await post(base, '/system/remote/open', { host: 'wxyz', port: 'x' })).status).toBe(400);
     expect((await fetch(`${base}/system/remote/open`)).status).toBe(405);
-    expect(await (await fetch(`${base}/system/remote/page`)).json()).toBeNull();
-    // no keeper: no proxies, but the page still learns it is no proxy's
     await new Promise((done) => server!.close(done));
     const none = await serve(undefined);
     expect((await post(none, '/system/remote/open', { host: 'wxyz', port: 4777 })).status).toBe(503);
-    expect(await (await fetch(`${none}/system/remote/page`)).json()).toBeNull();
   });
 
   it('GET /remote is the state; a POST route refuses GET', async () => {

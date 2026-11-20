@@ -60,10 +60,12 @@ describe('host and origin checks', () => {
     expect(await get(s.port, '/info', { Host: 'evil.example:4777' })).toBe(403);
   });
 
-  it('http accepts localhost Host', async () => {
+  // issue 297: `localhost` is the desktop proxies' (another computer's pages): a window shares no cookie with them
+  it('http refuses a localhost Host', async () => {
     const s = await boot();
-    expect(await get(s.port, '/info', { Host: `localhost:${s.port}` })).toBe(200);
-    expect(await get(s.port, '/info', { Host: `LOCALHOST:${s.port}` })).toBe(200);
+    expect(await get(s.port, '/info', { Host: `localhost:${s.port}` })).toBe(403);
+    expect(await get(s.port, '/info', { Host: `LOCALHOST:${s.port}` })).toBe(403);
+    expect(await get(s.port, '/info', { Host: `127.0.0.1:${s.port}` })).toBe(200);
   });
 
   it('ws rejects a foreign Origin', async () => {
@@ -73,11 +75,11 @@ describe('host and origin checks', () => {
     expect(r.frame).toBeUndefined();
   });
 
-  it('ws accepts no Origin and own Origin', async () => {
+  it('ws accepts no Origin and own Origin; not the same port on localhost (issue 297)', async () => {
     const s = await boot();
     expect((await wsTry(s.url)).frame).toBeDefined();
     expect((await wsTry(s.url, `http://127.0.0.1:${s.port}`)).frame).toBeDefined();
-    expect((await wsTry(s.url, `http://localhost:${s.port}`)).frame).toBeDefined();
+    expect((await wsTry(s.url, `http://localhost:${s.port}`)).frame).toBeUndefined();
   });
 
   it('ws accepts an allowedOrigins entry', async () => {

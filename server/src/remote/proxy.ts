@@ -11,6 +11,7 @@ import { randomBytes } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
 import { WebSocketServer, type WebSocket } from 'ws';
+import { isUiLang, type UiLang } from '@nota-bene/shared';
 import { authenticated, cookieRoute, KEY_PROTOCOL, loginCredential, loginRoute, newNonce } from '../auth.ts';
 import { FORWARDED, goodPath, MAX_BODY } from './device.ts';
 import { CLOSED, collect, TOO_LARGE, UNREACHABLE, type Stream } from './mux.ts';
@@ -33,7 +34,27 @@ export type ProxyOptions = {
   enter: (to: EnterTarget) => Promise<{ url: string } | { error: string }>;
   onClose: () => void;
   lingerMs?: number;
+  /** the person's UI language (prefs.ts), for the page shown when the window cannot be reached */
+  lang?: () => string | undefined;
 };
+
+/**
+ * The page a navigation gets when the window cannot be reached (the computer is offline, or runs a Nota Bene without the
+ * `public` stream): the app itself never loaded, so the words are here, in the UI's languages.
+ */
+const UNREACHABLE_PAGE: Record<UiLang, (name: string) => string> = {
+  en: (n) => `${n} cannot be reached: it is offline, or its Nota Bene is older than this one. Reload when it is back.`,
+  ru: (n) => `${n} недоступен: он не в сети или его Nota Bene старее этой. Обновите страницу, когда он вернётся.`,
+  de: (n) => `${n} ist nicht erreichbar: offline, oder sein Nota Bene ist älter als dieses. Laden Sie neu, sobald er zurück ist.`,
+  es: (n) => `No se puede acceder a ${n}: está desconectado o su Nota Bene es más antiguo que este. Recarga cuando vuelva.`,
+  'pt-BR': (n) => `Não é possível acessar ${n}: está offline ou o Nota Bene dele é mais antigo que este. Recarregue quando voltar.`,
+  'zh-CN': (n) => `无法连接 ${n}：它已离线，或其 Nota Bene 比这里的旧。恢复后请重新加载。`,
+};
+const escapeHtml = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+/** Why a failed switch came back (`/?enter=<code>`, web/src/projects/api.ts says it in words). */
+const ENTER_CODES: Record<string, string> = { 'no such window': 'no-window', 'window not answering': 'not-answering', 'not connected': 'not-connected' };
+/** Ports listeners had in this process: a new one takes another (a page's origin-scoped storage stays its own). */
+const usedPorts = new Set<number>();
 
 function text(res: http.ServerResponse, status: number, body: string): void {
   if (res.headersSent) return void res.destroy();
@@ -94,13 +115,31 @@ export class WindowProxy {
     return `${this.#origin}/#t=${loginCredential(this.#token, this.#port, this.#nonce)}`;
   }
 
-  /** Listens on a port the system picks: outside the windows' range, and fresh for every open (origin-scoped storage). */
+  /**
+   * Listens on a port the system picks: outside the windows' range, and fresh for every open (origin-scoped storage); one
+   * an earlier listener of this process had is passed over.
+   */
   async start(): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      this.#server.once('error', reject);
-      this.#server.listen(0, '127.0.0.1', () => resolve());
-    });
+    const held: http.Server[] = [];
+    try {
+      for (let i = 0; ; i++) {
+        await new Promise<void>((resolve, reject) => {
+          this.#server.once('error', reject);
+          this.#server.listen(0, '127.0.0.1', () => resolve());
+        });
+        const port = (this.#server.address() as AddressInfo).port;
+        if (!usedPorts.has(port) || i >= 8) break;
+        // keep it taken while another is asked for, so the system cannot hand it out again
+        const hold = http.createServer();
+        await new Promise<void>((r) => this.#server.close(() => r()));
+        await new Promise<void>((r) => hold.listen(port, '127.0.0.1', () => r()).once('error', () => r()));
+        held.push(hold);
+      }
+    } finally {
+      for (const h of held) h.close();
+    }
     this.#port = (this.#server.address() as AddressInfo).port;
+    usedPorts.add(this.#port);
     this.#linger();
   }
 
@@ -137,6 +176,8 @@ export class WindowProxy {
     const method = req.method ?? 'GET';
     const read = method === 'GET' || method === 'HEAD';
     if (!read && req.headers.origin !== this.#origin) return text(res, 403, 'forbidden origin');
+    // Nota Bene has no service worker: one a page registered would outlive this listener onto a later one on the port
+    if (req.headers['service-worker'] !== undefined) return text(res, 403, 'forbidden');
     if (path === '/auth') return login(req, res);
     // answered here, never forwarded
     if (path === '/system/remote/page' || path === '/system/projects') {
@@ -162,20 +203,25 @@ export class WindowProxy {
    */
   #enter(req: http.IncomingMessage, res: http.ServerResponse, raw: string): void {
     if (req.method !== 'GET') return text(res, 405, 'method not allowed');
-    if (!this.#authed(req, false)) return text(res, 401, 'unauthorized');
     const h = req.headers;
     if (h['sec-fetch-site'] !== 'same-origin' || h['sec-fetch-mode'] !== 'navigate' || h['sec-fetch-dest'] !== 'document') return text(res, 403, 'forbidden');
+    // a switch that cannot go comes back to this page, which says why (only a navigation of its own gets here)
+    const back = (code: string) => {
+      res.writeHead(303, { location: `/?enter=${code}`, 'cache-control': 'no-store' });
+      res.end();
+    };
+    if (!this.#authed(req, false)) return back('login');
     const q = new URL(raw, this.#origin).searchParams;
     const port = Number(q.get('port'));
     const host = q.get('host'), provider = q.get('provider'), root = q.get('root');
     const to: EnterTarget | null = !Number.isInteger(port) || port <= 0 ? null
       : host ? { host, port } : provider && root ? { provider, port, root } : null;
-    if (!to) return text(res, 400, 'bad request');
+    if (!to) return back('failed');
     void this.#o.enter(to).then((r) => {
-      if ('error' in r) return text(res, r.error === 'no such window' ? 404 : 409, r.error);
+      if ('error' in r) return back(ENTER_CODES[r.error] ?? 'failed');
       res.writeHead(303, { location: r.url, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
       res.end();
-    }, () => text(res, 500, 'internal error'));
+    }, () => back('failed'));
   }
 
   /** One request to the window over the channel; the body streams both ways at the stream's credit. */
@@ -191,7 +237,7 @@ export class WindowProxy {
       if (typeof v === 'string') headers[k] = v;
     }
     const s = this.#o.open({ kind, port: this.#o.port, method, path, headers });
-    if (!s) return text(res, 502, 'the computer is not connected');
+    if (!s) return this.#unreachable(req, res, 'the computer is not connected');
     s.on('head', (h: { status?: unknown; headers?: unknown }) => {
       if (res.headersSent) return;
       const out = h.headers && typeof h.headers === 'object' ? h.headers as Record<string, string> : {};
@@ -206,13 +252,22 @@ export class WindowProxy {
     };
     s.on('close', ({ code }: { code: number }) => {
       if (code === CLOSED && res.headersSent) return void res.end();
-      if (!res.headersSent) return text(res, code === TOO_LARGE ? 413 : 502, code === TOO_LARGE ? 'request body too large' : 'the window could not be reached');
+      if (!res.headersSent) return code === TOO_LARGE ? text(res, 413, 'request body too large') : this.#unreachable(req, res, 'the window could not be reached');
       res.destroy();
     });
     res.once('close', () => { if (!res.writableFinished) s.close(UNREACHABLE, 'the page went'); });
     req.on('data', (c: Buffer) => { if (!s.write(c)) req.pause(); });
     s.on('drain', () => req.resume());
     req.once('end', () => s.end());
+  }
+
+  /** 502: a navigation gets a page in the person's language, anything else the short reason. */
+  #unreachable(req: http.IncomingMessage, res: http.ServerResponse, why: string): void {
+    if (req.headers['sec-fetch-dest'] !== 'document' || res.headersSent) return text(res, 502, why);
+    const l = this.#o.lang?.();
+    const lang: UiLang = isUiLang(l) ? l : 'en';
+    res.writeHead(502, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(`<!doctype html><html lang="${lang}"><meta charset="utf-8"><title>Nota Bene</title><p style="font:15px system-ui;margin:3em auto;max-width:36em">${escapeHtml(UNREACHABLE_PAGE[lang](this.#o.computer.name))}</p></html>`);
   }
 
   #upgrade(req: http.IncomingMessage, sock: Socket, head: Buffer): void {

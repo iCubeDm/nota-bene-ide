@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
 import { recordRecent } from './recent.ts';
-import { enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type ProbedInfo } from './projects.ts';
+import { bareRow, enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type ProbedInfo } from './projects.ts';
 import { startServer } from './server.ts';
 import { registerWindow } from './windows.ts';
 
@@ -215,4 +215,9 @@ it('issue 297: a paired computer\'s windows as rows, the state from its host str
     expect.objectContaining({ port: 4778, state: 'waiting', title: null, last: null }),
     expect.objectContaining({ port: 4779, state: 'idle', current: true }),
   ]);
+});
+
+it('issue 297: a row for another computer\'s page keeps what lists and moves, none of its content', () => {
+  const row = { provider: 'claude' as const, port: 4777, root: '/p/a', title: 'T', session: 's1', state: 'waiting' as const, current: false, clients: 2, unseen: 3, last: { role: 'user' as const, text: 'secret', at: 1 }, remote: { host: 'h', name: 'N' } };
+  expect(bareRow(row)).toEqual({ provider: 'claude', port: 4777, root: '/p/a', title: null, session: null, state: 'waiting', current: false, clients: 0, unseen: 0, last: null, remote: { host: 'h', name: 'N' } });
 });
