@@ -1,86 +1,25 @@
 // The window's read-only git views as the desktop's panel reads them (server/src/vcs.ts, shared/src/vcs.ts):
 // `/git-status` (null outside a repository), `/vcs-diff` (the working tree's changed files), `/vcs-file` (one file's
-// patch), `/vcs-log`, `/vcs-commit` and `/vcs-commit-file`. A patch is parsed as web/src/vcs/parse.ts does.
+// patch), `/vcs-log`, `/vcs-commit` and `/vcs-commit-file`, their answers the generated protocol classes. A patch is parsed as
+// web/src/vcs/parse.ts does.
+import 'package:nb_protocol/nb_protocol.dart';
+
 import '../chat/window_tab.dart';
 import 'remote.dart';
 
-/// One changed file of a diff or a commit: [status] is A, M, D or R (renamed from [old]).
-class GitFile {
-  const GitFile({
-    required this.path,
-    this.old,
-    required this.status,
-    this.add,
-    this.del,
-    required this.binary,
-  });
-  final String path, status;
-  final String? old;
-  final int? add, del;
-  final bool binary;
-
-  factory GitFile.fromJson(Map<String, Object?> j) => GitFile(
-    path: j['path']! as String,
-    old: j['old'] as String?,
-    status: j['status']! as String,
-    add: (j['add'] as num?)?.toInt(),
-    del: (j['del'] as num?)?.toInt(),
-    binary: j['binary'] == true,
-  );
+/// A changed file's status as its letter: A, M, D or R (renamed from [VcsFile.old]); `?` for one a newer host added.
+extension VcsFileLetter on VcsFile {
+  String get letter => switch (status) {
+    VcsFileStatus.a => 'A',
+    VcsFileStatus.m => 'M',
+    VcsFileStatus.d => 'D',
+    VcsFileStatus.r => 'R',
+    VcsFileStatus.$unknown => '?',
+  };
 }
 
-List<GitFile> _files(Object? j) => [
-  for (final f in (j as List? ?? const []))
-    if (f is Map) GitFile.fromJson(f.cast<String, Object?>()),
-];
-
-/// The working tree's changes: the branch it is on, what it is compared to and the files.
-class Changes {
-  const Changes({
-    required this.branch,
-    required this.base,
-    required this.uncommitted,
-    required this.files,
-    required this.truncated,
-  });
-  final String? branch, base;
-  final bool uncommitted, truncated;
-  final List<GitFile> files;
-}
-
-class GitCommit {
-  const GitCommit({
-    required this.sha,
-    required this.author,
-    required this.at,
-    required this.subject,
-    required this.refs,
-  });
-  final String sha, author, subject;
-  final int at;
-  final List<String> refs;
+extension VcsCommitShort on VcsCommit {
   String get short => sha.length > 7 ? sha.substring(0, 7) : sha;
-}
-
-class CommitDetail {
-  const CommitDetail({
-    required this.sha,
-    required this.author,
-    required this.at,
-    required this.message,
-    required this.files,
-    required this.truncated,
-  });
-  final String sha, author, message;
-  final int at;
-  final List<GitFile> files;
-  final bool truncated;
-}
-
-class Patch {
-  const Patch(this.text, this.truncated);
-  final String text;
-  final bool truncated;
 }
 
 /// Whether the window's project is in a git repository; null when the host did not say (offline, git timed out).
@@ -93,73 +32,44 @@ Future<bool?> isGitRepo(WindowTab tab) async {
 }
 
 /// The working tree's changes; null outside a repository.
-Future<Changes?> fetchChanges(WindowTab tab) async {
+Future<VcsRepoDiff?> fetchChanges(WindowTab tab) async {
   final j = await getJson(tab, '/vcs-diff');
-  if (j is! Map || j['repo'] != true) return null;
-  return Changes(
-    branch: j['branch'] as String?,
-    base: j['base'] as String?,
-    uncommitted: j['uncommitted'] == true,
-    files: _files(j['files']),
-    truncated: j['truncated'] == true,
-  );
+  return switch (VcsDiff.fromJson(j as Map<String, Object?>)) {
+    final VcsRepoDiff d => d,
+    _ => null,
+  };
 }
 
-Future<Patch> _patch(WindowTab tab, String path) async {
+Future<VcsPatch> _patch(WindowTab tab, String path) async {
   final j = await getJson(tab, path);
-  if (j is! Map) throw FilesError(null);
-  return Patch((j['patch'] as String?) ?? '', j['truncated'] == true);
+  return VcsPatch.fromJson(j as Map<String, Object?>);
 }
 
 /// One file of the working diff.
-Future<Patch> fetchChangePatch(WindowTab tab, GitFile f) => _patch(
+Future<VcsPatch> fetchChangePatch(WindowTab tab, VcsFile f) => _patch(
   tab,
   '/vcs-file?${Uri(queryParameters: {'path': f.path, if (f.old != null) 'old': f.old!}).query}',
 );
 
 /// The branch's commits (all branches' with [all]); empty outside a repository.
-Future<({List<GitCommit> commits, bool more})> fetchLog(
-  WindowTab tab, {
-  bool all = true,
-}) async {
+Future<VcsLog> fetchLog(WindowTab tab, {bool all = true}) async {
   final j = await getJson(tab, '/vcs-log?all=${all ? 1 : 0}');
-  if (j is! Map) throw FilesError(null);
-  return (
-    commits: [
-      for (final c in (j['commits'] as List? ?? const []))
-        if (c is Map)
-          GitCommit(
-            sha: c['sha']! as String,
-            author: (c['author'] as String?) ?? '',
-            at: (c['at'] as num?)?.toInt() ?? 0,
-            subject: (c['subject'] as String?) ?? '',
-            refs: [
-              for (final r in (c['refs'] as List? ?? const []))
-                if (r is String) r,
-            ],
-          ),
-    ],
-    more: j['more'] == true,
-  );
+  return VcsLog.fromJson(j as Map<String, Object?>);
 }
 
-Future<CommitDetail> fetchCommit(WindowTab tab, String sha) async {
+Future<VcsCommitDetail> fetchCommit(WindowTab tab, String sha) async {
   final j = await getJson(
     tab,
     '/vcs-commit?${Uri(queryParameters: {'sha': sha}).query}',
   );
-  if (j is! Map) throw FilesError(null);
-  return CommitDetail(
-    sha: j['sha']! as String,
-    author: (j['author'] as String?) ?? '',
-    at: (j['at'] as num?)?.toInt() ?? 0,
-    message: (j['message'] as String?) ?? '',
-    files: _files(j['files']),
-    truncated: j['truncated'] == true,
-  );
+  return VcsCommitDetail.fromJson(j as Map<String, Object?>);
 }
 
-Future<Patch> fetchCommitPatch(WindowTab tab, String sha, GitFile f) => _patch(
+Future<VcsPatch> fetchCommitPatch(
+  WindowTab tab,
+  String sha,
+  VcsFile f,
+) => _patch(
   tab,
   '/vcs-commit-file?${Uri(queryParameters: {'sha': sha, 'path': f.path, if (f.old != null) 'old': f.old!}).query}',
 );

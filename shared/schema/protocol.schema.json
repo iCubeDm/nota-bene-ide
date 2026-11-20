@@ -679,6 +679,13 @@
       ],
       "type": "string"
     },
+    "CompleteAnswer": {
+      "description": "`GET /complete?q=`: up to 30 project-relative paths, a folder with a trailing `/`.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "CutAnchor": {
       "description": "A place on a video edit's timeline (`*.nbcut.json`, protocol 23): a clip at a moment of it, or (no `clip`) a moment of the timeline. `time`: seconds on the timeline, ms precision. The editor keeps a pending comment on its clip by id: after a move or a trim it updates `time` (and the track and src) through an `edit` op, `srcTime` staying.",
       "properties": {
@@ -746,6 +753,53 @@
       "required": [
         "kind",
         "path"
+      ],
+      "type": "object"
+    },
+    "GitSwitchAnswer": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/GitSwitched"
+        },
+        {
+          "$ref": "#/definitions/GitSwitchRefusal"
+        }
+      ]
+    },
+    "GitSwitchError": {
+      "description": "Why POST /git-switch refused; `detail` carries git's own words for 'git'. 200 answers `{ branch }`.",
+      "enum": [
+        "bad-request",
+        "not-a-repo",
+        "unknown-branch",
+        "busy",
+        "git",
+        "timeout"
+      ],
+      "type": "string"
+    },
+    "GitSwitchRefusal": {
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/definitions/GitSwitchError"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "type": "object"
+    },
+    "GitSwitched": {
+      "properties": {
+        "branch": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch"
       ],
       "type": "object"
     },
@@ -1212,6 +1266,18 @@
         "source",
         "selector",
         "trail"
+      ],
+      "type": "object"
+    },
+    "ProjectIconAnswer": {
+      "description": "`PUT /project-icon`: the stored picture's version.",
+      "properties": {
+        "icon": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "icon"
       ],
       "type": "object"
     },
@@ -2379,6 +2445,21 @@
       ],
       "type": "string"
     },
+    "TreeEntry": {
+      "properties": {
+        "dir": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "dir"
+      ],
+      "type": "object"
+    },
     "UiLang": {
       "enum": [
         "en",
@@ -2982,6 +3063,296 @@
         "ts",
         "w",
         "write"
+      ],
+      "type": "object"
+    },
+    "VcsBaseHow": {
+      "enum": [
+        "reflog",
+        "default",
+        "none"
+      ],
+      "type": "string"
+    },
+    "VcsCommit": {
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "author": {
+          "type": "string"
+        },
+        "parents": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha",
+        "parents",
+        "author",
+        "at",
+        "subject",
+        "refs"
+      ],
+      "type": "object"
+    },
+    "VcsCommitDetail": {
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "author": {
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/definitions/VcsFile"
+          },
+          "type": "array"
+        },
+        "message": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sha",
+        "author",
+        "at",
+        "message",
+        "files",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "VcsDiff": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/VcsNoRepo"
+        },
+        {
+          "$ref": "#/definitions/VcsRepoDiff"
+        }
+      ]
+    },
+    "VcsFile": {
+      "description": "The read-only git views' answers (`/vcs-*`).",
+      "properties": {
+        "add": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "binary": {
+          "type": "boolean"
+        },
+        "del": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "old": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "A",
+            "M",
+            "D",
+            "R"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "add",
+        "del",
+        "binary"
+      ],
+      "type": "object"
+    },
+    "VcsLog": {
+      "properties": {
+        "commits": {
+          "items": {
+            "$ref": "#/definitions/VcsCommit"
+          },
+          "type": "array"
+        },
+        "more": {
+          "type": "boolean"
+        },
+        "repo": {
+          "type": "boolean"
+        },
+        "tip": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "repo",
+        "commits",
+        "tip",
+        "more"
+      ],
+      "type": "object"
+    },
+    "VcsNoRepo": {
+      "properties": {
+        "repo": {
+          "const": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "type": "object"
+    },
+    "VcsPatch": {
+      "properties": {
+        "patch": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "patch",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "VcsRepoDiff": {
+      "properties": {
+        "base": {
+          "description": "what the range starts from; null: only what is not committed, or nothing to compare",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidates": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "commitCount": {
+          "type": "number"
+        },
+        "commits": {
+          "description": "the latest ones; `commitCount` is all of them",
+          "items": {
+            "properties": {
+              "sha": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sha",
+              "subject"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "detected": {
+          "description": "the source's own base, whatever is picked",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "files": {
+          "items": {
+            "$ref": "#/definitions/VcsFile"
+          },
+          "type": "array"
+        },
+        "how": {
+          "$ref": "#/definitions/VcsBaseHow"
+        },
+        "live": {
+          "description": "a working folder, not a branch's commits only",
+          "type": "boolean"
+        },
+        "mergeBase": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "repo": {
+          "const": true,
+          "type": "boolean"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "uncommitted": {
+          "type": "boolean"
+        },
+        "unrelated": {
+          "description": "`base` shares no history with the source",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "repo",
+        "branch",
+        "live",
+        "base",
+        "detected",
+        "how",
+        "uncommitted",
+        "unrelated",
+        "mergeBase",
+        "commits",
+        "commitCount",
+        "candidates",
+        "files",
+        "truncated"
       ],
       "type": "object"
     },

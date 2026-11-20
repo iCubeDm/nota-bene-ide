@@ -9,6 +9,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:nb_protocol/nb_protocol.dart' show ProjectIconAnswer;
 
 import '../media/attach.dart' show Prepared, UnsupportedImage;
 import '../media/media_comment.dart' show WindowHttp;
@@ -74,11 +75,10 @@ Future<String> putProjectIcon(WindowHttp http, Prepared p) async {
   );
   if (res.status != 200) throw IconError('/project-icon ${res.status}');
   try {
-    if (jsonDecode(utf8.decode(res.body)) case {'icon': final String v}) {
-      return v;
-    }
-  } on FormatException {
-    // falls through
+    final j = jsonDecode(utf8.decode(res.body));
+    return ProjectIconAnswer.fromJson(j as Map<String, Object?>).icon;
+  } on Object {
+    // not JSON, or not the answer's shape: falls through
   }
   throw IconError('bad reply');
 }

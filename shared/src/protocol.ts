@@ -117,6 +117,10 @@ export const VOICE_CLIP_TEXT_MAX = 20_000;
 /** Why a voice message has no transcript: Whisper went off, it heard nothing, or it failed. */
 export type VoiceError = 'off' | 'empty' | 'failed';
 export type TreeEntry = { name: string; dir: boolean };
+/** `GET /complete?q=`: up to 30 project-relative paths, a folder with a trailing `/`. */
+export type CompleteAnswer = string[];
+/** `PUT /project-icon`: the stored picture's version. */
+export type ProjectIconAnswer = { icon: string };
 /**
  * Where files are read from (M3-16, read-only). Stable ids (persisted in tabs and tree state): 'here' (this window's
  * checkout), `ref:<branch>` (any other local branch), `dir:<12 hex of sha1(realpath)>` (a detached worktree).
@@ -739,7 +743,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
 export type { AgentEvent, StopReason, WireAgentEvent } from './agent.ts';
 export { FINISHED_CAP, orderedTasks, reduceTasks, shortModel, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
 export { BATCH_HEAD, BATCH_HEADS, DEFAULT_THEME, isThemeId, isUiLang, isUiScale, THEME_KIND, THEMES, UI_LANGS, UI_SCALES, type ThemeId, type UiLang, type UiScale } from './lang.ts';
-export type { GitSwitchAnswer, GitSwitchError, VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsPatch } from './vcs.ts';
+export type { GitSwitchAnswer, GitSwitched, GitSwitchError, GitSwitchRefusal, VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsNoRepo, VcsPatch, VcsRepoDiff } from './vcs.ts';
 export { USAGE_PERIODS, type TokenCounts, type UsageAgentRow, type UsageCallRow, type UsageExtra, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageRow, type UsageTank, type UsageTaskRow } from './usage.ts';
 
 /** `GET /subagent` (protocol 7): a subagent's conversation as feed events, whether it still runs, and what the Agent call named it. */

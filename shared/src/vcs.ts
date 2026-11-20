@@ -1,7 +1,9 @@
 /** The read-only git views' answers (`/vcs-*`). */
 export type VcsFile = { path: string; old?: string; status: 'A' | 'M' | 'D' | 'R'; add: number | null; del: number | null; binary: boolean };
 export type VcsBaseHow = 'reflog' | 'default' | 'none';
-export type VcsDiff = { repo: false } | {
+// the variants are named so the Dart generator gives them those names (issue 511)
+export type VcsNoRepo = { repo: false };
+export type VcsRepoDiff = {
   repo: true;
   branch: string | null;
   /** a working folder, not a branch's commits only */
@@ -22,6 +24,7 @@ export type VcsDiff = { repo: false } | {
   files: VcsFile[];
   truncated: boolean;
 };
+export type VcsDiff = VcsNoRepo | VcsRepoDiff;
 export type VcsPatch = { patch: string; truncated: boolean };
 export type VcsBranch = { id: string; branch: string | null; base: string | null; ahead: number; dirty: boolean; busy: boolean; at: number };
 export type VcsCommit = { sha: string; parents: string[]; author: string; at: number; subject: string; refs: string[] };
@@ -29,4 +32,6 @@ export type VcsLog = { repo: boolean; commits: VcsCommit[]; tip: string | null; 
 export type VcsCommitDetail = { sha: string; author: string; at: number; message: string; files: VcsFile[]; truncated: boolean };
 /** Why POST /git-switch refused; `detail` carries git's own words for 'git'. 200 answers `{ branch }`. */
 export type GitSwitchError = 'bad-request' | 'not-a-repo' | 'unknown-branch' | 'busy' | 'git' | 'timeout';
-export type GitSwitchAnswer = { branch: string } | { error: GitSwitchError; detail?: string };
+export type GitSwitched = { branch: string };
+export type GitSwitchRefusal = { error: GitSwitchError; detail?: string };
+export type GitSwitchAnswer = GitSwitched | GitSwitchRefusal;

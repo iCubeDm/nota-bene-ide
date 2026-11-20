@@ -6,6 +6,7 @@ import 'package:nb_app/files/files_pane.dart';
 import 'package:nb_app/files/remote.dart';
 import 'package:nb_app/chat/code_screen.dart';
 import 'package:nb_channel/nb_channel.dart';
+import 'package:nb_protocol/nb_protocol.dart' show TreeEntry;
 
 import 'files_entry_test.dart' show tool, result;
 import 'support/fakes.dart';
@@ -25,9 +26,9 @@ void main() {
 
   test('sortEntries is case-insensitive, folders first', () {
     final s = sortEntries([
-      const TreeEntry('b', false),
-      const TreeEntry('B', true),
-      const TreeEntry('a', true),
+      const TreeEntry(name: 'b', dir: false),
+      const TreeEntry(name: 'B', dir: true),
+      const TreeEntry(name: 'a', dir: true),
     ]);
     expect([for (final e in s) e.name], ['a', 'B', 'b']);
   });

@@ -5,7 +5,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:markdown/markdown.dart' as md;
-import 'package:nb_protocol/nb_protocol.dart' show AnchorSourceFile, TextAnchor;
+import 'package:nb_protocol/nb_protocol.dart'
+    show AnchorSourceFile, TextAnchor, VcsFile, VcsFileStatus, VcsPatch;
 
 import '../comments/strings.g.dart';
 import '../chat/code.dart' show CodeMark, highlightSpans, paintMarks;
@@ -42,10 +43,10 @@ class DiffScreen extends StatefulWidget {
     this.ref,
   });
   final WindowTab tab;
-  final GitFile file;
+  final VcsFile file;
 
   /// Reads the patch (the working diff's or a commit's).
-  final Future<Patch> Function() load;
+  final Future<VcsPatch> Function() load;
 
   /// The commit's short hash for a commit's diff: part of the comment's anchor source.
   final String? ref;
@@ -55,7 +56,7 @@ class DiffScreen extends StatefulWidget {
 }
 
 class _DiffScreenState extends State<DiffScreen> {
-  Patch? _patch;
+  VcsPatch? _patch;
   ParsedPatch? _parsed;
   FilesError? _error;
   bool _force = false;
@@ -78,7 +79,7 @@ class _DiffScreenState extends State<DiffScreen> {
       _parsed = null;
       _error = null;
     });
-    Patch? patch;
+    VcsPatch? patch;
     FilesError? error;
     try {
       patch = await widget.load();
@@ -90,7 +91,7 @@ class _DiffScreenState extends State<DiffScreen> {
     if (!mounted) return;
     setState(() {
       _patch = patch;
-      _parsed = patch == null ? null : parsePatch(patch.text);
+      _parsed = patch == null ? null : parsePatch(patch.patch);
       _index(_parsed);
       _error = error;
     });
@@ -203,7 +204,7 @@ class _DiffScreenState extends State<DiffScreen> {
       return _note(
         patch.truncated
             ? webString('vcsTooBig', lang)
-            : widget.file.status == 'A'
+            : widget.file.status == VcsFileStatus.a
             ? webString('vcsEmptyFile', lang)
             : webString('vcsOnlyMeta', lang),
       );
@@ -301,7 +302,7 @@ class _DiffScreenState extends State<DiffScreen> {
                   onPressed: _patch == null
                       ? null
                       : () => Clipboard.setData(
-                          ClipboardData(text: _patch!.text),
+                          ClipboardData(text: _patch!.patch),
                         ),
                 ),
               ],
