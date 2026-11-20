@@ -1,17 +1,17 @@
-import { useEffect } from 'react';
-import { selectSession, useAppSelector } from '@/sdk';
+import { selectSession, useAppSelector, useResource } from '@/sdk';
 import { selectRefreshSeq, selectTree } from '@/tree/slice.ts';
-import { baseOf, useDiffData, useVcsUi, watchDiff } from './store.ts';
+import { baseOf, diffResource, useVcsUi } from './store.ts';
 
-/** Refreshes while shown: other agents' worktrees change without any turn of this window, so it polls (one poll however many views show it). */
+/**
+ * Refreshes while shown: other agents' worktrees change without any turn of this window, so it polls (one poll however
+ * many views show it), and reads again after a turn. The answer is for exactly this project, source and base: another's
+ * list is never shown under this one's name.
+ */
 export function useLiveDiff(on: boolean) {
   const src = useAppSelector(selectTree).src;
   const root = useAppSelector(selectSession)?.root ?? '';
   const turn = useAppSelector(selectRefreshSeq);
   const base = baseOf(useVcsUi().bases, root, src);
-  useEffect(() => {
-    if (!on || !root) return;
-    return watchDiff(root, src, base);
-  }, [on, root, src, base, turn]);
-  return { root, src, base, data: useDiffData(root, src, base) };
+  const { data, failed, refresh } = useResource(diffResource, { root, src, base }, { on: on && !!root, refreshOn: turn });
+  return { root, src, base, data, failed, refresh };
 }

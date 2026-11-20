@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { useT, useAppDispatch } from '@/sdk';
+import { routes, useResource, useT, useAppDispatch } from '@/sdk';
 import { Button, Popover, PopoverAnchor, PopoverContent } from '@/sdk/ui';
 import { dictationSet } from '@/controls/slice.ts';
-import { getDictation, postDictation, type Dictation } from './dictation.ts';
+import { dictationResource, postDictation } from './dictation.ts';
 import { openDictationSettings } from './settings.ts';
 
 /** how often an install in progress is looked at, as Settings does */
@@ -11,20 +11,14 @@ const POLL_MS = 2000;
 function Body({ close }: { close: () => void }) {
   const t = useT();
   const dispatch = useAppDispatch();
-  const [dict, setDict] = useState<Dictation | null>(null);
-  const [error, setError] = useState('');
+  const got = useResource(dictationResource, undefined, { every: (d) => (d?.phase === 'installing' ? POLL_MS : 0) });
+  const dict = got.data;
+  const [actError, setError] = useState('');
+  const error = actError || (got.failed ? got.error ?? '' : '');
   const [busy, setBusy] = useState(false);
   const started = useRef(false); // this prompt began the install: when it is ready, Whisper is switched on for the user
   const alive = useRef(true);
   useEffect(() => () => void (alive.current = false), []);
-  const load = () => getDictation().then((d) => alive.current && (setDict(d), setError('')), (e: unknown) => alive.current && setError(e instanceof Error ? e.message : String(e)));
-  useEffect(() => void load(), []);
-  const phase = dict?.phase;
-  useEffect(() => {
-    if (phase !== 'installing') return;
-    const id = setInterval(() => void load(), POLL_MS);
-    return () => clearInterval(id);
-  }, [phase]);
   const act = async (url: string, body?: unknown) => {
     setBusy(true);
     try {
@@ -34,7 +28,7 @@ function Body({ close }: { close: () => void }) {
       setError(e instanceof Error ? e.message : String(e));
     }
     if (alive.current) setBusy(false);
-    await load();
+    got.refresh();
   };
   // ready: switched on by the install this prompt started; a server that already has it on only needs the mic told
   useEffect(() => {
@@ -44,10 +38,10 @@ function Body({ close }: { close: () => void }) {
       close();
     } else if (started.current) {
       started.current = false;
-      void act('/dictation/on', { on: true });
+      void act(routes.dictation('on'), { on: true });
     }
   }, [dict]);
-  const install = () => { started.current = true; void act('/dictation/install'); };
+  const install = () => { started.current = true; void act(routes.dictation('install')); };
 
   return (
     <div className="flex w-72 flex-col gap-2.5 p-2.5 text-[0.8125rem]">
@@ -62,7 +56,7 @@ function Body({ close }: { close: () => void }) {
       <div className="flex items-center gap-2">
         {dict?.phase === 'none' && <Button type="button" size="sm" disabled={busy} onClick={install}>{t('dictInstallGo')}</Button>}
         {dict?.phase === 'failed' && <Button type="button" size="sm" disabled={busy} onClick={install}>{t('dictRetry')}</Button>}
-        {dict?.phase === 'ready' && !dict.on && <Button type="button" size="sm" disabled={busy} onClick={() => void act('/dictation/on', { on: true })}>{t('voiceSetupOn')}</Button>}
+        {dict?.phase === 'ready' && !dict.on && <Button type="button" size="sm" disabled={busy} onClick={() => void act(routes.dictation('on'), { on: true })}>{t('voiceSetupOn')}</Button>}
         <span className="grow" />
         <button type="button" className="text-muted-foreground underline underline-offset-2 hover:text-foreground" onClick={() => { close(); openDictationSettings(dispatch); }}>{t('voiceSetupSettings')}</button>
       </div>

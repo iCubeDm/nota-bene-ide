@@ -3,7 +3,7 @@
 // localStorage caches it so a reload does not flash the rail in or out. A new window (nothing cached) shows no rail until
 // the server answers. Another window's change is read when this page is shown again.
 import { useSyncExternalStore } from 'react';
-import { t, connections, toast } from '@/sdk';
+import { t, connections, pageVisible, routes, toast } from '@/sdk';
 
 const KEY = 'nb.projectRail';
 
@@ -32,7 +32,7 @@ function setLocal(v: boolean): void {
 
 function sync(): void {
   if (unsynced !== null) return;
-  void connections.current().fetch('/system/prefs').then((r) => (r.ok ? r.json() : null)).then((j: { projectRail?: unknown } | null) => {
+  void connections.current().fetch(routes.systemPrefs()).then((r) => (r.ok ? r.json() : null)).then((j: { projectRail?: unknown } | null) => {
     if (unsynced !== null) return;
     if (typeof j?.projectRail === 'boolean') setLocal(j.projectRail);
     else if (cur === null) setLocal(true); // a server without the setting: the default
@@ -42,7 +42,7 @@ function sync(): void {
 async function save(v: boolean, n: number): Promise<void> {
   let why: string | null = null;
   try {
-    const r = await connections.current().fetch('/system/prefs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ projectRail: v }) });
+    const r = await connections.current().fetch(routes.systemPrefs(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ projectRail: v }) });
     if (!r.ok) why = String(r.status);
   } catch (e) {
     why = e instanceof Error ? e.message : String(e);
@@ -80,7 +80,7 @@ export const railPref = {
 };
 
 function onShow(): void {
-  if (document.visibilityState === 'visible') sync();
+  if (pageVisible()) sync();
 }
 
 export const useRailPref = (): boolean | null => useSyncExternalStore(railPref.subscribe, railPref.get);

@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { has, type SubagentView } from '@nota-bene/shared';
-import { type FeedItem, type FeedState, type AppThunk, type RootState } from '@/sdk';
+import { routes, type FeedItem, type FeedState, type AppThunk, type RootState } from '@/sdk';
 import { emptyFeed, reduce } from '../store/feed.ts';
 import { openAgent } from '../tabs/slice.ts';
 
@@ -77,7 +77,7 @@ export const fetchSubagent = (tool: string, signal?: AbortSignal): AppThunk<Prom
   const { protocol } = getState().controls;
   if (knownOld(protocol)) return old(); // known old: not even asked
   try {
-    const r = await connections.current().fetch(`/subagent?session=${encodeURIComponent(session)}&tool=${encodeURIComponent(tool)}`, { signal });
+    const r = await connections.current().fetch(routes.subagent(session, tool), { signal });
     if (stale()) return 'stale';
     if (r.status === 404 || r.status === 409) return (dispatch(failed({ tool, session, status: 'gone' })), 'gone');
     if (!r.ok) return (dispatch(failed({ tool, session, status: 'error', error: `HTTP ${r.status}` })), 'error');

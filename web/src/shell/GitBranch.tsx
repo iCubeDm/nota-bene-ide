@@ -4,6 +4,8 @@ import { useT } from '@/i18n/index.ts';
 import type { GitSwitchAnswer, Source, VcsBranch } from '@nota-bene/shared';
 import { selectSession, selectTurnSeq, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { apiFetch } from '@/net/auth.ts';
+import { routes } from '@/sdk/routes.ts';
+import { defineResource, useResource } from '@/sdk/repository.ts';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { loadSources, useSources } from '@/files/sources.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
@@ -17,6 +19,9 @@ const isStatus = (v: unknown): v is GitStatus => {
   const s = v as GitStatus;
   return !!s && typeof s.dirty === 'boolean' && typeof s.detached === 'boolean' && (s.branch === null || typeof s.branch === 'string');
 };
+
+const NO_BRANCHES: VcsBranch[] = [];
+const branchesResource = defineResource<string, VcsBranch[]>({ key: (root) => root, route: routes.vcsBranches });
 
 /**
  * GET /git-status for the current root: on load, on a root change, after each live turn and on window focus, at most
@@ -36,7 +41,7 @@ function useGitStatus(root: string | undefined, turnSeq: number, diskSeq: number
     const fetchNow = async () => {
       last.current = Date.now();
       try {
-        const r = await apiFetch('/git-status');
+        const r = await apiFetch(routes.gitStatus());
         if (!r.ok) return; // git timed out (503): keep what is shown
         const v: unknown = await r.json();
         if (mine === gen.current) setStatus(isStatus(v) ? v : null);
@@ -102,31 +107,16 @@ export function GitBranch() {
   const sources = useSources();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const [info, setInfo] = useState<VcsBranch[]>([]);
   const [ask, setAsk] = useState<string | null>(null); // the branch row asking "switch?"
   const [going, setGoing] = useState(false);
   const [err, setErr] = useState<Refusal | null>(null);
   const [openErr, setOpenErr] = useState<string | null>(null);
   const provider = useAppSelector((x) => x.controls.capabilities?.provider) ?? 'claude';
   const viewing = src !== 'here';
-  useEffect(() => setInfo([]), [root]); // an id of the old project may mean another branch here
-  useEffect(() => {
-    if (!open && !viewing) return;
-    if (open) void loadSources(true);
-    let running = false;
-    let gone = false;
-    const run = async () => {
-      if (running) return;
-      running = true;
-      try {
-        const r = await apiFetch('/vcs-branches');
-        if (r.ok && !gone) setInfo(await r.json() as VcsBranch[]);
-      } catch { /* keep */ } finally { running = false; }
-    };
-    void run();
-    const id = setInterval(() => { if (document.visibilityState === 'visible') void run(); }, open ? 5_000 : 30_000); // closed: only the mark of the source shown
-    return () => { gone = true; clearInterval(id); };
-  }, [open, viewing, root]);
+  // the branch list of this project (an id of another project may mean another branch here): while the menu is open,
+  // else only for the mark of the source shown
+  const info = useResource(branchesResource, root ?? '', { on: open || viewing, every: open ? 5_000 : 30_000 }).data ?? NO_BRANCHES;
+  useEffect(() => { if (open) void loadSources(true); }, [open]);
   useEffect(() => setHasRepo(!!st), [st]);
   if (!st) return null;
   const here = st.detached ? t('gitDetached') : st.branch;
@@ -148,7 +138,7 @@ export function GitBranch() {
     setGoing(true);
     setErr(null);
     try {
-      const r = await apiFetch('/git-switch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ branch: s.ref }) });
+      const r = await apiFetch(routes.gitSwitch(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ branch: s.ref }) });
       const v = await r.json().catch(() => null) as GitSwitchAnswer | null;
       if (!r.ok) return setErr(refusal(t, v));
       // the folder is now that branch: show it, and reload what a finished turn reloads (status, tree, tabs, Changes, log)

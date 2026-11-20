@@ -1,4 +1,4 @@
-import { connections } from '@/sdk';
+import { connections, defineResource, routes } from '@/sdk';
 
 /** The video editor's export (server/src/cut/routes.ts): an edit rendered by ffmpeg into the project's `exports/`. */
 export type ExportMode = 'mp4' | 'wav' | 'm4a';
@@ -34,16 +34,11 @@ async function post(url: string, body: unknown): Promise<Response> {
   return connections.current().fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 }
 
-/** null: a server without the export routes (older than the capability). */
-export async function getExport(edit: string): Promise<ExportState | null> {
-  const r = await connections.current().fetch(`/cut/export?path=${encodeURIComponent(edit)}`);
-  if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`/cut/export ${r.status}`);
-  return (await r.json()) as ExportState;
-}
+/** `GET /cut/export` of an edit; a 404 is a server without the export routes (older than the capability). */
+export const exportResource = defineResource<string, ExportState>({ key: (edit) => edit, route: (edit) => routes.cutExport(edit) });
 
 export async function startExport(edit: string, mode: ExportMode): Promise<ExportJob> {
-  const r = await post('/cut/export', { path: edit, mode });
+  const r = await post(routes.cutExport(), { path: edit, mode });
   const j = (await r.json().catch(() => ({}))) as { job?: ExportJob; error?: string; detail?: string };
   if (!r.ok || !j.job) throw new ExportRefused(r.status, j.error ?? String(r.status), j.detail ?? '');
   return j.job;
@@ -51,5 +46,5 @@ export async function startExport(edit: string, mode: ExportMode): Promise<Expor
 
 /** False when no export of the edit was running. */
 export async function cancelExport(edit: string): Promise<boolean> {
-  return (await post('/cut/export/cancel', { path: edit })).ok;
+  return (await post(routes.cutExportCancel(), { path: edit })).ok;
 }

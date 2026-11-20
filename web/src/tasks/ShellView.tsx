@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { has, type TaskOutputView } from '@nota-bene/shared';
-import { useT, useAppSelector, connections, byteSize } from '@/sdk';
+import { useT, useAppSelector, connections, byteSize, routes } from '@/sdk';
 import type { ShellTab } from '@/tabs/slice.ts';
 import { plainOutput } from './ansi.ts';
 import { selectTaskControls } from './slice.ts';
@@ -52,7 +52,7 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
     const tick = async () => {
       let next = RETRY_MS;
       try {
-        const r = await connections.current().fetch(`/task-output?session=${encodeURIComponent(session)}&task=${encodeURIComponent(task)}`, { signal: ctl.signal });
+        const r = await connections.current().fetch(routes.taskOutput(session, task), { signal: ctl.signal });
         if (ctl.signal.aborted) return;
         if (r.status === 404 || r.status === 409) {
           final.current = true;

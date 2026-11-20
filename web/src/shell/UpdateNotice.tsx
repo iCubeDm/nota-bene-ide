@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
+import { routes } from '@/sdk/routes.ts';
+import { defineResource, useResource } from '@/sdk/repository.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
 import { selectConn, useAppSelector } from '@/store/store.ts';
 import { selectPagePause } from './pagePause.ts';
@@ -15,6 +17,8 @@ const RECHECK = 'nb-update-recheck';
 const ASK_MS = 60_000;
 const INSTALLING_MS = 2_000;
 const READY_MS = 10_000;
+
+const statusResource = defineResource<void, Status>({ key: () => '', route: () => routes.systemUpdate() });
 
 type Phase = 'none' | 'available' | 'installing' | 'ready' | 'failed' | 'rolled-back';
 /** the server's UpdateStatus (server/src/updater.ts) */
@@ -75,7 +79,7 @@ function UpdatedTo({ v, from, stale }: { v: string; from: string; stale: boolean
   if (gone && !stale) return null;
   const open = (on: boolean) => {
     if (on) {
-      void apiFetch(`/system/update/changes?from=${encodeURIComponent(from)}`)
+      void apiFetch(routes.systemUpdateChanges(from))
         .then(async (r) => (r.ok ? ((await r.json()) as { text: string | null }).text : null))
         .then((text) => { if (text) setChanges(text); }, () => {});
     } else {
@@ -142,7 +146,13 @@ function PluginOutdated({ plugin, current }: { plugin: string; current: string }
  */
 export function UpdateNotice() {
   const t = useT();
-  const [update, setUpdate] = useState<Status | null>(null);
+  // the server's answer, or what this page's own install or switch just made of it (until the server says more)
+  const [every, setEvery] = useState(ASK_MS);
+  const got = useResource(statusResource, undefined, { every });
+  const server = got.failed ? null : got.data;
+  const [mine, setMine] = useState<{ over: Status | null; v: Status } | null>(null);
+  const update = mine && mine.over === server ? mine.v : server;
+  const setUpdate = (v: Status) => setMine({ over: server, v });
   const [seen, setSeen] = useState(() => localStorage.getItem(SEEN_KEY));
   // what the newer version changes, by version: asked when the popover first opens for it
   const [changes, setChanges] = useState<{ v: string; text: string } | null>(null);
@@ -152,14 +162,8 @@ export function UpdateNotice() {
   // the server version this page's code came with: another one after a reconnect means a handover happened
   const loadedWith = useRef<string | null>(null);
 
-  const ask = useCallback(() => {
-    void apiFetch('/system/update')
-      .then(async (r) => (r.ok ? ((await r.json()) as Status) : null))
-      .then((u) => {
-        if (u && loadedWith.current === null) loadedWith.current = u.current;
-        setUpdate(u);
-      }, () => {});
-  }, []);
+  if (server && loadedWith.current === null) loadedWith.current = server.current;
+  const ask = got.refresh;
   // a reconnect may be to a server of another version (a handover): ask at once
   const conn = useAppSelector(selectConn);
   const wasOpen = useRef(false);
@@ -169,7 +173,6 @@ export function UpdateNotice() {
     wasOpen.current = true;
   }, [conn, ask]);
   useEffect(() => {
-    ask();
     window.addEventListener('focus', ask); // the server keeps the answer, so this asks npm no more often
     window.addEventListener(RECHECK, ask);
     return () => {
@@ -178,15 +181,12 @@ export function UpdateNotice() {
     };
   }, [ask]);
   const phase = update?.phase;
-  useEffect(() => {
-    const id = setInterval(ask, phase === 'installing' ? INSTALLING_MS : phase === 'ready' ? READY_MS : ASK_MS);
-    return () => { clearInterval(id); };
-  }, [ask, phase]);
+  useEffect(() => setEvery(phase === 'installing' ? INSTALLING_MS : phase === 'ready' ? READY_MS : ASK_MS), [phase]);
   // the window restarts only in a pause: the server checks its turn, this page the composer and the questions
   useEffect(() => {
     if (update?.phase !== 'ready' || update.busy || !idle || Date.now() - restartedAt.current < READY_MS) return;
     restartedAt.current = Date.now();
-    void post('/system/update/restart').catch(() => {});
+    void post(routes.systemUpdate('restart')).catch(() => {});
   }, [update, idle]);
   // after a handover the page still runs the code of the version before: it reloads by itself in a pause (drafts are
   // not kept across a reload), otherwise Updated to offers Reload
@@ -209,13 +209,13 @@ export function UpdateNotice() {
     </>
   );
   const install = () => {
-    void post('/system/update/install')
+    void post(routes.systemUpdate('install'))
       .then(async (r) => (r.ok ? ((await r.json()) as Status) : null))
       .then((u) => { if (u) setUpdate(u); }, () => {});
   };
   const setAuto = (on: boolean) => {
     setUpdate({ ...update, auto: on });
-    void post('/system/update/auto', { on }).catch(() => {});
+    void post(routes.systemUpdate('auto'), { on }).catch(() => {});
   };
   const latest = update.latest ?? '';
 
@@ -232,7 +232,7 @@ export function UpdateNotice() {
             type="button"
             disabled={update.busy}
             title={update.busy ? t('updateRestartBusy') : undefined}
-            onClick={() => void post('/system/update/restart').catch(() => {})}
+            onClick={() => void post(routes.systemUpdate('restart')).catch(() => {})}
             className="rounded bg-primary px-1.5 text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
             {t('updateRestart')}
@@ -266,7 +266,7 @@ export function UpdateNotice() {
   if (!update.latest || update.latest === seen) return updated;
   const open = (on: boolean) => {
     if (!on || changes?.v === latest) return;
-    void apiFetch('/system/update/changes')
+    void apiFetch(routes.systemUpdateChanges())
       .then(async (r) => (r.ok ? ((await r.json()) as { text: string | null }).text : null))
       .then((text) => { if (text) setChanges({ v: latest, text }); }, () => {});
   };

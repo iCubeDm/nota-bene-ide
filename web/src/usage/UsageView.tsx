@@ -1,8 +1,12 @@
-import { Fragment, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
+import { Fragment, useState, type ComponentProps, type ReactNode } from 'react';
 import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTank, type UsageTaskRow } from '@nota-bene/shared';
-import { useAppSelector, getLang, useT, connections, compact, compactParts, money, num, percent } from '@/sdk';
+import { useAppSelector, getLang, useT, connections, defineResource, routes, useResource, compact, compactParts, money, num, percent } from '@/sdk';
 
 const POLL_MS = 2000;
+const usageResource = defineResource<{ provider: UsageProvider; period: UsagePeriod }, UsageReport>({
+  key: (a) => `${a.provider}\0${a.period}`,
+  route: (a) => routes.usage(a.provider, a.period),
+});
 const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, WEEKS_SHOWN = 16, WINDOWS_SHOWN = 32, TANKS_SHOWN = 8;
 const PROVIDERS: { id: UsageProvider; name: string }[] = [{ id: 'claude', name: 'Claude' }, { id: 'codex', name: 'Codex' }];
 const PERIOD_KEY = { trip: 'usagePeriodTrip', '7d': 'usagePeriod7d', '30d': 'usagePeriod30d', all: 'usagePeriodAll' } as const;
@@ -337,37 +341,19 @@ export function UsageView({ active }: { active: boolean }) {
   const [choice, setChoice] = useState<UsageProvider | null>(null);
   const provider: UsageProvider = choice ?? (windowProvider === 'codex' ? 'codex' : 'claude');
   const [period, setPeriod] = useState<UsagePeriod>('trip');
-  const [report, setReport] = useState<UsageReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [n, setN] = useState(0);
+  const [resetError, setError] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [spent, setSpent] = useState<SpentView>({ list: 'tasks', all: false });
 
-  useEffect(() => {
-    if (!active) return;
-    let live = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const load = async () => {
-      try {
-        const r = await connections.current().fetch(`/usage?provider=${provider}&period=${period}`);
-        if (!r.ok) throw new Error(String(r.status));
-        const data = (await r.json()) as UsageReport;
-        if (!live) return;
-        setReport(data);
-        setError(null);
-        if (data.importing) timer = setTimeout(() => void load(), POLL_MS);
-      } catch (e) {
-        if (live) setError(e instanceof Error ? e.message : String(e));
-      }
-    };
-    void load();
-    return () => { live = false; clearTimeout(timer); };
-  }, [provider, period, active, n]);
+  // an import still running is read again every POLL_MS
+  const got = useResource(usageResource, { provider, period }, { on: active, every: (r) => (r?.importing ? POLL_MS : 0) });
+  const report = got.data;
+  const error = resetError ?? (got.failed ? got.error : null);
 
   const reset = async () => {
     setAsking(false);
-    const r = await connections.current().fetch('/usage/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider }) }).catch(() => null);
-    if (r?.ok) { setPeriod('trip'); setN((x) => x + 1); } else setError(t('usageLoadFail', String(r?.status ?? 'network')));
+    const r = await connections.current().fetch(routes.usageReset(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider }) }).catch(() => null);
+    if (r?.ok) { setError(null); setPeriod('trip'); got.refresh(); } else setError(t('usageLoadFail', String(r?.status ?? 'network')));
   };
 
   const shown = report?.provider === provider && report.period === period ? report : null;

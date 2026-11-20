@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { useT, useAppDispatch, useAppSelector, openFile } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, openFile, useResource } from '@/sdk';
 import { Button } from '@/sdk/ui';
 import { selectCapabilitiesKnown } from '@/controls/slice.ts';
-import { cancelExport, EXPORT_MODES, ExportRefused, getExport, startExport, type ExportJob, type ExportMode } from './api.ts';
+import { cancelExport, EXPORT_MODES, ExportRefused, exportResource, startExport, type ExportJob, type ExportMode } from './api.ts';
 
 /** how often a running export is looked at */
 const POLL_MS = 1000;
@@ -30,22 +30,19 @@ export function ExportControl({ path, blocked, pollMs = POLL_MS }: { path: strin
   const alive = useRef(true);
   useEffect(() => () => void (alive.current = false), []);
 
-  const load = () => getExport(path).then(
-    (s) => {
-      if (!alive.current) return;
-      setLive(s === null ? null : s.ffmpeg);
-      setOldVersion(s?.ffmpegProblem === 'old' ? s.ffmpegVersion ?? '?' : null);
-      if (s) setJob(s.job);
-    },
-    () => {}, // a failed look keeps what is shown; the next one may answer
-  );
-  useEffect(() => void load(), [path]);
   const running = job?.phase === 'running';
+  // the server's answer, applied when it says something new; a running export is looked at every pollMs
+  const got = useResource(exportResource, path, { every: running ? pollMs : 0 });
+  const gone = got.failed && got.error?.endsWith(' 404');
   useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => void load(), pollMs);
-    return () => clearInterval(id);
-  }, [running, path, pollMs]);
+    if (gone) return setLive(null);
+    const s = got.data;
+    if (!s) return;
+    setLive(s.ffmpeg);
+    setOldVersion(s.ffmpegProblem === 'old' ? s.ffmpegVersion ?? '?' : null);
+    setJob(s.job);
+  }, [got.data, gone]);
+  const load = got.refresh;
 
   const ffmpeg = live === undefined ? capability : live === null ? undefined : live;
   const worded = (e: unknown): string => {
@@ -83,7 +80,7 @@ export function ExportControl({ path, blocked, pollMs = POLL_MS }: { path: strin
   };
   const cancel = async () => {
     await cancelExport(path).catch(() => false);
-    await load();
+    load();
   };
 
   if (ffmpeg === undefined && live === null) return <p className="text-[0.8125rem] text-muted-foreground">{t('cutExportOld')}</p>;

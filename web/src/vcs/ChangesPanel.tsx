@@ -5,7 +5,7 @@ import { openChanges } from '@/tabs/slice.ts';
 import { selectTree } from '@/tree/slice.ts';
 import { StatusMark } from './DiffBody.tsx';
 import { fileTree, type TreeDir } from './fileTree.ts';
-import { currentFile, focusFile, loadDiff, pickBase, setPanel, useVcsUi } from './store.ts';
+import { currentFile, focusFile, pickBase, setPanel, useVcsUi } from './store.ts';
 import { useLiveDiff } from './useLiveDiff.ts';
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
@@ -19,7 +19,7 @@ export function ChangesPanel() {
   const d = useAppDispatch();
   const { panel, focus } = useVcsUi();
   const treeOpen = useAppSelector(selectTree).open;
-  const { root, src, base: picked, data } = useLiveDiff(panel);
+  const { root, src, base: picked, data, refresh } = useLiveDiff(panel);
   const repo = data?.repo ? data : null;
   const files = repo?.files ?? [];
   const size = usePanelWidth('panel:changes:width', 300, 200);
@@ -51,7 +51,7 @@ export function ChangesPanel() {
       <div className="flex h-9 flex-none items-center gap-2 px-3 text-[0.8125rem] font-semibold text-foreground">
         {t('vcsChanges')}
         <span className="flex-1" />
-        <button type="button" title={t('vcsRefresh')} aria-label={t('vcsRefresh')} onClick={() => void loadDiff(root, src, picked)} className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted">↻</button>
+        <button type="button" title={t('vcsRefresh')} aria-label={t('vcsRefresh')} onClick={refresh} className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted">↻</button>
       </div>
       {!repo ? data && <p className="p-3 text-xs text-muted-foreground">{t('vcsNoRepo')}</p> : (
         <>

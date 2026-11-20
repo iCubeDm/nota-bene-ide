@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { Store } from '@reduxjs/toolkit';
 import { useStore } from 'react-redux';
 import { apiFetch } from '@/net/auth.ts';
+import { routes } from '@/sdk/routes.ts';
 import type { RootState } from '@/store/store.ts';
 
 /**
@@ -55,7 +56,7 @@ export function playCue(cue: Cue): void {
 /** The setting as the server has it now; null when it cannot be read (then nothing sounds). */
 export async function readSounds(): Promise<Sounds | null> {
   try {
-    const r = await apiFetch('/system/prefs');
+    const r = await apiFetch(routes.systemPrefs());
     const s = r.ok ? ((await r.json()) as { sounds?: Sounds }).sounds : undefined;
     return s && typeof s.ask === 'boolean' && typeof s.done === 'boolean' ? s : null;
   } catch { return null; }

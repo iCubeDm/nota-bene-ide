@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { DEFAULT_THEME, isThemeId, THEME_KIND, THEMES, type ThemeId } from '@nota-bene/shared';
 import { apiFetch } from '@/net/auth.ts';
+import { routes } from '@/sdk/routes.ts';
 
 const KEY = 'nb.theme';
 
@@ -44,7 +45,7 @@ function setLocal(v: ThemeId): void {
 function persist(v: ThemeId): void {
   unsynced = v;
   try {
-    void apiFetch('/system/prefs', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ theme: v }) })
+    void apiFetch(routes.systemPrefs(), { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ theme: v }) })
       .then((r) => { if (r.ok && unsynced === v) unsynced = null; }, () => {});
   } catch { /* no fetch: the local cache still holds the choice */ }
 }

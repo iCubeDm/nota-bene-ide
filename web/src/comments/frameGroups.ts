@@ -2,6 +2,7 @@ import { isMediaAnchor, type Comment, type MediaAnchor } from '@nota-bene/shared
 import { prepareImage, uploadImage } from '../attachments/image.ts';
 import { drawShapes, strokeWidth } from '../media/markup/render.ts';
 import { drawBadges } from '../media/markup/badges.ts';
+import { connections, routes } from '@/sdk';
 
 /** Comments of one batch that mark the same picture: same file, ref, time, version and size. `idx` are 0-based batch positions. */
 export type FrameGroup = { key: string; idx: number[] };
@@ -28,7 +29,7 @@ export function frameGroups(pending: Comment[]): FrameGroup[] {
 /** One group's composite, uploaded: the first comment's attached frame (its shapes drawn) plus the others' shapes, then a numbered badge per comment. */
 async function composite(pending: Comment[], g: FrameGroup): Promise<string> {
   const members = g.idx.map((i) => ({ n: i + 1, a: pending[i].anchor as MediaAnchor }));
-  const r = await fetch(`/attach/${pending[g.idx[0]].images![0]}`);
+  const r = await fetch(connections.current().url(routes.attach(pending[g.idx[0]].images![0])));
   if (!r.ok) throw new Error(`attach ${r.status}`);
   const bmp = await createImageBitmap(await r.blob());
   try {

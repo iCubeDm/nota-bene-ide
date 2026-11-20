@@ -5,6 +5,7 @@ import { has, type ClientMessage, type Feature, type ServerEvent } from '@nota-b
 import { apiFetch, refusedForAuth, socketProtocols } from '../net/auth.ts';
 import { connect as realConnect, type Connection, type SocketState } from '../net/socket.ts';
 import { coalesceChunks } from '../store/chunks.ts';
+import type { Route } from './routes.ts';
 
 export type AgentId = string;
 /** The one agent of today's page (issue 383 gives real ids). */
@@ -16,8 +17,7 @@ export const SELF: AgentId = 'self';
 export type ConnState = 'connecting' | 'open' | 'closed' | 'occupied' | 'taken' | 'unauthorized' | 'stopped';
 
 export type HelloEvent = Extract<ServerEvent, { kind: 'hello' }>;
-/** A route: path and query, no base (sdk/routes.ts builds them). */
-export type Route = string;
+export type { Route } from './routes.ts';
 
 export type Connect = (url: string | (() => string), onEvent: (ev: ServerEvent) => void, onState: (s: SocketState) => void) => Connection;
 

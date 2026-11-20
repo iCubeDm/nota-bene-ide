@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getLang, t as tNow, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize } from '@/sdk';
+import { getLang, t as tNow, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize, routes } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog } from '@/sdk/ui';
 import { selectSwitching, switchSession } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
@@ -107,7 +107,7 @@ export function SessionPicker() {
   /** (Re)loads the list; the filter and the archive view stay as they are. */
   const load = () => {
     const seq = ++loadSeq.current;
-    void connections.current().fetch('/sessions')
+    void connections.current().fetch(routes.sessions())
       .then(async (r) => {
         if (!r.ok) throw new Error(brief(r.status, await r.text().catch(() => '')));
         const v: unknown = await r.json();
