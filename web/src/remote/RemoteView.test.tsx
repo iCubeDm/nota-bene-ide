@@ -276,6 +276,19 @@ describe('Remote tab', () => {
     expect(document.getElementById('remoteComputers')).toBeNull();
   });
 
+  it('a known refusal is shown by its code in the UI language, with its value; an unknown one as the server said it (issue 507)', async () => {
+    setLang('de');
+    setup({ protocol: 28, state: OFF });
+    open();
+    answer = () => Response.json({ error: 'the relay could not be reached (closed with 1006)', code: 'relayUnreachable', detail: '1006' }, { status: 400 });
+    fireEvent.change(document.getElementById('remoteConnectCode')!, { target: { value: 'nbremote://pair?v=1' } });
+    fireEvent.submit(document.getElementById('remoteConnectCode')!.closest('form')!);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Fehlgeschlagen: das Relay war nicht erreichbar (geschlossen mit 1006)');
+    answer = () => Response.json({ error: 'something new', code: 'fromANewerServer' }, { status: 400 });
+    fireEvent.submit(document.getElementById('remoteConnectCode')!.closest('form')!);
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Fehlgeschlagen: something new'));
+  });
+
   it('an older server: the tab says to restart it', () => {
     const store = setup({ protocol: 20, state: ONLINE });
     open();

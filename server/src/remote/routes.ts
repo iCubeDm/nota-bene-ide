@@ -5,8 +5,8 @@
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import type { EventHub } from '../hub.ts';
 import { reportError } from '../errors.ts';
-import { PairError } from './hostLink.ts';
 import { LegacyConnector, NotRunning, type RemoteKeeper } from './keeper.ts';
+import { Refusal } from './store.ts';
 
 const MAX_BODY = 16 * 1024;
 
@@ -34,15 +34,16 @@ export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undef
   const failed = (req: IncomingMessage, res: ServerResponse) => (e: unknown): void => {
     if (res.headersSent) return;
     if (e instanceof SyntaxError) return json(res, 400, { error: 'bad json' });
-    if (e instanceof LegacyConnector) return json(res, 409, { error: 'legacy' });
-    if (e instanceof NotRunning) return json(res, 409, { error: 'not running' });
-    if (e instanceof PairError) return json(res, 400, { error: e.message });
+    // issue 507: a known refusal names its `code` (RemoteRefusalCode), the page says it in its language
+    if (e instanceof LegacyConnector) return json(res, 409, { error: 'legacy', code: 'legacy' });
+    if (e instanceof NotRunning) return json(res, 409, { error: 'not running', code: 'notRunning' });
+    if (e instanceof Refusal) return json(res, 400, { error: e.message, code: e.code, ...(e.detail ? { detail: e.detail } : {}) });
     reportError(o.hub, req.url ?? '/remote', e);
     json(res, 500, { error: e instanceof Error ? e.message : String(e) });
   };
   const route = (method: 'GET' | 'POST', h: (k: RemoteKeeperApi, req: IncomingMessage, res: ServerResponse) => Promise<void>): RequestListener => (req, res) => {
     if (req.method !== method && !(method === 'GET' && req.method === 'HEAD')) return json(res, 405, { error: 'method not allowed' });
-    if (!o.keeper) return json(res, 503, { error: 'remote access is not available in this window' });
+    if (!o.keeper) return json(res, 503, { error: 'remote access is not available in this window', code: 'unavailable' });
     h(o.keeper, req, res).catch(failed(req, res));
   };
   return {
@@ -52,19 +53,11 @@ export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undef
       if (b.relay !== undefined && typeof b.relay !== 'string') return json(res, 400, { error: 'relay must be a string' });
       if (b.enabled !== undefined && typeof b.enabled !== 'boolean') return json(res, 400, { error: 'enabled must be a boolean' });
       if (b.accessKey !== undefined && b.accessKey !== null && typeof b.accessKey !== 'string') return json(res, 400, { error: 'accessKey must be a string or null' });
-      let r: Awaited<ReturnType<RemoteKeeperApi['setConfig']>>;
-      try {
-        r = await k.setConfig({
-          ...(typeof b.relay === 'string' ? { relay: b.relay.trim() } : {}),
-          ...(typeof b.enabled === 'boolean' ? { enabled: b.enabled } : {}),
-          ...(b.accessKey === null || typeof b.accessKey === 'string' ? { accessKey: b.accessKey === null ? null : b.accessKey.trim() } : {}),
-        });
-      } catch (e) {
-        // a relay address checkRelay refused, or an access key parseAccessKey refused: the message says what is wrong
-        if (e instanceof Error && !(e instanceof LegacyConnector) && /relay must be|not a URL|access key|pairing code/.test(e.message)) return json(res, 400, { error: e.message });
-        throw e;
-      }
-      json(res, 200, r);
+      json(res, 200, await k.setConfig({
+        ...(typeof b.relay === 'string' ? { relay: b.relay.trim() } : {}),
+        ...(typeof b.enabled === 'boolean' ? { enabled: b.enabled } : {}),
+        ...(b.accessKey === null || typeof b.accessKey === 'string' ? { accessKey: b.accessKey === null ? null : b.accessKey.trim() } : {}),
+      }));
     }),
     '/remote/pair': route('POST', async (k, _req, res) => json(res, 200, await k.pair())),
     '/remote/pair/cancel': route('POST', async (k, _req, res) => {

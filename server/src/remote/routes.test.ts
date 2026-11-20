@@ -3,9 +3,10 @@ import type { AddressInfo } from 'node:net';
 import type { RemoteState } from '@nota-bene/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EventHub } from '../hub.ts';
-import { PairError } from './hostLink.ts';
+import { pairHost } from './hostLink.ts';
 import { LegacyConnector, NotRunning } from './keeper.ts';
 import { remoteRoutes, type RemoteKeeperApi } from './routes.ts';
+import { checkRelay, parseAccessKey, Refusal } from './store.ts';
 
 let server: http.Server | undefined;
 afterEach(async () => {
@@ -88,25 +89,27 @@ describe('remote routes', () => {
     expect(calls).toEqual([{ accessKey: 'nbk1_x' }, { accessKey: null }]);
     expect((await post(base, '/remote/config', { accessKey: 5 })).status).toBe(400);
     server!.close();
-    const bad = await serve(fake({ setConfig: async () => { throw new Error('an access key starts with nbk1_ and has 48 characters'); } }).k);
+    const bad = await serve(fake({ setConfig: async (c) => { parseAccessKey(c.accessKey!); return { state: STATE, stopped: null }; } }).k);
     const r = await post(bad, '/remote/config', { accessKey: 'nope' });
     expect(r.status).toBe(400);
-    expect(await r.json()).toEqual({ error: 'an access key starts with nbk1_ and has 48 characters' });
+    expect(await r.json()).toEqual({ error: 'an access key starts with nbk1_ and has 48 characters', code: 'badAccessKey' });
+    expect(await (await post(bad, '/remote/config', { accessKey: 'nbremote://pair?v=1' })).json()).toMatchObject({ code: 'phoneCodeNotKey' });
   });
 
   it('a bad relay address is a 400 with the reason; a terminal connector of an older version is a 409', async () => {
     const base = await serve(fake({
       setConfig: async (c) => {
-        if (c.relay) throw new Error(`the relay must be a wss:// URL (ws:// only on 127.0.0.1 or localhost with a port): ${c.relay}`);
+        if (c.relay) checkRelay(c.relay);
         throw new LegacyConnector();
       },
     }).k);
     const bad = await post(base, '/remote/config', { relay: 'http://relay.example.com' });
     expect(bad.status).toBe(400);
-    expect((await bad.json() as { error: string }).error).toMatch(/wss:\/\//);
+    expect(await bad.json()).toMatchObject({ error: expect.stringMatching(/wss:\/\//), code: 'relayNotWss' });
+    expect(await (await post(base, '/remote/config', { relay: 'nope' })).json()).toMatchObject({ code: 'notUrl' });
     const legacy = await post(base, '/remote/config', { enabled: false });
     expect(legacy.status).toBe(409);
-    expect(await legacy.json()).toEqual({ error: 'legacy' });
+    expect(await legacy.json()).toEqual({ error: 'legacy', code: 'legacy' });
   });
 
   it('pair answers the code, or 409 when no connector runs; cancel and revoke reach the keeper', async () => {
@@ -121,7 +124,7 @@ describe('remote routes', () => {
     const off = await serve(fake({ pair: async () => { throw new NotRunning(); } }).k);
     const r = await post(off, '/remote/pair');
     expect(r.status).toBe(409);
-    expect(await r.json()).toEqual({ error: 'not running' });
+    expect(await r.json()).toEqual({ error: 'not running', code: 'notRunning' });
   });
 
   it('connect pairs with a code and answers the computer, a refused code is a 400 with the reason; forget (issue 297)', async () => {
@@ -133,14 +136,23 @@ describe('remote routes', () => {
     expect((await post(base, '/remote/forget', {})).status).toBe(400);
     expect(calls).toEqual(['nbremote://pair?v=1', 'forget wxyz']);
     server!.close();
-    const refused = await serve(fake({ connect: async () => { throw new PairError('the computer refused the code'); } }).k);
-    const r = await post(refused, '/remote/connect', { code: 'nbremote://pair?v=1' });
+    const refused = await serve(fake({ connect: async (code) => { await pairHost(code); return HOST; } }).k);
+    const r = await post(refused, '/remote/connect', { code: 'nbremote://nope' });
     expect(r.status).toBe(400);
-    expect(await r.json()).toEqual({ error: 'the computer refused the code' });
+    expect(await r.json()).toEqual({ error: 'not a pairing code', code: 'notPairCode' });
+    expect(await (await post(refused, '/remote/connect', { code: 'nbremote://pair?v=1&h=x' })).json()).toMatchObject({ code: 'notPairCode' });
+    expect(await (await post(refused, '/remote/connect', { code: 'nbremote://pair?v=2' })).json()).toMatchObject({ code: 'pairCodeVersion' });
+    server!.close();
+    // a value the message needs rides as `detail`
+    const unreachable = await serve(fake({ connect: async () => { throw new Refusal('relayUnreachable', 'the relay could not be reached (closed with 1006)', '1006'); } }).k);
+    expect(await (await post(unreachable, '/remote/connect', { code: 'nbremote://pair?v=1' })).json())
+      .toEqual({ error: 'the relay could not be reached (closed with 1006)', code: 'relayUnreachable', detail: '1006' });
   });
 
   it('a window without a keeper answers 503', async () => {
     const base = await serve(undefined);
-    expect((await fetch(`${base}/remote`)).status).toBe(503);
+    const r = await fetch(`${base}/remote`);
+    expect(r.status).toBe(503);
+    expect(await r.json()).toMatchObject({ code: 'unavailable' });
   });
 });

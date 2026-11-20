@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { RemoteDevice, RemoteHost, RemoteHostState } from '@nota-bene/shared';
+import type { RemoteDevice, RemoteHost, RemoteHostState, RemoteRefusalCode } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
-import { getLang, useT } from '@/i18n/index.ts';
+import { getLang, t, useT } from '@/i18n/index.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { cancelPair, connectComputer, forgetComputer, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
+import { cancelPair, connectComputer, forgetComputer, RemoteError, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
 import { clearPair, indicator, selectRemote } from './slice.ts';
 import { TONE, troubleWhy, WORD } from './RemoteMenu.tsx';
 
@@ -28,7 +28,18 @@ const Row = ({ label, children }: { label: ReactNode; children: ReactNode }) => 
 );
 
 const input = 'w-full max-w-md rounded-md border border-border-soft bg-transparent px-2 py-1 font-mono text-[0.8125rem] text-foreground';
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const REFUSAL = {
+  notPairCode: 'remoteErrNotPairCode', pairCodeVersion: 'remoteErrPairCodeVersion', ownPairCode: 'remoteErrOwnPairCode',
+  hostSilent: 'remoteErrHostSilent', codeRefused: 'remoteErrCodeRefused', hostOffline: 'remoteErrHostOffline', hostFull: 'remoteErrHostFull',
+  relayUnreachable: 'remoteErrRelayUnreachable', notUrl: 'remoteErrNotUrl', relayNotWss: 'remoteErrRelayNotWss',
+  phoneCodeNotKey: 'remoteErrPhoneCodeNotKey', badAccessKey: 'remoteErrBadAccessKey', noRelay: 'remoteErrNoRelay', legacy: 'remoteLegacy',
+  notRunning: 'remoteErrNotRunning', unavailable: 'remoteErrUnavailable',
+} as const satisfies Record<RemoteRefusalCode, Parameters<typeof t>[0]>;
+/** A known refusal in the UI language (issue 507); anything else as the server or the browser said it. */
+const errText = (e: unknown): string => {
+  if (e instanceof RemoteError && e.code && Object.hasOwn(REFUSAL, e.code)) return t(REFUSAL[e.code], e.detail ?? '');
+  return e instanceof Error ? e.message : String(e);
+};
 
 /** The relay address: shown with Edit, or a field with Save (and Cancel when there is one to go back to). */
 function RelayField({ relay, onSaved }: { relay: string | null; onSaved: (stoppedHand: boolean) => void }) {
