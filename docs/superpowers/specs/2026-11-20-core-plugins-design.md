@@ -17,7 +17,7 @@ bundle. Nothing is rewritten; each step is a PR into `gh-511-core-plugins` with 
 - One way to load a resource: server events, else one shared poll (cache, in-flight dedupe, timeout, pause while the
   connection is not open or the page is hidden). Route URLs are built in one place.
 - One storage interface over local storage and server prefs, with one `hello` adoption point.
-- One capability table in `shared` (generated for Dart) instead of `protocol >= N`.
+- One capability table in `shared` (generated for Dart) instead of comparisons with protocol numbers.
 - Registries as the plugin contract: views, feed renderers, comment anchor kinds, commands and keys, settings sections,
   resources.
 - A connection manager whose shape allows several agents per page (groundwork for issue 383), while today's page keeps
@@ -237,7 +237,8 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
 - **Rules.** (1) A plugin file imports only `@/sdk`, `@/sdk/ui`, its own folder, `@nota-bene/shared*`, packages.
   (2) A core file never imports a plugin folder. (3) `@/testing` only from `*.test.ts(x)`. (4) Test files are exempt from
   1–2 (an integration test composes plugins through the harness). (5) No `localStorage` outside `web/src/sdk/` and
-  `net/auth.ts`; no `protocol >= <number>` (or `?? 0) >=`) in `web/src` or `mobile/app/lib`; no new
+  `net/auth.ts`; no comparison of `protocol` with a number or a protocol constant (`<`, `<=`, `>`, `>=`, also
+  `(x.protocol ?? 0) >=` and `>= *_PROTOCOL` / Dart `*Protocol`) in `web/src` or `mobile/app/lib`; no new
   `useSyncExternalStore` outside `web/src/sdk/` (text scans).
 - **Baseline.** `scripts/boundaries.baseline.json`: a sorted list of `"<file> -> <imported module>"` (and
   `"<file> -> localStorage"`, `"<file> -> protocol gate"`). The test fails on an entry not in the baseline (a new
@@ -259,11 +260,13 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
 - The schema gets `"x-features"` beside `"x-protocol"`; the Dart generator emits `enum Feature { activity(1), …; final
   int protocol; }` and `bool hasFeature(num? protocol, Feature f)` into `protocol.g.dart`. The existing `Capabilities`
   type (the provider's capabilities in `hello`) keeps its name; hence `Feature`, not `Capability`.
-- Every gate in both apps uses a name: web (7 in product code) `comments/CommentPopup.tsx:299,375`,
-  `composer/Composer.tsx:100`, `media/playerKeys.ts:92`, `media/PlayerBar.tsx:102`, `media/markup/MarkupLayer.tsx:65`,
-  `controls/slice.ts:188`; phone `window_tab.dart:158-166,241`, `comments/comments.dart`, `files/image_screen.dart`,
-  `comments/comment_sheet.dart`, `chat/controls.dart`, `store/voice_lang.dart` `detectProtocol`. The unused
-  `OPS_PROTOCOL`, `SHELL_PROTOCOL`, `COMPACT_ORDER_PROTOCOL`, `ATTACHMENT_MARKUP_PROTOCOL` are deleted.
+- Every gate in both apps uses a name. The boundary check counts 22 web and 5 phone product files that compare a
+  protocol with a number or a constant: numeric gates (`protocol >= 14`, `protocol < 16`, `< 2`, `< 1`), gates against
+  the 14 web constants (`OPS_PROTOCOL`, `IMAGES_ALONE_PROTOCOL`, `PAGE_PROTOCOL`, `TASKS_PROTOCOL`, `SHELL_PROTOCOL`,
+  `COMPACT_ORDER_PROTOCOL`, `DETECT_PROTOCOL`, `CUT_PROTOCOL`, `ATTACHMENT_MARKUP_PROTOCOL`, `AGENT_PROTOCOL`,
+  `MASK_PROTOCOL`, `REMOTE_PROTOCOL`, `ACCESS_KEY_PROTOCOL`, `COMPUTERS_PROTOCOL`, all in use) and the 4 phone ones
+  (`opsProtocol`, `imagesAloneProtocol`, `wholePictureProtocol`, `detectProtocol`), and the `SINCE` table in
+  `comments/labels.ts` (becomes a `Feature` per label). Each constant is replaced by its `FEATURES` name and deleted.
 - `docs/agent-reference.md` and `architecture.md` §3.3 "Versioning" say: a protocol change adds a `FEATURES` entry; a
   client checks `has(protocol, name)`.
 

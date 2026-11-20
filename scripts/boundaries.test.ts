@@ -20,7 +20,8 @@ const WEB = 'web/src';
 const PHONE = 'mobile/app/lib';
 
 // Comments become a space and every string literal a numbered placeholder "<n>", so a specifier inside a string or a
-// comment is never seen as an import and the import patterns below match only real code. Templates vanish entirely.
+// comment is never seen as an import and the import patterns below match only real code. Templates vanish entirely,
+// so an `import('…')` inside a `${}` interpolation is not seen.
 const LEXEMES = /\/\*[\s\S]*?\*\/|\/\/[^\n]*|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\[\s\S]|[^`\\])*`/g;
 function mask(text: string): { code: string; strings: string[] } {
   const strings: string[] = [];
@@ -43,7 +44,9 @@ const IMPORTS = new RegExp(
   ].join('|'),
   'g',
 );
-const GATE = /\bprotocol\s*>=\s*\d|\bprotocol\s*\?\?\s*0\s*\)\s*>=/;
+// A protocol gate: any relational comparison of `protocol` (also `(x.protocol ?? 0)`) or against a protocol constant
+// (`*_PROTOCOL`, Dart `*Protocol`). Issue 511 replaces them all with named features.
+const GATE = /\bprotocol\b\s*(?:\?\?\s*0\s*\)\s*)?[<>]=?(?![=>])|[<>]=?\s*\(?\s*\w*(?:_PROTOCOL|Protocol)\b/;
 
 function files(dir: string, ext: RegExp): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -245,7 +248,7 @@ it('exempts test files and the harness from the folder rules', () => {
   expect(scan(root)).toEqual([]);
 });
 
-it('counts the text rules: localStorage, numeric protocol gates, useSyncExternalStore', () => {
+it('counts the text rules: localStorage, protocol gates, useSyncExternalStore', () => {
   const root = tree({
     ...base,
     [`${W}/feed/Feed.tsx`]: [
@@ -253,7 +256,16 @@ it('counts the text rules: localStorage, numeric protocol gates, useSyncExternal
       "const on = useAppSelector((s) => s.controls.protocol >= 14);",
       "const n = useSyncExternalStore(sub, get);",
       "const best = (stamps.get(a) ?? 0) >= (stamps.get(b) ?? 0);",
-      "const named = s.controls.protocol >= OPS_PROTOCOL;",
+    ].join('\n'),
+    [`${W}/comments/named.ts`]: "s.ops = ev.protocol >= OPS_PROTOCOL;",
+    [`${W}/comments/below.ts`]: "if (st.controls.protocol < 16) return;",
+    [`${W}/comments/table.ts`]: "const labelsFor = (protocol: number) => ALL.filter((l) => protocol >= (SINCE[l.id] ?? 0));",
+    [`${W}/comments/notGates.ts`]: [
+      "const https = loc.protocol === 'https:';",
+      "s.protocol = 0;",
+      "const f = (protocol: number) => protocol;",
+      "if (tab.detectProtocolOk) go();",
+      "const OPS_PROTOCOL = 7;",
     ].join('\n'),
     [`${W}/lib/quiet.ts`]: "// localStorage, useSyncExternalStore and protocol >= 4 in a comment\nconst k = 'localStorage';",
     [`${W}/sdk/storage.ts`]: "localStorage.setItem('k', 'v'); useSyncExternalStore(a, b);",
@@ -263,6 +275,9 @@ it('counts the text rules: localStorage, numeric protocol gates, useSyncExternal
   });
   expect(scan(root)).toEqual([
     'mobile/app/lib/chat/window_tab.dart -> protocol gate',
+    `${W}/comments/below.ts -> protocol gate`,
+    `${W}/comments/named.ts -> protocol gate`,
+    `${W}/comments/table.ts -> protocol gate`,
     `${W}/feed/Feed.tsx -> localStorage`,
     `${W}/feed/Feed.tsx -> protocol gate`,
     `${W}/feed/Feed.tsx -> useSyncExternalStore`,
