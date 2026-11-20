@@ -54,6 +54,9 @@ class ToolItem extends FeedItem {
   final Map<String, Object?> input;
   final bool sub;
 
+  /// the agent's normalized kind of tool (shared/src/agent.ts), when it says; a result may correct it
+  String? toolKind;
+
   /// absent while the tool still runs
   String? result;
   bool isError = false;
@@ -421,6 +424,9 @@ class Feed {
     model = f.model;
   }
 
+  /// a kind this build does not know is no kind
+  static String? _kind(String? k) => k == r'$unknown' ? null : k;
+
   void _agent(WireAgentEvent e) {
     switch (e) {
       case WireAgentEventReset():
@@ -465,16 +471,27 @@ class Feed {
         :final name,
         :final input,
         :final sub,
+        :final toolKind,
       ):
-        items.add(ToolItem(id, name, toolArg(input), input, sub: sub));
-      case WireAgentEventToolUpdate(:final id, :final text, :final isError):
+        items.add(
+          ToolItem(id, name, toolArg(input), input, sub: sub)
+            ..toolKind = _kind(toolKind?.name),
+        );
+      case WireAgentEventToolUpdate(
+        :final id,
+        :final text,
+        :final isError,
+        :final toolKind,
+      ):
         final t = items
             .whereType<ToolItem>()
             .where((i) => i.id == id)
             .firstOrNull;
+        if (t == null) return;
         t
-          ?..result = text
-          ..isError = isError;
+          ..result = text
+          ..isError = isError
+          ..toolKind = _kind(toolKind?.name) ?? t.toolKind;
       case WireAgentEventTurnStart():
         busy = true;
         agentTurn = true;
@@ -486,8 +503,10 @@ class Feed {
         :final queued,
       ):
         // a forced send interrupts the running turn: whatever ends it shows as interrupted, except a real failure
+        // (one with an error text: an empty one is none, as on the desktop)
+        final text = error == null || error.isEmpty ? null : error;
         final status =
-            forcePending && !(stop == StopReason.failed && error != null)
+            forcePending && !(stop == StopReason.failed && text != null)
             ? StopReason.interrupted
             : stop;
         items = [
@@ -516,7 +535,7 @@ class Feed {
               _key(),
               secs,
               status,
-              error: status == StopReason.failed ? error : null,
+              error: status == StopReason.failed ? text : null,
             ),
           );
         }

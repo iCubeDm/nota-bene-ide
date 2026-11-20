@@ -1,0 +1,105 @@
+{
+ "events": [
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "edit it",
+   "ts": 1
+  },
+  {
+   "kind": "permission",
+   "id": "p1",
+   "toolName": "Edit",
+   "input": {
+    "file_path": "a.ts"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "permission-done",
+   "id": "p1",
+   "allow": true,
+   "ts": 2
+  },
+  {
+   "kind": "permission",
+   "id": "p2",
+   "toolName": "Bash",
+   "input": {
+    "command": "rm x"
+   },
+   "ts": 3
+  },
+  {
+   "kind": "permission-done",
+   "id": "p2",
+   "allow": false,
+   "ts": 4
+  },
+  {
+   "kind": "permission",
+   "id": "p3",
+   "toolName": "exec",
+   "input": {
+    "command": "make"
+   },
+   "ts": 5,
+   "prompt": {
+    "title": "Run make?",
+    "choices": [
+     {
+      "id": "yes",
+      "label": "Yes",
+      "allow": true
+     },
+     {
+      "id": "no",
+      "label": "No",
+      "allow": false
+     }
+    ]
+   }
+  },
+  {
+   "kind": "permission-done",
+   "id": "missing",
+   "allow": true,
+   "ts": 6
+  }
+ ],
+ "items": [
+  {
+   "kind": "user",
+   "id": "u1",
+   "text": "edit it",
+   "force": false,
+   "duringWork": false,
+   "idle": false,
+   "voice": null,
+   "voiceText": null,
+   "voiceError": null,
+   "voiceLang": null
+  },
+  {
+   "kind": "permission",
+   "id": "p1",
+   "toolName": "Edit",
+   "answer": true,
+   "archived": false
+  },
+  {
+   "kind": "permission",
+   "id": "p2",
+   "toolName": "Bash",
+   "answer": false,
+   "archived": false
+  },
+  {
+   "kind": "permission",
+   "id": "p3",
+   "toolName": "exec",
+   "answer": null,
+   "archived": false
+  }
+ ]
+}
