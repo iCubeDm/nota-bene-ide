@@ -298,7 +298,7 @@ export const ptBR: Dict = {
   remoteErrRelayNotWss: 'o relay precisa ser uma URL wss:// (ws:// só em 127.0.0.1 ou localhost com uma porta)',
   remoteErrPhoneCodeNotKey: 'este é um código de pareamento de celular, não uma chave de acesso; uma chave de acesso começa com nbk1_',
   remoteErrBadAccessKey: 'uma chave de acesso começa com nbk1_ e tem 48 caracteres',
-  remoteErrLegacy: 'nota-bene remote foi iniciado num terminal por uma versão mais antiga; reinicie-o lá',
+  remoteErrNoRelay: 'este computador não está acessível por um relay: salve um relay e ative o acesso',
   remoteErrNotRunning: 'nota-bene remote não está em execução',
   remoteErrUnavailable: 'o acesso remoto não está disponível nesta janela',
   remoteMenu: 'Acesso remoto',

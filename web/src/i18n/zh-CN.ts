@@ -298,7 +298,7 @@ export const zhCN: Dict = {
   remoteErrRelayNotWss: '中继必须是 wss:// URL（ws:// 仅限带端口的 127.0.0.1 或 localhost）',
   remoteErrPhoneCodeNotKey: '这是手机配对码，不是访问密钥；访问密钥以 nbk1_ 开头',
   remoteErrBadAccessKey: '访问密钥以 nbk1_ 开头，共 48 个字符',
-  remoteErrLegacy: 'nota-bene remote 是由旧版本在终端中启动的；请在那里重启它',
+  remoteErrNoRelay: '无法通过中继访问这台电脑：请保存中继并开启访问',
   remoteErrNotRunning: 'nota-bene remote 没有运行',
   remoteErrUnavailable: '此窗口无法使用远程访问',
   remoteMenu: '远程访问',

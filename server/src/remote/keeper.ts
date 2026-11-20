@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { RemoteDevice, RemoteHost, RemoteHostState, RemotePairResult, RemoteState } from '@nota-bene/shared';
+import type { RemoteDevice, RemoteHost, RemoteHostState, RemotePairResult, RemoteRefusalCode, RemoteState } from '@nota-bene/shared';
 import { renderSVG } from 'uqr';
 import { HIDDEN, renameRetry } from '../platform.ts';
 import { stateBaseDir } from '../state.ts';
@@ -19,7 +19,7 @@ import { controlClient, running, type ControlClient, type Msg } from './control.
 import { pairHost } from './hostLink.ts';
 import type { Computer } from '../projects.ts';
 import {
-  checkRelay, clearLastError, fingerprint, fromB64u, parseAccessKey, readAccessKey, readConfig, readDevices, readHosts, readLastError, remoteDir, removeHost, writeAccessKey,
+  checkRelay, clearLastError, fingerprint, fromB64u, parseAccessKey, readAccessKey, readConfig, readDevices, readHosts, readLastError, Refusal, remoteDir, removeHost, writeAccessKey,
   writeConfig, type Host, type RemoteConfig,
 } from './store.ts';
 
@@ -208,7 +208,8 @@ export class RemoteKeeper extends EventEmitter {
     try {
       cl.send({ op: 'pair' });
       code = await cl.next((m) => m.t === 'code' || m.t === 'error', ASK_MS);
-      if (code.t === 'error') throw new Error(String(code.message)); // no host side (access off, or no relay)
+      // no host side (access off, or no relay): `noRelay`, issue 507
+      if (code.t === 'error') throw typeof code.code === 'string' ? new Refusal(code.code as RemoteRefusalCode, String(code.message)) : new Error(String(code.message));
     } catch (e) {
       cl.close();
       throw e;

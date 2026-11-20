@@ -311,8 +311,13 @@ const ACCESS_RE = /^nbk1_[A-Za-z0-9_-]{43}$/;
 export function parseAccessKey(code: string): Buffer {
   const c = code.trim();
   if (c.startsWith('nbremote:')) throw new Refusal('phoneCodeNotKey', 'this is a phone pairing code, not an access key; an access key starts with nbk1_');
-  if (!ACCESS_RE.test(c)) throw new Refusal('badAccessKey', 'an access key starts with nbk1_ and has 48 characters');
-  return fromB64u(c.slice(5), 32);
+  const bad = new Refusal('badAccessKey', 'an access key starts with nbk1_ and has 48 characters');
+  if (!ACCESS_RE.test(c)) throw bad;
+  try {
+    return fromB64u(c.slice(5), 32);
+  } catch {
+    throw bad; // the right shape, not canonical base64url
+  }
 }
 
 const accessKeyFile = (): string => path.join(remoteDir(), 'access-key');

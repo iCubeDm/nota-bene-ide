@@ -306,7 +306,7 @@ export const ru = {
   remoteErrRelayNotWss: 'адрес relay должен начинаться с wss:// (ws:// только на 127.0.0.1 или localhost с портом)',
   remoteErrPhoneCodeNotKey: 'это код сопряжения для телефона, а не ключ доступа; ключ доступа начинается с nbk1_',
   remoteErrBadAccessKey: 'ключ доступа начинается с nbk1_ и состоит из 48 символов',
-  remoteErrLegacy: 'nota-bene remote запущен в терминале старой версией; перезапусти его там',
+  remoteErrNoRelay: 'этот компьютер недоступен через relay: сохрани адрес relay и включи доступ',
   remoteErrNotRunning: 'nota-bene remote не запущен',
   remoteErrUnavailable: 'удалённый доступ недоступен в этом окне',
   remoteMenu: 'Удалённый доступ',

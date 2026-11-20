@@ -194,7 +194,7 @@ export type RemoteHost = { id: string; name?: string; fingerprint: string; state
  */
 export type RemoteRefusalCode =
   | 'notPairCode' | 'pairCodeVersion' | 'ownPairCode' | 'hostSilent' | 'codeRefused' | 'hostOffline' | 'hostFull' | 'relayUnreachable'
-  | 'notUrl' | 'relayNotWss' | 'phoneCodeNotKey' | 'badAccessKey' | 'legacy' | 'notRunning' | 'unavailable';
+  | 'notUrl' | 'relayNotWss' | 'phoneCodeNotKey' | 'badAccessKey' | 'noRelay' | 'legacy' | 'notRunning' | 'unavailable';
 
 /** What a window knows of the remote-access connector (`nota-bene remote`), shared by every window of the user. */
 export type RemoteState = {

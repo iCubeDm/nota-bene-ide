@@ -315,6 +315,8 @@ describe('remote keeper', () => {
     expect(s).toMatchObject({ configured: false, running: true, online: false, hosts: [expect.objectContaining({ id: h.id, name: 'Studio' })] });
     // nobody is the host behind that key: the relay says it is offline, and the link keeps trying
     await until(async () => (await k.refresh()).hosts?.[0]?.state === 'failing');
+    // no host side to pair a device with (issue 507)
+    await expect(k.pair()).rejects.toMatchObject({ code: 'noRelay', message: /not reachable through a relay/ });
     // a relay saved: the client-only connector is replaced by one that is a host too
     const on = await k.setConfig({ relay: relay.url });
     expect(on.stopped).toBe('managed');

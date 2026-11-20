@@ -307,7 +307,7 @@ export const en: Dict = {
   remoteErrRelayNotWss: 'the relay must be a wss:// URL (ws:// only on 127.0.0.1 or localhost with a port)',
   remoteErrPhoneCodeNotKey: 'this is a phone pairing code, not an access key; an access key starts with nbk1_',
   remoteErrBadAccessKey: 'an access key starts with nbk1_ and has 48 characters',
-  remoteErrLegacy: 'nota-bene remote was started in a terminal by an older version; restart it there',
+  remoteErrNoRelay: 'this computer is not reachable through a relay: save a relay and turn access on',
   remoteErrNotRunning: 'nota-bene remote is not running',
   remoteErrUnavailable: 'remote access is not available in this window',
   remoteMenu: 'Remote access',
