@@ -55,5 +55,5 @@ it('an older hello does not undo an unconfirmed choice', () => {
   theme.choose('plannotator');
   theme.adopt('darcula');
   expect(theme.get()).toBe('plannotator');
-  expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(1); // the resend waits for the save still out (issue 511: one at a time)
 });

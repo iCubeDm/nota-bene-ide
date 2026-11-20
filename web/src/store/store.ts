@@ -22,9 +22,7 @@ import { agentName, itemsOf, subagentsSlice } from '../subagent/slice.ts';
 import { toast } from '../shell/toast.ts';
 import { recordCompactMs } from '../feed/compactTiming.ts';
 import { feedUiSlice, TOOL_SRC } from '../feed/uiSlice.ts';
-import { adoptServerLang } from '../i18n/index.ts';
-import { uiScale } from '../shell/uiScale.ts';
-import { theme } from '../shell/theme.ts';
+import { adoptHello } from '../sdk/storage.ts';
 import { setTmpDirs } from '../files/tmpImages.ts';
 import { learnServerSep } from '../lib/paths.ts';
 import { persistListeners, type PersistState } from './persist.ts';
@@ -147,9 +145,7 @@ export function makeStore(o: {
     url: o.url,
     ...(o.connect ? { connect: o.connect } : {}),
     deliver: (ev) => {
-      if (ev.kind === 'hello') adoptServerLang(ev.lang);
-      if (ev.kind === 'hello') uiScale.adopt(ev.uiScale);
-      if (ev.kind === 'hello') theme.adopt(ev.theme);
+      if (ev.kind === 'hello') adoptHello(ev);
       // the server's separator, for paths in agent text (lib/paths.ts serverSep): from its first absolute path
       if (ev.kind === 'hello') learnServerSep(ev.tmpDirs?.[0]);
       if (ev.kind === 'session') learnServerSep(ev.root);

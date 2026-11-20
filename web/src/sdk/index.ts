@@ -5,6 +5,11 @@
 export { t, tIn, useT, getLang, setLang, chooseLang, LANGS, type Lang, type I18nKey } from '../i18n/index.ts';
 export { toast } from '../shell/toast.ts';
 
+// storage, flags and usage events
+export { storage, useStored, bool, string, json, oneOf, type Codec, type Stored, type Pref, type SharedPrefs, type Sounds } from './storage.ts';
+export { flag, useFlag, FLAGS, type Flag } from './flags.ts';
+export { track, type TrackProps } from './track.ts';
+
 // helpers
 export { num, compact, compactParts, percent, money, byteSize } from '../lib/format.ts';
 export { serverSep, isDrivePath, isServerDrivePath, wireAbs, underDir, folderName, shortWinHome, shortHome } from '../lib/paths.ts';

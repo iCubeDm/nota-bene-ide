@@ -1,5 +1,5 @@
 import { dictationLangSet } from '@/controls/slice.ts';
-import { useAppDispatch, useAppSelector, connections, defineResource, routes, useResource, type Resource, type Route, type Snapshot, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome } from '@/sdk';
+import { useAppDispatch, useAppSelector, connections, storage as stored, type Sounds, defineResource, routes, useResource, type Resource, type Route, type Snapshot, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome } from '@/sdk';
 import { Button, ConfirmDialog } from '@/sdk/ui';
 import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
 import { langName } from '@/voice/lang.ts';
@@ -8,7 +8,7 @@ import { has, MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@no
 import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
 import { uiScale, useUiScale } from '@/shell/uiScale.ts';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '@/shell/theme.ts';
-import { playCue, type Sounds } from '@/shell/sounds.ts';
+import { playCue } from '@/shell/sounds.ts';
 import { railPref, useRailPref } from '@/projects/railPref.ts';
 import { SHELL_NAMES, WIN_SHELLS, type ShellChoice, type WinShell } from './shells.ts';
 
@@ -145,7 +145,12 @@ export function SettingsView({ active }: { active: boolean }) {
     }
     storage.reload();
   };
-  const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean } | { audit: boolean } | { sounds: Sounds } | { shell: ShellChoice }) => {
+  const saveSounds = async (v: Sounds) => {
+    const why = await stored.pref('sounds').set(v);
+    if (why !== null) setNote(t('setLoadFail', why));
+    prefs.reload();
+  };
+  const savePref = async (pref: { defaultMode: string } | { updateCheck: boolean } | { audit: boolean } | { shell: ShellChoice }) => {
     try {
       const r = await postJson(routes.systemPrefs(), pref);
       if (!r.ok) throw new Error(`${r.status}`);
@@ -340,7 +345,7 @@ export function SettingsView({ active }: { active: boolean }) {
                 <span key={k} className="flex items-center gap-1">
                   <label className="flex items-center gap-2 text-[0.8125rem] text-foreground">
                     <input type="checkbox" checked={prefs.data!.sounds![k]}
-                      onChange={(e) => void savePref({ sounds: { ...prefs.data!.sounds!, [k]: e.target.checked } })}
+                      onChange={(e) => void saveSounds({ ...prefs.data!.sounds!, [k]: e.target.checked })}
                       className="size-3.5 accent-primary" />
                     {t(k === 'ask' ? 'defSoundAsk' : 'defSoundDone')}
                   </label>

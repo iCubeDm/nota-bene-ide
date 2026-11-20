@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import type { Store } from '@reduxjs/toolkit';
 import { useStore } from 'react-redux';
-import { apiFetch } from '@/net/auth.ts';
-import { routes } from '@/sdk/routes.ts';
+import { storage, string, type Sounds } from '@/sdk/storage.ts';
 import type { RootState } from '@/store/store.ts';
 
 /**
@@ -14,11 +13,11 @@ import type { RootState } from '@/store/store.ts';
  */
 
 export type Cue = 'ask' | 'done' | 'error';
-export type Sounds = { ask: boolean; done: boolean };
+export type { Sounds };
 
 /** A tab that is looked at claims the cue at once; the others wait this long first, so it wins the claim. */
 export const SETTLE_MS = 300;
-const CLAIM = 'nb.sound.last';
+const CLAIM = storage.local<string | null>('nb.sound.last', string, null);
 
 // [Hz, start s]: two rising notes ask; one soft note says done; two falling ones say it failed
 const TONES: Record<Cue, [number, number][]> = { ask: [[880, 0], [1175, 0.12]], done: [[660, 0]], error: [[440, 0], [330, 0.14]] };
@@ -54,24 +53,16 @@ export function playCue(cue: Cue): void {
 }
 
 /** The setting as the server has it now; null when it cannot be read (then nothing sounds). */
-export async function readSounds(): Promise<Sounds | null> {
-  try {
-    const r = await apiFetch(routes.systemPrefs());
-    const s = r.ok ? ((await r.json()) as { sounds?: Sounds }).sounds : undefined;
-    return s && typeof s.ask === 'boolean' && typeof s.done === 'boolean' ? s : null;
-  } catch { return null; }
-}
+export const readSounds = async (): Promise<Sounds | null> => (await storage.pref('sounds').read()) ?? null;
 
 /** The first tab of this origin to claim a cue's key gets it; the same key again is taken already. */
-export function claim(key: string, storage: Storage = localStorage): boolean {
-  try {
-    if (storage.getItem(CLAIM) === key) return false;
-    storage.setItem(CLAIM, key);
-  } catch { /* no storage: this tab sounds alone */ }
+export function claim(key: string): boolean {
+  if (CLAIM.get() === key) return false;
+  CLAIM.set(key);
   return true;
 }
 
-type Deps = { doc?: Document; win?: Window; read?: () => Promise<Sounds | null>; play?: (c: Cue) => void; storage?: Storage };
+type Deps = { doc?: Document; win?: Window; read?: () => Promise<Sounds | null>; play?: (c: Cue) => void };
 
 /** Subscribes to the store and sounds the cues; returns the unsubscribe. */
 export function startSounds(store: Pick<Store<RootState>, 'getState' | 'subscribe'>, o: Deps = {}): () => void {
@@ -79,14 +70,13 @@ export function startSounds(store: Pick<Store<RootState>, 'getState' | 'subscrib
   const win = o.win ?? window;
   const read = o.read ?? readSounds;
   const play = o.play ?? playCue;
-  const storage = o.storage ?? localStorage;
   const away = () => doc.hidden || !doc.hasFocus();
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const cue = (c: Cue, key: string, still: () => boolean) => {
-    if (!away()) return void claim(key, storage); // seen here: no other tab sounds for it
+    if (!away()) return void claim(key); // seen here: no other tab sounds for it
     const id = setTimeout(() => {
       timers.delete(id);
-      if (!still() || !away() || !claim(key, storage)) return;
+      if (!still() || !away() || !claim(key)) return;
       void read().then((s) => { if (s && (c === 'ask' ? s.ask : s.done)) play(c); });
     }, SETTLE_MS);
     timers.add(id);

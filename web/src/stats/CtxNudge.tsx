@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useT, selectBusy, selectSession, useAppDispatch, useAppSelector } from '@/sdk';
+import { json, storage, useT, selectBusy, selectSession, useAppDispatch, useAppSelector } from '@/sdk';
 import { runCommand, selectCapabilities, selectSwitching } from '@/controls/slice.ts';
 import { REFUSED, useNote } from '@/controls/useNote.ts';
 import { selectStats } from './slice.ts';
@@ -16,19 +16,13 @@ const KEY = 'nb.ctxNudge';
 export const nudgeForced = (): boolean => new URLSearchParams(location.search).has('nudge');
 
 /** The step dismissed per session: { [sessionId]: step }. */
-function readSeen(): Record<string, number> {
-  try {
-    const v: unknown = JSON.parse(localStorage.getItem(KEY) ?? '{}');
-    return v && typeof v === 'object' ? (v as Record<string, number>) : {};
-  } catch {
-    return {};
-  }
-}
+const seen = storage.local(KEY, json((v): v is Record<string, number> => !!v && typeof v === 'object'), {});
+const readSeen = (): Record<string, number> => seen.get();
 
 function writeSeen(id: string, step: number) {
   // only the latest few sessions: the map would otherwise grow with every session ever opened
   const all = Object.entries({ ...readSeen(), [id]: step }).slice(-20);
-  try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(all))); } catch { /* storage unavailable: not persisted */ }
+  seen.set(Object.fromEntries(all));
 }
 
 /**

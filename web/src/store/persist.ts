@@ -6,6 +6,7 @@ import { clearRefCache } from '../refs/refs.ts';
 import { loadSources } from '../files/sources.ts';
 import { pushRecent, RECENT_DWELL_MS } from '../files/recent.ts';
 import type { FeedState } from './feed.ts';
+import { bool, json, storage } from '../sdk/storage.ts';
 
 /** The slices the persistence reads. Named here, not taken from the store's RootState: the store's type is built from the listeners' middleware. */
 export type PersistState = { feed: FeedState; comments: ReturnType<typeof commentsSlice.reducer>; tree: ReturnType<typeof treeSlice.reducer>; tabs: TabsState };
@@ -18,10 +19,6 @@ export type PersistState = { feed: FeedState; comments: ReturnType<typeof commen
  */
 export function persistListeners(lm: ListenerMiddlewareInstance<PersistState>): void {
   let restoredRoot: string | null = null;
-
-  const put = (key: string, value: string): void => {
-    try { localStorage.setItem(key, value); } catch { /* storage unavailable: not persisted */ }
-  };
 
   // every root change (the first one, a switch to another folder, a switch back): that root's saved tabs and tree.
   // The saved state is read before the dispatch: the restore's own change is persisted under the new root by the
@@ -46,12 +43,12 @@ export function persistListeners(lm: ListenerMiddlewareInstance<PersistState>): 
 
   lm.startListening({
     predicate: (_a, st, was) => st.comments.ui.panelOpen !== was.comments.ui.panelOpen,
-    effect: (_a, api) => put('panel:comments', api.getState().comments.ui.panelOpen ? '1' : '0'),
+    effect: (_a, api) => storage.local('panel:comments', bool, true).set(api.getState().comments.ui.panelOpen),
   });
 
   lm.startListening({
     predicate: (_a, st, was) => st.tree.open !== was.tree.open,
-    effect: (_a, api) => put('panel:tree', api.getState().tree.open ? '1' : '0'),
+    effect: (_a, api) => storage.local('panel:tree', bool, true).set(api.getState().tree.open),
   });
 
   lm.startListening({
@@ -59,7 +56,7 @@ export function persistListeners(lm: ListenerMiddlewareInstance<PersistState>): 
     effect: (_a, api) => {
       if (!restoredRoot) return;
       const { dirs, src } = api.getState().tree;
-      put(treeKey(restoredRoot, src), JSON.stringify(dirs));
+      storage.local(treeKey(restoredRoot, src), json<string[]>(), []).set(dirs);
     },
   });
 
@@ -67,7 +64,7 @@ export function persistListeners(lm: ListenerMiddlewareInstance<PersistState>): 
   lm.startListening({
     predicate: (_a, st, was) => st.tabs !== was.tabs,
     effect: (_a, api) => {
-      if (restoredRoot) put(tabsKey(restoredRoot), JSON.stringify(serializeTabs(api.getState().tabs)));
+      if (restoredRoot) storage.local(tabsKey(restoredRoot), json(), null).set(serializeTabs(api.getState().tabs));
     },
   });
 

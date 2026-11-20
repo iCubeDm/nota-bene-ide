@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import type { VcsDiff, VcsFile, VcsPatch } from '@nota-bene/shared';
-import { defineResource, routes, useResource, type Route } from '@/sdk';
+import { bool, defineResource, json, routes, storage, useResource, type Route } from '@/sdk';
 
 /** The git views' shared state, outside Redux as `files/sources.ts` is: the tool window and the tab share one fetch. */
 export type RepoDiff = Extract<VcsDiff, { repo: true }>;
@@ -15,10 +15,10 @@ type Ui = {
   hasRepo: boolean;
 };
 
-const readBases = (): Record<string, string> => {
-  try { return JSON.parse(localStorage.getItem('vcs:bases') ?? '{}') as Record<string, string>; } catch { return {}; }
-};
-const initial = (): Ui => ({ panel: false, focus: null, split: localStorage.getItem('vcs:split') === '1', bases: readBases(), commit: null, hasRepo: false });
+// the diff layout and the base per project and source outlive the page (storage); the rest is this page's
+const savedSplit = storage.local('vcs:split', bool, false);
+const savedBases = storage.local('vcs:bases', json<Record<string, string>>(), {});
+const initial = (): Ui => ({ panel: false, focus: null, split: savedSplit.get(), bases: savedBases.get(), commit: null, hasRepo: false });
 let ui = initial();
 const listeners = new Set<() => void>();
 const fire = () => { for (const fn of listeners) fn(); };
@@ -32,12 +32,12 @@ export const setPanel = (panel: boolean) => change({ panel });
 export const focusFile = (path: string) => change({ focus: { path, at: Date.now() } });
 export const showCommit = (sha: string, path: string) => change({ commit: { sha, path, at: Date.now() } });
 export const setHasRepo = (hasRepo: boolean) => { if (hasRepo !== ui.hasRepo) change({ hasRepo }); };
-export const setSplit = (split: boolean) => { localStorage.setItem('vcs:split', split ? '1' : '0'); change({ split }); };
+export const setSplit = (split: boolean) => { savedSplit.set(split); change({ split }); };
 export const baseOf = (bases: Ui['bases'], root: string, src: string): string | undefined => bases[baseKey(root, src)];
 export function pickBase(root: string, src: string, base: string | null) {
   const bases = { ...ui.bases };
   if (base) bases[baseKey(root, src)] = base; else delete bases[baseKey(root, src)];
-  localStorage.setItem('vcs:bases', JSON.stringify(bases));
+  savedBases.set(bases);
   change({ bases });
 }
 /** Test hook. */

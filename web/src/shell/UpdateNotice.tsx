@@ -3,13 +3,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useT } from '@/i18n/index.ts';
 import { apiFetch } from '@/net/auth.ts';
 import { routes } from '@/sdk/routes.ts';
+import { storage, string } from '@/sdk/storage.ts';
 import { defineResource, useResource } from '@/sdk/repository.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
 import { useAppSelector } from '@/store/store.ts';
 import { selectPagePause } from './pagePause.ts';
 import { reloadPage } from './reloadPage.ts';
 
-const SEEN_KEY = 'nb.updateSeen';
+/** the newest version the user put off with Later */
+const SEEN = storage.local<string | null>('nb.updateSeen', string, null);
+/** a notice dismissed once per key: any stored value counts */
+const dismissed = (key: string) => storage.local(key, { read: () => true, write: () => '1', is: (v): v is boolean => v === true }, false);
 /** a plain release version (server/src/update.ts RELEASE) */
 const RELEASE = /^\d+\.\d+\.\d+$/;
 const RECHECK = 'nb-update-recheck';
@@ -74,7 +78,7 @@ function Reload({ v }: { v: string }) {
 function UpdatedTo({ v, from, stale }: { v: string; from: string; stale: boolean }) {
   const t = useT();
   const key = `nb.updated.${location.port}.${v}`;
-  const [gone, setGone] = useState(() => localStorage.getItem(key) !== null);
+  const [gone, setGone] = useState(() => dismissed(key).get());
   const [changes, setChanges] = useState<string | null>(null);
   if (gone && !stale) return null;
   const open = (on: boolean) => {
@@ -83,7 +87,7 @@ function UpdatedTo({ v, from, stale }: { v: string; from: string; stale: boolean
         .then(async (r) => (r.ok ? ((await r.json()) as { text: string | null }).text : null))
         .then((text) => { if (text) setChanges(text); }, () => {});
     } else {
-      localStorage.setItem(key, '1');
+      dismissed(key).set(true);
       setGone(true);
     }
   };
@@ -113,10 +117,10 @@ const PLUGIN_UPDATE = 'claude plugin marketplace update nota-bene\nclaude plugin
 function PluginOutdated({ plugin, current }: { plugin: string; current: string }) {
   const t = useT();
   const key = `nb.pluginSeen.${plugin}`;
-  const [gone, setGone] = useState(() => localStorage.getItem(key) !== null);
+  const [gone, setGone] = useState(() => dismissed(key).get());
   if (gone) return null;
   const dismiss = () => {
-    localStorage.setItem(key, '1');
+    dismissed(key).set(true);
     setGone(true);
   };
   return (
@@ -156,7 +160,7 @@ export function UpdateNotice() {
   const [mine, setMine] = useState<{ over: Status | null; v: Status } | null>(null);
   const update = mine && mine.over === server ? mine.v : server;
   const setUpdate = (v: Status) => setMine({ over: server, v });
-  const [seen, setSeen] = useState(() => localStorage.getItem(SEEN_KEY));
+  const [seen, setSeen] = useState(() => SEEN.get());
   // what the newer version changes, by version: asked when the popover first opens for it
   const [changes, setChanges] = useState<{ v: string; text: string } | null>(null);
   // the pause the server cannot see (pagePause.ts): a draft counts, the update's reload would lose it
@@ -266,7 +270,7 @@ export function UpdateNotice() {
       .then((text) => { if (text) setChanges({ v: latest, text }); }, () => {});
   };
   const later = () => {
-    localStorage.setItem(SEEN_KEY, latest);
+    SEEN.set(latest);
     setSeen(latest);
   };
   return (
