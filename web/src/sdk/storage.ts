@@ -49,20 +49,22 @@ export interface Stored<T> {
 
 // Reads go to the storage every time, so a value written elsewhere (another tab, a test) is what the next read sees; an
 // item keeps its last decoded value with its string, so an unchanged string keeps its object (useSyncExternalStore).
-// Per key: the listeners, and the value of a page whose storage throws (private mode, blocked): it holds for the page.
+// Per key: the listeners, and a value the storage refused (private mode, blocked, full): it holds for the page until a
+// later write succeeds.
 const memory = new Map<string, string | null>();
 const listeners = new Map<string, Set<() => void>>();
 const subscribers = new Map<string, (fn: () => void) => () => void>();
 
 function rawOf(key: string): string | null {
-  try { return localStorage.getItem(key); } catch { return memory.get(key) ?? null; }
+  if (memory.has(key)) return memory.get(key)!;
+  try { return localStorage.getItem(key); } catch { return null; }
 }
 function put(key: string, raw: string | null): void {
-  memory.set(key, raw);
   try {
     if (raw === null) localStorage.removeItem(key);
     else localStorage.setItem(key, raw);
-  } catch { /* storage unavailable or full: not persisted, held for the page */ }
+    memory.delete(key);
+  } catch { memory.set(key, raw); /* storage unavailable or full: not persisted, held for the page */ }
   for (const fn of [...(listeners.get(key) ?? [])]) fn();
 }
 /** one function per key, so a component's subscription does not change with the item it made */
@@ -162,7 +164,7 @@ function makePref<K extends keyof SharedPrefs>(name: K): Pref<SharedPrefs[K]> {
   let unsynced: { v: T } | null = null;
   let saves = 0;
   let busy = false;
-  let queued: { v: T; n: number; done: (why: string | null) => void } | null = null;
+  let queued: { v: T; done: (why: string | null) => void } | null = null;
   /** moves at reload, so a save still in flight from before does not touch the state after it */
   let epoch = 0;
 
@@ -184,16 +186,23 @@ function makePref<K extends keyof SharedPrefs>(name: K): Pref<SharedPrefs[K]> {
     if (why === null) unsynced = null;
     else if (!spec.hello) { unsynced = null; void refresh(); }
   };
-  const send = (v: T, n: number): Promise<string | null> => {
+  // one save at a time: a value that comes while one is out waits, and a newer one replaces it before it goes
+  const enqueue = (v: T): Promise<string | null> => {
+    if (!busy) return send(v);
+    queued?.done(null);
+    return new Promise((done) => { queued = { v, done }; });
+  };
+  const send = (v: T): Promise<string | null> => {
     busy = true;
     const at = epoch;
+    const n = saves; // the choice this save carries: a newer one is not confirmed by it
     return post({ [name]: v }).then((why) => {
       if (at !== epoch) return why; // reloaded meanwhile (tests)
       busy = false;
       settle(n, why);
       const q = queued;
       queued = null;
-      if (q) void send(q.v, q.n).then(q.done);
+      if (q) void send(q.v).then(q.done);
       return why;
     });
   };
@@ -206,7 +215,7 @@ function makePref<K extends keyof SharedPrefs>(name: K): Pref<SharedPrefs[K]> {
   };
   const adopt = (server: unknown) => {
     if (unsynced) {
-      if (spec.hello) void post({ [name]: unsynced.v }).then((why) => settle(saves, why));
+      if (spec.hello) void enqueue(unsynced.v);
       return;
     }
     if (spec.codec.is(server)) return here(server);
@@ -228,10 +237,8 @@ function makePref<K extends keyof SharedPrefs>(name: K): Pref<SharedPrefs[K]> {
     set: (v) => {
       here(v);
       unsynced = { v };
-      const n = ++saves;
-      if (!busy) return send(v, n);
-      queued?.done(null);
-      return new Promise((done) => { queued = { v, n, done }; });
+      saves++;
+      return enqueue(v);
     },
     adopt,
     read,

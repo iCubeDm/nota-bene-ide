@@ -43,5 +43,5 @@ it("an unknown stored value reads as 100 %; the server's hello wins, unless our 
   uiScale.choose(1.5);
   uiScale.adopt(1.1); // an older hello
   expect(uiScale.get()).toBe(1.5);
-  expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(2); // sent again instead
+  expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(1); // the resend waits for the save still out (issue 511: one at a time)
 });

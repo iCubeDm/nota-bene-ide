@@ -101,6 +101,16 @@ it('storage unavailable: reads fall back, a set holds for the page', () => {
   expect(flag('demo' as never)).toBe(false); // a flag nobody stored reads as off
 });
 
+it('storage full (a set throws, reads work): the set reads back for the page', () => {
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+  localStorage.removeItem('nb.wrap');
+  wrapLines.set(false);
+  expect(wrapLines.get()).toBe(false);
+  vi.mocked(Storage.prototype.setItem).mockRestore();
+  wrapLines.set(true); // a later write that succeeds is what reads see again
+  expect([wrapLines.get(), localStorage.getItem('nb.wrap')]).toEqual([true, '1']);
+});
+
 it('a flag reads nb.flag.<name>', () => {
   localStorage.setItem('nb.flag.demo', '1');
   expect(flag('demo' as never)).toBe(true);
@@ -123,14 +133,34 @@ it('pref sets go through the connection one at a time and the last one wins', as
   expect(localStorage.getItem('nb.theme')).toBe('solarized-dark');
 });
 
-it('a hello adopts its prefs in one place; a pending local choice is not undone by an older one', async () => {
+it('a hello adopts its prefs in one place; a pending local choice is not undone by an older one', () => {
   stub = stubRoutes({ '/system/prefs': () => new Promise<Response>(() => {}) }); // the POST never answers
   const { conn } = testStore({ hello: { theme: 'github-light', uiScale: 1.1, lang: 'de' } });
   expect([theme.get(), uiScale.get(), getLang()]).toEqual(['github-light', 1.1, 'de']);
   theme.choose('darcula');
   conn.emit({ kind: 'hello', protocol: 1, theme: 'github-light', lang: 'de' } as never);
   expect(theme.get()).toBe('darcula');
+});
+
+it('a hello resend waits its turn like a choice: the server and the unconfirmed value end on the newer choice', async () => {
+  const answers: ((r: Response) => void)[] = [];
+  const posted: unknown[] = [];
+  stub = stubRoutes({ '/system/prefs': async (req) => { posted.push((await req.json() as { theme: string }).theme); return new Promise<Response>((res) => answers.push(res)); } });
+  const pref = storage.pref('theme');
+  void pref.set('plannotator');
+  await vi.waitFor(() => expect(posted).toEqual(['plannotator']));
+  answers.shift()!(new Response('down', { status: 503 })); // not confirmed
   await tick();
-  // the unconfirmed choice is sent again to the server that just said hello
-  expect(stub.calls.filter((r) => r.method === 'POST')).toHaveLength(2);
+  pref.adopt('darcula'); // a hello: the unconfirmed choice is sent again
+  await vi.waitFor(() => expect(posted).toEqual(['plannotator', 'plannotator']));
+  void pref.set('github-light'); // a newer choice while the resend is in flight: it waits
+  await tick();
+  expect(posted).toHaveLength(2);
+  answers.shift()!(Response.json({})); // the resend lands: it does not confirm the newer choice
+  await vi.waitFor(() => expect(posted).toEqual(['plannotator', 'plannotator', 'github-light']));
+  answers.shift()!(new Response('down', { status: 503 })); // and the newer one fails
+  await tick();
+  pref.adopt('plannotator'); // so the next hello neither undoes it nor forgets it
+  expect(pref.get()).toBe('github-light');
+  await vi.waitFor(() => expect(posted.at(-1)).toBe('github-light'));
 });
