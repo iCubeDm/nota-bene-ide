@@ -4,7 +4,7 @@ import { makeStore } from '../store/store.ts';
 import { MediaController } from '../media/mediaController.ts';
 import { filesSlice, setFileLoad } from '../files/slice.ts';
 import { setSource, toggleDir } from '../tree/slice.ts';
-import { activate, CLOSED_MAX, closeAll, closeOthers, closeRight, closeTab, diagramTabId, fileTabId, openDiagram, openFile, reopenClosed, selectActiveTab, selectTabs } from './slice.ts';
+import { activate, CLOSED_MAX, closeAll, closeOthers, closeRight, closeTab, diagramTabId, fileTabId, openChanges, openDiagram, openFile, openLog, openRemote, openSettings, openUsage, reopenClosed, selectActiveTab, selectTabs } from './slice.ts';
 
 function mk() {
   let onEvent!: (e: ServerEvent) => void;
@@ -297,6 +297,29 @@ it('the order of mixed tabs and the active one survive a reload', () => {
   b.session('/p');
   expect(ids(b.store)).toEqual(before);
   expect(selectTabs(b.store.getState()).active).toBe(diagramIds(a.store)[0]);
+});
+
+// issue 500: the one-of-a-kind views come back in their place, active if they were
+it('the Settings, Usage, Remote, Changes and Log tabs survive a reload in their place, the active one too', () => {
+  const a = mk();
+  a.session('/p');
+  a.store.dispatch(openUsage());
+  a.store.dispatch(openFile('a.md'));
+  [openSettings, openRemote, openChanges, openLog].forEach((o) => a.store.dispatch(o()));
+  a.store.dispatch(activate('usage'));
+  expect(JSON.parse(localStorage.getItem('tabs:/p')!).tabs).toEqual([{ view: 'usage' }, { file: { path: 'a.md' } }, { view: 'settings' }, { view: 'remote' }, { view: 'changes' }, { view: 'log' }]);
+  const b = mk(); // a reload
+  b.session('/p');
+  expect(ids(b.store)).toEqual(['chat', 'usage', 'file:a.md', 'settings', 'remote', 'changes', 'log']);
+  expect(selectActiveTab(b.store.getState())).toEqual({ id: 'usage', kind: 'usage' });
+});
+
+it('an unknown saved view is dropped', () => {
+  localStorage.setItem('tabs:/v', JSON.stringify({ tabs: [{ view: 'chat' }, { view: 'nope' }, { view: 'log' }], active: 'log' }));
+  const m = mk();
+  m.session('/v');
+  expect(ids(m.store)).toEqual(['chat', 'log']);
+  expect(selectTabs(m.store.getState()).active).toBe('log');
 });
 
 it('tabs saved in the older formats ({files}, {paths}) are still read', () => {

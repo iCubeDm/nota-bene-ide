@@ -18,8 +18,11 @@ export type AgentTab = { id: `agent:${string}`; kind: 'agent'; tool: string; tit
  * description at the time it was opened (a task the server no longer knows still has a name).
  */
 export type ShellTab = { id: `shell:${string}`; kind: 'shell'; task: string; title: string };
-/** `settings`, `usage`, `remote`, `changes`, `log`: one tab each (M6-15, R-M6-4); not saved with the file tabs. */
-export type Tab = { id: 'chat'; kind: 'chat' } | { id: 'settings'; kind: 'settings' } | { id: 'usage'; kind: 'usage' } | { id: 'remote'; kind: 'remote' } | { id: 'changes'; kind: 'changes' } | { id: 'log'; kind: 'log' } | FileTab | DiagramTab | AgentTab | ShellTab;
+/** The views with one tab each (M6-15, R-M6-4): its id is its kind; saved with the other tabs (issue 500). */
+const VIEWS = ['settings', 'usage', 'remote', 'changes', 'log'] as const;
+export type View = (typeof VIEWS)[number];
+export type ViewTab = { [K in View]: { id: K; kind: K } }[View];
+export type Tab = { id: 'chat'; kind: 'chat' } | ViewTab | FileTab | DiagramTab | AgentTab | ShellTab;
 /**
  * open[0] is always the chat. `root`: the project the file tabs belong to (null until the first session event).
  * `rootGen`: bumped on every root change after the first, so views keyed by it remount (the same path in another root
@@ -72,6 +75,7 @@ const diagramTab = ({ source, lang }: SavedDiagram): DiagramTab => ({
  */
 export const enterRoot = createAction<{ root: string; first: boolean; tabs: SavedTabs | null; dirs: string[] | null }>('tabs/enterRoot');
 
+const viewTab = (v: View) => ({ id: v, kind: v }) as ViewTab;
 const idx = (s: TabsState, id: string) => s.open.findIndex((t) => t.id === id);
 
 export const tabsSlice = createSlice({
@@ -192,7 +196,7 @@ function remember(s: TabsState, tabs: Tab[]): void {
 
 function restore(s: TabsState, saved: SavedTabs, merge: boolean): void {
   const have = new Set(merge ? s.open.map((t) => t.id) : ['chat']);
-  const restored = saved.tabs.map((t) => ('file' in t ? fileTab(t.file) : 'agent' in t ? agentTab(t.agent) : 'shell' in t ? shellTab(t.shell) : diagramTab(t.diagram))).filter((t) => !have.has(t.id) && have.add(t.id));
+  const restored = saved.tabs.map((t): Tab => ('file' in t ? fileTab(t.file) : 'view' in t ? viewTab(t.view) : 'agent' in t ? agentTab(t.agent) : 'shell' in t ? shellTab(t.shell) : diagramTab(t.diagram))).filter((t) => !have.has(t.id) && have.add(t.id));
   s.open = [CHAT, ...restored, ...(merge ? s.open.slice(1) : [])];
   if (idx(s, saved.active) >= 0) s.active = saved.active as Tab['id'];
 }
@@ -211,12 +215,12 @@ export type SavedAgent = { tool: string; title: string };
 /** A saved shell tab: the task id and the title it had. */
 export type SavedShell = { task: string; title: string };
 /** One saved tab, in strip order. */
-export type SavedTab = { file: SavedFile } | { diagram: SavedDiagram } | { agent: SavedAgent } | { shell: SavedShell };
+export type SavedTab = { file: SavedFile } | { view: View } | { diagram: SavedDiagram } | { agent: SavedAgent } | { shell: SavedShell };
 export type SavedTabs = { tabs: SavedTab[]; active: string };
 
 /**
- * What is stored under `tabs:<root>`: the file tabs (with their source when not 'here') and the diagram tabs (with
- * their source text), in strip order, and the active id; never the chat tab.
+ * What is stored under `tabs:<root>`: every tab but the chat, in strip order (a file with its source when not 'here', a
+ * diagram with its source text, a view by name), and the active id.
  */
 export const tabsKey = (root: string) => `tabs:${root}`;
 export const serializeTabs = (s: TabsState): SavedTabs => ({
@@ -225,7 +229,8 @@ export const serializeTabs = (s: TabsState): SavedTabs => ({
     : t.kind === 'diagram' ? [{ diagram: { source: t.source, lang: t.lang } }]
     : t.kind === 'agent' ? [{ agent: { tool: t.tool, title: t.title } }]
     : t.kind === 'shell' ? [{ shell: { task: t.task, title: t.title } }]
-    : []),
+    : t.kind === 'chat' ? []
+    : [{ view: t.kind }]),
   active: s.active,
 });
 const isSavedFile = (f: unknown): f is SavedFile => {
@@ -247,7 +252,7 @@ const isSavedShell = (a: unknown): a is SavedShell => {
 const isSavedTab = (t: unknown): t is SavedTab => {
   if (!t || typeof t !== 'object') return false;
   const o = t as Record<string, unknown>;
-  return ('file' in o && isSavedFile(o.file)) || ('diagram' in o && isSavedDiagram(o.diagram)) || ('agent' in o && isSavedAgent(o.agent)) || ('shell' in o && isSavedShell(o.shell));
+  return ('file' in o && isSavedFile(o.file)) || ('view' in o && (VIEWS as readonly unknown[]).includes(o.view)) || ('diagram' in o && isSavedDiagram(o.diagram)) || ('agent' in o && isSavedAgent(o.agent)) || ('shell' in o && isSavedShell(o.shell));
 };
 /** Reads `{ tabs, active }`, or the older `{ files, active }`, or the older `{ paths, active }` (this folder only). */
 export function readSavedTabs(root: string): SavedTabs | null {
