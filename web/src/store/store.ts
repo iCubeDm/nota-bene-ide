@@ -1,28 +1,22 @@
-import { configureStore, createAction, createListenerMiddleware, createSlice, type Middleware, type ThunkAction, type UnknownAction } from '@reduxjs/toolkit';
+import { combineSlices, configureStore, createAction, createListenerMiddleware, createSlice, type Middleware, type Reducer, type ThunkAction, type UnknownAction } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, useStore, type TypedUseSelectorHook } from 'react-redux';
 import type { ImageRef, ServerEvent, Voice } from '@nota-bene/shared';
 import { dictationAsk } from '../voice/lang.ts';
 import { agentConnection, bindConnections, connectionManager, SELF, type AgentConnection, type AgentId, type Connect, type ConnectionManager, type ConnState } from '../sdk/connections.ts';
 import { t } from '../i18n/index.ts';
-import { composerSlice } from '../composer/slice.ts';
 import { refusedMiddleware } from '../composer/refused.ts';
-import { historyMiddleware, historySlice } from '../composer/history.ts';
-import { controlsListener, controlsSlice } from '../controls/slice.ts';
-import { commentsSlice, flushComments } from '../comments/slice.ts';
+import { historyMiddleware } from '../composer/history.ts';
+import { controlsListener } from '../controls/slice.ts';
+import { flushComments } from '../comments/slice.ts';
 import { activate, tabsSlice, type Tab, type TabsState } from '../tabs/slice.ts';
 import { AUDIO, VIDEO } from '../files/kinds.ts';
 import { browserPip, MediaController, type PipApi } from '../media/mediaController.ts';
-import { filesSlice } from '../files/slice.ts';
-import { markupSlice } from '../media/markup/slice.ts';
-import { treeSlice } from '../tree/slice.ts';
-import { statsSlice } from '../stats/slice.ts';
-import { remoteSlice } from '../remote/slice.ts';
-import { tasksSlice, tasksUiSlice } from '../tasks/slice.ts';
-import { agentName, itemsOf, subagentsSlice } from '../subagent/slice.ts';
+import { agentName, itemsOf } from '../subagent/slice.ts';
 import { toast } from '../shell/toast.ts';
 import { recordCompactMs } from '../feed/compactTiming.ts';
-import { feedUiSlice, TOOL_SRC } from '../feed/uiSlice.ts';
+import { TOOL_SRC } from '../feed/uiSlice.ts';
 import { adoptHello } from '../sdk/storage.ts';
+import type { Plugin, PluginState } from '../sdk/plugin.ts';
 import { setTmpDirs } from '../files/tmpImages.ts';
 import { learnServerSep } from '../lib/paths.ts';
 import { persistListeners, type PersistState } from './persist.ts';
@@ -76,6 +70,23 @@ export const connSlice = createSlice({
 
 type Extra = { connections: ConnectionManager };
 
+/** The core's slices; the plugins' are injected by makeStore. */
+const coreReducer = () => combineSlices(feedSlice, connSlice, tabsSlice).withLazyLoadedSlices<PluginState>();
+export type RootState = ReturnType<ReturnType<typeof coreReducer>> & PluginState;
+
+/** The reducer of the core and every plugin's slices, each injected once. A slice name taken twice is a build error. */
+function rootReducer(plugins: readonly Plugin[]): Reducer<RootState> {
+  const reducer = coreReducer();
+  const names = new Set<string>([feedSlice.reducerPath, connSlice.reducerPath, tabsSlice.reducerPath]);
+  for (const s of plugins.flatMap((p) => p.slices ?? [])) {
+    if (names.has(s.reducerPath)) throw new Error(`store: the slice "${s.reducerPath}" is declared twice`);
+    names.add(s.reducerPath);
+    reducer.inject(s);
+  }
+  // every PluginState slice is present from the first state on: injected before the store exists
+  return reducer as Reducer<RootState>;
+}
+
 /** Whether Redux DevTools are on: dev builds only. Read at call time so tests can stub it. */
 export const devToolsEnabled = (): boolean => import.meta.env.DEV;
 
@@ -115,6 +126,7 @@ const mediaMiddleware = (media: MediaController): Middleware => (api) => {
  */
 export function makeStore(o: {
   url: string;
+  plugins: readonly Plugin[];
   connect?: Connect;
   pip?: PipApi;
 }) {
@@ -133,7 +145,7 @@ export function makeStore(o: {
   const persist = createListenerMiddleware<PersistState>();
   persistListeners(persist);
   const store = configureStore({
-    reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, remote: remoteSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer, promptHistory: historySlice.reducer },
+    reducer: rootReducer(o.plugins),
     middleware: (gdm) => gdm({ thunk: { extraArgument: { connections } satisfies Extra } }).prepend(controlsListener.middleware, persist.middleware).concat(toastMiddleware, compactTimingMiddleware, refusedMiddleware, historyMiddleware, mediaMiddleware(media)),
     devTools: devToolsEnabled(),
   });
@@ -167,7 +179,6 @@ export function makeStore(o: {
 }
 
 export type AppStore = ReturnType<typeof makeStore>;
-export type RootState = ReturnType<AppStore['getState']>;
 export type AppDispatch = AppStore['dispatch'];
 export type AppThunk<R = void> = ThunkAction<R, RootState, Extra, UnknownAction>;
 

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { KEY_STORAGE } from '@/net/auth.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { closeTab, openFile, restoreTabs, selectTabs, serializeTabs } from '@/tabs/slice.ts';
 import { Panes } from '@/tabs/Panes.tsx';
 import { FileView } from './FileView.tsx';

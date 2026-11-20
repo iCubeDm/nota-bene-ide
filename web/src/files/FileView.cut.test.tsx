@@ -3,7 +3,8 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { filesSlice } from './slice.ts';
 import { FileView } from './FileView.tsx';
 

@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang, t } from '@/i18n/index.ts';
-import { connState, makeStore, serverEvent } from '@/store/store.ts';
+import { connState, serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { App } from '@/App.tsx';
 import { promptHistoryModal } from '@/composer/historyModal.ts';
 import { recentModal } from '@/files/recent.ts';

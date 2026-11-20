@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment } from '@nota-bene/shared';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { rangeForAnchor } from '@/anchors/text.ts';
 import { HighlightLayer } from './HighlightLayer.tsx';
 

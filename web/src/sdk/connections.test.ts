@@ -3,7 +3,8 @@ import { createElement, type ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { makeStore, serverEvent } from '../store/store.ts';
+import { serverEvent } from '../store/store.ts';
+import { makeStore } from '@/testing';
 import { cancelRestart } from '../controls/slice.ts';
 import type { SocketState } from '../net/socket.ts';
 import { agentConnection, connectionsOf, SELF, useConnection, useConnState, useFeature, type ConnState, type ConnectionManager } from './connections.ts';
@@ -164,7 +165,7 @@ it('the page connections: before any store the one agent at base "", never opene
   expect(vi.mocked(fetch).mock.calls[0]![0]).toBe('/info');
   expect(sock).not.toHaveBeenCalled();
   const { makeStore: make } = await import('../store/store.ts');
-  const store = make({ url: 'ws://x/ws', connect: fake().connect });
+  const store = make({ url: 'ws://x/ws', connect: fake().connect, plugins: [] });
   expect(fresh.connections.current()).toBe(fresh.connectionsOf(store).current());
 });
 

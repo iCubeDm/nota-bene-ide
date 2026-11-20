@@ -8,7 +8,8 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Composer } from '@/composer/Composer.tsx';
 import { Feed } from '@/feed/Feed.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Attachments } from './Attachments.tsx';
 
 const uploads = vi.hoisted(() => [] as Blob[]);

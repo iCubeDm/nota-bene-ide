@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { UsageReport, UsageRow } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { selectTabs } from '@/tabs/slice.ts';
 import { compact } from '@/lib/format.ts';
 

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
 import { setLang, t } from '@/i18n/index.ts';
 import { getToasts } from '@/shell/toast.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { page } from '@/net/local.ts';
 import type { ProjectsList, RunningRow } from './api.ts';
 import { enterFailure, nav, projectsMenu, setStarter } from './api.ts';

@@ -6,7 +6,8 @@ import { CLAUDE_CAPABILITIES, type ClientMessage, type Comment } from '@nota-ben
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { addImage, selectImages, selectMarking } from '@/composer/slice.ts';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { ComposerAttachments } from './ComposerAttachments.tsx';
 
 const A = 'a'.repeat(64), B = 'b'.repeat(64);

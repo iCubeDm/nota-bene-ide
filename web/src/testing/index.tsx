@@ -7,7 +7,8 @@ import { PROTOCOL, type ClientMessage, type ServerEvent, type WireAgentEvent } f
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import type { HelloEvent } from '@/sdk/connections.ts';
 import type { SocketState } from '@/net/socket.ts';
-import { makeStore, type AppStore } from '@/store/store.ts';
+import { makeStore as coreStore, type AppStore } from '@/store/store.ts';
+import { PLUGINS } from '@/plugins.ts';
 
 type Of<K extends ServerEvent['kind']> = Extract<ServerEvent, { kind: K }>;
 
@@ -35,6 +36,10 @@ export interface TestStoreOptions {
   /** the socket's state once made (default open) */
   state?: SocketState;
 }
+
+/** The app's store, with every plugin unless the test names its own. */
+export const makeStore = (o: Omit<Parameters<typeof coreStore>[0], 'plugins'> & { plugins?: Parameters<typeof coreStore>[0]['plugins'] }): AppStore =>
+  coreStore({ plugins: PLUGINS, ...o });
 
 /** makeStore on a FakeConnection. */
 export function testStore(o: TestStoreOptions = {}): { store: AppStore; conn: FakeConnection } {

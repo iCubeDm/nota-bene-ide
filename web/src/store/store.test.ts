@@ -1,6 +1,22 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { configureStore } from '@reduxjs/toolkit';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { devToolsEnabled, interrupt, makeStore, selectBusy, selectFeed, sendMessage } from './store.ts';
+import { makeStore } from '@/testing';
+import { PLUGINS } from '../plugins.ts';
+import { commentsSlice } from '../comments/slice.ts';
+import { composerSlice } from '../composer/slice.ts';
+import { historySlice } from '../composer/history.ts';
+import { controlsSlice } from '../controls/slice.ts';
+import { feedUiSlice } from '../feed/uiSlice.ts';
+import { filesSlice } from '../files/slice.ts';
+import { markupSlice } from '../media/markup/slice.ts';
+import { remoteSlice } from '../remote/slice.ts';
+import { statsSlice } from '../stats/slice.ts';
+import { subagentsSlice } from '../subagent/slice.ts';
+import { tasksSlice, tasksUiSlice } from '../tasks/slice.ts';
+import { tabsSlice } from '../tabs/slice.ts';
+import { treeSlice } from '../tree/slice.ts';
+import { connSlice, devToolsEnabled, feedSlice, interrupt, makeStore as coreStore, selectBusy, selectFeed, sendMessage } from './store.ts';
 
 function fake() {
   const sent: ClientMessage[] = [];
@@ -15,6 +31,21 @@ function fake() {
 }
 
 afterEach(() => { vi.unstubAllEnvs(); });
+
+it('the plugins inject every slice under its name of before issue 511, with the same initial state', () => {
+  // the store as it was assembled before plugins (one reducer map naming every slice): persisted state and selectors rely on it
+  const before = configureStore({
+    reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, remote: remoteSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer, promptHistory: historySlice.reducer },
+  });
+  const store = coreStore({ url: 'u', connect: fake().connect, plugins: PLUGINS });
+  expect(Object.keys(store.getState()).sort()).toEqual(Object.keys(before.getState()).sort());
+  expect(store.getState()).toEqual(before.getState());
+});
+
+it('a slice name two plugins declare fails at creation', () => {
+  const twice = [{ id: 'a', slices: [statsSlice] }, { id: 'b', slices: [statsSlice] }];
+  expect(() => coreStore({ url: 'u', connect: fake().connect, plugins: twice })).toThrow(/stats/);
+});
 
 it('inbound frames reach the feed', () => {
   const f = fake();

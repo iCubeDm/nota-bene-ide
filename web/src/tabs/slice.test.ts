@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { makeStore } from '../store/store.ts';
+import { makeStore } from '@/testing';
 import { MediaController } from '../media/mediaController.ts';
 import { filesSlice, setFileLoad } from '../files/slice.ts';
 import { setSource, toggleDir } from '../tree/slice.ts';

@@ -2,7 +2,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, expect, it } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import type { SocketState } from '@/net/socket.ts';
 import { LoginRequired } from './LoginRequired.tsx';
 

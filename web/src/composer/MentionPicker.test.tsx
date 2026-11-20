@@ -6,7 +6,8 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { CommentPopup } from '@/comments/CommentPopup.tsx';
 import type { PendingSelection } from '@/comments/SelectionButton.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Composer } from './Composer.tsx';
 
 type Resolver = { q: string; resolve: (v: string[]) => void; signal?: AbortSignal | null };

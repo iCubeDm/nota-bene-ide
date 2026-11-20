@@ -3,7 +3,8 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent, TaskOutputView, WireAgentEvent } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { restoreTabs, serializeTabs, type ShellTab } from '@/tabs/slice.ts';
 import { SHELL_POLL_MS, ShellView } from './ShellView.tsx';
 

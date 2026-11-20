@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest';
 import type { WireAgentEvent } from '@nota-bene/shared';
 import { shortModel } from '@nota-bene/shared';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { selectFinishedCount, selectRunningCount, selectTaskIdByCall, selectTaskRows } from './slice.ts';
 
 type Task = Extract<WireAgentEvent, { t: 'task' }>;

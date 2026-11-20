@@ -4,7 +4,8 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { PROTOCOL, type ClientMessage, type ServerEvent } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Feed } from './Feed.tsx';
 
 beforeEach(() => setLang('en'));

@@ -3,7 +3,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { setTmpDirs } from '@/files/tmpImages.ts';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { selectTabs } from '@/tabs/slice.ts';
 import { ToolLine } from './ToolLine.tsx';
 

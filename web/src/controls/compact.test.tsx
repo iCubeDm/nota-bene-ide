@@ -7,7 +7,7 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Composer } from '@/composer/Composer.tsx';
 import { Feed } from '@/feed/Feed.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { CompactPending } from './CompactPending.tsx';
 import { ConfirmDialog } from '@/components/ConfirmDialog.tsx';
 

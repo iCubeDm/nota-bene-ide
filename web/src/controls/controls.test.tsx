@@ -6,7 +6,8 @@ import type { ClientMessage, AgentMode as Mode, ServerEvent } from '@nota-bene/s
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Composer } from '@/composer/Composer.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { connState, makeStore } from '@/store/store.ts';
+import { connState } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { planApproved, restartAgent, selectRestarting, selectSwitching, switchSession } from './slice.ts';
 
 // Radix popper measures with ResizeObserver, which jsdom lacks

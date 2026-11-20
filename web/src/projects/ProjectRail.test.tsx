@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang, t } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { getToasts } from '@/shell/toast.ts';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { page } from '@/net/local.ts';

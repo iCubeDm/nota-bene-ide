@@ -5,7 +5,7 @@ import { parseClientMessage, type ClientMessage, type MediaAnchor } from '@nota-
 import { Composer } from '@/composer/Composer.tsx';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { switchSession } from '@/controls/slice.ts';
 import { getToasts, resetToasts } from '@/shell/toast.ts';
 import { CommentPopup, type PendingComment } from './CommentPopup.tsx';

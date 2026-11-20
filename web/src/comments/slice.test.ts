@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientMessage, Comment, ServerEvent } from '@nota-bene/shared';
-import { makeStore, sendMessage } from '../store/store.ts';
+import { sendMessage } from '../store/store.ts';
+import { makeStore } from '@/testing';
 import {
   addComment, closeCommentCard, editComment, moveCutComment, openCommentCard, removeComment, selectComments, selectCommentsUi,
   selectPending, selectSentFor, setPanelOpen,

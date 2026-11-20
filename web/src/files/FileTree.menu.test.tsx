@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { TreeEntry } from '@nota-bene/shared';
 import type { Cut } from '@nota-bene/shared/cut';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { setTreeOpen } from '@/tree/slice.ts';
 import { selectTabs } from '@/tabs/slice.ts';
 import { registerEditTarget, touchEditTarget } from '@/cut/targets.ts';
