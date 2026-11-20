@@ -58,7 +58,8 @@ export function composeBatch(
     const clips = (c.voice ?? []).map((v) => v.text.replace(/\s+/g, ' ').trim()).filter(Boolean);
     const [head = '', ...more] = [[labelOf(c), c.text.trim()].filter(Boolean).join(' '), ...clips].filter(Boolean);
     const instr = instructionOf(c);
-    return `${i + 1}. [${whereOf(c)}]\n${quote}\n→ ${head}${more.map((l) => `\n   ${l}`).join('')}${instr ? `\n   ${instr}` : ''}${tail}`;
+    // no quote (a comment on the whole picture, issue 494): no line for it
+    return `${i + 1}. [${whereOf(c)}]\n${quote ? `${quote}\n` : ''}→ ${head}${more.map((l) => `\n   ${l}`).join('')}${instr ? `\n   ${instr}` : ''}${tail}`;
   });
   return `${general ? general + '\n\n' : ''}${tIn(lang, 'batchHead')}\n\n${blocks.join('\n\n')}`;
 }

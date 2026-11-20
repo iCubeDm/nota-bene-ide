@@ -460,6 +460,21 @@ describe('comment ops (protocol 19)', () => {
     await until(() => ack(a, 'ok') !== undefined);
     expect(lastComments(a)).toEqual([c('b')]);
     expect(b.events.some((e) => e.kind === 'comment-refused')).toBe(false);
+    // issue 494: one with a usable opId is answered invalid, so the client drops it; the error names the op and the field
+    const refusals = a.events.filter((e) => e.kind === 'comment-refused').slice(1);
+    expect(refusals).toEqual([{ kind: 'comment-refused', opId: 'm1', reason: 'invalid' }, { kind: 'comment-refused', opId: 'm2', reason: 'invalid' }]);
+    expect(a.events.filter((e) => e.kind === 'server-error').map((e) => (e as { message: string }).message)).toContainEqual(expect.stringContaining('ops[0]'));
+  });
+
+  it('issue 494: the phone\'s own comment on a whole picture (no marks) is applied', async () => {
+    const phone = JSON.parse(fs.readFileSync(new URL('../../mobile/app/test/fixtures/media/whole-image.json', import.meta.url), 'utf8')) as Comment;
+    expect((phone.anchor as { shapes: unknown[] }).shapes).toEqual([]);
+    const s = await boot();
+    const a = await connect(s.url);
+    await until(() => lastComments(a) !== undefined);
+    a.ws.send(op('w0', null, [{ op: 'add', comment: phone }]));
+    await until(() => ack(a, 'w0') !== undefined);
+    expect(lastComments(a)).toEqual([phone]);
   });
 
   it('a failing write answers failed, so the client keeps the op', async () => {

@@ -27,7 +27,7 @@ import { Attachments } from '@/attachments/Attachments.tsx';
 import { insertPaths } from '@/attachments/file.ts';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import type { ImageEntry } from '@/composer/slice.ts';
-import { mediaTime } from '@/media/markup/geometry.ts';
+import { mediaLine } from '@/media/markup/geometry.ts';
 import { deleteMarks, type MediaAnchorPatch } from '@/media/markup/createMediaComment.ts';
 import { addComment, setPanelOpen } from './slice.ts';
 import { useDrag } from './useDrag.ts';
@@ -47,12 +47,10 @@ export type PendingComment = {
 /** A recording in the editor: its text once transcribed, or why there is none */
 type Clip = { voice: Voice; text?: string; error?: VoiceError };
 
-const baseName = (p: string) => p.slice(p.lastIndexOf('/') + 1);
-
 /** The popup's header line: the quoted text, or the media file (with the time) and its shape count. */
 function quoteOf(a: Anchor, t: ReturnType<typeof useT>): string {
   return isMediaAnchor(a)
-    ? `${baseName(a.source.path)}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''} · ${t('markShapes', a.shapes.length)}`
+    ? mediaLine(a, (n) => t('markShapes', n))
     : isPageAnchor(a) ? pageQuote(a, getLang())
     : isCutAnchor(a) ? cutLine(a, getLang())
     : isAttachmentAnchor(a) ? t('markShapes', a.shapes.length)

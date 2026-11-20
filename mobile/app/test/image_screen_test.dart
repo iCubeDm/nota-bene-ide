@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -41,10 +42,12 @@ Future<Rig> openImage(
   List<Map<String, Object?>> comments = const [],
   List<ViewerImage>? items,
   int index = 0,
+  num protocol = 13,
 }) async {
   final r = Rig();
   await r.open(
     t,
+    hello: {'kind': 'hello', 'protocol': protocol, 'capabilities': Rig.caps()},
     events: [
       {
         'kind': 'session',
@@ -665,27 +668,45 @@ void main() {
   });
 
   testWidgets('the bottom actions are Mark up, Comment and Share', (t) async {
-    final r = await openImage(t);
+    final r = await openImage(t, protocol: 25);
     expect(find.byKey(const ValueKey('act-markup')), findsOneWidget);
     expect(find.byKey(const ValueKey('act-comment')), findsOneWidget);
     expect(find.byKey(const ValueKey('act-share')), findsOneWidget);
     r.dispose();
   });
 
+  testWidgets(
+    'issue 494: a window older than 25 would refuse a comment without marks, so there is no Comment',
+    (t) async {
+      final r = await openImage(t, protocol: 24);
+      expect(find.byKey(const ValueKey('act-markup')), findsOneWidget);
+      expect(find.byKey(const ValueKey('act-comment')), findsNothing);
+      r.dispose();
+    },
+  );
+
   testWidgets('Comment without a drawing is a comment on the whole image', (
     t,
   ) async {
-    final r = await openImage(t);
+    final r = await openImage(t, protocol: 25);
     await t.tap(find.byKey(const ValueKey('act-comment')));
     await t.pumpAndSettle();
     await t.enterText(find.byType(TextField), 'whole');
     await tapSend(t);
     await settleReal(t, 10);
-    final added = (commentSets(r).last['items'] as List).single as Map;
+    final op = r.sent.lastWhere((m) => m['type'] == 'comment-op');
+    final added = ((op['ops'] as List).single as Map)['comment'] as Map;
     expect(added['text'], 'whole');
     final a = added['anchor'] as Map;
     expect(a['source'], {'kind': 'file', 'path': 'img/shot.png'});
     expect(a['shapes'], isEmpty);
+    // the phone's own JSON, which the shared validator takes (shared/src/protocol.test.ts, issue 494)
+    expect(
+      {...added, 'id': 'c-whole', 'createdAt': 1},
+      jsonDecode(
+        File('test/fixtures/media/whole-image.json').readAsStringSync(),
+      ),
+    );
     r.dispose();
   });
 

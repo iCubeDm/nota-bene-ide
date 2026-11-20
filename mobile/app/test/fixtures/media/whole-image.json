@@ -1,0 +1,21 @@
+{
+ "id": "c-whole",
+ "anchor": {
+  "kind": "media",
+  "source": {
+   "kind": "file",
+   "path": "img/shot.png"
+  },
+  "width": 200,
+  "height": 100,
+  "version": "W/\"v1\"",
+  "shapes": []
+ },
+ "text": "whole",
+ "status": "pending",
+ "createdAt": 1,
+ "images": [
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+ ],
+ "genImages": 1
+}

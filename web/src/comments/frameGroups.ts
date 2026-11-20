@@ -17,7 +17,8 @@ const frameKey = (a: MediaAnchor): string =>
 export function frameGroups(pending: Comment[]): FrameGroup[] {
   const by = new Map<string, number[]>();
   pending.forEach((c, i) => {
-    if (!isMediaAnchor(c.anchor) || c.anchor.version === undefined || !c.images?.[0]) return;
+    // no shapes (the whole picture, issue 494): no badge to point at in a shared frame
+    if (!isMediaAnchor(c.anchor) || !c.anchor.shapes.length || c.anchor.version === undefined || !c.images?.[0]) return;
     const k = frameKey(c.anchor);
     by.set(k, [...(by.get(k) ?? []), i]);
   });

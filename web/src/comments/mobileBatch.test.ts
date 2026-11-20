@@ -42,6 +42,10 @@ const comments: Record<string, Comment> = {
       shapes: [{ kind: 'ellipse', color: '#ffcc00', x: 0, y: 0, w: 1, h: 1 }],
     },
   },
+  whole: { // issue 494: no shapes, a comment on the whole picture
+    ...base, id: '55555555-5555-4555-8555-555555555555', text: 'all of it', images: [hex('2')], genImages: 1,
+    anchor: { kind: 'media', source: { kind: 'file', path: 'img/whole.png' }, width: 960, height: 640, shapes: [] },
+  },
   mask: { // issue 447: a polygon, so mask.png too
     ...base, id: '44444444-4444-4444-8444-444444444444', text: 'inpaint this', images: [hex('1')], genImages: 1,
     anchor: {

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/comments/comments.dart';
 import 'package:nb_app/comments/queue.dart';
+import 'package:nb_channel/nb_channel.dart' show b64u;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'support/rig.dart';
@@ -124,6 +125,16 @@ void main() {
       expect(w.shown, ['n']);
       w.cs.hello(19);
       w.cs.flush();
+      expect(w.ops.length, 1);
+    });
+
+    test('issue 494: an op the window cannot parse (invalid) is dropped', () {
+      final w = Window();
+      w.cs.apply([]);
+      w.cs.add(c('x').anchor, 'mine', null, id: 'n');
+      w.cs.refused(w.ops.single.opId, CommentRefusal.invalid);
+      expect(w.shown, isEmpty);
+      w.cs.hello(19);
       expect(w.ops.length, 1);
     });
 
@@ -307,6 +318,37 @@ void main() {
       });
       await t.pump();
       expect(r.tab!.comments.all.single.text, 'merged');
+      r.dispose();
+    },
+  );
+
+  testWidgets(
+    'issue 494: a change kept on disk goes when the window connects in the server\'s order: replay, comments, hello',
+    (t) async {
+      // what an earlier run kept on disk for this window (the rig's host and project)
+      final queued = ClientMessageCommentOp(
+        opId: 'q1',
+        sessionId: null,
+        ops: [CommentOpAdd(comment: c('n'))],
+      );
+      CommentQueues.instance = CommentQueues(
+        MemoryQueueFile()
+          ..json = jsonEncode({
+            '${b64u(List.filled(32, 1))}|/home/u/notes': [queued.toJson()],
+          }),
+      );
+      final r = Rig();
+      await r.open(t, keepStore: true, greet: false, settle: false);
+      expect([for (final x in r.tab!.comments.all) x.id], ['n']);
+      r.event({'kind': 'replay', 'events': <Object?>[]});
+      r.event({'kind': 'comments', 'items': <Object?>[]});
+      r.event({'kind': 'hello', 'protocol': 19, 'capabilities': Rig.caps()});
+      await t.pump();
+      final op = r.sent.singleWhere((m) => m['type'] == 'comment-op');
+      expect(
+        ((op['ops'] as List).single as Map)['comment'],
+        containsPair('id', 'n'),
+      );
       r.dispose();
     },
   );
