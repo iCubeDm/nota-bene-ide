@@ -1,9 +1,6 @@
 import { useState } from 'react';
-import { Button } from '@/components/ui/button.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
-import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { ConfirmDialog } from './ConfirmDialog.tsx';
+import { useT, selectBusy, useAppDispatch, useAppSelector } from '@/sdk';
+import { Button, Tooltip, TooltipContent, TooltipTrigger, ConfirmDialog } from '@/sdk/ui';
 import { runCommand, selectCanOrderCompact, selectCapabilities, selectCompactPending, selectOrderWaits, selectCapabilitiesKnown, selectIdleCompact, selectSwitching, toggleIdleCompact } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
 

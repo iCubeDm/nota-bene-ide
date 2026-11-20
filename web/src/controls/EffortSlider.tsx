@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AgentEffort as EffortLevel } from '@nota-bene/shared';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu.tsx';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
+import { DropdownMenuItem } from '@/sdk/ui';
 
 /**
  * The effort as one stepped slider: stop 0 is Auto (the model's default, no level chosen), then one stop per level.

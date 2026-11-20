@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { modKey, withKeys } from '@/shell/keymap.ts';
-import { apiFetch } from '@/net/auth.ts';
+import { useT, modKey, withKeys, connections } from '@/sdk';
 import { useWrapLines } from '../wrap.ts';
 
 type Draft = { text: string; base: string | null };
@@ -48,7 +46,7 @@ export function FileEditor({ path, onClose }: { path: string; onClose: (saved: b
   const fetchDisk = async () => {
     setProblem(null);
     try {
-      const r = await apiFetch(`/edit?path=${encodeURIComponent(path)}`);
+      const r = await connections.current().fetch(`/edit?path=${encodeURIComponent(path)}`);
       if (!r.ok) return setProblem(r.status === 415 ? t('binary') : r.status === 413 ? t('tooLarge') : r.status === 404 ? t('fileGone') : `${r.status} ${r.statusText}`.trim());
       const j = await r.json() as { text: string; base: string };
       const shown = j.text.replace(/\r\n/g, '\n'); // a text box's value has no other line end
@@ -76,7 +74,7 @@ export function FileEditor({ path, onClose }: { path: string; onClose: (saved: b
     setBusy(true);
     setProblem(null);
     try {
-      const r = await apiFetch('/edit', {
+      const r = await connections.current().fetch('/edit', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, text, base: overwrite ? null : base.current }),
       });
       if (r.status === 409) return setConflict(true);

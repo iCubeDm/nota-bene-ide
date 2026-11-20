@@ -1,18 +1,13 @@
 import { VIDEO } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu.tsx';
+import { useT, connections, isMac, toast, useAppDispatch, openFile } from '@/sdk';
+import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/sdk/ui';
 import { isEditMedia, newCutOf } from '@/cut/assemble.ts';
 import { srcSize } from '@/cut/durations.ts';
 import { mediaLen } from '@/cut/mediaLen.ts';
 import { projectFileUrl } from '@/files/kinds.ts';
 import { editTargetName, useEditTarget } from '@/cut/targets.ts';
-import { useT } from '@/i18n/index.ts';
-import { apiFetch } from '@/net/auth.ts';
 import { isLocalPage } from '@/net/local.ts';
-import { isMac } from '@/shell/keymap.ts';
-import { toast } from '@/shell/toast.ts';
-import { useAppDispatch } from '@/store/store.ts';
-import { openFile } from '@/tabs/slice.ts';
 import { diskChanged } from '@/tree/slice.ts';
 
 const folderOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
@@ -76,7 +71,7 @@ export function TreeMenu({ row, picked, src, creating, setCreating }: {
       const [items, frame] = await Promise.all([Promise.all(media.map(async (f) => ({ src: f, len: await mediaLen(f) }))), firstFrame(media)]);
       const made = newCutOf(items, frame);
       if (!made) return toast(t('treeNewEditFailed'), t('cutCannotAdd', media.map((f) => basename(f)).join(', ')));
-      const r = await apiFetch('/cut/new', {
+      const r = await connections.current().fetch('/cut/new', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dir: folderOf(media[0]!), cut: made.cut }),
       });
       const j = await r.json().catch(() => null) as { path?: string; error?: string; code?: string } | null;
@@ -97,7 +92,7 @@ export function TreeMenu({ row, picked, src, creating, setCreating }: {
   // the server's refusal codes become words (OS_REASONS)
   const os = async (action: 'reveal' | 'open') => {
     try {
-      const r = await apiFetch(`/os/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: row }) });
+      const r = await connections.current().fetch(`/os/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: row }) });
       if (r.ok) return;
       const j = (await r.json().catch(() => null)) as { error?: string } | null;
       toast(t('treeOsFail', basename(row)), t(OS_REASONS[j?.error ?? ''] ?? 'treeOsOther'));

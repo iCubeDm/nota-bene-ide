@@ -1,7 +1,7 @@
 // How a comment on an edit's timeline (issue 430) reads: in the batch the agent gets, on the card and in the popup.
 import type { CutAnchor, CutAnchorClip } from '@nota-bene/shared';
 import { isPhotoSrc } from '@nota-bene/shared/cut';
-import { tIn, type Lang } from '@/i18n/index.ts';
+import { tIn, type Lang } from '@/sdk';
 import { mediaTime } from '@/media/markup/geometry.ts';
 
 /** One line of a field: a break or a tab (which the server refuses anyway) never leaves the batch's quote. */

@@ -1,6 +1,6 @@
 import { has, type Comment, type Feature, type QuickLabelId } from '@nota-bene/shared';
-import { t, tIn, type Lang } from '../i18n/index.ts';
-import type { ru } from '../i18n/ru.ts';
+// a relative import of i18n, not @/sdk: the protocol generator loads this file in plain Node (scripts/protocol/mobileStrings.ts)
+import { t, tIn, type I18nKey, type Lang } from '../i18n/index.ts';
 
 export interface QuickLabel { id: QuickLabelId; emoji: string; /** sent to the agent, always English */ instruction?: string }
 
@@ -30,7 +30,7 @@ export const labelsFor = (protocol: number): QuickLabel[] =>
   });
 
 const byId = new Map(QUICK_LABELS.map((l) => [l.id, l]));
-const keyOf = (id: QuickLabelId) => `label_${id}` as keyof typeof ru;
+const keyOf = (id: QuickLabelId) => `label_${id}` as I18nKey;
 
 /** The label text in the UI language, or in `lang` when given (a sent batch must not follow the UI language). */
 export function labelText(id: QuickLabelId, lang?: Lang): string {

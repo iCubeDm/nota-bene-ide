@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { useAppSelector } from '@/store/store.ts';
+import { useT, useAppSelector } from '@/sdk';
 import { selectTaskControls, selectTaskIdByCall } from './slice.ts';
 import { BackgroundButton, BTN, StopButton, useForeground } from './TaskButtons.tsx';
 

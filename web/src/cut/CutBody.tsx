@@ -4,13 +4,12 @@ import { has, isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/share
 import { AUDIO, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
 import { projectFileUrl } from '@/files/kinds.ts';
-import { useT } from '@/i18n/index.ts';
+import { useT, useAppDispatch, useAppSelector } from '@/sdk';
 import { CommentPopup, type PendingComment } from '@/comments/CommentPopup.tsx';
 import { labelText } from '@/comments/labels.ts';
 import { moveCutComment, selectComments } from '@/comments/slice.ts';
 import { clearJump, selectJump } from '@/files/slice.ts';
 import { mediaTime } from '@/media/markup/geometry.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { srcLength } from './durations.ts';
 import { appendMedia } from './assemble.ts';
 import { mediaLen, PHOTO_LEN } from './mediaLen.ts';

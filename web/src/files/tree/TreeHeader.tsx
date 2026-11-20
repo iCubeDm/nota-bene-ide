@@ -1,4 +1,4 @@
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import { Svg } from '@/tabs/TabStrip.tsx';
 
 type Props = {

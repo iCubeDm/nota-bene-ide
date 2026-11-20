@@ -3,8 +3,8 @@
 // badge. A click moves this tab to that project the way the switcher does; + opens a folder. Settings can turn it off; a
 // narrow window has no room for it.
 import { useState, useSyncExternalStore } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
+import { useT } from '@/sdk';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { remotePage } from '@/net/local.ts';
 import { enterProject, openStarter, PROVIDER_LABEL, useProjects, type RunningRow } from './api.ts';
 import { useRailPref } from './railPref.ts';

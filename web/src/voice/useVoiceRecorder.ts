@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Voice } from '@nota-bene/shared';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import { mic, type Recorder, type Recording } from './recorder.ts';
 import { uploadVoice } from './upload.ts';
 

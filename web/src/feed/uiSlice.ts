@@ -1,7 +1,6 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { anchorSource } from '@nota-bene/shared';
-import type { AppThunk, RootState } from '../store/store.ts';
-import type { FeedItem } from '../store/feed.ts';
+import type { AppThunk, RootState, FeedItem } from '@/sdk';
 import { isAgentTool, itemsOf } from '../subagent/slice.ts';
 
 /**

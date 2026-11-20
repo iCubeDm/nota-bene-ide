@@ -1,9 +1,6 @@
 import { createAction, type PayloadAction, createListenerMiddleware, createSlice } from '@reduxjs/toolkit';
 import { has, CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
-import { t } from '../i18n/index.ts';
-import { apiFetch } from '../net/auth.ts';
-import { toast } from '../shell/toast.ts';
-import { connState, serverEvent, type AppThunk, type RootState } from '../store/store.ts';
+import { t, toast, connState, serverEvent, type AppThunk, type RootState } from '@/sdk';
 
 /**
  * `switching`: a `switch` we sent is in flight. `asked` from the click until the reset's `replay` (the server accepted
@@ -289,7 +286,7 @@ export const restartAgent = (): AppThunk<boolean> => (dispatch, getState, { conn
 export const stopWindow = (): AppThunk<Promise<boolean>> => async (_dispatch, getState, { connections }) => {
   if (getState().controls.switching) return false;
   try {
-    const r = await apiFetch('/stop', { method: 'POST' });
+    const r = await connections.current().fetch('/stop', { method: 'POST' });
     if (!r.ok) { toast(t('stopFail'), (await r.text().catch(() => '')) || String(r.status)); return false; }
   } catch (e) {
     toast(t('stopFail'), e instanceof Error ? e.message : String(e));
@@ -315,10 +312,10 @@ export const restartServer = (o: { now?: boolean } = {}): AppThunk<Promise<boole
   dispatch(restartVia('/restart-server', o.now ? { now: true } : undefined));
 
 /** the page is in its pause too (as for the update's hand-over): the pending restart may go now */
-export const restartInPause = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
+export const restartInPause = (): AppThunk<Promise<boolean>> => async (dispatch, getState, { connections }) => {
   if (getState().controls.switching) return false;
   // asked first, the restarting phase only once it is accepted: a 409 (the server still sees work) changes nothing here
-  const ok = await apiFetch('/restart-server/pause', { method: 'POST' }).then((r) => r.ok, () => false);
+  const ok = await connections.current().fetch('/restart-server/pause', { method: 'POST' }).then((r) => r.ok, () => false);
   if (!ok || getState().controls.switching) return false;
   dispatch(switchStarted(true));
   dispatch(restartAccepted()); // a `restart-pending` before the socket drops ends the phase: the server stayed
@@ -335,9 +332,9 @@ export const restartInPause = (): AppThunk<Promise<boolean>> => async (dispatch,
 export const cancelCompact = (): AppThunk<boolean> => (_d, _g, { connections }) => connections.current().send({ type: 'compact-cancel' });
 
 /** drops the pending restart; the server's `restart-pending` updates every page */
-export const cancelRestart = (): AppThunk<Promise<boolean>> => async () => {
+export const cancelRestart = (): AppThunk<Promise<boolean>> => async (_d, _g, { connections }) => {
   try {
-    const r = await apiFetch('/restart-server/cancel', { method: 'POST' });
+    const r = await connections.current().fetch('/restart-server/cancel', { method: 'POST' });
     if (!r.ok) { toast(t('restartFail'), (await r.text().catch(() => '')) || String(r.status)); return false; }
     return true;
   } catch (e) {
@@ -346,7 +343,7 @@ export const cancelRestart = (): AppThunk<Promise<boolean>> => async () => {
   }
 };
 
-const restartVia = (url: string, body: unknown): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
+const restartVia = (url: string, body: unknown): AppThunk<Promise<boolean>> => async (dispatch, getState, { connections }) => {
   const st = getState();
   if (st.controls.switching) return false;
   dispatch(switchStarted(true));
@@ -358,7 +355,7 @@ const restartVia = (url: string, body: unknown): AppThunk<Promise<boolean>> => a
     if (toastIt) toast(t('restartFail'), msg);
   };
   try {
-    const r = await apiFetch(url, { method: 'POST', ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) });
+    const r = await connections.current().fetch(url, { method: 'POST', ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) });
     if (!r.ok) { giveUp((await r.text().catch(() => '')) || String(r.status)); return false; }
     const j = await r.json().catch(() => null) as { pending?: unknown } | null;
     if (j?.pending === true) { giveUp('', false); return true; } // it waits for the pause: no restart yet

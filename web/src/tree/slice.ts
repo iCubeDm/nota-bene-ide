@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { AppThunk, RootState } from '../store/store.ts';
+import type { AppThunk, RootState } from '@/sdk';
 import { enterRoot } from '../tabs/slice.ts';
 
 /**

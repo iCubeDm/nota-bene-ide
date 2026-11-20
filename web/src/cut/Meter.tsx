@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import type { CutPlayer } from './engine.ts';
 import { meterFrac, meterStep, METER_FLOOR, quiet, type MeterChannel } from './metering.ts';
 

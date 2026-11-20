@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
-import { setLang } from '@/i18n/index.ts';
+import { setLang } from '@/sdk';
 import { makeStore } from '@/store/store.ts';
 import { CutBody } from './CutBody.tsx';
 import { SAVE_DELAY } from './useCutDoc.ts';

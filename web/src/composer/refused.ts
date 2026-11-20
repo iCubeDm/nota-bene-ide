@@ -1,9 +1,7 @@
 import type { Middleware } from '@reduxjs/toolkit';
 import { unmarkSending } from '../comments/slice.ts';
-import { t } from '../i18n/index.ts';
-import { toast } from '../shell/toast.ts';
+import { t, toast, serverEvent } from '@/sdk';
 import { addImage, setDraft } from './slice.ts';
-import { serverEvent } from '../store/store.ts';
 import { takeVoiceSend, voiceRefused, voiceSendEchoed } from '../voice/inflight.ts';
 import type { SentDraft, ShellDraft } from './slice.ts';
 

@@ -1,10 +1,8 @@
 // The project switcher's and the starter's client side: the server routes of server/src/projectRoutes.ts, their answer
 // types (mirrored: the web does not import from server/), the polling hook, and the move of this tab to another window.
 import { useEffect, useSyncExternalStore } from 'react';
-import { t } from '@/i18n/index.ts';
-import { apiFetch } from '@/net/auth.ts';
+import { t, connections, toast } from '@/sdk';
 import { remotePage } from '@/net/local.ts';
-import { toast } from '@/shell/toast.ts';
 
 export type Provider = 'claude' | 'codex' | 'omp';
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
@@ -74,7 +72,7 @@ function load(): void {
   inFlight = me;
   const g = gen;
   const signal = timeoutSignal();
-  apiFetch('/system/projects', signal ? { signal } : undefined)
+  connections.current().fetch('/system/projects', signal ? { signal } : undefined)
     .then((r) => (r.ok ? r.json() : undefined))
     .then((j: unknown) => {
       if (g !== gen || inFlight !== me) return;
@@ -154,7 +152,7 @@ export function useProjects(active: boolean): { data: ProjectsList | null; reloa
 }
 
 export const postJson = (url: string, body: unknown): Promise<Response> =>
-  apiFetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  connections.current().fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 /** The server's fixed refusals (server/src/projects.ts, projectRoutes.ts), in the page's language; any other text (a launcher's line) as it is. */
 const REASONS = {

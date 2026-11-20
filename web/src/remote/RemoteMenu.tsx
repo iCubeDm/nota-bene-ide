@@ -1,8 +1,7 @@
 import type { RemoteState } from '@nota-bene/shared';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu.tsx';
-import { useT } from '@/i18n/index.ts';
+import { useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { DropdownMenuItem } from '@/sdk/ui';
 import { remotePage } from '@/net/local.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openRemote } from '@/tabs/slice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { indicator, selectRemote, type Indicator } from './slice.ts';

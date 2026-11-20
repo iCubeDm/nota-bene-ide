@@ -1,6 +1,6 @@
 import { isAttachmentAnchor } from '@nota-bene/shared';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useAppDispatch, useAppSelector } from '@/sdk';
 import { CommentCard } from './CommentCard.tsx';
 import { useDrag, type Pos } from '../useDrag.ts';
 import { closeCommentCard, selectComments, selectSentFor } from '../slice.ts';

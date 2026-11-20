@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { selectCapabilitiesKnown } from '@/controls/slice.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, useAppDispatch, useAppSelector } from '@/sdk';
 import { backgroundTask, selectForeground, selectTaskControls, stopTask, type Task } from './slice.ts';
 
 /** How long the Stop button stays on "Stop?" before it goes back. */

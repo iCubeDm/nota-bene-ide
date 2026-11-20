@@ -1,12 +1,11 @@
 import { useSyncExternalStore } from 'react';
-import { apiFetch } from '@/net/auth.ts';
-import { isDrivePath, isServerDrivePath, underDir, wireAbs } from '@/lib/paths.ts';
+import { connections, isDrivePath, isServerDrivePath, underDir, wireAbs } from '@/sdk';
 
 /**
  * Images of the server's temp folders (a screenshot the agent left in /tmp). The tab is a plain file tab whose path is
  * ABSOLUTE: a project path is always relative, so an absolute path in a tab means a temp image, with no new source id,
  * tab kind or comment store (comments are keyed by that path like any file's). The bytes come from `/tmpimage` on the key
- * tier, never `/file`, through apiFetch into a blob (see useTmpImage). A Windows server names its folders `C:/...`: a path
+ * tier, never `/file`, through the connection's fetch into a blob (see useTmpImage). A Windows server names its folders `C:/...`: a path
  * an agent wrote as `C:\...` matches too (letter case ignored) and is kept in the `C:/...` form (one tab, one comment key).
  */
 const IMG = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
@@ -59,7 +58,7 @@ export type TmpFetched = { s: 'ok'; blob: Blob } | { s: 'gone' } | { s: 'big' } 
 
 /** GET `/tmpimage?...` with the key into bytes; the status maps to what the view says. */
 export async function fetchTmpImage(url: string, signal: AbortSignal): Promise<TmpFetched> {
-  const r = await apiFetch(url, { signal, cache: 'no-store' });
+  const r = await connections.current().fetch(url, { signal, cache: 'no-store' });
   if (r.status === 404) return { s: 'gone' };
   if (r.status === 413) return { s: 'big' };
   if (!r.ok) return { s: 'error' };

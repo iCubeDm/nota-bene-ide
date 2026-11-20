@@ -1,9 +1,8 @@
 import { useAutosize } from './autosize.ts';
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Button } from '@/components/ui/button.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, keysLabel, modKey, withKey, chat } from '@/sdk';
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { selectSendable, sendBatch } from '@/comments/send.ts';
 import { selectPending } from '@/comments/slice.ts';
 import { CompactClear } from '@/controls/CompactClear.tsx';
@@ -24,8 +23,7 @@ import { insertPaths } from '@/attachments/file.ts';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { draggedPaths } from '@/files/drag.ts';
 import { addImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
-import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { BINDINGS, keysLabel, modKey, VOICE_KEY, withKey } from '@/shell/keymap.ts';
+import { BINDINGS, VOICE_KEY } from '@/shell/keymap.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { onVoiceRefused } from '@/voice/inflight.ts';
@@ -457,7 +455,7 @@ export function Composer() {
               variant="ghost"
               disabled={!busy}
               aria-label={t('stopTip')}
-              onClick={() => dispatch(interrupt())}
+              onClick={() => dispatch(chat.interrupt())}
               className="h-10 bg-muted px-2.5 enabled:bg-destructive/15 enabled:text-destructive enabled:hover:bg-destructive/25 disabled:opacity-35"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>

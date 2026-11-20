@@ -1,6 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { has, type RemoteState, type ServerEvent } from '@nota-bene/shared';
-import { serverEvent, type RootState } from '../store/store.ts';
+import { serverEvent, type RootState } from '@/sdk';
 
 
 export type RemotePair = Extract<ServerEvent, { kind: 'remote-pair' }>;

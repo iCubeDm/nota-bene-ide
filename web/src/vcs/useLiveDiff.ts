@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { selectSession, useAppSelector } from '@/store/store.ts';
+import { selectSession, useAppSelector } from '@/sdk';
 import { selectRefreshSeq, selectTree } from '@/tree/slice.ts';
 import { baseOf, useDiffData, useVcsUi, watchDiff } from './store.ts';
 

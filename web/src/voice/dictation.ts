@@ -1,12 +1,11 @@
 import { dictationLangSet, dictationSet } from '@/controls/slice.ts';
-import { apiFetch } from '@/net/auth.ts';
-import type { AppDispatch } from '@/store/store.ts';
+import { connections, type AppDispatch } from '@/sdk';
 
 /** `GET /dictation`: the optional Whisper install that transcribes voice messages and the phone's microphone */
 export type Dictation = { on: boolean; phase: 'none' | 'installing' | 'ready' | 'failed'; downloadMb: number; diskMb: number; dir: string; model: string; /** protocol 18: `auto` or an ISO 639 code */ dictationLang?: string };
 
 export async function getDictation(): Promise<Dictation> {
-  const r = await apiFetch('/dictation');
+  const r = await connections.current().fetch('/dictation');
   if (!r.ok) throw new Error(`/dictation ${r.status}`);
   return (await r.json()) as Dictation;
 }
@@ -23,7 +22,7 @@ export function dictationChanged(dispatch: AppDispatch, url: string, body: unkno
 
 /** Settings → Dictation and the mic's prompt act through POSTs to `/dictation/install | on | remove`. Throws on a refusal. */
 export async function postDictation(dispatch: AppDispatch, url: string, body: unknown = {}): Promise<void> {
-  const r = await apiFetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const r = await connections.current().fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`${r.status}`);
   dictationChanged(dispatch, url, body);
 }

@@ -1,8 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { RemoteDevice, RemoteHost, RemoteHostState, RemoteRefusalCode } from '@nota-bene/shared';
-import { Button } from '@/components/ui/button.tsx';
-import { getLang, t, useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { getLang, t, useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { Button } from '@/sdk/ui';
 import { cancelPair, connectComputer, forgetComputer, RemoteError, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
 import { clearPair, indicator, selectRemote } from './slice.ts';
 import { TONE, troubleWhy, WORD } from './RemoteMenu.tsx';

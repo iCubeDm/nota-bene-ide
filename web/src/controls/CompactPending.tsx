@@ -1,6 +1,5 @@
-import { useT } from '@/i18n/index.ts';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
 import { cancelCompact, selectCompactPending } from './slice.ts';
 
 /** Issue 499: a compaction ordered while the agent works waits for the next pause; the chip says so and offers Cancel. */

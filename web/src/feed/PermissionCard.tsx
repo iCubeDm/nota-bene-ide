@@ -1,7 +1,5 @@
 import { memo, useEffect, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import type { FeedItem } from '@/store/feed.ts';
-import { answerPermission, useAppDispatch } from '@/store/store.ts';
+import { useT, type FeedItem, useAppDispatch, chat } from '@/sdk';
 
 export const PermissionCard = memo(function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'permission' }> }) {
   const t = useT();
@@ -54,19 +52,19 @@ export const PermissionCard = memo(function PermissionCard({ item }: { item: Ext
               </button>)}</div> : null}
             </div>;
           })}
-          <div className="flex flex-wrap gap-2">{prompt.choices.map((c) => <button key={c.id} type="button" className={`${btn} bg-muted`} disabled={!['cancel', 'decline', 'deny'].includes(c.id) && prompt.fields?.some((f) => f.required && !(f.options?.length ? valueOf(f) : values[f.id] ?? '').trim())} onClick={() => dispatch(answerPermission(item.id, true, { choice: c.id, ...(prompt.fields ? { values: answers() } : {}) }))}>{choiceLabel(c.label)}</button>)}</div>
+          <div className="flex flex-wrap gap-2">{prompt.choices.map((c) => <button key={c.id} type="button" className={`${btn} bg-muted`} disabled={!['cancel', 'decline', 'deny'].includes(c.id) && prompt.fields?.some((f) => f.required && !(f.options?.length ? valueOf(f) : values[f.id] ?? '').trim())} onClick={() => dispatch(chat.answer(item.id, true, { choice: c.id, ...(prompt.fields ? { values: answers() } : {}) }))}>{choiceLabel(c.label)}</button>)}</div>
         </form>
       ) : (
         <>
           <button
             className={`${btn} bg-primary text-primary-foreground hover:opacity-90`}
-            onClick={() => dispatch(answerPermission(item.id, true))}
+            onClick={() => dispatch(chat.answer(item.id, true))}
           >
             {t('allow')}
           </button>{' '}
           <button
             className={`${btn} bg-muted text-muted-foreground hover:text-foreground`}
-            onClick={() => dispatch(answerPermission(item.id, false))}
+            onClick={() => dispatch(chat.answer(item.id, false))}
           >
             {t('deny')}
           </button>

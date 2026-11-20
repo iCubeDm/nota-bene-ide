@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { VcsFile } from '@nota-bene/shared';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
 import { refOf } from '@/files/sources.ts';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import { FileDiff, type DiffFile } from './DiffBody.tsx';
 import { parsePatch } from './parse.ts';
 import { currentFile, focusFile, setSplit, usePatch, useVcsUi, type RepoDiff } from './store.ts';

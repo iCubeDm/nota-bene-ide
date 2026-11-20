@@ -1,6 +1,6 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { has, orderedTasks, reduceTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
-import { serverEvent, type AppThunk, type RootState } from '../store/store.ts';
+import { serverEvent, type AppThunk, type RootState } from '@/sdk';
 
 export type { Task, TasksState } from '@nota-bene/shared';
 

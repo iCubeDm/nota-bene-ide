@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { apiFetch } from '@/net/auth.ts';
+import { connections, useAppDispatch, useAppSelector } from '@/sdk';
 import { selectMediaComments } from '@/comments/slice.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { selectRefreshSeq } from '@/tree/slice.ts';
 import type { FileKind } from '../kinds.ts';
 import { fileTabId } from '@/tabs/slice.ts';
@@ -45,7 +44,7 @@ async function load(url: string, signal: AbortSignal, other: boolean): Promise<L
 }
 
 /** The media's ETag (its version for media comments); undefined without one (a branch source) or on any failure. */
-export const headVersion = (url: string, signal: AbortSignal): Promise<string | undefined> => (url.startsWith('/tmpimage') ? apiFetch(url, { method: 'HEAD', signal }) : fetch(url, { method: 'HEAD', signal })).then(
+export const headVersion = (url: string, signal: AbortSignal): Promise<string | undefined> => (url.startsWith('/tmpimage') ? connections.current().fetch(url, { method: 'HEAD', signal }) : fetch(url, { method: 'HEAD', signal })).then(
   (r) => (r.ok ? r.headers.get('etag') ?? undefined : undefined),
   () => undefined, // no version: the mark simply cannot tell "the file changed"
 );

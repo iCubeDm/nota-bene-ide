@@ -1,9 +1,6 @@
 import { Fragment, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTank, type UsageTaskRow } from '@nota-bene/shared';
-import { useAppSelector } from '@/store/store.ts';
-import { getLang, useT } from '@/i18n/index.ts';
-import { apiFetch } from '@/net/auth.ts';
-import { compact, compactParts, money, num, percent } from '@/lib/format.ts';
+import { useAppSelector, getLang, useT, connections, compact, compactParts, money, num, percent } from '@/sdk';
 
 const POLL_MS = 2000;
 const AGENTS_SHOWN = 12, MODELS_SHOWN = 2, ROWS_SHOWN = 5, WEEKS_SHOWN = 16, WINDOWS_SHOWN = 32, TANKS_SHOWN = 8;
@@ -352,7 +349,7 @@ export function UsageView({ active }: { active: boolean }) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
       try {
-        const r = await apiFetch(`/usage?provider=${provider}&period=${period}`);
+        const r = await connections.current().fetch(`/usage?provider=${provider}&period=${period}`);
         if (!r.ok) throw new Error(String(r.status));
         const data = (await r.json()) as UsageReport;
         if (!live) return;
@@ -369,7 +366,7 @@ export function UsageView({ active }: { active: boolean }) {
 
   const reset = async () => {
     setAsking(false);
-    const r = await apiFetch('/usage/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider }) }).catch(() => null);
+    const r = await connections.current().fetch('/usage/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider }) }).catch(() => null);
     if (r?.ok) { setPeriod('trip'); setN((x) => x + 1); } else setError(t('usageLoadFail', String(r?.status ?? 'network')));
   };
 

@@ -148,9 +148,31 @@ export function connectionManager(list: () => AgentConnection[]): ConnectionMana
 }
 
 const managers = new WeakMap<object, ConnectionManager>();
+let page: ConnectionManager | undefined;
+let unbound: ConnectionManager | undefined;
 
-/** Ties a store to its manager (makeStore), so hooks and tests find it. */
-export const bindConnections = (store: object, m: ConnectionManager): void => void managers.set(store, m);
+/** Ties a store to its manager (makeStore), so hooks and tests find it; the last one made is the page's. */
+export const bindConnections = (store: object, m: ConnectionManager): void => {
+  managers.set(store, m);
+  page = m;
+};
+
+const pageManager = (): ConnectionManager => {
+  if (page) return page;
+  // before any store (a module's fetch at import, a unit test without a store): the one agent at base '', never opened
+  if (!unbound) {
+    const self = agentConnection({ id: SELF, base: '', url: '', deliver: () => {}, mirror: () => {} });
+    unbound = connectionManager(() => [self]);
+  }
+  return unbound;
+};
+
+/** The page's connections, for code outside React and thunks (components use useConnection, thunks their `extra`). */
+export const connections: ConnectionManager = {
+  current: () => pageManager().current(),
+  get: (id) => pageManager().get(id),
+  list: () => pageManager().list(),
+};
 
 /** The connection manager of a store made by makeStore. */
 export const connectionsOf = (store: object): ConnectionManager => managers.get(store)!;

@@ -1,5 +1,5 @@
 import type { PageAnchor } from '@nota-bene/shared';
-import { tIn, type Lang } from '../i18n/index.ts';
+import { tIn, type Lang } from '@/sdk';
 
 /** The trail as one line: `h2 «Карта» › svg «Молекула долины» › g.node «Депо»`. */
 export const trailLine = (a: PageAnchor): string => a.trail.join(' › ');

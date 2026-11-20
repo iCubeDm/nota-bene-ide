@@ -1,8 +1,5 @@
 import { memo, useEffect, useState } from 'react';
-import { compact } from '@/lib/format.ts';
-import { useT } from '@/i18n/index.ts';
-import type { FeedItem } from '@/store/feed.ts';
-import { selectConn, sendMessage, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { compact, useT, type FeedItem, selectConn, useAppDispatch, useAppSelector, chat } from '@/sdk';
 import { selectIdleCompact } from '@/controls/slice.ts';
 import { archiveSession } from '@/controls/sessionsApi.ts';
 import { compactProgress, expectedCompactMs, mmss } from './compactTiming.ts';
@@ -50,7 +47,7 @@ function TurnCut({ noticeKey }: { noticeKey: string }) {
       {offer && !sent ? (
         <>
           {' · '}
-          <button type="button" title={t('turnCutContinueTip')} onClick={() => { if (d(sendMessage(t('turnCutMessage'), false))) setSent(true); }} className="text-link hover:underline">
+          <button type="button" title={t('turnCutContinueTip')} onClick={() => { if (d(chat.send(t('turnCutMessage'), false))) setSent(true); }} className="text-link hover:underline">
             {t('turnCutContinue')}
           </button>
         </>

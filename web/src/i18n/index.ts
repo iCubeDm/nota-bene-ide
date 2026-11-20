@@ -9,6 +9,8 @@ import { ru } from './ru.ts';
 import { zhCN } from './zh-CN.ts';
 
 export type Lang = UiLang;
+/** A translation key: the Russian dictionary is the reference. */
+export type I18nKey = keyof typeof ru;
 
 const DICTS: Record<Lang, Record<string, unknown>> = { en, ru, 'zh-CN': zhCN, es, 'pt-BR': ptBR, de };
 
@@ -86,13 +88,13 @@ export function resetUnsyncedLang(): void {
 }
 
 /** Translate into an explicit language (for text that must not follow the UI language, e.g. a sent batch). */
-export function tIn(l: Lang, key: keyof typeof ru, ...args: unknown[]): string {
+export function tIn(l: Lang, key: I18nKey, ...args: unknown[]): string {
   const k: string = key; // a plain string: the key union is too large for TypeScript to combine with unknown
   const v = DICTS[l][k] ?? DICTS.en[k] ?? k;
   return typeof v === 'function' ? String(v(...args)) : String(v);
 }
 
-export function t(key: keyof typeof ru, ...args: unknown[]): string {
+export function t(key: I18nKey, ...args: unknown[]): string {
   return tIn(lang, key, ...args);
 }
 

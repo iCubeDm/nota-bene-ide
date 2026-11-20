@@ -1,11 +1,8 @@
 import { useRef, useState } from 'react';
 import { shortModel, type AgentEffort as EffortLevel, type ModelOption } from '@nota-bene/shared';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
-import { compact } from '@/lib/format.ts';
+import { useT, compact, selectSession, useAppDispatch, useAppSelector } from '@/sdk';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { selectStats } from '@/stats/slice.ts';
-import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { EffortSlider } from './EffortSlider.tsx';
 import { pickModel, selectModel, selectModelSwitchable, selectModels, selectSwitching } from './slice.ts';
 

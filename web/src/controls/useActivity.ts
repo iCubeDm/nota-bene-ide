@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAppDispatch } from '@/store/store.ts';
+import { useAppDispatch } from '@/sdk';
 import { reportActivity } from './slice.ts';
 
 const EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'scroll', 'focus'] as const;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Cut } from '@nota-bene/shared/cut';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import type { Lane } from './layout.ts';
 import { dB } from './ClipSound.tsx';
 import { moveTrack, parseDb, removeTrack, renameTrack, setTrackFlag, setTrackGain } from './ops.ts';

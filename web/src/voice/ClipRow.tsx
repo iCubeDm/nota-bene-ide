@@ -1,5 +1,5 @@
 import type { Voice, VoiceError } from '@nota-bene/shared';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import { Transcript } from './VoiceBubble.tsx';
 import { VoiceView } from './VoiceView.tsx';
 

@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import type { Voice, VoiceError } from '@nota-bene/shared';
-import { Button } from '@/components/ui/button.tsx';
-import { useT } from '@/i18n/index.ts';
-import { toast } from '@/shell/toast.ts';
+import { useT, toast, useAppDispatch, useAppSelector } from '@/sdk';
+import { Button } from '@/sdk/ui';
 import { selectSwitching } from '@/controls/slice.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { dictationAsk, langName } from './lang.ts';
 import { sendVoice } from './send.ts';
 import { VoiceView } from './VoiceView.tsx';

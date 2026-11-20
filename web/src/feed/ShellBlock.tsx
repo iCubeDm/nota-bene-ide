@@ -1,11 +1,8 @@
 import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { SHELL_OUTPUT_CAP } from '@nota-bene/shared';
-import { useT } from '@/i18n/index.ts';
-import { num } from '@/lib/format.ts';
+import { useT, num, type FeedItem, useAppDispatch } from '@/sdk';
+import { Button } from '@/sdk/ui';
 import { stopShell } from '@/composer/shellMode.ts';
-import type { FeedItem } from '@/store/feed.ts';
-import { useAppDispatch } from '@/store/store.ts';
-import { Button } from '@/components/ui/button.tsx';
 import { shellError } from '@/settings/shells.ts';
 
 /** A `! cmd` run (protocol 11): the command, its merged output, and how it ended; Stop while it runs. */

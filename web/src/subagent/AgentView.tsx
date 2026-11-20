@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
-import { useT } from '@/i18n/index.ts';
+import { useT, useAppDispatch, useAppSelector, type AppStore } from '@/sdk';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
 import { Feed } from '@/feed/Feed.tsx';
-import { useAppDispatch, useAppSelector, type AppStore } from '@/store/store.ts';
 import { setAgentTitle, type AgentTab } from '@/tabs/slice.ts';
 import { selectLiveCalls } from '@/tasks/slice.ts';
 import { OLD_SERVER, fetchSubagent, knownOld, selectSubagent, selectToolResulted } from './slice.ts';

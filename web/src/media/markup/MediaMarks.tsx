@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { createPortal } from 'react-dom';
 import { openCommentCard, selectMediaComments, type MediaComment } from '@/comments/slice.ts';
 import { selectFileVersion } from '@/files/slice.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, useAppDispatch, useAppSelector } from '@/sdk';
 import { shapePath } from './geometry.ts';
 import { shapeEls, STROKE_PX, useOverlayPlacement, type Media } from './overlay.tsx';
 import { selectDraft } from './slice.ts';

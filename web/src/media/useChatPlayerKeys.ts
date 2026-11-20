@@ -1,6 +1,5 @@
 import { useEffect, useState, type MutableRefObject } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { editable } from '@/lib/editable.ts';
+import { useT, editable } from '@/sdk';
 import { applyPlayerKey, ONCE, THEIRS, type Flash } from './playerKeys.ts';
 
 /**

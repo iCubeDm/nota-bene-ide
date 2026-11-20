@@ -1,9 +1,7 @@
 import { memo, useContext, useId, useMemo, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { ARG_KEYS, type FeedItem } from '@/store/feed.ts';
-import { collapsedLength, rawIndexOf } from '@/anchors/text.ts';
-import { openAgent, openFile } from '@/tabs/slice.ts';
+import { useT, selectBusy, useAppDispatch, useAppSelector, type FeedItem, collapsedLength, rawIndexOf, openFile } from '@/sdk';
+import { ARG_KEYS } from '@/store/feed.ts';
+import { openAgent } from '@/tabs/slice.ts';
 import { tmpImagePathsIn, useTmpDirs } from '@/files/tmpImages.ts';
 import { isAgentTool, selectSubagent } from '@/subagent/slice.ts';
 import { CardMenu } from '@/tasks/CardMenu.tsx';

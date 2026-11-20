@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { VcsDiff, VcsFile, VcsPatch } from '@nota-bene/shared';
-import { apiFetch } from '@/net/auth.ts';
+import { connections } from '@/sdk';
 
 /** The git views' shared state, outside Redux as `files/sources.ts` is: the tool window and the tab share one fetch. */
 export type RepoDiff = Extract<VcsDiff, { repo: true }>;
@@ -60,7 +60,7 @@ export async function loadDiff(root: string, src: string, base: string | undefin
   const mine = ++seq;
   try {
     const q = new URLSearchParams({ src, ...(base ? { base } : {}) });
-    const r = await apiFetch(`/vcs-diff?${q}`);
+    const r = await connections.current().fetch(`/vcs-diff?${q}`);
     const body = r.ok ? await r.text() : null;
     if (mine !== seq) return;
     if (ui.failed !== (body === null)) change({ failed: body === null });
@@ -105,7 +105,7 @@ export function usePatch(url: string | null, on: boolean, every = 4_000) {
       if (running) return;
       running = true;
       try {
-        const r = await apiFetch(url);
+        const r = await connections.current().fetch(url);
         if (gone) return;
         if (!r.ok) return setGot((p) => (p?.url === url ? { ...p, failed: true } : { url, patch: '', truncated: false, failed: true }));
         const v = await r.json() as VcsPatch;

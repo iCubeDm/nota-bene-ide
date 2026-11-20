@@ -9,7 +9,7 @@ import { Feed } from '@/feed/Feed.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/store/store.ts';
 import { CompactPending } from './CompactPending.tsx';
-import { ConfirmDialog } from './ConfirmDialog.tsx';
+import { ConfirmDialog } from '@/components/ConfirmDialog.tsx';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

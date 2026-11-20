@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { isMac, withKeys } from '@/shell/keymap.ts';
+import { useT, isMac, withKeys } from '@/sdk';
 import type { Tool } from './editing.ts';
 import type { CutDoc } from './useCutDoc.ts';
 
