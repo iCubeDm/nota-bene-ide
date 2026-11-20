@@ -48,7 +48,7 @@ const shell = 'pointer-events-auto flex max-w-full flex-wrap items-center justif
 
 /** The media tab's top-right overlay: the "Mark up" toggle, or, while marking, tools, colours, undo, Comment, ✕ (all off while `disabled`: a drawing is being saved). */
 export function MarkupToolbar({ draft, disabled = false, mask = false, onEnter, onTool, onColor, onUndo, onComment, onLeave }: {
-  /** `mask`: the server takes polygons (MASK_PROTOCOL), so the Mask tool is offered */
+  /** `mask`: the server takes polygons (`polygons`), so the Mask tool is offered */
   draft: Draft; disabled?: boolean; mask?: boolean; onEnter: () => void; onTool: (t: MarkTool) => void; onColor: (c: MarkColor) => void;
   onUndo: () => void; onComment: () => void; onLeave: () => void;
 }) {

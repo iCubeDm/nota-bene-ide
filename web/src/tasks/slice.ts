@@ -1,5 +1,5 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { orderedTasks, reduceTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
+import { has, orderedTasks, reduceTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
 import { serverEvent, type AppThunk, type RootState } from '../store/store.ts';
 
 export type { Task, TasksState } from '@nota-bene/shared';
@@ -11,8 +11,6 @@ export const tasksSlice = createSlice({
   extraReducers: (b) => b.addCase(serverEvent, (s, a) => reduceTasks(s as TasksState, a.payload)),
 });
 
-/** The first protocol whose server takes `task-stop` / `task-background` and serves `/task-output`: below it the controls are absent, not disabled. */
-export const TASKS_PROTOCOL = 8;
 
 /** The drawer's state: whether it is open (the rows come from `tasks`), and how many task refusals the server has sent. */
 export const tasksUiSlice = createSlice({
@@ -144,7 +142,7 @@ export const selectForeground = (s: RootState, id: string): boolean => {
 };
 
 /** The server understands the task controls (stop, to background, shell output). */
-export const selectTaskControls = (s: RootState): boolean => s.controls.protocol >= TASKS_PROTOCOL;
+export const selectTaskControls = (s: RootState): boolean => has(s.controls.protocol, 'taskControl');
 
 export const stopTask = (id: string | string[]): AppThunk => (_d, getState, { send }) => {
   if (selectTaskControls(getState())) for (const one of typeof id === 'string' ? [id] : id) send({ type: 'task-stop', id: one });

@@ -1,5 +1,5 @@
 import { createAction, type PayloadAction, createListenerMiddleware, createSlice } from '@reduxjs/toolkit';
-import { CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
+import { has, CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
 import { t } from '../i18n/index.ts';
 import { apiFetch } from '../net/auth.ts';
 import { toast } from '../shell/toast.ts';
@@ -162,11 +162,9 @@ export const selectRestarting = (s: RootState): boolean => s.controls.restarting
 export const selectRestartPending = (s: RootState): boolean => s.controls.restartPending;
 export const selectCompactPending = (s: RootState): boolean => s.controls.compactPending;
 export const selectHeld = (s: RootState): HeldSend[] => s.controls.held;
-/** protocol 27 (issue 499): the server orders a Compact while the agent works for the next pause */
-export const COMPACT_ORDER_PROTOCOL = 27;
 /** a compaction is pending or sends are held (issue 499): a /clear would run ahead of them */
 export const selectOrderWaits = (s: RootState): boolean => s.controls.compactPending || s.controls.held.length > 0;
-export const selectCanOrderCompact = (s: RootState): boolean => s.controls.protocol >= COMPACT_ORDER_PROTOCOL;
+export const selectCanOrderCompact = (s: RootState): boolean => has(s.controls.protocol, 'compactOrder');
 
 /** Optimistic: set locally, then send. The server answers every `mode` with one echo (to every socket). */
 export const pickMode = (mode: Mode): AppThunk => (dispatch, getState, { send }) => {
@@ -175,7 +173,7 @@ export const pickMode = (mode: Mode): AppThunk => (dispatch, getState, { send })
   if (c.mode === mode || c.switching) return;
   dispatch(modeSet(mode));
   // an older server answers no ack: then echoes apply as they come (the quick Shift+Tab race comes back, nothing hangs)
-  if (c.protocol < 2) return void send({ type: 'mode', mode });
+  if (!has(c.protocol, 'modeAck')) return void send({ type: 'mode', mode });
   const id = crypto.randomUUID();
   if (send({ type: 'mode', mode, id })) dispatch(modeSent(id));
 };
@@ -185,7 +183,7 @@ export const selectModels = (s: RootState): ModelOption[] => s.controls.models;
 export const selectCommands = (s: RootState): SlashCommand[] => s.controls.commands;
 /** the model switch is usable: a server that has it (protocol 6, `capabilities.models`) */
 export const selectModelSwitchable = (s: RootState): boolean =>
-  s.controls.protocol >= 6 && (s.controls.capabilities ?? CLAUDE_CAPABILITIES).models === true && s.controls.models.length > 0;
+  has(s.controls.protocol, 'models') && (s.controls.capabilities ?? CLAUDE_CAPABILITIES).models === true && s.controls.models.length > 0;
 
 /**
  * Not optimistic (unlike pickMode): nobody flips models in quick succession, and the pill must show what the agent
@@ -212,7 +210,7 @@ let lastActivity = -Infinity;
 /** The user touched the UI: tell the server at most once per ACTIVITY_THROTTLE_MS (the idle clock is minutes). */
 export const reportActivity = (now = Date.now()): AppThunk => (_d, getState, { send }) => {
   if (now - lastActivity < ACTIVITY_THROTTLE_MS) return;
-  if (getState().controls.protocol < 1) return; // an older server has no idle compaction and refuses `activity`
+  if (!has(getState().controls.protocol, 'activity')) return; // an older server has no idle compaction and refuses `activity`
   if (send({ type: 'activity' })) lastActivity = now;
 };
 /** tests */

@@ -1,4 +1,4 @@
-import type { Comment, QuickLabelId } from '@nota-bene/shared';
+import { has, type Comment, type Feature, type QuickLabelId } from '@nota-bene/shared';
 import { t, tIn, type Lang } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
 
@@ -20,10 +20,14 @@ export const QUICK_LABELS: QuickLabel[] = [
   { id: 'needs-tests', emoji: '🧪' },
 ];
 
-/** a label an older server does not know (it would refuse the comment): offered from this protocol on */
-const SINCE: Partial<Record<QuickLabelId, number>> = { fire: 3 };
+/** a label an older server does not know (it would refuse the comment): offered from this feature on */
+const SINCE: Partial<Record<QuickLabelId, Feature>> = { fire: 'fireLabel' };
 /** The labels the connected server accepts. */
-export const labelsFor = (protocol: number): QuickLabel[] => QUICK_LABELS.filter((l) => protocol >= (SINCE[l.id] ?? 0));
+export const labelsFor = (protocol: number): QuickLabel[] =>
+  QUICK_LABELS.filter((l) => {
+    const f = SINCE[l.id];
+    return !f || has(protocol, f);
+  });
 
 const byId = new Map(QUICK_LABELS.map((l) => [l.id, l]));
 const keyOf = (id: QuickLabelId) => `label_${id}` as keyof typeof ru;
