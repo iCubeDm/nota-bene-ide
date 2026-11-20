@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { RemoteDevice, RemoteHost, RemoteHostState } from '@nota-bene/shared';
+import type { RemoteDevice, RemoteHost, RemoteHostState, RemoteRefusalCode } from '@nota-bene/shared';
 import { Button } from '@/components/ui/button.tsx';
-import { getLang, useT } from '@/i18n/index.ts';
+import { getLang, t as tr, useT } from '@/i18n/index.ts';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { cancelPair, connectComputer, forgetComputer, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
+import { cancelPair, connectComputer, forgetComputer, RemoteError, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
 import { clearPair, indicator, selectRemote } from './slice.ts';
 import { TONE, troubleWhy, WORD } from './RemoteMenu.tsx';
 
@@ -28,7 +28,18 @@ const Row = ({ label, children }: { label: ReactNode; children: ReactNode }) => 
 );
 
 const input = 'w-full max-w-md rounded-md border border-border-soft bg-transparent px-2 py-1 font-mono text-[0.8125rem] text-foreground';
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const REFUSAL = {
+  notPairCode: 'remoteErrNotPairCode', pairCodeVersion: 'remoteErrPairCodeVersion', ownPairCode: 'remoteErrOwnPairCode',
+  hostSilent: 'remoteErrHostSilent', codeRefused: 'remoteErrCodeRefused', hostOffline: 'remoteErrHostOffline', hostFull: 'remoteErrHostFull',
+  relayUnreachable: 'remoteErrRelayUnreachable', notUrl: 'remoteErrNotUrl', relayNotWss: 'remoteErrRelayNotWss',
+  phoneCodeNotKey: 'remoteErrPhoneCodeNotKey', badAccessKey: 'remoteErrBadAccessKey', legacy: 'remoteErrLegacy',
+  notRunning: 'remoteErrNotRunning', unavailable: 'remoteErrUnavailable',
+} as const satisfies Record<RemoteRefusalCode, Parameters<typeof tr>[0]>;
+/** A known refusal in the UI language (issue 507); anything else as the server or the browser said it. */
+const errText = (t: typeof tr, e: unknown): string => {
+  if (e instanceof RemoteError && e.code && Object.hasOwn(REFUSAL, e.code)) return t(REFUSAL[e.code], e.detail ?? '');
+  return e instanceof Error ? e.message : String(e);
+};
 
 /** The relay address: shown with Edit, or a field with Save (and Cancel when there is one to go back to). */
 function RelayField({ relay, onSaved }: { relay: string | null; onSaved: (stoppedHand: boolean) => void }) {
@@ -54,7 +65,7 @@ function RelayField({ relay, onSaved }: { relay: string | null; onSaved: (stoppe
       setEditing(false);
       onSaved(r.stopped === 'hand');
     } catch (e) {
-      setError(errText(e));
+      setError(errText(t, e));
     } finally {
       setBusy(false);
     }
@@ -89,7 +100,7 @@ function AccessKeyField({ saved, legacy, onSaved }: { saved: boolean; legacy: bo
       setValue('');
       setEditing(accessKey === null);
     } catch (e) {
-      setError(errText(e));
+      setError(errText(t, e));
     } finally {
       setBusy(false);
     }
@@ -144,7 +155,7 @@ function Pairing({ ready }: { ready: boolean }) {
       setCopied(false);
       setNow(Date.now());
     } catch (e) {
-      setError(errText(e));
+      setError(errText(t, e));
     }
   };
   const cancel = () => {
@@ -207,7 +218,7 @@ function Paired({ data, name, fingerprint, status, pairedAt, action, ask, run }:
       if (!r.ok) setError(r.error ?? '');
       else setAsking(false);
     } catch (e) {
-      setError(errText(e));
+      setError(errText(t, e));
     }
   };
   return (
@@ -259,7 +270,7 @@ function Computers({ hosts }: { hosts: RemoteHost[] }) {
       setDone((await connectComputer(code.trim())).host);
       setCode('');
     } catch (e) {
-      setError(errText(e));
+      setError(errText(t, e));
     } finally {
       setBusy(false);
     }
@@ -305,7 +316,7 @@ export function RemoteView() {
       const r = await saveRemote({ enabled });
       if (r.stopped === 'hand') setNote(t('remoteHandStopped'));
     } catch (e) {
-      setNote(t('remoteFailed', errText(e)));
+      setNote(t('remoteFailed', errText(t, e)));
     } finally {
       setSwitching(false);
     }

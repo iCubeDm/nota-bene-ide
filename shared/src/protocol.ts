@@ -187,6 +187,15 @@ export type RemoteHostState = 'online' | 'connecting' | 'failing' | 'revoked';
 /** A computer this one is paired with as a device (protocol 28); `fingerprint` is its host key's. */
 export type RemoteHost = { id: string; name?: string; fingerprint: string; state: RemoteHostState; pairedAt: number };
 
+/**
+ * Why a `/remote` route refused (issue 507): its answer carries this as `code` beside the English `error` (what the CLI
+ * prints), and `detail` when the text needs a value (the relay's close code of `relayUnreachable`). The page says it in its
+ * language; an older server sends only `error`, shown as it is.
+ */
+export type RemoteRefusalCode =
+  | 'notPairCode' | 'pairCodeVersion' | 'ownPairCode' | 'hostSilent' | 'codeRefused' | 'hostOffline' | 'hostFull' | 'relayUnreachable'
+  | 'notUrl' | 'relayNotWss' | 'phoneCodeNotKey' | 'badAccessKey' | 'legacy' | 'notRunning' | 'unavailable';
+
 /** What a window knows of the remote-access connector (`nota-bene remote`), shared by every window of the user. */
 export type RemoteState = {
   /** a relay address is saved */

@@ -7,8 +7,8 @@ import { closeControl, controlClient, serveControl, write } from './control.ts';
 import { Windows } from './discover.ts';
 import { BACKOFF_MS, LegacyConnector, olderVersion, RemoteKeeper, type PairOutcome } from './keeper.ts';
 import { generateKeyPair } from './noise.ts';
-import { PairError, pairHost } from './hostLink.ts';
-import { addHost, b64u, hostKey, pairProof, pairTicket, pairUri, parsePairUri, readAccessKey, readHosts, readConfig, readLastError, remoteDir, writeConfig, writeLastError } from './store.ts';
+import { pairHost } from './hostLink.ts';
+import { addHost, b64u, hostKey, pairProof, pairTicket, pairUri, parsePairUri, readAccessKey, readHosts, readConfig, readLastError, Refusal, remoteDir, writeConfig, writeLastError } from './store.ts';
 import { relayPhone } from './testPhone.ts';
 import { startRelay, type TestRelay } from './testRelay.ts';
 
@@ -327,7 +327,7 @@ describe('remote keeper', () => {
     expect(await k.forget(h.id)).toEqual({ ok: true });
     expect(readHosts()).toEqual([]);
     expect(k.state().hosts).toEqual([]);
-    await expect(k.connect('nbremote://pair?v=2')).rejects.toThrow(PairError);
+    await expect(k.connect('nbremote://pair?v=2')).rejects.toThrow(Refusal);
   });
 
   it('a client-only managed connector is replaced once a relay is saved outside the tab (issue 297)', async () => {
@@ -357,13 +357,13 @@ describe('remote keeper', () => {
     cl.close();
     const revoked = () => logs.filter((l) => l === `computer ${h.id}: revoked`).length;
     await until(() => revoked() === 1);
-    await expect(k.connect('nbremote://nope')).rejects.toThrow(PairError);
+    await expect(k.connect('nbremote://nope')).rejects.toThrow(Refusal);
     await until(() => revoked() === 2);
   });
 
   it('its own pairing code is refused before the relay; with no host key, none is made (issue 505)', async () => {
     const own = pairUri({ relay: relay.url, hostPub: hostKey().pub, secret: Buffer.alloc(32, 7) });
-    await expect(pairHost(own)).rejects.toThrow(new PairError('this is this computer\'s own pairing code: paste it on the other computer'));
+    await expect(pairHost(own)).rejects.toMatchObject({ code: 'ownPairCode', message: 'this is this computer\'s own pairing code: paste it on the other computer' });
     expect(readHosts()).toEqual([]);
     expect(fs.existsSync(path.join(remoteDir(), 'device.key'))).toBe(false); // refused before anything else
     fs.rmSync(path.join(remoteDir(), 'host.key'));

@@ -7,6 +7,7 @@
 import { createHash, createHmac, createPrivateKey, createPublicKey, randomBytes, sign, type KeyObject } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { RemoteRefusalCode } from '@nota-bene/shared';
 import { readPrivateFile, writePrivateFile } from '../auth.ts';
 import { SecretError, stateBaseDir } from '../state.ts';
 import { generateKeyPair, publicOf, type KeyPair } from './noise.ts';
@@ -27,6 +28,17 @@ export function remoteDir(): string {
 }
 
 export const b64u = (b: Buffer): string => b.toString('base64url');
+
+/** A relay address, access key or pairing code refused: the message says why in English, `code` names it for the page (issue 507). */
+export class Refusal extends Error {
+  readonly code: RemoteRefusalCode;
+  readonly detail: string | undefined;
+  constructor(code: RemoteRefusalCode, message: string, detail?: string) {
+    super(message);
+    this.code = code;
+    this.detail = detail;
+  }
+}
 
 /** Strict base64url without padding: exactly `len` bytes, canonical encoding only. */
 export function fromB64u(s: string, len: number): Buffer {
@@ -255,11 +267,11 @@ export function checkRelay(url: string): void {
   try {
     u = new URL(url);
   } catch {
-    throw new Error(`not a URL: ${url}`);
+    throw new Refusal('notUrl', `not a URL: ${url}`);
   }
   const local = ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname);
   if (u.protocol === 'wss:' || (u.protocol === 'ws:' && local && u.port !== '')) return;
-  throw new Error(`the relay must be a wss:// URL (ws:// only on 127.0.0.1 or localhost with a port): ${url}`);
+  throw new Refusal('relayNotWss', `the relay must be a wss:// URL (ws:// only on 127.0.0.1 or localhost with a port): ${url}`);
 }
 
 /** `enabled: false` is access turned off from a window (absent means on): windows then start no connector. */
@@ -298,8 +310,8 @@ const ACCESS_RE = /^nbk1_[A-Za-z0-9_-]{43}$/;
 /** The seed of an access key typed or pasted by the person; the message says what is wrong, never repeats the input. */
 export function parseAccessKey(code: string): Buffer {
   const c = code.trim();
-  if (c.startsWith('nbremote:')) throw new Error('this is a phone pairing code, not an access key; an access key starts with nbk1_');
-  if (!ACCESS_RE.test(c)) throw new Error('an access key starts with nbk1_ and has 48 characters');
+  if (c.startsWith('nbremote:')) throw new Refusal('phoneCodeNotKey', 'this is a phone pairing code, not an access key; an access key starts with nbk1_');
+  if (!ACCESS_RE.test(c)) throw new Refusal('badAccessKey', 'an access key starts with nbk1_ and has 48 characters');
   return fromB64u(c.slice(5), 32);
 }
 
@@ -338,10 +350,14 @@ export function pairUri(o: { relay: string; hostPub: Buffer; secret: Buffer }): 
 
 export function parsePairUri(s: string): { relay: string; hostPub: Buffer; secret: Buffer } {
   const m = /^nbremote:\/\/pair\?(.*)$/.exec(s);
-  if (!m) throw new Error('not a pairing code');
+  if (!m) throw new Refusal('notPairCode', 'not a pairing code');
   const q = new URLSearchParams(m[1]);
-  if (q.get('v') !== '1') throw new Error('unsupported pairing code version');
+  if (q.get('v') !== '1') throw new Refusal('pairCodeVersion', 'unsupported pairing code version');
   const relay = q.get('r') ?? '';
-  checkRelay(relay);
-  return { relay, hostPub: fromB64u(q.get('h') ?? '', 32), secret: fromB64u(q.get('s') ?? '', 32) };
+  try {
+    checkRelay(relay);
+    return { relay, hostPub: fromB64u(q.get('h') ?? '', 32), secret: fromB64u(q.get('s') ?? '', 32) };
+  } catch (e) {
+    throw new Refusal('notPairCode', (e as Error).message);
+  }
 }

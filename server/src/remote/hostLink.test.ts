@@ -11,8 +11,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Connector } from './connector.ts';
 import { controlClient, type Msg } from './control.ts';
 import { computerName } from './device.ts';
-import { PairError, pairHost } from './hostLink.ts';
-import { fingerprint, parsePairUri, readHosts, removeHost } from './store.ts';
+import { pairHost } from './hostLink.ts';
+import { fingerprint, parsePairUri, readHosts, Refusal, removeHost } from './store.ts';
 
 const script = fileURLToPath(new URL('./crossHost.ts', import.meta.url));
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -68,7 +68,7 @@ describe('a computer as a device of another', () => {
     // this device is listed now: presenting the code again changes nothing
     expect((await pairHost(uri)).id).toBe(host.id);
     expect(readHosts()).toHaveLength(1);
-    await expect(pairHost('nbremote://nope')).rejects.toThrow(PairError);
+    await expect(pairHost('nbremote://nope')).rejects.toThrow(Refusal);
 
     ask({ op: 'devices' });
     const devices = await next();

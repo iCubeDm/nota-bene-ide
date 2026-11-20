@@ -9,7 +9,7 @@ import { cleanName, computerName } from './device.ts';
 import { collect, Mux, UNREACHABLE, type Stream } from './mux.ts';
 import { CipherState, Handshake, PROLOGUE, type KeyPair } from './noise.ts';
 import { relayProof } from './relayClient.ts';
-import { addHost, b64u, deviceKey, fromB64u, hostId, pairProof, pairTicket, parsePairUri, savedHostKey, type Host } from './store.ts';
+import { addHost, b64u, deviceKey, fromB64u, hostId, pairProof, pairTicket, parsePairUri, Refusal, savedHostKey, type Host } from './store.ts';
 
 /** The device end of one channel: handshake message 1 out, message 2 in, then mux frames both ways. */
 export class DeviceEnd {
@@ -120,15 +120,12 @@ export function relayDevice<E extends DeviceEnd>(
   return { end, ws, state, closed };
 }
 
-/** A pairing code was refused or could not be used: the message says why. */
-export class PairError extends Error {}
-
 /** What a close before the channel came up means while pairing. */
-function pairFailure(code: number): string {
-  if (code === 4403) return 'the computer refused the code: it expired, was already used, or was withdrawn';
-  if (code === 4404) return 'the computer is not connected to its relay';
-  if (code === 4429) return 'the computer has too many devices connected';
-  return `the relay could not be reached (closed with ${code})`;
+function pairFailure(code: number): Refusal {
+  if (code === 4403) return new Refusal('codeRefused', 'the computer refused the code: it expired, was already used, or was withdrawn');
+  if (code === 4404) return new Refusal('hostOffline', 'the computer is not connected to its relay');
+  if (code === 4429) return new Refusal('hostFull', 'the computer has too many devices connected');
+  return new Refusal('relayUnreachable', `the relay could not be reached (closed with ${code})`, String(code));
 }
 
 /**
@@ -136,14 +133,9 @@ function pairFailure(code: number): string {
  * name and the proof of the code; the computer's name comes back in message 2.
  */
 export async function pairHost(code: string, o: { timeoutMs?: number; name?: string } = {}): Promise<Host> {
-  let p: ReturnType<typeof parsePairUri>;
-  try {
-    p = parsePairUri(code.trim());
-  } catch (e) {
-    throw new PairError((e as Error).message);
-  }
+  const p = parsePairUri(code.trim());
   // issue 505: its own code would make this computer its own device
-  if (savedHostKey()?.pub.equals(p.hostPub)) throw new PairError('this is this computer\'s own pairing code: paste it on the other computer');
+  if (savedHostKey()?.pub.equals(p.hostPub)) throw new Refusal('ownPairCode', 'this is this computer\'s own pairing code: paste it on the other computer');
   const key = deviceKey();
   const name = o.name ?? computerName();
   const sock = relayDevice(
@@ -157,8 +149,8 @@ export async function pairHost(code: string, o: { timeoutMs?: number; name?: str
       sock.closed,
       new Promise<'timeout'>((r) => (timer = setTimeout(() => r('timeout'), o.timeoutMs ?? 15_000))),
     ]);
-    if (won === 'timeout') throw new PairError('the computer did not answer');
-    if (won !== 'ready') throw new PairError(pairFailure(won));
+    if (won === 'timeout') throw new Refusal('hostSilent', 'the computer did not answer');
+    if (won !== 'ready') throw pairFailure(won);
     const host = (sock.end.welcome as { host?: unknown } | null)?.host;
     const hostName = typeof host === 'string' ? cleanName(host) : undefined;
     return addHost({ relay: p.relay, pub: p.hostPub, ...(hostName ? { name: hostName } : {}) });
