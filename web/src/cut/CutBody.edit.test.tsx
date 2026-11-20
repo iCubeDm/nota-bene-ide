@@ -5,7 +5,7 @@ import { PATH_MIME } from './drag.ts';
 import { FLASH_MS } from './changes.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';
 import { currentEditTarget } from './targets.ts';
-import { clipOnDisk, drag, elapse, fixture, onDisk, saved, setupCut, show, valid, write } from './testCut.tsx';
+import { clipOnDisk, drag, elapse, fixture, onDisk, requested, saved, setupCut, show, valid, write } from './testCut.tsx';
 
 vi.mock('./thumbs.ts', () => ({ poster: vi.fn(async () => null) }));
 vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async (url: string) => (url.includes('unread') ? null : 4)) }));
@@ -232,7 +232,7 @@ it('the inspector reverses the selected clip (issue 492): saved, marked while it
   await saved(() => expect(clipOnDisk('c3')).toMatchObject({ reverse: true }));
   valid();
   await waitFor(() => expect(container.querySelector('[data-clip="c3"] [data-reversing="making"]')).toHaveTextContent('reversing…'));
-  expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).startsWith('/cut/reverse?path=media%2Fvoice.wav&in=0&out='))).toBe(true);
+  expect(requested().some((u) => u.startsWith('/cut/reverse?path=media%2Fvoice.wav&in=0&out='))).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
   await saved(() => expect(clipOnDisk('c3')).not.toHaveProperty('reverse'));
   expect(container.querySelector('[data-clip="c3"] [data-reversing]')).toBeNull();
@@ -242,7 +242,7 @@ it('a trim of a reversed clip asks for its copy once it is committed, not at eac
   write(JSON.stringify({ ...fixture, clips: fixture.clips.map((c) => (c.id === 'c3' ? { ...c, reverse: true } : c)) }));
   const { container, pps } = await show();
   const p = pps();
-  const asked = () => new Set(vi.mocked(fetch).mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith('/cut/reverse?')));
+  const asked = () => new Set(requested().filter((u) => u.startsWith('/cut/reverse?')));
   await waitFor(() => expect(asked().size).toBe(1));
   const end = container.querySelector('[data-clip="c3"] [data-trim="end"]')!;
   fireEvent.pointerDown(end, { clientX: 100, clientY: 0, button: 0, pointerId: 1, altKey: true });

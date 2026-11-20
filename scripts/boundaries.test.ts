@@ -79,7 +79,8 @@ function scan(root: string): string[] {
   for (const abs of files(src, /\.tsx?$/)) {
     const rel = path.relative(src, abs).split(path.sep).join('/');
     const me = role(rel);
-    const test = /\.test\.tsx?$/.test(rel) || me.role === 'harness';
+    // a test file, a folder's shared test setup (cut/testCut.tsx) or the harness
+    const test = /\.test\.tsx?$|(^|\/)test[A-Z]\w*\.tsx?$/.test(rel) || me.role === 'harness';
     const { code, strings } = mask(fs.readFileSync(abs, 'utf8'));
     const add = (what: string) => out.add(`${WEB}/${rel} -> ${what}`);
     for (const m of code.matchAll(IMPORTS)) {
@@ -238,12 +239,13 @@ it('names each rule: plugin→core past the SDK, core→plugin, @/testing outsid
   expect(classify(`${W}/feed/a.ts -> ${W}/media/x.ts`)).toBe('plugin→plugin');
 });
 
-it('exempts test files and the harness from the folder rules', () => {
+it('exempts test files, a folder\'s test helper (testX.tsx) and the harness from the folder rules', () => {
   const root = tree({
     ...base,
     [`${W}/feed/Feed.test.tsx`]: "import { x } from '@/media/x.ts';\nimport { t } from '@/testing';",
     [`${W}/shell/Header.test.ts`]: "import { x } from '@/media/x.ts';\nlocalStorage.clear();",
     [`${W}/testing/fake.ts`]: "import { x } from '@/media/x.ts';",
+    [`${W}/feed/testFeed.tsx`]: "import { u } from '@/lib/util.ts';\nimport { t } from '@/testing';",
   });
   expect(scan(root)).toEqual([]);
 });
