@@ -235,7 +235,7 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
   native dependency plus its own config language for a folder rule. There is no
   ESLint in the repository to hang a rule on. Revisit if TypeScript's API returns and the rules grow beyond folders.
 - **Rules.** (1) A plugin file imports only `@/sdk`, `@/sdk/ui`, its own folder, `@nota-bene/shared*`, packages.
-  (2) A core file never imports a plugin folder. (3) `@/testing` only from `*.test.ts(x)`. (4) Test files are exempt from
+  (2) A core file never imports a plugin folder. (3) `@/testing` only from `*.test.ts(x)` and the listed test setups (`cut/testCut.tsx`). (4) Test files are exempt from
   1–2 (an integration test composes plugins through the harness). (5) No `localStorage` outside `web/src/sdk/` and
   `net/auth.ts`; no comparison of `protocol` with a number or a protocol constant (`<`, `<=`, `>`, `>=`, also
   `(x.protocol ?? 0) >=` and `>= *_PROTOCOL` / Dart `*Protocol`) in `web/src` or `mobile/app/lib`; no new
@@ -360,7 +360,7 @@ generated classes. Each new root gets a fixture in `shared/fixtures/protocol.jso
 
 ## Testing harness (`web/src/testing/`)
 
-- `testStore({ plugins?: Plugin[] = PLUGINS; events?: ServerEvent[]; hello?: Partial<HelloEvent>; state?: ConnState })
+- `testStore({ plugins?: Plugin[] = PLUGINS; events?: ServerEvent[]; hello?: Partial<HelloEvent>; state?: SocketState })
   → { store, conn: FakeConnection }`: wraps `makeStore` with a fake connect (today copied into 101 test files).
 - `FakeConnection { sent: ClientMessage[]; emit(ev); setState(s); }` (13 hand-made fakes today).
 - `stubRoutes({ [route: string]: Json | ((req: Request) => Response | Promise<Response>) }) → { calls; restore() }`:

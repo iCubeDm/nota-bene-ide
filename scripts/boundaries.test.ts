@@ -16,6 +16,8 @@ const PLUGINS = ['attachments', 'comments', 'composer', 'controls', 'cut', 'diag
   'projects', 'remote', 'settings', 'stats', 'subagent', 'tasks', 'tree', 'update', 'usage', 'vcs', 'voice'];
 const HARNESS = 'testing'; // test-only code, importable from tests only
 const SDK = ['sdk/index.ts', 'sdk/ui.ts'];
+// shared test setups outside the harness, held to the test files' rules
+const TEST_HELPERS = ['cut/testCut.tsx'];
 const WEB = 'web/src';
 const PHONE = 'mobile/app/lib';
 
@@ -79,8 +81,7 @@ function scan(root: string): string[] {
   for (const abs of files(src, /\.tsx?$/)) {
     const rel = path.relative(src, abs).split(path.sep).join('/');
     const me = role(rel);
-    // a test file, a folder's shared test setup (cut/testCut.tsx) or the harness
-    const test = /\.test\.tsx?$|(^|\/)test[A-Z]\w*\.tsx?$/.test(rel) || me.role === 'harness';
+    const test = /\.test\.tsx?$/.test(rel) || TEST_HELPERS.includes(rel) || me.role === 'harness';
     const { code, strings } = mask(fs.readFileSync(abs, 'utf8'));
     const add = (what: string) => out.add(`${WEB}/${rel} -> ${what}`);
     for (const m of code.matchAll(IMPORTS)) {
@@ -239,15 +240,20 @@ it('names each rule: plugin→core past the SDK, core→plugin, @/testing outsid
   expect(classify(`${W}/feed/a.ts -> ${W}/media/x.ts`)).toBe('plugin→plugin');
 });
 
-it('exempts test files, a folder\'s test helper (testX.tsx) and the harness from the folder rules', () => {
+it('exempts test files, the listed test helpers and the harness from the folder rules', () => {
   const root = tree({
     ...base,
     [`${W}/feed/Feed.test.tsx`]: "import { x } from '@/media/x.ts';\nimport { t } from '@/testing';",
     [`${W}/shell/Header.test.ts`]: "import { x } from '@/media/x.ts';\nlocalStorage.clear();",
     [`${W}/testing/fake.ts`]: "import { x } from '@/media/x.ts';",
-    [`${W}/feed/testFeed.tsx`]: "import { u } from '@/lib/util.ts';\nimport { t } from '@/testing';",
+    [`${W}/cut/testCut.tsx`]: "import { u } from '@/lib/util.ts';\nimport { t } from '@/testing';",
   });
   expect(scan(root)).toEqual([]);
+  // any other file named like a helper is product code
+  expect(scan(tree({ ...base, [`${W}/feed/testMode.ts`]: "import { t } from '@/testing';\nlocalStorage.clear();" }))).toEqual([
+    `${W}/feed/testMode.ts -> localStorage`,
+    `${W}/feed/testMode.ts -> ${W}/testing/index.tsx`,
+  ]);
 });
 
 it('counts the text rules: localStorage, protocol gates, useSyncExternalStore', () => {

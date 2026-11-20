@@ -18,8 +18,13 @@ it('stubRoutes answers by path; an unmatched route answers 404 and is recorded',
   });
   expect(await (await fetch('/info?x=1')).json()).toEqual({ ok: 1 });
   expect(await (await fetch('/edit?path=a.txt', { method: 'POST', body: 'hi' })).json()).toEqual({ got: 'POST', body: 'hi', q: 'a.txt' });
+  // a Request keeps its method and body; init on top of it overrides its headers
+  const asked = new Request(new URL('/edit?path=b.txt', location.href), { method: 'POST', body: 'yo' });
+  expect(await (await fetch(asked)).json()).toEqual({ got: 'POST', body: 'yo', q: 'b.txt' });
+  await fetch(new Request(new URL('/info', location.href), { method: 'PUT', body: 'x' }), { headers: { 'x-k': '1' } });
   expect((await fetch('/nowhere')).status).toBe(404);
-  expect(routes.calls.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['GET /info', 'POST /edit', 'GET /nowhere']);
+  expect(routes.calls.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['GET /info', 'POST /edit', 'POST /edit', 'PUT /info', 'GET /nowhere']);
+  expect(routes.calls[3]!.headers.get('x-k')).toBe('1');
   routes.restore();
   expect(globalThis.fetch).toBe(real);
 });

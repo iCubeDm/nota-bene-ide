@@ -65,7 +65,7 @@ export function stubRoutes(routes: Record<string, Answer>): { calls: Request[]; 
   const prev = globalThis.fetch;
   const calls: Request[] = [];
   globalThis.fetch = async (input, init) => {
-    const req = input instanceof Request && !init ? input : new Request(new URL(String(input instanceof Request ? input.url : input), location.href), init);
+    const req = new Request(input instanceof Request ? input : new URL(String(input), location.href), init);
     calls.push(req.clone());
     const answer = routes[new URL(req.url).pathname];
     if (answer === undefined) return new Response(null, { status: 404 });

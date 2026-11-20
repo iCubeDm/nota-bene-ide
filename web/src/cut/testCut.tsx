@@ -44,6 +44,8 @@ export function setupCut(start: object = fixture) {
     vi.stubGlobal('IntersectionObserver', class { observe() {} disconnect() {} unobserve() {} takeRecords() { return []; } });
     routes = stubRoutes({
       '/cut/export': { ffmpeg: true, job: null },
+      // setLang('en') above saves the choice; a refusal would leave it unsynced into the next test
+      '/system/prefs': {},
       // every media file is there (useMissing asks with HEAD)
       '/file': () => new Response(null, { status: 200 }),
       '/cut/reverse': () => Response.json({ making: true }, { status: 202 }),
