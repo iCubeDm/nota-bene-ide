@@ -94,7 +94,14 @@ void main() {
       'branch': 'feature',
       'live': true,
       'base': 'main',
+      'detected': 'main',
+      'how': 'reflog',
       'uncommitted': false,
+      'unrelated': false,
+      'mergeBase': 'b' * 40,
+      'commits': <Object>[],
+      'commitCount': 0,
+      'candidates': ['main'],
       'files': [
         {
           'path': 'lib/a.dart',

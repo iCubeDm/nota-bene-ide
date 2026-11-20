@@ -6,6 +6,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nb_protocol/nb_protocol.dart' show TreeEntry;
 
 import '../chat/files.dart';
 import '../chat/window_tab.dart';

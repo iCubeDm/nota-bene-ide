@@ -9,7 +9,6 @@ import 'package:nb_app/chat/window_sheet.dart';
 import 'package:nb_app/comments/comment_sheet.dart';
 import 'package:nb_app/files/diff_screen.dart';
 import 'package:nb_app/files/file_screen.dart';
-import 'package:nb_app/files/git.dart';
 import 'package:nb_app/home.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
@@ -20,6 +19,8 @@ import 'package:nb_app/store/sizes.dart';
 import 'package:nb_app/store/theme_choice.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_channel/nb_channel.dart';
+import 'package:nb_protocol/nb_protocol.dart'
+    show VcsFile, VcsFileStatus, VcsPatch;
 
 import 'support/fakes.dart';
 import 'support/rig.dart';
@@ -553,10 +554,15 @@ void main() {
           MaterialPageRoute<void>(
             builder: (_) => DiffScreen(
               tab: r.tab!,
-              file: const GitFile(path: 'a.dart', status: 'M', binary: false),
-              load: () async => Patch(
-                '--- a/a.dart\n+++ b/a.dart\n@@ -1,2 +1,2 @@\n keep\n-${'o' * 70}\n+${'n' * 70}\n',
-                false,
+              file: const VcsFile(
+                path: 'a.dart',
+                status: VcsFileStatus.m,
+                binary: false,
+              ),
+              load: () async => VcsPatch(
+                patch:
+                    '--- a/a.dart\n+++ b/a.dart\n@@ -1,2 +1,2 @@\n keep\n-${'o' * 70}\n+${'n' * 70}\n',
+                truncated: false,
               ),
             ),
           ),
@@ -618,10 +624,14 @@ void main() {
           MaterialPageRoute<void>(
             builder: (_) => DiffScreen(
               tab: r.tab!,
-              file: const GitFile(path: 'a.dart', status: 'M', binary: false),
-              load: () async => const Patch(
-                '--- a/a\n+++ b/a\n@@ -1,2 +1,2 @@\n keep\n-old\n+new\n',
-                false,
+              file: const VcsFile(
+                path: 'a.dart',
+                status: VcsFileStatus.m,
+                binary: false,
+              ),
+              load: () async => const VcsPatch(
+                patch: '--- a/a\n+++ b/a\n@@ -1,2 +1,2 @@\n keep\n-old\n+new\n',
+                truncated: false,
               ),
             ),
           ),

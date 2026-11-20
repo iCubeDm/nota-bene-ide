@@ -36,6 +36,52 @@ void main() {
     expect(m.windows.single.provider, AgentProvider.omp);
   });
 
+  test('every HTTP answer fixture round-trips', () {
+    final answers = asMap(
+      jsonDecode(
+        File('../../shared/fixtures/protocol.json').readAsStringSync(),
+      ),
+    )['answers'];
+    final parse = <String, Object? Function(Map<String, Object?>)>{
+      'VcsDiff': VcsDiff.fromJson,
+      'VcsPatch': VcsPatch.fromJson,
+      'VcsLog': VcsLog.fromJson,
+      'VcsCommitDetail': VcsCommitDetail.fromJson,
+      'GitSwitchAnswer': GitSwitchAnswer.fromJson,
+      'TreeEntry': TreeEntry.fromJson,
+      'ProjectIconAnswer': ProjectIconAnswer.fromJson,
+    };
+    for (final MapEntry(:key, :value) in asMap(answers).entries) {
+      for (final item in value as List) {
+        if (key == 'CompleteAnswer') {
+          expect(item, isA<List>());
+          final CompleteAnswer hits = List<String>.from(item as List);
+          expect(hits, item);
+          continue;
+        }
+        final json = asMap(item);
+        expect(
+          (parse[key]!(json) as dynamic).toJson(),
+          equals(json),
+          reason: key,
+        );
+      }
+    }
+  });
+
+  test('vcs answers parse to their variants', () {
+    expect(VcsDiff.fromJson({'repo': false}), isA<VcsNoRepo>());
+    expect(
+      GitSwitchAnswer.fromJson({'error': 'busy'}),
+      isA<GitSwitchRefusal>().having(
+        (r) => r.error,
+        'error',
+        GitSwitchError.busy,
+      ),
+    );
+    expect(GitSwitchAnswer.fromJson({'branch': 'main'}), isA<GitSwitched>());
+  });
+
   test('a nested replay parses to its own variants', () {
     final item = fixtures('server').firstWhere((e) => e['kind'] == 'replay');
     final replay = ServerEvent.fromJson(item) as ServerEventReplay;

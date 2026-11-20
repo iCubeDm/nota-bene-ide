@@ -11,11 +11,15 @@ type Ty =
   | { k: 'class' | 'enum'; name: string; nullable: boolean }
   | { k: 'list' | 'map'; of: Ty; nullable: boolean };
 type Field = { json: string; dart: string; ty: Ty; required: boolean };
-type Disc = { prop: string; values: string[] };
+/** a discriminator's wire value: a string, or a boolean (`{ repo: false } | { repo: true, … }`) */
+type Lit = string | boolean;
+type Disc = { prop: string; values: Lit[] };
 type ClassDecl = { k: 'class'; name: string; fields: Field[]; bases: string[]; disc?: Disc };
-type UnionDecl = { k: 'union'; name: string; prop: string; variants: { values: string[]; name: string }[] };
+type UnionDecl = { k: 'union'; name: string; prop: string; variants: { values: Lit[]; name: string }[] };
 type EnumDecl = { k: 'enum'; name: string; values: string[] };
-type Decl = ClassDecl | UnionDecl | EnumDecl;
+/** a definition that is a list (an HTTP answer such as `/complete`'s) */
+type TypedefDecl = { k: 'typedef'; name: string; ty: Ty };
+type Decl = ClassDecl | UnionDecl | EnumDecl | TypedefDecl;
 type Ctx = { def: string; ptr: string; name: string };
 
 const WIDTH = 80;
@@ -103,11 +107,14 @@ function wrap(indent: string, head: string, items: string[], tail: string): stri
   return [`${indent}${head}`, ...items.map((i) => `${indent}  ${i},`), `${indent}${tail}`];
 }
 
-/** a switch arm; an arm that does not fit puts its result on the next line */
+/** a switch arm; an arm that does not fit puts its result on the next line, a pattern that does not fit one value a line */
 function arm(indent: number, pattern: string, result: string): string[] {
   const pad = ' '.repeat(indent);
   const one = `${pad}${pattern} => ${result},`;
-  return one.length <= WIDTH ? [one] : [`${pad}${pattern} =>`, `${pad}  ${result},`];
+  if (one.length <= WIDTH) return [one];
+  if (`${pad}${pattern} =>`.length <= WIDTH || !pattern.includes(' || ')) return [`${pad}${pattern} =>`, `${pad}  ${result},`];
+  const [last, ...rest] = pattern.split(' || ').reverse();
+  return [...rest.reverse().map((p) => `${pad}${p} ||`), ...arm(indent, last, result)];
 }
 
 export function schemaToDart(schema: ProtocolSchema): string {
@@ -130,8 +137,16 @@ export function schemaToDart(schema: ProtocolSchema): string {
   const refName = (n: JSONSchema7Definition): string | null => (isObj(n) && n.$ref ? n.$ref.replace('#/definitions/', '') : null);
   const isObjectNode = (n: JSONSchema7Definition) => isObj(n) && n.type === 'object' && !!n.properties;
 
+  /** the values a discriminator property pins down: its literals, a boolean const, or the literals of the enum it names */
+  function discLits(n: JSONSchema7Definition | undefined, c: Ctx): Lit[] | null {
+    if (isObj(n) && typeof n.const === 'boolean') return [n.const];
+    const ref = n === undefined ? null : refName(n);
+    if (ref && defKind(ref) === 'enum') return literals(defNode(ref, c)) ?? (defNode(ref, c).anyOf ?? []).map((m) => literals(m)![0]);
+    return literals(n);
+  }
+
   /** which declaration a definition becomes */
-  function defKind(name: string): 'class' | 'union' | 'enum' | 'num' | 'other' {
+  function defKind(name: string): 'class' | 'union' | 'enum' | 'num' | 'list' | 'other' {
     const n = defNode(name, { def: name, ptr: '', name });
     if (n.anyOf && !n.anyOf.some(isNull)) {
       if (n.anyOf.every((m) => literals(m)?.length === 1)) return 'enum';
@@ -140,6 +155,7 @@ export function schemaToDart(schema: ProtocolSchema): string {
     if (literals(n)) return 'enum';
     if (n.type === 'number' && n.enum) return 'num';
     if (isObjectNode(n)) return 'class';
+    if (n.type === 'array') return 'list';
     return 'other';
   }
 
@@ -238,21 +254,21 @@ export function schemaToDart(schema: ProtocolSchema): string {
     const candidates = [...new Set(vs.flatMap((v) => props(v.node)))].flatMap((p) => {
       const has = vs.filter((v) => props(v.node).includes(p));
       const lacking = vs.length - has.length;
-      if (lacking > 1 || !has.every((v) => literals(v.node.properties![p]))) return [];
+      if (lacking > 1 || !has.every((v) => discLits(v.node.properties![p], v.mc))) return [];
       return [{ p, lacking }];
     });
     candidates.sort((a, b) => a.lacking - b.lacking || (DISC_PRIORITY.indexOf(a.p) + 1 || 99) - (DISC_PRIORITY.indexOf(b.p) + 1 || 99));
     if (!candidates.length) fail(c, `the union ${name} has no common discriminator`);
     const prop = candidates[0].p;
-    const seen = new Set<string>();
+    const seen = new Set<Lit>();
     const variants: UnionDecl['variants'] = [];
     for (const v of vs) {
-      const values = literals(v.node.properties![prop]) ?? [];
+      const values = discLits(v.node.properties![prop], v.mc) ?? [];
       for (const x of values) {
         if (seen.has(x)) fail(v.mc, `the discriminator value ${x} of ${name} is used twice`);
         seen.add(x);
       }
-      const vname = v.ref ?? name + values.map(pascal).join('Or');
+      const vname = v.ref ?? name + values.map((x) => pascal(String(x))).join('Or');
       if (!values.length && !v.ref) fail(v.mc, `a variant of ${name} has no discriminator and no name`);
       variants.push({ values, name: vname });
       const disc = { prop, values };
@@ -298,7 +314,8 @@ export function schemaToDart(schema: ProtocolSchema): string {
       const n = defs[name] as JSONSchema7;
       const lits = literals(n) ?? (n.anyOf ?? []).map((m) => literals(m)![0]);
       enumType(lits, { ...c, ptr: '' });
-    } else if (kind === 'other') fail(c, 'a definition with no Dart mapping');
+    } else if (kind === 'list') add({ k: 'typedef', name, ty: typeOf(defs[name], c) }, c);
+    else if (kind === 'other') fail(c, 'a definition with no Dart mapping');
   }
 
   const blocks = [...decls.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)).map(render);
@@ -322,10 +339,13 @@ function renderFeatures(features: Record<string, number>): string {
 }
 
 function render(d: Decl): string {
+  if (d.k === 'typedef') return `typedef ${d.name} = ${dartType(d.ty)};`;
   return d.k === 'enum' ? renderEnum(d) : d.k === 'union' ? renderUnion(d) : renderClass(d);
 }
 
 const q = (s: string) => `'${s.replace(/[\\']/g, '\\$&').replace(/\$/g, '\\$')}'`;
+/** a discriminator value as a Dart constant */
+const lit = (v: Lit) => (typeof v === 'string' ? q(v) : String(v));
 
 // one short line whatever the enum's name, so no formatter version has a reason to wrap it
 const unknownArm = (name: string): string[] => [`    $unknown => _unsendable(${q(name)}),`];
@@ -352,7 +372,7 @@ function renderEnum(d: EnumDecl): string {
 
 function renderUnion(d: UnionDecl): string {
   const lacking = d.variants.filter((v) => !v.values.length);
-  const arms = d.variants.filter((v) => v.values.length).flatMap((v) => arm(6, v.values.map(q).join(' || '), `${v.name}.fromJson(json)`));
+  const arms = d.variants.filter((v) => v.values.length).flatMap((v) => arm(6, v.values.map(lit).join(' || '), `${v.name}.fromJson(json)`));
   return [
     `sealed class ${d.name} implements _Json {`,
     `  const ${d.name}();`,
@@ -395,7 +415,7 @@ function renderClass(d: ClassDecl): string {
     ? [`    return ${d.name}(${argsFlat});`]
     : [`    return ${d.name}(`, ...fields.flatMap((f, i) => lines(argNodes[i], 6, `${f.dart}: `, ',')), '    );'];
   const entries = [
-    ...(single ? [`${q(single.prop)}: ${q(single.values[0])},`] : []),
+    ...(single ? [`${q(single.prop)}: ${lit(single.values[0])},`] : []),
     ...fields.flatMap((f) => {
       const key = q(f.json);
       if (f.required) return lines(toExpr(f.ty, f.dart), 6, `${key}: `, ',').map((l) => l.slice(6));

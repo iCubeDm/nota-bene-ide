@@ -1687,5 +1687,159 @@
       "t": "windows",
       "windows": []
     }
-  ]
+  ],
+  "answers": {
+    "VcsDiff": [
+      {
+        "repo": false
+      },
+      {
+        "repo": true,
+        "branch": "feature",
+        "live": true,
+        "base": "main",
+        "detected": "main",
+        "how": "reflog",
+        "uncommitted": false,
+        "unrelated": false,
+        "mergeBase": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "commits": [
+          {
+            "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "subject": "Add the thing"
+          }
+        ],
+        "commitCount": 1,
+        "candidates": [
+          "main"
+        ],
+        "files": [
+          {
+            "path": "lib/a.ts",
+            "status": "M",
+            "add": 3,
+            "del": 2,
+            "binary": false
+          },
+          {
+            "path": "logo.png",
+            "status": "A",
+            "add": null,
+            "del": null,
+            "binary": true
+          },
+          {
+            "path": "src/new.ts",
+            "old": "src/old.ts",
+            "status": "R",
+            "add": 0,
+            "del": 0,
+            "binary": false
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "repo": true,
+        "branch": null,
+        "live": true,
+        "base": null,
+        "detected": null,
+        "how": "none",
+        "uncommitted": true,
+        "unrelated": false,
+        "mergeBase": null,
+        "commits": [],
+        "commitCount": 0,
+        "candidates": [],
+        "files": [],
+        "truncated": false
+      }
+    ],
+    "VcsPatch": [
+      {
+        "patch": "@@ -1 +1 @@\n-old\n+new\n",
+        "truncated": false
+      }
+    ],
+    "VcsLog": [
+      {
+        "repo": true,
+        "commits": [
+          {
+            "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "parents": [
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            ],
+            "author": "Dev",
+            "at": 1700000000,
+            "subject": "Add the thing",
+            "refs": [
+              "HEAD -> feature"
+            ]
+          }
+        ],
+        "tip": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "more": false
+      },
+      {
+        "repo": false,
+        "commits": [],
+        "tip": null,
+        "more": false
+      }
+    ],
+    "VcsCommitDetail": [
+      {
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "author": "Dev",
+        "at": 1700000000,
+        "message": "Add the thing\n\nWith a body.",
+        "files": [
+          {
+            "path": "lib/a.ts",
+            "status": "M",
+            "add": 3,
+            "del": 2,
+            "binary": false
+          }
+        ],
+        "truncated": false
+      }
+    ],
+    "GitSwitchAnswer": [
+      {
+        "branch": "main"
+      },
+      {
+        "error": "busy"
+      },
+      {
+        "error": "git",
+        "detail": "error: Your local changes would be overwritten"
+      }
+    ],
+    "TreeEntry": [
+      {
+        "name": "src",
+        "dir": true
+      },
+      {
+        "name": "README.md",
+        "dir": false
+      }
+    ],
+    "CompleteAnswer": [
+      [
+        "src/",
+        "src/a.ts"
+      ],
+      []
+    ],
+    "ProjectIconAnswer": [
+      {
+        "icon": "0123456789abcdef"
+      }
+    ]
+  }
 }

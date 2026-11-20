@@ -45,6 +45,34 @@ it('a union with one variant lacking the discriminator', () => {
   expect(dart).toContain("'media' => MediaAnchor.fromJson(json),");
 });
 
+it('a union told apart by a boolean', () => {
+  const dart = schemaToDart(schema({
+    Diff: { anyOf: [{ $ref: '#/definitions/NoRepo' }, { $ref: '#/definitions/RepoDiff' }] },
+    NoRepo: obj({ repo: { type: 'boolean', const: false } }, ['repo']),
+    RepoDiff: obj({ repo: { type: 'boolean', const: true }, n: { type: 'number' } }, ['repo', 'n']),
+  }));
+  expect(dart).toContain('final class NoRepo extends Diff');
+  expect(dart).toContain('false => NoRepo.fromJson(json),');
+  expect(dart).toContain('true => RepoDiff.fromJson(json),');
+  expect(dart).toContain("return {'repo': false};");
+});
+
+it('a union told apart by an enum one variant lacks', () => {
+  const dart = schemaToDart(schema({
+    Answer: { anyOf: [{ $ref: '#/definitions/Done' }, { $ref: '#/definitions/Refusal' }] },
+    Done: obj({ branch: { type: 'string' } }, ['branch']),
+    Refusal: obj({ error: { $ref: '#/definitions/Why' }, detail: { type: 'string' } }, ['error']),
+    Why: { type: 'string', enum: ['busy', 'git'] },
+  }));
+  expect(dart).toContain("if (!json.containsKey('error')) return Done.fromJson(json);");
+  expect(dart).toContain("'busy' || 'git' => Refusal.fromJson(json),");
+  expect(dart).toContain('final Why error;');
+});
+
+it('a list answer as a typedef', () => {
+  expect(schemaToDart(schema({ Hits: { type: 'array', items: { type: 'string' } } }))).toContain('typedef Hits = List<String>;');
+});
+
 it('an enum with $unknown', () => {
   const dart = schemaToDart(schema({
     Mode: { anyOf: [lit('a-b'), lit('c'), lit('#ff3b30'), lit('image/png')] },
@@ -112,6 +140,9 @@ it('the real schema converts', () => {
   expect(dart).toContain('final class TextAnchor extends Anchor');
   expect(dart).toContain('final class MediaShapeRectOrEllipse extends MediaShape');
   expect(dart).toContain('enum AgentMode');
+  expect(dart).toContain('sealed class VcsDiff');
+  expect(dart).toContain('final class GitSwitchRefusal extends GitSwitchAnswer');
+  expect(dart).toContain('typedef CompleteAnswer = List<String>;');
   expect(schemaToDart(buildSchema())).toBe(dart);
 }, 60_000);
 

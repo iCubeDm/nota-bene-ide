@@ -1,6 +1,14 @@
 // The Files pane's Changes and Log tabs: the working tree's changed files, and the branch's commits with each
 // commit's files. A file opens its diff full screen (`DiffScreen`).
 import 'package:flutter/material.dart';
+import 'package:nb_protocol/nb_protocol.dart'
+    show
+        VcsCommit,
+        VcsCommitDetail,
+        VcsFile,
+        VcsFileStatus,
+        VcsPatch,
+        VcsRepoDiff;
 
 import '../chat/window_tab.dart';
 import '../comments/strings.g.dart';
@@ -12,18 +20,18 @@ import 'git.dart';
 import 'remote.dart';
 import 'text_file_screen.dart' show ErrorRetry;
 
-Color statusColor(NbColors c, String status) => switch (status) {
-  'A' => c.success,
-  'D' => c.destructive,
-  'R' => c.link,
+Color statusColor(NbColors c, VcsFileStatus status) => switch (status) {
+  VcsFileStatus.a => c.success,
+  VcsFileStatus.d => c.destructive,
+  VcsFileStatus.r => c.link,
   _ => c.accent,
 };
 
 void openDiff(
   BuildContext context,
   WindowTab tab,
-  GitFile file,
-  Future<Patch> Function() load, {
+  VcsFile file,
+  Future<VcsPatch> Function() load, {
   String? ref,
 }) => Navigator.of(context, rootNavigator: true).push(
   MaterialPageRoute<void>(
@@ -34,7 +42,7 @@ void openDiff(
 /// A file row: its status letter, name over folder, and the lines added and removed.
 class GitFileRow extends StatelessWidget {
   const GitFileRow({super.key, required this.file, required this.onTap});
-  final GitFile file;
+  final VcsFile file;
   final VoidCallback onTap;
 
   @override
@@ -49,7 +57,7 @@ class GitFileRow extends StatelessWidget {
       leading: SizedBox(
         width: 16,
         child: Text(
-          file.status,
+          file.letter,
           textAlign: TextAlign.center,
           style: TextStyle(
             fontFamily: 'monospace',
@@ -104,7 +112,7 @@ class ChangesPage extends StatefulWidget {
 }
 
 class _ChangesPageState extends State<ChangesPage> {
-  Changes? _changes;
+  VcsRepoDiff? _changes;
   bool _loaded = false;
   FilesError? _error;
   int _turn = -1;
@@ -133,7 +141,7 @@ class _ChangesPageState extends State<ChangesPage> {
 
   Future<void> _load({bool quiet = false}) async {
     if (!quiet) setState(() => _error = null);
-    Changes? changes;
+    VcsRepoDiff? changes;
     FilesError? error;
     try {
       changes = await fetchChanges(widget.tab);
@@ -216,8 +224,8 @@ class _ChangesPageState extends State<ChangesPage> {
   }
 }
 
-String when(BuildContext context, int seconds) {
-  final d = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+String when(BuildContext context, num seconds) {
+  final d = DateTime.fromMillisecondsSinceEpoch((seconds * 1000).toInt());
   return '${MaterialLocalizations.of(context).formatShortDate(d)} '
       '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(d), alwaysUse24HourFormat: true)}';
 }
@@ -231,7 +239,7 @@ class LogPage extends StatefulWidget {
 }
 
 class _LogPageState extends State<LogPage> {
-  List<GitCommit>? _commits;
+  List<VcsCommit>? _commits;
   bool _more = false;
   FilesError? _error;
   int _turn = -1;
@@ -258,7 +266,7 @@ class _LogPageState extends State<LogPage> {
   }
 
   Future<void> _load() async {
-    List<GitCommit>? commits;
+    List<VcsCommit>? commits;
     bool more = false;
     FilesError? error;
     try {
@@ -361,14 +369,14 @@ class _LogPageState extends State<LogPage> {
 class CommitPage extends StatefulWidget {
   const CommitPage({super.key, required this.tab, required this.commit});
   final WindowTab tab;
-  final GitCommit commit;
+  final VcsCommit commit;
 
   @override
   State<CommitPage> createState() => _CommitPageState();
 }
 
 class _CommitPageState extends State<CommitPage> {
-  CommitDetail? _detail;
+  VcsCommitDetail? _detail;
   FilesError? _error;
 
   @override
@@ -379,7 +387,7 @@ class _CommitPageState extends State<CommitPage> {
 
   Future<void> _load() async {
     setState(() => _error = null);
-    CommitDetail? detail;
+    VcsCommitDetail? detail;
     FilesError? error;
     try {
       detail = await fetchCommit(widget.tab, widget.commit.sha);

@@ -1,7 +1,9 @@
-// The window's file routes the file browser reads: `GET /tree?path=<dir>` (JSON `[{name, dir}]`), `GET /complete?q=`
-// (up to 30 project-relative paths, folders ending in `/`) and `GET /file?path=` (raw bytes, Range supported). All
-// through the window's encrypted channel.
+// The window's file routes the file browser reads: `GET /tree?path=<dir>` (a list of `TreeEntry`), `GET /complete?q=`
+// (`CompleteAnswer`: up to 30 project-relative paths, folders ending in `/`) and `GET /file?path=` (raw bytes, Range
+// supported). All through the window's encrypted channel.
 import 'dart:convert';
+
+import 'package:nb_protocol/nb_protocol.dart' show CompleteAnswer, TreeEntry;
 
 import '../chat/window_tab.dart';
 import 'file_screen.dart' show fileMaxBytes;
@@ -14,12 +16,6 @@ class FilesError implements Exception {
   bool get missing => status == 404;
   @override
   String toString() => 'FilesError($status)';
-}
-
-class TreeEntry {
-  const TreeEntry(this.name, this.dir);
-  final String name;
-  final bool dir;
 }
 
 /// Folders first, then files, each by name without regard to case.
@@ -48,22 +44,15 @@ Future<dynamic> getJson(WindowTab tab, String path) async {
 /// The entries of project folder [dir] (relative; '' is the root).
 Future<List<TreeEntry>> fetchTree(WindowTab tab, String dir) async {
   final j = await getJson(tab, '/tree?path=${Uri.encodeQueryComponent(dir)}');
-  if (j is! List) throw FilesError(null);
   return sortEntries([
-    for (final e in j)
-      if (e is Map && e['name'] is String)
-        TreeEntry(e['name'] as String, e['dir'] == true),
+    for (final e in j as List) TreeEntry.fromJson(e as Map<String, Object?>),
   ]);
 }
 
 /// The host's fuzzy search: paths relative to the project, a folder with a trailing `/`.
-Future<List<String>> completeFiles(WindowTab tab, String q) async {
+Future<CompleteAnswer> completeFiles(WindowTab tab, String q) async {
   final j = await getJson(tab, '/complete?q=${Uri.encodeQueryComponent(q)}');
-  if (j is! List) throw FilesError(null);
-  return [
-    for (final p in j)
-      if (p is String) p,
-  ];
+  return List<String>.from(j as List);
 }
 
 /// What reading a file gave.
