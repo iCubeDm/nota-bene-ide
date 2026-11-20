@@ -6,7 +6,8 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { whereOf } from '@/comments/send.ts';
 import { SelectionButton, type PendingSelection } from '@/comments/SelectionButton.tsx';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Feed } from './Feed.tsx';
 
 beforeEach(() => {

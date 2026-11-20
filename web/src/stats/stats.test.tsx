@@ -4,7 +4,8 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { ServerEvent, Stats } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Meters, meterLevel } from './Meters.tsx';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };

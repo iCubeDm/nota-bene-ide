@@ -8,7 +8,8 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { CommentCard } from '@/comments/CommentCard.tsx';
 import { composeBatch } from '@/comments/compose.ts';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Feed } from './Feed.tsx';
 
 // M6-06: user messages, comment cards and batch details are markdown (sanitised); anchors read the rendered text

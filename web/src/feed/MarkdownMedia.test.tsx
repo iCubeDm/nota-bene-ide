@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { describe, expect, it } from 'vitest';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { selectActiveTab } from '@/tabs/slice.ts';
 import { textOf } from '@/anchors/text.ts';
 import { t } from '@/i18n/index.ts';

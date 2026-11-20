@@ -5,7 +5,7 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { Provider } from 'react-redux';
 import { describe, expect, it, vi } from 'vitest';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { selectActiveTab } from '@/tabs/slice.ts';
 import { textOf } from '@/anchors/text.ts';
 import { setLang, t } from '@/i18n/index.ts';

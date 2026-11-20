@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { App } from '@/App.tsx';
 import { activate, closeAll, closeOthers, closeRight, closeTab, fileTabId, openFile, selectTabs } from '@/tabs/slice.ts';
 import type { PipApi } from './mediaController.ts';

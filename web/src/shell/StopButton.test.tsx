@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Header } from './Header.tsx';
 import { Stopped } from './Stopped.tsx';
 import { getToasts, resetToasts } from './toast.ts';

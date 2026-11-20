@@ -1,7 +1,8 @@
 import { act } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PROTOCOL, type ClientMessage, type PromptEntry, type ServerEvent } from '@nota-bene/shared';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { setDraft } from './slice.ts';
 import { sendBatch } from '@/comments/send.ts';
 import { selectPromptItems } from './history.ts';

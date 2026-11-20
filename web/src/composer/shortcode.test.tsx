@@ -6,7 +6,7 @@ import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { loadEmoji } from '@/comments/emoji.ts';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Composer } from './Composer.tsx';
 
 // M6-05: the `:` emoji picker on the composer, next to the `@` picker, the suggestion Tab and the Shift+Tab mode cycle.

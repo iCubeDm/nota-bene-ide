@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { SERVER_RESTART_TIMEOUT_MS } from '@/controls/slice.ts';
 import { Header } from './Header.tsx';
 import { INFO_POLL_MS } from './RestartMenu.tsx';

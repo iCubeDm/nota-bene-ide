@@ -3,7 +3,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Header } from './Header.tsx';
 import { Toasts } from './Toasts.tsx';
 import { resetToasts, toast } from './toast.ts';

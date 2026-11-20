@@ -5,7 +5,7 @@ import { textOf } from '@/anchors/text.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
 import { UserMessage } from '@/feed/UserMessage.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { selectTabs } from '@/tabs/slice.ts';
 import { setTmpDirs } from '@/files/tmpImages.ts';
 import { resetSources, setSources } from '@/files/sources.ts';

@@ -42,6 +42,7 @@ export { scrollRangeIntoView, scrollRectIntoView, revealRangeSideways } from '..
 export { markRefs, markMentions, escapeMentions, refClick, fileOfImage, openMediaFile } from '../refs/refs.ts';
 
 // the store, the feed model and chat
+export { definePlugin, type Plugin, type PluginState } from './plugin.ts';
 export type { FeedItem, FeedState } from '../store/feed.ts';
 export {
   useAppSelector,

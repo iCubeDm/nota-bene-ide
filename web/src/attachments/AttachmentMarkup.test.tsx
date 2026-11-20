@@ -6,7 +6,8 @@ import type { ClientMessage, Comment, MediaShape } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { addShape, selectDraft } from '@/media/markup/slice.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { AttachmentMarkup } from './AttachmentMarkup.tsx';
 
 const prepare = vi.hoisted(() => vi.fn());

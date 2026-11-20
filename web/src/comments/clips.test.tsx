@@ -5,7 +5,8 @@ import type { Comment } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Feed } from '@/feed/Feed.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { resetPlayer } from '@/voice/player.ts';
 import { CommentCard } from './CommentCard.tsx';
 
