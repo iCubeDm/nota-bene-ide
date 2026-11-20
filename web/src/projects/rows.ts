@@ -41,11 +41,13 @@ export function badgeOf(rows: { state: ProjectState; unseen: number; current: bo
   return n > 0 ? n : null;
 }
 
-/** issue 509: a tile's letters from any text: the initials of its first two words, else a lone word's first two characters. */
+/**
+ * issue 509: a tile's letters from any text: the initials of its first two words, else a lone word's first two characters,
+ * else '' (no letters or digits). By code point, marks kept inside a word, uppercased before the cut: at most two.
+ */
 export function initials(text: string): string {
-  const words = text.match(/[\p{L}\p{N}]+/gu) ?? [];
-  const s = words.length > 1 ? words[0]![0]! + words[1]![0]! : (words[0] ?? '?').slice(0, 2);
-  return s.toUpperCase();
+  const words = (text.normalize('NFC').match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu) ?? []).map((w) => [...w.toUpperCase()]);
+  return (words.length > 1 ? [words[0]![0], words[1]![0]] : (words[0] ?? []).slice(0, 2)).join('');
 }
 
 /** A row's session title: this window's own when it has one, else the first window's with one. */

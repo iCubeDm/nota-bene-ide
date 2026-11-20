@@ -98,6 +98,12 @@ it('issue 509: a tile shows its session title\'s initials, and its tooltip leads
   expect(tile('/w/gone').getAttribute('aria-label')).toMatch(/^gone · omp/);
 });
 
+it('issue 509: a title with no letters or digits leaves the folder\'s letters', async () => {
+  projects = () => Response.json({ ...LIST, running: LIST.running.map((r) => (r.root === '/w/Blog' ? { ...r, title: '🚀' } : r)) });
+  await setup();
+  expect(tile('/w/Blog')).toHaveTextContent(/^BL/);
+});
+
 it('this project is highlighted and a click on it goes nowhere; another moves there to its live window', async () => {
   await setup();
   expect(tile('/w/notes')).toHaveAttribute('aria-current', 'true');

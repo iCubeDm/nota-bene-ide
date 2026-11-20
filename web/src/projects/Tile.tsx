@@ -25,7 +25,7 @@ export function Tile({ root, title, state, remote, ring = 'border-popover' }: { 
   for (const c of root) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return (
     <span aria-hidden className={`relative flex size-8 flex-none items-center justify-center rounded-lg text-[0.6875rem] font-bold ${TILES[h % TILES.length]}`}>
-      {initials(title || folderOf(root))}
+      {initials(title ?? '') || initials(folderOf(root)) || '?'}
       {state && <span className={`absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 ${ring} ${DOT[state]}`} />}
       {remote && <span data-remote className={`absolute -bottom-1 -left-1 rounded-sm p-px text-muted-foreground ${ring === 'border-chrome' ? 'bg-chrome' : 'bg-popover'}`}><Svg size={10}>{ICONS.laptop}</Svg></span>}
     </span>

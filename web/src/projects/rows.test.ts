@@ -61,8 +61,15 @@ it('issue 509: a tile\'s letters: the first two words\' initials, else a word\'s
   expect(initials('v2 — release, 3.1')).toBe('VR');
   expect(initials('42')).toBe('42');
   expect(initials('x')).toBe('X');
-  expect(initials('— … !')).toBe('?');
-  expect(initials('')).toBe('?');
+  expect(initials('— … !')).toBe('');
+  expect(initials('')).toBe('');
+  // by code point, not UTF-16 unit; marks stay inside a word; uppercased before the cut, so never more than two
+  expect(initials('𠀀 𠀁')).toBe('𠀀𠀁');
+  expect(initials('𝐀bc')).toBe('𝐀B');
+  expect(initials('हिंदी परीक्षण')).toBe('हप');
+  expect(initials('e\u0301cole normale')).toBe('ÉN');
+  expect(initials('ﬁx it')).toBe('FI');
+  expect(initials('ﬁx')).toBe('FI');
 });
 
 it('issue 509: a row\'s title: this window\'s own, else the first window with one, else none', () => {
