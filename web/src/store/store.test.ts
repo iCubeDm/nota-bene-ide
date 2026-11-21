@@ -134,9 +134,20 @@ it('hello.lang sets the UI language; a hello without it leaves the local choice'
   setLang('en');
 });
 
-it('the appended middleware keep the order of before issue 511: toast, each plugin\'s in PLUGINS order, media last', () => {
+it('the appended middleware: the core\'s toast, each plugin\'s in PLUGINS order (compactTiming, now feed\'s, after composer\'s), media last', () => {
   const media: Middleware = () => (next) => next;
   expect(middlewareOf(PLUGINS, media)).toEqual([toastMiddleware, refusedMiddleware, historyMiddleware, compactTimingMiddleware, media]);
+});
+
+it('the listener middleware is prepended: its listeners run after every appended middleware has passed the action on', () => {
+  const seen: string[] = [];
+  const probe: Plugin = {
+    id: 'probe',
+    middleware: [() => (next) => (a) => { const r = next(a); if ((a as { type: string }).type === 'probe') seen.push('middleware'); return r; }],
+    listeners: (start) => void start({ predicate: (a) => a.type === 'probe', effect: () => void seen.push('listener') }),
+  };
+  coreStore({ url: 'u', connect: fake().connect, plugins: [probe] }).dispatch({ type: 'probe' });
+  expect(seen).toEqual(['middleware', 'listener']);
 });
 
 it('listeners run core first, then each plugin\'s in plugins order: a plugin sees the new root\'s tabs already restored', () => {

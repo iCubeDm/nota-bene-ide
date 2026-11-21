@@ -48,7 +48,6 @@ export {
   useAppSelector,
   useAppDispatch,
   useMedia,
-  usePlugins,
   serverEvent,
   connState,
   selectConn,

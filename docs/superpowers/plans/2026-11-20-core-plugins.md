@@ -200,9 +200,9 @@ run in parallel with 5–11.
 - **Goal:** the remaining wiring in the store and persist moves to its owners.
 - **Files:** `store/store.ts` (`toastMiddleware`, `compactTimingMiddleware`, `refusedMiddleware`, `historyMiddleware`,
   `controlsListener`, the `flushComments` wiring move to their plugins), `store/persist.ts` (listener host; the
-  root-change listener dispatches `enterRoot({ root, first })` only), `tabs/slice.ts:76` (restores its own tabs in a
-  core listener), `files` (tree dirs, recent, sources reload, ref cache in its listener), `shell/pagePause.ts` (AND of
-  `Plugin.pause`).
+  root-change listener dispatches `enterRoot({ root, first, tabs })`: the core tabs ride in the action, so the media
+  middleware sees one tab switch), `files` (tree dirs, recent, sources reload, ref cache in its listener),
+  `shell/pagePause.ts` (AND of `Plugin.pause`).
 - **Produces:** `Plugin.middleware`, `Plugin.listeners`, `Plugin.pause`; the documented listener order (core first,
   then `PLUGINS` order).
 - **Tests:** `store.test.ts` (middleware order as today: controlsListener, persist prepended; toast … media appended);
