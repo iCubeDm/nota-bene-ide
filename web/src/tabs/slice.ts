@@ -2,11 +2,11 @@ import { createAction, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import { TASK_ID, TOOL_USE_ID } from '@nota-bene/shared';
 import type { RootState } from '../store/store.ts';
 import { json, storage } from '../sdk/storage.ts';
-import type { DiagramLang } from '../diagram/render.ts';
-import { sha1 } from '../diagram/sha1.ts';
+import { sha1 } from '../lib/sha1.ts';
 
 /** `src`: the stable source id ('here', 'ref:<branch>', 'dir:<hash>'); `ref`: its branch, only when it is not 'here' (M3-16). */
 export type FileTab = { id: `file:${string}`; kind: 'file'; path: string; src: string; ref?: string };
+export type DiagramLang = 'mermaid' | 'svg';
 /** One rendered diagram (M7-01, R-M7-12): it holds its source, so it survives a reload and needs no file. */
 export type DiagramTab = { id: `diagram:${string}`; kind: 'diagram'; source: string; lang: DiagramLang; title: string };
 /**
@@ -23,7 +23,20 @@ export type ShellTab = { id: `shell:${string}`; kind: 'shell'; task: string; tit
 const VIEWS = ['settings', 'usage', 'remote', 'changes', 'log'] as const;
 export type View = (typeof VIEWS)[number];
 export type ViewTab = { [K in View]: { id: K; kind: K } }[View];
-export type Tab = { id: 'chat'; kind: 'chat' } | ViewTab | FileTab | DiagramTab | AgentTab | ShellTab;
+/**
+ * Every tab kind, by its `kind` (issue 511). The data lives in the core, because the tabs' actions open them from
+ * several plugins (the feed opens agent and diagram tabs, the header Settings); how a kind looks and what it shows is a
+ * plugin's `TabView`. A plugin's own new kind is added by declaration merging, as `PluginState` is.
+ */
+export interface TabKinds extends ViewTabs {
+  chat: { id: 'chat'; kind: 'chat' };
+  file: FileTab;
+  diagram: DiagramTab;
+  agent: AgentTab;
+  shell: ShellTab;
+}
+type ViewTabs = { [K in View]: { id: K; kind: K } };
+export type Tab = TabKinds[keyof TabKinds];
 /**
  * open[0] is always the chat. `root`: the project the file tabs belong to (null until the first session event).
  * `rootGen`: bumped on every root change after the first, so views keyed by it remount (the same path in another root

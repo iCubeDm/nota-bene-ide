@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { RemoteDevice, RemoteHost, RemoteHostState, RemoteRefusalCode } from '@nota-bene/shared';
-import { getLang, t, useT, useAppDispatch, useAppSelector } from '@/sdk';
-import { Button } from '@/sdk/ui';
+import { getLang, t, useT, useAppDispatch, useAppSelector, type TabView } from '@/sdk';
+import { Button, ViewPane } from '@/sdk/ui';
 import { cancelPair, connectComputer, forgetComputer, RemoteError, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
 import { clearPair, indicator, selectRemote } from './slice.ts';
 import { TONE, troubleWhy, WORD } from './RemoteMenu.tsx';
@@ -375,3 +375,10 @@ export function RemoteView() {
     </div>
   );
 }
+
+/** The Remote tab: one per window; it stays mounted across a root change. */
+export const remoteTab: TabView<'remote'> = {
+  kind: 'remote',
+  label: (_tab, tr) => tr('remote'),
+  render: ({ active }) => <ViewPane kind="remote" active={active}><RemoteView /></ViewPane>,
+};

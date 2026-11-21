@@ -3,15 +3,17 @@ import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { has, isCutAnchor, isMediaAnchor, isPageAnchor } from '@nota-bene/shared';
 import { isCutPath } from '@nota-bene/shared/cut';
 import { CutBody } from '@/cut/CutBody.tsx';
-import { editable as isEditable, revealRangeSideways, scrollRangeIntoView, rangeForAnchor, useT, withKey, useAppDispatch, useAppSelector } from '@/sdk';
+import { editable as isEditable, revealRangeSideways, scrollRangeIntoView, rangeForAnchor, useT, withKey, useAppDispatch, useAppSelector, type TabView } from '@/sdk';
 import { flashRange } from '@/comments/HighlightLayer.tsx';
-import { selectComments } from '@/comments/slice.ts';
+import { selectComments, selectPendingCountByPath } from '@/comments/slice.ts';
 import { seekAndPause } from '@/media/mediaController.ts';
 import { selectDraft } from '@/media/markup/slice.ts';
 import { fileTabId } from '@/tabs/slice.ts';
 import { fileUrl, HTML, kindOf } from './kinds.ts';
 import { tmpImageUrl, isTmpTabPath } from './tmpImages.ts';
-import { isFixed, sourcesKnown, useSources } from './sources.ts';
+import { fileKey, isFixed, sourcesKnown, useSources } from './sources.ts';
+import { FileIcon } from './FileIcon.tsx';
+import { selectFileLabels } from './fileLabels.ts';
 import { SourceChip } from './SourcePicker.tsx';
 import { clearJump, selectJump } from './slice.ts';
 import { HIGHLIGHT_MAX } from './view/CodeText.tsx';
@@ -23,6 +25,30 @@ import { useFileLoad } from './view/useFileLoad.ts';
 import { useTmpImage } from './view/useTmpImage.ts';
 import { useWrapLines, wrapLines } from './wrap.ts';
 import { useMediaMarkup } from './view/useMediaMarkup.ts';
+
+const basename = (p: string) => p.split('/').pop() || p;
+const dirOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+
+/** Its pending comments' count, on its tab. */
+function FileBadge({ path, fileRef }: { path: string; fileRef?: string }) {
+  const n = useAppSelector((s) => selectPendingCountByPath(s)[fileKey(path, fileRef)] ?? 0);
+  return n > 0 ? <span data-badge className="rounded-full bg-nb-accent/[.18] px-1.5 text-[0.625rem] font-semibold leading-4 text-nb-accent">{n}</span> : null;
+}
+
+/** A file's tab: named as IntelliJ names it (fileLabels), its source's chip, its pending comments; another root, another view. */
+export const fileTab: TabView<'file'> = {
+  kind: 'file',
+  label: (tab, _t, s) => selectFileLabels(s).get(tab.path) ?? basename(tab.path),
+  Icon: ({ tab }) => <FileIcon path={tab.path} />,
+  Extra: ({ tab }) => (
+    <>
+      {tab.ref && <SourceChip name={tab.ref} />}
+      <FileBadge path={tab.path} fileRef={tab.ref} />
+    </>
+  ),
+  detail: (tab) => `${dirOf(tab.path)}${tab.ref ? ` @ ${tab.ref}` : ''}`,
+  render: ({ tab, active, rootGen }) => <FileView key={rootGen} path={tab.path} src={tab.src} refName={tab.ref} active={active} />,
+};
 
 const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 

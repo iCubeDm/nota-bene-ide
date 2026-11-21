@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { has, type TaskOutputView } from '@nota-bene/shared';
-import { useT, useAppSelector, connections, byteSize, routes } from '@/sdk';
-import type { ShellTab } from '@/tabs/slice.ts';
+import { useT, useAppSelector, connections, byteSize, routes, type TabKinds, type TabView } from '@/sdk';
 import { plainOutput } from './ansi.ts';
 import { selectTaskControls } from './slice.ts';
 import { StopButton } from './TaskButtons.tsx';
@@ -27,7 +26,7 @@ const byteLength = (s: string) => new TextEncoder().encode(s).length;
  * `running: false` (and one more when the task's end reaches the store first) is the last. A task the server does not know
  * (another session, a restarted server) is said in a line. The view sticks to the bottom only while it is at the bottom.
  */
-export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
+export function ShellView({ tab, active }: { tab: TabKinds['shell']; active: boolean }) {
   const t = useT();
   const { task } = tab;
   const session = useAppSelector((s) => s.feed.session?.id ?? null);
@@ -125,3 +124,11 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
     </div>
   );
 }
+
+/** A shell task's tab: named by the task's description. */
+export const shellTab: TabView<'shell'> = {
+  kind: 'shell',
+  label: (tab, t) => tab.title || t('shellTab'),
+  detail: (_tab, t) => t('shellTab'),
+  render: ({ tab, active, rootGen }) => <ShellView key={rootGen} tab={tab} active={active} />,
+};

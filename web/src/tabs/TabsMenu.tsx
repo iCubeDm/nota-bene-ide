@@ -1,9 +1,10 @@
 import { useRef, useState, type RefObject } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { useT } from '@/i18n/index.ts';
-import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useAppDispatch, useAppSelector, useRegistry } from '@/store/store.ts';
+import { tabView } from '@/sdk/registry.ts';
 import { activate, selectTabs, type Tab } from './slice.ts';
-import { Svg, TabIcon, focusTab, tabLabel } from './TabStrip.tsx';
+import { Svg, TabIcon, focusTab } from './TabStrip.tsx';
 
 /** The ids of the tabs not fully inside the strip's visible width (a 1 px slack for subpixel layouts). */
 export function hiddenTabs(strip: HTMLElement): Set<string> {
@@ -16,18 +17,16 @@ export function hiddenTabs(strip: HTMLElement): Set<string> {
   return out;
 }
 
-const dirOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
-
 /**
  * "▾" at the strip's right end (M6-12, IntelliJ): the hidden tabs first, then every tab, with a filter by path, each
- * labelled as in the strip (`labels`, issue 469). ↑↓ move, Enter opens, Esc closes. The hidden set is read from the layout
+ * labelled as in the strip (`labels` by tab id, issue 469). ↑↓ move, Enter opens, Esc closes. The hidden set is read from the layout
  * when the menu opens.
  */
 export function TabsMenu({ strip, labels }: { strip: RefObject<HTMLElement | null>; labels: Map<string, string> }) {
   const t = useT();
   const d = useAppDispatch();
   const { open: tabs, active } = useAppSelector(selectTabs);
-  const title = useAppSelector((s) => selectSession(s)?.title ?? null);
+  const r = useRegistry();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -35,7 +34,7 @@ export function TabsMenu({ strip, labels }: { strip: RefObject<HTMLElement | nul
   const input = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
-  const label = (tab: Tab) => tabLabel(tab, t, title, labels);
+  const label = (tab: Tab) => labels.get(tab.id) ?? tab.kind;
   const needle = q.trim().toLowerCase();
   const match = (tab: Tab) => !needle || (tab.kind === 'file' ? tab.path : label(tab)).toLowerCase().includes(needle);
   // no query: the hidden ones, then all; a query: every match once
@@ -100,6 +99,7 @@ export function TabsMenu({ strip, labels }: { strip: RefObject<HTMLElement | nul
               {s.name && <div className="px-2 pt-1.5 pb-0.5 text-[0.65625rem] font-semibold tracking-wide text-muted-foreground uppercase">{s.name}</div>}
               {s.items.map((tab) => {
                 const i = ++n;
+                const more = tabView(r, tab)?.detail?.(tab, t);
                 return (
                   <button
                     key={`${s.name}:${tab.id}`}
@@ -116,10 +116,7 @@ export function TabsMenu({ strip, labels }: { strip: RefObject<HTMLElement | nul
                   >
                     <TabIcon tab={tab} />
                     <span className={`truncate ${tab.id === active ? 'font-semibold text-link' : ''}`}>{label(tab)}</span>
-                    {tab.kind === 'diagram' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('diagramTab')}</span>}
-                    {tab.kind === 'shell' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('shellTab')}</span>}
-                    {tab.kind === 'agent' && <span className="min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground">{t('agentTab')}</span>}
-                    {tab.kind === 'file' && <span className="min-w-0 flex-1 truncate text-right font-mono text-[0.65625rem] text-muted-foreground">{dirOf(tab.path)}{tab.ref ? ` @ ${tab.ref}` : ''}</span>}
+                    {more !== undefined && <span className={`min-w-0 flex-1 truncate text-right text-[0.65625rem] text-muted-foreground ${tab.kind === 'file' ? 'font-mono' : ''}`}>{more}</span>}
                   </button>
                 );
               })}

@@ -76,4 +76,5 @@ export const chat = {
 };
 
 // tabs
-export { openFile, activate, closeTab, selectTabs, enterRoot, type Tab } from '../tabs/slice.ts';
+export { openFile, activate, closeTab, selectTabs, enterRoot, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
+export type { TabView } from './registry.ts';

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import type { DiagramTab } from '@/tabs/slice.ts';
+import type { TabKinds, TabView } from '@/sdk';
 import { useTheme } from '@/shell/theme.ts';
 import { renderDiagram, svgSize, type Rendered } from './render.ts';
 import { centered, fitView, zoomAt, type View } from './zoom.ts';
@@ -14,7 +14,7 @@ const typing = (el: EventTarget | null) => el instanceof HTMLElement && (el.isCo
  * toggles fit / 100%, `0` goes back to fit. `free` is the user's own view; null means "fitted" (and follows the pane's size).
  * The drawing comes from the same renderers as the chat's (render.ts), so mermaid is loaded and svg sanitized in one place.
  */
-export function DiagramView({ tab, active }: { tab: DiagramTab; active: boolean }) {
+export function DiagramView({ tab, active }: { tab: TabKinds['diagram']; active: boolean }) {
   const pane = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
   const [rendered, setRendered] = useState<Rendered | null>(null);
@@ -133,3 +133,11 @@ export function DiagramView({ tab, active }: { tab: DiagramTab; active: boolean 
     </div>
   );
 }
+
+/** A diagram's tab: named by its source's first line. */
+export const diagramTab: TabView<'diagram'> = {
+  kind: 'diagram',
+  label: (tab, t) => tab.title || t('diagramTab'),
+  detail: (_tab, t) => t('diagramTab'),
+  render: ({ tab, active, rootGen }) => <DiagramView key={rootGen} tab={tab} active={active} />,
+};
