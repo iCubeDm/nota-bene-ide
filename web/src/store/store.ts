@@ -14,6 +14,7 @@ import { toast } from '../shell/toast.ts';
 import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
 import { buildRegistry, type Registry } from '../sdk/registry.ts';
+import { sendListener, type SentParts } from './send.ts';
 import { CORE_COMMANDS, setCommands } from '../shell/keymap.ts';
 import { learnServerSep } from '../lib/paths.ts';
 import { persistListeners } from './persist.ts';
@@ -56,7 +57,7 @@ export const connSlice = createSlice({
   extraReducers: (b) => b.addCase(connState, (_s, a) => ({ state: a.payload })),
 });
 
-type Extra = { connections: ConnectionManager };
+type Extra = { connections: ConnectionManager; registry: Registry; sent: SentParts };
 
 /** The core's slices; the plugins' are injected by makeStore. */
 const coreReducer = () => combineSlices(feedSlice, connSlice, tabsSlice, jumpSlice).withLazyLoadedSlices<PluginState>();
@@ -148,10 +149,12 @@ export function makeStore(o: {
   // one listener middleware: the core's listeners first, then each plugin's in order (see Plugin.listeners)
   const listeners = createListenerMiddleware<RootState, ThunkDispatch<RootState, Extra, UnknownAction>>();
   persistListeners(listeners.startListening);
+  const sent: SentParts = new Map();
+  sendListener(listeners.startListening, sent);
   for (const p of o.plugins) p.listeners?.(listeners.startListening);
   const store = configureStore({
     reducer: rootReducer(o.plugins),
-    middleware: (gdm) => gdm({ thunk: { extraArgument: { connections } satisfies Extra } }).prepend(listeners.middleware).concat(...middlewareOf(o.plugins, mediaMiddleware(media))),
+    middleware: (gdm) => gdm({ thunk: { extraArgument: { connections, registry: registered, sent } satisfies Extra } }).prepend(listeners.middleware).concat(...middlewareOf(o.plugins, mediaMiddleware(media))),
     devTools: devToolsEnabled(),
   });
   mediaByStore.set(store, media);

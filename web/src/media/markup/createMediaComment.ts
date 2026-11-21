@@ -1,7 +1,8 @@
-import type { AttachmentAnchor, MediaAnchor } from '@nota-bene/shared';
+import type { AttachmentAnchor, Comment, MediaAnchor } from '@nota-bene/shared';
 import { prepareImage, uploadImage } from '@/attachments/image.ts';
 import { t, connections, routes } from '@/sdk';
-import { renderMarks } from './render.ts';
+import { drawShapes, renderMarks, strokeWidth } from './render.ts';
+import { drawBadges } from './badges.ts';
 
 async function putMark(id: string, name: 'frame.jpg' | 'layer.png' | 'mask.png', b: Blob): Promise<void> {
   const type = name === 'frame.jpg' ? 'image/jpeg' : 'image/png';
@@ -101,4 +102,34 @@ export async function prepareAttachmentComment(
   const { frame, scale } = await renderMarks(source, anchor.width, anchor.height, anchor.shapes);
   const f = await uploadImage(await prepareImage(frame));
   return { images: [f.id], anchor: scale < 1 ? { scale } : {} };
+}
+
+/**
+ * One frame for several comments of a send marking it (`AnchorView.composite`), uploaded: the first comment's attached
+ * frame (its shapes drawn) plus the others' shapes, then a numbered badge per comment. Built from the already downscaled
+ * attachment (no reload or video seek; the badges are sized for the final pixels).
+ */
+export async function composite(members: { n: number; comment: Comment }[]): Promise<string> {
+  const ms = members.map(({ n, comment }) => ({ n, a: comment.anchor as MediaAnchor }));
+  const r = await fetch(connections.current().url(routes.attach(members[0].comment.images![0])));
+  if (!r.ok) throw new Error(`attach ${r.status}`);
+  const bmp = await createImageBitmap(await r.blob());
+  try {
+    const c = document.createElement('canvas');
+    c.width = bmp.width;
+    c.height = bmp.height;
+    const ctx = c.getContext('2d');
+    if (!ctx) throw new Error('no 2d canvas');
+    ctx.drawImage(bmp, 0, 0);
+    // the first comment's shapes were drawn at the natural size and shrunk with the upload: the others get the same stroke width
+    const a0 = ms[0].a, nat = a0.scale ?? 1;
+    const lw = Math.max(1, strokeWidth(Math.round(a0.width * nat), Math.round(a0.height * nat)) * (c.width / (a0.width * nat)));
+    for (const m of ms.slice(1)) drawShapes(ctx, m.a.shapes, c.width, c.height, lw);
+    drawBadges(ctx, ms.map((m) => ({ n: m.n, shapes: m.a.shapes })), c.width, c.height);
+    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, 'image/png'));
+    if (!blob) throw new Error('could not encode the image');
+    return (await uploadImage(await prepareImage(blob))).id;
+  } finally {
+    bmp.close();
+  }
 }

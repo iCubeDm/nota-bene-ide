@@ -21,6 +21,7 @@ const prepareMediaComment = vi.fn(async (_id: string, _el: unknown, _a: unknown,
 vi.mock('@/media/markup/createMediaComment.ts', () => ({
   prepareMediaComment: (...a: Parameters<typeof prepareMediaComment>) => prepareMediaComment(...a),
   deleteMarks: vi.fn(async () => {}),
+  composite: vi.fn(),
 }));
 vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg></svg>' })) } }));
 

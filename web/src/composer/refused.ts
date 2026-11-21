@@ -9,7 +9,7 @@ type Slice = { composer: { draft: string; images: unknown[]; unconfirmed: SentDr
 /**
  * The server refused a send (`send-refused`, only to the asking socket, never stored). Put the draft back unless the
  * user has already typed something new (then the toast carries the refused text, so nothing is lost silently); the
- * comments of that send and a recording are given back by their own plugins (issue 511). A middleware: it must read
+ * comments of that send are given back by the send itself, a recording by the voice plugin (issue 511). A middleware: it must read
  * `composer.unconfirmed` before the reducer drops it.
  * (`serverEvent` is read only when an action arrives: this file may load inside the store's import cycle.)
  */

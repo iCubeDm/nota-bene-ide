@@ -1,6 +1,5 @@
 import { has, SHELL_CMD_MAX } from '@nota-bene/shared';
-import { t, toast, byteSize, activate, selectConn, type AppThunk, type RootState } from '@/sdk';
-import { selectPending } from '../comments/slice.ts';
+import { t, toast, byteSize, activate, selectConn, sendWaiting, type AppThunk, type RootState } from '@/sdk';
 import { selectDraft, selectImages, setDraft, shellDraftSent } from './slice.ts';
 
 
@@ -21,15 +20,15 @@ export const selectShellRunning = (s: RootState): string | null => {
 export const commandOf = (draft: string): string => draft.slice(1).trim();
 
 /**
- * Enter on a shell draft. 'blocked' keeps the draft (pending comments or images, a command still running, one too long);
+ * Enter on a shell draft. 'blocked' keeps the draft (comments or images waiting, a command still running, one too long);
  * 'empty' is a bare `!`; 'offline' sends nothing; 'sent' clears the draft and shows the chat, where the block appears.
  * Never a message to the agent: the server runs it, and the agent hears of it with the next message.
  */
-export const runShellDraft = (): AppThunk<'sent' | 'blocked' | 'empty' | 'offline'> => (d, getState, { connections }) => {
+export const runShellDraft = (): AppThunk<'sent' | 'blocked' | 'empty' | 'offline'> => (d, getState, { connections, registry }) => {
   const st = getState();
   const draft = selectDraft(st);
   const cmd = commandOf(draft);
-  if (selectPending(st).length || selectImages(st).length) return (toast(t('shellWithAttachments'), ''), 'blocked');
+  if (sendWaiting(registry, st) || selectImages(st).length) return (toast(t('shellWithAttachments'), ''), 'blocked');
   if (!cmd) return 'empty';
   if (new TextEncoder().encode(cmd).length > SHELL_CMD_MAX) return (toast(t('shellTooLong', byteSize(SHELL_CMD_MAX)), ''), 'blocked');
   if (selectShellRunning(st)) return (toast(t('shellBusy'), ''), 'blocked');

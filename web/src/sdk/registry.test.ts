@@ -127,6 +127,14 @@ it('an anchor kind two plugins show fails the build', () => {
 it('each kind of anchor is shown by its plugin, with what it adds to the comments\' own', () => {
   const parts = (v: object) => Object.keys(v).filter((k) => k !== 'kind').sort().join(' ');
   expect(Object.fromEntries([...buildRegistry(PLUGINS).anchorViews].map(([k, v]) => [k, parts(v)]))).toEqual({
-    attachment: 'Card reveal', cut: 'Card orphan', media: 'Card orphan', page: 'orphan place',
+    attachment: 'Card reveal', cut: 'Card orphan', media: 'Card composite orphan', page: 'orphan place',
   });
+});
+
+// a send takes the composer's draft first, then the comments that ride along (issue 511, step 10d)
+it('a send\'s parts come in today\'s order; one id or one order twice fails the build', () => {
+  expect(buildRegistry(PLUGINS).sendParts.map((p) => `${p.order} ${p.id}`)).toEqual(['10 draft', '30 comments']);
+  const sp = (id: string, order: number): Plugin => ({ id, sendParts: [{ id: 'x', order, take: () => null }] });
+  expect(() => buildRegistry([sp('a', 1), sp('b', 2)])).toThrow('the send part "x" is declared twice');
+  expect(() => buildRegistry([{ ...sp('a', 1), sendParts: [{ id: 'y', order: 1, take: () => null }] }, sp('b', 1)])).toThrow('two send parts at order 1');
 });

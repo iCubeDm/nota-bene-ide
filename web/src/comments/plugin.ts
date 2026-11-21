@@ -5,7 +5,7 @@ import { CommentsToggle } from './CommentsToggle.tsx';
 import { Comments, SelectionComment } from './FrameParts.tsx';
 import { HighlightLayer } from './HighlightLayer.tsx';
 import { CommentCardPopover, SentComments } from './CommentCard.tsx';
-import { refusedListener } from './send.ts';
+import { commentsPart } from './send.ts';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof commentsSlice> {}
@@ -22,6 +22,7 @@ export const commentsPlugin = definePlugin({
     { slot: 'overlay', order: 20, render: CommentCardPopover },
   ],
   userParts: [{ id: 'comments', order: 40, render: SentComments }],
+  sendParts: [commentsPart],
   commands: [{ id: 'hk_comments', codes: ['KeyC'], mods: { mod: true, shift: true }, inFields: true, order: 120,
     run: ({ store }) => void store.dispatch(setPanelOpen(!store.getState().comments.ui.panelOpen)) }],
   listeners: (start) => {
@@ -39,6 +40,5 @@ export const commentsPlugin = definePlugin({
       },
     });
     start({ actionCreator: connState, effect: ({ payload }, api) => void (payload === 'open' && api.dispatch(flushComments())) });
-    refusedListener(start);
   },
 });
