@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { VcsFile } from '@nota-bene/shared';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
 import { refOf } from '@/files/sources.ts';
-import { routes, useT } from '@/sdk';
+import { routes, useT, type TabView } from '@/sdk';
 import { FileDiff, type DiffFile } from './DiffBody.tsx';
 import { parsePatch } from './parse.ts';
 import { currentFile, focusFile, setSplit, usePatch, useVcsUi, type RepoDiff } from './store.ts';
@@ -73,3 +73,10 @@ export function ChangesView({ active }: { active: boolean }) {
     </div>
   );
 }
+
+/** The Changes tab: one per window, another view for another root. */
+export const changesTab: TabView<'changes'> = {
+  kind: 'changes',
+  label: (_tab, t) => t('vcsChanges'),
+  render: ({ active, rootGen }) => <ChangesView key={rootGen} active={active} />,
+};

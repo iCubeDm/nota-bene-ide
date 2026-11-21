@@ -18,4 +18,5 @@ export {
 export { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '../components/ui/context-menu.tsx';
 export { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle } from '../components/ui/dialog.tsx';
 export { ConfirmDialog } from '../components/ConfirmDialog.tsx';
+export { ViewPane } from '../components/ViewPane.tsx';
 export { PanelResizer, usePanelWidth } from '../shell/PanelResizer.tsx';

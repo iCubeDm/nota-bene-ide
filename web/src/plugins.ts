@@ -10,5 +10,9 @@ import { tasksPlugin } from './tasks/plugin.ts';
 import { mediaPlugin } from './media/plugin.ts';
 import { feedPlugin } from './feed/plugin.ts';
 import { subagentPlugin } from './subagent/plugin.ts';
+import { diagramPlugin } from './diagram/plugin.ts';
+import { settingsPlugin } from './settings/plugin.ts';
+import { usagePlugin } from './usage/plugin.ts';
+import { vcsPlugin } from './vcs/plugin.ts';
 
-export const PLUGINS: readonly Plugin[] = [commentsPlugin, composerPlugin, filesPlugin, controlsPlugin, statsPlugin, remotePlugin, tasksPlugin, mediaPlugin, feedPlugin, subagentPlugin];
+export const PLUGINS: readonly Plugin[] = [commentsPlugin, composerPlugin, filesPlugin, controlsPlugin, statsPlugin, remotePlugin, tasksPlugin, mediaPlugin, feedPlugin, subagentPlugin, diagramPlugin, settingsPlugin, usagePlugin, vcsPlugin];

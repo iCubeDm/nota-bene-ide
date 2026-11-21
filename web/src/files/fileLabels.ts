@@ -1,3 +1,6 @@
+import { createSelector } from '@reduxjs/toolkit';
+import type { RootState } from '@/sdk';
+
 /**
  * The file tabs' labels, as IntelliJ IDEA shows them (issue 463): the file's name; when open files share a name, each
  * of them with as many of its parent folders as tell it apart from the others (`src/app.ts`, `lib/app.ts`). The same
@@ -17,3 +20,6 @@ export function fileLabels(paths: readonly string[]): Map<string, string> {
   }
   return out;
 }
+
+/** The open file tabs' labels, by path: computed again only when the open tabs change. */
+export const selectFileLabels = createSelector([(s: RootState) => s.tabs.open], (open) => fileLabels(open.flatMap((t) => (t.kind === 'file' ? [t.path] : []))));

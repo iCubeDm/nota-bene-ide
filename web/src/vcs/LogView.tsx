@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { VcsCommitDetail, VcsLog } from '@nota-bene/shared';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector } from '@/sdk';
+import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector, type TabView } from '@/sdk';
 import { PanelResizer, usePanelWidth } from '@/sdk/ui';
 import { pickSource, selectRefreshSeq, selectTree } from '@/files/treeSlice.ts';
 import { useSources } from '@/files/sources.ts';
@@ -123,3 +123,10 @@ export function LogView({ active }: { active: boolean }) {
     </div>
   );
 }
+
+/** The Log tab: one per window, another view for another root. */
+export const logTab: TabView<'log'> = {
+  kind: 'log',
+  label: (_tab, t) => t('vcsLog'),
+  render: ({ active, rootGen }) => <LogView key={rootGen} active={active} />,
+};

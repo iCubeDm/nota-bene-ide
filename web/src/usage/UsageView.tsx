@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTank, type UsageTaskRow } from '@nota-bene/shared';
-import { useAppSelector, getLang, useT, connections, defineResource, routes, useResource, compact, compactParts, money, num, percent } from '@/sdk';
+import { useAppSelector, getLang, useT, connections, defineResource, routes, useResource, compact, compactParts, money, num, percent, type TabView } from '@/sdk';
+import { ViewPane } from '@/sdk/ui';
 
 const POLL_MS = 2000;
 const usageResource = defineResource<{ provider: UsageProvider; period: UsagePeriod }, UsageReport>({
@@ -394,3 +395,10 @@ export function UsageView({ active }: { active: boolean }) {
     </div>
   );
 }
+
+/** The Usage tab: one per window; it stays mounted across a root change. */
+export const usageTab: TabView<'usage'> = {
+  kind: 'usage',
+  label: (_tab, t) => t('usage'),
+  render: ({ active }) => <ViewPane kind="usage" active={active}><UsageView active={active} /></ViewPane>,
+};

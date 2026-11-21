@@ -1,6 +1,6 @@
 import { dictationLangSet } from '@/controls/slice.ts';
-import { useAppDispatch, useAppSelector, connections, storage as stored, type Sounds, defineResource, routes, useResource, type Resource, type Route, type Snapshot, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome } from '@/sdk';
-import { Button, ConfirmDialog } from '@/sdk/ui';
+import { useAppDispatch, useAppSelector, connections, storage as stored, type Sounds, defineResource, routes, useResource, type Resource, type Route, type Snapshot, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome, type TabView } from '@/sdk';
+import { Button, ConfirmDialog, ViewPane } from '@/sdk/ui';
 import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
 import { langName } from '@/voice/lang.ts';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -401,3 +401,10 @@ export function SettingsView({ active }: { active: boolean }) {
     </div>
   );
 }
+
+/** The Settings tab: one per window; it stays mounted across a root change. */
+export const settingsTab: TabView<'settings'> = {
+  kind: 'settings',
+  label: (_tab, t) => t('settings'),
+  render: ({ active }) => <ViewPane kind="settings" active={active}><SettingsView active={active} /></ViewPane>,
+};

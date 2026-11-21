@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
-import { useT, useAppDispatch, useAppSelector, type AppStore } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView } from '@/sdk';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
 import { Feed } from '@/feed/Feed.tsx';
 import { setAgentTitle, type AgentTab } from '@/tabs/slice.ts';
@@ -92,3 +92,11 @@ export function AgentView({ tab, active }: { tab: AgentTab; active: boolean }) {
     </main>
   );
 }
+
+/** A subagent's tab: named by its Agent call's description. */
+export const agentTab: TabView<'agent'> = {
+  kind: 'agent',
+  label: (tab, t) => tab.title || t('agentTab'),
+  detail: (_tab, t) => t('agentTab'),
+  render: ({ tab, active, rootGen }) => <AgentView key={rootGen} tab={tab} active={active} />,
+};

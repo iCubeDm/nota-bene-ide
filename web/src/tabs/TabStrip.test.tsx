@@ -6,7 +6,7 @@ import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
 import { dismissToast, getToasts } from '@/shell/toast.ts';
 import { App } from '@/App.tsx';
-import { openFile, selectTabs } from './slice.ts';
+import { closeTab, openFile, selectTabs } from './slice.ts';
 
 beforeEach(() => { localStorage.clear(); setLang('en'); });
 afterEach(cleanup);
@@ -221,6 +221,18 @@ it('▾ labels same-name files as the strip does (issue 469)', async () => {
   const list = await screen.findByRole('listbox', { name: 'All tabs' });
   const label = (id: string) => list.querySelector(`[data-tab-item="${id}"] span.truncate`)?.textContent;
   expect([label('file:src/app.ts'), label('file:lib/app.ts'), label('file:docs/c.md')]).toEqual(['src/app.ts', 'lib/app.ts', 'c.md']);
+});
+
+it('▾ names every tab as the strip does, a renamed session and a closed rival included (issue 511: one tabLabel)', async () => {
+  const s = setup(['src/app.ts', 'lib/app.ts']);
+  act(() => void s.dispatch(serverEvent({ kind: 'session', id: 'abcdefgh', root: '/p', title: 'Renamed', model: null })));
+  act(() => void s.dispatch(closeTab('file:lib/app.ts')));
+  const strip = Object.fromEntries(screen.getAllByRole('tab').map((el) => [el.dataset.tab, el.querySelector('span.truncate')?.textContent]));
+  fireEvent.click(screen.getByRole('button', { name: 'All tabs' }));
+  const list = await screen.findByRole('listbox', { name: 'All tabs' });
+  const menu = Object.fromEntries([...list.querySelectorAll<HTMLElement>('[data-tab-item]')].map((el) => [el.dataset.tabItem, el.querySelector('span.truncate')?.textContent]));
+  expect(strip).toEqual({ chat: 'Renamed', 'file:src/app.ts': 'app.ts' });
+  expect(menu).toEqual(strip);
 });
 
 it('the wheel scrolls the strip sideways (M6-12)', () => {

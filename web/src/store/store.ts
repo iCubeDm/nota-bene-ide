@@ -12,6 +12,7 @@ import { toast } from '../shell/toast.ts';
 import { TOOL_SRC } from '../feed/uiSlice.ts';
 import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
+import { buildRegistry, type Registry } from '../sdk/registry.ts';
 import { learnServerSep } from '../lib/paths.ts';
 import { persistListeners } from './persist.ts';
 import { emptyFeed, historyPrepended, prependHistory, reduce, type FeedState } from './feed.ts';
@@ -79,6 +80,7 @@ export const devToolsEnabled = (): boolean => import.meta.env.DEV;
 
 const mediaByStore = new WeakMap<object, MediaController>();
 const pluginsByStore = new WeakMap<object, readonly Plugin[]>();
+const registryByStore = new WeakMap<object, Registry>();
 
 /**
  * The middleware appended after the defaults, in order (behavior: each sees an action before the ones after it): the
@@ -127,6 +129,8 @@ export function makeStore(o: {
   connect?: Connect;
   pip?: PipApi;
 }) {
+  // first: a contribution claimed twice fails here, before anything is made
+  const registered = buildRegistry(o.plugins);
   const conns: AgentConnection[] = [];
   const connections = connectionManager(() => conns);
   // one media controller per store; it holds DOM elements, so it lives here and not in state (components reach it via useMedia)
@@ -150,6 +154,7 @@ export function makeStore(o: {
   });
   mediaByStore.set(store, media);
   pluginsByStore.set(store, o.plugins);
+  registryByStore.set(store, registered);
   bindConnections(store, connections);
   const self = agentConnection({
     id: SELF,
@@ -180,6 +185,9 @@ export const useAppDispatch: () => AppDispatch = useDispatch;
 export const useMedia = (): MediaController => mediaByStore.get(useStore())!;
 /** The plugins the store was made with, in order. */
 export const usePlugins = (): readonly Plugin[] => pluginsByStore.get(useStore())!;
+/** What the store's plugins contribute (see buildRegistry). */
+export const registry = (store: object): Registry => registryByStore.get(store)!;
+export const useRegistry = (): Registry => registry(useStore());
 
 export const selectFeed = (s: RootState): FeedState => s.feed;
 export const selectBusy = (s: RootState): boolean => s.feed.busy;

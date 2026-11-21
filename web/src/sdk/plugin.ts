@@ -1,5 +1,6 @@
 import type { Middleware, Slice } from '@reduxjs/toolkit';
 import type { RootState, StartListening } from '../store/store.ts';
+import type { AnyTabView } from './registry.ts';
 
 /**
  * The plugins' part of the store's state. Empty here: each plugin's `plugin.ts` adds its slices by declaration merging
@@ -26,6 +27,8 @@ export interface Plugin {
   listeners?: (start: StartListening) => void;
   /** false while the plugin holds the page busy: the page's pause (`shell/pagePause.ts`) is the AND of these */
   pause?: (s: RootState, o: { draft: boolean }) => boolean;
+  /** how its tab kinds look and what they show; a kind is declared by one plugin only */
+  tabs?: AnyTabView[];
 }
 
 export const definePlugin = (p: Plugin): Plugin => p;
